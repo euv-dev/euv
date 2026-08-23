@@ -28,6 +28,15 @@ pub(crate) const ATTR_KEY_CLASS: &str = "class";
 /// Attribute key name for inline style bindings.
 pub(crate) const ATTR_KEY_STYLE: &str = "style";
 
+/// Attribute key name for the raw HTML fragment binding
+/// (`html! { div { inner_html: "<svg/>" } }`). Triggers
+/// `AttributeValue::InnerHtml(...)` instead of `Text` so the renderer
+/// routes the value through `Element::set_inner_html` rather than
+/// `set_attribute`, which is what makes `<script>` tags inside the
+/// payload actually execute (matching React's
+/// `dangerouslySetInnerHTML` semantics).
+pub(crate) const ATTR_KEY_INNER_HTML: &str = "inner_html";
+
 /// Attribute key name for children slot bindings.
 pub(crate) const ATTR_KEY_CHILDREN: &str = "children";
 

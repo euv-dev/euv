@@ -357,6 +357,22 @@ impl<T> AttrValueAdapter<T> {
     }
 }
 
+/// Constructs an `InnerHtmlAdapter` that wraps an `inner_html:` payload.
+impl<T> InnerHtmlAdapter<T> {
+    /// Returns the inner wrapped value, consuming the adapter.
+    ///
+    /// Mirrors [`AttrValueAdapter::into_inner`] so the html! macro can
+    /// use the same "wrap-then-into-inner" pattern for both adapter
+    /// kinds without diverging call sites.
+    ///
+    /// # Returns
+    ///
+    /// - `T` - The inner value.
+    pub(crate) fn into_inner(self) -> T {
+        self.inner
+    }
+}
+
 /// Adapts a `FnMut(Event)` closure into a callback `AttributeValue`.
 ///
 /// This handles the case where a closure is used as a component callback prop.
@@ -473,5 +489,46 @@ where
     /// - `AttributeValue` - The reactive attribute value.
     fn from(adapter: AttrValueAdapter<T>) -> Self {
         adapter.into_inner().into()
+    }
+}
+
+/// Adapts an `inner_html:` payload into the matching `AttributeValue`
+/// variant, routing through `set_inner_html` instead of the generic
+/// `Text` attribute path.
+///
+/// The two blanket impls below cover the user-visible call sites:
+///
+/// - `inner_html: "<b>hi</b>"` produces
+///   `AttributeValue::InnerHtml(String::from("<b>hi</b>"))`.
+/// - `inner_html: html_signal` produces
+///   `AttributeValue::InnerHtmlSignal(html_signal)`.
+///
+/// Each impl only requires its specific source type, so the compiler
+/// picks the right one based on the inferred `T` at the call site
+/// (no manual `.into()` annotation needed).
+impl From<InnerHtmlAdapter<String>> for AttributeValue {
+    /// Wraps the static `String` payload in an
+    /// `AttributeValue::InnerHtml` variant so the renderer can call
+    /// `Element::set_inner_html` on it.
+    fn from(adapter: InnerHtmlAdapter<String>) -> Self {
+        AttributeValue::InnerHtml(adapter.into_inner())
+    }
+}
+
+impl From<InnerHtmlAdapter<&str>> for AttributeValue {
+    /// Wraps the static `&str` payload by allocating a new `String`
+    /// so the renderer owns the data independently of the caller's
+    /// borrow lifetime.
+    fn from(adapter: InnerHtmlAdapter<&str>) -> Self {
+        AttributeValue::InnerHtml(adapter.into_inner().to_owned())
+    }
+}
+
+impl From<InnerHtmlAdapter<Signal<String>>> for AttributeValue {
+    /// Wraps the reactive payload in an `AttributeValue::InnerHtmlSignal`
+    /// so the renderer subscribes to the signal and re-applies
+    /// `set_inner_html` on every change.
+    fn from(adapter: InnerHtmlAdapter<Signal<String>>) -> Self {
+        AttributeValue::InnerHtmlSignal(adapter.into_inner())
     }
 }

@@ -284,6 +284,26 @@ impl Renderer {
                                     .set_attribute_or_property(new_attr.get_name(), css.get_name());
                             }
                             AttributeValue::Event(_) => unreachable!(),
+                            AttributeValue::InnerHtml(html) => {
+                                // Re-render path: a `inner_html:` attribute
+                                // that the user re-supplied on a later
+                                // patch must still take effect (e.g. when
+                                // a parent state change swaps a static
+                                // payload). The reactive variant below
+                                // handles signal-driven updates; this arm
+                                // covers the static replacement case.
+                                element.set_inner_html(html);
+                            }
+                            AttributeValue::InnerHtmlSignal(signal) => {
+                                // Same as mount path: apply current
+                                // value. (The mount-time subscription
+                                // already keeps this fresh on signal
+                                // changes; this arm only fires if a
+                                // patch introduces the attribute for
+                                // the first time after mount.)
+                                let value: String = signal.get();
+                                element.set_inner_html(&value);
+                            }
                         }
                     }
                 }
@@ -573,9 +593,25 @@ impl Renderer {
                         return self.create_dom_with_doc(&unwrapped, document);
                     }
                 };
-                for child in children {
-                    let child_node: Node = self.create_dom_with_doc(child, document);
-                    let _: Result<Node, JsValue> = element.append_child(&child_node);
+                // Detect `inner_html:` usage before mounting children so
+                // we can skip them — `inner_html` replaces all children
+                // wholesale, matching React's `dangerouslySetInnerHTML`
+                // semantics. Re-evaluated per element instance because
+                // the attribute list is local to this call.
+                let inner_html_payload: Option<String> =
+                    attributes
+                        .iter()
+                        .find_map(|attr: &AttributeEntry| match attr.get_value() {
+                            AttributeValue::InnerHtml(html) => Some(html.clone()),
+                            _ => None,
+                        });
+                if let Some(html) = inner_html_payload.as_deref() {
+                    element.set_inner_html(html);
+                } else {
+                    for child in children {
+                        let child_node: Node = self.create_dom_with_doc(child, document);
+                        let _: Result<Node, JsValue> = element.append_child(&child_node);
+                    }
                 }
                 for attr in attributes {
                     match attr.get_value() {
@@ -614,6 +650,30 @@ impl Renderer {
                         AttributeValue::Css(css) => {
                             css.inject_style();
                             element.set_attribute_or_property(attr.get_name(), css.get_name());
+                        }
+                        AttributeValue::InnerHtml(_) => {
+                            // Already applied above before the children
+                            // loop ran; nothing more to do here.
+                        }
+                        AttributeValue::InnerHtmlSignal(signal) => {
+                            // Reactive form: apply initial value, then
+                            // re-apply on every signal change. We bypass
+                            // the generic bridge-signal pattern used for
+                            // ordinary `Signal` attributes because the
+                            // value is consumed via `set_inner_html`,
+                            // not `set_attribute_or_property`.
+                            let signal: Signal<String> = *signal;
+                            let initial_value: String = signal.get();
+                            element.set_inner_html(&initial_value);
+                            element.track_signal_addr(signal.get_inner());
+                            let element_clone: Element = element.clone();
+                            signal.subscribe(move || {
+                                if !Renderer::is_node_connected(&element_clone) {
+                                    return;
+                                }
+                                let new_value: String = signal.get();
+                                element_clone.set_inner_html(&new_value);
+                            });
                         }
                     }
                 }

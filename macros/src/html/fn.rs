@@ -1692,6 +1692,14 @@ pub(crate) fn attr_value_to_attribute_value_tokens(
                 }
             } else if key_str == ATTR_KEY_CHILDREN {
                 quote! { ::euv::AttributeValue::Dynamic(Box::new(#expr)) }
+            } else if key_str == ATTR_KEY_INNER_HTML {
+                // `inner_html:` accepts either a `String` / `&str` for a
+                // static payload or a `Signal<String>` for a reactive
+                // one. The adapter's `From` impls disambiguate at compile
+                // time. We pass the raw expression through so the user
+                // gets the same Rust type inference they'd see from
+                // `let _: AttributeValue = my_html.into()`.
+                quote! { ::euv::InnerHtmlAdapter::new(#expr).into() }
             } else {
                 quote! {
                     ::euv::AttrValueAdapter::new(#expr).into()
@@ -1833,6 +1841,14 @@ pub(crate) fn attr_value_to_entry_value_tokens(
                 }
             } else if key_str == ATTR_KEY_CHILDREN {
                 quote! { ::euv::AttributeValue::Dynamic(Box::new(#expr)) }
+            } else if key_str == ATTR_KEY_INNER_HTML {
+                // `inner_html:` accepts either a `String` / `&str` for a
+                // static payload or a `Signal<String>` for a reactive
+                // one. The adapter's `From` impls disambiguate at compile
+                // time. We pass the raw expression through so the user
+                // gets the same Rust type inference they'd see from
+                // `let _: AttributeValue = my_html.into()`.
+                quote! { ::euv::InnerHtmlAdapter::new(#expr).into() }
             } else {
                 quote! {
                     ::euv::AttrValueAdapter::new(#expr).into()
