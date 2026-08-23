@@ -163,4 +163,41 @@ impl App {
     {
         HookContext::window_event(event_name, callback)
     }
+
+    /// Creates a reactive handle that the renderer will populate with the
+    /// DOM element after the corresponding virtual node is mounted.
+    ///
+    /// The returned [`NodeRef<T>`] is empty (`None`) until a virtual node
+    /// in the same render carries a `ref:` attribute pointing to a clone
+    /// of this handle, at which point the renderer calls
+    /// [`NodeRef::set`] with the underlying `JsValue`. On unmount the
+    /// handle is cleared so subsequent reads return `None` again.
+    ///
+    /// The handle is stored in the current hook context, so subsequent
+    /// re-renders at the same hook index return the same instance. This
+    /// means cloning a ref into an event handler closure will keep the
+    /// ref pointing at the live DOM element across re-renders.
+    ///
+    /// # Arguments
+    ///
+    /// - No arguments; the element type is inferred from how the handle is
+    ///   used (`NodeRef<HtmlInputElement>`, `NodeRef<HtmlDivElement>`, …).
+    ///
+    /// # Returns
+    ///
+    /// - `NodeRef<T>` - A reactive handle to the eventual DOM element.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let input_ref: NodeRef<HtmlInputElement> = App::use_node_ref();
+    /// html! {
+    ///     input { ref: input_ref.clone() type: "text" }
+    /// }
+    /// // Later, in an event handler or another component:
+    /// input_ref.get_cloned().map(|el| el.focus());
+    /// ```
+    pub fn use_node_ref<T: ?Sized + 'static>() -> NodeRef<T> {
+        HookContext::noderef()
+    }
 }

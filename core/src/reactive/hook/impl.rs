@@ -326,4 +326,42 @@ impl HookContext {
         }
         handle
     }
+
+    /// Creates or reuses a `NodeRef<T>` at the current hook index.
+    ///
+    /// On the first call at a given hook index, a fresh empty `NodeRef`
+    /// is stored. On subsequent re-renders the same instance is returned,
+    /// so a ref cloned into a closure stays attached to the live DOM
+    /// element across renders.
+    ///
+    /// The element type `T` is a phantom marker only — we downcast the
+    /// stored `Box<dyn Any>` back to `NodeRef<T>` using the same pattern
+    /// as `Signal::signal` above. Note that two calls at the same hook
+    /// index with different `T` would still match (both are `NodeRef<...>`)
+    /// because the `downcast_ref` ignores the phantom parameter.
+    pub(crate) fn noderef<T: ?Sized + 'static>() -> NodeRef<T> {
+        let hook_context: HookContext = Self::current();
+        let Ok(mut inner) = hook_context.get_inner().try_borrow_mut() else {
+            // Borrow failed (renderer re-entered); fall back to a fresh
+            // empty ref so the caller still gets a usable handle.
+            return NodeRef::new();
+        };
+        let index: usize = inner.get_hook_index();
+        inner.set_hook_index(index + 1);
+        if index < inner.get_hooks().len() {
+            // Re-render path: try to reuse the existing NodeRef stored at
+            // this hook index. If a different hook type was at this slot
+            // (e.g. user swapped `use_signal` for `use_node_ref`), replace
+            // it with a fresh ref rather than panicking.
+            if let Some(existing) = inner.get_hooks()[index].downcast_ref::<NodeRef<T>>() {
+                return existing.clone();
+            }
+            let new_ref: NodeRef<T> = NodeRef::new();
+            inner.get_mut_hooks()[index] = Box::new(new_ref.clone());
+            return new_ref;
+        }
+        let new_ref: NodeRef<T> = NodeRef::new();
+        inner.get_mut_hooks().push(Box::new(new_ref.clone()));
+        new_ref
+    }
 }

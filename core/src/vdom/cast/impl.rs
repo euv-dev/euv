@@ -475,3 +475,30 @@ where
         adapter.into_inner().into()
     }
 }
+
+/// Converts a `NodeRef<T>` into an `AttributeValue::Ref`.
+///
+/// The type parameter `T` is erased at the `AttributeValue` layer (we
+/// store the underlying `JsValue` cell), so any concrete element type
+/// works. The `html!` macro relies on this to accept
+/// `html! { input { ref: my_ref } }` without the user needing to call
+/// `.into()` explicitly.
+impl<T: ?Sized> From<NodeRef<T>> for AttributeValue {
+    /// Wraps the ref cell as an `AttributeValue::Ref` so the renderer
+    /// can populate it after mount.
+    ///
+    /// # Returns
+    ///
+    /// - `AttributeValue` - A ref variant carrying the (still empty)
+    ///   handle.
+    fn from(node_ref: NodeRef<T>) -> Self {
+        // Erase the typed phantom marker to a `NodeRef<JsValue>` so the
+        // `AttributeValue::Ref` payload is uniform. The `JsValue` cell
+        // is what the renderer actually stores and sets.
+        let erased: NodeRefDyn = NodeRefDyn {
+            inner: node_ref.inner.clone(),
+            _marker: PhantomData,
+        };
+        AttributeValue::Ref(erased)
+    }
+}

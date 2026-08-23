@@ -284,6 +284,13 @@ impl Renderer {
                                     .set_attribute_or_property(new_attr.get_name(), css.get_name());
                             }
                             AttributeValue::Event(_) => unreachable!(),
+                            AttributeValue::Ref(node_ref) => {
+                                // Re-render path: re-populate the ref with
+                                // the still-live element. The previous value
+                                // (if any) is replaced by `NodeRef::set`.
+                                let element_value: JsValue = element.clone().into();
+                                node_ref.set(element_value);
+                            }
                         }
                     }
                 }
@@ -614,6 +621,15 @@ impl Renderer {
                         AttributeValue::Css(css) => {
                             css.inject_style();
                             element.set_attribute_or_property(attr.get_name(), css.get_name());
+                        }
+                        AttributeValue::Ref(node_ref) => {
+                            // Populate the ref with the freshly-created element.
+                            // The element is wrapped as `JsValue` so the ref
+                            // payload stays type-erased at the renderer layer;
+                            // consumers cast via `get_cloned::<HtmlDivElement>()`
+                            // or similar.
+                            let element_value: JsValue = element.clone().into();
+                            node_ref.set(element_value);
                         }
                     }
                 }
