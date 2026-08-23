@@ -1,4 +1,5 @@
 use super::*;
+use std::future::Future;
 
 /// Implementation of hook context lifecycle and hook index management.
 impl HookContext {
@@ -167,6 +168,66 @@ impl HookContext {
     /// # Returns
     ///
     /// - `Signal<T>` - A reactive signal containing the initialized or existing value.
+    pub(crate) fn use_async<T, L, F, Fut, E>(factory: F) -> UseAsyncHandle<T, L>
+    where
+        T: Clone + PartialEq + 'static,
+        L: Clone + PartialEq + HasLoadingHint + 'static,
+        F: FnOnce() -> Fut + 'static,
+        Fut: Future<Output = Result<T, E>> + 'static,
+        E: Into<String> + 'static,
+    {
+        let hook_context: HookContext = Self::current();
+        let Ok(mut inner) = hook_context.get_inner().try_borrow_mut() else {
+            // Fallback path (no hook context available): allocate a
+            // stand-alone slot and run the future directly. The
+            // user gets a handle whose state updates in place but
+            // is not connected to any reactive subscription.
+            let handle: UseAsyncHandle<T, L> = UseAsyncHandle::new_for_fallback();
+            handle.refetch(factory);
+            return handle;
+        };
+        let index: usize = inner.get_hook_index();
+        inner.set_hook_index(index + 1);
+        // Try to reuse an existing slot from a previous render.
+        // We downcast by handle (not by slot) because the type
+        // parameter is part of the type id — a slot for `T = u32`
+        // stored in slot #0 is not interchangeable with a slot
+        // for `T = String` at the same index.
+        //
+        // `downcast_ref` returns `Option<&UseAsyncHandle<T, L>>`,
+        // so we clone (not copy) since `UseAsyncHandle` only
+        // implements `Copy` when `T: Copy` / `L: Copy` — which we
+        // deliberately don't require.
+        if index < inner.get_hooks().len()
+            && let Some(existing) = inner.get_hooks()[index].downcast_ref::<UseAsyncHandle<T, L>>()
+        {
+            return existing.clone();
+        }
+        // First render at this slot: allocate, register cleanup,
+        // run the future for the first time.
+        let handle: UseAsyncHandle<T, L> = UseAsyncHandle::new_for_fallback();
+        // Clone for the cleanup closure — `UseAsyncHandle` is
+        // `Clone` but not always `Copy` (the bound chain doesn't
+        // demand `T: Copy` / `L: Copy`). The original handle stays
+        // alive long enough for the cleanup closure to call
+        // `release` on its clone.
+        let handle_for_cleanup: UseAsyncHandle<T, L> = handle.clone();
+        let handle_for_hook: UseAsyncHandle<T, L> = handle.clone();
+        // Drop the slot. The Drop impl on `UseAsyncSlot` flips the
+        // cancel flag, so any in-flight future short-circuits before
+        // writing to the now-dead `state` signal.
+        inner.get_mut_cleanups().push(Box::new(move || unsafe {
+            handle_for_cleanup.release();
+        }));
+        if index < inner.get_hooks().len() {
+            inner.get_mut_hooks()[index] = Box::new(handle_for_hook);
+        } else {
+            inner.get_mut_hooks().push(Box::new(handle_for_hook));
+        }
+        handle.refetch(factory);
+        handle
+    }
+
     pub(crate) fn signal<T, F>(init: F) -> Signal<T>
     where
         T: Clone + PartialEq + 'static,

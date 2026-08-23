@@ -1,4 +1,5 @@
 use super::*;
+use std::future::Future;
 
 /// Implementation of core framework APIs for the `App` struct.
 ///
@@ -26,6 +27,42 @@ impl App {
         F: FnOnce() -> T,
     {
         HookContext::signal(init)
+    }
+
+    /// Runs an async future and exposes its three-state outcome as a
+    /// reactive handle.
+    ///
+    /// Mirrors the `use_signal` signature for the initial-value
+    /// closure but accepts a `FnOnce() -> impl Future<Output = Result<T, E>>`
+    /// instead. The handle exposes:
+    ///
+    /// - `state()` returns `AsyncState<T, L>` — match on
+    ///   `Loading` / `Ok` / `Err` in `html!` to render each case.
+    /// - `refetch(factory)` re-runs the future, ignoring any
+    ///   in-flight result from the previous attempt.
+    ///
+    /// Cancellation is automatic: when the component unmounts (or
+    /// the surrounding `match` arm switches), the in-flight future
+    /// sees the cancellation flag flipped and short-circuits before
+    /// writing to the now-dead `state` signal.
+    ///
+    /// The future is spawned via
+    /// [`wasm_bindgen_futures::spawn_local`] under `target_arch =
+    /// "wasm32"`. On native targets (read: `cargo test`) the future
+    /// is dropped immediately — `use_async` exists to bridge async
+    /// APIs that only exist in the browser, so a no-op fallback
+    /// keeps the production code path simple. Tests that need to
+    /// drive the state machine directly use
+    /// `UseAsyncHandle::set_state` (cfg-gated to `#[cfg(test)]`).
+    pub fn use_async<T, L, F, Fut, E>(factory: F) -> UseAsyncHandle<T, L>
+    where
+        T: Clone + PartialEq + 'static,
+        L: Clone + PartialEq + HasLoadingHint + 'static,
+        F: FnOnce() -> Fut + 'static,
+        Fut: Future<Output = Result<T, E>> + 'static,
+        E: Into<String> + 'static,
+    {
+        HookContext::use_async(factory)
     }
 
     /// Batches signal updates within a closure, deferring DOM dispatch until the
