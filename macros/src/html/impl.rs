@@ -987,8 +987,16 @@ impl ToTokens for HtmlElement {
         let tag_span: Span = self.get_tag().span();
         let tag_literal: proc_macro2::TokenStream =
             quote_spanned!(tag_span=> #tag_name.to_string());
-        let is_component: bool = self.get_is_ident_tag() && is_user_fn(&tag_name);
-        if is_component {
+        // `portal { target: "#root" } children` is a special
+        // pseudo-element handled at the macro level. It lowers to
+        // `Tag::Portal(target_string)` with the children spliced
+        // in directly, so the renderer can recognise it as a
+        // portal without going through a runtime dispatch path.
+        let is_portal: bool = tag_name == "portal";
+        let is_component: bool = !is_portal && self.get_is_ident_tag() && is_user_fn(&tag_name);
+        if is_portal {
+            tokens.extend(self.portal_element_tokens());
+        } else if is_component {
             tokens.extend(self.component_call_tokens(&tag_name, &tag_ident, tag_span));
         } else {
             tokens.extend(self.native_element_tokens(&tag_literal));
@@ -997,6 +1005,80 @@ impl ToTokens for HtmlElement {
 }
 
 impl HtmlElement {
+    /// Emits the tokens for a `portal { target: "..." } children` element.
+    ///
+    /// Produces a `VirtualNode::Element { tag: Tag::Portal(target), ... }`
+    /// literal. The `target` attribute is required and must evaluate to
+    /// `&str` / `String` / `&String`. Anything else is a compile-time
+    /// error via the `&str` constraint enforced by `to_string()`.
+    ///
+    /// Children are spliced verbatim — the renderer takes care of
+    /// appending each child node to the resolved target element
+    /// (rather than to the placeholder marker that lives in the
+    /// declared position).
+    fn portal_element_tokens(&self) -> proc_macro2::TokenStream {
+        // Find the `target:` attribute. We refuse to silently fall
+        // back to `"body"` here because that would mask wiring
+        // errors at the call site (the wrong target would still
+        // "work" by appending to document.body). Better to surface
+        // a clear "missing target attribute" panic at runtime than
+        // a subtle off-by-one target.
+        //
+        // `String::from(...)` is the conversion path because
+        // `Tag::Portal(String)` owns its payload and the macro
+        // cannot call `.to_string()` on user expressions that do
+        // not implement `Display` (e.g. `Signal<String>`, which
+        // exposes a `.get()` accessor instead). `String::from`
+        // accepts `&str`, `&String`, and any `Into<String>` source
+        // — so `target: "#root"` and `target: signal.clone()` (a
+        // `Signal<String>` is not `Into<String>`) require the user
+        // to write `target: signal.get()`. That mirrors what the
+        // user would have written for a manual
+        // `Tag::Portal(...)` construction.
+        let target_expr: proc_macro2::TokenStream = self
+            .get_attributes()
+            .iter()
+            .find_map(|(key, value): &(proc_macro2::TokenStream, HtmlAttrValue)| {
+                let key_string: String = extract_attr_key_string(key);
+                if key_string != "target" {
+                    return None;
+                }
+                if let HtmlAttrValue::Expr(expr) = value {
+                    Some(quote! { ::std::string::String::from(#expr) })
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| {
+                quote! { compile_error!("portal element requires a `target:` attribute") }
+            });
+        let attr_tokens: Vec<proc_macro2::TokenStream> = self
+            .get_attributes()
+            .iter()
+            .filter_map(|(key, value): &(proc_macro2::TokenStream, HtmlAttrValue)| {
+                let key_string: String = extract_attr_key_string(key);
+                if key_string == "target" {
+                    // Already consumed above as the portal target.
+                    return None;
+                }
+                let value_tokens: proc_macro2::TokenStream =
+                    attr_value_to_entry_value_tokens(&AttrEntryContext::new(value, &key_string));
+                Some(quote! { ::euv::AttributeEntry::new(#key_string.to_string(), #value_tokens) })
+            })
+            .collect();
+        let children_tokens: proc_macro2::TokenStream =
+            children_to_flattened_tokens(self.get_children());
+        quote! {
+            ::euv::VirtualNode::Element {
+                tag: ::euv::Tag::Portal(#target_expr),
+                attributes: vec![#(#attr_tokens), *],
+                children: #children_tokens,
+                key: None,
+                props: None,
+            }
+        }
+    }
+
     /// Emits the tokens for a component element (e.g. `euv_button { ... }`).
     ///
     /// Produces a `<component-name>(VirtualNode::Element { ... })` invocation

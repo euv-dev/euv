@@ -173,6 +173,14 @@ impl<T> VirtualNode<T> {
             Self::Element { tag, .. } => match tag {
                 Tag::Element(name) => Some(name.clone()),
                 Tag::Component(name) => Some(name.clone()),
+                // Portals do not contribute a tag name to the
+                // declared position in the DOM tree — their content
+                // is rendered into a separate target, and the
+                // marker is an internal implementation detail.
+                // Returning `None` here keeps callers that use
+                // `try_get_tag_name` for "what tag is this?" away
+                // from the portal sentinel.
+                Tag::Portal(_) => None,
             },
             _ => None,
         }

@@ -9,6 +9,35 @@ pub enum Tag {
     Element(String),
     /// A custom component type.
     Component(String),
+    /// A portal placeholder whose children are rendered into a
+    /// different DOM subtree than the rest of the virtual DOM.
+    ///
+    /// The payload is a CSS selector (`"#modal-root"`,
+    /// `"body"`, `".toast-host"`) identifying the destination
+    /// element. The renderer resolves the selector at mount time
+    /// via `document.query_selector(...)`, falling back to
+    /// `document.body()` when the selector matches nothing.
+    ///
+    /// Portal nodes render an HTML comment marker in their
+    /// declared position so the parent's DOM tree stays
+    /// structurally intact (the alternative — leaving a hole in
+    /// the parent — breaks euv's positional patch loop, which
+    /// walks child nodes by index).
+    ///
+    /// Patch semantics:
+    ///
+    /// - When the target selector is unchanged between renders,
+    ///   the portal's children are patched in place inside the
+    ///   target element.
+    /// - When the target selector changes, the previous target's
+    ///   children are unmounted and the new target receives a
+    ///   fresh mount.
+    ///
+    /// Designed for modals, tooltips, dropdowns, and toasts —
+    /// UI that needs to escape `overflow: hidden` parents and
+    /// sit at the document root regardless of where it was
+    /// declared in the virtual DOM tree.
+    Portal(String),
 }
 
 /// Represents a node in the virtual DOM tree.
