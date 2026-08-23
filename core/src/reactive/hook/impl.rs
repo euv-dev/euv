@@ -224,6 +224,69 @@ impl HookContext {
         inner.get_mut_hooks().push(Box::new(()));
     }
 
+    /// Runs an effect closure once on the first render at this hook
+    /// index. Subsequent renders at the same index are no-ops (matching
+    /// the `use_cleanup` / `use_window_event` first-render-only
+    /// contract documented on `App::use_effect`).
+    ///
+    /// The `FnOnce` body is consumed immediately when this hook
+    /// commits; unlike `use_cleanup`, no cleanup closure is registered
+    /// here, so callers that need a teardown should either return the
+    /// cleanup via `effect_with_cleanup` or pair this with a separate
+    /// `use_cleanup` call at the same hook index.
+    pub(crate) fn effect<F>(effect: F)
+    where
+        F: FnOnce() + 'static,
+    {
+        let hook_context: HookContext = Self::current();
+        let Ok(mut inner) = hook_context.get_inner().try_borrow_mut() else {
+            return;
+        };
+        let index: usize = inner.get_hook_index();
+        inner.set_hook_index(index + 1);
+        if index < inner.get_hooks().len() {
+            // The effect body is a `FnOnce`, so we cannot re-invoke
+            // it on subsequent renders — but we also cannot store the
+            // partially-consumed closure. The pattern is "run once on
+            // mount"; second renders simply do nothing.
+            return;
+        }
+        effect();
+        inner.get_mut_hooks().push(Box::new(()));
+    }
+
+    /// Runs an effect factory on the first render, captures its
+    /// returned cleanup closure, and registers that cleanup for
+    /// teardown when the hook context is cleared.
+    ///
+    /// If the effect factory panics before returning, no cleanup is
+    /// registered (the panic propagates and the hook context is left
+    /// untouched for this index).
+    pub(crate) fn effect_with_cleanup<F, C>(effect: F)
+    where
+        F: FnOnce() -> C + 'static,
+        C: FnOnce() + 'static,
+    {
+        let hook_context: HookContext = Self::current();
+        let Ok(mut inner) = hook_context.get_inner().try_borrow_mut() else {
+            return;
+        };
+        let index: usize = inner.get_hook_index();
+        inner.set_hook_index(index + 1);
+        if index < inner.get_hooks().len() {
+            // Same first-render-only contract as `effect` and
+            // `cleanup`: the factory has already been consumed and
+            // its cleanup registered on the original mount, so we
+            // skip subsequent renders to avoid re-running setup
+            // (which would typically also re-subscribe, leak
+            // listeners, etc.).
+            return;
+        }
+        let cleanup: C = effect();
+        inner.get_mut_cleanups().push(Box::new(cleanup));
+        inner.get_mut_hooks().push(Box::new(()));
+    }
+
     /// Registers a `window.addEventListener` callback using event delegation,
     /// automatically removed when the hook context is cleared.
     ///

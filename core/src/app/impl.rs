@@ -108,6 +108,52 @@ impl App {
         HookContext::cleanup(cleanup)
     }
 
+    /// Registers a side effect that runs once when the component mounts and
+    /// is automatically torn down when the context is cleared.
+    ///
+    /// `use_effect` is the euv counterpart to React's `useEffect(..., [])`
+    /// (empty dependencies array) — the effect runs on mount and never
+    /// re-runs during subsequent renders of the same hook index. The
+    /// `FnOnce` closure is consumed on the first render; subsequent
+    /// renders at the same hook index are a no-op (matching the
+    /// `use_cleanup` / `use_window_event` first-render-only contract).
+    ///
+    /// For "re-run when dependencies change" semantics, wrap the work in
+    /// a `Signal::subscribe`-style flow instead — that is the euv-native
+    /// pattern and avoids the React-style deps-array footgun (lint
+    /// plumbing, referential equality pitfalls, etc.).
+    ///
+    /// # Arguments
+    ///
+    /// - `FnOnce() + 'static` - The effect body to run on mount.
+    pub fn use_effect<F>(effect: F)
+    where
+        F: FnOnce() + 'static,
+    {
+        HookContext::effect(effect)
+    }
+
+    /// Registers a side effect that runs once on mount and registers a
+    /// returned cleanup closure to run when the context is cleared.
+    ///
+    /// The effect factory returns a cleanup closure; that cleanup is
+    /// stored in the hook context's cleanup queue and is invoked on
+    /// unmount or match-arm switch. If the effect factory itself
+    /// panics before producing a cleanup, no cleanup is registered.
+    ///
+    /// # Arguments
+    ///
+    /// - `FnOnce() -> C + 'static` - The effect factory that returns
+    ///   a cleanup closure. The cleanup is the return value of the
+    ///   factory and runs exactly once on unmount.
+    pub fn use_effect_with_cleanup<F, C>(effect: F)
+    where
+        F: FnOnce() -> C + 'static,
+        C: FnOnce() + 'static,
+    {
+        HookContext::effect_with_cleanup(effect)
+    }
+
     /// Creates a recurring interval that invokes the given closure at the
     /// specified period, returning an `IntervalHandle` that is automatically
     /// cleared when the hook context is cleared (i.e., when the component
