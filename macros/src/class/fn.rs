@@ -820,7 +820,7 @@ pub(crate) fn properties_to_tokens(
         .collect()
 }
 
-/// Generates a `Vec<::euv::PseudoRule>` expression from a list of selector blocks.
+/// Generates a `Vec<::euv_core::PseudoRule>` expression from a list of selector blocks.
 ///
 /// # Arguments
 ///
@@ -866,7 +866,7 @@ fn flatten_selector_blocks(
         if !style_parts.is_empty() {
             let style_expr: proc_macro2::TokenStream = quote! { [#(#style_parts), *].concat() };
             result.push(quote! {
-                ::euv::PseudoRule::new(#combined_selector.to_string(), #style_expr)
+                ::euv_core::PseudoRule::new(#combined_selector.to_string(), #style_expr)
             });
         }
         let nested: Vec<proc_macro2::TokenStream> =
@@ -876,7 +876,7 @@ fn flatten_selector_blocks(
     result
 }
 
-/// Generates a `Vec<::euv::MediaRule>` expression from a list of at-rule blocks.
+/// Generates a `Vec<::euv_core::MediaRule>` expression from a list of at-rule blocks.
 ///
 /// Only `AtRuleKind::Media` blocks are converted to `MediaRule`.
 /// Other at-rule kinds are converted to their respective CSS output.
@@ -913,7 +913,7 @@ pub(crate) fn at_rule_blocks_to_media_tokens(
                 quote! { [#(#style_parts), *].concat() }
             };
             quote! {
-                ::euv::MediaRule::new(
+                ::euv_core::MediaRule::new(
                     #query.to_string(),
                     #style_expr,
                     #pseudo_expr
@@ -1108,10 +1108,10 @@ pub(crate) fn emit_once_lock_fn(
         at_rule_expr,
     } = once_lock_params;
     tokens.extend(quote! {
-        #visibility fn #fn_name_token() -> &'static ::euv::Css {
-            static #const_name_token: ::std::sync::OnceLock<::euv::Css> = ::std::sync::OnceLock::new();
+        #visibility fn #fn_name_token() -> &'static ::euv_core::Css {
+            static #const_name_token: ::std::sync::OnceLock<::euv_core::Css> = ::std::sync::OnceLock::new();
             #const_name_token.get_or_init(|| {
-                let css: ::euv::Css = ::euv::Css::new(#class_name_str.to_string(), #style_expr, #selector_expr, #at_rule_expr);
+                let css: ::euv_core::Css = ::euv_core::Css::new(#class_name_str.to_string(), #style_expr, #selector_expr, #at_rule_expr);
                 css.inject_style();
                 css
             })

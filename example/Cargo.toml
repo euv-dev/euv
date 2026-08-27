@@ -23,6 +23,7 @@ exclude = [
 
 [dependencies]
 euv = { workspace = true }
+euv-core = { workspace = true }
 euv-engine = { workspace = true }
 euv-ui = { workspace = true }
 

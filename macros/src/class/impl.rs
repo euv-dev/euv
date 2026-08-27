@@ -220,7 +220,7 @@ impl ToTokens for ClassDef {
                     .unwrap_or_else(|| quote! { Vec::new() });
             quote! {
                 {
-                    let mut all_pseudo: Vec<::euv::PseudoRule> = Vec::new();
+                    let mut all_pseudo: Vec<::euv_core::PseudoRule> = Vec::new();
                     #(all_pseudo.extend(#parent_pseudo_refs);)*
                     all_pseudo.extend(#self_pseudo);
                     all_pseudo
@@ -251,7 +251,7 @@ impl ToTokens for ClassDef {
                     .unwrap_or_else(|| quote! { Vec::new() });
             quote! {
                 {
-                    let mut all_media: Vec<::euv::MediaRule> = Vec::new();
+                    let mut all_media: Vec<::euv_core::MediaRule> = Vec::new();
                     #(all_media.extend(#parent_media_refs);)*
                     all_media.extend(#self_media);
                     all_media
@@ -279,7 +279,7 @@ impl ToTokens for ClassDef {
                     .map(|param: &ClassParam| {
                         let param_name: &Ident = param.get_name();
                         if dynamic_param_names.contains(&param_name.to_string()) {
-                            quote! { ::euv::Css::param_class_name(&(#param_name).to_string()) }
+                            quote! { ::euv_core::Css::param_class_name(&(#param_name).to_string()) }
                         } else {
                             quote! { std::any::type_name_of_val(&#param_name).to_string() }
                         }
@@ -334,8 +334,8 @@ impl ToTokens for ClassDef {
                     quote! { [#(#all_css_parts), *].concat() }
                 };
                 tokens.extend(quote! {
-                    #visibility fn #name #generics(#(#param_defs), *) -> ::euv::Css #where_clause {
-                        ::euv::Css::new(#unique_name_expr, #style_expr, #selector_expr, #at_rule_expr)
+                    #visibility fn #name #generics(#(#param_defs), *) -> ::euv_core::Css #where_clause {
+                        ::euv_core::Css::new(#unique_name_expr, #style_expr, #selector_expr, #at_rule_expr)
                     }
                 });
             }
@@ -388,8 +388,8 @@ impl ToTokens for ClassDef {
                         quote! { [#(#all_css_parts), *].concat() }
                     };
                     tokens.extend(quote! {
-                        #visibility fn #name #generics() -> ::euv::Css #where_clause {
-                            let css: ::euv::Css = ::euv::Css::new(#class_name_str.to_string(), #style_expr, #selector_expr, #at_rule_expr);
+                        #visibility fn #name #generics() -> ::euv_core::Css #where_clause {
+                            let css: ::euv_core::Css = ::euv_core::Css::new(#class_name_str.to_string(), #style_expr, #selector_expr, #at_rule_expr);
                             css.inject_style();
                             css
                         }
@@ -433,8 +433,8 @@ impl ToTokens for ClassDef {
                                     const_name_token: &const_name_token,
                                     class_name_str: &class_name_str,
                                     style_expr: &quote! { #css_string.to_string() },
-                                    selector_expr: &quote! { ::euv::Css::parse_pseudo_rules(#selector_static) },
-                                    at_rule_expr: &quote! { ::euv::Css::parse_media_rules(#at_rule_static) },
+                                    selector_expr: &quote! { ::euv_core::Css::parse_pseudo_rules(#selector_static) },
+                                    at_rule_expr: &quote! { ::euv_core::Css::parse_media_rules(#at_rule_static) },
                                 },
                             );
                         } else {

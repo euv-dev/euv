@@ -640,7 +640,7 @@ fn extract_props_struct_types(file: &File) -> HashMap<String, HashMap<String, St
 
 /// Extracts the last segment identifier from a type path.
 ///
-/// For example, `::euv::VirtualNode` → `"VirtualNode"`, `String` → `"String"`.
+/// For example, `::euv_core::VirtualNode` → `"VirtualNode"`, `String` → `"String"`.
 /// Falls back to the full type string representation if the type is not a path.
 ///
 /// # Arguments
@@ -999,7 +999,7 @@ pub(crate) fn build_html_if_chain(
         }
     }
     if !has_else {
-        if_chain.extend(quote! { else { ::euv::VirtualNode::Empty } });
+        if_chain.extend(quote! { else { ::euv_core::VirtualNode::Empty } });
     }
     if_chain
 }
@@ -1026,10 +1026,10 @@ pub(crate) fn children_to_node_tokens(children: &[HtmlNode]) -> proc_macro2::Tok
     );
     if has_inline_if {
         let vec_tokens: proc_macro2::TokenStream = children_to_tokens(children);
-        return quote! { ::euv::VirtualNode::Fragment(#vec_tokens) };
+        return quote! { ::euv_core::VirtualNode::Fragment(#vec_tokens) };
     }
     match children.len() {
-        0 => quote! { ::euv::VirtualNode::Empty },
+        0 => quote! { ::euv_core::VirtualNode::Empty },
         1 => {
             let mut token_stream: proc_macro2::TokenStream = proc_macro2::TokenStream::new();
             children[0].to_tokens(&mut token_stream);
@@ -1037,7 +1037,7 @@ pub(crate) fn children_to_node_tokens(children: &[HtmlNode]) -> proc_macro2::Tok
         }
         _ => {
             let child_tokens: Vec<proc_macro2::TokenStream> = nodes_to_token_vec(children);
-            quote! { ::euv::VirtualNode::Fragment(vec![#(#child_tokens), *]) }
+            quote! { ::euv_core::VirtualNode::Fragment(vec![#(#child_tokens), *]) }
         }
     }
 }
@@ -1128,7 +1128,7 @@ pub(crate) fn children_to_tokens(children: &[HtmlNode]) -> proc_macro2::TokenStr
     }
     quote! {
         {
-            let mut __euv_nodes: Vec<::euv::VirtualNode> = Vec::new();
+            let mut __euv_nodes: Vec<::euv_core::VirtualNode> = Vec::new();
             #(#parts)*
             __euv_nodes
         }
@@ -1179,13 +1179,13 @@ pub(crate) fn children_to_flattened_tokens(children: &[HtmlNode]) -> proc_macro2
                     // id, so `Signal::get` subscribes this node, and `Signal::set`
                     // later marks it dirty and re-renders the `Fragment`.
                     parts.push(quote! {
-                        __euv_nodes.push(::euv::VirtualNode::create_dynamic(
-                            move |_: &mut ::euv::HookContext| {
-                                let mut __euv_inner: Vec<::euv::VirtualNode> = Vec::new();
+                        __euv_nodes.push(::euv_core::VirtualNode::create_dynamic(
+                            move |_: &mut ::euv_core::HookContext| {
+                                let mut __euv_inner: Vec<::euv_core::VirtualNode> = Vec::new();
                                 for #pattern in #iterable_tokens {
                                     __euv_inner.extend(#body_tokens);
                                 }
-                                ::euv::VirtualNode::Fragment(__euv_inner)
+                                ::euv_core::VirtualNode::Fragment(__euv_inner)
                             }
                         ));
                     });
@@ -1215,7 +1215,7 @@ pub(crate) fn children_to_flattened_tokens(children: &[HtmlNode]) -> proc_macro2
     }
     quote! {
         {
-            let mut __euv_nodes: Vec<::euv::VirtualNode> = Vec::new();
+            let mut __euv_nodes: Vec<::euv_core::VirtualNode> = Vec::new();
             #(#parts)*
             __euv_nodes
         }
@@ -1381,7 +1381,7 @@ pub(crate) fn strip_braces_from_expr(expr: &Expr) -> &Expr {
 ///
 /// The `mode` parameter controls how branch bodies are emitted:
 /// - `AttrIfMode::Reactive` - Each branch body is wrapped in
-///   `::euv::IntoReactiveString::into_reactive_string(...)` so that all branches
+///   `::euv_core::IntoReactiveString::into_reactive_string(...)` so that all branches
 ///   produce a `String` regardless of their original type (e.g., `Css`, `&str`, `String`).
 ///   This ensures type compatibility when the `if` and implicit `else` branches
 ///   return different types.
@@ -1683,15 +1683,15 @@ pub(crate) fn attr_value_to_attribute_value_tokens(
             if let Some(event_name_str) = key_str.strip_prefix(EVENT_ATTR_PREFIX) {
                 if is_component {
                     quote! {
-                        ::euv::CallbackNamedAdapter::new(#expr, #key_str).into()
+                        ::euv_core::CallbackNamedAdapter::new(#expr, #key_str).into()
                     }
                 } else {
                     quote! {
-                        ::euv::EventNamedAdapter::new(#expr, #event_name_str).into()
+                        ::euv_core::EventNamedAdapter::new(#expr, #event_name_str).into()
                     }
                 }
             } else if key_str == ATTR_KEY_CHILDREN {
-                quote! { ::euv::AttributeValue::Dynamic(Box::new(#expr)) }
+                quote! { ::euv_core::AttributeValue::Dynamic(Box::new(#expr)) }
             } else if key_str == ATTR_KEY_INNER_HTML {
                 // `inner_html:` accepts either a `String` / `&str` for a
                 // static payload or a `Signal<String>` for a reactive
@@ -1699,10 +1699,10 @@ pub(crate) fn attr_value_to_attribute_value_tokens(
                 // time. We pass the raw expression through so the user
                 // gets the same Rust type inference they'd see from
                 // `let _: AttributeValue = my_html.into()`.
-                quote! { ::euv::InnerHtmlAdapter::new(#expr).into() }
+                quote! { ::euv_core::InnerHtmlAdapter::new(#expr).into() }
             } else {
                 quote! {
-                    ::euv::AttrValueAdapter::new(#expr).into()
+                    ::euv_core::AttrValueAdapter::new(#expr).into()
                 }
             }
         }
@@ -1722,7 +1722,7 @@ pub(crate) fn attr_value_to_attribute_value_tokens(
             if has_conditional {
                 quote! { #value }
             } else {
-                quote! { ::euv::AttributeValue::Text(#value) }
+                quote! { ::euv_core::AttributeValue::Text(#value) }
             }
         }
         HtmlAttrValue::Classes(_) | HtmlAttrValue::Styles(_) => {
@@ -1761,14 +1761,14 @@ pub(crate) fn style_value_to_attribute_value_tokens(
             if has_conditional {
                 quote! { #value }
             } else {
-                quote! { ::euv::AttributeValue::Text(#value) }
+                quote! { ::euv_core::AttributeValue::Text(#value) }
             }
         }
         HtmlAttrValue::If(_) | HtmlAttrValue::Match(_) => {
             quote! { #value }
         }
         HtmlAttrValue::Expr(expr) => {
-            quote! { ::euv::AttributeValue::Text(#expr.to_string()) }
+            quote! { ::euv_core::AttributeValue::Text(#expr.to_string()) }
         }
         HtmlAttrValue::Classes(_) | HtmlAttrValue::Styles(_) => {
             quote! { #value }
@@ -1825,7 +1825,7 @@ pub(crate) fn attr_value_to_entry_value_tokens(
             if has_conditional {
                 quote! { #value }
             } else {
-                quote! { ::euv::AttributeValue::Text(#value) }
+                quote! { ::euv_core::AttributeValue::Text(#value) }
             }
         }
         HtmlAttrValue::If(_) | HtmlAttrValue::Match(_) => {
@@ -1837,10 +1837,10 @@ pub(crate) fn attr_value_to_entry_value_tokens(
         HtmlAttrValue::Expr(expr) => {
             if let Some(event_name_str) = key_str.strip_prefix(EVENT_ATTR_PREFIX) {
                 quote! {
-                    ::euv::EventNamedAdapter::new(#expr, #event_name_str).into()
+                    ::euv_core::EventNamedAdapter::new(#expr, #event_name_str).into()
                 }
             } else if key_str == ATTR_KEY_CHILDREN {
-                quote! { ::euv::AttributeValue::Dynamic(Box::new(#expr)) }
+                quote! { ::euv_core::AttributeValue::Dynamic(Box::new(#expr)) }
             } else if key_str == ATTR_KEY_INNER_HTML {
                 // `inner_html:` accepts either a `String` / `&str` for a
                 // static payload or a `Signal<String>` for a reactive
@@ -1848,10 +1848,10 @@ pub(crate) fn attr_value_to_entry_value_tokens(
                 // time. We pass the raw expression through so the user
                 // gets the same Rust type inference they'd see from
                 // `let _: AttributeValue = my_html.into()`.
-                quote! { ::euv::InnerHtmlAdapter::new(#expr).into() }
+                quote! { ::euv_core::InnerHtmlAdapter::new(#expr).into() }
             } else {
                 quote! {
-                    ::euv::AttrValueAdapter::new(#expr).into()
+                    ::euv_core::AttrValueAdapter::new(#expr).into()
                 }
             }
         }
@@ -1889,7 +1889,7 @@ pub(crate) fn prop_field_token(
                 .get(key_string)
                 .map(|field_type: &String| field_type.as_str())
             {
-                Some(TYPE_VIRTUAL_NODE) => quote! { ::euv::VirtualNode::Empty },
+                Some(TYPE_VIRTUAL_NODE) => quote! { ::euv_core::VirtualNode::Empty },
                 _ => quote! { #STR_EMPTY },
             };
             let ctx: AttrIfContext<'_> =

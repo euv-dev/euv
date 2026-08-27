@@ -133,8 +133,8 @@ impl ToTokens for ComputedInput {
                 quote! {
                     {
                         #signal.subscribe(move || {
-                            ::euv::App::batch(|| {
-                                unsafe { ::euv::FireHandle::fire_at(__euv_computed_fire_addr) }
+                            ::euv_core::App::batch(|| {
+                                unsafe { ::euv_core::FireHandle::fire_at(__euv_computed_fire_addr) }
                             });
                         });
                     }
@@ -142,19 +142,19 @@ impl ToTokens for ComputedInput {
             })
             .collect();
         tokens.extend(quote! {{
-                    #(let #signals: ::euv::Signal<_> = #signal_exprs;)*
-                    let #result_ident: ::euv::Signal<#return_type> = ::euv::App::use_signal::<#return_type, _>(|| -> #return_type {
+                    #(let #signals: ::euv_core::Signal<_> = #signal_exprs;)*
+                    let #result_ident: ::euv_core::Signal<#return_type> = ::euv_core::App::use_signal::<#return_type, _>(|| -> #return_type {
                         #(#all_gets)*
                         { #(#body)* }
                     });
-            let __euv_computed_subscribed: ::euv::Signal<bool> = ::euv::App::use_signal(|| false);
+            let __euv_computed_subscribed: ::euv_core::Signal<bool> = ::euv_core::App::use_signal(|| false);
             if !__euv_computed_subscribed.get() {
-                let __euv_computed_fire_addr: usize = ::euv::FireHandle::new(move || {
+                let __euv_computed_fire_addr: usize = ::euv_core::FireHandle::new(move || {
                     #(#all_gets)*
                     #result_ident.set({ #(#body)* });
                 })
                 .into();
-                ::euv::App::batch(|| {
+                ::euv_core::App::batch(|| {
                     #(#subscribe_calls)*
                     __euv_computed_subscribed.set(true);
                 });

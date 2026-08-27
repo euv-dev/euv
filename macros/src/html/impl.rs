@@ -425,7 +425,7 @@ impl ToTokens for HtmlNode {
             HtmlNode::Element(element) => element.to_tokens(tokens),
             HtmlNode::Text(text) => {
                 tokens.extend(quote! {
-                    ::euv::VirtualNode::Text(::euv::TextNode::new(#text.into(), None))
+                    ::euv_core::VirtualNode::Text(::euv_core::TextNode::new(#text.into(), None))
                 });
             }
             HtmlNode::Expr(expr) => {
@@ -435,7 +435,7 @@ impl ToTokens for HtmlNode {
             }
             HtmlNode::Dynamic(expr) => {
                 tokens.extend(quote! {
-                    ::euv::VirtualNode::create_dynamic(move |_: &mut ::euv::HookContext| (#expr).into())
+                    ::euv_core::VirtualNode::create_dynamic(move |_: &mut ::euv_core::HookContext| (#expr).into())
                 });
             }
             HtmlNode::If(html_if) => {
@@ -443,7 +443,7 @@ impl ToTokens for HtmlNode {
                     let if_chain: proc_macro2::TokenStream =
                         build_html_if_chain(html_if.get_branches());
                     tokens.extend(quote! {
-                    ::euv::VirtualNode::create_dynamic(move |_: &mut ::euv::HookContext| { #if_chain })
+                    ::euv_core::VirtualNode::create_dynamic(move |_: &mut ::euv_core::HookContext| { #if_chain })
                 });
                 } else {
                     let if_chain: proc_macro2::TokenStream =
@@ -479,7 +479,7 @@ impl ToTokens for HtmlNode {
                         )
                         .collect();
                     tokens.extend(quote! {
-                        ::euv::VirtualNode::create_dynamic(move |__euv_hook_context: &mut ::euv::HookContext| {
+                        ::euv_core::VirtualNode::create_dynamic(move |__euv_hook_context: &mut ::euv_core::HookContext| {
                             match #scrutinee_tokens {
                                 #(#arm_tokens)*
                             }
@@ -515,15 +515,15 @@ impl ToTokens for HtmlNode {
                     auto_get_expr_tokens(iterable, html_for.get_is_reactive());
                 let body_tokens: proc_macro2::TokenStream = children_to_tokens(html_for.get_body());
                 let for_tokens: proc_macro2::TokenStream = quote! {
-                    let mut __euv_nodes: Vec<::euv::VirtualNode> = Vec::new();
+                    let mut __euv_nodes: Vec<::euv_core::VirtualNode> = Vec::new();
                     for #pattern in #iterable_tokens {
                         __euv_nodes.extend(#body_tokens);
                     }
-                    ::euv::VirtualNode::Fragment(__euv_nodes)
+                    ::euv_core::VirtualNode::Fragment(__euv_nodes)
                 };
                 if html_for.get_is_reactive() {
                     tokens.extend(quote! {
-                        ::euv::VirtualNode::create_dynamic(move |_: &mut ::euv::HookContext| {
+                        ::euv_core::VirtualNode::create_dynamic(move |_: &mut ::euv_core::HookContext| {
                             #for_tokens
                         })
                     });
@@ -598,7 +598,7 @@ impl ToTokens for HtmlAttrValue {
                     );
                     let if_chain: proc_macro2::TokenStream = attr_if_to_tokens(&ctx);
                     tokens.extend(quote! {
-                        ::euv::AttrValueAdapter::new(#if_chain).into()
+                        ::euv_core::AttrValueAdapter::new(#if_chain).into()
                     });
                 } else {
                     let ctx: AttrIfContext<'_> = AttrIfContext::new(
@@ -608,7 +608,7 @@ impl ToTokens for HtmlAttrValue {
                     );
                     let if_chain: proc_macro2::TokenStream = attr_if_to_tokens(&ctx);
                     tokens.extend(quote! {
-                        ::euv::AttributeValue::reactive(move || #if_chain)
+                        ::euv_core::AttributeValue::reactive(move || #if_chain)
                     });
                 }
             }
@@ -617,13 +617,13 @@ impl ToTokens for HtmlAttrValue {
                     let match_expr: proc_macro2::TokenStream =
                         attr_match_to_tokens(html_attr_match, AttrIfMode::Raw);
                     tokens.extend(quote! {
-                        ::euv::AttrValueAdapter::new(#match_expr).into()
+                        ::euv_core::AttrValueAdapter::new(#match_expr).into()
                     });
                 } else {
                     let match_expr: proc_macro2::TokenStream =
                         attr_match_to_tokens(html_attr_match, AttrIfMode::Reactive);
                     tokens.extend(quote! {
-                        ::euv::AttributeValue::reactive(move || #match_expr)
+                        ::euv_core::AttributeValue::reactive(move || #match_expr)
                     });
                 }
             }
@@ -666,7 +666,7 @@ impl ToTokens for HtmlAttrValue {
                         })
                         .collect();
                     tokens.extend(quote! {
-                        ::euv::Css::style_string(&[#(#prop_tokens), *])
+                        ::euv_core::Css::style_string(&[#(#prop_tokens), *])
                     });
                 } else if has_conditional {
                     let prop_tokens: Vec<proc_macro2::TokenStream> = props
@@ -676,7 +676,7 @@ impl ToTokens for HtmlAttrValue {
                         })
                         .collect();
                     tokens.extend(quote! {
-                        ::euv::AttributeValue::reactive(move || ::euv::Css::style_string_owned(&[#(#prop_tokens), *]))
+                        ::euv_core::AttributeValue::reactive(move || ::euv_core::Css::style_string_owned(&[#(#prop_tokens), *]))
                     });
                 } else if all_literal {
                     let mut css_string: String = String::new();
@@ -702,7 +702,7 @@ impl ToTokens for HtmlAttrValue {
                         })
                         .collect();
                     tokens.extend(quote! {
-                        ::euv::Css::style_string(&[#(#key_value_tokens), *])
+                        ::euv_core::Css::style_string(&[#(#key_value_tokens), *])
                     });
                 }
             }
@@ -716,7 +716,7 @@ impl ToTokens for HtmlAttrValue {
                     })
                     .collect();
                 tokens.extend(quote! {
-                    ::euv::AttributeValue::merge_class(&[#(#value_tokens), *])
+                    ::euv_core::AttributeValue::merge_class(&[#(#value_tokens), *])
                 });
             }
             HtmlAttrValue::Styles(values) => {
@@ -725,7 +725,7 @@ impl ToTokens for HtmlAttrValue {
                     .map(style_value_to_attribute_value_tokens)
                     .collect();
                 tokens.extend(quote! {
-                    ::euv::AttributeValue::merge_style(&[#(#value_tokens), *])
+                    ::euv_core::AttributeValue::merge_style(&[#(#value_tokens), *])
                 });
             }
         }
@@ -764,13 +764,13 @@ impl ToTokens for HtmlDynamicTag {
             })
             .collect();
         tokens.extend(quote! {
-            ::euv::VirtualNode::create_dynamic(move |_: &mut ::euv::HookContext| {
+            ::euv_core::VirtualNode::create_dynamic(move |_: &mut ::euv_core::HookContext| {
                 let __euv_tag_name: String = (#tag_expr).to_string();
                 match __euv_tag_name.as_str() {
                     #(#component_match_arms)*
                     _ => {
-                        ::euv::VirtualNode::Element {
-                            tag: ::euv::Tag::Element(::std::borrow::Cow::Owned(__euv_tag_name)),
+                        ::euv_core::VirtualNode::Element {
+                            tag: ::euv_core::Tag::Element(::std::borrow::Cow::Owned(__euv_tag_name)),
                             attributes: vec![#(#attr_tokens), *],
                             children: vec![#(#child_tokens), *],
                             key: None,
@@ -805,7 +805,7 @@ impl HtmlDynamicTag {
                 let ctx: AttrEntryContext<'_> = AttrEntryContext::new(value, &key_string);
                 let value_tokens: proc_macro2::TokenStream = attr_value_to_entry_value_tokens(&ctx);
                 quote! {
-                    ::euv::AttributeEntry::new(#attr_name_token, #value_tokens)
+                    ::euv_core::AttributeEntry::new(#attr_name_token, #value_tokens)
                 }
             })
             .collect()
@@ -858,16 +858,16 @@ impl HtmlDynamicTag {
         let component_call_tokens: proc_macro2::TokenStream = if has_children_field {
             let children_token: proc_macro2::TokenStream =
                 children_to_node_tokens(self.get_children());
-            quote! { #fn_ident(::euv::VirtualNode::Element {
-                tag: ::euv::Tag::Component(::std::borrow::Cow::Borrowed(#fn_name_str)),
+            quote! { #fn_ident(::euv_core::VirtualNode::Element {
+                tag: ::euv_core::Tag::Component(::std::borrow::Cow::Borrowed(#fn_name_str)),
                 attributes: Vec::new(),
                 children: vec![#(#dyn_child_tokens), *],
                 key: None,
                 props: Some(Box::new(#props_ident { children: #children_token, ..#props_init_tokens })),
             }) }
         } else {
-            quote! { #fn_ident(::euv::VirtualNode::Element {
-                tag: ::euv::Tag::Component(::std::borrow::Cow::Borrowed(#fn_name_str)),
+            quote! { #fn_ident(::euv_core::VirtualNode::Element {
+                tag: ::euv_core::Tag::Component(::std::borrow::Cow::Borrowed(#fn_name_str)),
                 attributes: Vec::new(),
                 children: vec![#(#dyn_child_tokens), *],
                 key: None,
@@ -1072,14 +1072,14 @@ impl HtmlElement {
                 }
                 let value_tokens: proc_macro2::TokenStream =
                     attr_value_to_entry_value_tokens(&AttrEntryContext::new(value, &key_string));
-                Some(quote! { ::euv::AttributeEntry::new(::std::borrow::Cow::Borrowed(#key_string), #value_tokens) })
+                Some(quote! { ::euv_core::AttributeEntry::new(::std::borrow::Cow::Borrowed(#key_string), #value_tokens) })
             })
             .collect();
         let children_tokens: proc_macro2::TokenStream =
             children_to_flattened_tokens(self.get_children());
         quote! {
-            ::euv::VirtualNode::Element {
-                tag: ::euv::Tag::Portal(#target_expr),
+            ::euv_core::VirtualNode::Element {
+                tag: ::euv_core::Tag::Portal(#target_expr),
                 attributes: vec![#(#attr_tokens), *],
                 children: #children_tokens,
                 key: None,
@@ -1125,8 +1125,8 @@ impl HtmlElement {
         };
         let child_tokens: Vec<proc_macro2::TokenStream> = nodes_to_token_vec(self.get_children());
         quote! {
-            #tag_ident(::euv::VirtualNode::Element {
-                tag: ::euv::Tag::Component(::std::borrow::Cow::Borrowed(#tag_name)),
+            #tag_ident(::euv_core::VirtualNode::Element {
+                tag: ::euv_core::Tag::Component(::std::borrow::Cow::Borrowed(#tag_name)),
                 attributes: Vec::new(),
                 children: vec![#(#child_tokens), *],
                 key: None,
@@ -1200,7 +1200,7 @@ impl HtmlElement {
                 let ctx: AttrEntryContext<'_> = AttrEntryContext::new(value, &key_string);
                 let value_tokens: proc_macro2::TokenStream = attr_value_to_entry_value_tokens(&ctx);
                 Some(quote! {
-                    ::euv::AttributeEntry::new(#attr_name_token, #value_tokens)
+                    ::euv_core::AttributeEntry::new(#attr_name_token, #value_tokens)
                 })
             })
             .collect();
@@ -1210,8 +1210,8 @@ impl HtmlElement {
         // OPT 2: tag literal becomes `Cow::Borrowed("div")` instead of
         // a fresh `String` allocation.
         quote! {
-            ::euv::VirtualNode::Element {
-                tag: ::euv::Tag::Element(::std::borrow::Cow::Borrowed(#tag_literal)),
+            ::euv_core::VirtualNode::Element {
+                tag: ::euv_core::Tag::Element(::std::borrow::Cow::Borrowed(#tag_literal)),
                 attributes: vec![#(#attr_tokens), *],
                 children: #children_tokens,
                 key: #key_token,

@@ -131,8 +131,8 @@ impl ToTokens for WatchInput {
                 quote! {
                     {
                         #signal.subscribe(move || {
-                            ::euv::App::batch(|| {
-                                unsafe { ::euv::FireHandle::fire_at(__euv_watch_fire_addr) }
+                            ::euv_core::App::batch(|| {
+                                unsafe { ::euv_core::FireHandle::fire_at(__euv_watch_fire_addr) }
                             });
                         });
                     }
@@ -140,15 +140,15 @@ impl ToTokens for WatchInput {
             })
             .collect();
         tokens.extend(quote! {{
-            #(let #signals: ::euv::Signal<_> = #signal_exprs;)*
-            let __euv_watch_subscribed: ::euv::Signal<bool> = ::euv::App::use_signal(|| false);
+            #(let #signals: ::euv_core::Signal<_> = #signal_exprs;)*
+            let __euv_watch_subscribed: ::euv_core::Signal<bool> = ::euv_core::App::use_signal(|| false);
             if !__euv_watch_subscribed.get() {
-                let __euv_watch_fire_addr: usize = ::euv::FireHandle::new(move || {
+                let __euv_watch_fire_addr: usize = ::euv_core::FireHandle::new(move || {
                     #(#all_gets)*
                     { #(#body)* }
                 })
                 .into();
-                ::euv::App::batch(|| {
+                ::euv_core::App::batch(|| {
                     #(#subscribe_calls)*
                     {
                         #(#all_gets)*

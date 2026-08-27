@@ -16,6 +16,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 euv = { workspace = true }
+euv-core = { workspace = true }
 
 js-sys = { workspace = true }
 web-sys = { workspace = true }

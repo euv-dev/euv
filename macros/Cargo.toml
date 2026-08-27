@@ -24,4 +24,4 @@ proc-macro2 = { workspace = true }
 lombok-macros = { workspace = true }
 
 [dev-dependencies]
-euv = { path = "../" }
+euv-core = { path = "../core" }

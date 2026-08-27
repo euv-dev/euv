@@ -116,8 +116,8 @@ impl ToTokens for VarsDef {
                     .collect();
                 let name_format: String = format!("{{}}{STR_HYPHEN}{{}}");
                 tokens.extend(quote! {
-                        #visibility fn #name(#(#param_defs), *) -> ::euv::Css {
-                        let css: ::euv::Css = ::euv::Css::new(format!(#name_format, #class_name_str, [#(format!("{:?}", #param_names)), *].join(#STR_HYPHEN)), [#(#css_string_parts), *].concat(), Vec::new(), Vec::new());
+                        #visibility fn #name(#(#param_defs), *) -> ::euv_core::Css {
+                        let css: ::euv_core::Css = ::euv_core::Css::new(format!(#name_format, #class_name_str, [#(format!("{:?}", #param_names)), *].join(#STR_HYPHEN)), [#(#css_string_parts), *].concat(), Vec::new(), Vec::new());
                         css.inject_style();
                         css
                     }
