@@ -331,26 +331,6 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                 subtitle: "Props passing with callbacks, two-way binding via shared Signals, and cross-component reactive binding using watch!."
             }
             euv_card {
-                title: "Live Color (driven by Color Mixer slider)"
-                p {
-                    class: c_demo_text()
-                    "The slider at the bottom of this page writes the same Signal this card reads. Move any R/G/B slider to update the swatch color in real time."
-                }
-                div {
-                    class: c_binding_live_color_row()
-                    div {
-                        class: c_binding_live_color_swatch()
-                        class: c_binding_color_preview_bg(&cross_state.get_hex_color().get())
-                    }
-                    button {
-                        class: c_binding_live_color_button(&cross_state.get_hex_color().get())
-                        class: c_euv_button_primary_md()
-                        onclick: typed_props_on_toggle_disabled(typed_state.get_disabled())
-                        "Live tint"
-                    }
-                }
-            }
-            euv_card {
                 title: "Props & Callbacks"
                 p {
                     class: c_demo_text()
