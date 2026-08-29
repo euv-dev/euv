@@ -32,13 +32,6 @@ pub(crate) fn hooks_async_state_label(handle: UseAsyncHandle<String, ()>) -> Str
     }
 }
 
-/// Returns `true` when the async handle is currently in the `Ok`
-/// state — used to highlight the Refetch button after a successful
-/// refetch.
-pub(crate) fn hooks_async_state_is_ok(handle: UseAsyncHandle<String, ()>) -> bool {
-    matches!(handle.state(), AsyncState::<String, ()>::Ok(_))
-}
-
 /// Returns `true` while the lazy component has not produced a value
 /// yet.
 ///
@@ -46,12 +39,6 @@ pub(crate) fn hooks_async_state_is_ok(handle: UseAsyncHandle<String, ()>) -> boo
 /// factory as a side effect of rendering.
 pub(crate) fn hooks_async_lazy_is_pending(lazy: &LazyComponent<String>) -> bool {
     lazy.loaded().is_none()
-}
-
-/// Returns `true` once the lazy component's factory has produced a
-/// value — used to flip the Load button into its active state.
-pub(crate) fn hooks_async_lazy_is_loaded(lazy: &LazyComponent<String>) -> bool {
-    lazy.loaded().is_some()
 }
 
 /// Returns the loaded `LazyComponent` value as a `String` for the

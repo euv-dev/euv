@@ -32,7 +32,7 @@ pub(crate) fn page_hooks_protect(node: VirtualNode<PageHooksProtectProps>) -> Vi
                         } else {
                             EuvButtonVariant::Outline
                         }
-                        label: "Try a healthy run"
+                        label: "Healthy"
                         onclick: hooks_protect_try_healthy(boundary)
                     }
                     euv_button {
@@ -41,11 +41,11 @@ pub(crate) fn page_hooks_protect(node: VirtualNode<PageHooksProtectProps>) -> Vi
                         } else {
                             EuvButtonVariant::Outline
                         }
-                        label: "Try a panic"
+                        label: "Panic"
                         onclick: hooks_protect_try_panic(boundary)
                     }
                     euv_button {
-                        variant: EuvButtonVariant::Outline
+                        variant: EuvButtonVariant::Primary
                         label: "Reset"
                         onclick: hooks_protect_reset(boundary)
                     }
@@ -69,11 +69,11 @@ pub(crate) fn page_hooks_protect(node: VirtualNode<PageHooksProtectProps>) -> Vi
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Measure a slow op"
+                        label: "Measure"
                         onclick: hooks_protect_profile_slow(profiler)
                     }
                     euv_button {
-                        variant: EuvButtonVariant::Outline
+                        variant: EuvButtonVariant::Primary
                         label: "Clear"
                         onclick: hooks_protect_profile_clear(profiler)
                     }

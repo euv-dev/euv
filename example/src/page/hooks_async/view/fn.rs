@@ -29,11 +29,7 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
                 div {
                     class: c_button_controls()
                     euv_button {
-                        variant: if { hooks_async_state_is_ok(async_handle) } {
-                            EuvButtonVariant::Primary
-                        } else {
-                            EuvButtonVariant::Outline
-                        }
+                        variant: EuvButtonVariant::Primary
                         label: "Refetch"
                         onclick: hooks_async_refetch(async_handle)
                     }
@@ -56,16 +52,12 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
                 div {
                     class: c_button_controls()
                     euv_button {
-                        variant: if { hooks_async_lazy_is_loaded(&lazy_value) } {
-                            EuvButtonVariant::Outline
-                        } else {
-                            EuvButtonVariant::Primary
-                        }
+                        variant: EuvButtonVariant::Primary
                         label: "Load"
                         onclick: hooks_async_lazy_on_load(lazy_value.clone())
                     }
                     euv_button {
-                        variant: EuvButtonVariant::Outline
+                        variant: EuvButtonVariant::Primary
                         label: "Reset"
                         onclick: hooks_async_lazy_on_reset(lazy_value.clone())
                     }
