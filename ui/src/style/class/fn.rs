@@ -1018,7 +1018,7 @@ class! {
     }
 
     pub c_counter_text {
-        font-size: var!(font-lg);
+        font-size: var!(font-base);
         color: "inherit";
         margin-bottom: var!(gap-component);
     }
@@ -1026,10 +1026,7 @@ class! {
     pub c_counter_value {
         font-weight: "700";
         color: var!(accent);
-        font-size: var!(font-2xl);
-        @media ((max-width: 767px)) {
-            font-size: var!(font-xl);
-        }
+        font-size: var!(font-base);
     }
 
     pub c_badge_row {
@@ -1658,7 +1655,7 @@ class! {
     // ═══════════════════════════════════════════════════════════════════════════
 
     pub c_render_count_text {
-        font-size: var!(font-lg);
+        font-size: var!(font-base);
         color: "inherit";
         margin-bottom: var!(gap-component);
     }
@@ -1877,14 +1874,11 @@ class! {
     }
 
     pub c_timer_value {
-        font-size: var!(font-5xl);
+        font-size: var!(font-base);
         font-weight: "700";
         color: var!(accent);
         letter-spacing: "0.04em";
         font-family: "ui-monospace, monospace";
-        @media ((max-width: 767px)) {
-            font-size: var!(font-4xl);
-        }
     }
 
     pub c_timer_controls {
@@ -2587,11 +2581,10 @@ class! {
     }
 
     pub c_keep_alive_counter_value {
-        font-size: var!(font-5xl);
+        font-size: var!(font-base);
         font-weight: "700";
         font-variant-numeric: "tabular-nums";
         color: var!(accent);
-        min-width: "120px";
         text-align: "center";
     }
 
