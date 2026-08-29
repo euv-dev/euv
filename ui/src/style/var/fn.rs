@@ -91,6 +91,7 @@ vars! {
         padding-shell-top: var!(safe-area-inset-top);
         padding-shell-bottom: var!(safe-area-inset-bottom);
         padding-main-top: "24px";
+        padding-main-top-mobile: "16px";
         padding-main-bottom: "24px";
         padding-main-horizontal: "28px";
         padding-main-horizontal-mobile: "16px";
@@ -232,6 +233,7 @@ vars! {
         padding-shell-top: var!(safe-area-inset-top);
         padding-shell-bottom: var!(safe-area-inset-bottom);
         padding-main-top: "24px";
+        padding-main-top-mobile: "16px";
         padding-main-bottom: "24px";
         padding-main-horizontal: "28px";
         padding-main-horizontal-mobile: "16px";

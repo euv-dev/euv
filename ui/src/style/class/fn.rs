@@ -159,7 +159,6 @@ class! {
         flex-direction: "column";
         width: "100%";
         height: "100%";
-        gap: var!(space-sm);
         font-family: "system-ui, -apple-system, sans-serif";
         background: var!(background);
         color: var!(foreground);
@@ -446,7 +445,7 @@ class! {
             background: var!(scrollbar-thumb-active);
         }
         @media ((max-width: 767px)) {
-            padding: format!("{} {} {} {}", var!(padding-main-top), var!(padding-main-horizontal-mobile), var!(padding-main-bottom), var!(padding-main-horizontal-mobile));
+            padding: format!("{} {} {} {}", var!(padding-main-top-mobile), var!(padding-main-horizontal-mobile), var!(padding-main-bottom), var!(padding-main-horizontal-mobile));
             scrollbar-width: "none";
             ::-webkit-scrollbar {
                 width: "0px";
@@ -3124,6 +3123,7 @@ class! {
         @media ((max-width: 767px)) {
             margin-bottom: var!(space-lg);
             flex: "0 0 auto";
+            justify-content: "flex-start";
         }
     }
 
