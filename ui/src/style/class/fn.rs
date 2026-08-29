@@ -162,7 +162,7 @@ class! {
         font-family: "system-ui, -apple-system, sans-serif";
         background: var!(background);
         color: var!(foreground);
-        padding: format!("{} {} {} {}", var!(padding-shell-top), var!(safe-area-inset-right), var!(padding-shell-bottom), var!(safe-area-inset-left));
+        padding: format!("0px {} {} {}", var!(safe-area-inset-right), var!(padding-shell-bottom), var!(safe-area-inset-left));
         scrollbar-color: format!("{} {}", var!(scrollbar-thumb), var!(scrollbar-track));
         ::-webkit-scrollbar-thumb {
             background: var!(scrollbar-thumb);
@@ -2384,13 +2384,14 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        padding: format!("0px {}", var!(space-lg));
-        height: var!(mobile-header-height);
+        padding: format!("{} 0px 0px {}", var!(safe-area-inset-top), var!(space-lg));
+        height: format!("calc({} + {})", var!(mobile-header-height), var!(safe-area-inset-top));
         flex-shrink: "0";
         position: "sticky";
         top: "0px";
         z-index: "100";
         contain: "content";
+        background: var!(background);
         border-bottom: format!("1px solid {}", var!(border));
     }
 
