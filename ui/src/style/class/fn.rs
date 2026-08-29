@@ -631,6 +631,7 @@ class! {
         flex-wrap: "wrap";
         gap: var!(gap-element);
         margin-top: var!(gap-component);
+        margin-bottom: var!(gap-component);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
