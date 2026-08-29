@@ -9,7 +9,8 @@ use super::*;
 pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> VirtualNode {
     let PageHooksAsyncProps: PageHooksAsyncProps = node.try_get_props().unwrap_or_default();
     let async_handle: UseAsyncHandle<String, ()> = use_async::<String, ()>();
-    let lazy_value: LazyComponent<u32> = use_lazy_component::<u32, _>(|| 7);
+    let lazy_value: LazyComponent<String> =
+        use_lazy_component::<String, _>(|| String::from(HOOKS_ASYNC_LAZY_VALUE));
     let suspense: SuspenseHandle<String> = use_suspense::<String>();
     html! {
         div {
@@ -28,7 +29,11 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
                 div {
                     class: c_button_controls()
                     euv_button {
-                        variant: EuvButtonVariant::Primary
+                        variant: if { hooks_async_state_is_ok(async_handle) } {
+                            EuvButtonVariant::Primary
+                        } else {
+                            EuvButtonVariant::Outline
+                        }
                         label: "Refetch"
                         onclick: hooks_async_refetch(async_handle)
                     }
@@ -46,7 +51,24 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
                 title: "use_lazy_component"
                 p {
                     class: c_render_count_text()
-                    "The factory is only invoked on first access. After a reset() the next read triggers it again."
+                    "The factory is only invoked on first access. Click Load to run it once; Reset returns the component to the pending state so the next read invokes the factory again."
+                }
+                div {
+                    class: c_button_controls()
+                    euv_button {
+                        variant: if { hooks_async_lazy_is_loaded(&lazy_value) } {
+                            EuvButtonVariant::Outline
+                        } else {
+                            EuvButtonVariant::Primary
+                        }
+                        label: "Load"
+                        onclick: hooks_async_lazy_on_load(lazy_value.clone())
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Outline
+                        label: "Reset"
+                        onclick: hooks_async_lazy_on_reset(lazy_value.clone())
+                    }
                 }
                 div {
                     class: c_counter_row()
@@ -75,17 +97,29 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
                 div {
                     class: c_button_controls()
                     euv_button {
-                        variant: EuvButtonVariant::Primary
+                        variant: if { hooks_async_suspense_is_resolved(&suspense) } {
+                            EuvButtonVariant::Primary
+                        } else {
+                            EuvButtonVariant::Outline
+                        }
                         label: "Resolve"
                         onclick: hooks_async_resolve(suspense, String::from(HOOKS_ASYNC_RESOLVED_VALUE))
                     }
                     euv_button {
-                        variant: EuvButtonVariant::Outline
+                        variant: if { hooks_async_suspense_is_failed(&suspense) } {
+                            EuvButtonVariant::Primary
+                        } else {
+                            EuvButtonVariant::Outline
+                        }
                         label: "Fail"
                         onclick: hooks_async_fail(suspense, String::from(HOOKS_ASYNC_FAIL_MESSAGE))
                     }
                     euv_button {
-                        variant: EuvButtonVariant::Outline
+                        variant: if { hooks_async_suspense_is_pending(&suspense) } {
+                            EuvButtonVariant::Primary
+                        } else {
+                            EuvButtonVariant::Outline
+                        }
                         label: "Reset"
                         onclick: hooks_async_reset(suspense)
                     }

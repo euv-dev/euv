@@ -1,19 +1,19 @@
 use super::*;
 
-/// Obtains a stand-alone (non-reactive) `UseAsyncHandle`.
+/// Obtains the `UseAsyncHandle` registered against the current hook
+/// context slot.
 ///
-/// Unlike the `HookContext`-bound variant described in the trait
-/// doc-comment, this factory deliberately skips the hook slot and
-/// falls back to a self-contained handle. That's the same code path
-/// that `UseAsyncHandle::default()` uses internally, and it's the
-/// only path that compiles today (`HookContext::use_async` is on
-/// the roadmap but not yet wired in `euv-core`).
+/// Behaves like `HookContext::use_hook`: the same handle (and therefore
+/// the same `state` signal) is returned on every render at the same hook
+/// index, so state written by `set_state` / `refetch` survives re-renders.
+/// Without the hook context (e.g. when called outside a render cycle) the
+/// factory falls back to a stand-alone handle — see
+/// [`UseAsyncHandle::new_for_fallback`].
 ///
 /// The returned handle is `Copy`, cheap to pass around, and exposes
 /// `state()` / `set_state()` for non-async testing as well as
-/// `refetch()` for the real wasm path. Render code that wants
-/// reactive updates can still subscribe by reading `state()` inside
-/// a render closure.
+/// `refetch()` for the real wasm path. Render code subscribes to state
+/// changes by reading `state()` inside a render closure.
 ///
 /// # Returns
 ///
@@ -24,5 +24,5 @@ where
     T: Clone + PartialEq + 'static,
     L: Clone + PartialEq + HasLoadingHint + 'static,
 {
-    UseAsyncHandle::new_for_fallback()
+    HookContext::use_hook(UseAsyncHandle::new_for_fallback)
 }

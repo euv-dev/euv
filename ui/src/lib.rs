@@ -22,7 +22,6 @@ use std::{
         LazyLock,
         atomic::{AtomicBool, Ordering},
     },
-    time::Instant,
 };
 
 use euv::*;

@@ -4,7 +4,7 @@ use super::*;
 impl<T: Clone + PartialEq + Default + 'static> DebouncedValue<T> {
     /// Schedules `next` to become the emitted value. The
     /// commit happens on the next `tick` call at or after
-    /// `now + delay_ms`.
+    /// `now_ms + delay_ms`.
     ///
     /// Calling `set` repeatedly within `delay_ms` of each
     /// other means only the last value wins — that's the
@@ -13,9 +13,10 @@ impl<T: Clone + PartialEq + Default + 'static> DebouncedValue<T> {
     /// # Arguments
     ///
     /// - `T: Clone + PartialEq + Default + 'static` - A generic type parameter.
-    /// - `Instant` - A monotonic instant in time (`Instant`).
-    pub fn set(&self, next: T, now: Instant) {
-        self.get_state().set(DebounceState::Pending(now, next));
+    /// - `u64` - The current time in milliseconds (any monotonic
+    ///   source; on the web use `performance.now()`).
+    pub fn set(&self, next: T, now_ms: u64) {
+        self.get_state().set(DebounceState::Pending(now_ms, next));
     }
 
     /// Drives the state machine forward.
@@ -23,7 +24,7 @@ impl<T: Clone + PartialEq + Default + 'static> DebouncedValue<T> {
     /// - If the state is `Idle`, this is a no-op.
     /// - If the state is `Pending(set_at, value)`, this
     ///   emits `value` (writing it to the `value` signal)
-    ///   iff `now - set_at >= delay_ms`. Otherwise the
+    ///   iff `now_ms - set_at >= delay_ms`. Otherwise the
     ///   pending value is preserved and the call returns
     ///   `false`.
     ///
@@ -32,16 +33,16 @@ impl<T: Clone + PartialEq + Default + 'static> DebouncedValue<T> {
     ///
     /// # Arguments
     ///
-    /// - `Instant` - A monotonic instant in time (`Instant`).
+    /// - `u64` - The current time in milliseconds.
     ///
     /// # Returns
     ///
     /// - `bool` - A boolean.
-    pub fn tick(&self, now: Instant) -> bool {
+    pub fn tick(&self, now_ms: u64) -> bool {
         match self.get_state().get() {
             DebounceState::Idle => false,
             DebounceState::Pending(set_at, _) => {
-                if now.duration_since(set_at).as_millis() >= u128::from(self.delay_ms) {
+                if now_ms.saturating_sub(set_at) >= u64::from(self.delay_ms) {
                     let pending: T = match self.get_state().get() {
                         DebounceState::Pending(_, value) => value,
                         DebounceState::Idle => unreachable!(),

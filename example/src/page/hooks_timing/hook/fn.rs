@@ -1,5 +1,4 @@
 use super::*;
-use std::time::Instant;
 
 /// Quiet period for the debounce row (ms).
 pub(crate) const TIMING_DEBOUNCE_MS: u32 = 300;
@@ -20,6 +19,24 @@ pub(crate) const TIMING_DEBOUNCE_INPUT_ID: &str = "timing-debounce-input";
 /// DOM id for the throttle row's input.
 pub(crate) const TIMING_THROTTLE_INPUT_ID: &str = "timing-throttle-input";
 
+/// Returns the current time in milliseconds from
+/// `window.performance.now()`.
+///
+/// `std::time::Instant::now()` panics on
+/// `wasm32-unknown-unknown` ("time not implemented on this
+/// platform"), so the demo reads the browser's monotonic clock
+/// instead. Falls back to `0` when no window / performance
+/// object is available (e.g. non-web targets).
+pub(crate) fn timing_now_ms() -> u64 {
+    let Some(window_value): Option<Window> = window() else {
+        return 0;
+    };
+    let Some(performance): Option<Performance> = window_value.performance() else {
+        return 0;
+    };
+    performance.now() as u64
+}
+
 /// Creates an input handler that updates `live`, schedules a
 /// debounce commit on `debounced`, and records `current` in
 /// `previous` for the snapshot row to consume.
@@ -32,7 +49,7 @@ pub(crate) fn timing_debounce_on_input(
     Some(Rc::new(move |event: Event| {
         if let Some(value) = timing_read_input(&event) {
             live.set(value.clone());
-            debounced.set(value.clone(), Instant::now());
+            debounced.set(value.clone(), timing_now_ms());
             let snapshot: Option<String> = previous_step(previous, value.clone());
             let next_current: String = match snapshot {
                 Some(prev) => format!("{prev} → {value}"),
@@ -51,19 +68,15 @@ pub(crate) fn timing_throttle_on_input(
     previous: Previous<String>,
 ) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
-        let captured_live: Signal<String> = live;
-        let captured_throttled: ThrottledValue<String> = throttled;
-        let captured_current: Signal<String> = current;
-        let captured_previous: Previous<String> = previous;
         if let Some(value) = timing_read_input(&event) {
-            captured_live.set(value.clone());
-            captured_throttled.set(value.clone(), Instant::now());
-            let snapshot: Option<String> = previous_step(captured_previous, value.clone());
+            live.set(value.clone());
+            throttled.set(value.clone(), timing_now_ms());
+            let snapshot: Option<String> = previous_step(previous, value.clone());
             let next_current: String = match snapshot {
                 Some(prev) => format!("{prev} → {value}"),
                 None => value,
             };
-            captured_current.set(next_current);
+            current.set(next_current);
         }
     }))
 }

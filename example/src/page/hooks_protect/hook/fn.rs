@@ -77,6 +77,18 @@ pub(crate) fn hooks_protect_entry_count(profiler: ProfilerHandle) -> usize {
     profiler.get_entries().get().len()
 }
 
+/// Returns `true` while the boundary phase is `Healthy` — used
+/// to keep the "Try a healthy run" button in its active state.
+pub(crate) fn hooks_protect_is_healthy(boundary: &ErrorBoundary) -> bool {
+    matches!(boundary.get_phase().get(), ErrorBoundaryPhase::Healthy)
+}
+
+/// Returns `true` while the boundary phase is `Caught` — used
+/// to keep the "Try a panic" button in its active state.
+pub(crate) fn hooks_protect_is_caught(boundary: &ErrorBoundary) -> bool {
+    matches!(boundary.get_phase().get(), ErrorBoundaryPhase::Caught(_))
+}
+
 /// Reads the boundary's current phase and shapes it into a
 /// readable string for the demo card.
 pub(crate) fn hooks_protect_phase_label(boundary: &ErrorBoundary) -> String {

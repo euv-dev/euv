@@ -14,9 +14,12 @@ use super::*;
 /// `interval_ms` regardless of how often `set` was called.
 ///
 /// Pair with `App::use_interval` — the interval callback
-/// calls `tick(Instant::now())` every `interval_ms`. The
-/// caller picks the time source so the hook stays free
-/// of browser / timer dependencies.
+/// calls `tick(now_ms)` every `interval_ms`, where
+/// `now_ms` comes from `performance.now()` on the web.
+/// The caller picks the time source (plain `u64` millis)
+/// so the hook stays free of browser / timer dependencies
+/// and works on `wasm32-unknown-unknown` (where
+/// `std::time::Instant::now()` panics).
 #[derive(Clone, Data, Debug, New)]
 pub struct ThrottledValue<T: Clone + PartialEq + Default + 'static> {
     /// The emitted value signal. Defaults to

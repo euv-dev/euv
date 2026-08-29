@@ -1,6 +1,12 @@
 use super::*;
-use std::time::Instant;
 
+/// A page demonstrating the timing hooks
+/// ([`DebouncedValue`], [`ThrottledValue`] and [`Previous`]).
+///
+/// The debounce / throttle state machines are driven by a single
+/// `App::use_interval` ticker; timestamps come from
+/// `performance.now()` because `std::time::Instant::now()` panics on
+/// `wasm32-unknown-unknown`.
 #[component]
 pub(crate) fn page_hooks_timing(node: VirtualNode<PageHooksTimingProps>) -> VirtualNode {
     let PageHooksTimingProps: PageHooksTimingProps = node.try_get_props().unwrap_or_default();
@@ -8,14 +14,15 @@ pub(crate) fn page_hooks_timing(node: VirtualNode<PageHooksTimingProps>) -> Virt
     let throttled: ThrottledValue<String> = use_throttled_value::<String>(TIMING_THROTTLE_MS);
     let previous: Previous<String> = use_previous::<String>();
     let current: Signal<String> = App::use_signal(String::new);
-    let live: Signal<String> = App::use_signal(String::new);
+    let live_debounce: Signal<String> = App::use_signal(String::new);
+    let live_throttle: Signal<String> = App::use_signal(String::new);
     App::use_interval(TIMING_TICK_MS, {
         let debounced: DebouncedValue<String> = debounced;
         let throttled: ThrottledValue<String> = throttled;
         move || {
-            let now: Instant = Instant::now();
-            debounced.tick(now);
-            throttled.tick(now);
+            let now_ms: u64 = timing_now_ms();
+            debounced.tick(now_ms);
+            throttled.tick(now_ms);
         }
     });
     let debounced_value: Signal<String> = debounced.get_value();
@@ -39,8 +46,8 @@ pub(crate) fn page_hooks_timing(node: VirtualNode<PageHooksTimingProps>) -> Virt
                         id: TIMING_DEBOUNCE_INPUT_ID
                         label: "Live input"
                         placeholder: TIMING_INPUT_PLACEHOLDER
-                        value: live
-                        oninput: timing_debounce_on_input(live, debounced, current, previous)
+                        value: live_debounce
+                        oninput: timing_debounce_on_input(live_debounce, debounced, current, previous)
                     }
                     span {
                         class: c_counter_value()
@@ -59,8 +66,8 @@ pub(crate) fn page_hooks_timing(node: VirtualNode<PageHooksTimingProps>) -> Virt
                         id: TIMING_THROTTLE_INPUT_ID
                         label: "Live input"
                         placeholder: TIMING_INPUT_PLACEHOLDER
-                        value: live
-                        oninput: timing_throttle_on_input(live, throttled, current, previous)
+                        value: live_throttle
+                        oninput: timing_throttle_on_input(live_throttle, throttled, current, previous)
                     }
                     span {
                         class: c_counter_value()

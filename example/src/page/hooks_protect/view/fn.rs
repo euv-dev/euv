@@ -27,12 +27,20 @@ pub(crate) fn page_hooks_protect(node: VirtualNode<PageHooksProtectProps>) -> Vi
                 div {
                     class: c_button_controls()
                     euv_button {
-                        variant: EuvButtonVariant::Primary
+                        variant: if { hooks_protect_is_healthy(&boundary) } {
+                            EuvButtonVariant::Primary
+                        } else {
+                            EuvButtonVariant::Outline
+                        }
                         label: "Try a healthy run"
                         onclick: hooks_protect_try_healthy(boundary)
                     }
                     euv_button {
-                        variant: EuvButtonVariant::Outline
+                        variant: if { hooks_protect_is_caught(&boundary) } {
+                            EuvButtonVariant::Primary
+                        } else {
+                            EuvButtonVariant::Outline
+                        }
                         label: "Try a panic"
                         onclick: hooks_protect_try_panic(boundary)
                     }

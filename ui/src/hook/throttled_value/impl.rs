@@ -21,8 +21,9 @@ impl<T: Clone + PartialEq + Default + 'static> ThrottledValue<T> {
     /// # Arguments
     ///
     /// - `T: Clone + PartialEq + Default + 'static` - A generic type parameter.
-    /// - `Instant` - A monotonic instant in time (`Instant`).
-    pub fn set(&self, next: T, now: Instant) {
+    /// - `u64` - The current time in milliseconds (any monotonic
+    ///   source; on the web use `performance.now()`).
+    pub fn set(&self, next: T, now_ms: u64) {
         if self.interval_ms == 0 {
             self.get_value().set(next);
             self.get_pending().set(None);
@@ -32,7 +33,7 @@ impl<T: Clone + PartialEq + Default + 'static> ThrottledValue<T> {
         match self.get_state().get() {
             ThrottleState::Idle => {
                 self.get_value().set(next);
-                self.get_state().set(ThrottleState::Cooldown(now));
+                self.get_state().set(ThrottleState::Cooldown(now_ms));
             }
             ThrottleState::Cooldown(_) => {
                 self.get_pending().set(Some(next));
@@ -54,16 +55,16 @@ impl<T: Clone + PartialEq + Default + 'static> ThrottledValue<T> {
     ///
     /// # Arguments
     ///
-    /// - `Instant` - A monotonic instant in time (`Instant`).
+    /// - `u64` - The current time in milliseconds.
     ///
     /// # Returns
     ///
     /// - `bool` - A boolean.
-    pub fn tick(&self, now: Instant) -> bool {
+    pub fn tick(&self, now_ms: u64) -> bool {
         match self.get_state().get() {
             ThrottleState::Idle => false,
             ThrottleState::Cooldown(start) => {
-                if now.duration_since(start).as_millis() < u128::from(self.interval_ms) {
+                if now_ms.saturating_sub(start) < u64::from(self.interval_ms) {
                     return false;
                 }
                 let committed: bool = match self.get_pending().get() {
