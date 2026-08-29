@@ -188,7 +188,7 @@ class! {
         flex-direction: "column";
         height: "100%";
         flex-shrink: "0";
-        padding-top: format!("min(max({}, 16px), 24px)", var!(safe-area-inset-top));
+        padding-top: var!(safe-area-inset-top);
         @media ((max-width: 767px)) {
             display: "none";
         }
@@ -2384,8 +2384,8 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        padding: format!("min(max({}, 16px), 24px) 0px 0px {}", var!(safe-area-inset-top), var!(space-lg));
-        height: format!("calc({} + min(max({}, 16px), 24px))", var!(mobile-header-height), var!(safe-area-inset-top));
+        padding: format!("{} 0px 0px {}", var!(safe-area-inset-top), var!(space-lg));
+        height: format!("calc({} + {})", var!(mobile-header-height), var!(safe-area-inset-top));
         flex-shrink: "0";
         position: "sticky";
         top: "0px";
