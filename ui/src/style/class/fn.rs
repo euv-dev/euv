@@ -2384,8 +2384,8 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        padding: format!("0px 0px 0px {}", var!(space-lg));
-        height: var!(mobile-header-height);
+        padding: format!("min({}, 24px) 0px 0px {}", var!(safe-area-inset-top), var!(space-lg));
+        height: format!("calc({} + min({}, 24px))", var!(mobile-header-height), var!(safe-area-inset-top));
         flex-shrink: "0";
         position: "sticky";
         top: "0px";
