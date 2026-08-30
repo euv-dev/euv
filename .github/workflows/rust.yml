@@ -168,7 +168,7 @@ jobs:
 
   check:
     needs: sync_workspace_version
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && needs.sync_workspace_version.result == 'success')
+    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && needs.sync_workspace_version.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -185,7 +185,7 @@ jobs:
 
   tests:
     needs: sync_workspace_version
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && needs.sync_workspace_version.result == 'success')
+    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && needs.sync_workspace_version.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -201,7 +201,7 @@ jobs:
 
   clippy:
     needs: sync_workspace_version
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && needs.sync_workspace_version.result == 'success')
+    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && needs.sync_workspace_version.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -218,7 +218,7 @@ jobs:
 
   build:
     needs: sync_workspace_version
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && needs.sync_workspace_version.result == 'success')
+    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && needs.sync_workspace_version.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -239,7 +239,7 @@ jobs:
     permissions:
       contents: write
     needs: [setup, sync_workspace_version, check, tests, clippy, build]
-    if: github.event_name == 'push' && github.ref_name == 'master' && needs.setup.outputs.tag != ''
+    if: always() && github.event_name == 'push' && github.ref_name == 'master' && needs.setup.outputs.tag != '' && needs.check.result == 'success' && needs.tests.result == 'success' && needs.clippy.result == 'success' && needs.build.result == 'success'
     runs-on: ubuntu-latest
     outputs:
       published: ${{ steps.publish.outputs.published }}
@@ -369,7 +369,7 @@ jobs:
     permissions:
       contents: write
       packages: write
-    if: github.event_name == 'push' && github.ref_name == 'master' && needs.setup.outputs.tag != ''
+    if: always() && github.event_name == 'push' && github.ref_name == 'master' && needs.setup.outputs.tag != '' && needs.publish.result == 'success'
     runs-on: ubuntu-latest
     outputs:
       released: ${{ steps.release.outputs.released }}
