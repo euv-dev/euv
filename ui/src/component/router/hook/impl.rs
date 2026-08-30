@@ -310,13 +310,16 @@ impl Router {
     /// Closes the most recently opened overlay via the UI and consumes one
     /// browser history entry.
     ///
-    /// Pops the top entry from `OVERLAY_STACK` and calls `overlay_back` so that
-    /// the history count stays in sync. Use this when the user dismisses an overlay
+    /// Triggers `overlay_back`, which sets the `BACK_PENDING` flag and calls
+    /// `history.back()`. The resulting `popstate` handler invocation pops the
+    /// top entry from `OVERLAY_STACK` and runs its close callback, keeping the
+    /// history count in sync. Use this when the user dismisses an overlay
     /// through a close button, overlay click, or confirm/cancel action.
+    ///
+    /// Note: this method does **not** pop `OVERLAY_STACK` itself — the popstate
+    /// handler is the single owner of the pop, so UI dismissal and the system
+    /// back gesture share one consistent path.
     pub fn overlay_stack_close() {
-        OVERLAY_STACK.with(|stack: &OverlayStack| {
-            stack.borrow_mut().pop();
-        });
         Self::overlay_back(None);
     }
 
