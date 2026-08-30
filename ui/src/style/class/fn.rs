@@ -2384,8 +2384,8 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        padding: format!("0px 0px 0px {}", var!(space-lg));
-        height: var!(mobile-header-height);
+        padding: format!("var(--euv-mobile-safe-top, 0px) 0px 0px {}", var!(space-lg));
+        height: format!("calc({} + var(--euv-mobile-safe-top, 0px))", var!(mobile-header-height));
         flex-shrink: "0";
         position: "sticky";
         top: "0px";
@@ -2508,7 +2508,7 @@ class! {
         z-index: "201";
         display: "flex";
         flex-direction: "column";
-        padding-top: "0px";
+        padding-top: "var(--euv-mobile-safe-top, 0px)";
         padding-bottom: var!(padding-shell-bottom);
         contain: "layout style paint";
         will-change: "transform";

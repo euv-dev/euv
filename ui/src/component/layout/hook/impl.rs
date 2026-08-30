@@ -97,6 +97,7 @@ impl UseEuvLayout {
     /// - Any future fullscreen scenarios
     pub fn use_safe_area_fix() {
         Self::cache_safe_area_insets();
+        Self::init_immersive_safe_area();
         App::use_window_event("fullscreenchange", || {
             let Some(window_value) = window() else {
                 return;
@@ -145,6 +146,78 @@ impl UseEuvLayout {
             document_value.exit_fullscreen();
             true
         }));
+    }
+
+    /// Applies the real top safe-area inset to the mobile header and drawer when
+    /// the host environment declares immersive (edge-to-edge) mode.
+    ///
+    /// Immersive hosts — such as a Tauri Android WebView laid out edge-to-edge —
+    /// declare themselves either by setting `window.__EUV_IMMERSIVE__ = true`
+    /// before app initialisation or by including
+    /// `<meta name="euv-immersive" content="true">` in the document. Only then is
+    /// the cached `env(safe-area-inset-top)` pixel value written to the
+    /// `--euv-mobile-safe-top` CSS custom property on `<html>`, which
+    /// `c_mobile_header` and `c_mobile_nav_drawer` consume for their top padding.
+    ///
+    /// Browsers that letterbox the page below the system status bar never set the
+    /// marker, so the variable keeps its `0px` default. This deliberately avoids
+    /// trusting `env()` unconditionally: some Android browsers (e.g. VivoBrowser)
+    /// letterbox the page yet still report a non-zero top inset, which would
+    /// otherwise render as a blank band above the navbar.
+    fn init_immersive_safe_area() {
+        if !Self::is_immersive_declared() {
+            return;
+        }
+        let top_value: String =
+            SAFE_AREA_INSET_TOP.with(|cell: &RefCell<String>| cell.borrow().clone());
+        if top_value.is_empty() {
+            return;
+        }
+        let Some(window_value) = window() else {
+            return;
+        };
+        let Some(document_value) = window_value.document() else {
+            return;
+        };
+        let Some(root) = document_value.document_element() else {
+            return;
+        };
+        let root_element: HtmlElement = root.unchecked_into();
+        let _: Result<(), JsValue> = root_element
+            .style()
+            .set_property("--euv-mobile-safe-top", &top_value);
+    }
+
+    /// Returns whether the host environment declares immersive (edge-to-edge)
+    /// mode via `window.__EUV_IMMERSIVE__` or a
+    /// `<meta name="euv-immersive" content="true">` tag.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when immersive mode is declared by the host.
+    fn is_immersive_declared() -> bool {
+        let Some(window_value) = window() else {
+            return false;
+        };
+        let global_flag: bool =
+            js_sys::Reflect::get(&window_value, &JsValue::from_str("__EUV_IMMERSIVE__"))
+                .ok()
+                .and_then(|value: JsValue| value.as_bool())
+                .unwrap_or(false);
+        if global_flag {
+            return true;
+        }
+        window_value
+            .document()
+            .and_then(|document_value: Document| {
+                document_value
+                    .query_selector(r#"meta[name="euv-immersive"]"#)
+                    .ok()
+                    .flatten()
+            })
+            .and_then(|meta: Element| meta.get_attribute("content"))
+            .map(|content: String| content == "true")
+            .unwrap_or(false)
     }
 
     /// Reads the current `env(safe-area-inset-*)` pixel values via a temporary
