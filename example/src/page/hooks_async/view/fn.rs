@@ -107,11 +107,7 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
                         onclick: hooks_async_fail(suspense, String::from(HOOKS_ASYNC_FAIL_MESSAGE))
                     }
                     euv_button {
-                        variant: if { hooks_async_suspense_is_pending(&suspense) } {
-                            EuvButtonVariant::Primary
-                        } else {
-                            EuvButtonVariant::Outline
-                        }
+                        variant: EuvButtonVariant::Primary
                         label: "Reset"
                         onclick: hooks_async_reset(suspense)
                     }

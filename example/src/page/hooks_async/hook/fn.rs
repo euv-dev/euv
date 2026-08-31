@@ -74,11 +74,6 @@ pub(crate) fn hooks_async_suspense_phase_label(handle: &SuspenseHandle<String>) 
     }
 }
 
-/// Returns `true` when the suspense phase is `Pending`.
-pub(crate) fn hooks_async_suspense_is_pending(handle: &SuspenseHandle<String>) -> bool {
-    matches!(handle.get_phase().get(), SuspensePhase::Pending)
-}
-
 /// Returns `true` when the suspense phase is `Resolved`.
 pub(crate) fn hooks_async_suspense_is_resolved(handle: &SuspenseHandle<String>) -> bool {
     matches!(handle.get_phase().get(), SuspensePhase::Resolved(_))
