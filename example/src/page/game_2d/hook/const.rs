@@ -13,11 +13,32 @@ pub(crate) const GAME_2D_CANVAS_HEIGHT: f64 = 400.0;
 /// The gravitational acceleration in pixels per second squared.
 pub(crate) const GAME_2D_GRAVITY: f64 = 600.0;
 
-/// The minimum radius of a ball in pixels.
-pub(crate) const GAME_2D_BALL_MIN_RADIUS: f64 = 8.0;
+/// The minimum radius of a ball in CSS pixels (relative to a 600px canvas;
+/// the runtime scales by `canvas_width / GAME_2D_CANVAS_WIDTH`).
+///
+/// The Canvas 2D tab renders through a 2x SSAA backing store and then
+/// downscales, so a radius of `N` CSS units anti-aliases over `2 * N`
+/// physical pixels and ends up visually close to `N` CSS pixels. The
+/// WebGL / WebGPU tabs render directly in the physical backing pixel
+/// space (their shaders see `ball.radius` as a CSS-unit number but draw
+/// it in clip space without DPR scaling), so at DPR=2 a ball there ends
+/// up half the visual size of the Canvas 2D path. The shader-time
+/// `dpr` multiplier in `game_2d_ball_gpu_record` corrects that mismatch.
+///
+/// The lower bound is intentionally small so 100 balls can stack
+/// comfortably in the 600x400 inline canvas without triggering the
+/// `GAME_2D_MAX_BALL_AREA_RATIO` jam path.
+pub(crate) const GAME_2D_BALL_MIN_RADIUS: f64 = 4.0;
 
-/// The maximum radius of a ball in pixels.
-pub(crate) const GAME_2D_BALL_MAX_RADIUS: f64 = 30.0;
+/// The maximum radius of a ball in CSS pixels (relative to a 600px
+/// canvas; the runtime scales by `canvas_width / GAME_2D_CANVAS_WIDTH`).
+///
+/// See [`GAME_2D_BALL_MIN_RADIUS`] for the SSAA / DPR sizing rationale.
+/// The upper bound is chosen so that 100 balls of the maximum radius
+/// still fit in the 600x400 inline canvas with room to spare: with a
+/// 14 CSS-pixel max radius, even a single-column stack needs only
+/// `28 * 4 ~= 112 px` of vertical room.
+pub(crate) const GAME_2D_BALL_MAX_RADIUS: f64 = 14.0;
 
 /// The restitution (bounciness) coefficient for wall and ball collisions.
 pub(crate) const GAME_2D_RESTITUTION: f64 = 0.85;

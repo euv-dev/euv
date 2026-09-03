@@ -29,12 +29,14 @@ pub(crate) fn random_ball_color() -> &'static str {
 ///
 /// The constants `GAME_2D_BALL_MIN_RADIUS` / `GAME_2D_BALL_MAX_RADIUS`
 /// express the desired ball radius range as a fraction of the canvas
-/// width: 8 / 600 = 1.33% and 30 / 600 = 5% of a 600px-wide default
+/// width: 4 / 600 = 0.67% and 14 / 600 = 2.33% of a 600px-wide default
 /// canvas. Multiplying by the live canvas width keeps balls looking
 /// proportionally the same in both inline (~820px) and fullscreen
 /// (~1248px) layouts, instead of being a fixed pixel size that appears
 /// disproportionately large in the smaller canvas and disproportionately
-/// small in the larger one.
+/// small in the larger one. The upper bound is intentionally tight so
+/// 100 balls can stack comfortably in the 600x400 inline canvas without
+/// triggering `GAME_2D_MAX_BALL_AREA_RATIO`'s jam path.
 ///
 /// # Returns
 ///
@@ -1488,20 +1490,30 @@ pub(crate) fn game_2d_canvas_clear_color(canvas_selector: &str) -> (f64, f64, f6
 /// Converts one ball into its GPU record: `(x, y, radius, unused)` plus
 /// `(r, g, b, a)`, matching the `BallData` layout in the balls shaders.
 ///
+/// The radius is multiplied by the live `dpr` so the shader's per-fragment
+/// `dot(uv, uv) > 1.0` discard draws a disc that fills `radius * dpr`
+/// physical pixels. The Canvas 2D tab draws the same `radius` CSS units
+/// through a 2x SSAA backing store and then downscales, so it already
+/// anti-aliases the edge over `2 * radius` physical pixels and appears at
+/// ~`radius` CSS pixels. Multiplying by `dpr` here makes the WebGL /
+/// WebGPU paths land on the same visual size at DPR=2 (and matches
+/// exactly at DPR=1 because no scaling is needed).
+///
 /// # Arguments
 ///
 /// - `&Ball` - The ball to convert.
+/// - `f64` - The live `window.devicePixelRatio` (`>= 1.0`).
 ///
 /// # Returns
 ///
 /// - `([f32; 4], [f32; 4])` - Position-and-radius and color vec4s.
-fn game_2d_ball_gpu_record(ball: &Ball) -> ([f32; 4], [f32; 4]) {
+fn game_2d_ball_gpu_record(ball: &Ball, dpr: f64) -> ([f32; 4], [f32; 4]) {
     let (r, g, b) = game_2d_hex_to_rgb(&ball.color);
     (
         [
             ball.position.get_x() as f32,
             ball.position.get_y() as f32,
-            ball.radius as f32,
+            (ball.radius * dpr) as f32,
             0.0,
         ],
         [r, g, b, 1.0],
@@ -1520,14 +1532,22 @@ fn game_2d_ball_gpu_record(ball: &Ball) -> ([f32; 4], [f32; 4]) {
 /// - `&[Ball]` - The ball list for this frame.
 /// - `f64` - The canvas width in CSS pixels (u-vec2 canvas_size.x).
 /// - `f64` - The canvas height in CSS pixels (u-vec2 canvas_size.y).
+/// - `f64` - The live `window.devicePixelRatio` (`>= 1.0`), forwarded to
+///   [`game_2d_ball_gpu_record`] so each ball's on-screen radius scales
+///   with the backing store and visually matches the Canvas 2D tab.
 ///
 /// # Returns
 ///
 /// - `Vec<f32>` - The packed uniform data (4 + `GAME_2D_MAX_BALLS * 8` floats).
-fn pack_game_2d_balls_webgpu(balls: &[Ball], canvas_width: f64, canvas_height: f64) -> Vec<f32> {
+fn pack_game_2d_balls_webgpu(
+    balls: &[Ball],
+    canvas_width: f64,
+    canvas_height: f64,
+    dpr: f64,
+) -> Vec<f32> {
     let mut data: Vec<f32> = vec![canvas_width as f32, canvas_height as f32, 0.0, 0.0];
     for ball in balls {
-        let (pos_radius, color) = game_2d_ball_gpu_record(ball);
+        let (pos_radius, color) = game_2d_ball_gpu_record(ball, dpr);
         data.extend_from_slice(&pos_radius);
         data.extend_from_slice(&color);
     }
@@ -1544,15 +1564,18 @@ fn pack_game_2d_balls_webgpu(balls: &[Ball], canvas_width: f64, canvas_height: f
 /// # Arguments
 ///
 /// - `&[Ball]` - The ball list for this frame.
+/// - `f64` - The live `window.devicePixelRatio` (`>= 1.0`), forwarded to
+///   [`game_2d_ball_gpu_record`] so each ball's on-screen radius scales
+///   with the backing store and visually matches the Canvas 2D tab.
 ///
 /// # Returns
 ///
 /// - `(Vec<f32>, Vec<f32>)` - Position-and-radius and color arrays.
-fn pack_game_2d_balls_webgl(balls: &[Ball]) -> (Vec<f32>, Vec<f32>) {
+fn pack_game_2d_balls_webgl(balls: &[Ball], dpr: f64) -> (Vec<f32>, Vec<f32>) {
     let mut pos_radius: Vec<f32> = Vec::with_capacity(balls.len() * 4);
     let mut colors: Vec<f32> = Vec::with_capacity(balls.len() * 4);
     for ball in balls {
-        let (ball_pos_radius, ball_color) = game_2d_ball_gpu_record(ball);
+        let (ball_pos_radius, ball_color) = game_2d_ball_gpu_record(ball, dpr);
         pos_radius.extend_from_slice(&ball_pos_radius);
         colors.extend_from_slice(&ball_color);
     }
@@ -1884,7 +1907,7 @@ pub(crate) fn start_game_2d_webgpu_loop(
                 let render_balls: Vec<Ball> =
                     interpolate_balls(&balls.borrow(), &prev_for_loop.borrow(), alpha);
                 let uniform_data: Vec<f32> =
-                    pack_game_2d_balls_webgpu(&render_balls, canvas_width, canvas_height);
+                    pack_game_2d_balls_webgpu(&render_balls, canvas_width, canvas_height, dpr);
                 let vertex_count: u32 = (render_balls.len() * 6) as u32;
                 renderer.update_uniform_buffer(&buffer_for_loop, &uniform_data);
                 // Refresh the clear color every frame so a theme toggle
@@ -2344,7 +2367,7 @@ pub(crate) fn start_game_2d_webgl_loop(
                 }
                 let render_balls: Vec<Ball> =
                     interpolate_balls(&balls.borrow(), &prev_for_loop.borrow(), alpha);
-                let (pos_radius_data, color_data) = pack_game_2d_balls_webgl(&render_balls);
+                let (pos_radius_data, color_data) = pack_game_2d_balls_webgl(&render_balls, dpr);
                 let vertex_count: i32 = (render_balls.len() * 6) as i32;
                 renderer.set_uniform_2f(
                     &program_for_loop,
