@@ -1,6 +1,6 @@
 [package]
 name = "euv"
-version = "0.18.55"
+version = "0.18.56"
 readme = "README.md"
 edition = "2024"
 authors = ["root@ltpp.vip"]
