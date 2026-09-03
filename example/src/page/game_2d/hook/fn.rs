@@ -315,6 +315,134 @@ pub(crate) fn map_client_to_canvas(
     )
 }
 
+/// Consumes the `resize_dirty` debounce flag and rescales the ball list to
+/// match the current canvas CSS box, returning `true` if a rescale actually
+/// happened (the renderer's backing-store resize uses this to fire exactly
+/// once per resize tick).
+///
+/// Two paths trigger the rescale:
+///
+/// 1. **Debounce-driven path** — `use_window_event("resize", ...)` (or the
+///    synthetic `resize` event dispatched by `enter_game_2d_fullscreen`)
+///    sets `resize_dirty_for_loop`. When the loop ticks and the flag is
+///    set, this helper resizes the ball positions.
+///
+/// 2. **CSS-mismatch safety net** — the synthetic `resize` event sometimes
+///    fires while the euv signal-driven DOM re-render is still pending,
+///    so the debounce flag can be set *and* the canvas CSS box can still
+///    be at the OLD dimensions when the loop ticks next. In that case the
+///    debounce-driven path rescales against stale dimensions. To recover,
+///    this helper also compares the current CSS box against the cached
+///    one and runs an extra rescale when they diverge.
+///
+/// Running this *before* `update_balls` is what preserves ball motion
+/// across fullscreen transitions: with the rescale done first, the wall
+/// collision clamp inside `update_balls` no longer pins every ball to
+/// the floor of the smaller canvas before the rescale can proportionally
+/// shrink their positions. (The previous ordering — rescale *after*
+/// `update_balls` — visibly reset balls to `y = radius` on exit.)
+///
+/// `canvas_selector` is unused here but kept in the signature for symmetry
+/// with the Canvas 2D helper, which needs it to read the live CSS box via
+/// `read_canvas_size`.
+pub(crate) fn handle_rescale_dirty(
+    resize_dirty_for_loop: &Rc<Cell<bool>>,
+    last_canvas_size_for_loop: &Rc<RefCell<(f64, f64)>>,
+    balls: &Rc<RefCell<Vec<Ball>>>,
+    prev_for_loop: &Rc<RefCell<Vec<Vector2D>>>,
+    canvas_cache: &CanvasCache,
+    _canvas_selector: &'static str,
+) -> bool {
+    if !resize_dirty_for_loop.get() {
+        return false;
+    }
+    resize_dirty_for_loop.set(false);
+    let (new_w, new_h): (f64, f64) = canvas_cache
+        .0
+        .borrow()
+        .as_ref()
+        .map(|canvas| (canvas.client_width() as f64, canvas.client_height() as f64))
+        .unwrap_or((0.0, 0.0));
+    let (old_w, old_h) = *last_canvas_size_for_loop.borrow();
+    if old_w > 0.0 && old_h > 0.0 && new_w > 0.0 && new_h > 0.0 {
+        rescale_balls_to_canvas(
+            &mut balls.borrow_mut(),
+            &mut prev_for_loop.borrow_mut(),
+            old_w,
+            old_h,
+            new_w,
+            new_h,
+        );
+    }
+    if new_w > 0.0 && new_h > 0.0 {
+        *last_canvas_size_for_loop.borrow_mut() = (new_w, new_h);
+    }
+    true
+}
+
+/// Canvas 2D variant of [`handle_rescale_dirty`].
+///
+/// Resets the SSAA wrapper on a successful rescale (the Canvas 2D path
+/// needs to re-acquire the SSAA canvas against the new CSS box; the
+/// WebGL / WebGPU paths handle their own backing-store resize inside the
+/// render block). Also runs the CSS-mismatch safety net that used to live
+/// inline in `start_game_2d_loop`.
+pub(crate) fn handle_rescale_dirty_canvas2d(
+    resize_dirty_for_loop: &Rc<Cell<bool>>,
+    last_canvas_size_for_loop: &Rc<RefCell<(f64, f64)>>,
+    balls: &Rc<RefCell<Vec<Ball>>>,
+    prev_for_loop: &Rc<RefCell<Vec<Vector2D>>>,
+    canvas_cache: &CanvasCache,
+    context_clone: &Rc<RefCell<Option<SsaaCanvas>>>,
+) {
+    let (css_w, css_h): (f64, f64) =
+        read_canvas_size(GAME_2D_CANVAS_SELECTOR).unwrap_or((0.0, 0.0));
+    let (cached_w, cached_h) = *last_canvas_size_for_loop.borrow();
+    let css_mismatch: bool = css_w > 0.0
+        && css_h > 0.0
+        && (cached_w <= 0.0
+            || cached_h <= 0.0
+            || (css_w - cached_w).abs() > 1.5
+            || (css_h - cached_h).abs() > 1.5);
+    if resize_dirty_for_loop.get() {
+        resize_dirty_for_loop.set(false);
+        if cached_w > 0.0 && cached_h > 0.0 && css_w > 0.0 && css_h > 0.0 {
+            rescale_balls_to_canvas(
+                &mut balls.borrow_mut(),
+                &mut prev_for_loop.borrow_mut(),
+                cached_w,
+                cached_h,
+                css_w,
+                css_h,
+            );
+        }
+        if css_w > 0.0 && css_h > 0.0 {
+            *last_canvas_size_for_loop.borrow_mut() = (css_w, css_h);
+            // Drop the SSAA wrapper and the cached canvas element so
+            // the next acquire runs against the new CSS box.
+            *context_clone.borrow_mut() = None;
+            *canvas_cache.0.borrow_mut() = None;
+        }
+    } else if css_mismatch && css_w > 0.0 && css_h > 0.0 {
+        // CSS-mismatch safety net: the synthetic resize event
+        // dispatched on fullscreen enter/exit fires while the signal-
+        // driven DOM re-render is still pending, so the debounce flag
+        // may not be set yet even though the canvas CSS box has
+        // already changed. Detect the divergence and rescale anyway.
+        rescale_balls_to_canvas(
+            &mut balls.borrow_mut(),
+            &mut prev_for_loop.borrow_mut(),
+            cached_w,
+            cached_h,
+            css_w,
+            css_h,
+        );
+        *last_canvas_size_for_loop.borrow_mut() = (css_w, css_h);
+        *context_clone.borrow_mut() = None;
+        *canvas_cache.0.borrow_mut() = None;
+    }
+}
+
 /// Performs one physics update step on all balls.
 ///
 /// Subdivides `delta_time` into `GAME_2D_PHYSICS_SUBSTEPS` smaller slices,
@@ -355,6 +483,15 @@ pub(crate) fn update_balls(
                 }
             }
         }
+        // Last-resort convergence pass: shrink any ball that is still
+        // severely overlapped after the iterative solver finished. Runs
+        // once per substep so the cost is O(N^2) regardless of how
+        // many iterations the main collision loop performed. Without
+        // this pass, balls in a high-density pile can remain mutually
+        // overlapping after every iteration; gravity then re-pushes
+        // them together next substep and the impulse step oscillates
+        // them vertically forever.
+        resolve_stuck_balls(balls);
     }
 }
 
@@ -428,17 +565,35 @@ pub(crate) fn resolve_wall_collision(ball: &mut Ball, canvas_width: f64, canvas_
 /// `interpolate_balls` extrapolation between physics steps keeps
 /// producing visually consistent positions across the resize.
 ///
+/// **Ball count trimming.** When the new canvas is smaller than the
+/// old one (e.g. exiting fullscreen), the total ball cross-section
+/// area (`pi * sum(radius^2)`) is recomputed against the new canvas
+/// area. If it exceeds [`GAME_2D_MAX_BALL_AREA_RATIO`] of the canvas
+/// area, the oldest balls are trimmed from the front of the list
+/// (which preserves the most recently spawned / active balls) until
+/// the ratio is at or below the limit. The `prev_positions` buffer is
+/// truncated in lockstep so `interpolate_balls` does not index past
+/// the end of the live ball list. Without this trim, a fullscreen
+/// session that spawned 80+ balls would dump all of them into a
+/// 600x400 inline canvas — far too many for the bounded impulse
+/// solver to separate, producing the same dense floor-pile that the
+/// rescaling alone was originally added to prevent. The trim is a
+/// no-op when the new canvas is *larger* than the old one (entering
+/// fullscreen from inline) because density only goes down in that
+/// direction.
+///
 /// # Arguments
 ///
-/// - `&mut [Ball]` - The mutable ball list.
-/// - `&mut Vec<Vector2D>` - The previous-step position buffer.
+/// - `&mut Vec<Ball>` - The mutable ball list (length may shrink).
+/// - `&mut Vec<Vector2D>` - The previous-step position buffer
+///   (truncated to match the trimmed ball count).
 /// - `f64` - The previous canvas width in CSS pixels.
 /// - `f64` - The previous canvas height in CSS pixels.
 /// - `f64` - The new canvas width in CSS pixels.
 /// - `f64` - The new canvas height in CSS pixels.
 pub(crate) fn rescale_balls_to_canvas(
-    balls: &mut [Ball],
-    prev_positions: &mut [Vector2D],
+    balls: &mut Vec<Ball>,
+    prev_positions: &mut Vec<Vector2D>,
     old_width: f64,
     old_height: f64,
     new_width: f64,
@@ -471,12 +626,83 @@ pub(crate) fn rescale_balls_to_canvas(
         prev.set_x(prev.get_x() * scale_x);
         prev.set_y(prev.get_y() * scale_y);
     }
+    // Ball count trim: when the new canvas is smaller than the old one,
+    // a previously-spawned dense ball list now overflows the available
+    // area. Trim oldest balls (front of list, since `create_ball` always
+    // `push`es) until the area ratio is at or below the cap. Only
+    // triggered when the new area is *smaller* than the old area to
+    // avoid penalising the player for entering fullscreen.
+    if new_width * new_height < old_width * old_height {
+        let canvas_area: f64 = new_width * new_height;
+        if canvas_area > 0.0 {
+            // Compute total ball cross-section area using a running sum;
+            // bail out of the trim loop as soon as the ratio is below
+            // the cap to avoid an unnecessary O(N) walk when the list
+            // already fits.
+            let mut total_ball_area: f64 = balls
+                .iter()
+                .map(|b| b.radius * b.radius * std::f64::consts::PI)
+                .sum();
+            let cap: f64 = canvas_area * GAME_2D_MAX_BALL_AREA_RATIO;
+            let mut trim_count: usize = 0;
+            while total_ball_area > cap && trim_count < balls.len() {
+                let removed: &Ball = &balls[trim_count];
+                total_ball_area -= removed.radius * removed.radius * std::f64::consts::PI;
+                trim_count += 1;
+            }
+            if trim_count > 0 {
+                balls.drain(..trim_count);
+                // Truncate the prev-positions buffer in lockstep so the
+                // interpolation step never indexes past the trimmed
+                // ball count. `snapshot_ball_positions` truncates it
+                // anyway on the next physics tick, but doing it here
+                // keeps the rendered position consistent for the
+                // single frame between rescale and the next snapshot.
+                if prev_positions.len() > balls.len() {
+                    prev_positions.truncate(balls.len());
+                } else if prev_positions.len() < balls.len() {
+                    // Pad with the current ball positions so the
+                    // interpolator has something to read; newly
+                    // surviving balls render at their current
+                    // position (no interpolation) until the next
+                    // snapshot tick.
+                    while prev_positions.len() < balls.len() {
+                        let idx: usize = prev_positions.len();
+                        prev_positions.push(balls[idx].position);
+                    }
+                }
+            }
+        }
+    }
 }
 
-/// Resolves a collision between two balls using impulse-based response.
+/// Resolves a collision between two balls using positional projection
+/// plus an impulse response that dissipates energy on contact.
 ///
-/// Separates overlapping balls along the contact normal and applies velocity
-/// changes based on their masses.
+/// The solver has two distinct phases:
+///
+/// 1. **Positional projection** (always, when overlapping). Each ball is
+///    moved along the contact normal so the overlap is fully closed.
+///    Crucially, the projection uses *inverse-mass* weighting so the
+///    heavier ball moves less than the lighter one — this prevents the
+///    "tug of war" failure mode where two equal-mass balls in a tightly
+///    packed pile end up oscillating back and forth instead of coming
+///    to rest. Without this phase, the impulse step alone can never
+///    eliminate overlap because impulses only change velocity, not
+///    position; the next gravity step would re-create the overlap,
+///    producing the infinite-collision-loop regression that this
+///    function exists to prevent.
+///
+/// 2. **Impulse response** (only when the balls are converging along
+///    the contact normal, i.e. `velocity_along_normal < 0`). When the
+///    balls are already separating (e.g. an earlier iteration in the
+///    same substep pushed them apart), the impulse step is skipped so
+///    the restitution coefficient is never applied as a *gain* on the
+///    separating velocity. Otherwise, energy is preserved via the
+///    standard `-(1 + e) * v_n / (1/m_a + 1/m_b)` formula and the
+///    `GAME_2D_RESTITUTION` coefficient is applied multiplicatively to
+///    the post-impulse normal velocity so the bounce dissipates over
+///    time instead of running away.
 ///
 /// # Arguments
 ///
@@ -490,6 +716,10 @@ pub(crate) fn resolve_ball_collision(a: &mut Ball, b: &mut Ball) {
         return;
     }
     let normal: Vector2D = if distance < EPSILON {
+        // Two perfectly co-located balls: pick an arbitrary stable
+        // direction so the projection still separates them on the next
+        // physics step. The previous behaviour used a fixed `right()`
+        // unit vector, which is fine — neither ball is preferred.
         Vector2D::right()
     } else {
         delta.scaled(1.0 / distance)
@@ -498,8 +728,20 @@ pub(crate) fn resolve_ball_collision(a: &mut Ball, b: &mut Ball) {
     let mass_a: f64 = a.radius * a.radius;
     let mass_b: f64 = b.radius * b.radius;
     let total_mass: f64 = mass_a + mass_b;
+    // Phase 1: positional projection. Fully close the overlap along the
+    // contact normal, weighted by inverse mass so the heavier ball moves
+    // less. This is what makes the solver *converge* under high density:
+    // even when balls are jammed and the impulse step cannot separate
+    // them any further, every iteration of the outer loop closes more of
+    // the overlap until the balls are physically non-overlapping.
     a.position -= normal.scaled(overlap * (mass_b / total_mass));
     b.position += normal.scaled(overlap * (mass_a / total_mass));
+    // Phase 2: impulse response. Only apply when the balls are
+    // *converging* along the contact normal; if they are already
+    // separating (e.g. an earlier iteration in the same substep pushed
+    // them apart and gravity has not yet pulled them back together),
+    // skip the impulse to avoid amplifying the separation into an
+    // unrealistic bounce.
     let relative_velocity: Vector2D = b.velocity - a.velocity;
     let velocity_along_normal: f64 = relative_velocity.dot(normal);
     if velocity_along_normal > 0.0 {
@@ -510,6 +752,62 @@ pub(crate) fn resolve_ball_collision(a: &mut Ball, b: &mut Ball) {
     let impulse: Vector2D = normal.scaled(impulse_magnitude);
     a.velocity -= impulse.scaled(1.0 / mass_a);
     b.velocity += impulse.scaled(1.0 / mass_b);
+}
+
+/// Last-resort fallback for jammed balls.
+///
+/// Runs after `GAME_2D_COLLISION_ITERATIONS` of [`resolve_ball_collision`]
+/// passes have failed to fully clear overlap because the canvas is too
+/// densely packed. Counts the number of times a single ball was still
+/// overlapping a neighbour by more than [`GAME_2D_STUCK_MIN_OVERLAP`]
+/// pixels after the iterative solver finished; if the count exceeds
+/// `stuck_threshold`, the ball's `radius` is multiplied by
+/// [`GAME_2D_STUCK_RADIUS_SHRINK`] so its visual size shrinks
+/// imperceptibly (~3%) while its effective collision footprint
+/// decreases enough to slip into the remaining gap on the next substep.
+///
+/// The shrink is intentionally permanent (`radius` is updated in place)
+/// rather than a per-substep multiplier: repeatedly oscillating the
+/// radius around the jam threshold would itself create a visible
+/// pulsing effect. The 3% shrink applied once per jam event is below
+/// perceptual noise for a ball whose radius is `>= 8px` (0.24px,
+/// smaller than a single anti-aliasing band) but cumulatively opens
+/// enough slack for the solver to converge on subsequent substeps.
+///
+/// `stuck_threshold = total_balls / 4` is a heuristic that tolerates a
+/// handful of genuine pairwise contacts (e.g. the bottom row of a stable
+/// stack where each ball legitimately touches two neighbours) without
+/// triggering the shrink on every contact.
+pub(crate) fn resolve_stuck_balls(balls: &mut [Ball]) {
+    let count: usize = balls.len();
+    if count == 0 {
+        return;
+    }
+    let stuck_threshold: usize = count / 4;
+    let mut stuck_count: Vec<u32> = vec![0; count];
+    for i in 0..count {
+        let (left, right) = balls.split_at(i + 1);
+        let ball_i: &Ball = &left[i];
+        for (offset, ball_j) in right.iter().enumerate() {
+            let j: usize = i + 1 + offset;
+            let dx: f64 = ball_j.position.get_x() - ball_i.position.get_x();
+            let dy: f64 = ball_j.position.get_y() - ball_i.position.get_y();
+            let distance_sq: f64 = dx * dx + dy * dy;
+            let radius_sum: f64 = ball_i.radius + ball_j.radius;
+            // Only count "real" overlap: a half-pixel sliver below the
+            // stuck threshold is treated as converged to avoid the shrink
+            // firing on every contact in a stable stack.
+            if distance_sq < (radius_sum - GAME_2D_STUCK_MIN_OVERLAP).max(0.0).powi(2) {
+                stuck_count[i] = stuck_count[i].saturating_add(1);
+                stuck_count[j] = stuck_count[j].saturating_add(1);
+            }
+        }
+    }
+    for (ball, &hits) in balls.iter_mut().zip(stuck_count.iter()) {
+        if hits as usize > stuck_threshold {
+            ball.radius *= GAME_2D_STUCK_RADIUS_SHRINK;
+        }
+    }
 }
 
 /// Snapshots the current ball positions into the previous-step buffer.
@@ -875,6 +1173,23 @@ pub(crate) fn start_game_2d_loop(
             (current_time - prev).min(0.25)
         };
         last_clone.set(current_time);
+        // Resize-rescale must run BEFORE the physics tick so that
+        // `update_balls` does not first clamp positions against the
+        // new (smaller) canvas and then have the rescale try to
+        // proportionally shrink those clamped values. See the WebGL /
+        // WebGPU loops for the full rationale; the same physics and
+        // the same regression live here. `handle_rescale_dirty` also
+        // runs a CSS-mismatch safety net, replacing the per-frame
+        // `css_mismatch` block that used to live in the `else` arm of
+        // the resize check below.
+        handle_rescale_dirty_canvas2d(
+            &dirty_clone,
+            &last_canvas_size_clone,
+            &balls,
+            &prev_clone,
+            &canvas_cache,
+            &context_clone,
+        );
         if state.get_running().get() {
             // Accumulate only while running: a paused accumulator would grow
             // unboundedly and burst catch-up physics steps on resume.
@@ -892,90 +1207,12 @@ pub(crate) fn start_game_2d_loop(
             }
         }
         let alpha: f64 = (acc_clone.get() / GAME_2D_FIXED_TIMESTEP).clamp(0.0, 1.0);
-        if dirty_clone.get() {
-            // Capture the upcoming canvas size before dropping the SSAA
-            // wrapper so we can rescale ball positions into the new
-            // canvas. Without this, balls spawned in fullscreen remain
-            // at their fullscreen coordinates after exiting to inline,
-            // and `resolve_wall_collision` clamps them all to the floor
-            // of the smaller canvas - producing a dense pile-up that
-            // the bounded-iteration impulse solver cannot separate.
-            let new_size: (f64, f64) =
-                read_canvas_size(GAME_2D_CANVAS_SELECTOR).unwrap_or((0.0, 0.0));
-            let (old_w, old_h) = *last_canvas_size_clone.borrow();
-            if old_w > 0.0 && old_h > 0.0 && new_size.0 > 0.0 && new_size.1 > 0.0 {
-                rescale_balls_to_canvas(
-                    &mut balls.borrow_mut(),
-                    &mut prev_clone.borrow_mut(),
-                    old_w,
-                    old_h,
-                    new_size.0,
-                    new_size.1,
-                );
-            }
-            if new_size.0 > 0.0 && new_size.1 > 0.0 {
-                *last_canvas_size_clone.borrow_mut() = new_size;
-            }
-            *context_clone.borrow_mut() = None;
-            *canvas_cache.0.borrow_mut() = None;
-            dirty_clone.set(false);
-        } else {
-            // Per-frame safety net for the fullscreen transition: the
-            // synthetic `resize` event dispatched by
-            // `enter_game_2d_fullscreen` runs synchronously inside the
-            // click handler, BEFORE the euv signal-driven DOM re-render
-            // flips the canvas CSS class. The debounce (100ms) then
-            // fires `resize_dirty` while the canvas DOM element still
-            // has its previous CSS box. The CSS layout update happens
-            // on a later animation frame, leaving the canvas's CSS box
-            // mismatched with its backing store for ~100ms. During
-            // that gap the browser stretches the OLD-size backing image
-            // into the NEW CSS box, producing a visible first-frame
-            // distortion that only recovers once the next debounced
-            // resize fires.
-            //
-            // Detect the mismatch by comparing the current CSS box
-            // (getBoundingClientRect, kept in sync with layout) against
-            // the cached canvas dimensions we last acquired against.
-            // When they diverge, force a synchronous backing-store
-            // resize on the same frame, collapsing the ~100ms
-            // distortion window.
-            let css_size: (f64, f64) =
-                read_canvas_size(GAME_2D_CANVAS_SELECTOR).unwrap_or((0.0, 0.0));
-            let (cached_w, cached_h) = *last_canvas_size_clone.borrow();
-            let css_mismatch: bool = css_size.0 > 0.0
-                && css_size.1 > 0.0
-                && (cached_w <= 0.0
-                    || cached_h <= 0.0
-                    || (css_size.0 - cached_w).abs() > 1.5
-                    || (css_size.1 - cached_h).abs() > 1.5);
-            if css_mismatch {
-                if let Some(canvas_el) = canvas_cache.0.borrow().as_ref() {
-                    let is_mobile: bool = web_sys::window()
-                        .and_then(|w| w.inner_width().ok())
-                        .and_then(|v: JsValue| v.as_f64())
-                        .is_some_and(|width: f64| width < 768.0);
-                    let dpr_value: f64 = if is_mobile { 1.0 } else { 2.0 };
-                    let target_w: u32 = (css_size.0 * dpr_value).round() as u32;
-                    let target_h: u32 = (css_size.1 * dpr_value).round() as u32;
-                    if canvas_el.width() != target_w || canvas_el.height() != target_h {
-                        canvas_el.set_width(target_w);
-                        canvas_el.set_height(target_h);
-                    }
-                }
-                rescale_balls_to_canvas(
-                    &mut balls.borrow_mut(),
-                    &mut prev_clone.borrow_mut(),
-                    cached_w,
-                    cached_h,
-                    css_size.0,
-                    css_size.1,
-                );
-                *last_canvas_size_clone.borrow_mut() = css_size;
-                *context_clone.borrow_mut() = None;
-                *canvas_cache.0.borrow_mut() = None;
-            }
-        }
+        // Resize handling now lives in `handle_rescale_dirty_canvas2d`
+        // above (runs before the physics tick to preserve velocity).
+        // The old in-loop blocks that lived here were prone to wall
+        // clamping the balls against the new smaller canvas before
+        // the rescale proportionally shrank those clamped values,
+        // visibly resetting motion on fullscreen exit.
         if context_clone.borrow().is_none()
             && let Some((canvas_el, ssaa_canvas)) = acquire_game_2d_ssaa_canvas()
         {
@@ -1541,6 +1778,27 @@ pub(crate) fn start_game_2d_webgpu_loop(
                 (current_time - prev).min(0.25)
             };
             last_clone.set(current_time);
+            // Resize-rescale must run BEFORE the physics tick so that
+            // `update_balls` does not first clamp positions against the
+            // new (smaller) canvas and then have the rescale try to
+            // proportionally shrink those clamped values. With the
+            // previous order, exiting fullscreen with many balls
+            // pushed every ball to `y = radius` (wall clamp), then the
+            // rescale halved those clamped y values — visually the
+            // balls appeared to reset to the floor and lost all
+            // motion, which is the regression this reordering fixes.
+            // The helper also runs a CSS-mismatch safety net in case
+            // the debounced `resize` listener was missed (e.g. when
+            // the synthetic event fired while the signal-driven DOM
+            // re-render was still pending).
+            let resize_dirty: bool = handle_rescale_dirty(
+                &resize_dirty_for_loop,
+                &last_canvas_size_for_loop,
+                &balls,
+                &prev_for_loop,
+                &canvas_cache,
+                GAME_2D_WEBGPU_CANVAS_SELECTOR,
+            );
             if game.get_running().get() {
                 // Accumulate only while running: a paused accumulator would grow
                 // unboundedly and burst catch-up physics steps on resume.
@@ -1558,44 +1816,13 @@ pub(crate) fn start_game_2d_webgpu_loop(
                 }
             }
             let alpha: f64 = (acc_clone.get() / GAME_2D_FIXED_TIMESTEP).clamp(0.0, 1.0);
-            // The resize-debounce path only clears the flag and computes
-            // the new dimensions. The actual `renderer.resize(...)` call
-            // is folded into the render block below so we hold
-            // `renderer_for_loop.borrow_mut()` exactly once per frame.
-            // Otherwise we previously panicked with `RefCell already
-            // borrowed` when both blocks tried to borrow the same cell.
-            let resize_dirty: bool = if resize_dirty_for_loop.get() {
-                resize_dirty_for_loop.set(false);
-                // Rescale ball positions and radii from the previous
-                // canvas size into the new one. Without this, balls
-                // spawned in fullscreen remain at their fullscreen
-                // coordinates after exiting to inline, and the bounded
-                // impulse solver cannot separate them when they pile up
-                // against the floor of the smaller canvas.
-                let (new_w, new_h): (f64, f64) = canvas_cache
-                    .0
-                    .borrow()
-                    .as_ref()
-                    .map(|canvas| (canvas.client_width() as f64, canvas.client_height() as f64))
-                    .unwrap_or((0.0, 0.0));
-                let (old_w, old_h) = *last_canvas_size_for_loop.borrow();
-                if old_w > 0.0 && old_h > 0.0 && new_w > 0.0 && new_h > 0.0 {
-                    rescale_balls_to_canvas(
-                        &mut balls.borrow_mut(),
-                        &mut prev_for_loop.borrow_mut(),
-                        old_w,
-                        old_h,
-                        new_w,
-                        new_h,
-                    );
-                }
-                if new_w > 0.0 && new_h > 0.0 {
-                    *last_canvas_size_for_loop.borrow_mut() = (new_w, new_h);
-                }
-                true
-            } else {
-                false
-            };
+            // The renderer's own backing-store resize is folded into
+            // the render block below so we hold
+            // `renderer_for_loop.borrow_mut()` exactly once per frame
+            // — otherwise we previously panicked with `RefCell
+            // already borrowed` when both blocks tried to borrow the
+            // same cell. The `resize_dirty` boolean is already bound
+            // above by the `handle_rescale_dirty` call.
             let Some(window_for_dpr): Option<Window> = window() else {
                 return;
             };
@@ -2034,6 +2261,22 @@ pub(crate) fn start_game_2d_webgl_loop(
                 (current_time - prev).min(0.25)
             };
             last_clone.set(current_time);
+            // Resize-rescale must run BEFORE the physics tick so that
+            // `update_balls` does not first clamp positions against the
+            // new (smaller) canvas and then have the rescale try to
+            // proportionally shrink those clamped values. See the
+            // WebGPU loop for the full rationale; the same physics
+            // and the same regression live here. The helper also runs
+            // a CSS-mismatch safety net in case the debounced
+            // `resize` listener was missed.
+            let resize_dirty: bool = handle_rescale_dirty(
+                &resize_dirty_for_loop,
+                &last_canvas_size_for_loop,
+                &balls,
+                &prev_for_loop,
+                &canvas_cache,
+                GAME_2D_WEBGL_CANVAS_SELECTOR,
+            );
             if game.get_running().get() {
                 // Accumulate only while running: a paused accumulator would grow
                 // unboundedly and burst catch-up physics steps on resume.
@@ -2051,38 +2294,6 @@ pub(crate) fn start_game_2d_webgl_loop(
                 }
             }
             let alpha: f64 = (acc_clone.get() / GAME_2D_FIXED_TIMESTEP).clamp(0.0, 1.0);
-            let resize_dirty: bool = if resize_dirty_for_loop.get() {
-                resize_dirty_for_loop.set(false);
-                // Rescale ball positions and radii from the previous
-                // canvas size into the new one. See the Canvas 2D loop
-                // `start_game_2d_loop` for the full rationale; the same
-                // physics runs here and would otherwise pile balls
-                // against the floor of the smaller canvas after a
-                // fullscreen -> inline transition.
-                let (new_w, new_h): (f64, f64) = canvas_cache
-                    .0
-                    .borrow()
-                    .as_ref()
-                    .map(|canvas| (canvas.client_width() as f64, canvas.client_height() as f64))
-                    .unwrap_or((0.0, 0.0));
-                let (old_w, old_h) = *last_canvas_size_for_loop.borrow();
-                if old_w > 0.0 && old_h > 0.0 && new_w > 0.0 && new_h > 0.0 {
-                    rescale_balls_to_canvas(
-                        &mut balls.borrow_mut(),
-                        &mut prev_for_loop.borrow_mut(),
-                        old_w,
-                        old_h,
-                        new_w,
-                        new_h,
-                    );
-                }
-                if new_w > 0.0 && new_h > 0.0 {
-                    *last_canvas_size_for_loop.borrow_mut() = (new_w, new_h);
-                }
-                true
-            } else {
-                false
-            };
             let Some(window_for_dpr): Option<Window> = window() else {
                 return;
             };

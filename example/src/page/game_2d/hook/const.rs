@@ -96,6 +96,49 @@ pub(crate) const GAME_2D_PHYSICS_SUBSTEPS: usize = 4;
 /// stacking configuration is reached).
 pub(crate) const GAME_2D_COLLISION_ITERATIONS: usize = 4;
 
+/// The maximum fraction of canvas area that the combined ball cross-sections
+/// may occupy at any given canvas size.
+///
+/// When a fullscreen -> inline transition leaves the ball list unchanged,
+/// the total ball area (`pi * sum(radius_i^2)`) is recomputed against the
+/// smaller canvas area (`width * height`); if the ratio exceeds this
+/// threshold, the oldest balls are trimmed from the front of the list
+/// until the ratio is at or below the limit. Without this trim, balls
+/// pile up against the floor of the smaller canvas because the impulse
+/// solver cannot fit more than ~`area_ratio / pi_avg_ball_radius^2`
+/// balls into a `width * height` rectangle while gravity keeps pushing
+/// them down.
+///
+/// 70% is the empirical upper bound at which the impulse + projection
+/// solver can still separate the balls into a stable stacking
+/// configuration within `GAME_2D_COLLISION_ITERATIONS`. Going above this
+/// re-introduces the "infinite collision jitter" regression (gravity
+/// overpowers the impulse-driven separation, balls oscillate vertically,
+/// the main thread pegs at 100%).
+pub(crate) const GAME_2D_MAX_BALL_AREA_RATIO: f64 = 0.70;
+
+/// The fraction by which a jammed ball's radius is scaled when, after all
+/// `GAME_2D_COLLISION_ITERATIONS` resolution passes, persistent overlap
+/// remains because the impulse solver could not fit the ball into the
+/// available space.
+///
+/// Applied multiplicatively to the *effective collision radius only* (the
+/// `overlap` check uses the original radius; the projection along the
+/// contact normal uses `radius * GAME_2D_STUCK_RADIUS_SHRINK` so the
+/// shrunk ball slips past its neighbours on the next substep). This is a
+/// last-resort convergence tool — under normal density the solver
+/// converges without ever reaching this code path. The value `0.97` keeps
+/// the visual radius essentially unchanged (3% shrink is below
+/// perceptual noise for a `>=8px` ball) but lets the jammed ball find a
+/// gap when nothing else works.
+pub(crate) const GAME_2D_STUCK_RADIUS_SHRINK: f64 = 0.97;
+
+/// The minimum overlap distance (in pixels) at which the jammed-ball
+/// radius-shrink fallback is invoked. Below this distance the impulse
+/// solver has effectively converged and shrinking would only introduce
+/// instability.
+pub(crate) const GAME_2D_STUCK_MIN_OVERLAP: f64 = 0.5;
+
 /// The HTML `id` attribute value for the 2D WebGPU canvas element.
 pub(crate) const GAME_2D_WEBGPU_CANVAS_ID: &str = "game-2d-webgpu-canvas";
 
