@@ -142,6 +142,8 @@ web-sys = { version = "0.3.103", features = [
     "GpuVertexState",
     "HtmlCollection",
     "MediaQueryList",
+    "ResizeObserver",
+    "ResizeObserverEntry",
     "ScrollBehavior",
     "VisualViewport",
     "GpuExtent3dDict",

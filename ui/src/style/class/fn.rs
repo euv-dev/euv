@@ -3592,16 +3592,16 @@ class! {
         top: "44px";
         right: "0px";
         /* `width: 100%` instead of `min-width: 140px` so the menu
-                                                                                                                                                       matches the dropdown container (and therefore the
-                                                                                                                                                       trigger button) width exactly. With only `min-width`,
-                                                                                                                                                       a trigger wider than 140px (e.g. the 206px-wide
-                                                                                                                                                       nav-column locale switcher button) leaves a large
-                                                                                                                                                       empty gap on the left of the menu, since `right: 0`
-                                                                                                                                                       anchors only the right edge to the container. With
-                                                                                                                                                       `width: 100%`, the menu's left edge lines up with the
-                                                                                                                                                       trigger's left edge. The default minimum content width
-                                                                                                                                                       is still guaranteed by the inner items' own padding,
-                                                                                                                                                       so we keep the rule without an explicit min. */
+                                                                                                                                                           matches the dropdown container (and therefore the
+                                                                                                                                                           trigger button) width exactly. With only `min-width`,
+                                                                                                                                                           a trigger wider than 140px (e.g. the 206px-wide
+                                                                                                                                                           nav-column locale switcher button) leaves a large
+                                                                                                                                                           empty gap on the left of the menu, since `right: 0`
+                                                                                                                                                           anchors only the right edge to the container. With
+                                                                                                                                                           `width: 100%`, the menu's left edge lines up with the
+                                                                                                                                                           trigger's left edge. The default minimum content width
+                                                                                                                                                           is still guaranteed by the inner items' own padding,
+                                                                                                                                                           so we keep the rule without an explicit min. */
         width: "100%";
         background: var!(background);
         border: format!("1px solid {}", var!(border));

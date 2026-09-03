@@ -1629,17 +1629,28 @@ pub(crate) fn start_game_2d_webgpu_loop(
             // `borrow_mut()` call that previously panicked with
             // `RefCell already borrowed`.
             if let Some(renderer) = renderer_for_loop.borrow_mut().as_mut() {
-                // Only re-size the backing store when the debounced
-                // resize event fired. We deliberately do NOT call
-                // sync_to_current_canvas() on every frame because
-                // `HTMLCanvasElement.clientWidth` in Chrome tracks
-                // `canvas.width` (the backing-store size), NOT the
-                // CSS layout box, so a sync loop would read its own
-                // writes and grow the texture exponentially each
-                // frame until WebGPU caps at maxTextureDimension2D
-                // and reports `Texture size exceeded`. The init-time
-                // backing store already accounts for `dpr`, so a
-                // non-resize frame needs no work here.
+                // Per-frame CSS-vs-backing safety net for the same
+                // reason documented in `start_game_3d_webgl_loop` /
+                // `start_game_3d_webgpu_loop`: the synthetic `resize`
+                // event debounce fires while the canvas DOM still has
+                // the previous CSS box, leaving a multi-frame window
+                // where the browser paints the OLD-size backing image
+                // stretched into the NEW CSS box. Apply `canvas.width`
+                // BEFORE `renderer.resize(...)` so the backing store
+                // matches the CSS box on the very next paint cycle.
+                // The earlier worry about "syncing every frame reads its
+                // own writes and grows exponentially" is now obsolete
+                // because `read_canvas_size` returns the CSS layout box
+                // (not `canvas.width`), so the comparison is stable.
+                if new_physical_width > 0 && new_physical_height > 0 {
+                    let backing_w: u32 = renderer.get_canvas().width();
+                    let backing_h: u32 = renderer.get_canvas().height();
+                    if backing_w != new_physical_width || backing_h != new_physical_height {
+                        renderer.get_canvas().set_width(new_physical_width);
+                        renderer.get_canvas().set_height(new_physical_height);
+                        let _ = renderer.resize(new_physical_width, new_physical_height);
+                    }
+                }
                 if resize_dirty {
                     let _ = renderer.resize(new_physical_width, new_physical_height);
                 }
@@ -2099,6 +2110,24 @@ pub(crate) fn start_game_2d_webgl_loop(
             let new_physical_width: u32 = (canvas_width * dpr).round() as u32;
             let new_physical_height: u32 = (canvas_height * dpr).round() as u32;
             if let Some(renderer) = renderer_for_loop.borrow_mut().as_mut() {
+                // Per-frame CSS-vs-backing safety net for the same
+                // reason documented in `start_game_3d_webgl_loop` /
+                // `start_game_3d_webgpu_loop`: the synthetic `resize`
+                // event debounce fires while the canvas DOM still has
+                // the previous CSS box, leaving a multi-frame window
+                // where the browser paints the OLD-size backing image
+                // stretched into the NEW CSS box. Apply `canvas.width`
+                // BEFORE `renderer.resize(...)` so the backing store
+                // matches the CSS box on the very next paint cycle.
+                if new_physical_width > 0 && new_physical_height > 0 {
+                    let backing_w: u32 = renderer.get_canvas().width();
+                    let backing_h: u32 = renderer.get_canvas().height();
+                    if backing_w != new_physical_width || backing_h != new_physical_height {
+                        renderer.get_canvas().set_width(new_physical_width);
+                        renderer.get_canvas().set_height(new_physical_height);
+                        renderer.resize(new_physical_width, new_physical_height);
+                    }
+                }
                 if resize_dirty {
                     renderer.resize(new_physical_width, new_physical_height);
                 }

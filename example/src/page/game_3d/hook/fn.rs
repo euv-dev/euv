@@ -1371,6 +1371,7 @@ pub(crate) fn start_game_3d_webgpu_loop(
     let renderer_rc: Rc<RefCell<Option<WebGpuRenderer>>> = Rc::new(RefCell::new(None));
     let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let guard_cell: CanvasGuardCell = Rc::new(RefCell::new(None));
+    let observer_cell: Rc<RefCell<Option<ResizeObserver>>> = Rc::new(RefCell::new(None));
     let resize_dirty_for_event: Rc<Cell<bool>> = resize_dirty.clone();
     let resize_timer_for_event: Rc<Cell<Option<i32>>> = resize_timer.clone();
     let debounce_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
@@ -1406,6 +1407,7 @@ pub(crate) fn start_game_3d_webgpu_loop(
     let resize_timer_for_cleanup: Rc<Cell<Option<i32>>> = resize_timer.clone();
     let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
     let guard_for_cleanup: CanvasGuardCell = guard_cell.clone();
+    let observer_for_cleanup: Rc<RefCell<Option<ResizeObserver>>> = observer_cell.clone();
     App::use_cleanup(move || {
         cancelled_for_cleanup.set(true);
         if let Some(cancel_id) = raf_for_cleanup.get() {
@@ -1419,6 +1421,13 @@ pub(crate) fn start_game_3d_webgpu_loop(
                 return;
             };
             window_value.clear_timeout_with_handle(timer_id);
+        }
+        // Disconnect the ResizeObserver so its closure (and the renderer
+        // it holds via `renderer_for_observer`) is released on tab
+        // switch. Without this the observer keeps the renderer alive
+        // past the loop's lifetime, holding GPU resources until GC.
+        if let Some(observer) = observer_for_cleanup.borrow_mut().take() {
+            observer.disconnect();
         }
         let _: Option<_> = cell_for_cleanup.try_take();
         // Release GPU resources before dropping the renderer so the
@@ -1489,6 +1498,100 @@ pub(crate) fn start_game_3d_webgpu_loop(
         let pipeline_rc: Rc<JsValue> = Rc::new(pipeline);
         let buffer_rc: Rc<JsValue> = Rc::new(uniform_buffer);
         let bind_group_rc: Rc<JsValue> = Rc::new(bind_group);
+        // Synchronous resize on CSS-box change. ResizeObserver callbacks
+        // run BEFORE the browser paints the next frame, so setting
+        // `canvas.width = new_w` inside the observer ensures the very
+        // first paint after `enter_game_3d_fullscreen` /
+        // `exit_game_3d_fullscreen` already has the new backing store.
+        // Without this, the raf-based safety net was leaving a 1-frame
+        // (~16ms) window where the browser painted the previous-size
+        // backing image stretched into the new CSS box - visibly
+        // distorting the cube faces until the next raf cycle resized
+        // the backing. With the observer, that window collapses to a
+        // single sub-millisecond observer callback that fires before
+        // any frame is committed.
+        let renderer_for_observer: Rc<RefCell<Option<WebGpuRenderer>>> = renderer_rc.clone();
+        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
+            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+                let Some(window_value): Option<Window> = window() else {
+                    return;
+                };
+                let Some(document_value): Option<Document> = window_value.document() else {
+                    return;
+                };
+                let Some(element): Option<Element> = document_value
+                    .query_selector(GAME_3D_WEBGPU_CANVAS_SELECTOR)
+                    .ok()
+                    .flatten()
+                else {
+                    return;
+                };
+                let canvas: HtmlCanvasElement = element.unchecked_into();
+                let rect: DomRect = canvas.get_bounding_client_rect();
+                let css_w: f64 = rect.width();
+                let css_h: f64 = rect.height();
+                if css_w <= 0.0 || css_h <= 0.0 {
+                    return;
+                }
+                let dpr: f64 = Reflect::get(
+                    window_value.as_ref(),
+                    &JsValue::from_str("devicePixelRatio"),
+                )
+                .ok()
+                .and_then(|v: JsValue| v.as_f64())
+                .filter(|v: &f64| v.is_finite() && *v >= 1.0)
+                .unwrap_or(1.0);
+                let new_w: u32 = (css_w * dpr).round() as u32;
+                let new_h: u32 = (css_h * dpr).round() as u32;
+                let backing_w: u32 = canvas.width();
+                let backing_h: u32 = canvas.height();
+                if backing_w != new_w || backing_h != new_h {
+                    // IMPORTANT: set the canvas backing size FIRST,
+                    // BEFORE calling `renderer.resize(...)`. Setting
+                    // `canvas.width` is a fast DOM-only operation that
+                    // updates the backing store synchronously and
+                    // commits the new dimensions before the next paint.
+                    // `renderer.resize(...)` on the other hand is heavy
+                    // - it reconfigures the WebGL/WebGPU swap chain,
+                    // reallocates textures, and recompiles shaders,
+                    // all of which can stall the main thread for
+                    // 100-200ms while the GPU processes the request.
+                    // If we call `renderer.resize` first, the browser
+                    // paints 6-12 frames at 16ms cadence during the
+                    // stall using the OLD backing in the NEW CSS box -
+                    // the visible cube distortion this PR is trying to
+                    // eliminate. By resizing `canvas.width` first the
+                    // backing matches the CSS box immediately, then
+                    // `renderer.resize` re-allocates the GPU side
+                    // resources but the next paint at least has a
+                    // backing store that matches the CSS box aspect
+                    // ratio (cubes just don't render correctly until
+                    // GPU realloc completes - they go briefly blank,
+                    // not visibly stretched).
+                    canvas.set_width(new_w);
+                    canvas.set_height(new_h);
+                    if let Some(renderer) = renderer_for_observer.borrow_mut().as_mut() {
+                        renderer.resize(new_w, new_h);
+                    }
+                }
+            }),
+        );
+        let observer_callback: Function = observer_closure
+            .as_ref()
+            .unchecked_ref::<Function>()
+            .clone();
+        observer_closure.forget();
+        if let Ok(resize_observer) = ResizeObserver::new(&observer_callback)
+            && let Some(window_value) = window()
+            && let Some(document_value) = window_value.document()
+            && let Some(element) = document_value
+                .query_selector(GAME_3D_WEBGPU_CANVAS_SELECTOR)
+                .ok()
+                .flatten()
+        {
+            resize_observer.observe(&element);
+            *observer_cell.borrow_mut() = Some(resize_observer);
+        }
         let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
         let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
         let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
@@ -1605,6 +1708,8 @@ pub(crate) fn start_game_3d_webgpu_loop(
                     let backing_w: u32 = renderer.get_canvas().width();
                     let backing_h: u32 = renderer.get_canvas().height();
                     if backing_w != new_physical_width || backing_h != new_physical_height {
+                        renderer.get_canvas().set_width(new_physical_width);
+                        renderer.get_canvas().set_height(new_physical_height);
                         let _ = renderer.resize(new_physical_width, new_physical_height);
                     }
                 }
@@ -1711,6 +1816,7 @@ pub(crate) fn start_game_3d_webgl_loop(
     let renderer_rc: Rc<RefCell<Option<WebGlRenderer>>> = Rc::new(RefCell::new(None));
     let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let guard_cell: CanvasGuardCell = Rc::new(RefCell::new(None));
+    let observer_cell: Rc<RefCell<Option<ResizeObserver>>> = Rc::new(RefCell::new(None));
     let resize_dirty_for_event: Rc<Cell<bool>> = resize_dirty.clone();
     let resize_timer_for_event: Rc<Cell<Option<i32>>> = resize_timer.clone();
     let debounce_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
@@ -1746,6 +1852,7 @@ pub(crate) fn start_game_3d_webgl_loop(
     let resize_timer_for_cleanup: Rc<Cell<Option<i32>>> = resize_timer.clone();
     let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
     let guard_for_cleanup: CanvasGuardCell = guard_cell.clone();
+    let observer_for_cleanup: Rc<RefCell<Option<ResizeObserver>>> = observer_cell.clone();
     App::use_cleanup(move || {
         cancelled_for_cleanup.set(true);
         if let Some(cancel_id) = raf_for_cleanup.get() {
@@ -1759,6 +1866,13 @@ pub(crate) fn start_game_3d_webgl_loop(
                 return;
             };
             window_value.clear_timeout_with_handle(timer_id);
+        }
+        // Disconnect the ResizeObserver so its closure (and the renderer
+        // it holds via `renderer_for_observer`) is released on tab
+        // switch. Without this the observer keeps the renderer alive
+        // past the loop's lifetime, holding GPU resources until GC.
+        if let Some(observer) = observer_for_cleanup.borrow_mut().take() {
+            observer.disconnect();
         }
         let _: Option<_> = cell_for_cleanup.try_take();
         // WebGL has no explicit `destroy()` on the context: dropping the
@@ -1829,6 +1943,89 @@ pub(crate) fn start_game_3d_webgl_loop(
         set_loaded_delayed(init_state.get_loaded(), GAME_3D_LOADING_MIN_MILLIS);
         *renderer_rc.borrow_mut() = Some(renderer);
         let program_rc: Rc<WebGlProgram> = Rc::new(program);
+        // Synchronous resize on CSS-box change. ResizeObserver callbacks
+        // run BEFORE the browser paints the next frame, so setting
+        // `canvas.width = new_w` inside the observer ensures the very
+        // first paint after `enter_game_3d_fullscreen` /
+        // `exit_game_3d_fullscreen` already has the new backing store.
+        // Without this, the raf-based safety net was leaving a 1-frame
+        // (~16ms) window where the browser painted the previous-size
+        // backing image stretched into the new CSS box - visibly
+        // distorting the cube faces until the next raf cycle resized
+        // the backing. With the observer, that window collapses to a
+        // single sub-millisecond observer callback that fires before
+        // any frame is committed.
+        //
+        // Apply `canvas.width = new_w` BEFORE `renderer.resize(...)`.
+        // The DOM setter is a fast operation that commits the new
+        // backing size synchronously, but `renderer.resize` reconfigures
+        // the WebGL context (viewport, framebuffer, textures) which
+        // can stall the main thread for 100-200ms while the GPU
+        // processes the swap-chain realloc. Doing `canvas.width` first
+        // means the next paint has a correctly-sized backing store even
+        // before `renderer.resize` returns, so cubes render without the
+        // aspect-ratio distortion that would otherwise show for 6-12
+        // frames while the GPU is busy.
+        let renderer_for_observer: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
+        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
+            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+                let Some(window_value): Option<Window> = window() else {
+                    return;
+                };
+                let Some(document_value): Option<Document> = window_value.document() else {
+                    return;
+                };
+                let Some(element): Option<Element> = document_value
+                    .query_selector(GAME_3D_WEBGL_CANVAS_SELECTOR)
+                    .ok()
+                    .flatten()
+                else {
+                    return;
+                };
+                let canvas: HtmlCanvasElement = element.unchecked_into();
+                let rect: DomRect = canvas.get_bounding_client_rect();
+                let css_w: f64 = rect.width();
+                let css_h: f64 = rect.height();
+                if css_w <= 0.0 || css_h <= 0.0 {
+                    return;
+                }
+                let dpr: f64 = Reflect::get(
+                    window_value.as_ref(),
+                    &JsValue::from_str("devicePixelRatio"),
+                )
+                .ok()
+                .and_then(|v: JsValue| v.as_f64())
+                .filter(|v: &f64| v.is_finite() && *v >= 1.0)
+                .unwrap_or(1.0);
+                let new_w: u32 = (css_w * dpr).round() as u32;
+                let new_h: u32 = (css_h * dpr).round() as u32;
+                let backing_w: u32 = canvas.width();
+                let backing_h: u32 = canvas.height();
+                if backing_w != new_w || backing_h != new_h {
+                    canvas.set_width(new_w);
+                    canvas.set_height(new_h);
+                    if let Some(renderer) = renderer_for_observer.borrow_mut().as_mut() {
+                        renderer.resize(new_w, new_h);
+                    }
+                }
+            }),
+        );
+        let observer_callback: Function = observer_closure
+            .as_ref()
+            .unchecked_ref::<Function>()
+            .clone();
+        observer_closure.forget();
+        if let Ok(resize_observer) = ResizeObserver::new(&observer_callback)
+            && let Some(window_value) = window()
+            && let Some(document_value) = window_value.document()
+            && let Some(element) = document_value
+                .query_selector(GAME_3D_WEBGL_CANVAS_SELECTOR)
+                .ok()
+                .flatten()
+        {
+            resize_observer.observe(&element);
+            *observer_cell.borrow_mut() = Some(resize_observer);
+        }
         let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
         let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
         let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
@@ -1916,24 +2113,24 @@ pub(crate) fn start_game_3d_webgl_loop(
                 // fires when the layout actually changes, not when our own
                 // `canvas.width` write updates the backing store.
                 //
-                // Without this per-frame check, the synthetic `resize`
-                // event dispatched by `enter_game_3d_fullscreen` /
-                // `exit_game_3d_fullscreen` fires before the euv
-                // signal-driven DOM re-render flips the canvas CSS class
-                // (100ms debounce). During that gap the canvas DOM
-                // element already has its new CSS box but the backing
-                // store still holds the previous size, so the browser
-                // stretches the OLD-size backing image into the NEW CSS
-                // box - producing a visible first-frame cube distortion
-                // (~120ms) that only recovers once the debounced resize
-                // tick reads the new CSS dimensions and resizes.
-                //
-                // Resizing here on the very first frame we observe the
-                // CSS change collapses the distortion to a single frame.
+                // The DOM-side `canvas.width = new_w` setter is applied
+                // FIRST so the backing store matches the CSS box before
+                // the next browser paint. `renderer.resize(...)` is
+                // then called to reconfigure the WebGL context (viewport,
+                // framebuffer, textures); this is a heavy GPU-side
+                // operation that can stall the main thread for 100-200ms
+                // during a swap-chain realloc. Doing `canvas.width`
+                // first means the next paint has a correctly-sized
+                // backing store even before `renderer.resize` returns,
+                // so cubes render without the aspect-ratio distortion
+                // that would otherwise show for 6-12 frames while the
+                // GPU is busy.
                 if new_physical_width > 0 && new_physical_height > 0 {
                     let backing_w: u32 = renderer.get_canvas().width();
                     let backing_h: u32 = renderer.get_canvas().height();
                     if backing_w != new_physical_width || backing_h != new_physical_height {
+                        renderer.get_canvas().set_width(new_physical_width);
+                        renderer.get_canvas().set_height(new_physical_height);
                         renderer.resize(new_physical_width, new_physical_height);
                     }
                 }
