@@ -1507,13 +1507,35 @@ pub(crate) fn game_2d_canvas_clear_color(canvas_selector: &str) -> (f64, f64, f6
 /// # Returns
 ///
 /// - `([f32; 4], [f32; 4])` - Position-and-radius and color vec4s.
-fn game_2d_ball_gpu_record(ball: &Ball, dpr: f64) -> ([f32; 4], [f32; 4]) {
+///
+/// Packs one ball into the vec4 pair consumed by the WebGPU and WebGL
+/// ball shaders: position and radius in the first vec4, RGB color plus
+/// alpha in the second.
+///
+/// **The radius is written in CSS-pixel units, NOT multiplied by `dpr`.**
+/// The shader projects positions into clip space using the CSS-pixel
+/// `u_canvas_size` uniform, so `radius` lives in the same CSS-unit space
+/// as `ball.position`. The renderer's backing store is sized to
+/// `client_width * dpr` (i.e. physical pixels), but the shader's clip
+/// space is the same [-1, 1] NDC regardless of backing resolution — the
+/// viewport maps NDC onto the entire physical backing, so a CSS-unit
+/// radius of `r` lands on `r * dpr` physical pixels and reads back as
+/// `r` CSS pixels after the browser's automatic downscale to the
+/// element's CSS box. That is exactly the visual size the Canvas 2D
+/// tab produces via the SSAA back-and-downscale path, so the two
+/// renderers agree without any explicit DPR compensation.
+///
+/// The `dpr` parameter is intentionally ignored and is kept on the
+/// signature only so callers can pass it through alongside the other
+/// paths and we can revisit this if a future renderer breaks the
+/// clip-space-mapping assumption.
+fn game_2d_ball_gpu_record(ball: &Ball, _dpr: f64) -> ([f32; 4], [f32; 4]) {
     let (r, g, b) = game_2d_hex_to_rgb(&ball.color);
     (
         [
             ball.position.get_x() as f32,
             ball.position.get_y() as f32,
-            (ball.radius * dpr) as f32,
+            ball.radius as f32,
             0.0,
         ],
         [r, g, b, 1.0],
