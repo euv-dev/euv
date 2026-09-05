@@ -107,6 +107,19 @@ impl AttributeValue {
                             css.inject_style();
                             Some(css.get_name().to_string())
                         }
+                        // OPT-11: `CssRef` shares the same `Css` body as the
+                        // owned `Css` variant, so the static-borrow name is
+                        // identical and the style still needs to be injected
+                        // once on first reference. Without this arm the ref
+                        // would fall through to `_ => None` and silently drop
+                        // out of the merged class list — the regression that
+                        // wiped every multi-class CssRef entry (e.g. the
+                        // `c_binding_slider` class next to a parameterized
+                        // `c_slider_value("30%")` on the same `<input>`).
+                        Self::CssRef(css) => {
+                            css.inject_style();
+                            Some(css.get_name().to_string())
+                        }
                         Self::Text(text_value) => Some(text_value.clone()),
                         Self::Signal(signal) => Some(signal.get()),
                         _ => None,
@@ -123,6 +136,11 @@ impl AttributeValue {
             .iter()
             .filter_map(|value: &Self| match value {
                 Self::Css(css) => {
+                    css.inject_style();
+                    Some(css.get_name().to_string())
+                }
+                // OPT-11: see the matching arm in the signal branch above.
+                Self::CssRef(css) => {
                     css.inject_style();
                     Some(css.get_name().to_string())
                 }

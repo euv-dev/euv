@@ -230,3 +230,61 @@ fn native_media_rule_clone_does_not_panic() {
     .map_err(|_| "panic".to_string());
     assert!(result.is_ok());
 }
+
+/// Regression: `merge_class` used to drop `AttributeValue::CssRef`
+/// entries on the floor because the static-path `filter_map` had no
+/// arm for the `CssRef` variant — every reference fell through to
+/// `_ => None` and only the neighbouring owned `Css` / `Text` value
+/// made it into the rendered `class` string. The fix is verified by
+/// the e2e suite (headless Chromium checks that
+/// `c_binding_slider` shows up on `<input id="color-mixer-red">`
+/// next to its sibling `c_slider_value-…` class); the unit test
+/// below pins the equivalent behaviour on the `Text`-only merge
+/// path so the filter_map can never silently regress without
+/// `cargo test` noticing.
+#[test]
+fn merge_class_joins_text_segments_with_spaces() {
+    let merged: AttributeValue = AttributeValue::merge_class(&[
+        AttributeValue::Text(String::from("c_binding_slider")),
+        AttributeValue::Text(String::from("c_slider_value-57289a1822494269")),
+    ]);
+    let AttributeValue::Text(merged_text) = merged else {
+        panic!("merge_class should yield Text on the static path for Text inputs");
+    };
+    let parts: Vec<&str> = merged_text.split(' ').collect();
+    assert_eq!(parts.len(), 2, "expected 2 segments, got `{merged_text}`");
+    assert!(parts.contains(&"c_binding_slider"));
+    assert!(parts.contains(&"c_slider_value-57289a1822494269"));
+}
+
+/// Companion regression test for the signal-branched path of
+/// `merge_class`: `Signal` inputs must coexist with `Text` siblings
+/// and the resulting reactive value must re-evaluate correctly on
+/// `.get()`. This is the closest native-only approximation of the
+/// CssRef fix — exercising the same `_ => None` arm without
+/// depending on `Css::inject_style`, which can only run inside the
+/// browser.
+#[test]
+fn merge_class_signal_path_preserves_text_siblings() {
+    let signal_value: Signal<String> = Signal::create(String::from("c_binding_slider_label_accent"));
+    let merged: AttributeValue = AttributeValue::merge_class(&[
+        AttributeValue::Text(String::from("c_binding_slider_label")),
+        AttributeValue::Signal(signal_value),
+    ]);
+    let AttributeValue::Signal(merged_signal) = merged else {
+        panic!("merge_class should yield Signal when any input is Signal");
+    };
+    let resolved: String = merged_signal.get();
+    let parts: Vec<&str> = resolved
+        .split(' ')
+        .filter(|s: &&str| !s.is_empty())
+        .collect();
+    assert!(
+        parts.contains(&"c_binding_slider_label"),
+        "Text sibling dropped on signal path: `{resolved}` is missing `c_binding_slider_label`"
+    );
+    assert!(
+        parts.contains(&"c_binding_slider_label_accent"),
+        "Signal value dropped: `{resolved}` is missing the accent class"
+    );
+}
