@@ -592,10 +592,19 @@ impl Renderer {
             }
         }
         if new_len > old_len {
-            for new_child in new_children.iter().skip(common_len) {
-                let new_dom_node: Node = self.create_dom_node(new_child);
-                let _: Result<Node, JsValue> = parent.append_child(&new_dom_node);
-            }
+            // OPT 13: batch the trailing appends via DocumentFragment
+            // so a re-render that adds N siblings only triggers one
+            // layout invalidation on the parent.
+            //
+            // We map the borrowed slice directly into a `Vec<Node>` so
+            // the virtual nodes themselves stay borrowed — no
+            // per-node deep clone like the previous loop paid.
+            let appended: Vec<Node> = new_children
+                .iter()
+                .skip(common_len)
+                .map(|new_child| self.create_dom_node(new_child))
+                .collect();
+            append_nodes(parent, appended);
         } else if old_len > new_len {
             for _ in common_len..old_len {
                 if let Some(last_child) = parent.last_child()
@@ -705,10 +714,15 @@ impl Renderer {
                             .flatten()
                             .or_else(|| document.body().map(HtmlElement::into))
                             .unwrap_or_else(|| marker.clone());
-                        for child in children {
-                            let child_node: Node = self.create_dom_with_doc(child, document);
-                            let _: Result<Node, JsValue> = target.append_child(&child_node);
-                        }
+                        // OPT 13: batch portal-target appends via a single
+                        // DocumentFragment so the host element only sees
+                        // one DOM mutation per portal mount, regardless
+                        // of how many children the portal ships.
+                        let child_nodes: Vec<Node> = children
+                            .iter()
+                            .map(|child| self.create_dom_with_doc(child, document))
+                            .collect();
+                        append_nodes(&target, child_nodes);
                         return marker.into();
                     }
                 };
@@ -722,10 +736,14 @@ impl Renderer {
                 if let Some(html) = inner_html_payload.as_deref() {
                     element.set_inner_html(html);
                 } else {
-                    for child in children {
-                        let child_node: Node = self.create_dom_with_doc(child, document);
-                        let _: Result<Node, JsValue> = element.append_child(&child_node);
-                    }
+                    // OPT 13: batch child appends via DocumentFragment
+                    // so a tree with N siblings triggers a single
+                    // layout invalidation rather than N.
+                    let child_nodes: Vec<Node> = children
+                        .iter()
+                        .map(|child| self.create_dom_with_doc(child, document))
+                        .collect();
+                    append_nodes(&element, child_nodes);
                 }
                 for attr in attributes {
                     match attr.get_value() {
