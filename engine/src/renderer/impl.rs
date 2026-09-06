@@ -5110,44 +5110,87 @@ impl WebGlRenderer {
         Ok(shader)
     }
 
-    /// Sets a `vec2` uniform on the given program.
+    /// Resolves the location of a uniform on the given program.
     ///
-    /// The uniform location is resolved per call; for the per-frame
-    /// interaction uniforms used by the examples this lookup cost is
-    /// negligible. A missing uniform (optimized out by the GLSL compiler)
-    /// is silently ignored, matching raw WebGL semantics.
+    /// Uniform locations are stable for the lifetime of a linked program,
+    /// so callers rendering in a per-frame loop should resolve each uniform
+    /// once after [`WebGlRenderer::create_program`] and cache the result,
+    /// then pass it to [`WebGlRenderer::set_uniform_2f`] /
+    /// [`WebGlRenderer::set_uniform_4fv`]. Resolving per frame is supported
+    /// but wasteful: every lookup crosses into the browser's GL frontend.
+    /// A uniform that the GLSL compiler optimized out resolves to `None`,
+    /// which the setters silently ignore, matching raw WebGL semantics.
     ///
     /// # Arguments
     ///
     /// - `&WebGlProgram` - The program owning the uniform.
-    /// - `&str` - The uniform name.
-    /// - `f32` - The x component.
-    /// - `f32` - The y component.
-    pub fn set_uniform_2f(&self, program: &WebGlProgram, name: &str, x: f32, y: f32) {
-        let location: Option<WebGlUniformLocation> =
-            self.context.get_uniform_location(program, name);
-        self.context.uniform2f(location.as_ref(), x, y);
+    /// - `&str` - The uniform name (for array uniforms, with an explicit
+    ///   `[0]` index, per the WebGL `getUniformLocation` spec).
+    ///
+    /// # Returns
+    ///
+    /// - `Option<WebGlUniformLocation>` - The uniform location, or `None`
+    ///   when the uniform does not exist in the program.
+    pub fn get_uniform_location(
+        &self,
+        program: &WebGlProgram,
+        name: &str,
+    ) -> Option<WebGlUniformLocation> {
+        self.context.get_uniform_location(program, name)
     }
 
-    /// Uploads a flat float slice into a `vec4` or `vec4[]` uniform.
+    /// Sets a `vec2` uniform on the given program via its cached location.
+    ///
+    /// The program is bound with `useProgram` before the upload so the
+    /// uniform call always targets the program the location was resolved
+    /// from, regardless of which program the context currently has bound
+    /// (uploading against a different bound program is an
+    /// `INVALID_OPERATION` in WebGL). A `None` location (uniform optimized
+    /// out by the GLSL compiler) is silently ignored, matching raw WebGL
+    /// semantics.
+    ///
+    /// # Arguments
+    ///
+    /// - `&WebGlProgram` - The program owning the uniform.
+    /// - `Option<&WebGlUniformLocation>` - The cached location from
+    ///   [`WebGlRenderer::get_uniform_location`].
+    /// - `f32` - The x component.
+    /// - `f32` - The y component.
+    pub fn set_uniform_2f(
+        &self,
+        program: &WebGlProgram,
+        location: Option<&WebGlUniformLocation>,
+        x: f32,
+        y: f32,
+    ) {
+        self.context.use_program(Some(program));
+        self.context.uniform2f(location, x, y);
+    }
+
+    /// Uploads a flat float slice into a `vec4` or `vec4[]` uniform via its
+    /// cached location.
     ///
     /// Used by the game demos to push per-frame instance data (ball positions
     /// and colors, cube transforms) into shaders that index the array with
-    /// `gl_VertexID`. `data.len()` must be a multiple of 4. For array
-    /// uniforms pass the name with an explicit `[0]` index, per the WebGL
-    /// `getUniformLocation` spec. The upload writes only `data.len() / 4`
-    /// elements; untouched elements keep their previous values.
+    /// `gl_VertexID`. `data.len()` must be a multiple of 4. The upload writes
+    /// only `data.len() / 4` elements; untouched elements keep their previous
+    /// values. Like [`WebGlRenderer::set_uniform_2f`], the program is bound
+    /// before the upload so the call can never target the wrong program.
     ///
     /// # Arguments
     ///
     /// - `&WebGlProgram` - The program owning the uniform.
-    /// - `&str` - The uniform name (e.g. `"u_balls[0]"`).
+    /// - `Option<&WebGlUniformLocation>` - The cached location from
+    ///   [`WebGlRenderer::get_uniform_location`].
     /// - `&[f32]` - The packed float data.
-    pub fn set_uniform_4fv(&self, program: &WebGlProgram, name: &str, data: &[f32]) {
-        let location: Option<WebGlUniformLocation> =
-            self.context.get_uniform_location(program, name);
-        self.context
-            .uniform4fv_with_f32_array(location.as_ref(), data);
+    pub fn set_uniform_4fv(
+        &self,
+        program: &WebGlProgram,
+        location: Option<&WebGlUniformLocation>,
+        data: &[f32],
+    ) {
+        self.context.use_program(Some(program));
+        self.context.uniform4fv_with_f32_array(location, data);
     }
 
     /// Renders a complete frame: clears the canvas and draws a triangle-list

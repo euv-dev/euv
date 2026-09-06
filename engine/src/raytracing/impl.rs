@@ -112,15 +112,110 @@ impl Occluder {
     ///
     /// - `Vec<(Vector3D, f64)>` - One bounding sphere per occluder.
     pub fn occluder_points(&self) -> Vec<(Vector3D, f64)> {
-        let (mn, mx): (Vector3D, Vector3D) = occluder_aabb_extents(self);
-        let cx: f64 = (mn.get_x() + mx.get_x()) * 0.5;
-        let cy: f64 = (mn.get_y() + mx.get_y()) * 0.5;
-        let cz: f64 = (mn.get_z() + mx.get_z()) * 0.5;
-        let ex: f64 = (mx.get_x() - mn.get_x()) * 0.5;
-        let ey: f64 = (mx.get_y() - mn.get_y()) * 0.5;
-        let ez: f64 = (mx.get_z() - mn.get_z()) * 0.5;
-        let r: f64 = (ex * ex + ey * ey + ez * ez).sqrt();
-        vec![(Vector3D::new(cx, cy, cz), r)]
+        collect_occluder_points(std::slice::from_ref(self))
+    }
+}
+
+/// Implements the constructor and zero-allocation tracing entry points for
+/// [`RayTraceScene`].
+impl RayTraceScene {
+    /// Creates a new scene taking ownership of `occluders` and precomputing
+    /// the `(center, radius)` shadow bounding spheres used by
+    /// [`soft_shadow_factor`].
+    ///
+    /// # Arguments
+    ///
+    /// - `Vec<Occluder>` - All occluding surfaces in the scene.
+    ///
+    /// # Returns
+    ///
+    /// - `RayTraceScene` - The new scene with precomputed shadow data.
+    pub fn new(occluders: Vec<Occluder>) -> RayTraceScene {
+        let shadow_points: Vec<(Vector3D, f64)> = collect_occluder_points(&occluders);
+        RayTraceScene {
+            occluders,
+            shadow_points,
+        }
+    }
+
+    /// Iteratively traces a ray through the scene and returns the final
+    /// shaded color, using the [`RAYTRACE_DEFAULT_MAX_BOUNCES`] constant as
+    /// the bounce limit.
+    ///
+    /// Performs no heap allocation per ray or per bounce: the shadow
+    /// bounding spheres precomputed at construction are reused, and no
+    /// [`Material`] is cloned. Use [`RayTraceScene::trace_with_bounces`] to
+    /// override the bounce limit.
+    ///
+    /// # Arguments
+    ///
+    /// - `Ray` - The ray to trace.
+    /// - `&LightingUniforms` - Lighting parameters used during shading.
+    ///
+    /// # Returns
+    ///
+    /// - `Vector3D` - The final traced color.
+    pub fn trace(&self, ray: Ray, lights: &LightingUniforms) -> Vector3D {
+        self.trace_with_bounces(ray, lights, RAYTRACE_DEFAULT_MAX_BOUNCES)
+    }
+
+    /// Iteratively traces a ray through the scene with an explicit bounce
+    /// limit and returns the final shaded color.
+    ///
+    /// On a miss the ambient color scaled by the accumulated specular
+    /// throughput is added. On a hit the surface material is evaluated with
+    /// [`LightingUniforms::shade`] and, when the hit material has a
+    /// non-zero specular component, the trace continues with a reflected
+    /// ray up to `max_bounces` times (incrementing the ray's `depth` field
+    /// per bounce).
+    ///
+    /// # Arguments
+    ///
+    /// - `Ray` - The ray to trace.
+    /// - `&LightingUniforms` - Lighting parameters used during shading.
+    /// - `u32` - The maximum number of bounces allowed for this ray.
+    ///
+    /// # Returns
+    ///
+    /// - `Vector3D` - The final traced color.
+    pub fn trace_with_bounces(
+        &self,
+        ray: Ray,
+        lights: &LightingUniforms,
+        max_bounces: u32,
+    ) -> Vector3D {
+        trace_bounces(
+            ray,
+            self.get_occluders(),
+            &self.shadow_points,
+            lights,
+            max_bounces,
+        )
+    }
+
+    /// Finds the closest intersection between a ray and the scene
+    /// occluders.
+    ///
+    /// The winning occluder's [`Material`] is cloned exactly once, when the
+    /// returned [`Hit`] is constructed; losing candidates are never cloned.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Ray` - The ray to test.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Hit>` - The closest hit, or `None` if the ray misses.
+    pub fn closest_hit(&self, ray: &Ray) -> Option<Hit> {
+        let occluders: &[Occluder] = self.get_occluders();
+        closest_hit_indexed(ray, occluders).map(
+            |(index, t, position, normal): (usize, f64, Vector3D, Vector3D)| Hit {
+                t,
+                position,
+                normal,
+                material: occluders[index].get_material().clone(),
+            },
+        )
     }
 }
 
@@ -128,15 +223,16 @@ impl Occluder {
 mod tests {
     use super::*;
 
-    /// A ray that escapes the scene (no occluders) returns the ambient color.
+    /// A ray that escapes an empty scene returns the ambient color.
     #[test]
     fn trace_miss_returns_ambient() {
         let eye: Vector3D = Vector3D::new(0.0, 0.0, 0.0);
         let mut lights: LightingUniforms = LightingUniforms::with_eye(eye);
         lights.set_ambient(Vector3D::new(0.2, 0.4, 0.6));
         let ray: Ray = Ray::new(Vector3D::new(0.0, 0.0, 0.0), Vector3D::new(1.0, 0.0, 0.0));
-        let occluders: [Occluder; 0] = [];
-        let color: Vector3D = trace(ray, &occluders, &lights, RAYTRACE_DEFAULT_MAX_BOUNCES);
+        let occluders: Vec<Occluder> = Vec::new();
+        let scene: RayTraceScene = RayTraceScene::new(occluders);
+        let color: Vector3D = scene.trace(ray, &lights);
         assert!(
             (color.get_x() - 0.2).abs() < EPSILON,
             "expected ambient red 0.2, got {}",
@@ -163,9 +259,10 @@ mod tests {
         lights.set_ambient(Vector3D::zero());
         let sphere_material: Material = Material::emissive(Vector3D::new(1.0, 0.0, 0.0));
         let sphere: Occluder = Occluder::sphere(Vector3D::zero(), 1.0, sphere_material);
+        let occluders: Vec<Occluder> = vec![sphere];
+        let scene: RayTraceScene = RayTraceScene::new(occluders);
         let ray: Ray = Ray::new(Vector3D::new(0.0, 0.0, 5.0), Vector3D::new(0.0, 0.0, -1.0));
-        let occluders: [Occluder; 1] = [sphere];
-        let color: Vector3D = trace(ray, &occluders, &lights, RAYTRACE_DEFAULT_MAX_BOUNCES);
+        let color: Vector3D = scene.trace(ray, &lights);
         assert!(
             (color.get_x() - 1.0).abs() < EPSILON,
             "expected emissive red 1.0, got {}",
@@ -198,9 +295,10 @@ mod tests {
         let emissive_material: Material = Material::emissive(Vector3D::new(0.0, 1.0, 0.0));
         let emissive: Occluder =
             Occluder::sphere(Vector3D::new(0.0, 0.0, 15.0), 1.0, emissive_material);
+        let occluders: Vec<Occluder> = vec![mirror, emissive];
+        let scene: RayTraceScene = RayTraceScene::new(occluders);
         let ray: Ray = Ray::new(Vector3D::new(0.0, 0.0, 10.0), Vector3D::new(0.0, 0.0, -1.0));
-        let occluders: [Occluder; 2] = [mirror, emissive];
-        let color: Vector3D = trace(ray, &occluders, &lights, RAYTRACE_DEFAULT_MAX_BOUNCES);
+        let color: Vector3D = scene.trace(ray, &lights);
         assert!(
             color.get_y() > 0.0,
             "expected bounce to bring back some green, got {}",
@@ -215,6 +313,82 @@ mod tests {
             color.get_z().abs() < EPSILON,
             "expected blue ~0 (no blue light), got {}",
             color.get_z(),
+        );
+    }
+
+    /// Builds the scene mirrored from the /raytrace example: a ground
+    /// AABB, a mirror sphere, and an emissive sphere, lit by one
+    /// directional sun with a fixed yaw.
+    ///
+    /// # Returns
+    ///
+    /// - `(Vec<Occluder>, LightingUniforms)` - The scene occluders and the
+    ///   lighting uniforms.
+    fn demo_scene() -> (Vec<Occluder>, LightingUniforms) {
+        let ground: Occluder = Occluder::aabb(
+            Vector3D::new(-5.0, -0.6, -5.0),
+            Vector3D::new(5.0, -0.5, 5.0),
+            Material::phong(Vector3D::new(0.30, 0.32, 0.36), 0.30, 24.0),
+        );
+        let mirror: Occluder = Occluder::sphere(
+            Vector3D::new(0.0, 0.4, 0.0),
+            0.9,
+            Material::phong(Vector3D::new(0.05, 0.05, 0.06), 1.0, 64.0),
+        );
+        let emissive: Occluder = Occluder::sphere(
+            Vector3D::new(1.6, 0.6, -1.4),
+            0.45,
+            Material::emissive(Vector3D::new(1.0, 0.45, 0.10)),
+        );
+        let occluders: Vec<Occluder> = vec![ground, mirror, emissive];
+        let eye: Vector3D = Vector3D::new(0.0, 0.8, 3.5);
+        let yaw: f64 = 0.7;
+        let light_dir: Vector3D = Vector3D::new(-yaw.cos(), -0.5, -yaw.sin()).normalized();
+        let sun: Light = Light::new_directional(light_dir, Vector3D::new(1.0, 0.95, 0.85));
+        let mut lights: LightingUniforms = LightingUniforms::with_eye(eye);
+        lights.set_ambient(Vector3D::new(0.10, 0.10, 0.14));
+        lights.add_light(sun);
+        (occluders, lights)
+    }
+
+    /// `RayTraceScene::trace` is exactly [`RayTraceScene::trace_with_bounces`]
+    /// evaluated at the [`RAYTRACE_DEFAULT_MAX_BOUNCES`] limit.
+    #[test]
+    fn trace_matches_trace_with_bounces_at_default_limit() {
+        let (occluders, lights): (Vec<Occluder>, LightingUniforms) = demo_scene();
+        let scene: RayTraceScene = RayTraceScene::new(occluders);
+        let ray: Ray = Ray::new(
+            Vector3D::new(0.0, 0.8, 3.5),
+            Vector3D::new(0.0, -0.4, -3.5).normalized(),
+        );
+        let default_color: Vector3D = scene.trace(ray.clone(), &lights);
+        let explicit_color: Vector3D =
+            scene.trace_with_bounces(ray, &lights, RAYTRACE_DEFAULT_MAX_BOUNCES);
+        assert_eq!(
+            default_color, explicit_color,
+            "trace must equal trace_with_bounces at the default bounce limit",
+        );
+    }
+
+    /// `RayTraceScene::closest_hit` matches the analytic intersection
+    /// distance for a dead-center ray and returns `None` on a miss.
+    #[test]
+    fn closest_hit_returns_analytic_t() {
+        let (occluders, _lights): (Vec<Occluder>, LightingUniforms) = demo_scene();
+        let scene: RayTraceScene = RayTraceScene::new(occluders);
+        let dead_center: Ray =
+            Ray::new(Vector3D::new(0.0, 0.4, 5.0), Vector3D::new(0.0, 0.0, -1.0));
+        let expected_t: f64 = 5.0 - 0.9;
+        let hit: Option<Hit> = scene.closest_hit(&dead_center);
+        assert!(hit.is_some(), "expected dead-center ray to hit the mirror");
+        assert!(
+            (hit.expect("checked above").get_t() - expected_t).abs() < 1e-9,
+            "expected analytic t {expected_t}",
+        );
+        let away: Ray = Ray::new(Vector3D::new(0.0, 0.4, 5.0), Vector3D::new(0.0, 0.0, 1.0));
+        assert!(
+            scene.closest_hit(&away).is_none(),
+            "expected ray pointing away from the scene to miss",
         );
     }
 }

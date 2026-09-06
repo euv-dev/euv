@@ -51,3 +51,25 @@ pub struct Occluder {
     /// The surface material.
     pub(crate) material: Material,
 }
+
+/// An owned ray-tracing scene with precomputed shadow data.
+///
+/// `RayTraceScene` bundles the occluder list together with the
+/// `(center, radius)` shadow bounding spheres consumed by
+/// [`soft_shadow_factor`], computing them exactly once at construction.
+/// Tracing through [`RayTraceScene::trace`] performs no heap allocation
+/// per ray or per bounce, making the scene the single canonical entry
+/// point for tracing many rays against a static scene.
+#[derive(Clone, Data, Debug, PartialEq)]
+pub struct RayTraceScene {
+    /// All occluding surfaces in the scene.
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) occluders: Vec<Occluder>,
+    /// Precomputed `(center, radius)` shadow bounding spheres, one per
+    /// occluder, in the same order as `occluders`.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) shadow_points: Vec<(Vector3D, f64)>,
+}

@@ -2340,6 +2340,15 @@ pub(crate) fn start_game_2d_webgl_loop(
                 return;
             }
         };
+        // Resolve uniform locations once after link; per-frame
+        // `getUniformLocation` calls are pure overhead and locations are
+        // stable for the lifetime of the program.
+        let canvas_size_location: Rc<Option<WebGlUniformLocation>> =
+            Rc::new(renderer.get_uniform_location(&program, "u_canvas_size"));
+        let ball_pos_radius_location: Rc<Option<WebGlUniformLocation>> =
+            Rc::new(renderer.get_uniform_location(&program, "u_ball_pos_radius[0]"));
+        let ball_color_location: Rc<Option<WebGlUniformLocation>> =
+            Rc::new(renderer.get_uniform_location(&program, "u_ball_color[0]"));
         *canvas_cache.0.borrow_mut() = game_2d_canvas_element(GAME_2D_WEBGL_CANVAS_SELECTOR);
         let clear_color: Rc<Cell<(f64, f64, f64)>> = Rc::new(Cell::new(
             game_2d_canvas_clear_color(GAME_2D_WEBGL_CANVAS_SELECTOR),
@@ -2356,6 +2365,12 @@ pub(crate) fn start_game_2d_webgl_loop(
         let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
         let renderer_for_loop: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
         let program_for_loop: Rc<WebGlProgram> = program_rc.clone();
+        let canvas_size_location_for_loop: Rc<Option<WebGlUniformLocation>> =
+            canvas_size_location.clone();
+        let ball_pos_radius_location_for_loop: Rc<Option<WebGlUniformLocation>> =
+            ball_pos_radius_location.clone();
+        let ball_color_location_for_loop: Rc<Option<WebGlUniformLocation>> =
+            ball_color_location.clone();
         let clear_color_for_loop: Rc<Cell<(f64, f64, f64)>> = clear_color.clone();
         let acc_clone: Rc<Cell<f64>> = accumulator.clone();
         let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
@@ -2496,16 +2511,20 @@ pub(crate) fn start_game_2d_webgl_loop(
                 let vertex_count: i32 = (render_balls.len() * 6) as i32;
                 renderer.set_uniform_2f(
                     &program_for_loop,
-                    "u_canvas_size",
+                    canvas_size_location_for_loop.as_ref().as_ref(),
                     canvas_width as f32,
                     canvas_height as f32,
                 );
                 renderer.set_uniform_4fv(
                     &program_for_loop,
-                    "u_ball_pos_radius[0]",
+                    ball_pos_radius_location_for_loop.as_ref().as_ref(),
                     &pos_radius_data,
                 );
-                renderer.set_uniform_4fv(&program_for_loop, "u_ball_color[0]", &color_data);
+                renderer.set_uniform_4fv(
+                    &program_for_loop,
+                    ball_color_location_for_loop.as_ref().as_ref(),
+                    &color_data,
+                );
                 // Refresh the clear color every frame so a theme toggle
                 // takes effect within one paint. The computed style is
                 // cached by the engine after the first read, so the only

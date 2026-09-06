@@ -1932,6 +1932,15 @@ pub(crate) fn start_game_3d_webgl_loop(
                 return;
             }
         };
+        // Resolve uniform locations once after link; per-frame
+        // `getUniformLocation` calls are pure overhead and locations are
+        // stable for the lifetime of the program.
+        let view_proj_location: Rc<Option<WebGlUniformLocation>> =
+            Rc::new(renderer.get_uniform_location(&program, "u_view_proj[0]"));
+        let camera_pos_location: Rc<Option<WebGlUniformLocation>> =
+            Rc::new(renderer.get_uniform_location(&program, "u_camera_pos"));
+        let cubes_location: Rc<Option<WebGlUniformLocation>> =
+            Rc::new(renderer.get_uniform_location(&program, "u_cubes[0]"));
         *guard_cell.borrow_mut() = register_canvas_scroll_guard(GAME_3D_WEBGL_CANVAS_SELECTOR);
         let clear_color: Rc<Cell<(f64, f64, f64)>> = Rc::new(Cell::new(
             game_3d_canvas_clear_color(GAME_3D_WEBGL_CANVAS_SELECTOR),
@@ -2031,6 +2040,11 @@ pub(crate) fn start_game_3d_webgl_loop(
         let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
         let renderer_for_loop: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
         let program_for_loop: Rc<WebGlProgram> = program_rc.clone();
+        let view_proj_location_for_loop: Rc<Option<WebGlUniformLocation>> =
+            view_proj_location.clone();
+        let camera_pos_location_for_loop: Rc<Option<WebGlUniformLocation>> =
+            camera_pos_location.clone();
+        let cubes_location_for_loop: Rc<Option<WebGlUniformLocation>> = cubes_location.clone();
         let clear_color_for_loop: Rc<Cell<(f64, f64, f64)>> = clear_color.clone();
         let acc_clone: Rc<Cell<f64>> = accumulator.clone();
         let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
@@ -2147,9 +2161,21 @@ pub(crate) fn start_game_3d_webgl_loop(
                     interpolate_cubes(&cubes.borrow(), &prev_for_loop.borrow(), alpha);
                 let uniform_data: Vec<f32> = pack_game_3d_cubes_uniform(&render_cubes, &camera);
                 let vertex_count: i32 = (render_cubes.len() * 36) as i32;
-                renderer.set_uniform_4fv(&program_for_loop, "u_view_proj[0]", &uniform_data[0..16]);
-                renderer.set_uniform_4fv(&program_for_loop, "u_camera_pos", &uniform_data[16..20]);
-                renderer.set_uniform_4fv(&program_for_loop, "u_cubes[0]", &uniform_data[20..]);
+                renderer.set_uniform_4fv(
+                    &program_for_loop,
+                    view_proj_location_for_loop.as_ref().as_ref(),
+                    &uniform_data[0..16],
+                );
+                renderer.set_uniform_4fv(
+                    &program_for_loop,
+                    camera_pos_location_for_loop.as_ref().as_ref(),
+                    &uniform_data[16..20],
+                );
+                renderer.set_uniform_4fv(
+                    &program_for_loop,
+                    cubes_location_for_loop.as_ref().as_ref(),
+                    &uniform_data[20..],
+                );
                 // Refresh the clear color every frame so a theme toggle
                 // takes effect within one paint. The computed style is
                 // cached by the engine after the first read, so the only

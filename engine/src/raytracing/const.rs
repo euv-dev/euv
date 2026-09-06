@@ -1,6 +1,6 @@
-/// The default maximum number of bounces evaluated by [`trace`] before
-/// returning. Higher values yield more accurate reflections at increased
-/// computational cost.
+/// The default maximum number of bounces evaluated by
+/// [`RayTraceScene::trace`] before returning. Higher values yield more
+/// accurate reflections at increased computational cost.
 pub(crate) const RAYTRACE_DEFAULT_MAX_BOUNCES: u32 = 4;
 
 /// The minimum ray parameter `t` accepted as a valid intersection. Hits

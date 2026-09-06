@@ -1,27 +1,70 @@
 use super::*;
 
-/// Creates the RayTrace page reactive state.
+/// Creates the RayTrace Canvas 2D tab reactive state.
 ///
 /// # Returns
 ///
-/// - `UseRayTrace` - The RayTrace page state.
+/// - `UseRayTrace` - The RayTrace Canvas 2D tab state.
 pub(crate) fn use_raytrace_state() -> UseRayTrace {
     UseRayTrace {
         fps: App::use_signal(|| 0.0),
         running: App::use_signal(|| true),
         loop_started: App::use_signal(|| false),
         auto_rotate: App::use_signal(|| true),
+        render_scale: App::use_signal(|| 1.0),
     }
 }
 
-/// Creates the RayTrace page fullscreen overlay state.
+/// Creates the RayTrace WebGL tab reactive state.
+///
+/// # Returns
+///
+/// - `UseRayTraceWebGl` - The WebGL backend state.
+pub(crate) fn use_raytrace_webgl_state() -> UseRayTraceWebGl {
+    UseRayTraceWebGl {
+        fps: App::use_signal(|| 0.0),
+        running: App::use_signal(|| true),
+        auto_rotate: App::use_signal(|| true),
+        loaded: App::use_signal(|| false),
+        active: App::use_signal(|| false),
+        loop_started: App::use_signal(|| false),
+        init_error_code: App::use_signal(|| ""),
+    }
+}
+
+/// Creates the RayTrace WebGPU tab reactive state.
+///
+/// # Returns
+///
+/// - `UseRayTraceWebGpu` - The WebGPU backend state.
+pub(crate) fn use_raytrace_webgpu_state() -> UseRayTraceWebGpu {
+    UseRayTraceWebGpu {
+        fps: App::use_signal(|| 0.0),
+        running: App::use_signal(|| true),
+        auto_rotate: App::use_signal(|| true),
+        loaded: App::use_signal(|| false),
+        active: App::use_signal(|| false),
+        loop_started: App::use_signal(|| false),
+        init_error_code: App::use_signal(|| ""),
+    }
+}
+
+/// Creates the RayTrace page fullscreen overlay state signals.
+///
+/// Allocates hook slots in this fixed order:
+///
+/// 1. canvas_2d
+/// 2. web_gl
+/// 3. web_gpu
 ///
 /// # Returns
 ///
 /// - `UseRayTraceFullscreen` - The RayTrace page fullscreen state.
 pub(crate) fn use_raytrace_fullscreen_state() -> UseRayTraceFullscreen {
     UseRayTraceFullscreen {
-        fullscreen: App::use_signal(|| false),
+        canvas_2d: App::use_signal(|| false),
+        web_gl: App::use_signal(|| false),
+        web_gpu: App::use_signal(|| false),
     }
 }
 
@@ -47,17 +90,53 @@ fn raytrace_canvas_detached(canvas_selector: &str) -> bool {
         .is_none()
 }
 
+/// Reads the CSS pixel dimensions of a RayTrace canvas element via
+/// `getBoundingClientRect`.
+///
+/// The rect reflects the target CSS size immediately (unlike
+/// `clientWidth`/`clientHeight`, which track the backing store in Chrome
+/// and would create a feedback loop if read every frame). Page-scoped
+/// copy of the game-page helper: the name stays private so it cannot
+/// collide with the `game_2d` / `game_3d` `read_canvas_size` re-exports.
+///
+/// # Arguments
+///
+/// - `&str` - The CSS selector for the canvas element.
+///
+/// # Returns
+///
+/// - `Option<(f64, f64)>` - The (width, height) in CSS pixels.
+fn read_raytrace_canvas_size(canvas_selector: &str) -> Option<(f64, f64)> {
+    let window_value: Window = window()?;
+    let document_value: Document = window_value.document()?;
+    let element: Element = document_value
+        .query_selector(canvas_selector)
+        .ok()
+        .flatten()?;
+    let canvas: HtmlCanvasElement = element.unchecked_into();
+    let rect: DomRect = canvas.get_bounding_client_rect();
+    Some((rect.width(), rect.height()))
+}
+
 /// Acquires the 2D context for the RayTrace demo canvas, resizing the
-/// backing buffer to the logical render dimensions if needed.
+/// backing buffer to the requested pixel dimensions if needed.
 ///
 /// Returns `None` if the canvas element cannot be found (for example
 /// while the page is mid-route transition) or if a 2D context cannot be
 /// acquired.
 ///
+/// # Arguments
+///
+/// - `u32` - The backing buffer width in pixels.
+/// - `u32` - The backing buffer height in pixels.
+///
 /// # Returns
 ///
 /// - `Option<(HtmlCanvasElement, CanvasRenderingContext2d)>` - The canvas and its 2D context.
-fn acquire_raytrace_canvas() -> Option<(HtmlCanvasElement, CanvasRenderingContext2d)> {
+fn acquire_raytrace_canvas(
+    width: u32,
+    height: u32,
+) -> Option<(HtmlCanvasElement, CanvasRenderingContext2d)> {
     let window_value: Window = window()?;
     let document_value: Document = window_value.document()?;
     let element: Element = document_value
@@ -65,17 +144,13 @@ fn acquire_raytrace_canvas() -> Option<(HtmlCanvasElement, CanvasRenderingContex
         .ok()
         .flatten()?;
     let canvas: HtmlCanvasElement = element.unchecked_into();
-    let width_u32: u32 = RAYTRACE_WIDTH as u32;
-    let height_u32: u32 = RAYTRACE_HEIGHT as u32;
-    if canvas.width() != width_u32 {
-        canvas.set_width(width_u32);
+    if canvas.width() != width {
+        canvas.set_width(width);
     }
-    if canvas.height() != height_u32 {
-        canvas.set_height(height_u32);
+    if canvas.height() != height {
+        canvas.set_height(height);
     }
-    let Some(context_object) = canvas.get_context(RAYTRACE_CONTEXT_TYPE).ok().flatten() else {
-        return None;
-    };
+    let context_object: Object = canvas.get_context(RAYTRACE_CONTEXT_TYPE).ok().flatten()?;
     let context: CanvasRenderingContext2d = context_object.unchecked_into();
     Some((canvas, context))
 }
@@ -107,6 +182,23 @@ fn build_raytrace_scene() -> (Vec<Occluder>, Vector3D) {
     (occluders, eye)
 }
 
+/// Computes the normalized directional sun direction for the current
+/// orbit yaw.
+///
+/// Shared by the CPU lighting builder and the GPU uniform packer so all
+/// three backends shade with the identical sun vector.
+///
+/// # Arguments
+///
+/// - `f64` - The current camera yaw in radians.
+///
+/// # Returns
+///
+/// - `Vector3D` - The unit sun direction.
+fn raytrace_sun_direction(yaw: f64) -> Vector3D {
+    Vector3D::new(-yaw.cos(), -0.5, -yaw.sin()).normalized()
+}
+
 /// Builds the per-frame lighting uniforms for the raytrace scene.
 ///
 /// The single directional sun rotates with the current yaw so the lit
@@ -123,8 +215,8 @@ fn build_raytrace_scene() -> (Vec<Occluder>, Vector3D) {
 ///
 /// - `LightingUniforms` - The per-frame lighting.
 fn build_raytrace_lighting(eye: Vector3D, yaw: f64) -> LightingUniforms {
-    let light_dir: Vector3D = Vector3D::new(-yaw.cos(), -0.5, -yaw.sin()).normalized();
-    let sun: Light = Light::new_directional(light_dir, Vector3D::new(1.0, 0.95, 0.85));
+    let sun: Light =
+        Light::new_directional(raytrace_sun_direction(yaw), Vector3D::new(1.0, 0.95, 0.85));
     let mut lights: LightingUniforms = LightingUniforms::with_eye(eye);
     lights.set_ambient(Vector3D::new(0.10, 0.10, 0.14));
     lights.add_light(sun);
@@ -142,40 +234,21 @@ fn build_raytrace_lighting(eye: Vector3D, yaw: f64) -> LightingUniforms {
 ///
 /// - `f64` - The clamped value in `[0, 1]`.
 fn clamp_unit(value: f64) -> f64 {
-    if value < 0.0 {
-        0.0
-    } else if value > 1.0 {
-        1.0
-    } else {
-        value
-    }
+    value.clamp(0.0, 1.0)
 }
 
-/// Writes a single pixel into the 2D context with an sRGB gamma
-/// correction applied to the linear color.
+/// Packs a linear `0..=1` color channel into an sRGB byte, applying the
+/// shared `1/2.2` gamma curve.
 ///
 /// # Arguments
 ///
-/// - `&CanvasRenderingContext2d` - The target 2D context.
-/// - `i32` - The pixel x coordinate.
-/// - `i32` - The pixel y coordinate.
-/// - `f64` - The linear red channel.
-/// - `f64` - The linear green channel.
-/// - `f64` - The linear blue channel.
-fn write_pixel(context: &CanvasRenderingContext2d, x: i32, y: i32, r: f64, g: f64, b: f64) {
-    let gamma: f64 = 1.0 / 2.2;
-    let cr: f64 = clamp_unit(r).powf(gamma);
-    let cg: f64 = clamp_unit(g).powf(gamma);
-    let cb: f64 = clamp_unit(b).powf(gamma);
-    let style: String = format!(
-        "rgb({},{},{})",
-        (cr * 255.0).round() as u8,
-        (cg * 255.0).round() as u8,
-        (cb * 255.0).round() as u8,
-    );
-    let key: JsValue = JsValue::from_str(RAYTRACE_PROPERTY_FILL_STYLE);
-    let _: Result<bool, JsValue> = Reflect::set(context.as_ref(), &key, &JsValue::from_str(&style));
-    context.fill_rect(x as f64, y as f64, 1.0, 1.0);
+/// - `f64` - The linear color channel value.
+///
+/// # Returns
+///
+/// - `u8` - The gamma-corrected 8-bit channel value.
+fn gamma_byte(value: f64) -> u8 {
+    (clamp_unit(value).powf(1.0 / 2.2) * 255.0).round() as u8
 }
 
 /// Computes the camera basis (forward, right, up_true) for a given
@@ -232,75 +305,132 @@ fn compute_eye_position(yaw: f64, pitch: f64) -> Vector3D {
     )
 }
 
-/// Renders one full frame of the RayTrace demo into the supplied 2D
-/// context.
-///
-/// Builds the camera basis once, then for every pixel in the backing
-/// buffer computes a primary `Ray`, calls `trace_default` to walk the
-/// scene and bounce reflections up to `RAYTRACE_DEFAULT_MAX_BOUNCES`,
-/// and writes the resulting linear color into the pixel. Lighting is
-/// rebuilt per frame from the current yaw so the directional sun tracks
-/// the camera orbit.
+/// Computes the integer backing buffer dimensions for a render-scale
+/// ladder step.
 ///
 /// # Arguments
 ///
-/// - `&CanvasRenderingContext2d` - The 2D context to render into.
-/// - `&[Occluder]` - The scene occluders.
+/// - `f64` - The render scale from [`RAYTRACE_RENDER_SCALES`].
+///
+/// # Returns
+///
+/// - `(u32, u32)` - The `(width, height)` in pixels (always 4:3).
+fn raytrace_scaled_dimensions(scale: f64) -> (u32, u32) {
+    let width: u32 = (RAYTRACE_WIDTH * scale).round() as u32;
+    let height: u32 = (RAYTRACE_HEIGHT * scale).round() as u32;
+    (width, height)
+}
+
+/// Renders one full frame of the RayTrace demo into the RGBA byte
+/// framebuffer.
+///
+/// Builds the camera basis once, then for every pixel in the backing
+/// buffer computes a primary `Ray`, traces it through the precomputed
+/// `RayTraceScene` (zero heap allocation per ray), and packs the
+/// resulting linear color into four RGBA bytes with the shared `1/2.2`
+/// gamma curve. Lighting is rebuilt per frame by the caller so the
+/// directional sun tracks the camera orbit.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - The RGBA framebuffer (length `width * height * 4`).
+/// - `u32` - The framebuffer width in pixels.
+/// - `u32` - The framebuffer height in pixels.
+/// - `&RayTraceScene` - The scene with precomputed shadow data.
 /// - `&LightingUniforms` - The per-frame lighting.
+/// - `f64` - The orbit yaw in radians.
+/// - `f64` - The orbit pitch in radians.
 fn render_raytrace_frame(
-    context: &CanvasRenderingContext2d,
-    occluders: &[Occluder],
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    scene: &RayTraceScene,
     lights: &LightingUniforms,
     yaw: f64,
     pitch: f64,
 ) {
-    let width: f64 = RAYTRACE_WIDTH;
-    let height: f64 = RAYTRACE_HEIGHT;
+    let width_f64: f64 = f64::from(width);
+    let height_f64: f64 = f64::from(height);
     let eye: Vector3D = compute_eye_position(yaw, pitch);
     let (forward, right, up_true): (Vector3D, Vector3D, Vector3D) =
         build_camera_basis(eye, yaw, pitch);
-    let aspect: f64 = width / height;
+    let aspect: f64 = width_f64 / height_f64;
     let focal: f64 = 1.0;
-    context.clear_rect(0.0, 0.0, width, height);
-    let width_i32: i32 = width as i32;
-    let height_i32: i32 = height as i32;
-    let inv_width: f64 = 1.0 / width;
-    let inv_height: f64 = 1.0 / height;
+    let inv_width: f64 = 1.0 / width_f64;
+    let inv_height: f64 = 1.0 / height_f64;
     let sub_offsets: [(f64, f64); 4] = [(0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75)];
-    for y in 0..height_i32 {
-        for x in 0..width_i32 {
+    let mut index: usize = 0;
+    for y in 0..height {
+        for x in 0..width {
             let mut acc_r: f64 = 0.0;
             let mut acc_g: f64 = 0.0;
             let mut acc_b: f64 = 0.0;
             for (dx_off, dy_off) in sub_offsets {
-                let px: f64 = x as f64 + dx_off;
-                let py: f64 = y as f64 + dy_off;
+                let px: f64 = f64::from(x) + dx_off;
+                let py: f64 = f64::from(y) + dy_off;
                 let ndc_x: f64 = (px * inv_width) * 2.0 - 1.0;
                 let ndc_y: f64 = 1.0 - (py * inv_height) * 2.0;
                 let dir: Vector3D =
                     (forward.scaled(focal) + right.scaled(ndc_x * aspect) + up_true.scaled(ndc_y))
                         .normalized();
                 let ray: Ray = Ray::new(eye, dir);
-                let color: Vector3D = trace_default(ray, occluders, lights);
+                let color: Vector3D = scene.trace(ray, lights);
                 acc_r += color.get_x();
                 acc_g += color.get_y();
                 acc_b += color.get_z();
             }
-            write_pixel(context, x, y, acc_r * 0.25, acc_g * 0.25, acc_b * 0.25);
+            buffer[index] = gamma_byte(acc_r * 0.25);
+            buffer[index + 1] = gamma_byte(acc_g * 0.25);
+            buffer[index + 2] = gamma_byte(acc_b * 0.25);
+            buffer[index + 3] = 255;
+            index += 4;
         }
     }
 }
 
-/// Starts the RayTrace page `requestAnimationFrame` loop.
+/// Uploads the RGBA framebuffer to the canvas in a single
+/// `put_image_data` call.
 ///
-/// Per frame: applies auto-rotate yaw if enabled, rebuilds lighting
-/// from the current yaw, and re-traces every pixel. The FPS counter,
-/// `use_cleanup` cancellation, and canvas-detached guard mirror the
-/// game_2d / game_3d pattern.
+/// Replaces the old per-pixel `fillStyle` + `fill_rect` path, which
+/// cost one `format!` allocation plus two JS crossings per pixel per
+/// frame.
 ///
 /// # Arguments
 ///
-/// - `UseRayTrace` - The RayTrace page state.
+/// - `&CanvasRenderingContext2d` - The target 2D context.
+/// - `&mut [u8]` - The RGBA framebuffer (length `width * height * 4`).
+/// - `u32` - The framebuffer width in pixels.
+/// - `u32` - The framebuffer height in pixels.
+fn present_raytrace_framebuffer(
+    context: &CanvasRenderingContext2d,
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+) {
+    let image_data: Result<ImageData, JsValue> =
+        ImageData::new_with_u8_clamped_array_and_sh(wasm_bindgen::Clamped(buffer), width, height);
+    if let Ok(image_data) = image_data {
+        let _: Result<(), JsValue> = context.put_image_data(&image_data, 0.0, 0.0);
+    }
+}
+
+/// Starts the RayTrace Canvas 2D `requestAnimationFrame` loop.
+///
+/// Per frame: applies auto-rotate yaw if enabled, rebuilds lighting
+/// from the current yaw, re-traces every pixel into the persistent RGBA
+/// framebuffer, and uploads it with one `put_image_data` call. An
+/// exponential moving average of the CPU render time drives the
+/// [`RAYTRACE_RENDER_SCALES`] adaptive-resolution ladder: sustained
+/// frames above 115% of the 60 FPS budget step the internal resolution
+/// down, sustained frames below 70% step it back up. The FPS counter
+/// uses unclamped wall-clock elapsed time so it reports honest rates
+/// even below 4 FPS; the `0.25s` clamp applies only to the yaw
+/// animation step. The `use_cleanup` cancellation and canvas-detached
+/// guard mirror the game_2d / game_3d pattern.
+///
+/// # Arguments
+///
+/// - `UseRayTrace` - The RayTrace Canvas 2D tab state.
 /// - `RayTraceCameraAngles` - The non-reactive camera orbit angles.
 pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngles) {
     let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
@@ -309,6 +439,14 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
     let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
     let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
     let (occluders, eye) = build_raytrace_scene();
+    let scene: RayTraceScene = RayTraceScene::new(occluders);
+    let canvas_cache: Rc<RefCell<Option<(HtmlCanvasElement, CanvasRenderingContext2d)>>> =
+        Rc::new(RefCell::new(None));
+    let framebuffer: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
+    let scale_index: Rc<Cell<usize>> = Rc::new(Cell::new(0));
+    let ema_millis: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+    let slow_frames: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let fast_frames: Rc<Cell<u32>> = Rc::new(Cell::new(0));
     let last_clone: Rc<Cell<f64>> = last_time.clone();
     let frame_clone: Rc<Cell<u32>> = frame_count.clone();
     let fps_clone: Rc<Cell<f64>> = fps_timer.clone();
@@ -316,6 +454,13 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
     let cell_clone: RafClosureCell = closure_cell.clone();
     let yaw_clone: Rc<Cell<f64>> = angles.yaw.clone();
     let pitch_clone: Rc<Cell<f64>> = angles.pitch.clone();
+    let cache_clone: Rc<RefCell<Option<(HtmlCanvasElement, CanvasRenderingContext2d)>>> =
+        canvas_cache.clone();
+    let buffer_clone: Rc<RefCell<Vec<u8>>> = framebuffer.clone();
+    let scale_clone: Rc<Cell<usize>> = scale_index.clone();
+    let ema_clone: Rc<Cell<f64>> = ema_millis.clone();
+    let slow_clone: Rc<Cell<u32>> = slow_frames.clone();
+    let fast_clone: Rc<Cell<u32>> = fast_frames.clone();
     let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
         if raytrace_canvas_detached(RAYTRACE_CANVAS_SELECTOR) {
             return;
@@ -328,21 +473,91 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
         };
         let current_time: f64 = performance.now() / 1000.0;
         let prev: f64 = last_clone.get();
+        // The unclamped frame time feeds the FPS counter so the reported
+        // rate stays honest even when frames take multiple seconds; only
+        // the yaw animation step consumes the clamped delta.
         let frame_time: f64 = if prev < 0.0 {
             1.0 / 60.0
         } else {
-            (current_time - prev).min(0.25)
+            current_time - prev
         };
+        let anim_time: f64 = frame_time.min(0.25);
         last_clone.set(current_time);
         if state.get_auto_rotate().get() {
-            yaw_clone.set(yaw_clone.get() + RAYTRACE_AUTO_YAW_SPEED * frame_time);
+            yaw_clone.set(yaw_clone.get() + RAYTRACE_AUTO_YAW_SPEED * anim_time);
         }
         let yaw: f64 = yaw_clone.get();
         let pitch: f64 = pitch_clone.get();
         if state.get_running().get() {
-            if let Some((_canvas, context)) = acquire_raytrace_canvas() {
+            let scale: f64 = RAYTRACE_RENDER_SCALES[scale_clone.get()];
+            let (frame_width, frame_height): (u32, u32) = raytrace_scaled_dimensions(scale);
+            let mut cache = cache_clone.borrow_mut();
+            let cached_valid: bool = cache.as_ref().is_some_and(
+                |(canvas, _): &(HtmlCanvasElement, CanvasRenderingContext2d)| canvas.is_connected(),
+            );
+            if !cached_valid {
+                *cache = acquire_raytrace_canvas(frame_width, frame_height);
+            }
+            if let Some((canvas, context)) = cache.as_ref() {
+                if canvas.width() != frame_width {
+                    canvas.set_width(frame_width);
+                }
+                if canvas.height() != frame_height {
+                    canvas.set_height(frame_height);
+                }
                 let lights: LightingUniforms = build_raytrace_lighting(eye, yaw);
-                render_raytrace_frame(&context, &occluders, &lights, yaw, pitch);
+                let render_start: f64 = performance.now();
+                {
+                    let mut buffer = buffer_clone.borrow_mut();
+                    let needed: usize = frame_width as usize * frame_height as usize * 4;
+                    if buffer.len() != needed {
+                        buffer.resize(needed, 0);
+                    }
+                    render_raytrace_frame(
+                        &mut buffer,
+                        frame_width,
+                        frame_height,
+                        &scene,
+                        &lights,
+                        yaw,
+                        pitch,
+                    );
+                    present_raytrace_framebuffer(context, &mut buffer, frame_width, frame_height);
+                }
+                let render_millis: f64 = performance.now() - render_start;
+                let ema_prev: f64 = ema_clone.get();
+                let ema: f64 = if ema_prev <= 0.0 {
+                    render_millis
+                } else {
+                    ema_prev * (1.0 - RAYTRACE_ADAPT_EMA_ALPHA)
+                        + render_millis * RAYTRACE_ADAPT_EMA_ALPHA
+                };
+                ema_clone.set(ema);
+                if ema > RAYTRACE_ADAPT_SLOW_FRAME_MILLIS {
+                    slow_clone.set(slow_clone.get() + 1);
+                    fast_clone.set(0);
+                } else if ema < RAYTRACE_ADAPT_FAST_FRAME_MILLIS {
+                    fast_clone.set(fast_clone.get() + 1);
+                    slow_clone.set(0);
+                } else {
+                    slow_clone.set(0);
+                    fast_clone.set(0);
+                }
+                let index: usize = scale_clone.get();
+                let mut next: usize = index;
+                if slow_clone.get() >= RAYTRACE_ADAPT_SLOW_FRAMES
+                    && index + 1 < RAYTRACE_RENDER_SCALES.len()
+                {
+                    next = index + 1;
+                } else if fast_clone.get() >= RAYTRACE_ADAPT_FAST_FRAMES && index > 0 {
+                    next = index - 1;
+                }
+                if next != index {
+                    scale_clone.set(next);
+                    slow_clone.set(0);
+                    fast_clone.set(0);
+                    state.get_render_scale().set(RAYTRACE_RENDER_SCALES[next]);
+                }
             }
         }
         frame_clone.set(frame_clone.get() + 1);
@@ -412,20 +627,20 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
     state.get_loop_started().set(true);
 }
 
-/// Creates a click handler that toggles the RayTrace loop between
+/// Creates a click handler that toggles a RayTrace tab loop between
 /// running and paused.
 ///
 /// # Arguments
 ///
-/// - `UseRayTrace` - The RayTrace page state.
+/// - `Signal<bool>` - The running signal of the active tab's loop.
 ///
 /// # Returns
 ///
 /// - `Option<Rc<dyn Fn(Event)>>` - The toggle handler.
-pub(crate) fn raytrace_on_toggle_pause(state: UseRayTrace) -> Option<Rc<dyn Fn(Event)>> {
+pub(crate) fn raytrace_on_toggle_pause(running: Signal<bool>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
-        let current: bool = state.get_running().get();
-        state.get_running().set(!current);
+        let current: bool = running.get();
+        running.set(!current);
     }))
 }
 
@@ -433,15 +648,17 @@ pub(crate) fn raytrace_on_toggle_pause(state: UseRayTrace) -> Option<Rc<dyn Fn(E
 ///
 /// # Arguments
 ///
-/// - `UseRayTrace` - The RayTrace page state.
+/// - `Signal<bool>` - The auto-rotate signal of the active tab's loop.
 ///
 /// # Returns
 ///
 /// - `Option<Rc<dyn Fn(Event)>>` - The toggle handler.
-pub(crate) fn raytrace_on_toggle_auto_rotate(state: UseRayTrace) -> Option<Rc<dyn Fn(Event)>> {
+pub(crate) fn raytrace_on_toggle_auto_rotate(
+    auto_rotate: Signal<bool>,
+) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
-        let current: bool = state.get_auto_rotate().get();
-        state.get_auto_rotate().set(!current);
+        let current: bool = auto_rotate.get();
+        auto_rotate.set(!current);
     }))
 }
 
@@ -500,7 +717,7 @@ fn client_y_from_event(event: &Event) -> f64 {
 /// # Arguments
 ///
 /// - `RayTraceCameraAngles` - The non-reactive camera orbit angles.
-/// - `UseRayTrace` - The RayTrace page state.
+/// - `Signal<bool>` - The auto-rotate signal of the active tab's loop.
 /// - `Rc<Cell<Option<(f64, f64)>>>` - The shared last pointer position cell.
 ///
 /// # Returns
@@ -508,7 +725,7 @@ fn client_y_from_event(event: &Event) -> f64 {
 /// - `Option<Rc<dyn Fn(Event)>>` - A pointer move handler.
 pub(crate) fn raytrace_on_pointer_move(
     angles: RayTraceCameraAngles,
-    state: UseRayTrace,
+    auto_rotate: Signal<bool>,
     last_pointer: Rc<Cell<Option<(f64, f64)>>>,
 ) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
@@ -528,7 +745,7 @@ pub(crate) fn raytrace_on_pointer_move(
         );
         angles.yaw.set(yaw);
         angles.pitch.set(pitch);
-        state.get_auto_rotate().set(false);
+        auto_rotate.set(false);
     }))
 }
 
@@ -628,7 +845,7 @@ pub(crate) fn raytrace_on_touch_start(
 /// # Arguments
 ///
 /// - `RayTraceCameraAngles` - The non-reactive camera orbit angles.
-/// - `UseRayTrace` - The RayTrace page state.
+/// - `Signal<bool>` - The auto-rotate signal of the active tab's loop.
 /// - `Rc<Cell<Option<(f64, f64)>>>` - The shared last pointer position cell.
 ///
 /// # Returns
@@ -636,7 +853,7 @@ pub(crate) fn raytrace_on_touch_start(
 /// - `Option<Rc<dyn Fn(Event)>>` - A touch move handler.
 pub(crate) fn raytrace_on_touch_move(
     angles: RayTraceCameraAngles,
-    state: UseRayTrace,
+    auto_rotate: Signal<bool>,
     last_pointer: Rc<Cell<Option<(f64, f64)>>>,
 ) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
@@ -658,7 +875,7 @@ pub(crate) fn raytrace_on_touch_move(
         );
         angles.yaw.set(yaw);
         angles.pitch.set(pitch);
-        state.get_auto_rotate().set(false);
+        auto_rotate.set(false);
     }))
 }
 
@@ -682,34 +899,865 @@ pub(crate) fn raytrace_on_touch_end(
     }))
 }
 
-/// Enters landscape fullscreen mode for the RayTrace page.
+/// Packs the per-frame uniform data consumed by the WebGL and WebGPU
+/// raytrace shaders.
 ///
-/// Sets the fullscreen signal, pushes a history entry so the system
-/// back button can exit, and re-applies safe-area insets to the
-/// newly-mounted overlay container.
+/// Layout (8 `vec4` slots, matching `u_params[8]` /
+/// `SceneUniforms`): orbit eye, camera forward, camera right, camera
+/// up, sun direction, sun color, ambient, and canvas resolution. The
+/// eye used for specular shading inside the shaders is the fixed
+/// `SHADE_EYE` constant, matching the CPU path.
 ///
 /// # Arguments
 ///
-/// - `UseRayTraceFullscreen` - The RayTrace page fullscreen state.
-pub(crate) fn enter_raytrace_fullscreen(state: UseRayTraceFullscreen) {
-    state.get_fullscreen().set(true);
-    Router::overlay_push_state();
-    UseEuvLayout::apply_cached_insets();
+/// - `f64` - The orbit yaw in radians.
+/// - `f64` - The orbit pitch in radians.
+/// - `f64` - The canvas backing width in physical pixels.
+/// - `f64` - The canvas backing height in physical pixels.
+///
+/// # Returns
+///
+/// - `Vec<f32>` - The packed uniform data (32 floats).
+fn pack_raytrace_gpu_uniform(yaw: f64, pitch: f64, width: f64, height: f64) -> Vec<f32> {
+    let eye: Vector3D = compute_eye_position(yaw, pitch);
+    let (forward, right, up_true): (Vector3D, Vector3D, Vector3D) =
+        build_camera_basis(eye, yaw, pitch);
+    let sun_dir: Vector3D = raytrace_sun_direction(yaw);
+    let mut data: Vec<f32> = Vec::with_capacity(RAYTRACE_GPU_UNIFORM_VEC4_COUNT * 4);
+    let vectors: [Vector3D; 5] = [eye, forward, right, up_true, sun_dir];
+    for vector in vectors {
+        data.push(vector.get_x() as f32);
+        data.push(vector.get_y() as f32);
+        data.push(vector.get_z() as f32);
+        data.push(0.0);
+    }
+    data.extend_from_slice(&[1.0, 0.95, 0.85, 0.0]);
+    data.extend_from_slice(&[0.10, 0.10, 0.14, 0.0]);
+    data.extend_from_slice(&[width as f32, height as f32, 0.0, 0.0]);
+    data
 }
 
-/// Exits landscape fullscreen mode for the RayTrace page.
+/// Sets the backend `loaded` signal after a short delay so the loading
+/// overlay is actually painted before it is removed.
 ///
-/// Used by the in-overlay Exit button. Clears the fullscreen signal
-/// and re-applies the safe-area insets. The `history.back()` call
-/// inside `Router::overlay_back` consumes the browser history entry
-/// that was pushed on enter.
+/// Synchronous WebGL init (and fast WebGPU init) would otherwise add and
+/// remove the overlay canvas within a single frame, so the browser never
+/// paints the loading state when switching tabs.
 ///
 /// # Arguments
 ///
-/// - `UseRayTraceFullscreen` - The RayTrace page fullscreen state.
-pub(crate) fn exit_raytrace_fullscreen(state: UseRayTraceFullscreen) {
-    state.get_fullscreen().set(false);
+/// - `Signal<bool>` - The backend `loaded` signal to set.
+/// - `i32` - The delay in milliseconds before setting the signal.
+fn raytrace_set_loaded_delayed(loaded: Signal<bool>, millis: i32) {
+    let loaded_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+        loaded.set(true);
+    }));
+    let loaded_callback: Function = loaded_closure.as_ref().unchecked_ref::<Function>().clone();
+    loaded_closure.forget();
+    let Some(loaded_window): Option<Window> = window() else {
+        return;
+    };
+    let _ = loaded_window
+        .set_timeout_with_callback_and_timeout_and_arguments_0(&loaded_callback, millis);
+}
+
+/// Registers the debounced window-resize listener shared by the WebGL
+/// and WebGPU raytrace loops.
+///
+/// # Arguments
+///
+/// - `Rc<Cell<bool>>` - The resize-dirty flag set after the debounce fires.
+/// - `Rc<Cell<Option<i32>>>` - The pending debounce timer handle.
+fn raytrace_register_resize_debounce(
+    resize_dirty: Rc<Cell<bool>>,
+    resize_timer: Rc<Cell<Option<i32>>>,
+) {
+    let resize_dirty_for_event: Rc<Cell<bool>> = resize_dirty.clone();
+    let resize_timer_for_event: Rc<Cell<Option<i32>>> = resize_timer.clone();
+    let debounce_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+        resize_dirty_for_event.set(true);
+    }));
+    let debounce_callback: Function = debounce_closure
+        .as_ref()
+        .unchecked_ref::<Function>()
+        .clone();
+    debounce_closure.forget();
+    let Some(resize_window): Option<Window> = window() else {
+        return;
+    };
+    App::use_window_event("resize", move || {
+        let old_timer: Option<i32> = resize_timer_for_event.get();
+        if let Some(timer_id) = old_timer {
+            let Some(clear_window): Option<Window> = window() else {
+                return;
+            };
+            clear_window.clear_timeout_with_handle(timer_id);
+        }
+        let new_timer: i32 = resize_window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(
+                &debounce_callback,
+                GAME_3D_RESIZE_DEBOUNCE_MILLIS,
+            )
+            .unwrap_or_default();
+        resize_timer_for_event.set(Some(new_timer));
+    });
+}
+
+/// Starts the RayTrace WebGL loop driven by `requestAnimationFrame`.
+///
+/// Renders the same scene as the Canvas 2D tab through a GLSL ES 3.00
+/// fragment shader on a fullscreen triangle. The canvas backing store
+/// tracks the CSS box times the device pixel ratio (synchronous
+/// ResizeObserver plus a debounced window-resize flag plus a per-frame
+/// divergence check, mirroring the 3D game page), and the shader
+/// aspect-corrects the NDC via the resolution uniform so geometry never
+/// stretches. WebGL initialization is synchronous; the `spawn_local`
+/// wrapper only defers execution past the current render pass so the
+/// canvas element exists in the DOM.
+///
+/// # Arguments
+///
+/// - `UseRayTraceWebGl` - The WebGL backend state for signal updates.
+/// - `RayTraceCameraAngles` - The shared non-reactive camera orbit angles.
+pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTraceCameraAngles) {
+    let init_state: UseRayTraceWebGl = state;
+    let loop_state: UseRayTraceWebGl = state;
+    let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
+    let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
+    let resize_dirty: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let resize_timer: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
+    let renderer_rc: Rc<RefCell<Option<WebGlRenderer>>> = Rc::new(RefCell::new(None));
+    let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let observer_cell: Rc<RefCell<Option<ResizeObserver>>> = Rc::new(RefCell::new(None));
+    raytrace_register_resize_debounce(resize_dirty.clone(), resize_timer.clone());
+    let raf_for_cleanup: Rc<Cell<Option<i32>>> = raf_id.clone();
+    let cell_for_cleanup: RafClosureCell = closure_cell.clone();
+    let renderer_for_cleanup: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
+    let resize_timer_for_cleanup: Rc<Cell<Option<i32>>> = resize_timer.clone();
+    let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
+    let observer_for_cleanup: Rc<RefCell<Option<ResizeObserver>>> = observer_cell.clone();
+    App::use_cleanup(move || {
+        cancelled_for_cleanup.set(true);
+        // Every step is independent: a missing `window()` must never skip
+        // the renderer teardown below, so no early returns here.
+        if let Some(cancel_id) = raf_for_cleanup.get()
+            && let Some(window_value) = window()
+        {
+            let _ = window_value.cancel_animation_frame(cancel_id);
+        }
+        if let Some(timer_id) = resize_timer_for_cleanup.get()
+            && let Some(window_value) = window()
+        {
+            window_value.clear_timeout_with_handle(timer_id);
+        }
+        // Disconnect the ResizeObserver so its closure (and the renderer
+        // it holds via `renderer_for_observer`) is released on tab
+        // switch. Without this the observer keeps the renderer alive
+        // past the loop's lifetime, holding GPU resources until GC.
+        if let Some(observer) = observer_for_cleanup.borrow_mut().take() {
+            observer.disconnect();
+        }
+        let _: Option<_> = cell_for_cleanup.try_take();
+        // WebGL has no explicit `destroy()` on the context: dropping the
+        // last JS reference lets the browser GC reclaim the GL context.
+        let _: Option<WebGlRenderer> = renderer_for_cleanup.borrow_mut().take();
+    });
+    let cancelled_for_init: Rc<Cell<bool>> = cancelled.clone();
+    let Some(loading_window): Option<Window> = window() else {
+        return;
+    };
+    let loading_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+        draw_game_3d_loading(
+            RAYTRACE_WEBGL_LOADING_CANVAS_SELECTOR,
+            RAYTRACE_WEBGL_CANVAS_SELECTOR,
+        );
+    }));
+    let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
+    loading_closure.forget();
+    let _ =
+        loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
+    spawn_local(async move {
+        if cancelled_for_init.get() {
+            return;
+        }
+        let config: RenderConfig = RenderConfig::webgl(
+            RAYTRACE_WEBGL_CANVAS_SELECTOR,
+            RAYTRACE_WIDTH,
+            RAYTRACE_HEIGHT,
+        );
+        let renderer: WebGlRenderer = match Engine::webgl_renderer(&config) {
+            Ok(value) => value,
+            Err(error) => {
+                Console::error(format!("[euv-engine][raytrace] webgl init failed: {error}"));
+                init_state.get_init_error_code().set(error.code());
+                init_state.get_loaded().set(true);
+                return;
+            }
+        };
+        let program: WebGlProgram = match renderer
+            .create_program(RAYTRACE_WEBGL_VERTEX_SHADER, RAYTRACE_WEBGL_FRAGMENT_SHADER)
+        {
+            Ok(value) => value,
+            Err(error) => {
+                Console::error(format!(
+                    "[euv-engine][raytrace] webgl program failed: {error}"
+                ));
+                init_state.get_init_error_code().set("WEBGL_PROGRAM_ERROR");
+                init_state.get_loaded().set(true);
+                return;
+            }
+        };
+        // Resolve the uniform location once after link; per-frame
+        // `getUniformLocation` calls are pure overhead and the location is
+        // stable for the lifetime of the program.
+        let params_location: Rc<Option<WebGlUniformLocation>> =
+            Rc::new(renderer.get_uniform_location(&program, "u_params[0]"));
+        let clear_color: Rc<Cell<(f64, f64, f64)>> = Rc::new(Cell::new(
+            game_3d_canvas_clear_color(RAYTRACE_WEBGL_CANVAS_SELECTOR),
+        ));
+        init_state.get_active().set(true);
+        // Delay flipping `loaded` so the loading overlay stays painted for a
+        // minimum visible duration even when init completes instantly.
+        raytrace_set_loaded_delayed(init_state.get_loaded(), GAME_3D_LOADING_MIN_MILLIS);
+        *renderer_rc.borrow_mut() = Some(renderer);
+        let program_rc: Rc<WebGlProgram> = Rc::new(program);
+        // Synchronous resize on CSS-box change. ResizeObserver callbacks
+        // run BEFORE the browser paints the next frame, so setting
+        // `canvas.width = new_w` inside the observer ensures the very
+        // first paint after fullscreen enter/exit already has the new
+        // backing store instead of one stretched frame of the old
+        // backing. `canvas.width` is applied BEFORE `renderer.resize`
+        // because the DOM setter is fast while the GL-side realloc can
+        // stall the main thread.
+        let renderer_for_observer: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
+        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
+            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+                let Some(window_value): Option<Window> = window() else {
+                    return;
+                };
+                let Some(document_value): Option<Document> = window_value.document() else {
+                    return;
+                };
+                let Some(element): Option<Element> = document_value
+                    .query_selector(RAYTRACE_WEBGL_CANVAS_SELECTOR)
+                    .ok()
+                    .flatten()
+                else {
+                    return;
+                };
+                let canvas: HtmlCanvasElement = element.unchecked_into();
+                let rect: DomRect = canvas.get_bounding_client_rect();
+                let css_w: f64 = rect.width();
+                let css_h: f64 = rect.height();
+                if css_w <= 0.0 || css_h <= 0.0 {
+                    return;
+                }
+                let dpr: f64 = Reflect::get(
+                    window_value.as_ref(),
+                    &JsValue::from_str("devicePixelRatio"),
+                )
+                .ok()
+                .and_then(|v: JsValue| v.as_f64())
+                .filter(|v: &f64| v.is_finite() && *v >= 1.0)
+                .unwrap_or(1.0);
+                let new_w: u32 = (css_w * dpr).round() as u32;
+                let new_h: u32 = (css_h * dpr).round() as u32;
+                let backing_w: u32 = canvas.width();
+                let backing_h: u32 = canvas.height();
+                if backing_w != new_w || backing_h != new_h {
+                    canvas.set_width(new_w);
+                    canvas.set_height(new_h);
+                    if let Some(renderer) = renderer_for_observer.borrow_mut().as_mut() {
+                        renderer.resize(new_w, new_h);
+                    }
+                }
+            }),
+        );
+        let observer_callback: Function = observer_closure
+            .as_ref()
+            .unchecked_ref::<Function>()
+            .clone();
+        observer_closure.forget();
+        if let Ok(resize_observer) = ResizeObserver::new(&observer_callback)
+            && let Some(window_value) = window()
+            && let Some(document_value) = window_value.document()
+            && let Some(element) = document_value
+                .query_selector(RAYTRACE_WEBGL_CANVAS_SELECTOR)
+                .ok()
+                .flatten()
+        {
+            resize_observer.observe(&element);
+            *observer_cell.borrow_mut() = Some(resize_observer);
+        }
+        let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
+        let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+        let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+        let renderer_for_loop: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
+        let program_for_loop: Rc<WebGlProgram> = program_rc.clone();
+        let params_location_for_loop: Rc<Option<WebGlUniformLocation>> = params_location.clone();
+        let clear_color_for_loop: Rc<Cell<(f64, f64, f64)>> = clear_color.clone();
+        let yaw_for_loop: Rc<Cell<f64>> = angles.yaw.clone();
+        let pitch_for_loop: Rc<Cell<f64>> = angles.pitch.clone();
+        let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
+        let cell_clone: RafClosureCell = closure_cell.clone();
+        let last_clone: Rc<Cell<f64>> = last_time.clone();
+        let frame_clone: Rc<Cell<u32>> = frame_count.clone();
+        let fps_clone: Rc<Cell<f64>> = fps_timer.clone();
+        let resize_dirty_for_loop: Rc<Cell<bool>> = resize_dirty.clone();
+        let cancelled_for_loop: Rc<Cell<bool>> = cancelled.clone();
+        let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+            // Stop on tab-switch cleanup (`cancelled`) or when the canvas
+            // left the document (router navigation fires no cleanup).
+            if cancelled_for_loop.get() || raytrace_canvas_detached(RAYTRACE_WEBGL_CANVAS_SELECTOR)
+            {
+                return;
+            }
+            let Some(window_value): Option<Window> = window() else {
+                return;
+            };
+            let Some(performance): Option<Performance> = window_value.performance() else {
+                return;
+            };
+            let current_time: f64 = performance.now() / 1000.0;
+            let prev: f64 = last_clone.get();
+            // Unclamped frame time feeds the FPS counter (honest rate);
+            // the clamped delta only drives the yaw animation step.
+            let frame_time: f64 = if prev < 0.0 {
+                1.0 / 60.0
+            } else {
+                current_time - prev
+            };
+            let anim_time: f64 = frame_time.min(0.25);
+            last_clone.set(current_time);
+            if loop_state.get_auto_rotate().get() {
+                yaw_for_loop.set(yaw_for_loop.get() + RAYTRACE_AUTO_YAW_SPEED * anim_time);
+            }
+            let resize_dirty_frame: bool = if resize_dirty_for_loop.get() {
+                resize_dirty_for_loop.set(false);
+                true
+            } else {
+                false
+            };
+            let Some(window_for_dpr): Option<Window> = window() else {
+                return;
+            };
+            let dpr: f64 = Reflect::get(
+                window_for_dpr.as_ref(),
+                &JsValue::from_str("devicePixelRatio"),
+            )
+            .ok()
+            .and_then(|value: JsValue| value.as_f64())
+            .filter(|value: &f64| value.is_finite() && *value >= 1.0)
+            .unwrap_or(1.0);
+            // Read the canvas's CSS pixel dimensions via
+            // `getBoundingClientRect` (NOT `clientWidth`/`clientHeight` -
+            // the latter track the backing store in Chrome and would
+            // create a feedback loop if read every frame).
+            let (canvas_width, canvas_height): (f64, f64) =
+                read_raytrace_canvas_size(RAYTRACE_WEBGL_CANVAS_SELECTOR).unwrap_or((0.0, 0.0));
+            let new_physical_width: u32 = (canvas_width * dpr).round() as u32;
+            let new_physical_height: u32 = (canvas_height * dpr).round() as u32;
+            if let Some(renderer) = renderer_for_loop.borrow_mut().as_mut() {
+                // Resize the WebGL backing store every frame the CSS box
+                // diverges from `canvas.width` / `canvas.height`. The
+                // per-frame check collapses the stretched-frame window
+                // after fullscreen transitions to a single frame; the
+                // ResizeObserver path normally beats it to zero.
+                if new_physical_width > 0 && new_physical_height > 0 {
+                    let backing_w: u32 = renderer.get_canvas().width();
+                    let backing_h: u32 = renderer.get_canvas().height();
+                    if backing_w != new_physical_width || backing_h != new_physical_height {
+                        renderer.get_canvas().set_width(new_physical_width);
+                        renderer.get_canvas().set_height(new_physical_height);
+                        renderer.resize(new_physical_width, new_physical_height);
+                    }
+                }
+                if resize_dirty_frame {
+                    renderer.resize(new_physical_width, new_physical_height);
+                }
+                if loop_state.get_running().get() {
+                    let backing_w: f64 = f64::from(renderer.get_canvas().width());
+                    let backing_h: f64 = f64::from(renderer.get_canvas().height());
+                    let uniform_data: Vec<f32> = pack_raytrace_gpu_uniform(
+                        yaw_for_loop.get(),
+                        pitch_for_loop.get(),
+                        backing_w,
+                        backing_h,
+                    );
+                    renderer.set_uniform_4fv(
+                        &program_for_loop,
+                        params_location_for_loop.as_ref().as_ref(),
+                        &uniform_data,
+                    );
+                    // Refresh the clear color every frame so a theme
+                    // toggle takes effect within one paint.
+                    let next_clear: (f64, f64, f64) =
+                        game_3d_canvas_clear_color(RAYTRACE_WEBGL_CANVAS_SELECTOR);
+                    if clear_color_for_loop.get() != next_clear {
+                        clear_color_for_loop.set(next_clear);
+                    }
+                    let (r, g, b) = clear_color_for_loop.get();
+                    renderer.render_frame(&program_for_loop, (r, g, b, 1.0), 3);
+                }
+            }
+            frame_clone.set(frame_clone.get() + 1);
+            fps_clone.set(fps_clone.get() + frame_time);
+            if fps_clone.get() >= 1.0 {
+                let fps: f64 = f64::from(frame_clone.get()) / fps_clone.get();
+                loop_state.get_fps().set(fps);
+                frame_clone.set(0);
+                fps_clone.set(0.0);
+            }
+            let Some(raf_closure_ref): Option<&'static Closure<dyn FnMut()>> = cell_clone.try_get()
+            else {
+                return;
+            };
+            let next_id: i32 = window_value
+                .request_animation_frame(raf_closure_ref.as_ref().unchecked_ref())
+                .unwrap_or_default();
+            if cancelled_for_loop.get() {
+                raf_clone.set(None);
+            } else {
+                raf_clone.set(Some(next_id));
+            }
+        }));
+        let _: Result<(), _> = closure_cell.try_set(raf_closure);
+        let Some(start_window): Option<Window> = window() else {
+            return;
+        };
+        let Some(start_raf_ref): Option<&'static Closure<dyn FnMut()>> = closure_cell.try_get()
+        else {
+            return;
+        };
+        let start_id: i32 = start_window
+            .request_animation_frame(start_raf_ref.as_ref().unchecked_ref())
+            .unwrap_or_default();
+        raf_id.set(Some(start_id));
+    });
+}
+
+/// Starts the RayTrace WebGPU loop driven by `requestAnimationFrame`.
+///
+/// Renders the same scene as the Canvas 2D tab through a WGSL fragment
+/// shader on a fullscreen triangle, fed by a single 8-`vec4` uniform
+/// buffer at `@group(0) @binding(0)` updated once per frame. WebGPU
+/// initialization is asynchronous (adapter + device promises raced
+/// against a timeout inside the engine), so the whole init runs inside
+/// `spawn_local` with a cancellation guard for tab switches. On failure
+/// the error code is surfaced to the status banner and the loop exits
+/// quietly.
+///
+/// # Arguments
+///
+/// - `UseRayTraceWebGpu` - The WebGPU backend state for signal updates.
+/// - `RayTraceCameraAngles` - The shared non-reactive camera orbit angles.
+pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTraceCameraAngles) {
+    let init_state: UseRayTraceWebGpu = state;
+    let loop_state: UseRayTraceWebGpu = state;
+    let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
+    let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
+    let resize_dirty: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let resize_timer: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
+    let renderer_rc: Rc<RefCell<Option<WebGpuRenderer>>> = Rc::new(RefCell::new(None));
+    let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let observer_cell: Rc<RefCell<Option<ResizeObserver>>> = Rc::new(RefCell::new(None));
+    raytrace_register_resize_debounce(resize_dirty.clone(), resize_timer.clone());
+    let raf_for_cleanup: Rc<Cell<Option<i32>>> = raf_id.clone();
+    let cell_for_cleanup: RafClosureCell = closure_cell.clone();
+    let renderer_for_cleanup: Rc<RefCell<Option<WebGpuRenderer>>> = renderer_rc.clone();
+    let resize_timer_for_cleanup: Rc<Cell<Option<i32>>> = resize_timer.clone();
+    let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
+    let observer_for_cleanup: Rc<RefCell<Option<ResizeObserver>>> = observer_cell.clone();
+    App::use_cleanup(move || {
+        cancelled_for_cleanup.set(true);
+        // Every step is independent: a missing `window()` must never skip
+        // the renderer teardown below, so no early returns here.
+        if let Some(cancel_id) = raf_for_cleanup.get()
+            && let Some(window_value) = window()
+        {
+            let _ = window_value.cancel_animation_frame(cancel_id);
+        }
+        if let Some(timer_id) = resize_timer_for_cleanup.get()
+            && let Some(window_value) = window()
+        {
+            window_value.clear_timeout_with_handle(timer_id);
+        }
+        // Disconnect the ResizeObserver so its closure (and the renderer
+        // it holds via `renderer_for_observer`) is released on tab
+        // switch. Without this the observer keeps the renderer alive
+        // past the loop's lifetime, holding GPU resources until GC.
+        if let Some(observer) = observer_for_cleanup.borrow_mut().take() {
+            observer.disconnect();
+        }
+        let _: Option<_> = cell_for_cleanup.try_take();
+        // Release GPU resources before dropping the renderer so the
+        // device and swap chain are freed eagerly. Without this the
+        // old GPU device can linger until GC, causing a fresh
+        // WebGpuRenderer::init() either to reuse the dead device
+        // (silent black canvas) or to fail to acquire a new one.
+        if let Some(renderer) = renderer_for_cleanup.borrow_mut().take() {
+            renderer.dispose();
+        }
+    });
+    let cancelled_for_init: Rc<Cell<bool>> = cancelled.clone();
+    let Some(loading_window): Option<Window> = window() else {
+        return;
+    };
+    let loading_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+        draw_game_3d_loading(
+            RAYTRACE_WEBGPU_LOADING_CANVAS_SELECTOR,
+            RAYTRACE_WEBGPU_CANVAS_SELECTOR,
+        );
+    }));
+    let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
+    loading_closure.forget();
+    let _ =
+        loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
+    spawn_local(async move {
+        let config: RenderConfig = RenderConfig::webgpu(
+            RAYTRACE_WEBGPU_CANVAS_SELECTOR,
+            RAYTRACE_WIDTH,
+            RAYTRACE_HEIGHT,
+        );
+        let renderer: Result<WebGpuRenderer, WebGpuInitError> =
+            Engine::webgpu_renderer(&config).await;
+        if cancelled_for_init.get() {
+            // The tab was switched away while the adapter / device promises
+            // were in flight. A successfully-created renderer still owns a
+            // live GPU device at this point; destroy it eagerly instead of
+            // leaving it for GC to discover.
+            if let Ok(stale_renderer) = &renderer {
+                stale_renderer.dispose();
+            }
+            return;
+        }
+        let renderer: WebGpuRenderer = match renderer {
+            Ok(value) => value,
+            Err(error) => {
+                Console::error(format!(
+                    "[euv-engine][raytrace] webgpu init failed: {error}"
+                ));
+                init_state.get_init_error_code().set(error.code());
+                init_state.get_loaded().set(true);
+                return;
+            }
+        };
+        let pipeline: JsValue = renderer.create_render_pipeline(RAYTRACE_WEBGPU_SHADER);
+        let uniform_buffer: JsValue =
+            renderer.create_uniform_buffer(&[0.0; RAYTRACE_GPU_UNIFORM_VEC4_COUNT * 4]);
+        let bind_group: JsValue = renderer.create_uniform_bind_group(&pipeline, &uniform_buffer);
+        let clear_color: Rc<Cell<(f64, f64, f64)>> = Rc::new(Cell::new(
+            game_3d_canvas_clear_color(RAYTRACE_WEBGPU_CANVAS_SELECTOR),
+        ));
+        init_state.get_active().set(true);
+        // Delay flipping `loaded` so the loading overlay stays painted for a
+        // minimum visible duration even when init completes instantly.
+        raytrace_set_loaded_delayed(init_state.get_loaded(), GAME_3D_LOADING_MIN_MILLIS);
+        *renderer_rc.borrow_mut() = Some(renderer);
+        let pipeline_rc: Rc<JsValue> = Rc::new(pipeline);
+        let buffer_rc: Rc<JsValue> = Rc::new(uniform_buffer);
+        let bind_group_rc: Rc<JsValue> = Rc::new(bind_group);
+        // Synchronous resize on CSS-box change; `canvas.width` is applied
+        // BEFORE `renderer.resize(...)` so the first paint after a
+        // fullscreen transition already has a correctly-sized backing
+        // store (mirrors the 3D game page's WebGPU tab).
+        let renderer_for_observer: Rc<RefCell<Option<WebGpuRenderer>>> = renderer_rc.clone();
+        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
+            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+                let Some(window_value): Option<Window> = window() else {
+                    return;
+                };
+                let Some(document_value): Option<Document> = window_value.document() else {
+                    return;
+                };
+                let Some(element): Option<Element> = document_value
+                    .query_selector(RAYTRACE_WEBGPU_CANVAS_SELECTOR)
+                    .ok()
+                    .flatten()
+                else {
+                    return;
+                };
+                let canvas: HtmlCanvasElement = element.unchecked_into();
+                let rect: DomRect = canvas.get_bounding_client_rect();
+                let css_w: f64 = rect.width();
+                let css_h: f64 = rect.height();
+                if css_w <= 0.0 || css_h <= 0.0 {
+                    return;
+                }
+                let dpr: f64 = Reflect::get(
+                    window_value.as_ref(),
+                    &JsValue::from_str("devicePixelRatio"),
+                )
+                .ok()
+                .and_then(|v: JsValue| v.as_f64())
+                .filter(|v: &f64| v.is_finite() && *v >= 1.0)
+                .unwrap_or(1.0);
+                let new_w: u32 = (css_w * dpr).round() as u32;
+                let new_h: u32 = (css_h * dpr).round() as u32;
+                let backing_w: u32 = canvas.width();
+                let backing_h: u32 = canvas.height();
+                if backing_w != new_w || backing_h != new_h {
+                    canvas.set_width(new_w);
+                    canvas.set_height(new_h);
+                    if let Some(renderer) = renderer_for_observer.borrow_mut().as_mut() {
+                        renderer.resize(new_w, new_h);
+                    }
+                }
+            }),
+        );
+        let observer_callback: Function = observer_closure
+            .as_ref()
+            .unchecked_ref::<Function>()
+            .clone();
+        observer_closure.forget();
+        if let Ok(resize_observer) = ResizeObserver::new(&observer_callback)
+            && let Some(window_value) = window()
+            && let Some(document_value) = window_value.document()
+            && let Some(element) = document_value
+                .query_selector(RAYTRACE_WEBGPU_CANVAS_SELECTOR)
+                .ok()
+                .flatten()
+        {
+            resize_observer.observe(&element);
+            *observer_cell.borrow_mut() = Some(resize_observer);
+        }
+        let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
+        let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+        let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+        let renderer_for_loop: Rc<RefCell<Option<WebGpuRenderer>>> = renderer_rc.clone();
+        let pipeline_for_loop: Rc<JsValue> = pipeline_rc.clone();
+        let buffer_for_loop: Rc<JsValue> = buffer_rc.clone();
+        let bind_group_for_loop: Rc<JsValue> = bind_group_rc.clone();
+        let clear_color_for_loop: Rc<Cell<(f64, f64, f64)>> = clear_color.clone();
+        let yaw_for_loop: Rc<Cell<f64>> = angles.yaw.clone();
+        let pitch_for_loop: Rc<Cell<f64>> = angles.pitch.clone();
+        let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
+        let cell_clone: RafClosureCell = closure_cell.clone();
+        let last_clone: Rc<Cell<f64>> = last_time.clone();
+        let frame_clone: Rc<Cell<u32>> = frame_count.clone();
+        let fps_clone: Rc<Cell<f64>> = fps_timer.clone();
+        let resize_dirty_for_loop: Rc<Cell<bool>> = resize_dirty.clone();
+        let cancelled_for_loop: Rc<Cell<bool>> = cancelled.clone();
+        let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+            // Stop on tab-switch cleanup (`cancelled`) or when the canvas
+            // left the document (router navigation fires no cleanup).
+            if cancelled_for_loop.get() || raytrace_canvas_detached(RAYTRACE_WEBGPU_CANVAS_SELECTOR)
+            {
+                return;
+            }
+            let Some(window_value): Option<Window> = window() else {
+                return;
+            };
+            let Some(performance): Option<Performance> = window_value.performance() else {
+                return;
+            };
+            let current_time: f64 = performance.now() / 1000.0;
+            let prev: f64 = last_clone.get();
+            // Unclamped frame time feeds the FPS counter (honest rate);
+            // the clamped delta only drives the yaw animation step.
+            let frame_time: f64 = if prev < 0.0 {
+                1.0 / 60.0
+            } else {
+                current_time - prev
+            };
+            let anim_time: f64 = frame_time.min(0.25);
+            last_clone.set(current_time);
+            if loop_state.get_auto_rotate().get() {
+                yaw_for_loop.set(yaw_for_loop.get() + RAYTRACE_AUTO_YAW_SPEED * anim_time);
+            }
+            let resize_dirty_frame: bool = if resize_dirty_for_loop.get() {
+                resize_dirty_for_loop.set(false);
+                true
+            } else {
+                false
+            };
+            let Some(window_for_dpr): Option<Window> = window() else {
+                return;
+            };
+            let dpr: f64 = Reflect::get(
+                window_for_dpr.as_ref(),
+                &JsValue::from_str("devicePixelRatio"),
+            )
+            .ok()
+            .and_then(|value: JsValue| value.as_f64())
+            .filter(|value: &f64| value.is_finite() && *value >= 1.0)
+            .unwrap_or(1.0);
+            let (canvas_width, canvas_height): (f64, f64) =
+                read_raytrace_canvas_size(RAYTRACE_WEBGPU_CANVAS_SELECTOR).unwrap_or((0.0, 0.0));
+            let new_physical_width: u32 = (canvas_width * dpr).round() as u32;
+            let new_physical_height: u32 = (canvas_height * dpr).round() as u32;
+            // Borrow the renderer exactly once for the entire frame via
+            // `borrow_mut().as_mut()` so the RefMut guard releases
+            // automatically when this block exits, avoiding the
+            // `RefCell already borrowed` panic a second borrow would hit.
+            if let Some(renderer) = renderer_for_loop.borrow_mut().as_mut() {
+                if new_physical_width > 0 && new_physical_height > 0 {
+                    let backing_w: u32 = renderer.get_canvas().width();
+                    let backing_h: u32 = renderer.get_canvas().height();
+                    if backing_w != new_physical_width || backing_h != new_physical_height {
+                        renderer.get_canvas().set_width(new_physical_width);
+                        renderer.get_canvas().set_height(new_physical_height);
+                        let _ = renderer.resize(new_physical_width, new_physical_height);
+                    }
+                }
+                if resize_dirty_frame {
+                    let _ = renderer.resize(new_physical_width, new_physical_height);
+                }
+                if loop_state.get_running().get() {
+                    let backing_w: f64 = f64::from(renderer.get_canvas().width());
+                    let backing_h: f64 = f64::from(renderer.get_canvas().height());
+                    let uniform_data: Vec<f32> = pack_raytrace_gpu_uniform(
+                        yaw_for_loop.get(),
+                        pitch_for_loop.get(),
+                        backing_w,
+                        backing_h,
+                    );
+                    renderer.update_uniform_buffer(&buffer_for_loop, &uniform_data);
+                    // Refresh the clear color every frame so a theme
+                    // toggle takes effect within one paint.
+                    let next_clear: (f64, f64, f64) =
+                        game_3d_canvas_clear_color(RAYTRACE_WEBGPU_CANVAS_SELECTOR);
+                    if clear_color_for_loop.get() != next_clear {
+                        clear_color_for_loop.set(next_clear);
+                    }
+                    let (r, g, b) = clear_color_for_loop.get();
+                    renderer.render_frame_with_bind_group(
+                        &pipeline_for_loop,
+                        &bind_group_for_loop,
+                        (r, g, b, 1.0),
+                        3,
+                    );
+                }
+            }
+            frame_clone.set(frame_clone.get() + 1);
+            fps_clone.set(fps_clone.get() + frame_time);
+            if fps_clone.get() >= 1.0 {
+                let fps: f64 = f64::from(frame_clone.get()) / fps_clone.get();
+                loop_state.get_fps().set(fps);
+                frame_clone.set(0);
+                fps_clone.set(0.0);
+            }
+            let Some(raf_closure_ref): Option<&'static Closure<dyn FnMut()>> = cell_clone.try_get()
+            else {
+                return;
+            };
+            let next_id: i32 = window_value
+                .request_animation_frame(raf_closure_ref.as_ref().unchecked_ref())
+                .unwrap_or_default();
+            if cancelled_for_loop.get() {
+                raf_clone.set(None);
+            } else {
+                raf_clone.set(Some(next_id));
+            }
+        }));
+        let _: Result<(), _> = closure_cell.try_set(raf_closure);
+        let Some(start_window): Option<Window> = window() else {
+            return;
+        };
+        let Some(start_raf_ref): Option<&'static Closure<dyn FnMut()>> = closure_cell.try_get()
+        else {
+            return;
+        };
+        let start_id: i32 = start_window
+            .request_animation_frame(start_raf_ref.as_ref().unchecked_ref())
+            .unwrap_or_default();
+        raf_id.set(Some(start_id));
+    });
+}
+
+/// Creates a click event handler that sets the active tab and exits
+/// any in-flight landscape fullscreen mode before switching.
+///
+/// Tab switches destroy the previous arm's DOM subtree (the match
+/// expression rebuilds from scratch on arm change), so any tab's
+/// `c_game_container_fullscreen` overlay is unmounted along with the
+/// rest of that arm. The per-tab fullscreen signals are page-scoped
+/// `Signal<bool>` instances, however — they survive arm destruction
+/// because they are registered with the page-level HookContext, not
+/// the per-arm one. Without explicit cleanup the next time the user
+/// revisits that tab the overlay re-mounts even though they did not
+/// press Enter Fullscreen again. Clearing all three signals on every
+/// tab change keeps fullscreen state strictly co-extensive with the
+/// user's last explicit enter/exit action.
+///
+/// # Arguments
+///
+/// - `Signal<RayTraceTab>` - The tab signal to update.
+/// - `RayTraceTab` - The tab variant to set.
+/// - `UseRayTraceFullscreen` - The fullscreen state to clear on switch.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler that sets the active
+///   tab and clears any active fullscreen mode.
+pub(crate) fn raytrace_on_tab_select(
+    tab: Signal<RayTraceTab>,
+    value: RayTraceTab,
+    fullscreen: UseRayTraceFullscreen,
+) -> Option<Rc<dyn Fn(Event)>> {
+    Some(Rc::new(move |_: Event| {
+        fullscreen.get_canvas_2d().set(false);
+        fullscreen.get_web_gl().set(false);
+        fullscreen.get_web_gpu().set(false);
+        tab.set(value);
+    }))
+}
+
+/// Enters landscape fullscreen mode for the RayTrace page on the active
+/// tab.
+///
+/// Sets the tab-specific fullscreen signal, pushes a history entry so
+/// the system back button can exit, and re-applies safe-area insets to
+/// the newly-mounted overlay container. A synthetic window `resize`
+/// event is dispatched so the WebGL / WebGPU loops resize their backing
+/// stores to the new CSS box; the Canvas 2D tab keeps its fixed 4:3
+/// backing and relies on `object-fit: contain` letterboxing, so it
+/// ignores the event.
+///
+/// # Arguments
+///
+/// - `Signal<bool>` - The fullscreen signal for the active tab.
+pub(crate) fn enter_raytrace_fullscreen(tab: Signal<bool>) {
+    tab.set(true);
+    Router::overlay_push_state();
     UseEuvLayout::apply_cached_insets();
+    // Dispatch a `resize` event on the window so the GPU-backed loops'
+    // `App::use_window_event("resize", ...)` handlers fire and their
+    // `resize_dirty` flags are set. Mirrors
+    // `game_3d/hook/fn.rs::enter_game_3d_fullscreen`.
+    let Some(window_value): Option<Window> = window() else {
+        return;
+    };
+    let event: Result<Event, JsValue> = Event::new("resize");
+    if let Ok(event) = event {
+        let _ = window_value.dispatch_event(&event);
+    }
+}
+
+/// Exits landscape fullscreen mode for the RayTrace page on the active
+/// tab.
+///
+/// Used by the in-overlay Exit button. Clears the fullscreen signal and
+/// re-applies the safe-area insets. The `history.back()` call inside
+/// `Router::overlay_back` consumes the browser history entry that was
+/// pushed on enter.
+///
+/// # Arguments
+///
+/// - `Signal<bool>` - The fullscreen signal for the active tab.
+pub(crate) fn exit_raytrace_fullscreen(tab: Signal<bool>) {
+    tab.set(false);
+    UseEuvLayout::apply_cached_insets();
+    // See `enter_raytrace_fullscreen` - dispatch a synthetic `resize`
+    // event so the GPU-backed loops re-acquire the inline canvas
+    // dimensions.
+    let Some(window_value): Option<Window> = window() else {
+        return;
+    };
+    let event: Result<Event, JsValue> = Event::new("resize");
+    if let Ok(event) = event {
+        let _ = window_value.dispatch_event(&event);
+    }
 }
 
 /// Exits landscape fullscreen mode without consuming a browser history
@@ -722,14 +1770,29 @@ pub(crate) fn exit_raytrace_fullscreen(state: UseRayTraceFullscreen) {
 ///
 /// # Arguments
 ///
-/// - `UseRayTraceFullscreen` - The RayTrace page fullscreen state.
-pub(crate) fn exit_raytrace_fullscreen_from_popstate(state: UseRayTraceFullscreen) {
-    state.get_fullscreen().set(false);
+/// - `Signal<bool>` - The fullscreen signal for the active tab.
+pub(crate) fn exit_raytrace_fullscreen_from_popstate(tab: Signal<bool>) {
+    tab.set(false);
     UseEuvLayout::apply_cached_insets();
+    // See `enter_raytrace_fullscreen` for why we dispatch a synthetic
+    // `resize` event here.
+    let Some(window_value): Option<Window> = window() else {
+        return;
+    };
+    let event: Result<Event, JsValue> = Event::new("resize");
+    if let Ok(event) = event {
+        let _ = window_value.dispatch_event(&event);
+    }
 }
 
 /// Subscribes to browser `popstate` events to handle the system back
 /// button while the RayTrace page is in landscape fullscreen mode.
+///
+/// Watches all three tab-specific fullscreen signals in a fixed order
+/// (Canvas 2D, WebGL, WebGPU). When any one is `true`, the corresponding
+/// `exit_raytrace_fullscreen_from_popstate` runs and the guard returns
+/// `true` to consume the `popstate` event. Otherwise returns `false` so
+/// the overlay stack or router can handle the back navigation normally.
 ///
 /// Returns the guard ID so the page can unregister it on unmount.
 ///
@@ -742,8 +1805,14 @@ pub(crate) fn exit_raytrace_fullscreen_from_popstate(state: UseRayTraceFullscree
 /// - `usize` - The popstate guard ID.
 pub(crate) fn use_raytrace_fullscreen_popstate(state: UseRayTraceFullscreen) -> usize {
     Router::register_popstate_guard(Rc::new(move || {
-        if state.get_fullscreen().get() {
-            exit_raytrace_fullscreen_from_popstate(state);
+        if state.get_canvas_2d().get() {
+            exit_raytrace_fullscreen_from_popstate(state.get_canvas_2d());
+            true
+        } else if state.get_web_gl().get() {
+            exit_raytrace_fullscreen_from_popstate(state.get_web_gl());
+            true
+        } else if state.get_web_gpu().get() {
+            exit_raytrace_fullscreen_from_popstate(state.get_web_gpu());
             true
         } else {
             false
@@ -751,48 +1820,46 @@ pub(crate) fn use_raytrace_fullscreen_popstate(state: UseRayTraceFullscreen) -> 
     }))
 }
 
-/// Creates a click event handler that enters landscape fullscreen mode for the RayTrace page.
+/// Creates a click event handler that enters landscape fullscreen mode
+/// for the RayTrace page.
 ///
-/// Delegates to [`enter_raytrace_fullscreen`], which sets the
-/// fullscreen signal, pushes a history entry, and reapplies
-/// safe-area insets to the newly-mounted overlay container. The
-/// canvas itself is not recreated — the running raytrace loop, FPS
-/// counter, and pause state all survive the transition.
+/// Delegates to [`enter_raytrace_fullscreen`], which sets the active
+/// tab's fullscreen signal, pushes a history entry, and reapplies
+/// safe-area insets to the newly-mounted overlay container. The canvas
+/// itself is not recreated — the running loop, FPS counter, and pause
+/// state all survive the transition.
 ///
 /// # Arguments
 ///
-/// - `UseRayTraceFullscreen` - The RayTrace page fullscreen state.
+/// - `Signal<bool>` - The fullscreen signal for the active tab.
 ///
 /// # Returns
 ///
 /// - `Option<Rc<dyn Fn(Event)>>` - A click handler.
-pub(crate) fn raytrace_on_enter_fullscreen(
-    state: UseRayTraceFullscreen,
-) -> Option<Rc<dyn Fn(Event)>> {
+pub(crate) fn raytrace_on_enter_fullscreen(tab: Signal<bool>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
-        enter_raytrace_fullscreen(state);
+        enter_raytrace_fullscreen(tab);
     }))
 }
 
-/// Creates a click event handler that exits landscape fullscreen mode for the RayTrace page.
+/// Creates a click event handler that exits landscape fullscreen mode
+/// for the RayTrace page.
 ///
-/// Delegates to [`exit_raytrace_fullscreen`], which clears the
-/// fullscreen signal and reapplies safe-area insets. The
+/// Delegates to [`exit_raytrace_fullscreen`], which clears the active
+/// tab's fullscreen signal and reapplies safe-area insets. The
 /// `history.back()` call inside `Router::overlay_back` consumes the
 /// browser history entry that was pushed on enter.
 ///
 /// # Arguments
 ///
-/// - `UseRayTraceFullscreen` - The RayTrace page fullscreen state.
+/// - `Signal<bool>` - The fullscreen signal for the active tab.
 ///
 /// # Returns
 ///
 /// - `Option<Rc<dyn Fn(Event)>>` - A click handler.
-pub(crate) fn raytrace_on_exit_fullscreen(
-    state: UseRayTraceFullscreen,
-) -> Option<Rc<dyn Fn(Event)>> {
+pub(crate) fn raytrace_on_exit_fullscreen(tab: Signal<bool>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
-        exit_raytrace_fullscreen(state);
+        exit_raytrace_fullscreen(tab);
         Router::overlay_back(None);
     }))
 }
