@@ -249,7 +249,11 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
 ///
 /// - `&'static str` - The banner text.
 fn lighting_canvas_status_text(active: bool) -> &'static str {
-    if active { "Canvas 2D Active" } else { "Initializing..." }
+    if active {
+        "Canvas 2D Active"
+    } else {
+        "Initializing..."
+    }
 }
 
 /// Maps the WebGL init state plus the engine's stable error code to the

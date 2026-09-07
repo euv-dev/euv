@@ -212,8 +212,7 @@ fn build_raytrace_scene() -> (Vec<Occluder>, Vector3D) {
     // yaw=0 position keeps it in view as the user orbits and prevents
     // the bouncing reflections from losing their anchor.
     let sun_material: Material = Material::emissive(Vector3D::new(1.00, 0.95, 0.85));
-    let sun: Occluder =
-        Occluder::sphere(raytrace_sun_direction(0.0) * -8.0, 0.5, sun_material);
+    let sun: Occluder = Occluder::sphere(raytrace_sun_direction(0.0) * -8.0, 0.5, sun_material);
     let occluders: Vec<Occluder> = vec![ground, mirror, emissive, sun];
     let eye: Vector3D = Vector3D::new(0.0, 0.8, 3.5);
     (occluders, eye)
