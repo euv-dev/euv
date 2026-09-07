@@ -529,7 +529,16 @@ fn draw_ray_line(
     let mut cx: i32 = x0;
     let mut cy: i32 = y0;
     loop {
-        blend_pixel(buffer, width, height, cx, cy, color, letterbox_w, letterbox_h);
+        blend_pixel(
+            buffer,
+            width,
+            height,
+            cx,
+            cy,
+            color,
+            letterbox_w,
+            letterbox_h,
+        );
         if cx == x1 && cy == y1 {
             break;
         }

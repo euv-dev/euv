@@ -605,33 +605,12 @@ fn present_raytrace_framebuffer(
     let ground_world: Vector3D = Vector3D::new(0.0, -0.55, 0.0);
     let (sun_ndc_x, sun_ndc_y, sun_depth) =
         project_world_to_ndc(sun_world, eye, forward, right, up_true, aspect, focal);
-    let (mirror_ndc_x, mirror_ndc_y, mirror_depth) = project_world_to_ndc(
-        mirror_world,
-        eye,
-        forward,
-        right,
-        up_true,
-        aspect,
-        focal,
-    );
-    let (emissive_ndc_x, emissive_ndc_y, emissive_depth) = project_world_to_ndc(
-        emissive_world,
-        eye,
-        forward,
-        right,
-        up_true,
-        aspect,
-        focal,
-    );
-    let (ground_ndc_x, ground_ndc_y, ground_depth) = project_world_to_ndc(
-        ground_world,
-        eye,
-        forward,
-        right,
-        up_true,
-        aspect,
-        focal,
-    );
+    let (mirror_ndc_x, mirror_ndc_y, mirror_depth) =
+        project_world_to_ndc(mirror_world, eye, forward, right, up_true, aspect, focal);
+    let (emissive_ndc_x, emissive_ndc_y, emissive_depth) =
+        project_world_to_ndc(emissive_world, eye, forward, right, up_true, aspect, focal);
+    let (ground_ndc_x, ground_ndc_y, ground_depth) =
+        project_world_to_ndc(ground_world, eye, forward, right, up_true, aspect, focal);
     draw_raytrace_sun_overlay(
         ssaa_canvas,
         sun_ndc_x,
@@ -1335,33 +1314,12 @@ fn pack_raytrace_gpu_uniform(yaw: f64, pitch: f64, width: f64, height: f64) -> V
     let mirror_center: Vector3D = Vector3D::new(0.0, 0.4, 0.0);
     let emissive_center: Vector3D = Vector3D::new(1.6, 0.6, -1.4);
     let ground_center: Vector3D = Vector3D::new(0.0, -0.55, 0.0);
-    let (mirror_ndc_x, mirror_ndc_y, mirror_depth) = project_world_to_ndc(
-        mirror_center,
-        eye,
-        forward,
-        right,
-        up_true,
-        aspect,
-        focal,
-    );
-    let (emissive_ndc_x, emissive_ndc_y, emissive_depth) = project_world_to_ndc(
-        emissive_center,
-        eye,
-        forward,
-        right,
-        up_true,
-        aspect,
-        focal,
-    );
-    let (ground_ndc_x, ground_ndc_y, ground_depth) = project_world_to_ndc(
-        ground_center,
-        eye,
-        forward,
-        right,
-        up_true,
-        aspect,
-        focal,
-    );
+    let (mirror_ndc_x, mirror_ndc_y, mirror_depth) =
+        project_world_to_ndc(mirror_center, eye, forward, right, up_true, aspect, focal);
+    let (emissive_ndc_x, emissive_ndc_y, emissive_depth) =
+        project_world_to_ndc(emissive_center, eye, forward, right, up_true, aspect, focal);
+    let (ground_ndc_x, ground_ndc_y, ground_depth) =
+        project_world_to_ndc(ground_center, eye, forward, right, up_true, aspect, focal);
     let mut data: Vec<f32> = Vec::with_capacity(RAYTRACE_GPU_UNIFORM_VEC4_COUNT * 4);
     let vectors: [Vector3D; 5] = [eye, forward, right, up_true, sun_dir];
     for vector in vectors {
@@ -1375,12 +1333,7 @@ fn pack_raytrace_gpu_uniform(yaw: f64, pitch: f64, width: f64, height: f64) -> V
     data.extend_from_slice(&[width as f32, height as f32, 0.0, 0.0]);
     // Sun screen position: (ndc_x, ndc_y, depth, _). `depth` doubles
     // as the "in front of camera" flag (positive = visible).
-    data.extend_from_slice(&[
-        sun_ndc_x as f32,
-        sun_ndc_y as f32,
-        sun_depth as f32,
-        0.0,
-    ]);
+    data.extend_from_slice(&[sun_ndc_x as f32, sun_ndc_y as f32, sun_depth as f32, 0.0]);
     data.extend_from_slice(&[
         mirror_ndc_x as f32,
         mirror_ndc_y as f32,
