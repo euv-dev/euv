@@ -436,7 +436,9 @@ pub(crate) fn start_lighting_loop(state: UseLighting) {
     // frame, but synchronous WASM module init can delay it further on
     // slow devices, and without this paint the canvas stays blank /
     // half-rendered for that entire window.
-    let Some(loading_window): Option<Window> = window() else { return; };
+    let Some(loading_window): Option<Window> = window() else {
+        return;
+    };
     let loading_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
         draw_game_3d_loading(LIGHTING_LOADING_CANVAS_SELECTOR, LIGHTING_CANVAS_SELECTOR);
     }));
