@@ -167,7 +167,7 @@ pub(crate) const RAYTRACE_WEBGPU_LOADING_CANVAS_SELECTOR: &str = "#raytrace-webg
 /// The number of `vec4` slots in the GPU uniform block shared by the
 /// WebGL and WebGPU raytrace shaders: orbit eye, camera forward, right,
 /// up, sun direction, sun color, ambient, and resolution.
-pub(crate) const RAYTRACE_GPU_UNIFORM_VEC4_COUNT: usize = 8;
+pub(crate) const RAYTRACE_GPU_UNIFORM_VEC4_COUNT: usize = 12;
 
 /// The GLSL ES 3.00 vertex shader source for the RayTrace WebGL demo.
 ///
@@ -201,7 +201,7 @@ pub(crate) const RAYTRACE_WEBGL_FRAGMENT_SHADER: &str = r#"#version 300 es
 
 precision highp float;
 
-uniform vec4 u_params[8];
+uniform vec4 u_params[12];
 
 out vec4 out_color;
 
@@ -222,16 +222,26 @@ const vec3 MIRROR_CENTER = vec3(0.0, 0.4, 0.0);
 const float MIRROR_RADIUS = 0.9;
 const vec3 EMISSIVE_CENTER = vec3(1.6, 0.6, -1.4);
 const float EMISSIVE_RADIUS = 0.45;
-// Sun sphere: positioned at the OPPOSITE direction of the directional
-// sun at yaw=0 (`raytrace_sun_direction(0.0)` = `vec3(-1, -0.5, 0)`
-// normalized = `vec3(-0.894, -0.447, 0)`), 8 units out from origin, so
-// the camera always sees the directional light source as a tangible
-// object. The position is intentionally static — the sun direction
-// rotates with yaw, but pinning the sphere at the yaw=0 position keeps
-// it in view as the user orbits and prevents the bouncing reflections
-// from losing their anchor.
-const vec3 SUN_CENTER = vec3(7.155, 3.578, 0.0);
-const float SUN_RADIUS = 0.5;
+// Sun: positioned at the OPPOSITE direction of the directional sun,
+// 8 units out from origin, so the camera always sees the directional
+// light source as a tangible object. The position rotates with yaw
+// (mirrors `raytrace_sun_direction(yaw) * -8.0` in the Rust side),
+// so the sun direction and the visible sun-disk marker always agree.
+// The sun is no longer part of the occluder list — it is drawn as a
+// screen-space overlay (sun disk + rays to each scene object)
+// computed from the projected `SUN_WORLD` constant multiplied by
+// `vec3(-sun_dir.xz, -sun_dir.y) * 8.0` on the CPU side and passed
+// in via `u_params[8]`. The shadow-free directional light continues
+// to provide the actual surface lighting.
+const float SUN_DISTANCE = 8.0;
+// Sun disk radius in NDC units (independent of canvas resolution).
+const float SUN_DISK_RADIUS_NDC = 0.06;
+// Ray blend threshold in NDC units. The line segment distance check
+// uses this radius around each sun->object ray.
+const float RAY_BLEND_NDC = 0.012;
+// Number of scene objects the rays are drawn to (1 mirror sphere +
+// 1 emissive sphere + 1 ground centre).
+const int RAY_TARGET_COUNT = 3;
 
 vec3 material_albedo(int index) {
     if (index == 0) { return vec3(0.30, 0.32, 0.36); }
@@ -253,7 +263,6 @@ float material_shininess(int index) {
 
 vec3 material_emissive(int index) {
     if (index == 2) { return vec3(1.0, 0.45, 0.10); }
-    if (index == 3) { return vec3(1.00, 0.95, 0.85); }
     return vec3(0.0, 0.0, 0.0);
 }
 
@@ -302,10 +311,13 @@ float aabb_t(vec3 origin, vec3 dir, vec3 bmin, vec3 bmax, out vec3 normal) {
     return t_near;
 }
 
-// Mirrors engine `closest_hit_indexed` over the four scene occluders:
-// 0 = ground AABB, 1 = mirror sphere, 2 = emissive sphere, 3 = sun
-// sphere. Returns -1 on miss. Ties keep the earliest occluder,
-// matching the engine.
+// Mirrors engine `closest_hit_indexed` over the three scene occluders:
+// 0 = ground AABB, 1 = mirror sphere, 2 = emissive sphere. The sun
+// sphere is no longer part of the trace path; it is drawn as a
+// screen-space overlay in `fs_main` so the directional lighting and
+// the visible sun-disk marker stay in sync as the camera orbits.
+// Returns -1 on miss. Ties keep the earliest occluder, matching the
+// engine.
 int closest_hit_index(
     vec3 origin,
     vec3 dir,
@@ -341,14 +353,19 @@ int closest_hit_index(
         best_pos = origin + dir * t;
         best_normal = candidate_normal;
     }
-    t = sphere_t(origin, dir, SUN_CENTER, SUN_RADIUS, candidate_normal);
-    if (t >= t_min && t <= t_max && (best_index < 0 || t < best_t)) {
-        best_index = 3;
-        best_t = t;
-        best_pos = origin + dir * t;
-        best_normal = candidate_normal;
-    }
     return best_index;
+}
+
+// Returns the perpendicular distance from point `p` to the line
+// segment [a, b] in 2D (used by the sun->object ray overlay in
+// `fs_main`). The clamped projection keeps the segment finite so
+// rays stop at each object centre.
+float distance_to_segment_2d(vec2 p, vec2 a, vec2 b) {
+    vec2 ab = b - a;
+    vec2 ap = p - a;
+    float t = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+    vec2 proj = a + ab * t;
+    return length(p - proj);
 }
 
 // Mirrors engine `LightingUniforms::shade` for the single directional
@@ -411,6 +428,24 @@ void main() {
     vec3 sun_color = u_params[5].rgb;
     vec3 ambient = u_params[6].rgb;
     vec2 resolution = u_params[7].xy;
+    // Sun + scene-object screen positions packed on the CPU side:
+    // u_params[8] = sun (ndc_x, ndc_y, depth, _)
+    // u_params[9] = mirror sphere centre (ndc_x, ndc_y, depth, _)
+    // u_params[10] = emissive sphere centre (ndc_x, ndc_y, depth, _)
+    // u_params[11] = ground centre (ndc_x, ndc_y, depth, _)
+    // depth < 0 means the world point is behind the camera and the
+    // ray to it should be skipped (the projection puts the segment
+    // off-screen in arbitrary directions).
+    vec2 sun_ndc = u_params[8].xy;
+    float sun_depth = u_params[8].z;
+    vec2 ray_targets[RAY_TARGET_COUNT];
+    ray_targets[0] = u_params[9].xy;
+    ray_targets[1] = u_params[10].xy;
+    ray_targets[2] = u_params[11].xy;
+    float ray_depths[RAY_TARGET_COUNT];
+    ray_depths[0] = u_params[9].z;
+    ray_depths[1] = u_params[10].z;
+    ray_depths[2] = u_params[11].z;
     float aspect = resolution.x / resolution.y;
     float base_x = floor(gl_FragCoord.x);
     // gl_FragCoord is bottom-up; the CPU path scans top-down, which
@@ -425,7 +460,42 @@ void main() {
             float ndc_x = (px / resolution.x) * 2.0 - 1.0;
             float ndc_y = (py / resolution.y) * 2.0 - 1.0;
             vec3 dir = normalize(forward + right * (ndc_x * aspect) + up * ndc_y);
-            acc += trace(eye, dir, sun_dir, sun_color, ambient);
+            vec3 traced = trace(eye, dir, sun_dir, sun_color, ambient);
+            // Sun disk + ray overlay. Apply per sub-sample so the
+            // overlay anti-aliases alongside the trace pass.
+            vec2 frag_ndc = vec2(ndc_x, ndc_y);
+            // Sun disk: a circular bright marker at the projected
+            // sun position, drawn ONLY when the sun is in front of
+            // the camera (sun_depth > 0). The blend is stronger in
+            // the centre and tapers at the edge so the disk reads as
+            // a soft glow rather than a hard circle.
+            if (sun_depth > 0.0) {
+                float sun_d = length(frag_ndc - sun_ndc);
+                if (sun_d < SUN_DISK_RADIUS_NDC) {
+                    float sun_alpha = 1.0 - sun_d / SUN_DISK_RADIUS_NDC;
+                    traced = mix(traced, sun_color, sun_alpha * 0.92);
+                }
+            }
+            // Rays from the sun to each scene object centre, drawn
+            // only when BOTH endpoints are in front of the camera.
+            // Each ray is a thin line segment; we blend the sun's
+            // color over the traced color within RAY_BLEND_NDC.
+            if (sun_depth > 0.0) {
+                for (int i = 0; i < RAY_TARGET_COUNT; i++) {
+                    if (ray_depths[i] > 0.0) {
+                        float d = distance_to_segment_2d(
+                            frag_ndc,
+                            sun_ndc,
+                            ray_targets[i]
+                        );
+                        if (d < RAY_BLEND_NDC) {
+                            float a = (1.0 - d / RAY_BLEND_NDC) * 0.55;
+                            traced = mix(traced, sun_color, a);
+                        }
+                    }
+                }
+            }
+            acc += traced;
         }
     }
     vec3 linear = acc * 0.25;
@@ -441,8 +511,9 @@ void main() {
 /// `trace_bounces` + `LightingUniforms::shade` math, the same 2x2 SSAA
 /// and `1/2.2` gamma. The fullscreen triangle is generated from
 /// `@builtin(vertex_index)` and the per-frame camera / sun / ambient /
-/// resolution data arrives in a single 8-`vec4` uniform buffer at
-/// `@group(0) @binding(0)`.
+/// resolution data arrives in a single 12-`vec4` uniform buffer at
+/// `@group(0) @binding(0)` (slots 8..11 carry the projected sun
+/// position + the three scene object centres for the ray overlay).
 pub(crate) const RAYTRACE_WEBGPU_SHADER: &str = r#"
 struct SceneUniforms {
     camera_eye: vec4<f32>,
@@ -453,6 +524,10 @@ struct SceneUniforms {
     sun_color: vec4<f32>,
     ambient: vec4<f32>,
     resolution: vec4<f32>,
+    sun_screen: vec4<f32>,
+    mirror_screen: vec4<f32>,
+    emissive_screen: vec4<f32>,
+    ground_screen: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> u_scene: SceneUniforms;
@@ -472,16 +547,25 @@ const MIRROR_CENTER = vec3<f32>(0.0, 0.4, 0.0);
 const MIRROR_RADIUS: f32 = 0.9;
 const EMISSIVE_CENTER = vec3<f32>(1.6, 0.6, -1.4);
 const EMISSIVE_RADIUS: f32 = 0.45;
-// Sun sphere: positioned at the OPPOSITE direction of the directional
-// sun at yaw=0 (`raytrace_sun_direction(0.0)` = `vec3(-1, -0.5, 0)`
-// normalized = `vec3(-0.894, -0.447, 0)`), 8 units out from origin, so
-// the camera always sees the directional light source as a tangible
-// object. The position is intentionally static — the sun direction
-// rotates with yaw, but pinning the sphere at the yaw=0 position keeps
-// it in view as the user orbits and prevents the bouncing reflections
-// from losing their anchor.
-const SUN_CENTER = vec3<f32>(7.155, 3.578, 0.0);
-const SUN_RADIUS: f32 = 0.5;
+// Sun: positioned at the OPPOSITE direction of the directional sun,
+// 8 units out from origin, so the camera always sees the directional
+// light source as a tangible object. The position rotates with yaw
+// (mirrors `raytrace_sun_direction(yaw) * -8.0` in the Rust side),
+// so the sun direction and the visible sun-disk marker always agree.
+// The sun is no longer part of the occluder list — it is drawn as a
+// screen-space overlay (sun disk + rays to each scene object)
+// computed from the projected `u_scene.sun_screen` uniform filled in
+// on the CPU side. The shadow-free directional light continues to
+// provide the actual surface lighting.
+const SUN_DISTANCE: f32 = 8.0;
+// Sun disk radius in NDC units (independent of canvas resolution).
+const SUN_DISK_RADIUS_NDC: f32 = 0.06;
+// Ray blend threshold in NDC units. The line segment distance check
+// uses this radius around each sun->object ray.
+const RAY_BLEND_NDC: f32 = 0.012;
+// Number of scene objects the rays are drawn to (1 mirror sphere +
+// 1 emissive sphere + 1 ground centre).
+const RAY_TARGET_COUNT: i32 = 3;
 
 struct HitResult {
     t: f32,
@@ -510,7 +594,6 @@ fn material_shininess(index: i32) -> f32 {
 
 fn material_emissive(index: i32) -> vec3<f32> {
     if index == 2 { return vec3<f32>(1.0, 0.45, 0.10); }
-    if index == 3 { return vec3<f32>(1.00, 0.95, 0.85); }
     return vec3<f32>(0.0, 0.0, 0.0);
 }
 
@@ -559,10 +642,13 @@ fn aabb_t(origin: vec3<f32>, dir: vec3<f32>, bmin: vec3<f32>, bmax: vec3<f32>, n
     return t_near;
 }
 
-// Mirrors engine `closest_hit_indexed` over the four scene occluders:
-// 0 = ground AABB, 1 = mirror sphere, 2 = emissive sphere, 3 = sun
-// sphere. `index` is -1 on miss. Ties keep the earliest occluder,
-// matching the engine.
+// Mirrors engine `closest_hit_indexed` over the three scene occluders:
+// 0 = ground AABB, 1 = mirror sphere, 2 = emissive sphere. The sun
+// sphere is no longer part of the trace path; it is drawn as a
+// screen-space overlay in `fs_main` so the directional lighting and
+// the visible sun-disk marker stay in sync as the camera orbits.
+// `index` is -1 on miss. Ties keep the earliest occluder, matching
+// the engine.
 fn closest_hit_index(origin: vec3<f32>, dir: vec3<f32>) -> HitResult {
     var best: HitResult;
     best.t = 0.0;
@@ -591,14 +677,19 @@ fn closest_hit_index(origin: vec3<f32>, dir: vec3<f32>) -> HitResult {
         best.position = origin + dir * t;
         best.normal = candidate_normal;
     }
-    t = sphere_t(origin, dir, SUN_CENTER, SUN_RADIUS, &candidate_normal);
-    if t >= T_MIN && t <= T_MAX && (best.index < 0 || t < best.t) {
-        best.index = 3;
-        best.t = t;
-        best.position = origin + dir * t;
-        best.normal = candidate_normal;
-    }
     return best;
+}
+
+// Returns the perpendicular distance from point `p` to the line
+// segment [a, b] in 2D (used by the sun->object ray overlay in
+// `fs_main`). The clamped projection keeps the segment finite so
+// rays stop at each object centre.
+fn distance_to_segment_2d(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
+    let ab = b - a;
+    let ap = p - a;
+    let t = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+    let proj = a + ab * t;
+    return length(p - proj);
 }
 
 // Mirrors engine `LightingUniforms::shade` for the single directional
@@ -670,20 +761,72 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
     let right = u_scene.camera_right.xyz;
     let up = u_scene.camera_up.xyz;
     let resolution = u_scene.resolution.xy;
+    // Sun + scene-object screen positions packed on the CPU side:
+    // sun_screen.xy = sun NDC, sun_screen.z = sun depth (> 0 when
+    // in front of the camera). Same convention for the three scene
+    // objects (mirror, emissive, ground centre).
+    let sun_ndc = u_scene.sun_screen.xy;
+    let sun_depth = u_scene.sun_screen.z;
+    let ray_targets = array<vec2<f32>, 3>(
+        u_scene.mirror_screen.xy,
+        u_scene.emissive_screen.xy,
+        u_scene.ground_screen.xy,
+    );
+    let ray_depths = array<f32, 3>(
+        u_scene.mirror_screen.z,
+        u_scene.emissive_screen.z,
+        u_scene.ground_screen.z,
+    );
     let aspect = resolution.x / resolution.y;
     // WebGPU fragment positions are top-left origin, matching the CPU
     // path's top-down scanline order.
     let base_x = floor(frag_pos.x);
     let base_y = floor(frag_pos.y);
     var acc = vec3<f32>(0.0);
-    for (var sy = 0; sy < 2; sy++) {
-        for (var sx = 0; sx < 2; sx++) {
+    let sun_color = u_scene.sun_color.rgb;
+    for (var sy = 0; sy < 2; sy = sy + 1) {
+        for (var sx = 0; sx < 2; sx = sx + 1) {
             let px = base_x + 0.25 + f32(sx) * 0.5;
             let py = base_y + 0.25 + f32(sy) * 0.5;
             let ndc_x = (px / resolution.x) * 2.0 - 1.0;
             let ndc_y = 1.0 - (py / resolution.y) * 2.0;
             let dir = normalize(forward + right * (ndc_x * aspect) + up * ndc_y);
-            acc += trace(eye, dir);
+            var traced = trace(eye, dir);
+            // Sun disk + ray overlay. Apply per sub-sample so the
+            // overlay anti-aliases alongside the trace pass.
+            let frag_ndc = vec2<f32>(ndc_x, ndc_y);
+            // Sun disk: a circular bright marker at the projected
+            // sun position, drawn ONLY when the sun is in front of
+            // the camera (sun_depth > 0). The blend is stronger in
+            // the centre and tapers at the edge so the disk reads as
+            // a soft glow rather than a hard circle.
+            if sun_depth > 0.0 {
+                let sun_d = length(frag_ndc - sun_ndc);
+                if sun_d < SUN_DISK_RADIUS_NDC {
+                    let sun_alpha = 1.0 - sun_d / SUN_DISK_RADIUS_NDC;
+                    traced = mix(traced, sun_color, sun_alpha * 0.92);
+                }
+            }
+            // Rays from the sun to each scene object centre, drawn
+            // only when BOTH endpoints are in front of the camera.
+            // Each ray is a thin line segment; we blend the sun's
+            // color over the traced color within RAY_BLEND_NDC.
+            if sun_depth > 0.0 {
+                for (var i = 0; i < RAY_TARGET_COUNT; i = i + 1) {
+                    if ray_depths[i] > 0.0 {
+                        let d = distance_to_segment_2d(
+                            frag_ndc,
+                            sun_ndc,
+                            ray_targets[i],
+                        );
+                        if d < RAY_BLEND_NDC {
+                            let a = (1.0 - d / RAY_BLEND_NDC) * 0.55;
+                            traced = mix(traced, sun_color, a);
+                        }
+                    }
+                }
+            }
+            acc += traced;
         }
     }
     let linear = acc * 0.25;

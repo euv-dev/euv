@@ -132,7 +132,6 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
     let on_toggle_pause: Option<Rc<dyn Fn(Event)>> = lighting_on_toggle_pause(state.get_running());
     let fps_display: String = format!("{:.1}", state.get_fps().get());
     let scale_display: String = format!("{:.0}%", state.get_render_scale().get() * 100.0);
-    let loaded: bool = state.get_loaded().get();
     let active: bool = state.get_active().get();
     // Read the init error code even though `lighting_canvas_status_text`
     // does not consume it (the Canvas 2D tab has no async init that can
@@ -198,7 +197,14 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
                                 c_game_3d_canvas()
                             }
                         }
-                        if { !loaded } {
+                        // Read the signal directly inside the `if {}`
+                        // condition (not via a `let loaded = ...` snapshot)
+                        // so the loading-overlay canvas subscribes to the
+                        // `loaded` signal and is removed when
+                        // `lighting_set_loaded_delayed` flips it to true.
+                        // Mirrors the pattern used by the raytrace /
+                        // game_2d / game_3d pages.
+                        if { !state.get_loaded().get() } {
                             canvas {
                                 id: LIGHTING_LOADING_CANVAS_ID
                                 class: c_game_loading_overlay()

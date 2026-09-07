@@ -204,16 +204,15 @@ fn build_raytrace_scene() -> (Vec<Occluder>, Vector3D) {
     let emissive_material: Material = Material::emissive(Vector3D::new(1.0, 0.45, 0.10));
     let emissive: Occluder =
         Occluder::sphere(Vector3D::new(1.6, 0.6, -1.4), 0.45, emissive_material);
-    // Sun sphere: positioned at the OPPOSITE direction of the
-    // directional sun at yaw=0 (`raytrace_sun_direction(0.0)`), 8 units
-    // out from origin, so the camera always sees the light source as
-    // a tangible object. The position is intentionally static — the
-    // direction rotates with yaw, but pinning the sun sphere at the
-    // yaw=0 position keeps it in view as the user orbits and prevents
-    // the bouncing reflections from losing their anchor.
-    let sun_material: Material = Material::emissive(Vector3D::new(1.00, 0.95, 0.85));
-    let sun: Occluder = Occluder::sphere(raytrace_sun_direction(0.0) * -8.0, 0.5, sun_material);
-    let occluders: Vec<Occluder> = vec![ground, mirror, emissive, sun];
+    // Sun sphere: previously part of the occluder list, but the
+    // static yaw=0 position diverged from the rotating directional
+    // sun direction as the user orbits. Removed from the occluder
+    // list so the ray tracer's bounces stay clean; the sun is now
+    // drawn as an overlay marker (Canvas 2D display canvas + WebGL
+    // / WebGPU fragment shaders) at the yaw-dependent position
+    // `raytrace_sun_direction(yaw) * -8.0`, with rays from that
+    // visible position to each scene object centre.
+    let occluders: Vec<Occluder> = vec![ground, mirror, emissive];
     let eye: Vector3D = Vector3D::new(0.0, 0.8, 3.5);
     (occluders, eye)
 }
@@ -339,6 +338,61 @@ fn compute_eye_position(yaw: f64, pitch: f64) -> Vector3D {
         RAYTRACE_CAMERA_LOOK_AT_Y + distance * pitch.sin(),
         RAYTRACE_CAMERA_LOOK_AT_Z + distance * yaw.cos() * cos_pitch,
     )
+}
+
+/// Projects a world-space point onto the canvas as normalized device
+/// coordinates `(ndc_x, ndc_y, depth)`, where `ndc_x` and `ndc_y`
+/// live in `[-1, 1]` and `depth` is the distance from the eye along
+/// the forward direction (positive in front of the camera, negative
+/// behind). Points behind the camera or within
+/// `RAYTRACE_RAY_PROJECTION_NEAR` of the eye are still returned (with
+/// negative `depth`) so callers can decide whether to skip them.
+///
+/// Mirrors the per-pixel ray construction in `render_raytrace_frame`:
+/// `ndc_x = (px / width) * 2 - 1`, `ndc_y = 1 - (py / height) * 2`,
+/// and the world-space ray direction is
+/// `normalize(forward * focal + right * ndc_x * aspect + up * ndc_y)`.
+/// Inverting the same `right` / `up` / `forward` basis against the
+/// world-space `world - eye` vector yields the matching `(ndc_x,
+/// ndc_y, depth)` triple.
+///
+/// # Arguments
+///
+/// - `Vector3D` - The world-space point to project.
+/// - `Vector3D` - The camera eye.
+/// - `Vector3D` - The camera forward direction (unit length).
+/// - `Vector3D` - The camera right direction (unit length).
+/// - `Vector3D` - The camera up direction (unit length).
+/// - `f64` - The aspect ratio (width / height).
+/// - `f64` - The focal length (matches `focal = 1.0` in
+///   `render_raytrace_frame`).
+///
+/// # Returns
+///
+/// - `(f64, f64, f64)` - The `(ndc_x, ndc_y, depth)` triple.
+fn project_world_to_ndc(
+    world: Vector3D,
+    eye: Vector3D,
+    forward: Vector3D,
+    right: Vector3D,
+    up: Vector3D,
+    aspect: f64,
+    focal: f64,
+) -> (f64, f64, f64) {
+    let rel: Vector3D = world - eye;
+    let depth: f64 = rel.dot(forward);
+    if depth.abs() < 1e-6 {
+        // Singular point at the eye plane: return origin NDC so the
+        // overlay draws nothing (the ray length is undefined).
+        return (0.0, 0.0, depth);
+    }
+    // Solve `rel = forward * focal + right * (ndc_x * aspect) + up * ndc_y`
+    // for `(ndc_x, ndc_y)` by inverting the orthonormal projection.
+    let right_component: f64 = rel.dot(right);
+    let up_component: f64 = rel.dot(up);
+    let ndc_x: f64 = right_component / (depth * aspect * focal);
+    let ndc_y: f64 = up_component / (depth * focal);
+    (ndc_x, ndc_y, depth)
 }
 
 /// Computes the integer backing buffer dimensions for a render-scale
@@ -468,6 +522,15 @@ fn render_raytrace_frame(
 /// framebuffer's native aspect ratio so the drawImage call does no
 /// additional aspect-ratio stretch.
 ///
+/// After `present()` the function draws the sun-disk overlay and
+/// the rays-from-sun-to-objects onto the display canvas's 2D
+/// context in CSS pixels. The overlay projects the sun position
+/// (`raytrace_sun_direction(yaw) * -8.0`) and the three scene
+/// object centres through the live camera basis into screen NDC,
+/// then converts NDC to CSS pixels and strokes them with the sun
+/// color so the directional light's visible source agrees with its
+/// lighting direction.
+///
 /// # Arguments
 ///
 /// - `&SsaaCanvas` - The SSAA wrapper whose offscreen context is
@@ -475,11 +538,15 @@ fn render_raytrace_frame(
 /// - `&mut [u8]` - The RGBA framebuffer (length `width * height * 4`).
 /// - `u32` - The framebuffer width in pixels.
 /// - `u32` - The framebuffer height in pixels.
+/// - `f64` - The orbit yaw in radians.
+/// - `f64` - The orbit pitch in radians.
 fn present_raytrace_framebuffer(
     ssaa_canvas: &SsaaCanvas,
     buffer: &mut [u8],
     width: u32,
     height: u32,
+    yaw: f64,
+    pitch: f64,
 ) {
     let Some(window_value): Option<Window> = window() else {
         return;
@@ -523,6 +590,146 @@ fn present_raytrace_framebuffer(
             dest_h,
         );
     ssaa_canvas.present();
+    // Sun-disk + ray overlay on the display canvas. Drawing on the
+    // display context (not the SSAA offscreen) keeps the rays at
+    // CSS-pixel resolution independent of the ray trace scale and
+    // avoids any interaction with the dual-stage SSAA downscale.
+    let eye: Vector3D = compute_eye_position(yaw, pitch);
+    let (forward, right, up_true): (Vector3D, Vector3D, Vector3D) =
+        build_camera_basis(eye, yaw, pitch);
+    let aspect: f64 = offscreen_width / offscreen_height;
+    let focal: f64 = 1.0;
+    let sun_world: Vector3D = raytrace_sun_direction(yaw) * -8.0;
+    let mirror_world: Vector3D = Vector3D::new(0.0, 0.4, 0.0);
+    let emissive_world: Vector3D = Vector3D::new(1.6, 0.6, -1.4);
+    let ground_world: Vector3D = Vector3D::new(0.0, -0.55, 0.0);
+    let (sun_ndc_x, sun_ndc_y, sun_depth) =
+        project_world_to_ndc(sun_world, eye, forward, right, up_true, aspect, focal);
+    let (mirror_ndc_x, mirror_ndc_y, mirror_depth) = project_world_to_ndc(
+        mirror_world,
+        eye,
+        forward,
+        right,
+        up_true,
+        aspect,
+        focal,
+    );
+    let (emissive_ndc_x, emissive_ndc_y, emissive_depth) = project_world_to_ndc(
+        emissive_world,
+        eye,
+        forward,
+        right,
+        up_true,
+        aspect,
+        focal,
+    );
+    let (ground_ndc_x, ground_ndc_y, ground_depth) = project_world_to_ndc(
+        ground_world,
+        eye,
+        forward,
+        right,
+        up_true,
+        aspect,
+        focal,
+    );
+    draw_raytrace_sun_overlay(
+        ssaa_canvas,
+        sun_ndc_x,
+        sun_ndc_y,
+        sun_depth,
+        &[
+            (mirror_ndc_x, mirror_ndc_y, mirror_depth),
+            (emissive_ndc_x, emissive_ndc_y, emissive_depth),
+            (ground_ndc_x, ground_ndc_y, ground_depth),
+        ],
+        dest_x,
+        dest_y,
+        dest_w,
+        dest_h,
+    );
+}
+
+/// Strokes the raytrace sun-disk marker + rays-from-sun-to-objects
+/// onto the supplied `SsaaCanvas`'s display context in CSS pixels.
+///
+/// The display canvas's backing store is sized `css_w * dpr` x
+/// `css_h * dpr` but the 2D context's coordinate system uses CSS
+/// pixels (the browser scales the backing store on composite). The
+/// ladder destination rectangle inside the SSAA display canvas is
+/// `(dest_x, dest_y, dest_w, dest_h)` in CSS pixels; rays and sun
+/// disk are clipped to that rectangle so they appear only over the
+/// ray-traced region, not over the canvas's letterbox bars.
+///
+/// All rays are skipped when either endpoint is behind the camera
+/// (`depth <= 0`). The sun disk is drawn only when the sun is in
+/// front of the camera and inside the visible NDC range, with a
+/// 1.5% width so it reads as a small bright source rather than a
+/// huge blob.
+#[allow(clippy::too_many_arguments)]
+fn draw_raytrace_sun_overlay(
+    ssaa_canvas: &SsaaCanvas,
+    sun_ndc_x: f64,
+    sun_ndc_y: f64,
+    sun_depth: f64,
+    targets: &[(f64, f64, f64); 3],
+    dest_x: f64,
+    dest_y: f64,
+    dest_w: f64,
+    dest_h: f64,
+) {
+    if sun_depth <= 0.0 {
+        return;
+    }
+    // Convert NDC to CSS pixels inside the 4:3 letterbox rectangle.
+    let ndc_to_css_x = |ndc_x: f64| -> f64 { dest_x + (ndc_x * 0.5 + 0.5) * dest_w };
+    let ndc_to_css_y = |ndc_y: f64| -> f64 { dest_y + (0.5 - ndc_y * 0.5) * dest_h };
+    let sun_x: f64 = ndc_to_css_x(sun_ndc_x);
+    let sun_y: f64 = ndc_to_css_y(sun_ndc_y);
+    let display_context: &CanvasRenderingContext2d = ssaa_canvas.get_display_context();
+    // Sun-disk marker: drawn FIRST so the rays drawn next visibly
+    // emanate from inside the disk instead of being hidden by it.
+    // Matches the draw order in the WebGL / WebGPU shaders (sun
+    // disk blended into the trace, then rays blended on top).
+    let disk_radius: f64 = (dest_w.min(dest_h)) * 0.025;
+    display_context.set_fill_style_str("rgba(255, 250, 230, 0.95)");
+    let _ = display_context.begin_path();
+    let _ = display_context.arc(sun_x, sun_y, disk_radius, 0.0, std::f64::consts::TAU);
+    let _ = display_context.fill();
+    // Outer glow ring at 0.15 alpha so the disk reads as a glowing
+    // source rather than a flat dot. Drawn before the rays so it
+    // sits behind them.
+    display_context.set_stroke_style_str("rgba(255, 230, 180, 0.4)");
+    display_context.set_line_width(1.5);
+    let _ = display_context.begin_path();
+    let _ = display_context.arc(sun_x, sun_y, disk_radius * 1.7, 0.0, std::f64::consts::TAU);
+    let _ = display_context.stroke();
+    // Ray color: warm yellow (1.0, 0.95, 0.85) at ~70% alpha so
+    // rays read clearly on top of the ray-traced scene but do not
+    // obscure sphere detail.
+    display_context.set_stroke_style_str("rgba(255, 242, 217, 0.7)");
+    display_context.set_line_width(1.5);
+    let _ = display_context.begin_path();
+    // Rays from the sun to each object centre, drawn only when both
+    // endpoints are in front of the camera and inside the visible
+    // rectangle. The `move_to(sun_x, sun_y)` lines below pin the
+    // ray origin to the SAME projected sun-disk position used by
+    // the `arc` calls above, so the rays visibly emanate from the
+    // visible light source on all three tabs (Canvas 2D / WebGL /
+    // WebGPU).
+    let targets_xy: [(f64, f64); 3] = [
+        (ndc_to_css_x(targets[0].0), ndc_to_css_y(targets[0].1)),
+        (ndc_to_css_x(targets[1].0), ndc_to_css_y(targets[1].1)),
+        (ndc_to_css_x(targets[2].0), ndc_to_css_y(targets[2].1)),
+    ];
+    for (i, (tx, ty)) in targets_xy.iter().enumerate() {
+        let depth: f64 = targets[i].2;
+        if depth <= 0.0 {
+            continue;
+        }
+        let _ = display_context.move_to(sun_x, sun_y);
+        let _ = display_context.line_to(*tx, *ty);
+    }
+    let _ = display_context.stroke();
 }
 
 /// Starts the RayTrace Canvas 2D `requestAnimationFrame` loop.
@@ -677,6 +884,8 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
                         &mut buffer,
                         frame_width,
                         frame_height,
+                        yaw,
+                        pitch,
                     );
                 }
                 let render_millis: f64 = performance.now() - render_start;
@@ -1106,12 +1315,53 @@ pub(crate) fn raytrace_on_touch_end(
 ///
 /// # Returns
 ///
-/// - `Vec<f32>` - The packed uniform data (32 floats).
+/// - `Vec<f32>` - The packed uniform data (48 floats = 12 vec4).
 fn pack_raytrace_gpu_uniform(yaw: f64, pitch: f64, width: f64, height: f64) -> Vec<f32> {
     let eye: Vector3D = compute_eye_position(yaw, pitch);
     let (forward, right, up_true): (Vector3D, Vector3D, Vector3D) =
         build_camera_basis(eye, yaw, pitch);
     let sun_dir: Vector3D = raytrace_sun_direction(yaw);
+    let aspect: f64 = width / height;
+    let focal: f64 = 1.0;
+    // Sun world position: rotated with yaw so the directional sun
+    // direction and the visible sun-disk marker always agree. Matches
+    // `raytrace_sun_direction(yaw) * -8.0` from the previous
+    // occluder-list version.
+    let sun_world: Vector3D = sun_dir * -8.0;
+    let (sun_ndc_x, sun_ndc_y, sun_depth) =
+        project_world_to_ndc(sun_world, eye, forward, right, up_true, aspect, focal);
+    // Scene object centres (same coordinates the trace path tests
+    // against the occluder list).
+    let mirror_center: Vector3D = Vector3D::new(0.0, 0.4, 0.0);
+    let emissive_center: Vector3D = Vector3D::new(1.6, 0.6, -1.4);
+    let ground_center: Vector3D = Vector3D::new(0.0, -0.55, 0.0);
+    let (mirror_ndc_x, mirror_ndc_y, mirror_depth) = project_world_to_ndc(
+        mirror_center,
+        eye,
+        forward,
+        right,
+        up_true,
+        aspect,
+        focal,
+    );
+    let (emissive_ndc_x, emissive_ndc_y, emissive_depth) = project_world_to_ndc(
+        emissive_center,
+        eye,
+        forward,
+        right,
+        up_true,
+        aspect,
+        focal,
+    );
+    let (ground_ndc_x, ground_ndc_y, ground_depth) = project_world_to_ndc(
+        ground_center,
+        eye,
+        forward,
+        right,
+        up_true,
+        aspect,
+        focal,
+    );
     let mut data: Vec<f32> = Vec::with_capacity(RAYTRACE_GPU_UNIFORM_VEC4_COUNT * 4);
     let vectors: [Vector3D; 5] = [eye, forward, right, up_true, sun_dir];
     for vector in vectors {
@@ -1123,6 +1373,32 @@ fn pack_raytrace_gpu_uniform(yaw: f64, pitch: f64, width: f64, height: f64) -> V
     data.extend_from_slice(&[1.0, 0.95, 0.85, 0.0]);
     data.extend_from_slice(&[0.10, 0.10, 0.14, 0.0]);
     data.extend_from_slice(&[width as f32, height as f32, 0.0, 0.0]);
+    // Sun screen position: (ndc_x, ndc_y, depth, _). `depth` doubles
+    // as the "in front of camera" flag (positive = visible).
+    data.extend_from_slice(&[
+        sun_ndc_x as f32,
+        sun_ndc_y as f32,
+        sun_depth as f32,
+        0.0,
+    ]);
+    data.extend_from_slice(&[
+        mirror_ndc_x as f32,
+        mirror_ndc_y as f32,
+        mirror_depth as f32,
+        0.0,
+    ]);
+    data.extend_from_slice(&[
+        emissive_ndc_x as f32,
+        emissive_ndc_y as f32,
+        emissive_depth as f32,
+        0.0,
+    ]);
+    data.extend_from_slice(&[
+        ground_ndc_x as f32,
+        ground_ndc_y as f32,
+        ground_depth as f32,
+        0.0,
+    ]);
     data
 }
 

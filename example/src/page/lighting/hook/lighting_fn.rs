@@ -213,8 +213,16 @@ fn build_lighting_scene() -> (Vec<LightingSphere>, LightingUniforms) {
         Vector3D::new(-0.45, -0.55, -0.70),
         Vector3D::new(1.00, 0.95, 0.85),
     );
+    // Lamp: anchored top-left of the 320x240 logical scene so the
+    // user can see the light source as a tangible glowing disk. The
+    // previous off-screen position (y=-10) made the lamp invisible and
+    // left the rays it was supposed to cast with no visible origin.
+    // The ray overlay (Bresenham pass on Canvas 2D, `line-segment`
+    // blend in the WebGL / WebGPU shaders) uses this same position
+    // and the five sphere centres so all three backends agree on
+    // where the rays emanate from.
     let lamp: Light = Light::new_point(
-        Vector3D::new(width * 0.5, -10.0, 1.2),
+        Vector3D::new(width * 0.08, height * 0.18, 0.5),
         Vector3D::new(0.40, 0.70, 1.00),
         1.4,
     );
@@ -353,6 +361,188 @@ fn render_lighting_frame(
             index += 4;
         }
     }
+    // Ray overlay (lamps -> sphere centres, sun-disk marker): drawn
+    // AFTER scene shading so the rays read as visible light beams
+    // emanating from the lamp's top-left corner toward each sphere
+    // rather than the (wrong) direction the Lambert term picks. Uses
+    // Bresenham at the framebuffer resolution (logical_x * scale,
+    // logical_y * scale) so adaptive resolution scales the rays
+    // proportionally. Lines are ~1 physical-pixel thick with the
+    // lamp's color at ~38% alpha so spheres show through.
+    let width_i: i32 = width as i32;
+    let height_i: i32 = height as i32;
+    let framebuffer_width_i: i32 = (LIGHTING_WIDTH * scale).round() as i32;
+    let framebuffer_height_i: i32 = (LIGHTING_HEIGHT * scale).round() as i32;
+    // Lamp rays: lamp -> each of the 5 sphere centres.
+    let lamp_screen_x: f64 = LIGHTING_WIDTH * 0.08;
+    let lamp_screen_y: f64 = LIGHTING_HEIGHT * 0.18;
+    let lamp_color: (u8, u8, u8) = (102, 178, 255); // 0.40, 0.70, 1.00
+    for sphere in spheres.iter() {
+        let x0: i32 = (lamp_screen_x * scale).round() as i32;
+        let y0: i32 = (lamp_screen_y * scale).round() as i32;
+        let x1: i32 = (sphere.cx * scale).round() as i32;
+        let y1: i32 = (sphere.cy * scale).round() as i32;
+        draw_ray_line(
+            buffer,
+            width_i,
+            height_i,
+            x0,
+            y0,
+            x1,
+            y1,
+            lamp_color,
+            framebuffer_width_i,
+            framebuffer_height_i,
+        );
+    }
+    // Lamp source disk: bright marker at the lamp position so the
+    // user can see the ray origin.
+    let disk_r: i32 = (5.0 * scale).round().max(2.0) as i32;
+    let cx: i32 = (lamp_screen_x * scale).round() as i32;
+    let cy: i32 = (lamp_screen_y * scale).round() as i32;
+    for dy in -disk_r..=disk_r {
+        for dx in -disk_r..=disk_r {
+            if dx * dx + dy * dy <= disk_r * disk_r {
+                blend_pixel(
+                    buffer,
+                    width_i,
+                    height_i,
+                    cx + dx,
+                    cy + dy,
+                    (220, 240, 255),
+                    framebuffer_width_i,
+                    framebuffer_height_i,
+                );
+            }
+        }
+    }
+    // Sun direction marker (top-right corner): the directional sun
+    // has no position, so we draw a small disk at a fixed visible
+    // spot and skip rays from it (the directional term in `shade`
+    // already encodes the direction). Matches the visible sun in
+    // the WebGL / WebGPU shaders.
+    let sun_screen_x: f64 = LIGHTING_WIDTH * 0.93;
+    let sun_screen_y: f64 = LIGHTING_HEIGHT * 0.12;
+    let sun_color: (u8, u8, u8) = (255, 242, 217); // 1.00, 0.95, 0.85
+    let sun_r: i32 = (4.0 * scale).round().max(2.0) as i32;
+    let sx: i32 = (sun_screen_x * scale).round() as i32;
+    let sy: i32 = (sun_screen_y * scale).round() as i32;
+    for dy in -sun_r..=sun_r {
+        for dx in -sun_r..=sun_r {
+            if dx * dx + dy * dy <= sun_r * sun_r {
+                blend_pixel(
+                    buffer,
+                    width_i,
+                    height_i,
+                    sx + dx,
+                    sy + dy,
+                    sun_color,
+                    framebuffer_width_i,
+                    framebuffer_height_i,
+                );
+            }
+        }
+    }
+}
+
+/// Writes a single ray-coloured pixel using straight-alpha compositing
+/// in 8-bit sRGB space. Out-of-bounds pixels (clipped by the letterbox
+/// on the CSS box) are silently dropped.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - The RGBA framebuffer (length `width * height * 4`).
+/// - `i32` - The framebuffer width in pixels (used as the row stride).
+/// - `i32` - The framebuffer height in pixels (used for bounds checks).
+/// - `i32` - The destination x coordinate in framebuffer pixels.
+/// - `i32` - The destination y coordinate in framebuffer pixels.
+/// - `(u8, u8, u8)` - The sRGB color to blend in.
+/// - `i32` - The 4:3 letterbox width inside the framebuffer (logical 320 * scale).
+/// - `i32` - The 4:3 letterbox height inside the framebuffer (logical 240 * scale).
+#[allow(clippy::too_many_arguments)]
+fn blend_pixel(
+    buffer: &mut [u8],
+    width: i32,
+    height: i32,
+    px: i32,
+    py: i32,
+    color: (u8, u8, u8),
+    letterbox_w: i32,
+    letterbox_h: i32,
+) {
+    if px < 0 || py < 0 || px >= letterbox_w || py >= letterbox_h || px >= width || py >= height {
+        return;
+    }
+    let stride: usize = width as usize;
+    let offset: usize = (py as usize) * stride * 4 + (px as usize) * 4;
+    if offset + 3 >= buffer.len() {
+        return;
+    }
+    let (src_r, src_g, src_b) = color;
+    let alpha: u16 = 102; // ~40% straight alpha
+    let inv_alpha: u16 = 255 - alpha;
+    buffer[offset] = ((src_r as u16 * alpha + buffer[offset] as u16 * inv_alpha) / 255) as u8;
+    buffer[offset + 1] =
+        ((src_g as u16 * alpha + buffer[offset + 1] as u16 * inv_alpha) / 255) as u8;
+    buffer[offset + 2] =
+        ((src_b as u16 * alpha + buffer[offset + 2] as u16 * inv_alpha) / 255) as u8;
+    buffer[offset + 3] = 255;
+}
+
+/// Bresenham line drawer that paints an RGBA line from `(x0, y0)` to
+/// `(x1, y1)` in framebuffer pixels, using [`blend_pixel`] for the
+/// straight-alpha compositing pass. The line is one framebuffer-pixel
+/// thick (no antialiasing on the line itself — the SSAA letterbox
+/// pass in the WebGL / WebGPU shaders handles smoothing there). Out
+/// of-bounds pixels are silently clipped.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - The RGBA framebuffer (length `width * height * 4`).
+/// - `i32` - The framebuffer width in pixels.
+/// - `i32` - The framebuffer height in pixels.
+/// - `i32` - Line start x in framebuffer pixels.
+/// - `i32` - Line start y in framebuffer pixels.
+/// - `i32` - Line end x in framebuffer pixels.
+/// - `i32` - Line end y in framebuffer pixels.
+/// - `(u8, u8, u8)` - The sRGB color to blend in.
+/// - `i32` - The 4:3 letterbox width inside the framebuffer.
+/// - `i32` - The 4:3 letterbox height inside the framebuffer.
+#[allow(clippy::too_many_arguments)]
+fn draw_ray_line(
+    buffer: &mut [u8],
+    width: i32,
+    height: i32,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
+    color: (u8, u8, u8),
+    letterbox_w: i32,
+    letterbox_h: i32,
+) {
+    let dx: i32 = (x1 - x0).abs();
+    let dy: i32 = -(y1 - y0).abs();
+    let sx: i32 = if x0 < x1 { 1 } else { -1 };
+    let sy: i32 = if y0 < y1 { 1 } else { -1 };
+    let mut err: i32 = dx + dy;
+    let mut cx: i32 = x0;
+    let mut cy: i32 = y0;
+    loop {
+        blend_pixel(buffer, width, height, cx, cy, color, letterbox_w, letterbox_h);
+        if cx == x1 && cy == y1 {
+            break;
+        }
+        let e2: i32 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            cx += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            cy += sy;
+        }
+    }
 }
 
 /// Uploads the RGBA framebuffer to the canvas in a single
@@ -436,16 +626,22 @@ pub(crate) fn start_lighting_loop(state: UseLighting) {
     // frame, but synchronous WASM module init can delay it further on
     // slow devices, and without this paint the canvas stays blank /
     // half-rendered for that entire window.
-    let Some(loading_window): Option<Window> = window() else {
-        return;
-    };
-    let loading_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-        draw_game_3d_loading(LIGHTING_LOADING_CANVAS_SELECTOR, LIGHTING_CANVAS_SELECTOR);
-    }));
-    let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
-    loading_closure.forget();
-    let _ =
-        loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
+    // Block-scoped instead of `let-else`: a `let-else` here would
+    // return from `start_lighting_loop` early when `window()` is None,
+    // skipping the `loop_started` set + `use_cleanup` registration +
+    // `request_animation_frame` boot — so the loading overlay would
+    // never clear even after the canvas mounts. The raytrace loop
+    // uses the same pattern (see raytrace/hook/fn.rs:596).
+    if let Some(loading_window) = window() {
+        let loading_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+            draw_game_3d_loading(LIGHTING_LOADING_CANVAS_SELECTOR, LIGHTING_CANVAS_SELECTOR);
+        }));
+        let loading_callback: Function =
+            loading_closure.as_ref().unchecked_ref::<Function>().clone();
+        loading_closure.forget();
+        let _ = loading_window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
+    }
     let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
         if lighting_canvas_detached(LIGHTING_CANVAS_SELECTOR) {
             return;

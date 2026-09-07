@@ -172,12 +172,30 @@ const vec3 AMBIENT = vec3(0.08, 0.08, 0.10);
 const vec3 EYE = vec3(0.0, 0.0, 2.0);
 const vec3 SUN_DIR_RAW = vec3(-0.45, -0.55, -0.70);
 const vec3 SUN_COLOR = vec3(1.00, 0.95, 0.85);
-const vec3 LAMP_POS = vec3(160.0, -10.0, 1.2);
+// Lamp moved on-screen (top-left, slightly forward in Z) so the
+// ray overlay below has a visible ray origin. Must match the lamp
+// position in `build_lighting_scene` (example/src/page/lighting/hook/
+// lighting_fn.rs) and the WGSL `LAMP_POS` constant.
+const vec3 LAMP_POS = vec3(25.6, 43.2, 0.5);
 const vec3 LAMP_COLOR = vec3(0.40, 0.70, 1.00);
 const float LAMP_INTENSITY = 1.4;
 const float LAMP_FALLOFF = 1.0;
 // Mirrors the engine's LIGHTING_POINT_LIGHT_MIN_DISTANCE.
 const float POINT_MIN_DIST = 0.001;
+
+// Ray overlay constants. The 5 sphere centres are duplicated here
+// so the fragment shader can draw a yellow-tinted line segment from
+// the lamp to each centre, matching the Bresenham pass on the
+// Canvas 2D tab. Logical pixels (SCENE_W x SCENE_H space); the
+// blend threshold is `1.6` logical pixels so adaptive resolution
+// scales the rays proportionally.
+const float RAY_BLEND_DIST = 1.6;
+const float RAY_ALPHA = 0.38;
+// Sun-disk marker anchor (top-right corner): the directional sun
+// has no position, so we render a small bright disk at a fixed
+// visible spot to match the Canvas 2D tab.
+const vec2 SUN_DISK_POS = vec2(297.6, 28.8);
+const float SUN_DISK_RADIUS = 4.0;
 
 // Sphere records: (center x, center y, radius) in logical pixels.
 vec3 sphere_record(int index) {
@@ -210,6 +228,18 @@ float sphere_shininess(int index) {
     if (index == 2) { return 18.0; }
     if (index == 3) { return 48.0; }
     return 32.0;
+}
+
+// Returns the perpendicular distance from point `p` to the line
+// segment [a, b] in 2D. The clamped projection keeps the segment
+// finite so the lamp-to-sphere rays stop at the sphere centre rather
+// than extending infinitely.
+float distance_to_segment(vec2 p, vec2 a, vec2 b) {
+    vec2 ab = b - a;
+    vec2 ap = p - a;
+    float t = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+    vec2 proj = a + ab * t;
+    return length(p - proj);
 }
 
 // Mirrors engine `LightingUniforms::shade` for the lighting scene's two
@@ -316,7 +346,28 @@ void main() {
         for (int sx = 0; sx < 2; sx++) {
             vec2 sample_px = base + vec2(0.25 + float(sx) * 0.5, 0.25 + float(sy) * 0.5);
             vec2 logical = (sample_px - origin_px) / viewport_scale;
-            acc += scene_color(logical, background);
+            vec3 sample_color = scene_color(logical, background);
+            // Ray overlay per sub-sample: each ray is a line segment
+            // from the lamp's top-left anchor to one of the 5 sphere
+            // centres. When a sub-sample falls within RAY_BLEND_DIST
+            // logical pixels of any ray, blend the lamp's color over
+            // the shaded scene at RAY_ALPHA strength so the sphere
+            // still reads through. The sun-disk marker is a separate
+            // filled disk at the top-right anchor.
+            vec2 lamp_anchor = LAMP_POS.xy;
+            for (int i = 0; i < 5; i++) {
+                vec3 record = sphere_record(i);
+                float d = distance_to_segment(logical, lamp_anchor, record.xy);
+                if (d < RAY_BLEND_DIST) {
+                    float a = RAY_ALPHA * (1.0 - d / RAY_BLEND_DIST);
+                    sample_color = mix(sample_color, LAMP_COLOR, a);
+                }
+            }
+            float sun_d = length(logical - SUN_DISK_POS);
+            if (sun_d < SUN_DISK_RADIUS) {
+                sample_color = mix(sample_color, vec3(0.95, 0.95, 1.0), 0.85);
+            }
+            acc += sample_color;
         }
     }
     vec3 linear = acc * 0.25;
@@ -357,12 +408,31 @@ const AMBIENT = vec3<f32>(0.08, 0.08, 0.10);
 const EYE = vec3<f32>(0.0, 0.0, 2.0);
 const SUN_DIR_RAW = vec3<f32>(-0.45, -0.55, -0.70);
 const SUN_COLOR = vec3<f32>(1.00, 0.95, 0.85);
-const LAMP_POS = vec3<f32>(160.0, -10.0, 1.2);
+// Lamp moved on-screen (top-left, slightly forward in Z) so the
+// ray overlay below has a visible ray origin. Must match the lamp
+// position in `build_lighting_scene` (example/src/page/lighting/hook/
+// lighting_fn.rs) and the GLSL `LAMP_POS` constant.
+const LAMP_POS = vec3<f32>(25.6, 43.2, 0.5);
 const LAMP_COLOR = vec3<f32>(0.40, 0.70, 1.00);
 const LAMP_INTENSITY: f32 = 1.4;
 const LAMP_FALLOFF: f32 = 1.0;
 // Mirrors the engine's LIGHTING_POINT_LIGHT_MIN_DISTANCE.
 const POINT_MIN_DIST: f32 = 0.001;
+
+// Ray overlay constants. The 5 sphere centres are duplicated here
+// so the fragment shader can draw a yellow-tinted line segment from
+// the lamp to each centre, matching the Bresenham pass on the
+// Canvas 2D tab and the GLSL distance-to-segment pass. Logical
+// pixels (SCENE_W x SCENE_H space); the blend threshold is `1.6`
+// logical pixels so adaptive resolution scales the rays
+// proportionally.
+const RAY_BLEND_DIST: f32 = 1.6;
+const RAY_ALPHA: f32 = 0.38;
+// Sun-disk marker anchor (top-right corner): the directional sun
+// has no position, so we render a small bright disk at a fixed
+// visible spot to match the Canvas 2D / WebGL tabs.
+const SUN_DISK_POS = vec2<f32>(297.6, 28.8);
+const SUN_DISK_RADIUS: f32 = 4.0;
 
 // Sphere records: (center x, center y, radius) in logical pixels.
 fn sphere_record(index: i32) -> vec3<f32> {
@@ -395,6 +465,18 @@ fn sphere_shininess(index: i32) -> f32 {
     if index == 2 { return 18.0; }
     if index == 3 { return 48.0; }
     return 32.0;
+}
+
+// Returns the perpendicular distance from point `p` to the line
+// segment [a, b] in 2D. The clamped projection keeps the segment
+// finite so the lamp-to-sphere rays stop at the sphere centre rather
+// than extending infinitely.
+fn distance_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
+    let ab = b - a;
+    let ap = p - a;
+    let t = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+    let proj = a + ab * t;
+    return length(p - proj);
 }
 
 // Mirrors engine `LightingUniforms::shade` for the lighting scene's two
@@ -512,7 +594,28 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
         for (var sx = 0; sx < 2; sx++) {
             let sample_px = base + vec2<f32>(0.25 + f32(sx) * 0.5, 0.25 + f32(sy) * 0.5);
             let logical = (sample_px - origin_px) / viewport_scale;
-            acc += scene_color(logical, background);
+            var sample_color = scene_color(logical, background);
+            // Ray overlay per sub-sample: each ray is a line segment
+            // from the lamp's top-left anchor to one of the 5 sphere
+            // centres. When a sub-sample falls within RAY_BLEND_DIST
+            // logical pixels of any ray, blend the lamp's color over
+            // the shaded scene at RAY_ALPHA strength so the sphere
+            // still reads through. The sun-disk marker is a separate
+            // filled disk at the top-right anchor.
+            let lamp_anchor = LAMP_POS.xy;
+            for (var i = 0; i < 5; i = i + 1) {
+                let record = sphere_record(i);
+                let d = distance_to_segment(logical, lamp_anchor, record.xy);
+                if (d < RAY_BLEND_DIST) {
+                    let a = RAY_ALPHA * (1.0 - d / RAY_BLEND_DIST);
+                    sample_color = mix(sample_color, LAMP_COLOR, a);
+                }
+            }
+            let sun_d = length(logical - SUN_DISK_POS);
+            if (sun_d < SUN_DISK_RADIUS) {
+                sample_color = mix(sample_color, vec3<f32>(0.95, 0.95, 1.0), 0.85);
+            }
+            acc += sample_color;
         }
     }
     let linear = acc * 0.25;
