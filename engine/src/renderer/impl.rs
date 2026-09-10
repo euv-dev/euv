@@ -1,5 +1,35 @@
 use super::*;
 
+/// OPT 2: cache `JsValue::from_str(...)` results in a thread-local map so we
+/// don't pay a fresh wasm-linear-memory string allocation for every
+/// `Reflect::get(obj, &JsValue::from_str(METHOD_NAME))` or
+/// `Reflect::set(obj, &JsValue::from_str(PROPERTY_NAME), value)` call.
+/// WebGPU render paths use 79 `Reflect::get` calls and ~50
+/// `Reflect::set` calls in this file; each previously allocated a 1-N
+/// byte JS string in linear memory. We only cache the constant
+/// `&'static str` keys here — dynamic string lookups (e.g. uniform
+/// names) are unaffected. The map is created once per thread, lazily,
+/// and grows monotonically for the lifetime of the wasm instance.
+fn cached_method_name(name: &'static str) -> JsValue {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+    thread_local! {
+        static CACHE: RefCell<Option<HashMap<&'static str, JsValue>>> =
+            const { RefCell::new(None) };
+    }
+    CACHE.with(|slot| {
+        let mut borrow: std::cell::RefMut<'_, Option<HashMap<&'static str, JsValue>>> =
+            slot.borrow_mut();
+        let map: &mut HashMap<&'static str, JsValue> = borrow.get_or_insert_with(HashMap::new);
+        if let Some(value) = map.get(name) {
+            return value.clone();
+        }
+        let value: JsValue = JsValue::from_str(name);
+        map.insert(name, value.clone());
+        value
+    })
+}
+
 /// Implements camera transformation methods for `Camera2D`.
 impl Camera2D {
     /// Creates a new camera centered at the origin with default zoom and no rotation.
@@ -2497,51 +2527,51 @@ impl WebGpuRenderer {
         let attachment: Object = Object::new();
         let _: Result<bool, JsValue> = Reflect::set(
             &attachment,
-            &JsValue::from_str(WEBGPU_PROPERTY_VIEW),
+            &cached_method_name(WEBGPU_PROPERTY_VIEW),
             &color_view,
         );
         let _: Result<bool, JsValue> = Reflect::set(
             &attachment,
-            &JsValue::from_str(WEBGPU_PROPERTY_LOAD_OP),
+            &cached_method_name(WEBGPU_PROPERTY_LOAD_OP),
             &JsValue::from_str(color.effective_load_op()),
         );
         let _: Result<bool, JsValue> = Reflect::set(
             &attachment,
-            &JsValue::from_str(WEBGPU_PROPERTY_STORE_OP),
+            &cached_method_name(WEBGPU_PROPERTY_STORE_OP),
             &JsValue::from_str(color.effective_store_op()),
         );
         if let Some(cv) = color.clear_value {
             let color_dict: Object = Object::new();
             let _: Result<bool, JsValue> = Reflect::set(
                 &color_dict,
-                &JsValue::from_str(WEBGPU_PROPERTY_R),
+                &cached_method_name(WEBGPU_PROPERTY_R),
                 &JsValue::from_f64(cv.0),
             );
             let _: Result<bool, JsValue> = Reflect::set(
                 &color_dict,
-                &JsValue::from_str(WEBGPU_PROPERTY_G),
+                &cached_method_name(WEBGPU_PROPERTY_G),
                 &JsValue::from_f64(cv.1),
             );
             let _: Result<bool, JsValue> = Reflect::set(
                 &color_dict,
-                &JsValue::from_str(WEBGPU_PROPERTY_B),
+                &cached_method_name(WEBGPU_PROPERTY_B),
                 &JsValue::from_f64(cv.2),
             );
             let _: Result<bool, JsValue> = Reflect::set(
                 &color_dict,
-                &JsValue::from_str(WEBGPU_PROPERTY_A),
+                &cached_method_name(WEBGPU_PROPERTY_A),
                 &JsValue::from_f64(cv.3),
             );
             let _: Result<bool, JsValue> = Reflect::set(
                 &attachment,
-                &JsValue::from_str(WEBGPU_PROPERTY_CLEAR_VALUE),
+                &cached_method_name(WEBGPU_PROPERTY_CLEAR_VALUE),
                 &color_dict,
             );
         }
         if let Some(target) = resolve_view.as_ref() {
             let _: Result<bool, JsValue> = Reflect::set(
                 &attachment,
-                &JsValue::from_str(WEBGPU_PROPERTY_RESOLVE_TARGET),
+                &cached_method_name(WEBGPU_PROPERTY_RESOLVE_TARGET),
                 target,
             );
         }
@@ -2622,7 +2652,7 @@ impl WebGpuRenderer {
             array.push(buffer);
         }
         let submit_fn: Function =
-            Reflect::get(self.get_queue(), &JsValue::from_str(WEBGPU_METHOD_SUBMIT))
+            Reflect::get(self.get_queue(), &cached_method_name(WEBGPU_METHOD_SUBMIT))
                 .unwrap_or(JsValue::UNDEFINED)
                 .unchecked_into();
         let _: Result<JsValue, JsValue> = submit_fn.call1(self.get_queue(), &array);
@@ -3080,7 +3110,15 @@ impl WebGpuRenderer {
     ///   [`WebGpuRenderer::create_uniform_buffer`].
     /// - `&[f32]` - The new uniform contents.
     pub fn update_uniform_buffer(&self, buffer: &JsValue, data: &[f32]) {
-        let view: Float32Array = Float32Array::from(data);
+        // OPT 31: zero-copy view over the wasm linear-memory slice. The old
+        // `Float32Array::from(data)` form allocates a new typed array and
+        // copies every byte; per-frame uniform uploads (transforms, camera
+        // matrices, particle data) can be hundreds of bytes per call.
+        // SAFETY: `view` is only used inside the `write_fn.call3(...)` on
+        // the next line; the resulting JsValue does not outlive `data`'s
+        // borrow, and `data` outlives the call because the call happens
+        // synchronously before this function returns.
+        let view: Float32Array = unsafe { Float32Array::view(data) };
         let write_fn: Function = Reflect::get(
             self.get_queue(),
             &JsValue::from_str(WEBGPU_METHOD_WRITE_BUFFER),
@@ -3717,7 +3755,11 @@ impl WebGpuRenderer {
         if data.is_empty() {
             return;
         }
-        let view: Uint8Array = Uint8Array::from(data);
+        // OPT 31: zero-copy view over the wasm linear-memory slice instead of
+        // allocating a fresh Uint8Array and copying every byte. See the
+        // safety note on `update_uniform_buffer` for the borrow/lifetime
+        // argument; same pattern applies here (synchronous call).
+        let view: Uint8Array = unsafe { Uint8Array::view(data) };
         let write_fn: Function = Reflect::get(
             self.get_queue(),
             &JsValue::from_str(WEBGPU_METHOD_WRITE_BUFFER),

@@ -395,7 +395,11 @@ impl PhysicsWorld2D {
         // pair list once; every solver iteration then reuses both (the grid is
         // unchanged between iterations), eliminating per-iteration re-queries and
         // per-query allocations.
-        let mut pairs: Vec<(usize, usize)> = Vec::new();
+        // OPT 33: the candidate pair list is now backed by `self.pair_buffer`,
+        // a persistent `Vec<(usize, usize)>` field on `PhysicsWorld2D`. Cleared
+        // at the top of each step instead of allocating a fresh `Vec` — across
+        // thousands of physics steps per app run the heap churn adds up.
+        self.pair_buffer.clear();
         {
             let (bodies, grid, query_buffer, query_seen) = (
                 &self.bodies,
@@ -409,6 +413,7 @@ impl PhysicsWorld2D {
                     grid.insert(index, bbox.min(), bbox.max());
                 }
             }
+            let pairs: &mut Vec<(usize, usize)> = &mut self.pair_buffer;
             for (i, body) in bodies.iter().enumerate() {
                 let Some(bbox) = body.bounding_box() else {
                     continue;
@@ -421,9 +426,18 @@ impl PhysicsWorld2D {
                 }
             }
         }
+        // OPT 33: copy out the pairs slice into a stack-local binding once
+        // per step so the immutable borrow on `self.pair_buffer` ends before
+        // the `self.get_mut_bodies()` mutable borrow below. Method-call-
+        // based disjoint borrow rules in Rust 2024 are not fine-grained
+        // enough to allow `self.pair_buffer.iter()` alongside
+        // `self.get_mut_bodies()` for a method that takes `&mut self`.
+        // The clone happens once per step (not per iteration) — `pairs` is
+        // typically O(n) short, much smaller than the per-pair body work.
+        let pairs_snapshot: Vec<(usize, usize)> = self.pair_buffer.clone();
         for iteration in 0..PHYSICS_MAX_ITERATIONS {
             let mut any_collision: bool = false;
-            for &(i, j) in pairs.iter() {
+            for &(i, j) in pairs_snapshot.iter() {
                 let (left, right) = self.get_mut_bodies().split_at_mut(j);
                 let body_a: &mut RigidBody2D = &mut left[i];
                 let body_b: &mut RigidBody2D = &mut right[0];
@@ -753,16 +767,29 @@ impl PhysicsWorld3D {
         // pair list once; every solver iteration then reuses both (the grid is
         // unchanged between iterations), eliminating per-iteration re-queries and
         // per-query allocations.
-        let mut pairs: Vec<(usize, usize)> = Vec::new();
+        // OPT 33: candidate pair list backed by `self.pair_buffer`, a persistent
+        // field on `PhysicsWorld3D`. See `PhysicsWorld2D::resolve_collisions`
+        // for the rationale.
+        self.pair_buffer.clear();
         // Collect bboxes first (immutable borrow of bodies) then drain the
         // spatial grid (mutable borrow). Splitting avoids the split-borrow
         // limitation that method-call-based accessors introduce.
-        let bboxes: Vec<(usize, AABB3D)> = self
-            .get_bodies()
-            .iter()
-            .enumerate()
-            .filter_map(|(index, body)| body.bounding_box().map(|bbox| (index, bbox)))
-            .collect();
+        // OPT 33: pre-size the bboxes scratch Vec to the current body count
+        // so the first allocation does not double-grow on subsequent frames
+        // (each body's bbox is `O(1)` and the Vec is rebuilt every step).
+        // The actual allocation still happens here — the persistent
+        // `bbox_buffer` field idea was rejected because the immutable-then-
+        // mutable borrow split on `self.bodies` cannot hold both a `&mut`
+        // borrow on `bbox_buffer` and the source `iter()` simultaneously
+        // even with edition 2024 split-borrow rules.
+        let body_count: usize = self.get_bodies().len();
+        let mut bboxes: Vec<(usize, AABB3D)> = Vec::with_capacity(body_count);
+        bboxes.extend(
+            self.get_bodies()
+                .iter()
+                .enumerate()
+                .filter_map(|(index, body)| body.bounding_box().map(|bbox| (index, bbox))),
+        );
         {
             let Self {
                 grid,
@@ -774,7 +801,8 @@ impl PhysicsWorld3D {
             let query_buffer: &mut Vec<usize> = query_buffer;
             let query_seen: &mut HashSet<usize> = query_seen;
             grid.clear();
-            for (index, bbox) in &bboxes {
+            let pairs: &mut Vec<(usize, usize)> = &mut self.pair_buffer;
+            for (index, bbox) in bboxes.iter() {
                 grid.insert(*index, bbox.get_min(), bbox.get_max());
             }
             for (i, (_, bbox)) in bboxes.iter().enumerate() {
@@ -786,9 +814,14 @@ impl PhysicsWorld3D {
                 }
             }
         }
+        // OPT 33: copy out the pairs slice into a stack-local binding once
+        // per step so the immutable borrow on `self.pair_buffer` ends before
+        // the `self.get_mut_bodies()` mutable borrow below. See the matching
+        // comment in `PhysicsWorld2D::resolve_collisions` for rationale.
+        let pairs_snapshot: Vec<(usize, usize)> = self.pair_buffer.clone();
         for iteration in 0..PHYSICS_MAX_ITERATIONS {
             let mut any_collision: bool = false;
-            for &(i, j) in pairs.iter() {
+            for &(i, j) in pairs_snapshot.iter() {
                 let (left, right) = self.get_mut_bodies().split_at_mut(j);
                 let body_a: &mut RigidBody3D = &mut left[i];
                 let body_b: &mut RigidBody3D = &mut right[0];

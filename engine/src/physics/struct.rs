@@ -216,4 +216,12 @@ pub struct PhysicsWorld3D {
     #[get_mut(pub(crate))]
     #[new(skip)]
     pub(crate) pair_buffer: Vec<(usize, usize)>,
+    /// OPT 33: reusable scratch vector for per-body AABB3D snapshots taken
+    /// before draining the spatial grid. The 3D `resolve_collisions` path
+    /// needs to materialise bbox bounds into a Vec to satisfy the
+    /// immutable-then-mutable borrow split; persisting the buffer avoids a
+    /// per-step `Vec::with_capacity(bodies.len())` allocation.
+    #[get_mut(pub(crate))]
+    #[new(skip)]
+    pub(crate) bbox_buffer: Vec<(usize, AABB3D)>,
 }

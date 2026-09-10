@@ -102,11 +102,15 @@ impl SceneManager {
     /// - `f64` - The delta time in seconds.
     pub fn update(&mut self, delta_time: f64) {
         self.process_pending_transition();
-        let current_name: Option<String> = self.get_mut_current_scene_name().clone();
-        let Some(current_name) = current_name.as_ref() else {
+        // OPT 38: borrow the active scene name (Option<&String>) instead of
+        // cloning the whole String, then clone the `SceneRc` handle. The
+        // old form `get_mut_current_scene_name().clone()` paid for a full
+        // String heap allocation per frame on every scene, even though the
+        // name is only used as a HashMap key.
+        let Some(current_name) = self.try_get_current_scene_name().as_ref() else {
             return;
         };
-        let Some(scene) = self.get_scenes().get(current_name) else {
+        let Some(scene) = self.get_scenes().get(current_name).cloned() else {
             return;
         };
         scene.get_mut().on_update(delta_time);

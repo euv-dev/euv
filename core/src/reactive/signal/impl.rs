@@ -79,6 +79,38 @@ where
         inner.get_value().clone()
     }
 
+    /// Read-only access to the signal value without cloning.
+    ///
+    /// OPT 17: callers that only need to inspect the value (e.g. format!, eq
+    /// check, debug print, length) can borrow via `with(|v| ...)` and avoid
+    /// one `T::clone` per call. The closure runs under the same tracking
+    /// rules as `get` (still registers `CURRENT_TRACKING_DYNAMIC_ID` if a
+    /// DynamicNode is rendering). The `T: Clone` bound stays on the impl
+    /// because `get` is required by the existing public API; `with` is the
+    /// zero-copy alternative for new code.
+    ///
+    /// # Arguments
+    ///
+    /// - `F: FnOnce(&T) -> R` - Closure receiving `&T`.
+    ///
+    /// # Returns
+    ///
+    /// - `R` - Whatever the closure returns.
+    pub fn with<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&T) -> R,
+    {
+        let inner: &mut SignalInner<T> = Self::inner_mut(self.get_inner());
+        if !inner.get_alive() {
+            return f(inner.get_value());
+        }
+        let tracking_id: usize = CURRENT_TRACKING_DYNAMIC_ID.load(Ordering::Relaxed);
+        if tracking_id != usize::MAX {
+            self.add_dependent(tracking_id);
+        }
+        f(inner.get_value())
+    }
+
     /// Subscribes a callback to be invoked when the signal changes.
     ///
     /// # Arguments

@@ -117,20 +117,29 @@ impl I18n {
     pub fn t(&self, key: &str) -> String {
         let active: String = self.get_locale().get();
         let fallback: String = self.get_fallback_locale().get();
-        let table: HashMap<String, HashMap<String, String>> = self.get_messages().get();
-        if let Some(message) = table
-            .get(&active)
-            .and_then(|m: &HashMap<String, String>| m.get(key))
-        {
-            return message.clone();
-        }
-        if let Some(message) = table
-            .get(&fallback)
-            .and_then(|m: &HashMap<String, String>| m.get(key))
-        {
-            return message.clone();
-        }
-        key.to_string()
+        // OPT 17 + 22 partial: borrow the messages table instead of cloning
+        // the whole outer HashMap. The `t()` function only reads, so a
+        // `Signal::with` (added by this PR) is enough. The full OPT 22
+        // refactor (move messages out of the signal into OnceLock/Rc) is
+        // intentionally deferred — it changes the public `I18n` storage
+        // shape and ripples through every translate site. Borrow-only
+        // inside `t` keeps the API stable.
+        self.get_messages()
+            .with(|table: &HashMap<String, HashMap<String, String>>| {
+                if let Some(message) = table
+                    .get(&active)
+                    .and_then(|m: &HashMap<String, String>| m.get(key))
+                {
+                    return message.clone();
+                }
+                if let Some(message) = table
+                    .get(&fallback)
+                    .and_then(|m: &HashMap<String, String>| m.get(key))
+                {
+                    return message.clone();
+                }
+                key.to_string()
+            })
     }
 
     /// Translates `key` and substitutes `{name}`-style
@@ -164,7 +173,10 @@ impl I18n {
     ///
     /// - `usize` - Count of registered locales.
     pub fn locale_count(&self) -> usize {
-        self.get_messages().get().len()
+        // OPT 17: `with` lets us call `.len()` on the borrowed table
+        // without cloning the outer HashMap first.
+        self.get_messages()
+            .with(|table: &HashMap<String, HashMap<String, String>>| table.len())
     }
 
     /// Returns the number of messages registered for the
@@ -175,10 +187,14 @@ impl I18n {
     /// - `usize` - Count of currently-registered messages.
     pub fn active_message_count(&self) -> usize {
         let active: String = self.get_locale().get();
+        // OPT 17: see `locale_count` — borrow the table to read its
+        // length instead of cloning the outer HashMap.
         self.get_messages()
-            .get()
-            .get(&active)
-            .map(|m: &HashMap<String, String>| m.len())
-            .unwrap_or_default()
+            .with(|table: &HashMap<String, HashMap<String, String>>| {
+                table
+                    .get(&active)
+                    .map(|m: &HashMap<String, String>| m.len())
+                    .unwrap_or_default()
+            })
     }
 }
