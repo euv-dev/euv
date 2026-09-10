@@ -27,6 +27,9 @@ pub(crate) const CSS_RULE_OPEN: &str = " { ";
 /// blocks from the compact serialization format produced by the `class!` macro.
 pub(crate) const CSS_MEDIA_PREFIX: &str = "@media ";
 
+/// The space string used in class/style name merging.
+pub(crate) const CHAR_SPACE: &str = " ";
+
 /// The CSS property separator string (name: value).
 pub(crate) const CSS_PROP_SEPARATOR: &str = ": ";
 

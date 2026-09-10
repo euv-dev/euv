@@ -126,7 +126,7 @@ impl AttributeValue {
                     })
                     .filter(|segment: &String| !segment.is_empty())
                     .collect::<Vec<String>>()
-                    .join(" ")
+                    .join(CHAR_SPACE)
             });
             let attr_signal: Signal<String> = Signal::create(compute());
             Self::subscribe_attr(attr_signal, compute);
@@ -149,7 +149,7 @@ impl AttributeValue {
             })
             .filter(|segment: &String| !segment.is_empty())
             .collect::<Vec<String>>()
-            .join(" ");
+            .join(CHAR_SPACE);
         Self::Text(result)
     }
 
@@ -183,7 +183,7 @@ impl AttributeValue {
                     })
                     .filter(|segment: &String| !segment.is_empty())
                     .collect::<Vec<String>>()
-                    .join(" ")
+                    .join(CHAR_SPACE)
             });
             let attr_signal: Signal<String> = Signal::create(compute());
             Self::subscribe_attr(attr_signal, compute);
@@ -197,7 +197,7 @@ impl AttributeValue {
             })
             .filter(|segment: &String| !segment.is_empty())
             .collect::<Vec<String>>()
-            .join(" ");
+            .join(CHAR_SPACE);
         Self::Text(result)
     }
 
@@ -680,7 +680,7 @@ impl Css {
                 )
             })
             .collect::<Vec<String>>()
-            .join(" ")
+            .join(CHAR_SPACE)
     }
 
     /// Builds a stable suffix for a class name from a dynamic parameter value.
@@ -724,7 +724,7 @@ impl Css {
                 format!("{key}{CSS_PROP_SEPARATOR}{value}{CHAR_CSS_DECL_TERMINATOR}")
             })
             .collect::<Vec<String>>()
-            .join(" ")
+            .join(CHAR_SPACE)
     }
 
     /// Injects CSS text into the shared `<style>` element in the DOM.
