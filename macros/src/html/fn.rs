@@ -1806,21 +1806,8 @@ pub(crate) fn attr_value_to_attribute_value_tokens(
         HtmlAttrValue::If(_) | HtmlAttrValue::Match(_) => {
             quote! { #value }
         }
-        HtmlAttrValue::Style(props) => {
-            let has_conditional: bool =
-                props
-                    .iter()
-                    .any(|(_, style_value): &(String, HtmlStylePropValue)| {
-                        matches!(
-                            style_value,
-                            HtmlStylePropValue::If(_) | HtmlStylePropValue::Match(_)
-                        )
-                    });
-            if has_conditional {
-                quote! { #value }
-            } else {
-                quote! { ::euv::AttributeValue::Text(#value) }
-            }
+        HtmlAttrValue::Style(_) => {
+            quote! { #value }
         }
         HtmlAttrValue::Classes(_) | HtmlAttrValue::Styles(_) => {
             quote! { #value }
@@ -1845,21 +1832,8 @@ pub(crate) fn style_value_to_attribute_value_tokens(
     value: &HtmlAttrValue,
 ) -> proc_macro2::TokenStream {
     match value {
-        HtmlAttrValue::Style(props) => {
-            let has_conditional: bool =
-                props
-                    .iter()
-                    .any(|(_, style_value): &(String, HtmlStylePropValue)| {
-                        matches!(
-                            style_value,
-                            HtmlStylePropValue::If(_) | HtmlStylePropValue::Match(_)
-                        )
-                    });
-            if has_conditional {
-                quote! { #value }
-            } else {
-                quote! { ::euv::AttributeValue::Text(#value) }
-            }
+        HtmlAttrValue::Style(_) => {
+            quote! { #value }
         }
         HtmlAttrValue::If(_) | HtmlAttrValue::Match(_) => {
             quote! { #value }
@@ -2055,13 +2029,8 @@ pub(crate) fn attr_value_to_entry_value_tokens(
     let value: &HtmlAttrValue = ctx.get_value();
     let key_str: &str = ctx.get_key_str();
     match value {
-        HtmlAttrValue::Style(props) => {
-            let has_conditional: bool = is_style_props_conditional(props);
-            if has_conditional {
-                quote! { #value }
-            } else {
-                quote! { ::euv::AttributeValue::Text(#value) }
-            }
+        HtmlAttrValue::Style(_) => {
+            quote! { #value }
         }
         HtmlAttrValue::If(_) | HtmlAttrValue::Match(_) => {
             quote! { #value }

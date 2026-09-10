@@ -60,7 +60,7 @@ pub struct Material {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct LightingUniforms {
     /// All lights contributing to the scene.
-    #[get(pub(crate), type(clone))]
+    #[get(pub(crate))]
     pub(crate) lights: Vec<Light>,
     /// Ambient light contribution applied to every shaded point.
     #[get(type(copy))]

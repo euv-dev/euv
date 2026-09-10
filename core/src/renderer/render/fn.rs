@@ -45,6 +45,14 @@ pub(crate) fn cached_document() -> Option<Document> {
 /// direct `append_child` path so the single-child case pays zero
 /// fragment-allocation overhead.
 ///
+/// Detached-parent guard: when `parent.is_connected()` is `false` (i.e.
+/// the parent is being mounted from scratch and has not yet been grafted
+/// into the live DOM), appending to a `DocumentFragment` only adds N+2
+/// JS crossings (create + N×append + graft) without saving any layout
+/// invalidations — the fragment and the parent are both detached, so
+/// neither triggers reflow. In that case we loop-append directly and
+/// save the +2 round-trips and the auxiliary `Vec<Node>`.
+///
 /// # Arguments
 ///
 /// - `&Element` - The parent DOM element receiving the children.
@@ -56,6 +64,12 @@ pub(crate) fn cached_document() -> Option<Document> {
 /// - `()` - The appends are best-effort; per-call JS errors are dropped
 ///   to match the previous per-node behaviour.
 pub(crate) fn append_nodes(parent: &Element, nodes: impl IntoIterator<Item = Node>) {
+    if !parent.is_connected() {
+        for node in nodes {
+            let _: Result<Node, JsValue> = parent.append_child(&node);
+        }
+        return;
+    }
     let mut iter = nodes.into_iter();
     let Some(first) = iter.next() else {
         return;

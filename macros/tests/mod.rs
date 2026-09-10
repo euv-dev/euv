@@ -1,6 +1,7 @@
 mod class;
 mod component;
 mod computed;
+mod html_static_style;
 mod unsafe_no_inline;
 mod var;
 mod vars;

@@ -44,11 +44,16 @@ impl SchedulerState {
         ) else {
             return 0.0;
         };
-        let Ok(now_value) = Reflect::get(&performance, &JsValue::from_str(PERFORMANCE_NOW_METHOD))
+        let Ok(now_method) = Reflect::get(&performance, &JsValue::from_str(PERFORMANCE_NOW_METHOD))
         else {
             return 0.0;
         };
-        let Some(now_millis) = now_value.as_f64() else {
+        let now_function: js_sys::Function = now_method.unchecked_into();
+        let Some(now_millis) = now_function
+            .call0(&performance)
+            .ok()
+            .and_then(|v: JsValue| v.as_f64())
+        else {
             return 0.0;
         };
         now_millis / 1000.0

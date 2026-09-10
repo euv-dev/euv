@@ -126,7 +126,7 @@ impl AttributeValue {
                     })
                     .filter(|segment: &String| !segment.is_empty())
                     .collect::<Vec<String>>()
-                    .join(&CHAR_SPACE.to_string())
+                    .join(" ")
             });
             let attr_signal: Signal<String> = Signal::create(compute());
             Self::subscribe_attr(attr_signal, compute);
@@ -149,7 +149,7 @@ impl AttributeValue {
             })
             .filter(|segment: &String| !segment.is_empty())
             .collect::<Vec<String>>()
-            .join(&CHAR_SPACE.to_string());
+            .join(" ");
         Self::Text(result)
     }
 
@@ -183,7 +183,7 @@ impl AttributeValue {
                     })
                     .filter(|segment: &String| !segment.is_empty())
                     .collect::<Vec<String>>()
-                    .join(&CHAR_SPACE.to_string())
+                    .join(" ")
             });
             let attr_signal: Signal<String> = Signal::create(compute());
             Self::subscribe_attr(attr_signal, compute);
@@ -197,7 +197,7 @@ impl AttributeValue {
             })
             .filter(|segment: &String| !segment.is_empty())
             .collect::<Vec<String>>()
-            .join(&CHAR_SPACE.to_string());
+            .join(" ");
         Self::Text(result)
     }
 
@@ -276,6 +276,9 @@ impl PartialEq for AttributeValue {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Text(old_value), Self::Text(new_value)) => old_value == new_value,
+            (Self::StaticText(old_value), Self::StaticText(new_value)) => old_value == new_value,
+            (Self::Text(old_value), Self::StaticText(new_value)) => old_value == new_value,
+            (Self::StaticText(old_value), Self::Text(new_value)) => old_value == new_value,
             (Self::Signal(old_signal), Self::Signal(new_signal)) => {
                 if old_signal.get_inner() == new_signal.get_inner() {
                     return false;
@@ -286,6 +289,15 @@ impl PartialEq for AttributeValue {
             (Self::Text(old_value), Self::Signal(new_signal)) => *old_value == new_signal.get(),
             (Self::Event(_), Self::Event(_)) => true,
             (Self::Css(old_class), Self::Css(new_class)) => {
+                old_class.get_name() == new_class.get_name()
+            }
+            (Self::CssRef(old_class), Self::CssRef(new_class)) => {
+                old_class.get_name() == new_class.get_name()
+            }
+            (Self::CssRef(old_class), Self::Css(new_class)) => {
+                old_class.get_name() == new_class.get_name()
+            }
+            (Self::Css(old_class), Self::CssRef(new_class)) => {
                 old_class.get_name() == new_class.get_name()
             }
             (Self::Dynamic(old_dynamic), Self::Dynamic(new_dynamic)) => old_dynamic == new_dynamic,
@@ -668,7 +680,7 @@ impl Css {
                 )
             })
             .collect::<Vec<String>>()
-            .join(&CHAR_SPACE.to_string())
+            .join(" ")
     }
 
     /// Builds a stable suffix for a class name from a dynamic parameter value.
@@ -712,7 +724,7 @@ impl Css {
                 format!("{key}{CSS_PROP_SEPARATOR}{value}{CHAR_CSS_DECL_TERMINATOR}")
             })
             .collect::<Vec<String>>()
-            .join(&CHAR_SPACE.to_string())
+            .join(" ")
     }
 
     /// Injects CSS text into the shared `<style>` element in the DOM.

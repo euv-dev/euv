@@ -1227,12 +1227,17 @@ impl SsaaCanvas {
 
     /// Presents the offscreen buffer onto the display canvas with high-quality downscaling.
     ///
-    /// Applies the active `quality` preset to the display context, clears the
-    /// display canvas, then draws the offscreen canvas scaled down to the
-    /// logical display size. This is the core SSAA step that produces smooth
-    /// polygon edges.
+    /// Clears the display canvas, then draws the offscreen canvas scaled
+    /// down to the logical display size. The active `quality` preset is
+    /// applied once at construction via `enable_smoothing` — there is
+    /// no need to re-apply it every frame, since the preset never
+    /// changes mid-render.
+    ///
+    /// #32: the previous version called `apply_quality` on every
+    /// `present()`, costing `set_image_smoothing_enabled` + 2×Reflect
+    /// + 4×from_str ≈ 7 JS crossings per frame for a value that was
+    ///   invariant across the entire session.
     pub fn present(&self) {
-        CanvasRenderer::apply_quality(self.get_display_context(), self.get_quality());
         self.get_display_context()
             .clear_rect(0.0, 0.0, self.get_width(), self.get_height());
         let _: Result<(), JsValue> = self

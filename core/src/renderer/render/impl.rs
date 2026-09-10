@@ -294,7 +294,26 @@ impl Renderer {
         for new_attr in new_attrs {
             match new_attr.get_value() {
                 AttributeValue::Event(handler) => {
-                    self.attach_event_listener(element, handler);
+                    // #14: skip re-attach if an old handler on this
+                    // element is the same Rc as the new one (e.g. when
+                    // a parent re-renders without rebinding the
+                    // callback). `attach_event_listener` does
+                    // `get_attribute` + `parse` + registry walk + Rc
+                    // clone on every call; on the steady state those
+                    // are wasted work.
+                    let new_callback: &SharedEventCallback = handler.get_callback();
+                    let already_attached: bool = old_attrs
+                        .iter()
+                        .filter_map(|a: &AttributeEntry| match a.get_value() {
+                            AttributeValue::Event(h) => Some(h.get_callback()),
+                            _ => None,
+                        })
+                        .any(|old_callback: &SharedEventCallback| {
+                            std::ptr::eq(Rc::as_ptr(old_callback), Rc::as_ptr(new_callback))
+                        });
+                    if !already_attached {
+                        self.attach_event_listener(element, handler);
+                    }
                 }
                 _ => {
                     let new_name: &str = new_attr.get_name().as_ref();
@@ -607,12 +626,17 @@ impl Renderer {
             append_nodes(parent, appended);
         } else if old_len > new_len {
             for _ in common_len..old_len {
-                if let Some(last_child) = parent.last_child()
+                // #12: the previous loop called `parent.last_child()`
+                // twice per deletion (2 → 1 JS crossing) so the same
+                // detached last child could be cleaned up before being
+                // removed.
+                let last_child: Option<Node> = parent.last_child();
+                if let Some(last_child) = &last_child
                     && let Some(element) = last_child.dyn_ref::<Element>()
                 {
                     Self::cleanup_subtree(element);
                 }
-                if let Some(last_child) = parent.last_child() {
+                if let Some(last_child) = last_child {
                     let _: Result<Node, JsValue> = parent.remove_child(&last_child);
                 }
             }
