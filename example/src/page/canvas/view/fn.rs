@@ -124,8 +124,6 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
                                 class: c_canvas_color_input_fullscreen()
                                 value: state.get_stroke_color().get()
                                 oninput: on_color_input
-                                onfocus: UseEuvInput::on_focus_scroll_into_view()
-                                onblur: UseEuvInput::on_blur_restore_height()
                             }
                         }
                         div {
@@ -148,8 +146,6 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
                             value: initial_line_width.to_string()
                             class: c_slider_value(&format!("{initial_line_width_percent}%"))
                             oninput: canvas_on_line_width_input(state)
-                            onfocus: UseEuvInput::on_focus_scroll_into_view()
-                            onblur: UseEuvInput::on_blur_restore_height()
                         }
                     }
                 }

@@ -53,8 +53,6 @@ pub fn euv_field(node: VirtualNode<EuvFieldProps>) -> VirtualNode {
                     c_euv_input_no_transition()
                 }
                 oninput: handler
-                onfocus: UseEuvInput::on_focus_scroll_into_view()
-                onblur: UseEuvInput::on_blur_restore_height()
             }
             if { !error_state.get().is_empty() } {
                 p {

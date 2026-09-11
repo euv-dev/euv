@@ -2,9 +2,7 @@ use super::*;
 
 /// A custom input component with label and event handling.
 ///
-/// Internally binds `onfocus` and `onblur` so that mobile virtual keyboards
-/// never obscure the field. The label is optional — leave it empty to render
-/// an input without a label.
+/// The label is optional — leave it empty to render an input without a label.
 ///
 /// # Arguments
 ///
@@ -56,8 +54,6 @@ pub fn euv_input(node: VirtualNode<EuvInputProps>) -> VirtualNode {
                 autocomplete: autocomplete
                 class: effective_class
                 oninput: oninput
-                onfocus: UseEuvInput::on_focus_scroll_into_view()
-                onblur: UseEuvInput::on_blur_restore_height()
             }
         }
     }

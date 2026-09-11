@@ -156,8 +156,6 @@ pub(crate) fn temperature_converter(
                     value: format!("{celsius_value:.1}")
                     class: c_euv_input_no_transition()
                     oninput: cross_on_input_celsius(celsius_signal)
-                    onfocus: UseEuvInput::on_focus_scroll_into_view()
-                    onblur: UseEuvInput::on_blur_restore_height()
                 }
             }
             span {
@@ -179,8 +177,6 @@ pub(crate) fn temperature_converter(
                     value: format!("{fahrenheit_value:.1}")
                     class: c_euv_input_no_transition()
                     oninput: cross_on_input_fahrenheit(fahrenheit_signal)
-                    onfocus: UseEuvInput::on_focus_scroll_into_view()
-                    onblur: UseEuvInput::on_blur_restore_height()
                 }
             }
         }
@@ -242,8 +238,6 @@ pub(crate) fn color_mixer(
                     class: c_binding_slider()
                     class: c_slider_value(&format!("{}%", red_value * 100 / 255))
                     oninput: cross_on_input_i32(red_signal)
-                    onfocus: UseEuvInput::on_focus_scroll_into_view()
-                    onblur: UseEuvInput::on_blur_restore_height()
                 }
                 span {
                     class: c_binding_slider_value()
@@ -269,8 +263,6 @@ pub(crate) fn color_mixer(
                     class: c_binding_slider()
                     class: c_slider_value(&format!("{}%", green_value * 100 / 255))
                     oninput: cross_on_input_i32(green_signal)
-                    onfocus: UseEuvInput::on_focus_scroll_into_view()
-                    onblur: UseEuvInput::on_blur_restore_height()
                 }
                 span {
                     class: c_binding_slider_value()
@@ -296,8 +288,6 @@ pub(crate) fn color_mixer(
                     class: c_binding_slider()
                     class: c_slider_value(&format!("{}%", blue_value * 100 / 255))
                     oninput: cross_on_input_i32(blue_signal)
-                    onfocus: UseEuvInput::on_focus_scroll_into_view()
-                    onblur: UseEuvInput::on_blur_restore_height()
                 }
                 span {
                     class: c_binding_slider_value()

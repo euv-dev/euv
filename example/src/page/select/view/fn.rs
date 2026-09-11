@@ -152,8 +152,6 @@ pub(crate) fn page_select(node: VirtualNode<PageSelectProps>) -> VirtualNode {
                         value: state.get_textarea_content()
                         oninput: select_on_input_textarea(state)
                         rows: SELECT_FEEDBACK_ROWS
-                        onfocus: UseEuvInput::on_focus_scroll_into_view()
-                        onblur: UseEuvInput::on_blur_restore_height()
                     }
                     if { !state.get_textarea_error().get().is_empty() } {
                         p {
