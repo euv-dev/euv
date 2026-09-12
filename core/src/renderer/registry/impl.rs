@@ -429,9 +429,9 @@ impl Registry {
     ///
     /// - `usize` - The element's `data-euv-id` value.
     /// - `BindingCleanup` - The teardown thunk to store.
-    #[allow(static_mut_refs)]
     pub(crate) fn push_binding_cleanup(euv_id: usize, cleanup: BindingCleanup) {
-        let map: &mut BindingCleanupsMap = unsafe { &mut *BINDING_CLEANUPS.deref().get_0().get() };
+        let map: &mut BindingCleanupsMap =
+            unsafe { &mut *(*std::ptr::addr_of_mut!(BINDING_CLEANUPS)).get_0().get() };
         map.entry(euv_id).or_default().push(cleanup);
     }
 
@@ -447,9 +447,9 @@ impl Registry {
     /// # Returns
     ///
     /// - `Option<Vec<BindingCleanup>>` - The drained thunks, if any.
-    #[allow(static_mut_refs)]
     pub(crate) fn take_binding_cleanups(euv_id: usize) -> Option<Vec<BindingCleanup>> {
-        let map: &mut BindingCleanupsMap = unsafe { &mut *BINDING_CLEANUPS.deref().get_0().get() };
+        let map: &mut BindingCleanupsMap =
+            unsafe { &mut *(*std::ptr::addr_of_mut!(BINDING_CLEANUPS)).get_0().get() };
         map.remove(&euv_id)
     }
 
