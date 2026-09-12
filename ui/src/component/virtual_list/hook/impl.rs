@@ -3,9 +3,13 @@ use super::*;
 /// Encapsulated access to the global pending measurement set.
 impl PendingMeasureCell {
     /// Returns a mutable reference to the set of pending container ids.
-    #[allow(static_mut_refs)]
     fn get_mut_pending_measure() -> &'static mut HashSet<String> {
-        unsafe { &mut *PENDING_MEASURE_BY_ID.deref().get_0().get() }
+        unsafe {
+            &mut *(*std::ptr::addr_of_mut!(PENDING_MEASURE_BY_ID))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 }
 

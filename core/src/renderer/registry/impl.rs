@@ -53,9 +53,13 @@ impl Registry {
     /// # Returns
     ///
     /// - `&'static HashSet<&'static str>` - A shared reference to the global set of delegated event names.
-    #[allow(static_mut_refs)]
     pub(crate) fn get_delegated_events() -> &'static HashSet<&'static str> {
-        unsafe { &*DELEGATED_EVENTS.deref().get_0().get() }
+        unsafe {
+            &*(*std::ptr::addr_of!(DELEGATED_EVENTS))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 
     /// Returns a mutable reference to the delegated events set.
@@ -63,9 +67,13 @@ impl Registry {
     /// # Returns
     ///
     /// - `&'static mut HashSet<&'static str>` - A mutable reference to the global set of delegated event names.
-    #[allow(static_mut_refs)]
     pub(crate) fn get_mut_delegated_events() -> &'static mut HashSet<&'static str> {
-        unsafe { &mut *DELEGATED_EVENTS.deref().get_0().get() }
+        unsafe {
+            &mut *(*std::ptr::addr_of_mut!(DELEGATED_EVENTS))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 
     /// Returns a mutable reference to the signal update registry.
@@ -73,9 +81,13 @@ impl Registry {
     /// # Returns
     ///
     /// - `&'static mut HashMap<usize, SignalUpdateEntry>` - A mutable reference to the global signal update registry.
-    #[allow(static_mut_refs)]
     pub(crate) fn get_mut_update_registry() -> &'static mut HashMap<usize, SignalUpdateEntry> {
-        unsafe { &mut *SIGNAL_UPDATE_REGISTRY.deref().get_0().get() }
+        unsafe {
+            &mut *(*std::ptr::addr_of_mut!(SIGNAL_UPDATE_REGISTRY))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 
     /// Returns a mutable reference to the dirty-id set used by the OPT 6
@@ -84,9 +96,13 @@ impl Registry {
     /// # Returns
     ///
     /// - `&'static mut HashSet<usize>` - A mutable reference to the global dirty-id set.
-    #[allow(static_mut_refs)]
     pub(crate) fn get_mut_dirty_update_ids() -> &'static mut HashSet<usize> {
-        unsafe { &mut *DIRTY_UPDATE_IDS.deref().get_0().get() }
+        unsafe {
+            &mut *(*std::ptr::addr_of_mut!(DIRTY_UPDATE_IDS))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 
     /// Returns a shared reference to the window event registry.
@@ -94,9 +110,13 @@ impl Registry {
     /// # Returns
     ///
     /// - `&'static WindowEventRegistryMap` - A shared reference to the global window event registry.
-    #[allow(static_mut_refs)]
     pub(crate) fn get_window_registry() -> &'static WindowEventRegistryMap {
-        unsafe { &*WINDOW_EVENT_REGISTRY.deref().get_0().get() }
+        unsafe {
+            &*(*std::ptr::addr_of!(WINDOW_EVENT_REGISTRY))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 
     /// Returns a mutable reference to the window event registry.
@@ -104,9 +124,13 @@ impl Registry {
     /// # Returns
     ///
     /// - `&'static mut WindowEventRegistryMap` - A mutable reference to the global window event registry.
-    #[allow(static_mut_refs)]
     pub(crate) fn get_mut_window_registry() -> &'static mut WindowEventRegistryMap {
-        unsafe { &mut *WINDOW_EVENT_REGISTRY.deref().get_0().get() }
+        unsafe {
+            &mut *(*std::ptr::addr_of_mut!(WINDOW_EVENT_REGISTRY))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 
     /// Returns a mutable reference to the `NodeRef` unmount-clear registry.
@@ -115,9 +139,13 @@ impl Registry {
     ///
     /// - `&'static mut NodeRefRegistryMap` - A mutable reference to the
     ///   global `NodeRef` registry.
-    #[allow(static_mut_refs)]
     pub(crate) fn get_mut_noderef_registry() -> &'static mut NodeRefRegistryMap {
-        unsafe { &mut *NODEREF_REGISTRY.deref().get_0().get() }
+        unsafe {
+            &mut *(*std::ptr::addr_of_mut!(NODEREF_REGISTRY))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 
     /// Returns a shared reference to the handler registry.
@@ -125,9 +153,13 @@ impl Registry {
     /// # Returns
     ///
     /// - `&'static HandlerRegistryMap` - A shared reference to the global handler registry.
-    #[allow(static_mut_refs)]
     pub(crate) fn get_handler_registry() -> &'static HandlerRegistryMap {
-        unsafe { &*HANDLER_REGISTRY.deref().get_0().get() }
+        unsafe {
+            &*(*std::ptr::addr_of!(HANDLER_REGISTRY))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 
     /// Returns a mutable reference to the handler registry.
@@ -135,9 +167,13 @@ impl Registry {
     /// # Returns
     ///
     /// - `&'static mut HandlerRegistryMap` - A mutable reference to the global handler registry.
-    #[allow(static_mut_refs)]
     pub(crate) fn get_mut_handler_registry() -> &'static mut HandlerRegistryMap {
-        unsafe { &mut *HANDLER_REGISTRY.deref().get_0().get() }
+        unsafe {
+            &mut *(*std::ptr::addr_of_mut!(HANDLER_REGISTRY))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 
     /// Dispatches a delegated event by walking up from `event.target` to

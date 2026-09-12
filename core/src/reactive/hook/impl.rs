@@ -143,17 +143,19 @@ impl HookContext {
     /// Returns a shared reference to the current hook context global state.
     ///
     /// SAFETY: Must only be called from the main thread (WASM single-threaded context).
-    #[allow(static_mut_refs)]
     fn try_get_current() -> &'static Option<HookContextRc> {
-        unsafe { &*CURRENT_HOOK_CONTEXT.get_0().get() }
+        unsafe { &*(*std::ptr::addr_of!(CURRENT_HOOK_CONTEXT)).get_0().get() }
     }
 
     /// Returns a mutable reference to the current hook context global state.
     ///
     /// SAFETY: Must only be called from the main thread (WASM single-threaded context).
-    #[allow(static_mut_refs)]
     fn try_get_mut_current() -> &'static mut Option<HookContextRc> {
-        unsafe { &mut *CURRENT_HOOK_CONTEXT.get_0().get() }
+        unsafe {
+            &mut *(*std::ptr::addr_of_mut!(CURRENT_HOOK_CONTEXT))
+                .get_0()
+                .get()
+        }
     }
 
     /// Returns the currently active `HookContext`.

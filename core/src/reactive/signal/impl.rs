@@ -10,9 +10,8 @@ where
     /// # Returns
     ///
     /// - `&'static SignalSlab` - A shared reference to the global signal slab.
-    #[allow(static_mut_refs)]
     fn slab() -> &'static SignalSlab {
-        unsafe { &*SIGNAL_SLAB.deref().get() }
+        unsafe { &*(*std::ptr::addr_of!(SIGNAL_SLAB)).deref().get() }
     }
 
     /// Returns a mutable reference to the global typed signal slab.
@@ -20,9 +19,8 @@ where
     /// # Returns
     ///
     /// - `&'static mut SignalSlab` - A mutable reference to the global signal slab.
-    #[allow(static_mut_refs)]
     fn slab_mut() -> &'static mut SignalSlab {
-        unsafe { &mut *SIGNAL_SLAB.deref().get() }
+        unsafe { &mut *(*std::ptr::addr_of_mut!(SIGNAL_SLAB)).deref().get() }
     }
 
     /// Creates a new `Signal` with the given initial value.

@@ -10,9 +10,13 @@ impl InjectedClassesCell {
     /// # Returns
     ///
     /// - `&'static HashSet<String>` - A shared reference to the global set of injected class names.
-    #[allow(static_mut_refs)]
     pub(crate) fn get_injected_classes() -> &'static HashSet<String> {
-        unsafe { &*INJECTED_CLASSES.deref().get_0().get() }
+        unsafe {
+            &*(*std::ptr::addr_of!(INJECTED_CLASSES))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 
     /// Returns a mutable reference to the injected classes set.
@@ -20,9 +24,13 @@ impl InjectedClassesCell {
     /// # Returns
     ///
     /// - `&'static mut HashSet<String>` - A mutable reference to the global set of injected class names.
-    #[allow(static_mut_refs)]
     pub(crate) fn get_mut_injected_classes() -> &'static mut HashSet<String> {
-        unsafe { &mut *INJECTED_CLASSES.deref().get_0().get() }
+        unsafe {
+            &mut *(*std::ptr::addr_of_mut!(INJECTED_CLASSES))
+                .deref()
+                .get_0()
+                .get()
+        }
     }
 
     /// Returns `true` if the given class name has already been injected into the DOM.
