@@ -7,6 +7,7 @@ mod noderef;
 mod portal;
 mod raw;
 mod raw_html;
+mod renderer;
 mod signal;
 mod vdom;
 mod vdom_node;

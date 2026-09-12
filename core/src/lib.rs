@@ -23,6 +23,9 @@ pub use std::{
     panic::{AssertUnwindSafe, catch_unwind},
 };
 
+pub use renderer::render::ChildOpPlan;
+pub use renderer::render::compute_child_ops_plan;
+pub use renderer::render::lis_indices;
 pub(crate) use renderer::*;
 
 use std::{
