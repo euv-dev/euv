@@ -202,7 +202,7 @@ where
     ///
     /// - `usize` - A non-negative integer (`usize`).
     pub fn resize(&mut self, new_capacity: usize) {
-        self.capacity = new_capacity;
+        self.set_capacity(new_capacity);
         while self.map.len() > self.capacity {
             if let Some(victim_key) = self.order.pop_back() {
                 self.map.remove(&victim_key);

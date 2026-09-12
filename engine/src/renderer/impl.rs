@@ -2522,14 +2522,15 @@ impl WebGpuRenderer {
             }
         };
         if cache_needs_rebuild {
-            self.render_pass_descriptor_cache = Some(self.build_render_pass_descriptor(
+            let descriptor = self.build_render_pass_descriptor(
                 &color_view,
                 resolve_view.as_ref(),
                 color.clear_value,
                 effective_load_op,
                 effective_store_op,
                 depth,
-            ));
+            );
+            self.set_render_pass_descriptor_cache(Some(descriptor));
         }
         // `Some(_)` invariant: either the cache was non-None at the
         // top of this function (we only land in the None branch when
@@ -6055,8 +6056,8 @@ impl WebGlRenderer {
     pub fn resize(&mut self, physical_width: u32, physical_height: u32) {
         self.canvas.set_width(physical_width);
         self.canvas.set_height(physical_height);
-        self.width = physical_width;
-        self.height = physical_height;
+        self.set_width(physical_width);
+        self.set_height(physical_height);
         self.context
             .viewport(0, 0, physical_width as i32, physical_height as i32);
     }
