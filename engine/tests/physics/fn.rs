@@ -1,25 +1,11 @@
-//! Integration tests for the 3D physics step pipeline.
-//!
-//! Moved from `engine/src/physics/impl.rs` per rust-standards
-//! §14.4 (`tests/` is the canonical location for tests; inline
-//! `#[cfg(test)] mod tests` blocks are forbidden). These tests
-//! exercise only `pub` items reachable via `use euv_engine::*;`.
-
-//! Regression tests for the 3D physics step pipeline.
 use euv_engine::*;
 
 const EPSILON: f64 = 1e-9;
 
-/// Regression test for the bug where `RigidBody3D::apply_torque`
-/// accumulated torque into `torque_accumulator` but
-/// `PhysicsWorld3D::step()` only zeroed it without ever converting it
-/// into angular velocity.
 #[test]
 fn step_applies_torque_to_3d_angular_velocity() {
     let mut world: PhysicsWorld3D = PhysicsWorld3D::default();
     let mut body: RigidBody3D = RigidBody3D::new_dynamic(1, Vector3D::new(0.0, 0.0, 0.0));
-    // Default inertia = mass (1.0) so inverse_inertia == 1.0; applying
-    // torque (0, 0, 2) for a 1 s step should give omega == (0, 0, 2).
     body.apply_torque(Vector3D::new(0.0, 0.0, 2.0));
     world.add_body(body);
 
@@ -42,9 +28,6 @@ fn step_applies_torque_to_3d_angular_velocity() {
         expected_z,
         omega.get_z(),
     );
-
-    // Accumulator must be cleared after the step so subsequent steps do
-    // not re-apply the same torque.
     world.step(1.0);
     let omega_after: Vector3D = world.get_body(1).unwrap().get_angular_velocity();
     assert!(
@@ -54,8 +37,6 @@ fn step_applies_torque_to_3d_angular_velocity() {
     );
 }
 
-/// Static bodies (inverse_inertia == 0) must ignore torque entirely:
-/// applying torque to a static body must not produce angular velocity.
 #[test]
 fn step_static_3d_body_ignores_torque() {
     let mut world: PhysicsWorld3D = PhysicsWorld3D::default();
@@ -76,8 +57,6 @@ fn step_static_3d_body_ignores_torque() {
     );
 }
 
-/// Torque applied across multiple steps must accumulate into angular
-/// velocity. Guards against the original bug returning silently.
 #[test]
 fn step_torque_accumulates_over_multiple_steps() {
     let mut world: PhysicsWorld3D = PhysicsWorld3D::default();
@@ -92,15 +71,12 @@ fn step_torque_accumulates_over_multiple_steps() {
         world.step(1.0);
     }
     let omega: Vector3D = world.get_body(1).unwrap().get_angular_velocity();
-    // Each step: omega_y += torque_y * inv_inertia * dt = 1.0.
-    // After 4 steps: omega_y == 4.0.
     assert!(
         (omega.get_y() - 4.0).abs() < EPSILON,
         "expected cumulative angular velocity 4.0 on y axis, got {}",
         omega.get_y(),
     );
 }
-/// 2D angular integration is unchanged by the 3D torque fix.
 #[test]
 fn step_2d_angular_velocity_unchanged() {
     let mut world: PhysicsWorld2D = PhysicsWorld2D::default();

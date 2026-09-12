@@ -1,13 +1,5 @@
-//! Integration tests for the lighting module.
-//!
-//! Moved from `engine/src/lighting/impl.rs` per rust-standards
-//! §14.4. These tests exercise only `pub` items reachable via
-//! `use euv_engine::*;`.
-
 use euv_engine::*;
 
-/// Diffuse term is maximized when the normal aligns with the light
-/// direction (cosine = 1) and equals `color * intensity * albedo`.
 #[test]
 fn lambert_diffuse_face_normal() {
     let light: Light =
@@ -33,8 +25,6 @@ fn lambert_diffuse_face_normal() {
     );
 }
 
-/// Specular term is maximized when the reflection vector aligns with
-/// the view direction, producing the peak Phong highlight.
 #[test]
 fn phong_specular_peak() {
     let normal: Vector3D = Vector3D::new(0.0, 1.0, 0.0);
@@ -68,8 +58,6 @@ fn phong_specular_peak() {
     );
 }
 
-/// Inverse-square falloff: at d=0 returns 1.0; at d=1 returns
-/// 1/(1+falloff); at d=2 returns 1/(1+4*falloff).
 #[test]
 fn point_light_falloff_distance() {
     let falloff: f64 = 1.0;
@@ -87,10 +75,8 @@ fn point_light_falloff_distance() {
     );
 }
 
-/// Three ray-sphere cases: hit from outside, miss, origin inside sphere.
 #[test]
 fn ray_sphere_intersect_hit_miss_inside() {
-    // Hit from outside.
     let origin: Vector3D = Vector3D::new(0.0, 0.0, 5.0);
     let dir: Vector3D = Vector3D::new(0.0, 0.0, -1.0);
     let center: Vector3D = Vector3D::zero();
@@ -104,14 +90,10 @@ fn ray_sphere_intersect_hit_miss_inside() {
         "expected normal (0,0,1), got (0,0,{})",
         normal.get_z(),
     );
-
-    // Miss.
     let origin_miss: Vector3D = Vector3D::new(10.0, 0.0, 5.0);
     let dir_miss: Vector3D = Vector3D::new(0.0, 0.0, -1.0);
     let miss: Option<(f64, Vector3D)> = ray_sphere_intersect(origin_miss, dir_miss, center, radius);
     assert!(miss.is_none(), "ray far from sphere should miss");
-
-    // Origin inside sphere.
     let origin_in: Vector3D = Vector3D::zero();
     let dir_in: Vector3D = Vector3D::new(1.0, 0.0, 0.0);
     let inside: Option<(f64, Vector3D)> = ray_sphere_intersect(origin_in, dir_in, center, radius);
@@ -131,7 +113,6 @@ fn ray_sphere_intersect_hit_miss_inside() {
     );
 }
 
-/// Empty occluder list returns full visibility (1.0).
 #[test]
 fn soft_shadow_no_occluder_returns_one() {
     let origin: Vector3D = Vector3D::zero();

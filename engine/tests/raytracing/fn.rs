@@ -1,12 +1,5 @@
-//! Integration tests for the raytracing module.
-//!
-//! Moved from `engine/src/raytracing/impl.rs` per rust-standards
-//! §14.4. These tests exercise only `pub` items reachable via
-//! `use euv_engine::*;`.
-
 use euv_engine::*;
 
-/// A ray that escapes an empty scene returns the ambient color.
 #[test]
 fn trace_miss_returns_ambient() {
     let eye: Vector3D = Vector3D::new(0.0, 0.0, 0.0);
@@ -33,8 +26,6 @@ fn trace_miss_returns_ambient() {
     );
 }
 
-/// A ray that hits an emissive sphere returns the sphere's emissive
-/// color (no shadow attenuation because the surface IS the light).
 #[test]
 fn trace_emissive_sphere() {
     let eye: Vector3D = Vector3D::new(0.0, 0.0, 5.0);
@@ -63,8 +54,6 @@ fn trace_emissive_sphere() {
     );
 }
 
-/// A ray that hits a mirror sphere (Phong specular = 1.0) reflects
-/// once and lands on an emissive sphere, returning a mixed color.
 #[test]
 fn trace_reflection_single_bounce() {
     let eye: Vector3D = Vector3D::new(0.0, 0.0, 10.0);
@@ -72,9 +61,6 @@ fn trace_reflection_single_bounce() {
     lights.set_ambient(Vector3D::zero());
     let mirror_material: Material = Material::phong(Vector3D::zero(), 1.0, 32.0);
     let mirror: Occluder = Occluder::sphere(Vector3D::zero(), 1.0, mirror_material);
-    // Emissive sphere along +z past the mirror. Ray bounces straight
-    // back along +z after hitting the dead-center +z hemisphere, so
-    // place the emissive on that line.
     let emissive_material: Material = Material::emissive(Vector3D::new(0.0, 1.0, 0.0));
     let emissive: Occluder =
         Occluder::sphere(Vector3D::new(0.0, 0.0, 15.0), 1.0, emissive_material);
@@ -99,14 +85,6 @@ fn trace_reflection_single_bounce() {
     );
 }
 
-/// Builds the scene mirrored from the /raytrace example: a ground
-/// AABB, a mirror sphere, and an emissive sphere, lit by one
-/// directional sun with a fixed yaw.
-///
-/// # Returns
-///
-/// - `(Vec<Occluder>, LightingUniforms)` - The scene occluders and the
-///   lighting uniforms.
 fn demo_scene() -> (Vec<Occluder>, LightingUniforms) {
     let ground: Occluder = Occluder::aabb(
         Vector3D::new(-5.0, -0.6, -5.0),
@@ -134,8 +112,6 @@ fn demo_scene() -> (Vec<Occluder>, LightingUniforms) {
     (occluders, lights)
 }
 
-/// `RayTraceScene::closest_hit` matches the analytic intersection
-/// distance for a dead-center ray and returns `None` on a miss.
 #[test]
 fn closest_hit_returns_analytic_t() {
     let (occluders, _lights): (Vec<Occluder>, LightingUniforms) = demo_scene();
