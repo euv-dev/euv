@@ -129,7 +129,7 @@ impl Renderer {
             if let Some(dom_child) = dom_child
                 && let Ok(element) = dom_child.dyn_into::<Element>()
             {
-                self.patch_node(old_node, new_node, &element);
+                let _: Node = self.patch_node(old_node, new_node, &element);
             }
         } else if let Some(dom_child) = dom_child {
             if let Some(element) = dom_child.dyn_ref::<Element>() {
@@ -150,17 +150,27 @@ impl Renderer {
     /// - `&VirtualNode` - The old virtual node.
     /// - `&VirtualNode` - The new virtual node.
     /// - `&Element` - The real DOM element to patch.
+    ///
+    /// # Returns
+    ///
+    /// - `Node` - The live DOM node after patching. When the tag (or node
+    ///   kind) changed, `patch_node` replaces `dom_element` with a freshly
+    ///   created node and returns the REPLACEMENT; callers that keep a
+    ///   node→handle map (e.g. the keyed diff's `emitted` anchors) must
+    ///   store this return value, because any handle captured before the
+    ///   call is detached by the in-place `replace_child`.
     fn patch_node(
         &mut self,
         old_node: &VirtualNode,
         new_node: &VirtualNode,
         dom_element: &Element,
-    ) {
+    ) -> Node {
         match (old_node, new_node) {
             (VirtualNode::Text(old_text), VirtualNode::Text(new_text)) => {
                 if old_text != new_text {
                     dom_element.set_text_content(Some(new_text.get_content()));
                 }
+                dom_element.clone().into()
             }
             (
                 VirtualNode::Element {
@@ -184,8 +194,9 @@ impl Renderer {
                         Self::cleanup_subtree(dom_element);
                         let _: Result<Node, JsValue> =
                             parent.replace_child(&new_dom_node, dom_element);
+                        return new_dom_node;
                     }
-                    return;
+                    return dom_element.clone().into();
                 }
                 // Portal markers carry the original `data-euv-portal`
                 // attribute set at mount time. The actual children
@@ -198,35 +209,45 @@ impl Renderer {
                 // switcher) to remount portals when their
                 // declaration in the tree changes.
                 if matches!(old_tag, Tag::Portal(_)) {
-                    return;
+                    return dom_element.clone().into();
                 }
                 self.patch_children(dom_element, old_children, new_children);
                 self.patch_attributes(dom_element, old_attrs, new_attrs);
+                dom_element.clone().into()
             }
             (VirtualNode::Fragment(old_children), VirtualNode::Fragment(new_children)) => {
                 self.patch_children(dom_element, old_children, new_children);
+                dom_element.clone().into()
             }
-            (VirtualNode::Dynamic(_old_dynamic), VirtualNode::Dynamic(_new_dynamic)) => {}
+            (VirtualNode::Dynamic(_old_dynamic), VirtualNode::Dynamic(_new_dynamic)) => {
+                dom_element.clone().into()
+            }
             (VirtualNode::Dynamic(_), _) => {
                 let new_dom_node: Node = self.create_dom_node(new_node);
                 if let Some(parent) = dom_element.parent_node() {
                     Self::cleanup_subtree(dom_element);
                     let _: Result<Node, JsValue> = parent.replace_child(&new_dom_node, dom_element);
+                    return new_dom_node;
                 }
+                dom_element.clone().into()
             }
             (_, VirtualNode::Dynamic(_)) => {
                 let new_dom_node: Node = self.create_dom_node(new_node);
                 if let Some(parent) = dom_element.parent_node() {
                     Self::cleanup_subtree(dom_element);
                     let _: Result<Node, JsValue> = parent.replace_child(&new_dom_node, dom_element);
+                    return new_dom_node;
                 }
+                dom_element.clone().into()
             }
             _ => {
                 let new_dom_node: Node = self.create_dom_node(new_node);
                 if let Some(parent) = dom_element.parent_node() {
                     Self::cleanup_subtree(dom_element);
                     let _: Result<Node, JsValue> = parent.replace_child(&new_dom_node, dom_element);
+                    return new_dom_node;
                 }
+                dom_element.clone().into()
             }
         }
     }
@@ -659,94 +680,80 @@ impl Renderer {
                 ChildOpPlan::Remove { .. } => {}
             }
         }
-        // Phase 2 (from plan): walk in NEW order. The plan's
-        // `before: Option<usize>` is the new_index of the next
-        // LIS-anchored child (scanning forward in new order), so
-        // `emitted[*before]` is always a Node already at its final
-        // DOM position by the time we process the current op (we
-        // already placed earlier children in their final spots and the
-        // LIS children stay where they were). `None` means "no
+        // Phase 2a (content patch, NEW order): run `patch_node` for
+        // every Keep / MoveBefore op FIRST and write the returned live
+        // node back into `emitted[new_index]`. `patch_node` replaces
+        // the DOM node in place (`replace_child` is index-preserving)
+        // when the tag or node kind changed, so a handle captured by
+        // the pre-pass above may be detached by the time the order ops
+        // in Phase 2b are batched — refreshing `emitted` here is what
+        // keeps a tag-changed LIS anchor usable as an `insertBefore`
+        // target, and what stops a moved child's stale pre-patch node
+        // from being re-inserted alongside its replacement.
+        for op in plan.iter() {
+            let (new_index, is_move): (usize, bool) = match op {
+                ChildOpPlan::Keep { new_index } => (*new_index, false),
+                ChildOpPlan::MoveBefore { new_index, .. } => (*new_index, true),
+                _ => continue,
+            };
+            let new_child: &VirtualNode = match new_children.get(new_index) {
+                Some(child) => child,
+                None => continue,
+            };
+            let key_owned: String = match new_child.key() {
+                Some(key) => (*key).to_string(),
+                None => continue,
+            };
+            // Keep borrows the entry; MoveBefore removes it so a
+            // duplicated key cannot be consumed twice.
+            let looked_up: Option<(usize, Node)> = if is_move {
+                old_key_to_node.remove(key_owned.as_str())
+            } else {
+                old_key_to_node
+                    .get(key_owned.as_str())
+                    .map(|entry: &(usize, Node)| (entry.0, entry.1.clone()))
+            };
+            drop(key_owned);
+            let Some((old_vnode_index, dom_node)) = looked_up else {
+                continue;
+            };
+            let old_child: &VirtualNode = &old_children[old_vnode_index];
+            let live_node: Node = match dom_node.dyn_ref::<Element>() {
+                Some(element) => self.patch_node(old_child, new_child, element),
+                None => dom_node,
+            };
+            emitted[new_index] = Some(live_node);
+        }
+        // Phase 2b (order ops, NEW order): every MoveBefore /
+        // InsertBefore resolves its node and its `before` anchor from
+        // the Phase-2a-updated `emitted` map, so the batched
+        // `insertBefore` never references a node detached by a content
+        // patch. The plan's `before: Option<usize>` is the new_index of
+        // the next LIS-anchored child in new order; `None` means "no
         // LIS anchor follows" → AppendChild.
         for op in plan.iter() {
-            match op {
-                ChildOpPlan::Keep { new_index } => {
-                    let new_child: &VirtualNode = match new_children.get(*new_index) {
-                        Some(c) => c,
-                        None => continue,
-                    };
-                    let key_owned: String = match new_child.key() {
-                        Some(k) => (*k).to_string(),
-                        None => continue,
-                    };
-                    if let Some((old_vnode_index, dom_node)) =
-                        old_key_to_node.get(key_owned.as_str())
-                    {
-                        let old_child: &VirtualNode = &old_children[*old_vnode_index];
-                        if let Some(element) = dom_node.dyn_ref::<Element>() {
-                            self.patch_node(old_child, new_child, element);
-                        }
-                    }
-                    drop(key_owned);
+            let (new_index, before): (usize, Option<usize>) = match op {
+                ChildOpPlan::MoveBefore { new_index, before }
+                | ChildOpPlan::InsertBefore { new_index, before } => (*new_index, *before),
+                _ => continue,
+            };
+            let node: Node = match emitted.get(new_index).and_then(|n| n.as_ref()).cloned() {
+                Some(node) => node,
+                None => continue,
+            };
+            let reference_node: Option<Node> = match before {
+                Some(idx) => emitted.get(idx).and_then(|n| n.as_ref()).cloned(),
+                None => None,
+            };
+            match reference_node {
+                Some(ref_node) => {
+                    child_ops.push(ChildOp::InsertBefore {
+                        node,
+                        reference: Some(ref_node),
+                    });
                 }
-                ChildOpPlan::MoveBefore { new_index, before } => {
-                    let new_child: &VirtualNode = match new_children.get(*new_index) {
-                        Some(c) => c,
-                        None => continue,
-                    };
-                    let key_owned: String = match new_child.key() {
-                        Some(k) => (*k).to_string(),
-                        None => continue,
-                    };
-                    let (old_vnode_index, dom_node): (usize, Node) =
-                        match old_key_to_node.remove(key_owned.as_str()) {
-                            Some(entry) => entry,
-                            None => continue,
-                        };
-                    drop(key_owned);
-                    let old_child: &VirtualNode = &old_children[old_vnode_index];
-                    if let Some(element) = dom_node.dyn_ref::<Element>() {
-                        self.patch_node(old_child, new_child, element);
-                    }
-                    let reference_node: Option<Node> = match before {
-                        Some(idx) => emitted.get(*idx).and_then(|n| n.as_ref()).cloned(),
-                        None => None,
-                    };
-                    match reference_node {
-                        Some(ref_node) => {
-                            child_ops.push(ChildOp::InsertBefore {
-                                node: dom_node,
-                                reference: Some(ref_node),
-                            });
-                        }
-                        None => {
-                            child_ops.push(ChildOp::AppendChild(dom_node));
-                        }
-                    }
-                }
-                ChildOpPlan::InsertBefore { new_index, before } => {
-                    let new_dom_node: Node =
-                        match emitted.get(*new_index).and_then(|n| n.as_ref()).cloned() {
-                            Some(n) => n,
-                            None => continue,
-                        };
-                    let reference_node: Option<Node> = match before {
-                        Some(idx) => emitted.get(*idx).and_then(|n| n.as_ref()).cloned(),
-                        None => None,
-                    };
-                    match reference_node {
-                        Some(ref_node) => {
-                            child_ops.push(ChildOp::InsertBefore {
-                                node: new_dom_node,
-                                reference: Some(ref_node),
-                            });
-                        }
-                        None => {
-                            child_ops.push(ChildOp::AppendChild(new_dom_node));
-                        }
-                    }
-                }
-                ChildOpPlan::Remove { .. } => {
-                    // Already handled in Phase 1 above.
+                None => {
+                    child_ops.push(ChildOp::AppendChild(node));
                 }
             }
         }
@@ -789,7 +796,7 @@ impl Renderer {
             let dom_index: u32 = index as u32;
             if let Some(dom_child) = child_nodes.get(dom_index) {
                 if let Some(element) = dom_child.dyn_ref::<Element>() {
-                    self.patch_node(old_child, new_child, element);
+                    let _: Node = self.patch_node(old_child, new_child, element);
                 } else if let (VirtualNode::Text(old_text), VirtualNode::Text(new_text)) =
                     (old_child, new_child)
                 {
