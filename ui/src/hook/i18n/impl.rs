@@ -1,14 +1,5 @@
 use super::*;
 
-/// Returns the process-wide messages lock, initialising it
-/// on first call.
-///
-/// All i18n reads and writes route through this helper so
-/// the lazy-init logic stays in one place.
-fn messages_lock() -> &'static RwLock<HashMap<String, HashMap<String, String>>> {
-    I18N_MESSAGES.get_or_init(|| RwLock::new(HashMap::new()))
-}
-
 /// Implements [`HookContextI18nExt`] for [`HookContext`].
 impl HookContextI18nExt for HookContext {
     /// Returns a fresh [`I18n`] bound to the current component scope.
@@ -223,3 +214,9 @@ impl I18n {
             .unwrap_or_default()
     }
 }
+
+/// `I18n` is `Copy` because every remaining field is a
+/// `Signal`, which is already `Copy` — the registry hands
+/// out cheap `usize` addresses for any `T: Clone + PartialEq
+/// + 'static`.
+impl Copy for I18n {}

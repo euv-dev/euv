@@ -110,3 +110,8 @@ impl ProfilerMark {
         self.get_entries().set(current);
     }
 }
+
+/// `ProfilerHandle` is `Copy` because `Signal<Vec<ProfileEntry>>`
+/// is itself `Copy` (the registry hands out cheap `usize`
+/// addresses; the vector lives in the global signal store).
+impl Copy for ProfilerHandle {}

@@ -18,8 +18,3 @@ pub struct ErrorBoundary {
     /// The phase signal.
     pub(crate) phase: Signal<ErrorBoundaryPhase>,
 }
-
-/// `ErrorBoundary` is `Copy` because `Signal<ErrorBoundaryPhase>`
-/// is itself `Copy` — the signal registry hands out cheap
-/// `usize` addresses.
-impl Copy for ErrorBoundary {}

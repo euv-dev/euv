@@ -137,3 +137,11 @@ pub fn i18n_reset_for_tests() {
         guard.clear();
     }
 }
+/// Returns the process-wide messages lock, initialising it
+/// on first call.
+///
+/// All i18n reads and writes route through this helper so
+/// the lazy-init logic stays in one place.
+pub(crate) fn messages_lock() -> &'static RwLock<HashMap<String, HashMap<String, String>>> {
+    I18N_MESSAGES.get_or_init(|| RwLock::new(HashMap::new()))
+}

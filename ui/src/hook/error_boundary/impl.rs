@@ -121,3 +121,7 @@ impl PartialEq for ErrorBoundaryPhase {
         }
     }
 }
+/// `ErrorBoundary` is `Copy` because `Signal<ErrorBoundaryPhase>`
+/// is itself `Copy` — the signal registry hands out cheap
+/// `usize` addresses.
+impl Copy for ErrorBoundary {}

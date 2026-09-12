@@ -24,12 +24,6 @@ use super::*;
 /// - writes (`add_messages`, `remove_locale`,
 ///   `remove_message`) take the write guard once.
 ///
-/// `I18n` is `Copy` because every remaining field is a
-/// `Signal`, which is already `Copy` — the registry hands
-/// out cheap `usize` addresses for any `T: Clone + PartialEq
-/// + 'static`.
-impl Copy for I18n {}
-
 /// Process-wide translation table storage.
 ///
 /// Backed by [`std::sync::OnceLock`] so the table is
