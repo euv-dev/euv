@@ -355,34 +355,57 @@ pub(crate) fn compute_child_ops_plan<'a>(
     for &lis_pos in lis.iter() {
         in_lis_at_kept_pos[lis_pos] = true;
     }
-    // Pass 6: single O(N) sweep that emits Keep / MoveBefore /
-    // InsertBefore. Anchor tracking uses the new_index of the
-    // most-recently-emitted child as the reference for the next
-    // Move/Insert. This is the property that makes the
-    // MoveBefore/InsertBefore references safe: each anchor points
-    // at a child that has already been emitted and is therefore at
-    // its final DOM position, and none of the anchors are detached
-    // by the still-pending removal pass (removals ran first).
-    let mut last_anchor: Option<usize> = None;
-    for (new_index, _) in new_keys.iter().enumerate() {
+    // Pass 6: emit Keep / MoveBefore / InsertBefore in NEW order. The
+    // `before: Option<usize>` field of MoveBefore / InsertBefore is the
+    // `new_index` of the next LIS-anchored child in NEW order (i.e. the
+    // next child whose position is "stable" — it won't be moved by any
+    // later op). `None` means "append" (no stable anchor follows).
+    //
+    // The renderer walks the plan in REVERSE NEW order and resolves
+    // `before: usize` to a live `Node` handle via an `emitted[new_index]`
+    // pre-pass. Processing in reverse guarantees that when we emit
+    // `InsertBefore(node, reference)`, the `reference` Node is either
+    //   (a) an LIS-stable child already at its final DOM position, or
+    //   (b) the same Node we're moving (MoveBefore into its own slot is
+    //       a no-op and skipped — see renderer), or
+    //   (c) `None` → AppendChild.
+    //
+    // Why this works: by the time the renderer processes the reverse-N-th
+    // child (for new_index N), every non-LIS child with new_index > N has
+    // already been re-positioned at its final DOM location. The
+    // next-LIS-anchor child with new_index > N (call it K) is at its
+    // correct DOM position because K is LIS-stable. InsertBefore(node, K)
+    // places `node` immediately before K in the DOM, which is exactly the
+    // correct final position for `node` (since `node` itself isn't LIS).
+    //
+    // We compute the `next_lis_for[new_index]` array in a single reverse
+    // sweep, then derive the plan in a single forward sweep.
+    let mut next_lis_for: Vec<Option<usize>> = vec![None; new_len];
+    let mut next: Option<usize> = None;
+    for new_index in (0..new_len).rev() {
+        next_lis_for[new_index] = next;
+        if let Some(kept_pos) = kept_pos_for_new[new_index]
+            && in_lis_at_kept_pos[kept_pos]
+        {
+            next = Some(new_index);
+        }
+    }
+    for new_index in 0..new_len {
         match kept_pos_for_new[new_index] {
             Some(kept_pos) if in_lis_at_kept_pos[kept_pos] => {
                 plan.push(ChildOpPlan::Keep { new_index });
-                last_anchor = Some(new_index);
             }
             Some(_kept_pos) => {
                 plan.push(ChildOpPlan::MoveBefore {
                     new_index,
-                    before: last_anchor.map(|a| a + 1),
+                    before: next_lis_for[new_index],
                 });
-                last_anchor = Some(new_index);
             }
             None => {
                 plan.push(ChildOpPlan::InsertBefore {
                     new_index,
-                    before: last_anchor.map(|a| a + 1),
+                    before: next_lis_for[new_index],
                 });
-                last_anchor = Some(new_index);
             }
         }
     }
@@ -530,7 +553,7 @@ mod tests {
         // Removes first (none). Then walks new:
         //   0 = a (LIS) Keep
         //   1 = b (LIS) Keep
-        //   2 = c (new) InsertBefore, before = last_anchor + 1 = 2
+        //   2 = c (new) InsertBefore, before = None (no LIS anchor after)
         assert_eq!(
             plan,
             vec![
@@ -538,7 +561,7 @@ mod tests {
                 ChildOpPlan::Keep { new_index: 1 },
                 ChildOpPlan::InsertBefore {
                     new_index: 2,
-                    before: Some(2)
+                    before: None
                 },
             ]
         );
@@ -551,7 +574,7 @@ mod tests {
         let plan = compute_child_ops_plan(&old, &new);
         // Removes: none.
         // Walks new:
-        //   0 = z (new) InsertBefore before = None (no anchor yet)
+        //   0 = z (new) InsertBefore before = Some(1) (next LIS anchor = a)
         //   1 = a (LIS — kept_old_indices=[0,1] for a,b; LIS=[0,1])
         //   2 = b (LIS)
         assert_eq!(
@@ -559,7 +582,7 @@ mod tests {
             vec![
                 ChildOpPlan::InsertBefore {
                     new_index: 0,
-                    before: None
+                    before: Some(1)
                 },
                 ChildOpPlan::Keep { new_index: 1 },
                 ChildOpPlan::Keep { new_index: 2 },
@@ -668,22 +691,11 @@ mod tests {
             .cloned()
             .collect();
         assert_eq!(inserts.len(), 26);
-        // Every insert except the first must reference a live
-        // previous anchor (Some(_)). The very first one anchors
-        // against None (append).
-        let mut saw_first = false;
-        for op in &inserts {
-            if let ChildOpPlan::InsertBefore { new_index, before } = op {
-                if !saw_first {
-                    assert_eq!(*new_index, 0);
-                    assert_eq!(*before, None, "first insert must anchor against None");
-                    saw_first = true;
-                } else {
-                    assert!(before.is_some(), "later inserts must have a live anchor");
-                }
-            }
-        }
-        assert!(saw_first);
+        // Every insert has `before = None` because no old key survives
+        // into the new sequence (next_lis_for stays None throughout the
+        // reverse sweep). The renderer interprets `None` as "append",
+        // which is correct: virtual-list full-replace = remove all old
+        // + append all new in order.
         // The Remove/InsertBefore split is the safety property: all
         // 26 Removes are queued BEFORE any Insert, so no insert ever
         // targets a node the removes are about to detach. We verify
@@ -736,25 +748,25 @@ mod tests {
     #[test]
     fn plan_overlapping_reorder() {
         // [a, b, c, d] -> [b, d, a, c].
-        // kept_old_indices (for new) = [1, 3, 0, 2]. LIS = [2, 3]
-        // (kept_old_indices positions whose values [0, 2] form an
-        // increasing subsequence). These correspond to new keys at
-        // new_index 2 and 3 ("a" and "c"), which therefore Keep.
+        // kept_old_indices (for new) = [1, 3, 0, 2]. LIS = positions
+        // [2, 3] in kept_old_indices (values [0, 2] = "a", "c"). So
         // new_index 0 and 1 ("b" and "d") are non-LIS reuses and
-        // become MoveBefore.
+        // become MoveBefore; new_index 2 and 3 ("a" and "c") Keep.
         let old = vec![key("a"), key("b"), key("c"), key("d")];
         let new = vec![key("b"), key("d"), key("a"), key("c")];
         let plan = compute_child_ops_plan(&old, &new);
+        // next_lis_for (reverse sweep): [Some(2), Some(2), Some(3), None]
+        // so both b and d use `before = Some(2)` (the next LIS anchor).
         assert_eq!(
             plan,
             vec![
                 ChildOpPlan::MoveBefore {
                     new_index: 0,
-                    before: None
+                    before: Some(2)
                 },
                 ChildOpPlan::MoveBefore {
                     new_index: 1,
-                    before: Some(1)
+                    before: Some(2)
                 },
                 ChildOpPlan::Keep { new_index: 2 },
                 ChildOpPlan::Keep { new_index: 3 },
@@ -775,11 +787,11 @@ mod tests {
                 ChildOpPlan::Remove { old_index: 1 },
                 // Walks new:
                 //   0 = a (LIS — kept_old_indices=[0]; LIS=[0]) Keep
-                //   1 = c (new) InsertBefore before = Some(1)
+                //   1 = c (new) InsertBefore before = None (no LIS after)
                 ChildOpPlan::Keep { new_index: 0 },
                 ChildOpPlan::InsertBefore {
                     new_index: 1,
-                    before: Some(1)
+                    before: None
                 },
             ]
         );
@@ -790,6 +802,9 @@ mod tests {
         let old: Vec<Option<&'static str>> = vec![];
         let new = vec![key("a"), key("b")];
         let plan = compute_child_ops_plan(&old, &new);
+        // All new children; next_lis_for stays None because no key
+        // is in old_key_to_pos. So a uses before=None (append) and
+        // b uses before=None as well.
         assert_eq!(
             plan,
             vec![
@@ -799,7 +814,7 @@ mod tests {
                 },
                 ChildOpPlan::InsertBefore {
                     new_index: 1,
-                    before: Some(1)
+                    before: None
                 },
             ]
         );
@@ -963,5 +978,355 @@ mod tests {
              {per_call_ns:.1} ns/call on N=100 full reverse \
              (was <5µs before)",
         );
+    }
+
+    /// Simulated-DOM order test for the new (reverse-anchor) algorithm.
+    /// Builds a trivial `Vec<String>` "DOM" with stable Node handles
+    /// (String clone = handle) and runs the exact rendering logic against
+    /// it: Phase 1 removes, pre-pass `emitted` map, Phase 2 walks the
+    /// plan in REVERSE new order and resolves `before: new_index` to
+    /// the corresponding `emitted` entry. Asserts the resulting DOM
+    /// order equals the new-keys order.
+    ///
+    /// This test exists because the planner's own correctness depends
+    /// on the renderer resolving `before: Option<usize>` (a new_index)
+    /// through the `emitted[new_index]` Node handle map and applying
+    /// ops in reverse. Both bugs that previously shipped (PR #187 LIS
+    /// tie-break + PR #202 reverse-but-stale-NodeList-reference) would
+    /// have been caught here.
+    #[test]
+    fn simulated_dom_order_matches_new_keys() {
+        // Simulate all the interesting reorder shapes — including
+        // scroll-by-1 (1 Remove, 1 Insert, rest Keep), middle-insert,
+        // middle-delete, full-reverse, swap.
+        #[allow(clippy::type_complexity)]
+        let cases: &[(&str, Vec<Option<&'static str>>, Vec<Option<&'static str>>)] = &[
+            (
+                "scroll-by-1 (k0..k25 -> k1..k26)",
+                vec![
+                    Some("k0"),
+                    Some("k1"),
+                    Some("k2"),
+                    Some("k3"),
+                    Some("k4"),
+                    Some("k5"),
+                    Some("k6"),
+                    Some("k7"),
+                    Some("k8"),
+                    Some("k9"),
+                    Some("k10"),
+                    Some("k11"),
+                    Some("k12"),
+                    Some("k13"),
+                    Some("k14"),
+                    Some("k15"),
+                    Some("k16"),
+                    Some("k17"),
+                    Some("k18"),
+                    Some("k19"),
+                    Some("k20"),
+                    Some("k21"),
+                    Some("k22"),
+                    Some("k23"),
+                    Some("k24"),
+                    Some("k25"),
+                ],
+                vec![
+                    Some("k1"),
+                    Some("k2"),
+                    Some("k3"),
+                    Some("k4"),
+                    Some("k5"),
+                    Some("k6"),
+                    Some("k7"),
+                    Some("k8"),
+                    Some("k9"),
+                    Some("k10"),
+                    Some("k11"),
+                    Some("k12"),
+                    Some("k13"),
+                    Some("k14"),
+                    Some("k15"),
+                    Some("k16"),
+                    Some("k17"),
+                    Some("k18"),
+                    Some("k19"),
+                    Some("k20"),
+                    Some("k21"),
+                    Some("k22"),
+                    Some("k23"),
+                    Some("k24"),
+                    Some("k25"),
+                    Some("k26"),
+                ],
+            ),
+            (
+                "swap middle [a,b,c,d,e] -> [a,c,d,b,e]",
+                vec![Some("a"), Some("b"), Some("c"), Some("d"), Some("e")],
+                vec![Some("a"), Some("c"), Some("d"), Some("b"), Some("e")],
+            ),
+            (
+                "swap two [a,b,c] -> [a,c,b]",
+                vec![Some("a"), Some("b"), Some("c")],
+                vec![Some("a"), Some("c"), Some("b")],
+            ),
+            (
+                "full reverse [a,b,c,d] -> [d,c,b,a]",
+                vec![Some("a"), Some("b"), Some("c"), Some("d")],
+                vec![Some("d"), Some("c"), Some("b"), Some("a")],
+            ),
+            (
+                "rotate left [a,b,c,d] -> [b,c,d,a]",
+                vec![Some("a"), Some("b"), Some("c"), Some("d")],
+                vec![Some("b"), Some("c"), Some("d"), Some("a")],
+            ),
+            (
+                "delete middle [a,b,c,d,e] -> [a,b,d,e] (no fill)",
+                vec![Some("a"), Some("b"), Some("c"), Some("d"), Some("e")],
+                vec![Some("a"), Some("b"), Some("d"), Some("e")],
+            ),
+            (
+                "insert middle [a,b,c,d] -> [a,b,x,c,d]",
+                vec![Some("a"), Some("b"), Some("c"), Some("d")],
+                vec![Some("a"), Some("b"), Some("x"), Some("c"), Some("d")],
+            ),
+            (
+                // Virtual-list at scroll-bottom delete: visible =
+                // [k100..k125], user deletes k105, virtual list scrolls
+                // bottom to fill the gap (adds k126). Expected DOM =
+                // [k100..k104, k106..k125, k126] — i.e. "elements above
+                // the deleted one stay in place, elements after the
+                // deleted one shift forward, k126 appends".
+                "vlist bottom-delete k105 (k100..k125 -> k100..k104,k106..k125,k126)",
+                vec![
+                    Some("k100"),
+                    Some("k101"),
+                    Some("k102"),
+                    Some("k103"),
+                    Some("k104"),
+                    Some("k105"),
+                    Some("k106"),
+                    Some("k107"),
+                    Some("k108"),
+                    Some("k109"),
+                    Some("k110"),
+                    Some("k111"),
+                    Some("k112"),
+                    Some("k113"),
+                    Some("k114"),
+                    Some("k115"),
+                    Some("k116"),
+                    Some("k117"),
+                    Some("k118"),
+                    Some("k119"),
+                    Some("k120"),
+                    Some("k121"),
+                    Some("k122"),
+                    Some("k123"),
+                    Some("k124"),
+                    Some("k125"),
+                ],
+                vec![
+                    Some("k100"),
+                    Some("k101"),
+                    Some("k102"),
+                    Some("k103"),
+                    Some("k104"),
+                    Some("k106"),
+                    Some("k107"),
+                    Some("k108"),
+                    Some("k109"),
+                    Some("k110"),
+                    Some("k111"),
+                    Some("k112"),
+                    Some("k113"),
+                    Some("k114"),
+                    Some("k115"),
+                    Some("k116"),
+                    Some("k117"),
+                    Some("k118"),
+                    Some("k119"),
+                    Some("k120"),
+                    Some("k121"),
+                    Some("k122"),
+                    Some("k123"),
+                    Some("k124"),
+                    Some("k125"),
+                    Some("k126"),
+                ],
+            ),
+            (
+                // Virtual-list at scroll-middle delete: visible =
+                // [k50..k75], user deletes k60, virtual list scrolls
+                // to fill the gap (adds k76). Expected DOM =
+                // [k50..k59, k61..k75, k76] — "elements after the
+                // deleted one shift forward, k76 appends".
+                "vlist middle-delete k60 (k50..k75 -> k50..k59,k61..k75,k76)",
+                vec![
+                    Some("k50"),
+                    Some("k51"),
+                    Some("k52"),
+                    Some("k53"),
+                    Some("k54"),
+                    Some("k55"),
+                    Some("k56"),
+                    Some("k57"),
+                    Some("k58"),
+                    Some("k59"),
+                    Some("k60"),
+                    Some("k61"),
+                    Some("k62"),
+                    Some("k63"),
+                    Some("k64"),
+                    Some("k65"),
+                    Some("k66"),
+                    Some("k67"),
+                    Some("k68"),
+                    Some("k69"),
+                    Some("k70"),
+                    Some("k71"),
+                    Some("k72"),
+                    Some("k73"),
+                    Some("k74"),
+                    Some("k75"),
+                ],
+                vec![
+                    Some("k50"),
+                    Some("k51"),
+                    Some("k52"),
+                    Some("k53"),
+                    Some("k54"),
+                    Some("k55"),
+                    Some("k56"),
+                    Some("k57"),
+                    Some("k58"),
+                    Some("k59"),
+                    Some("k61"),
+                    Some("k62"),
+                    Some("k63"),
+                    Some("k64"),
+                    Some("k65"),
+                    Some("k66"),
+                    Some("k67"),
+                    Some("k68"),
+                    Some("k69"),
+                    Some("k70"),
+                    Some("k71"),
+                    Some("k72"),
+                    Some("k73"),
+                    Some("k74"),
+                    Some("k75"),
+                    Some("k76"),
+                ],
+            ),
+        ];
+        for (name, old_keys, new_keys) in cases {
+            // Stable DOM: Vec<String> of keys currently in the DOM.
+            // "Handle" = clone of the key string (we only need identity
+            // for the emitted map; we never read DOM "attributes").
+            let mut dom: Vec<String> = old_keys
+                .iter()
+                .filter_map(|k| k.map(|s| s.to_string()))
+                .collect();
+            // Run the planner.
+            let plan = compute_child_ops_plan(old_keys, new_keys);
+            // Build old_key -> dom_handle map (clone keys first to drop the
+            // immutable borrow of `dom` before we start mutating it).
+            let initial_handles: Vec<String> = dom.clone();
+            let mut old_key_to_handle: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
+            for handle in initial_handles.iter() {
+                let key_str: String = handle.clone();
+                old_key_to_handle.insert(key_str, handle.clone());
+            }
+            // Phase 1 — execute Removes. (The renderer phase-1 just
+            // removes keyed old children absent from new_key_set.)
+            for op in plan.iter() {
+                if let ChildOpPlan::Remove { old_index } = op {
+                    let key_owned: String = match old_keys.get(*old_index) {
+                        Some(Some(k)) => (*k).to_string(),
+                        _ => continue,
+                    };
+                    let remove_pos = dom.iter().position(|h| h == &key_owned);
+                    if let Some(pos) = remove_pos {
+                        dom.remove(pos);
+                    }
+                    drop(key_owned);
+                }
+            }
+            // Pre-pass: populate `emitted[new_index]` with the handle
+            // (existing for Keep/Move, freshly minted for Insert).
+            let mut emitted: Vec<Option<String>> = vec![None; new_keys.len()];
+            for op in plan.iter() {
+                match op {
+                    ChildOpPlan::Keep { new_index } | ChildOpPlan::MoveBefore { new_index, .. } => {
+                        let key_owned: String = match new_keys.get(*new_index) {
+                            Some(Some(k)) => (*k).to_string(),
+                            _ => continue,
+                        };
+                        if let Some(handle) = old_key_to_handle.get(&key_owned) {
+                            emitted[*new_index] = Some(handle.clone());
+                        }
+                        drop(key_owned);
+                    }
+                    ChildOpPlan::InsertBefore { new_index, .. } => {
+                        let key_owned: String = match new_keys.get(*new_index) {
+                            Some(Some(k)) => (*k).to_string(),
+                            _ => continue,
+                        };
+                        emitted[*new_index] = Some(key_owned.clone());
+                        drop(key_owned);
+                    }
+                    ChildOpPlan::Remove { .. } => {}
+                }
+            }
+            // Phase 2 — walk plan in FORWARD new order; for each
+            // non-Keep op, find emitted[*before] reference and apply
+            // InsertBefore(handle, reference) (or AppendChild if None).
+            for op in plan.iter() {
+                match op {
+                    ChildOpPlan::Keep { .. } => {}
+                    ChildOpPlan::MoveBefore { new_index, before }
+                    | ChildOpPlan::InsertBefore { new_index, before } => {
+                        let handle: String = match emitted[*new_index].clone() {
+                            Some(h) => h,
+                            None => continue,
+                        };
+                        let reference: Option<String> =
+                            before.and_then(|idx| emitted.get(idx).and_then(|e| e.clone()));
+                        match reference {
+                            Some(ref_handle) => {
+                                // Move the handle out of its current
+                                // position (if present) and insert
+                                // before ref_handle's handle.
+                                let pos = dom.iter().position(|h| h == &handle);
+                                if let Some(pos) = pos {
+                                    dom.remove(pos);
+                                }
+                                let ref_pos = dom.iter().position(|h| h == &ref_handle);
+                                match ref_pos {
+                                    Some(rp) => dom.insert(rp, handle),
+                                    None => dom.push(handle),
+                                }
+                            }
+                            None => {
+                                let pos = dom.iter().position(|h| h == &handle);
+                                if let Some(pos) = pos {
+                                    dom.remove(pos);
+                                }
+                                dom.push(handle);
+                            }
+                        }
+                    }
+                    ChildOpPlan::Remove { .. } => {}
+                }
+            }
+            // Compare to expected DOM order = new_keys with None filtered.
+            let expected: Vec<String> = new_keys
+                .iter()
+                .filter_map(|k| k.map(|s| s.to_string()))
+                .collect();
+            assert_eq!(dom, expected, "DOM order mismatch in case `{name}`");
+        }
     }
 }

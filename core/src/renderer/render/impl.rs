@@ -623,54 +623,92 @@ impl Renderer {
                 }
             }
         }
-        // Phase 2 (from plan): walk in order. The plan guarantees
-        // `MoveBefore`/`InsertBefore` references point at children
-        // already in their final DOM position (LIS children), so no
-        // reference becomes detached by later ops in this loop.
-        //
-        // The renderer also still calls `patch_node` for every
-        // non-removed new child to update attrs/text. Keep entries
-        // skip the move/insert but still need `patch_node`; Move and
-        // Insert ops need both `patch_node` (for re-used keys) and
-        // the DOM op.
+        // Pre-pass: populate `emitted: Vec<Option<Node>>` indexed by
+        // new_index. For Keep and Move ops this is the existing DOM
+        // Node (looked up via old_key_to_node); for Insert ops this is
+        // a freshly created Node. This pre-pass is what lets Phase 2
+        // resolve `before: Option<usize>` (which is a new_index of the
+        // next-LIS anchor in new order) to a live `Node` handle, so
+        // we no longer depend on the stale `child_nodes` NodeList
+        // index lookup that the previous implementation used (and which
+        // shifted every time a Remove op took effect at batch flush
+        // time).
+        let new_len: usize = new_children.len();
+        let mut emitted: Vec<Option<Node>> = vec![None; new_len];
+        for op in plan.iter() {
+            match op {
+                ChildOpPlan::Keep { new_index } | ChildOpPlan::MoveBefore { new_index, .. } => {
+                    let key_owned: String = match new_children.get(*new_index) {
+                        Some(new_child) => match new_child.key() {
+                            Some(k) => (*k).to_string(),
+                            None => continue,
+                        },
+                        None => continue,
+                    };
+                    if let Some((_, dom_node)) = old_key_to_node.get(key_owned.as_str()) {
+                        emitted[*new_index] = Some(dom_node.clone());
+                    }
+                    drop(key_owned);
+                }
+                ChildOpPlan::InsertBefore { new_index, .. } => {
+                    if let Some(new_child) = new_children.get(*new_index) {
+                        let new_dom_node: Node = self.create_dom_node(new_child);
+                        emitted[*new_index] = Some(new_dom_node);
+                    }
+                }
+                ChildOpPlan::Remove { .. } => {}
+            }
+        }
+        // Phase 2 (from plan): walk in NEW order. The plan's
+        // `before: Option<usize>` is the new_index of the next
+        // LIS-anchored child (scanning forward in new order), so
+        // `emitted[*before]` is always a Node already at its final
+        // DOM position by the time we process the current op (we
+        // already placed earlier children in their final spots and the
+        // LIS children stay where they were). `None` means "no
+        // LIS anchor follows" → AppendChild.
         for op in plan.iter() {
             match op {
                 ChildOpPlan::Keep { new_index } => {
-                    if let Some(new_child) = new_children.get(*new_index)
-                        && let Some(new_key) = new_child.key()
-                        && let Some((old_vnode_index, dom_node)) = old_key_to_node.get(new_key)
+                    let new_child: &VirtualNode = match new_children.get(*new_index) {
+                        Some(c) => c,
+                        None => continue,
+                    };
+                    let key_owned: String = match new_child.key() {
+                        Some(k) => (*k).to_string(),
+                        None => continue,
+                    };
+                    if let Some((old_vnode_index, dom_node)) =
+                        old_key_to_node.get(key_owned.as_str())
                     {
                         let old_child: &VirtualNode = &old_children[*old_vnode_index];
                         if let Some(element) = dom_node.dyn_ref::<Element>() {
                             self.patch_node(old_child, new_child, element);
                         }
                     }
+                    drop(key_owned);
                 }
                 ChildOpPlan::MoveBefore { new_index, before } => {
                     let new_child: &VirtualNode = match new_children.get(*new_index) {
                         Some(c) => c,
                         None => continue,
                     };
-                    let new_key: &str = match new_child.key() {
-                        Some(k) => k,
+                    let key_owned: String = match new_child.key() {
+                        Some(k) => (*k).to_string(),
                         None => continue,
                     };
                     let (old_vnode_index, dom_node): (usize, Node) =
-                        match old_key_to_node.remove(new_key) {
+                        match old_key_to_node.remove(key_owned.as_str()) {
                             Some(entry) => entry,
                             None => continue,
                         };
+                    drop(key_owned);
                     let old_child: &VirtualNode = &old_children[old_vnode_index];
                     if let Some(element) = dom_node.dyn_ref::<Element>() {
                         self.patch_node(old_child, new_child, element);
                     }
-                    // Resolve `before`: Some(idx) = "insert before
-                    // the child at new_index `idx`" (which is a
-                    // previously-emitted Keep/Move/Insert that has
-                    // already landed at its final DOM position).
-                    // None = append.
                     let reference_node: Option<Node> = match before {
-                        Some(idx) => child_nodes.get(*idx as u32),
+                        Some(idx) => emitted.get(*idx).and_then(|n| n.as_ref()).cloned(),
                         None => None,
                     };
                     match reference_node {
@@ -686,13 +724,13 @@ impl Renderer {
                     }
                 }
                 ChildOpPlan::InsertBefore { new_index, before } => {
-                    let new_child: &VirtualNode = match new_children.get(*new_index) {
-                        Some(c) => c,
-                        None => continue,
-                    };
-                    let new_dom_node: Node = self.create_dom_node(new_child);
+                    let new_dom_node: Node =
+                        match emitted.get(*new_index).and_then(|n| n.as_ref()).cloned() {
+                            Some(n) => n,
+                            None => continue,
+                        };
                     let reference_node: Option<Node> = match before {
-                        Some(idx) => child_nodes.get(*idx as u32),
+                        Some(idx) => emitted.get(*idx).and_then(|n| n.as_ref()).cloned(),
                         None => None,
                     };
                     match reference_node {
