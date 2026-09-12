@@ -8,7 +8,6 @@ fn step_applies_torque_to_3d_angular_velocity() {
     let mut body: RigidBody3D = RigidBody3D::new_dynamic(1, Vector3D::new(0.0, 0.0, 0.0));
     body.apply_torque(Vector3D::new(0.0, 0.0, 2.0));
     world.add_body(body);
-
     world.step(1.0);
     let omega: Vector3D = world.get_body(1).unwrap().get_angular_velocity();
     assert!(
@@ -43,7 +42,6 @@ fn step_static_3d_body_ignores_torque() {
     let mut body: RigidBody3D = RigidBody3D::new_static(1, Vector3D::new(0.0, 0.0, 0.0));
     body.apply_torque(Vector3D::new(1.0, 0.0, 0.0));
     world.add_body(body);
-
     world.step(1.0);
     let omega: Vector3D = world.get_body(1).unwrap().get_angular_velocity();
     assert!(
@@ -62,7 +60,6 @@ fn step_torque_accumulates_over_multiple_steps() {
     let mut world: PhysicsWorld3D = PhysicsWorld3D::default();
     let body: RigidBody3D = RigidBody3D::new_dynamic(1, Vector3D::new(0.0, 0.0, 0.0));
     world.add_body(body);
-
     for _ in 0..4 {
         world
             .get_body_mut(1)
@@ -82,7 +79,6 @@ fn step_2d_angular_velocity_unchanged() {
     let mut world: PhysicsWorld2D = PhysicsWorld2D::default();
     let body: RigidBody2D = RigidBody2D::new_dynamic(1, Vector2D::new(0.0, 0.0));
     world.add_body(body);
-
     world.step(1.0);
     let omega: f64 = world.get_body(1).unwrap().get_angular_velocity();
     assert!(
