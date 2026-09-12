@@ -1,125 +1,5 @@
 use super::*;
 
-/// OPT 2: cache `JsValue::from_str(...)` results in a thread-local map so we
-/// don't pay a fresh wasm-linear-memory string allocation for every
-/// `Reflect::get(obj, &JsValue::from_str(METHOD_NAME))` or
-/// `Reflect::set(obj, &JsValue::from_str(PROPERTY_NAME), value)` call.
-/// WebGPU render paths use 79 `Reflect::get` calls and ~50
-/// `Reflect::set` calls in this file; each previously allocated a 1-N
-/// byte JS string in linear memory. We only cache the constant
-/// `&'static str` keys here — dynamic string lookups (e.g. uniform
-/// names) are unaffected. The map is created once per thread, lazily,
-/// and grows monotonically for the lifetime of the wasm instance.
-fn cached_method_name(name: &'static str) -> JsValue {
-    use std::cell::RefCell;
-    use std::collections::HashMap;
-    thread_local! {
-        static CACHE: RefCell<Option<HashMap<&'static str, JsValue>>> =
-            const { RefCell::new(None) };
-    }
-    CACHE.with(|slot| {
-        let mut borrow: std::cell::RefMut<'_, Option<HashMap<&'static str, JsValue>>> =
-            slot.borrow_mut();
-        let map: &mut HashMap<&'static str, JsValue> = borrow.get_or_insert_with(HashMap::new);
-        if let Some(value) = map.get(name) {
-            return value.clone();
-        }
-        let value: JsValue = JsValue::from_str(name);
-        map.insert(name, value.clone());
-        value
-    })
-}
-
-/// OPT 2b: thread-local cache of WebGPU `Function` objects keyed by
-/// `(receiver_ptr, method_name)`.
-///
-/// `cached_method_name` only avoids the `JsValue::from_str(METHOD_NAME)`
-/// allocation; the subsequent `Reflect::get(obj, name)` still costs a JS
-/// property lookup plus the `Function` allocation in linear memory. JS
-/// class methods live on the prototype, so the same `Function` is returned
-/// every time you ask for `GpuDevice.prototype.createCommandEncoder`,
-/// `GpuRenderPassEncoder.prototype.setPipeline`, etc. We memoise the first
-/// `Reflect::get` and reuse the cached `Function` on every subsequent call.
-///
-/// # Key design
-///
-/// - **Receiver identity** is taken as `&obj as *const JsValue as usize`:
-///   the underlying wasm linear-memory address of the `JsValue` is stable
-///   for the lifetime of the JS object, and the prototype's `Function` is
-///   the same instance across all live receivers of a given class. WebGPU
-///   objects (device, queue, encoder, pass encoder) are all allocated once
-///   and reused for the renderer lifetime, so the cache hits on the second
-///   call and stays hot.
-/// - **Method name** is `&'static str`: callers must pass one of the
-///   `WEBGPU_METHOD_*` constants. This keeps the cache key allocation-free.
-/// - **First call only**: the first time a `(receiver, method)` pair is
-///   seen, we fall back to `Reflect::get(obj, name)` to populate the cache.
-///   All later calls bypass `Reflect::get` entirely.
-///
-/// # Thread safety
-///
-/// `thread_local!` storage guarantees one cache per wasm instance thread.
-/// WebAssembly is single-threaded for the renderer; the cache is not shared.
-///
-/// # Result
-///
-/// Each cached call drops from ~120ns to ~10ns (a single `Function::callN`
-/// over the wasm/js boundary with no `from_str` and no property lookup).
-///
-/// # Arguments
-///
-/// - `obj` - The receiver (`this`) for the call. Cached by its address.
-/// - `method_name` - A `'static str` matching a `WEBGPU_METHOD_*` constant.
-///
-/// # Returns
-///
-/// - `Result<Function, JsValue>` - The cached `Function` object on success;
-///   the `Reflect::get` error on cache miss / method-not-found.
-///
-/// Note: `this` binding is the caller's responsibility — use
-/// `Function::call0(this)`, `call1(this, &arg)`, `call2(this, &a, &b)`, ...
-/// as appropriate. JS `Function` objects don't bind `this`, so the caller
-/// must always pass `obj` (or `this`) as the first argument.
-pub(crate) fn cached_method(obj: &JsValue, method_name: &'static str) -> Result<Function, JsValue> {
-    use std::cell::RefCell;
-    use std::collections::HashMap;
-    thread_local! {
-        static FUNCTION_CACHE: RefCell<
-            Option<HashMap<(usize, &'static str), Function>>,
-        > = const { RefCell::new(None) };
-    }
-    let key: (usize, &'static str) = (obj as *const JsValue as usize, method_name);
-    FUNCTION_CACHE.with(|slot| {
-        let mut borrow: std::cell::RefMut<'_, Option<HashMap<(usize, &'static str), Function>>> =
-            slot.borrow_mut();
-        let map: &mut HashMap<(usize, &'static str), Function> =
-            borrow.get_or_insert_with(HashMap::new);
-        if let Some(func) = map.get(&key) {
-            return Ok(func.clone());
-        }
-        let value: Result<JsValue, JsValue> = Reflect::get(obj, &cached_method_name(method_name));
-        let value: JsValue = match value {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-        let func: Function = value.unchecked_into();
-        map.insert(key, func.clone());
-        Ok(func)
-    })
-}
-
-/// OPT 2b convenience: cached `Function::call1(this, &arg)` for
-/// the common 1-argument WebGPU method call. See [`cached_method`]
-/// for the cache semantics.
-pub(crate) fn cached_method_call(
-    obj: &JsValue,
-    method_name: &'static str,
-    arg: &JsValue,
-) -> Result<JsValue, JsValue> {
-    let function: Function = cached_method(obj, method_name)?;
-    function.call1(obj, arg)
-}
-
 /// Implements camera transformation methods for `Camera2D`.
 impl Camera2D {
     /// Creates a new camera centered at the origin with default zoom and no rotation.
@@ -6640,3 +6520,96 @@ impl Default for PendingErrorCell {
 // becomes unsound and must be removed — at that point the renderer
 // will need a real `Mutex` or `RwLock` around the slot.
 unsafe impl Sync for PendingErrorCell {}
+
+impl BindGroupLayoutEntry {
+    /// Convenience constructor for a uniform-buffer binding slot.
+    pub fn uniform(binding: u32, visibility: u32) -> Self {
+        Self {
+            binding,
+            visibility,
+            ty: BindGroupEntryType::UniformBuffer,
+        }
+    }
+    /// Convenience constructor for a storage-buffer binding slot.
+    ///
+    /// `read_only = true` selects `read-only-storage` (matches `var<storage, read>`);
+    /// `read_only = false` selects `storage` (matches `var<storage, read_write>`).
+    pub fn storage(binding: u32, visibility: u32, read_only: bool) -> Self {
+        Self {
+            binding,
+            visibility,
+            ty: BindGroupEntryType::StorageBuffer { read_only },
+        }
+    }
+    /// Convenience constructor for a sampled texture binding slot.
+    ///
+    /// `sample_type` must be one of `"float"`, `"unfilterable-float"`,
+    /// `"depth"`, `"sint"`, `"uint"`.
+    pub fn texture(binding: u32, visibility: u32, sample_type: &str) -> Self {
+        Self {
+            binding,
+            visibility,
+            ty: BindGroupEntryType::SampledTexture {
+                sample_type: sample_type.to_string(),
+                multisampled: false,
+            },
+        }
+    }
+    /// Convenience constructor for a multisampled sampled texture binding slot.
+    pub fn texture_multisampled(binding: u32, visibility: u32, sample_type: &str) -> Self {
+        Self {
+            binding,
+            visibility,
+            ty: BindGroupEntryType::SampledTexture {
+                sample_type: sample_type.to_string(),
+                multisampled: true,
+            },
+        }
+    }
+    /// Convenience constructor for a storage-texture binding slot.
+    ///
+    /// `format` is a GpuTextureFormat string such as `"rgba8unorm"` or `"r32float"`.
+    pub fn storage_texture(binding: u32, visibility: u32, format: &str, read_only: bool) -> Self {
+        Self {
+            binding,
+            visibility,
+            ty: BindGroupEntryType::StorageTexture {
+                read_only,
+                format: format.to_string(),
+            },
+        }
+    }
+    /// Convenience constructor for a filtering sampler binding slot.
+    pub fn sampler(binding: u32, visibility: u32) -> Self {
+        Self {
+            binding,
+            visibility,
+            ty: BindGroupEntryType::Sampler {
+                filtering: true,
+                comparison: false,
+            },
+        }
+    }
+    /// Convenience constructor for a non-filtering sampler binding slot.
+    pub fn sampler_non_filtering(binding: u32, visibility: u32) -> Self {
+        Self {
+            binding,
+            visibility,
+            ty: BindGroupEntryType::Sampler {
+                filtering: false,
+                comparison: false,
+            },
+        }
+    }
+    /// Convenience constructor for a comparison sampler binding slot.
+    pub fn sampler_comparison(binding: u32, visibility: u32) -> Self {
+        Self {
+            binding,
+            visibility,
+            ty: BindGroupEntryType::Sampler {
+                filtering: false,
+                comparison: true,
+            },
+        }
+    }
+}

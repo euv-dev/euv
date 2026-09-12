@@ -767,3 +767,20 @@ pub struct PendingErrorCell(
     /// implementation detail.
     pub(crate) UnsafeCell<Option<JsValue>>,
 );
+
+/// A single entry inside a `GpuBindGroupLayoutDescriptor`.
+///
+/// Together these describe one slot of the bind group layout used by
+/// a render / compute pipeline. The visibility bitmask controls
+/// which shader stages can read the binding (`VERTEX = 0x1`,
+/// `FRAGMENT = 0x2`, `COMPUTE = 0x4`); `VERTEX | FRAGMENT = 0x3` and
+/// `VERTEX | FRAGMENT | COMPUTE = 0x7` are the most common values.
+#[derive(Clone, Debug)]
+pub struct BindGroupLayoutEntry {
+    /// The binding slot (matches `@binding(N)` in the shader).
+    pub binding: u32,
+    /// Visibility bitmask (`VERTEX = 0x1`, `FRAGMENT = 0x2`, `COMPUTE = 0x4`).
+    pub visibility: u32,
+    /// The resource kind bound at this slot.
+    pub ty: BindGroupEntryType,
+}
