@@ -76,28 +76,7 @@ pub(crate) struct SignalUpdateSlot {
 ///   `AttributeValue::InnerHtmlSignal` mount paths.
 /// - `SetTextContent` — replace the text on a `Text` node. Used by the
 ///   text-signal mount path in `create_dom_with_doc`.
-pub(crate) enum AttributeBridge {
-    /// Writes `attr_name = value` via `Element::set_attribute_or_property`.
-    SetAttribute {
-        /// The DOM element to mutate on every source-signal set.
-        elem: Element,
-        /// The attribute name (compile-time static — never allocates).
-        attr_name: &'static str,
-    },
-    /// Replaces `innerHTML` via `Element::set_inner_html`.
-    SetInnerHtml {
-        /// The DOM element whose `innerHTML` is replaced on every
-        /// source-signal set.
-        elem: Element,
-    },
-    /// Replaces text content via `Text::set_text_content`.
-    SetTextContent {
-        /// The DOM `Text` node whose data is replaced on every
-        /// source-signal set.
-        text: Text,
-    },
-}
-
+///
 /// A `Sync` wrapper for single-threaded global `HashMap` access.
 ///
 /// SAFETY: This type is only safe to use in single-threaded contexts

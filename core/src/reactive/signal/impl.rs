@@ -761,3 +761,114 @@ impl From<FireHandle> for usize {
         handle.get_inner()
     }
 }
+/// Implementation of the typed signal slab allocator.
+impl SignalSlab {
+    /// Creates an empty slab.
+    pub(crate) fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+            free_head: usize::MAX,
+        }
+    }
+
+    /// Inserts a new typed `SignalInner<T>` and returns its slot index.
+    ///
+    /// Reuses a previously freed slot when the free list is non-empty;
+    /// otherwise appends a fresh entry to `entries`. Both paths are O(1).
+    pub(crate) fn insert<T>(&mut self, inner: SignalInner<T>) -> usize
+    where
+        T: Clone + PartialEq + 'static,
+    {
+        let boxed: Box<dyn AnySignalInner> = Box::new(inner);
+        if self.free_head != usize::MAX {
+            let idx: usize = self.free_head;
+            let next: usize = match &self.entries[idx] {
+                SignalSlot::Free { next } => *next,
+                SignalSlot::Occupied(_) => {
+                    // Invariant violation: free_head pointed to an
+                    // occupied slot. Defensively reset the free list and
+                    // allocate a fresh entry. This branch is unreachable
+                    // in correct usage because `free()` is the only code
+                    // that mutates the free list and it always pushes a
+                    // Free entry. We avoid `unreachable!()` per project
+                    // audit rule R11.4 (no panic in production code).
+                    self.free_head = usize::MAX;
+                    let new_idx: usize = self.entries.len();
+                    self.entries.push(SignalSlot::Occupied(boxed));
+                    return new_idx;
+                }
+            };
+            self.free_head = next;
+            self.entries[idx] = SignalSlot::Occupied(boxed);
+            idx
+        } else {
+            let idx: usize = self.entries.len();
+            self.entries.push(SignalSlot::Occupied(boxed));
+            idx
+        }
+    }
+
+    /// Returns a typed `&mut SignalInner<T>` view of the slot at `idx`.
+    ///
+    /// Returns `None` when the slot is free or has a different concrete
+    /// `T` (defensive TypeId check). Both outcomes mean the caller is
+    /// holding a stale `Signal<T>` handle — that is a bug, but we surface
+    /// it as `None` rather than panicking so that stale handles from
+    /// long-deactivated signals degrade into safe no-ops (matching the
+    /// existing `alive == false` semantics).
+    pub(crate) fn get_mut<T>(&mut self, idx: usize) -> Option<&mut SignalInner<T>>
+    where
+        T: Clone + PartialEq + 'static,
+    {
+        match self.entries.get_mut(idx)? {
+            SignalSlot::Occupied(slot) => {
+                let any: &mut dyn Any = (**slot).as_any_mut();
+                any.downcast_mut::<SignalInner<T>>()
+            }
+            SignalSlot::Free { .. } => None,
+        }
+    }
+
+    /// Returns `true` when the slot at `idx` is occupied AND its inner
+    /// signal is still marked `alive`. Used by `Signal::is_alive` and the
+    /// bridge-reclaim paths.
+    ///
+    /// Matches the old `SIGNAL_INNER_REGISTRY.contains(&addr)` semantic:
+    /// after `clear_listeners` calls `deactivate(idx)`, the inner's
+    /// `alive` flag becomes `false` and `is_alive` returns `false`, even
+    /// though the slot remains parked for stale-handle safety.
+    pub(crate) fn is_alive(&self, idx: usize) -> bool {
+        match self.entries.get(idx) {
+            Some(SignalSlot::Occupied(inner)) => inner.alive(),
+            Some(SignalSlot::Free { .. }) => false,
+            None => false,
+        }
+    }
+
+    /// Frees the slot at `idx` and pushes it onto the free list.
+    ///
+    /// The boxed `SignalInner<T>` is dropped (releasing its inner Vec
+    /// capacity back to the allocator) before the slot is recycled.
+    /// Subsequent `insert` calls reuse this slot index.
+    pub(crate) fn free(&mut self, idx: usize) {
+        if let Some(slot @ SignalSlot::Occupied(_)) = self.entries.get_mut(idx) {
+            // Drop the boxed inner explicitly, then replace with Free.
+            *slot = SignalSlot::Free {
+                next: self.free_head,
+            };
+            self.free_head = idx;
+        }
+    }
+
+    /// Marks the slot at `idx` as inactive without freeing it.
+    ///
+    /// Mirrors the existing `deactivate` semantics: the slot remains
+    /// occupied (so stale `Signal<T>` copies continue to find a slot and
+    /// become safe no-ops via the `alive == false` check) but stops
+    /// accepting new value updates.
+    pub(crate) fn deactivate(&mut self, idx: usize) {
+        if let Some(SignalSlot::Occupied(inner)) = self.entries.get_mut(idx) {
+            inner.set_inactive();
+        }
+    }
+}
