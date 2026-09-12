@@ -7,4 +7,3 @@ mod r#webgpu;
 use euv_engine::*;
 
 use wasm_bindgen::JsValue;
-
