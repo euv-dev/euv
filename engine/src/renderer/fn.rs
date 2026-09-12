@@ -199,8 +199,6 @@ pub(crate) fn texture_usage(
 /// names) are unaffected. The map is created once per thread, lazily,
 /// and grows monotonically for the lifetime of the wasm instance.
 pub(crate) fn cached_method_name(name: &'static str) -> JsValue {
-    use std::cell::RefCell;
-    use std::collections::HashMap;
     thread_local! {
         static CACHE: RefCell<Option<HashMap<&'static str, JsValue>>> =
             const { RefCell::new(None) };
@@ -269,8 +267,6 @@ pub(crate) fn cached_method_name(name: &'static str) -> JsValue {
 /// as appropriate. JS `Function` objects don't bind `this`, so the caller
 /// must always pass `obj` (or `this`) as the first argument.
 pub(crate) fn cached_method(obj: &JsValue, method_name: &'static str) -> Result<Function, JsValue> {
-    use std::cell::RefCell;
-    use std::collections::HashMap;
     thread_local! {
         static FUNCTION_CACHE: RefCell<
             Option<HashMap<(usize, &'static str), Function>>,

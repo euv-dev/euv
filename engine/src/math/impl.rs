@@ -1033,7 +1033,6 @@ impl Color {
     ///
     /// - `&mut String` - The buffer to append the CSS color string to.
     pub fn write_css_rgba(&self, buffer: &mut String) {
-        use std::fmt::Write as _;
         let red: i32 = (self.get_red() * 255.0).round() as i32;
         let green: i32 = (self.get_green() * 255.0).round() as i32;
         let blue: i32 = (self.get_blue() * 255.0).round() as i32;
