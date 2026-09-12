@@ -19,7 +19,7 @@ use super::*;
 /// passed to the planner (and to the post-patch DOM). `old_index`
 /// values refer to positions in the `old_keys` slice.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum ChildOpPlan {
+pub(crate) enum ChildOpPlan {
     /// `new_index` is in the LIS; its live DOM position is already
     /// `new_index`. No child-list op is needed for this child.
     Keep {
