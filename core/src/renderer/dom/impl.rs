@@ -160,19 +160,13 @@ impl ElementExt for Element {
         let _: Result<(), JsValue> = self.set_attribute(name, value);
     }
 
-    /// Tracks a signal address on the element for cleanup purposes.
+    /// Returns the element's `data-euv-id`, assigning a fresh one if absent.
     ///
-    /// Resolves the element's `data-euv-id` (assigning a fresh one if
-    /// absent) and pushes `addr` into the Rust-side
-    /// [`crate::renderer::signal_addrs::SignalAddrs`] registry. Replaces
-    /// the previous `data-euv-signal-addrs` DOM attribute round-trip —
-    /// the cleanup path reads from the registry, never from the DOM.
+    /// # Returns
     ///
-    /// # Arguments
-    ///
-    /// - `usize` - The signal's inner address to track.
-    fn track_signal_addr(&self, addr: usize) {
-        let euv_id: usize = match self.get_attribute(DATA_EUV_ID) {
+    /// - `usize` - The element's `data-euv-id` value.
+    fn ensure_euv_id(&self) -> usize {
+        match self.get_attribute(DATA_EUV_ID) {
             Some(id_str) => id_str.parse::<usize>().unwrap_or_else(|_| {
                 let new_id: usize = NEXT_EUV_ID.fetch_add(1, Ordering::Relaxed);
                 let _: Result<(), JsValue> = self.set_attribute(DATA_EUV_ID, &new_id.to_string());
@@ -183,7 +177,6 @@ impl ElementExt for Element {
                 let _: Result<(), JsValue> = self.set_attribute(DATA_EUV_ID, &new_id.to_string());
                 new_id
             }
-        };
-        SignalAddrs::push(euv_id, addr);
+        }
     }
 }

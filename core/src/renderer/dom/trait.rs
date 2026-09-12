@@ -33,17 +33,16 @@ pub trait ElementExt {
     /// - `&str` - The value to assign.
     fn set_attribute_or_property(&self, name: &str, value: &str);
 
-    /// Tracks a signal address on the element for cleanup purposes.
+    /// Returns the element's `data-euv-id`, assigning a fresh one if absent.
     ///
-    /// Stores the signal's inner address in the Rust-side
-    /// [`crate::renderer::signal_addrs::SignalAddrs`] registry, keyed by
-    /// the element's `data-euv-id`. The cleanup path reads from this
-    /// registry instead of parsing a DOM attribute, eliminating the
-    /// per-signal `get_attribute` + `set_attribute` JS-boundary crossings
-    /// the previous `data-euv-signal-addrs` round-trip used to pay.
+    /// The id keys every per-element framework registry (event handlers,
+    /// binding cleanups, `NodeRef` cells), so any code path that installs
+    /// per-element state calls this first to guarantee the element carries
+    /// an id. Reading and assigning are both single JS crossings; the
+    /// assignment happens at most once per element.
     ///
-    /// # Arguments
+    /// # Returns
     ///
-    /// - `usize` - The signal's inner address to track.
-    fn track_signal_addr(&self, addr: usize);
+    /// - `usize` - The element's `data-euv-id` value.
+    fn ensure_euv_id(&self) -> usize;
 }

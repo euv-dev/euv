@@ -39,22 +39,6 @@ impl HookContext {
         for cleanup in cleanups {
             cleanup();
         }
-        // SPA reclamation: every cleanup callback has just run its
-        // `Signal::deactivate` (for signals owned by the torn-down hook
-        // context), which removes the source from each bridge's
-        // dependency set in `BridgeRefsCell`. Any bridge whose DOM
-        // element was detached BEFORE the source deactivated is now
-        // an orphan (empty dep set, not in `SIGNAL_INNER_REGISTRY`).
-        // This is the natural collection moment for those orphan
-        // bridge allocations — drive a bounded sweep here so the
-        // free happens immediately rather than waiting for the next
-        // page transition or a manual sweep from user code.
-        //
-        // `try_reclaim_inactive` returns the number of allocations
-        // reclaimed; we discard the count because the call is
-        // opportunistic — failing to reclaim in this frame just
-        // defers the work to a later sweep, never blocking the UI.
-        let _freed: usize = Signal::<String>::try_reclaim_inactive(usize::MAX);
         self.reset_index();
     }
 

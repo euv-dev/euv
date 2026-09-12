@@ -31,12 +31,18 @@ pub struct TextNode {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) content: Cow<'static, str>,
-    /// An optional signal that drives reactive text updates.
+    /// An optional binder that wires a freshly created DOM `Text` node to
+    /// its backing signal. The binder is invoked once per DOM text node at
+    /// materialization time (`create_dom_with_doc`); it subscribes the
+    /// source signal directly to that node, so no intermediate bridge
+    /// signal is allocated per binding. Kept text nodes are patched in
+    /// place without re-invoking the binder, so re-renders of a bound
+    /// position never accumulate subscriptions.
     #[debug(skip)]
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) signal: Option<Signal<String>>,
+    pub(crate) binder: Option<Rc<dyn Fn(&Text)>>,
 }
 
 /// A closure-based dynamic node that re-renders when its dependency signals change.

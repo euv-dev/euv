@@ -56,6 +56,16 @@ pub enum AttributeValue {
     /// may carry any HTML, including executable `<script>` tags.
     #[debug(skip)]
     InnerHtmlSignal(Signal<String>),
+    /// A reactive boolean attribute value (e.g. `checked`, `disabled`)
+    /// driven directly by a `Signal<bool>`.
+    ///
+    /// The renderer writes the attribute as the string `"true"` / `"false"`
+    /// and subscribes the source signal to the element directly — no
+    /// intermediate `Signal<String>` mapping signal is allocated (the
+    /// previous `bool_to_attr` bridge), and no subscription is created per
+    /// re-render.
+    #[debug(skip)]
+    BoolSignal(Signal<bool>),
     /// A reactive handle to the element being created, populated by the
     /// renderer after the corresponding `ref:` attribute fires.
     ///

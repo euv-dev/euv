@@ -7,13 +7,6 @@ use super::*;
 pub(crate) const DATA_EUV_DYNAMIC_ID: &str = "data-euv-dynamic-id";
 
 /// CSS selector that matches every element participating in framework
-/// cleanup (event handlers, dynamic node placeholders, etc.).
-///
-/// Used by `cleanup_subtree` so the entire marked subtree can be enumerated
-/// in a single `query_selector_all` JS-boundary crossing, replacing the
-/// previous per-element `get_attribute` × N recursion.
-pub(crate) const EUV_CLEANUP_SELECTOR: &str = "[data-euv-id],[data-euv-dynamic-id]";
-
 /// The HTML tag name used for fragment placeholder elements.
 ///
 /// Fragments are rendered as `<slot>` elements with `display:contents` style

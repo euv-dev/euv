@@ -252,11 +252,12 @@ impl AttributeValue {
         );
     }
 
-    /// Converts a bool signal into a reactive `Signal<String>` attribute value.
+    /// Converts a bool signal into a reactive boolean attribute value.
     ///
-    /// Creates a `Signal<String>` initialized with the bool's string
-    /// representation, then subscribes to the source signal so that
-    /// whenever the bool changes, the string signal is updated accordingly.
+    /// Produces `AttributeValue::BoolSignal` directly: the renderer writes
+    /// `"true"` / `"false"` and subscribes the source signal to the element
+    /// with no intermediate mapping signal (the previous `Signal<String>`
+    /// bridge) and no per-render subscription.
     ///
     /// # Arguments
     ///
@@ -264,20 +265,9 @@ impl AttributeValue {
     ///
     /// # Returns
     ///
-    /// - `AttributeValue` - An `AttributeValue::Signal` wrapping the derived string signal.
+    /// - `AttributeValue` - A `BoolSignal` wrapping the source signal.
     pub(crate) fn bool_to_attr(source: Signal<bool>) -> AttributeValue {
-        let string_signal: Signal<String> = Signal::create(source.get().to_string());
-        let string_signal_clone: Signal<String> = string_signal;
-        let source_for_sub: Signal<bool> = source;
-        source_for_sub.subscribe(move || {
-            string_signal_clone.set(source_for_sub.get().to_string());
-        });
-        // The closure above captures `string_signal_clone` (which aliases
-        // `string_signal`), so `source` now transitively keeps the bridge
-        // alive. Register that dependency so the bridge's heap allocation
-        // can be reclaimed once `source` is deactivated.
-        BridgeRefsCell::track(string_signal.get_inner(), source_for_sub.get_inner());
-        AttributeValue::Signal(string_signal)
+        AttributeValue::BoolSignal(source)
     }
 }
 
@@ -315,6 +305,12 @@ impl PartialEq for AttributeValue {
             }
             (Self::Signal(old_signal), Self::Text(new_value)) => old_signal.get() == *new_value,
             (Self::Text(old_value), Self::Signal(new_signal)) => *old_value == new_signal.get(),
+            (Self::BoolSignal(old_signal), Self::BoolSignal(new_signal)) => {
+                if old_signal.get_inner() == new_signal.get_inner() {
+                    return false;
+                }
+                old_signal.get() == new_signal.get()
+            }
             (Self::Event(_), Self::Event(_)) => true,
             (Self::Css(old_class), Self::Css(new_class)) => {
                 old_class.get_name() == new_class.get_name()

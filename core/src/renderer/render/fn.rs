@@ -1,5 +1,46 @@
 use super::*;
 
+/// Subscribes a `Signal<T>` directly to an element attribute and registers
+/// the teardown thunk for the element's `euv_id`.
+///
+/// This is the single binding path for every reactive attribute
+/// (`AttributeValue::Signal`, `AttributeValue::BoolSignal`) and for
+/// `AttributeValue::InnerHtmlSignal` (which passes `set_inner_html` as the
+/// writer). The listener converts the current value with `to_string()` on
+/// every change, guards on `is_connected` so detached elements stop
+/// receiving writes, and the returned subscription id is captured by a
+/// [`BindingCleanup`] thunk so `cleanup_subtree` can detach exactly this
+/// binding — without touching the source signal's other listeners or its
+/// `alive` flag (the previous `clear_listeners` path deactivated the whole
+/// source signal, killing every other binding to it).
+///
+/// # Arguments
+///
+/// - `&Element` - The element to bind.
+/// - `F: Fn(&Element, &str) + 'static` - The DOM writer for the value.
+/// - `Signal<T>` - The source signal.
+pub(crate) fn bind_signal_to_element<T, F>(element: &Element, write: F, signal: Signal<T>)
+where
+    T: Clone + PartialEq + Display + 'static,
+    F: Fn(&Element, &str) + 'static,
+{
+    let initial_value: String = signal.get().to_string();
+    write(element, &initial_value);
+    let euv_id: usize = element.ensure_euv_id();
+    let element_clone: Element = element.clone();
+    let subscription_id: u64 = signal.subscribe(move || {
+        if !element_clone.is_connected() {
+            return;
+        }
+        let new_value: String = signal.get().to_string();
+        write(&element_clone, &new_value);
+    });
+    Registry::push_binding_cleanup(
+        euv_id,
+        Box::new(move || signal.unsubscribe(subscription_id)),
+    );
+}
+
 /// Returns the indices of a longest strictly increasing subsequence
 /// of the input values, as positions in the input slice.
 ///

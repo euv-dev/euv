@@ -232,27 +232,33 @@ where
 {
     /// Creates a reactive text node that auto-updates when the signal changes.
     ///
-    /// Internally creates a bridge `Signal<String>` that subscribes to the
-    /// source signal and updates the text content on every change.
+    /// The returned `TextNode` carries a binder closure instead of an
+    /// intermediate bridge signal. The binder runs exactly once per DOM text
+    /// node at materialization time: it subscribes the source signal directly
+    /// to that node (converting `T` to `String` on every change), guarded by
+    /// `is_connected` so writes stop once the node leaves the document. No
+    /// per-render bridge allocation and no subscription churn: a kept text
+    /// node keeps its single subscription across any number of re-renders of
+    /// its parent.
     ///
     /// # Returns
     ///
     /// - `VirtualNode` - A text virtual node with reactive signal binding.
     fn as_reactive_text(&self) -> VirtualNode {
         let source: Signal<T> = *self;
-        let string_signal: Signal<String> = Signal::create(source.get().to_string());
-        let string_signal_clone: Signal<String> = string_signal;
-        source.subscribe(move || {
-            string_signal_clone.set(source.get().to_string());
+        let binder: Rc<dyn Fn(&Text)> = Rc::new(move |text: &Text| {
+            let text_node: Text = text.clone();
+            source.subscribe(move || {
+                if !text_node.is_connected() {
+                    return;
+                }
+                let value: String = source.get().to_string();
+                text_node.set_text_content(Some(&value));
+            });
         });
-        // The closure above captures `string_signal_clone` (which aliases
-        // `string_signal`), so `source` now transitively keeps the bridge
-        // alive. Register that dependency so the bridge's heap allocation
-        // can be reclaimed once `source` is deactivated.
-        BridgeRefsCell::track(string_signal.get_inner(), source.get_inner());
         VirtualNode::Text(TextNode::new(
-            Cow::Owned(string_signal.get()),
-            Some(string_signal),
+            Cow::Owned(source.get().to_string()),
+            Some(binder),
         ))
     }
 }

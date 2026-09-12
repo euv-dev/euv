@@ -390,11 +390,51 @@ impl Renderer {
                                 }
                             }
                             AttributeValue::Signal(signal) => {
-                                let value: String = signal.get();
-                                if is_property_attr(new_attr.get_name()) {
-                                    element.set_attribute_or_property(new_attr.get_name(), &value);
+                                if old_value.is_none() {
+                                    // Late binding: the attribute did not
+                                    // exist on the previous tree, so no
+                                    // subscription was ever installed —
+                                    // bind now (writes the current value
+                                    // and subscribes with a teardown
+                                    // thunk).
+                                    let attr_name: String = new_attr.get_name().to_string();
+                                    bind_signal_to_element(
+                                        element,
+                                        move |target: &Element, value: &str| {
+                                            target.set_attribute_or_property(&attr_name, value);
+                                        },
+                                        *signal,
+                                    );
                                 } else {
-                                    simple_sets.push((new_attr.get_name().to_string(), value));
+                                    let value: String = signal.get();
+                                    if is_property_attr(new_attr.get_name()) {
+                                        element
+                                            .set_attribute_or_property(new_attr.get_name(), &value);
+                                    } else {
+                                        simple_sets.push((new_attr.get_name().to_string(), value));
+                                    }
+                                }
+                            }
+                            AttributeValue::BoolSignal(signal) => {
+                                if old_value.is_none() {
+                                    // Late binding — see the
+                                    // `AttributeValue::Signal` arm above.
+                                    let attr_name: String = new_attr.get_name().to_string();
+                                    bind_signal_to_element(
+                                        element,
+                                        move |target: &Element, value: &str| {
+                                            target.set_attribute_or_property(&attr_name, value);
+                                        },
+                                        *signal,
+                                    );
+                                } else {
+                                    let value: String = signal.get().to_string();
+                                    if is_property_attr(new_attr.get_name()) {
+                                        element
+                                            .set_attribute_or_property(new_attr.get_name(), &value);
+                                    } else {
+                                        simple_sets.push((new_attr.get_name().to_string(), value));
+                                    }
                                 }
                             }
                             AttributeValue::Dynamic(_) => {}
@@ -426,8 +466,20 @@ impl Renderer {
                                 element.set_inner_html(html);
                             }
                             AttributeValue::InnerHtmlSignal(signal) => {
-                                let value: String = signal.get();
-                                element.set_inner_html(&value);
+                                if old_value.is_none() {
+                                    // Late binding — see the
+                                    // `AttributeValue::Signal` arm above.
+                                    bind_signal_to_element(
+                                        element,
+                                        |target: &Element, value: &str| {
+                                            target.set_inner_html(value)
+                                        },
+                                        *signal,
+                                    );
+                                } else {
+                                    let value: String = signal.get();
+                                    element.set_inner_html(&value);
+                                }
                             }
                             AttributeValue::Ref(node_ref) => {
                                 let element_value: JsValue = element.clone().into();
@@ -1000,29 +1052,24 @@ impl Renderer {
                             element.set_attribute_or_property(attr.get_name(), value);
                         }
                         AttributeValue::Signal(signal) => {
-                            let signal: Signal<String> = *signal;
-                            let initial_value: String = signal.get();
-                            element.set_attribute_or_property(attr.get_name(), &initial_value);
-                            let bridge_signal: Signal<String> = Signal::create(initial_value);
-                            element.track_signal_addr(bridge_signal.get_inner());
                             let attr_name: String = attr.get_name().to_string();
-                            let element_clone: Element = element.clone();
-                            bridge_signal.replace_listener(move || {
-                                if !Renderer::is_node_connected(&element_clone) {
-                                    return;
-                                }
-                                let new_value: String = bridge_signal.get();
-                                element_clone.set_attribute_or_property(&attr_name, &new_value);
-                            });
-                            signal.subscribe(move || {
-                                bridge_signal.set(signal.get());
-                            });
-                            // The closure above captures `bridge_signal`, so
-                            // `signal` (the source) now transitively keeps the
-                            // bridge alive. Register that dependency so the
-                            // bridge's heap allocation can be reclaimed once
-                            // `signal` is deactivated.
-                            BridgeRefsCell::track(bridge_signal.get_inner(), signal.get_inner());
+                            bind_signal_to_element(
+                                &element,
+                                move |target: &Element, value: &str| {
+                                    target.set_attribute_or_property(&attr_name, value);
+                                },
+                                *signal,
+                            );
+                        }
+                        AttributeValue::BoolSignal(signal) => {
+                            let attr_name: String = attr.get_name().to_string();
+                            bind_signal_to_element(
+                                &element,
+                                move |target: &Element, value: &str| {
+                                    target.set_attribute_or_property(&attr_name, value);
+                                },
+                                *signal,
+                            );
                         }
                         AttributeValue::Event(handler) => {
                             self.attach_event_listener(&element, handler);
@@ -1045,22 +1092,17 @@ impl Renderer {
                             // loop ran; nothing more to do here.
                         }
                         AttributeValue::InnerHtmlSignal(signal) => {
-                            let signal: Signal<String> = *signal;
-                            let initial_value: String = signal.get();
-                            element.set_inner_html(&initial_value);
-                            element.track_signal_addr(signal.get_inner());
-                            let element_clone: Element = element.clone();
-                            signal.subscribe(move || {
-                                if !Renderer::is_node_connected(&element_clone) {
-                                    return;
-                                }
-                                let new_value: String = signal.get();
-                                element_clone.set_inner_html(&new_value);
-                            });
+                            bind_signal_to_element(
+                                &element,
+                                |target: &Element, value: &str| target.set_inner_html(value),
+                                *signal,
+                            );
                         }
                         AttributeValue::Ref(node_ref) => {
                             let element_value: JsValue = element.clone().into();
                             node_ref.set(element_value);
+                            let euv_id: usize = element.ensure_euv_id();
+                            Registry::register_noderef(euv_id, node_ref.share_cell());
                         }
                     }
                 }
@@ -1068,22 +1110,8 @@ impl Renderer {
             }
             VirtualNode::Text(text_node) => {
                 let text: Text = document.create_text_node(text_node.get_content());
-                if let Some(signal) = text_node.try_get_signal() {
-                    let signal: Signal<String> = *signal;
-                    let bridge_signal: Signal<String> =
-                        Signal::create(text_node.get_content().to_string());
-                    let text_clone: Text = text.clone();
-                    bridge_signal.replace_listener(move || {
-                        if !Renderer::is_node_connected(&text_clone) {
-                            return;
-                        }
-                        let new_value: String = bridge_signal.get();
-                        text_clone.set_text_content(Some(&new_value));
-                    });
-                    signal.subscribe(move || {
-                        bridge_signal.set(signal.get());
-                    });
-                    BridgeRefsCell::track(bridge_signal.get_inner(), signal.get_inner());
+                if let Some(binder) = text_node.try_get_binder() {
+                    binder(&text);
                 }
                 text.into()
             }
@@ -1425,9 +1453,10 @@ impl Renderer {
             && let Ok(euv_id) = euv_id_str.parse::<usize>()
         {
             Registry::cleanup_element(euv_id);
-            if let Some(addrs) = SignalAddrs::take(euv_id) {
-                for addr in addrs {
-                    Signal::<String>::clear_listeners(addr);
+            Registry::cleanup_noderefs(euv_id);
+            if let Some(cleanups) = Registry::take_binding_cleanups(euv_id) {
+                for cleanup in cleanups {
+                    cleanup();
                 }
             }
         }
@@ -1531,25 +1560,6 @@ impl Renderer {
                     .insert(event_name, handler_slot);
             }
         }
-    }
-
-    /// Checks whether a DOM node is currently connected to the document.
-    ///
-    /// Uses the `isConnected` JavaScript property to determine if the node
-    /// is still attached to the live DOM tree.
-    ///
-    /// # Arguments
-    ///
-    /// - `&T` - A reference to any type that can be converted to `&Node`.
-    ///
-    /// # Returns
-    ///
-    /// - `bool` - `true` if the node is connected to the document, `false` otherwise.
-    fn is_node_connected<T>(node: &T) -> bool
-    where
-        T: AsRef<Node>,
-    {
-        node.as_ref().is_connected()
     }
 }
 

@@ -14,12 +14,37 @@ where
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) value: T,
-    /// Callbacks to invoke when the value changes.
+    /// Callbacks to invoke when the value changes, each paired with its
+    /// subscription id so [`Signal::unsubscribe`] can detach a single
+    /// listener without disturbing the rest.
     #[debug(skip)]
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) listeners: Vec<Box<dyn FnMut()>>,
+    pub(crate) listeners: Vec<(u64, Box<dyn FnMut()>)>,
+    /// Monotonic counter backing subscription ids for `listeners`.
+    #[get(pub, type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    #[new(skip)]
+    pub(crate) next_listener_id: u64,
+    /// Ids detached via [`Signal::unsubscribe`] while `update` had the
+    /// listener list swapped out. Drained by `update`'s merge-back pass so
+    /// a listener detached mid-notification is not resurrected.
+    #[debug(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    #[new(skip)]
+    pub(crate) removed_listener_ids: Vec<u64>,
+    /// `true` while `update` has the listener list swapped out for
+    /// notification. `unsubscribe` consults this flag to decide between
+    /// direct removal and deferred removal via `removed_listener_ids`.
+    #[get(pub, type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    #[new(skip)]
+    pub(crate) notifying: bool,
     /// Whether this signal is still active. Set to `false` by `deactivate()`
     /// (and `clear_signal_listeners`) to make subsequent `set()` calls
     /// complete no-ops (no value update, no listener invocation, no
@@ -38,19 +63,6 @@ where
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) dependents: Vec<usize>,
-    /// Flag indicating that `replace_subscribe` was called during
-    /// `update_and_notify`'s swap-out phase. When a listener callback
-    /// re-registers listeners via `replace_subscribe`, it intends to
-    /// replace all existing listeners — but the old listeners have
-    /// already been swapped out into the local variable. Without this
-    /// flag, `update_and_notify` would incorrectly merge the old
-    /// listeners back with the new ones, defeating `replace_subscribe`'s
-    /// replacement semantics and causing listener accumulation.
-    #[get(pub, type(copy))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    #[new(skip)]
-    pub(crate) listeners_replaced: bool,
 }
 
 /// A reactive signal handle.
@@ -101,20 +113,20 @@ where
     pub(crate) inner: UnsafeCell<Option<Signal<T>>>,
 }
 
-/// A `Sync` wrapper for single-threaded global `HashMap` access.
+/// Typed slab allocator for `SignalInner<T>`.
 ///
-/// SAFETY: This type is only safe to use in single-threaded contexts
-/// (e.g., WASM). It implements `Sync` to allow usage as a `static`
-/// variable, but concurrent access from multiple threads would be
-/// undefined behavior.
-#[derive(Data, Debug, New)]
-pub(crate) struct BridgeRefsCell(
-    /// Interior-mutable storage for the bridge dependency reverse-index.
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub UnsafeCell<HashMap<usize, HashSet<usize>>>,
-);
+/// The slab owns all `SignalInner<T>` allocations for the program's
+/// lifetime. `Signal<T>` carries only a `usize` slot index, so signals are
+/// trivially `Copy` and stay cheap to clone. Slots are append-only and
+/// never recycled: a stale `Signal<T>` handle therefore always finds its
+/// original slot (marked `alive == false` after `Signal::deactivate`), so
+/// stale reads return the last stored value instead of hitting a reused
+/// slot of a different type or — worse — a `mem::zeroed()` fallback for
+/// a freed slot.
+pub(crate) struct SignalSlab {
+    /// Slot storage. Index 0..len.
+    pub(crate) entries: Vec<Box<dyn AnySignalInner>>,
+}
 
 /// A handle to a leaked `FnMut()` closure, stored as the closure's heap address.
 ///
@@ -136,26 +148,4 @@ pub struct FireHandle {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) inner: usize,
-}
-
-/// Typed slab allocator for `SignalInner<T>`.
-///
-/// The slab owns all `SignalInner<T>` allocations for the program's
-/// lifetime. `Signal<T>` carries only a `usize` slot index, so signals are
-/// trivially `Copy` and stay cheap to clone. Reclamation is explicit via
-/// `Signal::deactivate`, which calls [`SignalSlab::free`]; `Copy`
-/// semantics intentionally prevent an implicit `Drop` from double-freeing.
-///
-/// Layout:
-/// - `entries: Vec<SignalSlot>` — slot storage, indexed 0..len.
-/// - `free_head: usize` — head of the free-slot stack, `usize::MAX` when empty.
-///
-/// Allocation is O(1) (free-list pop or Vec push). Free is O(1) (push to
-/// free-list head, drop the boxed inner). Lookup is O(1) bounds-checked
-/// `Vec` indexing.
-pub(crate) struct SignalSlab {
-    /// Slot storage. Index 0..len.
-    pub(crate) entries: Vec<SignalSlot>,
-    /// Head of the free-slot stack; `usize::MAX` when no free slots exist.
-    pub(crate) free_head: usize,
 }

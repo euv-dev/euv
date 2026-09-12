@@ -18,8 +18,8 @@ unsafe impl Sync for WindowEventRegistryCell {}
 /// SAFETY: `NodeRefRegistryCell` is only used in single-threaded WASM contexts.
 unsafe impl Sync for NodeRefRegistryCell {}
 
-/// SAFETY: `AttributeBridgesCell` is only used in single-threaded WASM contexts.
-unsafe impl Sync for AttributeBridgesCell {}
+/// SAFETY: `BindingCleanupsCell` is only used in single-threaded WASM contexts.
+unsafe impl Sync for BindingCleanupsCell {}
 
 /// Implementation of `From` trait for converting `usize` address into `&'static mut HandlerSlot`.
 impl From<usize> for &'static mut HandlerSlot {
@@ -418,67 +418,39 @@ impl Registry {
         }
     }
 
-    /// Removes the signal update slot for an attribute signal from the registry.
+    /// Appends a binding-teardown thunk for `euv_id`.
     ///
-    /// Marks the attribute slot as removed, frees its backing allocation
-    /// eagerly (see `cleanup_dynamic_node` for the rationale), and
-    /// prevents further updates to detached DOM elements.
-    ///
-    /// OPT 6: also drops the address from `DIRTY_UPDATE_IDS` so a
-    /// recycled heap address does not pick up a stale dispatch slot
-    /// the next time `mark_dirty` runs.
+    /// Called by the signal attribute / `inner_html` mount paths so the
+    /// subscription they just installed can be detached exactly once when
+    /// the element leaves the DOM. Multiple pushes for the same element
+    /// accumulate; `take_binding_cleanups` drains them in one pass.
     ///
     /// # Arguments
     ///
-    /// - `usize` - The signal's inner address used as the registry key.
-    pub(crate) fn cleanup_attr_slot(addr: usize) {
-        Self::get_mut_dirty_update_ids().remove(&addr);
-        if let Some(entry) = Self::get_mut_update_registry().remove(&addr) {
-            unsafe {
-                let _: Box<SignalUpdateSlot> = Box::from_raw(entry);
-            }
-        }
+    /// - `usize` - The element's `data-euv-id` value.
+    /// - `BindingCleanup` - The teardown thunk to store.
+    #[allow(static_mut_refs)]
+    pub(crate) fn push_binding_cleanup(euv_id: usize, cleanup: BindingCleanup) {
+        let map: &mut BindingCleanupsMap = unsafe { &mut *BINDING_CLEANUPS.deref().get_0().get() };
+        map.entry(euv_id).or_default().push(cleanup);
     }
 
-    /// Registers a typed `AttributeBridge` for a bridge signal created by
-    /// a per-`{sig}` mount path.
+    /// Removes and returns every binding-teardown thunk for `euv_id`.
     ///
-    /// Called from `Renderer::create_dom_with_doc` when wiring an
-    /// `AttributeValue::Signal` / `InnerHtmlSignal` (or text-signal) to its
-    /// target element. The bridge signal's inner address is used as the
-    /// registry key so that `cleanup_attribute_bridge` (called from
-    /// `Signal::<String>::clear_listeners`) can find the bridge from the
-    /// same address that `data-euv-signal-addrs` already carries.
+    /// `Some(vec)` when the element had signal bindings; `None` when it
+    /// never did (the common case for static subtrees).
     ///
     /// # Arguments
     ///
-    /// - `usize` - The bridge signal's inner address used as the registry key.
-    /// - `AttributeBridge` - The typed bridge to store.
-    pub(crate) fn register_attribute_bridge(signal_addr: usize, bridge: AttributeBridge) {
-        Self::get_mut_attribute_bridges().insert(signal_addr, bridge);
-    }
-
-    /// Removes the typed `AttributeBridge` keyed by the given bridge signal
-    /// address. Called from `Signal::<String>::clear_listeners` so the
-    /// bridge struct is freed at the same time as the bridge signal's
-    /// listener closure. Idempotent: a missing key is a no-op.
-    ///
-    /// # Arguments
-    ///
-    /// - `usize` - The bridge signal's inner address used as the registry key.
-    pub(crate) fn cleanup_attribute_bridge(signal_addr: usize) {
-        Self::get_mut_attribute_bridges().remove(&signal_addr);
-    }
-
-    /// Returns a mutable reference to the typed-attribute-bridge registry.
+    /// - `usize` - The element's `data-euv-id` value.
     ///
     /// # Returns
     ///
-    /// - `&'static mut HashMap<usize, AttributeBridge>` - Mutable access to
-    ///   the global typed-attribute-bridge registry.
+    /// - `Option<Vec<BindingCleanup>>` - The drained thunks, if any.
     #[allow(static_mut_refs)]
-    pub(crate) fn get_mut_attribute_bridges() -> &'static mut HashMap<usize, AttributeBridge> {
-        unsafe { &mut *ATTRIBUTE_BRIDGES.deref().get_0().get() }
+    pub(crate) fn take_binding_cleanups(euv_id: usize) -> Option<Vec<BindingCleanup>> {
+        let map: &mut BindingCleanupsMap = unsafe { &mut *BINDING_CLEANUPS.deref().get_0().get() };
+        map.remove(&euv_id)
     }
 
     /// Returns whether the given event name is a non-bubbling event.

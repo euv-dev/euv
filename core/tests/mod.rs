@@ -1,7 +1,6 @@
 mod cache;
 mod hook;
 mod inner;
-mod keyed;
 mod node;
 mod noderef;
 mod portal;

@@ -71,6 +71,19 @@ impl<T: ?Sized> NodeRef<T> {
         }
     }
 
+    /// Returns a shared clone of the interior cell for registry wiring.
+    ///
+    /// The renderer calls this when a `ref:` attribute fires so the
+    /// `NodeRef`'s cell can be registered under the element's `euv_id`
+    /// and cleared by `cleanup_subtree` when the element is unmounted.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeRefEntry` - A clone of the shared interior cell.
+    pub(crate) fn share_cell(&self) -> NodeRefEntry {
+        self.inner.clone()
+    }
+
     /// Clears the currently attached element, if any.
     ///
     /// Called by the renderer when a node is unmounted. After `clear`,

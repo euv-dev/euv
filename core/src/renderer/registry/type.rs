@@ -50,3 +50,19 @@ pub type NodeRefEntry = Rc<UnsafeCell<Option<JsValue>>>;
 /// `HashMap::remove(&euv_id)` followed by iterating the entries to call
 /// `clear()` on each cell.
 pub type NodeRefRegistryMap = HashMap<usize, Vec<NodeRefEntry>>;
+
+/// Type alias for a single binding-teardown thunk.
+///
+/// Produced by the mount path when a signal is subscribed directly to a DOM
+/// element (attribute / `inner_html` bindings). Running the thunk detaches
+/// exactly one subscription via [`Signal::unsubscribe`], so removing a DOM
+/// subtree tears its bindings down without touching the source signal's
+/// other listeners or its `alive` flag.
+pub type BindingCleanup = Box<dyn FnOnce()>;
+
+/// Type alias for the binding-cleanup registry.
+///
+/// Maps `euv_id` to the teardown thunks of every signal binding installed on
+/// that element. Drained by `cleanup_subtree` when the element leaves the
+/// DOM.
+pub type BindingCleanupsMap = HashMap<usize, Vec<BindingCleanup>>;

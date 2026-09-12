@@ -122,37 +122,7 @@ pub(crate) struct SignalUpdateRegistryCell(
     pub UnsafeCell<HashMap<usize, SignalUpdateEntry>>,
 );
 
-/// A `Sync` wrapper for single-threaded global `HashMap<usize, AttributeBridge>` access.
-///
-/// Stores the typed attribute bridges keyed by bridge signal address.
-/// Populated by `Registry::register_attribute_bridge` and drained by
-/// `Registry::cleanup_attribute_bridge` (called from
-/// `Signal::<String>::clear_listeners`).
-///
-/// Replaces the older bridge-signal + `BridgeRefsCell::track` chain that
-/// allocated a `HashSet<usize>` per bridge (the source-dependency set) and
-/// required a `HashMap<usize, HashSet<usize>>` lookup on every
-/// `Signal::deactivate` for every bridge ever registered. With this
-/// registry the bridge struct is keyed by the bridge's address (already in
-/// `data-euv-signal-addrs`) and freed at the same time as the bridge
-/// signal — one `HashMap<usize, AttributeBridge>` lookup per cleanup
-/// instead of one `HashMap<usize, HashSet<usize>>` lookup per
-/// `Signal::deactivate` walk.
-///
-/// SAFETY: This type is only safe to use in single-threaded contexts
-/// (e.g., WASM). It implements `Sync` to allow usage as a `static mut`
-/// variable, but concurrent access from multiple threads would be
-/// undefined behavior.
-#[derive(Data, Debug, New)]
-pub(crate) struct AttributeBridgesCell(
-    /// Interior-mutable storage for the typed-attribute-bridge registry.
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub UnsafeCell<HashMap<usize, AttributeBridge>>,
-);
-
-/// A `Sync` wrapper for single-threaded global `HashSet` access used by
+/// A `Sync` wrapper for single-threaded global `HashMap` access used by
 /// the OPT 6 dirty-id fast path.
 ///
 /// SAFETY: This type is only safe to use in single-threaded contexts
@@ -196,6 +166,21 @@ pub(crate) struct NodeRefRegistryCell(
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub UnsafeCell<NodeRefRegistryMap>,
+);
+
+/// A `Sync` wrapper for single-threaded global `BindingCleanupsMap` access.
+///
+/// SAFETY: This type is only safe to use in single-threaded contexts
+/// (e.g., WASM). It implements `Sync` to allow usage as a `static mut`
+/// variable, but concurrent access from multiple threads would be
+/// undefined behavior.
+#[derive(Data, Debug, New)]
+pub(crate) struct BindingCleanupsCell(
+    /// Interior-mutable storage for the binding-cleanup registry.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub UnsafeCell<BindingCleanupsMap>,
 );
 
 /// A zero-sized struct providing static methods for managing
