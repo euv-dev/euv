@@ -168,45 +168,41 @@ impl Registry {
     /// - `&'static str` - The event name (e.g., "click", "input").
     /// - `usize` - Upper bound on ancestor walk depth; `0` for unbounded.
     fn dispatch_delegated_event(event: &Event, event_name: &'static str, max_depth: usize) {
-        // Clone the event into an owned `JsValue` so the wasm-bindgen
-        // callback closure can capture it by value (`Closure::wrap` requires
-        // `'static`). The underlying DOM `Event` is reference-counted by
+        // Clone the event into an owned `JsValue` so it can be handed both
+        // to the JS id-chain walk and (cloned once more) to the winning
+        // handler. The underlying DOM `Event` is reference-counted by
         // wasm-bindgen so the clone is cheap.
         let event_value: JsValue = event.clone().into();
-        // Snapshot the handler registry for the lifetime of the closure.
-        // The registry lives in a `static mut` cell; cloning it gives the
-        // closure its own owned copy so we don't hold the `unsafe` borrow
-        // across the callback (which would violate Rust's aliasing rules).
-        let handler_lookup: HandlerRegistryMap = Self::get_handler_registry().clone();
-        // Hold an extra clone of the JsValue for the Rust→JS walk call
-        // below; the closure needs its own clone for the handler path.
-        let event_value_for_walk: JsValue = event_value.clone();
-        let callback: Closure<dyn FnMut(usize) -> bool> =
-            Closure::wrap(Box::new(move |euv_id: usize| -> bool {
-                let handler_found: Option<NativeEventHandler> = handler_lookup
-                    .get(&euv_id)
-                    .and_then(|event_map: &HashMap<&'static str, HandlerEntry>| {
-                        event_map.get(event_name)
-                    })
-                    .and_then(|entry: &HandlerEntry| {
-                        let slot: &HandlerSlot = unsafe { &**entry };
-                        slot.try_get_handler().as_ref().cloned()
-                    });
-                if let Some(active_handler) = handler_found {
-                    // Re-borrow the captured JsValue back into an Event for
-                    // the handler. The clone above keeps the event alive.
-                    let event_for_handler: Event = event_value.clone().unchecked_into();
-                    active_handler.handle(event_for_handler);
-                    return true;
-                }
-                false
-            }));
-        let callback_function: &js_sys::Function = callback.as_ref().unchecked_ref();
-        let _found: bool =
-            euv_event_walk_ancestors(&event_value_for_walk, max_depth, callback_function);
-        // `callback` (the Closure) is dropped at end of scope here, freeing
-        // the boxed closure allocation. `handler_lookup` (owned by the
-        // closure's environment) drops with it.
+        let id_chain: Array = euv_event_collect_id_chain(&event_value, max_depth);
+        let chain_len: u32 = id_chain.length();
+        for chain_index in 0..chain_len {
+            let id_value: JsValue = id_chain.get(chain_index);
+            let Some(euv_id_f64) = id_value.as_f64() else {
+                continue;
+            };
+            let euv_id: usize = euv_id_f64 as usize;
+            // Scoped lookup: clone the handler out of the live registry
+            // and drop the registry borrow BEFORE invoking. Handlers
+            // routinely re-render and thereby mutate the registry, so the
+            // lookup must not alias the mutable access that `handle`
+            // may perform. This replaces the previous full
+            // `HandlerRegistryMap` clone per event with at most one
+            // `Rc` clone of the winning handler.
+            let handler_found: Option<NativeEventHandler> = Self::get_handler_registry()
+                .get(&euv_id)
+                .and_then(|event_map: &HashMap<&'static str, HandlerEntry>| {
+                    event_map.get(&event_name)
+                })
+                .and_then(|entry: &HandlerEntry| {
+                    let slot: &HandlerSlot = unsafe { &**entry };
+                    slot.try_get_handler().as_ref().cloned()
+                });
+            if let Some(active_handler) = handler_found {
+                let event_for_handler: Event = event_value.clone().unchecked_into();
+                active_handler.handle(event_for_handler);
+                return;
+            }
+        }
     }
 
     /// Computes the JS-glue walk depth cap for an event name.
