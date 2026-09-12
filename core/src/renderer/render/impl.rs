@@ -287,14 +287,28 @@ impl Renderer {
         old_attrs: &[AttributeEntry],
         new_attrs: &[AttributeEntry],
     ) {
-        let old_index: HashMap<&str, &AttributeValue> = old_attrs
-            .iter()
-            .map(|a| (a.get_name().as_ref(), a.get_value()))
-            .collect();
-        let new_index: HashMap<&str, &AttributeValue> = new_attrs
-            .iter()
-            .map(|a| (a.get_name().as_ref(), a.get_value()))
-            .collect();
+        // Fast path: the attribute lists are visually identical (same
+        // length, order, names, and values — the same `PartialEq`
+        // semantics the per-attribute loop below uses). The html!
+        // expansion order is deterministic per call site, so a parent
+        // re-render that did not touch this element's attributes lands
+        // here and skips the whole walk — no per-element `HashMap`
+        // indexes, no batch vecs, no event-registry probes.
+        //
+        // Variant transitions that compare equal (Text ↔ StaticText,
+        // Css ↔ CssRef by class name, Text ↔ Signal by current value)
+        // are safe to skip: they require no DOM write and the previous
+        // full walk would not have installed a subscription in the
+        // Text→Signal case either (it only rewrites the current value
+        // when the name already exists).
+        if old_attrs == new_attrs {
+            return;
+        }
+        // Attribute lists are tiny (typically 1–5 entries), so lookups
+        // are linear scans over the slices — cheaper than building two
+        // `HashMap<&str, &AttributeValue>` indexes per element patch
+        // (two heap allocations plus N hash inserts each).
+        //
         // OPT 16: collect batched set/remove ops instead of dispatching
         // each one immediately. Property attrs (form elements) and
         // `inner_html`/`Ref` keep direct per-op calls; everything else
@@ -304,7 +318,10 @@ impl Renderer {
         let mut needs_event_cleanup: bool = false;
         for old_attr in old_attrs {
             let old_name: &str = old_attr.get_name().as_ref();
-            if !new_index.contains_key(old_name) {
+            let still_present: bool = new_attrs
+                .iter()
+                .any(|a: &AttributeEntry| a.get_name().as_ref() == old_name);
+            if !still_present {
                 if let AttributeValue::Event(_) = old_attr.get_value() {
                     needs_event_cleanup = true;
                 }
@@ -338,7 +355,7 @@ impl Renderer {
             0
         };
         if needs_event_cleanup {
-            self.detach_removed_event_handlers(old_attrs, &new_index, cached_euv_id);
+            self.detach_removed_event_handlers(old_attrs, new_attrs, cached_euv_id);
         }
         for new_attr in new_attrs {
             match new_attr.get_value() {
@@ -366,9 +383,12 @@ impl Renderer {
                 }
                 _ => {
                     let new_name: &str = new_attr.get_name().as_ref();
-                    let old_value: Option<&&AttributeValue> = old_index.get(new_name);
+                    let old_value: Option<&AttributeValue> = old_attrs
+                        .iter()
+                        .find(|a: &&AttributeEntry| a.get_name().as_ref() == new_name)
+                        .map(|a: &AttributeEntry| a.get_value());
                     let should_set: bool = match old_value {
-                        Some(old_val) => *old_val != new_attr.get_value(),
+                        Some(old_val) => old_val != new_attr.get_value(),
                         None => true,
                     };
                     if should_set {
@@ -506,18 +526,21 @@ impl Renderer {
     /// # Arguments
     ///
     /// - `&[AttributeEntry]` - Shared reference to a `[AttributeEntry]`.
-    /// - `&HashMap<&str, &AttributeValue>` - Shared reference to a `HashMap<&str, &AttributeValue>`.
+    /// - `&[AttributeEntry]` - Shared reference to a `[AttributeEntry]`.
     /// - `usize` - A non-negative integer (`usize`).
     fn detach_removed_event_handlers(
         &self,
         old_attrs: &[AttributeEntry],
-        new_index: &HashMap<&str, &AttributeValue>,
+        new_attrs: &[AttributeEntry],
         euv_id: usize,
     ) {
         for old_attr in old_attrs {
             if let AttributeValue::Event(handler) = old_attr.get_value() {
                 let old_name: &str = old_attr.get_name().as_ref();
-                if new_index.contains_key(old_name) {
+                let still_present: bool = new_attrs
+                    .iter()
+                    .any(|a: &AttributeEntry| a.get_name().as_ref() == old_name);
+                if still_present {
                     continue;
                 }
                 if let Some(entry) = Registry::get_mut_handler_registry()
