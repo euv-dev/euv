@@ -1,4 +1,5 @@
 use super::*;
+use std::fmt::Formatter;
 
 /// Parses a Rust expression from the parse stream, stopping before a top-level brace.
 ///
@@ -2162,4 +2163,12 @@ pub(crate) fn prop_field_token(
             quote! { #field_ident: #value }
         }
     }
+}
+
+/// Writes `Text({value})` for the [`HtmlNode::Text`] variant of the
+/// macro-internal AST. Sibling helper for the hand-rolled `Debug` impl
+/// of `HtmlNode` so the `Text` case doesn't drag a full
+/// `proc_macro2::TokenStream` formatter into derive output.
+pub(crate) fn fmt_lit_str(lit: &syn::LitStr, formatter: &mut Formatter<'_>) -> fmt::Result {
+    write!(formatter, "Text({:?})", lit.value())
 }

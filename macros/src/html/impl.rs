@@ -1,4 +1,5 @@
 use super::*;
+use std::fmt::{Debug, Formatter};
 
 /// Implementation of `Parse` for `HtmlRoot`, parsing zero or more HTML nodes.
 impl Parse for HtmlRoot {
@@ -1295,6 +1296,30 @@ impl HtmlElement {
                 key: #key_token,
                 props: None,
             }
+        }
+    }
+}
+
+/// Debug formatting for `HtmlNode`.
+///
+/// Hand-rolled because `HtmlNode::Text` carries a `proc_macro2::LitStr`
+/// token (not a plain `String`) and we don't want to drag a full
+/// `TokenStream` formatter into the derive output. Other variants
+/// delegate to their `Debug` impls.
+impl Debug for HtmlNode {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Element(element) => formatter.debug_tuple("Element").field(element).finish(),
+            Self::Text(lit) => fmt_lit_str(lit, formatter),
+            Self::Expr(expr) => formatter.debug_tuple("Expr").field(expr).finish(),
+            Self::Dynamic(expr) => formatter.debug_tuple("Dynamic").field(expr).finish(),
+            Self::If(html_if) => formatter.debug_tuple("If").field(html_if).finish(),
+            Self::Match(html_match) => formatter.debug_tuple("Match").field(html_match).finish(),
+            Self::For(html_for) => formatter.debug_tuple("For").field(html_for).finish(),
+            Self::DynamicTag(dynamic_tag) => formatter
+                .debug_tuple("DynamicTag")
+                .field(dynamic_tag)
+                .finish(),
         }
     }
 }
