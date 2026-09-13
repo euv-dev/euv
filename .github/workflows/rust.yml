@@ -235,40 +235,6 @@ jobs:
       - name: Test euv-cli (host)
         run: cargo test --all-features -p euv-cli
 
-  trigger-euv-app:
-    needs: build
-    if: github.event_name == 'push' && github.ref_name == 'master' && needs.build.result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger euv-app build via workflow_dispatch
-        env:
-          EUV_APP_DISPATCH_TOKEN: ${{ secrets.EUV_APP_DISPATCH_TOKEN }}
-        run: |
-          if [ -z "$EUV_APP_DISPATCH_TOKEN" ]; then
-            echo "⚠️ EUV_APP_DISPATCH_TOKEN is not configured; skipping euv-app trigger"
-            echo "Set the secret on https://github.com/euv-dev/euv/settings/secrets/actions"
-            exit 0
-          fi
-          http_code=$(curl -sS -o /tmp/dispatch-resp.txt -w '%{http_code}' \
-            -X POST \
-            -H "Authorization: token ${EUV_APP_DISPATCH_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/json" \
-            "https://api.github.com/repos/eastspire/euv-app/actions/workflows/build-apk.yml/dispatches" \
-            -d "$(jq -nc \
-              --arg ref master \
-              --arg sha "$GITHUB_SHA" \
-              --arg version "${{ needs.setup.outputs.version }}" \
-              '{ref: $ref}')")
-          echo "HTTP ${http_code}"
-          cat /tmp/dispatch-resp.txt 2>/dev/null || true
-          if [ "${http_code}" -ge 200 ] && [ "${http_code}" -lt 300 ]; then
-            echo "✅ euv-app workflow_dispatch submitted"
-          else
-            echo "❌ euv-app dispatch failed (HTTP ${http_code})"
-            exit 1
-          fi
-
   publish:
     permissions:
       contents: write
