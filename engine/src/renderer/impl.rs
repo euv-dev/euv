@@ -549,6 +549,9 @@ impl CanvasRenderer {
         let mut current_fill: Option<Color> = None;
         let mut current_stroke: Option<Color> = None;
         let mut current_line_width: f64 = f64::NAN;
+        // Reused scratch for `write_css_rgba` — avoids one `Color::to_css`
+        // String allocation per style change during replay.
+        let mut css_buf: String = String::new();
         // Whether a same-style path run is currently open.
         let mut run_open: bool = false;
         let mut run_is_fill: bool = true;
@@ -637,13 +640,17 @@ impl CanvasRenderer {
                     let (kind, color, line_width) = current_key;
                     if kind == 0 {
                         if current_fill != Some(color) {
-                            context.set_fill_style_str(&Color::to_css(&color));
+                            css_buf.clear();
+                            color.write_css_rgba(&mut css_buf);
+                            context.set_fill_style_str(&css_buf);
                             current_fill = Some(color);
                         }
                         run_is_fill = true;
                     } else {
                         if current_stroke != Some(color) {
-                            context.set_stroke_style_str(&Color::to_css(&color));
+                            css_buf.clear();
+                            color.write_css_rgba(&mut css_buf);
+                            context.set_stroke_style_str(&css_buf);
                             current_stroke = Some(color);
                         }
                         if current_line_width != line_width {
@@ -668,7 +675,9 @@ impl CanvasRenderer {
                     font,
                 } => {
                     if current_fill != Some(*color) {
-                        context.set_fill_style_str(&Color::to_css(color));
+                        css_buf.clear();
+                        color.write_css_rgba(&mut css_buf);
+                        context.set_fill_style_str(&css_buf);
                         current_fill = Some(*color);
                     }
                     context.set_font(font);
@@ -2802,10 +2811,12 @@ impl WebGpuRenderer {
     ///
     /// - `&[JsValue]` - The command buffers to submit.
     pub fn submit(&self, command_buffers: &[JsValue]) {
-        let array: Array = Array::new();
-        for buffer in command_buffers {
-            array.push(buffer);
-        }
+        // The common case is exactly one command buffer per frame —
+        // `Array::of1` skips the grow-from-empty push dance.
+        let array: Array = match command_buffers {
+            [single] => Array::of1(single),
+            many => many.iter().cloned().collect(),
+        };
         // OPT 2b: cached `queue.submit()` — `Function` is the same
         // prototype slot for the queue's lifetime.
         let _: Result<JsValue, JsValue> = cached_method_call(
@@ -3121,13 +3132,22 @@ impl WebGpuRenderer {
             return;
         }
         // OPT 2b: cached `pass.setIndexBuffer(buffer, format)`.
+// OPT 2b: cached `pass.setIndexBuffer(buffer, format)`.
+        // The two spec formats hit the thread-local `JsValue` cache instead
+        // of paying a fresh JS string allocation per call (per entity per
+        // frame in mesh scenes).
+        let format_value: JsValue = match format {
+            "uint16" => cached_method_name("uint16"),
+            "uint32" => cached_method_name("uint32"),
+            other => JsValue::from_str(other),
+        };
         let set_fn: Function = cached_method(
             GpuReceiverClass::RenderPass,
             pass,
             WEBGPU_METHOD_SET_INDEX_BUFFER,
         )
         .unwrap_or_else(|_| JsValue::UNDEFINED.unchecked_into());
-        let _: Result<JsValue, JsValue> = set_fn.call2(pass, buffer, &JsValue::from_str(format));
+        let _: Result<JsValue, JsValue> = set_fn.call2(pass, buffer, &format_value);
     }
 
     /// Draws primitives on a render pass encoder.

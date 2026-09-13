@@ -426,15 +426,13 @@ impl PhysicsWorld2D {
                 }
             }
         }
-        // OPT 33: copy out the pairs slice into a stack-local binding once
-        // per step so the immutable borrow on `self.pair_buffer` ends before
-        // the `self.get_mut_bodies()` mutable borrow below. Method-call-
-        // based disjoint borrow rules in Rust 2024 are not fine-grained
-        // enough to allow `self.pair_buffer.iter()` alongside
-        // `self.get_mut_bodies()` for a method that takes `&mut self`.
-        // The clone happens once per step (not per iteration) — `pairs` is
-        // typically O(n) short, much smaller than the per-pair body work.
-        let pairs_snapshot: Vec<(usize, usize)> = self.pair_buffer.clone();
+        // OPT 33: `mem::take` moves the pairs out (leaving an empty Vec
+        // behind) so the immutable borrow on `self.pair_buffer` ends before
+        // the `self.get_mut_bodies()` mutable borrow below — the buffer keeps
+        // its allocation across steps instead of paying one Vec clone
+        // (alloc + memcpy) per step per world. It is restored after the
+        // iteration loop.
+        let pairs_snapshot: Vec<(usize, usize)> = std::mem::take(&mut self.pair_buffer);
         for iteration in 0..PHYSICS_MAX_ITERATIONS {
             let mut any_collision: bool = false;
             for &(i, j) in pairs_snapshot.iter() {
@@ -454,6 +452,7 @@ impl PhysicsWorld2D {
             }
             let _: u32 = iteration;
         }
+        self.pair_buffer = pairs_snapshot;
     }
 }
 
@@ -814,11 +813,13 @@ impl PhysicsWorld3D {
                 }
             }
         }
-        // OPT 33: copy out the pairs slice into a stack-local binding once
-        // per step so the immutable borrow on `self.pair_buffer` ends before
-        // the `self.get_mut_bodies()` mutable borrow below. See the matching
-        // comment in `PhysicsWorld2D::resolve_collisions` for rationale.
-        let pairs_snapshot: Vec<(usize, usize)> = self.pair_buffer.clone();
+        // `mem::take` moves the pairs out (leaving an empty Vec behind) so
+        // the immutable borrow on `self.pair_buffer` ends before the
+        // `self.get_mut_bodies()` mutable borrow below — the buffer keeps
+        // its allocation across steps instead of paying one Vec clone
+        // (alloc + memcpy) per step per world. It is restored after the
+        // iteration loop.
+        let pairs_snapshot: Vec<(usize, usize)> = std::mem::take(&mut self.pair_buffer);
         for iteration in 0..PHYSICS_MAX_ITERATIONS {
             let mut any_collision: bool = false;
             for &(i, j) in pairs_snapshot.iter() {
@@ -838,6 +839,7 @@ impl PhysicsWorld3D {
             }
             let _: u32 = iteration;
         }
+        self.pair_buffer = pairs_snapshot;
     }
 
     /// Checks collision between two 3D bodies based on both bodies' collider shapes.

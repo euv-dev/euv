@@ -223,8 +223,8 @@ impl EventBus {
     ///
     /// - `&EntityEvent` - The event to emit.
     pub fn emit(&self, event: &EntityEvent) {
-        let event_name: String = Self::event_name(event);
-        if let Some(handlers) = self.get_handlers().get(&event_name) {
+        let event_name: &str = Self::event_name(event);
+        if let Some(handlers) = self.get_handlers().get(event_name) {
             for handler in handlers {
                 handler(event);
             }
@@ -270,15 +270,16 @@ impl EventBus {
     ///
     /// # Returns
     ///
-    /// - `String` - The channel name.
-    fn event_name(event: &EntityEvent) -> String {
+    /// - `&str` - The channel name (borrowed — no allocation per emit;
+    ///   the `Custom` variant borrows its `name` field).
+    fn event_name(event: &EntityEvent) -> &str {
         match event {
-            EntityEvent::Collision { .. } => "collision".to_string(),
-            EntityEvent::TriggerEnter { .. } => "trigger_enter".to_string(),
-            EntityEvent::TriggerExit { .. } => "trigger_exit".to_string(),
-            EntityEvent::Spawn => "spawn".to_string(),
-            EntityEvent::Destroy => "destroy".to_string(),
-            EntityEvent::Custom { name, .. } => name.clone(),
+            EntityEvent::Collision { .. } => "collision",
+            EntityEvent::TriggerEnter { .. } => "trigger_enter",
+            EntityEvent::TriggerExit { .. } => "trigger_exit",
+            EntityEvent::Spawn => "spawn",
+            EntityEvent::Destroy => "destroy",
+            EntityEvent::Custom { name, .. } => name.as_str(),
         }
     }
 }

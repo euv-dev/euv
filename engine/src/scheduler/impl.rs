@@ -31,32 +31,48 @@ impl SchedulerState {
     /// Falls back to `0.0` when the global window or the `performance.now`
     /// API is unavailable (for example outside a browser window context).
     ///
+    /// The `performance` object and its `now` `Function` are page-lifetime
+    /// globals, so they are cached in a thread-local on first use — the
+    /// per-frame cost is one `call0` crossing, not two `Reflect::get` +
+    /// two `JsValue::from_str` allocations.
+    ///
     /// # Returns
     ///
     /// - `f64` - The current time in seconds, or `0.0` when unavailable.
     pub fn current_time() -> f64 {
-        let Some(window_value) = window() else {
-            return 0.0;
-        };
-        let Ok(performance) = Reflect::get(
-            window_value.as_ref(),
-            &JsValue::from_str(PERFORMANCE_OBJECT),
-        ) else {
-            return 0.0;
-        };
-        let Ok(now_method) = Reflect::get(&performance, &JsValue::from_str(PERFORMANCE_NOW_METHOD))
-        else {
-            return 0.0;
-        };
-        let now_function: js_sys::Function = now_method.unchecked_into();
-        let Some(now_millis) = now_function
-            .call0(&performance)
-            .ok()
-            .and_then(|v: JsValue| v.as_f64())
-        else {
-            return 0.0;
-        };
-        now_millis / 1000.0
+        thread_local! {
+            static PERFORMANCE_NOW: RefCell<Option<(JsValue, Function)>> =
+                const { RefCell::new(None) };
+        }
+        PERFORMANCE_NOW.with(|cell: &RefCell<Option<(JsValue, Function)>>| {
+            let mut borrow: std::cell::RefMut<'_, Option<(JsValue, Function)>> = cell.borrow_mut();
+            if borrow.is_none() {
+                let Some(window_value) = window() else {
+                    return 0.0;
+                };
+                let Ok(performance) = Reflect::get(
+                    window_value.as_ref(),
+                    &JsValue::from_str(PERFORMANCE_OBJECT),
+                ) else {
+                    return 0.0;
+                };
+                let Ok(now_method) =
+                    Reflect::get(&performance, &JsValue::from_str(PERFORMANCE_NOW_METHOD))
+                else {
+                    return 0.0;
+                };
+                *borrow = Some((performance, now_method.unchecked_into()));
+            }
+            let Some((performance, now_function)) = borrow.as_ref() else {
+                return 0.0;
+            };
+            now_function
+                .call0(performance)
+                .ok()
+                .and_then(|v: JsValue| v.as_f64())
+                .map(|millis: f64| millis / 1000.0)
+                .unwrap_or(0.0)
+        })
     }
 
     /// Performs one tick of the fixed-timestep scheduler.
