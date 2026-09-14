@@ -1594,6 +1594,18 @@ class! {
         background: var!(accent);
         font-size: var!(font-base);
         font-weight: "500";
+        // iOS WebKit: tap on a non-button element inside a scrollable
+        // container can be silently dropped because iOS interprets the
+        // touch as the start of a scroll gesture and never dispatches the
+        // synthetic `click`. `touch-action: manipulation` tells iOS this
+        // element only responds to taps and panning — no double-tap-zoom
+        // wait, no scroll-gesture disambiguation. `user-select: none`
+        // additionally suppresses the iOS text-selection bubble that
+        // would otherwise intercept the tap. See ui/src/style/css/fn.rs
+        // for the global reset and PR that documents the iOS repro.
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
     }
 
     pub c_tab_item_inactive {
@@ -1603,6 +1615,10 @@ class! {
         color: "inherit";
         font-size: var!(font-base);
         font-weight: "500";
+        // iOS WebKit fix — see c_tab_item_active above for the rationale.
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
         :hover {
             background: var!(accent-muted);
             color: var!(accent);
