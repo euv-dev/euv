@@ -9,6 +9,8 @@ mod style;
 
 pub use {component::*, hook::*, style::*};
 
+use euv::*;
+
 use std::{
     any::Any,
     cell::{Cell, RefCell, RefMut, UnsafeCell},
@@ -23,7 +25,5 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-
-use euv::*;
 
 use {js_sys::*, lombok_macros::*, wasm_bindgen::prelude::*, wasm_bindgen_futures::*, web_sys::*};

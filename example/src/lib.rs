@@ -7,7 +7,7 @@ mod component;
 mod page;
 mod style;
 
-use {component::*, page::*, style::*};
+pub(crate) use {component::*, page::*, style::*};
 
 pub use std::{
     cmp::Ordering,
@@ -27,9 +27,6 @@ use {
     euv::{js_sys::*, wasm_bindgen::prelude::*, wasm_bindgen_futures::*, web_sys::*, *},
     euv_engine::*,
     euv_ui::*,
-};
-
-use {
     lombok_macros::*,
     qrcode::{QrCode, render::svg, types::QrError},
     serde::{Deserialize, Serialize},
