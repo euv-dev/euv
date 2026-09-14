@@ -1594,15 +1594,6 @@ class! {
         background: var!(accent);
         font-size: var!(font-base);
         font-weight: "500";
-        // iOS WebKit: tap on a non-button element inside a scrollable
-        // container can be silently dropped because iOS interprets the
-        // touch as the start of a scroll gesture and never dispatches the
-        // synthetic `click`. `touch-action: manipulation` tells iOS this
-        // element only responds to taps and panning — no double-tap-zoom
-        // wait, no scroll-gesture disambiguation. `user-select: none`
-        // additionally suppresses the iOS text-selection bubble that
-        // would otherwise intercept the tap. See ui/src/style/css/fn.rs
-        // for the global reset and PR that documents the iOS repro.
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
@@ -1615,7 +1606,6 @@ class! {
         color: "inherit";
         font-size: var!(font-base);
         font-weight: "500";
-        // iOS WebKit fix — see c_tab_item_active above for the rationale.
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
@@ -2018,6 +2008,9 @@ class! {
         justify-content: "center";
         z-index: "1000";
         animation: format!("euv-fade-in {} {}", var!(duration-modal-overlay), var!(ease-out));
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
         @media ((max-width: 767px)) {
             align-items: "center";
             justify-content: "center";
@@ -2261,6 +2254,9 @@ class! {
         background: var!(bg-overlay);
         contain: "layout style paint";
         transition: format!("opacity {} {}", var!(duration-overlay), var!(ease-out));
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
     }
 
     pub c_vconsole_overlay_hidden {
@@ -2596,6 +2592,9 @@ class! {
         z-index: "200";
         contain: "layout style paint";
         transition: format!("opacity {} {}", var!(duration-overlay), var!(ease-out));
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
     }
 
     pub c_mobile_overlay_hidden {
@@ -3800,6 +3799,9 @@ class! {
         background: var!(bg-overlay);
         z-index: "200";
         transition: format!("opacity {} {}, visibility {} {}", var!(duration-overlay), var!(ease-out), var!(duration-overlay), var!(ease-out));
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
     }
     pub c_euv_drawer_overlay_open {
         opacity: "1";
