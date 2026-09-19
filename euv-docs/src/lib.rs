@@ -37,10 +37,15 @@ pub fn main() {
              \
              .c_app_main { padding-top: 4.75rem !important; } \
              \
-             .c_euv_sidebar_group_title { padding: 0.4rem 1.25rem !important; box-sizing: border-box !important; } \
-             .c_euv_sidebar_children { padding-left: 1rem !important; margin-left: 1.25rem !important; } \
-             .c_euv_sidebar_link { display: block !important; padding: 0.4rem 1.25rem !important; } \
+             .c_euv_sidebar_group_title { padding: 0.4rem 0.75rem !important; box-sizing: border-box !important; } \
+             .c_euv_sidebar_children { padding-left: 0.5rem !important; margin-left: 0.75rem !important; } \
+             .c_euv_sidebar_link { display: block !important; padding: 0.4rem 0.75rem !important; } \
              .c_euv_sidebar_link:hover { font-weight: 700 !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; box-shadow: inset 4px 0px 0px var(--foreground, #000) !important; } \
+             \
+             .c_euv_doc_layout { max-width: 1160px !important; } \
+             .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; } \
+             .c_euv_toc_link_nested { padding-left: 0.75rem !important; font-size: var(--font-sm, 0.875rem) !important; color: var(--muted-foreground, #555) !important; line-height: 1.5 !important; } \
+             .c_euv_toc_link_nested:hover { color: var(--accent, #000) !important; } \
              \
              .c_docs_page_title { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 1rem 0; padding-top: 0; color: var(--foreground, #000); } \
              \
