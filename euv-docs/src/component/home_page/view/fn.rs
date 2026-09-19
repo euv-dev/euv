@@ -70,10 +70,11 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
 pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualNode {
     let DocsFeatureProps { feature }: DocsFeatureProps = node.try_get_props().unwrap_or_default();
     let show_icon: bool = !feature.icon.is_empty() && feature.icon != "blog";
+    let has_icon: fn() -> bool = if show_icon { || true } else { || false };
     let inner: VirtualNode = html! {
         div {
             class: "c_docs_feature_card_inner"
-            if { show_icon == true } {
+            if { has_icon() } {
                 div {
                     class: "c_docs_feature_card_icon"
                     {

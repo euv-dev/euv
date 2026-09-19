@@ -13,11 +13,10 @@ pub(crate) use {
     data::*,
     js_sys::{Promise, decode_uri_component, eval},
     router::*,
-    web_sys::{Event, HtmlInputElement, KeyboardEvent, Location, window},
+    web_sys::{Event, HtmlInputElement, KeyboardEvent, Location},
 };
 
 use {
-    crate::generated::*,
     euv::{wasm_bindgen::prelude::*, web_sys::*, *},
     euv_ui::*,
     wasm_bindgen_futures::{JsFuture, spawn_local},
@@ -43,6 +42,8 @@ pub fn main() {
              .c_euv_sidebar_children > .c_euv_sidebar_children { margin-left: 0.75rem !important; } \
              .c_euv_sidebar_link { display: block !important; padding: 0.4rem 1.25rem !important; } \
              .c_euv_sidebar_link:hover { font-weight: 700 !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; box-shadow: inset 4px 0px 0px var(--foreground, #000) !important; } \
+             \
+             .c_docs_page_title { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 1rem 0; padding-top: 0; color: var(--foreground, #000); } \
              \
              .c_feature_card { border: 1px dashed var(--foreground, #000) !important; border-radius: 0 !important; padding: 1rem !important; background: transparent !important; } \
              .c_home_btn_secondary { background: transparent !important; color: #000 !important; border: 1.5px solid #000 !important; } \
