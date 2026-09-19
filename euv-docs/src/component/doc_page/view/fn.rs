@@ -101,6 +101,14 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             prev: prev
             next: next
             footer: footer_text
+            if { !page.title.is_empty() } {
+                h1 {
+                    class: "c_docs_page_title"
+                    {
+                        page.title
+                    }
+                }
+            }
             euv_markdown {
                 blocks: page.blocks
             }

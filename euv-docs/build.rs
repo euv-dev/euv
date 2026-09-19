@@ -255,6 +255,7 @@ fn main() {
     if public_dir.is_dir() {
         copy_dir(&public_dir, &www_dir);
     }
+    copy_doc_assets(&docs_dir, &www_dir);
 
     let mut sidebars: Vec<(String, Vec<SideItem>)> = Vec::new();
     for locale in &config.locales {
@@ -338,6 +339,41 @@ fn collect_md(dir: &Path, out: &mut Vec<PathBuf>) {
             collect_md(&path, out);
         } else if path.extension().is_some_and(|e| e == "md") {
             out.push(path);
+        }
+    }
+}
+
+/// Walks the docs tree and copies every non-md sibling file (images,
+/// fonts, raw assets) into `www/`, preserving the relative path under
+/// `docs_dir`. This lets markdown authors keep assets next to their
+/// content (`essay/posts/2025/img.jpg`) and reference them as
+/// `/essay/posts/2025/img.jpg`. Directories named `public` are skipped
+/// because they are handled by `copy_dir(docs/public -> www/)` above
+/// and contain site-level assets, not page-level assets.
+fn copy_doc_assets(docs_dir: &Path, www_dir: &Path) {
+    copy_doc_assets_recurse(docs_dir, docs_dir, www_dir);
+}
+
+fn copy_doc_assets_recurse(root: &Path, dir: &Path, www_dir: &Path) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path: PathBuf = entry.path();
+        if path.is_dir() {
+            if path.file_name().is_some_and(|n| n == "public") {
+                continue;
+            }
+            copy_doc_assets_recurse(root, &path, www_dir);
+        } else if path.extension().is_some_and(|e| e != "md") {
+            let Ok(rel) = path.strip_prefix(root) else {
+                continue;
+            };
+            let target: PathBuf = www_dir.join(rel);
+            if let Some(parent) = target.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::copy(&path, &target);
         }
     }
 }
@@ -1093,7 +1129,7 @@ fn collect_inline(it: &mut EventIter, ctx: &mut ParseCtx, event: Event, inlines:
         Event::Start(Tag::Image { dest_url, .. }) => {
             let alt_inlines: Vec<Inline> = parse_inlines(it, ctx, true);
             inlines.push(Inline::Image {
-                src: dest_url.to_string(),
+                src: rewrite_image_src(&dest_url, ctx.route),
                 alt: inline_plain_text(&alt_inlines),
             });
         }
@@ -1204,6 +1240,35 @@ fn rewrite_link(dest: &str, route: &str) -> (String, bool) {
         }
     }
     (href, false)
+}
+
+/// Rewrites an image `src` so it resolves against the SPA's
+/// `<base href="./">` (the deployed `index.html`).
+///
+/// External URLs (`http://`, `https://`, `data:`) are left untouched.
+/// Site-root-absolute paths (`/essay/09-19/img.jpg`) become
+/// `./essay/09-19/img.jpg` — the leading slash is dropped so the
+/// browser resolves the URL relative to the current page, which is
+/// exactly where `copy_doc_assets` (and `copy_dir(docs/public -> www)`)
+/// have placed the asset. Without this rewrite the browser fetches
+/// `/essay/09-19/img.jpg` and the SPA's nginx rule serves the index
+/// shell (0 bytes, text/html), so `<img>.naturalWidth` ends up 0.
+fn rewrite_image_src(dest: &str, _route: &str) -> String {
+    if dest.starts_with("http://")
+        || dest.starts_with("https://")
+        || dest.starts_with("data:")
+        || dest.starts_with("blob:")
+    {
+        return dest.to_string();
+    }
+    let trimmed: &str = dest.trim_start_matches('/');
+    if trimmed.is_empty() {
+        return dest.to_string();
+    }
+    if dest.starts_with('/') {
+        return format!("./{trimmed}");
+    }
+    dest.to_string()
 }
 
 /// Resolves a relative markdown path against the current page route.
