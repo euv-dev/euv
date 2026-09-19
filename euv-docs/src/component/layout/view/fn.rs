@@ -470,7 +470,7 @@ fn switch_locale(
         let (path, _anchor) = parse_route(&route_signal.get());
         menu_open.set(false);
         if let Some(window) = web_sys::window() {
-            let location: web_sys::Location = window.location();
+            let location: Location = window.location();
             // `set_hash` applies synchronously, so the reload below boots the
             // app straight into the target locale's route.
             let route: String = route_in_locale(&path, target);

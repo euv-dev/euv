@@ -1,4 +1,3 @@
-use super::r#const::*;
 use super::*;
 
 /// localStorage key prefix used to record that a `route` has been
@@ -17,7 +16,7 @@ const UNLOCK_KEY_PREFIX: &str = "euv-docs:unlocked:";
 /// non-secure-context loads; the form will then reject all attempts
 /// so the content stays protected).
 ///
-/// Using `js_sys::eval` keeps the binding typed-but-loose — we don't
+/// Using `eval` keeps the binding typed-but-loose — we don't
 /// need the typed `web_sys::Crypto` / `web_sys::SubtleCrypto` surfaces,
 /// which aren't enabled in euv's web-sys feature set. The result is a
 /// `Promise<ArrayBuffer>` that we await via `wasm_bindgen_futures`.
@@ -44,10 +43,10 @@ async fn async_sha256_hex(input: &str) -> Option<String> {
             return out;
         }})()"#
     );
-    let value: JsValue = js_sys::eval(&script).ok()?;
-    let promise: js_sys::Promise = value.unchecked_into();
+    let value: JsValue = eval(&script).ok()?;
+    let promise: Promise = value.unchecked_into();
     let result: Result<JsValue, JsValue> =
-        wasm_bindgen_futures::JsFuture::from(promise).await.into();
+        JsFuture::from(promise).await.into();
     let digest: String = result.ok()?.as_string()?;
     Some(digest)
 }
@@ -186,7 +185,7 @@ fn submit_handler(
         let route_static: &'static str = route;
         let unlock_key_owned: String = unlock_key.clone();
         let expected_hash_owned: &'static str = expected_hash;
-        wasm_bindgen_futures::spawn_local(async move {
+        spawn_local(async move {
             let digest: Option<String> = async_sha256_hex(&typed).await;
             let matched: bool = digest
                 .as_deref()
@@ -200,7 +199,7 @@ fn submit_handler(
                 // back to the parent's listener without adding a new
                 // public API to euv-ui.
                 if let Some(window) = web_sys::window() {
-                    let location: web_sys::Location = window.location();
+                    let location: Location = window.location();
                     let current: String = location.hash().unwrap_or_default();
                     let next: String = if current.is_empty() {
                         format!("#{route_static}")
@@ -232,7 +231,7 @@ fn oninput_handler(input_signal: Signal<String>) -> Option<Rc<dyn Fn(Event)>> {
         // event ever reaches us without a target.
         if let Some(input) = event
             .target()
-            .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+            .and_then(|t| t.dyn_into::<HtmlInputElement>().ok())
         {
             input_signal.set(input.value());
         }
@@ -243,7 +242,7 @@ fn oninput_handler(input_signal: Signal<String>) -> Option<Rc<dyn Fn(Event)>> {
 /// the button with the mouse.
 fn onkeydown_handler(submit: Option<Rc<dyn Fn(Event)>>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
-        if let Some(keyboard) = event.dyn_ref::<web_sys::KeyboardEvent>() {
+        if let Some(keyboard) = event.dyn_ref::<KeyboardEvent>() {
             if keyboard.key() == "Enter" {
                 if let Some(handler) = submit.as_ref() {
                     handler.as_ref()(event);

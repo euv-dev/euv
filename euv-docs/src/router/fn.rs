@@ -1,4 +1,4 @@
-use super::super::*;
+use super::*;
 
 /// Decodes a percent-encoded anchor slug from a hash route.
 ///
@@ -26,7 +26,7 @@ fn decode_anchor(encoded: &str) -> String {
         // Fast path: nothing to decode, skip the FFI roundtrip.
         return encoded.to_string();
     }
-    match js_sys::decode_uri_component(encoded) {
+    match decode_uri_component(encoded) {
         Ok(value) => value.as_string().unwrap_or_else(|| encoded.to_string()),
         Err(_) => encoded.to_string(),
     }

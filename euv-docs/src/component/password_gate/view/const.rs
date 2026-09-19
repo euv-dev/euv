@@ -9,8 +9,6 @@ use super::*;
 // background — so the gate works on both desktop and mobile shells
 // without any responsive branching.
 
-use euv::class;
-
 class! {
     // Centred wrapper that fills the doc-page main area and pins the
     // gate card in the vertical middle on tall viewports.
