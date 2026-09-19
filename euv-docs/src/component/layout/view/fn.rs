@@ -99,7 +99,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
                     class: c_nav_theme_toggle()
                     button {
                         class: c_nav_theme_button()
-                        title: "Toggle theme"
+                        title: "切换主题"
                         onclick: ThemeState::toggle(theme_signal)
                         theme_icon_node(theme_signal)
                     }
@@ -160,7 +160,7 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                 }
                 button {
                     class: c_mobile_theme_button()
-                    title: "Toggle theme"
+                    title: "切换主题"
                     onclick: ThemeState::toggle(theme_signal)
                     theme_icon_node(theme_signal)
                 }
@@ -334,11 +334,12 @@ fn nav_footer_node(github: Option<&'static str>) -> VirtualNode {
             }
             span {
                 class: c_nav_footer_text()
-                "Built with "
+                "基于 "
                 span {
                     class: c_nav_footer_brand()
                     "Euv & Wasm"
                 }
+                " 构建"
             }
         }
     }
@@ -381,7 +382,7 @@ fn locale_row_node(route_signal: Signal<String>, locale_menu_open: Signal<bool>)
                 on_select: switch_locale(route_signal, locale_menu_open)
                 button {
                     class: c_nav_theme_button()
-                    title: "Language"
+                    title: "语言"
                     onclick: toggle_menu(locale_menu_open)
                     {
                         current_label
@@ -393,7 +394,7 @@ fn locale_row_node(route_signal: Signal<String>, locale_menu_open: Signal<bool>)
 }
 
 /// Picks the section label shown above the sidebar tree: the first internal,
-/// non-home navbar item text (e.g. `"Guide"`), falling back to `"Docs"`.
+/// non-home navbar item text (e.g. `"指南"`), falling back to `"文档"`.
 ///
 /// # Arguments
 ///
@@ -408,7 +409,7 @@ fn section_label(locale: &'static DocsLocale) -> &'static str {
         .iter()
         .find(|item: &&EuvNavbarItem| !item.link.starts_with("http") && item.link != locale.prefix)
         .map(|item: &EuvNavbarItem| item.text)
-        .unwrap_or("Docs")
+        .unwrap_or("文档")
 }
 
 /// Returns the first external (`http`) navbar link, used as the footer

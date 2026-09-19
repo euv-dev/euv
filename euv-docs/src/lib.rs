@@ -30,7 +30,7 @@ pub fn main() {
     Css::inject_css(
         ".md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 { padding-left: 0 !important; } \
              .md-body .header-anchor, .md-body h1:hover .header-anchor, .md-body h2:hover .header-anchor, .md-body h3:hover .header-anchor, .md-body h4:hover .header-anchor, .md-body h5:hover .header-anchor, .md-body h6:hover .header-anchor { display: none !important; } \
-             .md-body img { display: inline-block; max-width: 100%; height: auto; vertical-align: baseline; } \
+             .md-body img { display: inline-block; width: auto !important; max-width: 100% !important; height: auto; vertical-align: baseline; } \
              .md-body a > img { display: inline-block; } \
              .md-body img[src$='.svg'], .md-body img[src*='shields.io'], .md-body img[src*='github.com'] { max-height: 20px; max-width: 100%; } \
              .md-body table img { max-height: 1.4em; } \
