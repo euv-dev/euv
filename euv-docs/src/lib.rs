@@ -29,18 +29,53 @@ pub fn main() {
     inject_app_global_css();
     Css::inject_css(EUV_MD_CSS);
     Css::inject_css(
+        // Markdown body — strip VuePress-style header anchors.
         ".md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 { padding-left: 0 !important; } \
          .md-body .header-anchor, .md-body h1:hover .header-anchor, .md-body h2:hover .header-anchor, .md-body h3:hover .header-anchor, .md-body h4:hover .header-anchor, .md-body h5:hover .header-anchor, .md-body h6:hover .header-anchor { display: none !important; } \
+         .md-body img { display: inline-block; max-width: 100%; height: auto; vertical-align: baseline; } \
+         .md-body a > img { display: inline-block; } \
+         .md-body img[src$='.svg'], .md-body img[src*='shields.io'], .md-body img[src*='github.com'] { max-height: 20px; max-width: 100%; } \
+         .md-body table img { max-height: 1.4em; } \
+         \
+         .c_app_main { padding-top: 4.75rem !important; } \
+         \
          .c_euv_sidebar_group_title { padding: 0.4rem 1.25rem !important; box-sizing: border-box !important; } \
-         .c_euv_sidebar_children { padding: 0 !important; margin: 0 !important; } \
+         .c_euv_sidebar_children { padding-left: 1rem !important; margin-left: 0.5rem !important; } \
+         .c_euv_sidebar_children > .c_euv_sidebar_children { margin-left: 0.75rem !important; } \
          .c_euv_sidebar_link { display: block !important; padding: 0.4rem 1.25rem !important; } \
-         .c_euv_sidebar_link:hover { font-weight: 700 !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; } \
-         .c_app_main { padding-top: 1.5rem !important; } \
+         .c_euv_sidebar_link:hover { font-weight: 700 !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; box-shadow: inset 4px 0px 0px var(--foreground, #000) !important; } \
+         \
          .c_feature_card { border: 1px dashed var(--foreground, #000) !important; border-radius: 0 !important; padding: 1rem !important; background: transparent !important; } \
          .c_home_btn_secondary { background: transparent !important; color: #000 !important; border: 1.5px solid #000 !important; } \
          .c_home_btn_secondary:hover { background: rgba(0,0,0,0.06) !important; } \
          .c_theme_dark .c_home_btn_secondary { background: transparent !important; color: #fff !important; border-color: #fff !important; } \
-         .c_theme_dark .c_home_btn_secondary:hover { background: rgba(255,255,255,0.10) !important; }",
+         .c_theme_dark .c_home_btn_secondary:hover { background: rgba(255,255,255,0.10) !important; } \
+         \
+         .c_docs_feature_grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; } \
+         @media (max-width: 767px) { .c_docs_feature_grid { grid-template-columns: minmax(0, 1fr); } } \
+         .c_docs_feature_card { display: flex; flex-direction: column; gap: 0.4rem; padding: 1rem; border: 1px dashed var(--foreground, #000); border-radius: 0; background: transparent; text-decoration: none; color: inherit; transition: background 0.15s ease-out, border-color 0.15s ease-out; min-width: 0; } \
+         .c_docs_feature_card:hover { background: var(--accent-muted, rgba(0,0,0,0.06)); border-color: var(--foreground, #000); } \
+         .c_theme_dark .c_docs_feature_card:hover { background: var(--accent-muted, rgba(255,255,255,0.08)); } \
+         .c_docs_feature_card_inner { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; } \
+         .c_docs_feature_card_icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; } \
+         .c_docs_feature_card_title { font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; } \
+         .c_docs_feature_card_details { font-size: 0.875rem; color: var(--muted-foreground, #555); overflow-wrap: anywhere; } \
+         \
+         .docs-container-tip { border: 1px dashed var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--accent-muted, rgba(0,0,0,0.04)); } \
+         .docs-container-tip > .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
+         .docs-container-note { border: 1px dashed var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--accent-muted, rgba(0,0,0,0.04)); } \
+         .docs-container-note > .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
+         .docs-container-warning { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--accent-muted, rgba(0,0,0,0.04)); } \
+         .docs-container-warning > .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
+         .docs-container-danger { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: rgba(0,0,0,0.06); } \
+         .docs-container-danger > .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
+         .docs-container-important { border: 1px dashed var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--accent-muted, rgba(0,0,0,0.04)); } \
+         .docs-container-important > .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
+         .docs-container-caution { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--accent-muted, rgba(0,0,0,0.04)); } \
+         .docs-container-caution > .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
+         .docs-container-info { border: 1px dashed var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--accent-muted, rgba(0,0,0,0.04)); } \
+         .docs-container-info > .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
+         .docs-container-title:empty { display: none; }",
     );
     App::mount("#app", app);
 }

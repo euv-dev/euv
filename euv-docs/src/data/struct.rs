@@ -1,5 +1,25 @@
 use super::*;
 
+/// One feature card on the home page.
+///
+/// Mirrors `euv_ui::EuvFeature` plus a `link` so the docs-site home
+/// page can render each card as a clickable navigation tile. Lives in
+/// `euv-docs` (not `euv-ui`) because `EuvFeature` is frozen on the
+/// `euv = "0.18"` pin and the field cannot be added upstream.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DocsFeature {
+    /// Card icon (emoji); the literal string `"blog"` is treated as no
+    /// icon by `docs_feature_card` to absorb the legacy VuePress
+    /// placeholder convention.
+    pub icon: &'static str,
+    /// Card title.
+    pub title: &'static str,
+    /// Card subtitle / one-line description.
+    pub details: &'static str,
+    /// Optional route or external URL — empty means non-clickable.
+    pub link: &'static str,
+}
+
 /// One rendered markdown page.
 #[derive(Clone, Copy, Debug)]
 pub struct DocsPage {
@@ -21,8 +41,9 @@ pub struct DocsPage {
     pub tagline: &'static str,
     /// Hero actions (home pages).
     pub actions: &'static [EuvHeroAction],
-    /// Feature cards (home pages).
-    pub features: &'static [EuvFeature],
+    /// Feature cards (home pages) — each card carries an optional
+    /// `link` so the home grid renders as a clickable navigation tile.
+    pub features: &'static [DocsFeature],
     /// Frontmatter footer override.
     pub footer: &'static str,
     /// `true` when the page is gated behind a password form. Direct URL
