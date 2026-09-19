@@ -53,6 +53,12 @@ pub const HELP_FLAG_SHORT: &str = "-h";
 pub const WASM_TARGET_WEB: &str = "web";
 
 /// Site source directory must contain this TOML config.
+///
+/// **Deprecated**: euv-docs 0.2.0+ reads site config from the
+/// parent README.md frontmatter (`<SRC_DIR>/../README.md`). This
+/// constant is retained so the CLI can emit a helpful warning when
+/// neither the legacy config.toml nor the README.md frontmatter
+/// is present.
 pub const CONFIG_FILE_NAME: &str = "config.toml";
 
 /// Sub-directory of `<SRC_DIR>` that holds static assets copied

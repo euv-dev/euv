@@ -88,11 +88,15 @@ pub fn run(args: &Args) -> Result<(), String> {
         ));
     }
     if !src_dir.join(CONFIG_FILE_NAME).is_file() {
-        return Err(format!(
-            "source directory is missing {}: {}",
+        // euv-docs 0.2.0+ reads site config from <SRC_DIR>/../README.md
+        // frontmatter; the legacy config.toml is optional. Fall through
+        // here so the build script can still try to extract config from
+        // the parent README.md when no config.toml is present.
+        eprintln!(
+            "euv-docs: note: {} not found at {}, falling back to parent README.md frontmatter",
             CONFIG_FILE_NAME,
             src_dir.display()
-        ));
+        );
     }
     // Phase 1: prepare output directory and template path.
     let out_dir: &Path = args.get_out_dir().as_path();
