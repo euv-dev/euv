@@ -800,27 +800,20 @@ fn transform_github_alerts(body: &str) -> String {
             out.push('\n');
             idx += 1;
             continue;
-        }
-        let title_line: Option<String> = (idx + 1 < lines.len())
-            .then(|| {
-                lines[idx + 1]
-                    .trim_start()
-                    .strip_prefix('>')
-                    .unwrap_or("")
-                    .trim()
-            })
-            .filter(|s: &&str| !s.is_empty() && !s.starts_with("[!"))
-            .map(str::to_string);
+        };
+        // GitHub alerts carry no title syntax — text after `]` on the
+        // marker line is the only accepted custom title. The following
+        // `>` lines are always body content; treating the first of them
+        // as the title would hijack content like `> [!tip]\n> LTPP
+        // \`WEB\` …` into an unparsed (and uppercased) title label.
+        let inline_title: &str = after_marker[close + 1..].trim();
         out.push_str(&format!("::: {kind_candidate}"));
-        if let Some(title) = &title_line {
+        if !inline_title.is_empty() {
             out.push(' ');
-            out.push_str(title);
+            out.push_str(inline_title);
         }
         out.push('\n');
         let mut body_idx: usize = idx + 1;
-        if title_line.is_some() {
-            body_idx += 1;
-        }
         while body_idx < lines.len() {
             let next: &str = lines[body_idx];
             if let Some(rest) = next.trim_start().strip_prefix('>') {
