@@ -1,15 +1,16 @@
 use super::*;
 
-/// Renders the home page out of euv-ui components: `euv_hero`,
-/// `euv_feature_grid`, an optional `euv_markdown` body and the footer.
+/// Hash routing prefix for `Router::link_handler`. Inlined here because
+/// `euv_ui::Router` exposes `ROUTE_HASH_PREFIX` as `pub(crate)`.
+const ROUTE_HASH_PREFIX: &str = "#";
+
+/// Renders the home page: `euv_hero` for the title block + a custom
+/// feature grid that wraps each card in an `<a>` (when a `link` is set).
 ///
-/// # Arguments
-///
-/// - `DocsPageProps` - The typed props containing the route signal.
-///
-/// # Returns
-///
-/// - `VirtualNode` - The home page virtual DOM tree.
+/// The custom grid is rendered inline (instead of delegating to
+/// `euv_feature_grid`) because that component does not accept a link
+/// on `EuvFeature`. The `icon` field is hidden when empty or equal to
+/// the placeholder string `"blog"` so it does not leak as literal text.
 #[component]
 pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     let DocsPageProps { route_signal }: DocsPageProps = node.try_get_props().unwrap_or_default();
@@ -43,7 +44,7 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
                 subtitle: page.tagline
                 actions: page.actions
             }
-            euv_feature_grid {
+            docs_feature_grid {
                 features: page.features
             }
             if { !page.blocks.is_empty() } {
@@ -57,6 +58,100 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
                     {
                         footer_text
                     }
+                }
+            }
+        }
+    }
+}
+
+/// Renders one feature card. When the feature has a `link`, the entire
+/// card is wrapped in an `<a>` so the whole tile is clickable.
+#[component]
+pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualNode {
+    let DocsFeatureProps { feature }: DocsFeatureProps = node.try_get_props().unwrap_or_default();
+    let show_icon: bool = !feature.icon.is_empty() && feature.icon != "blog";
+    let inner: VirtualNode = html! {
+        div {
+            class: "c_docs_feature_card_inner"
+            if { show_icon == true } {
+                div {
+                    class: "c_docs_feature_card_icon"
+                    {
+                        feature.icon
+                    }
+                }
+            }
+            div {
+                class: "c_docs_feature_card_title"
+                {
+                    feature.title
+                }
+            }
+            div {
+                class: "c_docs_feature_card_details"
+                {
+                    feature.details
+                }
+            }
+        }
+    };
+    if feature.link.is_empty() {
+        html! {
+            div {
+                class: "c_docs_feature_card"
+                key: feature.title
+                inner
+            }
+        }
+    } else if feature.link.starts_with("http") {
+        html! {
+            a {
+                class: "c_docs_feature_card"
+                key: feature.title
+                href: feature.link
+                target: "_blank"
+                rel: "noopener noreferrer"
+                onclick: Router::external_link_handler(feature.link)
+                inner
+            }
+        }
+    } else {
+        html! {
+            a {
+                class: "c_docs_feature_card"
+                key: feature.title
+                href: {
+                    let mut
+                    href: String = String::with_capacity(
+                    ROUTE_HASH_PREFIX.len() + feature.link.len(),
+                    );
+                    href.push_str(ROUTE_HASH_PREFIX);
+                    href.push_str(feature.link);
+                    href
+                }
+                onclick: Router::link_handler(feature.link)
+                inner
+            }
+        }
+    }
+}
+
+/// Renders a grid of feature cards. Empty grid renders nothing.
+#[component]
+pub(crate) fn docs_feature_grid(node: VirtualNode<DocsFeatureGridProps>) -> VirtualNode {
+    let DocsFeatureGridProps { features }: DocsFeatureGridProps =
+        node.try_get_props().unwrap_or_default();
+    if features.is_empty() {
+        return html! {
+            ""
+        };
+    }
+    html! {
+        div {
+            class: "c_docs_feature_grid"
+            for feature in features.iter() {
+                docs_feature_card {
+                    feature: *feature
                 }
             }
         }

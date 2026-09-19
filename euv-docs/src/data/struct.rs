@@ -1,5 +1,19 @@
 use super::*;
 
+/// One feature card on the home page. Adds a `link` over
+/// `euv_ui::EuvFeature`; lives here because `EuvFeature` is frozen on
+/// the `euv = "0.18"` pin and cannot be augmented upstream.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DocsFeature {
+    /// Card icon (emoji); the literal string `"blog"` is treated as no
+    /// icon by `docs_feature_card`.
+    pub icon: &'static str,
+    pub title: &'static str,
+    pub details: &'static str,
+    /// Route or external URL; empty means non-clickable.
+    pub link: &'static str,
+}
+
 /// One rendered markdown page.
 #[derive(Clone, Copy, Debug)]
 pub struct DocsPage {
@@ -21,8 +35,9 @@ pub struct DocsPage {
     pub tagline: &'static str,
     /// Hero actions (home pages).
     pub actions: &'static [EuvHeroAction],
-    /// Feature cards (home pages).
-    pub features: &'static [EuvFeature],
+    /// Feature cards (home pages) — each card carries an optional
+    /// `link` so the home grid renders as a clickable navigation tile.
+    pub features: &'static [DocsFeature],
     /// Frontmatter footer override.
     pub footer: &'static str,
     /// `true` when the page is gated behind a password form. Direct URL

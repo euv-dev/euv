@@ -188,8 +188,8 @@ struct Page {
     tagline: String,
     /// Hero actions.
     actions: Vec<(String, String, String)>,
-    /// Feature cards.
-    features: Vec<(String, String, String)>,
+    /// Feature cards (home pages) — each tuple is `(icon, title, details, link)`.
+    features: Vec<(String, String, String, String)>,
     /// Frontmatter footer override.
     footer: String,
     /// Frontmatter `order` (sidebar sorting).
@@ -414,13 +414,14 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
         })
         .collect();
 
-    let features: Vec<(String, String, String)> = yaml_list(&frontmatter, "features")
+    let features: Vec<(String, String, String, String)> = yaml_list(&frontmatter, "features")
         .iter()
         .map(|item| {
             (
                 yaml_str(item, "icon").unwrap_or_default(),
                 yaml_str(item, "title").unwrap_or_default(),
                 yaml_str(item, "details").unwrap_or_default(),
+                yaml_str(item, "link").unwrap_or_default(),
             )
         })
         .collect();
@@ -673,7 +674,7 @@ fn is_private_page(value: &Yaml) -> bool {
 
 /// Renders markdown source into a block AST, extracting headings + first h1.
 fn render_markdown(body: &str, route: &str) -> (Vec<Block>, Vec<Heading>, Option<String>) {
-    let segments: Vec<Segment> = split_containers(body);
+    let segments: Vec<Segment> = split_containers(&transform_github_alerts(body));
     let mut blocks: Vec<Block> = Vec::new();
     let mut headings: Vec<Heading> = Vec::new();
     let mut first_h1: Option<String> = None;
@@ -734,6 +735,76 @@ enum Segment {
         /// Raw markdown body.
         body: String,
     },
+}
+
+/// Recognised GitHub-flavoured alert kinds accepted on blockquote markers.
+const GITHUB_ALERT_KINDS: &[&str] = &["tip", "note", "warning", "danger", "important", "caution"];
+
+/// Rewrites `> [!TIP]` / `> [!NOTE]` / `> [!WARNING]` / `> [!DANGER]`
+/// / `> [!IMPORTANT]` / `> [!CAUTION]` blockquotes into the
+/// `::: kind [title]\n…\n:::` form so `split_containers` picks them up.
+fn transform_github_alerts(body: &str) -> String {
+    let mut out: String = String::with_capacity(body.len());
+    let lines: Vec<&str> = body.lines().collect();
+    let mut idx: usize = 0;
+    while idx < lines.len() {
+        let line: &str = lines[idx];
+        let stripped: &str = line.trim_start().strip_prefix('>').unwrap_or("");
+        if !line.trim_start().starts_with('>') || !stripped.trim_start().starts_with("[!") {
+            out.push_str(line);
+            out.push('\n');
+            idx += 1;
+            continue;
+        }
+        let after_marker: &str = stripped.trim_start().trim_start_matches("[!");
+        let close: Option<usize> = after_marker.find(']');
+        let Some(close) = close else {
+            out.push_str(line);
+            out.push('\n');
+            idx += 1;
+            continue;
+        };
+        let kind_candidate: String = after_marker[..close].trim().to_ascii_lowercase();
+        if !GITHUB_ALERT_KINDS.contains(&kind_candidate.as_str()) {
+            out.push_str(line);
+            out.push('\n');
+            idx += 1;
+            continue;
+        }
+        let title_line: Option<String> = (idx + 1 < lines.len())
+            .then(|| {
+                lines[idx + 1]
+                    .trim_start()
+                    .strip_prefix('>')
+                    .unwrap_or("")
+                    .trim()
+            })
+            .filter(|s: &&str| !s.is_empty() && !s.starts_with("[!"))
+            .map(str::to_string);
+        out.push_str(&format!("::: {kind_candidate}"));
+        if let Some(title) = &title_line {
+            out.push(' ');
+            out.push_str(title);
+        }
+        out.push('\n');
+        let mut body_idx: usize = idx + 1;
+        if title_line.is_some() {
+            body_idx += 1;
+        }
+        while body_idx < lines.len() {
+            let next: &str = lines[body_idx];
+            if let Some(rest) = next.trim_start().strip_prefix('>') {
+                out.push_str(rest.trim_start());
+                out.push('\n');
+                body_idx += 1;
+            } else {
+                break;
+            }
+        }
+        out.push_str(":::\n");
+        idx = body_idx;
+    }
+    out
 }
 
 /// Splits source into markdown / container segments (containers do not nest).
@@ -1315,10 +1386,10 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
         let features: String = page
             .features
             .iter()
-            .map(|(icon, title, details)| {
+            .map(|(icon, title, details, link)| {
                 format!(
-                    "euv_ui::EuvFeature {{ icon: {:?}, title: {:?}, details: {:?} }}",
-                    icon, title, details
+                    "crate::data::DocsFeature {{ icon: {:?}, title: {:?}, details: {:?}, link: {:?} }}",
+                    icon, title, details, link
                 )
             })
             .collect::<Vec<String>>()
