@@ -38,8 +38,11 @@ pub fn main() {
              .c_app_main { padding-top: 4.75rem !important; } \
              \
              .c_euv_sidebar_group_title { padding: 0.4rem 0.75rem !important; box-sizing: border-box !important; } \
-             .c_euv_sidebar_children { padding-left: 0.5rem !important; margin-left: 0.75rem !important; } \
+             .c_euv_sidebar_children { padding-left: 0 !important; margin-left: 1.25rem !important; } \
+             .c_euv_sidebar_children:not(.c_euv_sidebar_children .c_euv_sidebar_children) { margin-left: 1.75rem !important; } \
+             .c_euv_sidebar_children .c_euv_sidebar_group_title, .c_euv_sidebar_children .c_euv_sidebar_link, .c_euv_sidebar_children .c_euv_sidebar_link_active { padding-left: 0.25rem !important; } \
              .c_euv_sidebar_link { display: block !important; padding: 0.4rem 0.75rem !important; } \
+             .c_euv_sidebar_link_active { padding: 0.4rem 0.75rem !important; } \
              .c_euv_sidebar_link:hover { font-weight: 700 !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; box-shadow: inset 4px 0px 0px var(--foreground, #000) !important; } \
              \
              .c_euv_doc_layout { max-width: 1160px !important; } \
