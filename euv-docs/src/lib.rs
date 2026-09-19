@@ -37,8 +37,10 @@ pub fn main() {
          .c_euv_sidebar_link:hover { font-weight: 700 !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; } \
          .c_app_main { padding-top: 1.5rem !important; } \
          .c_feature_card { border: 1px dashed var(--foreground, #000) !important; border-radius: 0 !important; padding: 1rem !important; background: transparent !important; } \
-         .c_home_btn_secondary { background: #fff !important; color: #000 !important; border-color: #fff !important; } \
-         .c_home_btn_secondary:hover { border-color: #000 !important; }",
+         .c_home_btn_secondary { background: transparent !important; color: #000 !important; border: 1.5px solid #000 !important; } \
+         .c_home_btn_secondary:hover { background: rgba(0,0,0,0.06) !important; } \
+         .c_theme_dark .c_home_btn_secondary { background: transparent !important; color: #fff !important; border-color: #fff !important; } \
+         .c_theme_dark .c_home_btn_secondary:hover { background: rgba(255,255,255,0.10) !important; }",
     );
     App::mount("#app", app);
 }
