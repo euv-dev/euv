@@ -13,11 +13,10 @@ pub(crate) use {
     data::*,
     js_sys::{Promise, decode_uri_component, eval},
     router::*,
-    web_sys::{Event, HtmlInputElement, KeyboardEvent, Location, window},
+    web_sys::{Event, HtmlInputElement, KeyboardEvent, Location},
 };
 
 use {
-    crate::generated::*,
     euv::{wasm_bindgen::prelude::*, web_sys::*, *},
     euv_ui::*,
     wasm_bindgen_futures::{JsFuture, spawn_local},

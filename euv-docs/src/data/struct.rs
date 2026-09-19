@@ -19,8 +19,6 @@ pub struct DocsFeature {
 pub struct DocsPage {
     /// Full route (`/guide/getting-started.html`, `/zh/` …).
     pub route: &'static str,
-    /// Owning locale prefix.
-    pub locale: &'static str,
     /// Page title.
     pub title: &'static str,
     /// Content block AST (rendered by `euv_markdown`).
@@ -57,14 +55,10 @@ pub struct DocsPage {
 pub struct DocsLocale {
     /// Route prefix (`/` or `/zh/`).
     pub prefix: &'static str,
-    /// BCP-47 language tag.
-    pub lang: &'static str,
     /// Human label for the language dropdown.
     pub label: &'static str,
     /// Locale title override.
     pub title: &'static str,
-    /// Locale description.
-    pub description: &'static str,
     /// Footer text.
     pub footer: &'static str,
     /// Right TOC title label.
@@ -84,10 +78,6 @@ pub struct DocsLocale {
 pub struct DocsSite {
     /// Site title.
     pub title: &'static str,
-    /// Site description.
-    pub description: &'static str,
-    /// Navbar logo (emoji).
-    pub logo: &'static str,
     /// All locales.
     pub locales: &'static [DocsLocale],
     /// All pages.

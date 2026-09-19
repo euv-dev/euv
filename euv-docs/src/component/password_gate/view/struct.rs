@@ -1,5 +1,3 @@
-use super::*;
-
 /// Props for the [`docs_password_gate`] component.
 #[derive(Clone, Default)]
 pub(crate) struct DocsPasswordGateProps {

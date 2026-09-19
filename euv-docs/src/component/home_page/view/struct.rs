@@ -1,5 +1,3 @@
-use super::*;
-
 #[derive(Clone, Copy, Default)]
 pub struct DocsFeatureProps {
     pub feature: crate::data::DocsFeature,

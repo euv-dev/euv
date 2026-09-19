@@ -45,7 +45,7 @@ async fn async_sha256_hex(input: &str) -> Option<String> {
     );
     let value: JsValue = eval(&script).ok()?;
     let promise: Promise = value.unchecked_into();
-    let result: Result<JsValue, JsValue> = JsFuture::from(promise).await.into();
+    let result: Result<JsValue, JsValue> = JsFuture::from(promise).await;
     let digest: String = result.ok()?.as_string()?;
     Some(digest)
 }
@@ -81,7 +81,6 @@ fn unlock_key_for(route: &str) -> String {
 /// - On mismatch, replaces the input with a red border + an error
 ///   message; the password field is cleared so the user can retry
 ///   without leaking what they typed into form history.
-
 /// # Why a custom form instead of `<euv_field>` / `<euv_button>`
 ///
 /// `<euv_field>` auto-routes the `Enter` keypress to the surrounding
@@ -241,12 +240,11 @@ fn oninput_handler(input_signal: Signal<String>) -> Option<Rc<dyn Fn(Event)>> {
 /// the button with the mouse.
 fn onkeydown_handler(submit: Option<Rc<dyn Fn(Event)>>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
-        if let Some(keyboard) = event.dyn_ref::<KeyboardEvent>() {
-            if keyboard.key() == "Enter" {
-                if let Some(handler) = submit.as_ref() {
-                    handler.as_ref()(event);
-                }
-            }
+        if let Some(keyboard) = event.dyn_ref::<KeyboardEvent>()
+            && keyboard.key() == "Enter"
+            && let Some(handler) = submit.as_ref()
+        {
+            handler.as_ref()(event);
         }
     }))
 }
@@ -256,7 +254,6 @@ fn onkeydown_handler(submit: Option<Rc<dyn Fn(Event)>>) -> Option<Rc<dyn Fn(Even
 /// direct-URL-paste case where the page is mounted into a freshly
 /// loaded `<div id="app">` — so the gate only renders when the user
 /// hasn't unlocked this route yet in this session.
-
 /// Reads from `localStorage` synchronously; the call is cheap and the
 /// result is a single `bool` branch.
 pub(crate) fn is_unlocked(route: &str) -> bool {

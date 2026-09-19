@@ -23,10 +23,6 @@ struct Config {
 struct SiteConfig {
     /// Site title shown in the navbar.
     title: String,
-    /// Site description (meta).
-    description: Option<String>,
-    /// Emoji / short logo text in the navbar.
-    logo: Option<String>,
 }
 
 /// One locale entry.
@@ -34,14 +30,10 @@ struct SiteConfig {
 struct LocaleConfig {
     /// Route prefix, e.g. `/` or `/zh/`.
     prefix: String,
-    /// BCP-47 language tag.
-    lang: String,
     /// Human label in the language dropdown, e.g. `简体中文`.
     label: String,
     /// Locale-specific site title override.
     title: Option<String>,
-    /// Locale-specific description override.
-    description: Option<String>,
     /// Footer text for this locale.
     footer: Option<String>,
     /// Right TOC title label (default `On this page`).
@@ -75,8 +67,15 @@ struct Heading {
 }
 
 /// A build-time block node (mirrors `euv_ui::EuvMdBlock`).
+/// One block-level markdown node parsed from a source page.
+///
+/// Named `AstBlock` instead of `Block` so its variants (`CodeBlock`,
+/// `BlockQuote`) don't trip `clippy::enum_names`. The variant names
+/// intentionally mirror `euv_ui::EuvMdBlock` so the build-script
+/// codegen can emit them verbatim — only the surrounding enum name
+/// differs.
 #[derive(Debug, Clone)]
-enum Block {
+enum AstBlock {
     /// Heading with slug and permalink.
     Heading {
         /// Level 1–6.
@@ -98,13 +97,13 @@ enum Block {
         code: String,
     },
     /// Block quote.
-    BlockQuote(Vec<Block>),
+    BlockQuote(Vec<AstBlock>),
     /// List.
     List {
         /// Ordered flag.
         ordered: bool,
         /// Items (each a block list).
-        items: Vec<Vec<Block>>,
+        items: Vec<Vec<AstBlock>>,
     },
     /// GFM table.
     Table {
@@ -120,7 +119,7 @@ enum Block {
         /// Title label.
         title: String,
         /// Inner blocks.
-        blocks: Vec<Block>,
+        blocks: Vec<AstBlock>,
     },
     /// Thematic break.
     Rule,
@@ -172,12 +171,10 @@ enum Inline {
 struct Page {
     /// Full route, e.g. `/guide/getting-started.html` or `/zh/`.
     route: String,
-    /// Locale prefix this page belongs to.
-    locale: String,
     /// Page title (frontmatter `title` or first heading).
     title: String,
     /// Content block AST.
-    blocks: Vec<Block>,
+    blocks: Vec<AstBlock>,
     /// Anchor TOC entries (h2/h3).
     headings: Vec<Heading>,
     /// Home page flag (frontmatter `home: true`).
@@ -279,8 +276,8 @@ fn load_config_from_readme(docs_dir: &Path) -> Option<Config> {
     let readme_path: PathBuf = docs_dir.join("../README.md");
     let raw: String = fs::read_to_string(&readme_path).ok()?;
     let (fm, _body) = split_frontmatter(&raw);
-    let site_yaml = fm.get(&Yaml::String("site".to_string()))?;
-    let locales_yaml = fm.get(&Yaml::String("locales".to_string()))?;
+    let site_yaml = fm.get(Yaml::String("site".to_string()))?;
+    let locales_yaml = fm.get(Yaml::String("locales".to_string()))?;
     let locales_seq: &[Yaml] = locales_yaml.as_sequence()?.as_slice();
     let locales: Vec<LocaleConfig> = locales_seq.iter().filter_map(parse_locale_config).collect();
     Some(Config {
@@ -292,8 +289,6 @@ fn load_config_from_readme(docs_dir: &Path) -> Option<Config> {
 fn parse_site_config(yaml: &Yaml) -> Option<SiteConfig> {
     Some(SiteConfig {
         title: yaml_str(yaml, "title")?,
-        description: yaml_str(yaml, "description"),
-        logo: yaml_str(yaml, "logo"),
     })
 }
 
@@ -309,10 +304,8 @@ fn parse_locale_config(yaml: &Yaml) -> Option<LocaleConfig> {
         .collect();
     Some(LocaleConfig {
         prefix: yaml_str(yaml, "prefix")?,
-        lang: yaml_str(yaml, "lang")?,
         label: yaml_str(yaml, "label")?,
         title: yaml_str(yaml, "title"),
-        description: yaml_str(yaml, "description"),
         footer: yaml_str(yaml, "footer"),
         toc_label: yaml_str(yaml, "toc_label"),
         prev_label: yaml_str(yaml, "prev_label"),
@@ -480,7 +473,6 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
 
     Page {
         route,
-        locale,
         title,
         blocks,
         headings,
@@ -661,10 +653,10 @@ fn is_private_page(value: &Yaml) -> bool {
             }
             Yaml::Sequence(seq) => {
                 for item in seq {
-                    if let Some(s) = item.as_str() {
-                        if s.trim().eq_ignore_ascii_case("private") {
-                            return true;
-                        }
+                    if let Some(s) = item.as_str()
+                        && s.trim().eq_ignore_ascii_case("private")
+                    {
+                        return true;
                     }
                 }
             }
@@ -688,11 +680,11 @@ fn is_private_page(value: &Yaml) -> bool {
                     continue;
                 };
                 let name = attrs_map
-                    .get(&Yaml::String("name".to_string()))
+                    .get(Yaml::String("name".to_string()))
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
                 let content = attrs_map
-                    .get(&Yaml::String("content".to_string()))
+                    .get(Yaml::String("content".to_string()))
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
                 if name.eq_ignore_ascii_case("keywords")
@@ -709,9 +701,9 @@ fn is_private_page(value: &Yaml) -> bool {
 }
 
 /// Renders markdown source into a block AST, extracting headings + first h1.
-fn render_markdown(body: &str, route: &str) -> (Vec<Block>, Vec<Heading>, Option<String>) {
+fn render_markdown(body: &str, route: &str) -> (Vec<AstBlock>, Vec<Heading>, Option<String>) {
     let segments: Vec<Segment> = split_containers(&transform_github_alerts(body));
-    let mut blocks: Vec<Block> = Vec::new();
+    let mut blocks: Vec<AstBlock> = Vec::new();
     let mut headings: Vec<Heading> = Vec::new();
     let mut first_h1: Option<String> = None;
     let mut used_slugs: HashSet<String> = HashSet::new();
@@ -734,8 +726,8 @@ fn render_markdown(body: &str, route: &str) -> (Vec<Block>, Vec<Heading>, Option
                     first_h1: &mut first_h1,
                     used_slugs: &mut used_slugs,
                 };
-                let inner: Vec<Block> = parse_blocks(&body, &mut ctx);
-                blocks.push(Block::Container {
+                let inner: Vec<AstBlock> = parse_blocks(&body, &mut ctx);
+                blocks.push(AstBlock::Container {
                     title: title.unwrap_or_else(|| kind.to_uppercase()),
                     kind,
                     blocks: inner,
@@ -915,7 +907,7 @@ enum EndCtx {
 }
 
 /// Parses a block sequence until the matching end tag.
-fn parse_blocks(src: &str, ctx: &mut ParseCtx) -> Vec<Block> {
+fn parse_blocks(src: &str, ctx: &mut ParseCtx) -> Vec<AstBlock> {
     let options: Options = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_FOOTNOTES
@@ -952,8 +944,8 @@ fn is_inline_event(event: &Event) -> bool {
 }
 
 /// Core block-stream parser.
-fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Vec<Block> {
-    let mut blocks: Vec<Block> = Vec::new();
+fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Vec<AstBlock> {
+    let mut blocks: Vec<AstBlock> = Vec::new();
     while let Some(event) = it.next() {
         match event {
             Event::Start(Tag::Heading { level, .. }) => {
@@ -971,7 +963,7 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
                 if n == 1 && ctx.first_h1.is_none() {
                     *ctx.first_h1 = Some(text);
                 }
-                blocks.push(Block::Heading {
+                blocks.push(AstBlock::Heading {
                     level: n,
                     href: format!("#{}#{}", ctx.route, slug),
                     id: slug,
@@ -980,7 +972,7 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
             }
             Event::Start(Tag::Paragraph) => {
                 let inline: Vec<Inline> = parse_inlines(it, ctx, true);
-                blocks.push(Block::Paragraph(inline));
+                blocks.push(AstBlock::Paragraph(inline));
             }
             Event::Start(Tag::CodeBlock(kind)) => {
                 let lang: String = match &kind {
@@ -995,15 +987,15 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
                         _ => {}
                     }
                 }
-                blocks.push(Block::CodeBlock { lang, code });
+                blocks.push(AstBlock::CodeBlock { lang, code });
             }
             Event::Start(Tag::BlockQuote(_)) => {
-                let inner: Vec<Block> = parse_block_stream(it, ctx, EndCtx::Quote);
-                blocks.push(Block::BlockQuote(inner));
+                let inner: Vec<AstBlock> = parse_block_stream(it, ctx, EndCtx::Quote);
+                blocks.push(AstBlock::BlockQuote(inner));
             }
             Event::Start(Tag::List(first)) => {
                 let ordered: bool = first.is_some();
-                let mut items: Vec<Vec<Block>> = Vec::new();
+                let mut items: Vec<Vec<AstBlock>> = Vec::new();
                 loop {
                     match it.next() {
                         Some(Event::Start(Tag::Item)) => {
@@ -1013,7 +1005,7 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
                         _ => {}
                     }
                 }
-                blocks.push(Block::List { ordered, items });
+                blocks.push(AstBlock::List { ordered, items });
             }
             Event::Start(Tag::Table(_alignments)) => {
                 let mut head: Vec<Vec<Inline>> = Vec::new();
@@ -1030,26 +1022,25 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
                         _ => {}
                     }
                 }
-                blocks.push(Block::Table { head, rows });
+                blocks.push(AstBlock::Table { head, rows });
             }
-            Event::Rule => blocks.push(Block::Rule),
+            Event::Rule => blocks.push(AstBlock::Rule),
             Event::Html(html) | Event::InlineHtml(html) => {
-                blocks.push(Block::Html(html.to_string()));
+                blocks.push(AstBlock::Html(html.to_string()));
             }
             Event::Start(Tag::FootnoteDefinition(name)) => {
-                let mut inner: Vec<Block> = parse_block_stream(it, ctx, EndCtx::Top);
+                let mut inner: Vec<AstBlock> = parse_block_stream(it, ctx, EndCtx::Top);
                 inner.insert(
                     0,
-                    Block::Paragraph(vec![Inline::Text(format!("[^{name}]"))]),
+                    AstBlock::Paragraph(vec![Inline::Text(format!("[^{name}]"))]),
                 );
-                blocks.push(Block::BlockQuote(inner));
+                blocks.push(AstBlock::BlockQuote(inner));
             }
             Event::End(tag_end) => {
-                let matches_end: bool = match (end, tag_end) {
-                    (EndCtx::Quote, TagEnd::BlockQuote(_)) => true,
-                    (EndCtx::Item, TagEnd::Item) => true,
-                    _ => false,
-                };
+                let matches_end: bool = matches!(
+                    (end, tag_end),
+                    (EndCtx::Quote, TagEnd::BlockQuote(_)) | (EndCtx::Item, TagEnd::Item)
+                );
                 if matches_end {
                     break;
                 }
@@ -1058,7 +1049,7 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
                 let mut inlines: Vec<Inline> = Vec::new();
                 collect_inline(it, ctx, other, &mut inlines);
                 inlines.extend(parse_inlines(it, ctx, false));
-                blocks.push(Block::Paragraph(inlines));
+                blocks.push(AstBlock::Paragraph(inlines));
             }
             _ => {}
         }
@@ -1234,10 +1225,10 @@ fn rewrite_link(dest: &str, route: &str) -> (String, bool) {
     } else {
         dest.to_string()
     };
-    if let Some(anchor) = anchor_part {
-        if path_part.ends_with(".md") || path_part.starts_with('/') {
-            href = format!("{href}#{anchor}");
-        }
+    if let Some(anchor) = anchor_part
+        && (path_part.ends_with(".md") || path_part.starts_with('/'))
+    {
+        href = format!("{href}#{anchor}");
     }
     (href, false)
 }
@@ -1355,9 +1346,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             let mut segs: Vec<String> = rel_segments;
             segs.push("README.md".to_string());
             let readme_route: String = route_for(&segs, locale);
-            let readme_page: Option<&Page> = pages
-                .iter()
-                .find(|p| p.route == readme_route && p.locale == locale);
+            let readme_page: Option<&Page> = pages.iter().find(|p| p.route == readme_route);
             let (text, link) = match readme_page {
                 Some(page) => (page.title.clone(), Some(page.route.clone())),
                 None => (prettify(name), None),
@@ -1380,10 +1369,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
                 })
                 .unwrap_or_default();
             let route: String = route_for(&rel_segments, locale);
-            let Some(page) = pages
-                .iter()
-                .find(|p| p.route == route && p.locale == locale)
-            else {
+            let Some(page) = pages.iter().find(|p| p.route == route) else {
                 continue;
             };
             items.push(SideItem {
@@ -1397,11 +1383,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
     let order_of = |item: &SideItem| -> i64 {
         item.link
             .as_ref()
-            .and_then(|route| {
-                pages
-                    .iter()
-                    .find(|p| &p.route == route && p.locale == locale)
-            })
+            .and_then(|route| pages.iter().find(|p| &p.route == route))
             .map(|p| p.order)
             .unwrap_or(0)
     };
@@ -1461,9 +1443,8 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
             .join(", ");
         let blocks: String = emit_blocks(&page.blocks);
         pages_code.push_str(&format!(
-            "crate::data::DocsPage {{ route: {:?}, locale: {:?}, title: {:?}, blocks: {}, headings: &[{}], home: {}, hero_text: {:?}, tagline: {:?}, actions: &[{}], features: &[{}], footer: {:?}, private: {}, password_hash: {:?} }},\n",
+            "crate::data::DocsPage {{ route: {:?}, title: {:?}, blocks: {}, headings: &[{}], home: {}, hero_text: {:?}, tagline: {:?}, actions: &[{}], features: &[{}], footer: {:?}, private: {}, password_hash: {:?} }},\n",
             page.route,
-            page.locale,
             page.title,
             blocks,
             headings,
@@ -1503,12 +1484,10 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
             .unwrap_or_default();
         let sidebar_code: String = emit_sidebar(sidebar_src);
         locales_code.push_str(&format!(
-            "crate::data::DocsLocale {{ prefix: {:?}, lang: {:?}, label: {:?}, title: {:?}, description: {:?}, footer: {:?}, toc_label: {:?}, prev_label: {:?}, next_label: {:?}, navbar: &[{}], sidebar: {} }},\n",
+            "crate::data::DocsLocale {{ prefix: {:?}, label: {:?}, title: {:?}, footer: {:?}, toc_label: {:?}, prev_label: {:?}, next_label: {:?}, navbar: &[{}], sidebar: {} }},\n",
             locale.prefix,
-            locale.lang,
             locale.label,
             locale.title.clone().unwrap_or_default(),
-            locale.description.clone().unwrap_or_default(),
             locale.footer.clone().unwrap_or_default(),
             locale
                 .toc_label
@@ -1528,10 +1507,8 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
     }
 
     code.push_str(&format!(
-        "/// The generated site model.\npub static SITE: crate::data::DocsSite = crate::data::DocsSite {{\n    title: {:?},\n    description: {:?},\n    logo: {:?},\n    locales: &[{}],\n    pages: &[{}],\n}};\n",
+        "/// The generated site model.\npub static SITE: crate::data::DocsSite = crate::data::DocsSite {{\n    title: {:?},\n    locales: &[{}],\n    pages: &[{}],\n}};\n",
         config.site.title,
-        config.site.description.clone().unwrap_or_default(),
-        config.site.logo.clone().unwrap_or_else(|| "📘".to_string()),
         locales_code,
         pages_code,
     ));
@@ -1539,11 +1516,11 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
 }
 
 /// Emits a `&'static [DocsBlock]` expression.
-fn emit_blocks(blocks: &[Block]) -> String {
+fn emit_blocks(blocks: &[AstBlock]) -> String {
     let inner: String = blocks
         .iter()
         .map(|block| match block {
-            Block::Heading {
+            AstBlock::Heading {
                 level,
                 id,
                 href,
@@ -1552,16 +1529,16 @@ fn emit_blocks(blocks: &[Block]) -> String {
                 "euv_ui::EuvMdBlock::Heading {{ level: {level}, id: {id:?}, href: {href:?}, inline: {} }}",
                 emit_inlines(inline)
             ),
-            Block::Paragraph(inline) => {
+            AstBlock::Paragraph(inline) => {
                 format!("euv_ui::EuvMdBlock::Paragraph({})", emit_inlines(inline))
             }
-            Block::CodeBlock { lang, code } => {
+            AstBlock::CodeBlock { lang, code } => {
                 format!("euv_ui::EuvMdBlock::CodeBlock {{ lang: {lang:?}, code: {code:?} }}")
             }
-            Block::BlockQuote(inner) => {
+            AstBlock::BlockQuote(inner) => {
                 format!("euv_ui::EuvMdBlock::BlockQuote({})", emit_blocks(inner))
             }
-            Block::List { ordered, items } => {
+            AstBlock::List { ordered, items } => {
                 let items_code: String = items
                     .iter()
                     .map(|item| emit_blocks(item))
@@ -1571,7 +1548,7 @@ fn emit_blocks(blocks: &[Block]) -> String {
                     "euv_ui::EuvMdBlock::List {{ ordered: {ordered}, items: &[{items_code}] }}"
                 )
             }
-            Block::Table { head, rows } => {
+            AstBlock::Table { head, rows } => {
                 let head_code: String = head
                     .iter()
                     .map(|cell| emit_inlines(cell))
@@ -1593,7 +1570,7 @@ fn emit_blocks(blocks: &[Block]) -> String {
                     "euv_ui::EuvMdBlock::Table {{ head: &[{head_code}], rows: &[{rows_code}] }}"
                 )
             }
-            Block::Container {
+            AstBlock::Container {
                 kind,
                 title,
                 blocks,
@@ -1601,8 +1578,8 @@ fn emit_blocks(blocks: &[Block]) -> String {
                 "euv_ui::EuvMdBlock::Container {{ kind: {kind:?}, title: {title:?}, blocks: {} }}",
                 emit_blocks(blocks)
             ),
-            Block::Rule => "euv_ui::EuvMdBlock::Rule".to_string(),
-            Block::Html(html) => format!("euv_ui::EuvMdBlock::Html({html:?})"),
+            AstBlock::Rule => "euv_ui::EuvMdBlock::Rule".to_string(),
+            AstBlock::Html(html) => format!("euv_ui::EuvMdBlock::Html({html:?})"),
         })
         .collect::<Vec<String>>()
         .join(", ");
