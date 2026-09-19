@@ -737,29 +737,12 @@ enum Segment {
     },
 }
 
-/// Recognised GitHub-flavoured alert kinds accepted on blockquote
-/// markers. The full set mirrors GitHub's renderer — case-insensitive
-/// first token after `[!` is matched against this list. Unknown kinds
-/// fall back to `info`.
+/// Recognised GitHub-flavoured alert kinds accepted on blockquote markers.
 const GITHUB_ALERT_KINDS: &[&str] = &["tip", "note", "warning", "danger", "important", "caution"];
 
-/// Transforms GitHub-style alert blockquotes (`> [!TIP]` / `> [!NOTE]`
-/// / `> [!WARNING]` / `> [!DANGER]` / `> [!IMPORTANT]` / `> [!CAUTION]`)
-/// into the `::: kind [title]\n…\n:::` custom-container form so the
-/// downstream `split_containers` parser picks them up.
-///
-/// Blockquotes without a recognised `[!KIND]` marker are passed through
-/// unchanged. Alert titles come from the line immediately after the
-/// marker (per GitHub's renderer); bodies are every subsequent `> `
-/// line.
-///
-/// # Arguments
-///
-/// - `&str` - Raw markdown body.
-///
-/// # Returns
-///
-/// - `String` - Body with all alerts rewritten to the `:::` form.
+/// Rewrites `> [!TIP]` / `> [!NOTE]` / `> [!WARNING]` / `> [!DANGER]`
+/// / `> [!IMPORTANT]` / `> [!CAUTION]` blockquotes into the
+/// `::: kind [title]\n…\n:::` form so `split_containers` picks them up.
 fn transform_github_alerts(body: &str) -> String {
     let mut out: String = String::with_capacity(body.len());
     let lines: Vec<&str> = body.lines().collect();
@@ -789,7 +772,13 @@ fn transform_github_alerts(body: &str) -> String {
             continue;
         }
         let title_line: Option<String> = (idx + 1 < lines.len())
-            .then(|| lines[idx + 1].trim_start().strip_prefix('>').unwrap_or("").trim())
+            .then(|| {
+                lines[idx + 1]
+                    .trim_start()
+                    .strip_prefix('>')
+                    .unwrap_or("")
+                    .trim()
+            })
             .filter(|s: &&str| !s.is_empty() && !s.starts_with("[!"))
             .map(str::to_string);
         out.push_str(&format!("::: {kind_candidate}"));

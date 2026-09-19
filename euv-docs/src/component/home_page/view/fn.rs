@@ -1,30 +1,16 @@
 use super::*;
 
-/// Hash routing prefix used by `Router::link_handler`. Inlined here
-/// because `euv_ui::Router` keeps `ROUTE_HASH_PREFIX` `pub(crate)`,
-/// which is invisible from the docs-site crate.
+/// Hash routing prefix for `Router::link_handler`. Inlined here because
+/// `euv_ui::Router` exposes `ROUTE_HASH_PREFIX` as `pub(crate)`.
 const ROUTE_HASH_PREFIX: &str = "#";
 
-/// Renders the home page out of euv-ui components: `euv_hero` for the
-/// title block and a custom feature grid that wraps each feature card
-/// in an `<a>` (when a `link` is configured) so clicks navigate.
+/// Renders the home page: `euv_hero` for the title block + a custom
+/// feature grid that wraps each card in an `<a>` (when a `link` is set).
 ///
 /// The custom grid is rendered inline (instead of delegating to
 /// `euv_feature_grid`) because that component does not accept a link
-/// on `EuvFeature` — the docs site needs each card to be clickable.
-///
-/// The `icon` field is hidden when empty or equal to the placeholder
-/// string `"blog"` so the original VuePress-driven home (which used
-/// `icon: blog` on every card to mean "no icon") does not leak the
-/// literal text into the rendered card.
-///
-/// # Arguments
-///
-/// - `DocsPageProps` - The typed props containing the route signal.
-///
-/// # Returns
-///
-/// - `VirtualNode` - The home page virtual DOM tree.
+/// on `EuvFeature`. The `icon` field is hidden when empty or equal to
+/// the placeholder string `"blog"` so it does not leak as literal text.
 #[component]
 pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     let DocsPageProps { route_signal }: DocsPageProps = node.try_get_props().unwrap_or_default();
@@ -80,18 +66,6 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
 
 /// Renders one feature card. When the feature has a `link`, the entire
 /// card is wrapped in an `<a>` so the whole tile is clickable.
-///
-/// The wrapper classes (`c_docs_feature_card`, `c_docs_feature_card_inner`,
-/// etc.) are defined as raw CSS rules in the site's local override
-/// block (`euv_docs::lib`) and emitted via `Css::inject_css`.
-///
-/// # Arguments
-///
-/// - `VirtualNode<DocsFeatureProps>` - The props carrying the feature.
-///
-/// # Returns
-///
-/// - `VirtualNode` - The rendered card virtual DOM tree.
 #[component]
 pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualNode {
     let DocsFeatureProps { feature }: DocsFeatureProps = node.try_get_props().unwrap_or_default();
@@ -162,17 +136,7 @@ pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualN
     }
 }
 
-/// Renders a grid of feature cards. When `features` is empty, renders
-/// nothing.
-///
-/// # Arguments
-///
-/// - `VirtualNode<DocsFeatureGridProps>` - The props carrying the
-///   feature list.
-///
-/// # Returns
-///
-/// - `VirtualNode` - The grid virtual DOM tree.
+/// Renders a grid of feature cards. Empty grid renders nothing.
 #[component]
 pub(crate) fn docs_feature_grid(node: VirtualNode<DocsFeatureGridProps>) -> VirtualNode {
     let DocsFeatureGridProps { features }: DocsFeatureGridProps =
