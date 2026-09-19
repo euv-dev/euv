@@ -100,7 +100,6 @@ jobs:
           ROOT_DIR=$(pwd)
           echo "🔧 Syncing all versions to $VERSION"
 
-          # Collect all workspace member directory names
           MEMBER_PKG_NAMES=""
           MEMBERS=$(toml get Cargo.toml workspace.members --raw | tr -d '[]"' | sed 's/,/\n/g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$')
           echo "📋 Found workspace members: $MEMBERS"
@@ -115,11 +114,9 @@ jobs:
             fi
           done
 
-          # Also include the root package itself
           ROOT_PKG_NAME=$(toml get Cargo.toml package.name --raw)
           MEMBER_PKG_NAMES="$MEMBER_PKG_NAMES $ROOT_PKG_NAME"
 
-          # Also include all sub-table format workspace.dependencies entries
           SUB_TABLE_PKGS=$(grep -oP '^\[workspace\.dependencies\.\K[^\]]+' Cargo.toml || true)
           for pkg_name in $SUB_TABLE_PKGS; do
             if ! echo "$MEMBER_PKG_NAMES" | grep -qw "$pkg_name"; then
@@ -129,7 +126,6 @@ jobs:
 
           echo "📋 All package names to sync:$MEMBER_PKG_NAMES"
 
-          # Sync workspace.dependencies.<pkg_name>.version for all member packages using sed
           for pkg_name in $MEMBER_PKG_NAMES; do
             if grep -q "^${pkg_name}[[:space:]]*=" Cargo.toml && grep -q "^${pkg_name}[[:space:]]*=.*version" Cargo.toml; then
               sed -i -E "s|^(${pkg_name}[[:space:]]*=[[:space:]]*\{.*version[[:space:]]*=[[:space:]]*\")([^\"]+)(\".*)|\1${VERSION}\3|" Cargo.toml
@@ -142,7 +138,6 @@ jobs:
             fi
           done
 
-          # Sync each sub-crate's own package.version
           for member in $MEMBERS; do
             SUB_TOML="${ROOT_DIR}/${member}/Cargo.toml"
             if [ -f "$SUB_TOML" ]; then
@@ -153,11 +148,9 @@ jobs:
             fi
           done
 
-          # Sync the root package.version itself using Python (sed regex is brittle for quoted strings)
           VERSION="$VERSION" python3 -c "import re,pathlib; p=pathlib.Path('Cargo.toml'); t=p.read_text(); p.write_text(re.sub(r'^(version\\s*=\\s*\")[^\"]*(\")', lambda m: m.group(1) + __import__('os').environ.get('VERSION','0.0.0') + m.group(2), t, count=1, flags=re.M))"
           echo "🔧 Cargo.toml package.version -> $VERSION"
 
-          # Sync euv-docs sub-package (workspace-excluded, must be synced manually)
           if [ -f "euv-docs/Cargo.toml" ]; then
             VERSION="$VERSION" python3 -c "import re,pathlib,os; p=pathlib.Path('euv-docs/Cargo.toml'); t=p.read_text(); p.write_text(re.sub(r'^(version\\s*=\\s*\")[^\"]*(\")', lambda m: m.group(1) + os.environ.get('VERSION','0.0.0') + m.group(2), t, count=1, flags=re.M))"
             echo "🔧 euv-docs/Cargo.toml package.version -> $VERSION"
@@ -309,7 +302,6 @@ jobs:
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "📦 Publishing $PKG_NAME v$VERSION"
             PKG_PUBLISHED=false
-            # euv-docs is a workspace-excluded sub-package — publish from its own directory
             PUBLISH_MANIFEST_FLAG=""
             if [ "$PKG_NAME" = "euv-docs" ] && [ -f "euv-docs/Cargo.toml" ]; then
               PUBLISH_MANIFEST_FLAG="--manifest-path euv-docs/Cargo.toml"
