@@ -198,6 +198,9 @@ struct Page {
     /// Hex-encoded SHA-256 of the password that unlocks `private: true`
     /// pages. Empty string when `private` is `false`.
     password_hash: String,
+    /// Sidebar visibility (frontmatter `sidebar: false` hides the page from
+    /// the auto-generated sidebar tree; the route still resolves directly).
+    sidebar: bool,
 }
 
 /// A sidebar tree node.
@@ -487,6 +490,10 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
         order,
         private,
         password_hash,
+        sidebar: frontmatter
+            .get("sidebar")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true),
     }
 }
 
@@ -1394,6 +1401,9 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             let Some(page) = pages.iter().find(|p| p.route == route) else {
                 continue;
             };
+            if !page.sidebar {
+                continue;
+            }
             items.push(SideItem {
                 text: page.title.clone(),
                 link: Some(route),

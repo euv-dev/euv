@@ -19,7 +19,7 @@ pub fn inject_app_global_css() {
         "* { -webkit-tap-highlight-color: transparent; box-sizing: border-box; margin: 0; padding: 0; border: 0; font: inherit; vertical-align: baseline; } ",
         "html { line-height: 1.5; -webkit-text-size-adjust: 100%; } ",
         "ol, ul { list-style: none; } ",
-        "img, picture, video, canvas, svg { display: block; width: 100%; } ",
+        "img, picture, video, canvas, svg { display: block; max-width: 100%; } ",
         "input, button, textarea, select { font: inherit; color: inherit; background: transparent; } ",
         "button { cursor: pointer; } ",
         "a { text-decoration: none; color: inherit; }"

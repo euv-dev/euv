@@ -123,12 +123,12 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                 }
                 p {
                     class: c_pw_gate_hint()
-                    "This article is password-protected. Enter the passphrase to view its contents."
+                    "本文受密码保护，输入密码后即可查看内容。"
                 }
                 input {
                     id: input_id.clone()
                     type: "password"
-                    placeholder: "Password"
+                    placeholder: "密码"
                     autocomplete: "off"
                     class: if { !error_signal.get().is_empty() } {
                         c_euv_input_error()
@@ -152,9 +152,9 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                         disabled: busy_signal.get()
                         onclick: submit
                         if { busy_signal.get() } {
-                            "Verifying…"
+                            "验证中…"
                         } else {
-                            "Unlock"
+                            "解锁"
                         }
                     }
                 }
@@ -212,7 +212,7 @@ fn submit_handler(
                 input_signal.set(String::new());
                 error_signal.set(String::new());
             } else {
-                error_signal.set("Incorrect password.".to_string());
+                error_signal.set("密码错误，请重试。".to_string());
                 input_signal.set(String::new());
             }
             busy_signal.set(false);
