@@ -16,8 +16,3 @@ features:
     details: Single euv WASM app — reactive, themeable, fast.
 footer: MIT Licensed | Built with euv + euv-ui
 ---
-
-# euv-docs
-
-This is the demo home page for the `euv-docs` generator. For real
-documentation, see `cli/docs/` in the `euv-dev/euv` repository.
