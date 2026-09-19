@@ -201,6 +201,9 @@ struct Page {
     /// Sidebar visibility (frontmatter `sidebar: false` hides the page from
     /// the auto-generated sidebar tree; the route still resolves directly).
     sidebar: bool,
+    /// VuePress-style explicit child ordering (frontmatter `sidebar_order`)
+    /// for the sidebar group rooted at this page's directory.
+    sidebar_order: Vec<String>,
 }
 
 /// A sidebar tree node.
@@ -494,6 +497,10 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
             .get("sidebar")
             .and_then(|v| v.as_bool())
             .unwrap_or(true),
+        sidebar_order: yaml_list(&frontmatter, "sidebar_order")
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect(),
     }
 }
 
@@ -1341,9 +1348,9 @@ fn md_path_to_route(path: &str) -> String {
 
 /// Recursively builds the sidebar tree for one locale directory.
 fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -> Vec<SideItem> {
-    let mut items: Vec<SideItem> = Vec::new();
+    let mut items: Vec<(String, SideItem)> = Vec::new();
     let Ok(entries) = fs::read_dir(dir) else {
-        return items;
+        return Vec::new();
     };
     let mut entries: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
     entries.sort();
@@ -1358,9 +1365,6 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
                 continue;
             }
             let children: Vec<SideItem> = build_sidebar(&path, locale_root, locale, pages);
-            if children.is_empty() {
-                continue;
-            }
             let rel_segments: Vec<String> = path
                 .strip_prefix(locale_root)
                 .map(|p| {
@@ -1376,15 +1380,33 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             segs.push("README.md".to_string());
             let readme_route: String = route_for(&segs, locale);
             let readme_page: Option<&Page> = pages.iter().find(|p| p.route == readme_route);
+            if children.is_empty() {
+                // A directory whose only page is its README is still listed as
+                // a leaf link; otherwise single-page projects would vanish.
+                if let Some(page) = readme_page {
+                    items.push((
+                        name,
+                        SideItem {
+                            text: page.title.clone(),
+                            link: Some(page.route.clone()),
+                            children: Vec::new(),
+                        },
+                    ));
+                }
+                continue;
+            }
             let (text, link) = match readme_page {
                 Some(page) => (page.title.clone(), Some(page.route.clone())),
-                None => (prettify(name), None),
+                None => (prettify(name.clone()), None),
             };
-            items.push(SideItem {
-                text,
-                link,
-                children,
-            });
+            items.push((
+                name,
+                SideItem {
+                    text,
+                    link,
+                    children,
+                },
+            ));
         } else if name.ends_with(".md") && name != "README.md" && name != "index.md" {
             let rel_segments: Vec<String> = path
                 .strip_prefix(locale_root)
@@ -1404,13 +1426,53 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             if !page.sidebar {
                 continue;
             }
-            items.push(SideItem {
-                text: page.title.clone(),
-                link: Some(route),
-                children: Vec::new(),
-            });
+            let key: String = name.trim_end_matches(".md").to_string();
+            items.push((
+                key,
+                SideItem {
+                    text: page.title.clone(),
+                    link: Some(route),
+                    children: Vec::new(),
+                },
+            ));
         }
     }
+
+    // VuePress-style explicit ordering: the directory README's frontmatter
+    // `sidebar_order: [name, ...]` pins children (directory names or file
+    // stems, `.md` suffix optional) into the listed positions; unlisted
+    // entries sort after the listed ones by (`order`, title).
+    let readme_route: String = {
+        let rel_segments: Vec<String> = dir
+            .strip_prefix(locale_root)
+            .map(|p| {
+                p.components()
+                    .filter_map(|c| match c {
+                        Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+                        _ => None,
+                    })
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+        let mut segs: Vec<String> = rel_segments;
+        segs.push("README.md".to_string());
+        route_for(&segs, locale)
+    };
+    let order_list: &[String] = pages
+        .iter()
+        .find(|p| p.route == readme_route)
+        .map(|p| p.sidebar_order.as_slice())
+        .unwrap_or(&[]);
+    let pin_pos = |key: &str| -> Option<i64> {
+        order_list
+            .iter()
+            .position(|n| {
+                let n: &str = n.trim().trim_start_matches("./").trim_end_matches('/');
+                let n: &str = n.strip_suffix(".md").unwrap_or(n);
+                n == key
+            })
+            .map(|i| i as i64)
+    };
 
     let order_of = |item: &SideItem| -> i64 {
         item.link
@@ -1420,11 +1482,13 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             .unwrap_or(0)
     };
     items.sort_by(|a, b| {
-        order_of(a)
-            .cmp(&order_of(b))
-            .then_with(|| a.text.cmp(&b.text))
+        pin_pos(&a.0)
+            .unwrap_or(i64::MAX)
+            .cmp(&pin_pos(&b.0).unwrap_or(i64::MAX))
+            .then_with(|| order_of(&a.1).cmp(&order_of(&b.1)))
+            .then_with(|| a.1.text.cmp(&b.1.text))
     });
-    items
+    items.into_iter().map(|(_, item)| item).collect()
 }
 
 /// Emits the generated Rust source.
