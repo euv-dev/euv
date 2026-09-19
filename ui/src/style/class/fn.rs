@@ -3741,6 +3741,7 @@ class! {
         }
     }
     pub c_euv_toc_link_nested {
+        c_euv_toc_link();
         padding-left: var!(space-lg);
     }
 
