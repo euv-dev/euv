@@ -153,9 +153,16 @@ jobs:
             fi
           done
 
-          # Sync the root package.version itself
-          sed -i -E "0,/^(version[[:space:]]*=[[:space:]]*\")([^\"]+)(\")/s|^(version[[:space:]]*=[[:space:]]*\")([^\"]+)(\")|\1${VERSION}\3|" Cargo.toml
+          # Sync the root package.version itself using Python (sed regex is brittle for quoted strings)
+          VERSION="$VERSION" python3 -c "import re,pathlib; p=pathlib.Path('Cargo.toml'); t=p.read_text(); p.write_text(re.sub(r'^(version\\s*=\\s*\")[^\"]*(\")', lambda m: m.group(1) + __import__('os').environ.get('VERSION','0.0.0') + m.group(2), t, count=1, flags=re.M))"
           echo "🔧 Cargo.toml package.version -> $VERSION"
+
+          # Sync euv-docs sub-package (workspace-excluded, must be synced manually)
+          if [ -f "euv-docs/Cargo.toml" ]; then
+            VERSION="$VERSION" python3 -c "import re,pathlib,os; p=pathlib.Path('euv-docs/Cargo.toml'); t=p.read_text(); p.write_text(re.sub(r'^(version\\s*=\\s*\")[^\"]*(\")', lambda m: m.group(1) + os.environ.get('VERSION','0.0.0') + m.group(2), t, count=1, flags=re.M))"
+            echo "🔧 euv-docs/Cargo.toml package.version -> $VERSION"
+            MEMBER_PKG_NAMES="$MEMBER_PKG_NAMES euv-docs"
+          fi
       - name: Update Cargo.lock
         run: cargo generate-lockfile
       - name: Commit and push
@@ -181,7 +188,7 @@ jobs:
           toolchain: stable
           components: rustfmt
       - name: Format check
-        run: cargo fmt -- --check
+        run: cargo fmt -- --check && (cd euv-docs && cargo fmt -- --check)
 
   tests:
     needs: sync_workspace_version
@@ -288,7 +295,7 @@ jobs:
           echo "published=false" >> $GITHUB_OUTPUT
           echo "${{ secrets.CARGO_REGISTRY_TOKEN }}" | cargo login
           VERSION="${{ needs.setup.outputs.version }}"
-          PUBLISH_ORDER=("euv-core" "euv-macros" "euv-cli" "euv" "euv-ui" "euv-engine")
+          PUBLISH_ORDER=("euv-core" "euv-macros" "euv-cli" "euv" "euv-ui" "euv-docs" "euv-engine")
           SKIP_PACKAGES=("euv-example")
           MAIN_PACKAGE="euv"
           declare -A PUBLISH_RESULT
@@ -302,10 +309,15 @@ jobs:
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "📦 Publishing $PKG_NAME v$VERSION"
             PKG_PUBLISHED=false
+            # euv-docs is a workspace-excluded sub-package — publish from its own directory
+            PUBLISH_MANIFEST_FLAG=""
+            if [ "$PKG_NAME" = "euv-docs" ] && [ -f "euv-docs/Cargo.toml" ]; then
+              PUBLISH_MANIFEST_FLAG="--manifest-path euv-docs/Cargo.toml"
+            fi
             for ((i=1; i<=36; i++)); do
               echo "🚀 Attempt $i/36: publishing $PKG_NAME v$VERSION"
               set +e
-              PUBLISH_OUTPUT=$(cargo publish -p "$PKG_NAME" --allow-dirty --no-verify 2>&1)
+              PUBLISH_OUTPUT=$(cargo publish -p "$PKG_NAME" --allow-dirty --no-verify $PUBLISH_MANIFEST_FLAG 2>&1)
               PUBLISH_EXIT_CODE=$?
               set -e
               echo "$PUBLISH_OUTPUT"

@@ -1,0 +1,29 @@
+[package]
+name = "euv-docs"
+version = "0.1.7"
+readme = "README.md"
+edition = "2024"
+authors = ["root@ltpp.vip"]
+license = "MIT"
+description = """A VuePress-style documentation site generator powered by euv + euv-ui (Rust/WASM)."""
+keywords = ["docs", "static-site", "wasm", "euv"]
+repository = "https://github.com/euv-dev/euv.git"
+categories = ["web-programming"]
+exclude = ["target", "Cargo.lock", "www", "docs/**/private"]
+
+[dependencies]
+euv = "0.18"
+euv-ui = "0.18"
+lombok-macros = "2.0"
+
+[build-dependencies]
+pulldown-cmark = "0.12"
+serde_yaml = "0.9"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "euv-docs"
+path = "src/bin/euv-docs/main.rs"
+required-features = []
