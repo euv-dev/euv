@@ -21,7 +21,6 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             ""
         };
     };
-
     let hero_title: &str = if page.hero_text.is_empty() {
         if locale.title.is_empty() {
             site.title
@@ -36,7 +35,6 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     } else {
         page.footer
     };
-
     html! {
         div {
             class: c_page_container()

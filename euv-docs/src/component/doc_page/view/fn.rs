@@ -86,14 +86,12 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             ""
         };
     };
-
     let (prev, next) = prev_next(locale, page.route);
     let footer_text: &str = if page.footer.is_empty() {
         locale.footer
     } else {
         page.footer
     };
-
     html! {
         euv_doc_layout {
             toc_title: locale.toc_label
