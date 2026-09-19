@@ -11,16 +11,16 @@ pub use std::{cell::RefCell, fmt::Debug, rc::Rc};
 pub(crate) use {
     component::*,
     data::*,
-    js_sys::{decode_uri_component, eval, Promise},
+    js_sys::{Promise, decode_uri_component, eval},
     router::*,
-    web_sys::{window, Event, HtmlInputElement, KeyboardEvent, Location},
+    web_sys::{Event, HtmlInputElement, KeyboardEvent, Location, window},
 };
 
 use {
     crate::generated::*,
     euv::{wasm_bindgen::prelude::*, web_sys::*, *},
     euv_ui::*,
-    wasm_bindgen_futures::{spawn_local, JsFuture},
+    wasm_bindgen_futures::{JsFuture, spawn_local},
 };
 
 #[wasm_bindgen]

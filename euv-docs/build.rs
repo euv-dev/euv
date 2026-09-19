@@ -1,22 +1,3 @@
-//! Build script for euv-docs.
-//!
-//! Scans the `<SRC_DIR>/**` markdown tree (provided by the caller, typically
-//! `cli/docs/`), parses the site-level configuration out of the parent
-//! project's `README.md` frontmatter (`<SRC_DIR>/../README.md`), and
-//! compiles every `**/*.md` file (frontmatter + VuePress-flavored markdown)
-//! into a typed block/inline AST. The result is generated into
-//! `OUT_DIR/docs_gen.rs`, which constructs a single `DocsSite` static
-//! consumed by the WASM app at runtime — no markdown parsing or HTML
-//! string patching happens in the browser; every page renders as native
-//! euv VirtualNodes so the framework's fine-grained diffing applies.
-//!
-//! Configuration sources (single source of truth):
-//! - Site-level (title, locales, navbar, footer, labels):
-//!   `<SRC_DIR>/../README.md` frontmatter — e.g. `cli/README.md` when the
-//!   docs tree lives at `cli/docs/`.
-//! - Page-level (home, hero, actions, features, sidebar order, password):
-//!   per-file YAML frontmatter in each `<SRC_DIR>/**/*.md`.
-
 use std::{
     collections::{HashSet, VecDeque},
     env, fs,
@@ -27,11 +8,6 @@ use {
     pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd},
     serde_yaml::Value as Yaml,
 };
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Config schema (`<SRC_DIR>/../README.md` frontmatter — replaces the
-// legacy `docs/config.toml`).
-// ═══════════════════════════════════════════════════════════════════════════
 
 /// Root of the project README.md frontmatter (site + locales block).
 #[derive(Debug)]
@@ -86,10 +62,6 @@ struct NavItemConfig {
     /// Link target (`/guide/` internal or `https://…` external).
     link: String,
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Page / sidebar / AST model (build-time)
-// ═══════════════════════════════════════════════════════════════════════════
 
 /// A heading extracted for the right-side anchor TOC.
 #[derive(Debug, Clone)]
@@ -242,10 +214,6 @@ struct SideItem {
     children: Vec<SideItem>,
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Entry
-// ═══════════════════════════════════════════════════════════════════════════
-
 /// Entry point of the build script.
 fn main() {
     let manifest_dir: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -267,7 +235,6 @@ fn main() {
         "site-level config (site + locales) missing from <SRC_DIR>/../README.md frontmatter",
     );
 
-    // Locale prefixes other than the root locale, used to split pages.
     let locale_dirs: Vec<String> = config
         .locales
         .iter()
@@ -275,7 +242,6 @@ fn main() {
         .map(|l| l.prefix.trim_matches('/').to_string())
         .collect();
 
-    // Collect markdown files.
     let mut md_files: Vec<PathBuf> = Vec::new();
     collect_md(&docs_dir, &mut md_files);
     md_files.sort();
@@ -285,14 +251,11 @@ fn main() {
         pages.push(process_page(&docs_dir, file, &locale_dirs));
     }
 
-    // Copy docs/public assets into www/ so the dev server and the build
-    // output can serve them from the site root.
     let public_dir: PathBuf = docs_dir.join("public");
     if public_dir.is_dir() {
         copy_dir(&public_dir, &www_dir);
     }
 
-    // Build the sidebar tree per locale (auto-generated from the file tree).
     let mut sidebars: Vec<(String, Vec<SideItem>)> = Vec::new();
     for locale in &config.locales {
         let root: PathBuf = if locale.prefix == "/" {
@@ -307,10 +270,6 @@ fn main() {
     let code: String = codegen(&config, &pages, &sidebars);
     fs::write(PathBuf::from(out_dir).join("docs_gen.rs"), code).expect("write docs_gen.rs");
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Filesystem helpers
-// ═══════════════════════════════════════════════════════════════════════════
 
 /// Loads the site-level configuration (site + locales) from
 /// `<SRC_DIR>/../README.md` frontmatter. Returns `None` when the file is
@@ -400,10 +359,6 @@ fn copy_dir(src: &Path, dst: &Path) {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Page processing
-// ═══════════════════════════════════════════════════════════════════════════
-
 /// Parses one markdown file into a [`Page`].
 fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
     let raw: String = fs::read_to_string(file).expect("read md");
@@ -418,7 +373,6 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
         })
         .collect();
 
-    // Locale detection from the first path segment.
     let locale: String = if let Some(first) = segments.first() {
         if locale_dirs.contains(first) {
             let prefix: String = format!("/{first}/");
@@ -431,7 +385,6 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
         "/".to_string()
     };
 
-    // Route computation (VuePress convention).
     let route: String = route_for(&segments, &locale);
 
     let fm_title: Option<String> = yaml_str(&frontmatter, "title");
@@ -570,10 +523,6 @@ fn prettify(name: String) -> String {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Frontmatter helpers
-// ═══════════════════════════════════════════════════════════════════════════
-
 /// Splits a markdown source into (frontmatter YAML value, body).
 fn split_frontmatter(raw: &str) -> (Yaml, &str) {
     let trimmed: &str = raw.trim_start();
@@ -657,7 +606,6 @@ fn yaml_list<'a>(value: &'a Yaml, key: &str) -> &'a [Yaml] {
 /// otherwise, on the principle that the user explicitly opted into
 /// a gate and a silent fall-back would be worse than a hard failure.
 fn is_private_page(value: &Yaml) -> bool {
-    // (3) short-hand
     if value
         .get("private")
         .and_then(|v| v.as_bool())
@@ -665,7 +613,6 @@ fn is_private_page(value: &Yaml) -> bool {
     {
         return true;
     }
-    // (2) category
     if let Some(category) = value.get("category") {
         match category {
             Yaml::String(s) => {
@@ -687,17 +634,11 @@ fn is_private_page(value: &Yaml) -> bool {
             _ => {}
         }
     }
-    // (1) head[] array of arrays, each inner array starting with the
-    // literal string "meta" followed by an object carrying
-    // `name: keywords` + `content: <contains "private">`.
     if let Some(head) = value.get("head").and_then(|v| v.as_sequence()) {
         for entry in head {
             let Some(entry_seq) = entry.as_sequence() else {
                 continue;
             };
-            // VuePress's head shape is `[["meta", { name, content }]]` —
-            // a sequence whose first element is the string "meta" and
-            // whose second is a mapping of attributes.
             let mut iter = entry_seq.iter();
             let Some(first) = iter.next() else {
                 continue;
@@ -729,10 +670,6 @@ fn is_private_page(value: &Yaml) -> bool {
     }
     false
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Markdown → AST (VuePress-flavored subset)
-// ═══════════════════════════════════════════════════════════════════════════
 
 /// Renders markdown source into a block AST, extracting headings + first h1.
 fn render_markdown(body: &str, route: &str) -> (Vec<Block>, Vec<Heading>, Option<String>) {
@@ -813,7 +750,6 @@ fn split_containers(src: &str) -> Vec<Segment> {
         if !in_container && trimmed.starts_with(":::") {
             let rest: &str = trimmed[3..].trim();
             if rest.is_empty() {
-                // Stray `:::` — treat as plain text.
                 buf.push_str(line);
                 buf.push('\n');
                 continue;
@@ -852,7 +788,6 @@ fn split_containers(src: &str) -> Vec<Segment> {
         }
     }
     if in_container {
-        // Unterminated container — emit as markdown.
         buf.push_str(&format!("::: {kind}\n{body}"));
     }
     if !buf.trim().is_empty() {
@@ -996,7 +931,6 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
             }
             Event::Start(Tag::FootnoteDefinition(name)) => {
                 let mut inner: Vec<Block> = parse_block_stream(it, ctx, EndCtx::Top);
-                // Prefix the definition name as a plain paragraph.
                 inner.insert(
                     0,
                     Block::Paragraph(vec![Inline::Text(format!("[^{name}]"))]),
@@ -1014,8 +948,6 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
                 }
             }
             other if is_inline_event(&other) => {
-                // Tight list item (or loose inline run): collect inlines
-                // without consuming the terminating block end tag.
                 let mut inlines: Vec<Inline> = Vec::new();
                 collect_inline(it, ctx, other, &mut inlines);
                 inlines.extend(parse_inlines(it, ctx, false));
@@ -1191,10 +1123,8 @@ fn rewrite_link(dest: &str, route: &str) -> (String, bool) {
         let resolved: String = resolve_relative(route, path_part);
         format!("#{resolved}")
     } else if path_part.starts_with('/') {
-        // Site-root-absolute link: map into the hash router.
         format!("#{path_part}")
     } else {
-        // Non-markdown relative link (asset) — leave untouched.
         dest.to_string()
     };
     if let Some(anchor) = anchor_part {
@@ -1215,7 +1145,6 @@ fn resolve_relative(route: &str, rel: &str) -> String {
         }
         return md_path_to_route(&format!("/{}", stack.join("/")));
     }
-    // Directory of the current page route.
     let dir: &str = if route.ends_with('/') {
         route
     } else {
@@ -1254,10 +1183,6 @@ fn md_path_to_route(path: &str) -> String {
     path.to_string()
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Sidebar generation
-// ═══════════════════════════════════════════════════════════════════════════
-
 /// Recursively builds the sidebar tree for one locale directory.
 fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -> Vec<SideItem> {
     let mut items: Vec<SideItem> = Vec::new();
@@ -1280,7 +1205,6 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             if children.is_empty() {
                 continue;
             }
-            // Group title + optional index link from the directory README.
             let rel_segments: Vec<String> = path
                 .strip_prefix(locale_root)
                 .map(|p| {
@@ -1334,7 +1258,6 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
         }
     }
 
-    // Sort: frontmatter `order` first, then alphabetical.
     let order_of = |item: &SideItem| -> i64 {
         item.link
             .as_ref()
@@ -1354,10 +1277,6 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
     items
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Code generation
-// ═══════════════════════════════════════════════════════════════════════════
-
 /// Emits the generated Rust source.
 fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]) -> String {
     let mut code: String = String::new();
@@ -1365,7 +1284,6 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
         "// @generated by build.rs — do not edit.\n//\n// Constructed from docs/config.toml and docs/**/*.md at build time.\n\n",
     );
 
-    // Pages.
     let mut pages_code: String = String::new();
     for page in pages {
         let headings: String = page
@@ -1424,7 +1342,6 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
         ));
     }
 
-    // Locales (with sidebars).
     let mut locales_code: String = String::new();
     for locale in &config.locales {
         let sidebar_src: &Vec<SideItem> = sidebars
@@ -1615,11 +1532,6 @@ fn emit_sidebar(items: &[SideItem]) -> String {
     format!("&[{inner}]")
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// SHA-256 (used to digest frontmatter `password:` into a
-// constant-time-comparable form before it ever reaches the WASM bundle).
-// ═══════════════════════════════════════════════════════════════════════════
-//
 // Hand-rolled so the build script stays free of new third-party
 // dependencies (rust-standards §13.1). SHA-256 is small enough that
 // embedding the ~80-line reference implementation is cheaper than

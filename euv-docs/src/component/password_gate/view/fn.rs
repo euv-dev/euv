@@ -45,8 +45,7 @@ async fn async_sha256_hex(input: &str) -> Option<String> {
     );
     let value: JsValue = eval(&script).ok()?;
     let promise: Promise = value.unchecked_into();
-    let result: Result<JsValue, JsValue> =
-        JsFuture::from(promise).await.into();
+    let result: Result<JsValue, JsValue> = JsFuture::from(promise).await.into();
     let digest: String = result.ok()?.as_string()?;
     Some(digest)
 }
