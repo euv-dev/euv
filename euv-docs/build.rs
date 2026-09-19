@@ -240,7 +240,7 @@ fn main() {
         .collect();
 
     let mut md_files: Vec<PathBuf> = Vec::new();
-    collect_md(&docs_dir, &mut md_files);
+    collect_md(&docs_dir, &docs_dir, &mut md_files);
     md_files.sort();
 
     let mut pages: Vec<Page> = Vec::new();
@@ -318,18 +318,20 @@ fn parse_locale_config(yaml: &Yaml) -> Option<LocaleConfig> {
     })
 }
 
-/// Recursively collects `*.md` files, skipping `public/`.
-fn collect_md(dir: &Path, out: &mut Vec<PathBuf>) {
+/// Recursively collects `*.md` files, skipping only the **top-level**
+/// `public/` site-assets directory. Nested `public/` directories such as
+/// `essay/public/` hold real content pages and are collected normally.
+fn collect_md(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
         if path.is_dir() {
-            if path.file_name().is_some_and(|n| n == "public") {
+            if path.file_name().is_some_and(|n| n == "public") && path.parent() == Some(root) {
                 continue;
             }
-            collect_md(&path, out);
+            collect_md(root, &path, out);
         } else if path.extension().is_some_and(|e| e == "md") {
             out.push(path);
         }
@@ -354,7 +356,7 @@ fn copy_doc_assets_recurse(root: &Path, dir: &Path, www_dir: &Path) {
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
         if path.is_dir() {
-            if path.file_name().is_some_and(|n| n == "public") {
+            if path.file_name().is_some_and(|n| n == "public") && path.parent() == Some(root) {
                 continue;
             }
             copy_doc_assets_recurse(root, &path, www_dir);
@@ -1026,7 +1028,7 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
             }
             Event::Rule => blocks.push(AstBlock::Rule),
             Event::Html(html) | Event::InlineHtml(html) => {
-                blocks.push(AstBlock::Html(html.to_string()));
+                blocks.push(AstBlock::Html(rewrite_html_asset_src(&html)));
             }
             Event::Start(Tag::FootnoteDefinition(name)) => {
                 let mut inner: Vec<AstBlock> = parse_block_stream(it, ctx, EndCtx::Top);
@@ -1130,7 +1132,7 @@ fn collect_inline(it: &mut EventIter, ctx: &mut ParseCtx, event: Event, inlines:
         }
         Event::SoftBreak => inlines.push(Inline::SoftBreak),
         Event::HardBreak => inlines.push(Inline::HardBreak),
-        Event::InlineHtml(html) => inlines.push(Inline::Html(html.to_string())),
+        Event::InlineHtml(html) => inlines.push(Inline::Html(rewrite_html_asset_src(&html))),
         _ => {}
     }
 }
@@ -1262,6 +1264,33 @@ fn rewrite_image_src(dest: &str, _route: &str) -> String {
     dest.to_string()
 }
 
+/// Rewrites site-root-absolute `src="/…"` attributes inside raw HTML
+/// blocks (e.g. `<img src="/img/logo.png">`) to the SPA-relative form
+/// (`./img/…`), mirroring [`rewrite_image_src`] for markdown images so
+/// the browser resolves the URL against the deployed `<base href="./">`.
+/// Protocol-relative (`//host/x`) and external URLs are left untouched.
+fn rewrite_html_asset_src(html: &str) -> String {
+    if !html.contains("src=") {
+        return html.to_string();
+    }
+    let mut out: String = String::with_capacity(html.len() + 8);
+    let mut rest: &str = html;
+    while let Some(idx) = rest.find("src=") {
+        out.push_str(&rest[..idx + 4]);
+        let after: &str = &rest[idx + 4..];
+        match after.strip_prefix(['"', '\'']) {
+            Some(quoted) if quoted.starts_with('/') && !quoted.starts_with("//") => {
+                out.push_str(&after[..1]);
+                out.push('.');
+                rest = quoted;
+            }
+            _ => rest = after,
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Resolves a relative markdown path against the current page route.
 fn resolve_relative(route: &str, rel: &str) -> String {
     let rel: &str = rel.trim_end_matches('/');
@@ -1325,7 +1354,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         if path.is_dir() {
-            if name == "public" {
+            if name == "public" && path.parent() == Some(locale_root) {
                 continue;
             }
             let children: Vec<SideItem> = build_sidebar(&path, locale_root, locale, pages);
