@@ -131,9 +131,9 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                     placeholder: "Password"
                     autocomplete: "off"
                     class: if { !error_signal.get().is_empty() } {
-                        c_pw_gate_input_error()
+                        c_euv_input_error()
                     } else {
-                        c_pw_gate_input()
+                        c_euv_input()
                     }
                     value: input_signal.get()
                     oninput: oninput
@@ -145,14 +145,17 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                         error_signal.get()
                     }
                 }
-                button {
-                    class: c_pw_gate_submit()
-                    disabled: busy_signal.get()
-                    onclick: submit
-                    if { busy_signal.get() } {
-                        "Verifying…"
-                    } else {
-                        "Unlock"
+                div {
+                    class: c_pw_gate_actions()
+                    button {
+                        class: c_euv_button_primary_md()
+                        disabled: busy_signal.get()
+                        onclick: submit
+                        if { busy_signal.get() } {
+                            "Verifying…"
+                        } else {
+                            "Unlock"
+                        }
                     }
                 }
             }
