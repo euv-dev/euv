@@ -207,6 +207,11 @@ struct Page {
     /// VuePress-style explicit child ordering (frontmatter `sidebar_order`)
     /// for the sidebar group rooted at this page's directory.
     sidebar_order: Vec<String>,
+    /// Directory-index rendering (frontmatter `index: false` on a
+    /// `README.md` / `index.md` opts the page out of codegen, VuePress-style:
+    /// the sidebar group then toggles its children instead of navigating,
+    /// and the index route 404s like a directory without a README).
+    index: bool,
 }
 
 /// A sidebar tree node.
@@ -516,7 +521,22 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
             .iter()
             .filter_map(|v| v.as_str().map(|s| s.to_string()))
             .collect(),
+        index: renders_index(&frontmatter, &segments),
     }
+}
+
+/// Reads the VuePress-style `index` flag: `false` on a `README.md` /
+/// `index.md` drops the directory index page so its sidebar group only
+/// toggles collapse. Non-index pages always render.
+fn renders_index(frontmatter: &Yaml, segments: &[String]) -> bool {
+    let stem: String = stem_of(segments);
+    if stem != "README" && stem != "index" {
+        return true;
+    }
+    frontmatter
+        .get("index")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
 }
 
 /// Computes the VuePress-style route for a page.
@@ -1498,10 +1518,11 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             segs.push("README.md".to_string());
             let readme_route: String = route_for(&segs, locale);
             let readme_page: Option<&Page> = pages.iter().find(|p| p.route == readme_route);
+            let index_page: Option<&Page> = readme_page.filter(|page: &&Page| page.index);
             if children.is_empty() {
                 // A directory whose only page is its README is still listed as
                 // a leaf link; otherwise single-page projects would vanish.
-                if let Some(page) = readme_page {
+                if let Some(page) = index_page {
                     items.push((
                         name,
                         SideItem {
@@ -1513,8 +1534,11 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
                 }
                 continue;
             }
+            // A README with `index: false` still lends its title to the group
+            // but drops the link, so the group only toggles its children.
             let (text, link) = match readme_page {
-                Some(page) => (page.title.clone(), Some(page.route.clone())),
+                Some(page) if page.index => (page.title.clone(), Some(page.route.clone())),
+                Some(page) => (page.title.clone(), None),
                 None => (prettify(name.clone()), None),
             };
             items.push((
@@ -1618,6 +1642,11 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
 
     let mut pages_code: String = String::new();
     for page in pages {
+        // `index: false` directory READMEs are not emitted: the route 404s
+        // exactly like a directory without a README file.
+        if !page.index {
+            continue;
+        }
         let headings: String = page
             .headings
             .iter()
