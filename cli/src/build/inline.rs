@@ -46,7 +46,7 @@ pub(crate) async fn build_inline_bridge(
          {js_only}\n\
          var __euv_wasm_url = {wasm_url_json};\n\
          if (typeof __wbg_init === 'function') {{\n\
-         __wbg_init(new URL(__euv_wasm_url, location.href).toString()).then(function() {{\n\
+         var __euv_base = (document.querySelector('base[href]') && document.baseURI) || location.href;\n         __wbg_init(new URL(__euv_wasm_url, __euv_base).toString()).then(function() {{\n\
          if (typeof main === 'function') main();\n\
          }}).catch(function(e) {{ console.error('[euv] inline bridge init failed:', e); }});\n\
          }} else if (typeof initSync === 'function') {{\n\

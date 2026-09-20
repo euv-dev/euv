@@ -109,7 +109,16 @@ pub(crate) async fn generate_html(config: &HtmlConfig) -> Result<String, EuvErro
         INDEX_HTML_DEV.to_string()
     };
     let inline_js: String = resolve_inline_js(config).await;
+    let base_href: String = format!(
+        "/{}/",
+        config
+            .get_serving_root()
+            .file_name()
+            .and_then(|name: &ffi::OsStr| name.to_str())
+            .unwrap_or("")
+    );
     let html: String = template_content
+        .replace(BASE_HREF_PLACEHOLDER, &base_href)
         .replace(IMPORT_PATH_PLACEHOLDER, config.get_import_path())
         .replace(RELOAD_ROUTE_PLACEHOLDER, RELOAD_ROUTE)
         .replace(INLINE_JS_PLACEHOLDER, &inline_js);

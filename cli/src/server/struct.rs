@@ -78,6 +78,21 @@ pub(crate) struct ResponseMiddleware;
 #[derive(Data, New)]
 pub(crate) struct IndexRoute;
 
+/// Route handler for the bare root path (`/` and `/index.html`).
+///
+/// Serves the same in-memory HTML as `IndexRoute`'s `index.html` case
+/// but is registered at the URL root so that users landing on
+/// `http://host:port/` (the URL printed by most browsers by default)
+/// get the app instead of a blank 200. Without this route the dev
+/// server only matches `{serving_route_prefix}/{path:.*}` and a request
+/// to `/` falls through to hyperlane's default empty response — the
+/// "white screen" symptom users reported.
+///
+/// The actual application path prefix (e.g. `www`) is still registered
+/// separately via `IndexRoute` so the original URL continues to work.
+#[derive(Data, New)]
+pub(crate) struct RootRoute;
+
 /// Route handler for the reload endpoint using long-polling.
 ///
 /// Holds the connection open until a reload event is broadcast, then returns

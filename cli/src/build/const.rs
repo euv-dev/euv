@@ -17,6 +17,16 @@ pub const RELOAD_ROUTE_PLACEHOLDER: &str = "__RELOAD_ROUTE__";
 /// and skips ES module graph parsing on the critical path.
 pub const INLINE_JS_PLACEHOLDER: &str = "__EUV_INLINE_JS__";
 
+/// Placeholder token used in HTML templates for the `<base href="..."/>` tag.
+///
+/// Replaced at runtime with a server-absolute path (e.g. `/www/`) so the
+/// browser resolves every relative URL — the inline IIFE's wasm fetch,
+/// the module fallback's `import './pkg/<name>.js'`, and any user
+/// resource the HTML references — against the euv serving root rather
+/// than the page URL. This makes the dev server robust to users landing
+/// on `http://host:port/` instead of `http://host:port/www/`.
+pub const BASE_HREF_PLACEHOLDER: &str = "__EUV_BASE_HREF__";
+
 /// Environment variable to disable JS bridge inlining and fall back to the
 /// classic `<script type="module">import init, { main } from '__IMPORT_PATH__'`
 /// bootstrap. Set to any non-empty value to opt out (e.g. when the wasm-pack
@@ -171,6 +181,7 @@ pub const INDEX_HTML_DEV: &str = r#"<!doctype html>
     />
     <meta property="og:type" content="website" />
     <title>Euv</title>
+    <base href="__EUV_BASE_HREF__" />
     <style>
       * {
         -webkit-font-smoothing: antialiased;
@@ -242,6 +253,7 @@ pub const INDEX_HTML_RELEASE: &str = r#"<!doctype html>
     />
     <meta property="og:type" content="website" />
     <title>Euv</title>
+    <base href="__EUV_BASE_HREF__" />
     <style>
       * {
         -webkit-font-smoothing: antialiased;
