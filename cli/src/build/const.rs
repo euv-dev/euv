@@ -8,6 +8,21 @@ pub const IMPORT_PATH_PLACEHOLDER: &str = "__IMPORT_PATH__";
 /// Replaced at runtime with the actual reload route path.
 pub const RELOAD_ROUTE_PLACEHOLDER: &str = "__RELOAD_ROUTE__";
 
+/// Placeholder token used in HTML templates for the inlined wasm-bindgen JS bridge.
+///
+/// Replaced at runtime with the body of `pkg/<name>.js` (with its top-level
+/// `import` statements stripped and the 2 snippet helper functions inlined),
+/// wrapped in a synchronous IIFE that fetches the wasm module and calls
+/// `main()`. This eliminates the separate HTTP request for the JS bridge file
+/// and skips ES module graph parsing on the critical path.
+pub const INLINE_JS_PLACEHOLDER: &str = "__EUV_INLINE_JS__";
+
+/// Environment variable to disable JS bridge inlining and fall back to the
+/// classic `<script type="module">import init, { main } from '__IMPORT_PATH__'`
+/// bootstrap. Set to any non-empty value to opt out (e.g. when the wasm-pack
+/// output structure changes and the inline pipeline can't recover).
+pub const EUV_NO_INLINE_BRIDGE_ENV: &str = "EUV_NO_INLINE_BRIDGE";
+
 /// The URL path for the reload endpoint.
 ///
 /// Used by the live-reload script in the HTML template and the server route registration.
@@ -60,6 +75,14 @@ pub const PATH_SEPARATOR: &str = "/";
 
 /// The parent directory indicator used in relative path computation.
 pub const PARENT_DIR: &str = "..";
+
+/// The hyphen character used when normalizing crate names to wasm-pack's
+/// underscore output convention.
+pub const STR_HYPHEN: &str = "-";
+
+/// The underscore character used when normalizing crate names to wasm-pack's
+/// output convention.
+pub const STR_UNDERSCORE: &str = "_";
 
 /// The wasm-pack flag for development builds.
 pub const DEV_FLAG: &str = "--dev";
@@ -162,10 +185,8 @@ pub const INDEX_HTML_DEV: &str = r#"<!doctype html>
   <body>
     <div id="app"></div>
   </body>
-  <script type="module">
-    import init, { main } from '__IMPORT_PATH__';
-    await init();
-    main();
+  <script>
+__EUV_INLINE_JS__
   </script>
   <script>
     (function () {
@@ -235,10 +256,8 @@ pub const INDEX_HTML_RELEASE: &str = r#"<!doctype html>
   <body>
     <div id="app"></div>
   </body>
-  <script type="module">
-    import init, { main } from '__IMPORT_PATH__';
-    await init();
-    main();
+  <script>
+__EUV_INLINE_JS__
   </script>
 </html>
 "#;

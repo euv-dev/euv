@@ -12,6 +12,7 @@ mod logger;
 mod mode;
 mod server;
 
+pub use build::inline::*;
 use log::SetLoggerError;
 pub use std::{
     error::Error,
