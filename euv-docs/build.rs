@@ -1116,7 +1116,110 @@ fn parse_inlines(it: &mut EventIter, ctx: &mut ParseCtx, consume_end: bool) -> V
         let event: Event = it.next().expect("peeked");
         collect_inline(it, ctx, event, &mut inlines);
     }
-    inlines
+    rescue_strong(inlines)
+}
+
+/// Rescue pass for `**strong**` spans that pulldown-cmark leaves literal
+/// when CJK prose touches the delimiters: CommonMark flanking rules reject
+/// a `**` opener that follows a CJK letter and precedes punctuation such
+/// as `"`, so `而在于**"…"**` renders as raw asterisks. The pass coalesces
+/// the collected inline list, splits every `**` inside text nodes into a
+/// delimiter token and wraps nearest-pair contents in `Inline::Strong`.
+/// Code spans and other non-text inlines are opaque to the scan, so a
+/// literal `**` inside code is never rewritten.
+fn rescue_strong(inlines: Vec<Inline>) -> Vec<Inline> {
+    enum Tok {
+        El(Inline),
+        Delim,
+    }
+    let mut merged: Vec<Inline> = Vec::new();
+    for inline in inlines {
+        match (merged.last_mut(), inline) {
+            (Some(Inline::Text(prev)), Inline::Text(text)) => prev.push_str(&text),
+            (_, other) => merged.push(other),
+        }
+    }
+    let mut toks: Vec<Option<Tok>> = Vec::new();
+    for inline in merged {
+        match inline {
+            Inline::Text(text) => {
+                let mut rest: &str = &text;
+                while let Some(pos) = rest.find("**") {
+                    if pos > 0 {
+                        toks.push(Some(Tok::El(Inline::Text(rest[..pos].to_string()))));
+                    }
+                    toks.push(Some(Tok::Delim));
+                    rest = &rest[pos + 2..];
+                }
+                if !rest.is_empty() {
+                    toks.push(Some(Tok::El(Inline::Text(rest.to_string()))));
+                }
+            }
+            other => toks.push(Some(Tok::El(other))),
+        }
+    }
+    if !toks.iter().any(|t| matches!(t, Some(Tok::Delim))) {
+        return toks
+            .into_iter()
+            .filter_map(|t| match t {
+                Some(Tok::El(inline)) => Some(inline),
+                _ => None,
+            })
+            .collect();
+    }
+    let mut pairs: Vec<(usize, usize)> = Vec::new();
+    let mut open: Option<usize> = None;
+    for idx in 0..toks.len() {
+        if !matches!(toks[idx], Some(Tok::Delim)) {
+            continue;
+        }
+        match open {
+            None => open = Some(idx),
+            Some(o) => {
+                let has_content: bool = toks[o + 1..idx].iter().any(|t| match t {
+                    Some(Tok::El(Inline::Text(s))) => !s.trim().is_empty(),
+                    Some(Tok::El(Inline::SoftBreak)) | Some(Tok::El(Inline::HardBreak)) => false,
+                    Some(Tok::El(_)) => true,
+                    Some(Tok::Delim) => false,
+                    None => false,
+                });
+                if has_content {
+                    pairs.push((o, idx));
+                    open = None;
+                } else {
+                    open = Some(idx);
+                }
+            }
+        }
+    }
+    let mut out: Vec<Inline> = Vec::new();
+    let mut i: usize = 0;
+    while i < toks.len() {
+        let close: Option<usize> = pairs.iter().find(|(o, _)| *o == i).map(|(_, c)| *c);
+        match close {
+            Some(c) => {
+                let mut children: Vec<Inline> = Vec::new();
+                for t in toks[i + 1..c].iter_mut() {
+                    match t.take() {
+                        Some(Tok::El(inline)) => children.push(inline),
+                        Some(Tok::Delim) => children.push(Inline::Text("**".to_string())),
+                        None => {}
+                    }
+                }
+                out.push(Inline::Strong(children));
+                i = c + 1;
+            }
+            None => {
+                match toks[i].take() {
+                    Some(Tok::El(inline)) => out.push(inline),
+                    Some(Tok::Delim) => out.push(Inline::Text("**".to_string())),
+                    None => {}
+                }
+                i += 1;
+            }
+        }
+    }
+    out
 }
 
 /// Converts one event into inline nodes, recursing for container tags.
