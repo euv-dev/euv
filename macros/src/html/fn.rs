@@ -437,7 +437,10 @@ fn collect_local_dep_src_dirs(manifest_dir: &str) -> Vec<PathBuf> {
             continue;
         };
         for (name, value) in deps {
-            let path_str: Option<&str> = if let Some(table) = value.as_table() {
+            // Workspace-inherited entries resolve `path` against the
+            // workspace root manifest; direct entries resolve it against
+            // the crate's own manifest directory (cargo semantics).
+            let path_lookup: Option<(&str, &PathBuf)> = if let Some(table) = value.as_table() {
                 if table
                     .get(WORKSPACE_KEY)
                     .and_then(|workspace_flag: &toml::Value| workspace_flag.as_bool())
@@ -453,22 +456,22 @@ fn collect_local_dep_src_dirs(manifest_dir: &str) -> Vec<PathBuf> {
                         .and_then(|dep_entry: &toml::Value| dep_entry.as_table())
                         .and_then(|dep_table: &toml::Table| dep_table.get(PATH_KEY))
                         .and_then(|path_value: &toml::Value| path_value.as_str())
+                        .map(|path_str: &str| (path_str, &workspace_root))
                 } else {
                     table
                         .get(PATH_KEY)
                         .and_then(|path_value: &toml::Value| path_value.as_str())
+                        .map(|path_str: &str| (path_str, &manifest_dir_path))
                 }
             } else {
                 None
             };
-            if let Some(path_str) = path_str {
+            if let Some((path_str, base_dir)) = path_lookup {
                 let path: PathBuf = PathBuf::from(path_str);
                 let dep_dir: PathBuf = if path.is_absolute() {
                     path.join(SRC_DIR)
-                } else if workspace_root != manifest_dir_path {
-                    workspace_root.join(path_str).join(SRC_DIR)
                 } else {
-                    manifest_dir_path.join(path_str).join(SRC_DIR)
+                    base_dir.join(path_str).join(SRC_DIR)
                 };
                 if dep_dir.is_dir() {
                     dep_dirs.push(dep_dir);

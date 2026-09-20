@@ -45,6 +45,7 @@ pub fn main() {
              .c_euv_sidebar_link { display: block !important; padding: 0.4rem 0.75rem !important; } \
              .c_euv_sidebar_link_active { padding: 0.4rem 0.75rem !important; } \
              .c_euv_sidebar_link:hover { font-weight: 700 !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; box-shadow: inset 4px 0px 0px var(--foreground, #000) !important; } \
+             .c_euv_sidebar_children .c_euv_sidebar_link, .c_euv_sidebar_children .c_euv_sidebar_link_active, .c_euv_sidebar_children .c_euv_sidebar_group_title { margin-left: -9px !important; padding-left: calc(0.75rem + 9px) !important; } \
              \
              .c_euv_doc_layout { max-width: 1160px !important; } \
              .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; } \

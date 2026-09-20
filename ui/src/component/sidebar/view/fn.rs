@@ -119,7 +119,7 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
                     href.push_str(link);
                     href
                 }
-                onclick: navigate_group_link(on_navigate.clone(), link)
+                onclick: toggle_navigate_group(collapsed, key.clone(), Some(link), on_navigate.clone())
                 {
                     item.text
                 }
@@ -132,32 +132,38 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
         },
     };
     html! {
+    div {
+        class: c_euv_sidebar_group()
         div {
-            class: c_euv_sidebar_group()
-            div {
-                class: c_euv_sidebar_group_title()
-                onclick: toggle_group(collapsed, key.clone())
-                span {
-                    title_node
-                }
-                span {
-                    class: arrow_class()
-                    "▸"
-                }
+            class: c_euv_sidebar_group_title()
+            class: if { is_group_active(item.link, route_signal) } {
+                c_euv_sidebar_group_title_active()
             }
-            if open {
-                div {
-                    class: c_euv_sidebar_children()
-                    euv_sidebar {
-                        route_signal
-                        collapsed
-                        items: item.children
-                        prefix: key.clone()
-                        on_navigate: on_navigate.clone()
-                    }
+            onclick: toggle_navigate_group(collapsed, key.clone(), item.link, on_navigate.clone())
+            span {
+                title_node
+            }
+            span {
+                class: arrow_class()
+                class: if { is_group_active(item.link, route_signal) } {
+                    c_euv_sidebar_group_arrow_active()
+                }
+                "▸"
+            }
+        }
+        if open {
+            div {
+                class: c_euv_sidebar_children()
+                euv_sidebar {
+                    route_signal
+                    collapsed
+                    items: item.children
+                    prefix: key.clone()
+                    on_navigate: on_navigate.clone()
                 }
             }
         }
+    }
     }
 }
 
@@ -188,53 +194,58 @@ fn navigate_link(
     }
 }
 
-/// Navigates to a group index page without toggling the group.
-///
-/// Stops event propagation so the parent row's toggle handler does not also
-/// fire when the link is clicked. Uses the interceptor when set.
-///
-/// # Arguments
-///
-/// - `Option<Rc<dyn Fn(&'static str)>>` - The navigation interceptor.
-/// - `&'static str` - The target route.
-///
-/// # Returns
-///
-/// - `Option<Rc<dyn Fn(Event)>>` - The click handler.
-fn navigate_group_link(
-    on_navigate: Option<Rc<dyn Fn(&'static str)>>,
-    link: &'static str,
-) -> Option<Rc<dyn Fn(Event)>> {
-    Some(Rc::new(move |event: Event| {
-        event.prevent_default();
-        event.stop_propagation();
-        match &on_navigate {
-            Some(interceptor) => interceptor(link),
-            None => Router::navigate(link),
-        }
-    }))
-}
-
-/// Toggles a sidebar group's collapsed state.
+/// Prevents the native hash jump, toggles the group's collapsed state and,
+/// when the group owns an index page, navigates to that route. Bound to both
+/// the title row and its inner anchor because euv's window-level event
+/// delegation stops after the innermost handler — the anchor must therefore
+/// carry the full behaviour itself.
 ///
 /// # Arguments
 ///
 /// - `Signal<Vec<String>>` - The collapsed-keys signal.
 /// - `String` - The group key.
+/// - `Option<&'static str>` - The group's index route when it exists.
+/// - `Option<Rc<dyn Fn(&'static str)>>` - The navigation interceptor.
 ///
 /// # Returns
 ///
 /// - `Option<Rc<dyn Fn(Event)>>` - The click handler.
-fn toggle_group(collapsed: Signal<Vec<String>>, key: String) -> Option<Rc<dyn Fn(Event)>> {
-    Some(Rc::new(move |_| {
+fn toggle_navigate_group(
+    collapsed: Signal<Vec<String>>,
+    key: String,
+    link: Option<&'static str>,
+    on_navigate: Option<Rc<dyn Fn(&'static str)>>,
+) -> Option<Rc<dyn Fn(Event)>> {
+    Some(Rc::new(move |event: Event| {
+        event.prevent_default();
         let mut keys: Vec<String> = collapsed.get();
-        if let Some(index) = keys.iter().position(|k| k == &key) {
+        if let Some(index) = keys.iter().position(|k: &String| k == &key) {
             keys.remove(index);
         } else {
             keys.push(key.clone());
         }
         collapsed.set(keys);
+        if let Some(link) = link {
+            match &on_navigate {
+                Some(interceptor) => interceptor(link),
+                None => Router::navigate(link),
+            }
+        }
     }))
+}
+
+/// Returns whether a group's own index route is the current route.
+///
+/// # Arguments
+///
+/// - `Option<&'static str>` - The group's index route when it exists.
+/// - `Signal<String>` - The current route signal.
+///
+/// # Returns
+///
+/// - `bool` - `true` when the stripped route equals the group's index link.
+fn is_group_active(link: Option<&'static str>, route_signal: Signal<String>) -> bool {
+    link.is_some_and(|link: &'static str| strip_hash_anchor(&route_signal.get()) == link)
 }
 
 /// Strips the `#anchor` suffix from a hash route.
