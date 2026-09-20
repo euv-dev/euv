@@ -313,16 +313,18 @@ fn extract_out_dir(wasm_pack_args: &[String]) -> Option<String> {
 /// - `String` - The resolved JS filename with `.js` extension (e.g. `euv_example.js`).
 pub fn resolve_out_name(args: &ModeArgs) -> String {
     let name: String = if let Some(out_name) = extract_out_name(args.get_wasm_pack_args()) {
-        out_name
+        out_name.replace(STR_HYPHEN, STR_UNDERSCORE)
     } else {
         let cargo_toml_path: PathBuf = args.get_crate_path().join(CARGO_TOML_FILE_NAME);
-        read_crate_name_from_toml(&cargo_toml_path).unwrap_or_else(|| {
-            args.get_crate_path()
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string()
-        })
+        read_crate_name_from_toml(&cargo_toml_path)
+            .unwrap_or_else(|| {
+                args.get_crate_path()
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .replace(STR_HYPHEN, STR_UNDERSCORE)
     };
     format!("{name}{JS_EXTENSION}")
 }

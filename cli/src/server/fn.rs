@@ -24,10 +24,61 @@ pub(crate) fn get_global_state() -> Option<Arc<AppState>> {
     APP_STATE.get().cloned()
 }
 
+/// Resolves the bootstrap script body to inline into the generated HTML.
+///
+/// When JS bridge inlining is enabled and the `pkg/<name>.js` file is present
+/// after a successful `wasm-pack` build, reads the bridge, strips its
+/// top-level `import` statements, inlines the 2 snippet helper modules, and
+/// wraps everything in a synchronous IIFE that fetches the wasm and calls
+/// `main()`. The result is zero extra HTTP requests for the JS bridge file
+/// and no ES module graph parsing on the critical path.
+///
+/// When inlining is disabled (env var or missing `pkg/<name>.js` file),
+/// returns the classic `<script type="module">` import fallback so the
+/// page still boots.
+async fn resolve_inline_js(config: &HtmlConfig) -> String {
+    if inline_bridge_disabled() {
+        return build_module_fallback_bridge(config.get_import_path());
+    }
+    let pkg_dir: PathBuf = config.get_serving_root().join(PKG_DIR_NAME);
+    let js_name: String = config
+        .get_import_path()
+        .rsplit('/')
+        .next()
+        .unwrap_or("")
+        .to_string();
+    if js_name.is_empty() {
+        return build_module_fallback_bridge(config.get_import_path());
+    }
+    let js_path: PathBuf = pkg_dir.join(&js_name);
+    if !js_path.exists() {
+        return build_module_fallback_bridge(config.get_import_path());
+    }
+    let wasm_url: String = if let Some(stem) = js_name.strip_suffix(".js") {
+        format!("pkg/{stem}_bg.wasm")
+    } else {
+        config.get_import_path().replace(".js", "_bg.wasm")
+    };
+    match build_inline_bridge(&pkg_dir, &js_name, &wasm_url).await {
+        Ok(snippet) => snippet,
+        Err(error) => {
+            log::warn!("Falling back to module import bridge: {error}");
+            build_module_fallback_bridge(config.get_import_path())
+        }
+    }
+}
+
 /// Generates `index.html` based on the build profile.
 ///
 /// Uses `INDEX_HTML_RELEASE` when `is_release` is `true` (no live-reload script),
 /// otherwise uses `INDEX_HTML_DEV` (includes live-reload instrumentation).
+///
+/// The wasm-bindgen JS bridge is **inlined** into the HTML at build time
+/// (Rust reads `pkg/<name>.js`, strips its top-level `import` statements,
+/// inlines the 2 snippet helpers, and wraps the body in a synchronous IIFE)
+/// so the browser incurs zero extra HTTP requests for the JS bridge file
+/// and skips ES module graph parsing. Set the `EUV_NO_INLINE_BRIDGE` env
+/// var to opt out.
 ///
 /// Then writes the template with the import path placeholder replaced to disk.
 ///
@@ -57,9 +108,11 @@ pub(crate) async fn generate_html(config: &HtmlConfig) -> Result<String, EuvErro
     } else {
         INDEX_HTML_DEV.to_string()
     };
+    let inline_js: String = resolve_inline_js(config).await;
     let html: String = template_content
         .replace(IMPORT_PATH_PLACEHOLDER, config.get_import_path())
-        .replace(RELOAD_ROUTE_PLACEHOLDER, RELOAD_ROUTE);
+        .replace(RELOAD_ROUTE_PLACEHOLDER, RELOAD_ROUTE)
+        .replace(INLINE_JS_PLACEHOLDER, &inline_js);
     let index_path: PathBuf = config.get_serving_root().join(INDEX_HTML_FILE_NAME);
     create_dir_all(config.get_serving_root())
         .await
