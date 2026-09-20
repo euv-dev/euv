@@ -44,6 +44,9 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
                 subtitle: page.tagline
                 actions: page.actions
             }
+            docs_stats_row {
+                stats: page.stats
+            }
             docs_feature_grid {
                 features: page.features
             }
@@ -57,6 +60,48 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
                     class: c_euv_footer()
                     {
                         footer_text
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Renders the home-page stat tiles (icon + value + label) in one row,
+/// mirroring the euv example home stats section. Empty stats render
+/// nothing.
+#[component]
+pub(crate) fn docs_stats_row(node: VirtualNode<DocsStatsRowProps>) -> VirtualNode {
+    let DocsStatsRowProps { stats }: DocsStatsRowProps = node.try_get_props().unwrap_or_default();
+    if stats.is_empty() {
+        return html! {
+            ""
+        };
+    }
+    html! {
+        div {
+            class: c_home_stats()
+            for stat in stats.iter() {
+                div {
+                    class: c_home_stat_card()
+                    key: stat.label
+                    div {
+                        class: c_home_stat_icon()
+                        {
+                            stat.icon
+                        }
+                    }
+                    div {
+                        class: c_home_stat_value()
+                        {
+                            stat.value
+                        }
+                    }
+                    div {
+                        class: c_home_stat_label()
+                        {
+                            stat.label
+                        }
                     }
                 }
             }
