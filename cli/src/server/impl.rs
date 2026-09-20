@@ -71,6 +71,55 @@ impl ServerHook for ResponseMiddleware {
     }
 }
 
+/// Implements `ServerHook` for `RootRoute` to serve the development HTML at `/`.
+///
+/// The bare root path is what most browsers show when a user types
+/// `http://host:port` without a path component. Without this route the
+/// `IndexRoute` (registered at `{serving_route_prefix}/{path:.*}`) does
+/// not match and hyperlane's default empty 200 is returned — the
+/// "white screen" symptom. This route always serves the in-memory
+/// development HTML (same as `IndexRoute`'s `index.html` case) and
+/// applies the same 500 fallback when the global state is missing.
+impl ServerHook for RootRoute {
+    /// Creates a new `RootRoute` instance.
+    ///
+    /// # Arguments
+    /// - `&mut Stream` - The connection stream (unused).
+    /// - `&mut Context` - The request context (unused).
+    ///
+    /// # Returns
+    /// - `RootRoute` - A new instance with no internal state.
+    async fn new(_: &mut Stream, _ctx: &mut Context) -> Self {
+        Self
+    }
+
+    /// Handles requests for `/` and `/index.html` by serving the
+    /// in-memory development HTML. Returns 500 if the global app state
+    /// has not been initialized.
+    ///
+    /// # Arguments
+    /// - `self` - The consumed route instance.
+    /// - `&mut Stream` - The connection stream (unused).
+    /// - `&mut Context` - The request context used to write the response.
+    ///
+    /// # Returns
+    /// - `Status` - The hook processing result.
+    async fn handle(self, _: &mut Stream, ctx: &mut Context) -> Status {
+        let state: Arc<AppState> = match get_global_state() {
+            Some(state) => state,
+            None => {
+                ctx.get_mut_response().set_status_code(500);
+                return Status::Continue;
+            }
+        };
+        let html: String = state.get_html_content().read().await.clone();
+        ctx.get_mut_response()
+            .set_body(&html)
+            .set_header(CONTENT_TYPE, TEXT_HTML);
+        Status::Continue
+    }
+}
+
 /// Implements `ServerHook` for `IndexRoute` to serve the development HTML and static assets.
 ///
 /// When the request targets `index.html`, returns the in-memory HTML
@@ -155,8 +204,8 @@ impl ServerHook for IndexRoute {
 /// Implements `ServerHook` for `ReloadRoute` to provide long-polling reload notifications.
 ///
 /// Uses long-polling: holds the connection open until a reload event
-/// is broadcast, then returns a single JSON response so the client
-/// can distinguish between a successful rebuild and an error.
+/// is broadcast, then returns a single JSON response so the client can
+/// distinguish between a successful rebuild and an error.
 impl ServerHook for ReloadRoute {
     /// Creates a new `ReloadRoute` instance.
     ///

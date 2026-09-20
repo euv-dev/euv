@@ -126,6 +126,8 @@ pub async fn run_mode(mut args: ModeArgs) -> Result<(), EuvError> {
     server.server_config(server_config);
     server.request_middleware::<RequestMiddleware>();
     server.response_middleware::<ResponseMiddleware>();
+    server.route::<RootRoute>("/");
+    server.route::<RootRoute>(format!("/{INDEX_HTML_FILE_NAME}"));
     server.route::<IndexRoute>(format!("{serving_route_prefix}/{{path:.*}}"));
     server.route::<ReloadRoute>(RELOAD_ROUTE);
     if let Err(error) = set_global_state(Arc::clone(&state)) {
