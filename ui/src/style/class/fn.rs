@@ -3543,7 +3543,7 @@ class! {
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border-bottom: "2px solid transparent";
         cursor: "pointer";
-        hover {
+        :hover {
             color: var!(accent);
         }
     }
@@ -3573,7 +3573,7 @@ class! {
         border: format!("1px dashed {}", var!(border));
         cursor: "pointer";
         font-size: var!(font-base);
-        hover {
+        :hover {
             background: var!(accent-muted);
         }
     }
@@ -3645,7 +3645,7 @@ class! {
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
-        hover {
+        :hover {
             background: var!(accent-muted);
         }
     }
@@ -3667,8 +3667,17 @@ class! {
         font-weight: "600";
         cursor: "pointer";
         text-align: "left";
-        hover {
+        :hover {
             background: var!(accent-muted);
+            box-shadow: format!("inset 4px 0px 0px {}", var!(accent));
+        }
+    }
+    pub c_euv_sidebar_group_title_active {
+        background: var!(accent);
+        color: var!(text-on-accent);
+        font-weight: "600";
+        :hover {
+            background: var!(accent);
         }
     }
     pub c_euv_sidebar_group_arrow {
@@ -3678,6 +3687,9 @@ class! {
     }
     pub c_euv_sidebar_group_arrow_open {
         transform: "rotate(90deg)";
+    }
+    pub c_euv_sidebar_group_arrow_active {
+        color: var!(text-on-accent);
     }
     pub c_euv_sidebar_children {
         display: "flex";
@@ -3694,7 +3706,7 @@ class! {
         color: var!(foreground);
         cursor: "pointer";
         transition: format!("background {} {}", var!(duration-fast), var!(ease-out));
-        hover {
+        :hover {
             background: var!(accent-muted);
             color: var!(accent);
             box-shadow: format!("inset 4px 0px 0px {}", var!(accent));
@@ -3736,7 +3748,7 @@ class! {
         color: var!(muted-foreground);
         cursor: "pointer";
         line-height: "1.5";
-        hover {
+        :hover {
             color: var!(accent);
         }
     }
@@ -3766,7 +3778,7 @@ class! {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-2xs);
-        hover {
+        :hover {
             border-color: var!(accent);
         }
     }
