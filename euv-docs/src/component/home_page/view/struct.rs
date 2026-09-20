@@ -7,3 +7,8 @@ pub struct DocsFeatureProps {
 pub struct DocsFeatureGridProps {
     pub features: &'static [crate::data::DocsFeature],
 }
+
+#[derive(Clone, Copy, Default)]
+pub struct DocsStatsRowProps {
+    pub stats: &'static [crate::data::DocsStat],
+}

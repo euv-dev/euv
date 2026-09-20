@@ -187,6 +187,9 @@ struct Page {
     actions: Vec<(String, String, String)>,
     /// Feature cards (home pages) — each tuple is `(icon, title, details, link)`.
     features: Vec<(String, String, String, String)>,
+    /// Home-page hero stats: (icon, value, label) rendered as a row of
+    /// icon+text tiles between the hero actions and the feature grid.
+    stats: Vec<(String, String, String)>,
     /// Frontmatter footer override.
     footer: String,
     /// Frontmatter `order` (sidebar sorting).
@@ -463,6 +466,17 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
         })
         .collect();
 
+    let stats: Vec<(String, String, String)> = yaml_list(&frontmatter, "stats")
+        .iter()
+        .map(|item| {
+            (
+                yaml_str(item, "icon").unwrap_or_default(),
+                yaml_str(item, "value").unwrap_or_default(),
+                yaml_str(item, "label").unwrap_or_default(),
+            )
+        })
+        .collect();
+
     let private: bool = is_private_page(&frontmatter);
     let password_hash: String = if private {
         match yaml_str(&frontmatter, "password") {
@@ -489,6 +503,7 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
         tagline,
         actions,
         features,
+        stats,
         footer,
         order,
         private,
@@ -1537,9 +1552,20 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
             })
             .collect::<Vec<String>>()
             .join(", ");
+        let stats: String = page
+            .stats
+            .iter()
+            .map(|(icon, value, label)| {
+                format!(
+                    "crate::data::DocsStat {{ icon: {:?}, value: {:?}, label: {:?} }}",
+                    icon, value, label
+                )
+            })
+            .collect::<Vec<String>>()
+            .join(", ");
         let blocks: String = emit_blocks(&page.blocks);
         pages_code.push_str(&format!(
-            "crate::data::DocsPage {{ route: {:?}, title: {:?}, blocks: {}, headings: &[{}], home: {}, hero_text: {:?}, tagline: {:?}, actions: &[{}], features: &[{}], footer: {:?}, private: {}, password_hash: {:?} }},\n",
+            "crate::data::DocsPage {{ route: {:?}, title: {:?}, blocks: {}, headings: &[{}], home: {}, hero_text: {:?}, tagline: {:?}, actions: &[{}], features: &[{}], stats: &[{}], footer: {:?}, private: {}, password_hash: {:?} }},\n",
             page.route,
             page.title,
             blocks,
@@ -1549,6 +1575,7 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
             page.tagline,
             actions,
             features,
+            stats,
             page.footer,
             page.private,
             page.password_hash,

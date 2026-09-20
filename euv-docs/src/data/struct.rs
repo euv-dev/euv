@@ -14,6 +14,18 @@ pub struct DocsFeature {
     pub link: &'static str,
 }
 
+/// One icon+text stat tile on the home page, rendered between the hero
+/// actions and the feature grid (mirrors the euv example home stats row).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DocsStat {
+    /// Tile icon (emoji).
+    pub icon: &'static str,
+    /// Bold stat value.
+    pub value: &'static str,
+    /// Muted label under the value.
+    pub label: &'static str,
+}
+
 /// One rendered markdown page.
 #[derive(Clone, Copy, Debug)]
 pub struct DocsPage {
@@ -36,6 +48,9 @@ pub struct DocsPage {
     /// Feature cards (home pages) — each card carries an optional
     /// `link` so the home grid renders as a clickable navigation tile.
     pub features: &'static [DocsFeature],
+    /// Icon+text stat tiles (home pages), rendered between the hero
+    /// actions and the feature grid; empty hides the row.
+    pub stats: &'static [DocsStat],
     /// Frontmatter footer override.
     pub footer: &'static str,
     /// `true` when the page is gated behind a password form. Direct URL
