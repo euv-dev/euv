@@ -59,6 +59,11 @@ Open <http://localhost:8080> after `euv run`.
   legacy `docs/config.toml`).
 - **Sidebar** — auto-generated from the file tree; order with
   frontmatter `order: <int>`.
+- **Directory without an index page** — set `index: false` in the
+  directory's `README.md` frontmatter (VuePress-style): the page is not
+  rendered (the route 404s like a directory without a README) and the
+  sidebar group keeps the README title but only toggles its children
+  instead of navigating.
 - **Home page** — frontmatter `home: true` + `heroText` / `tagline` /
   `actions` / `features` / `footer`.
 - **Static assets** — put them in `cli/docs/public/`, reference as

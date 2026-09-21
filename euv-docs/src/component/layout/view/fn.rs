@@ -24,6 +24,7 @@ pub(crate) fn app() -> VirtualNode {
     Router::use_hash_change(route_signal);
     Router::use_overlay_history(drawer_open, mobile_signal);
     use_anchor_scroll(route_signal);
+    use_sidebar_reveal(route_signal, collapsed, drawer_open);
     html! {
         div {
             key: locale_of(&parse_route(&route_signal.get()).0).prefix
@@ -569,4 +570,160 @@ fn schedule_scroll(anchor: Option<String>) {
         100,
     );
     callback.forget();
+}
+
+/// Keeps the active sidebar entry visible: expands its collapsed ancestor
+/// groups (any depth) and scrolls the sidebar container so the entry sits
+/// near the vertical center, mirroring the euv example's drawer reveal.
+///
+/// Runs once at startup, on every route change, and each time the mobile
+/// drawer opens (the desktop aside and the drawer share the `collapsed`
+/// signal, so one expansion covers both).
+///
+/// # Arguments
+///
+/// - `Signal<String>` - The current route signal.
+/// - `Signal<Vec<String>>` - The collapsed sidebar group keys.
+/// - `Signal<bool>` - The mobile drawer open signal.
+fn use_sidebar_reveal(
+    route_signal: Signal<String>,
+    collapsed: Signal<Vec<String>>,
+    drawer_open: Signal<bool>,
+) {
+    reveal_active_sidebar(route_signal, collapsed);
+    route_signal.subscribe(move || reveal_active_sidebar(route_signal, collapsed));
+    drawer_open.subscribe(move || {
+        if drawer_open.get() {
+            reveal_active_sidebar(route_signal, collapsed);
+        }
+    });
+}
+
+/// Expands the ancestor groups of the active route and schedules the sidebar
+/// scroll.
+///
+/// # Arguments
+///
+/// - `Signal<String>` - The current route signal.
+/// - `Signal<Vec<String>>` - The collapsed sidebar group keys.
+fn reveal_active_sidebar(route_signal: Signal<String>, collapsed: Signal<Vec<String>>) {
+    let (path, _anchor) = parse_route(&route_signal.get());
+    let items: &'static [EuvSidebarItem] = locale_of(&path).sidebar;
+    expand_active_groups(items, &path, collapsed);
+    schedule_sidebar_scroll();
+}
+
+/// Removes the ancestor group keys of `path` from the `collapsed` signal so
+/// the active entry renders. Group keys mirror euv-ui's `euv_sidebar_item`
+/// recursion (`{prefix}/{text}`, top-level prefix empty).
+///
+/// # Arguments
+///
+/// - `&'static [EuvSidebarItem]` - The locale sidebar tree.
+/// - `&str` - The active route path.
+/// - `Signal<Vec<String>>` - The collapsed sidebar group keys.
+fn expand_active_groups(
+    items: &'static [EuvSidebarItem],
+    path: &str,
+    collapsed: Signal<Vec<String>>,
+) {
+    let mut keys: Vec<String> = Vec::new();
+    collect_active_group_keys(items, path, "", &mut keys);
+    if keys.is_empty() {
+        return;
+    }
+    let mut current: Vec<String> = collapsed.get();
+    let before: usize = current.len();
+    current.retain(|key: &String| !keys.contains(key));
+    if current.len() != before {
+        collapsed.set(current);
+    }
+}
+
+/// Walks the sidebar tree collecting the keys of the ancestor groups of the
+/// active entry. The active group's own collapse state is left untouched so
+/// its title click keeps toggling; only descendant activation expands a group.
+/// Returns whether the subtree contains the active route.
+///
+/// # Arguments
+///
+/// - `&'static [EuvSidebarItem]` - The items of the current tree level.
+/// - `&str` - The active route path.
+/// - `&str` - The group key prefix of the parent level.
+/// - `&mut Vec<String>` - The collected group keys.
+///
+/// # Returns
+///
+/// - `bool` - `true` when `path` resolves inside this subtree.
+fn collect_active_group_keys(
+    items: &'static [EuvSidebarItem],
+    path: &str,
+    prefix: &str,
+    keys: &mut Vec<String>,
+) -> bool {
+    let mut contains: bool = false;
+    for item in items {
+        if item.children.is_empty() {
+            if item.link == Some(path) {
+                contains = true;
+            }
+            continue;
+        }
+        let key: String = format!("{prefix}/{}", item.text);
+        let mut child_keys: Vec<String> = Vec::new();
+        let child_contains: bool =
+            collect_active_group_keys(item.children, path, &key, &mut child_keys);
+        if child_contains {
+            keys.push(key);
+            keys.append(&mut child_keys);
+        }
+        if child_contains || item.link == Some(path) {
+            contains = true;
+        }
+    }
+    contains
+}
+
+/// Defers the sidebar scroll until after the reactive re-render (the
+/// expansion above mutates `collapsed`, which re-renders the tree first).
+fn schedule_sidebar_scroll() {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let callback: Closure<dyn FnMut()> = Closure::once(scroll_active_sidebar_item);
+    let _: Result<i32, JsValue> = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+        callback.as_ref().unchecked_ref(),
+        100,
+    );
+    callback.forget();
+}
+
+/// Scrolls every visible sidebar container (desktop aside and mobile drawer)
+/// so its active entry sits near the vertical center — the same centering
+/// math as the euv example's `use_scroll_drawer_to_active`.
+fn scroll_active_sidebar_item() {
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return;
+    };
+    let Ok(containers) = document.query_selector_all(SIDEBAR_SCROLL_SELECTOR) else {
+        return;
+    };
+    for index in 0..containers.length() {
+        let Some(node) = containers.item(index) else {
+            continue;
+        };
+        let container: Element = node.unchecked_into();
+        let container_rect: DomRect = container.get_bounding_client_rect();
+        if container_rect.height() <= 0.0 {
+            continue;
+        }
+        let Ok(Some(active)) = container.query_selector(SIDEBAR_ACTIVE_SELECTOR) else {
+            continue;
+        };
+        let active_rect: DomRect = active.get_bounding_client_rect();
+        let target: f64 = container.scroll_top() as f64
+            + (active_rect.top() - container_rect.top())
+            - (container_rect.height() - active_rect.height()) / 2.0;
+        container.set_scroll_top(target.max(0.0) as i32);
+    }
 }
