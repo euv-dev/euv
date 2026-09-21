@@ -547,6 +547,7 @@ pub async fn run_build_only_pipeline(args: &ModeArgs) -> Result<(), EuvError> {
         resolve_import_path(args),
         resolve_build_mode(args) == BuildMode::Release,
         args.try_get_index_html().clone(),
+        false,
     );
     generate_html(&html_config).await?;
     Ok(())
@@ -620,6 +621,7 @@ pub async fn run_build_pipeline(
         resolve_import_path(args),
         resolve_build_mode(args) == BuildMode::Release,
         args.try_get_index_html().clone(),
+        true,
     );
     let html: String = generate_html(&html_config).await?;
     spawn(async move {
