@@ -25,7 +25,7 @@ pub const INLINE_JS_PLACEHOLDER: &str = "__EUV_INLINE_JS__";
 /// resource the HTML references — against the euv serving root rather
 /// than the page URL. This makes the dev server robust to users landing
 /// on `http://host:port/` instead of `http://host:port/www/`.
-pub const BASE_HREF_PLACEHOLDER: &str = "__EUV_BASE_HREF__";
+pub const BASE_HREF_PLACEHOLDER: &str = "__EUV_BASE_HREF_TAG__";
 
 /// Environment variable to disable JS bridge inlining and fall back to the
 /// classic `<script type="module">import init, { main } from '__IMPORT_PATH__'`
@@ -181,7 +181,7 @@ pub const INDEX_HTML_DEV: &str = r#"<!doctype html>
     />
     <meta property="og:type" content="website" />
     <title>Euv</title>
-    <base href="__EUV_BASE_HREF__" />
+    __EUV_BASE_HREF_TAG__
     <style>
       * {
         -webkit-font-smoothing: antialiased;
@@ -253,7 +253,7 @@ pub const INDEX_HTML_RELEASE: &str = r#"<!doctype html>
     />
     <meta property="og:type" content="website" />
     <title>Euv</title>
-    <base href="__EUV_BASE_HREF__" />
+    __EUV_BASE_HREF_TAG__
     <style>
       * {
         -webkit-font-smoothing: antialiased;
