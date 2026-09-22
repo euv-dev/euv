@@ -77,7 +77,7 @@ pub fn main() {
              .docs-container-title:empty { display: none; } \
              \
              .c_euv_pagination { margin-top: var(--space-4xl) !important; margin-bottom: var(--space-4xl) !important; } \
-             .c_euv_footer { margin-top: var(--space-4xl) !important; } \
+             .c_euv_footer { margin-top: var(--space-4xl) !important; padding-top: var(--space-2xl) !important; padding-bottom: var(--space-xs) !important; } \
              \
              .md-body img:not([data-loaded]) { height: 0px !important; margin: 0px !important; visibility: hidden; } \
              .md-body img[data-loaded] { transition: opacity 0.2s ease-out; }",
