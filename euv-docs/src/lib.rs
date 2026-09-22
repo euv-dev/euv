@@ -77,7 +77,13 @@ pub fn main() {
              .docs-container-title:empty { display: none; } \
              \
              .c_euv_pagination { margin-top: var(--space-4xl) !important; margin-bottom: var(--space-4xl) !important; } \
-             .c_euv_footer { margin-top: var(--space-4xl) !important; }",
+             .c_euv_footer { margin-top: var(--space-4xl) !important; } \
+             \
+             .md-body img:not([data-loaded]) { height: 0px !important; margin: 0px !important; visibility: hidden; } \
+             .md-body img[data-loaded] { transition: opacity 0.2s ease-out; }",
     );
     App::mount("#app", app);
+    let _ = js_sys::eval(
+        "(function(){var p=function(i){if(i.dataset.loaded)return;var m=function(){i.dataset.loaded='1';};if(i.complete&&i.naturalWidth>0){m();}else{i.addEventListener('load',m);i.addEventListener('error',m);}};var o=new MutationObserver(function(ms){ms.forEach(function(d){d.addedNodes.forEach(function(n){if(n.tagName==='IMG'){p(n);}if(n.querySelectorAll){n.querySelectorAll('img').forEach(p);}});});});o.observe(document.body,{childList:true,subtree:true});document.querySelectorAll('img').forEach(p);}());",
+    );
 }
