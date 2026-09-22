@@ -701,6 +701,13 @@ fn schedule_sidebar_scroll() {
 /// Scrolls every visible sidebar container (desktop aside and mobile drawer)
 /// so its active entry sits near the vertical center — the same centering
 /// math as the euv example's `use_scroll_drawer_to_active`.
+///
+/// If the active entry is already fully visible inside the container's
+/// scroll viewport, no scroll is performed (a no-op avoids the jarring
+/// jump that would happen on every nav click while the user reads the
+/// current page). Otherwise the entry is recentred via the plain DOM
+/// `Element.scroll_top` setter, which is an instant jump — no animation
+/// — so the sidebar snaps to the new position immediately.
 fn scroll_active_sidebar_item() {
     let Some(document) = web_sys::window().and_then(|window| window.document()) else {
         return;
@@ -721,6 +728,14 @@ fn scroll_active_sidebar_item() {
             continue;
         };
         let active_rect: DomRect = active.get_bounding_client_rect();
+        // Skip when the entry is already fully inside the container's
+        // viewport — same arithmetic the euv example uses to detect
+        // "in view" before scrolling.
+        if active_rect.top() >= container_rect.top()
+            && active_rect.bottom() <= container_rect.bottom()
+        {
+            continue;
+        }
         let target: f64 = container.scroll_top() as f64
             + (active_rect.top() - container_rect.top())
             - (container_rect.height() - active_rect.height()) / 2.0;
