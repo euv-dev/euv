@@ -127,7 +127,10 @@ pub(crate) fn find_page(route: &str) -> Option<&'static DocsPage> {
 /// - `Some(&'static [EuvSidebarItem])` - The sibling array that contains
 ///   the matched item as a direct child.
 /// - `None` - The route is not present in this subtree.
-pub(crate) fn scope_for(items: &'static [EuvSidebarItem], route: &str) -> Option<&'static [EuvSidebarItem]> {
+pub(crate) fn scope_for(
+    items: &'static [EuvSidebarItem],
+    route: &str,
+) -> Option<&'static [EuvSidebarItem]> {
     for item in items {
         if item.link == Some(route) {
             return Some(items);
