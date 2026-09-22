@@ -74,7 +74,10 @@ pub fn main() {
              .docs-container-warning, .docs-container-caution { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--accent-muted, rgba(0,0,0,0.04)); } \
              .docs-container-danger { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: rgba(0,0,0,0.06); } \
              .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
-             .docs-container-title:empty { display: none; }",
+             .docs-container-title:empty { display: none; } \
+             \
+             .c_euv_pagination { margin-top: var(--space-4xl) !important; margin-bottom: var(--space-4xl) !important; } \
+             .c_euv_footer { margin-top: var(--space-4xl) !important; }",
     );
     App::mount("#app", app);
 }
