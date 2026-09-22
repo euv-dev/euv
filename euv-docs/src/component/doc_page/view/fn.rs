@@ -118,6 +118,13 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
 
 /// Computes the prev/next pagination entries around the current route.
 ///
+/// Locates the current page in the sidebar tree, then walks the sibling
+/// scope (the array containing the matched item as a direct child). For
+/// leaf pages the scope is the immediate sibling array; for directory
+/// READMEs (group with link) the scope is the parent array so the pager
+/// stays anchored inside the directory instead of hopping to an unrelated
+/// project.
+///
 /// # Arguments
 ///
 /// - `&'static DocsLocale` - The current locale.
@@ -130,23 +137,27 @@ fn prev_next(
     locale: &'static DocsLocale,
     route: &str,
 ) -> (Option<EuvPaginationItem>, Option<EuvPaginationItem>) {
-    let links: Vec<&'static EuvSidebarItem> = flat_sidebar_links(locale.sidebar);
     let to_item = |item: &'static EuvSidebarItem| -> Option<EuvPaginationItem> {
         item.link.map(|link: &'static str| EuvPaginationItem {
             text: item.text,
             link,
         })
     };
-    let Some(index) = links
-        .iter()
-        .position(|item: &&'static EuvSidebarItem| item.link == Some(route))
-    else {
+    let Some(scope) = scope_for(locale.sidebar, route) else {
         return (None, None);
     };
-    let prev: Option<EuvPaginationItem> =
-        index.checked_sub(1).and_then(|i: usize| to_item(links[i]));
-    let next: Option<EuvPaginationItem> = links
-        .get(index + 1)
+    let pool: Vec<&'static EuvSidebarItem> = flatten_links(scope);
+    let pool_index: Option<usize> = pool
+        .iter()
+        .position(|item: &&'static EuvSidebarItem| item.link == Some(route));
+    let Some(pool_index) = pool_index else {
+        return (None, None);
+    };
+    let prev: Option<EuvPaginationItem> = pool_index
+        .checked_sub(1)
+        .and_then(|i: usize| to_item(pool[i]));
+    let next: Option<EuvPaginationItem> = pool
+        .get(pool_index + 1)
         .and_then(|item: &&'static EuvSidebarItem| to_item(item));
     (prev, next)
 }

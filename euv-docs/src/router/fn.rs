@@ -104,16 +104,60 @@ pub(crate) fn find_page(route: &str) -> Option<&'static DocsPage> {
         })
 }
 
-/// Flattens a sidebar tree into its ordered leaf links (for prev/next).
+/// Finds the sidebar scope that contains the given route.
+///
+/// Returns the level of the sidebar tree where the route appears as a
+/// direct child. Group/index pages (items with both a link and children)
+/// appear in the scope alongside leaf pages, so clicking a directory
+/// README still gets a usable pager anchored on the directory.
+///
+/// Walks the tree depth-first. The recursive call does NOT bubble up —
+/// the matched level is always the lowest one containing the route.
+/// Sibling directories that do not contain the route are NOT pulled in
+/// from a higher ancestor, so prev/next stays inside the same branch
+/// of the sidebar instead of hopping to unrelated projects.
 ///
 /// # Arguments
 ///
-/// - `&'static [EuvSidebarItem]` - The sidebar tree.
+/// - `&'static [EuvSidebarItem]` - The sidebar tree to search.
+/// - `&str` - The current route path.
 ///
 /// # Returns
 ///
-/// - `Vec<&'static EuvSidebarItem>` - Leaf items with links, in display order.
-pub(crate) fn flat_sidebar_links(items: &'static [EuvSidebarItem]) -> Vec<&'static EuvSidebarItem> {
+/// - `Some(&'static [EuvSidebarItem])` - The sibling array that contains
+///   the matched item as a direct child.
+/// - `None` - The route is not present in this subtree.
+pub(crate) fn scope_for(
+    items: &'static [EuvSidebarItem],
+    route: &str,
+) -> Option<&'static [EuvSidebarItem]> {
+    for item in items {
+        if item.link == Some(route) {
+            return Some(items);
+        }
+        if let Some(found) = scope_for(item.children, route) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// Flattens a sidebar scope into its ordered navigable items.
+///
+/// A navigable item is either a leaf (no children) with a link, or a
+/// group/index page (children present) with its own link. Pure
+/// container groups (no link, only children) recurse transparently so
+/// the resulting pool contains every page the reader can actually
+/// navigate to via prev/next, in sidebar order.
+///
+/// # Arguments
+///
+/// - `&'static [EuvSidebarItem]` - The sidebar scope to flatten.
+///
+/// # Returns
+///
+/// - `Vec<&'static EuvSidebarItem>` - Navigable items, in display order.
+pub(crate) fn flatten_links(items: &'static [EuvSidebarItem]) -> Vec<&'static EuvSidebarItem> {
     let mut out: Vec<&'static EuvSidebarItem> = Vec::new();
     for item in items {
         if item.children.is_empty() {
@@ -121,7 +165,10 @@ pub(crate) fn flat_sidebar_links(items: &'static [EuvSidebarItem]) -> Vec<&'stat
                 out.push(item);
             }
         } else {
-            out.extend(flat_sidebar_links(item.children));
+            if item.link.is_some() {
+                out.push(item);
+            }
+            out.extend(flatten_links(item.children));
         }
     }
     out
