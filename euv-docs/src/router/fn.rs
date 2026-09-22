@@ -109,7 +109,17 @@ pub(crate) fn find_page(route: &str) -> Option<&'static DocsPage> {
 /// Returns the level of the sidebar tree where the route appears as a
 /// direct child. Group/index pages (items with both a link and children)
 /// appear in the scope alongside leaf pages, so clicking a directory
-/// README still gets a usable pager anchored on the directory.
+/// README still gets a usable pager anchored inside their own directory.
+///
+/// When the direct scope has fewer than two navigable items (e.g. a
+/// single-content directory whose only sidebar entry is its LICENSE),
+/// the result bubbles up one level — the level whose array contains
+/// the direct scope as a child. The pager pool then includes the
+/// sibling group/index page and other leaves so prev/next can walk
+/// instead of being empty. The bubble stops as soon as the parent
+/// scope has at least two navigable items, or the recursion reaches
+/// the top-level array (where further bubbling would have no parent
+/// to consult).
 ///
 /// Walks the tree depth-first. The recursive call does NOT bubble up —
 /// the matched level is always the lowest one containing the route.
@@ -125,7 +135,8 @@ pub(crate) fn find_page(route: &str) -> Option<&'static DocsPage> {
 /// # Returns
 ///
 /// - `Some(&'static [EuvSidebarItem])` - The sibling array that contains
-///   the matched item as a direct child.
+///   the matched item as a direct child, possibly bubbled to a higher
+///   level so the pool has at least two navigable items.
 /// - `None` - The route is not present in this subtree.
 pub(crate) fn scope_for(
     items: &'static [EuvSidebarItem],
@@ -136,6 +147,16 @@ pub(crate) fn scope_for(
             return Some(items);
         }
         if let Some(found) = scope_for(item.children, route) {
+            // Bubble up one level when the deeper scope cannot supply both
+            // prev and next: a single-item scope has nothing to walk
+            // between, so the parent (this `items` array, which contains
+            // `found` as a child) becomes the scope instead. This is a
+            // one-step promotion, not a re-search: the route still lives
+            // inside `items`, and the parent pool has at least one
+            // sibling to give prev or next a real neighbour.
+            if flatten_links(found).len() < 2 {
+                return Some(items);
+            }
             return Some(found);
         }
     }
