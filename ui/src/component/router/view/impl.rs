@@ -55,6 +55,12 @@ impl Router {
     /// `hashchange` synchronously and the handler (or the reactive update chain
     /// it triggers) calls `navigate()` again before the original dispatch finishes.
     ///
+    /// When the target route matches the current route, the call is a no-op —
+    /// the route signal subscriber ignores equal values (`Signal::set` short-
+    /// circuits on `PartialEq`), but the underlying `set_hash` would still push
+    /// a duplicate history entry, fire `hashchange`, and re-run the route
+    /// subscriber's re-render path. Skipping the call avoids all of that.
+    ///
     /// Multiple rapid `navigate()` calls before the microtask fires are coalesced:
     /// only the **last** target route wins, as earlier routes were superseded by
     ///
@@ -66,6 +72,19 @@ impl Router {
         R: AsRef<str>,
     {
         let route_string: String = route.as_ref().to_string();
+        // Cheap early-return: a navigate() to the route the user is already on
+        // would otherwise queue a microtask, mutate `location.hash`, dispatch
+        // `hashchange`, and run the route subscriber's patch path — for no
+        // observable effect. Strips the optional `#anchor` suffix so callers
+        // can compare against the URL hash form without normalizing themselves.
+        let current: String = Self::current_route();
+        let target_path: &str = match route_string.find('#') {
+            Some(idx) => &route_string[..idx],
+            None => &route_string,
+        };
+        if current == target_path {
+            return;
+        }
         DEFERRED_NAVIGATION.with(|cell: &Cell<Option<String>>| cell.set(Some(route_string)));
         let deferred_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
             let target_route: Option<String> =
