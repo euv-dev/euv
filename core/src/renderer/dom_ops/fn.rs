@@ -162,9 +162,10 @@ fn eval_function(body: &str) -> Option<Function> {
 /// available.
 fn global_this() -> Option<JsValue> {
     if let Ok(value) = js_sys::eval("globalThis")
-        && !value.is_undefined() {
-            return Some(value);
-        }
+        && !value.is_undefined()
+    {
+        return Some(value);
+    }
     let window: Window = window()?;
     Some(window.into())
 }
