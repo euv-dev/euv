@@ -1,6 +1,6 @@
 [package]
 name = "euv-docs"
-version = "0.25.23"
+version = "0.25.24"
 readme = "README.md"
 edition = "2024"
 authors = ["root@ltpp.vip"]

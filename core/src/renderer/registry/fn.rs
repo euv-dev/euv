@@ -1,3 +1,5 @@
+use web_sys::wasm_bindgen::JsCast;
+
 use super::*;
 
 /// Collects the `data-euv-id` chain of an event's ancestor path entirely in
@@ -28,36 +30,45 @@ use super::*;
 /// # Returns
 ///
 /// - `Float64Array` - The parsed `data-euv-id` values in walk order.
-#[wasm_bindgen(inline_js = r#"
-export function euv_event_collect_id_chain(event, max_depth) {
-    const ids = [];
-    let node = event.target;
-    let depth = 0;
-    // Unbounded when max_depth is 0 (per the call site convention in
-    // dispatch_delegated_event — passing 0 means "walk until <html>").
-    // Otherwise count `event.target` itself as depth 1.
-    while (node) {
-        if (max_depth !== 0 && depth >= max_depth) {
+pub(crate) fn euv_event_collect_id_chain(event: &JsValue, max_depth: usize) -> Float64Array {
+    // Walk the ancestor chain from `event.target` up via `parent_element`,
+    // collecting every `data-euv-id` attribute. Implemented in pure Rust
+    // via web-sys so wasm-bindgen does not emit this as a separate JS
+    // snippet (each `#[wasm_bindgen(inline_js)]` decorates a fresh
+    // `pkg/snippets/.../inlineN.js` file under the deployed site).
+    //
+    // Cost: one web-sys accessor (`get_attribute` or `parent_element`)
+    // per layer, no per-event JS crossing. The previous inline_js
+    // variant paid one wasm↔JS crossing for the bulk walk plus one
+    // crossing per ancestor callback; this Rust loop pays `2 * depth`
+    // crossings with no callback indirection. Net per-event cost is
+    // typically lower for the common case (1–3 marked ancestors) and
+    // keeps the deployment artefact count stable as features grow.
+    let event_target: Option<web_sys::EventTarget> =
+        js_sys::Reflect::get(event, &JsValue::from_str("target"))
+            .ok()
+            .and_then(|v: JsValue| v.dyn_into::<web_sys::EventTarget>().ok());
+    let Some(target) = event_target else {
+        return Float64Array::new_with_length(0);
+    };
+    let mut ids: Vec<f64> = Vec::new();
+    let mut node: Option<web_sys::Node> = Some(target.unchecked_into::<web_sys::Node>());
+    let mut depth: usize = 0;
+    while let Some(n) = node {
+        if max_depth != 0 && depth >= max_depth {
             break;
         }
-        // Only DOM Elements carry data-euv-id; skip text nodes cheaply.
-        if (node.nodeType === 1) {
-            const id = node.getAttribute && node.getAttribute("data-euv-id");
-            if (id !== null && id !== undefined && id !== "") {
-                // parseInt is native (no string alloc on the WASM side);
-                // NaN check guards against malformed attribute values.
-                const parsed = parseInt(id, 10);
-                if (!isNaN(parsed)) {
-                    ids.push(parsed);
-                }
-            }
+        let element: Option<&web_sys::Element> = n.dyn_ref::<web_sys::Element>();
+        if let Some(el) = element
+            && let Some(id_str) = el.get_attribute("data-euv-id")
+            && let Ok(parsed) = id_str.parse::<f64>()
+        {
+            ids.push(parsed);
         }
-        node = node.parentElement;
         depth += 1;
+        node = n.parent_node();
     }
-    return Float64Array.from(ids);
-}
-"#)]
-extern "C" {
-    pub(crate) fn euv_event_collect_id_chain(event: &JsValue, max_depth: usize) -> Float64Array;
+    let arr: Float64Array = Float64Array::new_with_length(ids.len() as u32);
+    arr.copy_from(&ids);
+    arr
 }
