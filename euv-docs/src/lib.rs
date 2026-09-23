@@ -43,6 +43,15 @@ pub fn main() {
              .c_nav_footer { padding-left: 0.75rem !important; } \
              .c_euv_sidebar_children .c_euv_sidebar_link, .c_euv_sidebar_children .c_euv_sidebar_link_active, .c_euv_sidebar_children .c_euv_sidebar_group_title { padding-left: calc(0.75rem + 0.5rem) !important; } \
              \
+             /* Nested hover/active: the parent c_euv_sidebar_children border IS the bold border. */ \
+             /* The :hover/active item extends leftward (margin-left: -13px) so its background */ \
+             /* starts at the parent border, not 13px to the right. */ \
+             .c_euv_sidebar_children:has(:hover), \
+             .c_euv_sidebar_children:has(> .c_euv_sidebar_link_active), \
+             .c_euv_sidebar_children:has(> .c_euv_sidebar_group_title_active) { border-left: 4px solid var(--foreground, #000) !important; } \
+             .c_euv_sidebar_children a.c_euv_sidebar_link:hover, .c_euv_sidebar_children a.c_euv_sidebar_link.c_euv_sidebar_link_active, \
+             .c_euv_sidebar_children .c_euv_sidebar_group_title:hover, .c_euv_sidebar_children .c_euv_sidebar_group_title.c_euv_sidebar_group_title_active { margin-left: -16px !important; padding-left: calc(0.75rem + 0.5rem + 16px) !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; color: var(--accent, #000) !important; box-shadow: none !important; } \
+             \
              .c_euv_doc_layout { max-width: 1160px !important; flex: 1 !important; display: flex !important; flex-direction: row !important; min-height: 0 !important; width: 100% !important; } \
              .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 0 !important; } \
              .c_euv_doc_content article.md-body { flex: 1 1 auto !important; min-height: 0 !important; overflow: auto !important; } \
