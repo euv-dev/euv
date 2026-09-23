@@ -3662,20 +3662,20 @@ class! {
         align-items: "center";
         justify-content: "space-between";
         width: "100%";
-        padding: format!("{} {}", var!(space-sm), var!(space-xl));
-        font-size: var!(font-sm);
-        font-weight: "700";
+        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        font-size: var!(font-base);
+        font-weight: "400";
         cursor: "pointer";
         text-align: "left";
         :hover {
             background: var!(accent-muted);
-            box-shadow: format!("inset 4px 0px 0px {}", var!(accent));
+            color: var!(accent);
         }
     }
     pub c_euv_sidebar_group_title_active {
         background: var!(accent);
         color: var!(text-on-accent);
-        font-weight: "700";
+        font-weight: "600";
         :hover {
             background: var!(accent);
         }
@@ -3701,25 +3701,24 @@ class! {
     }
     pub c_euv_sidebar_link {
         display: "block";
-        padding: format!("{} {}", var!(space-sm), var!(space-xl));
-        font-size: var!(font-sm);
+        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        font-size: var!(font-base);
         color: var!(foreground);
-        font-weight: "600";
+        font-weight: "400";
         cursor: "pointer";
         transition: format!("background {} {}", var!(duration-fast), var!(ease-out));
         :hover {
             background: var!(accent-muted);
             color: var!(accent);
-            box-shadow: format!("inset 4px 0px 0px {}", var!(accent));
         }
     }
     pub c_euv_sidebar_link_active {
         display: "block";
-        padding: format!("{} {}", var!(space-sm), var!(space-xl));
-        font-size: var!(font-sm);
+        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        font-size: var!(font-base);
         background: var!(accent);
         color: var!(text-on-accent);
-        font-weight: "700";
+        font-weight: "600";
         cursor: "pointer";
     }
 
