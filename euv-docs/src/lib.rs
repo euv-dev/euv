@@ -37,14 +37,9 @@ pub fn main() {
              \
              .c_app_main { padding-top: 4.75rem !important; } \
              \
-             .c_euv_sidebar_group_title { padding: 0.4rem 0.75rem !important; box-sizing: border-box !important; } \
-             .c_euv_sidebar_children { padding-left: 0.5rem !important; margin-left: 0.75rem !important; } \
              .c_nav_footer_divider { left: 0.75rem !important; right: 0.75rem !important; } \
              .c_nav_section_label { padding-left: 0.75rem !important; } \
              .c_nav_footer { padding-left: 0.75rem !important; } \
-             .c_euv_sidebar_link { display: block !important; padding: 0.4rem 0.75rem !important; } \
-             .c_euv_sidebar_link_active { padding: 0.4rem 0.75rem !important; } \
-             .c_euv_sidebar_link:hover { font-weight: 700 !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; box-shadow: inset 4px 0px 0px var(--foreground, #000) !important; } \
              .c_euv_sidebar_children .c_euv_sidebar_link, .c_euv_sidebar_children .c_euv_sidebar_link_active, .c_euv_sidebar_children .c_euv_sidebar_group_title { margin-left: -9px !important; padding-left: calc(0.75rem + 9px) !important; } \
              \
              .c_euv_doc_layout { max-width: 1160px !important; } \
