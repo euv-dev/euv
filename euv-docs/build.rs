@@ -241,6 +241,7 @@ fn main() {
     println!("cargo:rerun-if-changed={}", docs_dir.display());
     println!("cargo:rerun-if-env-changed=EUV_DOCS_SRC_DIR");
     println!("cargo:rerun-if-env-changed=EUV_DOCS_OUT_DIR");
+    println!("cargo:rerun-if-changed=build.rs");
 
     let config: Config = load_config_from_readme(&docs_dir).expect(
         "site-level config (site + locales) missing from <SRC_DIR>/../README.md frontmatter",
