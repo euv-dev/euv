@@ -438,21 +438,17 @@ fn strip_path_prefix(file: &Path, prefix: &Path) -> std::path::PathBuf {
             let mut comps: Vec<std::path::Component> = rel.components().collect();
             if comps.len() > 1 {
                 let first_str: Option<String> = match comps.first() {
-                    Some(std::path::Component::Normal(s)) => {
-                        s.to_str().map(|s| s.to_string())
-                    }
+                    Some(std::path::Component::Normal(s)) => s.to_str().map(|s| s.to_string()),
                     _ => None,
                 };
-                let base_str: Option<String> =
-                    docs_base.to_str().map(|s| s.to_string());
+                let base_str: Option<String> = docs_base.to_str().map(|s| s.to_string());
                 if let (Some(first_s), Some(base_s)) = (first_str, base_str) {
                     if first_s == base_s {
                         // The first segment is the markdown dir name that
                         // leaked in because `prefix` pointed one level too
                         // high. Drop it.
                         comps.remove(0);
-                        let mut fixed: std::path::PathBuf =
-                            std::path::PathBuf::new();
+                        let mut fixed: std::path::PathBuf = std::path::PathBuf::new();
                         for c in comps {
                             fixed.push(c.as_os_str());
                         }
