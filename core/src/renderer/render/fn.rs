@@ -478,29 +478,49 @@ pub(crate) fn compute_child_ops_plan<'a>(
 /// # Returns
 ///
 /// - `Float64Array` - The flat marker pairs in pre-order.
-#[wasm_bindgen(inline_js = r#"
-export function euv_collect_subtree_ids(root) {
-    const out = [];
-    const stack = [root];
-    while (stack.length > 0) {
-        const node = stack.pop();
-        if (!node || node.nodeType !== 1) {
-            continue;
+pub(crate) fn euv_collect_subtree_ids(root: &Element) -> Float64Array {
+    // Iterative DFS collecting `[data-euv-id, data-euv-dynamic-id]`
+    // pairs in pre-order (parent before descendants). Implemented in
+    // pure Rust via web-sys so wasm-bindgen does not emit this as a
+    // separate JS snippet (each `#[wasm_bindgen(inline_js)]` decorates
+    // a fresh `pkg/snippets/.../inlineN.js` file under the deployed
+    // site).
+    //
+    // Cost: one web-sys accessor (`get_attribute` or `children.length`)
+    // per node, no per-node JS crossing. The previous inline_js variant
+    // walked the subtree entirely in JS with `children.length - 1`
+    // DOM accesses plus the bulk `Float64Array::copy_to` crossing — for
+    // typical cleanup_subtree calls (5–30 nodes) the Rust loop pays the
+    // same crossings in aggregate without a separate JS module load.
+    let mut out: Vec<f64> = Vec::new();
+    let mut stack: Vec<web_sys::Element> = Vec::new();
+    stack.push(root.clone());
+    while let Some(node) = stack.pop() {
+        let euv_attr: Option<String> = node.get_attribute("data-euv-id");
+        let dynamic_attr: Option<String> = node.get_attribute("data-euv-dynamic-id");
+        match euv_attr {
+            Some(id_str) => match id_str.parse::<f64>() {
+                Ok(parsed) => out.push(parsed),
+                Err(_) => out.push(f64::NAN),
+            },
+            None => out.push(f64::NAN),
         }
-        const euv = node.getAttribute("data-euv-id");
-        const dynamicId = node.getAttribute("data-euv-dynamic-id");
-        const euvParsed = euv === null ? NaN : parseInt(euv, 10);
-        const dynamicParsed = dynamicId === null ? NaN : parseInt(dynamicId, 10);
-        out.push(isNaN(euvParsed) ? NaN : euvParsed);
-        out.push(isNaN(dynamicParsed) ? NaN : dynamicParsed);
-        const children = node.children;
-        for (let i = children.length - 1; i >= 0; i--) {
-            stack.push(children[i]);
+        match dynamic_attr {
+            Some(id_str) => match id_str.parse::<f64>() {
+                Ok(parsed) => out.push(parsed),
+                Err(_) => out.push(f64::NAN),
+            },
+            None => out.push(f64::NAN),
+        }
+        let children = node.children();
+        let len: u32 = children.length();
+        for i in (0..len).rev() {
+            if let Some(child) = children.item(i) {
+                stack.push(child);
+            }
         }
     }
-    return Float64Array.from(out);
-}
-"#)]
-extern "C" {
-    pub(crate) fn euv_collect_subtree_ids(root: &Element) -> Float64Array;
+    let arr: Float64Array = Float64Array::new_with_length(out.len() as u32);
+    arr.copy_from(&out);
+    arr
 }
