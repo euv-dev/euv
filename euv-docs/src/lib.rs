@@ -41,7 +41,7 @@ pub fn main() {
              .c_nav_footer_divider { left: 0.75rem !important; right: 0.75rem !important; } \
              .c_nav_section_label { padding-left: 0.75rem !important; } \
              .c_nav_footer { padding-left: 0.75rem !important; } \
-             .c_euv_sidebar_children .c_euv_sidebar_link, .c_euv_sidebar_children .c_euv_sidebar_link_active, .c_euv_sidebar_children .c_euv_sidebar_group_title { margin-left: -9px !important; padding-left: calc(0.75rem + 9px) !important; } \
+             .c_euv_sidebar_children .c_euv_sidebar_link, .c_euv_sidebar_children .c_euv_sidebar_link_active, .c_euv_sidebar_children .c_euv_sidebar_group_title { padding-left: calc(0.75rem + 0.5rem) !important; } \
              \
              .c_euv_doc_layout { max-width: 1160px !important; flex: 1 !important; display: flex !important; flex-direction: row !important; min-height: 0 !important; width: 100% !important; } \
              .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 0 !important; } \

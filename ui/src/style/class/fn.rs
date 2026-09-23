@@ -3670,6 +3670,7 @@ class! {
         :hover {
             background: var!(accent-muted);
             color: var!(accent);
+            box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
         }
     }
     pub c_euv_sidebar_group_title_active {
@@ -3696,7 +3697,7 @@ class! {
         flex-direction: "column";
         padding-left: var!(space-md);
         border-left: format!("1px dashed {}", var!(border));
-        margin-left: var!(space-sm);
+        margin-left: var!(space-xl);
         animation: format!("euv-fade-in {} {}", var!(duration-normal), var!(ease-out));
     }
     pub c_euv_sidebar_link {
@@ -3710,6 +3711,7 @@ class! {
         :hover {
             background: var!(accent-muted);
             color: var!(accent);
+            box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
         }
     }
     pub c_euv_sidebar_link_active {
