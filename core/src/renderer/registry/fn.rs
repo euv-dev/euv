@@ -1,5 +1,3 @@
-use web_sys::wasm_bindgen::JsCast;
-
 use super::*;
 
 /// Collects the `data-euv-id` chain of an event's ancestor path entirely in
