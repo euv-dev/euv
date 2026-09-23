@@ -404,34 +404,27 @@ fn copy_dir(src: &Path, dst: &Path) {
     }
 }
 
-/// Parses one markdown file into a [`Page`].
-fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
-    let raw: String = fs::read_to_string(file).expect("read md");
-    let (frontmatter, body) = split_frontmatter(&raw);
-
-    // `file.strip_prefix(docs_dir)` requires an exact prefix match. If the
-    // caller passed `docs_dir` as the repository root (e.g. `repo/` instead
-    // of `repo/docs/`) — as happens in some CI setups that point
-    // `EUV_DOCS_SRC_DIR` at the workspace root — every page gets a spurious
-    // `docs/` prefix in its route, which leaks broken bookmarks like
-    // `/#/docs/ltpp/` next to the real `/#/ltpp/`.
-    //
-    // Detect that case: if `file` doesn't sit under it, fall back to
-    // stripping whatever leading directory segment lies between `docs_dir`
-    // and the markdown tree.
-    let rel_owned: std::path::PathBuf = match file.strip_prefix(docs_dir) {
+/// Strip the docs_dir (or locale_root) prefix from a path, defending
+/// against the two misconfigurations that produced the duplicate
+/// `/docs/ltpp/` sidebar entry the live site shipped with:
+///
+/// 1. `file.strip_prefix(docs_dir)` returns `Err` (e.g. `docs_dir` is the
+///    repo root and `file` lives one segment deeper). Fall back to
+///    "drop the leading path segment".
+///
+/// 2. `file.strip_prefix(docs_dir)` succeeds but the first segment of
+///    the relative path equals `docs_dir`'s basename (e.g. `docs_dir`
+///    is `<repo>/docs` and `file` lives at `<repo>/docs/docs/...md`).
+///    Drop the first segment to recover the intended markdown-relative
+///    path.
+fn strip_path_prefix(file: &Path, prefix: &Path) -> std::path::PathBuf {
+    let rel: std::path::PathBuf = match file.strip_prefix(prefix) {
         Ok(rel) => rel.to_path_buf(),
         Err(_) => {
             let comps: Vec<std::path::Component> = file.components().collect();
             if comps.is_empty() {
-                // Fallback: empty path. Caller will see an empty route
-                // rather than a panic; collect_md() should not hand us
-                // such files in practice.
                 std::path::PathBuf::new()
             } else {
-                // Drop the first path segment so the route is built from
-                // the markdown tail (e.g. `ltpp/README.md` rather than
-                // `docs/ltpp/README.md`).
                 let mut tail: std::path::PathBuf = std::path::PathBuf::new();
                 for c in comps.into_iter().skip(1) {
                     tail.push(c.as_os_str());
@@ -440,7 +433,49 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
             }
         }
     };
-    let rel: &Path = rel_owned.as_path();
+    match prefix.file_name() {
+        Some(docs_base) => {
+            let mut comps: Vec<std::path::Component> = rel.components().collect();
+            if comps.len() > 1 {
+                let first_str: Option<String> = match comps.first() {
+                    Some(std::path::Component::Normal(s)) => {
+                        s.to_str().map(|s| s.to_string())
+                    }
+                    _ => None,
+                };
+                let base_str: Option<String> =
+                    docs_base.to_str().map(|s| s.to_string());
+                if let (Some(first_s), Some(base_s)) = (first_str, base_str) {
+                    if first_s == base_s {
+                        // The first segment is the markdown dir name that
+                        // leaked in because `prefix` pointed one level too
+                        // high. Drop it.
+                        comps.remove(0);
+                        let mut fixed: std::path::PathBuf =
+                            std::path::PathBuf::new();
+                        for c in comps {
+                            fixed.push(c.as_os_str());
+                        }
+                        return fixed;
+                    }
+                }
+            }
+            rel
+        }
+        None => rel,
+    }
+}
+
+/// Parses one markdown file into a [`Page`].
+fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
+    let raw: String = fs::read_to_string(file).expect("read md");
+    let (frontmatter, body) = split_frontmatter(&raw);
+
+    // See `strip_path_prefix` for the rationale; the helper strips the
+    // markdown dir name that leaked in when `EUV_DOCS_SRC_DIR` pointed
+    // one level too high (the duplicate `/docs/ltpp/` sidebar entry).
+    let rel: std::path::PathBuf = strip_path_prefix(file, docs_dir);
+    let rel: &Path = rel.as_path();
     let mut segments: Vec<String> = rel
         .components()
         .filter_map(|c| match c {
@@ -1534,17 +1569,13 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
                 continue;
             }
             let children: Vec<SideItem> = build_sidebar(&path, locale_root, locale, pages);
-            let rel_segments: Vec<String> = path
-                .strip_prefix(locale_root)
-                .map(|p| {
-                    p.components()
-                        .filter_map(|c| match c {
-                            Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
-                            _ => None,
-                        })
-                        .collect::<Vec<String>>()
+            let rel_segments: Vec<String> = strip_path_prefix(&path, locale_root)
+                .components()
+                .filter_map(|c| match c {
+                    Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+                    _ => None,
                 })
-                .unwrap_or_default();
+                .collect();
             let mut segs: Vec<String> = rel_segments;
             segs.push("README.md".to_string());
             let readme_route: String = route_for(&segs, locale);
@@ -1581,17 +1612,13 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
                 },
             ));
         } else if name.ends_with(".md") && name != "README.md" && name != "index.md" {
-            let rel_segments: Vec<String> = path
-                .strip_prefix(locale_root)
-                .map(|p| {
-                    p.components()
-                        .filter_map(|c| match c {
-                            Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
-                            _ => None,
-                        })
-                        .collect::<Vec<String>>()
+            let rel_segments: Vec<String> = strip_path_prefix(&path, locale_root)
+                .components()
+                .filter_map(|c| match c {
+                    Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+                    _ => None,
                 })
-                .unwrap_or_default();
+                .collect();
             let route: String = route_for(&rel_segments, locale);
             let Some(page) = pages.iter().find(|p| p.route == route) else {
                 continue;
@@ -1616,17 +1643,13 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
     // stems, `.md` suffix optional) into the listed positions; unlisted
     // entries sort after the listed ones by (`order`, title).
     let readme_route: String = {
-        let rel_segments: Vec<String> = dir
-            .strip_prefix(locale_root)
-            .map(|p| {
-                p.components()
-                    .filter_map(|c| match c {
-                        Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
-                        _ => None,
-                    })
-                    .collect::<Vec<String>>()
+        let rel_segments: Vec<String> = strip_path_prefix(&dir, locale_root)
+            .components()
+            .filter_map(|c| match c {
+                Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+                _ => None,
             })
-            .unwrap_or_default();
+            .collect();
         let mut segs: Vec<String> = rel_segments;
         segs.push("README.md".to_string());
         route_for(&segs, locale)
