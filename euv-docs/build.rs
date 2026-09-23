@@ -422,8 +422,7 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
     let rel_owned: std::path::PathBuf = match file.strip_prefix(docs_dir) {
         Ok(rel) => rel.to_path_buf(),
         Err(_) => {
-            let comps: Vec<std::path::Component> =
-                file.components().collect();
+            let comps: Vec<std::path::Component> = file.components().collect();
             if comps.is_empty() {
                 // Fallback: empty path. Caller will see an empty route
                 // rather than a panic; collect_md() should not hand us
