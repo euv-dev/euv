@@ -84,7 +84,7 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
                     href.push_str(link);
                     href
                 }
-                onclick: navigate_link(on_navigate.clone(), link)
+                onclick: navigate_link(route_signal, on_navigate.clone(), link)
                 {
                     item.text
                 }
@@ -107,6 +107,7 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
     } else {
         c_euv_sidebar_group_arrow
     };
+    let active: bool = item.link.is_some_and(|link| path == link);
     let title_node: VirtualNode = match item.link {
         Some(link) => html! {
             a {
@@ -119,7 +120,7 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
                     href.push_str(link);
                     href
                 }
-                onclick: toggle_navigate_group(collapsed, key.clone(), Some(link), on_navigate.clone())
+                onclick: toggle_navigate_group(collapsed, key.clone(), Some(link), on_navigate.clone(), active)
                 {
                     item.text
                 }
@@ -136,17 +137,21 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
         class: c_euv_sidebar_group()
         div {
             class: c_euv_sidebar_group_title()
-            class: if { is_group_active(item.link, route_signal) } {
+            class: if active {
                 c_euv_sidebar_group_title_active()
+            } else {
+                c_euv_sidebar_group_title()
             }
-            onclick: toggle_navigate_group(collapsed, key.clone(), item.link, on_navigate.clone())
+            onclick: toggle_navigate_group(collapsed, key.clone(), item.link, on_navigate.clone(), active)
             span {
                 title_node
             }
             span {
                 class: arrow_class()
-                class: if { is_group_active(item.link, route_signal) } {
+                class: if active {
                     c_euv_sidebar_group_arrow_active()
+                } else {
+                    c_euv_sidebar_group_arrow()
                 }
                 "▸"
             }
@@ -168,10 +173,13 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
 }
 
 /// Builds the leaf-link click handler: the interceptor when set, otherwise
-/// the default hash-router navigation.
+/// the default hash-router navigation. When the clicked leaf matches the
+/// current route the handler is a no-op — re-triggering `hashchange` for the
+/// same path would re-run the route subscriber and cause unnecessary work.
 ///
 /// # Arguments
 ///
+/// - `Signal<String>` - The current route signal (drives the no-op check).
 /// - `Option<Rc<dyn Fn(&'static str)>>` - The navigation interceptor.
 /// - `&'static str` - The target link.
 ///
@@ -179,26 +187,39 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
 ///
 /// - `Option<Rc<dyn Fn(Event)>>` - The click handler.
 fn navigate_link(
+    route_signal: Signal<String>,
     on_navigate: Option<Rc<dyn Fn(&'static str)>>,
     link: &'static str,
 ) -> Option<Rc<dyn Fn(Event)>> {
-    match on_navigate {
-        Some(interceptor) => Some(Rc::new(move |event: Event| {
-            event.prevent_default();
-            interceptor(link);
-        })),
-        None => Some(Rc::new(move |event: Event| {
-            event.prevent_default();
-            Router::navigate(link);
-        })),
-    }
+    Some(Rc::new(move |event: Event| {
+        event.prevent_default();
+        if strip_hash_anchor(&route_signal.get()) == link {
+            return;
+        }
+        match &on_navigate {
+            Some(interceptor) => interceptor(link),
+            None => Router::navigate(link),
+        }
+    }))
 }
 
-/// Prevents the native hash jump, toggles the group's collapsed state and,
-/// when the group owns an index page, navigates to that route. Bound to both
-/// the title row and its inner anchor because euv's window-level event
-/// delegation stops after the innermost handler — the anchor must therefore
-/// carry the full behaviour itself.
+/// Group title click handler. When the group owns an index route (`link`),
+/// the action taken depends on whether the index route is the current route:
+///
+/// - **Index is inactive** (`link != current route`): navigate to the
+///   index page and leave the collapsed state alone. The whole group is
+///   the user's way of saying "take me to this section", and changing the
+///   expand/collapse state when the user only wants to navigate is a
+///   surprising side effect.
+/// - **Index is active** (`link == current route`): the user is already on
+///   the index page, so skip navigation and just toggle collapsed. This is
+///   the only state where flipping the expand arrow makes sense.
+///
+/// When the group has no index page, the click only toggles collapsed.
+///
+/// The matched `active` flag is captured up-front so the closure does not
+/// re-read the route signal on every dispatch (avoids an unnecessary
+/// signal subscription).
 ///
 /// # Arguments
 ///
@@ -206,6 +227,7 @@ fn navigate_link(
 /// - `String` - The group key.
 /// - `Option<&'static str>` - The group's index route when it exists.
 /// - `Option<Rc<dyn Fn(&'static str)>>` - The navigation interceptor.
+/// - `bool` - Whether the group's index route is the current route.
 ///
 /// # Returns
 ///
@@ -215,37 +237,41 @@ fn toggle_navigate_group(
     key: String,
     link: Option<&'static str>,
     on_navigate: Option<Rc<dyn Fn(&'static str)>>,
+    active: bool,
 ) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
         event.prevent_default();
-        let mut keys: Vec<String> = collapsed.get();
-        if let Some(index) = keys.iter().position(|k: &String| k == &key) {
-            keys.remove(index);
-        } else {
-            keys.push(key.clone());
-        }
-        collapsed.set(keys);
-        if let Some(link) = link {
-            match &on_navigate {
-                Some(interceptor) => interceptor(link),
-                None => Router::navigate(link),
+        match link {
+            // Group with index page.
+            Some(link) if !active => {
+                // Inactive index: just navigate, leave collapsed state alone.
+                match &on_navigate {
+                    Some(interceptor) => interceptor(link),
+                    None => Router::navigate(link),
+                }
+            }
+            Some(_) => {
+                // Active index: user is already here — toggle collapsed only.
+                let mut keys: Vec<String> = collapsed.get();
+                if let Some(index) = keys.iter().position(|k: &String| k == &key) {
+                    keys.remove(index);
+                } else {
+                    keys.push(key.clone());
+                }
+                collapsed.set(keys);
+            }
+            // Pure folder with no index page: toggle collapsed.
+            None => {
+                let mut keys: Vec<String> = collapsed.get();
+                if let Some(index) = keys.iter().position(|k: &String| k == &key) {
+                    keys.remove(index);
+                } else {
+                    keys.push(key.clone());
+                }
+                collapsed.set(keys);
             }
         }
     }))
-}
-
-/// Returns whether a group's own index route is the current route.
-///
-/// # Arguments
-///
-/// - `Option<&'static str>` - The group's index route when it exists.
-/// - `Signal<String>` - The current route signal.
-///
-/// # Returns
-///
-/// - `bool` - `true` when the stripped route equals the group's index link.
-fn is_group_active(link: Option<&'static str>, route_signal: Signal<String>) -> bool {
-    link.is_some_and(|link: &'static str| strip_hash_anchor(&route_signal.get()) == link)
 }
 
 /// Strips the `#anchor` suffix from a hash route.
