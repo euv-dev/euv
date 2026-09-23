@@ -3664,7 +3664,7 @@ class! {
         width: "100%";
         padding: format!("{} {}", var!(space-sm), var!(space-xl));
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: "700";
         cursor: "pointer";
         text-align: "left";
         :hover {
@@ -3675,7 +3675,7 @@ class! {
     pub c_euv_sidebar_group_title_active {
         background: var!(accent);
         color: var!(text-on-accent);
-        font-weight: "600";
+        font-weight: "700";
         :hover {
             background: var!(accent);
         }
@@ -3704,6 +3704,7 @@ class! {
         padding: format!("{} {}", var!(space-sm), var!(space-xl));
         font-size: var!(font-sm);
         color: var!(foreground);
+        font-weight: "600";
         cursor: "pointer";
         transition: format!("background {} {}", var!(duration-fast), var!(ease-out));
         :hover {
@@ -3718,7 +3719,7 @@ class! {
         font-size: var!(font-sm);
         background: var!(accent);
         color: var!(text-on-accent);
-        font-weight: "600";
+        font-weight: "700";
         cursor: "pointer";
     }
 

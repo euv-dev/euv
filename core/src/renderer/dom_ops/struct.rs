@@ -26,5 +26,5 @@ thread_local! {
     /// lookup (or installs the helpers if missing); subsequent patches
     /// reuse the cached functions without any further global lookup.
     pub static DOM_OP_TABLE_CELL: DomOpTableCell =
-        DomOpTableCell(const { UnsafeCell::new(None) });
+        const { DomOpTableCell(const { UnsafeCell::new(None) }) };
 }
