@@ -47,8 +47,8 @@ pub fn main() {
              /* The :hover/active item extends leftward (margin-left: -13px) so its background */ \
              /* starts at the parent border, not 13px to the right. */ \
              .c_euv_sidebar_children:has(:hover), \
-             .c_euv_sidebar_children:has(> .c_euv_sidebar_link_active), \
-             .c_euv_sidebar_children:has(> .c_euv_sidebar_group_title_active) { border-left: 4px solid var(--foreground, #000) !important; } \
+             .c_euv_sidebar_children:has(.c_euv_sidebar_link_active), \
+             .c_euv_sidebar_children:has(.c_euv_sidebar_group_title_active) { border-left: 4px solid var(--foreground, #000) !important; } \
              .c_euv_sidebar_children a.c_euv_sidebar_link:hover, .c_euv_sidebar_children a.c_euv_sidebar_link.c_euv_sidebar_link_active, \
              .c_euv_sidebar_children .c_euv_sidebar_group_title:hover, .c_euv_sidebar_children .c_euv_sidebar_group_title.c_euv_sidebar_group_title_active { margin-left: -16px !important; padding-left: calc(0.75rem + 0.5rem + 16px) !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; color: var(--accent, #000) !important; box-shadow: none !important; } \
              \
