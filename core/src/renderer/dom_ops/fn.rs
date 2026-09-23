@@ -161,11 +161,10 @@ fn eval_function(body: &str) -> Option<Function> {
 /// Safari / non-browser WASM hosts). Returns `None` if neither is
 /// available.
 fn global_this() -> Option<JsValue> {
-    if let Ok(value) = js_sys::eval("globalThis") {
-        if !value.is_undefined() {
+    if let Ok(value) = js_sys::eval("globalThis")
+        && !value.is_undefined() {
             return Some(value);
         }
-    }
     let window: Window = window()?;
     Some(window.into())
 }
@@ -208,8 +207,8 @@ pub(crate) fn apply_set_attr_batch(element: &Element, ops: &[(String, String)]) 
     let names: js_sys::Array = js_sys::Array::new_with_length(ops.len() as u32);
     let values: js_sys::Array = js_sys::Array::new_with_length(ops.len() as u32);
     for (index, (name, value)) in ops.iter().enumerate() {
-        let _ = names.set(index as u32, JsValue::from_str(name));
-        let _ = values.set(index as u32, JsValue::from_str(value));
+        names.set(index as u32, JsValue::from_str(name));
+        values.set(index as u32, JsValue::from_str(value));
     }
     let element_value: JsValue = element.clone().into();
     let result: Result<JsValue, JsValue> = table.set_attrs.call3(
@@ -247,7 +246,7 @@ pub(crate) fn apply_remove_attr_batch(element: &Element, ops: &[String]) {
     };
     let names: js_sys::Array = js_sys::Array::new_with_length(ops.len() as u32);
     for (index, name) in ops.iter().enumerate() {
-        let _ = names.set(index as u32, JsValue::from_str(name));
+        names.set(index as u32, JsValue::from_str(name));
     }
     let element_value: JsValue = element.clone().into();
     let result: Result<JsValue, JsValue> =
@@ -305,10 +304,10 @@ pub(crate) fn apply_child_ops_batch(parent: &Element, ops: &[ChildOp]) {
             }
             _ => JsValue::NULL,
         };
-        let _ = tuple.set(0, JsValue::from(kind));
-        let _ = tuple.set(1, primary);
-        let _ = tuple.set(2, reference);
-        let _ = ops_array.set(index as u32, tuple.into());
+        tuple.set(0, JsValue::from(kind));
+        tuple.set(1, primary);
+        tuple.set(2, reference);
+        ops_array.set(index as u32, tuple.into());
     }
     let parent_value: JsValue = parent.clone().into();
     let result: Result<JsValue, JsValue> =
