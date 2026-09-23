@@ -409,7 +409,39 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
     let raw: String = fs::read_to_string(file).expect("read md");
     let (frontmatter, body) = split_frontmatter(&raw);
 
-    let rel: &Path = file.strip_prefix(docs_dir).expect("strip docs dir");
+    // `file.strip_prefix(docs_dir)` requires an exact prefix match. If the
+    // caller passed `docs_dir` as the repository root (e.g. `repo/` instead
+    // of `repo/docs/`) — as happens in some CI setups that point
+    // `EUV_DOCS_SRC_DIR` at the workspace root — every page gets a spurious
+    // `docs/` prefix in its route, which leaks broken bookmarks like
+    // `/#/docs/ltpp/` next to the real `/#/ltpp/`.
+    //
+    // Detect that case: if `file` doesn't sit under it, fall back to
+    // stripping whatever leading directory segment lies between `docs_dir`
+    // and the markdown tree.
+    let rel_owned: std::path::PathBuf = match file.strip_prefix(docs_dir) {
+        Ok(rel) => rel.to_path_buf(),
+        Err(_) => {
+            let comps: Vec<std::path::Component> =
+                file.components().collect();
+            if comps.is_empty() {
+                // Fallback: empty path. Caller will see an empty route
+                // rather than a panic; collect_md() should not hand us
+                // such files in practice.
+                std::path::PathBuf::new()
+            } else {
+                // Drop the first path segment so the route is built from
+                // the markdown tail (e.g. `ltpp/README.md` rather than
+                // `docs/ltpp/README.md`).
+                let mut tail: std::path::PathBuf = std::path::PathBuf::new();
+                for c in comps.into_iter().skip(1) {
+                    tail.push(c.as_os_str());
+                }
+                tail
+            }
+        }
+    };
+    let rel: &Path = rel_owned.as_path();
     let mut segments: Vec<String> = rel
         .components()
         .filter_map(|c| match c {
