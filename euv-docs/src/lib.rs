@@ -40,21 +40,40 @@ pub fn main() {
              .c_nav_footer_divider { left: 0.75rem !important; right: 0.75rem !important; } \
              .c_nav_section_label { padding-left: 0.75rem !important; } \
              .c_nav_footer { padding-left: 0.75rem !important; } \
+             /* Nested sidebar tree alignment. The base euv-ui CSS indents children \
+              * containers via margin-left (20px) + border-left (1px) + padding-left \
+              * (12px) = 33px, so nested items naturally sit 33px to the right of \
+              * their parent. We keep that natural indentation so each nesting level \
+              * reads as visually distinct — group titles and leaf links at the same \
+              * level share the same text position. For hover/active we shift the \
+              * background leftward (margin-left: -13) so the highlight extends back \
+              * to the parent containers dashed border, giving the visual impression \
+              * of selecting within the tree. Text does NOT jump — it sits at the \
+              * natural nested x in all states. The dashed border itself stays 1px; \
+              * it never thickens on hover/active. */ \
              .c_euv_sidebar_children { margin-left: 20px !important; padding-left: 12px !important; } \
-             .c_euv_sidebar_children .c_euv_sidebar_link, .c_euv_sidebar_children .c_euv_sidebar_link_active, .c_euv_sidebar_children .c_euv_sidebar_group_title { padding-left: 0.5rem !important; margin-left: -20px !important; } \
              \
-             /* Nested hover/active: the parent c_euv_sidebar_children border IS the bold border. */ \
-             /* Scope :has() to immediate direct children only (via the slot <div> wrapper) so only the */ \
-             /* nearest parent container's border thickens, not every ancestor. The :hover/active item */ \
-             /* extends leftward (margin-left: -9px) so its background starts at the parent border, not */ \
-             /* 9px to the right. */ \
-             .c_euv_sidebar_children:has(> div > a:hover), \
-             .c_euv_sidebar_children:has(> div > a.c_euv_sidebar_link_active), \
-             .c_euv_sidebar_children:has(> div.c_euv_sidebar_group a.c_euv_sidebar_link_active), \
-             .c_euv_sidebar_children:has(> div.c_euv_sidebar_group > .c_euv_sidebar_group_title:hover), \
-             .c_euv_sidebar_children:has(> div.c_euv_sidebar_group > .c_euv_sidebar_group_title.c_euv_sidebar_group_title_active) { border-left: 4px solid var(--foreground, #000) !important; } \
-             .c_euv_sidebar_children a.c_euv_sidebar_link:hover, .c_euv_sidebar_children a.c_euv_sidebar_link.c_euv_sidebar_link_active, \
-             .c_euv_sidebar_children .c_euv_sidebar_group_title:hover, .c_euv_sidebar_children .c_euv_sidebar_group_title.c_euv_sidebar_group_title_active { margin-left: -13px !important; padding-left: calc(0.5rem + 13px) !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; color: var(--accent, #000) !important; box-shadow: none !important; } \
+             /* Hover on nested items: visible bg flush with the dashed border, text \
+              * stays put. Uses literal rgba because the upstream accent-muted token \
+              * equals the background color in the light theme, which would otherwise \
+              * make hover invisible. */ \
+             .c_euv_sidebar_children a.c_euv_sidebar_link:hover, \
+             .c_euv_sidebar_children .c_euv_sidebar_group_title:hover { margin-left: -13px !important; padding-left: 33px !important; background: rgba(0, 0, 0, 0.08) !important; color: var(--foreground, #000) !important; box-shadow: none !important; } \
+             .c_theme_dark .c_euv_sidebar_children a.c_euv_sidebar_link:hover, \
+             .c_theme_dark .c_euv_sidebar_children .c_euv_sidebar_group_title:hover { background: rgba(255, 255, 255, 0.10) !important; color: var(--foreground, #fff) !important; } \
+             \
+             /* Active page (nested): solid black fill, anchored to the dashed border. \
+              * Same margin hack as hover, but with full-strength background. Text \
+              * does not shift because padding-left compensates. */ \
+             .c_euv_sidebar_children a.c_euv_sidebar_link.c_euv_sidebar_link_active, \
+             .c_euv_sidebar_children .c_euv_sidebar_group_title.c_euv_sidebar_group_title_active { margin-left: -13px !important; padding-left: 33px !important; background: var(--foreground, #000) !important; color: var(--background, #fff) !important; font-weight: 600; box-shadow: none !important; } \
+             \
+             /* Top-level items: same visible hover/active treatment so the visual \
+              * language stays consistent whether the item lives inside a children \
+              * container or not. */ \
+             .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: rgba(0, 0, 0, 0.08) !important; color: var(--foreground, #000) !important; box-shadow: none !important; } \
+             .c_theme_dark .c_euv_sidebar_link:hover, .c_theme_dark .c_euv_sidebar_group_title:hover { background: rgba(255, 255, 255, 0.10) !important; color: var(--foreground, #fff) !important; } \
+             .c_euv_sidebar_link_active, .c_euv_sidebar_group_title_active { background: var(--foreground, #000) !important; color: var(--background, #fff) !important; font-weight: 600; } \
              \
              .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; min-height: 0 !important; width: 100% !important; } \
              .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 0 !important; } \
