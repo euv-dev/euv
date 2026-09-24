@@ -28,64 +28,37 @@ pub fn main() {
     inject_app_global_css();
     Css::inject_css(EUV_MD_CSS);
     Css::inject_css(
-        ".md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 { padding-left: 0 !important; } \
-             .md-body .header-anchor, .md-body h1:hover .header-anchor, .md-body h2:hover .header-anchor, .md-body h3:hover .header-anchor, .md-body h4:hover .header-anchor, .md-body h5:hover .header-anchor, .md-body h6:hover .header-anchor { display: none !important; } \
+        "html, body { height: 100% !important; overflow: hidden !important; } \
+         #app { height: 100% !important; } \
+         .md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 { padding-left: 0 !important; } \
+         .md-body .header-anchor, .md-body h1:hover .header-anchor, .md-body h2:hover .header-anchor, .md-body h3:hover .header-anchor, .md-body h4:hover .header-anchor, .md-body h5:hover .header-anchor, .md-body h6:hover .header-anchor { display: none !important; } \
              .md-body img { display: inline-block; width: auto !important; max-width: 100% !important; height: auto; vertical-align: baseline; } \
              .md-body a > img { display: inline-block; } \
              .md-body img[src$='.svg'], .md-body img[src*='shields.io'], .md-body img[src*='github.com'] { max-height: 20px; max-width: 100%; } \
              .md-body table img { max-height: 1.4em; } \
              \
-             .c_app_main { padding-top: 4.75rem !important; display: flex !important; flex-direction: column !important; min-height: 0 !important; overflow: visible !important; } \
+             .c_app_main { padding-top: 4.75rem !important; display: flex !important; flex-direction: column !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; } \
              \
              .c_nav_footer_divider { left: 0.75rem !important; right: 0.75rem !important; } \
              .c_nav_section_label { padding-left: 0.75rem !important; } \
              .c_nav_footer { padding-left: 0.75rem !important; } \
-             /* Nested sidebar tree alignment. The base euv-ui CSS indents children \
-              * containers via margin-left (20px) + border-left (1px) + padding-left \
-              * (12px) = 33px, so nested items naturally sit 33px to the right of \
-              * their parent. We keep that natural indentation so each nesting level \
-              * reads as visually distinct — group titles and leaf links at the same \
-              * level share the same text position. For hover/active we shift the \
-              * background leftward (margin-left: -13) so the highlight extends back \
-              * to the parent containers dashed border, giving the visual impression \
-              * of selecting within the tree. Text does NOT jump — it sits at the \
-              * natural nested x in all states. The dashed border itself stays 1px; \
-              * it never thickens on hover/active. */ \
-             .c_euv_sidebar_children { margin-left: 20px !important; padding-left: 12px !important; } \
+             .c_euv_sidebar_children { margin-left: 8px !important; padding-left: 8px !important; } \
              \
-             /* Hover on nested items: visible bg flush with the dashed border, text \
-              * stays put. Uses literal rgba because the upstream accent-muted token \
-              * equals the background color in the light theme, which would otherwise \
-              * make hover invisible. */ \
-             .c_euv_sidebar_children a.c_euv_sidebar_link:hover, \
-             .c_euv_sidebar_children .c_euv_sidebar_group_title:hover { margin-left: -13px !important; padding-left: 33px !important; background: rgba(0, 0, 0, 0.08) !important; color: var(--foreground, #000) !important; box-shadow: none !important; } \
-             .c_theme_dark .c_euv_sidebar_children a.c_euv_sidebar_link:hover, \
-             .c_theme_dark .c_euv_sidebar_children .c_euv_sidebar_group_title:hover { background: rgba(255, 255, 255, 0.10) !important; color: var(--foreground, #fff) !important; } \
+             .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #000) !important; border: 0 !important; box-shadow: inset 3px 0 0 0 var(--foreground, #000) !important; } \
+             .c_theme_dark .c_euv_sidebar_link:hover, .c_theme_dark .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #fff) !important; box-shadow: inset 3px 0 0 0 var(--foreground, #fff) !important; } \
              \
-             /* Active page (nested): solid black fill, anchored to the dashed border. \
-              * Same margin hack as hover, but with full-strength background. Text \
-              * does not shift because padding-left compensates. */ \
-             .c_euv_sidebar_children a.c_euv_sidebar_link.c_euv_sidebar_link_active, \
-             .c_euv_sidebar_children .c_euv_sidebar_group_title.c_euv_sidebar_group_title_active { margin-left: -13px !important; padding-left: 33px !important; background: var(--foreground, #000) !important; color: var(--background, #fff) !important; font-weight: 600; box-shadow: none !important; } \
-             \
-             /* Top-level items: same visible hover/active treatment so the visual \
-              * language stays consistent whether the item lives inside a children \
-              * container or not. */ \
-             .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: rgba(0, 0, 0, 0.08) !important; color: var(--foreground, #000) !important; box-shadow: none !important; } \
-             .c_theme_dark .c_euv_sidebar_link:hover, .c_theme_dark .c_euv_sidebar_group_title:hover { background: rgba(255, 255, 255, 0.10) !important; color: var(--foreground, #fff) !important; } \
-             .c_euv_sidebar_link_active, .c_euv_sidebar_group_title_active { background: var(--foreground, #000) !important; color: var(--background, #fff) !important; font-weight: 600; } \
-             \
-             .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; min-height: 0 !important; width: 100% !important; } \
-             .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 0 !important; } \
-             .c_euv_doc_content > div:not(.c_euv_doc_toc):not(.c_euv_doc_content):not(article) { display: flex !important; flex-direction: column !important; min-height: 0 !important; } \
-             .c_euv_doc_content article.md-body { flex: 0 0 auto !important; min-height: 0 !important; overflow: visible !important; } \
-             .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; } \
+             .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; min-height: auto !important; height: auto !important; width: 100% !important; } \
+             .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 100vh !important; } \
+             .c_euv_doc_content article.md-body { display: block !important; flex: 0 0 auto !important; min-height: 0 !important; overflow: visible !important; } \
+             .c_euv_doc_content article.md-body > div { display: block !important; min-height: 0 !important; } \
+             .c_euv_doc_tail { display: block !important; flex: 0 0 auto !important; } \
+             .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; position: sticky !important; top: 0 !important; align-self: flex-start !important; max-height: 100vh !important; overflow-y: auto !important; } \
              .c_euv_toc_link_nested { padding-left: 0.75rem !important; font-size: var(--font-sm, 0.875rem) !important; color: var(--muted-foreground, #555) !important; line-height: 1.5 !important; } \
              .c_euv_toc_link_nested:hover { color: var(--accent, #000) !important; } \
              \
-             .c_euv_pagination { margin-top: var(--space-4xl, 4rem) !important; padding-top: var(--space-4xl, 4rem) !important; padding-bottom: var(--space-xl, 1.25rem) !important; gap: var(--gap-component, 1rem) !important; } \
-             .c_euv_pagination_link { padding: var(--space-md, 0.75rem) !important; gap: var(--space-2xs, 0.25rem) !important; } \
-             .c_euv_footer { margin-top: auto !important; padding-top: var(--space-lg, 1rem) !important; padding-bottom: var(--space-md, 0.75rem) !important; } \
+             .c_euv_pagination { padding-bottom: var(--space-xl, 1.25rem) !important; gap: var(--gap-component, 1rem) !important; flex-wrap: nowrap !important; align-items: stretch !important; width: 100% !important; } \
+             .c_euv_pagination_link { padding: var(--space-md, 0.75rem) !important; gap: var(--space-2xs, 0.25rem) !important; min-width: 0 !important; max-width: none !important; } \
+             .c_euv_footer { padding-top: var(--space-lg, 1rem) !important; padding-bottom: var(--space-md, 0.75rem) !important; flex: 0 0 auto !important; } \
              \
              .c_docs_page_title { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 1rem 0; padding-top: 0; color: var(--foreground, #000); } \
              \

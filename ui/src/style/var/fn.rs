@@ -99,7 +99,14 @@ vars! {
         gap-page-title: "6px";
         min-height-base: "36px";
         min-height-sm: "36px";
-        nav-width: "248px";
+        // Desktop sidebar adaptive width:
+        //   `clamp(min, 22vw, max)` lets the column grow with viewport up to
+        //   a comfortable cap so long English titles (e.g. "Internationalization")
+        //   no longer wrap. On the mobile drawer the same var is consumed
+        //   with `min(100%, max)` instead — see `c_app_nav` / drawer classes.
+        nav-width: "clamp(248px, 22vw, 320px)";
+        nav-width-min: "248px";
+        nav-width-max: "320px";
         content-max-width: "820px";
         mobile-header-height: "52px";
 
@@ -241,7 +248,14 @@ vars! {
         gap-page-title: "6px";
         min-height-base: "36px";
         min-height-sm: "36px";
-        nav-width: "248px";
+        // Desktop sidebar adaptive width:
+        //   `clamp(min, 22vw, max)` lets the column grow with viewport up to
+        //   a comfortable cap so long English titles (e.g. "Internationalization")
+        //   no longer wrap. On the mobile drawer the same var is consumed
+        //   with `min(100%, max)` instead — see `c_app_nav` / drawer classes.
+        nav-width: "clamp(248px, 22vw, 320px)";
+        nav-width-min: "248px";
+        nav-width-max: "320px";
         content-max-width: "820px";
         mobile-header-height: "52px";
 

@@ -181,12 +181,25 @@ class! {
     // ═══════════════════════════════════════════════════════════════════════════
 
     pub c_app_nav {
+        // Adaptive sidebar width — `clamp()` keeps the column ≥ the historic
+        // 248px floor (no regression on dense sidebar trees) and ≤ 320px on
+        // roomy viewports, so longer English titles like "Internationalization"
+        // stop wrapping at the historic fixed 248px.
         width: var!(nav-width);
         background: var!(background);
         border-left: format!("2px solid {}", var!(border));
         display: "flex";
         flex-direction: "column";
-        height: "100%";
+        // Pin the sidebar to the viewport while the main column scrolls.
+        // Without this the whole row flex container scrolls as a single
+        // block and the nav appears to slide off-screen with the content.
+        // `align-self: stretch` (the row flex default) is overridden by
+        // `flex-start` so the sticky height is the natural 100vh and not
+        // stretched to match the (much taller) main column.
+        position: "sticky";
+        top: "0px";
+        align-self: "flex-start";
+        height: "100vh";
         flex-shrink: "0";
         padding-top: var!(safe-area-inset-top);
         @media ((max-width: 767px)) {
@@ -350,8 +363,16 @@ class! {
         text-decoration: "none";
         display: "flex";
         align-items: "center";
+        // Center the "Built with X" attribution line inside the sidebar so
+        // it visually balances with the centered brand header above and the
+        // centered theme toggle divider. `justify-content: center` works
+        // here because the link itself is a single row of inline text —
+        // when it wraps to multiple lines on narrow sidebars the lines stay
+        // grouped because `flex-direction` is the default `row`.
+        justify-content: "center";
         gap: var!(space-xs);
         cursor: "pointer";
+        text-align: "center";
         transition: format!("opacity {} {}", var!(duration-fast), var!(ease-out));
         opacity: "1";
         :hover {
@@ -3662,15 +3683,22 @@ class! {
         align-items: "center";
         justify-content: "space-between";
         width: "100%";
-        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        // Symmetric horizontal padding so the text and the dashed border of
+        // any nested children line up on the left edge (see sidebar_children
+        // below). Left padding equals `border-left-width + padding-left` of
+        // the children container — that's the "text and the dashed border
+        // share the same x" requirement.
+        padding: format!("{} {}", var!(space-md), var!(space-md));
         font-size: var!(font-base);
         font-weight: "400";
         cursor: "pointer";
         text-align: "left";
+        // Hover: inset 3px shadow bar between the dashed tree guide and the
+        // title text. Using `box-shadow inset` instead of a real border
+        // avoids any layout change so the text x-position never moves on
+        // hover (see comment on `c_euv_sidebar_link:hover`).
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
-            box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
+            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
         }
     }
     pub c_euv_sidebar_group_title_active {
@@ -3678,7 +3706,7 @@ class! {
         color: var!(text-on-accent);
         font-weight: "600";
         :hover {
-            background: var!(accent);
+            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
         }
     }
     pub c_euv_sidebar_group_arrow {
@@ -3695,33 +3723,49 @@ class! {
     pub c_euv_sidebar_children {
         display: "flex";
         flex-direction: "column";
-        padding-left: var!(space-md);
+        // Compact nesting: keep the dashed tree guide on the left of every
+        // nesting level, but trim its indent so the child's text sits just
+        // to the right of the dashed border instead of a full 33px gutter
+        // away (the old `margin-left: 20px` + `padding-left: 12px` setup).
+        // The numbers chosen (margin 8 + border 1 + padding 8 = 17px) are
+        // large enough to read as a distinct level but small enough that
+        // three-deep trees still fit in a 248–320px sidebar.
+        margin-left: var!(space-sm);
+        padding-left: var!(space-sm);
         border-left: format!("1px dashed {}", var!(border));
-        margin-left: var!(space-xl);
         animation: format!("euv-fade-in {} {}", var!(duration-normal), var!(ease-out));
     }
     pub c_euv_sidebar_link {
         display: "block";
-        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        padding: format!("{} {}", var!(space-md), var!(space-md));
         font-size: var!(font-base);
         color: var!(foreground);
         font-weight: "400";
         cursor: "pointer";
-        transition: format!("background {} {}", var!(duration-fast), var!(ease-out));
+        // Hover: paint a 3px solid bar *between* the dashed tree guide and
+        // the link's text. We use `inset box-shadow` rather than a real
+        // `border-left` because borders participate in the box's layout
+        // (they grow the border-edge and require compensating padding to
+        // keep the text x-position stable — and `calc(12px + 3px - 3px)`
+        // rounds inconsistently across browsers, causing sub-pixel text
+        // shifts on hover). An inset shadow is painted *inside* the
+        // existing padding box without changing layout, so the text never
+        // moves. The dashed parent border is also untouched.
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
-            box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
+            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
         }
     }
     pub c_euv_sidebar_link_active {
         display: "block";
-        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        padding: format!("{} {}", var!(space-md), var!(space-md));
         font-size: var!(font-base);
         background: var!(accent);
         color: var!(text-on-accent);
         font-weight: "600";
         cursor: "pointer";
+        :hover {
+            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -3729,8 +3773,11 @@ class! {
     // ═══════════════════════════════════════════════════════════════════════════
 
     pub c_euv_toc {
-        position: "sticky";
-        top: "76px";
+        // The outer `c_euv_doc_toc` column is already sticky in
+        // `c_app_main`'s scroll context — adding another sticky offset here
+        // would double the offset and the TOC would slide past the top of
+        // the scrollable area instead of staying pinned. Keep the inner
+        // toc purely as a layout container.
         display: "flex";
         flex-direction: "column";
         gap: var!(space-xs);
@@ -3767,19 +3814,38 @@ class! {
         display: "flex";
         justify-content: "space-between";
         gap: var!(gap-component);
-        margin-top: var!(space-4xl);
+        // ~`space-2xl` (1.5rem) above the pagination — comfortable
+        // breathing room without a huge gap before prev/next. The original
+        // `space-4xl` (2.5rem) margin was doubled by a `padding-top` in the
+        // docs app override, leaving ~100px of empty space above the
+        // pagination boxes which made the page feel bottom-heavy.
+        margin-top: var!(space-2xl);
+        // `min-width: 0` lets prev/next text actually use ellipsis when the
+        // container is narrow — without it `flex: 1` children blow out the
+        // row and the second link wraps under the first.
+        min-width: "0px";
         @media ((max-width: 767px)) {
             flex-direction: "column";
         }
     }
     pub c_euv_pagination_link {
-        flex: "1";
+        // Use `flex: 1 1 auto` rather than `flex: 1 1 0px`. On the desktop
+        // row layout the link grows to share the row width; on the mobile
+        // column layout (base CSS switches pagination to column at 767px)
+        // `flex: 1 1 auto` lets each link size to its content (label +
+        // text + padding) instead of being squashed to half the parent
+        // height. `min-width: 0` still lets long labels ellipsize on the
+        // desktop row layout. `overflow: hidden` is required to actually
+        // apply ellipsis when content is wider than the link.
+        flex: "1 1 auto";
+        min-width: "0px";
         border: format!("1px solid {}", var!(border));
         padding: var!(space-lg);
         cursor: "pointer";
         display: "flex";
         flex-direction: "column";
         gap: var!(space-2xs);
+        overflow: "hidden";
         :hover {
             border-color: var!(accent);
         }
@@ -3855,8 +3921,20 @@ class! {
         min-width: "0px";
     }
     pub c_euv_footer {
-        margin-top: var!(space-7xl);
-        padding: format!("{} 0px", var!(space-2xl));
+        // Footer sits at the natural end of the article column. The user
+        // reaches it by scrolling to the bottom of the article — no sticky
+        // or fixed positioning. This matches the desktop behavior and
+        // Avoid any layout interference on mobile (where a sticky footer
+        // would overlap the last lines of content while scrolling).
+        // `space-2xl` (1.5rem) above the footer matches the gap between
+        // article and pagination, keeping a consistent rhythm in the
+        // tail block. The previous `space-7xl` (5rem) was far beyond the
+        // typography scale and made the footer feel detached from the
+        // pagination.
+        margin-top: var!(space-2xl);
+        // `space-lg` top/bottom (1rem) — enough padding for the dashed
+        // border to breathe without pushing the text far from the rule.
+        padding: format!("{} 0px", var!(space-lg));
         border-top: format!("1px dashed {}", var!(border));
         text-align: "center";
         font-size: var!(font-sm);
@@ -3907,13 +3985,49 @@ class! {
         margin: "0px auto";
     }
     pub c_euv_doc_content {
+        // Two parallel children — the article body and the
+        // `c_euv_doc_tail` wrapper (pagination + footer). The flex column
+        // distributes them at the two ends:
+        //   - when the article is shorter than the column's intrinsic
+        //     height, `justify-content: space-between` pushes the tail to
+        //     the bottom edge;
+        //   - when the article is longer, the tail sits right after the
+        //     article in normal flow (because content height exceeds
+        //     min-height, there's no remaining space to distribute).
+        // `min-height: 100vh` stretches the column to at least one full
+        // viewport tall — without this, a short article would leave the
+        // tail directly under the body instead of at the bottom of the
+        // viewport.
         flex: "1";
         min-width: "0px";
         max-width: var!(content-max-width);
+        display: "flex";
+        flex-direction: "column";
+        justify-content: "space-between";
+        min-height: "100vh";
+    }
+    pub c_euv_doc_tail {
+        // Plain block wrapper that groups pagination + footer into one
+        // flex child. With `display: contents` the wrapper would be
+        // skipped and the two siblings would behave as direct children
+        // of `c_euv_doc_content` — breaking the two-parallel-containers
+        // contract that `justify-content: space-between` relies on.
+        display: "block";
     }
     pub c_euv_doc_toc {
         width: "200px";
         flex-shrink: "0";
+        // Pin the TOC column to the viewport while the main content scrolls.
+        // The sticky scroll container is `c_app_main` (the overflow:auto
+        // wrapper), so `top: 0` keeps the TOC aligned with the top of the
+        // scrollable area for the whole article. The column is left at its
+        // natural flex stretch height (= the article's content height) so
+        // the sticky range covers the whole main column — without the stretch
+        // the column would shrink to its content height and the sticky would
+        // disengage as soon as the TOC's bottom exits the viewport.
+        position: "sticky";
+        top: "0px";
+        padding-top: var!(padding-main-top);
         @media ((max-width: 1100px)) {
             display: "none";
         }

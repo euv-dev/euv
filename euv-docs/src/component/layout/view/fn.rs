@@ -78,6 +78,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
     html! {
         div {
             class: root_class_signal
+            class: c_app_root()
             nav {
                 class: c_app_nav()
                 brand_header(locale)
