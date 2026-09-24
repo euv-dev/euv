@@ -2,11 +2,24 @@ use super::*;
 
 /// Returns the current wall-clock time, in milliseconds.
 ///
-/// Browser-only wrapper around [`js_sys::Date::now`] (also doubles
-/// as `performance.now()`-based input if the host environment
-/// exposes one). Returns a `f64` because the upstream JavaScript
-/// value is also `f64` and rounding to integer milliseconds throws
-/// away the sub-millisecond precision the profiler relies on.
+/// On `wasm32` targets this is a thin wrapper around
+/// [`js_sys::Date::now`] (which itself doubles as
+/// `performance.now()`-based input if the browser exposes one).
+/// Returns a `f64` because the upstream JavaScript value is also
+/// `f64` and rounding to integer milliseconds throws away the
+/// sub-millisecond precision the profiler relies on.
+///
+/// On native targets (`std::time::SystemTime` is available) we
+/// fall back to system wall-clock time so the profiler's
+/// `measure` / `begin` / `end` code paths — and the host-side
+/// unit tests that exercise them — never invoke `js_sys::*`,
+/// which would `SIGABRT` with "cannot call wasm-bindgen imported
+/// functions on non-wasm targets". The two return values are not
+/// bit-identical (the wasm path is monotonic since the JS context
+/// was created; the native path uses UNIX epoch ms and may go
+/// backwards if the system clock is adjusted), but every test
+/// assertion on the native path is `>=`/`>`, which both
+/// implementations satisfy in steady state.
 ///
 /// The function is `pub(crate)` because the only intended consumer
 /// lives in the same crate (the profiler's `measure` / `begin` /
@@ -16,7 +29,18 @@ use super::*;
 ///
 /// - `f64` - The current wall-clock time, in milliseconds.
 pub fn now_ms() -> f64 {
-    js_sys::Date::now()
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Date::now()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let duration: std::time::Duration = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+        duration.as_secs_f64() * 1_000.0
+    }
 }
 
 /// Obtains a `ProfilerHandle` registered against the current hook context slot.
