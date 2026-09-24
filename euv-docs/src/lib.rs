@@ -35,13 +35,13 @@ pub fn main() {
              .md-body img[src$='.svg'], .md-body img[src*='shields.io'], .md-body img[src*='github.com'] { max-height: 20px; max-width: 100%; } \
              .md-body table img { max-height: 1.4em; } \
              \
-             .c_app_main { padding-top: 4.75rem !important; } \
-             .c_app_main { display: flex !important; flex-direction: column !important; min-height: 0 !important; } \
+             .c_app_main { padding-top: 4.75rem !important; display: flex !important; flex-direction: column !important; min-height: 0 !important; overflow: visible !important; } \
              \
              .c_nav_footer_divider { left: 0.75rem !important; right: 0.75rem !important; } \
              .c_nav_section_label { padding-left: 0.75rem !important; } \
              .c_nav_footer { padding-left: 0.75rem !important; } \
-             .c_euv_sidebar_children .c_euv_sidebar_link, .c_euv_sidebar_children .c_euv_sidebar_link_active, .c_euv_sidebar_children .c_euv_sidebar_group_title { padding-left: calc(0.75rem + 0.5rem) !important; } \
+             .c_euv_sidebar_children { margin-left: 8px !important; padding-left: 8px !important; } \
+             .c_euv_sidebar_children .c_euv_sidebar_link, .c_euv_sidebar_children .c_euv_sidebar_link_active, .c_euv_sidebar_children .c_euv_sidebar_group_title { padding-left: 0.5rem !important; } \
              \
              /* Nested hover/active: the parent c_euv_sidebar_children border IS the bold border. */ \
              /* The :hover/active item extends leftward (margin-left: -13px) so its background */ \
@@ -50,14 +50,19 @@ pub fn main() {
              .c_euv_sidebar_children:has(.c_euv_sidebar_link_active), \
              .c_euv_sidebar_children:has(.c_euv_sidebar_group_title_active) { border-left: 4px solid var(--foreground, #000) !important; } \
              .c_euv_sidebar_children a.c_euv_sidebar_link:hover, .c_euv_sidebar_children a.c_euv_sidebar_link.c_euv_sidebar_link_active, \
-             .c_euv_sidebar_children .c_euv_sidebar_group_title:hover, .c_euv_sidebar_children .c_euv_sidebar_group_title.c_euv_sidebar_group_title_active { margin-left: -16px !important; padding-left: calc(0.75rem + 0.5rem + 16px) !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; color: var(--accent, #000) !important; box-shadow: none !important; } \
+             .c_euv_sidebar_children .c_euv_sidebar_group_title:hover, .c_euv_sidebar_children .c_euv_sidebar_group_title.c_euv_sidebar_group_title_active { margin-left: -9px !important; padding-left: calc(0.5rem + 9px) !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; color: var(--accent, #000) !important; box-shadow: none !important; } \
              \
-             .c_euv_doc_layout { max-width: 1160px !important; flex: 1 !important; display: flex !important; flex-direction: row !important; min-height: 0 !important; width: 100% !important; } \
+             .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; min-height: 0 !important; width: 100% !important; } \
              .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 0 !important; } \
-             .c_euv_doc_content article.md-body { flex: 1 1 auto !important; min-height: 0 !important; overflow: auto !important; } \
+             .c_euv_doc_content > div:not(.c_euv_doc_toc):not(.c_euv_doc_content):not(article) { display: flex !important; flex-direction: column !important; min-height: 0 !important; } \
+             .c_euv_doc_content article.md-body { flex: 0 0 auto !important; min-height: 0 !important; overflow: visible !important; } \
              .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; } \
              .c_euv_toc_link_nested { padding-left: 0.75rem !important; font-size: var(--font-sm, 0.875rem) !important; color: var(--muted-foreground, #555) !important; line-height: 1.5 !important; } \
              .c_euv_toc_link_nested:hover { color: var(--accent, #000) !important; } \
+             \
+             .c_euv_pagination { margin-top: var(--space-4xl, 4rem) !important; padding-top: var(--space-4xl, 4rem) !important; padding-bottom: var(--space-xl, 1.25rem) !important; gap: var(--gap-component, 1rem) !important; } \
+             .c_euv_pagination_link { padding: var(--space-md, 0.75rem) !important; gap: var(--space-2xs, 0.25rem) !important; } \
+             .c_euv_footer { margin-top: auto !important; padding-top: var(--space-lg, 1rem) !important; padding-bottom: var(--space-md, 0.75rem) !important; } \
              \
              .c_docs_page_title { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 1rem 0; padding-top: 0; color: var(--foreground, #000); } \
              \
@@ -83,8 +88,7 @@ pub fn main() {
              .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
              .docs-container-title:empty { display: none; } \
              \
-             .c_euv_pagination { margin-top: var(--space-4xl) !important; margin-bottom: var(--space-4xl) !important; } \
-             .c_euv_footer { margin-top: var(--space-4xl) !important; padding-top: var(--space-2xl) !important; padding-bottom: var(--space-xs) !important; } \
+             .c_docs_page_title { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 1rem 0; padding-top: 0; color: var(--foreground, #000); } \
              \
              .md-body img:not([data-loaded]) { height: 0px !important; margin: 0px !important; visibility: hidden; } \
              .md-body img[data-loaded] { transition: opacity 0.2s ease-out; }",
