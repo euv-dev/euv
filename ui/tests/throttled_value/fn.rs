@@ -127,7 +127,7 @@ fn throttled_value_tick_when_idle_is_noop() {
 #[test]
 fn throttled_value_clone_shares_state() {
     let original: ThrottledValue<i32> = ThrottledValue::new(100);
-    let clone: ThrottledValue<i32> = original.clone();
+    let clone: ThrottledValue<i32> = original;
     clone.set(9, 1_000);
     assert_eq!(original.get(), 9);
     assert!(original.is_throttling());

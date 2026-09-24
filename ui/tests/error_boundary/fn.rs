@@ -198,7 +198,7 @@ fn reset_from_healthy_is_noop() {
 #[test]
 fn clone_shares_state() {
     let boundary: ErrorBoundary = ErrorBoundary::new();
-    let cloned: ErrorBoundary = boundary.clone();
+    let cloned: ErrorBoundary = boundary;
     assert!(matches!(
         cloned.get_phase().get(),
         ErrorBoundaryPhase::Healthy

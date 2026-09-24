@@ -1519,7 +1519,7 @@ impl Renderer {
         let raw: Float64Array = euv_collect_subtree_ids(element);
         let mut ids: Vec<f64> = vec![0.0; raw.length() as usize];
         raw.copy_to(&mut ids);
-        for pair in ids.chunks_exact(2) {
+        for pair in ids.as_chunks::<2>().0 {
             let (euv_id_raw, dynamic_id_raw): (f64, f64) = (pair[0], pair[1]);
             if !euv_id_raw.is_nan() {
                 let euv_id: usize = euv_id_raw as usize;

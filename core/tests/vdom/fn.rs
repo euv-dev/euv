@@ -187,7 +187,7 @@ fn opt11_cssref_does_not_clone_inner_collections() {
             Vec::new(),
         )
     });
-    let value: AttributeValue = AttributeValue::CssRef(&*STATIC_CSS);
+    let value: AttributeValue = AttributeValue::CssRef(&STATIC_CSS);
     let AttributeValue::CssRef(css_ref) = value else {
         panic!("expected AttributeValue::CssRef");
     };

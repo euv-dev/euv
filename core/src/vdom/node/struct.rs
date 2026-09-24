@@ -42,7 +42,7 @@ pub struct TextNode {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) binder: Option<Rc<dyn Fn(&Text)>>,
+    pub(crate) binder: Option<TextNodeBinder>,
 }
 
 /// A closure-based dynamic node that re-renders when its dependency signals change.

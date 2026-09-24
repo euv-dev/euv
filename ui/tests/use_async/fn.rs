@@ -73,7 +73,7 @@ fn handle_default_is_stable_across_state_calls() {
 #[test]
 fn handle_clone_is_cheap_and_shares_state() {
     let handle: UseAsyncHandle<String, ()> = UseAsyncHandle::default();
-    let twin: UseAsyncHandle<String, ()> = handle.clone();
+    let twin: UseAsyncHandle<String, ()> = handle;
     handle.set_state(AsyncState::Ok(String::from("shared")));
     match twin.state() {
         AsyncState::Ok(value) => assert_eq!(value, "shared"),

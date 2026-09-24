@@ -94,7 +94,7 @@ fn previous_clear_when_already_none_is_noop() {
 #[test]
 fn previous_clone_shares_state() {
     let original: Previous<i32> = Previous::new();
-    let clone: Previous<i32> = original.clone();
+    let clone: Previous<i32> = original;
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         clone.record(7);
     }))

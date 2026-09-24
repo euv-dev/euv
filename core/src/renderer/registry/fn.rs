@@ -6,12 +6,12 @@ use super::*;
 /// This replaces the previous Rust-side loop in `dispatch_delegated_event`
 /// that walked the ancestor chain one layer per round-trip (`get_attribute`
 /// + `parent_element` = 2 JS crossings per layer; a depth-10 click cost 20
-/// crossings), and the later callback-based variant that still paid one
-/// JS→WASM callback invocation per marked ancestor PLUS a full
-/// `HandlerRegistryMap` clone and one `Closure` allocation per event.
-/// Collecting the id chain in JS collapses the walk to a single
-/// `#[wasm_bindgen]` call per event and lets Rust look up at most one
-/// handler against the live registry — no per-event registry snapshot.
+///   crossings), and the later callback-based variant that still paid one
+///   JS→WASM callback invocation per marked ancestor PLUS a full
+///   `HandlerRegistryMap` clone and one `Closure` allocation per event.
+///   Collecting the id chain in JS collapses the walk to a single
+///   `#[wasm_bindgen]` call per event and lets Rust look up at most one
+///   handler against the live registry — no per-event registry snapshot.
 ///
 /// `max_depth` caps the ancestor walk; passing `0` (per the call-site
 /// convention in `dispatch_delegated_event`) means "walk until `<html>`".

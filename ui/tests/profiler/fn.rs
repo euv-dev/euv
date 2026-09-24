@@ -59,7 +59,7 @@ fn profiler_handle_new_starts_with_empty_entries() {
 #[test]
 fn profiler_handle_clone_shares_entries_signal() {
     let handle: ProfilerHandle = ProfilerHandle::new(Signal::create(Vec::new()));
-    let twin: ProfilerHandle = handle.clone();
+    let twin: ProfilerHandle = handle;
     let ran_clean: bool = catch_unwind(AssertUnwindSafe(|| {
         handle.measure("first", || 42);
     }))

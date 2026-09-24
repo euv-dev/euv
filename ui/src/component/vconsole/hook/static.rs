@@ -15,5 +15,4 @@ thread_local! {
 /// Global storage for the Console log signal.
 ///
 /// Initialized via `init_console` and accessed through `get_console_signal`.
-
 pub(crate) static CONSOLE_LOG_SIGNAL: SignalCell<Vec<ConsoleEntry>> = SignalCell::none();

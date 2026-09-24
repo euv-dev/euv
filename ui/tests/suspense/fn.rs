@@ -174,7 +174,7 @@ fn multiple_resolve_calls_update_value() {
 #[test]
 fn clone_shares_state() {
     let handle: SuspenseHandle<i32> = SuspenseHandle::new();
-    let cloned: SuspenseHandle<i32> = handle.clone();
+    let cloned: SuspenseHandle<i32> = handle;
     assert_eq!(
         handle.get_phase().get_inner(),
         cloned.get_phase().get_inner(),

@@ -114,7 +114,7 @@ fn debounced_value_two_pending_cycles() {
 #[test]
 fn debounced_value_clone_shares_state() {
     let original: DebouncedValue<i32> = DebouncedValue::new(100);
-    let clone: DebouncedValue<i32> = original.clone();
+    let clone: DebouncedValue<i32> = original;
     clone.set(9, 1_000);
     assert!(original.is_pending());
     assert!(original.tick(1_150));

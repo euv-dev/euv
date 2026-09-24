@@ -83,7 +83,7 @@ fn seeded_i18n_locale_count_matches_registered_locales() {
 #[test]
 fn i18n_clone_shares_internal_signals() {
     let i18n: I18n = seeded_i18n();
-    let twin: I18n = i18n.clone();
+    let twin: I18n = i18n;
     assert_eq!(twin.t("hello"), "Hello");
     assert_eq!(twin.get_locale().get(), "en");
 }
