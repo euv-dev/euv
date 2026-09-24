@@ -3811,8 +3811,13 @@ class! {
     // ═══════════════════════════════════════════════════════════════════════════
 
     pub c_euv_pagination {
-        display: "flex";
-        justify-content: "space-between";
+        // CSS grid with two equal columns gives us perfect 50/50 widths
+        // regardless of the link content length, which flex with `1 1
+        // auto` cannot (each link starts at its own content size). The
+        // mobile breakpoint stacks the grid to a single column so each
+        // link sizes to its content.
+        display: "grid";
+        grid-template-columns: "1fr 1fr";
         gap: var!(gap-component);
         // ~`space-2xl` (1.5rem) above the pagination — comfortable
         // breathing room without a huge gap before prev/next. The original
@@ -3821,23 +3826,16 @@ class! {
         // pagination boxes which made the page feel bottom-heavy.
         margin-top: var!(space-2xl);
         // `min-width: 0` lets prev/next text actually use ellipsis when the
-        // container is narrow — without it `flex: 1` children blow out the
-        // row and the second link wraps under the first.
+        // container is narrow — without it the grid track blows out the row.
         min-width: "0px";
         @media ((max-width: 767px)) {
-            flex-direction: "column";
+            grid-template-columns: "minmax(0, 1fr)";
         }
     }
     pub c_euv_pagination_link {
-        // Use `flex: 1 1 auto` rather than `flex: 1 1 0px`. On the desktop
-        // row layout the link grows to share the row width; on the mobile
-        // column layout (base CSS switches pagination to column at 767px)
-        // `flex: 1 1 auto` lets each link size to its content (label +
-        // text + padding) instead of being squashed to half the parent
-        // height. `min-width: 0` still lets long labels ellipsize on the
-        // desktop row layout. `overflow: hidden` is required to actually
-        // apply ellipsis when content is wider than the link.
-        flex: "1 1 auto";
+        // `min-width: 0` lets long labels ellipsize on the desktop row
+        // layout. `overflow: hidden` is required to actually apply ellipsis
+        // when content is wider than the link.
         min-width: "0px";
         border: format!("1px solid {}", var!(border));
         padding: var!(space-lg);
@@ -3860,6 +3858,15 @@ class! {
         font-size: var!(font-base);
         font-weight: "600";
         color: var!(accent);
+        // Ellipsize when the link is too narrow for the page title. The
+        // outer `.c_euv_pagination_link` already sets `overflow: hidden`
+        // and `min-width: 0`, so a single `text-overflow: ellipsis` here
+        // is enough — without `white-space: nowrap` the text wraps to
+        // multiple lines and the ellipsis never kicks in.
+        white-space: "nowrap";
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        min-width: "0px";
     }
     pub c_euv_pagination_next {
         text-align: "right";
