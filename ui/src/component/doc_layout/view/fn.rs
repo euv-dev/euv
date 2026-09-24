@@ -30,18 +30,29 @@ pub fn euv_doc_layout(node: VirtualNode<EuvDocLayoutProps>) -> VirtualNode {
             class: c_euv_doc_layout()
             div {
                 class: c_euv_doc_content()
+                // Two parallel children:
+                //   1. the page body (article) — grows to its natural height;
+                //   2. a wrapper containing pagination + footer — sits beside
+                //      the body. Combined with `justify-content: space-between`
+                //      on this flex column (see `c_euv_doc_content`), the
+                //      wrapper drops to the bottom of the scroll area when the
+                //      body is short, and follows the body in normal flow
+                //      when the body is long enough to fill the viewport.
                 children
-                euv_pagination {
-                    prev_label
-                    next_label
-                    prev
-                    next
-                }
-                if { !footer.is_empty() } {
-                    footer {
-                        class: c_euv_footer()
-                        {
-                            footer
+                div {
+                    class: c_euv_doc_tail()
+                    euv_pagination {
+                        prev_label
+                        next_label
+                        prev
+                        next
+                    }
+                    if { !footer.is_empty() } {
+                        footer {
+                            class: c_euv_footer()
+                            {
+                                footer
+                            }
                         }
                     }
                 }

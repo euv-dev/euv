@@ -161,7 +161,11 @@ fn try_with_non_string_panic() {
         panic_any(42_i32);
     });
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err(), "<non-string panic payload>");
+    assert_eq!(
+        result.unwrap_err(),
+        "<unknown panic payload>",
+        "non-string panic payloads must fall back to the documented placeholder"
+    );
     assert!(matches!(
         boundary.get_phase().get(),
         ErrorBoundaryPhase::Caught(_)
