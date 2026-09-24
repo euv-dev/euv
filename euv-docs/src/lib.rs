@@ -40,17 +40,21 @@ pub fn main() {
              .c_nav_footer_divider { left: 0.75rem !important; right: 0.75rem !important; } \
              .c_nav_section_label { padding-left: 0.75rem !important; } \
              .c_nav_footer { padding-left: 0.75rem !important; } \
-             .c_euv_sidebar_children { margin-left: 8px !important; padding-left: 8px !important; } \
-             .c_euv_sidebar_children .c_euv_sidebar_link, .c_euv_sidebar_children .c_euv_sidebar_link_active, .c_euv_sidebar_children .c_euv_sidebar_group_title { padding-left: 0.5rem !important; } \
+             .c_euv_sidebar_children { margin-left: 20px !important; padding-left: 12px !important; } \
+             .c_euv_sidebar_children .c_euv_sidebar_link, .c_euv_sidebar_children .c_euv_sidebar_link_active, .c_euv_sidebar_children .c_euv_sidebar_group_title { padding-left: 0.5rem !important; margin-left: -20px !important; } \
              \
              /* Nested hover/active: the parent c_euv_sidebar_children border IS the bold border. */ \
-             /* The :hover/active item extends leftward (margin-left: -13px) so its background */ \
-             /* starts at the parent border, not 13px to the right. */ \
-             .c_euv_sidebar_children:has(:hover), \
-             .c_euv_sidebar_children:has(.c_euv_sidebar_link_active), \
-             .c_euv_sidebar_children:has(.c_euv_sidebar_group_title_active) { border-left: 4px solid var(--foreground, #000) !important; } \
+             /* Scope :has() to immediate direct children only (via the slot <div> wrapper) so only the */ \
+             /* nearest parent container's border thickens, not every ancestor. The :hover/active item */ \
+             /* extends leftward (margin-left: -9px) so its background starts at the parent border, not */ \
+             /* 9px to the right. */ \
+             .c_euv_sidebar_children:has(> div > a:hover), \
+             .c_euv_sidebar_children:has(> div > a.c_euv_sidebar_link_active), \
+             .c_euv_sidebar_children:has(> div.c_euv_sidebar_group a.c_euv_sidebar_link_active), \
+             .c_euv_sidebar_children:has(> div.c_euv_sidebar_group > .c_euv_sidebar_group_title:hover), \
+             .c_euv_sidebar_children:has(> div.c_euv_sidebar_group > .c_euv_sidebar_group_title.c_euv_sidebar_group_title_active) { border-left: 4px solid var(--foreground, #000) !important; } \
              .c_euv_sidebar_children a.c_euv_sidebar_link:hover, .c_euv_sidebar_children a.c_euv_sidebar_link.c_euv_sidebar_link_active, \
-             .c_euv_sidebar_children .c_euv_sidebar_group_title:hover, .c_euv_sidebar_children .c_euv_sidebar_group_title.c_euv_sidebar_group_title_active { margin-left: -9px !important; padding-left: calc(0.5rem + 9px) !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; color: var(--accent, #000) !important; box-shadow: none !important; } \
+             .c_euv_sidebar_children .c_euv_sidebar_group_title:hover, .c_euv_sidebar_children .c_euv_sidebar_group_title.c_euv_sidebar_group_title_active { margin-left: -13px !important; padding-left: calc(0.5rem + 13px) !important; background: var(--accent-muted, rgba(0,0,0,0.05)) !important; color: var(--accent, #000) !important; box-shadow: none !important; } \
              \
              .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; min-height: 0 !important; width: 100% !important; } \
              .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 0 !important; } \
