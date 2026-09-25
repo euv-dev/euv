@@ -16,18 +16,19 @@ name = "euv"
 path = "src/main.rs"
 
 [dependencies]
-log = { workspace = true }
-syn = { workspace = true }
 clap = { workspace = true }
-serde = { workspace = true }
-tokio = { workspace = true }
-ignore = { workspace = true }
-notify = { workspace = true }
-qrcode = { workspace = true }
-if-addrs = { workspace = true }
-hyperlane = { workspace = true }
-serde_json = { workspace = true }
-proc-macro2 = { workspace = true }
 color-output = { workspace = true }
+hyperlane = { workspace = true }
 hyperlane-cli = { workspace = true }
+if-addrs = { workspace = true }
+ignore = { workspace = true }
+log = { workspace = true }
 lombok-macros = { workspace = true }
+notify = { workspace = true }
+proc-macro2 = { workspace = true }
+qrcode = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+syn = { workspace = true }
+tokio = { workspace = true }
+
