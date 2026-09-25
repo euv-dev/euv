@@ -142,7 +142,7 @@ pub async fn run_mode(mut args: ModeArgs) -> Result<(), EuvError> {
     let server_control_hook: ServerControlHook = server
         .run()
         .await
-        .map_err(|error: ServerError| EuvError::Server(error.to_string()))?;
+        .map_err(|error| EuvError::Server(error.to_string()))?;
     server_control_hook.wait().await;
     Ok(())
 }
