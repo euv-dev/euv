@@ -1,6 +1,6 @@
 [package]
 name = "euv"
-version = "0.26.1"
+version = "0.26.2"
 readme = "README.md"
 edition = "2024"
 authors = ["root@ltpp.vip"]
@@ -16,7 +16,7 @@ crate-type = ["rlib"]
 
 [workspace]
 members = ["cli", "core", "engine", "example", "macros", "ui"]
-exclude = ["euv-docs", "target", "sh", "logs", "img"]
+exclude = ["docs", "target", "sh", "logs", "img"]
 resolver = "3"
 
 [workspace.dependencies]

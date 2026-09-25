@@ -151,9 +151,9 @@ jobs:
           VERSION="$VERSION" python3 -c "import re,pathlib; p=pathlib.Path('Cargo.toml'); t=p.read_text(); p.write_text(re.sub(r'^(version\\s*=\\s*\")[^\"]*(\")', lambda m: m.group(1) + __import__('os').environ.get('VERSION','0.0.0') + m.group(2), t, count=1, flags=re.M))"
           echo "🔧 Cargo.toml package.version -> $VERSION"
 
-          if [ -f "euv-docs/Cargo.toml" ]; then
-            VERSION="$VERSION" python3 -c "import re,pathlib,os; p=pathlib.Path('euv-docs/Cargo.toml'); t=p.read_text(); p.write_text(re.sub(r'^(version\\s*=\\s*\")[^\"]*(\")', lambda m: m.group(1) + os.environ.get('VERSION','0.0.0') + m.group(2), t, count=1, flags=re.M))"
-            echo "🔧 euv-docs/Cargo.toml package.version -> $VERSION"
+          if [ -f "docs/Cargo.toml" ]; then
+            VERSION="$VERSION" python3 -c "import re,pathlib,os; p=pathlib.Path('docs/Cargo.toml'); t=p.read_text(); p.write_text(re.sub(r'^(version\\s*=\\s*\")[^\"]*(\")', lambda m: m.group(1) + os.environ.get('VERSION','0.0.0') + m.group(2), t, count=1, flags=re.M))"
+            echo "🔧 docs/Cargo.toml package.version -> $VERSION"
             MEMBER_PKG_NAMES="$MEMBER_PKG_NAMES euv-docs"
           fi
       - name: Update Cargo.lock
@@ -181,7 +181,7 @@ jobs:
           toolchain: stable
           components: rustfmt
       - name: Format check
-        run: cargo fmt -- --check && (cd euv-docs && cargo fmt -- --check)
+        run: cargo fmt -- --check && (cd docs && cargo fmt -- --check)
 
   tests:
     needs: sync_workspace_version
@@ -303,8 +303,8 @@ jobs:
             echo "📦 Publishing $PKG_NAME v$VERSION"
             PKG_PUBLISHED=false
             PUBLISH_MANIFEST_FLAG=""
-            if [ "$PKG_NAME" = "euv-docs" ] && [ -f "euv-docs/Cargo.toml" ]; then
-              PUBLISH_MANIFEST_FLAG="--manifest-path euv-docs/Cargo.toml"
+            if [ "$PKG_NAME" = "euv-docs" ] && [ -f "docs/Cargo.toml" ]; then
+              PUBLISH_MANIFEST_FLAG="--manifest-path docs/Cargo.toml"
             fi
             for ((i=1; i<=36; i++)); do
               echo "🚀 Attempt $i/36: publishing $PKG_NAME v$VERSION"

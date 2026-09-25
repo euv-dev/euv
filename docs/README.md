@@ -5,7 +5,7 @@
 site:
   title: euv-docs
   description: A VuePress-style documentation site generator powered by euv + euv-ui.
-  logo: "📘"
+  logo: '📘'
 locales:
   - prefix: /
     lang: en-US
@@ -37,22 +37,22 @@ TOC, prev/next links, footer, dark mode, and i18n.
 cargo install euv-cli
 
 # dev server with hot reload (run from this directory)
-euv run --dev --port 8080 --index-html euv-docs/template.html -- --target web --out-dir www/pkg --out-name euv_docs --no-typescript --no-pack
+euv run --dev --port 8080 --index-html docs/template.html -- --target web --out-dir www/pkg --out-name euv_docs --no-typescript --no-pack
 
 # production build → www/
-euv build --release --index-html euv-docs/template.html -- --target web --out-dir www/pkg --out-name euv_docs --no-typescript --no-pack
+euv build --release --index-html docs/template.html -- --target web --out-dir www/pkg --out-name euv_docs --no-typescript --no-pack
 ```
 
 Open <http://localhost:8080> after `euv run`.
 
 ## Writing docs
 
-| Source file                                   | Route                             |
-| --------------------------------------------- | --------------------------------- |
-| `cli/docs/README.md`                          | `/` (home, with frontmatter hero) |
-| `cli/docs/guide/README.md`                    | `/guide/` (sidebar group index)   |
-| `cli/docs/guide/getting-started.md`           | `/guide/getting-started.html`     |
-| `cli/docs/zh/README.md`                       | `/zh/` (locale home)              |
+| Source file                         | Route                             |
+| ----------------------------------- | --------------------------------- |
+| `cli/docs/README.md`                | `/` (home, with frontmatter hero) |
+| `cli/docs/guide/README.md`          | `/guide/` (sidebar group index)   |
+| `cli/docs/guide/getting-started.md` | `/guide/getting-started.html`     |
+| `cli/docs/zh/README.md`             | `/zh/` (locale home)              |
 
 - **Site config (title, locales, navbar, footer, labels)** —
   `cli/README.md` frontmatter (single source of truth, replaces the
@@ -77,25 +77,25 @@ content files into a static site. Use this to ship documentation for a
 project without modifying euv-docs itself.
 
 ```bash
-cargo install --path euv-docs --bin euv-docs
+cargo install --path docs --bin euv-docs
 
 euv-docs <SRC_DIR> [--out <OUT_DIR>] [--name <NAME>] [--index-html <FILE>] [--debug]
 ```
 
-| Argument              | Default     | Meaning                                                                                                  |
-| --------------------- | ----------- | -------------------------------------------------------------------------------------------------------- |
-| `<SRC_DIR>`           | (required)  | Directory containing the markdown tree.                                                                 |
-| `--out`               | `www`       | Output directory.                                                                                       |
-| `--name`              | `euv_docs`  | Output package name (`<name>.js` / `<name>_bg.wasm`).                                                  |
-| `--index-html`        | (none)      | Path to a custom `index.html` template (defaults to `template.html` shipped in the binary).              |
-| `--debug`             | (off)       | Enable debug logging.                                                                                   |
+| Argument       | Default    | Meaning                                                                                     |
+| -------------- | ---------- | ------------------------------------------------------------------------------------------- |
+| `<SRC_DIR>`    | (required) | Directory containing the markdown tree.                                                     |
+| `--out`        | `www`      | Output directory.                                                                           |
+| `--name`       | `euv_docs` | Output package name (`<name>.js` / `<name>_bg.wasm`).                                       |
+| `--index-html` | (none)     | Path to a custom `index.html` template (defaults to `template.html` shipped in the binary). |
+| `--debug`      | (off)      | Enable debug logging.                                                                       |
 
 ## Crate structure
 
 ```
-euv-docs/
+docs/
 ├── src/
-│   ├── bin/euv-docs/      CLI entry: arg parsing, build orchestration
+│   ├── bin/docs/          CLI entry: arg parsing, build orchestration
 │   ├── component/         VuePress-style layout components
 │   │   ├── doc_page/      Router-level home / doc / 404 switch
 │   │   ├── home_page/     Hero + feature grid + footer

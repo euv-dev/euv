@@ -25,5 +25,5 @@ crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "euv-docs"
-path = "src/bin/euv-docs/main.rs"
+path = "src/bin/docs/main.rs"
 required-features = []
