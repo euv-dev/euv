@@ -1,6 +1,6 @@
-use std::{env::var, fs::read_to_string, fs::write, path::PathBuf};
+use std::{env::var, fs::write, path::PathBuf};
 
-use {chrono::Local, toml::Table};
+use chrono::Local;
 
 /// Environment variable key passed to rustc for the package name.
 const ENV_KEY_EUV_PACKAGE_NAME_KEY: &str = "EUV_PACKAGE_NAME";
@@ -30,64 +30,31 @@ const ENV_KEY_EUV_BUILD_TIMESTAMP_KEY: &str = "EUV_BUILD_TIMESTAMP";
 const BUILD_STATE_FILE_NAME: &str = ".euv_build_state";
 
 /// Entry point of the build script.
-/// Helper body of the `main` free function.
 ///
-/// # Returns
+/// Reads package metadata from the standard `CARGO_PKG_*` environment variables
+/// that Cargo exposes to every build script (works regardless of whether the
+/// `[package]` fields are inline literals or inherited via
+/// `[workspace.package]`). Writes a build-state marker and emits
+/// `cargo:rustc-env=` lines so the example runtime can report its version.
 ///
-/// - `Result<(), Box<dyn std::error::Error>>` - Result of the operation; an `Err` variant on failure.
+/// `edition` is intentionally hard-coded: Cargo does NOT export
+/// `CARGO_PKG_EDITION` for workspace-inherited fields (it only exposes the
+/// env var when the value is inline in the crate's own `[package]` table).
+/// Keep this in sync with `[workspace.package] edition` in the root
+/// `Cargo.toml`.
+const EUV_EDITION_FALLBACK: &str = "2024";
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let manifest_dir: String = env!("CARGO_MANIFEST_DIR").to_string();
     let out_dir: String = var("OUT_DIR")?;
     let state_file_path: PathBuf = PathBuf::from(&out_dir).join(BUILD_STATE_FILE_NAME);
-    let toml_path: PathBuf = PathBuf::from(&manifest_dir).join("Cargo.toml");
-    let toml_content: String = read_to_string(&toml_path)?;
-    let toml_table: Table = toml_content.parse::<Table>()?;
-    let package: &Table = toml_table
-        .get("package")
-        .ok_or("Missing [package] section")?
-        .as_table()
-        .ok_or("Package section is not a table")?;
-    let package_name: &str = package
-        .get("name")
-        .ok_or("Missing name field")?
-        .as_str()
-        .ok_or("Name is not a string")?;
-    let version_value: &str = package
-        .get("version")
-        .ok_or("Missing version field")?
-        .as_str()
-        .ok_or("Version is not a string")?;
-    let description_value: &str = package
-        .get("description")
-        .ok_or("Missing description field")?
-        .as_str()
-        .ok_or("Description is not a string")?;
-    let repository_value: &str = package
-        .get("repository")
-        .ok_or("Missing repository field")?
-        .as_str()
-        .ok_or("Repository is not a string")?;
-    let authors_value: String = package
-        .get("authors")
-        .and_then(|value: &toml::Value| value.as_array())
-        .map(|array: &Vec<toml::Value>| {
-            array
-                .iter()
-                .filter_map(|item: &toml::Value| item.as_str().map(|text: &str| text.to_string()))
-                .collect::<Vec<String>>()
-                .join(", ")
-        })
-        .unwrap_or_default();
-    let license_value: &str = package
-        .get("license")
-        .ok_or("Missing license field")?
-        .as_str()
-        .ok_or("License is not a string")?;
-    let edition_value: &str = package
-        .get("edition")
-        .ok_or("Missing edition field")?
-        .as_str()
-        .ok_or("Edition is not a string")?;
+    let package_name: String = var("CARGO_PKG_NAME")?;
+    let version_value: String = var("CARGO_PKG_VERSION")?;
+    let description_value: String = var("CARGO_PKG_DESCRIPTION")?;
+    let repository_value: String = var("CARGO_PKG_REPOSITORY")?;
+    let authors_value: String = var("CARGO_PKG_AUTHORS")?;
+    let license_value: String = var("CARGO_PKG_LICENSE")?;
+    let edition_value: String =
+        var("CARGO_PKG_EDITION").unwrap_or_else(|_| EUV_EDITION_FALLBACK.to_string());
     let repository_name_value: String = repository_value
         .trim_end_matches('/')
         .trim_end_matches(".git")

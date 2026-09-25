@@ -50,7 +50,7 @@ jobs:
       - name: Read cargo metadata
         id: read
         run: |
-          VERSION=$(toml get Cargo.toml package.version --raw)
+          VERSION=$(toml get Cargo.toml workspace.package.version --raw)
           PACKAGE_NAME=$(toml get Cargo.toml package.name --raw)
           BRANCH_NAME="${{ github.ref_name }}"
           echo "📦 Detected package: $PACKAGE_NAME v$VERSION"
@@ -141,15 +141,19 @@ jobs:
           for member in $MEMBERS; do
             SUB_TOML="${ROOT_DIR}/${member}/Cargo.toml"
             if [ -f "$SUB_TOML" ]; then
-              sed -i -E "s|^(version[[:space:]]*=[[:space:]]*\")([^\"]+)(\")|\1${VERSION}\3|" "$SUB_TOML"
-              echo "🔧 ${member}/Cargo.toml package.version -> $VERSION"
+              if grep -q 'version\.workspace\s*=\s*true' "$SUB_TOML"; then
+                echo "⏭️  ${member}/Cargo.toml uses version.workspace = true, skipping (sync to root [workspace.package] only)"
+              else
+                sed -i -E "s|^(version[[:space:]]*=[[:space:]]*\"\")([^\"]+)(\"\")|\1${VERSION}\3|" "$SUB_TOML"
+                echo "🔧 ${member}/Cargo.toml package.version -> $VERSION"
+              fi
             else
               echo "⚠️ ${member}/Cargo.toml not found, skipping"
             fi
           done
 
-          VERSION="$VERSION" python3 -c "import re,pathlib; p=pathlib.Path('Cargo.toml'); t=p.read_text(); p.write_text(re.sub(r'^(version\\s*=\\s*\")[^\"]*(\")', lambda m: m.group(1) + __import__('os').environ.get('VERSION','0.0.0') + m.group(2), t, count=1, flags=re.M))"
-          echo "🔧 Cargo.toml package.version -> $VERSION"
+          awk -v ver="$VERSION" '/^\[workspace\.package\]/ { in_section=1 } in_section && /^version[[:space:]]*=/ { sub(/^version[[:space:]]*=[[:space:]]*"[^"]*"/, "version = \"" ver "\""); in_section=0 } /^\[/ && !/^\[workspace\.package\]/ { in_section=0 } { print }' Cargo.toml > Cargo.toml.tmp && mv Cargo.toml.tmp Cargo.toml
+          echo "🔧 Cargo.toml [workspace.package].version -> $VERSION"
 
           if [ -f "docs/Cargo.toml" ]; then
             VERSION="$VERSION" python3 -c "import re,pathlib,os; p=pathlib.Path('docs/Cargo.toml'); t=p.read_text(); p.write_text(re.sub(r'^(version\\s*=\\s*\")[^\"]*(\")', lambda m: m.group(1) + os.environ.get('VERSION','0.0.0') + m.group(2), t, count=1, flags=re.M))"

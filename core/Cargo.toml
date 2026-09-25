@@ -1,15 +1,15 @@
 [package]
 name = "euv-core"
-version = "0.26.2"
-readme = "README.md"
-edition = "2024"
-authors = ["root@ltpp.vip"]
-license = "MIT"
+version.workspace = true
+readme.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 description = """A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly."""
 keywords = ["cross-platform"]
-repository = "https://github.com/euv-dev/euv.git"
 categories = ["network-programming", "web-programming"]
-exclude = ["target", "Cargo.lock", "sh", ".github", "logs", "img", "**/*.log"]
+exclude.workspace = true
 
 [lib]
 crate-type = ["rlib"]

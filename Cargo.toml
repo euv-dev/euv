@@ -1,18 +1,36 @@
 [package]
 name = "euv"
-version = "0.26.2"
+version.workspace = true
+readme.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = """A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly."""
+keywords = ["cross-platform"]
+categories = ["network-programming", "web-programming"]
+exclude.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+
+[workspace.package]
+version = "0.26.3"
 readme = "README.md"
 edition = "2024"
 authors = ["root@ltpp.vip"]
 license = "MIT"
-description = """A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly."""
-keywords = ["cross-platform"]
 repository = "https://github.com/euv-dev/euv.git"
-categories = ["network-programming", "web-programming"]
-exclude = ["target", "Cargo.lock", "sh", ".github", "logs", "img", "**/*.log"]
-
-[lib]
-crate-type = ["rlib"]
+exclude = [
+    "target",
+    "Cargo.lock",
+    "sh",
+    ".github",
+    "logs",
+    "img",
+    "**/*.log",
+    "www",
+]
 
 [workspace]
 members = ["cli", "core", "engine", "example", "macros", "ui"]
@@ -50,8 +68,8 @@ wasm-bindgen-futures = "0.4.76"
 console_error_panic_hook = "0.1.7"
 clap = { version = "4.6.4", features = ["derive"] }
 serde = { version = "1.0.229", features = ["derive"] }
-qrcode = { version = "0.14.1", default-features = false }
 syn = { version = "2.0.119", features = ["full", "extra-traits"] }
+qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 notify = { version = "8.2.0", default-features = false, features = [
     "macos_fsevent",
 ] }

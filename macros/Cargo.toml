@@ -1,15 +1,15 @@
 [package]
 name = "euv-macros"
-version = "0.26.2"
-readme = "README.md"
-edition = "2024"
-authors = ["root@ltpp.vip"]
-license = "MIT"
+version.workspace = true
+readme.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 description = """Procedural macros for the euv UI framework, providing the macro and attribute for declarative UI composition."""
 keywords = ["cross-platform"]
-repository = "https://github.com/euv-dev/euv.git"
 categories = ["network-programming", "web-programming"]
-exclude = ["target", "Cargo.lock", "sh", ".github", "logs", "img", "**/*.log"]
+exclude.workspace = true
 
 [lib]
 proc-macro = true

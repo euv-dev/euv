@@ -1,15 +1,15 @@
 [package]
 name = "euv-engine"
-version = "0.26.2"
-readme = "README.md"
-edition = "2024"
-authors = ["root@ltpp.vip"]
-license = "MIT"
+version.workspace = true
+readme.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 description = """A high-performance 2D game engine built on the euv framework, featuring ECS, fixed-timestep game loop, canvas rendering, physics, collision detection, sprite animation, and audio."""
 keywords = ["cross-platform", "game-engine", "2d", "wasm"]
-repository = "https://github.com/euv-dev/euv.git"
 categories = ["web-programming", "game-engines"]
-exclude = ["target", "Cargo.lock", "sh", ".github", "logs", "img", "**/*.log"]
+exclude.workspace = true
 
 [lib]
 crate-type = ["rlib"]

@@ -1,41 +1,30 @@
 [package]
 name = "euv-example"
-version = "0.26.2"
-readme = "README.md"
-edition = "2024"
-authors = ["root@ltpp.vip"]
-license = "MIT"
+version.workspace = true
+readme.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 description = """An example application demonstrating the euv UI framework with reactive signals, custom components, and WebAssembly."""
 keywords = ["cross-platform"]
-repository = "https://github.com/euv-dev/euv.git"
 categories = ["network-programming", "web-programming"]
 publish = false
-exclude = [
-  "target",
-  "Cargo.lock",
-  "sh",
-  ".github",
-  "logs",
-  "img",
-  "**/*.log",
-  "www",
-]
-
+exclude.workspace = true
 [dependencies]
 euv = { workspace = true }
 euv-ui = { workspace = true }
 euv-engine = { workspace = true }
 
+
 serde = { workspace = true }
-qrcode = { workspace = true, features = ["svg"] }
+qrcode = { workspace = true }
 serde_json = { workspace = true }
 lombok-macros = { workspace = true }
 compare_version = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 console_error_panic_hook = { workspace = true }
-
 [build-dependencies]
-toml = { workspace = true }
 chrono = { workspace = true }
 
 [dev-dependencies]
