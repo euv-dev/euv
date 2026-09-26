@@ -1037,7 +1037,7 @@ impl Color {
         let green: i32 = (self.get_green() * 255.0).round() as i32;
         let blue: i32 = (self.get_blue() * 255.0).round() as i32;
         let alpha: f64 = self.get_alpha();
-        let _: FmtResult = write!(buffer, "rgba({red}, {green}, {blue}, {alpha})");
+        let _: fmt::Result = write!(buffer, "rgba({red}, {green}, {blue}, {alpha})");
     }
 
     /// Returns black (0, 0, 0, 1).

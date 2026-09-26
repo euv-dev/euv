@@ -23,7 +23,7 @@ use std::{
     collections::{HashMap, hash_map::DefaultHasher},
     env::{self, VarError},
     ffi::OsStr,
-    fmt::{self, Write as _},
+    fmt::{self, Write},
     fs::{create_dir_all, metadata, read_dir, read_to_string, write},
     hash::{Hash, Hasher},
     io,

@@ -762,7 +762,7 @@ pub async fn build_wasm(args: &ModeArgs) -> Result<(), EuvError> {
     let out_dir_absolute: PathBuf = resolve_out_dir(args);
     create_dir_all(&out_dir_absolute)
         .await
-        .map_err(|error: IoError| EuvError::IoPath {
+        .map_err(|error: io::Error| EuvError::IoPath {
             message: String::from("Failed to create output directory"),
             path: out_dir_absolute.clone(),
             error,
@@ -774,7 +774,7 @@ pub async fn build_wasm(args: &ModeArgs) -> Result<(), EuvError> {
     let output: Output = command
         .output()
         .await
-        .map_err(|error: IoError| EuvError::Io {
+        .map_err(|error: io::Error| EuvError::Io {
             message: String::from("Failed to execute wasm-pack"),
             error,
         })?;
@@ -899,7 +899,7 @@ pub async fn run_hyperlane_fmt() -> Result<(), EuvError> {
     };
     hyperlane_cli::execute_fmt(&args)
         .await
-        .map_err(|error: IoError| EuvError::Io {
+        .map_err(|error: io::Error| EuvError::Io {
             message: String::from("hyperlane-cli fmt error"),
             error,
         })

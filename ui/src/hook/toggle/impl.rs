@@ -48,8 +48,8 @@ impl Display for Toggle {
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         write!(formatter, "Toggle({})", self.get_value().get())
     }
 }

@@ -18,7 +18,6 @@ pub use std::{
     error::Error,
     ffi::OsStr,
     fmt::{Display, Formatter},
-    io::Error as IoError,
     string::FromUtf8Error,
 };
 pub use {build::*, error::*, fmt::*, hmr::*, logger::*, mode::*, server::*};

@@ -201,8 +201,8 @@ impl Display for LogFilter {
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let label: &str = match self {
             LogFilter::All => "All",
             LogFilter::Log => "Log",

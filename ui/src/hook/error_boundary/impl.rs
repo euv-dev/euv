@@ -96,8 +96,8 @@ impl Display for ErrorBoundary {
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         write!(formatter, "ErrorBoundary({:?})", self.get_phase().get())
     }
 }

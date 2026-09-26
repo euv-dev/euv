@@ -29,7 +29,7 @@ impl Display for DynamicTagType {
     /// # Returns
     ///
     /// - `Result` - Whether the formatting succeeded.
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let tag_name: &str = match self {
             DynamicTagType::Div => "div",
             DynamicTagType::Span => "span",

@@ -11,7 +11,7 @@ impl Display for KeepAliveTab {
     /// # Returns
     ///
     /// - `Result` - Whether the formatting succeeded.
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let display_text: &str = match self {
             KeepAliveTab::Counter => "Counter",
             KeepAliveTab::Form => "Form",

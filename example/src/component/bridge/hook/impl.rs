@@ -38,8 +38,8 @@ impl<'de> Deserialize<'de> for UpdateStatus {
             ///
             /// # Returns
             ///
-            /// - `FmtResult` - Result of the formatting operation.
-            fn expecting(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+            /// - `fmt::Result` - Result of the formatting operation.
+            fn expecting(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
                 formatter.write_str(&format!(
                     "an `UpdateStatus` wire tag ({UPDATE_RESULT_SUCCESS:?} / {UPDATE_RESULT_FAILED:?})"
                 ))
@@ -85,8 +85,8 @@ impl Display for UpdateStatus {
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let tag: &'static str = match self {
             UpdateStatus::Success => UPDATE_RESULT_SUCCESS,
             UpdateStatus::Failed => UPDATE_RESULT_FAILED,

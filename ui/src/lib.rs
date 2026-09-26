@@ -13,7 +13,7 @@ use std::{
     any::Any,
     cell::{Cell, RefCell, RefMut, UnsafeCell},
     collections::{HashMap, HashSet},
-    fmt::{Debug, Display, Formatter, Result as FmtResult},
+    fmt::{self, Debug, Display, Formatter},
     hash::Hash,
     ops::Deref,
     panic::{AssertUnwindSafe, UnwindSafe, catch_unwind},

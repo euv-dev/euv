@@ -38,7 +38,7 @@ pub use {
 pub use std::{
     error::Error,
     f64::consts::{FRAC_PI_2, PI, TAU},
-    fmt::{self, Debug, Display, Formatter, Result as FmtResult, Write as _},
+    fmt::{self, Debug, Display, Formatter, Write},
     future::{Future, Ready, ready},
     mem::{self, replace},
 };

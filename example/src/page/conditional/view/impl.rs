@@ -27,7 +27,7 @@ impl Display for ConditionalTab {
     /// # Returns
     ///
     /// - `Result` - Whether the formatting succeeded.
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let display_text: &str = match self {
             ConditionalTab::Info => "Info",
             ConditionalTab::Settings => "Settings",
@@ -48,7 +48,7 @@ impl Display for ConditionalUserType {
     /// # Returns
     ///
     /// - `Result` - Whether the formatting succeeded.
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let display_text: &str = match self {
             ConditionalUserType::Guest => "Guest",
             ConditionalUserType::User => "User",

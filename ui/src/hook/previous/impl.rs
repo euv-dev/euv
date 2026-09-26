@@ -51,8 +51,8 @@ impl<T: Clone + PartialEq + Debug + 'static> Display for Previous<T> {
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self.get_previous().get() {
             Some(value) => write!(formatter, "Previous(Some({value:?}))"),
             None => write!(formatter, "Previous(None)"),

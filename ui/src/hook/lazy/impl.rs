@@ -152,8 +152,8 @@ impl<T: Clone + PartialEq + Debug + 'static> Debug for LazyComponent<T> {
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("LazyComponent")
             .field("state", &self.get_state().get())
             .finish()

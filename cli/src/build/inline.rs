@@ -31,7 +31,7 @@ pub(crate) async fn build_inline_bridge(
     let bridge_source: String =
         read_to_string(&js_path)
             .await
-            .map_err(|error: IoError| EuvError::IoPath {
+            .map_err(|error: io::Error| EuvError::IoPath {
                 message: String::from("Failed to read wasm-bindgen JS bridge"),
                 path: js_path.clone(),
                 error,
@@ -124,7 +124,7 @@ async fn collect_snippet_bodies(bridge_source: &str, pkg_dir: &Path) -> Result<S
         let exports: Vec<String> = if snippet_path.exists() {
             let raw: String = read_to_string(&snippet_path)
                 .await
-                .map_err(|error: IoError| EuvError::IoPath {
+                .map_err(|error: io::Error| EuvError::IoPath {
                     message: String::from(
                         "Failed to read wasm-pack snippet module for namespace export scan",
                     ),
@@ -216,13 +216,14 @@ async fn read_snippet_module(pkg_dir: &Path, spec: &str) -> Result<Option<String
     if !snippet_path.exists() {
         return Ok(None);
     }
-    let bytes: Vec<u8> = read(&snippet_path)
-        .await
-        .map_err(|error: IoError| EuvError::IoPath {
-            message: String::from("Failed to read wasm-pack snippet module"),
-            path: snippet_path.clone(),
-            error,
-        })?;
+    let bytes: Vec<u8> =
+        read(&snippet_path)
+            .await
+            .map_err(|error: io::Error| EuvError::IoPath {
+                message: String::from("Failed to read wasm-pack snippet module"),
+                path: snippet_path.clone(),
+                error,
+            })?;
     let raw: String = String::from_utf8(bytes).map_err(|error: FromUtf8Error| EuvError::Utf8 {
         message: String::from("Snippet module is not valid UTF-8"),
         error,

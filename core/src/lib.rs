@@ -16,7 +16,7 @@ pub use std::{
     borrow::Cow,
     collections::hash_map::DefaultHasher,
     collections::{HashMap, HashSet, VecDeque},
-    fmt::{self, Debug, Display, Formatter, Result as FmtResult},
+    fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
     marker::PhantomData,
     mem::{swap, take, zeroed},

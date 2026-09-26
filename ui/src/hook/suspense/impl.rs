@@ -56,8 +56,8 @@ impl<T: Clone + PartialEq + Debug + 'static> Display for SuspenseHandle<T> {
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         write!(formatter, "SuspenseHandle({:?})", self.get_phase().get())
     }
 }

@@ -93,8 +93,8 @@ impl<T: Clone + PartialEq + Debug + Default + 'static> Display for DebouncedValu
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let pending: &DebounceState<T> = &self.get_state().get();
         match pending {
             DebounceState::Idle => {

@@ -119,8 +119,8 @@ impl<T: Clone + PartialEq + Debug + Default + 'static> Display for ThrottledValu
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match &self.get_state().get() {
             ThrottleState::Idle => {
                 write!(formatter, "ThrottledValue({:?})", self.get_value().get())

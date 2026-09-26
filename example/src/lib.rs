@@ -12,7 +12,7 @@ use {component::*, page::*, style::*};
 pub use std::{
     cmp::Ordering,
     collections::HashSet,
-    fmt::{Debug, Display, Formatter, Result as FmtResult},
+    fmt::{self, Debug, Display, Formatter},
     ops::Range,
 };
 

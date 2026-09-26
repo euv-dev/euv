@@ -5709,8 +5709,8 @@ impl Display for WebGpuInitError {
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::NavigatorLookup(err) => write!(
                 formatter,
@@ -6173,8 +6173,8 @@ impl Display for WebGlInitError {
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::CanvasNotFound(selector) => write!(
                 formatter,
@@ -6221,8 +6221,8 @@ impl Display for WebGlProgramError {
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - Result of the formatting operation.
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    /// - `fmt::Result` - Result of the formatting operation.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::ShaderCompile(log) => write!(formatter, "shader compilation failed: {log}"),
             Self::ProgramLink(log) => write!(formatter, "program link failed: {log}"),
