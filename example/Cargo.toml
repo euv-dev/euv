@@ -13,16 +13,16 @@ publish = false
 exclude.workspace = true
 [dependencies]
 euv = { workspace = true }
-euv-engine = { workspace = true }
 euv-ui = { workspace = true }
+euv-engine = { workspace = true }
 
-compare_version = { workspace = true }
-console_error_panic_hook = { workspace = true }
-lombok-macros = { workspace = true }
-qrcode = { workspace = true }
 serde = { workspace = true }
-serde-wasm-bindgen = { workspace = true }
+qrcode = { workspace = true }
 serde_json = { workspace = true }
+lombok-macros = { workspace = true }
+compare_version = { workspace = true }
+serde-wasm-bindgen = { workspace = true }
+console_error_panic_hook = { workspace = true }
 
 [build-dependencies]
 chrono = { workspace = true }

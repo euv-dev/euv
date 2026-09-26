@@ -18,8 +18,8 @@ euv-ui = { path = "../ui", version = "0" }
 lombok-macros = "2.0"
 
 [build-dependencies]
-pulldown-cmark = "0.12"
 serde_yaml = "0.9"
+pulldown-cmark = "0.12"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
