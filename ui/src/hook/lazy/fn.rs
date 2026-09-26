@@ -2,7 +2,7 @@ use super::*;
 
 /// Obtains a `LazyComponent` registered against the current hook context slot.
 ///
-/// Behaves like `HookContext::use_hook`: the same `LazyComponent` is
+/// Behaves like `HookContext::use_hook` - the same `LazyComponent` is
 /// returned on every render at the same hook index, preserving the
 /// load state across renders. The factory closure is invoked on first
 /// access via [`LazyComponent::get`] / [`LazyComponent::loaded`] /

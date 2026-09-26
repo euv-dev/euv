@@ -2,7 +2,7 @@ use super::*;
 
 /// Obtains the debounced value registered against the current hook context slot.
 ///
-/// Behaves like `HookContext::use_hook`: the same `DebouncedValue` is
+/// Behaves like `HookContext::use_hook` - the same `DebouncedValue` is
 /// returned on every render at the same hook index, so the in-flight
 /// throttle / pending slot survives across renders without losing state.
 ///

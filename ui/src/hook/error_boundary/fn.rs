@@ -29,7 +29,7 @@ pub(crate) fn extract_message(payload: &Box<dyn Any + Send>) -> String {
 
 /// Obtains an `ErrorBoundary` registered against the current hook context slot.
 ///
-/// Behaves like `HookContext::use_hook`: the same `ErrorBoundary` is
+/// Behaves like `HookContext::use_hook` - the same `ErrorBoundary` is
 /// returned on every render at the same hook index, preserving the
 /// `Idle` / `Caught(message)` phase across renders.
 ///

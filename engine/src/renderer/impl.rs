@@ -2480,7 +2480,7 @@ impl WebGpuRenderer {
     ) -> JsValue {
         let swap_chain_view: JsValue = self.get_current_texture_view();
         // Resolve MSAA view + resolve target with the same policy as
-        // the legacy `begin_render_pass`: prefer the existing
+        // the legacy `begin_render_pass` - prefer the existing
         // multisample view, lazily allocate it if missing, and fall
         // back to direct-to-swap-chain if MSAA allocation fails.
         let (color_view, resolve_view): (JsValue, Option<JsValue>) = match color.view.take() {
@@ -2650,18 +2650,18 @@ impl WebGpuRenderer {
     /// on cache miss (first call, op change, or depth-shape change).
     ///
     /// The constructed cache holds:
-    /// - `descriptor`: the top-level `GpuRenderPassDescriptor`
+    /// - `descriptor` - the top-level `GpuRenderPassDescriptor`
     ///   Object, passed directly to `encoder.beginRenderPass`.
-    /// - `color_attachments`: a length-1 `Array` containing the
+    /// - `color_attachments` - a length-1 `Array` containing the
     ///   cached `attachment` Object.
-    /// - `attachment`: the inner color attachment Object.
-    /// - `clear_value`: the `{r, g, b, a}` dictionary under
+    /// - `attachment` - the inner color attachment Object.
+    /// - `clear_value` - the `{r, g, b, a}` dictionary under
     ///   `attachment.clearValue`. This is the only Object whose
     ///   fields are mutated per frame.
-    /// - `last_load_op` / `last_store_op`: the `&'static str` ops
+    /// - `last_load_op` / `last_store_op` - the `&'static str` ops
     ///   applied to the descriptor this frame, used to detect
     ///   caller-driven op changes.
-    /// - `last_has_depth`: whether the descriptor had a
+    /// - `last_has_depth` - whether the descriptor had a
     ///   `depthStencilAttachment`, used to detect shape changes.
     ///
     /// # Arguments
@@ -6425,9 +6425,9 @@ impl TextureViewDescriptor {
 impl TextureWriteDescriptor {
     /// Convenience constructor for the common 2D upload case.
     ///
-    /// - `data`: packed pixel bytes (format-dependent).
-    /// - `bytes_per_row`: row stride of `data`, must be a multiple of 256.
-    /// - `texture`: the destination `GpuTexture` handle.
+    /// - `data` - packed pixel bytes (format-dependent).
+    /// - `bytes_per_row` - row stride of `data`, must be a multiple of 256.
+    /// - `texture` - the destination `GpuTexture` handle.
     ///
     /// # Arguments
     ///

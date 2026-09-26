@@ -436,7 +436,7 @@ pub(crate) fn start_lighting_loop(state: UseLighting) {
     // frame, but synchronous WASM module init can delay it further on
     // slow devices, and without this paint the canvas stays blank /
     // half-rendered for that entire window.
-    // A missing `window()` must never abort `start_lighting_loop`: the
+    // A missing `window()` must never abort `start_lighting_loop` - the
     // overlay paint is a cosmetic best-effort step, whereas the code
     // below it registers the `use_cleanup` handler and flips
     // `loop_started`. Returning early here (the previous `let ... else`

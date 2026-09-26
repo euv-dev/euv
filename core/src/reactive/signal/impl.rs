@@ -275,7 +275,7 @@ where
     /// Registers a dynamic node ID as a dependent of the signal whose inner
     /// state is already mutably borrowed by the caller.
     ///
-    /// Fused form of the former `add_dependent`: `get` / `with` already hold
+    /// Fused form of the former `add_dependent` - `get` / `with` already hold
     /// the slab borrow for the value read, so the dependent push happens on
     /// the same borrow instead of resolving the slot a second time.
     ///

@@ -239,7 +239,7 @@ pub(crate) fn cached_method_name(name: &'static str) -> JsValue {
 ///   (`setPipeline` / `setBindGroup` / `end`), so a stale slot could
 ///   return the wrong class's `Function` (a swallowed TypeError and a
 ///   silently skipped GPU call).
-/// - **Method name** is `&'static str`: callers must pass one of the
+/// - **Method name** is `&'static str` - callers must pass one of the
 ///   `WEBGPU_METHOD_*` constants. This keeps the cache key allocation-free.
 /// - **First call only**: the first time a `(class, method)` pair is
 ///   seen, we fall back to `Reflect::get(obj, name)` to populate the cache.

@@ -2,7 +2,7 @@ use super::*;
 
 /// Obtains the throttled value registered against the current hook context slot.
 ///
-/// Behaves like `HookContext::use_hook`: the same `ThrottledValue` is
+/// Behaves like `HookContext::use_hook` - the same `ThrottledValue` is
 /// returned on every render at the same hook index, preserving the
 /// emitted value, the pending slot, and the cooldown state across
 /// renders.

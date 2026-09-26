@@ -3,7 +3,7 @@ use super::*;
 /// Obtains the `UseAsyncHandle` registered against the current hook
 /// context slot.
 ///
-/// Behaves like `HookContext::use_hook`: the same handle (and therefore
+/// Behaves like `HookContext::use_hook` - the same handle (and therefore
 /// the same `state` signal) is returned on every render at the same hook
 /// index, so state written by `set_state` / `refetch` survives re-renders.
 /// Without the hook context (e.g. when called outside a render cycle) the

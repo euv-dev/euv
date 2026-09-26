@@ -9,8 +9,8 @@ use super::*;
 ///
 /// Decision tree:
 ///
-/// - `loaded == false`: returns [`WEBGPU_STATUS_INITIALIZING`].
-/// - `active == true`: returns [`WEBGPU_STATUS_ACTIVE`].
+/// - `loaded == false` - returns [`WEBGPU_STATUS_INITIALIZING`].
+/// - `active == true` - returns [`WEBGPU_STATUS_ACTIVE`].
 /// - `navigator.gpu` absent OR engine reports
 ///   [`WEBGPU_CODE_NAVIGATOR_GPU_MISSING`]: returns
 ///   [`WEBGPU_STATUS_NEEDS_HTTPS_OR_LOCALHOST`].

@@ -1989,7 +1989,7 @@ pub(crate) fn start_game_2d_webgpu_loop(
             if let Some(renderer) = renderer_for_loop.borrow_mut().as_mut() {
                 // Per-frame CSS-vs-backing safety net for the same
                 // reason documented in `start_game_3d_webgl_loop` /
-                // `start_game_3d_webgpu_loop`: the synthetic `resize`
+                // `start_game_3d_webgpu_loop` - the synthetic `resize`
                 // event debounce fires while the canvas DOM still has
                 // the previous CSS box, leaving a multi-frame window
                 // where the browser paints the OLD-size backing image
@@ -2486,7 +2486,7 @@ pub(crate) fn start_game_2d_webgl_loop(
             if let Some(renderer) = renderer_for_loop.borrow_mut().as_mut() {
                 // Per-frame CSS-vs-backing safety net for the same
                 // reason documented in `start_game_3d_webgl_loop` /
-                // `start_game_3d_webgpu_loop`: the synthetic `resize`
+                // `start_game_3d_webgpu_loop` - the synthetic `resize`
                 // event debounce fires while the canvas DOM still has
                 // the previous CSS box, leaving a multi-frame window
                 // where the browser paints the OLD-size backing image

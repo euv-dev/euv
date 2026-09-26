@@ -2,7 +2,7 @@ use super::*;
 
 /// Obtains a `SuspenseHandle` registered against the current hook context slot.
 ///
-/// Behaves like `HookContext::use_hook`: the same `SuspenseHandle` is
+/// Behaves like `HookContext::use_hook` - the same `SuspenseHandle` is
 /// returned on every render at the same hook index, preserving the
 /// `Pending` / `Resolved(value)` / `Failed(message)` phase across renders.
 ///

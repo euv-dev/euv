@@ -262,7 +262,7 @@ pub enum WebGpuInitError {
 /// Errors that can occur while initializing a `WebGlRenderer`.
 ///
 /// WebGL context acquisition is synchronous, so the failure modes are far
-/// fewer than `WebGpuInitError`: the canvas must resolve and the browser
+/// fewer than `WebGpuInitError` - the canvas must resolve and the browser
 /// must hand back a `WebGl2RenderingContext`. Each variant maps to one
 /// specific failure mode; the caller decides how to surface it (typically
 /// via `Console::error` on the example side).

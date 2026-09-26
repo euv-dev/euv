@@ -413,7 +413,7 @@ vec3 shade(vec3 position, vec3 normal, int index, vec3 sun_position, vec3 sun_co
     return ambient + diffuse + spec + material_emissive(index);
 }
 
-// Mirrors engine `soft_shadow_factor`: returns 1.0 if no occluder
+// Mirrors engine `soft_shadow_factor` - returns 1.0 if no occluder
 // blocks the path from `origin` toward `light_pos`, otherwise 0.0.
 // The bounding spheres `(center, radius)` are precomputed once per
 // frame in `RayTraceScene::new` and packed into the `u_sphere_packs`
@@ -455,7 +455,7 @@ float soft_shadow_factor(vec3 origin, vec3 light_pos) {
     return shadow;
 }
 
-// Mirrors engine `trace_bounces`: throughput-weighted iterative
+// Mirrors engine `trace_bounces` - throughput-weighted iterative
 // reflection with at most MAX_BOUNCES bounces; a miss adds the ambient
 // color scaled by the current throughput.
 vec3 trace(vec3 origin, vec3 dir, vec3 sun_position, vec3 sun_color, vec3 ambient) {
@@ -739,7 +739,7 @@ fn shade(position: vec3<f32>, normal: vec3<f32>, index: i32, sun_position: vec3<
     return u_scene.ambient.rgb + diffuse + spec + material_emissive(index);
 }
 
-// Mirrors engine `soft_shadow_factor`: 1.0 if no occluder blocks the
+// Mirrors engine `soft_shadow_factor` - 1.0 if no occluder blocks the
 // path from `origin` toward `light_pos`, otherwise 0.0. The bounding
 // spheres `(center, radius)` are precomputed once per frame in
 // `RayTraceScene::new` and packed into `u_sphere_packs`; this stays
@@ -775,7 +775,7 @@ fn soft_shadow_factor(origin: vec3<f32>, light_pos: vec3<f32>) -> f32 {
     return shadow;
 }
 
-// Mirrors engine `trace_bounces`: throughput-weighted iterative
+// Mirrors engine `trace_bounces` - throughput-weighted iterative
 // reflection with at most MAX_BOUNCES bounces; a miss adds the ambient
 // color scaled by the current throughput.
 fn trace(origin_arg: vec3<f32>, dir_arg: vec3<f32>, sun_dir: vec3<f32>) -> vec3<f32> {

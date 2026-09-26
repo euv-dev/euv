@@ -9,16 +9,16 @@ use super::*;
 ///
 /// Field-level semantics:
 ///
-/// - `label`: free-form identifier — typically the call site name
+/// - `label` - free-form identifier — typically the call site name
 ///   (`"render-list"`, `"fetch-posts"`). Empty strings are
 ///   allowed but render as an empty chip in the UI, which makes
 ///   misconfigured measurements obvious in a profiler readout.
-/// - `elapsed_ms`: wall-clock time between `begin()` and the
+/// - `elapsed_ms` - wall-clock time between `begin()` and the
 ///   matching `end()` (or the duration of the measured closure),
 ///   in milliseconds. Always `>= 0.0` — `begin` is captured
 ///   before any user code runs, so the subtraction cannot
 ///   underflow.
-/// - `timestamp_ms`: the wall-clock `now_ms()` value at the
+/// - `timestamp_ms` - the wall-clock `now_ms()` value at the
 ///   instant the entry was recorded (NOT the start of the
 ///   measurement). This lets the UI sort / filter entries by
 ///   when they were committed, not by when the user started

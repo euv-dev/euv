@@ -5,11 +5,11 @@ use super::*;
 ///
 /// The handle exposes three fields:
 ///
-/// - `state`: the current `AsyncState<T, L>` (matches what the user
+/// - `state` - the current `AsyncState<T, L>` (matches what the user
 ///   should `match` on in `html!`).
-/// - `refetch`: triggers the future to run again, regardless of
+/// - `refetch` - triggers the future to run again, regardless of
 ///   whether the previous attempt completed or is still in flight.
-/// - `cancel`: drops the in-flight future (if any) and prevents its
+/// - `cancel` - drops the in-flight future (if any) and prevents its
 ///   `Ok`/`Err` branches from mutating the state. Subsequent renders
 ///   will still call the future again on the next mount.
 ///

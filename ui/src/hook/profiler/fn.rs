@@ -45,7 +45,7 @@ pub fn now_ms() -> f64 {
 
 /// Obtains a `ProfilerHandle` registered against the current hook context slot.
 ///
-/// Behaves like `HookContext::use_hook`: the same `ProfilerHandle`
+/// Behaves like `HookContext::use_hook` - the same `ProfilerHandle`
 /// is returned on every render at the same hook index, so
 /// measurements pushed onto its entries signal remain visible
 /// across renders.

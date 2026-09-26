@@ -258,7 +258,7 @@ fn merge_class_joins_text_segments_with_spaces() {
 }
 
 /// Companion regression test for the signal-branched path of
-/// `merge_class`: `Signal` inputs must coexist with `Text` siblings
+/// `merge_class` - `Signal` inputs must coexist with `Text` siblings
 /// and the resulting reactive value must re-evaluate correctly on
 /// `.get()`. This is the closest native-only approximation of the
 /// CssRef fix — exercising the same `_ => None` arm without

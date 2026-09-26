@@ -300,7 +300,7 @@ pub struct WebGpuRenderer {
     ///
     /// The cell is intentionally `PendingErrorCell` (a `Sync`
     /// `UnsafeCell` newtype, see [`crate::renderer::static`]) rather
-    /// than `Rc<RefCell<...>>`: the WASM single-threaded scheduler
+    /// than `Rc<RefCell<...>>` - the WASM single-threaded scheduler
     /// makes the runtime borrow check `RefCell` provides unreachable
     /// in practice, so we trade it for a raw `UnsafeCell` deref
     /// confined to two call sites. This mirrors how euv-core

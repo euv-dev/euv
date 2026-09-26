@@ -3,7 +3,7 @@ use super::*;
 /// Obtains the previous-value tracker registered against the current
 /// hook context slot.
 ///
-/// Behaves like `HookContext::use_hook`: the same `Previous` is
+/// Behaves like `HookContext::use_hook` - the same `Previous` is
 /// returned on every render at the same hook index, so the captured
 /// `previous` signal survives across renders without losing state.
 ///

@@ -62,7 +62,7 @@ pub(crate) fn interpolate(template: &str, vars: &HashMap<&'static str, &'static 
 
 /// Obtains the i18n handle registered against the current hook context slot.
 ///
-/// Behaves like `HookContext::use_hook`: the same `I18n` is returned
+/// Behaves like `HookContext::use_hook` - the same `I18n` is returned
 /// on every render at the same hook index, preserving the locale,
 /// fallback locale, and message table across renders.
 ///

@@ -2,7 +2,7 @@ use super::*;
 
 /// Implements the top-level static engine entry points on the `Engine` namespace.
 ///
-/// Mirrors the role of `euv::App`: every public engine operation begins
+/// Mirrors the role of `euv::App` - every public engine operation begins
 /// with an `Engine::xxx` call, and `Engine` itself holds no state.
 impl Engine {
     /// Creates a new engine handle bound to the given configuration.
