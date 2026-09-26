@@ -6,7 +6,7 @@ use std::{
 
 use {
     pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd},
-    serde_yaml::Value as Yaml,
+    serde_yaml::Value,
 };
 
 /// Root of the project README.md frontmatter (site + locales block).
@@ -291,9 +291,9 @@ fn load_config_from_readme(docs_dir: &Path) -> Option<Config> {
     let readme_path: PathBuf = docs_dir.join("../README.md");
     let raw: String = fs::read_to_string(&readme_path).ok()?;
     let (fm, _body) = split_frontmatter(&raw);
-    let site_yaml = fm.get(Yaml::String("site".to_string()))?;
-    let locales_yaml = fm.get(Yaml::String("locales".to_string()))?;
-    let locales_seq: &[Yaml] = locales_yaml.as_sequence()?.as_slice();
+    let site_yaml = fm.get(Value::String("site".to_string()))?;
+    let locales_yaml = fm.get(Value::String("locales".to_string()))?;
+    let locales_seq: &[Value] = locales_yaml.as_sequence()?.as_slice();
     let locales: Vec<LocaleConfig> = locales_seq.iter().filter_map(parse_locale_config).collect();
     Some(Config {
         site: parse_site_config(site_yaml)?,
@@ -301,13 +301,13 @@ fn load_config_from_readme(docs_dir: &Path) -> Option<Config> {
     })
 }
 
-fn parse_site_config(yaml: &Yaml) -> Option<SiteConfig> {
+fn parse_site_config(yaml: &Value) -> Option<SiteConfig> {
     Some(SiteConfig {
         title: yaml_str(yaml, "title")?,
     })
 }
 
-fn parse_locale_config(yaml: &Yaml) -> Option<LocaleConfig> {
+fn parse_locale_config(yaml: &Value) -> Option<LocaleConfig> {
     let navbar_items: Vec<NavItemConfig> = yaml_list(yaml, "navbar")
         .iter()
         .filter_map(|n| {
@@ -591,7 +591,7 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
 /// Reads the VuePress-style `index` flag: `false` on a `README.md` /
 /// `index.md` drops the directory index page so its sidebar group only
 /// toggles collapse. Non-index pages always render.
-fn renders_index(frontmatter: &Yaml, segments: &[String]) -> bool {
+fn renders_index(frontmatter: &Value, segments: &[String]) -> bool {
     let stem: String = stem_of(segments);
     if stem != "README" && stem != "index" {
         return true;
@@ -667,26 +667,26 @@ fn prettify(name: String) -> String {
 }
 
 /// Splits a markdown source into (frontmatter YAML value, body).
-fn split_frontmatter(raw: &str) -> (Yaml, &str) {
+fn split_frontmatter(raw: &str) -> (Value, &str) {
     let trimmed: &str = raw.trim_start();
     if !trimmed.starts_with("---") {
-        return (Yaml::Null, raw);
+        return (Value::Null, raw);
     }
     let after_open: &str = &trimmed[3..];
     let Some(after_open) = after_open.strip_prefix(['\n', '\r'].as_ref()) else {
-        return (Yaml::Null, raw);
+        return (Value::Null, raw);
     };
     let Some(end) = after_open.find("\n---") else {
-        return (Yaml::Null, raw);
+        return (Value::Null, raw);
     };
     let fm_src: &str = &after_open[..end];
     let body: &str = &after_open[end + 4..];
-    let yaml: Yaml = serde_yaml::from_str(fm_src).unwrap_or(Yaml::Null);
+    let yaml: Value = serde_yaml::from_str(fm_src).unwrap_or(Value::Null);
     (yaml, body)
 }
 
 /// Reads a string field from a YAML mapping.
-fn yaml_str(value: &Yaml, key: &str) -> Option<String> {
+fn yaml_str(value: &Value, key: &str) -> Option<String> {
     value
         .get(key)
         .and_then(|v| v.as_str())
@@ -694,17 +694,17 @@ fn yaml_str(value: &Yaml, key: &str) -> Option<String> {
 }
 
 /// Reads an i64 field from a YAML mapping.
-fn yaml_i64(value: &Yaml, key: &str) -> Option<i64> {
+fn yaml_i64(value: &Value, key: &str) -> Option<i64> {
     value.get(key).and_then(|v| v.as_i64())
 }
 
 /// Reads a bool field from a YAML mapping.
-fn yaml_bool(value: &Yaml, key: &str) -> bool {
+fn yaml_bool(value: &Value, key: &str) -> bool {
     value.get(key).and_then(|v| v.as_bool()).unwrap_or(false)
 }
 
 /// Reads a list field from a YAML mapping.
-fn yaml_list<'a>(value: &'a Yaml, key: &str) -> &'a [Yaml] {
+fn yaml_list<'a>(value: &'a Value, key: &str) -> &'a [Value] {
     value
         .get(key)
         .and_then(|v| v.as_sequence())
@@ -748,7 +748,7 @@ fn yaml_list<'a>(value: &'a Yaml, key: &str) -> &'a [Yaml] {
 /// non-empty `password:` field next to it — the build panics
 /// otherwise, on the principle that the user explicitly opted into
 /// a gate and a silent fall-back would be worse than a hard failure.
-fn is_private_page(value: &Yaml) -> bool {
+fn is_private_page(value: &Value) -> bool {
     if value
         .get("private")
         .and_then(|v| v.as_bool())
@@ -758,14 +758,14 @@ fn is_private_page(value: &Yaml) -> bool {
     }
     if let Some(category) = value.get("category") {
         match category {
-            Yaml::String(s) => {
+            Value::String(s) => {
                 if s.split(',')
                     .any(|t| t.trim().eq_ignore_ascii_case("private"))
                 {
                     return true;
                 }
             }
-            Yaml::Sequence(seq) => {
+            Value::Sequence(seq) => {
                 for item in seq {
                     if let Some(s) = item.as_str()
                         && s.trim().eq_ignore_ascii_case("private")
@@ -794,11 +794,11 @@ fn is_private_page(value: &Yaml) -> bool {
                     continue;
                 };
                 let name = attrs_map
-                    .get(Yaml::String("name".to_string()))
+                    .get(Value::String("name".to_string()))
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
                 let content = attrs_map
-                    .get(Yaml::String("content".to_string()))
+                    .get(Value::String("content".to_string()))
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
                 if name.eq_ignore_ascii_case("keywords")

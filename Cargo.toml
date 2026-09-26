@@ -15,7 +15,7 @@ exclude.workspace = true
 crate-type = ["rlib"]
 
 [workspace.package]
-version = "0.26.4"
+version = "0.26.5"
 readme = "README.md"
 edition = "2024"
 authors = ["root@ltpp.vip"]
@@ -30,6 +30,7 @@ exclude = [
     "img",
     "**/*.log",
     "www",
+    "docs/docs",
 ]
 
 [workspace]

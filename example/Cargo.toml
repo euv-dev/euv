@@ -9,8 +9,8 @@ repository.workspace = true
 description = """An example application demonstrating the euv UI framework with reactive signals, custom components, and WebAssembly."""
 keywords = ["cross-platform"]
 categories = ["network-programming", "web-programming"]
-publish = false
 exclude.workspace = true
+
 [dependencies]
 euv = { workspace = true }
 euv-ui = { workspace = true }
