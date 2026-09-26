@@ -11,9 +11,6 @@ keywords = ["cross-platform"]
 categories = ["network-programming", "web-programming"]
 exclude.workspace = true
 
-[lib]
-crate-type = ["rlib"]
-
 [workspace.package]
 version = "0.26.5"
 readme = "README.md"
@@ -37,6 +34,9 @@ exclude = [
 members = ["core", "macros", "cli", "ui", "engine", "example"]
 exclude = ["docs", "target", "sh", "logs", "img"]
 resolver = "3"
+
+[lib]
+crate-type = ["rlib"]
 
 [workspace.dependencies]
 euv = { path = ".", version = "0.26.4" }
