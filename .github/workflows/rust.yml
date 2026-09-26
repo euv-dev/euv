@@ -166,9 +166,10 @@ jobs:
         run: |
           VERSION="${{ needs.setup.outputs.version }}"
           crate sync
+          crate fmt
           cargo generate-lockfile
           git add -A
-          git diff --cached --quiet || git commit -m "chore: sync all package versions to $VERSION"
+          git diff --cached --quiet || git commit -m "chore: sync all package versions to $VERSION and apply crate fmt"
           git push
       - name: Publish to crates.io
         id: publish
