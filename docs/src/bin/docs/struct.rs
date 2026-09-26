@@ -2,7 +2,7 @@ use super::*;
 use lombok_macros::{CustomDebug, Data, New};
 
 /// One parsed CLI invocation.
-#[derive(Clone, PartialEq, Eq, Data, New, CustomDebug)]
+#[derive(Clone, CustomDebug, Data, Eq, New, PartialEq)]
 pub struct Args {
     /// Source markdown directory (must contain `config.toml` + `*.md`).
     #[get(pub)]
