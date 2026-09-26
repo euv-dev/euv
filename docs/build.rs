@@ -1,6 +1,7 @@
 use std::{
     collections::{HashSet, VecDeque},
-    env, fs,
+    env::var,
+    fs,
     path::{Component, Path, PathBuf},
 };
 
@@ -228,15 +229,15 @@ struct SideItem {
 /// Entry point of the build script.
 fn main() {
     let manifest_dir: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let docs_dir: PathBuf = match env::var("EUV_DOCS_SRC_DIR") {
+    let docs_dir: PathBuf = match var("EUV_DOCS_SRC_DIR") {
         Ok(path) => PathBuf::from(path),
         Err(_) => manifest_dir.join("docs"),
     };
-    let www_dir: PathBuf = match env::var("EUV_DOCS_OUT_DIR") {
+    let www_dir: PathBuf = match var("EUV_DOCS_OUT_DIR") {
         Ok(path) => PathBuf::from(path),
         Err(_) => manifest_dir.join("www"),
     };
-    let out_dir: String = env::var("OUT_DIR").expect("OUT_DIR");
+    let out_dir: String = var("OUT_DIR").expect("OUT_DIR");
 
     println!("cargo:rerun-if-changed={}", docs_dir.display());
     println!("cargo:rerun-if-env-changed=EUV_DOCS_SRC_DIR");
@@ -418,15 +419,15 @@ fn copy_dir(src: &Path, dst: &Path) {
 ///    is `<repo>/docs` and `file` lives at `<repo>/docs/docs/...md`).
 ///    Drop the first segment to recover the intended markdown-relative
 ///    path.
-fn strip_path_prefix(file: &Path, prefix: &Path) -> std::path::PathBuf {
-    let rel: std::path::PathBuf = match file.strip_prefix(prefix) {
+fn strip_path_prefix(file: &Path, prefix: &Path) -> PathBuf {
+    let rel: PathBuf = match file.strip_prefix(prefix) {
         Ok(rel) => rel.to_path_buf(),
         Err(_) => {
-            let comps: Vec<std::path::Component> = file.components().collect();
+            let comps: Vec<Component> = file.components().collect();
             if comps.is_empty() {
-                std::path::PathBuf::new()
+                PathBuf::new()
             } else {
-                let mut tail: std::path::PathBuf = std::path::PathBuf::new();
+                let mut tail: PathBuf = PathBuf::new();
                 for c in comps.into_iter().skip(1) {
                     tail.push(c.as_os_str());
                 }
@@ -436,25 +437,22 @@ fn strip_path_prefix(file: &Path, prefix: &Path) -> std::path::PathBuf {
     };
     match prefix.file_name() {
         Some(docs_base) => {
-            let mut comps: Vec<std::path::Component> = rel.components().collect();
+            let mut comps: Vec<Component> = rel.components().collect();
             if comps.len() > 1 {
                 let first_str: Option<String> = match comps.first() {
-                    Some(std::path::Component::Normal(s)) => s.to_str().map(|s| s.to_string()),
+                    Some(Component::Normal(s)) => s.to_str().map(|s| s.to_string()),
                     _ => None,
                 };
                 let base_str: Option<String> = docs_base.to_str().map(|s| s.to_string());
-                if let (Some(first_s), Some(base_s)) = (first_str, base_str) {
-                    if first_s == base_s {
-                        // The first segment is the markdown dir name that
-                        // leaked in because `prefix` pointed one level too
-                        // high. Drop it.
-                        comps.remove(0);
-                        let mut fixed: std::path::PathBuf = std::path::PathBuf::new();
-                        for c in comps {
-                            fixed.push(c.as_os_str());
-                        }
-                        return fixed;
+                if let (Some(first_s), Some(base_s)) = (first_str, base_str)
+                    && first_s == base_s
+                {
+                    comps.remove(0);
+                    let mut fixed: PathBuf = PathBuf::new();
+                    for c in comps {
+                        fixed.push(c.as_os_str());
                     }
+                    return fixed;
                 }
             }
             rel
@@ -471,7 +469,7 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
     // See `strip_path_prefix` for the rationale; the helper strips the
     // markdown dir name that leaked in when `EUV_DOCS_SRC_DIR` pointed
     // one level too high (the duplicate `/docs/ltpp/` sidebar entry).
-    let rel: std::path::PathBuf = strip_path_prefix(file, docs_dir);
+    let rel: PathBuf = strip_path_prefix(file, docs_dir);
     let rel: &Path = rel.as_path();
     let mut segments: Vec<String> = rel
         .components()
@@ -1640,7 +1638,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
     // stems, `.md` suffix optional) into the listed positions; unlisted
     // entries sort after the listed ones by (`order`, title).
     let readme_route: String = {
-        let rel_segments: Vec<String> = strip_path_prefix(&dir, locale_root)
+        let rel_segments: Vec<String> = strip_path_prefix(dir, locale_root)
             .components()
             .filter_map(|c| match c {
                 Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
@@ -2000,7 +1998,7 @@ fn sha256(message: &[u8]) -> [u8; 32] {
     let mut hash: [u32; 8] = INITIAL;
     for chunk in padded.chunks(64) {
         let mut w: [u32; 64] = [0; 64];
-        for (i, word_bytes) in chunk.chunks_exact(4).enumerate() {
+        for (i, word_bytes) in chunk.as_chunks::<4>().0.iter().enumerate() {
             w[i] = u32::from_be_bytes([word_bytes[0], word_bytes[1], word_bytes[2], word_bytes[3]]);
         }
         for i in 16..64 {

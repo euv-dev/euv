@@ -4,14 +4,14 @@
 # during `cargo clippy` / `cargo test` in the euv-docs crate itself).
 site:
   title: euv-docs
-  description: A VuePress-style documentation site generator powered by euv + euv-ui.
+  description: A documentation site generator powered by euv + euv-ui.
   logo: '📘'
 locales:
   - prefix: /
     lang: en-US
     label: English
     title: euv-docs
-    description: A VuePress-style documentation site generator powered by euv + euv-ui.
+    description: A documentation site generator powered by euv + euv-ui.
     footer: MIT Licensed | Built with euv + euv-ui
     toc_label: On this page
     prev_label: Previous
@@ -24,11 +24,11 @@ locales:
 
 # euv-docs
 
-A **VuePress-style documentation site generator** built with
+A **documentation site generator** built with
 [euv](https://github.com/euv-dev/euv) + `euv-ui`, compiled to WebAssembly.
 
 Write markdown in any directory containing a `README.md` — get a full docs
-site with a home hero, navbar, multi-level collapsible sidebar, right anchor
+site with a home title block, navbar, multi-level collapsible sidebar, right anchor
 TOC, prev/next links, footer, dark mode, and i18n.
 
 ## Quick start
@@ -47,12 +47,12 @@ Open <http://localhost:8080> after `euv run`.
 
 ## Writing docs
 
-| Source file                         | Route                             |
-| ----------------------------------- | --------------------------------- |
-| `cli/docs/README.md`                | `/` (home, with frontmatter hero) |
-| `cli/docs/guide/README.md`          | `/guide/` (sidebar group index)   |
-| `cli/docs/guide/getting-started.md` | `/guide/getting-started.html`     |
-| `cli/docs/zh/README.md`             | `/zh/` (locale home)              |
+| Source file                         | Route                                    |
+| ----------------------------------- | ---------------------------------------- |
+| `cli/docs/README.md`                | `/` (home, with frontmatter title block) |
+| `cli/docs/guide/README.md`          | `/guide/` (sidebar group index)          |
+| `cli/docs/guide/getting-started.md` | `/guide/getting-started.html`            |
+| `cli/docs/zh/README.md`             | `/zh/` (locale home)                     |
 
 - **Site config (title, locales, navbar, footer, labels)** —
   `cli/README.md` frontmatter (single source of truth, replaces the
@@ -60,7 +60,7 @@ Open <http://localhost:8080> after `euv run`.
 - **Sidebar** — auto-generated from the file tree; order with
   frontmatter `order: <int>`.
 - **Directory without an index page** — set `index: false` in the
-  directory's `README.md` frontmatter (VuePress-style): the page is not
+  directory's `README.md` frontmatter: the page is not
   rendered (the route 404s like a directory without a README) and the
   sidebar group keeps the README title but only toggles its children
   instead of navigating.
@@ -96,9 +96,9 @@ euv-docs <SRC_DIR> [--out <OUT_DIR>] [--name <NAME>] [--index-html <FILE>] [--de
 docs/
 ├── src/
 │   ├── bin/docs/          CLI entry: arg parsing, build orchestration
-│   ├── component/         VuePress-style layout components
+│   ├── component/         Site layout components
 │   │   ├── doc_page/      Router-level home / doc / 404 switch
-│   │   ├── home_page/     Hero + feature grid + footer
+│   │   ├── home_page/     Title block + feature grid + footer
 │   │   ├── layout/        Navbar + sidebar shell
 │   │   ├── not_found/     404 page
 │   │   └── password_gate/ Private page protection
@@ -111,12 +111,3 @@ docs/
 └── docs/                  (this crate ships demo content only — real docs
                            live at `cli/docs/`)
 ```
-
-## CSS safe-area pin
-
-The `euv = "0.18"` pin in `Cargo.toml` is **intentional** (PR #13) and
-must not be floated to `*`. The euv-docs layout depends on the
-`safe-area` CSS class shipped by `euv-ui 0.18.x` to make the
-mobile navigation header sit beneath the system status bar in
-Tauri / WebView hosts. Floating to `euv 0.24` would silently break
-this and leave the header pinned under the status bar.

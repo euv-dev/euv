@@ -182,27 +182,6 @@ jobs:
           VERSION="${{ needs.setup.outputs.version }}"
           PACKAGE_NAME="${{ needs.setup.outputs.package_name }}"
           crate publish
-          # docs is not a workspace member; publish it separately
-          for ((i=1; i<=36; i++)); do
-            echo "🚀 Attempt $i/36: publishing euv-docs v$VERSION"
-            set +e
-            PUBLISH_OUTPUT=$(cargo publish --manifest-path docs/Cargo.toml --allow-dirty --no-verify 2>&1)
-            PUBLISH_EXIT_CODE=$?
-            set -e
-            echo "$PUBLISH_OUTPUT"
-            if [ $PUBLISH_EXIT_CODE -eq 0 ]; then
-              echo "✅ euv-docs v$VERSION published"
-              break
-            fi
-            if echo "$PUBLISH_OUTPUT" | grep -qE "already (been uploaded|published)"; then
-              echo "📦 euv-docs v$VERSION already on crates.io"
-              break
-            fi
-            if [ "$i" -lt 36 ]; then
-              echo "🔁 Retrying..."
-              sleep 5
-            fi
-          done
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🔍 Verifying $PACKAGE_NAME v$VERSION on crates.io"
           VERIFY_HTTP_CODE="000"
