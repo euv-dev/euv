@@ -45,7 +45,9 @@ pub fn main() {
              .c_euv_sidebar_children { margin-left: 8px !important; padding-left: 8px !important; } \
              \
              .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #000) !important; border: 0 !important; box-shadow: inset 3px 0 0 0 var(--foreground, #000) !important; } \
+             .c_euv_sidebar_link_active:hover, .c_euv_sidebar_group_title_active:hover { box-shadow: none !important; } \
              .c_theme_dark .c_euv_sidebar_link:hover, .c_theme_dark .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #fff) !important; box-shadow: inset 3px 0 0 0 var(--foreground, #fff) !important; } \
+             .c_theme_dark .c_euv_sidebar_link_active:hover, .c_theme_dark .c_euv_sidebar_group_title_active:hover { box-shadow: none !important; } \
              \
              .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; min-height: auto !important; height: auto !important; width: 100% !important; } \
              .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 100vh !important; justify-content: flex-start !important; } \
