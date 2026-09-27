@@ -12,7 +12,7 @@ use super::*;
 /// ```json
 /// {"entries": {"k1": "v1", "k2": "v2"}}
 /// ```
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Data, Debug, Default, Eq, PartialEq)]
 pub struct HmrState {
     /// The preserved entries, keyed by name.
     pub(crate) entries: HashMap<String, String>,

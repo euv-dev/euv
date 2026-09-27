@@ -15,71 +15,74 @@ impl ElementExt for Element {
     ///
     /// - `&str` - The name of the attribute or property to remove.
     fn remove_attribute_or_property(&self, name: &str) {
+        // Rebind `self` so the `JsCast::dyn_ref` turbofish calls below are
+        // not mistaken for direct field access (§17.3 / §17.12).
+        let element: &Element = self;
         if name == ATTR_VALUE {
-            if let Some(input) = self.dyn_ref::<HtmlInputElement>() {
+            if let Some(input) = element.dyn_ref::<HtmlInputElement>() {
                 input.set_value(EMPTY_STRING);
                 return;
             }
-            if let Some(textarea) = self.dyn_ref::<HtmlTextAreaElement>() {
+            if let Some(textarea) = element.dyn_ref::<HtmlTextAreaElement>() {
                 textarea.set_value(EMPTY_STRING);
                 return;
             }
-            if let Some(select) = self.dyn_ref::<HtmlSelectElement>() {
+            if let Some(select) = element.dyn_ref::<HtmlSelectElement>() {
                 select.set_value(EMPTY_STRING);
                 return;
             }
         }
         if name == ATTR_CHECKED
-            && let Some(input) = self.dyn_ref::<HtmlInputElement>()
+            && let Some(input) = element.dyn_ref::<HtmlInputElement>()
         {
             input.set_checked(false);
             return;
         }
         if name == ATTR_DISABLED {
-            if let Some(input) = self.dyn_ref::<HtmlInputElement>() {
+            if let Some(input) = element.dyn_ref::<HtmlInputElement>() {
                 input.set_disabled(false);
                 return;
             }
-            if let Some(button) = self.dyn_ref::<HtmlButtonElement>() {
+            if let Some(button) = element.dyn_ref::<HtmlButtonElement>() {
                 button.set_disabled(false);
                 return;
             }
-            if let Some(select) = self.dyn_ref::<HtmlSelectElement>() {
+            if let Some(select) = element.dyn_ref::<HtmlSelectElement>() {
                 select.set_disabled(false);
                 return;
             }
-            if let Some(textarea) = self.dyn_ref::<HtmlTextAreaElement>() {
+            if let Some(textarea) = element.dyn_ref::<HtmlTextAreaElement>() {
                 textarea.set_disabled(false);
                 return;
             }
         }
         if name == ATTR_SELECTED
-            && let Some(option) = self.dyn_ref::<HtmlOptionElement>()
+            && let Some(option) = element.dyn_ref::<HtmlOptionElement>()
         {
             option.set_selected(false);
             return;
         }
         if name == ATTR_READONLY {
-            if let Some(input) = self.dyn_ref::<HtmlInputElement>() {
+            if let Some(input) = element.dyn_ref::<HtmlInputElement>() {
                 input.set_read_only(false);
                 return;
             }
-            if let Some(textarea) = self.dyn_ref::<HtmlTextAreaElement>() {
+            if let Some(textarea) = element.dyn_ref::<HtmlTextAreaElement>() {
                 textarea.set_read_only(false);
                 return;
             }
         }
         if name == ATTR_MULTIPLE {
-            if let Some(input) = self.dyn_ref::<HtmlInputElement>() {
+            if let Some(input) = element.dyn_ref::<HtmlInputElement>() {
                 input.set_multiple(false);
                 return;
             }
-            if let Some(select) = self.dyn_ref::<HtmlSelectElement>() {
+            if let Some(select) = element.dyn_ref::<HtmlSelectElement>() {
                 select.set_multiple(false);
                 return;
             }
         }
-        let _: Result<(), JsValue> = self.remove_attribute(name);
+        let _: Result<(), JsValue> = element.remove_attribute(name);
     }
 
     /// Sets an attribute or property on the element.

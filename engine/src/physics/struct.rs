@@ -98,6 +98,7 @@ pub struct PhysicsWorld2D {
     /// Reusable broad-phase candidate pair list, rebuilt once per step and
     /// iterated by every solver iteration (the grid is unchanged between them).
     #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[new(skip)]
     pub(crate) pair_buffer: Vec<(usize, usize)>,
 }
@@ -214,6 +215,7 @@ pub struct PhysicsWorld3D {
     /// Reusable broad-phase candidate pair list, rebuilt once per step and
     /// iterated by every solver iteration (the grid is unchanged between them).
     #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[new(skip)]
     pub(crate) pair_buffer: Vec<(usize, usize)>,
     /// OPT 33: reusable scratch vector for per-body AABB3D snapshots taken

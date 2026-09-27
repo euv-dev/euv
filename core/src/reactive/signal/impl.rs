@@ -586,8 +586,8 @@ impl SignalSlab {
         T: Clone + PartialEq + 'static,
     {
         let boxed: Box<dyn AnySignalInner> = Box::new(inner);
-        let idx: usize = self.entries.len();
-        self.entries.push(boxed);
+        let idx: usize = self.get_entries().len();
+        self.get_mut_entries().push(boxed);
         idx
     }
 
@@ -602,7 +602,7 @@ impl SignalSlab {
     where
         T: Clone + PartialEq + 'static,
     {
-        self.entries
+        self.get_mut_entries()
             .get_mut(idx)?
             .as_any_mut()
             .downcast_mut::<SignalInner<T>>()
@@ -611,7 +611,7 @@ impl SignalSlab {
     /// Returns `true` when the slot at `idx` exists AND its inner signal is
     /// still marked `alive`. Used by `Signal::is_alive`.
     pub(crate) fn is_alive(&self, idx: usize) -> bool {
-        match self.entries.get(idx) {
+        match self.get_entries().get(idx) {
             Some(inner) => inner.alive(),
             None => false,
         }

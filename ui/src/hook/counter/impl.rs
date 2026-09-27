@@ -7,11 +7,11 @@ impl Counter {
     /// value is left at `max`.
     pub fn increment(&self) {
         let current: i32 = self.get_value().get();
-        let mut next: i32 = current.saturating_add(self.step);
-        if let Some(max) = self.max {
+        let mut next: i32 = current.saturating_add(*self.get_step());
+        if let Some(max) = *self.try_get_max() {
             next = next.min(max);
         }
-        if let Some(min) = self.min {
+        if let Some(min) = *self.try_get_min() {
             next = next.max(min);
         }
         self.get_value().set(next);
@@ -22,11 +22,11 @@ impl Counter {
     /// at `min`, the value is left at `min`.
     pub fn decrement(&self) {
         let current: i32 = self.get_value().get();
-        let mut next: i32 = current.saturating_sub(self.step);
-        if let Some(min) = self.min {
+        let mut next: i32 = current.saturating_sub(*self.get_step());
+        if let Some(min) = *self.try_get_min() {
             next = next.max(min);
         }
-        if let Some(max) = self.max {
+        if let Some(max) = *self.try_get_max() {
             next = next.min(max);
         }
         self.get_value().set(next);
@@ -39,7 +39,7 @@ impl Counter {
     ///
     /// - `i32` - A 32-bit signed integer (`i32`).
     pub fn set(&self, next: i32) {
-        let clamped: i32 = match (self.min, self.max) {
+        let clamped: i32 = match (*self.try_get_min(), *self.try_get_max()) {
             (Some(min), Some(max)) => next.clamp(min, max),
             (Some(min), None) => next.max(min),
             (None, Some(max)) => next.min(max),
@@ -69,7 +69,7 @@ impl Counter {
     ///
     /// - `bool` - `true` when the value is at the configured maximum.
     pub fn is_at_max(&self) -> bool {
-        match self.max {
+        match *self.try_get_max() {
             Some(max) => self.get_value().get() >= max,
             None => false,
         }
@@ -82,7 +82,7 @@ impl Counter {
     ///
     /// - `bool` - `true` when the value is at the configured minimum.
     pub fn is_at_min(&self) -> bool {
-        match self.min {
+        match *self.try_get_min() {
             Some(min) => self.get_value().get() <= min,
             None => false,
         }

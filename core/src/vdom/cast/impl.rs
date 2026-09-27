@@ -279,7 +279,8 @@ impl<T> EventAdapter<T> {
     ///
     /// - `T` - The inner value.
     pub(crate) fn into_inner(self) -> T {
-        self.inner
+        let Self { inner }: Self = self;
+        inner
     }
 }
 
@@ -461,7 +462,8 @@ impl<T> AttrValueAdapter<T> {
     ///
     /// - `T` - The inner value.
     pub(crate) fn into_inner(self) -> T {
-        self.inner
+        let Self { inner }: Self = self;
+        inner
     }
 }
 
@@ -477,7 +479,8 @@ impl<T> InnerHtmlAdapter<T> {
     ///
     /// - `T` - The inner value.
     pub(crate) fn into_inner(self) -> T {
-        self.inner
+        let Self { inner }: Self = self;
+        inner
     }
 }
 

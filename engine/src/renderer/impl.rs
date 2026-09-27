@@ -2531,7 +2531,7 @@ impl WebGpuRenderer {
         let effective_store_op: &'static str = color.effective_store_op();
         let has_depth: bool = depth.is_some();
         let has_resolve: bool = resolve_view.is_some();
-        let cache_needs_rebuild: bool = match self.render_pass_descriptor_cache.as_ref() {
+        let cache_needs_rebuild: bool = match self.try_get_render_pass_descriptor_cache().as_ref() {
             None => true,
             Some(existing) => {
                 existing.last_load_op != Some(effective_load_op)
@@ -2561,7 +2561,8 @@ impl WebGpuRenderer {
         // call) only if the impossible happened — `build_*` returned
         // a cache that was somehow dropped between the two lines,
         // which it cannot (no panic path, no early return).
-        let cache: &RenderPassDescriptorCache = match self.render_pass_descriptor_cache.as_ref() {
+        let cached: Option<RenderPassDescriptorCache> = self.try_get_render_pass_descriptor_cache();
+        let cache: &RenderPassDescriptorCache = match cached.as_ref() {
             Some(c) => c,
             None => {
                 // Defensive: build a no-op cache so the renderer's
@@ -3520,7 +3521,7 @@ impl WebGpuRenderer {
         // avoid the cost of a dynamic type check on the hot path.
         let promise: Promise = promise.unchecked_into();
         let future: JsFuture = JsFuture::from(promise);
-        let slot: Rc<PendingErrorCell> = self.pending_error.clone();
+        let slot: Rc<PendingErrorCell> = self.get_pending_error().clone();
         wasm_bindgen_futures::spawn_local(async move {
             match future.await {
                 Ok(value) => {
@@ -3549,7 +3550,7 @@ impl WebGpuRenderer {
         // SAFETY: see the note above; the future either has not
         // started yet (in which case this read sees `None`) or
         // has fully completed (in which case the future is gone).
-        let cell: &mut Option<JsValue> = unsafe { &mut *self.pending_error.as_ptr() };
+        let cell: &mut Option<JsValue> = unsafe { &mut *self.get_pending_error().as_ptr() };
         cell.take()
     }
 
@@ -3573,7 +3574,7 @@ impl WebGpuRenderer {
         // `pop_error_sync`, which is a microtask drained before
         // the next render tick — the usual call site for this
         // method.
-        let cell: &mut Option<JsValue> = unsafe { &mut *self.pending_error.as_ptr() };
+        let cell: &mut Option<JsValue> = unsafe { &mut *self.get_pending_error().as_ptr() };
         cell.take()
     }
 
@@ -5936,29 +5937,29 @@ impl WebGlRenderer {
             self.compile_shader(WebGl2RenderingContext::VERTEX_SHADER, vertex_source)?;
         let fragment_shader: WebGlShader =
             self.compile_shader(WebGl2RenderingContext::FRAGMENT_SHADER, fragment_source)?;
-        let program: WebGlProgram = self.context.create_program().ok_or_else(|| {
+        let program: WebGlProgram = self.get_context().create_program().ok_or_else(|| {
             WebGlProgramError::ProgramLink("createProgram returned null".to_string())
         })?;
-        self.context.attach_shader(&program, &vertex_shader);
-        self.context.attach_shader(&program, &fragment_shader);
-        self.context.link_program(&program);
+        self.get_context().attach_shader(&program, &vertex_shader);
+        self.get_context().attach_shader(&program, &fragment_shader);
+        self.get_context().link_program(&program);
         let linked: bool = self
-            .context
+            .get_context()
             .get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS)
             .as_bool()
             .unwrap_or_default();
         if !linked {
             let log: String = self
-                .context
+                .get_context()
                 .get_program_info_log(&program)
                 .unwrap_or_default();
-            self.context.delete_program(Some(&program));
-            self.context.delete_shader(Some(&vertex_shader));
-            self.context.delete_shader(Some(&fragment_shader));
+            self.get_context().delete_program(Some(&program));
+            self.get_context().delete_shader(Some(&vertex_shader));
+            self.get_context().delete_shader(Some(&fragment_shader));
             return Err(WebGlProgramError::ProgramLink(log));
         }
-        self.context.delete_shader(Some(&vertex_shader));
-        self.context.delete_shader(Some(&fragment_shader));
+        self.get_context().delete_shader(Some(&vertex_shader));
+        self.get_context().delete_shader(Some(&fragment_shader));
         Ok(program)
     }
 
@@ -5974,22 +5975,22 @@ impl WebGlRenderer {
     /// - `Result<WebGlShader, WebGlProgramError>` - The compiled shader, or
     ///   the compile info log.
     fn compile_shader(&self, kind: u32, source: &str) -> Result<WebGlShader, WebGlProgramError> {
-        let shader: WebGlShader = self.context.create_shader(kind).ok_or_else(|| {
+        let shader: WebGlShader = self.get_context().create_shader(kind).ok_or_else(|| {
             WebGlProgramError::ShaderCompile("createShader returned null".to_string())
         })?;
-        self.context.shader_source(&shader, source);
-        self.context.compile_shader(&shader);
+        self.get_context().shader_source(&shader, source);
+        self.get_context().compile_shader(&shader);
         let compiled: bool = self
-            .context
+            .get_context()
             .get_shader_parameter(&shader, WebGl2RenderingContext::COMPILE_STATUS)
             .as_bool()
             .unwrap_or_default();
         if !compiled {
             let log: String = self
-                .context
+                .get_context()
                 .get_shader_info_log(&shader)
                 .unwrap_or_default();
-            self.context.delete_shader(Some(&shader));
+            self.get_context().delete_shader(Some(&shader));
             return Err(WebGlProgramError::ShaderCompile(log));
         }
         Ok(shader)
@@ -6099,13 +6100,14 @@ impl WebGlRenderer {
         vertex_count: i32,
     ) {
         let (r, g, b, a) = clear_color;
-        self.context
-            .viewport(0, 0, self.width as i32, self.height as i32);
-        self.context
+        self.get_context()
+            .viewport(0, 0, self.get_width() as i32, self.get_height() as i32);
+        self.get_context()
             .clear_color(r as f32, g as f32, b as f32, a as f32);
-        self.context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-        self.context.use_program(Some(program));
-        self.context
+        self.get_context()
+            .clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        self.get_context().use_program(Some(program));
+        self.get_context()
             .draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, vertex_count);
     }
 
@@ -6119,11 +6121,11 @@ impl WebGlRenderer {
     /// - `u32` - The new physical pixel width (already multiplied by DPR).
     /// - `u32` - The new physical pixel height.
     pub fn resize(&mut self, physical_width: u32, physical_height: u32) {
-        self.canvas.set_width(physical_width);
-        self.canvas.set_height(physical_height);
+        self.get_canvas().set_width(physical_width);
+        self.get_canvas().set_height(physical_height);
         self.set_width(physical_width);
         self.set_height(physical_height);
-        self.context
+        self.get_context()
             .viewport(0, 0, physical_width as i32, physical_height as i32);
     }
 }
@@ -6290,7 +6292,7 @@ impl RenderPassColorAttachment {
     ///
     /// - `'static str` - A `'static str` value.
     pub(crate) fn effective_load_op(&self) -> &'static str {
-        match (self.load_op, self.clear_value) {
+        match (*self.try_get_load_op(), *self.try_get_clear_value()) {
             (Some(op), _) => op,
             (None, Some(_)) => WEBGPU_LOAD_OP_CLEAR,
             (None, None) => WEBGPU_LOAD_OP_LOAD,
@@ -6312,7 +6314,7 @@ impl RenderPassColorAttachment {
     ///
     /// - `'static str` - A `'static str` value.
     pub(crate) fn effective_store_op(&self) -> &'static str {
-        self.store_op.unwrap_or_else(|| {
+        self.try_get_store_op().unwrap_or_else(|| {
             default_color_store_op(/* transient = */ false)
         })
     }
@@ -6327,7 +6329,10 @@ impl RenderPassDepthStencilAttachment {
     ///
     /// - `'static str` - A `'static str` value.
     pub(crate) fn effective_depth_load_op(&self) -> &'static str {
-        match (self.depth_load_op, self.depth_clear_value) {
+        match (
+            *self.try_get_depth_load_op(),
+            *self.try_get_depth_clear_value(),
+        ) {
             (Some(op), _) => op,
             (None, Some(_)) => WEBGPU_LOAD_OP_CLEAR,
             (None, None) => WEBGPU_LOAD_OP_LOAD,
@@ -6340,7 +6345,8 @@ impl RenderPassDepthStencilAttachment {
     ///
     /// - `'static str` - A `'static str` value.
     pub(crate) fn effective_depth_store_op(&self) -> &'static str {
-        self.depth_store_op.unwrap_or(WEBGPU_STORE_OP_STORE)
+        self.try_get_depth_store_op()
+            .unwrap_or(WEBGPU_STORE_OP_STORE)
     }
 }
 
@@ -6371,7 +6377,8 @@ impl TextureViewDescriptor {
     ///
     /// - `'static str` - A `'static str` value.
     pub(crate) fn effective_dimension(&self) -> &'static str {
-        self.dimension.unwrap_or(WEBGPU_TEXTURE_VIEW_DIMENSION_2D)
+        self.try_get_dimension()
+            .unwrap_or(WEBGPU_TEXTURE_VIEW_DIMENSION_2D)
     }
 
     /// The aspect string the renderer will send to `createView`.
@@ -6383,7 +6390,7 @@ impl TextureViewDescriptor {
     ///
     /// - `'static str` - A `'static str` value.
     pub(crate) fn effective_aspect(&self) -> &'static str {
-        self.aspect.unwrap_or(WEBGPU_TEXTURE_ASPECT_ALL)
+        self.try_get_aspect().unwrap_or(WEBGPU_TEXTURE_ASPECT_ALL)
     }
 
     /// Returns a descriptor that selects a single mip level of the texture.
