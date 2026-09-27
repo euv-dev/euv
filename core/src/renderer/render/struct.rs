@@ -12,7 +12,7 @@ use super::*;
 #[derive(Debug, Getter)]
 pub(crate) struct OwnedPtr<T> {
     /// The raw pointer owned by this wrapper.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     pub(crate) ptr: *mut T,
 }
 

@@ -15,5 +15,8 @@ use super::*;
 #[derive(Clone, Data, Debug, Default, Eq, PartialEq)]
 pub struct HmrState {
     /// The preserved entries, keyed by name.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) entries: HashMap<String, String>,
 }
