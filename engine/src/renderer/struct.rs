@@ -588,20 +588,25 @@ pub struct RenderPassColorAttachment {
     ///
     /// When `None`, the renderer uses the swap-chain view (or the MSAA
     /// intermediate view if `antialias == true`).
+    #[get(pub(crate))]
     pub(crate) view: Option<JsValue>,
     /// An optional resolve target for MSAA.
     ///
     /// `None` when MSAA is disabled. The renderer fills in the default
     /// resolve target (the swap-chain view) when MSAA is enabled and the
     /// caller leaves this as `None`.
+    #[get(pub(crate))]
     pub(crate) resolve_target: Option<JsValue>,
     /// The clear color as `(r, g, b, a)` in `0.0..=1.0`. `None` means
     /// `"load"` (keep the previous contents).
+    #[get(pub(crate))]
     pub(crate) clear_value: Option<(f64, f64, f64, f64)>,
     /// The load operation. `None` → `"clear"` when `clear_value` is
     /// `Some`, otherwise `"load"`.
+    #[get(pub(crate))]
     pub(crate) load_op: Option<&'static str>,
     /// The store operation. `None` → `"store"`.
+    #[get(pub(crate))]
     pub(crate) store_op: Option<&'static str>,
 }
 
@@ -614,16 +619,21 @@ pub struct RenderPassDepthStencilAttachment {
     /// When `None`, the renderer uses the default view into its
     /// `depth_texture` field, allocating the depth texture lazily if
     /// needed.
+    #[get(pub(crate))]
     pub(crate) view: Option<JsValue>,
     /// The depth clear value in `0.0..=1.0`. `None` means
     /// `"load"` (keep previous depth).
+    #[get(pub(crate))]
     pub(crate) depth_clear_value: Option<f32>,
     /// The depth load op. `None` → `"clear"` when
     /// `depth_clear_value` is `Some`, otherwise `"load"`.
+    #[get(pub(crate))]
     pub(crate) depth_load_op: Option<&'static str>,
     /// The depth store op. `None` → `"store"`.
+    #[get(pub(crate))]
     pub(crate) depth_store_op: Option<&'static str>,
     /// Whether depth reads should be enabled. `None` → `false`.
+    #[get(pub(crate))]
     pub(crate) depth_read_only: Option<bool>,
 }
 

@@ -126,6 +126,9 @@ where
 #[derive(Data)]
 pub(crate) struct SignalSlab {
     /// Slot storage. Index 0..len.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) entries: Vec<Box<dyn AnySignalInner>>,
 }
 
