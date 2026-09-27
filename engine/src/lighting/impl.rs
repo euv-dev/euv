@@ -132,6 +132,30 @@ impl Material {
         )
     }
 
+    /// Creates a material using the [`MaterialKind::Pbr`] approximation.
+    ///
+    /// The resulting material is shaded as a Lambertian diffuse term scaled
+    /// by a Schlick fresnel factor; its `specular` and `shininess` fields are
+    /// not consulted on that path. See [`MaterialKind::Pbr`] for what this
+    /// model does and does not include.
+    ///
+    /// # Arguments
+    ///
+    /// - `Vector3D` - The diffuse albedo color.
+    ///
+    /// # Returns
+    ///
+    /// - `Material` - A PBR-approximation material.
+    pub fn pbr(albedo: Vector3D) -> Material {
+        Material::new(
+            MaterialKind::Pbr,
+            albedo,
+            0.0,
+            LIGHTING_DEFAULT_SHININESS,
+            Vector3D::zero(),
+        )
+    }
+
     /// Creates a purely emissive material (light source with no shading).
     ///
     /// # Arguments
@@ -174,6 +198,14 @@ impl LightingUniforms {
 
     /// Shades a surface point by summing ambient, per-light Lambertian, and
     /// per-light Phong contributions, gated by a soft shadow factor.
+    ///
+    /// The [`MaterialKind`] selects which terms are evaluated per light:
+    /// [`MaterialKind::Lambert`] contributes diffuse only,
+    /// [`MaterialKind::Phong`] adds a Blinn-Phong specular lobe, and
+    /// [`MaterialKind::Pbr`] adds an energy-conserving Schlick fresnel
+    /// factor to the diffuse term and no separate specular lobe. See
+    /// [`MaterialKind::Pbr`] for why that is an approximation and not a
+    /// full physically based model.
     ///
     /// # Arguments
     ///
@@ -223,12 +255,31 @@ impl LightingUniforms {
                     lambert_input.set_direction(dir);
                 }
             }
-            let diffuse: Vector3D = compute_lambert(&lambert_input, normal, material);
-            let mut spec_input: Light = lambert_input.clone();
-            spec_input.set_intensity(
-                light.get_intensity() * apply_falloff(view_dist, light.get_falloff()),
-            );
-            let specular: Vector3D = compute_phong(&spec_input, normal, view_dir, material);
+            let material_kind: MaterialKind = material.get_kind();
+            let diffuse: Vector3D = match material_kind {
+                MaterialKind::Pbr => {
+                    let base: Vector3D = compute_lambert(&lambert_input, normal, material);
+                    let fresnel: f64 =
+                        apply_schlick_fresnel(lambert_input.get_direction(), view_dir, normal);
+                    base.scaled(
+                        LIGHTING_PBR_ENERGY_CONSERVATION
+                            + (1.0 - LIGHTING_PBR_ENERGY_CONSERVATION) * fresnel,
+                    )
+                }
+                MaterialKind::Lambert | MaterialKind::Phong => {
+                    compute_lambert(&lambert_input, normal, material)
+                }
+            };
+            let specular: Vector3D = match material_kind {
+                MaterialKind::Lambert | MaterialKind::Pbr => Vector3D::zero(),
+                MaterialKind::Phong => {
+                    let mut spec_input: Light = lambert_input.clone();
+                    spec_input.set_intensity(
+                        light.get_intensity() * apply_falloff(view_dist, light.get_falloff()),
+                    );
+                    compute_phong(&spec_input, normal, view_dir, material)
+                }
+            };
             let mut contribution: Vector3D = diffuse + specular;
             contribution = contribution.scaled(shadow);
             color += contribution;

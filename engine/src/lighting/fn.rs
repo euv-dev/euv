@@ -98,6 +98,43 @@ pub fn apply_falloff(distance: f64, falloff: f64) -> f64 {
     (1.0 / denom).max(0.0)
 }
 
+/// Computes a Schlick fresnel factor for the [`MaterialKind::Pbr`] branch of
+/// [`LightingUniforms::shade`].
+///
+/// Schlick's approximation is `F = F0 + (1 - F0) * (1 - cos)^5` where
+/// `cos` is the cosine between the surface normal and the half-vector
+/// between the light and the eye, and `F0` is the normal-incidence
+/// reflectance. Returns a scalar in the range
+/// [`LIGHTING_PBR_ENERGY_CONSERVATION`]..=1.0: it is minimal when the
+/// half-vector aligns with the normal and grows as the half-vector turns
+/// away from it, so a lit silhouette picks up a rim.
+///
+/// This is a single-lobe approximation, not a microfacet BRDF: it ignores
+/// roughness, multiple scattering, and per-channel Fresnel, so it should be
+/// read as "diffuse plus a fresnel rim" rather than as a physically based
+/// reflectance model.
+///
+/// # Arguments
+///
+/// - `Vector3D` - The unit direction from the surface toward the light.
+/// - `Vector3D` - The unit view direction (from the surface toward the eye).
+/// - `Vector3D` - The surface normal (unit length).
+///
+/// # Returns
+///
+/// - `f64` - The fresnel reflectance scalar.
+pub fn apply_schlick_fresnel(light_dir: Vector3D, view_dir: Vector3D, normal: Vector3D) -> f64 {
+    let half: Vector3D = light_dir + view_dir;
+    let half_len: f64 = half.magnitude();
+    let cos: f64 = if half_len > EPSILON {
+        normal.dot(half.scaled(1.0 / half_len)).abs().min(1.0)
+    } else {
+        1.0
+    };
+    let base: f64 = LIGHTING_PBR_ENERGY_CONSERVATION;
+    base + (1.0 - base) * (1.0 - cos).powi(5)
+}
+
 /// Intersects a ray with a sphere centered at `center` with radius `radius`.
 ///
 /// Uses the standard quadratic-form ray-sphere test. Returns `Some((t, n))`

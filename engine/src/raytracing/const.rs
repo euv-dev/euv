@@ -10,3 +10,8 @@ pub(crate) const RAYTRACE_DEFAULT_T_MIN: f64 = 0.001;
 /// The maximum ray parameter `t` evaluated before a ray is considered to
 /// have escaped the scene. Pairs with `RAYTRACE_DEFAULT_T_MIN`.
 pub(crate) const RAYTRACE_DEFAULT_T_MAX: f64 = 1000.0;
+
+/// The Moller-Trumbore determinant magnitude below which a ray is treated as
+/// parallel to the triangle plane and therefore unable to hit it. Pairs with
+/// the shared [`EPSILON`] tolerance.
+pub(crate) const RAYTRACE_TRIANGLE_EPSILON: f64 = 1e-8;

@@ -10,7 +10,7 @@ use super::*;
 #[derive(Clone, Copy, Data, Debug, New, PartialEq, PartialOrd)]
 pub struct ParticleRng {
     /// The current generator state. Never zero after construction.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) state: u64,
@@ -79,22 +79,22 @@ pub struct ParticleConfig {
 #[derive(Clone, Copy, Data, Debug, New, PartialEq, PartialOrd)]
 pub struct Particle {
     /// The current world-space position.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) position: Vector2D,
     /// The current velocity in world units per second.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) velocity: Vector2D,
     /// The time this particle has been alive, in seconds.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) age: f64,
     /// The total lifetime of this particle, in seconds.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[set(pub(crate))]
     pub(crate) lifetime: f64,
 }
@@ -105,22 +105,22 @@ pub struct Particle {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct ParticleEmitter {
     /// The world-space emission point.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) position: Vector2D,
     /// The emitter configuration.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[set(pub(crate))]
     pub(crate) config: ParticleConfig,
     /// All currently live particles.
-    #[get(pub(crate), type(clone))]
+    #[get(type(clone))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) particles: Vec<Particle>,
     /// The fractional particle spawn budget carried between updates.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -131,7 +131,7 @@ pub struct ParticleEmitter {
     #[new(skip)]
     pub(crate) active: bool,
     /// The emitter's deterministic random generator.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]

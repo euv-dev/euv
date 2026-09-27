@@ -7,7 +7,7 @@ use super::*;
 /// for 2D games and simple 3D software rendering. WebGPU provides
 /// GPU-accelerated rendering for demanding 2D and 3D scenes.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub(crate) enum RenderBackendType {
+pub enum RenderBackendType {
     /// The Canvas 2D rendering backend (`CanvasRenderingContext2d`).
     ///
     /// Universal browser support, immediate-mode drawing API, suitable

@@ -30,7 +30,7 @@ pub struct RigidBody2D {
     #[new(skip)]
     pub(crate) velocity: Vector2D,
     /// The accumulated force to be applied during the next physics step.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -50,7 +50,7 @@ pub struct RigidBody2D {
     #[get_mut(pub(crate))]
     pub(crate) mass: f64,
     /// The precomputed inverse mass (1/mass). Static bodies have 0 inverse mass.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) inverse_mass: f64,
@@ -73,7 +73,7 @@ pub struct RigidBody2D {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct PhysicsWorld2D {
     /// All rigid bodies in the world.
-    #[get(pub(crate))]
+    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -133,7 +133,7 @@ pub struct RigidBody3D {
     #[new(skip)]
     pub(crate) velocity: Vector3D,
     /// The accumulated force to be applied during the next physics step.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -149,7 +149,7 @@ pub struct RigidBody3D {
     #[new(skip)]
     pub(crate) angular_velocity: Vector3D,
     /// The accumulated torque to be applied during the next physics step.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -159,14 +159,14 @@ pub struct RigidBody3D {
     #[get_mut(pub(crate))]
     pub(crate) mass: f64,
     /// The precomputed inverse mass (1/mass). Static bodies have 0 inverse mass.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) inverse_mass: f64,
     /// The precomputed inverse moment of inertia (scalar, axis-aligned). Static
     /// bodies have 0 inverse inertia. Used to convert accumulated torque into
     /// angular velocity each step.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -190,7 +190,7 @@ pub struct RigidBody3D {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct PhysicsWorld3D {
     /// All rigid bodies in the world.
-    #[get(pub(crate))]
+    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]

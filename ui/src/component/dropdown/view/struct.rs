@@ -11,6 +11,13 @@ pub struct EuvDropdownItem {
     /// The opaque value passed to the select callback.
     #[get(type(copy))]
     pub value: &'static str,
+    /// Whether this item is the currently selected value.
+    ///
+    /// Drives the `_active` class: the accent fill and the `text-on-accent`
+    /// label colour, matching how `euv_sidebar` marks the current page.
+    /// Defaults to `false`, so existing call sites keep the neutral look.
+    #[get(type(copy))]
+    pub active: bool,
 }
 
 /// Props for the [`euv_dropdown`] component.

@@ -133,7 +133,7 @@ pub struct EventNamedAdapter<T> {
     #[set(pub(crate))]
     pub(crate) inner: T,
     /// The event name (e.g., "click", "mouseover").
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) event_name: &'static str,
@@ -197,7 +197,7 @@ pub struct CallbackNamedAdapter<T> {
     #[set(pub(crate))]
     pub(crate) inner: T,
     /// The custom attribute name (e.g., "on-increment", "on-change").
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) name: &'static str,

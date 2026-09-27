@@ -24,9 +24,14 @@ pub fn euv_dropdown(node: VirtualNode<EuvDropdownProps>) -> VirtualNode {
     let menu_items: Vec<VirtualNode> = items
         .into_iter()
         .map(|item: EuvDropdownItem| {
+            let item_class: fn() -> &'static Css = if item.active {
+                c_euv_dropdown_item_active
+            } else {
+                c_euv_dropdown_item
+            };
             html! {
                 button {
-                    class: c_euv_dropdown_item()
+                    class: item_class()
                     onclick: select_item(open, on_select.clone(), item.value)
                     {
                         item.label

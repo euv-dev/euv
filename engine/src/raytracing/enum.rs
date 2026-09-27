@@ -9,4 +9,7 @@ pub enum OccluderKind {
     /// An axis-aligned bounding box with min corner `center` and max corner
     /// `extent`.
     Aabb,
+    /// A triangle whose three vertices are stored in the occluder's
+    /// `vertices` array; `center` and `extent` are unused.
+    Triangle,
 }

@@ -23,7 +23,7 @@ where
     #[set(pub(crate))]
     pub(crate) listeners: Vec<ListenerEntry>,
     /// Monotonic counter backing subscription ids for `listeners`.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -40,7 +40,7 @@ where
     /// `true` while `update` has the listener list swapped out for
     /// notification. `unsubscribe` consults this flag to decide between
     /// direct removal and deferred removal via `removed_listener_ids`.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -50,7 +50,7 @@ where
     /// complete no-ops (no value update, no listener invocation, no
     /// dispatch scheduling), ensuring stale closures like orphaned
     /// `setInterval` handlers or pending `spawn_local` futures become harmless.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) alive: bool,
@@ -78,14 +78,14 @@ where
 {
     /// Slot index of the inner state in the global signal slab.
     #[debug(skip)]
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) inner: usize,
     /// Marker for the generic type parameter (uses fn pointer to be `Copy`
     /// regardless of `T`).
     #[debug(skip)]
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) _marker: PhantomData<fn() -> T>,
@@ -145,7 +145,7 @@ pub(crate) struct SignalSlab {
 #[derive(Clone, Copy, CustomDebug, Data, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct FireHandle {
     /// Address of the leaked `Box<dyn FnMut()>` allocation.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) inner: usize,

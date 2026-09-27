@@ -51,6 +51,7 @@ use std::{
     collections::{HashMap, HashSet},
     ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
     rc::Rc,
+    rc::Weak,
     sync::atomic::{AtomicU64, Ordering},
 };
 

@@ -40,6 +40,9 @@ impl SchedulerState {
     ///
     /// - `f64` - The current time in seconds, or `0.0` when unavailable.
     pub fn current_time() -> f64 {
+        if !cfg!(target_arch = "wasm32") {
+            return 0.0;
+        }
         thread_local! {
             static PERFORMANCE_NOW: RefCell<Option<(JsValue, Function)>> =
                 const { RefCell::new(None) };
@@ -79,13 +82,33 @@ impl SchedulerState {
     ///
     /// Calculates the elapsed frame time, clamps it to `max_frame_time`, accumulates it,
     /// then runs as many fixed updates as needed. Finally, computes the interpolation
-    /// factor and calls the render callback.
+    /// factor and calls the render callback. When an input cell is supplied, its
+    /// per-frame edge state is cleared after the render callback so the next frame
+    /// observes only the edges that happened during that frame.
+    ///
+    /// Registered tasks are advanced immediately after each handler
+    /// `on_update` call, not once per frame: a frame may run several fixed
+    /// steps, and every one of them must advance the tasks by the same
+    /// `fixed_timestep` that gameplay logic receives. Driving tasks after
+    /// the handler callback keeps ordering explicit — gameplay logic
+    /// registered in `on_update` observes tasks that have already advanced
+    /// for this step.
     ///
     /// # Arguments
     ///
     /// - `&SchedulerConfig` - The scheduler configuration.
     /// - `&TickHandlerRc` - The handler receiving update and render callbacks.
-    pub fn tick(&mut self, config: &SchedulerConfig, handler: &TickHandlerRc) {
+    /// - `Option<&TaskRegistryRc>` - The task registry to advance each fixed
+    ///   step, or `None` when no tasks are registered.
+    /// - `Option<&InputStateCell>` - The shared input state to close out, or `None`
+    ///   when no input listeners are registered.
+    pub fn tick(
+        &mut self,
+        config: &SchedulerConfig,
+        handler: &TickHandlerRc,
+        tasks: Option<&TaskRegistryRc>,
+        input_cell: Option<&InputStateCell>,
+    ) {
         let current_time: f64 = Self::current_time();
         let frame_time: f64 = if self.get_last_time() == UNINITIALIZED_TIME {
             config.get_fixed_timestep()
@@ -97,12 +120,110 @@ impl SchedulerState {
         *self.get_mut_accumulator() += clamped_frame_time;
         while self.get_accumulator() >= config.get_fixed_timestep() {
             handler.get_mut().on_update(config.get_fixed_timestep());
+            if let Some(registry) = tasks {
+                registry.get_mut().update_all(config.get_fixed_timestep());
+            }
             *self.get_mut_accumulator() -= config.get_fixed_timestep();
             *self.get_mut_update_count() += 1;
         }
         let interpolation: f64 = self.get_accumulator() / config.get_fixed_timestep();
         handler.get_mut().on_render(interpolation);
         *self.get_mut_frame_count() += 1;
+        if let Some(cell) = input_cell {
+            cell.get_mut().end_frame();
+        }
+    }
+}
+
+/// Implements registration and per-step advancement for [`TaskRegistry`].
+impl TaskRegistry {
+    /// Registers an updater and returns a handle that can remove it again.
+    ///
+    /// The returned [`TaskHandle`] stores the task's insertion index, so
+    /// unregistering does not scan the task list for a matching pointer.
+    /// Because removal preserves the relative order of the surviving
+    /// tasks, a handle only stays valid while no *earlier* task has been
+    /// removed; [`TaskRegistry::unregister`] re-resolves the index against
+    /// the current list rather than trusting a stale one.
+    ///
+    /// # Arguments
+    ///
+    /// - `T` - The updater to drive each fixed step. Must implement
+    ///   [`Updatable`] and be `'static` so it can be boxed into the
+    ///   heterogeneous task list.
+    ///
+    /// # Returns
+    ///
+    /// - `TaskHandle` - A handle used to unregister the task.
+    pub fn register<T>(&mut self, task: T) -> TaskHandle
+    where
+        T: Updatable + 'static,
+    {
+        let id: u64 = self.get_mut_tasks().len() as u64;
+        self.get_mut_tasks().push(Box::new(task));
+        TaskHandle::new(id)
+    }
+
+    /// Removes a previously registered task, returning whether it was found.
+    ///
+    /// A task is identified by its [`TaskHandle`]. The removal keeps the
+    /// insertion order of the remaining tasks intact, which is what the
+    /// per-step update contract promises.
+    ///
+    /// # Arguments
+    ///
+    /// - `&TaskHandle` - The handle returned by [`TaskRegistry::register`].
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` if a task was removed, `false` if the handle did
+    ///   not match any registered task.
+    pub fn unregister(&mut self, handle: &TaskHandle) -> bool {
+        let index: usize = handle.get_id() as usize;
+        if index >= self.get_tasks().len() {
+            return false;
+        }
+        self.get_mut_tasks().remove(index);
+        true
+    }
+
+    /// Advances every registered task by `delta_time` seconds.
+    ///
+    /// Tasks are updated in registration order. The whole list is walked
+    /// even if a task unregisters another one later in the list, because
+    /// the borrow of the task vector is held for the duration of the walk;
+    /// deferring mutation to the next step keeps the iteration well-defined.
+    ///
+    /// # Arguments
+    ///
+    /// - `f64` - The fixed delta time in seconds.
+    pub fn update_all(&mut self, delta_time: f64) {
+        for task in self.get_mut_tasks().iter_mut() {
+            task.update(delta_time);
+        }
+    }
+
+    /// Returns the number of registered tasks.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - The task count.
+    pub fn len(&self) -> usize {
+        self.get_tasks().len()
+    }
+
+    /// Returns whether the registry holds no tasks.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` if no tasks are registered.
+    pub fn is_empty(&self) -> bool {
+        self.get_tasks().is_empty()
+    }
+
+    /// Removes every registered task.
+    pub fn clear(&mut self) {
+        self.get_mut_tasks().clear();
     }
 }
 
@@ -153,6 +274,27 @@ impl SchedulerHandle {
         self.get_state().get().get_frame_count()
     }
 
+    /// Registers a task to be advanced on every fixed step.
+    ///
+    /// The task is driven by [`SchedulerState::tick`] immediately after the
+    /// handler's `on_update` callback, using the same
+    /// [`SchedulerConfig::get_fixed_timestep`] delta.
+    ///
+    /// # Arguments
+    ///
+    /// - `&TaskRegistryRc` - The registry to add the task to.
+    /// - `T` - The updater to register. Must implement [`Updatable`].
+    ///
+    /// # Returns
+    ///
+    /// - `TaskHandle` - A handle used to unregister the task.
+    pub fn register_task<T>(registry: &TaskRegistryRc, task: T) -> TaskHandle
+    where
+        T: Updatable + 'static,
+    {
+        registry.get_mut().register(task)
+    }
+
     /// Starts the scheduler with the given configuration and handler.
     ///
     /// Creates a `requestAnimationFrame`-driven loop that calls `tick`
@@ -165,11 +307,21 @@ impl SchedulerHandle {
     ///
     /// - `SchedulerConfig` - The scheduler configuration.
     /// - `TickHandlerRc` - The handler receiving update and render callbacks.
+    /// - `Option<&TaskRegistryRc>` - The task registry advanced on every
+    ///   fixed step, or `None` when no tasks are registered.
+    /// - `Option<&InputStateCell>` - The shared input state whose per-frame edge
+    ///   state is cleared at the end of every frame, or `None` when input
+    ///   listeners are not registered.
     ///
     /// # Returns
     ///
     /// - `SchedulerHandle` - A handle to control the running scheduler.
-    pub fn start(config: SchedulerConfig, handler: TickHandlerRc) -> SchedulerHandle {
+    pub fn start(
+        config: SchedulerConfig,
+        handler: TickHandlerRc,
+        tasks: Option<&TaskRegistryRc>,
+        input_cell: Option<&InputStateCell>,
+    ) -> SchedulerHandle {
         let state: Rc<EngineCell<SchedulerState>> =
             Rc::new(EngineCell::new(SchedulerState::new(UNINITIALIZED_TIME)));
         let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
@@ -179,13 +331,20 @@ impl SchedulerHandle {
         let state_clone: Rc<EngineCell<SchedulerState>> = state.clone();
         let closure_cell_clone: RafClosureCell = closure_cell.clone();
         let handler_clone: TickHandlerRc = handler.clone();
+        let tasks_clone: Option<TaskRegistryRc> = tasks.map(Rc::clone);
+        let input_cell_clone: Option<InputStateCell> = input_cell.map(Rc::clone);
         let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
             {
                 let state_ref: &mut SchedulerState = state_clone.get_mut();
                 if !state_ref.get_running() {
                     return;
                 }
-                state_ref.tick(&config, &handler_clone);
+                state_ref.tick(
+                    &config,
+                    &handler_clone,
+                    tasks_clone.as_ref(),
+                    input_cell_clone.as_ref(),
+                );
             }
             let state_ro: &SchedulerState = state_clone.get();
             if state_ro.get_running() {

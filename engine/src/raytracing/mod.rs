@@ -4,7 +4,7 @@ mod r#fn;
 mod r#impl;
 mod r#struct;
 
-pub use {r#enum::*, r#struct::*};
+pub use {r#enum::*, r#fn::intersect_triangle, r#struct::*};
 
 pub(crate) use r#const::*;
 pub(crate) use r#fn::{closest_hit_indexed, collect_occluder_points, trace_bounces};

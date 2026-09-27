@@ -3679,8 +3679,37 @@ class! {
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
+        // Hover mirrors the sidebar's affordance (see `c_euv_sidebar_link`):
+        // an inset 3px bar painted inside the padding box, which never
+        // participates in layout and therefore never shifts the label. A
+        // translucent wash is deliberately NOT used — `accent-muted` resolves
+        // to the same value as `background` in the monochrome palette
+        // (white on light, black on dark), so a background there is
+        // invisible. `color-mix` derives the wash from the actual text colour
+        // so it reads in both themes.
         :hover {
-            background: var!(accent-muted);
+            background: format!("color-mix(in srgb, {} 8%, transparent)", var!(foreground));
+            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
+        }
+    }
+
+    pub c_euv_dropdown_item_active {
+        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+        font-size: var!(font-sm);
+        text-align: "left";
+        cursor: "pointer";
+        font-weight: "600";
+        // The selected item wears the accent fill and the text colour that
+        // reads on top of it, the same pairing the sidebar's `_active` link
+        // uses. The inset bar is dropped: the full-width fill already carries
+        // the current-page signal, and a bar in the same monochrome accent
+        // would be invisible against it.
+        background: var!(accent);
+        color: var!(text-on-accent);
+        :hover {
+            background: var!(accent);
+            color: var!(text-on-accent);
+            box-shadow: "none";
         }
     }
 

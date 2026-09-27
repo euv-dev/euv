@@ -1,7 +1,10 @@
+mod api_visibility;
+mod asset;
 mod r#input;
 mod lighting;
 mod physics;
 mod raytracing;
+mod scheduler;
 mod r#webgpu;
 
 use euv_engine::*;

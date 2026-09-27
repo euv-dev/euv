@@ -64,3 +64,76 @@ pub struct InputState {
     #[new(skip)]
     pub(crate) touch_ended: HashSet<i32>,
 }
+
+/// Per-frame and steady-state data for a single gamepad index.
+///
+/// The edge sets follow the same contract as [`InputState`]:
+/// `buttons_pressed` records a button that went down on the frame it
+/// went down and is cleared by [`GamepadState::end_frame`],
+/// `buttons_held` records every button currently down and survives
+/// `end_frame`, and `buttons_released` records a button that was held
+/// and came up on this frame.
+#[derive(Clone, Data, Debug, Default, PartialEq)]
+pub struct GamepadState {
+    /// The browser-reported identifier of the device, e.g. a mapping
+    /// string such as `Xbox 360 Controller (XInput STANDARD GAMEPAD)`.
+    #[get(type(clone))]
+    #[set]
+    pub(crate) id: String,
+    /// The current reading of every analog axis, indexed by axis number.
+    /// Values outside the deadzone are stored as reported; the deadzone
+    /// is applied on read by [`GamepadState::axis`].
+    #[get]
+    #[get_mut(pub(crate))]
+    #[set]
+    pub(crate) axes: Vec<f64>,
+    /// The current pressure of every button, indexed by button number.
+    /// Analog triggers report a continuous value here, digital buttons
+    /// report `1.0` while down and `0.0` while up.
+    #[get]
+    #[get_mut(pub(crate))]
+    #[set]
+    pub(crate) button_values: Vec<f64>,
+    /// Whether the device is currently connected. A disconnected pad
+    /// keeps its last `id` so callers can still identify it.
+    #[get(type(copy))]
+    #[set]
+    pub(crate) connected: bool,
+    /// Button indices that were pressed during this frame.
+    #[get]
+    #[get_mut(pub(crate))]
+    pub(crate) buttons_pressed: GamepadButtonSet,
+    /// Button indices that are currently held down.
+    #[get]
+    #[get_mut(pub(crate))]
+    pub(crate) buttons_held: GamepadButtonSet,
+    /// Button indices that were released during this frame.
+    #[get]
+    #[get_mut(pub(crate))]
+    pub(crate) buttons_released: GamepadButtonSet,
+}
+
+/// Owns the state of every gamepad the page has seen and drives the
+/// per-frame poll.
+///
+/// A poll re-reads `navigator.get_gamepads()` and folds the fresh raw
+/// readings into the stored state, computing this frame's edge sets
+/// from the previous frame's held set. The DOM connect / disconnect
+/// events are honoured too: a device announced between two polls is
+/// already present as a state when the next poll runs, so polling
+/// alone never loses a connect or a disconnect.
+#[derive(Clone, Data, Debug, Default, PartialEq)]
+pub struct GamepadManager {
+    /// Every gamepad state ever observed, keyed by gamepad index.
+    #[get]
+    #[get_mut(pub(crate))]
+    pub(crate) states: GamepadStateMap,
+    /// Gamepad indices that were first seen during this frame.
+    #[get]
+    #[get_mut(pub(crate))]
+    pub(crate) connected: GamepadIndexSet,
+    /// Gamepad indices that were last seen leaving during this frame.
+    #[get]
+    #[get_mut(pub(crate))]
+    pub(crate) disconnected: GamepadIndexSet,
+}

@@ -13,38 +13,38 @@ pub struct SchedulerConfig {
 
 /// The runtime state of a scheduler instance.
 #[derive(Clone, Data, Debug, New, PartialEq)]
-pub(crate) struct SchedulerState {
+pub struct SchedulerState {
     /// The accumulated time waiting to be processed by fixed updates.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) accumulator: f64,
     /// The timestamp of the previous frame in seconds, or `UNINITIALIZED_TIME` before the first frame.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) last_time: f64,
     /// Whether the scheduler is currently running and scheduling animation frames.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) running: bool,
     /// The most recent `requestAnimationFrame` ID, used to cancel the next frame.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) raf_id: Option<i32>,
     /// The total number of fixed update steps executed since the scheduler started.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) update_count: u64,
     /// The total number of render frames executed since the scheduler started.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -58,15 +58,53 @@ pub struct SchedulerHandle {
     /// `UnsafeCell`-backed `Sync` newtype) so multiple closure
     /// captures can mutate it without `RefCell`'s runtime borrow
     /// check. Mirrors `core::reactive::schedule` shape.
-    #[get(pub(crate))]
+    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) state: Rc<EngineCell<SchedulerState>>,
     /// The shared closure cell keeping the RAF callback alive. Held
     /// behind `MaybeEngineCell` because the cell is empty both
     /// before `spawn` runs and after cleanup tears the closure down.
-    #[get(pub(crate))]
+    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) closure_cell: RafClosureCell,
+}
+
+/// A registry of [`Updatable`] tasks driven by the fixed-timestep scheduler.
+///
+/// The scheduler itself only knows how to run a single [`TickHandler`]; every
+/// other simulation object in the engine — `Timer`, `Tween`,
+/// `ParticleEmitter`, `Entity`, `Animator`, `SceneManager`, and the
+/// `PhysicsWorld2D` / `PhysicsWorld3D` containers — exposes its advancement
+/// through the [`Updatable`] trait instead. This registry is the driver that
+/// gives those objects a heartbeat: [`SchedulerState::tick`] calls
+/// [`TaskRegistry::update_all`] once per fixed step, immediately *after* the
+/// handler's `on_update` callback returns, so gameplay logic registered in
+/// `on_update` sees task state that has already advanced this step.
+///
+/// Tasks are updated in registration order, which makes the relative ordering
+/// of independent tasks explicit and reproducible rather than dependent on
+/// container iteration order.
+#[derive(Data, Default, New)]
+pub struct TaskRegistry {
+    /// The registered tasks, in registration order. `Box<dyn Updatable>`
+    /// erases the concrete task type so heterogeneous tasks (a `Timer` next
+    /// to a `Tween<f64>` next to a `ParticleEmitter`) coexist in one list.
+    #[get]
+    #[get_mut(pub(crate))]
+    pub(crate) tasks: Vec<Box<dyn Updatable>>,
+}
+
+/// A handle to a task registered with a [`TaskRegistry`].
+///
+/// The handle is returned by [`TaskRegistry::register`] and is the only way
+/// to remove that task later. It identifies the task by its index in the
+/// registry's insertion-ordered task list, which keeps registration and
+/// removal O(1) for the common append-then-remove-last pattern.
+#[derive(Clone, Copy, Data, Debug, New, PartialEq, PartialOrd)]
+pub struct TaskHandle {
+    /// The zero-based index of the task in the registry's task list.
+    #[get(type(copy))]
+    pub(crate) id: u64,
 }

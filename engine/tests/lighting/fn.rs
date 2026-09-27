@@ -124,3 +124,141 @@ fn soft_shadow_no_occluder_returns_one() {
         "empty occluders should yield 1.0, got {v}"
     );
 }
+
+/// Builds a [`LightingUniforms`] with the eye at +10z and one white
+/// directional light shining down -z, the setup the shading tests share.
+///
+/// # Returns
+///
+/// - `LightingUniforms` - Uniforms ready to pass to
+///   [`LightingUniforms::shade`].
+fn lighting_setup() -> LightingUniforms {
+    let mut uniforms: LightingUniforms = LightingUniforms::with_eye(Vector3D::new(0.0, 0.0, 10.0));
+    uniforms.add_light(Light::new_directional(
+        Vector3D::new(0.0, 0.0, -1.0),
+        Vector3D::new(1.0, 1.0, 1.0),
+    ));
+    uniforms
+}
+
+#[test]
+fn shade_lambert_has_no_specular_lobe() {
+    let uniforms: LightingUniforms = lighting_setup();
+    let normal: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
+    let pos: Vector3D = Vector3D::zero();
+    let lambert: Material = Material::new(
+        MaterialKind::Lambert,
+        Vector3D::new(0.5, 0.5, 0.5),
+        1.0,
+        32.0,
+        Vector3D::zero(),
+    );
+    let shaded: Vector3D = uniforms.shade(pos, normal, &lambert, &[]);
+    let phong: Material = Material::new(
+        MaterialKind::Phong,
+        Vector3D::new(0.5, 0.5, 0.5),
+        1.0,
+        32.0,
+        Vector3D::zero(),
+    );
+    let shaded_phong: Vector3D = uniforms.shade(pos, normal, &phong, &[]);
+    assert!(
+        shaded_phong.get_z() > shaded.get_z() + EPSILON,
+        "a Phong material must pick up a specular lobe the Lambert one lacks: phong={} lambert={}",
+        shaded_phong.get_z(),
+        shaded.get_z()
+    );
+}
+
+#[test]
+fn shade_pbr_ignores_specular_fields() {
+    let uniforms: LightingUniforms = lighting_setup();
+    let normal: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
+    let pos: Vector3D = Vector3D::zero();
+    let no_spec: Material = Material::new(
+        MaterialKind::Pbr,
+        Vector3D::new(0.5, 0.5, 0.5),
+        0.0,
+        32.0,
+        Vector3D::zero(),
+    );
+    let max_spec: Material = Material::new(
+        MaterialKind::Pbr,
+        Vector3D::new(0.5, 0.5, 0.5),
+        1.0,
+        32.0,
+        Vector3D::zero(),
+    );
+    let a: Vector3D = uniforms.shade(pos, normal, &no_spec, &[]);
+    let b: Vector3D = uniforms.shade(pos, normal, &max_spec, &[]);
+    assert!(
+        (a.get_x() - b.get_x()).abs() < EPSILON
+            && (a.get_y() - b.get_y()).abs() < EPSILON
+            && (a.get_z() - b.get_z()).abs() < EPSILON,
+        "Pbr must not read the specular field: {a:?} vs {b:?}"
+    );
+}
+
+#[test]
+fn shade_pbr_is_brighter_than_lambert_at_same_albedo() {
+    let uniforms: LightingUniforms = lighting_setup();
+    let normal: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
+    let pos: Vector3D = Vector3D::zero();
+    let pbr: Material = Material::pbr(Vector3D::new(0.5, 0.5, 0.5));
+    let lambert: Material = Material::lambert(Vector3D::new(0.5, 0.5, 0.5));
+    let pbr_shade: Vector3D = uniforms.shade(pos, normal, &pbr, &[]);
+    let lambert_shade: Vector3D = uniforms.shade(pos, normal, &lambert, &[]);
+    assert!(
+        pbr_shade.get_z() >= lambert_shade.get_z() - EPSILON,
+        "the fresnel blend must not darken diffuse: pbr={} lambert={}",
+        pbr_shade.get_z(),
+        lambert_shade.get_z()
+    );
+}
+
+#[test]
+fn schlick_fresnel_head_on_returns_floor() {
+    let normal: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
+    let light: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
+    let view: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
+    let f: f64 = apply_schlick_fresnel(light, view, normal);
+    assert!(
+        (f - LIGHTING_PBR_ENERGY_CONSERVATION).abs() < EPSILON,
+        "head-on fresnel must equal the F0 floor, got {f}"
+    );
+}
+
+#[test]
+fn schlick_fresnel_rises_away_from_head_on() {
+    let normal: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
+    let head_on: f64 = apply_schlick_fresnel(
+        Vector3D::new(0.0, 0.0, 1.0),
+        Vector3D::new(0.0, 0.0, 1.0),
+        normal,
+    );
+    let grazing: f64 = apply_schlick_fresnel(
+        Vector3D::new(1.0, 0.0, 0.0),
+        Vector3D::new(1.0, 0.0, -1.0).normalized(),
+        normal,
+    );
+    assert!(
+        grazing > head_on + 0.05,
+        "a grazing half-vector must raise the fresnel term: head_on={head_on} grazing={grazing}"
+    );
+}
+
+#[test]
+fn schlick_fresnel_stays_in_unit_range() {
+    let normal: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
+    for (lx, ly, lz) in [(0.0, 0.0, 1.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)] {
+        let f: f64 = apply_schlick_fresnel(
+            Vector3D::new(lx, ly, lz),
+            Vector3D::new(0.0, 0.0, 1.0),
+            normal,
+        );
+        assert!(
+            (LIGHTING_PBR_ENERGY_CONSERVATION - EPSILON..=1.0 + EPSILON).contains(&f),
+            "fresnel out of range: {f}"
+        );
+    }
+}

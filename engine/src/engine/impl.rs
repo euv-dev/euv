@@ -19,7 +19,9 @@ impl Engine {
     ///
     /// - `EngineHandle` - The new uninitialized engine handle.
     pub fn new_handle(config: EngineConfig) -> EngineHandle {
-        EngineHandle::new(config, None, None, None, None)
+        let mut handle: EngineHandle = EngineHandle::new(config, None, None, None, None);
+        handle.set_tasks(Rc::new(EngineCell::new(TaskRegistry::default())));
+        handle
     }
 
     /// Runs the engine through its complete lifecycle in a single async call.
@@ -253,14 +255,115 @@ impl EngineHandle {
     ///
     /// The scheduler configuration from `EngineConfig` controls the fixed
     /// timestep and maximum frame time. The scheduler handle is stored
-    /// internally and can be stopped via `stop`.
+    /// internally and can be stopped via `stop`. If `register_input` has
+    /// attached DOM listeners, the shared input state is closed out at the
+    /// end of every frame so edge-triggered queries (`keys_pressed`,
+    /// `keys_released`, `mouse_buttons_pressed`, `touch_started`) only
+    /// report the frame they occurred in. Tasks registered through
+    /// [`EngineHandle::register_task`] are advanced once per fixed step,
+    /// immediately after the handler's `on_update` callback.
     ///
     /// # Arguments
     ///
     /// - `TickHandlerRc` - The tick handler receiving update and render callbacks.
     pub fn start(&mut self, handler: TickHandlerRc) {
         let scheduler_config: SchedulerConfig = self.get_config().get_scheduler();
-        self.set_scheduler_handle(Some(SchedulerHandle::start(scheduler_config, handler)));
+        let input_cell: Option<&InputStateCell> = self.try_get_input_cell().as_ref();
+        let tasks: &TaskRegistryRc = self.get_tasks();
+        self.set_scheduler_handle(Some(SchedulerHandle::start(
+            scheduler_config,
+            handler,
+            Some(tasks),
+            input_cell,
+        )));
+    }
+
+    /// Returns the shared task registry, for direct inspection or
+    /// registration outside [`EngineHandle::register_task`].
+    ///
+    /// # Returns
+    ///
+    /// - `&TaskRegistryRc` - The engine's task registry.
+    pub fn tasks(&self) -> &TaskRegistryRc {
+        self.get_tasks()
+    }
+
+    /// Registers a task to be advanced on every fixed step.
+    ///
+    /// The task is driven by [`SchedulerState::tick`] immediately after the
+    /// handler's `on_update` callback, with the configured
+    /// [`SchedulerConfig::get_fixed_timestep`] delta. This is the entry
+    /// point that gives `Timer`, `Tween`, `ParticleEmitter`, `Entity`,
+    /// `Animator`, `SceneManager`, and the physics worlds a heartbeat — all
+    /// of them implement [`Updatable`] but none were driven before the
+    /// registry existed.
+    ///
+    /// Registration order is preserved: tasks are updated in the order they
+    /// were registered.
+    ///
+    /// # Arguments
+    ///
+    /// - `T` - The updater to register. Must implement [`Updatable`].
+    ///
+    /// # Returns
+    ///
+    /// - `TaskHandle` - A handle used to unregister the task.
+    pub fn register_task<T>(&self, task: T) -> TaskHandle
+    where
+        T: Updatable + 'static,
+    {
+        self.get_tasks().get_mut().register(task)
+    }
+
+    /// Removes a previously registered task.
+    ///
+    /// # Arguments
+    ///
+    /// - `&TaskHandle` - The handle returned by [`EngineHandle::register_task`].
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` if a task was removed, `false` if the handle did
+    ///   not match any registered task.
+    pub fn unregister_task(&self, handle: &TaskHandle) -> bool {
+        self.get_tasks().get_mut().unregister(handle)
+    }
+
+    /// Creates the engine's asset loader and drives it from the game loop.
+    ///
+    /// The loader implements [`Updatable`], so it is registered with the
+    /// scheduler's [`TaskRegistry`] rather than polled by hand. On every
+    /// fixed step it releases the `onload` / `onerror` callbacks of loads
+    /// that have already settled — a `wasm_bindgen::Closure` cannot be
+    /// dropped from inside the callback that is running, so this engine
+    /// update is the only safe drop point. Without this the loader would
+    /// pin two closures per asset forever and `is_all_loaded` would never
+    /// observe the decrement of the pending count.
+    ///
+    /// Calling this more than once returns the already-created loader rather
+    /// than replacing it, so pending loads are not orphaned.
+    ///
+    /// # Returns
+    ///
+    /// - `AssetLoader` - The engine's asset loader.
+    pub fn register_assets(&mut self) -> AssetLoader {
+        if let Some(existing) = self.try_get_asset_loader() {
+            return existing.clone();
+        }
+        let loader: AssetLoader = AssetLoader::default();
+        self.set_asset_loader(Some(loader.clone()));
+        let _ = self.register_task(loader.clone());
+        loader
+    }
+
+    /// Returns the engine's asset loader, if one has been created.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<AssetLoader>` - The loader, or `None` when
+    ///   [`EngineHandle::register_assets`] has not been called.
+    pub fn asset_loader(&self) -> Option<AssetLoader> {
+        self.try_get_asset_loader().as_ref().cloned()
     }
 
     /// Stops the game loop and cancels any pending animation frame request.

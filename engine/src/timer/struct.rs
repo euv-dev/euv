@@ -16,7 +16,7 @@ pub struct Timer {
     #[set(pub(crate))]
     pub(crate) repeating: bool,
     /// The time accumulated since the timer started or last fired.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]

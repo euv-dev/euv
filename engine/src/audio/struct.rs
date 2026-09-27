@@ -5,11 +5,11 @@ use super::*;
 #[derive(Clone, Data, New)]
 pub struct GameAudioContext {
     /// The underlying Web Audio API context.
-    #[get(pub(crate))]
+    #[get]
     #[set(pub(crate))]
     pub(crate) context: AudioContext,
     /// The master gain node controlling overall volume.
-    #[get(pub(crate))]
+    #[get]
     #[set(pub(crate))]
     pub(crate) master_gain: GainNode,
     /// The master volume level in the range 0.0 to 1.0.
@@ -21,11 +21,11 @@ pub struct GameAudioContext {
 #[derive(Clone, Data, New)]
 pub struct AudioClip {
     /// The decoded audio data buffer.
-    #[get(pub(crate))]
+    #[get]
     #[set(pub(crate))]
     pub(crate) buffer: AudioBuffer,
     /// The name identifying this clip.
-    #[get(pub(crate))]
+    #[get]
     #[set(pub(crate))]
     pub(crate) name: String,
     /// The current playback state.

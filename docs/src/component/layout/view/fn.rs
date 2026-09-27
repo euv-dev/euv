@@ -368,13 +368,15 @@ fn locale_row_node(route_signal: Signal<String>, locale_menu_open: Signal<bool>)
         };
     }
     let (path, _anchor) = parse_route(&route_signal.get());
-    let current_label: &str = locale_of(&path).label;
+    let current: &DocsLocale = locale_of(&path);
+    let current_label: &str = current.label;
     let items: Vec<EuvDropdownItem> = site
         .locales
         .iter()
         .map(|target: &DocsLocale| EuvDropdownItem {
             label: target.label,
             value: target.prefix,
+            active: target.prefix == current.prefix,
         })
         .collect();
     html! {
