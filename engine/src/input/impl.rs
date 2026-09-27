@@ -647,7 +647,9 @@ impl GamepadManager {
     ///
     /// - `bool` - True if the pad is connected.
     pub fn is_connected(&self, index: u32) -> bool {
-        self.state(index).map(|pad: &GamepadState| pad.get_connected()) == Some(true)
+        self.state(index)
+            .map(|pad: &GamepadState| pad.get_connected())
+            == Some(true)
     }
 
     /// Reads one analog axis of one gamepad with the deadzone applied.
@@ -677,7 +679,8 @@ impl GamepadManager {
     /// - `Option<f64>` - The pressure, or `None` when the index is
     ///   unknown.
     pub fn button_value(&self, index: u32, button: u32) -> Option<f64> {
-        self.state(index).map(|pad: &GamepadState| pad.button_value(button))
+        self.state(index)
+            .map(|pad: &GamepadState| pad.button_value(button))
     }
 
     /// Tests whether a button on one gamepad went down on this frame.
@@ -819,7 +822,7 @@ impl GamepadManager {
             .get_states()
             .keys()
             .filter(|index: &&u32| !live.contains(index))
-            .map(|index: &u32| *index)
+            .copied()
             .collect();
         for index in stale {
             self.release_pad(index);
@@ -838,10 +841,7 @@ impl GamepadManager {
     ///
     /// - `GamepadManagerCell` - The same cell passed in, for
     ///   convenient chaining.
-    pub fn attach(
-        manager_cell: GamepadManagerCell,
-        window: &Window,
-    ) -> GamepadManagerCell {
+    pub fn attach(manager_cell: GamepadManagerCell, window: &Window) -> GamepadManagerCell {
         Self::attach_gamepad(&manager_cell, window);
         manager_cell
     }
