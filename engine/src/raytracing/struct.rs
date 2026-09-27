@@ -42,12 +42,18 @@ pub struct Occluder {
     /// The geometric shape represented by this occluder.
     #[get(type(copy))]
     pub(crate) kind: OccluderKind,
-    /// For spheres: the center. For AABBs: the minimum corner.
+    /// For spheres: the center. For AABBs: the minimum corner. Unused by
+    /// triangles, whose vertices live in `vertices`.
     #[get(type(copy))]
     pub(crate) center: Vector3D,
     /// For spheres: `.x` is the radius. For AABBs: the maximum corner.
+    /// Unused by triangles, whose vertices live in `vertices`.
     #[get(type(copy))]
     pub(crate) extent: Vector3D,
+    /// For triangles: the three corners in winding order. Unused by spheres
+    /// and AABBs, which are fully described by `center` and `extent`.
+    #[get(type(copy))]
+    pub(crate) vertices: [Vector3D; 3],
     /// The surface material.
     pub(crate) material: Material,
 }

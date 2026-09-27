@@ -57,6 +57,37 @@ impl Ray {
             depth,
         }
     }
+
+    /// Intersects this ray with the triangle `v0`, `v1`, `v2` using the
+    /// Moller-Trumbore algorithm, keeping only hits inside this ray's
+    /// `t_min`..=`t_max` range.
+    ///
+    /// The test is two-sided: a hit from either face counts, and the
+    /// returned normal always faces against the ray direction.
+    ///
+    /// # Arguments
+    ///
+    /// - `Vector3D` - The first triangle vertex.
+    /// - `Vector3D` - The second triangle vertex.
+    /// - `Vector3D` - The third triangle vertex.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<(f64, Vector3D)>` - The hit distance along the ray and the
+    ///   unit normal oriented against the ray direction, or `None` on miss.
+    pub fn intersect_triangle(
+        &self,
+        v0: Vector3D,
+        v1: Vector3D,
+        v2: Vector3D,
+    ) -> Option<(f64, Vector3D)> {
+        let (t, normal): (f64, Vector3D) =
+            intersect_triangle(self.get_origin(), self.get_direction(), v0, v1, v2)?;
+        if t < self.get_t_min() || t > self.get_t_max() {
+            return None;
+        }
+        Some((t, normal))
+    }
 }
 
 /// Implements factory constructors for [`Occluder`].
@@ -77,6 +108,7 @@ impl Occluder {
             kind: OccluderKind::Sphere,
             center,
             extent: Vector3D::new(radius, radius, radius),
+            vertices: [center; 3],
             material,
         }
     }
@@ -97,6 +129,34 @@ impl Occluder {
             kind: OccluderKind::Aabb,
             center: min,
             extent: max,
+            vertices: [min; 3],
+            material,
+        }
+    }
+
+    /// Creates a triangular occluder from its three vertices.
+    ///
+    /// The vertex order fixes the geometric winding; because the
+    /// intersection test is two-sided the winding does not affect which
+    /// faces produce hits, only the raw cross-product normal before it is
+    /// oriented against the incoming ray.
+    ///
+    /// # Arguments
+    ///
+    /// - `Vector3D` - The first triangle vertex.
+    /// - `Vector3D` - The second triangle vertex.
+    /// - `Vector3D` - The third triangle vertex.
+    /// - `Material` - The surface material.
+    ///
+    /// # Returns
+    ///
+    /// - `Occluder` - The new triangle occluder.
+    pub fn triangle(v0: Vector3D, v1: Vector3D, v2: Vector3D, material: Material) -> Occluder {
+        Occluder {
+            kind: OccluderKind::Triangle,
+            center: Vector3D::zero(),
+            extent: Vector3D::zero(),
+            vertices: [v0, v1, v2],
             material,
         }
     }
