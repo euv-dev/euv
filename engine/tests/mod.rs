@@ -1,4 +1,5 @@
 mod api_visibility;
+mod asset;
 mod r#input;
 mod lighting;
 mod physics;
