@@ -311,8 +311,13 @@ impl RigidBody2D {
         }
     }
 
-    /// Resolves a collision with another body using impulse-based response
-    /// and position correction.
+    /// Resolves a collision with another body using impulse-based response,
+    /// Coulomb friction, and position correction.
+    ///
+    /// Friction is resolved first and independently of the normal impulse:
+    /// a body sliding across a surface is typically *separating* along the
+    /// contact normal, so the normal-impulse early return would otherwise
+    /// skip friction entirely and the body would slide forever.
     ///
     /// # Arguments
     ///
@@ -321,18 +326,43 @@ impl RigidBody2D {
     fn resolve_collision_with(&mut self, other: &mut RigidBody2D, result: &CollisionResult) {
         let self_inverse_mass: f64 = self.get_inverse_mass();
         let other_inverse_mass: f64 = other.get_inverse_mass();
-        let relative_velocity: Vector2D = other.get_velocity() - self.get_velocity();
-        let velocity_along_normal: f64 = relative_velocity.dot(result.get_normal());
-        if velocity_along_normal > 0.0 {
-            return;
-        }
-        let restitution: f64 = self.get_restitution().min(other.get_restitution());
         let inverse_mass_sum: f64 = self_inverse_mass + other_inverse_mass;
         if inverse_mass_sum == 0.0 {
             return;
         }
-        let impulse_magnitude: f64 =
-            -(1.0 + restitution) * velocity_along_normal / inverse_mass_sum;
+        let relative_velocity: Vector2D = other.get_velocity() - self.get_velocity();
+        let velocity_along_normal: f64 = relative_velocity.dot(result.get_normal());
+        let restitution: f64 = self.get_restitution().min(other.get_restitution());
+        let impulse_magnitude: f64 = if velocity_along_normal > 0.0 {
+            0.0
+        } else {
+            -(1.0 + restitution) * velocity_along_normal / inverse_mass_sum
+        };
+        // Coulomb cone. The normal load is the penetration-driven correction
+        // impulse rather than the velocity impulse: a body sliding on a
+        // surface is *separating* along the normal (so the velocity impulse is
+        // zero) yet still carries real load through the contact, and clamping
+        // to the velocity impulse would zero out friction and let the body
+        // slide forever. Clamping to the load also keeps friction from
+        // reversing tangential motion, so a resting body settles instead of
+        // jittering.
+        let normal_load: f64 = (result.get_depth() * PHYSICS_POSITION_PERCENT / inverse_mass_sum)
+            .max(0.0)
+            + impulse_magnitude.abs();
+        let max_friction_impulse: f64 = self.get_friction().min(other.get_friction()) * normal_load;
+        let tangent_velocity: Vector2D =
+            relative_velocity - result.get_normal().scaled(velocity_along_normal);
+        let tangent_speed: f64 = tangent_velocity.magnitude();
+        if max_friction_impulse > 0.0 && tangent_speed > 0.0 {
+            let friction_impulse: Vector2D = tangent_velocity
+                .normalized()
+                .scaled(-(tangent_speed / inverse_mass_sum).min(max_friction_impulse));
+            *self.get_mut_velocity() -= friction_impulse.scaled(self_inverse_mass);
+            *other.get_mut_velocity() += friction_impulse.scaled(other_inverse_mass);
+        }
+        if velocity_along_normal > 0.0 {
+            return;
+        }
         let impulse: Vector2D = result.get_normal().scaled(impulse_magnitude);
         *self.get_mut_velocity() -= impulse.scaled(self_inverse_mass);
         *other.get_mut_velocity() += impulse.scaled(other_inverse_mass);
@@ -910,8 +940,15 @@ impl PhysicsWorld3D {
         }
     }
 
-    /// Resolves a collision between two 3D bodies using impulse-based response
-    /// and position correction.
+    /// Resolves a collision between two 3D bodies using impulse-based
+    /// response, Coulomb friction, and position correction.
+    ///
+    /// Friction is resolved first and independently of the normal impulse:
+    /// a body sliding across a surface is typically *separating* along the
+    /// contact normal, so the normal-impulse early return would otherwise
+    /// skip friction entirely and the body would slide forever. The tangent
+    /// is the in-plane projection of the relative velocity, so this is
+    /// dimension-agnostic and needs no per-axis tangent basis.
     ///
     /// # Arguments
     ///
@@ -921,18 +958,35 @@ impl PhysicsWorld3D {
     fn resolve_collision_3d(a: &mut RigidBody3D, b: &mut RigidBody3D, result: &CollisionResult3D) {
         let a_inverse_mass: f64 = a.get_inverse_mass();
         let b_inverse_mass: f64 = b.get_inverse_mass();
-        let relative_velocity: Vector3D = b.get_velocity() - a.get_velocity();
-        let velocity_along_normal: f64 = relative_velocity.dot(result.get_normal());
-        if velocity_along_normal > 0.0 {
-            return;
-        }
-        let restitution: f64 = a.get_restitution().min(b.get_restitution());
         let inverse_mass_sum: f64 = a_inverse_mass + b_inverse_mass;
         if inverse_mass_sum == 0.0 {
             return;
         }
-        let impulse_magnitude: f64 =
-            -(1.0 + restitution) * velocity_along_normal / inverse_mass_sum;
+        let relative_velocity: Vector3D = b.get_velocity() - a.get_velocity();
+        let velocity_along_normal: f64 = relative_velocity.dot(result.get_normal());
+        let restitution: f64 = a.get_restitution().min(b.get_restitution());
+        let impulse_magnitude: f64 = if velocity_along_normal > 0.0 {
+            0.0
+        } else {
+            -(1.0 + restitution) * velocity_along_normal / inverse_mass_sum
+        };
+        let normal_load: f64 = (result.get_depth() * PHYSICS_POSITION_PERCENT / inverse_mass_sum)
+            .max(0.0)
+            + impulse_magnitude.abs();
+        let max_friction_impulse: f64 = a.get_friction().min(b.get_friction()) * normal_load;
+        let tangent_velocity: Vector3D =
+            relative_velocity - result.get_normal().scaled(velocity_along_normal);
+        let tangent_speed: f64 = tangent_velocity.magnitude();
+        if max_friction_impulse > 0.0 && tangent_speed > 0.0 {
+            let friction_impulse: Vector3D = tangent_velocity
+                .normalized()
+                .scaled(-(tangent_speed / inverse_mass_sum).min(max_friction_impulse));
+            *a.get_mut_velocity() -= friction_impulse.scaled(a_inverse_mass);
+            *b.get_mut_velocity() += friction_impulse.scaled(b_inverse_mass);
+        }
+        if velocity_along_normal > 0.0 {
+            return;
+        }
         let impulse: Vector3D = result.get_normal().scaled(impulse_magnitude);
         *a.get_mut_velocity() -= impulse.scaled(a_inverse_mass);
         *b.get_mut_velocity() += impulse.scaled(b_inverse_mass);
