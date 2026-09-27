@@ -20,7 +20,7 @@ pub struct AssetEntry {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct AssetCache {
     /// All cached assets keyed by their source URL.
-    #[get(pub)]
+    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -36,11 +36,11 @@ pub struct AssetLoader {
     pub(crate) cache: Rc<EngineCell<AssetCache>>,
     /// The shared counter of loads that have been requested but have not
     /// settled yet. Read through [`AssetLoader::pending_count`].
-    #[get(pub)]
+    #[get]
     #[new(skip)]
     pub(crate) pending: AssetPending,
     /// Stored closures keeping `onload`/`onerror` callbacks alive, preventing memory leaks.
-    #[get(pub)]
+    #[get]
     #[new(skip)]
     pub(crate) closures: AssetClosures,
 }

@@ -10,27 +10,27 @@ use super::*;
 pub struct HookContextInner {
     /// Storage for hook state values (signals, etc.).
     #[debug(skip)]
-    #[get(pub)]
-    #[get_mut(pub)]
-    #[set(pub)]
+    #[get]
+    #[get_mut]
+    #[set]
     pub hooks: Vec<Box<dyn Any>>,
     /// The match arm index from the last render.
-    #[get(pub, type(copy))]
-    #[get_mut(pub)]
-    #[set(pub)]
+    #[get(type(copy))]
+    #[get_mut]
+    #[set]
     pub arm_changed: usize,
     /// Current hook index, incremented on each hook call and reset per render.
-    #[get(pub, type(copy))]
-    #[get_mut(pub)]
-    #[set(pub)]
+    #[get(type(copy))]
+    #[get_mut]
+    #[set]
     pub hook_index: usize,
     /// Cleanup closures registered by hooks (e.g., `use_signal`) that must
     /// be executed when the hook context is cleared due to a `match` arm
     /// switch.
     #[debug(skip)]
-    #[get(pub)]
-    #[get_mut(pub)]
-    #[set(pub)]
+    #[get]
+    #[get_mut]
+    #[set]
     pub cleanups: Vec<Box<dyn FnOnce()>>,
 }
 
@@ -45,9 +45,9 @@ pub struct HookContextInner {
 pub struct HookContext {
     /// Shared reference to the heap-allocated hook context inner state.
     #[debug(skip)]
-    #[get(pub)]
-    #[get_mut(pub)]
-    #[set(pub)]
+    #[get]
+    #[get_mut]
+    #[set]
     pub inner: Rc<RefCell<HookContextInner>>,
 }
 
@@ -59,7 +59,7 @@ pub struct HookContext {
 pub struct IntervalHandle {
     /// The interval ID assigned by the browser.
     #[get(type(copy))]
-    #[get_mut(pub)]
-    #[set(pub)]
+    #[get_mut]
+    #[set]
     pub(crate) interval_id: i32,
 }

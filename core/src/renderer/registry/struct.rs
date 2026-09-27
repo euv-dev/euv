@@ -43,14 +43,14 @@ pub(crate) struct SignalUpdateSlot {
     #[set(pub(crate))]
     pub(crate) callback: Option<Box<dyn FnMut()>>,
     /// Whether this slot has been marked for removal.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) removed: bool,
     /// Whether this slot has pending changes that need dispatching.
     /// Only dirty slots are invoked during dispatch, avoiding O(N)
     /// broadcast to all dynamic nodes when only one signal changed.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) dirty: bool,

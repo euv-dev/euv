@@ -15,36 +15,36 @@ pub struct SchedulerConfig {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct SchedulerState {
     /// The accumulated time waiting to be processed by fixed updates.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) accumulator: f64,
     /// The timestamp of the previous frame in seconds, or `UNINITIALIZED_TIME` before the first frame.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) last_time: f64,
     /// Whether the scheduler is currently running and scheduling animation frames.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) running: bool,
     /// The most recent `requestAnimationFrame` ID, used to cancel the next frame.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) raf_id: Option<i32>,
     /// The total number of fixed update steps executed since the scheduler started.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) update_count: u64,
     /// The total number of render frames executed since the scheduler started.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -58,14 +58,14 @@ pub struct SchedulerHandle {
     /// `UnsafeCell`-backed `Sync` newtype) so multiple closure
     /// captures can mutate it without `RefCell`'s runtime borrow
     /// check. Mirrors `core::reactive::schedule` shape.
-    #[get(pub)]
+    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) state: Rc<EngineCell<SchedulerState>>,
     /// The shared closure cell keeping the RAF callback alive. Held
     /// behind `MaybeEngineCell` because the cell is empty both
     /// before `spawn` runs and after cleanup tears the closure down.
-    #[get(pub)]
+    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) closure_cell: RafClosureCell,
@@ -91,7 +91,7 @@ pub struct TaskRegistry {
     /// The registered tasks, in registration order. `Box<dyn Updatable>`
     /// erases the concrete task type so heterogeneous tasks (a `Timer` next
     /// to a `Tween<f64>` next to a `ParticleEmitter`) coexist in one list.
-    #[get(pub)]
+    #[get]
     #[get_mut(pub(crate))]
     pub(crate) tasks: Vec<Box<dyn Updatable>>,
 }
@@ -105,6 +105,6 @@ pub struct TaskRegistry {
 #[derive(Clone, Copy, Data, Debug, New, PartialEq, PartialOrd)]
 pub struct TaskHandle {
     /// The zero-based index of the task in the registry's task list.
-    #[get(pub, type(copy))]
+    #[get(type(copy))]
     pub(crate) id: u64,
 }
