@@ -44,19 +44,32 @@ pub fn main() {
              .c_nav_footer { padding-left: 0.75rem !important; } \
              .c_euv_sidebar_children { margin-left: 8px !important; padding-left: 8px !important; } \
              \
-             .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #000) !important; border: 0 !important; box-shadow: inset 3px 0 0 0 var(--foreground, #000) !important; } \
-             .c_euv_sidebar_link_active:hover, .c_euv_sidebar_group_title_active:hover { box-shadow: none !important; } \
-             .c_theme_dark .c_euv_sidebar_link:hover, .c_theme_dark .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #fff) !important; box-shadow: inset 3px 0 0 0 var(--foreground, #fff) !important; } \
-             .c_theme_dark .c_euv_sidebar_link_active:hover, .c_theme_dark .c_euv_sidebar_group_title_active:hover { box-shadow: none !important; } \
+             .c_euv_sidebar_link, .c_euv_sidebar_group_title { position: relative !important; } \
+                         .c_euv_sidebar_link::before, .c_euv_sidebar_group_title::before { content: '' !important; position: absolute !important; top: 0 !important; bottom: 0 !important; width: 5px !important; background: transparent !important; pointer-events: none !important; } \
+                         .c_euv_sidebar_group_title::before { left: -2px !important; } \
+                         .c_euv_sidebar_link::before { left: -8px !important; } \
+                         .c_euv_sidebar_link:hover::before, .c_euv_sidebar_group_title:hover::before { background: currentColor !important; } \
+                         .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #000) !important; border: 0 !important; box-shadow: none !important; } \
+                         .c_euv_sidebar_link_active, .c_euv_sidebar_group_title_active { background: transparent !important; box-shadow: none !important; } \
+                         .c_euv_sidebar_link_active::before, .c_euv_sidebar_group_title_active::before { background: var(--accent, #000) !important; content: '' !important; position: absolute !important; width: 5px !important; top: 0 !important; bottom: 0 !important; pointer-events: none !important; left: -8px !important; } \
+                         .c_euv_sidebar_group_title_active::before { left: -2px !important; } \
+                         .c_euv_sidebar_link_active:hover, .c_euv_sidebar_group_title_active:hover { color: var(--background, #fff) !important; box-shadow: none !important; } \
+                         .c_theme_dark .c_euv_sidebar_link:hover, .c_theme_dark .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #fff) !important; box-shadow: none !important; } \
+                         .c_theme_dark .c_euv_sidebar_link_active, .c_theme_dark .c_euv_sidebar_group_title_active { background: transparent !important; box-shadow: none !important; } \
+                         .c_theme_dark .c_euv_sidebar_link_active::before, .c_theme_dark .c_euv_sidebar_group_title_active::before { background: var(--accent, #fff) !important; } \
+                         .c_theme_dark .c_euv_sidebar_link_active:hover, .c_theme_dark .c_euv_sidebar_group_title_active:hover { color: var(--background, #000) !important; box-shadow: none !important; } \
              \
              .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; min-height: auto !important; height: auto !important; width: 100% !important; } \
              .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 100vh !important; justify-content: flex-start !important; } \
              .c_euv_doc_content article.md-body { display: block !important; flex: 0 0 auto !important; min-height: 0 !important; overflow: visible !important; } \
              .c_euv_doc_content article.md-body > div { display: block !important; min-height: 0 !important; } \
              .c_euv_doc_tail { display: block !important; flex: 0 0 auto !important; } \
-             .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; position: sticky !important; top: 0 !important; align-self: flex-start !important; max-height: 100vh !important; overflow-y: auto !important; } \
-             .c_euv_toc_link_nested { padding-left: 0.75rem !important; font-size: var(--font-sm, 0.875rem) !important; color: var(--muted-foreground, #555) !important; line-height: 1.5 !important; } \
-             .c_euv_toc_link_nested:hover { color: var(--accent, #000) !important; } \
+                         .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; position: sticky !important; top: 0 !important; align-self: flex-start !important; max-height: 100vh !important; overflow-y: auto !important; } \
+                         .c_euv_toc_link_nested { padding-left: 0.75rem !important; font-size: var(--font-sm, 0.875rem) !important; color: var(--muted-foreground, #555) !important; line-height: 1.5 !important; } \
+                         .c_euv_toc_link, .c_euv_toc_link_nested { font-weight: 400 !important; } \
+                         .c_euv_toc_link:hover, .c_euv_toc_link_nested:hover { color: var(--accent, #000) !important; font-weight: 700 !important; } \
+                         .c_euv_toc_link_active, .c_euv_toc_link_nested_active { color: var(--accent, #000) !important; font-weight: 700 !important; } \
+                         .c_theme_dark .c_euv_toc_link:hover, .c_theme_dark .c_euv_toc_link_nested:hover, .c_theme_dark .c_euv_toc_link_active, .c_theme_dark .c_euv_toc_link_nested_active { color: var(--accent, #fff) !important; font-weight: 700 !important; } \
              \
              .c_euv_pagination { padding-bottom: var(--space-xl, 1.25rem) !important; gap: var(--gap-component, 1rem) !important; flex-wrap: nowrap !important; align-items: stretch !important; width: 100% !important; } \
              .c_euv_pagination_link { padding: var(--space-md, 0.75rem) !important; gap: var(--space-2xs, 0.25rem) !important; min-width: 0 !important; max-width: none !important; } \
@@ -96,5 +109,8 @@ pub fn main() {
     App::mount("#app", app);
     let _ = js_sys::eval(
         "(function(){var p=function(i){if(i.dataset.loaded)return;var m=function(){i.dataset.loaded='1';};if(i.complete&&i.naturalWidth>0){m();}else{i.addEventListener('load',m);i.addEventListener('error',m);}};var o=new MutationObserver(function(ms){ms.forEach(function(d){d.addedNodes.forEach(function(n){if(n.tagName==='IMG'){p(n);}if(n.querySelectorAll){n.querySelectorAll('img').forEach(p);}});});});o.observe(document.body,{childList:true,subtree:true});document.querySelectorAll('img').forEach(p);}());",
+    );
+    let _ = js_sys::eval(
+        "(function(){var apply=function(){var h=window.location.hash;var i=h.indexOf('#',h.indexOf('#/')+2);var anchor=i>0?h.slice(i+1):'';var links=document.querySelectorAll('.c_euv_doc_toc a, .c_euv_toc a');var best=null;var bestLen=-1;links.forEach(function(a){a.classList.remove('c_euv_toc_link_active','c_euv_toc_link_nested_active');var href=a.getAttribute('href')||'';var hashIdx=href.lastIndexOf('#');var frag=hashIdx>0?href.slice(hashIdx+1):'';if(anchor&&frag&&anchor===frag){best=a;}});if(!best){links.forEach(function(a){var href=a.getAttribute('href')||'';var hashIdx=href.lastIndexOf('#');var frag=hashIdx>0?href.slice(hashIdx+1):'';if(frag&&anchor&&anchor.indexOf(frag)===0&&frag.length>bestLen){bestLen=frag.length;best=a;}});}if(best){var isNested=best.classList.contains('c_euv_toc_link_nested');best.classList.add(isNested?'c_euv_toc_link_nested_active':'c_euv_toc_link_active');}};apply();window.addEventListener('hashchange',apply);var mo=new MutationObserver(function(){apply();});mo.observe(document.body,{childList:true,subtree:true});}());",
     );
 }
