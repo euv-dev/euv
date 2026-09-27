@@ -63,7 +63,7 @@ fn scheduler_tick_clears_edge_state_after_render() {
         CountingHandler::spawn();
     let config: SchedulerConfig = SchedulerConfig::default();
     let mut scheduler: SchedulerState = SchedulerState::default();
-    scheduler.tick(&config, &handler, Some(&cell));
+    scheduler.tick(&config, &handler, None, Some(&cell));
     let state: &InputState = cell.get();
     assert!(state.get_keys_pressed().is_empty());
     assert!(state.get_keys_released().is_empty());
@@ -89,8 +89,8 @@ fn scheduler_tick_second_frame_does_not_replay_stale_edges() {
     let config: SchedulerConfig = SchedulerConfig::default();
     let mut scheduler: SchedulerState = SchedulerState::default();
     cell.get_mut().press_key(String::from("Space"));
-    scheduler.tick(&config, &handler, Some(&cell));
-    scheduler.tick(&config, &handler, Some(&cell));
+    scheduler.tick(&config, &handler, None, Some(&cell));
+    scheduler.tick(&config, &handler, None, Some(&cell));
     let state: &InputState = cell.get();
     assert!(state.get_keys_pressed().is_empty());
     assert!(state.get_keys_held().contains("Space"));
@@ -102,8 +102,8 @@ fn scheduler_tick_without_input_cell_still_runs_both_callbacks() {
         CountingHandler::spawn();
     let config: SchedulerConfig = SchedulerConfig::default();
     let mut scheduler: SchedulerState = SchedulerState::default();
-    scheduler.tick(&config, &handler, None);
-    scheduler.tick(&config, &handler, None);
+    scheduler.tick(&config, &handler, None, None);
+    scheduler.tick(&config, &handler, None, None);
     assert!(updates.get() >= 1);
     assert_eq!(renders.get(), 2);
     assert!(scheduler.get_frame_count() >= 2);

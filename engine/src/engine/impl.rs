@@ -19,7 +19,9 @@ impl Engine {
     ///
     /// - `EngineHandle` - The new uninitialized engine handle.
     pub fn new_handle(config: EngineConfig) -> EngineHandle {
-        EngineHandle::new(config, None, None, None, None)
+        let mut handle: EngineHandle = EngineHandle::new(config, None, None, None, None);
+        handle.set_tasks(Rc::new(EngineCell::new(TaskRegistry::default())));
+        handle
     }
 
     /// Runs the engine through its complete lifecycle in a single async call.
@@ -257,7 +259,9 @@ impl EngineHandle {
     /// attached DOM listeners, the shared input state is closed out at the
     /// end of every frame so edge-triggered queries (`keys_pressed`,
     /// `keys_released`, `mouse_buttons_pressed`, `touch_started`) only
-    /// report the frame they occurred in.
+    /// report the frame they occurred in. Tasks registered through
+    /// [`EngineHandle::register_task`] are advanced once per fixed step,
+    /// immediately after the handler's `on_update` callback.
     ///
     /// # Arguments
     ///
@@ -265,11 +269,64 @@ impl EngineHandle {
     pub fn start(&mut self, handler: TickHandlerRc) {
         let scheduler_config: SchedulerConfig = self.get_config().get_scheduler();
         let input_cell: Option<&InputStateCell> = self.try_get_input_cell().as_ref();
+        let tasks: &TaskRegistryRc = self.get_tasks();
         self.set_scheduler_handle(Some(SchedulerHandle::start(
             scheduler_config,
             handler,
+            Some(tasks),
             input_cell,
         )));
+    }
+
+    /// Returns the shared task registry, for direct inspection or
+    /// registration outside [`EngineHandle::register_task`].
+    ///
+    /// # Returns
+    ///
+    /// - `&TaskRegistryRc` - The engine's task registry.
+    pub fn tasks(&self) -> &TaskRegistryRc {
+        self.get_tasks()
+    }
+
+    /// Registers a task to be advanced on every fixed step.
+    ///
+    /// The task is driven by [`SchedulerState::tick`] immediately after the
+    /// handler's `on_update` callback, with the configured
+    /// [`SchedulerConfig::get_fixed_timestep`] delta. This is the entry
+    /// point that gives `Timer`, `Tween`, `ParticleEmitter`, `Entity`,
+    /// `Animator`, `SceneManager`, and the physics worlds a heartbeat — all
+    /// of them implement [`Updatable`] but none were driven before the
+    /// registry existed.
+    ///
+    /// Registration order is preserved: tasks are updated in the order they
+    /// were registered.
+    ///
+    /// # Arguments
+    ///
+    /// - `T` - The updater to register. Must implement [`Updatable`].
+    ///
+    /// # Returns
+    ///
+    /// - `TaskHandle` - A handle used to unregister the task.
+    pub fn register_task<T>(&self, task: T) -> TaskHandle
+    where
+        T: Updatable + 'static,
+    {
+        self.get_tasks().get_mut().register(task)
+    }
+
+    /// Removes a previously registered task.
+    ///
+    /// # Arguments
+    ///
+    /// - `&TaskHandle` - The handle returned by [`EngineHandle::register_task`].
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` if a task was removed, `false` if the handle did
+    ///   not match any registered task.
+    pub fn unregister_task(&self, handle: &TaskHandle) -> bool {
+        self.get_tasks().get_mut().unregister(handle)
     }
 
     /// Stops the game loop and cancels any pending animation frame request.

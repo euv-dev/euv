@@ -25,3 +25,12 @@ pub type TickHandlerRc = Rc<EngineCell<dyn TickHandler>>;
 /// [`MaybeEngineCell::try_set`] to install, [`MaybeEngineCell::try_take`]
 /// to remove.
 pub type RafClosureCell = Rc<MaybeEngineCell<Closure<dyn FnMut()>>>;
+
+/// A reference-counted shared-mutable [`TaskRegistry`].
+///
+/// The registry is owned by the engine handle but must also be reachable
+/// from the `requestAnimationFrame` closure, which captures a clone and
+/// drives `update_all` on every fixed step. An `Rc<EngineCell<..>>` lets
+/// both owners mutate the same task list without `RefCell` borrow checks,
+/// matching `TickHandlerRc`.
+pub type TaskRegistryRc = Rc<EngineCell<TaskRegistry>>;
