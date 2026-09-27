@@ -73,7 +73,6 @@ pub struct RigidBody2D {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct PhysicsWorld2D {
     /// All rigid bodies in the world.
-    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -190,7 +189,6 @@ pub struct RigidBody3D {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct PhysicsWorld3D {
     /// All rigid bodies in the world.
-    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
