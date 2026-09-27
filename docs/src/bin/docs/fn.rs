@@ -165,6 +165,15 @@ pub fn run(args: &Args) -> Result<(), String> {
     // references under `/foo.png` etc. live in the user's source tree
     // under `public/` and need to be copied into `<out_dir>/` ourselves.
     copy_public_assets(src_dir, out_dir)?;
+    // Generate a 404.html fallback (copy of index.html) so static hosts
+    // like GitHub Pages serve the SPA shell for unknown paths instead
+    // of returning a plain 404 — the wasm router will then resolve the
+    // locale-specific route client-side.
+    let index_html: PathBuf = out_dir.join("index.html");
+    let not_found_html: PathBuf = out_dir.join("404.html");
+    if index_html.is_file() && !not_found_html.exists() {
+        std::fs::copy(&index_html, &not_found_html).map_err(|e| format!("copy 404.html: {e}"))?;
+    }
     println!("euv-docs: build complete -> {}", out_dir.display());
     Ok(())
 }
