@@ -328,9 +328,59 @@ class! {
         :focus-visible {
             outline: "none";
         }
+        // Hover: same 8% text-derived wash the dropdown items use. A plain
+        // `accent-muted` background is invisible here because it resolves to
+        // the same value as `background` in the monochrome palette.
+        :hover {
+            background: format!("color-mix(in srgb, {} 8%, transparent)", var!(foreground));
+        }
         :active {
-            background: "transparent";
+            background: format!("color-mix(in srgb, {} 12%, transparent)", var!(foreground));
             border-color: var!(border);
+        }
+    }
+
+    // Locale switcher trigger. Separate from `c_nav_theme_button` so it can
+    // carry its own open state: the dashed border becomes solid plus an
+    // inset left bar when its menu is showing, matching how the sidebar
+    // marks the current item.
+    pub c_nav_locale_button {
+        width: "100%";
+        height: "36px";
+        padding: "0px";
+        cursor: "pointer";
+        outline: "none";
+        border: format!("1px dashed {}", var!(border));
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        text-align: "center";
+        :focus-visible {
+            outline: "none";
+        }
+        :hover {
+            background: format!("color-mix(in srgb, {} 8%, transparent)", var!(foreground));
+        }
+        :active {
+            background: format!("color-mix(in srgb, {} 12%, transparent)", var!(foreground));
+        }
+    }
+
+    // Open state: solid border and a thicker inset left bar, so the trigger
+    // reads as its menu being open, the same way the sidebar marks the
+    // active item. The bar is an inset shadow — paint only, so the label
+    // never shifts. 5px (not 3px) so it reads as a deliberate marker
+    // against the 1px border rather than as a slightly soft edge.
+    pub c_nav_locale_button_open {
+        border-style: "solid";
+        background: format!("color-mix(in srgb, {} 8%, transparent)", var!(foreground));
+        box-shadow: format!("inset 5px 0 0 0 {}", var!(foreground));
+        :hover {
+            background: format!("color-mix(in srgb, {} 8%, transparent)", var!(foreground));
+            box-shadow: format!("inset 5px 0 0 0 {}", var!(foreground));
+        }
+        :active {
+            background: format!("color-mix(in srgb, {} 8%, transparent)", var!(foreground));
         }
     }
 

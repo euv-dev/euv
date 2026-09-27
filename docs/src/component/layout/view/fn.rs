@@ -387,7 +387,12 @@ fn locale_row_node(route_signal: Signal<String>, locale_menu_open: Signal<bool>)
                 items: items
                 on_select: switch_locale(route_signal, locale_menu_open)
                 button {
-                    class: c_nav_theme_button()
+                    class: c_nav_locale_button()
+                    class: if locale_menu_open.get() {
+                        c_nav_locale_button_open()
+                    } else {
+                        c_nav_locale_button()
+                    }
                     title: "语言"
                     onclick: toggle_menu(locale_menu_open)
                     {
