@@ -16,11 +16,10 @@ crate-type = ["rlib"]
 
 [dependencies]
 js-sys = { workspace = true }
-web-sys = { workspace = true }
-wasm-bindgen = { workspace = true }
 lombok-macros = { workspace = true }
+wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
-
+web-sys = { workspace = true }
 [dev-dependencies]
 wasm-bindgen = { workspace = true }
 wasm-bindgen-test = { workspace = true }
