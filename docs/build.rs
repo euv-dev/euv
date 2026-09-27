@@ -272,12 +272,15 @@ fn main() {
 
     let mut sidebars: Vec<(String, Vec<SideItem>)> = Vec::new();
     for locale in &config.locales {
-        let root: PathBuf = if locale.prefix == "/" {
-            docs_dir.clone()
+        let (root, build_locale): (PathBuf, String) = if locale.prefix == "/" {
+            (docs_dir.join("zh"), "/zh/".to_string())
         } else {
-            docs_dir.join(locale.prefix.trim_matches('/'))
+            (
+                docs_dir.join(locale.prefix.trim_matches('/')),
+                locale.prefix.clone(),
+            )
         };
-        let items: Vec<SideItem> = build_sidebar(&root, &root, &locale.prefix, &pages);
+        let items: Vec<SideItem> = build_sidebar(&root, &root, &build_locale, &pages);
         sidebars.push((locale.prefix.clone(), items));
     }
 
