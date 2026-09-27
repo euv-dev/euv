@@ -70,3 +70,41 @@ pub struct SchedulerHandle {
     #[set(pub(crate))]
     pub(crate) closure_cell: RafClosureCell,
 }
+
+/// A registry of [`Updatable`] tasks driven by the fixed-timestep scheduler.
+///
+/// The scheduler itself only knows how to run a single [`TickHandler`]; every
+/// other simulation object in the engine — `Timer`, `Tween`,
+/// `ParticleEmitter`, `Entity`, `Animator`, `SceneManager`, and the
+/// `PhysicsWorld2D` / `PhysicsWorld3D` containers — exposes its advancement
+/// through the [`Updatable`] trait instead. This registry is the driver that
+/// gives those objects a heartbeat: [`SchedulerState::tick`] calls
+/// [`TaskRegistry::update_all`] once per fixed step, immediately *after* the
+/// handler's `on_update` callback returns, so gameplay logic registered in
+/// `on_update` sees task state that has already advanced this step.
+///
+/// Tasks are updated in registration order, which makes the relative ordering
+/// of independent tasks explicit and reproducible rather than dependent on
+/// container iteration order.
+#[derive(Data, Default, New)]
+pub struct TaskRegistry {
+    /// The registered tasks, in registration order. `Box<dyn Updatable>`
+    /// erases the concrete task type so heterogeneous tasks (a `Timer` next
+    /// to a `Tween<f64>` next to a `ParticleEmitter`) coexist in one list.
+    #[get(pub)]
+    #[get_mut(pub(crate))]
+    pub(crate) tasks: Vec<Box<dyn Updatable>>,
+}
+
+/// A handle to a task registered with a [`TaskRegistry`].
+///
+/// The handle is returned by [`TaskRegistry::register`] and is the only way
+/// to remove that task later. It identifies the task by its index in the
+/// registry's insertion-ordered task list, which keeps registration and
+/// removal O(1) for the common append-then-remove-last pattern.
+#[derive(Clone, Copy, Data, Debug, New, PartialEq, PartialOrd)]
+pub struct TaskHandle {
+    /// The zero-based index of the task in the registry's task list.
+    #[get(pub, type(copy))]
+    pub(crate) id: u64,
+}

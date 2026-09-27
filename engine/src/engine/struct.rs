@@ -35,6 +35,15 @@ pub struct EngineHandle {
     /// selector did not resolve at registration time).
     #[new(skip)]
     pub(crate) input_cell: Option<InputStateCell>,
+    /// The shared task registry holding every [`Updatable`] object the
+    /// scheduler advances on each fixed step. Always present so callers can
+    /// register tasks before `start` is called.
+    #[new(skip)]
+    pub(crate) tasks: TaskRegistryRc,
+    /// The shared asset loader, present once `register_assets` has created
+    /// it, or `None` when asset loading was never requested.
+    #[new(skip)]
+    pub(crate) asset_loader: Option<AssetLoader>,
     /// The running scheduler handle, or `None` before `start` is called.
     pub(crate) scheduler_handle: Option<SchedulerHandle>,
 }
