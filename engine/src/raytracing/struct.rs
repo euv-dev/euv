@@ -68,7 +68,6 @@ pub struct RayTraceScene {
     pub(crate) occluders: Vec<Occluder>,
     /// Precomputed `(center, radius)` shadow bounding spheres, one per
     /// occluder, in the same order as `occluders`.
-    #[get(skip)]
     #[get_mut(skip)]
     #[set(skip)]
     pub(crate) shadow_points: Vec<(Vector3D, f64)>,

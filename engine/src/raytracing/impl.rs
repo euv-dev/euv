@@ -187,7 +187,7 @@ impl RayTraceScene {
         trace_bounces(
             ray,
             self.get_occluders(),
-            &self.shadow_points,
+            self.get_shadow_points(),
             lights,
             max_bounces,
         )

@@ -1,6 +1,24 @@
 use super::*;
 
 impl<T: ?Sized> NodeRef<T> {
+    /// Returns an owned clone of the shared interior cell.
+    ///
+    /// # Returns
+    ///
+    /// - `Rc<UnsafeCell<Option<JsValue>>>`: The shared interior cell.
+    fn get_inner(&self) -> Rc<UnsafeCell<Option<JsValue>>> {
+        self.inner.clone()
+    }
+
+    /// Returns a shared reference to the interior cell.
+    ///
+    /// # Returns
+    ///
+    /// - `&Rc<UnsafeCell<Option<JsValue>>>`: The interior cell reference.
+    fn get_inner_ref(&self) -> &Rc<UnsafeCell<Option<JsValue>>> {
+        &self.inner
+    }
+
     /// Creates a new empty `NodeRef`.
     ///
     /// This constructor is `pub` so that `Default::default()` and
@@ -27,7 +45,7 @@ impl<T: ?Sized> NodeRef<T> {
         // SAFETY: we never hand out `&mut Option<JsValue>`; the only mutating
         // access goes through `set` / `clear`, both of which `take` the
         // existing value first, so there is no aliasing on the inner `JsValue`.
-        let cell: *mut Option<JsValue> = self.inner.get();
+        let cell: *mut Option<JsValue> = self.get_inner_ref().get();
         unsafe { (*cell).as_ref().cloned() }
     }
 
@@ -65,7 +83,7 @@ impl<T: ?Sized> NodeRef<T> {
         // (which uses `mem::swap` under the hood), so we never hold an
         // overlapping reference. The previous `JsValue` is dropped before
         // the new one is stored.
-        let cell: *mut Option<JsValue> = self.inner.get();
+        let cell: *mut Option<JsValue> = self.get_inner_ref().get();
         unsafe {
             let _: Option<JsValue> = (*cell).replace(value);
         }
@@ -81,7 +99,7 @@ impl<T: ?Sized> NodeRef<T> {
     ///
     /// - `NodeRefEntry` - A clone of the shared interior cell.
     pub(crate) fn share_cell(&self) -> NodeRefEntry {
-        self.inner.clone()
+        self.get_inner()
     }
 
     /// Clears the currently attached element, if any.
@@ -92,7 +110,7 @@ impl<T: ?Sized> NodeRef<T> {
     ///
     /// [`get`]: NodeRef::get
     pub fn clear(&self) {
-        let cell: *mut Option<JsValue> = self.inner.get();
+        let cell: *mut Option<JsValue> = self.get_inner_ref().get();
         unsafe {
             let _: Option<JsValue> = (*cell).take();
         }
@@ -104,7 +122,7 @@ impl<T: ?Sized> NodeRef<T> {
     ///
     /// - `bool` - `true` when the value has been initialised.
     pub fn is_set(&self) -> bool {
-        let cell: *const Option<JsValue> = self.inner.get();
+        let cell: *const Option<JsValue> = self.get_inner_ref().get();
         // SAFETY: only `is_some()` is called — no `&mut`, no mutation.
         unsafe { (*cell).is_some() }
     }
@@ -126,7 +144,7 @@ impl<T: ?Sized> Clone for NodeRef<T> {
     /// Clones the [`NodeRef`] by reusing shared, cheap-to-clone state where possible.
     fn clone(&self) -> Self {
         Self {
-            inner: self.inner.clone(),
+            inner: self.get_inner(),
             _marker: PhantomData,
         }
     }

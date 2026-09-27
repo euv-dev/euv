@@ -582,7 +582,7 @@ pub struct GpuSamplerDescriptor {
 
 /// The descriptor for a single (color or depth-stencil) render pass
 /// attachment, used as input to `begin_render_pass` / `begin_render_pass_to_texture`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Getter)]
 pub struct RenderPassColorAttachment {
     /// The texture view to draw into.
     ///
@@ -607,7 +607,7 @@ pub struct RenderPassColorAttachment {
 
 /// The depth-stencil portion of a `RenderPassDescriptor`, used as input to
 /// `begin_render_pass` / `begin_render_pass_to_texture`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Getter)]
 pub struct RenderPassDepthStencilAttachment {
     /// The depth-stencil texture view to use.
     ///

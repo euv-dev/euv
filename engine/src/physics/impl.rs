@@ -399,21 +399,27 @@ impl PhysicsWorld2D {
         // a persistent `Vec<(usize, usize)>` field on `PhysicsWorld2D`. Cleared
         // at the top of each step instead of allocating a fresh `Vec` — across
         // thousands of physics steps per app run the heap churn adds up.
-        self.pair_buffer.clear();
+        self.get_mut_pair_buffer().clear();
         {
-            let (bodies, grid, query_buffer, query_seen) = (
-                &self.bodies,
-                &mut self.grid,
-                &mut self.query_buffer,
-                &mut self.query_seen,
-            );
+            let Self {
+                bodies,
+                grid,
+                query_buffer,
+                query_seen,
+                pair_buffer,
+                ..
+            } = self;
+            let bodies: &Vec<RigidBody2D> = bodies;
+            let grid: &mut SpatialHashGrid2D = grid;
+            let query_buffer: &mut Vec<usize> = query_buffer;
+            let query_seen: &mut HashSet<usize> = query_seen;
             grid.clear();
             for (index, body) in bodies.iter().enumerate() {
                 if let Some(bbox) = body.bounding_box() {
                     grid.insert(index, bbox.min(), bbox.max());
                 }
             }
-            let pairs: &mut Vec<(usize, usize)> = &mut self.pair_buffer;
+            let pairs: &mut Vec<(usize, usize)> = pair_buffer;
             for (i, body) in bodies.iter().enumerate() {
                 let Some(bbox) = body.bounding_box() else {
                     continue;
@@ -432,7 +438,7 @@ impl PhysicsWorld2D {
         // its allocation across steps instead of paying one Vec clone
         // (alloc + memcpy) per step per world. It is restored after the
         // iteration loop.
-        let pairs_snapshot: Vec<(usize, usize)> = std::mem::take(&mut self.pair_buffer);
+        let pairs_snapshot: Vec<(usize, usize)> = std::mem::take(self.get_mut_pair_buffer());
         for iteration in 0..PHYSICS_MAX_ITERATIONS {
             let mut any_collision: bool = false;
             for &(i, j) in pairs_snapshot.iter() {
@@ -452,7 +458,7 @@ impl PhysicsWorld2D {
             }
             let _: u32 = iteration;
         }
-        self.pair_buffer = pairs_snapshot;
+        self.set_pair_buffer(pairs_snapshot);
     }
 }
 
@@ -769,7 +775,7 @@ impl PhysicsWorld3D {
         // OPT 33: candidate pair list backed by `self.pair_buffer`, a persistent
         // field on `PhysicsWorld3D`. See `PhysicsWorld2D::resolve_collisions`
         // for the rationale.
-        self.pair_buffer.clear();
+        self.get_mut_pair_buffer().clear();
         // Collect bboxes first (immutable borrow of bodies) then drain the
         // spatial grid (mutable borrow). Splitting avoids the split-borrow
         // limitation that method-call-based accessors introduce.
@@ -794,13 +800,14 @@ impl PhysicsWorld3D {
                 grid,
                 query_buffer,
                 query_seen,
+                pair_buffer,
                 ..
             } = self;
             let grid: &mut SpatialHashGrid3D = grid;
             let query_buffer: &mut Vec<usize> = query_buffer;
             let query_seen: &mut HashSet<usize> = query_seen;
             grid.clear();
-            let pairs: &mut Vec<(usize, usize)> = &mut self.pair_buffer;
+            let pairs: &mut Vec<(usize, usize)> = pair_buffer;
             for (index, bbox) in bboxes.iter() {
                 grid.insert(*index, bbox.get_min(), bbox.get_max());
             }
@@ -819,7 +826,7 @@ impl PhysicsWorld3D {
         // its allocation across steps instead of paying one Vec clone
         // (alloc + memcpy) per step per world. It is restored after the
         // iteration loop.
-        let pairs_snapshot: Vec<(usize, usize)> = std::mem::take(&mut self.pair_buffer);
+        let pairs_snapshot: Vec<(usize, usize)> = std::mem::take(self.get_mut_pair_buffer());
         for iteration in 0..PHYSICS_MAX_ITERATIONS {
             let mut any_collision: bool = false;
             for &(i, j) in pairs_snapshot.iter() {
@@ -839,7 +846,7 @@ impl PhysicsWorld3D {
             }
             let _: u32 = iteration;
         }
-        self.pair_buffer = pairs_snapshot;
+        self.set_pair_buffer(pairs_snapshot);
     }
 
     /// Checks collision between two 3D bodies based on both bodies' collider shapes.

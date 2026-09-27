@@ -123,6 +123,7 @@ where
 /// stale reads return the last stored value instead of hitting a reused
 /// slot of a different type or — worse — a `mem::zeroed()` fallback for
 /// a freed slot.
+#[derive(Data)]
 pub(crate) struct SignalSlab {
     /// Slot storage. Index 0..len.
     pub(crate) entries: Vec<Box<dyn AnySignalInner>>,

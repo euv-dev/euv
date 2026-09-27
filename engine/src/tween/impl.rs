@@ -2,6 +2,150 @@ use super::*;
 
 /// Implements creation, playback control, and value sampling for `Tween`.
 impl<T: Interpolable + Copy> Tween<T> {
+    /// Returns the value at the start of the tween.
+    ///
+    /// # Returns
+    ///
+    /// - `T`: The start value.
+    pub fn get_from(&self) -> T {
+        self.from
+    }
+
+    /// Returns the value at the end of the tween.
+    ///
+    /// # Returns
+    ///
+    /// - `T`: The end value.
+    pub fn get_to(&self) -> T {
+        self.to
+    }
+
+    /// Returns the easing curve applied to the normalized time.
+    ///
+    /// # Returns
+    ///
+    /// - `Easing`: The easing curve.
+    pub fn get_easing(&self) -> Easing {
+        self.easing
+    }
+
+    /// Returns the start delay in seconds before interpolation begins.
+    ///
+    /// # Returns
+    ///
+    /// - `f64`: The delay in seconds.
+    pub fn get_delay(&self) -> f64 {
+        self.delay
+    }
+
+    /// Returns the time elapsed since creation, including the delay phase.
+    ///
+    /// # Returns
+    ///
+    /// - `f64`: The elapsed time in seconds.
+    pub fn get_elapsed(&self) -> f64 {
+        self.elapsed
+    }
+
+    /// Returns a mutable reference to the elapsed time.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut f64`: The mutable elapsed time in seconds.
+    pub fn get_elapsed_mut(&mut self) -> &mut f64 {
+        &mut self.elapsed
+    }
+
+    /// Returns what happens when the tween reaches the end of its duration.
+    ///
+    /// # Returns
+    ///
+    /// - `AnimationMode`: The completion mode.
+    pub fn get_mode(&self) -> AnimationMode {
+        self.mode
+    }
+
+    /// Returns the current playback direction for ping-pong mode.
+    ///
+    /// # Returns
+    ///
+    /// - `f64`: The playback direction (1.0 = forward, -1.0 = backward).
+    pub fn get_direction(&self) -> f64 {
+        self.direction
+    }
+
+    /// Returns a reference to the optional completion callback slot.
+    ///
+    /// # Returns
+    ///
+    /// - `&Option<Rc<dyn Fn()>>`: The completion callback slot.
+    pub fn try_get_on_complete(&self) -> &Option<Rc<dyn Fn()>> {
+        &self.on_complete
+    }
+
+    /// Sets the easing curve applied to the normalized time.
+    ///
+    /// # Arguments
+    ///
+    /// - `Easing`: The easing curve to apply.
+    pub fn set_easing(&mut self, easing: Easing) {
+        self.easing = easing;
+    }
+
+    /// Sets the start delay in seconds before interpolation begins.
+    ///
+    /// # Arguments
+    ///
+    /// - `f64`: The delay in seconds.
+    pub fn set_delay(&mut self, delay: f64) {
+        self.delay = delay;
+    }
+
+    /// Sets the time elapsed since creation.
+    ///
+    /// # Arguments
+    ///
+    /// - `f64`: The elapsed time in seconds.
+    pub fn set_elapsed(&mut self, elapsed: f64) {
+        self.elapsed = elapsed;
+    }
+
+    /// Sets the current playback state.
+    ///
+    /// # Arguments
+    ///
+    /// - `TweenState`: The new playback state.
+    pub fn set_state(&mut self, state: TweenState) {
+        self.state = state;
+    }
+
+    /// Sets what happens when the tween reaches the end of its duration.
+    ///
+    /// # Arguments
+    ///
+    /// - `AnimationMode`: The completion mode.
+    pub fn set_mode(&mut self, mode: AnimationMode) {
+        self.mode = mode;
+    }
+
+    /// Sets the current playback direction for ping-pong mode.
+    ///
+    /// # Arguments
+    ///
+    /// - `f64`: The playback direction (1.0 = forward, -1.0 = backward).
+    pub fn set_direction(&mut self, direction: f64) {
+        self.direction = direction;
+    }
+
+    /// Sets the optional completion callback.
+    ///
+    /// # Arguments
+    ///
+    /// - `Option<Rc<dyn Fn()>>`: The completion callback.
+    pub fn set_on_complete(&mut self, on_complete: Option<Rc<dyn Fn()>>) {
+        self.on_complete = on_complete;
+    }
+
     /// Creates a new linear tween from `from` to `to` over `duration` seconds.
     ///
     /// The tween starts in the `Delayed` state only when a delay is later
@@ -41,7 +185,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// - `Tween<T>` - The tween, for chaining.
     pub fn with_easing(mut self, easing: Easing) -> Tween<T> {
-        self.easing = easing;
+        self.set_easing(easing);
         self
     }
 
@@ -56,9 +200,12 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// - `Tween<T>` - The tween, for chaining.
     pub fn with_delay(mut self, delay: f64) -> Tween<T> {
-        self.delay = delay.max(0.0);
-        if self.delay > 0.0 && self.state == TweenState::Running && self.elapsed == 0.0 {
-            self.state = TweenState::Delayed;
+        self.set_delay(delay.max(0.0));
+        if self.get_delay() > 0.0
+            && self.get_state() == TweenState::Running
+            && self.get_elapsed() == 0.0
+        {
+            self.set_state(TweenState::Delayed);
         }
         self
     }
@@ -74,7 +221,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// - `Tween<T>` - The tween, for chaining.
     pub fn with_mode(mut self, mode: AnimationMode) -> Tween<T> {
-        self.mode = mode;
+        self.set_mode(mode);
         self
     }
 
@@ -89,7 +236,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// - `Tween<T>` - The tween, for chaining.
     pub fn with_on_complete(mut self, on_complete: Rc<dyn Fn()>) -> Tween<T> {
-        self.on_complete = Some(on_complete);
+        self.set_on_complete(Some(on_complete));
         self
     }
 
@@ -106,18 +253,18 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// - `T: Interpolable + Copy` - The current interpolated value.
     pub fn update(&mut self, delta_time: f64) -> T {
-        if self.state == TweenState::Paused || self.state == TweenState::Finished {
+        if self.get_state() == TweenState::Paused || self.get_state() == TweenState::Finished {
             return self.value();
         }
-        self.elapsed += delta_time.max(0.0);
-        if self.state == TweenState::Delayed {
-            if self.elapsed < self.delay {
-                return self.from;
+        *self.get_elapsed_mut() += delta_time.max(0.0);
+        if self.get_state() == TweenState::Delayed {
+            if self.get_elapsed() < self.get_delay() {
+                return self.get_from();
             }
-            self.state = TweenState::Running;
+            self.set_state(TweenState::Running);
         }
-        let active_elapsed: f64 = self.elapsed - self.delay;
-        if self.duration <= 0.0 || active_elapsed >= self.duration {
+        let active_elapsed: f64 = self.get_elapsed() - self.get_delay();
+        if self.get_duration() <= 0.0 || active_elapsed >= self.get_duration() {
             self.complete_cycle(active_elapsed);
         }
         self.value()
@@ -130,10 +277,10 @@ impl<T: Interpolable + Copy> Tween<T> {
     /// - `T: Interpolable + Copy` - The current eased value.
     pub fn value(&self) -> T {
         let progress: f64 = self.eased_progress();
-        if self.direction == TWEEN_DIRECTION_BACKWARD {
-            return self.from.lerp(self.to, 1.0 - progress);
+        if self.get_direction() == TWEEN_DIRECTION_BACKWARD {
+            return self.get_from().lerp(self.get_to(), 1.0 - progress);
         }
-        self.from.lerp(self.to, progress)
+        self.get_from().lerp(self.get_to(), progress)
     }
 
     /// Returns the eased progress of the current cycle in the range 0.0 to 1.0.
@@ -142,12 +289,12 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// - `f64` - The eased progress.
     pub fn eased_progress(&self) -> f64 {
-        if self.duration <= 0.0 {
+        if self.get_duration() <= 0.0 {
             return 1.0;
         }
-        let active_elapsed: f64 = (self.elapsed - self.delay).max(0.0);
-        let raw: f64 = (active_elapsed / self.duration).min(1.0);
-        self.easing.evaluate(raw)
+        let active_elapsed: f64 = (self.get_elapsed() - self.get_delay()).max(0.0);
+        let raw: f64 = (active_elapsed / self.get_duration()).min(1.0);
+        self.get_easing().evaluate(raw)
     }
 
     /// Returns the raw (uneased) progress of the current cycle.
@@ -156,39 +303,39 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// - `f64` - The raw progress in the range 0.0 to 1.0.
     pub fn raw_progress(&self) -> f64 {
-        if self.duration <= 0.0 {
+        if self.get_duration() <= 0.0 {
             return 1.0;
         }
-        ((self.elapsed - self.delay).max(0.0) / self.duration).min(1.0)
+        ((self.get_elapsed() - self.get_delay()).max(0.0) / self.get_duration()).min(1.0)
     }
 
     /// Pauses the tween.
     pub fn pause(&mut self) {
-        if self.state == TweenState::Running || self.state == TweenState::Delayed {
-            self.state = TweenState::Paused;
+        if self.get_state() == TweenState::Running || self.get_state() == TweenState::Delayed {
+            self.set_state(TweenState::Paused);
         }
     }
 
     /// Resumes a paused tween.
     pub fn resume(&mut self) {
-        if self.state == TweenState::Paused {
-            if self.elapsed < self.delay {
-                self.state = TweenState::Delayed;
+        if self.get_state() == TweenState::Paused {
+            if self.get_elapsed() < self.get_delay() {
+                self.set_state(TweenState::Delayed);
             } else {
-                self.state = TweenState::Running;
+                self.set_state(TweenState::Running);
             }
         }
     }
 
     /// Resets the tween to its initial state so it can be replayed.
     pub fn reset(&mut self) {
-        self.elapsed = 0.0;
-        self.direction = TWEEN_DIRECTION_FORWARD;
-        self.state = if self.delay > 0.0 {
+        self.set_elapsed(0.0);
+        self.set_direction(TWEEN_DIRECTION_FORWARD);
+        self.set_state(if self.get_delay() > 0.0 {
             TweenState::Delayed
         } else {
             TweenState::Running
-        };
+        });
     }
 
     /// Returns whether the tween has finished (`AnimationMode::Once` only).
@@ -197,7 +344,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// - `bool` - True if the tween is finished.
     pub fn is_finished(&self) -> bool {
-        self.state == TweenState::Finished
+        self.get_state() == TweenState::Finished
     }
 
     /// Returns the current playback state.
@@ -224,25 +371,25 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// - `f64` - The active (post-delay) elapsed time at completion.
     fn complete_cycle(&mut self, active_elapsed: f64) {
-        let overflow: f64 = if self.duration > 0.0 {
-            active_elapsed % self.duration
+        let overflow: f64 = if self.get_duration() > 0.0 {
+            active_elapsed % self.get_duration()
         } else {
             0.0
         };
-        match self.mode {
+        match self.get_mode() {
             AnimationMode::Once => {
-                self.elapsed = self.delay + self.duration;
-                self.state = TweenState::Finished;
+                self.set_elapsed(self.get_delay() + self.get_duration());
+                self.set_state(TweenState::Finished);
             }
             AnimationMode::Loop => {
-                self.elapsed = self.delay + overflow;
+                self.set_elapsed(self.get_delay() + overflow);
             }
             AnimationMode::PingPong => {
-                self.elapsed = self.delay + overflow;
-                self.direction = -self.direction;
+                self.set_elapsed(self.get_delay() + overflow);
+                self.set_direction(-self.get_direction());
             }
         }
-        if let Some(on_complete) = &self.on_complete {
+        if let Some(on_complete) = self.try_get_on_complete() {
             on_complete();
         }
     }
@@ -270,16 +417,16 @@ impl<T: Interpolable + Copy> Clone for Tween<T> {
     /// - `Tween<T>` - A clone that shares the same underlying storage where applicable.
     fn clone(&self) -> Tween<T> {
         Tween {
-            from: self.from,
-            to: self.to,
-            duration: self.duration,
-            easing: self.easing,
-            delay: self.delay,
-            elapsed: self.elapsed,
-            state: self.state,
-            mode: self.mode,
-            direction: self.direction,
-            on_complete: self.on_complete.clone(),
+            from: self.get_from(),
+            to: self.get_to(),
+            duration: self.get_duration(),
+            easing: self.get_easing(),
+            delay: self.get_delay(),
+            elapsed: self.get_elapsed(),
+            state: self.get_state(),
+            mode: self.get_mode(),
+            direction: self.get_direction(),
+            on_complete: self.try_get_on_complete().clone(),
         }
     }
 }

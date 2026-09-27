@@ -24,7 +24,7 @@ impl<T: Clone + PartialEq + Default + 'static> ThrottledValue<T> {
     /// - `u64` - The current time in milliseconds (any monotonic
     ///   source; on the web use `performance.now()`).
     pub fn set(&self, next: T, now_ms: u64) {
-        if self.interval_ms == 0 {
+        if *self.get_interval_ms() == 0 {
             self.get_value().set(next);
             self.get_pending().set(None);
             self.get_state().set(ThrottleState::Idle);
@@ -64,7 +64,7 @@ impl<T: Clone + PartialEq + Default + 'static> ThrottledValue<T> {
         match self.get_state().get() {
             ThrottleState::Idle => false,
             ThrottleState::Cooldown(start) => {
-                if now_ms.saturating_sub(start) < u64::from(self.interval_ms) {
+                if now_ms.saturating_sub(start) < u64::from(*self.get_interval_ms()) {
                     return false;
                 }
                 let committed: bool = match self.get_pending().get() {

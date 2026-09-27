@@ -9,9 +9,10 @@ use super::*;
 ///
 /// The pointer must have been allocated via `Box::into_raw`. Only one
 /// `OwnedPtr` should exist per allocation (no aliasing ownership).
-#[derive(Debug)]
+#[derive(Debug, Getter)]
 pub(crate) struct OwnedPtr<T> {
     /// The raw pointer owned by this wrapper.
+    #[get(type(copy))]
     pub(crate) ptr: *mut T,
 }
 

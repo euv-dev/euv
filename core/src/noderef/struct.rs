@@ -21,6 +21,14 @@ use super::*;
 /// is visible through every other clone.
 ///
 /// [`get_cloned`]: NodeRef::get_cloned
+///
+/// ## Why hand-written accessors
+///
+/// Lombok's `Data` derive is intentionally **not** applied here: the derive
+/// does not support `?Sized` type parameters, so `NodeRef<T: ?Sized>` falls
+/// back to the §17.11 hand-written accessor pair (`get_inner` /
+/// `get_inner_ref`), which follows the same naming contract as the
+/// Lombok-generated ones.
 pub struct NodeRef<T: ?Sized> {
     /// Shared interior mutability cell holding the (optional) raw DOM
     /// element as a `JsValue`.

@@ -18,15 +18,6 @@ impl<T> OwnedPtr<T> {
     pub(crate) fn new(pointer: *mut T) -> Self {
         Self { ptr: pointer }
     }
-
-    /// Returns the raw pointer for direct access.
-    ///
-    /// # Returns
-    ///
-    /// - `*mut T` - The wrapped raw pointer.
-    pub(crate) fn get(&self) -> *mut T {
-        self.ptr
-    }
 }
 
 /// Implementation of `Drop` for `OwnedPtr`.
@@ -42,9 +33,9 @@ impl<T> Drop for OwnedPtr<T> {
     /// This is safe because `OwnedPtr` is only used in single-threaded WASM
     /// contexts, and the pointer is always valid as long as the `OwnedPtr` exists.
     fn drop(&mut self) {
-        if !self.ptr.is_null() {
+        if !self.get_ptr().is_null() {
             unsafe {
-                let _: Box<T> = Box::from_raw(self.ptr);
+                let _: Box<T> = Box::from_raw(self.get_ptr());
             }
         }
     }
@@ -1255,7 +1246,7 @@ impl Renderer {
                 return;
             }
             hook_context.reset_index();
-            let prev_arm: usize = unsafe { (*state_owned.get()).last_arm };
+            let prev_arm: usize = unsafe { (*state_owned.get_ptr()).last_arm };
             CURRENT_TRACKING_DYNAMIC_ID.store(dynamic_id, Ordering::Relaxed);
             let new_vnode: VirtualNode = HookContext::with(hook_context.clone(), || {
                 let inner: &mut RenderFnInner = unsafe { &mut *render_fn_rc.get() };
@@ -1268,23 +1259,24 @@ impl Renderer {
                 .unwrap_or_default();
             let arm_switched: bool = prev_arm != current_arm;
             unsafe {
-                (*state_owned.get()).last_arm = current_arm;
+                (*state_owned.get_ptr()).last_arm = current_arm;
             }
             if skip_equal && !arm_switched {
-                let renderer_ref: &Renderer = unsafe { &(*state_owned.get()).renderer };
+                let renderer_ref: &Renderer = unsafe { &(*state_owned.get_ptr()).renderer };
                 if let Some(old_vnode) = renderer_ref.try_get_current_tree() {
                     let new_unwrapped: VirtualNode = Self::unwrap_component_owned(new_vnode);
                     if Self::visual_eq(old_vnode, &new_unwrapped) {
                         CURRENT_TRACKING_DYNAMIC_ID.store(usize::MAX, Ordering::Relaxed);
                         return;
                     }
-                    let renderer_mut: &mut Renderer = unsafe { &mut (*state_owned.get()).renderer };
+                    let renderer_mut: &mut Renderer =
+                        unsafe { &mut (*state_owned.get_ptr()).renderer };
                     renderer_mut.render(new_unwrapped);
                     CURRENT_TRACKING_DYNAMIC_ID.store(usize::MAX, Ordering::Relaxed);
                     return;
                 }
             }
-            let renderer_mut: &mut Renderer = unsafe { &mut (*state_owned.get()).renderer };
+            let renderer_mut: &mut Renderer = unsafe { &mut (*state_owned.get_ptr()).renderer };
             if arm_switched {
                 renderer_mut.render_full_replace(new_vnode);
             } else {

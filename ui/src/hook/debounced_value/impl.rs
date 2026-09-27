@@ -42,7 +42,7 @@ impl<T: Clone + PartialEq + Default + 'static> DebouncedValue<T> {
         match self.get_state().get() {
             DebounceState::Idle => false,
             DebounceState::Pending(set_at, _) => {
-                if now_ms.saturating_sub(set_at) >= u64::from(self.delay_ms) {
+                if now_ms.saturating_sub(set_at) >= u64::from(*self.get_delay_ms()) {
                     let pending: T = match self.get_state().get() {
                         DebounceState::Pending(_, value) => value,
                         DebounceState::Idle => unreachable!(),

@@ -3526,6 +3526,7 @@ class! {
             padding: format!("0px {}", var!(padding-main-horizontal-mobile));
         }
     }
+
     pub c_euv_navbar_brand {
         display: "flex";
         align-items: "center";
@@ -3537,6 +3538,7 @@ class! {
         cursor: "pointer";
         flex-shrink: "0";
     }
+
     pub c_euv_navbar_logo {
         width: "32px";
         height: "32px";
@@ -3548,6 +3550,7 @@ class! {
         font-size: var!(font-lg);
         flex-shrink: "0";
     }
+
     pub c_euv_navbar_links {
         display: "flex";
         align-items: "center";
@@ -3557,6 +3560,7 @@ class! {
             display: "none";
         }
     }
+
     pub c_euv_navbar_link {
         font-size: var!(font-sm);
         font-weight: "500";
@@ -3568,6 +3572,7 @@ class! {
             color: var!(accent);
         }
     }
+
     pub c_euv_navbar_link_active {
         font-size: var!(font-sm);
         font-weight: "600";
@@ -3576,6 +3581,7 @@ class! {
         border-bottom: format!("2px solid {}", var!(accent));
         cursor: "pointer";
     }
+
     pub c_euv_navbar_actions {
         display: "flex";
         align-items: "center";
@@ -3585,6 +3591,7 @@ class! {
             margin-left: "auto";
         }
     }
+
     pub c_euv_navbar_icon_button {
         width: "36px";
         height: "36px";
@@ -3598,6 +3605,7 @@ class! {
             background: var!(accent-muted);
         }
     }
+
     pub c_euv_navbar_menu_button {
         display: "none";
         width: "40px";
@@ -3611,6 +3619,7 @@ class! {
             display: "flex";
         }
     }
+
     pub c_euv_navbar_menu_button_active {
         display: "none";
         width: "40px";
@@ -3633,6 +3642,7 @@ class! {
     pub c_euv_dropdown {
         position: "relative";
     }
+
     pub c_euv_dropdown_menu {
         position: "absolute";
         top: "44px";
@@ -3655,12 +3665,15 @@ class! {
         flex-direction: "column";
         z-index: "101";
     }
+
     pub c_euv_dropdown_menu_open {
         display: "flex";
     }
+
     pub c_euv_dropdown_menu_closed {
         display: "none";
     }
+
     pub c_euv_dropdown_item {
         padding: format!("{} {}", var!(space-sm), var!(space-lg));
         font-size: var!(font-sm);
@@ -3678,6 +3691,7 @@ class! {
     pub c_euv_sidebar_group {
         margin-bottom: var!(space-xs);
     }
+
     pub c_euv_sidebar_group_title {
         display: "flex";
         align-items: "center";
@@ -3701,25 +3715,30 @@ class! {
             box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
         }
     }
+
     pub c_euv_sidebar_group_title_active {
         background: var!(accent);
         color: var!(text-on-accent);
         font-weight: "600";
         :hover {
-            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
+            box-shadow: "none";
         }
     }
+
     pub c_euv_sidebar_group_arrow {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
         transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
     }
+
     pub c_euv_sidebar_group_arrow_open {
         transform: "rotate(90deg)";
     }
+
     pub c_euv_sidebar_group_arrow_active {
         color: var!(text-on-accent);
     }
+
     pub c_euv_sidebar_children {
         display: "flex";
         flex-direction: "column";
@@ -3735,6 +3754,7 @@ class! {
         border-left: format!("1px dashed {}", var!(border));
         animation: format!("euv-fade-in {} {}", var!(duration-normal), var!(ease-out));
     }
+
     pub c_euv_sidebar_link {
         display: "block";
         padding: format!("{} {}", var!(space-md), var!(space-md));
@@ -3755,6 +3775,7 @@ class! {
             box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
         }
     }
+
     pub c_euv_sidebar_link_active {
         display: "block";
         padding: format!("{} {}", var!(space-md), var!(space-md));
@@ -3763,8 +3784,14 @@ class! {
         color: var!(text-on-accent);
         font-weight: "600";
         cursor: "pointer";
+        // Active link: when the cursor is over it, the accent background
+        // must dominate. Drop the inset bar entirely so the accent fill
+        // carries the visual weight; on dark accent, an inset bar in the
+        // foreground color is invisible and only competes for the eye's
+        // focus. The accent fill + bold text already announce "you are
+        // here".
         :hover {
-            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
+            box-shadow: "none";
         }
     }
 
@@ -3784,6 +3811,7 @@ class! {
         border-left: format!("1px solid {}", var!(border));
         padding-left: var!(space-lg);
     }
+
     pub c_euv_toc_title {
         font-size: var!(font-xs);
         font-weight: "700";
@@ -3792,6 +3820,7 @@ class! {
         color: var!(muted-foreground);
         margin-bottom: var!(space-xs);
     }
+
     pub c_euv_toc_link {
         font-size: var!(font-sm);
         color: var!(muted-foreground);
@@ -3801,6 +3830,7 @@ class! {
             color: var!(accent);
         }
     }
+
     pub c_euv_toc_link_nested {
         c_euv_toc_link();
         padding-left: var!(space-lg);
@@ -3832,6 +3862,7 @@ class! {
             grid-template-columns: "minmax(0, 1fr)";
         }
     }
+
     pub c_euv_pagination_link {
         // `min-width: 0` lets long labels ellipsize on the desktop row
         // layout. `overflow: hidden` is required to actually apply ellipsis
@@ -3848,12 +3879,14 @@ class! {
             border-color: var!(accent);
         }
     }
+
     pub c_euv_pagination_label {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
         text-transform: "uppercase";
         letter-spacing: "0.08em";
     }
+
     pub c_euv_pagination_text {
         font-size: var!(font-base);
         font-weight: "600";
@@ -3868,9 +3901,11 @@ class! {
         text-overflow: "ellipsis";
         min-width: "0px";
     }
+
     pub c_euv_pagination_next {
         text-align: "right";
     }
+
     pub c_euv_pagination_spacer {
         flex: "1";
     }
@@ -3889,14 +3924,17 @@ class! {
         z-index: "200";
         transition: format!("opacity {} {}, visibility {} {}", var!(duration-overlay), var!(ease-out), var!(duration-overlay), var!(ease-out));
     }
+
     pub c_euv_drawer_overlay_open {
         opacity: "1";
         visibility: "visible";
     }
+
     pub c_euv_drawer_overlay_closed {
         opacity: "0";
         visibility: "hidden";
     }
+
     pub c_euv_drawer {
         position: "fixed";
         top: "0px";
@@ -3910,10 +3948,12 @@ class! {
         padding: var!(space-xl);
         transition: format!("transform {} {}, visibility {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
     }
+
     pub c_euv_drawer_open {
         transform: "translateX(0px)";
         visibility: "visible";
     }
+
     pub c_euv_drawer_closed {
         transform: "translateX(-100%)";
         visibility: "hidden";
@@ -3927,6 +3967,7 @@ class! {
         width: "100%";
         min-width: "0px";
     }
+
     pub c_euv_footer {
         // Footer sits at the natural end of the article column. The user
         // reaches it by scrolling to the bottom of the article — no sticky
@@ -3962,21 +4003,25 @@ class! {
         padding: format!("{} {}", var!(space-4xl), var!(space-md));
         min-height: "50vh";
     }
+
     pub c_euv_result_code {
         font-size: var!(font-6xl);
         font-weight: "700";
         line-height: "1";
         letter-spacing: "-0.02em";
     }
+
     pub c_euv_result_title {
         font-size: var!(font-2xl);
         font-weight: "600";
         margin: "0px";
     }
+
     pub c_euv_result_description {
         color: var!(muted-foreground);
         margin: "0px";
     }
+
     pub c_euv_result_actions {
         display: "flex";
         gap: var!(space-md);
@@ -3991,6 +4036,7 @@ class! {
         max-width: "1080px";
         margin: "0px auto";
     }
+
     pub c_euv_doc_content {
         // Two parallel children — the article body and the
         // `c_euv_doc_tail` wrapper (pagination + footer). The flex column
@@ -4013,6 +4059,7 @@ class! {
         justify-content: "space-between";
         min-height: "100vh";
     }
+
     pub c_euv_doc_tail {
         // Plain block wrapper that groups pagination + footer into one
         // flex child. With `display: contents` the wrapper would be
@@ -4021,6 +4068,7 @@ class! {
         // contract that `justify-content: space-between` relies on.
         display: "block";
     }
+
     pub c_euv_doc_toc {
         width: "200px";
         flex-shrink: "0";
