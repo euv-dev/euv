@@ -408,7 +408,7 @@ pub enum BindGroupEntryType {
 /// `setBindGroup` / `end`), producing a swallowed TypeError and a silently
 /// skipped GPU call.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum GpuReceiverClass {
+pub enum GpuReceiverClass {
     /// `GPUDevice` (immortal, renderer-owned).
     Device,
     /// `GPUQueue` (immortal, renderer-owned).

@@ -13,38 +13,38 @@ pub struct SchedulerConfig {
 
 /// The runtime state of a scheduler instance.
 #[derive(Clone, Data, Debug, New, PartialEq)]
-pub(crate) struct SchedulerState {
+pub struct SchedulerState {
     /// The accumulated time waiting to be processed by fixed updates.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) accumulator: f64,
     /// The timestamp of the previous frame in seconds, or `UNINITIALIZED_TIME` before the first frame.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) last_time: f64,
     /// Whether the scheduler is currently running and scheduling animation frames.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) running: bool,
     /// The most recent `requestAnimationFrame` ID, used to cancel the next frame.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) raf_id: Option<i32>,
     /// The total number of fixed update steps executed since the scheduler started.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) update_count: u64,
     /// The total number of render frames executed since the scheduler started.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -58,14 +58,14 @@ pub struct SchedulerHandle {
     /// `UnsafeCell`-backed `Sync` newtype) so multiple closure
     /// captures can mutate it without `RefCell`'s runtime borrow
     /// check. Mirrors `core::reactive::schedule` shape.
-    #[get(pub(crate))]
+    #[get(pub)]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) state: Rc<EngineCell<SchedulerState>>,
     /// The shared closure cell keeping the RAF callback alive. Held
     /// behind `MaybeEngineCell` because the cell is empty both
     /// before `spawn` runs and after cleanup tears the closure down.
-    #[get(pub(crate))]
+    #[get(pub)]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) closure_cell: RafClosureCell,
