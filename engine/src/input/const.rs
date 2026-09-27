@@ -28,3 +28,20 @@ pub(crate) const INPUT_EVENT_TOUCHEND: &str = "touchend";
 /// The DOM event name for the context menu, suppressed on the pointer target
 /// so right-click reaches the engine instead of opening the browser menu.
 pub(crate) const INPUT_EVENT_CONTEXTMENU: &str = "contextmenu";
+
+/// The DOM event name for gamepad connect events, bound to `window`.
+pub(crate) const INPUT_EVENT_GAMEPADCONNECTED: &str = "gamepadconnected";
+
+/// The DOM event name for gamepad disconnect events, bound to `window`.
+pub(crate) const INPUT_EVENT_GAMEPADDISCONNECTED: &str = "gamepaddisconnected";
+
+/// The magnitude below which a raw analog axis reading is reported as
+/// centered. Analog sticks rest a few percent off zero, so readings
+/// strictly inside `[-DEADZONE, +DEADZONE]` would otherwise leak a
+/// constant drift into gameplay.
+pub(crate) const INPUT_GAMEPAD_AXIS_DEADZONE: f64 = 0.15;
+
+/// The button pressure at or above which a button counts as down. Half
+/// keeps a digital button reporting `1.0` and an analog trigger
+/// crossing its midpoint agreeing on the same edge.
+pub(crate) const GAMEPAD_BUTTON_PRESS_THRESHOLD: f64 = 0.5;

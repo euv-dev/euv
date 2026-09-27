@@ -487,3 +487,527 @@ impl Default for InputState {
         InputState::new()
     }
 }
+
+/// Implements the per-pad query surface on `GamepadState`.
+impl GamepadState {
+    /// Reads one analog axis with the deadzone applied.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The axis index to read.
+    ///
+    /// # Returns
+    ///
+    /// - `f64` - The deadzone-corrected reading, or `0.0` when the pad
+    ///   has no such axis.
+    pub fn axis(&self, axis: u32) -> f64 {
+        apply_axis_deadzone(read_raw_axis(self.get_axes(), axis))
+    }
+
+    /// Reads one button's raw pressure without any deadzone.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The button index to read.
+    ///
+    /// # Returns
+    ///
+    /// - `f64` - The pressure in `[0.0, 1.0]`, or `0.0` when the pad
+    ///   has no such button.
+    pub fn button_value(&self, button: u32) -> f64 {
+        read_raw_axis(self.get_button_values(), button)
+    }
+
+    /// Tests whether a button went down on this frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The button index to check.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True if the button was pressed this frame.
+    pub fn is_button_pressed(&self, button: u32) -> bool {
+        self.get_buttons_pressed().contains(&button)
+    }
+
+    /// Tests whether a button is currently held down.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The button index to check.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True if the button is held.
+    pub fn is_button_held(&self, button: u32) -> bool {
+        self.get_buttons_held().contains(&button)
+    }
+
+    /// Tests whether a button came up on this frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The button index to check.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True if the button was released this frame.
+    pub fn is_button_released(&self, button: u32) -> bool {
+        self.get_buttons_released().contains(&button)
+    }
+
+    /// Resolves a button's current state into the enum form.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The button index to check.
+    ///
+    /// # Returns
+    ///
+    /// - `InputAction` - The edge state of the button, `Pressed` taking
+    ///   precedence over `Released` when a connect and a release land on
+    ///   the same frame.
+    pub fn button_action(&self, button: u32) -> InputAction {
+        if self.is_button_pressed(button) {
+            return InputAction::Pressed;
+        }
+        if self.is_button_released(button) {
+            return InputAction::Released;
+        }
+        if self.is_button_held(button) {
+            return InputAction::Held;
+        }
+        InputAction::Idle
+    }
+
+    /// Tests whether a direction pair reads as a positive deflection.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The index of the axis to read.
+    /// - `f64` - The deflection that counts as a press.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True if the corrected axis reading reaches
+    ///   `threshold`.
+    pub fn axis_pressed(&self, axis: u32, threshold: f64) -> bool {
+        self.axis(axis) >= threshold
+    }
+
+    /// Clears this frame's per-frame data, keeping the held set.
+    ///
+    /// Mirrors [`InputState::end_frame`]: the pressed and released
+    /// sets are per-frame and are dropped, while the held set survives
+    /// so a button that is still down stays held on the next frame.
+    pub fn end_frame(&mut self) {
+        self.get_mut_buttons_pressed().clear();
+        self.get_mut_buttons_released().clear();
+    }
+}
+
+/// Implements the manager query surface on `GamepadManager`.
+impl GamepadManager {
+    /// Looks up the state of one gamepad by index.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The browser-assigned gamepad index.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&GamepadState>` - The stored state, or `None` when
+    ///   this index has never been seen.
+    pub fn state(&self, index: u32) -> Option<&GamepadState> {
+        self.get_states().get(&index)
+    }
+
+    /// Looks up the state of one gamepad by index, mutably.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The browser-assigned gamepad index.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&mut GamepadState>` - The stored state, or `None` when
+    ///   this index has never been seen.
+    pub fn state_mut(&mut self, index: u32) -> Option<&mut GamepadState> {
+        self.get_mut_states().get_mut(&index)
+    }
+
+    /// Tests whether a gamepad index is currently connected.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The browser-assigned gamepad index.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True if the pad is connected.
+    pub fn is_connected(&self, index: u32) -> bool {
+        self.state(index).map(|pad: &GamepadState| pad.get_connected()) == Some(true)
+    }
+
+    /// Reads one analog axis of one gamepad with the deadzone applied.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The browser-assigned gamepad index.
+    /// - `u32` - The axis index to read.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<f64>` - The deadzone-corrected reading, or `None` when
+    ///   the index is unknown.
+    pub fn axis(&self, index: u32, axis: u32) -> Option<f64> {
+        self.state(index).map(|pad: &GamepadState| pad.axis(axis))
+    }
+
+    /// Reads one button's raw pressure on one gamepad.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The browser-assigned gamepad index.
+    /// - `u32` - The button index to read.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<f64>` - The pressure, or `None` when the index is
+    ///   unknown.
+    pub fn button_value(&self, index: u32, button: u32) -> Option<f64> {
+        self.state(index).map(|pad: &GamepadState| pad.button_value(button))
+    }
+
+    /// Tests whether a button on one gamepad went down on this frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The browser-assigned gamepad index.
+    /// - `u32` - The button index to check.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True if the button was pressed this frame, false
+    ///   when the index is unknown.
+    pub fn is_button_pressed(&self, index: u32, button: u32) -> bool {
+        self.state(index)
+            .map(|pad: &GamepadState| pad.is_button_pressed(button))
+            == Some(true)
+    }
+
+    /// Tests whether a button on one gamepad is currently held down.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The browser-assigned gamepad index.
+    /// - `u32` - The button index to check.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True if the button is held, false when the index is
+    ///   unknown.
+    pub fn is_button_held(&self, index: u32, button: u32) -> bool {
+        self.state(index)
+            .map(|pad: &GamepadState| pad.is_button_held(button))
+            == Some(true)
+    }
+
+    /// Tests whether a button on one gamepad came up on this frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The browser-assigned gamepad index.
+    /// - `u32` - The button index to check.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True if the button was released this frame, false
+    ///   when the index is unknown.
+    pub fn is_button_released(&self, index: u32, button: u32) -> bool {
+        self.state(index)
+            .map(|pad: &GamepadState| pad.is_button_released(button))
+            == Some(true)
+    }
+
+    /// Resolves a button's current state on one gamepad into enum form.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The browser-assigned gamepad index.
+    /// - `u32` - The button index to check.
+    ///
+    /// # Returns
+    ///
+    /// - `InputAction` - The edge state, `Idle` when the index is
+    ///   unknown.
+    pub fn button_action(&self, index: u32, button: u32) -> InputAction {
+        self.state(index)
+            .map(|pad: &GamepadState| pad.button_action(button))
+            .unwrap_or_default()
+    }
+
+    /// Counts the gamepads that are currently connected.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - The number of connected gamepads.
+    pub fn connected_count(&self) -> usize {
+        self.get_states()
+            .values()
+            .filter(|pad: &&GamepadState| pad.get_connected())
+            .count()
+    }
+
+    /// Clears every pad's per-frame data and the manager's edge sets.
+    ///
+    /// Mirrors [`InputState::end_frame`]: pressed and released are
+    /// per-frame and are dropped, while held sets and the connected
+    /// flags survive.
+    pub fn end_frame(&mut self) {
+        for pad in self.get_mut_states().values_mut() {
+            pad.end_frame();
+        }
+        self.get_mut_connected().clear();
+        self.get_mut_disconnected().clear();
+    }
+}
+
+/// Implements the DOM wiring layer on `GamepadManager`.
+///
+/// The Gamepad API is a polling API: the browser only mutates
+/// `navigator.get_gamepads()` snapshots and never emits per-button
+/// events, so button edges must be derived by diffing one frame's
+/// snapshot against the last. The two connect / disconnect events are
+/// still bound so a device that appears or vanishes between two polls
+/// is reflected in `connected` / `disconnected` on the same frame
+/// rather than one frame late; a poll alone would also detect both, so
+/// the events are a latency optimisation and the poll is the
+/// authority.
+impl GamepadManager {
+    /// Re-reads every gamepad from the DOM and recomputes this
+    /// frame's button edges.
+    ///
+    /// A pad that the browser no longer lists is marked disconnected
+    /// and its edge sets flushed, so a yanked controller cannot keep
+    /// reporting held buttons forever.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Window` - The global window, used to reach `navigator`.
+    pub fn poll(&mut self, window: &Window) {
+        let pads: Array = match Self::read_gamepads(window) {
+            Ok(pads) => pads,
+            Err(_) => return,
+        };
+        let length: u32 = pads.length();
+        // Phase 1: fold every live pad into the stored state.
+        let mut live: GamepadIndexSet = GamepadIndexSet::new();
+        for slot in 0..length {
+            let value: JsValue = pads.get(slot);
+            if value.is_null() || value.is_undefined() {
+                continue;
+            }
+            let pad: &Gamepad = value.unchecked_ref();
+            let index: u32 = pad.index();
+            live.insert(index);
+            self.sync_pad(index, pad);
+        }
+        // Phase 2: flush every pad the browser stopped listing.
+        let stale: Vec<u32> = self
+            .get_states()
+            .keys()
+            .filter(|index: &&u32| !live.contains(index))
+            .map(|index: &u32| *index)
+            .collect();
+        for index in stale {
+            self.release_pad(index);
+        }
+    }
+
+    /// Attaches the gamepad listeners and returns the shared cell.
+    ///
+    /// # Arguments
+    ///
+    /// - `GamepadManagerCell` - The shared manager to mutate.
+    /// - `&Window` - The global window, receiving the connect and
+    ///   disconnect events.
+    ///
+    /// # Returns
+    ///
+    /// - `GamepadManagerCell` - The same cell passed in, for
+    ///   convenient chaining.
+    pub fn attach(
+        manager_cell: GamepadManagerCell,
+        window: &Window,
+    ) -> GamepadManagerCell {
+        Self::attach_gamepad(&manager_cell, window);
+        manager_cell
+    }
+
+    /// Binds the connect / disconnect listeners to `window`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&GamepadManagerCell` - The shared gamepad manager.
+    /// - `&Window` - The global window.
+    pub fn attach_gamepad(manager_cell: &GamepadManagerCell, window: &Window) {
+        let cell_connected: GamepadManagerCell = manager_cell.clone();
+        let connected_closure: Closure<dyn FnMut(Event)> =
+            Closure::wrap(Box::new(move |event: Event| {
+                let pad: Gamepad = event.unchecked_ref::<GamepadEvent>().gamepad().unwrap();
+                let manager: &mut GamepadManager = cell_connected.get_mut();
+                manager.sync_pad(pad.index(), &pad);
+                manager.get_mut_connected().insert(pad.index());
+            }));
+        Self::register_listener(window, INPUT_EVENT_GAMEPADCONNECTED, connected_closure);
+        let cell_disconnected: GamepadManagerCell = manager_cell.clone();
+        let disconnected_closure: Closure<dyn FnMut(Event)> =
+            Closure::wrap(Box::new(move |event: Event| {
+                let pad: Gamepad = event.unchecked_ref::<GamepadEvent>().gamepad().unwrap();
+                let index: u32 = pad.index();
+                let manager: &mut GamepadManager = cell_disconnected.get_mut();
+                manager.release_pad(index);
+            }));
+        Self::register_listener(
+            window,
+            INPUT_EVENT_GAMEPADDISCONNECTED,
+            disconnected_closure,
+        );
+    }
+
+    /// Registers a closure on the target and leaks it for the
+    /// document's lifetime.
+    ///
+    /// # Arguments
+    ///
+    /// - `&EventTarget` - The DOM target to listen on.
+    /// - `&str` - The DOM event name.
+    /// - `Closure<dyn FnMut(Event)>` - The handler to register.
+    fn register_listener(
+        target: &EventTarget,
+        event_name: &str,
+        closure: Closure<dyn FnMut(Event)>,
+    ) {
+        let _: Result<(), JsValue> =
+            target.add_event_listener_with_callback(event_name, closure.as_ref().unchecked_ref());
+        closure.forget();
+    }
+
+    /// Reads the browser's gamepad snapshot, mapping a thrown error
+    /// onto `None` so a sandboxed document degrades to "no gamepads".
+    ///
+    /// # Arguments
+    ///
+    /// - `&Window` - The global window, used to reach `navigator`.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<Array, JsValue>` - The snapshot, or the thrown value.
+    fn read_gamepads(window: &Window) -> Result<Array, JsValue> {
+        window.navigator().get_gamepads()
+    }
+
+    /// Folds one pad's raw DOM reading into its stored state,
+    /// computing this frame's button edges from the previous frame's
+    /// held set.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The browser-assigned gamepad index.
+    /// - `&Gamepad` - The live pad to read.
+    fn sync_pad(&mut self, index: u32, pad: &Gamepad) {
+        let axes: Vec<f64> = Self::extract_axis_values(&pad.axes());
+        let values: Vec<f64> = Self::extract_button_values(&pad.buttons());
+        let previous_held: GamepadButtonSet = self
+            .state(index)
+            .map(|state: &GamepadState| state.get_buttons_held().clone())
+            .unwrap_or_default();
+        let pressed: GamepadButtonSet = compute_pressed_buttons(&previous_held, &values);
+        let released: GamepadButtonSet = compute_released_buttons(&previous_held, &values);
+        let held: GamepadButtonSet = compute_held_buttons(&values);
+        let id: String = pad.id();
+        self.get_mut_states().entry(index).or_default();
+        let Some(state) = self.state_mut(index) else {
+            return;
+        };
+        state.set_connected(true);
+        state.set_id(id);
+        state.set_axes(axes);
+        state.set_button_values(values);
+        *state.get_mut_buttons_pressed() = pressed;
+        *state.get_mut_buttons_released() = released;
+        *state.get_mut_buttons_held() = held;
+    }
+
+    /// Marks a pad as disconnected and releases every held button.
+    ///
+    /// A yanked controller stops appearing in the browser snapshot
+    /// while its buttons are still physically down, so the held set
+    /// is flushed and the flush is reported as a release: that is what
+    /// stops a character from running forever after the pad is
+    /// unplugged.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The browser-assigned gamepad index.
+    fn release_pad(&mut self, index: u32) {
+        let was_connected: bool = self.is_connected(index);
+        let held: GamepadButtonSet = self
+            .state(index)
+            .map(|state: &GamepadState| state.get_buttons_held().clone())
+            .unwrap_or_default();
+        if let Some(state) = self.state_mut(index) {
+            state.set_connected(false);
+            *state.get_mut_buttons_pressed() = GamepadButtonSet::new();
+            *state.get_mut_buttons_released() = held;
+            state.get_mut_buttons_held().clear();
+        }
+        if was_connected {
+            self.get_mut_disconnected().insert(index);
+        }
+    }
+
+    /// Extracts the analog readings out of a `Gamepad.axes` list.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Array` - The live DOM `axes` list.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<f64>` - The readings, one per axis.
+    fn extract_axis_values(axes: &Array) -> Vec<f64> {
+        let length: u32 = axes.length();
+        let mut out: Vec<f64> = Vec::with_capacity(length as usize);
+        for index in 0..length {
+            let value: JsValue = axes.get(index);
+            out.push(value.as_f64().unwrap_or(0.0));
+        }
+        out
+    }
+
+    /// Extracts the pressures out of a `Gamepad.buttons` list.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Array` - The live DOM `buttons` list.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<f64>` - The pressures, one per button.
+    fn extract_button_values(buttons: &Array) -> Vec<f64> {
+        let length: u32 = buttons.length();
+        let mut out: Vec<f64> = Vec::with_capacity(length as usize);
+        for index in 0..length {
+            let value: JsValue = buttons.get(index);
+            if value.is_null() || value.is_undefined() {
+                out.push(0.0);
+                continue;
+            }
+            out.push(value.unchecked_ref::<GamepadButton>().value());
+        }
+        out
+    }
+}
