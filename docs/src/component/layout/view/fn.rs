@@ -12,44 +12,46 @@ use super::*;
 ///
 /// - `VirtualNode` - The root virtual DOM tree.
 pub(crate) fn app() -> VirtualNode {
-    let route_signal: Signal<String> = App::use_signal(Router::current_route);
-    let drawer_open: Signal<bool> = App::use_signal(|| false);
-    let locale_menu_open: Signal<bool> = App::use_signal(|| false);
-    let collapsed: Signal<Vec<String>> = App::use_signal(Vec::new);
-    let mobile_signal: Signal<bool> = UseEuvLayout::use_resize();
-    UseEuvLayout::use_safe_area_fix();
-    let theme_state: ThemeState = ThemeState::use_theme_state(mobile_signal);
-    let theme_signal: Signal<String> = theme_state.get_theme();
-    let root_class_signal: Signal<String> = theme_state.get_root_class();
-    Router::use_hash_change(route_signal);
-    Router::use_overlay_history(drawer_open, mobile_signal);
-    use_anchor_scroll(route_signal);
-    use_sidebar_reveal(route_signal, collapsed, drawer_open);
-    html! {
-        div {
-            key: locale_of(&parse_route(&route_signal.get()).0).prefix
-            style: "display: contents"
-            if { mobile_signal.get() } {
-                docs_mobile_shell {
-                    route_signal
-                    theme_signal
-                    root_class_signal
-                    drawer_open
-                    locale_menu_open
-                    collapsed
-                }
-            } else {
-                docs_desktop_shell {
-                    route_signal
-                    theme_signal
-                    root_class_signal
-                    drawer_open
-                    locale_menu_open
-                    collapsed
+    VirtualNode::create_dynamic(move |_hook_context: &mut euv::HookContext| {
+        let route_signal: Signal<String> = App::use_signal(Router::current_route);
+        let drawer_open: Signal<bool> = App::use_signal(|| false);
+        let locale_menu_open: Signal<bool> = App::use_signal(|| false);
+        let collapsed: Signal<Vec<String>> = App::use_signal(Vec::new);
+        let mobile_signal: Signal<bool> = UseEuvLayout::use_resize();
+        UseEuvLayout::use_safe_area_fix();
+        let theme_state: ThemeState = ThemeState::use_theme_state(mobile_signal);
+        let theme_signal: Signal<String> = theme_state.get_theme();
+        let root_class_signal: Signal<String> = theme_state.get_root_class();
+        Router::use_hash_change(route_signal);
+        Router::use_overlay_history(drawer_open, mobile_signal);
+        use_anchor_scroll(route_signal);
+        use_sidebar_reveal(route_signal, collapsed, drawer_open);
+        html! {
+            div {
+                key: locale_of(&parse_route(&route_signal.get()).0).prefix
+                style: "display: contents"
+                if { mobile_signal.get() } {
+                    docs_mobile_shell {
+                        route_signal
+                        theme_signal
+                        root_class_signal
+                        drawer_open
+                        locale_menu_open
+                        collapsed
+                    }
+                } else {
+                    docs_desktop_shell {
+                        route_signal
+                        theme_signal
+                        root_class_signal
+                        drawer_open
+                        locale_menu_open
+                        collapsed
+                    }
                 }
             }
         }
-    }
+    })
 }
 
 /// Renders the desktop shell: the example's left nav column (brand header,
