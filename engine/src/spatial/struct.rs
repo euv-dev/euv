@@ -81,7 +81,6 @@ pub struct QuadTreeNode2D {
     #[get(type(copy))]
     pub(crate) depth: usize,
     /// The child node handles, all unset until the node subdivides.
-    #[get]
     #[set(pub(crate))]
     pub(crate) children: QuadTreeChildren2D,
     /// A flag that is `true` once the node owns four valid child handles.
@@ -101,7 +100,6 @@ pub struct QuadTreeNode2D {
     pub(crate) loose: bool,
     /// The entries stored directly in this node, including any body that is
     /// too large for, or straddles the boundary of, a single child region.
-    #[get]
     pub(crate) entries: QuadTreeEntryList2D,
 }
 
@@ -122,7 +120,6 @@ pub struct QuadTreeNode2D {
 #[derive(Clone, Data, Debug, PartialEq)]
 pub struct QuadTree2D {
     /// The arena of all live nodes; node 0 is always the root.
-    #[get]
     pub(crate) nodes: QuadTreeNodeList2D,
     /// The number of entries a node may hold before subdividing.
     #[get(type(copy))]

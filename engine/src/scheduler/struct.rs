@@ -58,14 +58,12 @@ pub struct SchedulerHandle {
     /// `UnsafeCell`-backed `Sync` newtype) so multiple closure
     /// captures can mutate it without `RefCell`'s runtime borrow
     /// check. Mirrors `core::reactive::schedule` shape.
-    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) state: Rc<EngineCell<SchedulerState>>,
     /// The shared closure cell keeping the RAF callback alive. Held
     /// behind `MaybeEngineCell` because the cell is empty both
     /// before `spawn` runs and after cleanup tears the closure down.
-    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) closure_cell: RafClosureCell,
@@ -91,7 +89,6 @@ pub struct TaskRegistry {
     /// The registered tasks, in registration order. `Box<dyn Updatable>`
     /// erases the concrete task type so heterogeneous tasks (a `Timer` next
     /// to a `Tween<f64>` next to a `ParticleEmitter`) coexist in one list.
-    #[get]
     #[get_mut(pub(crate))]
     pub(crate) tasks: Vec<Box<dyn Updatable>>,
 }

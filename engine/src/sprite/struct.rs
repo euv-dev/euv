@@ -172,7 +172,6 @@ pub struct UvRect {
 #[derive(Clone, Data, Debug, Default, New, PartialEq)]
 pub struct AtlasRegions {
     /// The named source rectangles keyed by sprite name.
-    #[get]
     #[get_mut(pub(crate))]
     pub(crate) regions: HashMap<String, Rect>,
 }

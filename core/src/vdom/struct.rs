@@ -17,7 +17,6 @@ use super::*;
 #[derive(Clone, Data, Debug, Default, Eq, Hash, New, PartialEq)]
 pub struct RawHtml {
     /// The unescaped HTML content.
-    #[get]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) content: String,
