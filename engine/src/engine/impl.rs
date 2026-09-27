@@ -253,14 +253,23 @@ impl EngineHandle {
     ///
     /// The scheduler configuration from `EngineConfig` controls the fixed
     /// timestep and maximum frame time. The scheduler handle is stored
-    /// internally and can be stopped via `stop`.
+    /// internally and can be stopped via `stop`. If `register_input` has
+    /// attached DOM listeners, the shared input state is closed out at the
+    /// end of every frame so edge-triggered queries (`keys_pressed`,
+    /// `keys_released`, `mouse_buttons_pressed`, `touch_started`) only
+    /// report the frame they occurred in.
     ///
     /// # Arguments
     ///
     /// - `TickHandlerRc` - The tick handler receiving update and render callbacks.
     pub fn start(&mut self, handler: TickHandlerRc) {
         let scheduler_config: SchedulerConfig = self.get_config().get_scheduler();
-        self.set_scheduler_handle(Some(SchedulerHandle::start(scheduler_config, handler)));
+        let input_cell: Option<&InputStateCell> = self.try_get_input_cell().as_ref();
+        self.set_scheduler_handle(Some(SchedulerHandle::start(
+            scheduler_config,
+            handler,
+            input_cell,
+        )));
     }
 
     /// Stops the game loop and cancels any pending animation frame request.

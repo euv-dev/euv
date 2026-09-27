@@ -40,6 +40,9 @@ impl SchedulerState {
     ///
     /// - `f64` - The current time in seconds, or `0.0` when unavailable.
     pub fn current_time() -> f64 {
+        if !cfg!(target_arch = "wasm32") {
+            return 0.0;
+        }
         thread_local! {
             static PERFORMANCE_NOW: RefCell<Option<(JsValue, Function)>> =
                 const { RefCell::new(None) };
@@ -79,13 +82,22 @@ impl SchedulerState {
     ///
     /// Calculates the elapsed frame time, clamps it to `max_frame_time`, accumulates it,
     /// then runs as many fixed updates as needed. Finally, computes the interpolation
-    /// factor and calls the render callback.
+    /// factor and calls the render callback. When an input cell is supplied, its
+    /// per-frame edge state is cleared after the render callback so the next frame
+    /// observes only the edges that happened during that frame.
     ///
     /// # Arguments
     ///
     /// - `&SchedulerConfig` - The scheduler configuration.
     /// - `&TickHandlerRc` - The handler receiving update and render callbacks.
-    pub fn tick(&mut self, config: &SchedulerConfig, handler: &TickHandlerRc) {
+    /// - `Option<&InputStateCell>` - The shared input state to close out, or `None`
+    ///   when no input listeners are registered.
+    pub fn tick(
+        &mut self,
+        config: &SchedulerConfig,
+        handler: &TickHandlerRc,
+        input_cell: Option<&InputStateCell>,
+    ) {
         let current_time: f64 = Self::current_time();
         let frame_time: f64 = if self.get_last_time() == UNINITIALIZED_TIME {
             config.get_fixed_timestep()
@@ -103,6 +115,9 @@ impl SchedulerState {
         let interpolation: f64 = self.get_accumulator() / config.get_fixed_timestep();
         handler.get_mut().on_render(interpolation);
         *self.get_mut_frame_count() += 1;
+        if let Some(cell) = input_cell {
+            cell.get_mut().end_frame();
+        }
     }
 }
 
@@ -165,11 +180,18 @@ impl SchedulerHandle {
     ///
     /// - `SchedulerConfig` - The scheduler configuration.
     /// - `TickHandlerRc` - The handler receiving update and render callbacks.
+    /// - `Option<&InputStateCell>` - The shared input state whose per-frame edge
+    ///   state is cleared at the end of every frame, or `None` when input
+    ///   listeners are not registered.
     ///
     /// # Returns
     ///
     /// - `SchedulerHandle` - A handle to control the running scheduler.
-    pub fn start(config: SchedulerConfig, handler: TickHandlerRc) -> SchedulerHandle {
+    pub fn start(
+        config: SchedulerConfig,
+        handler: TickHandlerRc,
+        input_cell: Option<&InputStateCell>,
+    ) -> SchedulerHandle {
         let state: Rc<EngineCell<SchedulerState>> =
             Rc::new(EngineCell::new(SchedulerState::new(UNINITIALIZED_TIME)));
         let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
@@ -179,13 +201,14 @@ impl SchedulerHandle {
         let state_clone: Rc<EngineCell<SchedulerState>> = state.clone();
         let closure_cell_clone: RafClosureCell = closure_cell.clone();
         let handler_clone: TickHandlerRc = handler.clone();
+        let input_cell_clone: Option<InputStateCell> = input_cell.map(Rc::clone);
         let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
             {
                 let state_ref: &mut SchedulerState = state_clone.get_mut();
                 if !state_ref.get_running() {
                     return;
                 }
-                state_ref.tick(&config, &handler_clone);
+                state_ref.tick(&config, &handler_clone, input_cell_clone.as_ref());
             }
             let state_ro: &SchedulerState = state_clone.get();
             if state_ro.get_running() {
