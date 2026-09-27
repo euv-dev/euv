@@ -1,5 +1,4 @@
 use super::*;
-use std::fmt::{Debug, Formatter};
 
 /// Implementation of `Parse` for `HtmlRoot`, parsing zero or more HTML nodes.
 impl Parse for HtmlRoot {

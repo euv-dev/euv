@@ -41,6 +41,7 @@ pub use std::{
     fmt::{self, Debug, Display, Formatter, Write},
     future::{Future, Ready, ready},
     mem::{self, replace},
+    sync::LazyLock,
 };
 
 use euv::*;

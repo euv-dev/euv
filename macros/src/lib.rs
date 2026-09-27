@@ -19,6 +19,9 @@ mod watch;
 
 pub(crate) use {class::*, computed::*, html::*, ident::*, raw_html::*, var::*, watch::*};
 
+pub(crate) use proc_macro2::TokenTree;
+pub(crate) use std::fmt::{Debug, Formatter};
+
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
     env::{self, VarError},
@@ -36,7 +39,7 @@ use std::{
 use {
     lombok_macros::*,
     proc_macro::TokenStream,
-    proc_macro2::{Span, TokenTree},
+    proc_macro2::Span,
     quote::{ToTokens, quote, quote_spanned},
     syn::{
         Attribute, Block, Expr, Field, File, Generics, Ident, Item, LitStr, Path, Stmt, Token,

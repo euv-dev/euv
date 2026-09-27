@@ -1,5 +1,4 @@
 use super::*;
-use std::cell::RefCell;
 
 thread_local! {
     /// Cache of the `BarcodeDetector#detect` `Function`. There is at

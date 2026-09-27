@@ -1,5 +1,4 @@
 use super::*;
-use lombok_macros::{CustomDebug, Data, New};
 
 /// One parsed CLI invocation.
 #[derive(Clone, CustomDebug, Data, Eq, New, PartialEq)]
