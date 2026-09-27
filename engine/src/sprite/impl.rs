@@ -340,3 +340,562 @@ impl Default for Animator {
         Animator::create()
     }
 }
+
+/// Implements named access over the three-by-three nine-slice grid.
+///
+/// The index constants live in this module's `const.rs`; each accessor
+/// maps a grid position to a self-documenting name so call sites and
+/// assert messages read as geometry rather than as `(row, column)` pairs.
+impl NineSliceRects {
+    /// Returns the top-left corner sub-rectangle.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - The top-left corner patch.
+    pub fn get_top_left(&self) -> Rect {
+        self.get_grid()[NINE_SLICE_ROW_TOP][NINE_SLICE_COL_LEFT]
+    }
+
+    /// Returns the top edge sub-rectangle.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - The top edge patch.
+    pub fn get_top(&self) -> Rect {
+        self.get_grid()[NINE_SLICE_ROW_TOP][NINE_SLICE_COL_CENTER]
+    }
+
+    /// Returns the top-right corner sub-rectangle.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - The top-right corner patch.
+    pub fn get_top_right(&self) -> Rect {
+        self.get_grid()[NINE_SLICE_ROW_TOP][NINE_SLICE_COL_RIGHT]
+    }
+
+    /// Returns the left edge sub-rectangle.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - The left edge patch.
+    pub fn get_left(&self) -> Rect {
+        self.get_grid()[NINE_SLICE_ROW_MIDDLE][NINE_SLICE_COL_LEFT]
+    }
+
+    /// Returns the stretchable center sub-rectangle.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - The center patch.
+    pub fn get_center(&self) -> Rect {
+        self.get_grid()[NINE_SLICE_ROW_MIDDLE][NINE_SLICE_COL_CENTER]
+    }
+
+    /// Returns the right edge sub-rectangle.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - The right edge patch.
+    pub fn get_right(&self) -> Rect {
+        self.get_grid()[NINE_SLICE_ROW_MIDDLE][NINE_SLICE_COL_RIGHT]
+    }
+
+    /// Returns the bottom-left corner sub-rectangle.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - The bottom-left corner patch.
+    pub fn get_bottom_left(&self) -> Rect {
+        self.get_grid()[NINE_SLICE_ROW_BOTTOM][NINE_SLICE_COL_LEFT]
+    }
+
+    /// Returns the bottom edge sub-rectangle.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - The bottom edge patch.
+    pub fn get_bottom(&self) -> Rect {
+        self.get_grid()[NINE_SLICE_ROW_BOTTOM][NINE_SLICE_COL_CENTER]
+    }
+
+    /// Returns the bottom-right corner sub-rectangle.
+    ///
+    /// # Returns
+    ///
+    /// - `Rect` - The bottom-right corner patch.
+    pub fn get_bottom_right(&self) -> Rect {
+        self.get_grid()[NINE_SLICE_ROW_BOTTOM][NINE_SLICE_COL_RIGHT]
+    }
+
+    /// Returns the nine patches as a flat slice in reading order.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<Rect>` - The nine patches, top row first then middle then bottom.
+    pub fn to_vec(&self) -> Vec<Rect> {
+        let grid: [[Rect; 3]; 3] = self.get_grid();
+        vec![
+            grid[NINE_SLICE_ROW_TOP][NINE_SLICE_COL_LEFT],
+            grid[NINE_SLICE_ROW_TOP][NINE_SLICE_COL_CENTER],
+            grid[NINE_SLICE_ROW_TOP][NINE_SLICE_COL_RIGHT],
+            grid[NINE_SLICE_ROW_MIDDLE][NINE_SLICE_COL_LEFT],
+            grid[NINE_SLICE_ROW_MIDDLE][NINE_SLICE_COL_CENTER],
+            grid[NINE_SLICE_ROW_MIDDLE][NINE_SLICE_COL_RIGHT],
+            grid[NINE_SLICE_ROW_BOTTOM][NINE_SLICE_COL_LEFT],
+            grid[NINE_SLICE_ROW_BOTTOM][NINE_SLICE_COL_CENTER],
+            grid[NINE_SLICE_ROW_BOTTOM][NINE_SLICE_COL_RIGHT],
+        ]
+    }
+}
+
+/// Implements the nine-slice geometry math for `NineSliceInsets`.
+///
+/// All methods here are pure functions of the insets and the rectangle
+/// being split: no canvas context, no image handle, no DOM. That is what
+/// makes the split verifiable on the host, and it is the same math
+/// [`NineSlice::draw_into`] and [`NineSlice::record`] reuse.
+impl NineSliceInsets {
+    /// Splits a source rectangle into its nine sub-rectangles.
+    ///
+    /// The insets are clamped against the source size so the nine results
+    /// always tile the source exactly: the two horizontal insets share the
+    /// available width and the two vertical insets share the available
+    /// height, with the center taking whatever remains.
+    ///
+    /// # Arguments
+    ///
+    /// - `Rect` - The full source rectangle to split.
+    ///
+    /// # Returns
+    ///
+    /// - `NineSliceRects` - The nine source sub-rectangles in reading order.
+    pub fn source_rects(&self, source: Rect) -> NineSliceRects {
+        let width: f64 = Numeric::clamp(source.get_width(), 0.0, f64::MAX);
+        let height: f64 = Numeric::clamp(source.get_height(), 0.0, f64::MAX);
+        let left: f64 = Numeric::clamp(self.get_left(), 0.0, width);
+        let right: f64 = Numeric::clamp(self.get_right(), 0.0, width - left);
+        let top: f64 = Numeric::clamp(self.get_top(), 0.0, height);
+        let bottom: f64 = Numeric::clamp(self.get_bottom(), 0.0, height - top);
+        let center_x: f64 = source.get_x() + left;
+        let center_y: f64 = source.get_y() + top;
+        let center_width: f64 = width - left - right;
+        let center_height: f64 = height - top - bottom;
+        let right_x: f64 = center_x + center_width;
+        let bottom_y: f64 = center_y + center_height;
+        NineSliceRects::new([
+            [
+                Rect::new(source.get_x(), source.get_y(), left, top),
+                Rect::new(center_x, source.get_y(), center_width, top),
+                Rect::new(right_x, source.get_y(), right, top),
+            ],
+            [
+                Rect::new(source.get_x(), center_y, left, center_height),
+                Rect::new(center_x, center_y, center_width, center_height),
+                Rect::new(right_x, center_y, right, center_height),
+            ],
+            [
+                Rect::new(source.get_x(), bottom_y, left, bottom),
+                Rect::new(center_x, bottom_y, center_width, bottom),
+                Rect::new(right_x, bottom_y, right, bottom),
+            ],
+        ])
+    }
+
+    /// Splits a destination rectangle into its nine sub-rectangles.
+    ///
+    /// Corners and edges keep their natural pixel size taken from the
+    /// insets, and the center absorbs all remaining destination space, so
+    /// the nine results tile the destination exactly. When the
+    /// destination is smaller than the combined borders the center
+    /// collapses to zero width and/or height instead of going negative.
+    ///
+    /// # Arguments
+    ///
+    /// - `Rect` - The full destination rectangle to split.
+    ///
+    /// # Returns
+    ///
+    /// - `NineSliceRects` - The nine destination sub-rectangles in reading order.
+    pub fn dest_rects(&self, dest: Rect) -> NineSliceRects {
+        let left: f64 = Numeric::clamp(self.get_left(), 0.0, f64::MAX);
+        let right: f64 = Numeric::clamp(self.get_right(), 0.0, f64::MAX);
+        let top: f64 = Numeric::clamp(self.get_top(), 0.0, f64::MAX);
+        let bottom: f64 = Numeric::clamp(self.get_bottom(), 0.0, f64::MAX);
+        let left_edge: f64 = Numeric::clamp(left, 0.0, dest.get_width());
+        let right_edge: f64 = Numeric::clamp(right, 0.0, dest.get_width() - left_edge);
+        let top_edge: f64 = Numeric::clamp(top, 0.0, dest.get_height());
+        let bottom_edge: f64 = Numeric::clamp(bottom, 0.0, dest.get_height() - top_edge);
+        let center_x: f64 = dest.get_x() + left_edge;
+        let center_y: f64 = dest.get_y() + top_edge;
+        let center_width: f64 = dest.get_width() - left_edge - right_edge;
+        let center_height: f64 = dest.get_height() - top_edge - bottom_edge;
+        let right_x: f64 = center_x + center_width;
+        let bottom_y: f64 = center_y + center_height;
+        NineSliceRects::new([
+            [
+                Rect::new(dest.get_x(), dest.get_y(), left_edge, top_edge),
+                Rect::new(center_x, dest.get_y(), center_width, top_edge),
+                Rect::new(right_x, dest.get_y(), right_edge, top_edge),
+            ],
+            [
+                Rect::new(dest.get_x(), center_y, left_edge, center_height),
+                Rect::new(center_x, center_y, center_width, center_height),
+                Rect::new(right_x, center_y, right_edge, center_height),
+            ],
+            [
+                Rect::new(dest.get_x(), bottom_y, left_edge, bottom_edge),
+                Rect::new(center_x, bottom_y, center_width, bottom_edge),
+                Rect::new(right_x, bottom_y, right_edge, bottom_edge),
+            ],
+        ])
+    }
+}
+
+/// Implements image-backed nine-slice drawing and deferred recording.
+impl NineSlice {
+    /// Creates a nine-slice from an image and uniform border insets.
+    ///
+    /// # Arguments
+    ///
+    /// - `HtmlImageElement` - The source image containing the nine patches.
+    /// - `f64` - The border inset applied to all four edges, in source pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `NineSlice` - The new nine-slice.
+    pub fn from_image(image: HtmlImageElement, border: f64) -> NineSlice {
+        NineSlice::new(image, NineSliceInsets::new(border, border, border, border))
+    }
+
+    /// Returns the nine source sub-rectangles for the whole source image.
+    ///
+    /// # Returns
+    ///
+    /// - `NineSliceRects` - The nine source sub-rectangles in reading order.
+    pub fn source_rects(&self) -> NineSliceRects {
+        let image: &HtmlImageElement = &self.get_image();
+        let source: Rect = Rect::new(0.0, 0.0, image.width() as f64, image.height() as f64);
+        self.get_insets().source_rects(source)
+    }
+
+    /// Returns the nine destination sub-rectangles for a destination rect.
+    ///
+    /// # Arguments
+    ///
+    /// - `Rect` - The destination rectangle to split.
+    ///
+    /// # Returns
+    ///
+    /// - `NineSliceRects` - The nine destination sub-rectangles in reading order.
+    pub fn dest_rects(&self, dest: Rect) -> NineSliceRects {
+        self.get_insets().dest_rects(dest)
+    }
+
+    /// Draws the nine-slice into a destination rectangle immediately.
+    ///
+    /// Issues nine `drawImage` calls against the canvas context, pairing
+    /// each source patch with its destination sub-rectangle. Uses the
+    /// canvas transform already in effect, so the caller controls world
+    /// positioning, rotation and scale.
+    ///
+    /// # Arguments
+    ///
+    /// - `&CanvasRenderingContext2d` - The canvas context.
+    /// - `Rect` - The destination rectangle in current canvas space.
+    pub fn draw_into(&self, context: &CanvasRenderingContext2d, dest: Rect) {
+        let sources: Vec<Rect> = self.source_rects().to_vec();
+        let dests: Vec<Rect> = self.dest_rects(dest).to_vec();
+        let image: &HtmlImageElement = &self.get_image();
+        for index in 0..sources.len() {
+            let source: Rect = sources[index];
+            let target: Rect = dests[index];
+            let _: Result<(), JsValue> = context
+                .draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+                    image,
+                    source.get_x(),
+                    source.get_y(),
+                    source.get_width(),
+                    source.get_height(),
+                    target.get_x(),
+                    target.get_y(),
+                    target.get_width(),
+                    target.get_height(),
+                );
+        }
+    }
+
+    /// Records the nine-slice into a deferred draw list.
+    ///
+    /// The command carries the image plus the insets rather than the nine
+    /// resolved sub-rectangles, so the split is recomputed at replay time
+    /// against whatever destination size the command was recorded with.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut DrawList` - The draw list to record into.
+    /// - `Vector2D` - The destination top-left position in world space.
+    /// - `f64` - The destination width in pixels.
+    /// - `f64` - The destination height in pixels.
+    pub fn record(
+        &self,
+        list: &mut DrawList,
+        dest_position: Vector2D,
+        dest_width: f64,
+        dest_height: f64,
+    ) {
+        list.get_mut_commands().push(DrawCommand::DrawNineSlice {
+            image: self.get_image(),
+            insets: self.get_insets(),
+            dest_position,
+            dest_width,
+            dest_height,
+        });
+    }
+}
+
+/// Implements the pure name-to-rectangle index for `AtlasRegions`.
+impl AtlasRegions {
+    /// Inserts or replaces the source rectangle stored under a name.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - The sprite name.
+    /// - `Rect` - The source rectangle in atlas pixels.
+    pub fn insert(&mut self, name: &str, region: Rect) {
+        self.get_mut_regions().insert(name.to_string(), region);
+    }
+
+    /// Returns the source rectangle stored under a name.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - The sprite name.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Rect>` - The source rectangle, or `None` if the name is unknown.
+    pub fn get(&self, name: &str) -> Option<Rect> {
+        self.get_regions().get(name).copied()
+    }
+
+    /// Returns whether a name is present in the index.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - The sprite name.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the name has a stored rectangle.
+    pub fn contains(&self, name: &str) -> bool {
+        self.get_regions().contains_key(name)
+    }
+
+    /// Returns the number of named regions in the index.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - The region count.
+    pub fn len(&self) -> usize {
+        self.get_regions().len()
+    }
+
+    /// Returns whether the index holds no regions.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when no region has been inserted.
+    pub fn is_empty(&self) -> bool {
+        self.get_regions().is_empty()
+    }
+
+    /// Returns the stored names in unspecified order.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<String>` - Every stored sprite name.
+    pub fn names(&self) -> Vec<String> {
+        self.get_regions().keys().cloned().collect()
+    }
+}
+
+/// Implements image-backed drawing, UV conversion, and recording for `SpriteAtlas`.
+impl SpriteAtlas {
+    /// Creates an empty atlas backed by the given image.
+    ///
+    /// # Arguments
+    ///
+    /// - `HtmlImageElement` - The shared image holding every packed sprite.
+    ///
+    /// # Returns
+    ///
+    /// - `SpriteAtlas` - The new empty atlas.
+    pub fn create(image: HtmlImageElement) -> SpriteAtlas {
+        SpriteAtlas::new(image, AtlasRegions::default())
+    }
+
+    /// Inserts or replaces the source rectangle stored under a name.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - The sprite name.
+    /// - `Rect` - The source rectangle in atlas pixels.
+    pub fn insert(&mut self, name: &str, region: Rect) {
+        self.get_mut_regions().insert(name, region);
+    }
+
+    /// Returns the source rectangle stored under a name.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - The sprite name.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Rect>` - The source rectangle, or `None` if the name is unknown.
+    pub fn get(&self, name: &str) -> Option<Rect> {
+        self.get_regions().get(name)
+    }
+
+    /// Returns whether a name is present in the atlas.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - The sprite name.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the name has a stored rectangle.
+    pub fn contains(&self, name: &str) -> bool {
+        self.get_regions().contains(name)
+    }
+
+    /// Returns the number of named regions in the atlas.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - The region count.
+    pub fn len(&self) -> usize {
+        self.get_regions().len()
+    }
+
+    /// Returns whether the atlas holds no regions.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when no region has been inserted.
+    pub fn is_empty(&self) -> bool {
+        self.get_regions().is_empty()
+    }
+
+    /// Returns the normalized texture coordinates for one atlas region.
+    ///
+    /// Normalizes against the image's intrinsic (`naturalWidth` /
+    /// `naturalHeight`) size, which is the atlas's true texture size
+    /// regardless of any CSS size applied to the element. A zero-sized
+    /// atlas — not yet loaded, or decoded with no intrinsic size — yields
+    /// an all-zero `UvRect` rather than dividing by zero, so the result is
+    /// never `NaN` or infinite.
+    ///
+    /// # Arguments
+    ///
+    /// - `Rect` - The source rectangle in atlas pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `UvRect` - The normalized `(u0, v0, u1, v1)` coordinates.
+    pub fn uv(&self, region: Rect) -> UvRect {
+        let image: &HtmlImageElement = &self.get_image();
+        let width: f64 = image.natural_width() as f64;
+        let height: f64 = image.natural_height() as f64;
+        Self::normalize_uv(region, width, height)
+    }
+
+    /// Normalizes a pixel rectangle against an explicit atlas size.
+    ///
+    /// The pure half of [`SpriteAtlas::uv`], separated so the arithmetic
+    /// can be exercised without an image element. A non-positive width
+    /// or height yields an all-zero `UvRect` instead of dividing by zero.
+    ///
+    /// # Arguments
+    ///
+    /// - `Rect` - The source rectangle in atlas pixels.
+    /// - `f64` - The atlas width in pixels.
+    /// - `f64` - The atlas height in pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `UvRect` - The normalized `(u0, v0, u1, v1)` coordinates.
+    pub fn normalize_uv(region: Rect, width: f64, height: f64) -> UvRect {
+        if width <= 0.0 || height <= 0.0 {
+            return UvRect::new(0.0, 0.0, 0.0, 0.0);
+        }
+        UvRect::new(
+            region.get_x() / width,
+            region.get_y() / height,
+            (region.get_x() + region.get_width()) / width,
+            (region.get_y() + region.get_height()) / height,
+        )
+    }
+
+    /// Blits one named atlas region into a destination rectangle.
+    ///
+    /// Unknown names are a no-op. Uses the canvas transform already in
+    /// effect, so the caller controls world positioning.
+    ///
+    /// # Arguments
+    ///
+    /// - `&CanvasRenderingContext2d` - The canvas context.
+    /// - `&str` - The sprite name to blit.
+    /// - `Rect` - The destination rectangle in current canvas space.
+    pub fn draw(&self, context: &CanvasRenderingContext2d, name: &str, dest: Rect) {
+        let Some(source) = self.get(name) else {
+            return;
+        };
+        let _: Result<(), JsValue> = context
+            .draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+                &self.get_image(),
+                source.get_x(),
+                source.get_y(),
+                source.get_width(),
+                source.get_height(),
+                dest.get_x(),
+                dest.get_y(),
+                dest.get_width(),
+                dest.get_height(),
+            );
+    }
+
+    /// Records one named atlas region into a deferred draw list.
+    ///
+    /// Unknown names are a no-op, so callers do not need to probe with
+    /// [`SpriteAtlas::get`] first.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut DrawList` - The draw list to record into.
+    /// - `&str` - The sprite name to blit.
+    /// - `Vector2D` - The destination top-left position in world space.
+    /// - `f64` - The destination width in pixels.
+    /// - `f64` - The destination height in pixels.
+    pub fn record(
+        &self,
+        list: &mut DrawList,
+        name: &str,
+        dest_position: Vector2D,
+        dest_width: f64,
+        dest_height: f64,
+    ) {
+        let Some(source) = self.get(name) else {
+            return;
+        };
+        list.get_mut_commands().push(DrawCommand::DrawAtlasRegion {
+            image: self.get_image(),
+            source,
+            dest_position,
+            dest_width,
+            dest_height,
+        });
+    }
+}
