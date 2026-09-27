@@ -34,13 +34,34 @@ pub struct AssetLoader {
     /// The shared cache that loaded assets are stored into.
     #[new(skip)]
     pub(crate) cache: Rc<EngineCell<AssetCache>>,
-    /// The number of assets currently being loaded.
-    #[get(pub, type(copy))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
+    /// The shared counter of loads that have been requested but have not
+    /// settled yet. Read through [`AssetLoader::pending_count`].
+    #[get(pub)]
     #[new(skip)]
-    pub(crate) pending_count: u32,
+    pub(crate) pending: AssetPending,
     /// Stored closures keeping `onload`/`onerror` callbacks alive, preventing memory leaks.
+    #[get(pub)]
     #[new(skip)]
     pub(crate) closures: AssetClosures,
+}
+
+/// The backing store behind [`AssetClosures`].
+///
+/// Slots are appended in pairs by [`AssetLoader::load_image`] — even indices
+/// hold an `onload` closure, odd indices the matching `onerror` closure — so
+/// a callback can identify its own slot with one captured index.
+///
+/// The fields are public because the type is reachable from the public
+/// [`AssetClosures`] alias: a private-field type exposed through a public
+/// alias would be unusable to callers, and the retained-slot count is
+/// genuinely useful as a leak diagnostic.
+#[derive(Debug, Default)]
+pub struct AssetClosureStore {
+    /// The load callbacks, in registration order. A `None` slot is one that
+    /// has already been released by [`AssetLoader::collect`].
+    pub slots: Vec<Option<Closure<dyn FnMut()>>>,
+    /// Whether the closure in the slot at the same index has run. A settled
+    /// closure cannot free itself (see [`AssetClosures`]) but is no longer
+    /// keeping anything alive that the cache still needs.
+    pub settled: Vec<bool>,
 }

@@ -88,6 +88,12 @@ impl AssetLoader {
     /// Creates an `HtmlImageElement`, sets its `src`, and registers `onload`/`onerror`
     /// callbacks to update the shared cache state. The image loads asynchronously.
     ///
+    /// Both callbacks decrement the shared pending counter and mark their own
+    /// closure slot settled. The closures themselves are released later by
+    /// [`AssetLoader::collect`], which is the only place a `Closure` may be
+    /// dropped safely — see [`AssetClosures`] for why a load callback cannot
+    /// free itself.
+    ///
     /// # Arguments
     ///
     /// - `String` - The URL of the image to load.
@@ -105,34 +111,104 @@ impl AssetLoader {
             .get_mut()
             .get_mut_entries()
             .insert(url.clone(), entry);
-        *self.get_mut_pending_count() += 1;
+        *self.get_pending().get_mut() += 1;
+        let onload_slot: usize = self.get_closures().get().slots.len();
+        let onerror_slot: usize = onload_slot + 1;
+        let pending_shared: AssetPending = self.get_pending().clone();
+        let pending: AssetPending = pending_shared.clone();
+        let store_shared: Weak<EngineCell<AssetClosureStore>> = Rc::downgrade(self.get_closures());
+        let store_weak: Weak<EngineCell<AssetClosureStore>> = store_shared.clone();
         let cache_clone: Rc<EngineCell<AssetCache>> = self.get_cache().clone();
         let url_for_onload: String = url.clone();
-        let url_for_onerror: String = url.clone();
         let onload_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-            let cache_ref: &mut AssetCache = cache_clone.get_mut();
-            if let Some(mut entry) = cache_ref.get_entries().get(&url_for_onload).cloned() {
-                entry.set_state(AssetState::Loaded);
-                cache_ref
-                    .get_mut_entries()
-                    .insert(url_for_onload.clone(), entry);
+            {
+                let cache_ref: &mut AssetCache = cache_clone.get_mut();
+                if let Some(mut entry) = cache_ref.get_entries().get(&url_for_onload).cloned() {
+                    entry.set_state(AssetState::Loaded);
+                    cache_ref
+                        .get_mut_entries()
+                        .insert(url_for_onload.clone(), entry);
+                }
             }
+            *pending.get_mut() = pending.get().saturating_sub(1);
+            mark_asset_closure_settled(&store_weak, onload_slot);
         }));
         let cache_clone_err: Rc<EngineCell<AssetCache>> = self.get_cache().clone();
+        let pending_err: AssetPending = pending_shared.clone();
+        let store_weak_err: Weak<EngineCell<AssetClosureStore>> = store_shared.clone();
+        let url_for_onerror: String = url.clone();
         let onerror_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-            let cache_ref: &mut AssetCache = cache_clone_err.get_mut();
-            if let Some(mut entry) = cache_ref.get_entries().get(&url_for_onerror).cloned() {
-                entry.set_state(AssetState::Error);
-                cache_ref
-                    .get_mut_entries()
-                    .insert(url_for_onerror.clone(), entry);
+            {
+                let cache_ref: &mut AssetCache = cache_clone_err.get_mut();
+                if let Some(mut entry) = cache_ref.get_entries().get(&url_for_onerror).cloned() {
+                    entry.set_state(AssetState::Error);
+                    cache_ref
+                        .get_mut_entries()
+                        .insert(url_for_onerror.clone(), entry);
+                }
             }
+            *pending_err.get_mut() = pending_err.get().saturating_sub(1);
+            mark_asset_closure_settled(&store_weak_err, onerror_slot);
         }));
         image.set_onload(Some(onload_closure.as_ref().unchecked_ref()));
         image.set_onerror(Some(onerror_closure.as_ref().unchecked_ref()));
         image.set_src(&url);
-        self.get_closures().get_mut().push(onload_closure);
-        self.get_closures().get_mut().push(onerror_closure);
+        let store: &mut AssetClosureStore = self.get_closures().get_mut();
+        store.slots.push(Some(onload_closure));
+        store.settled.push(false);
+        let store: &mut AssetClosureStore = self.get_closures().get_mut();
+        store.slots.push(Some(onerror_closure));
+        store.settled.push(false);
+    }
+
+    /// Returns the number of loads that have been requested but not settled.
+    ///
+    /// # Returns
+    ///
+    /// - `u32` - The in-flight load count.
+    pub fn pending_count(&self) -> u32 {
+        *self.get_pending().get()
+    }
+
+    /// Advances the loader by one engine update step.
+    ///
+    /// Implements [`Updatable`] so an `AssetLoader` can be registered with the
+    /// scheduler's [`TaskRegistry`] and driven on every fixed step. The only
+    /// work is [`AssetLoader::collect`], which is the safe point to release
+    /// load callbacks that have already run.
+    ///
+    /// # Arguments
+    ///
+    /// - `f64` - The fixed delta time in seconds, unused.
+    pub fn update(&mut self, delta_time: f64) {
+        let _ = delta_time;
+        self.collect();
+    }
+
+    /// Releases the load callbacks that have already run.
+    ///
+    /// A `wasm_bindgen::Closure` must not be dropped while JavaScript is
+    /// executing it, so [`AssetLoader::load_image`] callbacks only mark their
+    /// own slot settled. This method is the safe drop point: it must be called
+    /// from a context that is not inside a load callback, such as the
+    /// engine's update step.
+    ///
+    /// Slots that have not settled belong to loads still in flight and are
+    /// kept alive, so only settled slots are released. The `onload` and
+    /// `onerror` closures of the same asset settle independently — a
+    /// successful load settles only its `onload` slot — so the paired slot is
+    /// released once both halves have run.
+    pub fn collect(&mut self) {
+        let store: &mut AssetClosureStore = self.get_closures().get_mut();
+        let mut index: usize = 0;
+        while index < store.slots.len() {
+            let settled: bool = store.settled.get(index).copied().unwrap_or(false);
+            if settled {
+                store.slots[index] = None;
+                store.settled[index] = false;
+            }
+            index += 1;
+        }
     }
 
     /// Returns whether all requested assets have finished loading.
@@ -175,6 +251,22 @@ impl AssetLoader {
     }
 }
 
+/// Forwards `AssetLoader::update` through the [`Updatable`] trait so a loader
+/// can be registered with the scheduler's [`TaskRegistry`] and collect its
+/// finished load callbacks on every fixed step. The inherent
+/// [`AssetLoader::update`] method is the canonical implementation; this impl
+/// exists purely for trait dispatch.
+impl Updatable for AssetLoader {
+    /// Advances the loader by `delta_time` seconds.
+    ///
+    /// # Arguments
+    ///
+    /// - `f64` - Seconds elapsed since the previous update.
+    fn update(&mut self, delta_time: f64) {
+        AssetLoader::update(self, delta_time);
+    }
+}
+
 /// Implements `Default` for `AssetLoader` as a new empty loader.
 impl Default for AssetLoader {
     /// Constructs a default [`AssetLoader`] value.
@@ -183,7 +275,11 @@ impl Default for AssetLoader {
     ///
     /// - `AssetLoader` - A default-constructed instance with the documented initial state.
     fn default() -> AssetLoader {
-        AssetLoader::new()
+        let mut loader: AssetLoader = AssetLoader::new();
+        loader.set_cache(Rc::new(EngineCell::new(AssetCache::default())));
+        loader.set_pending(Rc::new(EngineCell::new(0)));
+        loader.set_closures(Rc::new(EngineCell::new(AssetClosureStore::default())));
+        loader
     }
 }
 
