@@ -20,7 +20,7 @@ pub struct AssetEntry {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct AssetCache {
     /// All cached assets keyed by their source URL.
-    #[get(pub(crate))]
+    #[get(pub)]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -35,7 +35,7 @@ pub struct AssetLoader {
     #[new(skip)]
     pub(crate) cache: Rc<EngineCell<AssetCache>>,
     /// The number of assets currently being loaded.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]

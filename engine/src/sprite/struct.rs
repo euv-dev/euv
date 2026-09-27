@@ -23,12 +23,12 @@ pub struct SpriteSheet {
     #[get(type(copy))]
     pub(crate) frame_height: f64,
     /// The number of columns in the sprite sheet grid.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) columns: u32,
     /// The number of rows in the sprite sheet grid.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) rows: u32,
@@ -55,13 +55,13 @@ pub struct Animator {
     #[new(skip)]
     pub(crate) current_animation: Option<SpriteAnimation>,
     /// The index of the current frame being displayed.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
     pub(crate) current_frame_index: usize,
     /// The elapsed time within the current frame, in seconds.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
@@ -71,7 +71,7 @@ pub struct Animator {
     #[get_mut(pub(crate))]
     pub(crate) state: AnimationState,
     /// The direction of playback (1 = forward, -1 = backward) for ping-pong mode.
-    #[get(pub(crate), type(copy))]
+    #[get(pub, type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) direction: i32,

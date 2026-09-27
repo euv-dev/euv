@@ -1,3 +1,4 @@
+mod api_visibility;
 mod r#input;
 mod lighting;
 mod physics;
