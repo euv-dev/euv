@@ -1,5 +1,4 @@
 use super::*;
-use std::fmt::Formatter;
 
 /// Parses a Rust expression from the parse stream, stopping before a top-level brace.
 ///
@@ -1990,7 +1989,6 @@ pub(crate) fn extract_attr_key_tokens(key: &proc_macro2::TokenStream) -> proc_ma
 ///   numeric) or a plain identifier (including raw idents like `r#type`),
 ///   `false` otherwise.
 pub(crate) fn is_static_attr_key_token(key: &proc_macro2::TokenStream) -> bool {
-    use proc_macro2::TokenTree;
     let mut has_token: bool = false;
     // `proc_macro2::TokenStream` only implements `IntoIterator` by value
     // (not by reference), so iterating without `clone()` is impossible at

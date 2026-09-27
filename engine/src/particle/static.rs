@@ -1,5 +1,3 @@
-use std::sync::LazyLock;
-
 use super::*;
 
 /// The fixed 32-color palette used to quantize particle colors for

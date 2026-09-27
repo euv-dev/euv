@@ -1,8 +1,5 @@
 use super::*;
 
-/// A `(subscription_id, callback)` pair stored in a signal's listener list.
-pub(crate) type ListenerEntry = (usize, Box<dyn FnMut()>);
-
 /// Inner state of a signal, holding the value and subscribed listeners.
 ///
 /// This struct is not exposed directly; use `Signal` instead.

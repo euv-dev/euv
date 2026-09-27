@@ -35,8 +35,7 @@ pub fn now_ms() -> f64 {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let duration: std::time::Duration = SystemTime::now()
+        let duration: Duration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default();
         duration.as_secs_f64() * 1_000.0

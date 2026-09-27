@@ -2,6 +2,7 @@ mod r#const;
 mod r#fn;
 mod r#struct;
 
+pub use lombok_macros::*;
 pub use {r#const::*, r#fn::*, r#struct::*};
 
 use std::{
