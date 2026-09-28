@@ -315,6 +315,73 @@ class! {
         flex-shrink: "0";
     }
 
+    pub c_nav_locale_button {
+        width: "100%";
+        height: "36px";
+        padding: "0px";
+        cursor: "pointer";
+        outline: "none";
+        border: format!("1px dashed {}", var!(border));
+        background: "transparent";
+        color: var!(foreground);
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        // The trigger mirrors the sidebar's hover affordance: the dashed
+        // border thickens to the foreground colour and a translucent wash
+        // derived from the text colour appears behind the label. The wash is
+        // `color-mix` on `foreground` rather than `accent-muted`, because in
+        // the monochrome palette `accent-muted` resolves to the same value as
+        // `background` (white on light, black on dark) and would be invisible.
+        :hover {
+            border-color: var!(foreground);
+            background: format!("color-mix(in srgb, {} 8%, transparent)", var!(foreground));
+        }
+        :focus-visible {
+            outline: "none";
+        }
+        // `:active` must not reset the hover styles: it only fires while the
+        // pointer is held, and zeroing the background there is what made the
+        // click look like nothing happened.
+        :active {
+            border-color: var!(foreground);
+            background: format!("color-mix(in srgb, {} 12%, transparent)", var!(foreground));
+        }
+    }
+
+    // Open state of the locale switcher: the same solid treatment the sidebar
+    // gives its current page, so "menu is open" reads as strongly as
+    // "this is the page you are on".
+    pub c_nav_locale_button_open {
+        width: "100%";
+        height: "36px";
+        padding: "0px";
+        cursor: "pointer";
+        outline: "none";
+        border: format!("1px solid {}", var!(accent));
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        // Background and text colour are a matched pair: the fill is the
+        // accent, so the label must be the colour that reads on top of it.
+        // Setting one without the other is what produces invisible text.
+        background: var!(accent);
+        color: var!(text-on-accent);
+        :hover {
+            background: var!(accent);
+            color: var!(text-on-accent);
+            border-color: var!(accent);
+        }
+        :focus-visible {
+            outline: "none";
+        }
+        :active {
+            background: var!(accent);
+            color: var!(text-on-accent);
+            border-color: var!(accent);
+        }
+    }
+
     pub c_nav_theme_button {
         width: "100%";
         height: "36px";

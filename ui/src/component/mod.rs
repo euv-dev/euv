@@ -1,17 +1,24 @@
 mod alert;
+mod avatar;
 mod badge;
+mod breadcrumb;
 mod browser;
 mod button;
+mod calendar;
 mod camera;
 mod card;
 mod checkbox;
+mod collapse;
 mod debug;
+mod divider;
 mod doc_layout;
 mod drawer;
 mod dropdown;
+mod feature_grid;
 mod field;
 mod header;
 mod hero;
+mod icon;
 mod info;
 mod input;
 mod layout;
@@ -22,22 +29,40 @@ mod modal;
 mod nav;
 mod navbar;
 mod pagination;
+mod panel;
+mod popover;
+mod progress;
+mod radio;
+mod rating;
 mod result;
 mod router;
 mod sidebar;
+mod skeleton;
+mod slider;
+mod space;
+mod stat;
+mod steps;
+mod switch;
+mod table;
+mod tabs;
 mod tag;
 mod theme;
+mod timeline;
 mod toc;
+mod tooltip;
 mod touch;
+mod upload;
 mod vconsole;
 mod virtual_list;
 
 pub use {
-    alert::*, badge::*, browser::*, button::*, camera::*, card::*, checkbox::*, debug::*,
-    doc_layout::*, drawer::*, dropdown::*, field::*, header::*, hero::*, info::*, input::*,
-    layout::*, loading::*, logo::*, markdown::*, modal::*, nav::*, navbar::*, pagination::*,
-    result::*, router::*, sidebar::*, tag::*, theme::*, toc::*, touch::*, vconsole::*,
-    virtual_list::*,
+    alert::*, avatar::*, badge::*, breadcrumb::*, browser::*, button::*, calendar::*, camera::*,
+    card::*, checkbox::*, collapse::*, debug::*, divider::*, doc_layout::*, drawer::*, dropdown::*,
+    feature_grid::*, field::*, header::*, hero::*, icon::*, info::*, input::*, layout::*,
+    loading::*, logo::*, markdown::*, modal::*, nav::*, navbar::*, pagination::*, panel::*,
+    popover::*, progress::*, radio::*, rating::*, result::*, router::*, sidebar::*, skeleton::*,
+    slider::*, space::*, stat::*, steps::*, switch::*, table::*, tabs::*, tag::*, theme::*,
+    timeline::*, toc::*, tooltip::*, touch::*, upload::*, vconsole::*, virtual_list::*,
 };
 
 use super::*;
