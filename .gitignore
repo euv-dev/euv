@@ -5,3 +5,4 @@ Cargo.lock
 www
 node_modules
 .hermes/
+dist

@@ -27,11 +27,11 @@ exclude = [
     "img",
     "**/*.log",
     "www",
+    "dist",
 ]
 
 [workspace]
 members = ["core", "macros", "cli", "ui", "engine", "example", "docs"]
-exclude = ["target", "sh", "logs", "img"]
 resolver = "3"
 
 [lib]
