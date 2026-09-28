@@ -4,4 +4,4 @@ target
 Cargo.lock
 www
 node_modules
-dist
+.hermes/
