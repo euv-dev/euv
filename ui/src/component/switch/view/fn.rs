@@ -2,7 +2,7 @@ use super::*;
 
 /// A toggle switch component with two-way binding via a signal.
 ///
-/// Renders a row containing a `<button role="switch">` whose appearance
+/// Renders a row containing a `<button role=ROLE_SWITCH>` whose appearance
 /// tracks the checked state, plus a paired label. The button carries
 /// `aria-checked` so assistive technology announces the on/off state
 /// without depending on the visual classes. Clicking the button toggles
@@ -33,8 +33,8 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
             button {
                 id: id
                 name: name
-                type: "button"
-                role: "switch"
+                type: INPUT_TYPE_BUTTON
+                role: ROLE_SWITCH
                 aria-checked: checked
                 disabled: disabled
                 class: if { checked } {
@@ -57,4 +57,23 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
             }
         }
     }
+}
+
+/// Obtains the switch state handle registered against the current hook
+/// context slot.
+///
+/// Behaves like [`HookContext::use_hook`] — the same handle is returned
+/// on every render at the same hook index, so the captured signal
+/// survives re-renders. The factory is used directly when no hook
+/// context is active (e.g. when called outside a render cycle).
+///
+/// # Arguments
+///
+/// - `Signal<bool>` - The checked-state signal owned by the caller.
+///
+/// # Returns
+///
+/// - `EuvSwitchState` - The switch state handle.
+pub fn use_euv_switch_state(checked: Signal<bool>) -> EuvSwitchState {
+    HookContext::use_hook(move || EuvSwitchState::new(checked))
 }

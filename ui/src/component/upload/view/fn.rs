@@ -184,7 +184,7 @@ pub fn euv_upload(node: VirtualNode<EuvUploadProps>) -> VirtualNode {
                 ondragover: on_upload_drag_over(drag_active)
                 ondragleave: on_upload_drag_leave(drag_active)
                 input {
-                    type: "file"
+                    type: INPUT_TYPE_FILE
                     class: c_euv_upload_input()
                     accept: accept
                     multiple: multiple.get()
