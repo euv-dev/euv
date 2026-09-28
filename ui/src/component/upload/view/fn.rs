@@ -176,7 +176,7 @@ pub fn euv_upload(node: VirtualNode<EuvUploadProps>) -> VirtualNode {
         div {
             class: c_euv_upload()
             label {
-                class: if { drag_active.get() == true } {
+                class: if { drag_active.get() } {
                     c_euv_upload_drop_active()
                 } else {
                     c_euv_upload()

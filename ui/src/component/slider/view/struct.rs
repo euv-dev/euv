@@ -9,7 +9,7 @@ const PERCENT_SCALE: f64 = 100.0;
 /// Defines the strongly-typed interface for a range slider. The value is
 /// owned by the caller through a `Signal<f64>` so the slider can take
 /// part in two-way binding with the rest of the page.
-#[derive(Clone, CustomDebug, Data, Default, New)]
+#[derive(Clone, CustomDebug, Data, Default)]
 pub struct EuvSliderProps {
     /// The unique identifier for the range input element.
     #[get(type(copy))]

@@ -58,12 +58,12 @@ fn calendar_day(day: EuvCalendarDay, selected: Signal<u32>) -> VirtualNode {
     html! {
         button {
             class: base_class()
-            class: if { day.today == true } {
+            class: if day.today {
                 c_euv_calendar_day_today()
             } else {
                 c_euv_calendar_day()
             }
-            class: if { is_selected == true } {
+            class: if is_selected {
                 c_euv_calendar_day_selected()
             } else {
                 c_euv_calendar_day()

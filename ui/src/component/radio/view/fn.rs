@@ -40,7 +40,11 @@ pub fn euv_radio(node: VirtualNode<EuvRadioGroupProps>) -> VirtualNode {
             html! {
                 label {
                     class: c_euv_radio_item()
-                    class: if { is_checked == true } {
+                    // `& true` keeps the condition a non-path expression so the
+                    // `html!` auto-unwrap heuristic skips it. A bare `is_checked`
+                    // would be rewritten to `is_checked.get()` and fail to
+                    // compile, because `is_checked` is a plain `bool`.
+                    class: if { is_checked & true } {
                         c_euv_radio_item_checked()
                     } else {
                         c_euv_radio_item_unchecked()
