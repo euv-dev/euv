@@ -68,9 +68,10 @@ impl Scheduler {
                     // SAFETY: `DISPATCH_CLOSURE` lives for the duration of
                     // the program (it is leaked via `Closure::wrap` /
                     // `Closure::forget` semantics inside the macro).
-                    let dispatch_function: &Function = DISPATCH_CLOSURE.with(|closure| unsafe {
-                        &*(closure.as_ref() as *const _ as *const Function)
-                    });
+                    let dispatch_function: &Function =
+                        DISPATCH_CLOSURE.with(|closure: &Closure<dyn FnMut()>| unsafe {
+                            &*(closure.as_ref() as *const _ as *const Function)
+                        });
                     return queue_microtask
                         .call1(&window_value, dispatch_function)
                         .is_ok();
@@ -81,8 +82,10 @@ impl Scheduler {
                 Some(queue_microtask) => queue_microtask,
                 None => return false,
             };
-            let dispatch_function: &Function = DISPATCH_CLOSURE
-                .with(|closure| unsafe { &*(closure.as_ref() as *const _ as *const Function) });
+            let dispatch_function: &Function =
+                DISPATCH_CLOSURE.with(|closure: &Closure<dyn FnMut()>| unsafe {
+                    &*(closure.as_ref() as *const _ as *const Function)
+                });
             queue_microtask
                 .call1(&window_value, dispatch_function)
                 .is_ok()

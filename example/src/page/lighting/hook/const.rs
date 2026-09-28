@@ -262,7 +262,8 @@ vec3 shade(vec3 position, vec3 normal, vec3 albedo, float specular, float shinin
 // ground band, then the spheres back-to-front (index 0..4, each
 // overwriting whatever came before when the point falls inside it).
 vec3 scene_color(vec2 logical, vec3 background) {
-    if (logical.x < 0.0 || logical.x >= SCENE_W || logical.y < 0.0 || logical.y >= SCENE_H) {
+    if (logical.x < 0.0 || logical.x >= SCENE_W ||
+        logical.y < 0.0 || logical.y >= SCENE_H) {
         return background;
     }
     vec3 color = background;
@@ -447,7 +448,8 @@ fn shade(position: vec3<f32>, normal: vec3<f32>, albedo: vec3<f32>, specular: f3
 // ground band, then the spheres back-to-front (index 0..4, each
 // overwriting whatever came before when the point falls inside it).
 fn scene_color(logical: vec2<f32>, background: vec3<f32>) -> vec3<f32> {
-    if logical.x < 0.0 || logical.x >= SCENE_W || logical.y < 0.0 || logical.y >= SCENE_H {
+    if logical.x < 0.0 || logical.x >= SCENE_W ||
+        logical.y < 0.0 || logical.y >= SCENE_H {
         return background;
     }
     var color = background;

@@ -819,12 +819,11 @@ impl PhysicsWorld3D {
         // even with edition 2024 split-borrow rules.
         let body_count: usize = self.get_bodies().len();
         let mut bboxes: Vec<(usize, AABB3D)> = Vec::with_capacity(body_count);
-        bboxes.extend(
-            self.get_bodies()
-                .iter()
-                .enumerate()
-                .filter_map(|(index, body)| body.bounding_box().map(|bbox| (index, bbox))),
-        );
+        bboxes.extend(self.get_bodies().iter().enumerate().filter_map(
+            |(index, body): (usize, &RigidBody3D)| {
+                body.bounding_box().map(|bbox: AABB3D| (index, bbox))
+            },
+        ));
         {
             let Self {
                 grid,

@@ -479,7 +479,11 @@ fn switch_locale(
 ) -> Option<Rc<dyn Fn(&'static str)>> {
     Some(Rc::new(move |prefix: &'static str| {
         let site: &DocsSite = &crate::generated::SITE;
-        let Some(target) = site.locales.iter().find(|locale| locale.prefix == prefix) else {
+        let Some(target) = site
+            .locales
+            .iter()
+            .find(|locale: &&DocsLocale| locale.prefix == prefix)
+        else {
             return;
         };
         let (path, _anchor) = parse_route(&route_signal.get());
@@ -562,8 +566,12 @@ fn schedule_scroll(anchor: Option<String>) {
             return;
         };
         let scrolled: bool = anchor
-            .and_then(|id| window.document().and_then(|doc| doc.get_element_by_id(&id)))
-            .map(|element| {
+            .and_then(|id: String| {
+                window
+                    .document()
+                    .and_then(|doc: Document| doc.get_element_by_id(&id))
+            })
+            .map(|element: Element| {
                 element.scroll_into_view();
             })
             .is_some();
@@ -722,7 +730,7 @@ fn schedule_sidebar_scroll() {
 /// `Element.scroll_top` setter, which is an instant jump — no animation
 /// — so the sidebar snaps to the new position immediately.
 fn scroll_active_sidebar_item() {
-    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+    let Some(document) = web_sys::window().and_then(|window: Window| window.document()) else {
         return;
     };
     let Ok(containers) = document.query_selector_all(SIDEBAR_SCROLL_SELECTOR) else {

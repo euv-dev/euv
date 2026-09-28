@@ -3622,7 +3622,7 @@ impl WebGpuRenderer {
             store_op: None,
         };
         let depth: Option<RenderPassDepthStencilAttachment> =
-            depth_view.map(|v| RenderPassDepthStencilAttachment {
+            depth_view.map(|v: &JsValue| RenderPassDepthStencilAttachment {
                 view: Some(v.clone()),
                 depth_clear_value: depth_clear,
                 depth_load_op: None,
@@ -3819,7 +3819,7 @@ impl WebGpuRenderer {
         let lost_promise: Promise =
             match Reflect::get(self.get_device(), &JsValue::from_str(WEBGPU_PROPERTY_LOST))
                 .ok()
-                .and_then(|v| v.dyn_into::<Promise>().ok())
+                .and_then(|v: JsValue| v.dyn_into::<Promise>().ok())
             {
                 Some(p) => p,
                 None => return,
@@ -5299,7 +5299,7 @@ impl WebGpuRenderer {
         let create_view_fn: Function =
             match Reflect::get(texture, &JsValue::from_str(WEBGPU_METHOD_CREATE_VIEW))
                 .ok()
-                .and_then(|v| v.dyn_into::<Function>().ok())
+                .and_then(|v: JsValue| v.dyn_into::<Function>().ok())
             {
                 Some(f) => f,
                 None => return JsValue::UNDEFINED,
@@ -5414,7 +5414,7 @@ impl WebGpuRenderer {
         let queue: JsValue =
             match Reflect::get(self.get_device(), &JsValue::from_str(WEBGPU_PROPERTY_QUEUE))
                 .ok()
-                .and_then(|v| v.dyn_into::<JsValue>().ok())
+                .and_then(|v: JsValue| v.dyn_into::<JsValue>().ok())
             {
                 Some(q) => q,
                 None => return,
@@ -5439,7 +5439,7 @@ impl WebGpuRenderer {
         let write_fn: Function =
             match Reflect::get(&queue, &JsValue::from_str(WEBGPU_METHOD_WRITE_TEXTURE))
                 .ok()
-                .and_then(|v| v.dyn_into::<Function>().ok())
+                .and_then(|v: JsValue| v.dyn_into::<Function>().ok())
             {
                 Some(f) => f,
                 None => return,
@@ -5580,7 +5580,7 @@ impl WebGpuRenderer {
         // Step 1: buffer.mapAsync(mode, offset, size)
         let map_fn: Function = Reflect::get(buffer, &JsValue::from_str(WEBGPU_METHOD_MAP_ASYNC))
             .ok()
-            .and_then(|v| v.dyn_into::<Function>().ok())?;
+            .and_then(|v: JsValue| v.dyn_into::<Function>().ok())?;
         let map_promise: Promise = map_fn
             .call3(
                 buffer,
@@ -5602,7 +5602,7 @@ impl WebGpuRenderer {
         let get_range_fn: Function =
             Reflect::get(buffer, &JsValue::from_str(WEBGPU_METHOD_GET_MAPPED_RANGE))
                 .ok()
-                .and_then(|v| v.dyn_into::<Function>().ok())?;
+                .and_then(|v: JsValue| v.dyn_into::<Function>().ok())?;
         let array_buffer: ArrayBuffer = get_range_fn
             .call2(
                 buffer,

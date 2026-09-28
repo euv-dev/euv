@@ -33,6 +33,11 @@ pub const KEYWORD_FOR: &str = "for";
 /// The Rust `in` keyword string.
 pub const KEYWORD_IN: &str = "in";
 
+/// The Rust keywords that can follow a colon in euv macro attribute syntax
+/// (e.g., `class: if { ... }`), indicating an attribute value expression
+/// rather than a CSS selector.
+pub const ATTRIBUTE_VALUE_KEYWORDS: &[&str] = &[KEYWORD_IF, KEYWORD_MATCH, KEYWORD_FOR];
+
 /// The Rust fat arrow operator string.
 pub const ARROW_FAT: &str = "=>";
 

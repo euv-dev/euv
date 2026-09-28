@@ -107,7 +107,7 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
     } else {
         c_euv_sidebar_group_arrow
     };
-    let active: bool = item.link.is_some_and(|link| path == link);
+    let active: bool = item.link.is_some_and(|link: &'static str| path == link);
     let title_node: VirtualNode = match item.link {
         Some(link) => html! {
             a {

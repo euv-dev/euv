@@ -762,7 +762,10 @@ impl Renderer {
                 ChildOpPlan::Keep { new_index } | ChildOpPlan::MoveBefore { new_index, .. } => {
                     // The map is keyed by `&str`, so the key borrow is
                     // enough — no per-op `String` allocation.
-                    let key: &str = match new_children.get(*new_index).and_then(|c| c.key()) {
+                    let key: &str = match new_children
+                        .get(*new_index)
+                        .and_then(|c: &VirtualNode| c.key())
+                    {
                         Some(key) => key,
                         None => continue,
                     };
@@ -837,12 +840,19 @@ impl Renderer {
                 | ChildOpPlan::InsertBefore { new_index, before } => (*new_index, *before),
                 _ => continue,
             };
-            let node: Node = match emitted.get(new_index).and_then(|n| n.as_ref()).cloned() {
+            let node: Node = match emitted
+                .get(new_index)
+                .and_then(|n: &Option<Node>| n.as_ref())
+                .cloned()
+            {
                 Some(node) => node,
                 None => continue,
             };
             let reference_node: Option<Node> = match before {
-                Some(idx) => emitted.get(idx).and_then(|n| n.as_ref()).cloned(),
+                Some(idx) => emitted
+                    .get(idx)
+                    .and_then(|n: &Option<Node>| n.as_ref())
+                    .cloned(),
                 None => None,
             };
             match reference_node {
@@ -926,7 +936,7 @@ impl Renderer {
             let appended: Vec<Node> = new_children
                 .iter()
                 .skip(common_len)
-                .map(|new_child| self.create_dom_node(new_child))
+                .map(|new_child: &VirtualNode| self.create_dom_node(new_child))
                 .collect();
             append_nodes(parent, appended);
         } else if old_len > new_len {
@@ -1044,11 +1054,13 @@ impl Renderer {
                         // `display:none` so a fallback that loses its
                         // marker attribute is invisible anyway.
                         let marker: Element =
-                            document.create_element("div").unwrap_or_else(|_err| {
-                                let fallback: Text = document.create_text_node(EMPTY_STRING);
-                                let element_value: JsValue = fallback.into();
-                                element_value.unchecked_into::<Element>()
-                            });
+                            document
+                                .create_element("div")
+                                .unwrap_or_else(|_err: JsValue| {
+                                    let fallback: Text = document.create_text_node(EMPTY_STRING);
+                                    let element_value: JsValue = fallback.into();
+                                    element_value.unchecked_into::<Element>()
+                                });
                         let _: Result<(), JsValue> =
                             marker.set_attribute("data-euv-portal", selector);
                         let _: Result<(), JsValue> = marker.set_attribute("style", "display:none");
@@ -1064,7 +1076,7 @@ impl Renderer {
                         // of how many children the portal ships.
                         let child_nodes: Vec<Node> = children
                             .iter()
-                            .map(|child| self.create_dom_with_doc(child, document))
+                            .map(|child: &VirtualNode| self.create_dom_with_doc(child, document))
                             .collect();
                         append_nodes(&target, child_nodes);
                         return marker.into();
@@ -1085,7 +1097,7 @@ impl Renderer {
                     // layout invalidation rather than N.
                     let child_nodes: Vec<Node> = children
                         .iter()
-                        .map(|child| self.create_dom_with_doc(child, document))
+                        .map(|child: &VirtualNode| self.create_dom_with_doc(child, document))
                         .collect();
                     append_nodes(&element, child_nodes);
                 }

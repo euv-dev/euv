@@ -194,7 +194,7 @@ pub(crate) fn current_url_without_params() -> String {
 fn encode_svg_for_data_url(raw: &str) -> String {
     raw.chars()
         .map(|character: char| match character {
-            '%' | '#' | '"' | '\'' | '<' | '>' | '&' | '{' | '}' => {
+            character if SVG_ESCAPED_CHARS.contains(&character) => {
                 format!("%{:02X}", character as u8)
             }
             _ => character.to_string(),

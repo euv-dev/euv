@@ -73,8 +73,8 @@ pub(crate) fn locale_of(route: &str) -> &'static DocsLocale {
     let site: &DocsSite = &crate::generated::SITE;
     site.locales
         .iter()
-        .filter(|locale| locale.prefix != "/")
-        .find(|locale| route.starts_with(locale.prefix))
+        .filter(|locale: &&DocsLocale| locale.prefix != "/")
+        .find(|locale: &&DocsLocale| route.starts_with(locale.prefix))
         .or_else(|| site.locales.iter().find(|locale| locale.prefix == "/"))
         .unwrap_or(&site.locales[0])
 }
@@ -92,14 +92,16 @@ pub(crate) fn find_page(route: &str) -> Option<&'static DocsPage> {
     let site: &DocsSite = &crate::generated::SITE;
     site.pages
         .iter()
-        .find(|page| page.route == route)
+        .find(|page: &&DocsPage| page.route == route)
         .or_else(|| {
             // `/guide` → `/guide/`, `/guide/` stays as-is.
             if route.ends_with('/') || route.ends_with(".html") {
                 None
             } else {
                 let with_slash: String = format!("{route}/");
-                site.pages.iter().find(|page| page.route == with_slash)
+                site.pages
+                    .iter()
+                    .find(|page: &&DocsPage| page.route == with_slash)
             }
         })
 }

@@ -381,7 +381,11 @@ fn compute_relative_path(base: &Path, target: &Path) -> PathBuf {
     let common_len: usize = base_components
         .iter()
         .zip(target_components.iter())
-        .take_while(|(base_component, target_component)| base_component == target_component)
+        .take_while(
+            |(base_component, target_component): &(&Component, &Component)| {
+                base_component == target_component
+            },
+        )
         .count();
     let mut result: PathBuf = PathBuf::new();
     for _ in &base_components[common_len..] {

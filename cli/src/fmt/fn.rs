@@ -1266,7 +1266,7 @@ fn is_pseudo_selector_after_colon(chars: &[char], mut pos: usize, len: usize) ->
 ///
 /// - `bool` - Whether the string is a Rust keyword.
 fn is_rust_keyword(ident: &str) -> bool {
-    matches!(ident, KEYWORD_IF | KEYWORD_MATCH | KEYWORD_FOR)
+    ATTRIBUTE_VALUE_KEYWORDS.contains(&ident)
 }
 
 /// Checks whether the identifier found before the colon is a Rust raw identifier (r#prefix).
