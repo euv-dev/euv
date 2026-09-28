@@ -52,7 +52,7 @@ pub fn euv_slider(node: VirtualNode<EuvSliderProps>) -> VirtualNode {
             input {
                 id: id
                 name: name
-                type: "range"
+                type: INPUT_TYPE_RANGE
                 min: min.to_string()
                 max: max.to_string()
                 step: step.to_string()
