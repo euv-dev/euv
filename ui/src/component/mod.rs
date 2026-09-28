@@ -1,15 +1,3 @@
-// euv-ui component registry.
-//
-// Each component lives in its own `<name>/` module directory. A component
-// module has this shape:
-//
-//   <name>/mod.rs      — declares `mod view;` / `mod hook;` and re-exports
-//   <name>/view/*.rs   — props struct, enums, and the `#[component]` fns
-//   <name>/hook/*.rs   — optional state/logic helpers consumed by the view
-//
-// New components are added by adding a module here and listing it in the
-// `pub use` block below, keeping this file alphabetical.
-
 mod alert;
 mod avatar;
 mod badge;

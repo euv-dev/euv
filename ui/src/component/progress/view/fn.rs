@@ -1,8 +1,5 @@
 use super::*;
 
-/// The largest percentage a progress bar fill can occupy.
-const PERCENT_MAX: f64 = 100.0;
-
 /// A determinate progress bar component bound to a percentage signal.
 ///
 /// Renders a `c_progress_container` track holding a
