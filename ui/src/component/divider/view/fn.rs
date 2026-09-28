@@ -29,7 +29,7 @@ pub fn euv_divider(node: VirtualNode<EuvDividerProps>) -> VirtualNode {
             class: {
                 orientation_class()
             }
-            if { !label.is_empty() } {
+            if !label.is_empty() {
                 div {
                     class: c_euv_divider_labeled()
                     span {

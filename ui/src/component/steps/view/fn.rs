@@ -80,7 +80,7 @@ fn euv_step(index: usize, step: EuvStep, current: Signal<usize>) -> VirtualNode 
                 class: c_euv_step_title()
                 step.title
             }
-            if { !step.description.is_empty() } {
+            if !step.description.is_empty() {
                 div {
                     class: c_euv_step_desc()
                     step.description

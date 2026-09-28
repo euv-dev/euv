@@ -52,11 +52,7 @@ fn euv_timeline_item(item: EuvTimelineItem, has_line: bool) -> VirtualNode {
             div {
                 class: c_euv_timeline_marker()
             }
-            // `& true` keeps the condition a non-path expression so the `html!`
-            // auto-unwrap heuristic skips it. A bare `has_line` would be
-            // rewritten to `has_line.get()` and fail to compile, because
-            // `has_line` is a plain `bool`.
-            if { has_line & true } {
+            if has_line {
                 div {
                     class: c_euv_timeline_line()
                 }
@@ -67,13 +63,13 @@ fn euv_timeline_item(item: EuvTimelineItem, has_line: bool) -> VirtualNode {
                     class: c_euv_timeline_title()
                     item.title
                 }
-                if { !item.description.is_empty() } {
+                if !item.description.is_empty() {
                     div {
                         class: c_euv_timeline_desc()
                         item.description
                     }
                 }
-                if { !item.time.is_empty() } {
+                if !item.time.is_empty() {
                     div {
                         class: c_euv_timeline_time()
                         item.time

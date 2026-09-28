@@ -32,7 +32,7 @@ pub fn euv_feature_grid(node: VirtualNode<EuvFeatureGridProps>) -> VirtualNode {
                     key: feature.title
                     div {
                         class: c_feature_header()
-                        if { !feature.icon.is_empty() } {
+                        if !feature.icon.is_empty() {
                             span {
                                 class: c_feature_icon()
                                 {

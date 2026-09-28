@@ -43,7 +43,7 @@ pub fn euv_panel(node: VirtualNode<EuvPanelProps>) -> VirtualNode {
                         title
                     }
                 }
-                if { !subtitle.is_empty() } {
+                if !subtitle.is_empty() {
                     p {
                         class: c_euv_panel_subtitle()
                         {

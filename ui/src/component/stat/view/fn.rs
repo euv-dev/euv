@@ -26,7 +26,7 @@ pub fn euv_stat(node: VirtualNode<EuvStatProps>) -> VirtualNode {
     html! {
         div {
             class: c_euv_stat()
-            if { !icon.is_empty() } {
+            if !icon.is_empty() {
                 span {
                     class: c_euv_stat_icon()
                     {
@@ -46,7 +46,7 @@ pub fn euv_stat(node: VirtualNode<EuvStatProps>) -> VirtualNode {
                     label
                 }
             }
-            if { !hint.is_empty() } {
+            if !hint.is_empty() {
                 span {
                     class: c_euv_stat_hint()
                     {

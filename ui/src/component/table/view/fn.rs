@@ -29,7 +29,7 @@ pub fn euv_table(node: VirtualNode<EuvTableProps>) -> VirtualNode {
     html! {
         table {
             class: c_euv_table()
-            if { !caption.is_empty() } {
+            if !caption.is_empty() {
                 caption {
                     class: c_euv_table_caption()
                     {
