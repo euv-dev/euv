@@ -232,7 +232,7 @@ fn oninput_handler(input_signal: Signal<String>) -> Option<Rc<dyn Fn(Event)>> {
         // event ever reaches us without a target.
         if let Some(input) = event
             .target()
-            .and_then(|t| t.dyn_into::<HtmlInputElement>().ok())
+            .and_then(|t: EventTarget| t.dyn_into::<HtmlInputElement>().ok())
         {
             input_signal.set(input.value());
         }

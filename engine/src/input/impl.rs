@@ -457,8 +457,8 @@ impl InputState {
     pub fn primary_touch_position(&self) -> Option<Vector2D> {
         self.get_touch_points()
             .iter()
-            .min_by_key(|(identifier, _)| **identifier)
-            .map(|(_, position)| *position)
+            .min_by_key(|(identifier, _): &(&i32, &Vector2D)| **identifier)
+            .map(|(_, position): (&i32, &Vector2D)| *position)
     }
 
     /// Clears all per-frame input data (pressed, released, deltas).

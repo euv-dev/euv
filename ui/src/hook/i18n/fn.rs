@@ -133,7 +133,11 @@ pub fn i18n_reset_for_tests() {
         let mut guard: std::sync::RwLockWriteGuard<
             'static,
             HashMap<String, HashMap<String, String>>,
-        > = lock.write().unwrap_or_else(|e| e.into_inner());
+        > = lock.write().unwrap_or_else(
+            |e: std::sync::PoisonError<
+                std::sync::RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
+            >| e.into_inner(),
+        );
         guard.clear();
     }
 }

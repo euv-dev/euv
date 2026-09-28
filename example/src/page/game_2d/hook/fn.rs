@@ -370,7 +370,9 @@ pub(crate) fn handle_rescale_dirty(
         .0
         .borrow()
         .as_ref()
-        .map(|canvas| (canvas.client_width() as f64, canvas.client_height() as f64))
+        .map(|canvas: &HtmlCanvasElement| {
+            (canvas.client_width() as f64, canvas.client_height() as f64)
+        })
         .unwrap_or((0.0, 0.0));
     let (old_w, old_h) = *last_canvas_size_for_loop.borrow();
     if old_w > 0.0 && old_h > 0.0 && new_w > 0.0 && new_h > 0.0 {
@@ -440,7 +442,9 @@ pub(crate) fn handle_rescale_dirty_canvas2d(
         .0
         .borrow()
         .as_ref()
-        .map(|canvas| (canvas.client_width() as f64, canvas.client_height() as f64))
+        .map(|canvas: &HtmlCanvasElement| {
+            (canvas.client_width() as f64, canvas.client_height() as f64)
+        })
         .unwrap_or((0.0, 0.0));
     let (effective_w, effective_h): (f64, f64) = if canvas_w > 0.0 && canvas_h > 0.0 {
         (canvas_w, canvas_h)
@@ -691,7 +695,7 @@ pub(crate) fn rescale_balls_to_canvas(
             // already fits.
             let mut total_ball_area: f64 = balls
                 .iter()
-                .map(|b| b.radius * b.radius * std::f64::consts::PI)
+                .map(|b: &Ball| b.radius * b.radius * std::f64::consts::PI)
                 .sum();
             let cap: f64 = canvas_area * GAME_2D_MAX_BALL_AREA_RATIO;
             let mut trim_count: usize = 0;
@@ -1263,7 +1267,9 @@ pub(crate) fn start_game_2d_loop(
                         .0
                         .borrow()
                         .as_ref()
-                        .map(|canvas| (canvas.client_width() as f64, canvas.client_height() as f64))
+                        .map(|canvas: &HtmlCanvasElement| {
+                            (canvas.client_width() as f64, canvas.client_height() as f64)
+                        })
                         .unwrap_or((0.0, 0.0))
                 };
                 update_balls(&mut balls.borrow_mut(), GAME_2D_FIXED_TIMESTEP, cw, ch);
@@ -1288,7 +1294,9 @@ pub(crate) fn start_game_2d_loop(
                 .0
                 .borrow()
                 .as_ref()
-                .map(|canvas| (canvas.client_width() as f64, canvas.client_height() as f64))
+                .map(|canvas: &HtmlCanvasElement| {
+                    (canvas.client_width() as f64, canvas.client_height() as f64)
+                })
                 .unwrap_or((0.0, 0.0));
             let render_balls: Vec<Ball> =
                 interpolate_balls(&balls.borrow(), &prev_clone.borrow(), alpha);
@@ -1929,7 +1937,7 @@ pub(crate) fn start_game_2d_webgpu_loop(
                             .0
                             .borrow()
                             .as_ref()
-                            .map(|canvas| {
+                            .map(|canvas: &HtmlCanvasElement| {
                                 (canvas.client_width() as f64, canvas.client_height() as f64)
                             })
                             .unwrap_or((0.0, 0.0))
@@ -1975,7 +1983,9 @@ pub(crate) fn start_game_2d_webgpu_loop(
                     .0
                     .borrow()
                     .as_ref()
-                    .map(|canvas| (canvas.client_width() as f64, canvas.client_height() as f64))
+                    .map(|canvas: &HtmlCanvasElement| {
+                        (canvas.client_width() as f64, canvas.client_height() as f64)
+                    })
                     .unwrap_or((0.0, 0.0))
             };
             let new_physical_width: u32 = (canvas_width * dpr).round() as u32;
@@ -2440,7 +2450,7 @@ pub(crate) fn start_game_2d_webgl_loop(
                             .0
                             .borrow()
                             .as_ref()
-                            .map(|canvas| {
+                            .map(|canvas: &HtmlCanvasElement| {
                                 (canvas.client_width() as f64, canvas.client_height() as f64)
                             })
                             .unwrap_or((0.0, 0.0))
@@ -2478,7 +2488,9 @@ pub(crate) fn start_game_2d_webgl_loop(
                     .0
                     .borrow()
                     .as_ref()
-                    .map(|canvas| (canvas.client_width() as f64, canvas.client_height() as f64))
+                    .map(|canvas: &HtmlCanvasElement| {
+                        (canvas.client_width() as f64, canvas.client_height() as f64)
+                    })
                     .unwrap_or((0.0, 0.0))
             };
             let new_physical_width: u32 = (canvas_width * dpr).round() as u32;

@@ -100,7 +100,7 @@ pub fn run(args: &Args) -> Result<(), String> {
     }
     // Phase 1: prepare output directory and template path.
     let out_dir: &Path = args.get_out_dir().as_path();
-    std::fs::create_dir_all(out_dir).map_err(|e| {
+    std::fs::create_dir_all(out_dir).map_err(|e: std::io::Error| {
         format!(
             "failed to create output directory {}: {e}",
             out_dir.display()
@@ -156,7 +156,7 @@ pub fn run(args: &Args) -> Result<(), String> {
     );
     let status: std::process::ExitStatus = command
         .status()
-        .map_err(|e| format!("failed to invoke `{EUV_BIN}` build: {e}"))?;
+        .map_err(|e: std::io::Error| format!("failed to invoke `{EUV_BIN}` build: {e}"))?;
     if !status.success() {
         return Err(format!("{EUV_BIN} build exited with status {status}"));
     }
@@ -172,7 +172,8 @@ pub fn run(args: &Args) -> Result<(), String> {
     let index_html: PathBuf = out_dir.join("index.html");
     let not_found_html: PathBuf = out_dir.join("404.html");
     if index_html.is_file() && !not_found_html.exists() {
-        std::fs::copy(&index_html, &not_found_html).map_err(|e| format!("copy 404.html: {e}"))?;
+        std::fs::copy(&index_html, &not_found_html)
+            .map_err(|e: std::io::Error| format!("copy 404.html: {e}"))?;
     }
     println!("euv-docs: build complete -> {}", out_dir.display());
     Ok(())
@@ -194,22 +195,23 @@ fn copy_public_assets(src_dir: &Path, out_dir: &Path) -> Result<(), String> {
 /// path under `dst`, creating intermediate directories as needed.
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     let entries: Vec<std::fs::DirEntry> = std::fs::read_dir(src)
-        .map_err(|e| format!("read_dir({}): {e}", src.display()))?
+        .map_err(|e: std::io::Error| format!("read_dir({}): {e}", src.display()))?
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| format!("read_dir({}): {e}", src.display()))?;
+        .map_err(|e: std::io::Error| format!("read_dir({}): {e}", src.display()))?;
     for entry in entries {
         let entry_path: PathBuf = entry.path();
         let file_name: std::ffi::OsString = entry.file_name();
         let target_path: PathBuf = dst.join(&file_name);
         let file_type: std::fs::FileType = entry
             .file_type()
-            .map_err(|e| format!("file_type({}): {e}", entry_path.display()))?;
+            .map_err(|e: std::io::Error| format!("file_type({}): {e}", entry_path.display()))?;
         if file_type.is_dir() {
-            std::fs::create_dir_all(&target_path)
-                .map_err(|e| format!("create_dir_all({}): {e}", target_path.display()))?;
+            std::fs::create_dir_all(&target_path).map_err(|e: std::io::Error| {
+                format!("create_dir_all({}): {e}", target_path.display())
+            })?;
             copy_dir_recursive(&entry_path, &target_path)?;
         } else if file_type.is_file() {
-            std::fs::copy(&entry_path, &target_path).map_err(|e| {
+            std::fs::copy(&entry_path, &target_path).map_err(|e: std::io::Error| {
                 format!(
                     "copy {} -> {}: {e}",
                     entry_path.display(),

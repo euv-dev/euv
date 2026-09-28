@@ -1,6 +1,7 @@
 use std::{
     collections::{HashSet, VecDeque},
     env::var,
+    ffi::OsStr,
     fs,
     path::{Component, Path, PathBuf},
 };
@@ -251,8 +252,8 @@ fn main() {
     let locale_dirs: Vec<String> = config
         .locales
         .iter()
-        .filter(|l| l.prefix != "/")
-        .map(|l| l.prefix.trim_matches('/').to_string())
+        .filter(|l: &&LocaleConfig| l.prefix != "/")
+        .map(|l: &LocaleConfig| l.prefix.trim_matches('/').to_string())
         .collect();
 
     let mut md_files: Vec<PathBuf> = Vec::new();
@@ -314,7 +315,7 @@ fn parse_site_config(yaml: &Value) -> Option<SiteConfig> {
 fn parse_locale_config(yaml: &Value) -> Option<LocaleConfig> {
     let navbar_items: Vec<NavItemConfig> = yaml_list(yaml, "navbar")
         .iter()
-        .filter_map(|n| {
+        .filter_map(|n: &Value| {
             Some(NavItemConfig {
                 text: yaml_str(n, "text")?,
                 link: yaml_str(n, "link")?,
@@ -347,11 +348,13 @@ fn collect_md(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
         if path.is_dir() {
-            if path.file_name().is_some_and(|n| n == "public") && path.parent() == Some(root) {
+            if path.file_name().is_some_and(|n: &OsStr| n == "public")
+                && path.parent() == Some(root)
+            {
                 continue;
             }
             collect_md(root, &path, out);
-        } else if path.extension().is_some_and(|e| e == "md") {
+        } else if path.extension().is_some_and(|e: &OsStr| e == "md") {
             out.push(path);
         }
     }
@@ -375,11 +378,13 @@ fn copy_doc_assets_recurse(root: &Path, dir: &Path, www_dir: &Path) {
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
         if path.is_dir() {
-            if path.file_name().is_some_and(|n| n == "public") && path.parent() == Some(root) {
+            if path.file_name().is_some_and(|n: &OsStr| n == "public")
+                && path.parent() == Some(root)
+            {
                 continue;
             }
             copy_doc_assets_recurse(root, &path, www_dir);
-        } else if path.extension().is_some_and(|e| e != "md") {
+        } else if path.extension().is_some_and(|e: &OsStr| e != "md") {
             let Ok(rel) = path.strip_prefix(root) else {
                 continue;
             };
@@ -443,10 +448,10 @@ fn strip_path_prefix(file: &Path, prefix: &Path) -> PathBuf {
             let mut comps: Vec<Component> = rel.components().collect();
             if comps.len() > 1 {
                 let first_str: Option<String> = match comps.first() {
-                    Some(Component::Normal(s)) => s.to_str().map(|s| s.to_string()),
+                    Some(Component::Normal(s)) => s.to_str().map(|s: &str| s.to_string()),
                     _ => None,
                 };
-                let base_str: Option<String> = docs_base.to_str().map(|s| s.to_string());
+                let base_str: Option<String> = docs_base.to_str().map(|s: &str| s.to_string());
                 if let (Some(first_s), Some(base_s)) = (first_str, base_str)
                     && first_s == base_s
                 {
@@ -476,7 +481,7 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
     let rel: &Path = rel.as_path();
     let mut segments: Vec<String> = rel
         .components()
-        .filter_map(|c| match c {
+        .filter_map(|c: Component<'_>| match c {
             Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
             _ => None,
         })
@@ -514,7 +519,7 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
 
     let actions: Vec<(String, String, String)> = yaml_list(&frontmatter, "actions")
         .iter()
-        .map(|item| {
+        .map(|item: &Value| {
             (
                 yaml_str(item, "text").unwrap_or_default(),
                 yaml_str(item, "link").unwrap_or_default(),
@@ -525,7 +530,7 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
 
     let features: Vec<(String, String, String, String)> = yaml_list(&frontmatter, "features")
         .iter()
-        .map(|item| {
+        .map(|item: &Value| {
             (
                 yaml_str(item, "icon").unwrap_or_default(),
                 yaml_str(item, "title").unwrap_or_default(),
@@ -537,7 +542,7 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
 
     let stats: Vec<(String, String, String)> = yaml_list(&frontmatter, "stats")
         .iter()
-        .map(|item| {
+        .map(|item: &Value| {
             (
                 yaml_str(item, "icon").unwrap_or_default(),
                 yaml_str(item, "value").unwrap_or_default(),
@@ -579,11 +584,11 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
         password_hash,
         sidebar: frontmatter
             .get("sidebar")
-            .and_then(|v| v.as_bool())
+            .and_then(|v: &Value| v.as_bool())
             .unwrap_or(true),
         sidebar_order: yaml_list(&frontmatter, "sidebar_order")
             .iter()
-            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .filter_map(|v: &Value| v.as_str().map(|s: &str| s.to_string()))
             .collect(),
         index: renders_index(&frontmatter, &segments),
     }
@@ -599,7 +604,7 @@ fn renders_index(frontmatter: &Value, segments: &[String]) -> bool {
     }
     frontmatter
         .get("index")
-        .and_then(|v| v.as_bool())
+        .and_then(|v: &Value| v.as_bool())
         .unwrap_or(true)
 }
 
@@ -641,7 +646,7 @@ fn join_locale_route(locale: &str, base: &str) -> String {
 fn stem_of(segments: &[String]) -> String {
     segments
         .last()
-        .map(|s| s.trim_end_matches(".md").to_string())
+        .map(|s: &String| s.trim_end_matches(".md").to_string())
         .unwrap_or_default()
 }
 
@@ -690,26 +695,29 @@ fn split_frontmatter(raw: &str) -> (Value, &str) {
 fn yaml_str(value: &Value, key: &str) -> Option<String> {
     value
         .get(key)
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
+        .and_then(|v: &Value| v.as_str())
+        .map(|s: &str| s.to_string())
 }
 
 /// Reads an i64 field from a YAML mapping.
 fn yaml_i64(value: &Value, key: &str) -> Option<i64> {
-    value.get(key).and_then(|v| v.as_i64())
+    value.get(key).and_then(|v: &Value| v.as_i64())
 }
 
 /// Reads a bool field from a YAML mapping.
 fn yaml_bool(value: &Value, key: &str) -> bool {
-    value.get(key).and_then(|v| v.as_bool()).unwrap_or(false)
+    value
+        .get(key)
+        .and_then(|v: &Value| v.as_bool())
+        .unwrap_or(false)
 }
 
 /// Reads a list field from a YAML mapping.
 fn yaml_list<'a>(value: &'a Value, key: &str) -> &'a [Value] {
     value
         .get(key)
-        .and_then(|v| v.as_sequence())
-        .map(|s| s.as_slice())
+        .and_then(|v: &Value| v.as_sequence())
+        .map(|s: &Vec<Value>| s.as_slice())
         .unwrap_or(&[])
 }
 
@@ -752,7 +760,7 @@ fn yaml_list<'a>(value: &'a Value, key: &str) -> &'a [Value] {
 fn is_private_page(value: &Value) -> bool {
     if value
         .get("private")
-        .and_then(|v| v.as_bool())
+        .and_then(|v: &Value| v.as_bool())
         .unwrap_or(false)
     {
         return true;
@@ -761,7 +769,7 @@ fn is_private_page(value: &Value) -> bool {
         match category {
             Value::String(s) => {
                 if s.split(',')
-                    .any(|t| t.trim().eq_ignore_ascii_case("private"))
+                    .any(|t: &str| t.trim().eq_ignore_ascii_case("private"))
                 {
                     return true;
                 }
@@ -778,7 +786,7 @@ fn is_private_page(value: &Value) -> bool {
             _ => {}
         }
     }
-    if let Some(head) = value.get("head").and_then(|v| v.as_sequence()) {
+    if let Some(head) = value.get("head").and_then(|v: &Value| v.as_sequence()) {
         for entry in head {
             let Some(entry_seq) = entry.as_sequence() else {
                 continue;
@@ -796,16 +804,16 @@ fn is_private_page(value: &Value) -> bool {
                 };
                 let name = attrs_map
                     .get(Value::String("name".to_string()))
-                    .and_then(|v| v.as_str())
+                    .and_then(|v: &Value| v.as_str())
                     .unwrap_or("");
                 let content = attrs_map
                     .get(Value::String("content".to_string()))
-                    .and_then(|v| v.as_str())
+                    .and_then(|v: &Value| v.as_str())
                     .unwrap_or("");
                 if name.eq_ignore_ascii_case("keywords")
                     && content
                         .split(|c: char| c == ',' || c.is_whitespace())
-                        .any(|t| t.trim().eq_ignore_ascii_case("private"))
+                        .any(|t: &str| t.trim().eq_ignore_ascii_case("private"))
                 {
                     return true;
                 }
@@ -971,7 +979,7 @@ fn split_containers(src: &str) -> Vec<Segment> {
             title = parts
                 .next()
                 .map(str::trim)
-                .filter(|t| !t.is_empty())
+                .filter(|t: &&str| !t.is_empty())
                 .map(str::to_string);
             in_container = true;
             body.clear();
@@ -1242,10 +1250,13 @@ fn rescue_strong(inlines: Vec<Inline>) -> Vec<Inline> {
             other => toks.push(Some(Tok::El(other))),
         }
     }
-    if !toks.iter().any(|t| matches!(t, Some(Tok::Delim))) {
+    if !toks
+        .iter()
+        .any(|t: &Option<Tok>| matches!(t, Some(Tok::Delim)))
+    {
         return toks
             .into_iter()
-            .filter_map(|t| match t {
+            .filter_map(|t: Option<Tok>| match t {
                 Some(Tok::El(inline)) => Some(inline),
                 _ => None,
             })
@@ -1260,7 +1271,7 @@ fn rescue_strong(inlines: Vec<Inline>) -> Vec<Inline> {
         match open {
             None => open = Some(idx),
             Some(o) => {
-                let has_content: bool = toks[o + 1..idx].iter().any(|t| match t {
+                let has_content: bool = toks[o + 1..idx].iter().any(|t: &Option<Tok>| match t {
                     Some(Tok::El(Inline::Text(s))) => !s.trim().is_empty(),
                     Some(Tok::El(Inline::SoftBreak)) | Some(Tok::El(Inline::HardBreak)) => false,
                     Some(Tok::El(_)) => true,
@@ -1279,7 +1290,10 @@ fn rescue_strong(inlines: Vec<Inline>) -> Vec<Inline> {
     let mut out: Vec<Inline> = Vec::new();
     let mut i: usize = 0;
     while i < toks.len() {
-        let close: Option<usize> = pairs.iter().find(|(o, _)| *o == i).map(|(_, c)| *c);
+        let close: Option<usize> = pairs
+            .iter()
+            .find(|(o, _): &&(usize, usize)| *o == i)
+            .map(|(_, c): &(usize, usize)| *c);
         match close {
             Some(c) => {
                 let mut children: Vec<Inline> = Vec::new();
@@ -1554,13 +1568,13 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
     let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
     };
-    let mut entries: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+    let mut entries: Vec<PathBuf> = entries.flatten().map(|e: fs::DirEntry| e.path()).collect();
     entries.sort();
 
     for path in entries {
         let name: String = path
             .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
+            .map(|n: &OsStr| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         if path.is_dir() {
             if name == "public" && path.parent() == Some(locale_root) {
@@ -1569,7 +1583,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             let children: Vec<SideItem> = build_sidebar(&path, locale_root, locale, pages);
             let rel_segments: Vec<String> = strip_path_prefix(&path, locale_root)
                 .components()
-                .filter_map(|c| match c {
+                .filter_map(|c: Component<'_>| match c {
                     Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
                     _ => None,
                 })
@@ -1577,7 +1591,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             let mut segs: Vec<String> = rel_segments;
             segs.push("README.md".to_string());
             let readme_route: String = route_for(&segs, locale);
-            let readme_page: Option<&Page> = pages.iter().find(|p| p.route == readme_route);
+            let readme_page: Option<&Page> = pages.iter().find(|p: &&Page| p.route == readme_route);
             let index_page: Option<&Page> = readme_page.filter(|page: &&Page| page.index);
             if children.is_empty() {
                 // A directory whose only page is its README is still listed as
@@ -1612,13 +1626,13 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
         } else if name.ends_with(".md") && name != "README.md" && name != "index.md" {
             let rel_segments: Vec<String> = strip_path_prefix(&path, locale_root)
                 .components()
-                .filter_map(|c| match c {
+                .filter_map(|c: Component<'_>| match c {
                     Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
                     _ => None,
                 })
                 .collect();
             let route: String = route_for(&rel_segments, locale);
-            let Some(page) = pages.iter().find(|p| p.route == route) else {
+            let Some(page) = pages.iter().find(|p: &&Page| p.route == route) else {
                 continue;
             };
             if !page.sidebar {
@@ -1643,7 +1657,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
     let readme_route: String = {
         let rel_segments: Vec<String> = strip_path_prefix(dir, locale_root)
             .components()
-            .filter_map(|c| match c {
+            .filter_map(|c: Component<'_>| match c {
                 Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
                 _ => None,
             })
@@ -1654,35 +1668,38 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
     };
     let order_list: &[String] = pages
         .iter()
-        .find(|p| p.route == readme_route)
-        .map(|p| p.sidebar_order.as_slice())
+        .find(|p: &&Page| p.route == readme_route)
+        .map(|p: &Page| p.sidebar_order.as_slice())
         .unwrap_or(&[]);
     let pin_pos = |key: &str| -> Option<i64> {
         order_list
             .iter()
-            .position(|n| {
+            .position(|n: &String| {
                 let n: &str = n.trim().trim_start_matches("./").trim_end_matches('/');
                 let n: &str = n.strip_suffix(".md").unwrap_or(n);
                 n == key
             })
-            .map(|i| i as i64)
+            .map(|i: usize| i as i64)
     };
 
     let order_of = |item: &SideItem| -> i64 {
         item.link
             .as_ref()
-            .and_then(|route| pages.iter().find(|p| &p.route == route))
-            .map(|p| p.order)
+            .and_then(|route: &String| pages.iter().find(|p: &&Page| &p.route == route))
+            .map(|p: &Page| p.order)
             .unwrap_or(0)
     };
-    items.sort_by(|a, b| {
+    items.sort_by(|a: &(String, SideItem), b: &(String, SideItem)| {
         pin_pos(&a.0)
             .unwrap_or(i64::MAX)
             .cmp(&pin_pos(&b.0).unwrap_or(i64::MAX))
             .then_with(|| order_of(&a.1).cmp(&order_of(&b.1)))
             .then_with(|| a.1.text.cmp(&b.1.text))
     });
-    items.into_iter().map(|(_, item)| item).collect()
+    items
+        .into_iter()
+        .map(|(_, item): (String, SideItem)| item)
+        .collect()
 }
 
 /// Emits the generated Rust source.
@@ -1702,7 +1719,7 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
         let headings: String = page
             .headings
             .iter()
-            .map(|h| {
+            .map(|h: &Heading| {
                 format!(
                     "euv_ui::EuvTocItem {{ level: {}, text: {:?}, href: {:?} }}",
                     h.level,
@@ -1715,7 +1732,7 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
         let actions: String = page
             .actions
             .iter()
-            .map(|(text, link, kind)| {
+            .map(|(text, link, kind): &(String, String, String)| {
                 format!(
                     "euv_ui::EuvHeroAction {{ text: {:?}, link: {:?}, primary: {:?} }}",
                     text,
@@ -1728,7 +1745,7 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
         let features: String = page
             .features
             .iter()
-            .map(|(icon, title, details, link)| {
+            .map(|(icon, title, details, link): &(String, String, String, String)| {
                 format!(
                     "crate::data::DocsFeature {{ icon: {:?}, title: {:?}, details: {:?}, link: {:?} }}",
                     icon, title, details, link
@@ -1739,7 +1756,7 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
         let stats: String = page
             .stats
             .iter()
-            .map(|(icon, value, label)| {
+            .map(|(icon, value, label): &(String, String, String)| {
                 format!(
                     "crate::data::DocsStat {{ icon: {:?}, value: {:?}, label: {:?} }}",
                     icon, value, label
@@ -1770,16 +1787,16 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
     for locale in &config.locales {
         let sidebar_src: &Vec<SideItem> = sidebars
             .iter()
-            .find(|(prefix, _)| prefix == &locale.prefix)
-            .map(|(_, items)| items)
+            .find(|(prefix, _): &&(String, Vec<SideItem>)| prefix == &locale.prefix)
+            .map(|(_, items): &(String, Vec<SideItem>)| items)
             .expect("sidebar for locale");
         let navbar: String = locale
             .navbar
             .as_ref()
-            .map(|items| {
+            .map(|items: &Vec<NavItemConfig>| {
                 items
                     .iter()
-                    .map(|item| {
+                    .map(|item: &NavItemConfig| {
                         format!(
                             "euv_ui::EuvNavbarItem {{ text: {:?}, link: {:?} }}",
                             item.text, item.link
@@ -1826,7 +1843,7 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
 fn emit_blocks(blocks: &[AstBlock]) -> String {
     let inner: String = blocks
         .iter()
-        .map(|block| match block {
+        .map(|block: &AstBlock| match block {
             AstBlock::Heading {
                 level,
                 id,
@@ -1848,7 +1865,7 @@ fn emit_blocks(blocks: &[AstBlock]) -> String {
             AstBlock::List { ordered, items } => {
                 let items_code: String = items
                     .iter()
-                    .map(|item| emit_blocks(item))
+                    .map(|item: &Vec<AstBlock>| emit_blocks(item))
                     .collect::<Vec<String>>()
                     .join(", ");
                 format!(
@@ -1858,15 +1875,15 @@ fn emit_blocks(blocks: &[AstBlock]) -> String {
             AstBlock::Table { head, rows } => {
                 let head_code: String = head
                     .iter()
-                    .map(|cell| emit_inlines(cell))
+                    .map(|cell: &Vec<Inline>| emit_inlines(cell))
                     .collect::<Vec<String>>()
                     .join(", ");
                 let rows_code: String = rows
                     .iter()
-                    .map(|row| {
+                    .map(|row: &Vec<Vec<Inline>>| {
                         let cells: String = row
                             .iter()
-                            .map(|cell| emit_inlines(cell))
+                            .map(|cell: &Vec<Inline>| emit_inlines(cell))
                             .collect::<Vec<String>>()
                             .join(", ");
                         format!("&[{cells}]")
@@ -1897,7 +1914,7 @@ fn emit_blocks(blocks: &[AstBlock]) -> String {
 fn emit_inlines(inlines: &[Inline]) -> String {
     let inner: String = inlines
         .iter()
-        .map(|inline| match inline {
+        .map(|inline: &Inline| match inline {
             Inline::Text(text) => format!("euv_ui::EuvMdInline::Text({text:?})"),
             Inline::Strong(children) => {
                 format!("euv_ui::EuvMdInline::Strong({})", emit_inlines(children))
@@ -1936,7 +1953,7 @@ fn emit_inlines(inlines: &[Inline]) -> String {
 fn emit_sidebar(items: &[SideItem]) -> String {
     let inner: String = items
         .iter()
-        .map(|item| {
+        .map(|item: &SideItem| {
             let link: String = match &item.link {
                 Some(route) => format!("Some({route:?})"),
                 None => "None".to_string(),

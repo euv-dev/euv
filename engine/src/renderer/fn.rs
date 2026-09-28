@@ -203,7 +203,7 @@ pub(crate) fn cached_method_name(name: &'static str) -> JsValue {
         static CACHE: RefCell<Option<HashMap<&'static str, JsValue>>> =
             const { RefCell::new(None) };
     }
-    CACHE.with(|slot| {
+    CACHE.with(|slot: &RefCell<Option<HashMap<&'static str, JsValue>>>| {
         let mut borrow: std::cell::RefMut<'_, Option<HashMap<&'static str, JsValue>>> =
             slot.borrow_mut();
         let map: &mut HashMap<&'static str, JsValue> = borrow.get_or_insert_with(HashMap::new);
@@ -282,25 +282,28 @@ pub(crate) fn cached_method(
         > = const { RefCell::new(None) };
     }
     let key: (GpuReceiverClass, &'static str) = (class, method_name);
-    FUNCTION_CACHE.with(|slot| {
-        let mut borrow: std::cell::RefMut<
-            '_,
-            Option<HashMap<(GpuReceiverClass, &'static str), Function>>,
-        > = slot.borrow_mut();
-        let map: &mut HashMap<(GpuReceiverClass, &'static str), Function> =
-            borrow.get_or_insert_with(HashMap::new);
-        if let Some(func) = map.get(&key) {
-            return Ok(func.clone());
-        }
-        let value: Result<JsValue, JsValue> = Reflect::get(obj, &cached_method_name(method_name));
-        let value: JsValue = match value {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-        let func: Function = value.unchecked_into();
-        map.insert(key, func.clone());
-        Ok(func)
-    })
+    FUNCTION_CACHE.with(
+        |slot: &RefCell<Option<HashMap<(GpuReceiverClass, &'static str), Function>>>| {
+            let mut borrow: std::cell::RefMut<
+                '_,
+                Option<HashMap<(GpuReceiverClass, &'static str), Function>>,
+            > = slot.borrow_mut();
+            let map: &mut HashMap<(GpuReceiverClass, &'static str), Function> =
+                borrow.get_or_insert_with(HashMap::new);
+            if let Some(func) = map.get(&key) {
+                return Ok(func.clone());
+            }
+            let value: Result<JsValue, JsValue> =
+                Reflect::get(obj, &cached_method_name(method_name));
+            let value: JsValue = match value {
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            };
+            let func: Function = value.unchecked_into();
+            map.insert(key, func.clone());
+            Ok(func)
+        },
+    )
 }
 
 /// OPT 2b convenience: cached `Function::call1(this, &arg)` for
