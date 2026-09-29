@@ -1,16 +1,4 @@
-//! Unit tests for the inline-bridge parser helpers.
-//!
-//! These exercise the pure-function half of `cli/src/build/inline.rs` so that
-//! the bridge-inlining pipeline has regression coverage without needing a
-//! `wasm-pack` build or a running browser. End-to-end browser verification
-//! still happens in CI via the example app, but pure-parser regressions
-//! (import-spec extraction, namespace detection, export-name scanning) are
-//! caught by these tests.
-
-use euv_cli::{
-    extract_exported_function_names, extract_import_spec, extract_namespace_alias,
-    is_namespace_import,
-};
+use super::*;
 
 #[test]
 fn extract_import_spec_strips_quotes_and_semicolon() {
@@ -32,7 +20,6 @@ fn extract_import_spec_handles_double_quotes() {
 
 #[test]
 fn extract_import_spec_rejects_non_relative_specs() {
-    // Bare module specifiers (e.g. `lodash`) must not be inlined.
     let rest: &str = "default from 'lodash';";
     assert_eq!(extract_import_spec(rest), None);
 }
@@ -93,7 +80,6 @@ fn extract_exported_function_names_handles_empty_input() {
 
 #[test]
 fn extract_exported_function_names_supports_dollar_identifiers() {
-    // wasm-bindgen occasionally emits $ in function names.
     let source: &str = "export function foo$bar() {}\n";
     let names: Vec<String> = extract_exported_function_names(source);
     assert_eq!(names, vec!["foo$bar".to_string()]);
