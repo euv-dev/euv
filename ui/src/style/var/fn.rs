@@ -93,8 +93,18 @@ vars! {
         padding-main-top: "24px";
         padding-main-top-mobile: "16px";
         padding-main-bottom: "24px";
-        padding-main-horizontal: "28px";
-        padding-main-horizontal-mobile: "16px";
+        // Edge Gutter — distance from a viewport/shell edge to the chrome
+        // anchored there. Every edge-anchored element (mobile header left and
+        // right, drawer header, desktop navbar, main column, vconsole FAB)
+        // reads one of these tokens, so left/right offsets can never drift
+        // apart. `edge-gutter-nav` is the nav column's own inner gutter
+        // (desktop sidebar and mobile drawer share it).
+        edge-gutter: "28px";
+        edge-gutter-mobile: "16px";
+        edge-gutter-nav: "20px";
+        edge-gutter-bottom: "20px";
+        padding-main-horizontal: var!(edge-gutter);
+        padding-main-horizontal-mobile: var!(edge-gutter-mobile);
         gap-page-header: "16px";
         gap-page-title: "6px";
         min-height-base: "36px";
@@ -242,8 +252,18 @@ vars! {
         padding-main-top: "24px";
         padding-main-top-mobile: "16px";
         padding-main-bottom: "24px";
-        padding-main-horizontal: "28px";
-        padding-main-horizontal-mobile: "16px";
+        // Edge Gutter — distance from a viewport/shell edge to the chrome
+        // anchored there. Every edge-anchored element (mobile header left and
+        // right, drawer header, desktop navbar, main column, vconsole FAB)
+        // reads one of these tokens, so left/right offsets can never drift
+        // apart. `edge-gutter-nav` is the nav column's own inner gutter
+        // (desktop sidebar and mobile drawer share it).
+        edge-gutter: "28px";
+        edge-gutter-mobile: "16px";
+        edge-gutter-nav: "20px";
+        edge-gutter-bottom: "20px";
+        padding-main-horizontal: var!(edge-gutter);
+        padding-main-horizontal-mobile: var!(edge-gutter-mobile);
         gap-page-header: "16px";
         gap-page-title: "6px";
         min-height-base: "36px";

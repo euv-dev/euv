@@ -208,7 +208,10 @@ class! {
     }
 
     pub c_nav_header {
-        padding: format!("{} {}", var!(space-xl), var!(space-xl));
+        padding: format!("{} {}", var!(space-xl), var!(edge-gutter-nav));
+        @media ((max-width: 767px)) {
+            padding: format!("{} {}", var!(space-xl), var!(edge-gutter-mobile));
+        }
         width: "100%";
         box-sizing: "border-box";
         font-size: var!(font-xl);
@@ -226,10 +229,16 @@ class! {
             content: "''";
             position: "absolute";
             bottom: "0px";
-            left: var!(space-lg);
-            right: var!(space-lg);
+            left: var!(edge-gutter-nav);
+            right: var!(edge-gutter-nav);
             height: "1px";
             background: format!("linear-gradient(90deg, transparent, {}, transparent)", var!(border));
+        }
+        @media ((max-width: 767px)) {
+            ::after {
+                left: var!(edge-gutter-mobile);
+                right: var!(edge-gutter-mobile);
+            }
         }
     }
 
@@ -271,7 +280,10 @@ class! {
     }
 
     pub c_nav_section_label {
-        padding: format!("{} {} {} {}", var!(space-md), var!(space-xl), var!(space-xs), var!(space-xl));
+        padding: format!("{} {} {} {}", var!(space-md), var!(edge-gutter-nav), var!(space-xs), var!(edge-gutter-nav));
+        @media ((max-width: 767px)) {
+            padding: format!("{} {} {} {}", var!(space-md), var!(edge-gutter-mobile), var!(space-xs), var!(edge-gutter-mobile));
+        }
         margin: "0px";
         font-size: var!(font-xs);
         font-weight: "700";
@@ -300,7 +312,7 @@ class! {
     }
 
     pub c_nav_theme_toggle {
-        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        padding: format!("{} {}", var!(space-md), var!(edge-gutter-nav));
         flex-shrink: "0";
         margin-top: "auto";
         @media ((max-width: 767px)) {
@@ -311,7 +323,10 @@ class! {
     // Optional row in the nav column / drawer for locale switchers or similar
     // widgets, placed between the brand header and the section label.
     pub c_nav_locale_row {
-        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        padding: format!("{} {}", var!(space-md), var!(edge-gutter-nav));
+        @media ((max-width: 767px)) {
+            padding: format!("{} {}", var!(space-md), var!(edge-gutter-mobile));
+        }
         flex-shrink: "0";
     }
 
@@ -422,7 +437,10 @@ class! {
     }
 
     pub c_nav_footer {
-        padding: format!("{} {}", var!(space-lg), var!(space-xl));
+        padding: format!("{} {}", var!(space-lg), var!(edge-gutter-nav));
+        @media ((max-width: 767px)) {
+            padding: format!("{} {}", var!(space-lg), var!(edge-gutter-mobile));
+        }
         position: "relative";
         font-size: var!(font-xs);
         color: var!(muted-foreground);
@@ -450,10 +468,14 @@ class! {
     pub c_nav_footer_divider {
         position: "absolute";
         top: "0";
-        left: var!(space-lg);
-        right: var!(space-lg);
+        left: var!(edge-gutter-nav);
+        right: var!(edge-gutter-nav);
         height: "1px";
         background: format!("linear-gradient(90deg, transparent, {}, transparent)", var!(border));
+        @media ((max-width: 767px)) {
+            left: var!(edge-gutter-mobile);
+            right: var!(edge-gutter-mobile);
+        }
     }
 
     pub c_nav_footer_text {
@@ -470,7 +492,10 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        padding: format!("{} {}", var!(space-md), var!(edge-gutter-nav));
+        @media ((max-width: 767px)) {
+            padding: format!("{} {}", var!(space-md), var!(edge-gutter-mobile));
+        }
         text-decoration: "none";
         font-size: var!(font-base);
         color: var!(text-on-accent);
@@ -482,7 +507,10 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        padding: format!("{} {}", var!(space-md), var!(edge-gutter-nav));
+        @media ((max-width: 767px)) {
+            padding: format!("{} {}", var!(space-md), var!(edge-gutter-mobile));
+        }
         text-decoration: "none";
         font-size: var!(font-base);
         color: var!(foreground);
@@ -516,7 +544,7 @@ class! {
         flex: "1";
         height: "100%";
         overflow: "auto";
-        padding: format!("{} {} {} {}", var!(padding-main-top), var!(padding-main-horizontal), var!(padding-main-bottom), var!(padding-main-horizontal));
+        padding: format!("{} {} {} {}", var!(padding-main-top), var!(edge-gutter), var!(padding-main-bottom), var!(edge-gutter));
         scrollbar-color: format!("{} {}", var!(scrollbar-thumb), var!(scrollbar-track));
         ::-webkit-scrollbar {
             width: "6px";
@@ -533,7 +561,7 @@ class! {
             background: var!(scrollbar-thumb-active);
         }
         @media ((max-width: 767px)) {
-            padding: format!("{} {} {} {}", var!(padding-main-top-mobile), var!(padding-main-horizontal-mobile), var!(padding-main-bottom), var!(padding-main-horizontal-mobile));
+            padding: format!("{} {} {} {}", var!(padding-main-top-mobile), var!(edge-gutter-mobile), var!(padding-main-bottom), var!(edge-gutter-mobile));
             scrollbar-width: "none";
             ::-webkit-scrollbar {
                 width: "0px";
@@ -2370,9 +2398,9 @@ class! {
         will-change: "transform";
         transition: format!("transform {} {}", var!(duration-overlay), var!(ease-out));
         overflow: "hidden";
-        padding: format!("{} {}", var!(padding-main-top), var!(padding-main-horizontal));
+        padding: format!("{} {}", var!(padding-main-top), var!(edge-gutter));
         @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(space-md), var!(padding-main-horizontal-mobile));
+            padding: format!("{} {}", var!(space-md), var!(edge-gutter-mobile));
         }
     }
 
@@ -2383,12 +2411,12 @@ class! {
 
     pub c_vconsole_fab {
         position: "fixed";
-        bottom: format!("calc(20px + {})", var!(safe-area-inset-bottom));
-        right: var!(padding-main-horizontal);
+        bottom: format!("calc({} + {})", var!(edge-gutter-bottom), var!(safe-area-inset-bottom));
+        right: var!(edge-gutter);
         z-index: "9999";
         @media ((max-width: 767px)) {
-            bottom: format!("calc(16px + {})", var!(safe-area-inset-bottom));
-            right: var!(padding-main-horizontal-mobile);
+            bottom: format!("calc({} + {})", var!(edge-gutter-mobile), var!(safe-area-inset-bottom));
+            right: var!(edge-gutter-mobile);
         }
     }
 
@@ -2578,7 +2606,7 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        padding: format!("var(--euv-mobile-safe-top, 0px) 0px 0px {}", var!(space-lg));
+        padding: format!("var(--euv-mobile-safe-top, 0px) {} 0px {}", var!(edge-gutter-mobile), var!(edge-gutter-mobile));
         height: format!("calc({} + var(--euv-mobile-safe-top, 0px))", var!(mobile-header-height));
         flex-shrink: "0";
         position: "sticky";
@@ -2718,7 +2746,7 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        padding: format!("0px {}", var!(space-lg));
+        padding: format!("0px {}", var!(edge-gutter-mobile));
         height: var!(mobile-header-height);
         flex-shrink: "0";
         position: "relative";
@@ -2726,8 +2754,8 @@ class! {
             content: "''";
             position: "absolute";
             bottom: "0px";
-            left: var!(space-lg);
-            right: var!(space-lg);
+            left: var!(edge-gutter-mobile);
+            right: var!(edge-gutter-mobile);
             height: "1px";
             background: format!("linear-gradient(90deg, transparent, {}, transparent)", var!(border));
         }
@@ -3585,12 +3613,12 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(gap-element);
-        padding: format!("0px {}", var!(padding-main-horizontal));
+        padding: format!("0px {}", var!(edge-gutter));
         border-bottom: format!("1px solid {}", var!(border));
         background: var!(background);
         z-index: "100";
         @media ((max-width: 767px)) {
-            padding: format!("0px {}", var!(padding-main-horizontal-mobile));
+            padding: format!("0px {}", var!(edge-gutter-mobile));
         }
     }
 
