@@ -62,6 +62,11 @@ pub(crate) const JS_GLOBAL_THIS: &str = "globalThis";
 
 /// JS expression returning the sub-millisecond fraction of the high-resolution
 /// clock, used to add resolution [`JS_GLOBAL_THIS`]'s `Date.now()` lacks.
+///
+/// Only the wasm build evaluates JS, so this constant is unreachable on the
+/// host and is gated with it; ungated it is a `dead_code` warning waiting to
+/// happen on every `cargo clippy` that is not targeting wasm32.
+#[cfg(target_arch = "wasm32")]
 pub(crate) const JS_PERFORMANCE_NOW_FRACTION: &str = "performance.now() % 1";
 
 /// A name set the tests pin, so the JS side can be asserted without depending

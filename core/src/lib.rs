@@ -29,7 +29,12 @@ pub use {js_sys::*, lombok_macros::*, wasm_bindgen::prelude::*, web_sys::*};
 
 pub use bin_encode_decode::{Charset, EncodeError};
 
-pub(crate) use std::iter::Iterator;
+/// The wall clock [`now_micros`] reads on a host build. On wasm the clock
+/// comes from JS instead, so importing this there is an `unused_imports`
+/// warning — the mirror of the dead-const warning the host build would give
+/// the other half of the same function.
+#[cfg(not(target_arch = "wasm32"))]
+pub use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) use renderer::*;
 
@@ -39,6 +44,5 @@ use std::{
     num::ParseIntError,
     rc::Rc,
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
     vec::Vec,
 };
