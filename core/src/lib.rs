@@ -1,4 +1,4 @@
-//! euv
+//! euv-core
 //!
 //! A declarative, cross-platform UI framework for Rust with virtual DOM,
 //! reactive signals, and HTML macros for WebAssembly.
@@ -21,11 +21,13 @@ pub use std::{
     marker::PhantomData,
     mem::{swap, take, zeroed},
     panic::{AssertUnwindSafe, catch_unwind},
-    sync::{LazyLock, RwLock, RwLockReadGuard},
+    sync::{LazyLock, OnceLock, RwLock, RwLockReadGuard},
     thread::LocalKey,
 };
 
 pub use {js_sys::*, lombok_macros::*, wasm_bindgen::prelude::*, web_sys::*};
+
+pub use bin_encode_decode::{Charset, EncodeError};
 
 pub(crate) use std::iter::Iterator;
 
@@ -37,5 +39,6 @@ use std::{
     num::ParseIntError,
     rc::Rc,
     sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+    time::{SystemTime, UNIX_EPOCH},
     vec::Vec,
 };

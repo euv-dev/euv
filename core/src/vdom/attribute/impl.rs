@@ -31,7 +31,10 @@ impl InjectedClassesCell {
     ///
     /// - `&str` - The CSS class name to mark as injected.
     pub(crate) fn mark_injected(class_name: &str) {
-        let write_result = INJECTED_CLASSES.write();
+        let write_result: Result<
+            InjectedClassesWriteGuard<'_>,
+            std::sync::PoisonError<InjectedClassesWriteGuard<'_>>,
+        > = INJECTED_CLASSES.write();
         let Ok(mut classes) = write_result else {
             return;
         };

@@ -172,14 +172,17 @@ pub(crate) fn cached_document() -> Option<Document> {
 /// # Arguments
 ///
 /// - `&Element` - The parent DOM element receiving the children.
-/// - `impl IntoIterator<Item = Node>` - The DOM nodes to attach, in
-///   their final sibling order.
+/// - `I` - Any `IntoIterator<Item = Node>` yielding the DOM nodes to
+///   attach, in their final sibling order.
 ///
 /// # Returns
 ///
 /// - `()` - The appends are best-effort; per-call JS errors are dropped
 ///   to match the previous per-node behaviour.
-pub(crate) fn append_nodes(parent: &Element, nodes: impl IntoIterator<Item = Node>) {
+pub(crate) fn append_nodes<I>(parent: &Element, nodes: I)
+where
+    I: IntoIterator<Item = Node>,
+{
     if !parent.is_connected() {
         for node in nodes {
             let _: Result<Node, JsValue> = parent.append_child(&node);
@@ -512,7 +515,7 @@ pub(crate) fn euv_collect_subtree_ids(root: &Element) -> Float64Array {
             },
             None => out.push(f64::NAN),
         }
-        let children = node.children();
+        let children: HtmlCollection = node.children();
         let len: u32 = children.length();
         for i in (0..len).rev() {
             if let Some(child) = children.item(i) {

@@ -451,7 +451,7 @@ pub(crate) fn start_lighting_loop(state: UseLighting) {
         let loading_callback: Function =
             loading_closure.as_ref().unchecked_ref::<Function>().clone();
         loading_closure.forget();
-        let _ = loading_window
+        let _: Result<i32, JsValue> = loading_window
             .set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     }
     let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
@@ -628,7 +628,7 @@ pub(crate) fn start_lighting_loop(state: UseLighting) {
             let Some(window_value): Option<Window> = window() else {
                 return;
             };
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timeout_id) = start_timeout_id.get() {
             let Some(window_value): Option<Window> = window() else {
@@ -709,7 +709,7 @@ fn lighting_set_loaded_delayed(loaded: Signal<bool>, millis: i32) {
     let Some(loaded_window): Option<Window> = window() else {
         return;
     };
-    let _ = loaded_window
+    let _: Result<i32, JsValue> = loaded_window
         .set_timeout_with_callback_and_timeout_and_arguments_0(&loaded_callback, millis);
 }
 
@@ -794,7 +794,7 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
         if let Some(cancel_id) = raf_for_cleanup.get()
             && let Some(window_value) = window()
         {
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timer_id) = resize_timer_for_cleanup.get()
             && let Some(window_value) = window()
@@ -825,7 +825,7 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     spawn_local(async move {
         if cancelled_for_init.get() {
@@ -1136,7 +1136,7 @@ pub(crate) fn start_lighting_webgpu_loop(state: UseLightingWebGpu) {
         if let Some(cancel_id) = raf_for_cleanup.get()
             && let Some(window_value) = window()
         {
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timer_id) = resize_timer_for_cleanup.get()
             && let Some(window_value) = window()
@@ -1172,7 +1172,7 @@ pub(crate) fn start_lighting_webgpu_loop(state: UseLightingWebGpu) {
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     spawn_local(async move {
         let config: RenderConfig = RenderConfig::webgpu(
@@ -1360,11 +1360,11 @@ pub(crate) fn start_lighting_webgpu_loop(state: UseLightingWebGpu) {
                     if backing_w != new_physical_width || backing_h != new_physical_height {
                         renderer.get_canvas().set_width(new_physical_width);
                         renderer.get_canvas().set_height(new_physical_height);
-                        let _ = renderer.resize(new_physical_width, new_physical_height);
+                        let _: bool = renderer.resize(new_physical_width, new_physical_height);
                     }
                 }
                 if resize_dirty_frame {
-                    let _ = renderer.resize(new_physical_width, new_physical_height);
+                    let _: bool = renderer.resize(new_physical_width, new_physical_height);
                 }
                 if loop_state.get_running().get() {
                     let backing_w: f64 = f64::from(renderer.get_canvas().width());
@@ -1485,7 +1485,7 @@ pub(crate) fn enter_lighting_fullscreen(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 
@@ -1511,7 +1511,7 @@ pub(crate) fn exit_lighting_fullscreen(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 
@@ -1536,7 +1536,7 @@ pub(crate) fn exit_lighting_fullscreen_from_popstate(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 

@@ -1686,6 +1686,7 @@ impl WebGl2Backend {
             .map_err(|_| WebGl2InitError::ContextCast)?;
         context.viewport(0, 0, physical_width as i32, physical_height as i32);
         Ok(WebGl2Backend {
+            canvas,
             context,
             shadow: GlRenderState::context_defaults(physical_width as i32, physical_height as i32),
             active_unit: GL_TEXTURE_UNIT_NONE,
@@ -1769,21 +1770,6 @@ impl WebGl2Backend {
         self.resize(width, height);
         self.get_context()
             .viewport(0, 0, width as i32, height as i32);
-    }
-
-    /// Returns the canvas element this backend draws into.
-    ///
-    /// A render loop needs the element, not just the context, to read and
-    /// write `canvas.width` / `canvas.height` when the CSS box changes.
-    ///
-    /// # Returns
-    ///
-    /// - `HtmlCanvasElement` - The canvas the context was created from.
-    pub fn get_canvas(&self) -> HtmlCanvasElement {
-        self.get_context()
-            .canvas()
-            .and_then(|value: Object| value.dyn_into::<HtmlCanvasElement>().ok())
-            .expect(GL_CONTEXT_HAS_CANVAS)
     }
 
     /// Reports whether the context has been lost, which happens when the

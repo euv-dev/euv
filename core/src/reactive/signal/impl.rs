@@ -327,12 +327,10 @@ where
         if !started {
             return false;
         }
-
         // Phase 2: listeners run with no slab borrow held.
         for (_id, listener) in listeners.iter_mut() {
             listener();
         }
-
         // Phase 3: merge the surviving listeners back into the slot.
         Self::with_slab(
             |slab: &mut SignalSlab| {

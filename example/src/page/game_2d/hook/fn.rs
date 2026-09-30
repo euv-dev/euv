@@ -947,9 +947,10 @@ pub(crate) fn render_balls_with_ssaa(
     context.clear_rect(0.0, 0.0, canvas_width, canvas_height);
     let fill_style_key: JsValue = JsValue::from_str(GAME_2D_PROPERTY_FILL_STYLE);
     for ball in balls {
-        let _ = Reflect::set(context, &fill_style_key, &JsValue::from_str(&ball.color));
+        let _: Result<bool, JsValue> =
+            Reflect::set(context, &fill_style_key, &JsValue::from_str(&ball.color));
         context.begin_path();
-        let _ = context.arc(
+        let _: Result<(), JsValue> = context.arc(
             ball.position.get_x(),
             ball.position.get_y(),
             ball.radius,
@@ -1112,7 +1113,7 @@ pub(crate) fn draw_game_2d_loading(target_selector: &str, color_source_selector:
         })
         .unwrap_or_default();
     if !background_color.is_empty() {
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             context,
             &fill_style_key,
             &JsValue::from_str(&background_color),
@@ -1128,11 +1129,12 @@ pub(crate) fn draw_game_2d_loading(target_selector: &str, color_source_selector:
         })
         .filter(|color: &String| !color.is_empty())
         .unwrap_or_else(|| "#ffffff".to_string());
-    let _ = Reflect::set(context, &fill_style_key, &JsValue::from_str(&loading_color));
+    let _: Result<bool, JsValue> =
+        Reflect::set(context, &fill_style_key, &JsValue::from_str(&loading_color));
     context.set_font(&font);
     context.set_text_align("center");
     context.set_text_baseline("middle");
-    let _ = context.fill_text(
+    let _: Result<(), JsValue> = context.fill_text(
         GAME_2D_LOADING_TEXT,
         canvas_width * 0.5,
         canvas_height * 0.5,
@@ -1160,7 +1162,7 @@ fn set_loaded_delayed(loaded: Signal<bool>, millis: i32) {
     let Some(loaded_window): Option<Window> = window() else {
         return;
     };
-    let _ = loaded_window
+    let _: Result<i32, JsValue> = loaded_window
         .set_timeout_with_callback_and_timeout_and_arguments_0(&loaded_callback, millis);
 }
 
@@ -1356,7 +1358,7 @@ pub(crate) fn start_game_2d_loop(
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         start_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     let debounce_timer: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
     let dirty_for_event: Rc<Cell<bool>> = resize_dirty.clone();
@@ -1390,7 +1392,7 @@ pub(crate) fn start_game_2d_loop(
             let Some(window_value): Option<Window> = window() else {
                 return;
             };
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timeout_id) = start_timeout_id.get() {
             let Some(window_value): Option<Window> = window() else {
@@ -1505,12 +1507,12 @@ pub(crate) fn game_2d_canvas_detached(canvas_selector: &str) -> bool {
 /// - `(f32, f32, f32)` - The `(r, g, b)` channels in 0.0-1.0 range.
 pub(crate) fn game_2d_hex_to_rgb(color: &str) -> (f32, f32, f32) {
     let hex: &str = color.strip_prefix('#').unwrap_or(color);
-    let channel = |range: Range<usize>| -> f32 {
+    let channel: Box<dyn Fn(Range<usize>) -> f32> = Box::new(|range: Range<usize>| -> f32 {
         hex.get(range)
             .and_then(|part: &str| u8::from_str_radix(part, 16).ok())
             .map(|value: u8| f32::from(value) / 255.0)
             .unwrap_or(1.0)
-    };
+    });
     (channel(0..2), channel(2..4), channel(4..6))
 }
 
@@ -1781,7 +1783,7 @@ pub(crate) fn start_game_2d_webgpu_loop(
             let Some(window_value): Option<Window> = window() else {
                 return;
             };
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timer_id) = resize_timer_for_cleanup.get() {
             let Some(window_value): Option<Window> = window() else {
@@ -1811,7 +1813,7 @@ pub(crate) fn start_game_2d_webgpu_loop(
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     spawn_local(async move {
         let config: RenderConfig = RenderConfig::webgpu(
@@ -2016,11 +2018,11 @@ pub(crate) fn start_game_2d_webgpu_loop(
                     if backing_w != new_physical_width || backing_h != new_physical_height {
                         renderer.get_canvas().set_width(new_physical_width);
                         renderer.get_canvas().set_height(new_physical_height);
-                        let _ = renderer.resize(new_physical_width, new_physical_height);
+                        let _: bool = renderer.resize(new_physical_width, new_physical_height);
                     }
                 }
                 if resize_dirty {
-                    let _ = renderer.resize(new_physical_width, new_physical_height);
+                    let _: bool = renderer.resize(new_physical_width, new_physical_height);
                 }
                 let render_balls: Vec<Ball> =
                     interpolate_balls(&balls.borrow(), &prev_for_loop.borrow(), alpha);
@@ -2118,7 +2120,7 @@ pub(crate) fn use_game_2d_fullscreen_state() -> UseGame2DFullscreen {
 /// - `Signal<bool>` - The fullscreen signal for the active tab.
 pub(crate) fn enter_game_2d_fullscreen(state: UseGame2DFullscreen, tab: Signal<bool>) {
     tab.set(true);
-    let _ = state;
+    let _: UseGame2DFullscreen = state;
     Router::overlay_push_state();
     UseEuvLayout::apply_cached_insets();
     // Dispatch a `resize` event on the window so the existing
@@ -2133,7 +2135,7 @@ pub(crate) fn enter_game_2d_fullscreen(state: UseGame2DFullscreen, tab: Signal<b
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 
@@ -2158,7 +2160,7 @@ pub(crate) fn exit_game_2d_fullscreen(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 
@@ -2181,7 +2183,7 @@ pub(crate) fn exit_game_2d_fullscreen_from_popstate(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 
@@ -2292,7 +2294,7 @@ pub(crate) fn start_game_2d_webgl_loop(
             let Some(window_value): Option<Window> = window() else {
                 return;
             };
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timer_id) = resize_timer_for_cleanup.get() {
             let Some(window_value): Option<Window> = window() else {
@@ -2317,7 +2319,7 @@ pub(crate) fn start_game_2d_webgl_loop(
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     spawn_local(async move {
         if cancelled_for_init.get() {

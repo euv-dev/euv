@@ -279,28 +279,11 @@ fn main() {
     }
     copy_doc_assets(&docs_dir, &www_dir);
 
-    // Each locale's content directory comes from its declared `dir`. There is
-    // no default and no prefix-derived fallback: a missing or empty locale
-    // directory is a build error, because the old behaviour (hardcoding `zh`
-    // for the `/` locale) produced a site with one page and no error at all.
-    let mut locale_roots: Vec<(String, PathBuf, String)> = Vec::new();
-    for locale in &config.locales {
-        let root: PathBuf = docs_dir.join(&locale.dir);
-        if !root.is_dir() {
-            panic!(
-                "locale `{}` declares dir `{}` but <SRC_DIR>/{} is not a directory",
-                locale.prefix, locale.dir, locale.dir
-            );
-        }
-        let markdown_count: usize = collect_md_count(&root);
-        if markdown_count == 0 {
-            panic!(
-                "locale `{}` dir `{}` contains no .md files; every locale must ship content",
-                locale.prefix, locale.dir
-            );
-        }
-        locale_roots.push((locale.prefix.clone(), root, locale.prefix.clone()));
-    }
+    let locale_roots: Vec<(String, PathBuf, String)> =
+        match resolve_locale_roots(&docs_dir, &config) {
+            Ok(roots) => roots,
+            Err(message) => fail(&message),
+        };
 
     let mut sidebars: Vec<(String, Vec<SideItem>)> = Vec::new();
     for (prefix, root, build_locale) in &locale_roots {
@@ -312,6 +295,62 @@ fn main() {
     fs::write(PathBuf::from(out_dir).join("docs_gen.rs"), code).expect("write docs_gen.rs");
 }
 
+/// Terminates the build with `message` on stderr.
+///
+/// # Arguments
+///
+/// - `&str` - The human-readable reason the build cannot proceed.
+///
+/// # Returns
+///
+/// - `!` - Never returns; the process exits with status 1.
+fn fail(message: &str) -> ! {
+    eprintln!("error: {message}");
+    std::process::exit(1);
+}
+
+/// Resolves every configured locale to its content root under `docs_dir`.
+///
+/// Each locale's content directory comes from its declared `dir`. There
+/// is no default and no prefix-derived fallback: a missing or empty locale
+/// directory is a build error, because the old behaviour (hardcoding `zh`
+/// for the `/` locale) produced a site with one page and no error at all.
+///
+/// # Arguments
+///
+/// - `&Path` - The docs source root that locale `dir` values resolve against.
+/// - `&Config` - The parsed site configuration listing the locales.
+///
+/// # Returns
+///
+/// - `Result<Vec<(String, PathBuf, String)>, String>` - The
+///   `(prefix, root, build_locale)` triple per locale, or the reason the
+///   build must fail.
+fn resolve_locale_roots(
+    docs_dir: &Path,
+    config: &Config,
+) -> Result<Vec<(String, PathBuf, String)>, String> {
+    let mut locale_roots: Vec<(String, PathBuf, String)> = Vec::new();
+    for locale in &config.locales {
+        let root: PathBuf = docs_dir.join(&locale.dir);
+        if !root.is_dir() {
+            return Err(format!(
+                "locale `{}` declares dir `{}` but <SRC_DIR>/{} is not a directory",
+                locale.prefix, locale.dir, locale.dir
+            ));
+        }
+        let markdown_count: usize = collect_md_count(&root);
+        if markdown_count == 0 {
+            return Err(format!(
+                "locale `{}` dir `{}` contains no .md files; every locale must ship content",
+                locale.prefix, locale.dir
+            ));
+        }
+        locale_roots.push((locale.prefix.clone(), root, locale.prefix.clone()));
+    }
+    Ok(locale_roots)
+}
+
 /// Loads the site-level configuration (site + locales) from
 /// `<SRC_DIR>/../README.md` frontmatter. Returns `None` when the file is
 /// missing or its frontmatter does not contain a `site` block.
@@ -319,8 +358,8 @@ fn load_config_from_readme(docs_dir: &Path) -> Option<Config> {
     let readme_path: PathBuf = docs_dir.join("../README.md");
     let raw: String = fs::read_to_string(&readme_path).ok()?;
     let (fm, _body) = split_frontmatter(&raw);
-    let site_yaml = fm.get(Value::String("site".to_string()))?;
-    let locales_yaml = fm.get(Value::String("locales".to_string()))?;
+    let site_yaml: &Value = fm.get(Value::String("site".to_string()))?;
+    let locales_yaml: &Value = fm.get(Value::String("locales".to_string()))?;
     let locales_seq: &[Value] = locales_yaml.as_sequence()?.as_slice();
     let locales: Vec<LocaleConfig> = locales_seq.iter().filter_map(parse_locale_config).collect();
     Some(Config {
@@ -427,9 +466,9 @@ fn copy_doc_assets_recurse(root: &Path, dir: &Path, www_dir: &Path) {
             };
             let target: PathBuf = www_dir.join(rel);
             if let Some(parent) = target.parent() {
-                let _ = fs::create_dir_all(parent);
+                let _: Result<(), std::io::Error> = fs::create_dir_all(parent);
             }
-            let _ = fs::copy(&path, &target);
+            let _: Result<u64, std::io::Error> = fs::copy(&path, &target);
         }
     }
 }
@@ -439,14 +478,14 @@ fn copy_dir(src: &Path, dst: &Path) {
     let Ok(entries) = fs::read_dir(src) else {
         return;
     };
-    let _ = fs::create_dir_all(dst);
+    let _: Result<(), std::io::Error> = fs::create_dir_all(dst);
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
         let target: PathBuf = dst.join(entry.file_name());
         if path.is_dir() {
             copy_dir(&path, &target);
         } else {
-            let _ = fs::copy(&path, &target);
+            let _: Result<u64, std::io::Error> = fs::copy(&path, &target);
         }
     }
 }
@@ -859,7 +898,7 @@ fn is_private_page(value: &Value) -> bool {
             let Some(entry_seq) = entry.as_sequence() else {
                 continue;
             };
-            let mut iter = entry_seq.iter();
+            let mut iter: std::slice::Iter<'_, Value> = entry_seq.iter();
             let Some(first) = iter.next() else {
                 continue;
             };
@@ -870,11 +909,11 @@ fn is_private_page(value: &Value) -> bool {
                 let Some(attrs_map) = attrs.as_mapping() else {
                     continue;
                 };
-                let name = attrs_map
+                let name: &str = attrs_map
                     .get(Value::String("name".to_string()))
                     .and_then(|v: &Value| v.as_str())
                     .unwrap_or("");
-                let content = attrs_map
+                let content: &str = attrs_map
                     .get(Value::String("content".to_string()))
                     .and_then(|v: &Value| v.as_str())
                     .unwrap_or("");
@@ -1042,7 +1081,8 @@ fn split_containers(src: &str) -> Vec<Segment> {
             } else {
                 buf.clear();
             }
-            let mut parts = rest.splitn(2, char::is_whitespace);
+            let mut parts: std::str::SplitN<'_, fn(char) -> bool> =
+                rest.splitn(2, char::is_whitespace);
             kind = parts.next().unwrap_or("info").to_string();
             title = parts
                 .next()
@@ -1098,7 +1138,7 @@ fn parse_blocks(src: &str, ctx: &mut ParseCtx) -> Vec<AstBlock> {
         | Options::ENABLE_TASKLISTS
         | Options::ENABLE_HEADING_ATTRIBUTES;
     let events: VecDeque<Event> = Parser::new_ext(src, options).collect();
-    let mut iter = events.into_iter().peekable();
+    let mut iter: EventIter<'_> = events.into_iter().peekable();
     parse_block_stream(&mut iter, ctx, EndCtx::Top)
 }
 
@@ -1750,13 +1790,13 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             .map(|i: usize| i as i64)
     };
 
-    let order_of = |item: &SideItem| -> i64 {
+    let order_of: Box<dyn Fn(&SideItem) -> i64> = Box::new(|item: &SideItem| -> i64 {
         item.link
             .as_ref()
             .and_then(|route: &String| pages.iter().find(|p: &&Page| &p.route == route))
             .map(|p: &Page| p.order)
             .unwrap_or(0)
-    };
+    });
     items.sort_by(|a: &(String, SideItem), b: &(String, SideItem)| {
         pin_pos(&a.0)
             .unwrap_or(i64::MAX)

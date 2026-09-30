@@ -1,3 +1,9 @@
+//! euv-docs
+//!
+//! The documentation-site crate for the euv UI framework, built by
+//! `docs/build.rs` from the example app's locale markdown so the
+//! generated pages stay in sync with the source tree.
+
 mod component;
 mod data;
 mod router;
@@ -107,10 +113,10 @@ pub fn main() {
              .md-body img[data-loaded] { transition: opacity 0.2s ease-out; }",
     );
     App::mount("#app", app);
-    let _ = js_sys::eval(
+    let _: Result<JsValue, JsValue> = js_sys::eval(
         "(function(){var p=function(i){if(i.dataset.loaded)return;var m=function(){i.dataset.loaded='1';};if(i.complete&&i.naturalWidth>0){m();}else{i.addEventListener('load',m);i.addEventListener('error',m);}};var o=new MutationObserver(function(ms){ms.forEach(function(d){d.addedNodes.forEach(function(n){if(n.tagName==='IMG'){p(n);}if(n.querySelectorAll){n.querySelectorAll('img').forEach(p);}});});});o.observe(document.body,{childList:true,subtree:true});document.querySelectorAll('img').forEach(p);}());",
     );
-    let _ = js_sys::eval(
+    let _: Result<JsValue, JsValue> = js_sys::eval(
         "(function(){var apply=function(){var h=window.location.hash;var i=h.indexOf('#',h.indexOf('#/')+2);var anchor=i>0?h.slice(i+1):'';var links=document.querySelectorAll('.c_euv_doc_toc a, .c_euv_toc a');var best=null;var bestLen=-1;links.forEach(function(a){a.classList.remove('c_euv_toc_link_active','c_euv_toc_link_nested_active');var href=a.getAttribute('href')||'';var hashIdx=href.lastIndexOf('#');var frag=hashIdx>0?href.slice(hashIdx+1):'';if(anchor&&frag&&anchor===frag){best=a;}});if(!best){links.forEach(function(a){var href=a.getAttribute('href')||'';var hashIdx=href.lastIndexOf('#');var frag=hashIdx>0?href.slice(hashIdx+1):'';if(frag&&anchor&&anchor.indexOf(frag)===0&&frag.length>bestLen){bestLen=frag.length;best=a;}});}if(best){var isNested=best.classList.contains('c_euv_toc_link_nested');best.classList.add(isNested?'c_euv_toc_link_nested_active':'c_euv_toc_link_active');}};apply();window.addEventListener('hashchange',apply);var mo=new MutationObserver(function(){apply();});mo.observe(document.body,{childList:true,subtree:true});}());",
     );
 }

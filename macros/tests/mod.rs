@@ -9,6 +9,8 @@ mod watch;
 
 use euv::*;
 
-use std::cell::Cell;
-use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    cell::Cell,
+    panic::{AssertUnwindSafe, catch_unwind},
+    sync::atomic::{AtomicUsize, Ordering},
+};

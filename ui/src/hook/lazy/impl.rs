@@ -116,7 +116,7 @@ impl<T: Clone + PartialEq + 'static> LazyComponent<T> {
         // we just expose the reset() behaviour here; the
         // caller can construct a new LazyComponent if
         // they need a new factory.
-        let _ = factory;
+        let _: F = factory;
         self.reset();
     }
 

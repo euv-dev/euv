@@ -21,7 +21,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
     let image: UseImageEvent = use_image_event();
     let current_url: String = current_url_without_params();
     let qr_code_data_url: String = generate_qr_code_data_url(&current_url);
-    let on_key_down = move |event: Event| {
+    let on_key_down: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(keyboard_event) = event.dyn_ref::<KeyboardEvent>() {
             let key_name: String = keyboard_event.key();
             keyboard.get_last_key().set(key_name);
@@ -52,15 +52,15 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 keyboard.get_last_key_code().get()
             ));
         }
-    };
-    let on_key_up = move |event: Event| {
+    });
+    let on_key_up: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(keyboard_event) = event.dyn_ref::<KeyboardEvent>() {
             let key_name: String = keyboard_event.key();
             keyboard.get_last_key_up().set(key_name.clone());
             Console::log(format!("KeyUp: {key_name}"));
         }
-    };
-    let on_mouse_click = move |event: Event| {
+    });
+    let on_mouse_click: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(mouse_event) = event.dyn_ref::<MouseEvent>() {
             let pos: String = format!("({}, {})", mouse_event.client_x(), mouse_event.client_y());
             mouse.get_mouse_pos().set(pos);
@@ -76,13 +76,13 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 mouse_event.client_y()
             ));
         }
-    };
-    let on_double_click = move |_: Event| {
+    });
+    let on_double_click: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         let current: i32 = mouse.get_double_click_count().get();
         mouse.get_double_click_count().set(current + 1);
         Console::log(format!("DblClick: #{}", current + 1));
-    };
-    let on_mouse_down = move |event: Event| {
+    });
+    let on_mouse_down: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(mouse_event) = event.dyn_ref::<MouseEvent>() {
             let button_name: String = match mouse_event.button() {
                 0 => "Left".to_string(),
@@ -94,64 +94,64 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             let current: i32 = mouse.get_mouse_down_count().get();
             mouse.get_mouse_down_count().set(current + 1);
         }
-    };
-    let on_mouse_up = move |_: Event| {
+    });
+    let on_mouse_up: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         let current: i32 = mouse.get_mouse_up_count().get();
         mouse.get_mouse_up_count().set(current + 1);
-    };
-    let on_mouse_move = move |event: Event| {
+    });
+    let on_mouse_move: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(mouse_event) = event.dyn_ref::<MouseEvent>() {
             let pos: String = format!("({}, {})", mouse_event.client_x(), mouse_event.client_y());
             mouse.get_mouse_pos().set(pos);
             let buttons_mask: String = format!("{}", mouse_event.buttons());
             mouse.get_mouse_buttons().set(buttons_mask);
         }
-    };
-    let on_mouse_enter = move |_: Event| {
+    });
+    let on_mouse_enter: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         let current: i32 = mouse.get_mouse_enter_count().get();
         mouse.get_mouse_enter_count().set(current + 1);
-    };
-    let on_mouse_leave = move |_: Event| {
+    });
+    let on_mouse_leave: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         let current: i32 = mouse.get_mouse_leave_count().get();
         mouse.get_mouse_leave_count().set(current + 1);
-    };
-    let on_context_menu = move |event: Event| {
+    });
+    let on_context_menu: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if event.dyn_ref::<MouseEvent>().is_some() {
             Console::log("ContextMenu: right-click detected");
         }
-    };
-    let on_mouse_over = move |_: Event| {
+    });
+    let on_mouse_over: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         let current: i32 = mouse.get_mouse_over_count().get();
         mouse.get_mouse_over_count().set(current + 1);
-    };
-    let on_mouse_out = move |_: Event| {
+    });
+    let on_mouse_out: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         let current: i32 = mouse.get_mouse_out_count().get();
         mouse.get_mouse_out_count().set(current + 1);
-    };
-    let on_focus = move |_: Event| {
+    });
+    let on_focus: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         focus.get_focus_status().set("Focused".to_string());
         let current: i32 = focus.get_focus_in_count().get();
         focus.get_focus_in_count().set(current + 1);
         Console::log("Focus: input gained focus");
-    };
-    let on_blur = move |_: Event| {
+    });
+    let on_blur: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         focus.get_focus_status().set("Not focused".to_string());
         let current: i32 = focus.get_focus_out_count().get();
         focus.get_focus_out_count().set(current + 1);
         Console::log("Blur: input lost focus");
-    };
-    let on_focus_in = move |_: Event| {
+    });
+    let on_focus_in: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         Console::log("FocusIn: focus entered");
-    };
-    let on_focus_out = move |_: Event| {
+    });
+    let on_focus_out: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         Console::log("FocusOut: focus left");
-    };
-    let on_drag_start = move |_: Event| {
+    });
+    let on_drag_start: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         drag.get_drag_status().set("Dragging".to_string());
         drag.get_drag_enter_counter().set(1);
         Console::log("DragStart: drag started");
-    };
-    let on_drag = move |event: Event| {
+    });
+    let on_drag: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if drag.get_drag_enter_counter().get() > 0
             && let Some(drag_event) = event.dyn_ref::<DragEvent>()
         {
@@ -175,8 +175,8 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 closure.forget();
             }
         }
-    };
-    let on_drag_end = move |_: Event| {
+    });
+    let on_drag_end: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         let raf_id: i32 = drag.get_drag_raf_id().get();
         if raf_id != -1 {
             let Some(window): Option<Window> = window() else {
@@ -191,27 +191,27 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
         drag.get_drag_status().set("Ended".to_string());
         drag.get_drag_enter_counter().set(0);
         Console::log("DragEnd: drag ended");
-    };
-    let on_drag_over = move |event: Event| {
+    });
+    let on_drag_over: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         event.prevent_default();
-    };
-    let on_drag_enter = move |_: Event| {
+    });
+    let on_drag_enter: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         let counter: i32 = drag.get_drag_enter_counter().get();
         drag.get_drag_enter_counter().set(counter + 1);
         if counter == 0 {
             drag.get_drag_status().set("Dragging".to_string());
             Console::log("DragEnter: entered drop zone");
         }
-    };
-    let on_drag_leave = move |_: Event| {
+    });
+    let on_drag_leave: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         let counter: i32 = drag.get_drag_enter_counter().get();
         drag.get_drag_enter_counter().set(counter - 1);
         if counter <= 1 {
             drag.get_drag_status().set("Outside".to_string());
             Console::log("DragLeave: left drop zone");
         }
-    };
-    let on_drop = move |event: Event| {
+    });
+    let on_drop: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(drag_event) = event.dyn_ref::<DragEvent>() {
             let types_str: String = drag_event
                 .data_transfer()
@@ -231,23 +231,23 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
         }
         drag.get_drag_status().set("Dropped".to_string());
         Console::log("Drop: item dropped");
-    };
+    });
     let file_drag_over: Signal<bool> = App::use_signal(|| false);
-    let on_file_drag_over = move |event: Event| {
+    let on_file_drag_over: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         event.prevent_default();
         file_drag_over.set(true);
-    };
-    let on_file_drag_enter = move |_: Event| {
+    });
+    let on_file_drag_enter: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         file_drag_over.set(true);
         drag.get_drag_status().set("File over zone".to_string());
         Console::log("DragEnter: file entered drop zone");
-    };
-    let on_file_drag_leave = move |_: Event| {
+    });
+    let on_file_drag_leave: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         file_drag_over.set(false);
         drag.get_drag_status().set("Outside".to_string());
         Console::log("DragLeave: file left drop zone");
-    };
-    let on_file_drop = move |event: Event| {
+    });
+    let on_file_drop: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         event.prevent_default();
         file_drag_over.set(false);
         if let Some(drag_event) = event.dyn_ref::<DragEvent>() {
@@ -270,8 +270,8 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
         }
         drag.get_drag_status().set("Dropped".to_string());
         Console::log("Drop: files dropped");
-    };
-    let on_wheel = move |event: Event| {
+    });
+    let on_wheel: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(wheel_event) = event.dyn_ref::<WheelEvent>() {
             let delta: String = format!(
                 "({:.1}, {:.1})",
@@ -294,8 +294,8 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 mode_name
             ));
         }
-    };
-    let on_copy = move |event: Event| {
+    });
+    let on_copy: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         clipboard.get_clipboard_event_type().set("Copy".to_string());
         if let Some(clipboard_event) = event.dyn_ref::<ClipboardEvent>() {
             let data: Option<String> = clipboard_event
@@ -306,8 +306,8 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 .set(data.unwrap_or_else(|| "No data".to_string()));
         }
         Console::log("Copy: text copied");
-    };
-    let on_cut = move |event: Event| {
+    });
+    let on_cut: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         clipboard.get_clipboard_event_type().set("Cut".to_string());
         if let Some(clipboard_event) = event.dyn_ref::<ClipboardEvent>() {
             let data: Option<String> = clipboard_event
@@ -318,8 +318,8 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 .set(data.unwrap_or_else(|| "No data".to_string()));
         }
         Console::log("Cut: text cut");
-    };
-    let on_paste = move |event: Event| {
+    });
+    let on_paste: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         clipboard
             .get_clipboard_event_type()
             .set("Paste".to_string());
@@ -332,8 +332,8 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 .set(data.unwrap_or_else(|| "No data".to_string()));
         }
         Console::log("Paste: text pasted");
-    };
-    let on_touch_start = move |event: Event| {
+    });
+    let on_touch_start: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         let points: Vec<NativeTouchPoint> = NativeTouchPoint::extract_all(&event);
         let detail: String = points
             .iter()
@@ -350,8 +350,8 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
         let info: String = format!("Start: {} touches [{}]", points.len(), detail);
         touch.get_touch_info().set(info);
         Console::log(format!("TouchStart: {} touches", points.len()));
-    };
-    let on_touch_move = move |event: Event| {
+    });
+    let on_touch_move: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         let points: Vec<NativeTouchPoint> = NativeTouchPoint::extract_all(&event);
         let detail: String = points
             .iter()
@@ -367,8 +367,8 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             .join(", ");
         let info: String = format!("Move: {} touches [{}]", points.len(), detail);
         touch.get_touch_info().set(info);
-    };
-    let on_touch_end = move |event: Event| {
+    });
+    let on_touch_end: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         let remaining: Vec<NativeTouchPoint> = NativeTouchPoint::extract_all(&event);
         let changed: Vec<NativeTouchPoint> = NativeTouchPoint::extract_changed(&event);
         let detail: String = changed
@@ -386,8 +386,8 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
         let info: String = format!("End: {} remaining, lifted [{}]", remaining.len(), detail);
         touch.get_touch_info().set(info);
         Console::log(format!("TouchEnd: {} remaining", remaining.len()));
-    };
-    let on_touch_cancel = move |event: Event| {
+    });
+    let on_touch_cancel: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         let changed: Vec<NativeTouchPoint> = NativeTouchPoint::extract_changed(&event);
         let detail: String = changed
             .iter()
@@ -404,118 +404,118 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
         let info: String = format!("Cancel: [{detail}]");
         touch.get_touch_info().set(info);
         Console::log(format!("TouchCancel: [{detail}]"));
-    };
-    let on_form_submit = move |event: Event| {
+    });
+    let on_form_submit: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         event.prevent_default();
         let current: i32 = form.get_submit_count().get();
         form.get_submit_count().set(current + 1);
         Console::log(format!("Form submitted #{}", current + 1));
-    };
-    let on_euv_input = move |event: Event| {
+    });
+    let on_euv_input: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(target) = event.target()
             && let Ok(input) = target.clone().dyn_into::<HtmlInputElement>()
         {
             form.get_euv_input_value().set(input.value());
         }
-    };
-    let on_form_change = move |event: Event| {
+    });
+    let on_form_change: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(target) = event.target()
             && let Ok(input) = target.clone().dyn_into::<HtmlInputElement>()
         {
             form.get_form_change_value().set(input.value());
         }
-    };
-    let on_checkbox_change = move |event: Event| {
+    });
+    let on_checkbox_change: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(target) = event.target()
             && let Ok(input) = target.clone().dyn_into::<HtmlInputElement>()
         {
             form.get_form_checkbox().set(input.checked());
         }
-    };
-    let on_select_change = move |event: Event| {
+    });
+    let on_select_change: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(target) = event.target()
             && let Ok(select) = target.clone().dyn_into::<HtmlSelectElement>()
         {
             form.get_form_select_value().set(select.value());
         }
-    };
-    let on_audio_play = move |_: Event| {
+    });
+    let on_audio_play: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         media.get_media_status().set("Playing".to_string());
         media.get_media_event_log().set("Play".to_string());
         Console::log("Play: audio started");
-    };
-    let on_audio_pause = move |_: Event| {
+    });
+    let on_audio_pause: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         media.get_media_status().set("Paused".to_string());
         media.get_media_event_log().set("Pause".to_string());
         Console::log("Pause: audio paused");
-    };
-    let on_audio_ended = move |_: Event| {
+    });
+    let on_audio_ended: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         media.get_media_status().set("Ended".to_string());
         media.get_media_event_log().set("Ended".to_string());
         Console::log("Ended: audio ended");
-    };
-    let on_audio_loaded_data = move |_: Event| {
+    });
+    let on_audio_loaded_data: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         media.get_media_status().set("Loaded".to_string());
         media.get_media_event_log().set("LoadedData".to_string());
-    };
-    let on_audio_can_play = move |_: Event| {
+    });
+    let on_audio_can_play: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         media.get_media_event_log().set("CanPlay".to_string());
-    };
+    });
     let on_audio_volume_change = move |_: Event| {
         media.get_media_event_log().set("VolumeChange".to_string());
         Console::log("VolumeChange: volume changed");
     };
-    let on_audio_time_update = move |_: Event| {
+    let on_audio_time_update: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         media.get_media_event_log().set("TimeUpdate".to_string());
-    };
+    });
     let on_video_play = move |_: Event| {
         video.get_video_status().set("Playing".to_string());
         video.get_video_event_log().set("Play".to_string());
         Console::log("Video Play: video started");
     };
-    let on_video_pause = move |_: Event| {
+    let on_video_pause: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_status().set("Paused".to_string());
         video.get_video_event_log().set("Pause".to_string());
         Console::log("Video Pause: video paused");
-    };
-    let on_video_ended = move |_: Event| {
+    });
+    let on_video_ended: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_status().set("Ended".to_string());
         video.get_video_event_log().set("Ended".to_string());
         Console::log("Video Ended: video ended");
-    };
-    let on_video_loaded_data = move |_: Event| {
+    });
+    let on_video_loaded_data: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_status().set("Data Loaded".to_string());
         video.get_video_event_log().set("LoadedData".to_string());
         Console::log("Video LoadedData: data loaded");
-    };
-    let on_video_loaded_metadata = move |_: Event| {
+    });
+    let on_video_loaded_metadata: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_status().set("Meta Loaded".to_string());
         video
             .get_video_event_log()
             .set("LoadedMetadata".to_string());
         Console::log("Video LoadedMetadata: metadata loaded");
-    };
-    let on_video_can_play = move |_: Event| {
+    });
+    let on_video_can_play: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_event_log().set("CanPlay".to_string());
         Console::log("Video CanPlay: can play");
-    };
-    let on_video_can_play_through = move |_: Event| {
+    });
+    let on_video_can_play_through: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video
             .get_video_event_log()
             .set("CanPlayThrough".to_string());
         Console::log("Video CanPlayThrough: can play through");
-    };
-    let on_video_waiting = move |_: Event| {
+    });
+    let on_video_waiting: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_status().set("Waiting".to_string());
         video.get_video_event_log().set("Waiting".to_string());
         Console::log("Video Waiting: buffering");
-    };
-    let on_video_playing = move |_: Event| {
+    });
+    let on_video_playing: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_status().set("Playing".to_string());
         video.get_video_event_log().set("Playing".to_string());
         Console::log("Video Playing: playback resumed");
-    };
-    let on_video_time_update = move |event: Event| {
+    });
+    let on_video_time_update: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(target) = event.target()
             && let Ok(video_el) = target.clone().dyn_into::<HtmlMediaElement>()
         {
@@ -523,7 +523,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             video.get_video_current_time().set(current);
         }
         video.get_video_event_log().set("TimeUpdate".to_string());
-    };
+    });
     let on_video_duration_change = move |event: Event| {
         if let Some(target) = event.target()
             && let Ok(video_el) = target.clone().dyn_into::<HtmlMediaElement>()
@@ -536,22 +536,22 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             .set("DurationChange".to_string());
         Console::log("Video DurationChange: duration changed");
     };
-    let on_video_progress = move |_: Event| {
+    let on_video_progress: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_event_log().set("Progress".to_string());
-    };
+    });
     let on_video_seeking = move |_: Event| {
         video.get_video_event_log().set("Seeking".to_string());
         Console::log("Video Seeking: seeking started");
     };
-    let on_video_seeked = move |_: Event| {
+    let on_video_seeked: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_event_log().set("Seeked".to_string());
         Console::log("Video Seeked: seek completed");
-    };
-    let on_video_volume_change = move |_: Event| {
+    });
+    let on_video_volume_change: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_event_log().set("VolumeChange".to_string());
         Console::log("Video VolumeChange: volume changed");
-    };
-    let on_video_rate_change = move |event: Event| {
+    });
+    let on_video_rate_change: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(target) = event.target()
             && let Ok(video_el) = target.clone().dyn_into::<HtmlMediaElement>()
         {
@@ -560,29 +560,29 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
         }
         video.get_video_event_log().set("RateChange".to_string());
         Console::log("Video RateChange: playback rate changed");
-    };
-    let on_video_emptied = move |_: Event| {
+    });
+    let on_video_emptied: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_event_log().set("Emptied".to_string());
         Console::log("Video Emptied: media emptied");
-    };
-    let on_video_stalled = move |_: Event| {
+    });
+    let on_video_stalled: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_event_log().set("Stalled".to_string());
         Console::log("Video Stalled: data transfer stalled");
-    };
-    let on_video_suspend = move |_: Event| {
+    });
+    let on_video_suspend: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_event_log().set("Suspend".to_string());
         Console::log("Video Suspend: data transfer suspended");
-    };
-    let on_video_load_start = move |_: Event| {
+    });
+    let on_video_load_start: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_event_log().set("LoadStart".to_string());
         Console::log("Video LoadStart: loading started");
-    };
-    let on_video_error = move |_: Event| {
+    });
+    let on_video_error: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video.get_video_status().set("Error".to_string());
         video.get_video_event_log().set("Error".to_string());
         Console::log("Video Error: error occurred");
-    };
-    let on_image_load = move |event: Event| {
+    });
+    let on_image_load: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(target) = event.target()
             && let Ok(img_el) = target.clone().dyn_into::<HtmlImageElement>()
         {
@@ -592,12 +592,12 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
         image.get_image_status().set("Loaded".to_string());
         image.get_image_event_log().set("Load".to_string());
         Console::log("Image Load: image loaded successfully");
-    };
-    let on_image_error = move |_: Event| {
+    });
+    let on_image_error: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         image.get_image_status().set("Error".to_string());
         image.get_image_event_log().set("Error".to_string());
         Console::log("Image Error: failed to load image");
-    };
+    });
     html! {
         div {
             class: c_page_container()

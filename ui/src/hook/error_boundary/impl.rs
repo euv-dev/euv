@@ -33,7 +33,7 @@ impl ErrorBoundary {
             Ok(value) => Ok(value),
             Err(payload) => {
                 let message: String = extract_message(&payload);
-                let _ = catch_unwind(AssertUnwindSafe(|| {
+                let _: Result<(), Box<dyn Any + Send>> = catch_unwind(AssertUnwindSafe(|| {
                     self.get_phase()
                         .set(ErrorBoundaryPhase::Caught(message.clone()));
                 }));
@@ -61,7 +61,7 @@ impl ErrorBoundary {
     /// - `String` - The same message that was passed in.
     pub fn report_error(&self, message: &str) -> String {
         let owned: String = String::from(message);
-        let _ = catch_unwind(AssertUnwindSafe(|| {
+        let _: Result<(), Box<dyn Any + Send>> = catch_unwind(AssertUnwindSafe(|| {
             self.get_phase()
                 .set(ErrorBoundaryPhase::Caught(owned.clone()));
         }));
@@ -72,7 +72,7 @@ impl ErrorBoundary {
     /// Useful when invalidating the cache (e.g.,
     /// after a retry).
     pub fn reset(&self) {
-        let _ = catch_unwind(AssertUnwindSafe(|| {
+        let _: Result<(), Box<dyn Any + Send>> = catch_unwind(AssertUnwindSafe(|| {
             self.get_phase().set(ErrorBoundaryPhase::Healthy);
         }));
     }

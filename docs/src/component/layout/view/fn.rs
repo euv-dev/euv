@@ -539,13 +539,17 @@ fn drawer_navigate() -> Option<Rc<dyn Fn(&'static str)>> {
 ///
 /// - `Signal<String>` - The current route signal.
 fn use_anchor_scroll(route_signal: Signal<String>) {
-    let handler = move || {
+    let handler: AnchorScroll = std::sync::Arc::new(move || {
         let raw: String = route_signal.get();
         let (_path, anchor) = parse_route(&raw);
         schedule_scroll(anchor);
-    };
+    });
     handler();
-    route_signal.subscribe(handler);
+    route_signal.subscribe(move || {
+        let raw: String = route_signal.get();
+        let (_path, anchor) = parse_route(&raw);
+        schedule_scroll(anchor);
+    });
 }
 
 /// Defers a scroll until after the reactive re-render.

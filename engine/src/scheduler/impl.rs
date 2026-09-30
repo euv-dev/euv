@@ -251,13 +251,13 @@ impl SchedulerHandle {
         if let Some(id) = state.get_mut_raf_id().take() {
             let Some(window_value) = window() else {
                 // Drop the closure so the box can be collected.
-                let _ = self.get_closure_cell().try_take();
+                let _: Option<ScopedClosure<'_, dyn FnMut()>> = self.get_closure_cell().try_take();
                 return;
             };
             let _: Result<(), JsValue> = window_value.cancel_animation_frame(id);
         }
         // Drop the closure so the box can be collected.
-        let _ = self.get_closure_cell().try_take();
+        let _: Option<ScopedClosure<'_, dyn FnMut()>> = self.get_closure_cell().try_take();
     }
 
     /// Returns whether the scheduler is currently running.
@@ -382,7 +382,7 @@ impl SchedulerHandle {
             // stopped, and return an inert handle.
             let state_ref_stop: &mut SchedulerState = state.get_mut();
             state_ref_stop.set_running(false);
-            let _ = closure_cell.try_set(raf_closure);
+            let _: Result<(), ScopedClosure<'_, dyn FnMut()>> = closure_cell.try_set(raf_closure);
             return SchedulerHandle::new(state, closure_cell);
         };
         let id: i32 = window_value
@@ -390,7 +390,7 @@ impl SchedulerHandle {
             .unwrap_or_default();
         let state_ref_id: &mut SchedulerState = state.get_mut();
         state_ref_id.set_raf_id(Some(id));
-        let _ = closure_cell.try_set(raf_closure);
+        let _: Result<(), ScopedClosure<'_, dyn FnMut()>> = closure_cell.try_set(raf_closure);
         SchedulerHandle::new(state, closure_cell)
     }
 }

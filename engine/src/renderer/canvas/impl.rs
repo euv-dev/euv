@@ -556,9 +556,6 @@ impl CanvasRenderer {
         let mut run_open: bool = false;
         let mut run_is_fill: bool = true;
         let mut run_key: Option<(u8, Color, f64)> = None;
-
-        // Returns the style key for a path-batchable command, or `None` for
-        // commands that break a run (sprites, images, text, state changes).
         /// Computes the batching key for a [`DrawCommand`].
         ///
         /// # Arguments
@@ -585,8 +582,6 @@ impl CanvasRenderer {
                 _ => None,
             }
         }
-
-        // Emits a single path-batchable command's geometry into the open path.
         /// Emits the geometry for the supplied [`DrawCommand`] into the canvas context.
         ///
         /// # Arguments
@@ -622,7 +617,6 @@ impl CanvasRenderer {
                 _ => {}
             }
         }
-
         for command in list.commands() {
             let key: Option<(u8, Color, f64)> = batch_key(command);
             // Close the open run if this command breaks it or starts a new style.

@@ -276,7 +276,7 @@ pub(crate) fn render_scene(
         face_batches.sort_by(|a: &(f64, Vec<Vector3D>), b: &(f64, Vec<Vector3D>)| {
             a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal)
         });
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             context,
             &JsValue::from_str(GAME_3D_PROPERTY_FILL_STYLE),
             &JsValue::from_str(&cube.face_color),
@@ -295,7 +295,7 @@ pub(crate) fn render_scene(
             context.fill();
         }
         let visible_edges: Vec<(usize, usize)> = collect_visible_edges(world_vertices, camera);
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             context,
             &JsValue::from_str(GAME_3D_PROPERTY_STROKE_STYLE),
             &JsValue::from_str(&cube.edge_color),
@@ -500,7 +500,7 @@ pub(crate) fn register_canvas_scroll_guard(canvas_selector: &str) -> Option<Canv
     let wheel_closure: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |event: Event| {
         event.prevent_default();
     }));
-    let _ = canvas.add_event_listener_with_callback(
+    let _: Result<(), JsValue> = canvas.add_event_listener_with_callback(
         GAME_3D_EVENT_WHEEL,
         wheel_closure.as_ref().unchecked_ref(),
     );
@@ -508,7 +508,7 @@ pub(crate) fn register_canvas_scroll_guard(canvas_selector: &str) -> Option<Canv
         Closure::wrap(Box::new(move |event: Event| {
             event.prevent_default();
         }));
-    let _ = canvas.add_event_listener_with_callback(
+    let _: Result<(), JsValue> = canvas.add_event_listener_with_callback(
         GAME_3D_EVENT_TOUCH_START,
         touch_start_closure.as_ref().unchecked_ref(),
     );
@@ -516,7 +516,7 @@ pub(crate) fn register_canvas_scroll_guard(canvas_selector: &str) -> Option<Canv
         Closure::wrap(Box::new(move |event: Event| {
             event.prevent_default();
         }));
-    let _ = canvas.add_event_listener_with_callback(
+    let _: Result<(), JsValue> = canvas.add_event_listener_with_callback(
         GAME_3D_EVENT_TOUCH_MOVE,
         touch_move_closure.as_ref().unchecked_ref(),
     );
@@ -587,7 +587,7 @@ pub(crate) fn draw_game_3d_loading(target_selector: &str, color_source_selector:
         })
         .unwrap_or_default();
     if !background_color.is_empty() {
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             context,
             &fill_style_key,
             &JsValue::from_str(&background_color),
@@ -603,11 +603,12 @@ pub(crate) fn draw_game_3d_loading(target_selector: &str, color_source_selector:
         })
         .filter(|color: &String| !color.is_empty())
         .unwrap_or_else(|| "#ffffff".to_string());
-    let _ = Reflect::set(context, &fill_style_key, &JsValue::from_str(&loading_color));
+    let _: Result<bool, JsValue> =
+        Reflect::set(context, &fill_style_key, &JsValue::from_str(&loading_color));
     context.set_font(&font);
     context.set_text_align("center");
     context.set_text_baseline("middle");
-    let _ = context.fill_text(
+    let _: Result<(), JsValue> = context.fill_text(
         GAME_3D_LOADING_TEXT,
         canvas_width * 0.5,
         canvas_height * 0.5,
@@ -635,7 +636,7 @@ fn set_loaded_delayed(loaded: Signal<bool>, millis: i32) {
     let Some(loaded_window): Option<Window> = window() else {
         return;
     };
-    let _ = loaded_window
+    let _: Result<i32, JsValue> = loaded_window
         .set_timeout_with_callback_and_timeout_and_arguments_0(&loaded_callback, millis);
 }
 
@@ -822,7 +823,7 @@ pub(crate) fn start_game_3d_loop(
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         window_value.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     let debounce_timer: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
     let dirty_for_event: Rc<Cell<bool>> = resize_dirty.clone();
@@ -857,7 +858,7 @@ pub(crate) fn start_game_3d_loop(
             let Some(window_value): Option<Window> = window() else {
                 return;
             };
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timeout_id) = start_timeout_id.get() {
             let Some(window_value): Option<Window> = window() else {
@@ -874,7 +875,7 @@ pub(crate) fn start_game_3d_loop(
         let _: Option<_> = closure_cell.try_take();
         if let Some((listeners, element)) = guard_for_cleanup.borrow_mut().take() {
             for (closure, event_name) in listeners {
-                let _ = element.remove_event_listener_with_callback(
+                let _: Result<(), JsValue> = element.remove_event_listener_with_callback(
                     event_name,
                     closure.as_ref().unchecked_ref(),
                 );
@@ -1173,12 +1174,12 @@ pub(crate) fn use_game_3d_webgl_state() -> UseGame3DWebGl {
 /// - `(f32, f32, f32)` - The `(r, g, b)` channels in 0.0-1.0 range.
 pub(crate) fn game_3d_hex_to_rgb(color: &str) -> (f32, f32, f32) {
     let hex: &str = color.strip_prefix('#').unwrap_or(color);
-    let channel = |range: Range<usize>| -> f32 {
+    let channel: Box<dyn Fn(Range<usize>) -> f32> = Box::new(|range: Range<usize>| -> f32 {
         hex.get(range)
             .and_then(|part: &str| u8::from_str_radix(part, 16).ok())
             .map(|value: u8| f32::from(value) / 255.0)
             .unwrap_or(1.0)
-    };
+    });
     (channel(0..2), channel(2..4), channel(4..6))
 }
 
@@ -1414,7 +1415,7 @@ pub(crate) fn start_game_3d_webgpu_loop(
             let Some(window_value): Option<Window> = window() else {
                 return;
             };
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timer_id) = resize_timer_for_cleanup.get() {
             let Some(window_value): Option<Window> = window() else {
@@ -1440,7 +1441,7 @@ pub(crate) fn start_game_3d_webgpu_loop(
         }
         if let Some((listeners, element)) = guard_for_cleanup.borrow_mut().take() {
             for (closure, event_name) in listeners {
-                let _ = element.remove_event_listener_with_callback(
+                let _: Result<(), JsValue> = element.remove_event_listener_with_callback(
                     event_name,
                     closure.as_ref().unchecked_ref(),
                 );
@@ -1459,7 +1460,7 @@ pub(crate) fn start_game_3d_webgpu_loop(
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     spawn_local(async move {
         let config: RenderConfig = RenderConfig::webgpu(
@@ -1710,11 +1711,11 @@ pub(crate) fn start_game_3d_webgpu_loop(
                     if backing_w != new_physical_width || backing_h != new_physical_height {
                         renderer.get_canvas().set_width(new_physical_width);
                         renderer.get_canvas().set_height(new_physical_height);
-                        let _ = renderer.resize(new_physical_width, new_physical_height);
+                        let _: bool = renderer.resize(new_physical_width, new_physical_height);
                     }
                 }
                 if resize_dirty {
-                    let _ = renderer.resize(new_physical_width, new_physical_height);
+                    let _: bool = renderer.resize(new_physical_width, new_physical_height);
                 }
                 let camera: Camera3D = create_orbit_camera(
                     angles.yaw.get(),
@@ -1859,7 +1860,7 @@ pub(crate) fn start_game_3d_webgl_loop(
             let Some(window_value): Option<Window> = window() else {
                 return;
             };
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timer_id) = resize_timer_for_cleanup.get() {
             let Some(window_value): Option<Window> = window() else {
@@ -1880,7 +1881,7 @@ pub(crate) fn start_game_3d_webgl_loop(
         let _: Option<WebGl2Backend> = renderer_for_cleanup.borrow_mut().take();
         if let Some((listeners, element)) = guard_for_cleanup.borrow_mut().take() {
             for (closure, event_name) in listeners {
-                let _ = element.remove_event_listener_with_callback(
+                let _: Result<(), JsValue> = element.remove_event_listener_with_callback(
                     event_name,
                     closure.as_ref().unchecked_ref(),
                 );
@@ -1899,7 +1900,7 @@ pub(crate) fn start_game_3d_webgl_loop(
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     spawn_local(async move {
         if cancelled_for_init.get() {
@@ -2272,7 +2273,7 @@ pub(crate) fn use_game_3d_fullscreen_state() -> UseGame3DFullscreen {
 /// - `Signal<bool>` - The fullscreen signal for the active tab.
 pub(crate) fn enter_game_3d_fullscreen(state: UseGame3DFullscreen, tab: Signal<bool>) {
     tab.set(true);
-    let _ = state;
+    let _: UseGame3DFullscreen = state;
     Router::overlay_push_state();
     UseEuvLayout::apply_cached_insets();
     // Dispatch a `resize` event on the window so the existing
@@ -2289,7 +2290,7 @@ pub(crate) fn enter_game_3d_fullscreen(state: UseGame3DFullscreen, tab: Signal<b
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 
@@ -2313,7 +2314,7 @@ pub(crate) fn exit_game_3d_fullscreen(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 
@@ -2336,7 +2337,7 @@ pub(crate) fn exit_game_3d_fullscreen_from_popstate(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 

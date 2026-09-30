@@ -155,7 +155,3 @@ pub(crate) const GL_ERROR_CONTEXT_LOOKUP: &str = "WEBGL_CONTEXT_LOOKUP";
 /// The stable error code reported when a `webgl2` context failed to cast
 /// to `WebGl2RenderingContext`, which should not be reachable.
 pub(crate) const GL_ERROR_CONTEXT_CAST: &str = "WEBGL_CONTEXT_CAST";
-
-/// The assertion message for the invariant that a live WebGL 2 context
-/// always carries the canvas it was obtained from.
-pub(crate) const GL_CONTEXT_HAS_CANVAS: &str = "a WebGL 2 context always has a canvas";

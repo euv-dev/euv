@@ -1,9 +1,9 @@
 mod canvas;
 mod descriptor;
-mod r#state;
+mod status;
 mod webgl;
 mod webgpu;
 
-pub use {canvas::*, descriptor::*, r#state::*, webgl::*, webgpu::*};
+pub use {canvas::*, descriptor::*, status::*, webgl::*, webgpu::*};
 
 use super::*;

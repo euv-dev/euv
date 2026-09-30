@@ -162,7 +162,7 @@ pub(crate) fn build_chain<'a>(
             chain.push(route);
             // Recurse into children for deeper matches.
             if !route.children.is_empty() {
-                let _ = build_chain(path, &route.children, chain);
+                let _: bool = build_chain(path, &route.children, chain);
             }
             return true;
         }
@@ -172,7 +172,7 @@ pub(crate) fn build_chain<'a>(
         if route_matches(&route.path, path) && route.path != normalize_path(path) {
             chain.push(route);
             if !route.children.is_empty() {
-                let _ = build_chain(path, &route.children, chain);
+                let _: bool = build_chain(path, &route.children, chain);
             }
             return true;
         }

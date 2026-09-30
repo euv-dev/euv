@@ -201,6 +201,7 @@ fn counter_set_unchecked_bypasses_bounds() {
     .is_ok();
     if ran {
         assert_eq!(counter.get(), 100);
-        assert!(counter.get() > counter.get_max());
+        let max: i32 = counter.try_get_max().unwrap_or(i32::MAX);
+        assert!(counter.get() > max);
     }
 }

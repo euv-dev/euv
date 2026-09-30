@@ -100,7 +100,7 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
     let input_signal: Signal<String> = App::use_signal(String::new);
     let error_signal: Signal<String> = App::use_signal(String::new);
     let busy_signal: Signal<bool> = App::use_signal(|| false);
-    let submit = submit_handler(
+    let submit: Option<Rc<dyn Fn(Event)>> = submit_handler(
         route,
         expected_hash,
         unlock_key,
@@ -108,8 +108,8 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
         error_signal,
         busy_signal,
     );
-    let oninput = oninput_handler(input_signal);
-    let onkeydown = onkeydown_handler(submit.clone());
+    let oninput: Option<Rc<dyn Fn(Event)>> = oninput_handler(input_signal);
+    let onkeydown: Option<Rc<dyn Fn(Event)>> = onkeydown_handler(submit.clone());
     html! {
         div {
             class: c_pw_gate_wrapper()

@@ -352,7 +352,7 @@ impl EngineHandle {
         }
         let loader: AssetLoader = AssetLoader::default();
         self.set_asset_loader(Some(loader.clone()));
-        let _ = self.register_task(loader.clone());
+        let _: TaskHandle = self.register_task(loader.clone());
         loader
     }
 

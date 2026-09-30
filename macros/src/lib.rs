@@ -1,4 +1,4 @@
-//! euv_macros
+//! euv-macros
 //!
 //! Procedural macros for the euv UI framework, including the `html!` macro
 //! for declarative UI syntax, the `class!` macro for CSS class definitions,

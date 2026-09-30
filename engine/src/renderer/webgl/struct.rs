@@ -272,6 +272,14 @@ pub struct GlRenderState {
 /// round trip, which is exactly why they are tracked here instead.
 #[derive(Clone, Data, Debug)]
 pub struct WebGl2Backend {
+    /// The canvas element this backend draws into.
+    ///
+    /// Stored at construction instead of re-derived from
+    /// [`WebGl2RenderingContext::canvas`], so
+    /// [`WebGl2Backend::get_canvas`] is a plain field read and cannot
+    /// fail (the old `context.canvas().expect(..)` could panic if the
+    /// context was ever detached from its element).
+    pub(crate) canvas: HtmlCanvasElement,
     /// The WebGL 2 rendering context every call goes through.
     pub(crate) context: WebGl2RenderingContext,
     /// The last state applied, diffed against to skip redundant calls.

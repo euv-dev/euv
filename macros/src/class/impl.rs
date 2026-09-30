@@ -340,20 +340,20 @@ impl ToTokens for ClassDef {
                         quote! { #param_name }
                     })
                     .collect();
-                emit_param_css_cache_fn(
-                    tokens,
+                let args: ParamCssCacheArgs<'_> = ParamCssCacheArgs {
                     visibility,
-                    &quote! { #name },
-                    name.span(),
-                    &class_name_str,
-                    &param_idents,
-                    &unique_name_expr,
-                    &style_expr,
-                    &selector_expr,
-                    &at_rule_expr,
-                    &param_defs,
+                    fn_name_token: &quote! { #name },
+                    fn_name_span: name.span(),
+                    class_name_str: &class_name_str,
+                    param_names: &param_idents,
+                    unique_name_expr: &unique_name_expr,
+                    style_expr: &style_expr,
+                    selector_expr: &selector_expr,
+                    at_rule_expr: &at_rule_expr,
+                    param_defs: &param_defs,
                     generics,
-                );
+                };
+                emit_param_css_cache_fn(tokens, &args);
             }
             None => {
                 let name_span: Span = name.span();

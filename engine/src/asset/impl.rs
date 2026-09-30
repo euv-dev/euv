@@ -37,7 +37,7 @@ impl AssetCache {
         if entry.get_state() != AssetState::Loaded {
             return None;
         }
-        entry.get_image()
+        entry.try_get_image()
     }
 
     /// Returns `true` if all assets in the cache have finished loading.
@@ -181,7 +181,7 @@ impl AssetLoader {
     ///
     /// - `f64` - The fixed delta time in seconds, unused.
     pub fn update(&mut self, delta_time: f64) {
-        let _ = delta_time;
+        let _: f64 = delta_time;
         self.collect();
     }
 

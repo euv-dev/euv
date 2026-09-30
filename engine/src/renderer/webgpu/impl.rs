@@ -771,7 +771,7 @@ impl WebGpuRenderer {
             }
         };
         if cache_needs_rebuild {
-            let descriptor = self.build_render_pass_descriptor(
+            let descriptor: RenderPassDescriptorCache = self.build_render_pass_descriptor(
                 &color_view,
                 resolve_view.as_ref(),
                 *color.try_get_clear(),
@@ -2227,7 +2227,7 @@ impl WebGpuRenderer {
         let closure: Closure<dyn FnMut(JsValue)> = Closure::new(move |reason: JsValue| {
             let _: Result<JsValue, JsValue> = callback.call1(&JsValue::NULL, &reason);
         });
-        let _ = lost_promise.then(&closure);
+        let _: Promise = lost_promise.then(&closure);
         closure.forget();
     }
 
@@ -3162,7 +3162,7 @@ impl WebGpuRenderer {
                         // the binding layout type field.
                         &JsValue::from_str(WEBGPU_PROPERTY_SAMPLER_BINDING_TYPE),
                     );
-                    let _ = (filtering, comparison);
+                    let _: (&bool, &bool) = (filtering, comparison);
                 }
             }
             let _: Result<bool, JsValue> = Reflect::set(
@@ -3586,22 +3586,22 @@ impl WebGpuRenderer {
     /// - `f32` - Alpha component.
     pub fn set_blend_constant(&self, pass: &JsValue, r: f32, g: f32, b: f32, a: f32) {
         let color_dict: Object = Object::new();
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             &color_dict,
             &JsValue::from_str(WEBGPU_PROPERTY_R),
             &JsValue::from_f64(r as f64),
         );
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             &color_dict,
             &JsValue::from_str(WEBGPU_PROPERTY_G),
             &JsValue::from_f64(g as f64),
         );
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             &color_dict,
             &JsValue::from_str(WEBGPU_PROPERTY_B),
             &JsValue::from_f64(b as f64),
         );
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             &color_dict,
             &JsValue::from_str(WEBGPU_PROPERTY_A),
             &JsValue::from_f64(a as f64),
@@ -3767,7 +3767,7 @@ impl WebGpuRenderer {
             Some(d) => {
                 let dict: Object = Object::new();
                 if let Some(format) = d.get_format() {
-                    let _ = Reflect::set(
+                    let _: Result<bool, JsValue> = Reflect::set(
                         &dict,
                         &JsValue::from_str(WEBGPU_PROPERTY_FORMAT),
                         &JsValue::from_str(format),
@@ -3777,12 +3777,12 @@ impl WebGpuRenderer {
                 // default values ("2d" / "all") rather than omitted, because
                 // a handful of browsers reject undefined keys on the
                 // createView descriptor.
-                let _ = Reflect::set(
+                let _: Result<bool, JsValue> = Reflect::set(
                     &dict,
                     &JsValue::from_str(WEBGPU_PROPERTY_DIMENSION),
                     &JsValue::from_str(d.effective_dimension()),
                 );
-                let _ = Reflect::set(
+                let _: Result<bool, JsValue> = Reflect::set(
                     &dict,
                     &JsValue::from_str(WEBGPU_PROPERTY_ASPECT),
                     &JsValue::from_str(d.effective_aspect()),
@@ -3793,7 +3793,7 @@ impl WebGpuRenderer {
                 // browser applies its own spec-compliant fallback.
                 let base_mip: u32 = d.get_base_mip_level();
                 if base_mip != 0 {
-                    let _ = Reflect::set(
+                    let _: Result<bool, JsValue> = Reflect::set(
                         &dict,
                         &JsValue::from_str(WEBGPU_PROPERTY_BASE_MIP_LEVEL),
                         &JsValue::from_f64(base_mip as f64),
@@ -3801,7 +3801,7 @@ impl WebGpuRenderer {
                 }
                 let mip_count: u32 = d.get_mip_level_count();
                 if mip_count != 0 {
-                    let _ = Reflect::set(
+                    let _: Result<bool, JsValue> = Reflect::set(
                         &dict,
                         &JsValue::from_str(WEBGPU_PROPERTY_MIP_LEVEL_COUNT),
                         &JsValue::from_f64(mip_count as f64),
@@ -3809,7 +3809,7 @@ impl WebGpuRenderer {
                 }
                 let base_array: u32 = d.get_base_array_layer();
                 if base_array != 0 {
-                    let _ = Reflect::set(
+                    let _: Result<bool, JsValue> = Reflect::set(
                         &dict,
                         &JsValue::from_str(WEBGPU_PROPERTY_BASE_ARRAY_LAYER),
                         &JsValue::from_f64(base_array as f64),
@@ -3817,7 +3817,7 @@ impl WebGpuRenderer {
                 }
                 let array_count: u32 = d.get_array_layer_count();
                 if array_count != 0 {
-                    let _ = Reflect::set(
+                    let _: Result<bool, JsValue> = Reflect::set(
                         &dict,
                         &JsValue::from_str(WEBGPU_PROPERTY_ARRAY_LAYER_COUNT),
                         &JsValue::from_f64(array_count as f64),
@@ -3875,17 +3875,17 @@ impl WebGpuRenderer {
                 None => return,
             };
         let layout_dict: Object = Object::new();
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             &layout_dict,
             &JsValue::from_str(WEBGPU_PROPERTY_BYTES_PER_ROW),
             &JsValue::from_f64(descriptor.get_bytes_per_row() as f64),
         );
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             &layout_dict,
             &JsValue::from_str(WEBGPU_PROPERTY_ROWS_PER_IMAGE),
             &JsValue::from_f64(descriptor.get_rows_per_image() as f64),
         );
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             &layout_dict,
             &JsValue::from_str(WEBGPU_PROPERTY_OFFSET_BYTES),
             &JsValue::from_f64(0.0),
@@ -3901,18 +3901,18 @@ impl WebGpuRenderer {
             };
         // Build destination dict: { texture, mipLevel, origin? }
         let dest_dict: Object = Object::new();
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             &dest_dict,
             &JsValue::from_str(WEBGPU_PROPERTY_TEXTURE),
             &descriptor.get_texture(),
         );
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             &dest_dict,
             &JsValue::from_str(WEBGPU_PROPERTY_MIP_LEVEL),
             &JsValue::from_f64(descriptor.get_mip_level() as f64),
         );
         if let Some(origin) = descriptor.get_origin() {
-            let _ = Reflect::set(
+            let _: Result<bool, JsValue> = Reflect::set(
                 &dest_dict,
                 &JsValue::from_str(WEBGPU_PROPERTY_ORIGIN),
                 &origin,
@@ -3936,17 +3936,17 @@ impl WebGpuRenderer {
                 descriptor.get_rows_per_image()
             };
             let size_dict: Object = Object::new();
-            let _ = Reflect::set(
+            let _: Result<bool, JsValue> = Reflect::set(
                 &size_dict,
                 &JsValue::from_str(WEBGPU_PROPERTY_WIDTH),
                 &JsValue::from_f64(bpr as f64),
             );
-            let _ = Reflect::set(
+            let _: Result<bool, JsValue> = Reflect::set(
                 &size_dict,
                 &JsValue::from_str(WEBGPU_PROPERTY_HEIGHT),
                 &JsValue::from_f64(rows as f64),
             );
-            let _ = Reflect::set(
+            let _: Result<bool, JsValue> = Reflect::set(
                 &size_dict,
                 &JsValue::from_str(WEBGPU_PROPERTY_DEPTH_OR_1),
                 &JsValue::from_f64(1.0),
@@ -3980,12 +3980,12 @@ impl WebGpuRenderer {
     ///   the call fails.
     pub fn create_shader_module_with_label(&self, wgsl_source: &str, label: &str) -> JsValue {
         let descriptor: Object = Object::new();
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             &descriptor,
             &JsValue::from_str(WEBGPU_PROPERTY_CODE),
             &JsValue::from_str(wgsl_source),
         );
-        let _ = Reflect::set(
+        let _: Result<bool, JsValue> = Reflect::set(
             &descriptor,
             &JsValue::from_str(WEBGPU_PROPERTY_LABEL),
             &JsValue::from_str(label),

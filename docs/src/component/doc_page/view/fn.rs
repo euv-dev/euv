@@ -137,12 +137,14 @@ fn prev_next(
     locale: &'static DocsLocale,
     route: &str,
 ) -> (Option<EuvPaginationItem>, Option<EuvPaginationItem>) {
-    let to_item = |item: &'static EuvSidebarItem| -> Option<EuvPaginationItem> {
-        item.link.map(|link: &'static str| EuvPaginationItem {
-            text: item.text,
-            link,
-        })
-    };
+    let to_item: Box<dyn Fn(&'static EuvSidebarItem) -> Option<EuvPaginationItem>> = Box::new(
+        |item: &'static EuvSidebarItem| -> Option<EuvPaginationItem> {
+            item.link.map(|link: &'static str| EuvPaginationItem {
+                text: item.text,
+                link,
+            })
+        },
+    );
     let Some(scope) = scope_for(locale.sidebar, route) else {
         return (None, None);
     };

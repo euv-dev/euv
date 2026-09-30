@@ -36,3 +36,30 @@ thread_local! {
     /// further global lookup.
     pub static DOM_OP_TABLE: RefCell<Option<DomOpTable>> = const { RefCell::new(None) };
 }
+
+/// The per-load set of names the batched DOM-op helpers are published under.
+///
+/// Every name is `__euv_<role>_<encoded suffix>`: the prefix makes the
+/// injection identifiable, the role says which helper it is, and the suffix
+/// is what makes the full name unguessable. The suffix is derived once per
+/// page load from a microsecond clock and encoded through
+/// `bin-encode-decode`, so an attacker who ships a payload knowing only the
+/// crate version cannot pre-compute the name it needs to overwrite.
+///
+/// The three helper names and the table name share one suffix rather than
+/// drawing independent ones, so the whole set is still a single random draw
+/// and the four names stay visibly related when inspecting `globalThis`.
+///
+/// Constructed once and cached in [`DOM_OP_NAMES`]; read through
+/// [`DomOpNames::get`].
+#[derive(Clone)]
+pub(crate) struct DomOpNames {
+    /// Key of the helper-table object on `globalThis`.
+    pub(crate) table: String,
+    /// Key of the batched `setAttribute` helper inside the table.
+    pub(crate) set_attrs: String,
+    /// Key of the batched `removeAttribute` helper inside the table.
+    pub(crate) remove_attrs: String,
+    /// Key of the batched child-mutation helper inside the table.
+    pub(crate) child_ops: String,
+}

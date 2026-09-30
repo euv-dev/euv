@@ -1,4 +1,4 @@
-//! euv Example
+//! euv-example
 //!
 //! A demonstration application showcasing the euv component system,
 //! reactive signals, routing, and HTML macros.

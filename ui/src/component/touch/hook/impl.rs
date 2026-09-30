@@ -263,7 +263,6 @@ impl EuvGestureRecognizer {
         let progress: Rc<RefCell<GestureProgress>> =
             Rc::new(RefCell::new(GestureProgress::default()));
         let recognizer: EuvGestureRecognizer = self;
-
         let start_progress: Rc<RefCell<GestureProgress>> = Rc::clone(&progress);
         let start_gesture: Signal<Option<EuvGesture>> = last_gesture;
         let start_drag: Signal<Option<EuvDrag>> = drag;
@@ -289,7 +288,6 @@ impl EuvGestureRecognizer {
                 start_pinch.set(Some(reading));
             }
         }));
-
         let move_progress: Rc<RefCell<GestureProgress>> = Rc::clone(&progress);
         let move_drag: Signal<Option<EuvDrag>> = drag;
         let move_pinch: Signal<Option<EuvPinch>> = pinch;
@@ -338,7 +336,6 @@ impl EuvGestureRecognizer {
                 move_pinch.set(Some(reading));
             }
         }));
-
         let end_progress: Rc<RefCell<GestureProgress>> = Rc::clone(&progress);
         let end_gesture: Signal<Option<EuvGesture>> = last_gesture;
         let end_drag: Signal<Option<EuvDrag>> = drag;
@@ -362,7 +359,6 @@ impl EuvGestureRecognizer {
                 end_gesture.set(Some(gesture));
             }
         }));
-
         let cancel_progress: Rc<RefCell<GestureProgress>> = Rc::clone(&progress);
         let cancel_drag: Signal<Option<EuvDrag>> = drag;
         let cancel_pinch: Signal<Option<EuvPinch>> = pinch;
@@ -377,7 +373,6 @@ impl EuvGestureRecognizer {
             cancel_drag.set(None);
             cancel_pinch.set(None);
         }));
-
         EuvGestureState {
             last_gesture,
             drag,

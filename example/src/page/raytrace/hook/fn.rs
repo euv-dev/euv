@@ -356,8 +356,8 @@ fn build_camera_basis(eye: Vector3D, yaw: f64, pitch: f64) -> (Vector3D, Vector3
     let look_at: Vector3D = Vector3D::new(0.0, 0.4, 0.0);
     let up: Vector3D = Vector3D::new(0.0, 1.0, 0.0);
     let forward: Vector3D = (look_at - eye).normalized();
-    let _ = yaw;
-    let _ = pitch;
+    let _: f64 = yaw;
+    let _: f64 = pitch;
     let right: Vector3D = forward.cross(up).normalized();
     let up_true: Vector3D = right.cross(forward).normalized();
     (forward, right, up_true)
@@ -653,7 +653,7 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
         let loading_callback: Function =
             loading_closure.as_ref().unchecked_ref::<Function>().clone();
         loading_closure.forget();
-        let _ = window_value
+        let _: Result<i32, JsValue> = window_value
             .set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     }
     let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
@@ -864,7 +864,7 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
             let Some(window_value): Option<Window> = window() else {
                 return;
             };
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timeout_id) = start_timeout_id.get() {
             let Some(window_value): Option<Window> = window() else {
@@ -1287,7 +1287,7 @@ fn raytrace_set_loaded_delayed_canvas2d(loaded: Signal<bool>, millis: i32) {
     let Some(loaded_window): Option<Window> = window() else {
         return;
     };
-    let _ = loaded_window
+    let _: Result<i32, JsValue> = loaded_window
         .set_timeout_with_callback_and_timeout_and_arguments_0(&loaded_callback, millis);
 }
 
@@ -1311,7 +1311,7 @@ fn raytrace_set_loaded_delayed(loaded: Signal<bool>, millis: i32) {
     let Some(loaded_window): Option<Window> = window() else {
         return;
     };
-    let _ = loaded_window
+    let _: Result<i32, JsValue> = loaded_window
         .set_timeout_with_callback_and_timeout_and_arguments_0(&loaded_callback, millis);
 }
 
@@ -1397,7 +1397,7 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
         if let Some(cancel_id) = raf_for_cleanup.get()
             && let Some(window_value) = window()
         {
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timer_id) = resize_timer_for_cleanup.get()
             && let Some(window_value) = window()
@@ -1428,7 +1428,7 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     spawn_local(async move {
         if cancelled_for_init.get() {
@@ -1770,7 +1770,7 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
         if let Some(cancel_id) = raf_for_cleanup.get()
             && let Some(window_value) = window()
         {
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timer_id) = resize_timer_for_cleanup.get()
             && let Some(window_value) = window()
@@ -1806,7 +1806,7 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     spawn_local(async move {
         let config: RenderConfig = RenderConfig::webgpu(
@@ -2036,11 +2036,11 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                     if backing_w != new_physical_width || backing_h != new_physical_height {
                         renderer.get_canvas().set_width(new_physical_width);
                         renderer.get_canvas().set_height(new_physical_height);
-                        let _ = renderer.resize(new_physical_width, new_physical_height);
+                        let _: bool = renderer.resize(new_physical_width, new_physical_height);
                     }
                 }
                 if resize_dirty_frame {
-                    let _ = renderer.resize(new_physical_width, new_physical_height);
+                    let _: bool = renderer.resize(new_physical_width, new_physical_height);
                 }
                 if loop_state.get_running().get() {
                     let yaw: f64 = yaw_for_loop.get();
@@ -2170,7 +2170,7 @@ pub(crate) fn enter_raytrace_fullscreen(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 
@@ -2196,7 +2196,7 @@ pub(crate) fn exit_raytrace_fullscreen(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 
@@ -2221,7 +2221,7 @@ pub(crate) fn exit_raytrace_fullscreen_from_popstate(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 

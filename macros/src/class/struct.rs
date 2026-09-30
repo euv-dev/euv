@@ -202,3 +202,33 @@ pub(crate) struct OnceLockParams<'a> {
     /// Token stream that evaluates to the at-rule rules vector.
     pub(crate) at_rule_expr: &'a proc_macro2::TokenStream,
 }
+
+/// Everything needed to emit the per-class parameter cache function.
+///
+/// Bundled into one struct so [`emit_param_css_cache_fn`](super::emit_param_css_cache_fn)
+/// takes a single argument instead of twelve positional ones.
+#[derive(Data)]
+pub(crate) struct ParamCssCacheArgs<'a> {
+    /// The visibility the generated cache function is emitted with.
+    pub(crate) visibility: &'a Visibility,
+    /// The generated function's name token.
+    pub(crate) fn_name_token: &'a proc_macro2::TokenStream,
+    /// The span to attribute the cache constant's name to.
+    pub(crate) fn_name_span: proc_macro2::Span,
+    /// The kebab-case class name the cache is keyed by.
+    pub(crate) class_name_str: &'a str,
+    /// The parameter name identifiers forming the cache key.
+    pub(crate) param_names: &'a [proc_macro2::TokenStream],
+    /// The `unique_name` expression driving cache key uniqueness.
+    pub(crate) unique_name_expr: &'a proc_macro2::TokenStream,
+    /// The expression producing the class's style declarations.
+    pub(crate) style_expr: &'a proc_macro2::TokenStream,
+    /// The expression producing the class's selector.
+    pub(crate) selector_expr: &'a proc_macro2::TokenStream,
+    /// The expression producing the at-rule wrapping the declarations.
+    pub(crate) at_rule_expr: &'a proc_macro2::TokenStream,
+    /// The generated parameter definitions for the class function.
+    pub(crate) param_defs: &'a [proc_macro2::TokenStream],
+    /// The class function's generics and where clause.
+    pub(crate) generics: &'a syn::Generics,
+}
