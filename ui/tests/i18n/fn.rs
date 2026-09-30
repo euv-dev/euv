@@ -3,11 +3,11 @@ use super::*;
 static I18N_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn fresh_i18n() -> (I18n, std::sync::MutexGuard<'static, ()>) {
-    let guard: std::sync::MutexGuard<'static, ()> = I18N_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned: std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>| {
+    let guard: std::sync::MutexGuard<'static, ()> = I18N_TEST_LOCK.lock().unwrap_or_else(
+        |poisoned: std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>| {
             poisoned.into_inner()
-        });
+        },
+    );
     i18n_reset_for_tests();
     let i18n: I18n = I18n::new(
         Signal::create(String::from("en")),
@@ -17,11 +17,11 @@ fn fresh_i18n() -> (I18n, std::sync::MutexGuard<'static, ()>) {
 }
 
 fn seeded_i18n() -> (I18n, std::sync::MutexGuard<'static, ()>) {
-    let guard: std::sync::MutexGuard<'static, ()> = I18N_TEST_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned: std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>| {
+    let guard: std::sync::MutexGuard<'static, ()> = I18N_TEST_LOCK.lock().unwrap_or_else(
+        |poisoned: std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>| {
             poisoned.into_inner()
-        });
+        },
+    );
     i18n_reset_for_tests();
     let i18n: I18n = I18n::new(
         Signal::create(String::from("en")),
@@ -31,6 +31,20 @@ fn seeded_i18n() -> (I18n, std::sync::MutexGuard<'static, ()>) {
     i18n.add_messages("en", entries_en);
     let entries_zh: &[MessageEntry] = &[("hello", "你好")];
     i18n.add_messages("zh-CN", entries_zh);
+    (i18n, guard)
+}
+
+fn locked_empty_i18n() -> (I18n, std::sync::MutexGuard<'static, ()>) {
+    let guard: std::sync::MutexGuard<'static, ()> = I18N_TEST_LOCK.lock().unwrap_or_else(
+        |poisoned: std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>| {
+            poisoned.into_inner()
+        },
+    );
+    i18n_reset_for_tests();
+    let i18n: I18n = I18n::new(
+        Signal::create(String::from("en")),
+        Signal::create(String::from("en")),
+    );
     (i18n, guard)
 }
 
@@ -244,11 +258,7 @@ fn remove_message_absent_key_is_noop_set_path() {
 
 #[test]
 fn t_with_substitutes_placeholders_in_pre_registered_messages() {
-    i18n_reset_for_tests();
-    let i18n: I18n = I18n::new(
-        Signal::create(String::from("en")),
-        Signal::create(String::from("en")),
-    );
+    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = locked_empty_i18n();
     let entries: &[MessageEntry] = &[("greet", "Hello, {name}!")];
     i18n.add_messages("en", entries);
     let mut vars: HashMap<&'static str, &'static str> = HashMap::new();
@@ -258,11 +268,7 @@ fn t_with_substitutes_placeholders_in_pre_registered_messages() {
 
 #[test]
 fn t_with_leaves_missing_placeholders_as_literal_tokens() {
-    i18n_reset_for_tests();
-    let i18n: I18n = I18n::new(
-        Signal::create(String::from("en")),
-        Signal::create(String::from("en")),
-    );
+    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = locked_empty_i18n();
     let entries: &[MessageEntry] = &[("greet", "Hello, {name}!")];
     i18n.add_messages("en", entries);
     let vars: HashMap<&'static str, &'static str> = HashMap::new();
@@ -271,11 +277,7 @@ fn t_with_leaves_missing_placeholders_as_literal_tokens() {
 
 #[test]
 fn t_with_substitutes_multiple_placeholders() {
-    i18n_reset_for_tests();
-    let i18n: I18n = I18n::new(
-        Signal::create(String::from("en")),
-        Signal::create(String::from("en")),
-    );
+    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = locked_empty_i18n();
     let entries: &[MessageEntry] = &[("ordered", "{greeting}, {name}!")];
     i18n.add_messages("en", entries);
     let mut vars: HashMap<&'static str, &'static str> = HashMap::new();
@@ -286,11 +288,7 @@ fn t_with_substitutes_multiple_placeholders() {
 
 #[test]
 fn t_with_supports_underscored_placeholder_names() {
-    i18n_reset_for_tests();
-    let i18n: I18n = I18n::new(
-        Signal::create(String::from("en")),
-        Signal::create(String::from("en")),
-    );
+    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = locked_empty_i18n();
     let entries: &[MessageEntry] = &[("greet", "Hi, {first_name}!")];
     i18n.add_messages("en", entries);
     let mut vars: HashMap<&'static str, &'static str> = HashMap::new();
