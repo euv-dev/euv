@@ -24,7 +24,7 @@ pub trait RenderBackend {
     ///
     /// # Arguments
     ///
-    /// - `C: AsRef<str>` - The CSS color string (e.g., `"#000000"`).
+    /// - `C` - The CSS color string (e.g., `"#000000"`).
     fn clear_color<C>(&self, color: C)
     where
         C: AsRef<str>;

@@ -36,11 +36,11 @@ impl VertexStepMode {
     ///
     /// # Returns
     ///
-    /// - `'static str` - A static `&str` representation.
+    /// - `&'static str` - A static `&str` representation.
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Vertex => "vertex",
-            Self::Instance => "instance",
+            Self::Vertex => WEBGPU_VERTEX_STEP_MODE_VERTEX,
+            Self::Instance => WEBGPU_VERTEX_STEP_MODE_INSTANCE,
         }
     }
 }
@@ -61,12 +61,11 @@ impl std::ops::BitOr for BufferUsage {
     ///
     /// # Arguments
     ///
-    /// - `self` - The left-hand use.
     /// - `Self` - The right-hand use.
     ///
     /// # Returns
     ///
-    /// - `u32` - The bitmask carrying both uses.
+    /// - `Self::Output` - The bitmask carrying both uses.
     fn bitor(self, rhs: Self) -> Self::Output {
         buffer_usage_bit(self) | buffer_usage_bit(rhs)
     }
@@ -85,12 +84,11 @@ impl std::ops::BitOr for TextureUsage {
     ///
     /// # Arguments
     ///
-    /// - `self` - The left-hand use.
     /// - `Self` - The right-hand use.
     ///
     /// # Returns
     ///
-    /// - `u32` - The bitmask carrying both uses.
+    /// - `Self::Output` - The bitmask carrying both uses.
     fn bitor(self, rhs: Self) -> Self::Output {
         texture_usage_bit(self) | texture_usage_bit(rhs)
     }
@@ -110,12 +108,11 @@ impl std::ops::BitOr for ShaderStage {
     ///
     /// # Arguments
     ///
-    /// - `self` - The left-hand stage.
     /// - `Self` - The right-hand stage.
     ///
     /// # Returns
     ///
-    /// - `u32` - The bitmask naming both stages.
+    /// - `Self::Output` - The bitmask naming both stages.
     fn bitor(self, rhs: Self) -> Self::Output {
         shader_stage_bit(self) | shader_stage_bit(rhs)
     }
@@ -128,21 +125,8 @@ impl std::ops::BitOr for ShaderStage {
 /// produces a buffer that validates in some draws and silently loses
 /// the access in others. Keeping the table on the enum itself means a
 /// call site cannot reference a stale duplicate constant.
-///
-/// # Arguments
-///
-/// - `&self` - Shared reference to the value to translate.
-///
-/// # Returns
-///
-/// - `u32` - The bit this use occupies in the `usage` bitmask of a
-///   `GpuBufferDescriptor`; combine several with `|`.
 impl BufferUsage {
     /// The `GPUBufferUsage` bit this use occupies.
-    ///
-    /// # Arguments
-    ///
-    /// - `&self` - Shared reference to the value to translate.
     ///
     /// # Returns
     ///
@@ -159,21 +143,8 @@ impl BufferUsage {
 /// that the buffer and texture families share their variant *names*
 /// but not their *values* - `CopySource` is `4` for a buffer and `1`
 /// for a texture - which is why the two tables are separate.
-///
-/// # Arguments
-///
-/// - `&self` - Shared reference to the value to translate.
-///
-/// # Returns
-///
-/// - `u32` - The bit this use occupies in the `usage` bitmask of a
-///   `GpuTextureDescriptor`; combine several with `|`.
 impl TextureUsage {
     /// The `GPUTextureUsage` bit this use occupies.
-    ///
-    /// # Arguments
-    ///
-    /// - `&self` - Shared reference to the value to translate.
     ///
     /// # Returns
     ///
@@ -185,22 +156,8 @@ impl TextureUsage {
 }
 
 /// The `GPUShaderStage` bit one pipeline stage occupies.
-///
-/// # Arguments
-///
-/// - `&self` - Shared reference to the value to translate.
-///
-/// # Returns
-///
-/// - `u32` - The bit this stage occupies in a
-///   `BindGroupLayoutEntry` `visibility` mask; combine several with
-///   `|`.
 impl ShaderStage {
     /// The `GPUShaderStage` bit this pipeline stage occupies.
-    ///
-    /// # Arguments
-    ///
-    /// - `&self` - Shared reference to the value to translate.
     ///
     /// # Returns
     ///

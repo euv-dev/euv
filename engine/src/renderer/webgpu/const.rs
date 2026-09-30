@@ -592,3 +592,76 @@ pub(crate) const WEBGPU_FRAGMENT_ENTRY_POINT: &str = "fs_main";
 
 /// The JavaScript method name `beginRenderPass` on `GpuCommandEncoder`.
 pub(crate) const WEBGPU_METHOD_BEGIN_RENDER_PASS: &str = "beginRenderPass";
+
+/// The `usage` bitmask label used for offscreen render targets created by
+/// `create_offline_render_target`.
+///
+/// It names the three spec-defined `GpuTextureUsage` bits the offscreen
+/// baseline needs: render into the texture, sample it in a later pass, and
+/// copy out of it for readback.
+pub(crate) const WEBGPU_OFFSCREEN_TEXTURE_USAGE: &str =
+    "RENDER_ATTACHMENT | TEXTURE_BINDING | COPY_SRC";
+
+/// The diagnostic code for a failed `Reflect::get` on `navigator` while
+/// probing for the WebGPU entry point.
+pub(crate) const WEBGPU_INIT_ERROR_NAVIGATOR_LOOKUP: &str = "WEBGPU_NAVIGATOR_LOOKUP";
+
+/// The diagnostic code for a `navigator` with no `gpu` property.
+pub(crate) const WEBGPU_INIT_ERROR_NAVIGATOR_GPU_MISSING: &str = "WEBGPU_NAVIGATOR_GPU_MISSING";
+
+/// The diagnostic code for a failed `Reflect::get` of `requestAdapter`.
+pub(crate) const WEBGPU_INIT_ERROR_REQUEST_ADAPTER_LOOKUP: &str = "WEBGPU_REQUEST_ADAPTER_LOOKUP";
+
+/// The diagnostic code for a throwing `requestAdapter` call.
+pub(crate) const WEBGPU_INIT_ERROR_REQUEST_ADAPTER_CALL: &str = "WEBGPU_REQUEST_ADAPTER_CALL";
+
+/// The diagnostic code for a rejected `requestAdapter` promise.
+pub(crate) const WEBGPU_INIT_ERROR_ADAPTER_PROMISE: &str = "WEBGPU_ADAPTER_PROMISE";
+
+/// The diagnostic code for a `requestAdapter` that resolved to no adapter.
+pub(crate) const WEBGPU_INIT_ERROR_ADAPTER_UNAVAILABLE: &str = "WEBGPU_ADAPTER_UNAVAILABLE";
+
+/// The diagnostic code for a failed `Reflect::get` of `requestDevice`.
+pub(crate) const WEBGPU_INIT_ERROR_REQUEST_DEVICE_LOOKUP: &str = "WEBGPU_REQUEST_DEVICE_LOOKUP";
+
+/// The diagnostic code for a throwing `requestDevice` call.
+pub(crate) const WEBGPU_INIT_ERROR_REQUEST_DEVICE_CALL: &str = "WEBGPU_REQUEST_DEVICE_CALL";
+
+/// The diagnostic code for a rejected `requestDevice` promise.
+pub(crate) const WEBGPU_INIT_ERROR_DEVICE_PROMISE: &str = "WEBGPU_DEVICE_PROMISE";
+
+/// The diagnostic code for a `requestDevice` that resolved to no device.
+pub(crate) const WEBGPU_INIT_ERROR_DEVICE_UNAVAILABLE: &str = "WEBGPU_DEVICE_UNAVAILABLE";
+
+/// The diagnostic code for a canvas element that could not be found.
+pub(crate) const WEBGPU_INIT_ERROR_CANVAS_NOT_FOUND: &str = "WEBGPU_CANVAS_NOT_FOUND";
+
+/// The diagnostic code for a failed canvas `querySelector`.
+pub(crate) const WEBGPU_INIT_ERROR_CANVAS_QUERY: &str = "WEBGPU_CANVAS_QUERY";
+
+/// The diagnostic code for a canvas whose WebGPU context is unavailable.
+pub(crate) const WEBGPU_INIT_ERROR_CANVAS_CONTEXT_UNAVAILABLE: &str =
+    "WEBGPU_CANVAS_CONTEXT_UNAVAILABLE";
+
+/// The diagnostic code for a failed `getPreferredCanvasFormat` lookup.
+pub(crate) const WEBGPU_INIT_ERROR_PREFERRED_FORMAT_LOOKUP: &str = "WEBGPU_PREFERRED_FORMAT_LOOKUP";
+
+/// The diagnostic code for a throwing `getPreferredCanvasFormat` call.
+pub(crate) const WEBGPU_INIT_ERROR_PREFERRED_FORMAT_CALL: &str = "WEBGPU_PREFERRED_FORMAT_CALL";
+
+/// The diagnostic code for a `getPreferredCanvasFormat` result of the wrong type.
+pub(crate) const WEBGPU_INIT_ERROR_PREFERRED_FORMAT_TYPE: &str = "WEBGPU_PREFERRED_FORMAT_TYPE";
+
+/// The diagnostic code for a failed `GpuCanvasContext.configure` lookup.
+pub(crate) const WEBGPU_INIT_ERROR_CONFIGURE_LOOKUP: &str = "WEBGPU_CONFIGURE_LOOKUP";
+
+/// The diagnostic code for a failed `GpuDevice.queue` lookup.
+pub(crate) const WEBGPU_INIT_ERROR_QUEUE_LOOKUP: &str = "WEBGPU_QUEUE_LOOKUP";
+
+/// Placeholder text used by `js_error_to_string` when a `JsValue` is
+/// `undefined` and therefore has no string form of its own.
+pub(crate) const WEBGPU_JS_ERROR_UNDEFINED_LABEL: &str = "<undefined>";
+
+/// Placeholder text used by `js_error_to_string` when a `JsValue` is `null`
+/// and therefore has no string form of its own.
+pub(crate) const WEBGPU_JS_ERROR_NULL_LABEL: &str = "<null>";

@@ -37,6 +37,9 @@ pub(crate) const RENDERER_DEFAULT_SSAA_SCALE_FACTOR: f64 = 2.0;
 /// The default shadow color used when no explicit color is provided.
 pub(crate) const RENDERER_DEFAULT_SHADOW_COLOR: &str = "rgba(0, 0, 0, 0.5)";
 
+/// The fully transparent shadow color used to disable shadow rendering.
+pub(crate) const RENDERER_TRANSPARENT_SHADOW_COLOR: &str = "rgba(0, 0, 0, 0)";
+
 /// The canvas context property name for image smoothing quality.
 pub(crate) const RENDERER_PROPERTY_IMAGE_SMOOTHING_QUALITY: &str = "imageSmoothingQuality";
 

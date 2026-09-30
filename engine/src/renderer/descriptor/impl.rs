@@ -55,7 +55,7 @@ impl TextureViewDescriptor {
     ///
     /// # Returns
     ///
-    /// - `'static str` - A `'static str` value.
+    /// - `&'static str` - A `&'static str` value.
     pub(crate) fn effective_dimension(&self) -> &'static str {
         self.try_get_dimension()
             .unwrap_or(WEBGPU_TEXTURE_VIEW_DIMENSION_2D)
@@ -68,7 +68,7 @@ impl TextureViewDescriptor {
     ///
     /// # Returns
     ///
-    /// - `'static str` - A `'static str` value.
+    /// - `&'static str` - A `&'static str` value.
     pub(crate) fn effective_aspect(&self) -> &'static str {
         self.try_get_aspect().unwrap_or(WEBGPU_TEXTURE_ASPECT_ALL)
     }
@@ -201,6 +201,11 @@ impl BindGroupEntry {
 
 impl BindGroupLayoutEntry {
     /// Convenience constructor for a uniform-buffer binding slot.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The binding index within the bind group.
+    /// - `ShaderStage` - The shader stages that can access the slot.
     pub fn uniform(binding: u32, visibility: ShaderStage) -> Self {
         Self {
             binding,
@@ -212,6 +217,12 @@ impl BindGroupLayoutEntry {
     ///
     /// `read_only = true` selects `read-only-storage` (matches `var<storage, read>`);
     /// `read_only = false` selects `storage` (matches `var<storage, read_write>`).
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The binding index within the bind group.
+    /// - `ShaderStage` - The shader stages that can access the slot.
+    /// - `bool` - Whether shaders may only read from the buffer.
     pub fn storage(binding: u32, visibility: ShaderStage, read_only: bool) -> Self {
         Self {
             binding,
@@ -223,6 +234,12 @@ impl BindGroupLayoutEntry {
     ///
     /// `sample_type` must be one of `"float"`, `"unfilterable-float"`,
     /// `"depth"`, `"sint"`, `"uint"`.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The binding index within the bind group.
+    /// - `ShaderStage` - The shader stages that can access the slot.
+    /// - `&str` - The texel sample type name used by the shader.
     pub fn texture(binding: u32, visibility: ShaderStage, sample_type: &str) -> Self {
         Self {
             binding,
@@ -234,6 +251,12 @@ impl BindGroupLayoutEntry {
         }
     }
     /// Convenience constructor for a multisampled sampled texture binding slot.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The binding index within the bind group.
+    /// - `ShaderStage` - The shader stages that can access the slot.
+    /// - `&str` - The texel sample type name used by the shader.
     pub fn texture_multisampled(binding: u32, visibility: ShaderStage, sample_type: &str) -> Self {
         Self {
             binding,
@@ -247,6 +270,13 @@ impl BindGroupLayoutEntry {
     /// Convenience constructor for a storage-texture binding slot.
     ///
     /// `format` is a GpuTextureFormat string such as `"rgba8unorm"` or `"r32float"`.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The binding index within the bind group.
+    /// - `ShaderStage` - The shader stages that can access the slot.
+    /// - `&str` - The storage texture format name.
+    /// - `bool` - Whether shaders may only read from the texture.
     pub fn storage_texture(
         binding: u32,
         visibility: ShaderStage,
@@ -263,6 +293,11 @@ impl BindGroupLayoutEntry {
         }
     }
     /// Convenience constructor for a filtering sampler binding slot.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The binding index within the bind group.
+    /// - `ShaderStage` - The shader stages that can access the slot.
     pub fn sampler(binding: u32, visibility: ShaderStage) -> Self {
         Self {
             binding,
@@ -274,6 +309,11 @@ impl BindGroupLayoutEntry {
         }
     }
     /// Convenience constructor for a non-filtering sampler binding slot.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The binding index within the bind group.
+    /// - `ShaderStage` - The shader stages that can access the slot.
     pub fn sampler_non_filtering(binding: u32, visibility: ShaderStage) -> Self {
         Self {
             binding,
@@ -285,6 +325,11 @@ impl BindGroupLayoutEntry {
         }
     }
     /// Convenience constructor for a comparison sampler binding slot.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - The binding index within the bind group.
+    /// - `ShaderStage` - The shader stages that can access the slot.
     pub fn sampler_comparison(binding: u32, visibility: ShaderStage) -> Self {
         Self {
             binding,

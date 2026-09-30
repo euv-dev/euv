@@ -313,3 +313,11 @@ pub(crate) const BLEND_MODE_OVERLAY: &str = "overlay";
 
 /// 2D view dimension (the default for `GpuTexture.createView`).
 pub(crate) const WEBGPU_TEXTURE_VIEW_DIMENSION_2D: &str = "2d";
+
+/// The `GPUVertexStepMode.VERTEX` string, the counterpart of
+/// [`VertexStepMode::Vertex`].
+pub(crate) const WEBGPU_VERTEX_STEP_MODE_VERTEX: &str = "vertex";
+
+/// The `GPUVertexStepMode.INSTANCE` string, the counterpart of
+/// [`VertexStepMode::Instance`].
+pub(crate) const WEBGPU_VERTEX_STEP_MODE_INSTANCE: &str = "instance";

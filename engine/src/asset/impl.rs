@@ -6,7 +6,7 @@ impl AssetCache {
     ///
     /// # Arguments
     ///
-    /// - `U: AsRef<str>` - The asset URL.
+    /// - `U` - The `url` asset URL, any type that dereferences to a string.
     ///
     /// # Returns
     ///
@@ -24,7 +24,7 @@ impl AssetCache {
     ///
     /// # Arguments
     ///
-    /// - `U: AsRef<str>` - The asset URL.
+    /// - `U` - The `url` asset URL, any type that dereferences to a string.
     ///
     /// # Returns
     ///
@@ -224,7 +224,7 @@ impl AssetLoader {
     ///
     /// # Arguments
     ///
-    /// - `U: AsRef<str>` - The asset URL.
+    /// - `U` - The `url` asset URL, any type that dereferences to a string.
     ///
     /// # Returns
     ///
@@ -292,7 +292,7 @@ impl AssetLoader {
     ///
     /// # Arguments
     ///
-    /// - `U: AsRef<str>` - The image URL.
+    /// - `U` - The `url` image URL, any type that dereferences to a string.
     ///
     /// # Returns
     ///

@@ -17,7 +17,7 @@ impl Entity {
     ///
     /// # Arguments
     ///
-    /// - `N: AsRef<str>` - The name of the entity.
+    /// - `N` - The name of the entity.
     ///
     /// # Returns
     ///
@@ -183,7 +183,7 @@ impl Entity {
     ///
     /// # Arguments
     ///
-    /// - `&str` - The component name to match.
+    /// - `N` - The component name to match.
     ///
     /// # Returns
     ///
@@ -207,7 +207,7 @@ impl Entity {
     ///
     /// # Arguments
     ///
-    /// - `&str` - The component name to match.
+    /// - `N` - The component name to match.
     ///
     /// # Returns
     ///
@@ -275,7 +275,7 @@ impl Entity {
     ///
     /// # Arguments
     ///
-    /// - `&str` - The tag to check.
+    /// - `T` - The tag to check.
     ///
     /// # Returns
     ///
@@ -350,7 +350,7 @@ impl EventBus {
     ///
     /// # Arguments
     ///
-    /// - `E: AsRef<str>` - The event name to clear.
+    /// - `E` - The event name to clear.
     pub fn unsubscribe_all<E>(&mut self, event_name: E)
     where
         E: AsRef<str>,
@@ -362,7 +362,7 @@ impl EventBus {
     ///
     /// # Arguments
     ///
-    /// - `&str` - The event name.
+    /// - `E` - The event name.
     ///
     /// # Returns
     ///
@@ -389,11 +389,11 @@ impl EventBus {
     ///   the `Custom` variant borrows its `name` field).
     fn event_name(event: &EntityEvent) -> &str {
         match event {
-            EntityEvent::Collision { .. } => "collision",
-            EntityEvent::TriggerEnter { .. } => "trigger_enter",
-            EntityEvent::TriggerExit { .. } => "trigger_exit",
-            EntityEvent::Spawn => "spawn",
-            EntityEvent::Destroy => "destroy",
+            EntityEvent::Collision { .. } => ENTITY_EVENT_NAME_COLLISION,
+            EntityEvent::TriggerEnter { .. } => ENTITY_EVENT_NAME_TRIGGER_ENTER,
+            EntityEvent::TriggerExit { .. } => ENTITY_EVENT_NAME_TRIGGER_EXIT,
+            EntityEvent::Spawn => ENTITY_EVENT_NAME_SPAWN,
+            EntityEvent::Destroy => ENTITY_EVENT_NAME_DESTROY,
             EntityEvent::Custom { name, .. } => name.as_str(),
         }
     }

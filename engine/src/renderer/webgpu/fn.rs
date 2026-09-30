@@ -13,9 +13,9 @@ pub(crate) fn js_error_to_string(value: &JsValue) -> String {
     if let Some(s) = value.as_string() {
         s
     } else if value.is_undefined() {
-        "<undefined>".to_string()
+        WEBGPU_JS_ERROR_UNDEFINED_LABEL.to_string()
     } else if value.is_null() {
-        "<null>".to_string()
+        WEBGPU_JS_ERROR_NULL_LABEL.to_string()
     } else {
         format!("{:?}", value)
     }

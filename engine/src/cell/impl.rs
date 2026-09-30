@@ -41,7 +41,8 @@ impl<T> MaybeEngineCell<T> {
     ///
     /// # Returns
     ///
-    /// - `UnsafeCell<Option<T>>` - A `UnsafeCell<Option<T>>` value.
+    /// - `&UnsafeCell<Option<T>>` - A shared reference to the backing
+    ///   `UnsafeCell<Option<T>>` storage.
     pub fn get_inner(&self) -> &UnsafeCell<Option<T>> {
         &self.inner
     }
@@ -143,7 +144,7 @@ impl<T: ?Sized> EngineCell<T> {
     ///
     /// # Arguments
     ///
-    /// - `T: Sized` - A generic type parameter.
+    /// - `T` - The `value` to store in the new cell.
     pub fn new(value: T) -> Self
     where
         T: Sized,
@@ -171,7 +172,8 @@ impl<T: ?Sized> EngineCell<T> {
     ///
     /// # Returns
     ///
-    /// - `'static mut T` - A `'static mut T` value.
+    /// - `&'static mut T` - An exclusive reference to the contained
+    ///   value, extended to the `'static` lifetime.
     pub fn get_mut(&self) -> &'static mut T {
         let inner: &UnsafeCell<T> = self.get_inner();
         unsafe { &mut *inner.get() }
@@ -190,7 +192,8 @@ impl<T: ?Sized> EngineCell<T> {
     ///
     /// # Returns
     ///
-    /// - `'static T` - The current value (or a snapshot thereof).
+    /// - `&'static T` - The current value (or a snapshot thereof), as a
+    ///   shared reference extended to the `'static` lifetime.
     pub fn get(&self) -> &'static T {
         let inner: &UnsafeCell<T> = self.get_inner();
         unsafe { &*inner.get() }
@@ -213,7 +216,8 @@ impl<T> MaybeEngineCell<T> {
     ///
     /// # Returns
     ///
-    /// - `Option<'static T>` - Optional reference to the inner value, or `None`.
+    /// - `Option<&'static T>` - Optional shared reference to the inner
+    ///   value, or `None` when the cell is empty.
     pub fn try_get(&self) -> Option<&'static T> {
         let inner: &UnsafeCell<Option<T>> = self.get_inner();
         let slot: &Option<T> = unsafe { &*inner.get() };
@@ -229,7 +233,8 @@ impl<T> MaybeEngineCell<T> {
     ///
     /// # Returns
     ///
-    /// - `Option<'static mut T>` - Optional mutable reference to the inner value, or `None`.
+    /// - `Option<&'static mut T>` - Optional mutable reference to the
+    ///   inner value, or `None` when the cell is empty.
     pub fn try_get_mut(&self) -> Option<&'static mut T> {
         let inner: &UnsafeCell<Option<T>> = self.get_inner();
         let slot: &mut Option<T> = unsafe { &mut *inner.get() };

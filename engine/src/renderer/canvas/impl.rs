@@ -96,7 +96,7 @@ impl CanvasRenderer {
     /// # Arguments
     ///
     /// - `f64` - The font size in pixels.
-    /// - `F: AsRef<str>` - The font family name.
+    /// - `F` - The font family name.
     ///
     /// # Returns
     ///
@@ -349,10 +349,10 @@ impl DrawList {
     ///
     /// # Arguments
     ///
-    /// - `T: AsRef<str>` - A generic type parameter.
+    /// - `T` - A generic type parameter.
     /// - `Vector2D` - 2D vector (`Vector2D`).
     /// - `Color` - A `Color` parameter.
-    /// - `F: AsRef<str>` - A generic type parameter.
+    /// - `F` - A generic type parameter.
     pub fn fill_text<T, F>(&mut self, text: T, position: Vector2D, color: Color, font: F)
     where
         T: AsRef<str>,
@@ -434,7 +434,7 @@ impl CanvasRenderer {
     ///
     /// # Arguments
     ///
-    /// - `&str` - The CSS selector for the canvas element.
+    /// - `S` - The CSS selector for the canvas element.
     /// - `f64` - The viewport width.
     /// - `f64` - The viewport height.
     ///
@@ -493,7 +493,7 @@ impl CanvasRenderer {
     ///
     /// # Arguments
     ///
-    /// - `C: AsRef<str>` - The CSS color string (e.g., `"#000000"`).
+    /// - `C` - The CSS color string (e.g., `"#000000"`).
     pub fn clear_color<C>(&self, color: C)
     where
         C: AsRef<str>,
@@ -751,7 +751,7 @@ impl CanvasRenderer {
     ///
     /// # Arguments
     ///
-    /// - `C: AsRef<str>` - The CSS color string.
+    /// - `C` - The CSS color string.
     pub fn set_fill_color<C>(&self, color: C)
     where
         C: AsRef<str>,
@@ -763,7 +763,7 @@ impl CanvasRenderer {
     ///
     /// # Arguments
     ///
-    /// - `C: AsRef<str>` - The CSS color string.
+    /// - `C` - The CSS color string.
     pub fn set_stroke_color<C>(&self, color: C)
     where
         C: AsRef<str>,
@@ -859,7 +859,7 @@ impl CanvasRenderer {
     ///
     /// # Arguments
     ///
-    /// - `T: AsRef<str>` - The text to draw.
+    /// - `T` - The text to draw.
     /// - `Vector2D` - The position in world space.
     pub fn fill_text<T>(&self, text: T, position: Vector2D)
     where
@@ -874,7 +874,7 @@ impl CanvasRenderer {
     ///
     /// # Arguments
     ///
-    /// - `F: AsRef<str>` - The CSS font string (e.g., `"16px sans-serif"`).
+    /// - `F` - The CSS font string (e.g., `"16px sans-serif"`).
     pub fn set_font<F>(&self, font: F)
     where
         F: AsRef<str>,
@@ -1137,7 +1137,7 @@ impl SsaaCanvas {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - The CSS selector for the display canvas element.
+    /// - `S` - The CSS selector for the display canvas element.
     /// - `f64` - The logical display width in CSS pixels.
     /// - `f64` - The logical display height in CSS pixels.
     ///
@@ -1163,7 +1163,7 @@ impl SsaaCanvas {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - The CSS selector for the display canvas element.
+    /// - `S` - The CSS selector for the display canvas element.
     /// - `f64` - The logical display width in CSS pixels.
     /// - `f64` - The logical display height in CSS pixels.
     /// - `f64` - The supersampling scale factor (e.g., 2.0 for 4x SSAA).
@@ -1264,7 +1264,7 @@ impl SsaaCanvas {
     ///
     /// # Arguments
     ///
-    /// - `C: AsRef<str>` - The CSS color string.
+    /// - `C` - The CSS color string.
     pub fn clear_color<C>(&self, color: C)
     where
         C: AsRef<str>,
@@ -1487,7 +1487,8 @@ impl CanvasRenderer {
 
     /// Clears any previously applied shadow, disabling shadow rendering.
     pub fn clear_shadow(&self) {
-        self.get_context().set_shadow_color("rgba(0, 0, 0, 0)");
+        self.get_context()
+            .set_shadow_color(RENDERER_TRANSPARENT_SHADOW_COLOR);
         self.get_context().set_shadow_blur(0.0);
         self.get_context().set_shadow_offset_x(0.0);
         self.get_context().set_shadow_offset_y(0.0);
@@ -1559,7 +1560,7 @@ impl RenderBackend for CanvasRenderer {
     ///
     /// # Arguments
     ///
-    /// - `C: AsRef<str>` - A generic type parameter.
+    /// - `C` - A generic type parameter.
     fn clear_color<C>(&self, color: C)
     where
         C: AsRef<str>,

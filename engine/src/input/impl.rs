@@ -307,7 +307,7 @@ impl InputState {
     ///
     /// # Arguments
     ///
-    /// - `&str` - The key code string.
+    /// - `K` - The key code string.
     ///
     /// # Returns
     ///
@@ -323,7 +323,7 @@ impl InputState {
     ///
     /// # Arguments
     ///
-    /// - `K: AsRef<str>` - The key code string.
+    /// - `K` - The key code string.
     ///
     /// # Returns
     ///
@@ -339,7 +339,7 @@ impl InputState {
     ///
     /// # Arguments
     ///
-    /// - `K: AsRef<str>` - The key code string.
+    /// - `K` - The key code string.
     ///
     /// # Returns
     ///

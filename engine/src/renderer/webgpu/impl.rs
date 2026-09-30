@@ -90,22 +90,10 @@ impl WebGpuRenderer {
         !adapter_value.is_undefined() && !adapter_value.is_null()
     }
 
-    /// Asynchronously initializes a WebGPU renderer from the given render configuration.
+    /// Builds a `Promise` that rejects after `INIT_PROMISE_TIMEOUT_MILLIS`.
     ///
-    /// Requests a GPU adapter and device, obtains the WebGPU canvas context,
-    /// and configures it with the preferred texture format. Returns `None` if
-    /// WebGPU is not supported, the adapter/device request fails, or the canvas
-    /// element is not found.
-    ///
-    /// # Arguments
-    ///
-    /// - `&RenderConfig` - The rendering configuration.
-    ///
-    /// # Returns
-    ///
-    /// - `Option<WebGpuRenderer>` - The initialized renderer, or `None` on failure.
-    ///   Maximum time in milliseconds to wait for `requestAdapter` and
-    ///   `requestDevice` before treating them as failed.
+    /// Maximum time in milliseconds to wait for `requestAdapter` and
+    /// `requestDevice` before treating them as failed.
     ///
     /// Some browser GPU states (headless, no GPU, sandboxed, device-lost)
     /// leave the WebGPU adapter/device promises permanently pending instead
@@ -113,9 +101,14 @@ impl WebGpuRenderer {
     /// `JsFuture::from(...).await` inside `init` would hang forever and
     /// the UI would stay stuck on `Initializing...`. Wrapping each promise
     /// in `Promise.race` against a timer-rejected sibling forces the
-    /// future to resolve so the caller's `let Some(...) = ... else { ... }`
-    /// branch can run and report `WebGPU Not Supported`.
-    /// Returns a Promise that rejects after `INIT_PROMISE_TIMEOUT_MILLIS`.
+    /// future to resolve so the caller's error branch can run and report
+    /// `WebGPU Not Supported`.
+    ///
+    /// # Returns
+    ///
+    /// - `Promise` - A promise that rejects with
+    ///   `RENDERER_TIMEOUT_ERROR_MESSAGE` once the timeout elapses. When no
+    ///   `window` exists the returned promise rejects immediately.
     fn timeout_promise() -> Promise {
         let Some(window_value) = window() else {
             return Promise::new(&mut |_resolve: Function, reject: Function| {
@@ -552,7 +545,7 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - The WGSL shader source code.
+    /// - `S` - The WGSL shader source code.
     ///
     /// # Returns
     ///
@@ -897,12 +890,17 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `color_view` - The `GpuTextureView` for the color attachment.
-    /// - `resolve_view` - Optional resolve target (MSAA only).
-    /// - `clear_value` - Optional clear color.
-    /// - `effective_load_op` - The `&'static str` load op to encode.
-    /// - `effective_store_op` - The `&'static str` store op to encode.
-    /// - `depth` - Optional depth-stencil attachment.
+    /// - `&JsValue` - The `GpuTextureView` for the color attachment.
+    /// - `Option<&JsValue>` - Optional resolve target (MSAA only).
+    /// - `Option<Color>` - Optional clear color.
+    /// - `&'static str` - The load op to encode.
+    /// - `&'static str` - The store op to encode.
+    /// - `Option<&DepthStencilAttachment>` - Optional depth-stencil attachment.
+    ///
+    /// # Returns
+    ///
+    /// - `RenderPassDescriptorCache` - The cache entry the renderer retains
+    ///   for this load-op / store-op / depth-shape combination.
     fn build_render_pass_descriptor(
         &mut self,
         color_view: &JsValue,
@@ -1074,7 +1072,7 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - The WGSL shader source code.
+    /// - `S` - The WGSL shader source code.
     ///
     /// # Returns
     ///
@@ -1732,8 +1730,8 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `shader_code` - The WGSL source code.
-    /// - `entry_point` - The compute entry-point name (e.g. `"cs_main"`).
+    /// - `S` - The WGSL source code.
+    /// - `&str` - The compute entry-point name (e.g. `"cs_main"`).
     ///
     /// # Returns
     ///
@@ -1786,7 +1784,7 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `encoder` - The `GpuCommandEncoder` to begin the pass on.
+    /// - `&JsValue` - The `GpuCommandEncoder` to begin the pass on.
     ///
     /// # Returns
     ///
@@ -1886,11 +1884,9 @@ impl WebGpuRenderer {
     /// Returns `None` when the pop call itself failed (e.g. the
     /// device is lost).
     ///
-    /// # Arguments
-    ///
-    /// - `self` - the renderer; the call borrows immutably because
-    ///   the `Rc<PendingErrorCell>` slot lets the spawned future
-    ///   mutate the inner value without an exclusive borrow.
+    /// The call borrows immutably because the `Rc<PendingErrorCell>` slot
+    /// lets the spawned future mutate the inner value without an exclusive
+    /// borrow.
     ///
     /// # Returns
     ///
@@ -2045,12 +2041,13 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `source` - The `GpuTexture` to copy from.
-    /// - `destination` - The destination `GpuBuffer`.
-    /// - `bytes_per_row` - The number of bytes per row of the
-    ///   texture (i.e. `width * bytes_per_pixel`, padded to 256
-    ///   for non-power-of-two widths).
-    /// - `width`/`height` - The texture subregion to copy.
+    /// - `&JsValue` - The `source` `GpuTexture` to copy from.
+    /// - `&JsValue` - The `destination` `GpuBuffer` that receives the bytes.
+    /// - `u32` - The `bytes_per_row` stride of the texture (i.e.
+    ///   `width * bytes_per_pixel`, padded to 256 for non-power-of-two
+    ///   widths).
+    /// - `u32` - The `width` of the texture subregion to copy.
+    /// - `u32` - The `height` of the texture subregion to copy.
     pub fn copy_texture_to_buffer(
         &self,
         source: &JsValue,
@@ -2126,8 +2123,9 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `width`/`height` - The texture dimensions in pixels.
-    /// - `format` - The WGSL texture format (e.g. `"rgba8unorm"`).
+    /// - `u32` - The `width` of the texture in pixels.
+    /// - `u32` - The `height` of the texture in pixels.
+    /// - `&str` - The WGSL texture format (e.g. `"rgba8unorm"`).
     ///
     /// # Returns
     ///
@@ -2157,7 +2155,7 @@ impl WebGpuRenderer {
         let _: Result<bool, JsValue> = Reflect::set(
             &descriptor,
             &JsValue::from_str(WEBGPU_PROPERTY_USAGE),
-            &JsValue::from_str("RENDER_ATTACHMENT | TEXTURE_BINDING | COPY_SRC"),
+            &JsValue::from_str(WEBGPU_OFFSCREEN_TEXTURE_USAGE),
         );
         let create_fn: Function = Reflect::get(
             self.get_device(),
@@ -2213,7 +2211,7 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `callback` - The function to invoke. The renderer wraps it
+    /// - `Function` - The function to invoke. The renderer wraps it
     ///   in a `Closure` and forgets the wrapper.
     pub fn on_device_lost(&mut self, callback: Function) {
         let lost_promise: Promise =
@@ -2297,7 +2295,7 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `data` - The raw bytes that will be interpreted as a packed
+    /// - `&[u8]` - The raw bytes that will be interpreted as a packed
     ///   vertex array by the pipeline's vertex buffer layout.
     ///
     /// # Returns
@@ -2325,7 +2323,7 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `data` - The raw bytes of the index list (e.g. `[0u8, 1u8, 2u8]`
+    /// - `&[u8]` - The raw bytes of the index list (e.g. `[0u8, 1u8, 2u8]`
     ///   for a single uint16 triangle, packed little-endian).
     ///
     /// # Returns
@@ -2355,10 +2353,9 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `buffer` - The `GpuBuffer` to write into.
-    /// - `offset` - The byte offset into the buffer where the upload
-    ///   starts.
-    /// - `data` - The bytes to upload.
+    /// - `&JsValue` - The `GpuBuffer` to write into.
+    /// - `u64` - The byte offset into the buffer where the upload starts.
+    /// - `&[u8]` - The bytes to upload.
     pub fn write_buffer(&self, buffer: &JsValue, offset: u64, data: &[u8]) {
         if data.is_empty() {
             return;
@@ -2715,11 +2712,11 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `pipeline` - The render/compute pipeline whose bind group
+    /// - `&JsValue` - The render/compute pipeline whose bind group
     ///   layout to use.
-    /// - `index` - The bind group index (the `@group(N)` slot in the
+    /// - `u32` - The bind group index (the `@group(N)` slot in the
     ///   shader; typically `0`).
-    /// - `entries` - The list of bindings to attach. Pass an empty
+    /// - `&[BindGroupEntry]` - The list of bindings to attach. Pass an empty
     ///   slice to allocate an empty bind group (rare, but legal).
     ///
     /// # Returns
@@ -3234,7 +3231,8 @@ impl WebGpuRenderer {
     ///
     /// # Arguments
     ///
-    /// - `u32` / `u32` - Width / height.
+    /// - `u32` - The `width` of the texture in pixels.
+    /// - `u32` - The `height` of the texture in pixels.
     /// - `&str` - A `GpuTextureFormat` string (e.g. `"rgba8unorm"`,
     ///   `"r32float"`, `"rgba16float"`).
     ///
@@ -4096,24 +4094,24 @@ impl WebGpuInitError {
     /// - `&'static str` - The error code (e.g. `"WEBGPU_NAVIGATOR_GPU_MISSING"`).
     pub fn code(&self) -> &'static str {
         match self {
-            Self::NavigatorLookup(_) => "WEBGPU_NAVIGATOR_LOOKUP",
-            Self::NavigatorGpuMissing => "WEBGPU_NAVIGATOR_GPU_MISSING",
-            Self::RequestAdapterLookup(_) => "WEBGPU_REQUEST_ADAPTER_LOOKUP",
-            Self::RequestAdapterCall(_) => "WEBGPU_REQUEST_ADAPTER_CALL",
-            Self::AdapterPromise(_) => "WEBGPU_ADAPTER_PROMISE",
-            Self::AdapterUnavailable => "WEBGPU_ADAPTER_UNAVAILABLE",
-            Self::RequestDeviceLookup(_) => "WEBGPU_REQUEST_DEVICE_LOOKUP",
-            Self::RequestDeviceCall(_) => "WEBGPU_REQUEST_DEVICE_CALL",
-            Self::DevicePromise(_) => "WEBGPU_DEVICE_PROMISE",
-            Self::DeviceUnavailable => "WEBGPU_DEVICE_UNAVAILABLE",
-            Self::CanvasNotFound(_) => "WEBGPU_CANVAS_NOT_FOUND",
-            Self::CanvasQuery(_) => "WEBGPU_CANVAS_QUERY",
-            Self::CanvasContextUnavailable => "WEBGPU_CANVAS_CONTEXT_UNAVAILABLE",
-            Self::PreferredFormatLookup(_) => "WEBGPU_PREFERRED_FORMAT_LOOKUP",
-            Self::PreferredFormatCall(_) => "WEBGPU_PREFERRED_FORMAT_CALL",
-            Self::PreferredFormatType(_) => "WEBGPU_PREFERRED_FORMAT_TYPE",
-            Self::ConfigureLookup(_) => "WEBGPU_CONFIGURE_LOOKUP",
-            Self::QueueLookup(_) => "WEBGPU_QUEUE_LOOKUP",
+            Self::NavigatorLookup(_) => WEBGPU_INIT_ERROR_NAVIGATOR_LOOKUP,
+            Self::NavigatorGpuMissing => WEBGPU_INIT_ERROR_NAVIGATOR_GPU_MISSING,
+            Self::RequestAdapterLookup(_) => WEBGPU_INIT_ERROR_REQUEST_ADAPTER_LOOKUP,
+            Self::RequestAdapterCall(_) => WEBGPU_INIT_ERROR_REQUEST_ADAPTER_CALL,
+            Self::AdapterPromise(_) => WEBGPU_INIT_ERROR_ADAPTER_PROMISE,
+            Self::AdapterUnavailable => WEBGPU_INIT_ERROR_ADAPTER_UNAVAILABLE,
+            Self::RequestDeviceLookup(_) => WEBGPU_INIT_ERROR_REQUEST_DEVICE_LOOKUP,
+            Self::RequestDeviceCall(_) => WEBGPU_INIT_ERROR_REQUEST_DEVICE_CALL,
+            Self::DevicePromise(_) => WEBGPU_INIT_ERROR_DEVICE_PROMISE,
+            Self::DeviceUnavailable => WEBGPU_INIT_ERROR_DEVICE_UNAVAILABLE,
+            Self::CanvasNotFound(_) => WEBGPU_INIT_ERROR_CANVAS_NOT_FOUND,
+            Self::CanvasQuery(_) => WEBGPU_INIT_ERROR_CANVAS_QUERY,
+            Self::CanvasContextUnavailable => WEBGPU_INIT_ERROR_CANVAS_CONTEXT_UNAVAILABLE,
+            Self::PreferredFormatLookup(_) => WEBGPU_INIT_ERROR_PREFERRED_FORMAT_LOOKUP,
+            Self::PreferredFormatCall(_) => WEBGPU_INIT_ERROR_PREFERRED_FORMAT_CALL,
+            Self::PreferredFormatType(_) => WEBGPU_INIT_ERROR_PREFERRED_FORMAT_TYPE,
+            Self::ConfigureLookup(_) => WEBGPU_INIT_ERROR_CONFIGURE_LOOKUP,
+            Self::QueueLookup(_) => WEBGPU_INIT_ERROR_QUEUE_LOOKUP,
         }
     }
 
