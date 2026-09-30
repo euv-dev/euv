@@ -116,3 +116,15 @@ pub(crate) struct ServerUrlConfig {
     #[set(pub(crate))]
     pub(crate) index_html_file_name: String,
 }
+
+/// A namespace import clause found in the bridge: `import * as alias from
+/// "spec"`.
+///
+/// Collected while scanning the bridge's imports so the inlined IIFE can
+/// rebuild the alias as a plain object once the module graph is gone.
+pub(crate) struct NamespaceImport {
+    /// The local binding the clause introduces.
+    pub(crate) alias: String,
+    /// The module specifier, verbatim with its quotes.
+    pub(crate) spec: String,
+}

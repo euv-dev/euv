@@ -856,7 +856,10 @@ impl GamepadManager {
         let cell_connected: GamepadManagerCell = manager_cell.clone();
         let connected_closure: Closure<dyn FnMut(Event)> =
             Closure::wrap(Box::new(move |event: Event| {
-                let pad: Gamepad = event.unchecked_ref::<GamepadEvent>().gamepad().unwrap();
+                let maybe_pad: Option<Gamepad> = event.unchecked_ref::<GamepadEvent>().gamepad();
+                let Some(pad) = maybe_pad else {
+                    return;
+                };
                 let manager: &mut GamepadManager = cell_connected.get_mut();
                 manager.sync_pad(pad.index(), &pad);
                 manager.get_mut_connected().insert(pad.index());
@@ -865,7 +868,10 @@ impl GamepadManager {
         let cell_disconnected: GamepadManagerCell = manager_cell.clone();
         let disconnected_closure: Closure<dyn FnMut(Event)> =
             Closure::wrap(Box::new(move |event: Event| {
-                let pad: Gamepad = event.unchecked_ref::<GamepadEvent>().gamepad().unwrap();
+                let maybe_pad: Option<Gamepad> = event.unchecked_ref::<GamepadEvent>().gamepad();
+                let Some(pad) = maybe_pad else {
+                    return;
+                };
                 let index: u32 = pad.index();
                 let manager: &mut GamepadManager = cell_disconnected.get_mut();
                 manager.release_pad(index);

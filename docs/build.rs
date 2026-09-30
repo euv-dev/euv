@@ -245,16 +245,18 @@ fn main() {
         Ok(path) => PathBuf::from(path),
         Err(_) => manifest_dir.join("www"),
     };
-    let out_dir: String = var("OUT_DIR").expect("OUT_DIR");
+    let Ok(out_dir) = var("OUT_DIR") else {
+        fail("OUT_DIR is not set; a build script must run under cargo");
+    };
 
     println!("cargo:rerun-if-changed={}", docs_dir.display());
     println!("cargo:rerun-if-env-changed=EUV_DOCS_SRC_DIR");
     println!("cargo:rerun-if-env-changed=EUV_DOCS_OUT_DIR");
     println!("cargo:rerun-if-changed=build.rs");
 
-    let config: Config = load_config_from_readme(&docs_dir).expect(
-        "site-level config (site + locales) missing from <SRC_DIR>/../README.md frontmatter",
-    );
+    let Some(config): Option<Config> = load_config_from_readme(&docs_dir) else {
+        fail("site-level config (site + locales) missing from README.md frontmatter");
+    };
 
     // (content directory, URL prefix) per locale. A file directly under
     // <SRC_DIR> belongs to no locale and is not a page.
@@ -292,7 +294,9 @@ fn main() {
     }
 
     let code: String = codegen(&config, &pages, &sidebars);
-    fs::write(PathBuf::from(out_dir).join("docs_gen.rs"), code).expect("write docs_gen.rs");
+    if let Err(reason) = fs::write(PathBuf::from(out_dir).join("docs_gen.rs"), code) {
+        fail(&format!("failed to write docs_gen.rs: {reason}"));
+    }
 }
 
 /// Terminates the build with `message` on stderr.
@@ -547,7 +551,10 @@ fn strip_path_prefix(file: &Path, prefix: &Path) -> PathBuf {
 
 /// Parses one markdown file into a [`Page`].
 fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String)]) -> Page {
-    let raw: String = fs::read_to_string(file).expect("read md");
+    let raw: String = match fs::read_to_string(file) {
+        Ok(raw) => raw,
+        Err(reason) => fail(&format!("failed to read {}: {reason}", file.display())),
+    };
     let (frontmatter, body) = split_frontmatter(&raw);
 
     // See `strip_path_prefix` for the rationale; the helper strips the
@@ -1313,7 +1320,13 @@ fn parse_inlines(it: &mut EventIter, ctx: &mut ParseCtx, consume_end: bool) -> V
             None => break,
             _ => {}
         }
-        let event: Event = it.next().expect("peeked");
+        // `peek` said there is an event, so `next` must have one too. Taking
+        // it as `let ... else` rather than `expect` keeps a malformed event
+        // stream from aborting the whole doc build: an unparseable tail ends
+        // the inline run instead of panicking with no location.
+        let Some(event): Option<Event> = it.next() else {
+            break;
+        };
         collect_inline(it, ctx, event, &mut inlines);
     }
     rescue_strong(inlines)
@@ -1893,11 +1906,16 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
 
     let mut locales_code: String = String::new();
     for locale in &config.locales {
-        let sidebar_src: &Vec<SideItem> = sidebars
+        let Some((_, items)): Option<&(String, Vec<SideItem>)> = sidebars
             .iter()
             .find(|(prefix, _): &&(String, Vec<SideItem>)| prefix == &locale.prefix)
-            .map(|(_, items): &(String, Vec<SideItem>)| items)
-            .expect("sidebar for locale");
+        else {
+            fail(&format!(
+                "locale `{}` has no sidebar entry; every configured locale must have one",
+                locale.prefix
+            ));
+        };
+        let sidebar_src: &Vec<SideItem> = items;
         let navbar: String = locale
             .navbar
             .as_ref()

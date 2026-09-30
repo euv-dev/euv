@@ -42,21 +42,6 @@ pub(crate) const JS_DOM_OP_NAME_MIX: u64 = 0x9E37_79B9_7F4A_7C15;
 /// and the clock is always present there.
 pub(crate) const JS_DOM_OP_NAME_FALLBACK_SUFFIX: &str = "0000000000000000";
 
-/// The four names euv used to publish the batched helpers under, before
-/// [`DomOpNames`] made them per-load.
-///
-/// Kept as a named list because the point of the change is that these are
-/// *no longer* what the helpers are called: anything that hard-codes one of
-/// them finds nothing to hijack. Nothing reads this at runtime except a test
-/// that asserts the retired names are gone.
-#[cfg(test)]
-pub(crate) const JS_DOM_OP_RETIRED_NAMES: [&str; 4] = [
-    "__euv_dom_ops__",
-    "__euv_dom_op_set_attrs",
-    "__euv_dom_op_remove_attrs",
-    "__euv_dom_op_child_ops",
-];
-
 /// Name of the JS global holding the batched helper table.
 pub(crate) const JS_GLOBAL_THIS: &str = "globalThis";
 
@@ -68,20 +53,3 @@ pub(crate) const JS_GLOBAL_THIS: &str = "globalThis";
 /// happen on every `cargo clippy` that is not targeting wasm32.
 #[cfg(target_arch = "wasm32")]
 pub(crate) const JS_PERFORMANCE_NOW_FRACTION: &str = "performance.now() % 1";
-
-/// A name set the tests pin, so the JS side can be asserted without depending
-/// on the clock.
-///
-/// Only the suffixes matter; the roles are what a test distinguishes.
-#[cfg(test)]
-pub(crate) const JS_DOM_OP_TEST_NAMES: [&str; 4] = [
-    "__euv_pinned_table",
-    "__euv_pinned_set",
-    "__euv_pinned_remove",
-    "__euv_pinned_child",
-];
-
-/// A name the [`DomOpNames::set`] test asserts never wins, because only the
-/// first `set` may claim the names.
-#[cfg(test)]
-pub(crate) const JS_DOM_OP_TEST_LOSER: &str = "__euv_should_not_win";
