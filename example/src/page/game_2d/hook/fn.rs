@@ -2043,7 +2043,7 @@ pub(crate) fn start_game_2d_webgpu_loop(
                 renderer.render_frame_with_bind_group(
                     &pipeline_for_loop,
                     &bind_group_for_loop,
-                    (r, g, b, 1.0),
+                    Color::new(r, g, b, 1.0),
                     vertex_count,
                 );
             }
@@ -2250,7 +2250,7 @@ pub(crate) fn start_game_2d_webgl_loop(
     let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
     let resize_dirty: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let resize_timer: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
-    let renderer_rc: Rc<RefCell<Option<WebGlRenderer>>> = Rc::new(RefCell::new(None));
+    let renderer_rc: Rc<RefCell<Option<WebGl2Backend>>> = Rc::new(RefCell::new(None));
     let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let resize_dirty_for_event: Rc<Cell<bool>> = resize_dirty.clone();
     let resize_timer_for_event: Rc<Cell<Option<i32>>> = resize_timer.clone();
@@ -2283,7 +2283,7 @@ pub(crate) fn start_game_2d_webgl_loop(
     });
     let raf_for_cleanup: Rc<Cell<Option<i32>>> = raf_id.clone();
     let cell_for_cleanup: RafClosureCell = closure_cell.clone();
-    let renderer_for_cleanup: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
+    let renderer_for_cleanup: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
     let resize_timer_for_cleanup: Rc<Cell<Option<i32>>> = resize_timer.clone();
     let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
     App::use_cleanup(move || {
@@ -2303,7 +2303,7 @@ pub(crate) fn start_game_2d_webgl_loop(
         let _: Option<_> = cell_for_cleanup.try_take();
         // WebGL has no explicit `destroy()` on the context: dropping the
         // last JS reference lets the browser GC reclaim the GL context.
-        let _: Option<WebGlRenderer> = renderer_for_cleanup.borrow_mut().take();
+        let _: Option<WebGl2Backend> = renderer_for_cleanup.borrow_mut().take();
     });
     let cancelled_for_init: Rc<Cell<bool>> = cancelled.clone();
     let Some(loading_window): Option<Window> = window() else {
@@ -2328,7 +2328,7 @@ pub(crate) fn start_game_2d_webgl_loop(
             GAME_2D_CANVAS_WIDTH,
             GAME_2D_CANVAS_HEIGHT,
         );
-        let renderer: WebGlRenderer = match Engine::webgl_renderer(&config) {
+        let renderer: WebGl2Backend = match Engine::webgl_renderer(&config) {
             Ok(value) => value,
             Err(error) => {
                 Console::error(format!("[euv-engine][game_2d] webgl init failed: {error}"));
@@ -2337,9 +2337,12 @@ pub(crate) fn start_game_2d_webgl_loop(
                 return;
             }
         };
-        let program: WebGlProgram = match renderer
-            .create_program(GAME_2D_WEBGL_VERTEX_SHADER, GAME_2D_WEBGL_FRAGMENT_SHADER)
-        {
+        let init_context: WebGl2RenderingContext = renderer.get_context().clone();
+        let program: GlProgram = match GlProgram::create(
+            &init_context,
+            GAME_2D_WEBGL_VERTEX_SHADER,
+            GAME_2D_WEBGL_FRAGMENT_SHADER,
+        ) {
             Ok(value) => value,
             Err(error) => {
                 Console::error(format!(
@@ -2350,15 +2353,6 @@ pub(crate) fn start_game_2d_webgl_loop(
                 return;
             }
         };
-        // Resolve uniform locations once after link; per-frame
-        // `getUniformLocation` calls are pure overhead and locations are
-        // stable for the lifetime of the program.
-        let canvas_size_location: Rc<Option<WebGlUniformLocation>> =
-            Rc::new(renderer.get_uniform_location(&program, "u_canvas_size"));
-        let ball_pos_radius_location: Rc<Option<WebGlUniformLocation>> =
-            Rc::new(renderer.get_uniform_location(&program, "u_ball_pos_radius[0]"));
-        let ball_color_location: Rc<Option<WebGlUniformLocation>> =
-            Rc::new(renderer.get_uniform_location(&program, "u_ball_color[0]"));
         *canvas_cache.0.borrow_mut() = game_2d_canvas_element(GAME_2D_WEBGL_CANVAS_SELECTOR);
         let clear_color: Rc<Cell<(f64, f64, f64)>> = Rc::new(Cell::new(
             game_2d_canvas_clear_color(GAME_2D_WEBGL_CANVAS_SELECTOR),
@@ -2369,18 +2363,16 @@ pub(crate) fn start_game_2d_webgl_loop(
         // minimum visible duration even when init completes instantly.
         set_loaded_delayed(init_state.get_loaded(), GAME_2D_LOADING_MIN_MILLIS);
         *renderer_rc.borrow_mut() = Some(renderer);
-        let program_rc: Rc<WebGlProgram> = Rc::new(program);
+        // `GlProgram` owns its own name-keyed uniform-location cache, so the
+        // program itself is shared as `RefCell`: `set_uniform_*` needs
+        // `&mut GlProgram`, and a `WebGlProgram` handle alone cannot carry
+        // the cache the old `Rc<WebGlUniformLocation>` did.
+        let program_rc: Rc<RefCell<GlProgram>> = Rc::new(RefCell::new(program));
         let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
         let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
         let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
-        let renderer_for_loop: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
-        let program_for_loop: Rc<WebGlProgram> = program_rc.clone();
-        let canvas_size_location_for_loop: Rc<Option<WebGlUniformLocation>> =
-            canvas_size_location.clone();
-        let ball_pos_radius_location_for_loop: Rc<Option<WebGlUniformLocation>> =
-            ball_pos_radius_location.clone();
-        let ball_color_location_for_loop: Rc<Option<WebGlUniformLocation>> =
-            ball_color_location.clone();
+        let renderer_for_loop: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
+        let program_for_loop: Rc<RefCell<GlProgram>> = program_rc.clone();
         let clear_color_for_loop: Rc<Cell<(f64, f64, f64)>> = clear_color.clone();
         let acc_clone: Rc<Cell<f64>> = accumulator.clone();
         let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
@@ -2496,6 +2488,13 @@ pub(crate) fn start_game_2d_webgl_loop(
             let new_physical_width: u32 = (canvas_width * dpr).round() as u32;
             let new_physical_height: u32 = (canvas_height * dpr).round() as u32;
             if let Some(renderer) = renderer_for_loop.borrow_mut().as_mut() {
+                // `set_uniform_*` and `render_frame` both take `&mut self`,
+                // while the context they must draw through is borrowed out
+                // of that same `self`. Clone the handle instead: it is a JS
+                // object reference, so the clone only bumps a refcount and
+                // leaves both the borrow of `renderer` and the GL context
+                // valid for the duration of the frame.
+                let context: WebGl2RenderingContext = renderer.get_context().clone();
                 // Per-frame CSS-vs-backing safety net for the same
                 // reason documented in `start_game_3d_webgl_loop` /
                 // `start_game_3d_webgpu_loop` - the synthetic `resize`
@@ -2521,22 +2520,21 @@ pub(crate) fn start_game_2d_webgl_loop(
                     interpolate_balls(&balls.borrow(), &prev_for_loop.borrow(), alpha);
                 let (pos_radius_data, color_data) = pack_game_2d_balls_webgl(&render_balls, dpr);
                 let vertex_count: i32 = (render_balls.len() * 6) as i32;
-                renderer.set_uniform_2f(
-                    &program_for_loop,
-                    canvas_size_location_for_loop.as_ref().as_ref(),
-                    canvas_width as f32,
-                    canvas_height as f32,
-                );
-                renderer.set_uniform_4fv(
-                    &program_for_loop,
-                    ball_pos_radius_location_for_loop.as_ref().as_ref(),
-                    &pos_radius_data,
-                );
-                renderer.set_uniform_4fv(
-                    &program_for_loop,
-                    ball_color_location_for_loop.as_ref().as_ref(),
-                    &color_data,
-                );
+                {
+                    let mut program_borrow: RefMut<'_, GlProgram> = program_for_loop.borrow_mut();
+                    program_borrow.set_uniform_2f(
+                        &context,
+                        "u_canvas_size",
+                        canvas_width as f32,
+                        canvas_height as f32,
+                    );
+                    program_borrow.set_uniform_vec4_array(
+                        &context,
+                        "u_ball_pos_radius[0]",
+                        &pos_radius_data,
+                    );
+                    program_borrow.set_uniform_vec4_array(&context, "u_ball_color[0]", &color_data);
+                }
                 // Refresh the clear color every frame so a theme toggle
                 // takes effect within one paint. The computed style is
                 // cached by the engine after the first read, so the only
@@ -2549,7 +2547,15 @@ pub(crate) fn start_game_2d_webgl_loop(
                     clear_color_for_loop.set(next_clear);
                 }
                 let (r, g, b) = clear_color_for_loop.get();
-                renderer.render_frame(&program_for_loop, (r, g, b, 1.0), vertex_count);
+                renderer.render_frame(
+                    &context,
+                    &program_for_loop.borrow(),
+                    Color::new(r, g, b, 1.0),
+                    // WebGL 2 draws take a `u32` count; the WebGPU path
+                    // takes an `i32`. The count is a rendered-geometry
+                    // length, so it is never negative.
+                    vertex_count as u32,
+                );
             }
             frame_clone.set(frame_clone.get() + 1);
             fps_clone.set(fps_clone.get() + frame_time);

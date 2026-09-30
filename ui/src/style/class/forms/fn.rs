@@ -215,4 +215,202 @@ class! {
         background: var!(accent);
         transition: format!("width {} {}", var!(duration-normal), var!(ease-out));
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Form Elements
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_euv_input_wrapper {
+        width: "100%";
+        margin: format!("{} 0px", var!(gap-element));
+    }
+
+    pub c_form_label {
+        display: "block";
+        margin-bottom: var!(space-sm);
+        color: "inherit";
+        font-weight: "500";
+        font-size: var!(font-base);
+    }
+
+    pub c_inline_input_row {
+        display: "flex";
+        align-items: "center";
+        gap: var!(gap-component);
+    }
+
+    pub c_euv_input {
+        width: "100%";
+        min-height: var!(min-height-base);
+        padding: format!("0px {}", var!(space-lg));
+        border: format!("1px solid {}", var!(border));
+        font-size: var!(font-base);
+        line-height: "normal";
+        box-sizing: "border-box";
+        outline: "none";
+        color: var!(foreground);
+        appearance: "none";
+        -webkit-appearance: "none";
+        -moz-appearance: "none";
+        vertical-align: "middle";
+        :hover {
+            border-color: var!(accent);
+            background: var!(accent-muted);
+        }
+        :focus {
+            outline: "none";
+            border-color: var!(accent);
+            background: var!(accent-muted);
+        }
+    }
+
+    pub c_euv_input_no_transition {
+        width: "100%";
+        min-height: var!(min-height-base);
+        padding: format!("0px {}", var!(space-lg));
+        border: format!("1px solid {}", var!(border));
+        font-size: var!(font-base);
+        line-height: "normal";
+        box-sizing: "border-box";
+        outline: "none";
+        color: var!(foreground);
+        appearance: "none";
+        -webkit-appearance: "none";
+        -moz-appearance: "none";
+        vertical-align: "middle";
+    }
+
+    pub c_euv_input_error {
+        width: "100%";
+        min-height: var!(min-height-base);
+        padding: format!("0px {}", var!(space-lg));
+        border: format!("1px solid {}", var!(foreground));
+        font-size: var!(font-base);
+        line-height: "normal";
+        box-sizing: "border-box";
+        outline: "none";
+        color: var!(foreground);
+        appearance: "none";
+        -webkit-appearance: "none";
+        -moz-appearance: "none";
+        vertical-align: "middle";
+        :focus {
+            outline: "none";
+            border-color: var!(foreground);
+        }
+    }
+
+    pub c_form_checkbox {
+        cursor: "pointer";
+        width: var!(space-lg);
+        height: var!(space-lg);
+    }
+
+    pub c_form_checkbox_label {
+        font-size: var!(font-base);
+        color: "inherit";
+        cursor: "pointer";
+    }
+
+    pub c_form_checkbox_row {
+        margin: format!("{} 0px", var!(gap-component));
+        display: "flex";
+        align-items: "center";
+        gap: var!(gap-element);
+    }
+
+    pub c_select_input {
+        width: "100%";
+        min-height: var!(min-height-base);
+        padding: format!("0px {}", var!(space-lg));
+        border: format!("1px solid {}", var!(border));
+        font-size: var!(font-base);
+        line-height: "normal";
+        box-sizing: "border-box";
+        outline: "none";
+        cursor: "pointer";
+        appearance: "none";
+        -webkit-appearance: "none";
+        -moz-appearance: "none";
+        color: var!(foreground);
+        vertical-align: "middle";
+        background-image: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='currentColor' d='M6 8L1 3h10z'/%3E%3C/svg%3E\")";
+        background-repeat: "no-repeat";
+        background-position: "right 14px center";
+        :focus {
+            outline: "none";
+            border-color: var!(accent);
+            background: var!(accent-muted);
+        }
+    }
+
+    pub c_textarea_input {
+        width: "100%";
+        max-width: "100%";
+        padding: format!("{} {}", var!(space-md), var!(space-lg));
+        border: format!("1px solid {}", var!(border));
+        font-size: var!(font-base);
+        line-height: "normal";
+        box-sizing: "border-box";
+        outline: "none";
+        resize: "vertical";
+        overflow-x: "hidden";
+        word-wrap: "break-word";
+        font-family: "inherit";
+        color: var!(foreground);
+        appearance: "none";
+        -webkit-appearance: "none";
+        -moz-appearance: "none";
+        :hover {
+            border-color: var!(accent);
+            background: var!(accent-muted);
+        }
+        :focus {
+            outline: "none";
+            border-color: var!(accent);
+            background: var!(accent-muted);
+        }
+    }
+
+    pub c_textarea_input_error {
+        width: "100%";
+        max-width: "100%";
+        padding: format!("{} {}", var!(space-md), var!(space-lg));
+        border: format!("1px solid {}", var!(foreground));
+        font-size: var!(font-base);
+        line-height: "normal";
+        box-sizing: "border-box";
+        outline: "none";
+        resize: "vertical";
+        overflow-x: "hidden";
+        word-wrap: "break-word";
+        font-family: "inherit";
+        color: var!(foreground);
+        appearance: "none";
+        -webkit-appearance: "none";
+        -moz-appearance: "none";
+        :focus {
+            outline: "none";
+            border-color: var!(foreground);
+        }
+    }
+
+    pub c_textarea_counter {
+        text-align: "right";
+        margin-top: var!(space-xs);
+        margin-bottom: var!(gap-component);
+    }
+
+    pub c_textarea_counter_text {
+        font-size: var!(font-sm);
+        color: "inherit";
+        opacity: "1";
+    }
+
+    pub c_field_error_text {
+        color: var!(foreground);
+        font-size: var!(font-base);
+        margin-top: var!(space-xs);
+        margin-bottom: var!(space-sm);
+    }
 }

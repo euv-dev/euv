@@ -477,7 +477,8 @@ pub(crate) fn start_lighting_loop(state: UseLighting) {
         if state.get_running().get() {
             let scale: f64 = LIGHTING_RENDER_SCALES[scale_clone.get()];
             let (frame_width, frame_height): (u32, u32) = lighting_scaled_dimensions(scale);
-            let mut cache = cache_clone.borrow_mut();
+            let mut cache: RefMut<'_, Option<(HtmlCanvasElement, CanvasRenderingContext2d)>> =
+                cache_clone.borrow_mut();
             let cached_valid: bool = cache.as_ref().is_some_and(
                 |(canvas, _): &(HtmlCanvasElement, CanvasRenderingContext2d)| canvas.is_connected(),
             );
@@ -493,7 +494,7 @@ pub(crate) fn start_lighting_loop(state: UseLighting) {
                 }
                 let render_start: f64 = performance.now();
                 {
-                    let mut buffer = buffer_clone.borrow_mut();
+                    let mut buffer: RefMut<'_, Vec<u8>> = buffer_clone.borrow_mut();
                     let needed: usize = frame_width as usize * frame_height as usize * 4;
                     if buffer.len() != needed {
                         buffer.resize(needed, 0);
@@ -776,13 +777,13 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
     let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
     let resize_dirty: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let resize_timer: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
-    let renderer_rc: Rc<RefCell<Option<WebGlRenderer>>> = Rc::new(RefCell::new(None));
+    let renderer_rc: Rc<RefCell<Option<WebGl2Backend>>> = Rc::new(RefCell::new(None));
     let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let observer_cell: Rc<RefCell<Option<ResizeObserver>>> = Rc::new(RefCell::new(None));
     lighting_register_resize_debounce(resize_dirty.clone(), resize_timer.clone());
     let raf_for_cleanup: Rc<Cell<Option<i32>>> = raf_id.clone();
     let cell_for_cleanup: RafClosureCell = closure_cell.clone();
-    let renderer_for_cleanup: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
+    let renderer_for_cleanup: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
     let resize_timer_for_cleanup: Rc<Cell<Option<i32>>> = resize_timer.clone();
     let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
     let observer_for_cleanup: Rc<RefCell<Option<ResizeObserver>>> = observer_cell.clone();
@@ -810,7 +811,7 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
         let _: Option<_> = cell_for_cleanup.try_take();
         // WebGL has no explicit `destroy()` on the context: dropping the
         // last JS reference lets the browser GC reclaim the GL context.
-        let _: Option<WebGlRenderer> = renderer_for_cleanup.borrow_mut().take();
+        let _: Option<WebGl2Backend> = renderer_for_cleanup.borrow_mut().take();
     });
     let cancelled_for_init: Rc<Cell<bool>> = cancelled.clone();
     let Some(loading_window): Option<Window> = window() else {
@@ -835,7 +836,7 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
             LIGHTING_WIDTH,
             LIGHTING_HEIGHT,
         );
-        let renderer: WebGlRenderer = match Engine::webgl_renderer(&config) {
+        let renderer: WebGl2Backend = match Engine::webgl_renderer(&config) {
             Ok(value) => value,
             Err(error) => {
                 Console::error(format!("[euv-engine][lighting] webgl init failed: {error}"));
@@ -844,9 +845,12 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
                 return;
             }
         };
-        let program: WebGlProgram = match renderer
-            .create_program(LIGHTING_WEBGL_VERTEX_SHADER, LIGHTING_WEBGL_FRAGMENT_SHADER)
-        {
+        let init_context: WebGl2RenderingContext = renderer.get_context().clone();
+        let program: GlProgram = match GlProgram::create(
+            &init_context,
+            LIGHTING_WEBGL_VERTEX_SHADER,
+            LIGHTING_WEBGL_FRAGMENT_SHADER,
+        ) {
             Ok(value) => value,
             Err(error) => {
                 Console::error(format!(
@@ -857,17 +861,16 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
                 return;
             }
         };
-        // Resolve the uniform location once after link; per-frame
-        // `getUniformLocation` calls are pure overhead and the location is
-        // stable for the lifetime of the program.
-        let params_location: Rc<Option<WebGlUniformLocation>> =
-            Rc::new(renderer.get_uniform_location(&program, "u_params[0]"));
         init_state.get_active().set(true);
         // Delay flipping `loaded` so the loading overlay stays painted for a
         // minimum visible duration even when init completes instantly.
         lighting_set_loaded_delayed(init_state.get_loaded(), GAME_3D_LOADING_MIN_MILLIS);
         *renderer_rc.borrow_mut() = Some(renderer);
-        let program_rc: Rc<WebGlProgram> = Rc::new(program);
+        // `GlProgram` owns its own name-keyed uniform-location cache, so the
+        // program itself is shared as `RefCell`: `set_uniform_*` needs
+        // `&mut GlProgram`, and a `WebGlProgram` handle alone cannot carry
+        // the cache the old `Rc<WebGlUniformLocation>` did.
+        let program_rc: Rc<RefCell<GlProgram>> = Rc::new(RefCell::new(program));
         // Synchronous resize on CSS-box change. ResizeObserver callbacks
         // run BEFORE the browser paints the next frame, so setting
         // `canvas.width = new_w` inside the observer ensures the very
@@ -876,7 +879,7 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
         // backing. `canvas.width` is applied BEFORE `renderer.resize`
         // because the DOM setter is fast while the GL-side realloc can
         // stall the main thread.
-        let renderer_for_observer: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
+        let renderer_for_observer: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
         let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
             Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
                 let Some(window_value): Option<Window> = window() else {
@@ -934,14 +937,25 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
                 .flatten()
         {
             resize_observer.observe(&element);
-            *observer_cell.borrow_mut() = Some(resize_observer);
+            // `try_borrow_mut`, not `borrow_mut`: the tab-switch cleanup
+            // registered above also mutably borrows this same cell from
+            // `HookContext::switch_arm`, and this backend's init defers
+            // behind `spawn_local`, so the arm can switch while init is
+            // still in flight and the two borrows genuinely overlap. That
+            // collision reproduces as `already borrowed: BorrowMutError`,
+            // which in WASM aborts the whole app with no catchable panic.
+            // On contention the observer is dropped here and the loop runs
+            // without live resize notifications — the per-frame
+            // backing-store divergence check still resizes.
+            if let Ok(mut observer_slot) = observer_cell.try_borrow_mut() {
+                *observer_slot = Some(resize_observer);
+            }
         }
         let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
         let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
         let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
-        let renderer_for_loop: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
-        let program_for_loop: Rc<WebGlProgram> = program_rc.clone();
-        let params_location_for_loop: Rc<Option<WebGlUniformLocation>> = params_location.clone();
+        let renderer_for_loop: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
+        let program_for_loop: Rc<RefCell<GlProgram>> = program_rc.clone();
         let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
         let cell_clone: RafClosureCell = closure_cell.clone();
         let last_clone: Rc<Cell<f64>> = last_time.clone();
@@ -998,6 +1012,13 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
             let new_physical_width: u32 = (canvas_width * dpr).round() as u32;
             let new_physical_height: u32 = (canvas_height * dpr).round() as u32;
             if let Some(renderer) = renderer_for_loop.borrow_mut().as_mut() {
+                // `set_uniform_*` and `render_frame` both take `&mut self`,
+                // while the context they must draw through is borrowed out
+                // of that same `self`. Clone the handle instead: it is a JS
+                // object reference, so the clone only bumps a refcount and
+                // leaves both the borrow of `renderer` and the GL context
+                // valid for the duration of the frame.
+                let context: WebGl2RenderingContext = renderer.get_context().clone();
                 // Resize the WebGL backing store every frame the CSS box
                 // diverges from `canvas.width` / `canvas.height`. The
                 // per-frame check collapses the stretched-frame window
@@ -1024,14 +1045,19 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
                         game_3d_canvas_clear_color(LIGHTING_WEBGL_CANVAS_SELECTOR);
                     let uniform_data: Vec<f32> =
                         pack_lighting_gpu_uniform(backing_w, backing_h, background);
-                    renderer.set_uniform_4fv(
-                        &program_for_loop,
-                        params_location_for_loop.as_ref().as_ref(),
-                        &uniform_data,
-                    );
+                    {
+                        let mut program_borrow: RefMut<'_, GlProgram> =
+                            program_for_loop.borrow_mut();
+                        program_borrow.set_uniform_vec4_array(
+                            &context,
+                            "u_params[0]",
+                            &uniform_data,
+                        );
+                    }
                     renderer.render_frame(
-                        &program_for_loop,
-                        (background.0, background.1, background.2, 1.0),
+                        &context,
+                        &program_for_loop.borrow(),
+                        Color::new(background.0, background.1, background.2, 1.0),
                         3,
                     );
                 }
@@ -1251,7 +1277,19 @@ pub(crate) fn start_lighting_webgpu_loop(state: UseLightingWebGpu) {
                 .flatten()
         {
             resize_observer.observe(&element);
-            *observer_cell.borrow_mut() = Some(resize_observer);
+            // `try_borrow_mut`, not `borrow_mut`: the tab-switch cleanup
+            // registered above also mutably borrows this same cell from
+            // `HookContext::switch_arm`, and this backend's init defers
+            // behind `spawn_local`, so the arm can switch while init is
+            // still in flight and the two borrows genuinely overlap. That
+            // collision reproduces as `already borrowed: BorrowMutError`,
+            // which in WASM aborts the whole app with no catchable panic.
+            // On contention the observer is dropped here and the loop runs
+            // without live resize notifications — the per-frame
+            // backing-store divergence check still resizes.
+            if let Ok(mut observer_slot) = observer_cell.try_borrow_mut() {
+                *observer_slot = Some(resize_observer);
+            }
         }
         let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
         let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
@@ -1341,7 +1379,7 @@ pub(crate) fn start_lighting_webgpu_loop(state: UseLightingWebGpu) {
                     renderer.render_frame_with_bind_group(
                         &pipeline_for_loop,
                         &bind_group_for_loop,
-                        (background.0, background.1, background.2, 1.0),
+                        Color::new(background.0, background.1, background.2, 1.0),
                         3,
                     );
                 }

@@ -1,12 +1,9 @@
-mod r#const;
-mod r#enum;
-mod r#fn;
-mod r#impl;
-mod r#struct;
-mod r#trait;
+mod canvas;
+mod descriptor;
+mod r#state;
+mod webgl;
+mod webgpu;
 
-pub use {r#enum::*, r#struct::*, r#trait::*};
-
-pub(crate) use {r#const::*, r#fn::*};
+pub use {canvas::*, descriptor::*, r#state::*, webgl::*, webgpu::*};
 
 use super::*;

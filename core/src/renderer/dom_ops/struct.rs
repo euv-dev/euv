@@ -16,15 +16,23 @@ pub(crate) struct DomOpTable {
     pub(crate) child_ops: Function,
 }
 
-/// `Sync` wrapper around `Option<DomOpTable>` for `thread_local!`
-/// storage.
-pub(crate) struct DomOpTableCell(pub(crate) UnsafeCell<Option<DomOpTable>>);
-
 thread_local! {
-    /// Per-thread cache for the JS batched DOM-op table. The first
-    /// patch triggers the `Reflect::get(globalThis, "__euv_dom_ops__")`
-    /// lookup (or installs the helpers if missing); subsequent patches
-    /// reuse the cached functions without any further global lookup.
-    pub static DOM_OP_TABLE_CELL: DomOpTableCell =
-        const { DomOpTableCell(const { UnsafeCell::new(None) }) };
+    /// Per-thread cache for the JS batched DOM-op table.
+    ///
+    /// The cache holds three wasm-bindgen `Function` handles. Those are JS
+    /// object references, not raw pointers, and they are `!Send` — which is
+    /// exactly the case a `thread_local!` is for. The previous
+    /// `DomOpTableCell(UnsafeCell<Option<DomOpTable>>)` +
+    /// `unsafe impl Sync for DomOpTableCell {}` pair existed only to smuggle
+    /// a `Function` through a `static`; with `thread_local!` the `RefCell`
+    /// provides the same lazy-init-once behaviour while keeping the borrow
+    /// check the `unsafe` had bypassed. A second thread installing its own
+    /// table is harmless: each thread caches the same
+    /// `globalThis.__euv_dom_ops__` object.
+    ///
+    /// The table is resolved lazily on the first patch via
+    /// `Reflect::get(globalThis, "__euv_dom_ops__")` (or installed if
+    /// missing); subsequent patches reuse the cached functions without any
+    /// further global lookup.
+    pub static DOM_OP_TABLE: RefCell<Option<DomOpTable>> = const { RefCell::new(None) };
 }

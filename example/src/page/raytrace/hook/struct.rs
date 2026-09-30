@@ -72,7 +72,7 @@ pub(crate) struct UseRayTraceWebGl {
     /// Drives the diagnostic banner shown when `loaded` is true but
     /// `active` is false. The empty string means "no error" (i.e. init is
     /// still in flight or has not started). Storing a stable code rather
-    /// than the full `WebGlInitError` keeps this state `Copy` and avoids
+    /// than the full `WebGl2InitError` keeps this state `Copy` and avoids
     /// surfacing JS error detail into the reactive UI tree.
     #[get(type(copy))]
     pub(crate) init_error_code: Signal<&'static str>,

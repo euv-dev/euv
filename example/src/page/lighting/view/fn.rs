@@ -267,7 +267,7 @@ fn lighting_canvas_status_text(active: bool) -> &'static str {
 ///
 /// - `bool` - Whether initialization has finished (success or failure).
 /// - `bool` - Whether the renderer is active.
-/// - `&str` - The `WebGlInitError::code()` from the last init attempt.
+/// - `&str` - The `WebGl2InitError::code()` from the last init attempt.
 ///
 /// # Returns
 ///

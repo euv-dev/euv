@@ -8,6 +8,10 @@ site:
   logo: '📘'
 locales:
   - prefix: /
+    # Content directory under docs/docs/. Required: the build refuses to
+    # guess a locale's content location, and fails loudly when it is empty
+    # instead of emitting a one-page site.
+    dir: en
     lang: en-US
     label: English
     title: euv-docs

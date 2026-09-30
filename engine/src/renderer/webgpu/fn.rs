@@ -1,50 +1,5 @@
 use super::*;
 
-/// Draws a transformed sprite immediately with a single `set_transform`.
-///
-/// Mirrors the `SpriteSheet::draw_frame` fast path: the TRS matrix is composed
-/// in Rust (scale signs flip) and applied once, then reset to identity.
-///
-/// # Arguments
-///
-/// - `&CanvasRenderingContext2d` - Shared reference to a `CanvasRenderingContext2d`.
-/// - `&HtmlImageElement` - Shared reference to a `HtmlImageElement`.
-/// - `&Rect` - Shared reference to a `Rect`.
-/// - `&Transform2D` - Shared reference to a `Transform2D`.
-pub(crate) fn draw_sprite_immediate(
-    context: &CanvasRenderingContext2d,
-    image: &HtmlImageElement,
-    source: &Rect,
-    transform: &Transform2D,
-) {
-    let rotation: f64 = transform.get_rotation();
-    let cos: f64 = rotation.cos();
-    let sin: f64 = rotation.sin();
-    let scale_x: f64 = transform.get_scale().get_x();
-    let scale_y: f64 = transform.get_scale().get_y();
-    let _: Result<(), JsValue> = context.set_transform(
-        cos * scale_x,
-        sin * scale_x,
-        -sin * scale_y,
-        cos * scale_y,
-        transform.get_position().get_x(),
-        transform.get_position().get_y(),
-    );
-    let _: Result<(), JsValue> = context
-        .draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
-            image,
-            source.get_x(),
-            source.get_y(),
-            source.get_width(),
-            source.get_height(),
-            -source.get_width() * 0.5,
-            -source.get_height() * 0.5,
-            source.get_width(),
-            source.get_height(),
-        );
-    let _: Result<(), JsValue> = context.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-}
-
 /// Renders the JS-side error into a `String` when present, otherwise `"<none>"`.
 ///
 /// # Arguments
@@ -76,12 +31,12 @@ pub(crate) fn js_error_to_string(value: &JsValue) -> String {
 ///
 /// # Arguments
 ///
-/// - `bool` - A boolean (`bool`).
-/// - `bool` - A boolean (`bool`).
+/// - `bool` - Select the 32-bit float format when true.
+/// - `bool` - Select the stencil-bearing format when true.
 ///
 /// # Returns
 ///
-/// - `'static str` - A `'static str` value.
+/// - `&'static str` - A `'static str` value.
 pub(crate) fn pick_depth_format(high_precision: bool, with_stencil: bool) -> &'static str {
     if with_stencil {
         WEBGPU_DEPTH_FORMAT_DEPTH24_PLUS_STENCIL8
@@ -99,27 +54,6 @@ pub(crate) fn pick_depth_format(high_precision: bool, with_stencil: bool) -> &'s
     }
 }
 
-/// Default `storeOp` for a render-pass color attachment. Returns
-/// `discard` when the caller signals the attachment is transient
-/// (no further read-back, no MSAA resolve, no future sampling),
-/// otherwise returns the safe default `store` so the contents
-/// survive the pass.
-///
-/// # Arguments
-///
-/// - `bool` - A boolean (`bool`).
-///
-/// # Returns
-///
-/// - `'static str` - A `'static str` value.
-pub(crate) fn default_color_store_op(transient: bool) -> &'static str {
-    if transient {
-        WEBGPU_STORE_OP_DISCARD
-    } else {
-        WEBGPU_STORE_OP_STORE
-    }
-}
-
 /// Build a `mapMode` bitmask suitable for `GPUBuffer.mapAsync`.
 /// `GPUMapMode.READ` (`1`) and `GPUMapMode.WRITE` (`2`) can be OR'd
 /// together per the WebGPU spec; this helper centralises the
@@ -127,8 +61,8 @@ pub(crate) fn default_color_store_op(transient: bool) -> &'static str {
 ///
 /// # Arguments
 ///
-/// - `bool` - A boolean (`bool`).
-/// - `bool` - A boolean (`bool`).
+/// - `bool` - Include the read mode bit when true.
+/// - `bool` - Include the write mode bit when true.
 ///
 /// # Returns
 ///
@@ -153,11 +87,11 @@ pub(crate) fn map_mode_for(read: bool, write: bool) -> u32 {
 ///
 /// # Arguments
 ///
-/// - `bool` - A boolean (`bool`).
-/// - `bool` - A boolean (`bool`).
-/// - `bool` - A boolean (`bool`).
-/// - `bool` - A boolean (`bool`).
-/// - `bool` - A boolean (`bool`).
+/// - `bool` - Include `RENDER_ATTACHMENT` when true.
+/// - `bool` - Include `COPY_SRC` when true.
+/// - `bool` - Include `COPY_DST` when true.
+/// - `bool` - Include `TEXTURE_BINDING` when true.
+/// - `bool` - Include `STORAGE_BINDING` when true.
 ///
 /// # Returns
 ///
@@ -198,6 +132,14 @@ pub(crate) fn texture_usage(
 /// `&'static str` keys here — dynamic string lookups (e.g. uniform
 /// names) are unaffected. The map is created once per thread, lazily,
 /// and grows monotonically for the lifetime of the wasm instance.
+///
+/// # Arguments
+///
+/// - `&'static str` - The constant method or property name to intern.
+///
+/// # Returns
+///
+/// - `JsValue` - The cached `JsValue` for this name.
 pub(crate) fn cached_method_name(name: &'static str) -> JsValue {
     thread_local! {
         static CACHE: RefCell<Option<HashMap<&'static str, JsValue>>> =
@@ -231,7 +173,7 @@ pub(crate) fn cached_method_name(name: &'static str) -> JsValue {
 ///
 /// - **Receiver class** (`GpuReceiverClass`) is the identity half of the
 ///   cache key. Prototype `Function`s are per-class singletons, so the
-///   class tag alone is sufficient — no receiver identity is required.
+///   class tag alone is sufficient - no receiver identity is required.
 ///   The previous scheme keyed by the `JsValue`'s stack address, which was
 ///   unsound: per-frame temporaries (pass encoders, command encoders)
 ///   reuse stack slots across frames, and classes like
@@ -257,10 +199,10 @@ pub(crate) fn cached_method_name(name: &'static str) -> JsValue {
 ///
 /// # Arguments
 ///
-/// - `class` - The receiver's WebGPU class (cache key half).
-/// - `obj` - The receiver (`this`) for the call; used for the first
+/// - `GpuReceiverClass` - The receiver's WebGPU class (cache key half).
+/// - `&JsValue` - The receiver (`this`) for the call; used for the first
 ///   `Reflect::get` lookup, not part of the key.
-/// - `method_name` - A `'static str` matching a `WEBGPU_METHOD_*` constant.
+/// - `&'static str` - A method name matching a `WEBGPU_METHOD_*` constant.
 ///
 /// # Returns
 ///
@@ -309,6 +251,18 @@ pub(crate) fn cached_method(
 /// OPT 2b convenience: cached `Function::call1(this, &arg)` for
 /// the common 1-argument WebGPU method call. See [`cached_method`]
 /// for the cache semantics.
+///
+/// # Arguments
+///
+/// - `GpuReceiverClass` - The receiver's WebGPU class (cache key half).
+/// - `&JsValue` - The receiver (`this`) for the call.
+/// - `&'static str` - A method name matching a `WEBGPU_METHOD_*` constant.
+/// - `&JsValue` - The single argument passed to the method.
+///
+/// # Returns
+///
+/// - `Result<JsValue, JsValue>` - The method's return value, or the
+///   `Reflect::get` error when the method is not cached and not found.
 pub(crate) fn cached_method_call(
     class: GpuReceiverClass,
     obj: &JsValue,

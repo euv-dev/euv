@@ -10,11 +10,21 @@ pub static SCHEDULED: AtomicBool = AtomicBool::new(false);
 /// during internal operations such as `batch`.
 pub static SUPPRESS_SCHEDULE: AtomicBool = AtomicBool::new(false);
 
-/// The currently active `HookContext`.
-///
-/// SAFETY: Must only be accessed from the main thread (WASM single-threaded context).
-pub(crate) static mut CURRENT_HOOK_CONTEXT: CurrentHookContextCell =
-    CurrentHookContextCell(UnsafeCell::new(None));
+thread_local! {
+    /// The currently active `HookContext` for this thread.
+    ///
+    /// This is thread-local, not a process global, because `HookContext::with`
+    /// implements save/restore: it takes the previous value, installs the new
+    /// one, and puts the old one back afterwards. A process-wide global makes
+    /// that pattern unsound as soon as two threads interleave — thread A
+    /// saves, thread B saves, thread A restores, thread B restores the value
+    /// A had already put back, and the `Rc` is dropped twice, aborting the
+    /// process with a refcount underflow. Per-thread storage makes the
+    /// save/restore pair atomic with respect to other threads by
+    /// construction.
+    pub static CURRENT_HOOK_CONTEXT: RefCell<Option<HookContextRc>> =
+        const { RefCell::new(None) };
+}
 
 /// The dynamic node ID currently being rendered/set up.
 ///
@@ -44,8 +54,15 @@ thread_local! {
     /// `window.queueMicrotask`, resolved lazily on first use. The
     /// `Function::call1` in `Scheduler::update` skips the
     /// `Reflect::get` / `dyn_into` lookup on every signal update.
-    pub static MICROTASK_CACHE: MicrotaskCacheCell =
-        MicrotaskCacheCell(UnsafeCell::new(MicrotaskCache {
-            queue_microtask: None,
-        }));
+    ///
+    /// Storage is a plain `RefCell<MicrotaskCache>` rather than the
+    /// previous `MicrotaskCacheCell(UnsafeCell<MicrotaskCache>)` +
+    /// `unsafe impl Sync for MicrotaskCacheCell {}`. The wrapper existed
+    /// only to let the cache live in a `static`; as a `thread_local!` the
+    /// `RefCell` gives the same lazy-populate-once behaviour while
+    /// restoring the borrow check the `unsafe` had bypassed. It holds no
+    /// raw pointer and no `!Send` payload, so thread-local storage is a
+    /// pure win rather than a restriction.
+    pub static MICROTASK_CACHE: RefCell<MicrotaskCache> =
+        RefCell::new(MicrotaskCache { queue_microtask: None });
 }

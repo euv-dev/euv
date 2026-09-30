@@ -2,19 +2,17 @@ use super::*;
 
 #[test]
 fn render_pass_color_attachment_externally_constructible() {
-    let attachment: RenderPassColorAttachment = RenderPassColorAttachment {
+    let attachment: ColorAttachment = ColorAttachment {
         view: None,
         resolve_target: None,
-        clear_value: Some((0.1, 0.2, 0.3, 1.0)),
-        load_op: None,
-        store_op: None,
+        clear: Some(Color::new(0.1, 0.2, 0.3, 1.0)),
+        load_op: LoadOp::Clear,
+        store_op: StoreOp::Store,
     };
-    let clear: (f64, f64, f64, f64) = attachment.get_clear_value();
-    assert!(clear.0 > 0.0 && clear.0 < 1.0);
-    let load: Option<&'static str> = *attachment.try_get_load_op();
-    assert!(load.is_none());
-    let store: Option<&'static str> = *attachment.try_get_store_op();
-    assert!(store.is_none());
+    let load: &LoadOp = attachment.get_load_op();
+    assert_eq!(*load, LoadOp::Clear);
+    let store: &StoreOp = attachment.get_store_op();
+    assert_eq!(*store, StoreOp::Store);
     let view: Option<&JsValue> = attachment.try_get_view().as_ref();
     assert!(view.is_none());
     let resolve: Option<&JsValue> = attachment.try_get_resolve_target().as_ref();
@@ -23,38 +21,36 @@ fn render_pass_color_attachment_externally_constructible() {
 
 #[test]
 fn render_pass_depth_stencil_attachment_externally_constructible() {
-    let attachment: RenderPassDepthStencilAttachment = RenderPassDepthStencilAttachment {
+    let attachment: DepthStencilAttachment = DepthStencilAttachment {
         view: None,
-        depth_clear_value: Some(0.5),
-        depth_load_op: None,
-        depth_store_op: None,
-        depth_read_only: None,
+        depth_clear: Some(0.5),
+        depth_load_op: LoadOp::Clear,
+        depth_store_op: StoreOp::Store,
+        depth_read_only: false,
     };
-    let clear: f32 = attachment.get_depth_clear_value();
-    assert!(clear > 0.0 && clear < 1.0);
-    let load: Option<&'static str> = *attachment.try_get_depth_load_op();
-    assert!(load.is_none());
-    let store: Option<&'static str> = *attachment.try_get_depth_store_op();
-    assert!(store.is_none());
-    let read_only: Option<bool> = *attachment.try_get_depth_read_only();
-    assert!(read_only.is_none());
+    let load: &LoadOp = attachment.get_depth_load_op();
+    assert_eq!(*load, LoadOp::Clear);
+    let store: &StoreOp = attachment.get_depth_store_op();
+    assert_eq!(*store, StoreOp::Store);
+    let read_only: &bool = attachment.get_depth_read_only();
+    assert!(!*read_only);
     let view: Option<&JsValue> = attachment.try_get_view().as_ref();
     assert!(view.is_none());
 }
 
 #[test]
 fn render_pass_attachments_round_trip_optional_fields() {
-    let attachment: RenderPassColorAttachment = RenderPassColorAttachment {
+    let attachment: ColorAttachment = ColorAttachment {
         view: None,
         resolve_target: None,
-        clear_value: Some((0.0, 0.0, 0.0, 1.0)),
-        load_op: Some("load"),
-        store_op: Some("discard"),
+        clear: Some(Color::new(0.0, 0.0, 0.0, 1.0)),
+        load_op: LoadOp::Load,
+        store_op: StoreOp::Discard,
     };
-    let load: Option<&'static str> = *attachment.try_get_load_op();
-    assert_eq!(load, Some("load"));
-    let store: Option<&'static str> = *attachment.try_get_store_op();
-    assert_eq!(store, Some("discard"));
+    let load: &LoadOp = attachment.get_load_op();
+    assert_eq!(*load, LoadOp::Load);
+    let store: &StoreOp = attachment.get_store_op();
+    assert_eq!(*store, StoreOp::Discard);
 }
 
 #[test]

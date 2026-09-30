@@ -30,8 +30,15 @@ struct SiteConfig {
 /// One locale entry.
 #[derive(Debug)]
 struct LocaleConfig {
-    /// Route prefix, e.g. `/` or `/zh/`.
+    /// Route prefix, e.g. `/` or `/en/`.
     prefix: String,
+    /// Content directory under `<SRC_DIR>`, e.g. `en` or `zh`.
+    ///
+    /// Required. The build refuses to guess: a locale's content directory
+    /// is data, not a convention, so it is declared next to the prefix it
+    /// serves. (It used to be hardcoded to `zh` for the `/` locale, which
+    /// silently produced an empty site.)
+    dir: String,
     /// Human label in the language dropdown, e.g. `简体中文`.
     label: String,
     /// Locale-specific site title override.
@@ -249,11 +256,12 @@ fn main() {
         "site-level config (site + locales) missing from <SRC_DIR>/../README.md frontmatter",
     );
 
-    let locale_dirs: Vec<String> = config
+    // (content directory, URL prefix) per locale. A file directly under
+    // <SRC_DIR> belongs to no locale and is not a page.
+    let locale_prefixes: Vec<(String, String)> = config
         .locales
         .iter()
-        .filter(|l: &&LocaleConfig| l.prefix != "/")
-        .map(|l: &LocaleConfig| l.prefix.trim_matches('/').to_string())
+        .map(|l: &LocaleConfig| (l.dir.clone(), l.prefix.clone()))
         .collect();
 
     let mut md_files: Vec<PathBuf> = Vec::new();
@@ -262,7 +270,7 @@ fn main() {
 
     let mut pages: Vec<Page> = Vec::new();
     for file in &md_files {
-        pages.push(process_page(&docs_dir, file, &locale_dirs));
+        pages.push(process_page(&docs_dir, file, &locale_prefixes));
     }
 
     let public_dir: PathBuf = docs_dir.join("public");
@@ -271,18 +279,33 @@ fn main() {
     }
     copy_doc_assets(&docs_dir, &www_dir);
 
-    let mut sidebars: Vec<(String, Vec<SideItem>)> = Vec::new();
+    // Each locale's content directory comes from its declared `dir`. There is
+    // no default and no prefix-derived fallback: a missing or empty locale
+    // directory is a build error, because the old behaviour (hardcoding `zh`
+    // for the `/` locale) produced a site with one page and no error at all.
+    let mut locale_roots: Vec<(String, PathBuf, String)> = Vec::new();
     for locale in &config.locales {
-        let (root, build_locale): (PathBuf, String) = if locale.prefix == "/" {
-            (docs_dir.join("zh"), "/zh/".to_string())
-        } else {
-            (
-                docs_dir.join(locale.prefix.trim_matches('/')),
-                locale.prefix.clone(),
-            )
-        };
-        let items: Vec<SideItem> = build_sidebar(&root, &root, &build_locale, &pages);
-        sidebars.push((locale.prefix.clone(), items));
+        let root: PathBuf = docs_dir.join(&locale.dir);
+        if !root.is_dir() {
+            panic!(
+                "locale `{}` declares dir `{}` but <SRC_DIR>/{} is not a directory",
+                locale.prefix, locale.dir, locale.dir
+            );
+        }
+        let markdown_count: usize = collect_md_count(&root);
+        if markdown_count == 0 {
+            panic!(
+                "locale `{}` dir `{}` contains no .md files; every locale must ship content",
+                locale.prefix, locale.dir
+            );
+        }
+        locale_roots.push((locale.prefix.clone(), root, locale.prefix.clone()));
+    }
+
+    let mut sidebars: Vec<(String, Vec<SideItem>)> = Vec::new();
+    for (prefix, root, build_locale) in &locale_roots {
+        let items: Vec<SideItem> = build_sidebar(root, root, build_locale, &pages);
+        sidebars.push((prefix.clone(), items));
     }
 
     let code: String = codegen(&config, &pages, &sidebars);
@@ -324,6 +347,7 @@ fn parse_locale_config(yaml: &Value) -> Option<LocaleConfig> {
         .collect();
     Some(LocaleConfig {
         prefix: yaml_str(yaml, "prefix")?,
+        dir: yaml_str(yaml, "dir")?,
         label: yaml_str(yaml, "label")?,
         title: yaml_str(yaml, "title"),
         footer: yaml_str(yaml, "footer"),
@@ -338,9 +362,22 @@ fn parse_locale_config(yaml: &Value) -> Option<LocaleConfig> {
     })
 }
 
-/// Recursively collects `*.md` files, skipping only the **top-level**
-/// `public/` site-assets directory. Nested `public/` directories such as
-/// `essay/public/` hold real content pages and are collected normally.
+/// Counts the markdown files under `dir`, used to assert that a locale
+/// actually ships content before the site is generated.
+///
+/// # Arguments
+///
+/// - `&Path` - Root of the locale content directory to walk.
+///
+/// # Returns
+///
+/// The number of `*.md` files `collect_md` finds beneath `dir`.
+fn collect_md_count(dir: &Path) -> usize {
+    let mut files: Vec<PathBuf> = Vec::new();
+    collect_md(dir, dir, &mut files);
+    files.len()
+}
+
 fn collect_md(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
@@ -470,16 +507,52 @@ fn strip_path_prefix(file: &Path, prefix: &Path) -> PathBuf {
 }
 
 /// Parses one markdown file into a [`Page`].
-fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
+fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String)]) -> Page {
     let raw: String = fs::read_to_string(file).expect("read md");
     let (frontmatter, body) = split_frontmatter(&raw);
 
     // See `strip_path_prefix` for the rationale; the helper strips the
     // markdown dir name that leaked in when `EUV_DOCS_SRC_DIR` pointed
     // one level too high (the duplicate `/docs/ltpp/` sidebar entry).
-    let rel: PathBuf = strip_path_prefix(file, docs_dir);
+    // Resolve the owning locale from the path RELATIVE TO <SRC_DIR> before
+    // any prefix stripping: the locale directory is the first component and
+    // it is what selects the URL prefix. `strip_path_prefix` would otherwise
+    // consume it (its fallback drops the first component), leaving the page
+    // with no locale and a wrong route.
+    let raw_rel: PathBuf = match file.strip_prefix(docs_dir) {
+        Ok(rel) => rel.to_path_buf(),
+        Err(_) => file.to_path_buf(),
+    };
+    let first_component: Option<String> = raw_rel
+        .components()
+        .find_map(|c: Component<'_>| match c {
+            Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+            _ => None,
+        })
+        .and_then(|first: String| {
+            locale_prefixes
+                .iter()
+                .find(|entry: &&(String, String)| entry.0 == first)
+                .map(|entry: &(String, String)| entry.1.clone())
+        });
+
+    let rel: PathBuf = match &first_component {
+        Some(_) => {
+            let mut trimmed: PathBuf = PathBuf::new();
+            let mut skipped: bool = false;
+            for component in raw_rel.components() {
+                if !skipped {
+                    skipped = true;
+                    continue;
+                }
+                trimmed.push(component);
+            }
+            trimmed
+        }
+        None => strip_path_prefix(file, docs_dir),
+    };
     let rel: &Path = rel.as_path();
-    let mut segments: Vec<String> = rel
+    let segments: Vec<String> = rel
         .components()
         .filter_map(|c: Component<'_>| match c {
             Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
@@ -487,17 +560,12 @@ fn process_page(docs_dir: &Path, file: &Path, locale_dirs: &[String]) -> Page {
         })
         .collect();
 
-    let locale: String = if let Some(first) = segments.first() {
-        if locale_dirs.contains(first) {
-            let prefix: String = format!("/{first}/");
-            segments.remove(0);
-            prefix
-        } else {
-            "/".to_string()
-        }
-    } else {
-        "/".to_string()
-    };
+    // The URL prefix comes from the locale's declared `prefix`, NOT from the
+    // directory name. A locale may live in `en/` yet be served at `/`, and a
+    // locale served at `/en/` may live in any directory it likes. Decoupling
+    // them is what lets the content tree be reorganised without silently
+    // moving every public URL.
+    let locale: String = first_component.unwrap_or_else(|| "/".to_string());
 
     let route: String = route_for(&segments, &locale);
 

@@ -21,22 +21,21 @@ pub use std::{
     marker::PhantomData,
     mem::{swap, take, zeroed},
     panic::{AssertUnwindSafe, catch_unwind},
+    sync::{LazyLock, RwLock, RwLockReadGuard},
+    thread::LocalKey,
 };
+
+pub use {js_sys::*, lombok_macros::*, wasm_bindgen::prelude::*, web_sys::*};
+
+pub(crate) use std::iter::Iterator;
 
 pub(crate) use renderer::*;
 
 use std::{
     any::Any,
     cell::{Cell, Ref, RefCell, UnsafeCell},
-    iter::Iterator,
     num::ParseIntError,
-    ops::Deref,
     rc::Rc,
-    sync::{
-        LazyLock,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-    },
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     vec::Vec,
 };
-
-use {js_sys::*, lombok_macros::*, wasm_bindgen::prelude::*, web_sys::*};

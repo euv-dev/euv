@@ -1,18 +1,15 @@
 use super::*;
 
-/// Helper body of the `my_component` free function.
 #[component]
 fn my_component() -> u32 {
     42
 }
 
-/// Helper body of the `pub_component` free function.
 #[component]
 pub fn pub_component() -> &'static str {
     "hello"
 }
 
-/// Helper body of the `generic_component` free function.
 #[component]
 fn generic_component<T: Default + Clone + 'static>() -> T {
     T::default()

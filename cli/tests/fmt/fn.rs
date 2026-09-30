@@ -273,10 +273,6 @@ fn test_sibling_elements_compressed() {
     assert_eq!(format_euv_macros(input), expected);
 }
 
-/// Regression: block comments inside macro bodies with internal whitespace
-/// must not drift on repeated fmt runs. Previously each run added 4 spaces of
-/// indentation to comment continuation lines, so running `euv fmt` repeatedly
-/// produced different output each time (compounding indent).
 #[test]
 fn test_block_comment_idempotent_in_class_macro() {
     let inner_indent: &str = "    ";
@@ -292,8 +288,6 @@ fn test_block_comment_idempotent_in_class_macro() {
     );
 }
 
-/// Regression: format_macro_body on a class! body containing a block comment
-/// with deep internal indent must also be idempotent at the body level.
 #[test]
 fn test_block_comment_idempotent_in_macro_body() {
     let input: &str = "class! {c_test {/* line one\n                                                                                                                                                           line two\n                                                                                                                                                           line three */\n        color: \"red\";}}";
@@ -305,11 +299,6 @@ fn test_block_comment_idempotent_in_macro_body() {
     );
 }
 
-/// Regression: repeated fmt runs on a macro body containing a block comment
-/// with deep internal indent must not compound indent on continuation lines.
-/// (The fix preserves the comment's original internal whitespace but
-/// prevents `indented_body` from re-prepending indentation to lines that
-/// are continuations of `/* ... */` regions.)
 #[test]
 fn test_block_comment_continuation_lines_normalized() {
     let inner_indent: &str = "    ";

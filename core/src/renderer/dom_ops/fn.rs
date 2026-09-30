@@ -1,9 +1,5 @@
 use super::*;
 
-/// SAFETY: `DomOpTableCell` is only mutated through `UnsafeCell`
-/// interior-mutability on the WASM single-threaded runtime.
-unsafe impl Sync for DomOpTableCell {}
-
 /// Resolves (or installs on first call) the batched DOM-op helpers
 /// under `globalThis.__euv_dom_ops__`.
 ///
@@ -27,57 +23,68 @@ unsafe impl Sync for DomOpTableCell {}
 /// - `Option<DomOpTable>` - The function table, or `None` if it could
 ///   not be resolved.
 pub(crate) fn ensure_dom_op_table() -> Option<DomOpTable> {
-    DOM_OP_TABLE_CELL.with(|cell: &DomOpTableCell| {
-        let cached_ptr: *mut Option<DomOpTable> = cell.0.get();
-        unsafe {
-            if let Some(table) = &*cached_ptr {
-                return Some(table.clone());
-            }
-        }
-        let global_value: JsValue = global_this()?;
-        let table_value: JsValue =
-            match Reflect::get(&global_value, &JsValue::from_str(JS_DOM_OP_TABLE)) {
-                Ok(existing) => existing,
-                Err(_err) => JsValue::UNDEFINED,
-            };
-        let table: DomOpTable = if table_value.is_object() {
-            let set_attrs: Function =
-                match Reflect::get(&table_value, &JsValue::from_str(JS_DOM_OP_SET_ATTRS)) {
-                    Ok(value) => match value.dyn_into::<Function>() {
-                        Ok(function) => function,
-                        Err(_) => return None,
-                    },
-                    Err(_err) => return None,
-                };
-            let remove_attrs: Function =
-                match Reflect::get(&table_value, &JsValue::from_str(JS_DOM_OP_REMOVE_ATTRS)) {
-                    Ok(value) => match value.dyn_into::<Function>() {
-                        Ok(function) => function,
-                        Err(_) => return None,
-                    },
-                    Err(_err) => return None,
-                };
-            let child_ops: Function =
-                match Reflect::get(&table_value, &JsValue::from_str(JS_DOM_OP_CHILD_OPS)) {
-                    Ok(value) => match value.dyn_into::<Function>() {
-                        Ok(function) => function,
-                        Err(_) => return None,
-                    },
-                    Err(_err) => return None,
-                };
-            DomOpTable {
-                set_attrs,
-                remove_attrs,
-                child_ops,
-            }
-        } else {
-            install_dom_op_table(&global_value)?
+    // Fast path: a cached table, cloned out so the `RefCell` borrow is
+    // released before any JS work happens below.
+    if let Some(cached) = DOM_OP_TABLE
+        .try_with(|cell: &RefCell<Option<DomOpTable>>| {
+            cell.try_borrow()
+                .ok()
+                .and_then(|guard: Ref<Option<DomOpTable>>| guard.clone())
+        })
+        .ok()
+        .flatten()
+    {
+        return Some(cached);
+    }
+    let global_value: JsValue = global_this()?;
+    let table_value: JsValue =
+        match Reflect::get(&global_value, &JsValue::from_str(JS_DOM_OP_TABLE)) {
+            Ok(existing) => existing,
+            Err(_err) => JsValue::UNDEFINED,
         };
-        unsafe {
-            *cached_ptr = Some(table.clone());
+    let table: DomOpTable = if table_value.is_object() {
+        let set_attrs: Function =
+            match Reflect::get(&table_value, &JsValue::from_str(JS_DOM_OP_SET_ATTRS)) {
+                Ok(value) => match value.dyn_into::<Function>() {
+                    Ok(function) => function,
+                    Err(_) => return None,
+                },
+                Err(_err) => return None,
+            };
+        let remove_attrs: Function =
+            match Reflect::get(&table_value, &JsValue::from_str(JS_DOM_OP_REMOVE_ATTRS)) {
+                Ok(value) => match value.dyn_into::<Function>() {
+                    Ok(function) => function,
+                    Err(_) => return None,
+                },
+                Err(_err) => return None,
+            };
+        let child_ops: Function =
+            match Reflect::get(&table_value, &JsValue::from_str(JS_DOM_OP_CHILD_OPS)) {
+                Ok(value) => match value.dyn_into::<Function>() {
+                    Ok(function) => function,
+                    Err(_) => return None,
+                },
+                Err(_err) => return None,
+            };
+        DomOpTable {
+            set_attrs,
+            remove_attrs,
+            child_ops,
         }
-        Some(table)
-    })
+    } else {
+        install_dom_op_table(&global_value)?
+    };
+    // Cache the resolved table. A refused borrow only costs one extra
+    // `Reflect::get` on the next patch, so the failure is ignored rather
+    // than propagated.
+    let _: Result<(), std::thread::AccessError> =
+        DOM_OP_TABLE.try_with(|cell: &RefCell<Option<DomOpTable>>| {
+            if let Ok(mut guard) = cell.try_borrow_mut() {
+                *guard = Some(table.clone());
+            }
+        });
+    Some(table)
 }
 
 /// Installs the batched DOM-op helpers onto `globalThis.__euv_dom_ops__`.

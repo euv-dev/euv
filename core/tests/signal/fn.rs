@@ -175,15 +175,6 @@ fn native_fire_handle_fire_does_not_panic() {
     assert!(result.is_ok());
 }
 
-/// Verifies that the slab-backed `Signal<T>` handle still reads/writes
-/// after `set` — i.e. the inner `SignalInner<T>` persists across writes
-/// rather than being swapped-and-rebuilt (PR-D's `take_dependents` +
-/// slab persistence).
-///
-/// Note: `Signal::set` calls `App::schedule_update` which requires the
-/// WASM runtime (uses `js_sys`). This test is therefore gated to wasm
-/// targets via `#[cfg(target_arch = "wasm32")]`. On native we still
-/// verify that the slab itself is sound by exercising the read path.
 #[cfg(target_arch = "wasm32")]
 #[test]
 fn signal_set_persists_inner_state_across_writes() {
@@ -192,7 +183,6 @@ fn signal_set_persists_inner_state_across_writes() {
     signal.set(2);
     signal.set(3);
     assert_eq!(signal.get(), 3);
-    // Two more writes — should not panic and value should still be 5.
     signal.set(4);
     signal.set(5);
     assert_eq!(signal.get(), 5);

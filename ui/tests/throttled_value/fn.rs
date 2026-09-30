@@ -1,12 +1,5 @@
 use super::*;
 
-/// Helper body of the `seed_throttled` free function.
-///
-/// # Arguments
-///
-/// - `&ThrottledValue<T>` - Shared reference to a `ThrottledValue<T>`.
-/// - `T: Clone + PartialEq + Default + 'static` - A generic type parameter.
-/// - `u64` - The current time in milliseconds.
 fn seed_throttled<T: Clone + PartialEq + Default + 'static>(
     throttled: &ThrottledValue<T>,
     initial: T,

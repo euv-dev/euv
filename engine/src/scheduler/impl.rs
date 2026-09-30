@@ -36,6 +36,17 @@ impl SchedulerState {
     /// per-frame cost is one `call0` crossing, not two `Reflect::get` +
     /// two `JsValue::from_str` allocations.
     ///
+    /// No cache borrow is ever held across a call out to JS. `Reflect::get`
+    /// resolves page-reachable properties, and `performance.now` is itself
+    /// a writable property: a host page that wraps it (profiling shim,
+    /// fake-timer test double) can call back into this module, and a
+    /// re-entered `current_time` would hit an already-mutably-borrowed cell
+    /// and panic the wasm instance, which has no unwinder to catch it. The
+    /// cached pair is therefore cloned out and the guard dropped before
+    /// `call0`; the miss path resolves the globals and fills the cache
+    /// through `try_borrow_mut`, skipping the write rather than panicking
+    /// if another call is in flight.
+    ///
     /// # Returns
     ///
     /// - `f64` - The current time in seconds, or `0.0` when unavailable.
@@ -48,29 +59,33 @@ impl SchedulerState {
                 const { RefCell::new(None) };
         }
         PERFORMANCE_NOW.with(|cell: &RefCell<Option<(JsValue, Function)>>| {
-            let mut borrow: std::cell::RefMut<'_, Option<(JsValue, Function)>> = cell.borrow_mut();
-            if borrow.is_none() {
-                let Some(window_value) = window() else {
-                    return 0.0;
-                };
-                let Ok(performance) = Reflect::get(
-                    window_value.as_ref(),
-                    &JsValue::from_str(PERFORMANCE_OBJECT),
-                ) else {
-                    return 0.0;
-                };
-                let Ok(now_method) =
-                    Reflect::get(&performance, &JsValue::from_str(PERFORMANCE_NOW_METHOD))
-                else {
-                    return 0.0;
-                };
-                *borrow = Some((performance, now_method.unchecked_into()));
-            }
-            let Some((performance, now_function)) = borrow.as_ref() else {
-                return 0.0;
+            let cached: Option<(JsValue, Function)> = cell.borrow().as_ref().cloned();
+            let (performance, now_function): (JsValue, Function) = match cached {
+                Some(pair) => pair,
+                None => {
+                    let Some(window_value) = window() else {
+                        return 0.0;
+                    };
+                    let Ok(performance) = Reflect::get(
+                        window_value.as_ref(),
+                        &JsValue::from_str(PERFORMANCE_OBJECT),
+                    ) else {
+                        return 0.0;
+                    };
+                    let Ok(now_method) =
+                        Reflect::get(&performance, &JsValue::from_str(PERFORMANCE_NOW_METHOD))
+                    else {
+                        return 0.0;
+                    };
+                    let pair: (JsValue, Function) = (performance, now_method.unchecked_into());
+                    if let Ok(mut borrow) = cell.try_borrow_mut() {
+                        *borrow = Some(pair.clone());
+                    }
+                    pair
+                }
             };
             now_function
-                .call0(performance)
+                .call0(&performance)
                 .ok()
                 .and_then(|v: JsValue| v.as_f64())
                 .map(|millis: f64| millis / 1000.0)

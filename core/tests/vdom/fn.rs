@@ -113,7 +113,6 @@ fn attribute_entry_debug_format_works() {
 
 #[test]
 fn opt10_static_text_borrows_without_alloc() {
-    // OPT 10: StaticText must wrap a `&'static str` without allocating.
     let value: AttributeValue = AttributeValue::StaticText("color: red;");
     match value {
         AttributeValue::StaticText(s) => assert_eq!(s, "color: red;"),
@@ -123,11 +122,6 @@ fn opt10_static_text_borrows_without_alloc() {
 
 #[test]
 fn opt10_static_text_matches_text_in_debug_layout() {
-    // OPT 10: cloning an AttributeValue must preserve the StaticText
-    // variant verbatim (no implicit to_string() during the clone).
-    // Since `AttributeValue` derives `CustomDebug` which wraps each
-    // variant, pattern-matching through the Debug output guarantees
-    // the variant survived the clone.
     let original: AttributeValue = AttributeValue::StaticText("color:red;");
     let cloned: AttributeValue = original.clone();
     let original_dbg: String = format!("{:?}", original);
@@ -148,8 +142,6 @@ fn opt10_static_text_matches_text_in_debug_layout() {
 
 #[test]
 fn opt11_from_static_css_yields_cssref_not_css() {
-    // OPT 11: `From<&'static Css>` must produce `CssRef`, not the
-    // owned `Css` variant (which would have deep-cloned the payload).
     use std::sync::LazyLock;
     static STATIC_CSS: LazyLock<Css> = LazyLock::new(|| {
         Css::new(
@@ -175,9 +167,6 @@ fn opt11_from_static_css_yields_cssref_not_css() {
 
 #[test]
 fn opt11_cssref_does_not_clone_inner_collections() {
-    // OPT 11: constructing an `AttributeValue::CssRef(&'static Css)`
-    // must keep the inner `Vec<PseudoRule>` / `Vec<MediaRule>` storage
-    // shared with the source (i.e. it must NOT call clone on them).
     use std::sync::LazyLock;
     static STATIC_CSS: LazyLock<Css> = LazyLock::new(|| {
         Css::new(
@@ -191,7 +180,6 @@ fn opt11_cssref_does_not_clone_inner_collections() {
     let AttributeValue::CssRef(css_ref) = value else {
         panic!("expected AttributeValue::CssRef");
     };
-    // Pointer identity check — borrowed storage must be the same object.
     assert!(std::ptr::eq(
         css_ref as *const Css,
         &*STATIC_CSS as *const Css
@@ -231,17 +219,6 @@ fn native_media_rule_clone_does_not_panic() {
     assert!(result.is_ok());
 }
 
-/// Regression: `merge_class` used to drop `AttributeValue::CssRef`
-/// entries on the floor because the static-path `filter_map` had no
-/// arm for the `CssRef` variant — every reference fell through to
-/// `_ => None` and only the neighbouring owned `Css` / `Text` value
-/// made it into the rendered `class` string. The fix is verified by
-/// the e2e suite (headless Chromium checks that
-/// `c_binding_slider` shows up on `<input id="color-mixer-red">`
-/// next to its sibling `c_slider_value-…` class); the unit test
-/// below pins the equivalent behaviour on the `Text`-only merge
-/// path so the filter_map can never silently regress without
-/// `cargo test` noticing.
 #[test]
 fn merge_class_joins_text_segments_with_spaces() {
     let merged: AttributeValue = AttributeValue::merge_class(&[
@@ -257,13 +234,6 @@ fn merge_class_joins_text_segments_with_spaces() {
     assert!(parts.contains(&"c_slider_value-57289a1822494269"));
 }
 
-/// Companion regression test for the signal-branched path of
-/// `merge_class` - `Signal` inputs must coexist with `Text` siblings
-/// and the resulting reactive value must re-evaluate correctly on
-/// `.get()`. This is the closest native-only approximation of the
-/// CssRef fix — exercising the same `_ => None` arm without
-/// depending on `Css::inject_style`, which can only run inside the
-/// browser.
 #[test]
 fn merge_class_signal_path_preserves_text_siblings() {
     let signal_value: Signal<String> =

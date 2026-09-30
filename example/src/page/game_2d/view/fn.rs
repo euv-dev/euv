@@ -95,7 +95,7 @@ pub(crate) fn page_game_2d(node: VirtualNode<PageGame2DProps>) -> VirtualNode {
                     Game2DTab::WebGl => {
                         p {
                             class: c_game_description()
-                            "This demo uses euv-engine's WebGlRenderer to acquire a WebGL 2 context, compile a GLSL ES 3.00 program, and render the same bouncing balls scene as the Canvas 2D tab: every ball is drawn as a shader-generated quad with per-ball position, radius, and color uploaded to vec4 uniform arrays each frame. Click or tap to spawn balls; pause and clear work exactly like Canvas 2D. Works in every modern browser with WebGL 2 support."
+                            "This demo uses euv-engine's WebGl2Backend to acquire a WebGL 2 context, compile a GLSL ES 3.00 program, and render the same bouncing balls scene as the Canvas 2D tab: every ball is drawn as a shader-generated quad with per-ball position, radius, and color uploaded to vec4 uniform arrays each frame. Click or tap to spawn balls; pause and clear work exactly like Canvas 2D. Works in every modern browser with WebGL 2 support."
                         }
                     }
                 }
@@ -409,7 +409,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
 ///
 /// - `bool` - Whether initialization has finished (success or failure).
 /// - `bool` - Whether the renderer is active.
-/// - `&str` - The `WebGlInitError::code()` from the last init attempt.
+/// - `&str` - The `WebGl2InitError::code()` from the last init attempt.
 ///
 /// # Returns
 ///

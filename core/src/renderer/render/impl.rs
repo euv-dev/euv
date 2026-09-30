@@ -566,25 +566,11 @@ impl Renderer {
                 if still_present {
                     continue;
                 }
-                if let Some(entry) = Registry::get_mut_handler_registry()
-                    .get_mut(&euv_id)
-                    .and_then(|event_map: &mut HashMap<&'static str, HandlerEntry>| {
-                        event_map.remove(&handler.get_event_name())
-                    })
-                {
-                    let slot: &mut HandlerSlot = unsafe { &mut *entry };
-                    if let Some(listener_element) = slot.try_get_element().as_ref().cloned()
-                        && let Some(listener_function) = slot.get_mut_listener_function().take()
-                    {
-                        let event_name: &str = handler.get_event_name();
-                        let listener: &Function = listener_function.unchecked_ref::<Function>();
-                        let _: Result<(), JsValue> = listener_element
-                            .remove_event_listener_with_callback(event_name, listener);
-                    }
-                    slot.set_handler(None);
-                    unsafe {
-                        let _: Box<HandlerSlot> = Box::from_raw(entry);
-                    }
+                if let Some(entry) = Registry::take_handler(euv_id, handler.get_event_name()) {
+                    // The registry borrow is released before the DOM
+                    // teardown runs: `removeEventListener` crosses into JS
+                    // and a JS callback could re-enter the registry.
+                    Registry::free_handler_slot(handler.get_event_name(), entry);
                 }
             }
         }
@@ -1571,58 +1557,46 @@ impl Renderer {
         };
         let event_name: &'static str = handler.get_event_name();
         if Registry::is_non_bubbling(event_name) {
-            let registry_ref: &mut HandlerRegistryMap = Registry::get_mut_handler_registry();
-            if let Some(existing_entry) = registry_ref.get(&euv_id).and_then(
-                |event_map: &HashMap<&'static str, HandlerEntry>| event_map.get(&event_name),
-            ) {
-                let slot: &mut HandlerSlot = unsafe { &mut **existing_entry };
-                slot.set_handler(Some(handler.clone()));
+            if Registry::has_handler(euv_id, event_name) {
+                Registry::set_handler(euv_id, event_name, handler);
             } else {
                 let closure: Closure<dyn FnMut(Event)> =
                     Closure::wrap(Box::new(move |event: Event| {
-                        if let Some(entry) = Registry::get_handler_registry().get(&euv_id).and_then(
-                            |event_map: &HashMap<&'static str, HandlerEntry>| {
-                                event_map.get(&event_name)
-                            },
-                        ) {
-                            let slot: &HandlerSlot = unsafe { &**entry };
-                            if let Some(active_handler) = slot.try_get_handler().as_ref().cloned() {
-                                active_handler.handle(event);
-                            }
+                        // The handler is cloned out of the registry and the
+                        // borrow dropped before it runs: a handler
+                        // re-renders, which re-enters the registry.
+                        let active_handler: Option<NativeEventHandler> =
+                            Registry::get_handler(euv_id, event_name);
+                        if let Some(handler_to_fire) = active_handler {
+                            handler_to_fire.handle(event);
                         }
                     }));
                 let _: Result<(), JsValue> = element
                     .add_event_listener_with_callback(event_name, closure.as_ref().unchecked_ref());
                 let listener_function: JsValue = closure.as_ref().clone();
                 closure.forget();
-                let handler_slot: HandlerEntry = Box::into_raw(Box::new(HandlerSlot::new(
+                let handler_slot: HandlerSlot = HandlerSlot::new(
                     Some(handler.clone()),
                     Some(listener_function),
                     Some(element.clone()),
-                )));
-                registry_ref
-                    .entry(euv_id)
-                    .or_default()
-                    .insert(event_name, handler_slot);
+                );
+                if let Some(replaced) = Registry::insert_handler(euv_id, event_name, handler_slot) {
+                    unsafe {
+                        let _: Box<HandlerSlot> = Box::from_raw(replaced);
+                    }
+                }
             }
         } else {
             Registry::delegation(event_name);
-            let registry_ref: &mut HandlerRegistryMap = Registry::get_mut_handler_registry();
-            if let Some(existing_entry) = registry_ref.get(&euv_id).and_then(
-                |event_map: &HashMap<&'static str, HandlerEntry>| event_map.get(&event_name),
-            ) {
-                let slot: &mut HandlerSlot = unsafe { &mut **existing_entry };
-                slot.set_handler(Some(handler.clone()));
+            if Registry::has_handler(euv_id, event_name) {
+                Registry::set_handler(euv_id, event_name, handler);
             } else {
-                let handler_slot: HandlerEntry = Box::into_raw(Box::new(HandlerSlot::new(
-                    Some(handler.clone()),
-                    None,
-                    None,
-                )));
-                registry_ref
-                    .entry(euv_id)
-                    .or_default()
-                    .insert(event_name, handler_slot);
+                let handler_slot: HandlerSlot = HandlerSlot::new(Some(handler.clone()), None, None);
+                if let Some(replaced) = Registry::insert_handler(euv_id, event_name, handler_slot) {
+                    unsafe {
+                        let _: Box<HandlerSlot> = Box::from_raw(replaced);
+                    }
+                }
             }
         }
     }
@@ -1646,6 +1620,12 @@ impl Mount {
         S: AsRef<str>,
         F: FnOnce() -> VirtualNode,
     {
+        // OPT 40: install the event id-chain walker before the first render,
+        // so every delegated event from the very first click already uses the
+        // one-crossing JS path. The injection is idempotent: a repeat call
+        // finds the global and returns without re-evaluating, which keeps
+        // re-mounts (SPA navigations that re-run `App::mount`) free.
+        ensure_event_id_chain_global();
         let selector: &str = selector.as_ref();
         let window: Window = match window() {
             Some(window_instance) => window_instance,

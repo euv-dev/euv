@@ -103,3 +103,25 @@ pub(crate) const HIGH_FREQUENCY_EVENTS: [&str; 5] = [
 ///
 /// See the doc on `HIGH_FREQUENCY_EVENTS` for the rationale.
 pub(crate) const MAX_ANCESTOR_DEPTH_FOR_HIGH_FREQ: usize = 4;
+
+/// The global property name under which the event id-chain walker is
+/// installed by euv's one-time startup injection.
+pub(crate) const EVENT_ID_CHAIN_GLOBAL_NAME: &str = "__euvEventIdChain";
+
+thread_local! {
+    /// Cached handle to the injected global walker, resolved on first use.
+    ///
+    /// The outer `Option` records "we already looked"; the inner `None`
+    /// records "looked, and the global is absent". That way a host which
+    /// strips the helper costs one lookup per page instead of one per
+    /// event, and the fallback path can be taken without a second probe.
+    pub static EVENT_ID_CHAIN_FN: std::cell::RefCell<
+        Option<Option<web_sys::js_sys::Function>>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
+/// The JS global object name resolved when no direct handle is available.
+pub(crate) const GLOBAL_THIS_NAME: &str = "globalThis";
+
+/// The DOM `Event` property holding the node the event was dispatched on.
+pub(crate) const EVENT_TARGET_PROP: &str = "target";

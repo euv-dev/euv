@@ -7,9 +7,10 @@ mod component;
 mod page;
 mod style;
 
-use {component::*, page::*, style::*};
+pub(crate) use {component::*, page::*, style::*};
 
 pub use std::{
+    cell::RefMut,
     cmp::Ordering,
     collections::HashSet,
     fmt::{self, Debug, Display, Formatter},
@@ -30,7 +31,6 @@ use {
 };
 
 use {
-    lombok_macros::*,
     qrcode::{QrCode, render::svg, types::QrError},
     serde::{Deserialize, Serialize},
 };

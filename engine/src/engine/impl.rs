@@ -53,7 +53,7 @@ impl Engine {
                 let _: Result<WebGpuRenderer, WebGpuInitError> = handle.init_webgpu().await;
             }
             RenderBackendType::WebGl => {
-                let _: Result<WebGlRenderer, WebGlInitError> = handle.init_webgl();
+                let _: Result<WebGl2Backend, WebGl2InitError> = handle.init_webgl();
             }
         }
         handle.start(handler);
@@ -126,10 +126,10 @@ impl Engine {
     ///
     /// # Returns
     ///
-    /// - `Result<WebGlRenderer, WebGlInitError>` - The initialized renderer,
+    /// - `Result<WebGl2Backend, WebGl2InitError>` - The initialized renderer,
     ///   or a typed error describing the specific failure.
-    pub fn webgl_renderer(config: &RenderConfig) -> Result<WebGlRenderer, WebGlInitError> {
-        WebGlRenderer::init(config)
+    pub fn webgl_renderer(config: &RenderConfig) -> Result<WebGl2Backend, WebGl2InitError> {
+        WebGl2Backend::init(config)
     }
 }
 
@@ -199,11 +199,11 @@ impl EngineHandle {
     ///
     /// # Returns
     ///
-    /// - `Result<WebGlRenderer, WebGlInitError>` - The initialized renderer,
+    /// - `Result<WebGl2Backend, WebGl2InitError>` - The initialized renderer,
     ///   or a typed error describing the specific failure.
-    pub fn init_webgl(&mut self) -> Result<WebGlRenderer, WebGlInitError> {
+    pub fn init_webgl(&mut self) -> Result<WebGl2Backend, WebGl2InitError> {
         let render_config: &RenderConfig = &self.get_config().get_render();
-        let renderer: WebGlRenderer = WebGlRenderer::init(render_config)?;
+        let renderer: WebGl2Backend = WebGl2Backend::init(render_config)?;
         self.set_webgl_renderer(Some(renderer.clone()));
         self.set_canvas_renderer(None);
         self.set_webgpu_renderer(None);

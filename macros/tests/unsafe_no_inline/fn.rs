@@ -14,9 +14,10 @@ fn unsafe_no_inline_macro_preserves_empty_string() {
 
 #[test]
 fn unsafe_no_inline_macro_preserves_html_with_attributes() {
-    let raw: RawHtml = unsafe_no_inline!(r#"<a href="https://example.com">link</a>"#);
-    assert!(raw.get_content().contains("href"));
-    assert!(raw.get_content().contains("example.com"));
+    let raw: RawHtml = unsafe_no_inline!(r#"<span class=tag data-kind=note>text</span>"#);
+    assert!(raw.get_content().contains("span"));
+    assert!(raw.get_content().contains("class=tag"));
+    assert!(raw.get_content().contains("data-kind=note"));
 }
 
 #[test]

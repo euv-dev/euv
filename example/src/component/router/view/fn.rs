@@ -77,6 +77,9 @@ pub(crate) fn page_router(node: VirtualNode<PageRouterProps>) -> VirtualNode {
                 "/game-3d" => {
                     page_game_3d {}
                 }
+                GESTURE_ROUTE => {
+                    page_gesture {}
+                }
                 "/keep-alive" => {
                     page_keep_alive {}
                 }

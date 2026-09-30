@@ -216,6 +216,12 @@ impl UseEuvCamera {
     ///   no-op `Promise.resolve([])` fallback when lookup fails.
     fn cached_detect_fn(detector: &JsValue) -> Function {
         DETECT_FN_CACHE.with(|cache: &RefCell<Option<Function>>| {
+            // The read guard here and the write guard below are two separate
+            // statements, so they never overlap: the `if let` scrutinee
+            // temporary is dropped when the `if let` ends, before the
+            // `Reflect::get` lookup. `Reflect::get` on a `BarcodeDetector` can
+            // run a prototype getter installed by page code, which is why
+            // nothing may hold a cache borrow across it.
             if let Some(function) = cache.borrow().as_ref() {
                 return function.clone();
             }
@@ -330,17 +336,32 @@ impl UseEuvCamera {
                 return;
             };
             let video_element: HtmlVideoElement = {
-                let mut cache: std::cell::RefMut<'_, Option<HtmlVideoElement>> =
-                    video_element_cache.borrow_mut();
-                match cache.as_ref() {
-                    Some(cached) if cached.is_connected() => cached.clone(),
+                // `is_connected` and `query_selector` cross into the DOM, and a
+                // `Node.prototype.isConnected` getter installed by page code runs
+                // arbitrary JS in between. Holding a `RefMut` across either lets a
+                // re-entrant scan tick reach `borrow_mut` under a live guard and
+                // abort the instance, so the cached element is cloned out under a
+                // read borrow that is dropped before any DOM call. A contended
+                // cell reports "no cache" and the element is simply re-resolved.
+                let cached: Option<HtmlVideoElement> = video_element_cache
+                    .try_borrow()
+                    .map(|cache: std::cell::Ref<'_, Option<HtmlVideoElement>>| cache.clone())
+                    .unwrap_or_default();
+                match cached {
+                    Some(element) if element.is_connected() => element,
                     _ => {
                         let Some(element) = document.query_selector(&video_selector).ok().flatten()
                         else {
                             return;
                         };
                         let resolved: HtmlVideoElement = element.unchecked_into();
-                        *cache = Some(resolved.clone());
+                        // Best-effort store: the element is only an optimisation
+                        // and is re-validated by `is_connected` on the next tick.
+                        // Skipping a contended write costs one `query_selector`;
+                        // panicking would cost the whole instance.
+                        if let Ok(mut cache) = video_element_cache.try_borrow_mut() {
+                            *cache = Some(resolved.clone());
+                        }
                         resolved
                     }
                 }

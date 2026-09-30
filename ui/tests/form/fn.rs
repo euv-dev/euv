@@ -1,10 +1,5 @@
 use super::*;
 
-/// Helper body of the `fresh_form` free function.
-///
-/// # Returns
-///
-/// - `FormState` - A `FormState` value.
 fn fresh_form() -> FormState {
     FormState::new(
         Signal::create(HashMap::new()),

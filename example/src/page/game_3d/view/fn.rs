@@ -96,7 +96,7 @@ pub(crate) fn page_game_3d(node: VirtualNode<PageGame3DProps>) -> VirtualNode {
                     Game3DTab::WebGl => {
                         p {
                             class: c_game_description()
-                            "This demo uses euv-engine's WebGlRenderer to acquire a WebGL 2 context, compile a GLSL ES 3.00 program, and render the same rotating cubes scene as the Canvas 2D tab: every cube is drawn as 12 shader-generated triangles with per-cube transform and colors uploaded to vec4 uniform arrays each frame via requestAnimationFrame. Drag on the canvas to orbit the camera. Works in every modern browser with WebGL 2 support."
+                            "This demo uses euv-engine's WebGl2Backend to acquire a WebGL 2 context, compile a GLSL ES 3.00 program, and render the same rotating cubes scene as the Canvas 2D tab: every cube is drawn as 12 shader-generated triangles with per-cube transform and colors uploaded to vec4 uniform arrays each frame via requestAnimationFrame. Drag on the canvas to orbit the camera. Works in every modern browser with WebGL 2 support."
                         }
                     }
                 }
@@ -411,7 +411,7 @@ fn game_3d_webgpu_tab(state: UseGame3DWebGpu, fullscreen: UseGame3DFullscreen) -
 ///
 /// - `bool` - Whether initialization has finished (success or failure).
 /// - `bool` - Whether the renderer is active.
-/// - `&str` - The `WebGlInitError::code()` from the last init attempt.
+/// - `&str` - The `WebGl2InitError::code()` from the last init attempt.
 ///
 /// # Returns
 ///

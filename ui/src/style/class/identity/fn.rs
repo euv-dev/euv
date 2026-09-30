@@ -215,4 +215,41 @@ class! {
         color: var!(accent);
         pointer-events: "none";
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Global Utilities
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Dev-only readouts produced by `euv_debug`. The base wrapper
+    // establishes the inline-flex layout so the label and the value
+    // share a baseline; the `code` / `pre` value elements apply
+    // monospace font and wrap behaviour for the two modes
+    // (`expanded: false` = single-line `code`, `expanded: true` =
+    // multi-line `pre`).
+    pub c_debug {
+        display: "flex";
+        flex-direction: "row";
+        align-items: "baseline";
+        gap: var!(space-sm);
+        padding: var!(space-xs);
+        border: format!("1px dashed {}", var!(accent-muted));
+        border-radius: var!(radius-sm);
+        background: var!(surface-muted);
+        font-family: "ui-monospace, SFMono-Regular, monospace";
+        font-size: var!(font-sm);
+        color: var!(foreground);
+        margin: format!("{} 0px", var!(space-xs));
+    }
+
+    pub c_debug_label {
+        font-weight: "600";
+        color: var!(accent);
+        flex-shrink: "0";
+    }
+
+    pub c_debug_value {
+        font-family: "ui-monospace, SFMono-Regular, monospace";
+        color: var!(foreground);
+        margin: "0px";
+    }
 }

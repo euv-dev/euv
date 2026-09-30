@@ -9,6 +9,8 @@ mod style;
 
 pub use {component::*, hook::*, style::*};
 
+pub use wasm_bindgen_futures::*;
+
 pub use std::{
     any::Any,
     cell::{Cell, RefCell, RefMut, UnsafeCell},
@@ -26,5 +28,3 @@ pub use std::{
 };
 
 use euv::*;
-
-use {js_sys::*, lombok_macros::*, wasm_bindgen::prelude::*, wasm_bindgen_futures::*, web_sys::*};

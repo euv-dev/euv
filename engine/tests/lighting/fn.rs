@@ -125,13 +125,6 @@ fn soft_shadow_no_occluder_returns_one() {
     );
 }
 
-/// Builds a [`LightingUniforms`] with the eye at +10z and one white
-/// directional light shining down -z, the setup the shading tests share.
-///
-/// # Returns
-///
-/// - `LightingUniforms` - Uniforms ready to pass to
-///   [`LightingUniforms::shade`].
 fn lighting_setup() -> LightingUniforms {
     let mut uniforms: LightingUniforms = LightingUniforms::with_eye(Vector3D::new(0.0, 0.0, 10.0));
     uniforms.add_light(Light::new_directional(

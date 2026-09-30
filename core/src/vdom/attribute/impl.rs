@@ -1,41 +1,9 @@
 use super::*;
 
-/// SAFETY: `InjectedClassesCell` is only used in single-threaded WASM contexts.
-unsafe impl Sync for InjectedClassesCell {}
-
 /// Implementation of injected class tracking for CSS deduplication.
 impl InjectedClassesCell {
-    /// Returns a shared reference to the injected classes set.
-    ///
-    /// # Returns
-    ///
-    /// - `&'static HashSet<String>` - A shared reference to the global set of injected class names.
-    pub(crate) fn get_injected_classes() -> &'static HashSet<String> {
-        unsafe {
-            &*(*std::ptr::addr_of!(INJECTED_CLASSES))
-                .deref()
-                .get_0()
-                .get()
-        }
-    }
-
-    /// Returns a mutable reference to the injected classes set.
-    ///
-    /// # Returns
-    ///
-    /// - `&'static mut HashSet<String>` - A mutable reference to the global set of injected class names.
-    pub(crate) fn get_mut_injected_classes() -> &'static mut HashSet<String> {
-        unsafe {
-            &mut *(*std::ptr::addr_of_mut!(INJECTED_CLASSES))
-                .deref()
-                .get_0()
-                .get()
-        }
-    }
-
-    /// Returns `true` if the given class name has already been injected into the DOM.
-    ///
-    /// Encapsulates `static mut` access so callers do not need `unsafe` blocks.
+    /// Returns `true` if the given class name has already been injected into
+    /// the DOM.
     ///
     /// # Arguments
     ///
@@ -45,18 +13,29 @@ impl InjectedClassesCell {
     ///
     /// - `bool` - Whether the class name has been injected.
     pub(crate) fn is_injected(class_name: &str) -> bool {
-        Self::get_injected_classes().contains(class_name)
+        INJECTED_CLASSES
+            .read()
+            .map(|classes: RwLockReadGuard<'_, HashSet<String>>| classes.contains(class_name))
+            .unwrap_or(false)
     }
 
-    /// Marks a class name as injected so future calls to `is_injected` return `true`.
+    /// Marks a class name as injected so future calls to `is_injected`
+    /// return `true`.
     ///
-    /// Encapsulates `static mut` access so callers do not need `unsafe` blocks.
+    /// A poisoned lock (which only happens if another thread panicked while
+    /// holding the write guard) is recovered from rather than propagated:
+    /// the set is deduplication bookkeeping, so losing a lock must never
+    /// take down the render path.
     ///
     /// # Arguments
     ///
     /// - `&str` - The CSS class name to mark as injected.
     pub(crate) fn mark_injected(class_name: &str) {
-        Self::get_mut_injected_classes().insert(class_name.to_string());
+        let write_result = INJECTED_CLASSES.write();
+        let Ok(mut classes) = write_result else {
+            return;
+        };
+        classes.insert(class_name.to_string());
     }
 }
 
