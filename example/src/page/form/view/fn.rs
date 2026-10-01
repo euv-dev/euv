@@ -5,6 +5,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The form demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageFormProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_form(node: VirtualNode<PageFormProps>) -> VirtualNode {
     let PageFormProps: PageFormProps = node.try_get_props().unwrap_or_default();
@@ -20,42 +25,42 @@ pub(crate) fn page_form(node: VirtualNode<PageFormProps>) -> VirtualNode {
             euv_card {
                 title: "Registration Form"
                 euv_field {
-                    id: FORM_USERNAME_ID
-                    name: FORM_USERNAME_NAME
+                    id: "form-username"
+                    name: "username"
                     label: "Username"
-                    input_type: FORM_TEXT_TYPE
-                    placeholder: FORM_USERNAME_PLACEHOLDER
-                    autocomplete: FORM_AUTOCOMPLETE_USERNAME
+                    input_type: "text"
+                    placeholder: "Enter username"
+                    autocomplete: "username"
                     value: form.get_username()
                     error: Some(form.get_username_error())
                     oninput: form_on_input_username(form)
                 }
                 euv_field {
-                    id: FORM_EMAIL_ID
-                    name: FORM_EMAIL_NAME
+                    id: "form-email"
+                    name: "email"
                     label: "Email"
-                    input_type: FORM_EMAIL_TYPE
-                    placeholder: FORM_EMAIL_PLACEHOLDER
-                    autocomplete: FORM_AUTOCOMPLETE_EMAIL
+                    input_type: "email"
+                    placeholder: "Enter email"
+                    autocomplete: "email"
                     value: form.get_email()
                     error: Some(form.get_email_error())
                     oninput: form_on_input_email(form)
                 }
                 euv_field {
-                    id: FORM_PASSWORD_ID
-                    name: FORM_PASSWORD_NAME
+                    id: "form-password"
+                    name: "password"
                     label: "Password"
-                    input_type: FORM_PASSWORD_TYPE
-                    placeholder: FORM_PASSWORD_PLACEHOLDER
-                    autocomplete: FORM_AUTOCOMPLETE_NEW_PASSWORD
+                    input_type: "password"
+                    placeholder: "Enter password"
+                    autocomplete: "new-password"
                     value: form.get_password()
                     error: Some(form.get_password_error())
                     oninput: form_on_input_password(form)
                 }
                 euv_checkbox {
-                    id: FORM_AGREE_ID
-                    name: FORM_AGREE_NAME
-                    autocomplete: FORM_AUTOCOMPLETE_OFF
+                    id: "form-agree"
+                    name: "agree"
+                    autocomplete: "off"
                     checked: form.get_agree()
                     label: "I agree to the terms and conditions"
                 }

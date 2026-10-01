@@ -16,12 +16,6 @@
 /// The DOM element id the documentation app mounts into.
 pub(crate) const APP_MOUNT_SELECTOR: &str = "#app";
 
-/// The error description shown by the `euv_result` 404 component.
-pub(crate) const NOT_FOUND_DESCRIPTION: &str = "页面不存在";
-
-/// The label of the "back to the site home" link on the 404 page.
-pub(crate) const NOT_FOUND_HOME_LABEL: &str = "首页";
-
 /// The injected stylesheet making the viewport-locked docs shell scroll
 /// inside its main column instead of the window.
 ///
@@ -130,74 +124,16 @@ pub(crate) const IMAGE_LOAD_WATCHER_JS: &str = "(function(){var p=function(i){if
 /// `hashchange` and on DOM mutations so it survives re-renders.
 pub(crate) const TOC_SCROLL_SPY_JS: &str = "(function(){var apply=function(){var h=window.location.hash;var i=h.indexOf('#',h.indexOf('#/')+2);var anchor=i>0?h.slice(i+1):'';var links=document.querySelectorAll('.c_euv_doc_toc a, .c_euv_toc a');var best=null;var bestLen=-1;links.forEach(function(a){a.classList.remove('c_euv_toc_link_active','c_euv_toc_link_nested_active');var href=a.getAttribute('href')||'';var hashIdx=href.lastIndexOf('#');var frag=hashIdx>0?href.slice(hashIdx+1):'';if(anchor&&frag&&anchor===frag){best=a;}});if(!best){links.forEach(function(a){var href=a.getAttribute('href')||'';var hashIdx=href.lastIndexOf('#');var frag=hashIdx>0?href.slice(hashIdx+1):'';if(frag&&anchor&&anchor.indexOf(frag)===0&&frag.length>bestLen){bestLen=frag.length;best=a;}});}if(best){var isNested=best.classList.contains('c_euv_toc_link_nested');best.classList.add(isNested?'c_euv_toc_link_nested_active':'c_euv_toc_link_active');}};apply();window.addEventListener('hashchange',apply);var mo=new MutationObserver(function(){apply();});mo.observe(document.body,{childList:true,subtree:true});}());";
 
-/// The inline style that makes a wrapper element a transparent layout
-/// pass-through, so the routed child participates directly in the parent
-/// flex container instead of adding a block-level box of its own.
-pub(crate) const STYLE_DISPLAY_CONTENTS: &str = "display: contents";
-
-/// The inline style restoring text selection inside the docs main column,
-/// which the viewport-locked shell otherwise suppresses.
-pub(crate) const STYLE_USER_SELECT_TEXT: &str = "user-select: text";
-
-/// The `class` of a documentation page's `<h1>` title.
-pub(crate) const CLASS_DOCS_PAGE_TITLE: &str = "c_docs_page_title";
-
-/// The `class` of the home-page feature-card grid.
-pub(crate) const CLASS_FEATURE_GRID: &str = "c_docs_feature_grid";
-
-/// The `class` of a home-page feature card (the tile and its anchor form).
-pub(crate) const CLASS_FEATURE_CARD: &str = "c_docs_feature_card";
-
-/// The `class` of the column holding a feature card's icon / title / details.
-pub(crate) const CLASS_FEATURE_CARD_INNER: &str = "c_docs_feature_card_inner";
-
-/// The `class` of a feature card's leading icon glyph.
-pub(crate) const CLASS_FEATURE_CARD_ICON: &str = "c_docs_feature_card_icon";
-
-/// The `class` of a feature card's bold title line.
-pub(crate) const CLASS_FEATURE_CARD_TITLE: &str = "c_docs_feature_card_title";
-
-/// The `class` of a feature card's muted detail line.
-pub(crate) const CLASS_FEATURE_CARD_DETAILS: &str = "c_docs_feature_card_details";
-
 /// The placeholder icon value that means "this feature has no icon", as
 /// opposed to a real emoji. Such cards hide the icon slot entirely so the
 /// placeholder does not leak as visible text.
 pub(crate) const FEATURE_ICON_PLACEHOLDER: &str = "blog";
-
-/// The `target` that opens a link in a new browsing context.
-pub(crate) const LINK_TARGET_BLANK: &str = "_blank";
-
-/// The `rel` applied to every `target="_blank"` link, so the opened page
-/// cannot reach back through `window.opener`.
-pub(crate) const LINK_REL_NOOPENER: &str = "noopener noreferrer";
-
-/// The `title` (tooltip) of the desktop and mobile theme-toggle buttons.
-pub(crate) const THEME_TOGGLE_TITLE: &str = "切换主题";
-
-/// The footer brand text shown next to the repository link.
-pub(crate) const FOOTER_BRAND: &str = "Euv & Wasm";
 
 /// Selector matching the scrollable main column of the desktop shell.
 pub(crate) const MAIN_CONTAINER_SELECTOR_DESKTOP: &str = "[class*=c_app_main]";
 
 /// Selector matching the scrollable main column of the mobile shell.
 pub(crate) const MAIN_CONTAINER_SELECTOR_MOBILE: &str = "[class*=c_mobile_main]";
-
-/// The `type` attribute of the password gate's input element.
-pub(crate) const INPUT_TYPE_PASSWORD: &str = "password";
-
-/// The `placeholder` of the password gate's input element.
-pub(crate) const INPUT_PLACEHOLDER_PASSWORD: &str = "密码";
-
-/// The hint paragraph explaining why the page is locked.
-pub(crate) const PASSWORD_GATE_HINT: &str = "本文受密码保护，输入密码后即可查看内容。";
-
-/// The button label shown while the password digest is being computed.
-pub(crate) const PASSWORD_GATE_BUSY_LABEL: &str = "验证中…";
-
-/// The button label shown when the gate is idle.
-pub(crate) const PASSWORD_GATE_IDLE_LABEL: &str = "解锁";
 
 /// The message shown after a wrong password, in place of the page body.
 pub(crate) const PASSWORD_ERROR_MESSAGE: &str = "密码错误，请重试。";

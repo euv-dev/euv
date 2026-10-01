@@ -2152,7 +2152,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
         .find(|p: &&Page| p.route == readme_route)
         .map(|p: &Page| p.sidebar_order.as_slice())
         .unwrap_or(&[]);
-    let pin_pos = |key: &str| -> Option<i64> {
+    let pin_pos: Box<dyn Fn(&str) -> Option<i64>> = Box::new(|key: &str| -> Option<i64> {
         order_list
             .iter()
             .position(|n: &String| {
@@ -2161,7 +2161,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
                 n == key
             })
             .map(|i: usize| i as i64)
-    };
+    });
 
     let order_of: Box<dyn Fn(&SideItem) -> i64> = Box::new(|item: &SideItem| -> i64 {
         item.link

@@ -6,11 +6,11 @@ impl Display for KeepAliveTab {
     ///
     /// # Arguments
     ///
-    /// - `f` - The formatter to write into.
+    /// - `&mut Formatter<'_>` - The formatter to write into.
     ///
     /// # Returns
     ///
-    /// - `Result` - Whether the formatting succeeded.
+    /// - `fmt::Result` - Whether the formatting succeeded.
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let display_text: &str = match self {
             KeepAliveTab::Counter => "Counter",

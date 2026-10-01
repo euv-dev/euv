@@ -722,9 +722,6 @@ pub(crate) fn exit_fullscreen_from_popstate(state: UseCanvas) {
 /// Uses `exit_fullscreen_from_popstate` to avoid double-consuming
 /// history entries.
 ///
-/// # Arguments
-///
-/// - `UseCanvas` - The canvas drawing board state.
 ///   Loads the persisted stroke color from localStorage.
 ///
 /// Returns the stored color string if available and non-empty,

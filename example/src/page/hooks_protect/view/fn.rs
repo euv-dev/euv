@@ -2,6 +2,14 @@ use super::*;
 
 /// A page demonstrating the "protective" hooks
 /// ([`ErrorBoundary`] and [`ProfilerHandle`]).
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageHooksProtectProps>` - The `node` argument.
+/// # Returns
+///
+/// - `VirtualNode` - The value this function returns.
+///
 #[component]
 pub(crate) fn page_hooks_protect(node: VirtualNode<PageHooksProtectProps>) -> VirtualNode {
     let PageHooksProtectProps: PageHooksProtectProps = node.try_get_props().unwrap_or_default();

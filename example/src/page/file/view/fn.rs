@@ -43,6 +43,11 @@ fn build_file_list(state: UseFileUpload) -> VirtualNode {
 /// # Returns
 ///
 /// - `VirtualNode` - The file upload demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageFileUploadProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_file_upload(node: VirtualNode<PageFileUploadProps>) -> VirtualNode {
     let PageFileUploadProps: PageFileUploadProps = node.try_get_props().unwrap_or_default();
@@ -59,9 +64,9 @@ pub(crate) fn page_file_upload(node: VirtualNode<PageFileUploadProps>) -> Virtua
                 title: "File Input"
                 input {
                     id: FILE_UPLOAD_ID
-                    name: FILE_UPLOAD_NAME
-                    type: FILE_INPUT_TYPE
-                    autocomplete: FILE_AUTOCOMPLETE_OFF
+                    name: "file_upload"
+                    type: "file"
+                    autocomplete: "off"
                     class: c_file_upload_input_hidden()
                     accept: state.get_accept()
                     multiple: state.get_multiple()
@@ -78,19 +83,19 @@ pub(crate) fn page_file_upload(node: VirtualNode<PageFileUploadProps>) -> Virtua
                 div {
                     class: c_file_upload_options()
                     euv_checkbox {
-                        id: FILE_MULTIPLE_ID
-                        name: FILE_MULTIPLE_NAME
-                        autocomplete: FILE_AUTOCOMPLETE_OFF
+                        id: "file-multiple"
+                        name: "multiple"
+                        autocomplete: "off"
                         checked: state.get_multiple()
                         label: "Allow multiple files"
                     }
                     euv_field {
-                        id: FILE_ACCEPT_ID
-                        name: FILE_ACCEPT_NAME
+                        id: "file-accept"
+                        name: "accept"
                         label: "Accept filter"
-                        input_type: FILE_TEXT_TYPE
-                        placeholder: FILE_ACCEPT_PLACEHOLDER
-                        autocomplete: FILE_AUTOCOMPLETE_OFF
+                        input_type: "text"
+                        placeholder: ".png,.jpg,image/*"
+                        autocomplete: "off"
                         value: state.get_accept()
                         error: None
                     }

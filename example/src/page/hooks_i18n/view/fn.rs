@@ -2,6 +2,14 @@ use super::*;
 
 /// A page demonstrating the i18n hook (handle + locale switching +
 /// translation table).
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageHooksI18nProps>` - The `node` argument.
+/// # Returns
+///
+/// - `VirtualNode` - The value this function returns.
+///
 #[component]
 pub(crate) fn page_hooks_i18n(node: VirtualNode<PageHooksI18nProps>) -> VirtualNode {
     let PageHooksI18nProps: PageHooksI18nProps = node.try_get_props().unwrap_or_default();

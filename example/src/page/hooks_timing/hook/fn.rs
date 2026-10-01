@@ -27,6 +27,11 @@ pub(crate) const TIMING_THROTTLE_INPUT_ID: &str = "timing-throttle-input";
 /// platform"), so the demo reads the browser's monotonic clock
 /// instead. Falls back to `0` when no window / performance
 /// object is available (e.g. non-web targets).
+///
+/// # Returns
+///
+/// - `u64` - The value this function returns.
+///
 pub(crate) fn timing_now_ms() -> u64 {
     let Some(window_value): Option<Window> = window() else {
         return 0;
@@ -40,6 +45,17 @@ pub(crate) fn timing_now_ms() -> u64 {
 /// Creates an input handler that updates `live`, schedules a
 /// debounce commit on `debounced`, and records `current` in
 /// `previous` for the snapshot row to consume.
+///
+/// # Arguments
+///
+/// - `Signal<String>` - The `live` argument.
+/// - `DebouncedValue<String>` - The `debounced` argument.
+/// - `Signal<String>` - The `current` argument.
+/// - `Previous<String>` - The `previous` argument.
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The value this function returns.
+///
 pub(crate) fn timing_debounce_on_input(
     live: Signal<String>,
     debounced: DebouncedValue<String>,
@@ -61,6 +77,17 @@ pub(crate) fn timing_debounce_on_input(
 }
 
 /// Creates an input handler that drives the throttle row.
+///
+/// # Arguments
+///
+/// - `Signal<String>` - The `live` argument.
+/// - `ThrottledValue<String>` - The `throttled` argument.
+/// - `Signal<String>` - The `current` argument.
+/// - `Previous<String>` - The `previous` argument.
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The value this function returns.
+///
 pub(crate) fn timing_throttle_on_input(
     live: Signal<String>,
     throttled: ThrottledValue<String>,
@@ -84,6 +111,14 @@ pub(crate) fn timing_throttle_on_input(
 /// Reads the current value from an `Event` whose target is an
 /// `<input>` element. Returns `None` if the cast failed or the
 /// event has no target.
+///
+/// # Arguments
+///
+/// - `&Event` - The `event` argument.
+/// # Returns
+///
+/// - `Option<String>` - The value this function returns.
+///
 fn timing_read_input(event: &Event) -> Option<String> {
     let target: JsValue = event.target()?.into();
     let input: HtmlInputElement = target.dyn_into::<HtmlInputElement>().ok()?;
@@ -113,6 +148,14 @@ pub(crate) fn timing_previous_snapshot(previous: Previous<String>) -> String {
 
 /// Reads a `Signal<String>` and returns the underlying
 /// `String` value. Coerces to a text node for html! slots.
+///
+/// # Arguments
+///
+/// - `&Signal<String>` - The `signal` argument.
+/// # Returns
+///
+/// - `String` - The value this function returns.
+///
 pub(crate) fn timing_signal_to_string(signal: &Signal<String>) -> String {
     signal.get()
 }

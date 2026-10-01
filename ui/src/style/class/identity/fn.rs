@@ -252,4 +252,15 @@ class! {
         color: var!(foreground);
         margin: "0px";
     }
+
+    // Restores selectable text inside an otherwise non-selectable shell.
+    //
+    // The sidebar and TOC set `user-select: none` so dragging them does not
+    // highlight chrome; the prose column opts back in so a reader can select
+    // and copy an article. Previously an inline `style: "user-select: text"`
+    // on the main column.
+    pub c_euv_user_select_text {
+        user-select: "text";
+        -webkit-user-select: "text";
+    }
 }

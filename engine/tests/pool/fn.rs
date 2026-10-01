@@ -355,3 +355,68 @@ fn two_live_pooled_entities_never_share_an_identifier() {
     );
     assert_eq!(pool.get_active(), 2, "both checkouts are outstanding");
 }
+
+#[test]
+fn the_free_list_is_readable_and_writable_through_its_accessors() {
+    let mut pool: ObjectPool<u32> = ObjectPool::new(vec![10, 20, 30]);
+    let free: &Vec<u32> = pool.get_free();
+    assert_eq!(free.len(), 3, "the seeded values are on the free list");
+    assert_eq!(*free, vec![10, 20, 30], "in seed order");
+    let mutable: &mut Vec<u32> = pool.get_mut_free();
+    mutable.push(40);
+    assert_eq!(
+        pool.available(),
+        4,
+        "a value pushed through the mutable view is available"
+    );
+    let taken: Option<u32> = pool.acquire();
+    assert_eq!(
+        taken,
+        Some(40),
+        "the free list is LIFO, so the last push comes out first"
+    );
+    assert_eq!(pool.available(), 3, "and the count drops by one");
+}
+
+#[test]
+fn the_pool_debug_formatter_reports_counts_rather_than_values() {
+    let mut pool: ObjectPool<String> =
+        ObjectPool::new(vec![String::from("alpha"), String::from("beta")]);
+    let _: Option<String> = pool.acquire();
+    let rendered: String = format!("{pool:?}");
+    assert!(
+        rendered.contains("active") && rendered.contains("1"),
+        "the debug form reports the active count, got {rendered}"
+    );
+    assert!(
+        rendered.contains("available") && rendered.contains("1"),
+        "and the available count, got {rendered}"
+    );
+    assert!(
+        !rendered.contains("alpha") && !rendered.contains("beta"),
+        "but never the values themselves, so a pool of handles stays printable: {rendered}"
+    );
+}
+
+#[test]
+fn a_pool_of_non_debug_payloads_still_prints() {
+    let pool: ObjectPool<Vec<u8>> = ObjectPool::new(vec![vec![1, 2, 3]]);
+    let rendered: String = format!("{pool:?}");
+    assert!(
+        rendered.contains("active") && rendered.contains("available"),
+        "T is deliberately not required to be Debug, got {rendered}"
+    );
+}
+
+#[test]
+fn the_task_registry_handle_is_returned_by_registration() {
+    let registry: TaskRegistryRc = Rc::new(EngineCell::new(TaskRegistry::default()));
+    let handle: TaskHandle = SchedulerHandle::register_task(&registry, Timer::create(10.0));
+    assert!(!registry.get().is_empty(), "registering must add the task");
+    assert_eq!(registry.get().len(), 1, "and the count follows");
+    assert!(
+        registry.get_mut().unregister(&handle),
+        "the handle we were handed unregisters that task"
+    );
+    assert!(registry.get().is_empty(), "and the registry is empty again");
+}

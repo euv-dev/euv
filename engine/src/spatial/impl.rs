@@ -4,6 +4,14 @@ use super::*;
 impl SpatialHashGrid2D {
     /// Creates a new 2D spatial hash grid with the given cell size.
     ///
+    /// A cell size that is not finite and strictly positive cannot produce a
+    /// usable grid: clamping it up to [`EPSILON`] leaves an inverse cell size
+    /// of `1e6`, so a body of ordinary size maps to a column range in the
+    /// millions and a single `insert` or `query` degenerates into a loop over
+    /// billions of empty cells. Such a request is treated as "no cell size
+    /// given" and falls back to [`SPATIAL_DEFAULT_CELL_SIZE_2D`], which keeps
+    /// both the grid and the per-operation work bounded.
+    ///
     /// # Arguments
     ///
     /// - `f64` - The world-space size of each grid cell.
@@ -12,10 +20,32 @@ impl SpatialHashGrid2D {
     ///
     /// - `SpatialHashGrid2D` - The new grid.
     pub fn create(cell_size: f64) -> SpatialHashGrid2D {
-        let safe_size: f64 = cell_size.max(EPSILON);
+        let safe_size: f64 = Self::usable_cell_size(cell_size, SPATIAL_DEFAULT_CELL_SIZE_2D);
         let mut grid: SpatialHashGrid2D = SpatialHashGrid2D::new(safe_size);
         grid.set_inverse_cell_size(1.0 / safe_size);
         grid
+    }
+
+    /// Returns `cell_size` when it is finite and strictly positive, and
+    /// `fallback` otherwise.
+    ///
+    /// Shared by the 2D and 3D grid constructors so both reject a degenerate
+    /// cell size identically.
+    ///
+    /// # Arguments
+    ///
+    /// - `f64` - The requested cell size.
+    /// - `f64` - The cell size to use when the request is unusable.
+    ///
+    /// # Returns
+    ///
+    /// - `f64` - A cell size that yields a bounded column range.
+    fn usable_cell_size(cell_size: f64, fallback: f64) -> f64 {
+        if cell_size.is_finite() && cell_size > 0.0 {
+            cell_size
+        } else {
+            fallback
+        }
     }
 
     /// Creates a new 2D spatial hash grid with the default cell size.
@@ -85,10 +115,23 @@ impl SpatialHashGrid2D {
     }
 
     /// Removes all entries from the grid, preparing it for a fresh insertion pass.
+    ///
+    /// Cells that held bodies during the just-finished pass keep their key and
+    /// their underlying `Vec` buffer, so a body that stays put pays no
+    /// allocation on the next tick. Cells that ended the pass empty are dropped
+    /// outright: without that, a scene whose bodies roam across a large world
+    /// accumulates one permanent map entry per cell ever visited, and both the
+    /// map and the per-tick clear below it grow without bound for the lifetime
+    /// of the process. Dropping on empty bounds the map to the cells the
+    /// current pass actually populates, at the cost of one small `Vec`
+    /// allocation for a cell a body leaves and then re-enters.
     pub fn clear(&mut self) {
-        // Preserve each cell's underlying Vec buffer across frames so the
-        // spatial hash doesn't pay a fresh allocation cost on every tick.
-        self.get_mut_cells().values_mut().for_each(Vec::clear);
+        // Preserve each occupied cell's underlying Vec buffer across frames so
+        // the spatial hash doesn't pay a fresh allocation cost on every tick,
+        // while reclaiming the keys of cells that went empty.
+        let cells: &mut SpatialCellMap2D = self.get_mut_cells();
+        cells.retain(|_, entries: &mut Vec<usize>| !entries.is_empty());
+        cells.values_mut().for_each(Vec::clear);
     }
 
     /// Appends all candidate body indices overlapping the query box into `out`,
@@ -135,6 +178,11 @@ impl SpatialHashGrid2D {
 impl SpatialHashGrid3D {
     /// Creates a new 3D spatial hash grid with the given cell size.
     ///
+    /// A cell size that is not finite and strictly positive is rejected in
+    /// favour of [`SPATIAL_DEFAULT_CELL_SIZE_3D`], for the same reason as
+    /// [`SpatialHashGrid2D::create`]: a near-zero cell size makes the column
+    /// range of an ordinary body span millions of cells.
+    ///
     /// # Arguments
     ///
     /// - `f64` - The world-space size of each grid cell.
@@ -143,7 +191,8 @@ impl SpatialHashGrid3D {
     ///
     /// - `SpatialHashGrid3D` - The new grid.
     pub fn create(cell_size: f64) -> SpatialHashGrid3D {
-        let safe_size: f64 = cell_size.max(EPSILON);
+        let safe_size: f64 =
+            SpatialHashGrid2D::usable_cell_size(cell_size, SPATIAL_DEFAULT_CELL_SIZE_3D);
         let mut grid: SpatialHashGrid3D = SpatialHashGrid3D::new(safe_size);
         grid.set_inverse_cell_size(1.0 / safe_size);
         grid
@@ -224,10 +273,23 @@ impl SpatialHashGrid3D {
     }
 
     /// Removes all entries from the grid, preparing it for a fresh insertion pass.
+    ///
+    /// Cells that held bodies during the just-finished pass keep their key and
+    /// their underlying `Vec` buffer, so a body that stays put pays no
+    /// allocation on the next tick. Cells that ended the pass empty are dropped
+    /// outright: without that, a scene whose bodies roam across a large world
+    /// accumulates one permanent map entry per cell ever visited, and both the
+    /// map and the per-tick clear below it grow without bound for the lifetime
+    /// of the process. Dropping on empty bounds the map to the cells the
+    /// current pass actually populates, at the cost of one small `Vec`
+    /// allocation for a cell a body leaves and then re-enters.
     pub fn clear(&mut self) {
-        // Preserve each cell's underlying Vec buffer across frames so the
-        // spatial hash doesn't pay a fresh allocation cost on every tick.
-        self.get_mut_cells().values_mut().for_each(Vec::clear);
+        // Preserve each occupied cell's underlying Vec buffer across frames so
+        // the spatial hash doesn't pay a fresh allocation cost on every tick,
+        // while reclaiming the keys of cells that went empty.
+        let cells: &mut SpatialCellMap3D = self.get_mut_cells();
+        cells.retain(|_, entries: &mut Vec<usize>| !entries.is_empty());
+        cells.values_mut().for_each(Vec::clear);
     }
 
     /// Appends all candidate body indices overlapping the query box into `out`,

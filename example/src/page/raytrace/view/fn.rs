@@ -40,14 +40,14 @@ pub(crate) fn page_raytrace(node: VirtualNode<PageRaytraceProps>) -> VirtualNode
             class: c_page_container()
             euv_header {
                 icon: "🔦"
-                title: RAYTRACE_HEADER_TITLE
-                subtitle: RAYTRACE_HEADER_SUBTITLE
+                title: "RayTrace"
+                subtitle: "A real-time ray tracer rendered three ways: a Canvas 2D software path with an ImageData fast path and adaptive internal resolution, a WebGL 2 GLSL fragment-shader path, and a WebGPU WGSL path. All backends trace the same scene (1 mirror sphere + 1 emissive sphere + 1 ground AABB) with 2x2 SSAA and up to 4 reflection bounces, and every tab reports an honest wall-clock FPS. Drag the canvas to orbit the camera; the directional sun rotates with the yaw so the lit side of the spheres tracks the orbiting camera. Click Enter Fullscreen for a larger view."
             }
             euv_card {
                 title: match { tab.get() } {
-                    RayTraceTab::Canvas2D => RAYTRACE_TAB_TITLE_CANVAS_2D,
-                    RayTraceTab::WebGl => RAYTRACE_TAB_TITLE_WEBGL,
-                    RayTraceTab::WebGpu => RAYTRACE_TAB_TITLE_WEBGPU,
+                    RayTraceTab::Canvas2D => "RayTrace Demo (2D)",
+                    RayTraceTab::WebGl => "RayTrace Demo (GL)",
+                    RayTraceTab::WebGpu => "RayTrace Demo (GPU)",
                 }
                 div {
                     class: c_tab_bar()
@@ -108,24 +108,24 @@ pub(crate) fn page_raytrace(node: VirtualNode<PageRaytraceProps>) -> VirtualNode
                 }
             }
             euv_card {
-                title: RAYTRACE_BACKENDS_CARD_TITLE
+                title: "RayTrace Backends"
                 match { tab } {
                     RayTraceTab::Canvas2D => {
                         p {
                             class: c_game_description()
-                            RAYTRACE_CANVAS_DESCRIPTION
+                            "The Canvas 2D tab runs euv-engine's raytracing module on the CPU: every frame, for every pixel of the internal buffer, the camera fires a primary Ray through the scene using RayTraceScene::trace, which iteratively reflects up to 4 bounces with zero heap allocation per ray. LightingUniforms::shade combines ambient, Lambertian diffuse, and Phong specular per hit. Finished frames are packed into a persistent RGBA buffer (gamma 1/2.2) and uploaded with a single put_image_data call, and an EMA of the CPU frame time steps the internal resolution through a 640x480 .. 80x60 ladder (always 4:3, so the fullscreen letterbox holds) to protect the frame rate, starting at 320x240 and climbing only when the budget allows. The FPS counter measures unclamped wall-clock time."
                         }
                     }
                     RayTraceTab::WebGl => {
                         p {
                             class: c_game_description()
-                            RAYTRACE_WEBGL_DESCRIPTION
+                            "The WebGL tab runs the identical scene inside a GLSL ES 3.00 fragment shader drawn on an attribute-less fullscreen triangle (gl_VertexID, no vertex buffers): the ground AABB, mirror sphere, and emissive sphere are hardcoded in the shader, and the orbit camera basis, sun direction, ambient, and canvas resolution are uploaded per frame as a vec4 uniform array. The fragment shader mirrors the engine's trace_bounces and LightingUniforms::shade term for term (2x2 SSAA, 4 bounces, gamma 1/2.2), and the NDC is aspect-corrected from the resolution uniform so the scene never stretches at any canvas size. Works in every modern browser with WebGL 2 support."
                         }
                     }
                     RayTraceTab::WebGpu => {
                         p {
                             class: c_game_description()
-                            RAYTRACE_WEBGPU_DESCRIPTION
+                            "The WebGPU tab runs the same shader logic expressed in WGSL: a fullscreen triangle generated from @builtin(vertex_index) and a fragment stage that ray-traces the scene per pixel with 2x2 SSAA and up to 4 bounces. Per-frame data arrives in a single 8-vec4 uniform buffer at @group(0) @binding(0) via WebGpuRenderer's create_render_pipeline / create_uniform_buffer / render_frame_with_bind_group helpers. Requires a WebGPU-capable browser (Chrome 113+, Edge 113+)."
                         }
                     }
                 }
@@ -192,7 +192,7 @@ fn raytrace_canvas_tab(
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    RAYTRACE_FPS_PREFIX
+                    "FPS: "
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -200,11 +200,11 @@ fn raytrace_canvas_tab(
                 }
                 span {
                     class: c_game_stats_label()
-                    RAYTRACE_SCENE_SUMMARY
+                    "Scene: 1 mirror + 1 emissive + 1 ground"
                 }
                 span {
                     class: c_game_stats_label()
-                    RAYTRACE_SCALE_PREFIX
+                    "Scale: "
                     span {
                         class: c_game_stats_count_value()
                         scale_display
@@ -222,7 +222,7 @@ fn raytrace_canvas_tab(
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: RAYTRACE_CANVAS_ID
+                            id: "raytrace-canvas"
                             class: if { canvas_2d_fullscreen.get() } {
                                 c_raytrace_canvas_fullscreen()
                             } else {
@@ -239,7 +239,7 @@ fn raytrace_canvas_tab(
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: RAYTRACE_LOADING_CANVAS_ID
+                                id: "raytrace-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -250,7 +250,7 @@ fn raytrace_canvas_tab(
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: RAYTRACE_EXIT_BUTTON_LABEL
+                            label: "Exit"
                             onclick: raytrace_on_exit_fullscreen(canvas_2d_fullscreen)
                         }
                     }
@@ -270,12 +270,12 @@ fn raytrace_canvas_tab(
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: RAYTRACE_RESET_CAMERA_BUTTON_LABEL
+                    label: "Reset Camera"
                     onclick: on_reset_camera
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: RAYTRACE_ENTER_FULLSCREEN_BUTTON_LABEL
+                    label: "Enter Fullscreen"
                     onclick: raytrace_on_enter_fullscreen(canvas_2d_fullscreen)
                 }
             }
@@ -376,7 +376,7 @@ fn raytrace_webgl_tab(
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    RAYTRACE_FPS_PREFIX
+                    "FPS: "
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -384,11 +384,11 @@ fn raytrace_webgl_tab(
                 }
                 span {
                     class: c_game_stats_label()
-                    RAYTRACE_SCENE_SUMMARY
+                    "Scene: 1 mirror + 1 emissive + 1 ground"
                 }
                 span {
                     class: c_game_stats_label()
-                    RAYTRACE_STATUS_PREFIX
+                    "Status: "
                     span {
                         class: c_game_stats_total_value()
                         status_text
@@ -406,7 +406,7 @@ fn raytrace_webgl_tab(
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: RAYTRACE_WEBGL_CANVAS_ID
+                            id: "raytrace-webgl-canvas"
                             class: if { web_gl_fullscreen.get() } {
                                 c_raytrace_canvas_fullscreen()
                             } else {
@@ -423,7 +423,7 @@ fn raytrace_webgl_tab(
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: RAYTRACE_WEBGL_LOADING_CANVAS_ID
+                                id: "raytrace-webgl-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -434,7 +434,7 @@ fn raytrace_webgl_tab(
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: RAYTRACE_EXIT_BUTTON_LABEL
+                            label: "Exit"
                             onclick: raytrace_on_exit_fullscreen(web_gl_fullscreen)
                         }
                     }
@@ -454,12 +454,12 @@ fn raytrace_webgl_tab(
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: RAYTRACE_RESET_CAMERA_BUTTON_LABEL
+                    label: "Reset Camera"
                     onclick: on_reset_camera
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: RAYTRACE_ENTER_FULLSCREEN_BUTTON_LABEL
+                    label: "Enter Fullscreen"
                     onclick: raytrace_on_enter_fullscreen(web_gl_fullscreen)
                 }
             }
@@ -530,7 +530,7 @@ fn raytrace_webgpu_tab(
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    RAYTRACE_FPS_PREFIX
+                    "FPS: "
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -538,11 +538,11 @@ fn raytrace_webgpu_tab(
                 }
                 span {
                     class: c_game_stats_label()
-                    RAYTRACE_SCENE_SUMMARY
+                    "Scene: 1 mirror + 1 emissive + 1 ground"
                 }
                 span {
                     class: c_game_stats_label()
-                    RAYTRACE_STATUS_PREFIX
+                    "Status: "
                     span {
                         class: c_game_stats_total_value()
                         status_text
@@ -560,7 +560,7 @@ fn raytrace_webgpu_tab(
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: RAYTRACE_WEBGPU_CANVAS_ID
+                            id: "raytrace-webgpu-canvas"
                             class: if { web_gpu_fullscreen.get() } {
                                 c_raytrace_canvas_fullscreen()
                             } else {
@@ -577,7 +577,7 @@ fn raytrace_webgpu_tab(
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: RAYTRACE_WEBGPU_LOADING_CANVAS_ID
+                                id: "raytrace-webgpu-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -588,7 +588,7 @@ fn raytrace_webgpu_tab(
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: RAYTRACE_EXIT_BUTTON_LABEL
+                            label: "Exit"
                             onclick: raytrace_on_exit_fullscreen(web_gpu_fullscreen)
                         }
                     }
@@ -608,12 +608,12 @@ fn raytrace_webgpu_tab(
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: RAYTRACE_RESET_CAMERA_BUTTON_LABEL
+                    label: "Reset Camera"
                     onclick: on_reset_camera
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: RAYTRACE_ENTER_FULLSCREEN_BUTTON_LABEL
+                    label: "Enter Fullscreen"
                     onclick: raytrace_on_enter_fullscreen(web_gpu_fullscreen)
                 }
             }

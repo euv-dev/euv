@@ -30,11 +30,11 @@ pub(crate) fn page_game_3d(node: VirtualNode<PageGame3DProps>) -> VirtualNode {
             class: c_page_container()
             euv_header {
                 icon: "🎲"
-                title: GAME_3D_HEADER_TITLE
-                subtitle: GAME_3D_HEADER_SUBTITLE
+                title: "3D Game Engine"
+                subtitle: "A rotating cubes 3D demo powered by euv-engine's Vector3D, Quaternion, Matrix4x4, and Camera3D. Drag to orbit the camera. Switch tabs to compare Canvas 2D and WebGPU rendering backends."
             }
             euv_card {
-                title: GAME_3D_CANVAS_CARD_TITLE
+                title: "3D Rendering Demo"
                 div {
                     class: c_tab_bar()
                     div {
@@ -84,24 +84,24 @@ pub(crate) fn page_game_3d(node: VirtualNode<PageGame3DProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: GAME_3D_FEATURES_CARD_TITLE
+                title: "3D Engine Features"
                 match { tab } {
                     Game3DTab::Canvas2D => {
                         p {
                             class: c_game_description()
-                            GAME_3D_CANVAS_DESCRIPTION
+                            "This demo uses euv-engine's 3D math: Vector3D for positions, Quaternion for rotation, Matrix4x4 for view/projection transforms, Camera3D for orbit camera with perspective projection, and Transform3D for cube transforms. Features include back-face culling, painter's algorithm depth sorting, and quaternion-based angular velocity integration. The WebGPU tab demonstrates GPU-accelerated rendering with a WGSL shader pipeline."
                         }
                     }
                     Game3DTab::WebGpu => {
                         p {
                             class: c_game_description()
-                            GAME_3D_WEBGPU_DESCRIPTION
+                            "This demo uses euv-engine's WebGpuRenderer to initialize a GPU device, create a render pipeline from a WGSL shader, and render the same rotating cubes scene as the Canvas 2D tab: every cube is drawn as 12 shader-generated triangles with per-cube transform and colors uploaded to a uniform buffer each frame via requestAnimationFrame. Drag on the canvas to orbit the camera. Requires a WebGPU-capable browser (Chrome 113+, Edge 113+)."
                         }
                     }
                     Game3DTab::WebGl => {
                         p {
                             class: c_game_description()
-                            GAME_3D_WEBGL_DESCRIPTION
+                            "This demo uses euv-engine's WebGl2Backend to acquire a WebGL 2 context, compile a GLSL ES 3.00 program, and render the same rotating cubes scene as the Canvas 2D tab: every cube is drawn as 12 shader-generated triangles with per-cube transform and colors uploaded to vec4 uniform arrays each frame via requestAnimationFrame. Drag on the canvas to orbit the camera. Works in every modern browser with WebGL 2 support."
                         }
                     }
                 }
@@ -168,7 +168,7 @@ fn game_3d_canvas_tab(fullscreen: UseGame3DFullscreen) -> VirtualNode {
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    GAME_3D_FPS_PREFIX
+                    "FPS: "
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -176,7 +176,7 @@ fn game_3d_canvas_tab(fullscreen: UseGame3DFullscreen) -> VirtualNode {
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_3D_CUBES_PREFIX
+                    "Cubes: "
                     span {
                         class: c_game_stats_count_value()
                         cube_count
@@ -194,7 +194,7 @@ fn game_3d_canvas_tab(fullscreen: UseGame3DFullscreen) -> VirtualNode {
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: GAME_3D_CANVAS_ID
+                            id: "game-3d-canvas"
                             class: if { canvas_2d_fullscreen.get() } {
                                 c_game_3d_canvas_fullscreen()
                             } else {
@@ -216,7 +216,7 @@ fn game_3d_canvas_tab(fullscreen: UseGame3DFullscreen) -> VirtualNode {
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: GAME_3D_EXIT_BUTTON_LABEL
+                            label: "Exit"
                             onclick: game_3d_on_exit_fullscreen(canvas_2d_fullscreen)
                         }
                     }
@@ -236,12 +236,12 @@ fn game_3d_canvas_tab(fullscreen: UseGame3DFullscreen) -> VirtualNode {
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_3D_RESET_CAMERA_BUTTON_LABEL
+                    label: "Reset Camera"
                     onclick: on_reset_camera
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_3D_ENTER_FULLSCREEN_BUTTON_LABEL
+                    label: "Enter Fullscreen"
                     onclick: game_3d_on_enter_fullscreen(fullscreen, canvas_2d_fullscreen)
                 }
             }
@@ -315,7 +315,7 @@ fn game_3d_webgpu_tab(state: UseGame3DWebGpu, fullscreen: UseGame3DFullscreen) -
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    GAME_3D_FPS_PREFIX
+                    "FPS: "
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -323,7 +323,7 @@ fn game_3d_webgpu_tab(state: UseGame3DWebGpu, fullscreen: UseGame3DFullscreen) -
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_3D_CUBES_PREFIX
+                    "Cubes: "
                     span {
                         class: c_game_stats_count_value()
                         cube_count
@@ -331,7 +331,7 @@ fn game_3d_webgpu_tab(state: UseGame3DWebGpu, fullscreen: UseGame3DFullscreen) -
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_3D_STATUS_PREFIX
+                    "Status: "
                     span {
                         class: c_game_stats_total_value()
                         status_text
@@ -349,7 +349,7 @@ fn game_3d_webgpu_tab(state: UseGame3DWebGpu, fullscreen: UseGame3DFullscreen) -
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: GAME_3D_WEBGPU_CANVAS_ID
+                            id: "game-3d-webgpu-canvas"
                             class: if { web_gpu_fullscreen.get() } {
                                 c_game_3d_canvas_fullscreen()
                             } else {
@@ -366,7 +366,7 @@ fn game_3d_webgpu_tab(state: UseGame3DWebGpu, fullscreen: UseGame3DFullscreen) -
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: GAME_3D_WEBGPU_LOADING_CANVAS_ID
+                                id: "game-3d-webgpu-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -377,7 +377,7 @@ fn game_3d_webgpu_tab(state: UseGame3DWebGpu, fullscreen: UseGame3DFullscreen) -
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: GAME_3D_EXIT_BUTTON_LABEL
+                            label: "Exit"
                             onclick: game_3d_on_exit_fullscreen(web_gpu_fullscreen)
                         }
                     }
@@ -397,12 +397,12 @@ fn game_3d_webgpu_tab(state: UseGame3DWebGpu, fullscreen: UseGame3DFullscreen) -
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_3D_RESET_CAMERA_BUTTON_LABEL
+                    label: "Reset Camera"
                     onclick: on_reset_camera
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_3D_ENTER_FULLSCREEN_BUTTON_LABEL
+                    label: "Enter Fullscreen"
                     onclick: game_3d_on_enter_fullscreen(fullscreen, web_gpu_fullscreen)
                 }
             }
@@ -506,7 +506,7 @@ fn game_3d_webgl_tab(state: UseGame3DWebGl, fullscreen: UseGame3DFullscreen) -> 
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    GAME_3D_FPS_PREFIX
+                    "FPS: "
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -514,7 +514,7 @@ fn game_3d_webgl_tab(state: UseGame3DWebGl, fullscreen: UseGame3DFullscreen) -> 
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_3D_CUBES_PREFIX
+                    "Cubes: "
                     span {
                         class: c_game_stats_count_value()
                         cube_count
@@ -522,7 +522,7 @@ fn game_3d_webgl_tab(state: UseGame3DWebGl, fullscreen: UseGame3DFullscreen) -> 
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_3D_STATUS_PREFIX
+                    "Status: "
                     span {
                         class: c_game_stats_total_value()
                         status_text
@@ -540,7 +540,7 @@ fn game_3d_webgl_tab(state: UseGame3DWebGl, fullscreen: UseGame3DFullscreen) -> 
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: GAME_3D_WEBGL_CANVAS_ID
+                            id: "game-3d-webgl-canvas"
                             class: if { web_gl_fullscreen.get() } {
                             c_game_3d_canvas_fullscreen()
                         } else {
@@ -557,7 +557,7 @@ fn game_3d_webgl_tab(state: UseGame3DWebGl, fullscreen: UseGame3DFullscreen) -> 
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: GAME_3D_WEBGL_LOADING_CANVAS_ID
+                                id: "game-3d-webgl-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -568,7 +568,7 @@ fn game_3d_webgl_tab(state: UseGame3DWebGl, fullscreen: UseGame3DFullscreen) -> 
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: GAME_3D_EXIT_BUTTON_LABEL
+                            label: "Exit"
                             onclick: game_3d_on_exit_fullscreen(web_gl_fullscreen)
                         }
                     }
@@ -588,12 +588,12 @@ fn game_3d_webgl_tab(state: UseGame3DWebGl, fullscreen: UseGame3DFullscreen) -> 
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_3D_RESET_CAMERA_BUTTON_LABEL
+                    label: "Reset Camera"
                     onclick: on_reset_camera
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_3D_ENTER_FULLSCREEN_BUTTON_LABEL
+                    label: "Enter Fullscreen"
                     onclick: game_3d_on_enter_fullscreen(fullscreen, web_gl_fullscreen)
                 }
             }

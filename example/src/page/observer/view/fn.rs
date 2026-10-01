@@ -8,6 +8,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The observer demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageObserverProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_observer(node: VirtualNode<PageObserverProps>) -> VirtualNode {
     let PageObserverProps: PageObserverProps = node.try_get_props().unwrap_or_default();

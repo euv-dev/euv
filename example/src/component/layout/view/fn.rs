@@ -24,21 +24,21 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
             nav {
                 class: c_app_nav()
                 a {
-                    href: GITHUB_URL
-                    target: LINK_TARGET_BLANK
-                    onclick: Router::external_link_handler(GITHUB_URL)
+                    href: "https://github.com/euv-dev/euv"
+                    target: "_blank"
+                    onclick: Router::external_link_handler("https://github.com/euv-dev/euv")
                     class: c_nav_header()
                     euv_logo {
                         variant: LogoButtonVariant::Nav
                     }
                     span {
                         class: c_nav_brand_title()
-                        BRAND_NAME
+                        "Euv"
                     }
                 }
                 p {
                     class: c_nav_section_label()
-                    NAV_SECTION_LABEL_PAGES
+                    "Pages"
                 }
                 build_desktop_nav_items {
                     route_signal: route_signal
@@ -58,19 +58,19 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
                     }
                 }
                 a {
-                    href: GITHUB_URL
-                    target: LINK_TARGET_BLANK
-                    onclick: Router::external_link_handler(GITHUB_URL)
+                    href: "https://github.com/euv-dev/euv"
+                    target: "_blank"
+                    onclick: Router::external_link_handler("https://github.com/euv-dev/euv")
                     class: c_nav_footer()
                     div {
                         class: c_nav_footer_divider()
                     }
                     span {
                         class: c_nav_footer_text()
-                        NAV_FOOTER_CREDIT_PREFIX
+                        "Built with "
                         span {
                             class: c_nav_footer_brand()
-                            NAV_FOOTER_CREDIT_BRAND
+                            "Euv & Wasm"
                         }
                     }
                 }
@@ -132,16 +132,16 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                         "☰"
                     }
                     a {
-                        href: GITHUB_URL
-                        target: LINK_TARGET_BLANK
-                        onclick: Router::external_link_handler(GITHUB_URL)
+                        href: "https://github.com/euv-dev/euv"
+                        target: "_blank"
+                        onclick: Router::external_link_handler("https://github.com/euv-dev/euv")
                         class: c_mobile_header_logo()
                         euv_logo {
                             variant: LogoButtonVariant::Nav
                         }
                         span {
                             class: c_nav_brand_title()
-                            BRAND_NAME
+                            "Euv"
                         }
                     }
                 }
@@ -185,16 +185,16 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                     div {
                         class: c_mobile_header_logo()
                         a {
-                            href: GITHUB_URL
-                            target: LINK_TARGET_BLANK
-                            onclick: Router::external_link_handler(GITHUB_URL)
+                            href: "https://github.com/euv-dev/euv"
+                            target: "_blank"
+                            onclick: Router::external_link_handler("https://github.com/euv-dev/euv")
                             class: c_mobile_header_logo()
                             euv_logo {
                                 variant: LogoButtonVariant::Nav
                             }
                             span {
                                 class: c_nav_brand_title()
-                                BRAND_NAME
+                                "Euv"
                             }
                         }
                     }
@@ -206,26 +206,26 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                 }
                 p {
                     class: c_nav_section_label()
-                    NAV_SECTION_LABEL_PAGES
+                    "Pages"
                 }
                 build_mobile_nav_items {
                     route_signal: route_signal
                     drawer_open: drawer_open
                 }
                 a {
-                    href: GITHUB_URL
-                    target: LINK_TARGET_BLANK
-                    onclick: Router::external_link_handler(GITHUB_URL)
+                    href: "https://github.com/euv-dev/euv"
+                    target: "_blank"
+                    onclick: Router::external_link_handler("https://github.com/euv-dev/euv")
                     class: c_nav_footer()
                     div {
                         class: c_nav_footer_divider()
                     }
                     span {
                         class: c_nav_footer_text()
-                        NAV_FOOTER_CREDIT_PREFIX
+                        "Built with "
                         span {
                             class: c_nav_footer_brand()
-                            NAV_FOOTER_CREDIT_BRAND
+                            "Euv & Wasm"
                         }
                     }
                 }

@@ -9,6 +9,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The virtual list demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageVirtualListProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_virtual_list(node: VirtualNode<PageVirtualListProps>) -> VirtualNode {
     let PageVirtualListProps: PageVirtualListProps = node.try_get_props().unwrap_or_default();
@@ -52,7 +57,7 @@ pub(crate) fn page_virtual_list(node: VirtualNode<PageVirtualListProps>) -> Virt
             euv_header {
                 icon: "📊"
                 title: "Virtual List"
-                subtitle: VIRTUAL_LIST_DEMO_SUBTITLE
+                subtitle: "High-performance windowed list rendering 10000 items with minimal DOM nodes. Only visible rows are rendered."
             }
             div {
                 class: c_virtual_list_card()

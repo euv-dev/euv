@@ -184,7 +184,7 @@ pub fn euv_upload(node: VirtualNode<EuvUploadProps>) -> VirtualNode {
                 ondragover: on_upload_drag_over(drag_active)
                 ondragleave: on_upload_drag_leave(drag_active)
                 input {
-                    type: INPUT_TYPE_FILE
+                    type: "file"
                     class: c_euv_upload_input()
                     accept: accept
                     multiple: multiple.get()
@@ -192,7 +192,7 @@ pub fn euv_upload(node: VirtualNode<EuvUploadProps>) -> VirtualNode {
                 }
                 span {
                     {
-                        UPLOAD_DROPZONE_HINT
+                        "Drop files here or click to browse"
                     }
                 }
             }

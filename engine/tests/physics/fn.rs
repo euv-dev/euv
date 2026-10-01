@@ -213,3 +213,241 @@ fn friction_3d_slows_tangential_slide() {
         final_tangent,
     );
 }
+
+fn at(x: f64, y: f64) -> Vector2D {
+    Vector2D::new(x, y)
+}
+
+fn at3(x: f64, y: f64, z: f64) -> Vector3D {
+    Vector3D::new(x, y, z)
+}
+
+fn close(actual: f64, expected: f64) -> bool {
+    (actual - expected).abs() < 1e-9
+}
+
+#[test]
+fn a_dynamic_body_is_dynamic_and_a_static_one_is_not() {
+    let dynamic: RigidBody2D = RigidBody2D::new_dynamic(1, at(0.0, 0.0));
+    let fixed: RigidBody2D = RigidBody2D::new_static(2, at(0.0, 0.0));
+    assert!(dynamic.is_dynamic(), "new_dynamic must report dynamic");
+    assert!(!fixed.is_dynamic(), "new_static must not report dynamic");
+    assert_eq!(dynamic.get_id(), 1, "the id round-trips");
+    assert!(
+        !dynamic.get_force_accumulator().get_x().is_nan(),
+        "force starts as a real number"
+    );
+}
+
+#[test]
+fn a_body_keeps_the_position_it_was_built_with() {
+    let body: RigidBody2D = RigidBody2D::new_dynamic(7, at(3.0, -4.0));
+    assert_eq!(body.get_position().get_x(), 3.0, "x round-trips");
+    assert_eq!(body.get_position().get_y(), -4.0, "y round-trips");
+}
+
+#[test]
+fn apply_force_accumulates_and_a_step_consumes_it() {
+    let mut body: RigidBody2D = RigidBody2D::new_dynamic(1, at(0.0, 0.0));
+    body.apply_force(at(10.0, 0.0));
+    assert!(
+        close(body.get_force_accumulator().get_x(), 10.0),
+        "the force is held until the next step"
+    );
+    let mut world: PhysicsWorld2D = PhysicsWorld2D::with_config(PhysicsConfig::default());
+    world.add_body(body);
+    world.step(1.0);
+    let moved: Option<&RigidBody2D> = world.get_body(1);
+    let after: &RigidBody2D = moved.expect("the body must still be in the world");
+    assert!(
+        after.get_position().get_x() > 0.0,
+        "the force accelerated it along +x"
+    );
+    assert!(
+        close(after.get_force_accumulator().get_x(), 0.0),
+        "a step must clear the accumulator"
+    );
+}
+
+#[test]
+fn apply_impulse_changes_velocity_directly() {
+    let mut body: RigidBody2D = RigidBody2D::new_dynamic(1, at(0.0, 0.0));
+    let before: f64 = body.get_velocity().get_x();
+    body.apply_impulse(at(5.0, 0.0));
+    let after: f64 = body.get_velocity().get_x();
+    assert!(
+        after > before,
+        "an impulse must raise the velocity immediately, {before} -> {after}"
+    );
+    assert!(after > 0.0, "and it must point along the impulse");
+}
+
+#[test]
+fn a_zero_mass_body_becomes_immovable() {
+    let mut body: RigidBody2D = RigidBody2D::new_dynamic(1, at(0.0, 0.0));
+    body.update_mass(0.0);
+    assert!(
+        close(body.get_inverse_mass(), 0.0),
+        "an infinite mass has a zero inverse mass"
+    );
+    let before: f64 = body.get_position().get_x();
+    body.apply_force(at(1000.0, 0.0));
+    let mut world: PhysicsWorld2D = PhysicsWorld2D::with_config(PhysicsConfig::default());
+    world.add_body(body);
+    world.step(1.0);
+    let after: f64 = world
+        .get_body(1)
+        .expect("body present")
+        .get_position()
+        .get_x();
+    assert!(
+        close(before, after),
+        "an immovable body must not be accelerated, {before} -> {after}"
+    );
+}
+
+#[test]
+fn bounding_box_is_none_without_a_collider_and_some_with_one() {
+    let mut body: RigidBody2D = RigidBody2D::new_dynamic(1, at(0.0, 0.0));
+    assert!(
+        body.bounding_box().is_none(),
+        "a body with no collider has no box"
+    );
+    body.update_collider(BodyCollider::Aabb(AabbCollider::from_center(
+        at(0.0, 0.0),
+        2.0,
+        4.0,
+    )));
+    let box_rect: Rect = body.bounding_box().expect("a collider yields a box");
+    assert!(
+        close(box_rect.size().get_x(), 2.0),
+        "the box is twice the half width"
+    );
+    assert!(
+        close(box_rect.size().get_y(), 4.0),
+        "and twice the half height"
+    );
+}
+
+#[test]
+fn three_dimensional_bodies_cover_the_same_ground() {
+    let mut body: RigidBody3D = RigidBody3D::new_dynamic(1, at3(0.0, 0.0, 0.0));
+    let fixed: RigidBody3D = RigidBody3D::new_static(2, at3(0.0, 0.0, 0.0));
+    assert!(body.is_dynamic(), "new_dynamic reports dynamic");
+    assert!(!fixed.is_dynamic(), "new_static does not");
+    let before: f64 = body.get_angular_velocity().get_x();
+    body.apply_torque(at3(0.0, 0.0, 4.0));
+    assert!(
+        close(body.get_torque_accumulator().get_z(), 4.0),
+        "a torque is accumulated, not applied instantly"
+    );
+    assert!(
+        close(body.get_angular_velocity().get_x(), before),
+        "and the angular velocity does not move until a step"
+    );
+    let mut world: PhysicsWorld3D = PhysicsWorld3D::with_config(PhysicsConfig3D::default());
+    world.add_body(body);
+    world.step(1.0);
+    let stepped: &RigidBody3D = world.get_body(1).expect("body 1 must be present");
+    assert!(
+        stepped.get_angular_velocity().get_z() > 0.0,
+        "the step turns the accumulated torque into spin, got {:?}",
+        stepped.get_angular_velocity()
+    );
+    assert!(
+        close(stepped.get_torque_accumulator().get_z(), 0.0),
+        "and clears the accumulator"
+    );
+}
+
+#[test]
+fn the_world_looks_bodies_up_and_forgets_them_by_id() {
+    let mut world: PhysicsWorld2D = PhysicsWorld2D::with_config(PhysicsConfig::default());
+    world.add_body(RigidBody2D::new_dynamic(1, at(0.0, 0.0)));
+    world.add_body(RigidBody2D::new_dynamic(2, at(10.0, 0.0)));
+    assert!(world.get_body(1).is_some(), "body 1 was added");
+    assert!(world.get_body(2).is_some(), "body 2 was added");
+    assert!(world.get_body(3).is_none(), "body 3 was never added");
+    world.remove_body(1);
+    assert!(world.get_body(1).is_none(), "body 1 was removed");
+    assert!(
+        world.get_body(2).is_some(),
+        "removing one body keeps the other"
+    );
+}
+
+#[test]
+fn a_mutable_borrow_lets_the_caller_move_a_body_in_place() {
+    let mut world: PhysicsWorld2D = PhysicsWorld2D::with_config(PhysicsConfig::default());
+    world.add_body(RigidBody2D::new_dynamic(1, at(0.0, 0.0)));
+    let borrowed: Option<&mut RigidBody2D> = world.get_body_mut(1);
+    let body: &mut RigidBody2D = borrowed.expect("body 1 must be present");
+    body.set_position(at(42.0, 7.0));
+    assert_eq!(
+        world.get_body(1).expect("body 1").get_position().get_x(),
+        42.0,
+        "the write through the mutable borrow stuck"
+    );
+}
+
+#[test]
+fn stepping_an_empty_or_singleton_world_is_harmless() {
+    let mut empty: PhysicsWorld2D = PhysicsWorld2D::with_config(PhysicsConfig::default());
+    empty.step(1.0);
+    empty.step(0.016);
+    let mut single: PhysicsWorld2D = PhysicsWorld2D::with_config(PhysicsConfig::default());
+    single.add_body(RigidBody2D::new_dynamic(1, at(0.0, 0.0)));
+    single.step(0.016);
+    assert!(
+        single.get_body(1).is_some(),
+        "a single body needs no pair resolution and must survive"
+    );
+}
+
+#[test]
+fn a_static_body_is_not_integrated_by_a_step() {
+    let mut world: PhysicsWorld2D = PhysicsWorld2D::with_config(PhysicsConfig::default());
+    world.add_body(RigidBody2D::new_static(1, at(5.0, 5.0)));
+    world.step(1.0);
+    let body: &RigidBody2D = world.get_body(1).expect("body 1 must be present");
+    assert!(
+        close(body.get_position().get_x(), 5.0),
+        "a static body must not drift, got {:?}",
+        body.get_position()
+    );
+}
+
+#[test]
+fn gravity_pulls_a_free_body_towards_the_configured_direction() {
+    let mut config: PhysicsConfig = PhysicsConfig::default();
+    config.set_gravity(at(0.0, -10.0));
+    let mut world: PhysicsWorld2D = PhysicsWorld2D::with_config(config);
+    world.add_body(RigidBody2D::new_dynamic(1, at(0.0, 0.0)));
+    world.step(0.5);
+    let body: &RigidBody2D = world.get_body(1).expect("body 1 must be present");
+    assert!(
+        body.get_position().get_y() < 0.0,
+        "downward gravity must move it to negative y, got {:?}",
+        body.get_position()
+    );
+}
+
+#[test]
+fn zero_inertia_makes_a_three_dimensional_body_immovable_about_every_axis() {
+    let mut body: RigidBody3D = RigidBody3D::new_dynamic(1, at3(0.0, 0.0, 0.0));
+    body.update_inertia(0.0);
+    assert!(
+        close(body.get_inverse_inertia(), 0.0),
+        "zero inertia gives zero inverse inertia"
+    );
+    body.apply_torque(at3(0.0, 0.0, 4.0));
+    let mut world: PhysicsWorld3D = PhysicsWorld3D::with_config(PhysicsConfig3D::default());
+    world.add_body(body);
+    world.step(1.0);
+    let stepped: &RigidBody3D = world.get_body(1).expect("body 1 must be present");
+    assert!(
+        close(stepped.get_angular_velocity().get_z(), 0.0),
+        "a body with no inertia cannot be spun, got {:?}",
+        stepped.get_angular_velocity()
+    );
+}

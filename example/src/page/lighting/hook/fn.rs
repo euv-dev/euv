@@ -737,7 +737,7 @@ fn lighting_register_resize_debounce(
     let Some(resize_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event("resize", move || {
+    App::use_window_event(EVENT_RESIZE, move || {
         let old_timer: Option<i32> = resize_timer_for_event.get();
         if let Some(timer_id) = old_timer {
             let Some(clear_window): Option<Window> = window() else {
@@ -904,7 +904,7 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
                 }
                 let dpr: f64 = Reflect::get(
                     window_value.as_ref(),
-                    &JsValue::from_str("devicePixelRatio"),
+                    &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
                 )
                 .ok()
                 .and_then(|v: JsValue| v.as_f64())
@@ -997,7 +997,7 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str("devicePixelRatio"),
+                &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())
@@ -1244,7 +1244,7 @@ pub(crate) fn start_lighting_webgpu_loop(state: UseLightingWebGpu) {
                 }
                 let dpr: f64 = Reflect::get(
                     window_value.as_ref(),
-                    &JsValue::from_str("devicePixelRatio"),
+                    &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
                 )
                 .ok()
                 .and_then(|v: JsValue| v.as_f64())
@@ -1339,7 +1339,7 @@ pub(crate) fn start_lighting_webgpu_loop(state: UseLightingWebGpu) {
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str("devicePixelRatio"),
+                &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())
@@ -1477,13 +1477,13 @@ pub(crate) fn enter_lighting_fullscreen(tab: Signal<bool>) {
     Router::overlay_push_state();
     UseEuvLayout::apply_cached_insets();
     // Dispatch a `resize` event on the window so the GPU-backed loops'
-    // `App::use_window_event("resize", ...)` handlers fire and their
+    // `App::use_window_event(EVENT_RESIZE, ...)` handlers fire and their
     // `resize_dirty` flags are set. Mirrors
     // `game_3d/hook/fn.rs::enter_game_3d_fullscreen`.
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new("resize");
+    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -1509,7 +1509,7 @@ pub(crate) fn exit_lighting_fullscreen(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new("resize");
+    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -1534,7 +1534,7 @@ pub(crate) fn exit_lighting_fullscreen_from_popstate(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new("resize");
+    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }

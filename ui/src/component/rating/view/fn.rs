@@ -58,7 +58,7 @@ pub fn euv_rating(node: VirtualNode<EuvRatingProps>) -> VirtualNode {
     html! {
         div {
             class: c_euv_rating()
-            role: ROLE_IMG
+            role: "img"
             aria-label: aria_label
             for index in 0..units {
                 span {

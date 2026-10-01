@@ -1,5 +1,9 @@
 use euv_engine::*;
 
+fn epsilon(actual: f64, expected: f64) -> bool {
+    (actual - expected).abs() < 1e-9
+}
+
 #[test]
 fn lambert_diffuse_face_normal() {
     let light: Light =
@@ -254,4 +258,123 @@ fn schlick_fresnel_stays_in_unit_range() {
             "fresnel out of range: {f}"
         );
     }
+}
+
+#[test]
+fn a_point_light_has_no_direction() {
+    let light: Light = Light::new_point(
+        Vector3D::new(1.0, 2.0, 3.0),
+        Vector3D::new(0.5, 0.5, 0.5),
+        0.75,
+    );
+    assert_eq!(light.get_kind(), LightType::Point, "the type is Point");
+    assert!(
+        epsilon(light.get_position().get_y(), 2.0),
+        "the position round-trips"
+    );
+    assert!(
+        epsilon(light.get_intensity(), 0.75),
+        "the intensity round-trips"
+    );
+    assert_eq!(
+        light.get_direction(),
+        Vector3D::zero(),
+        "a point light radiates in every direction, so its direction is the zero vector"
+    );
+    assert!(
+        epsilon(light.get_spot_cos(), 0.0),
+        "a point light stores a zero cone cosine, so the shading cone test never culls it, got {}",
+        light.get_spot_cos()
+    );
+    assert!(
+        epsilon(light.get_falloff(), 1.0),
+        "and a falloff of one, got {}",
+        light.get_falloff()
+    );
+}
+
+#[test]
+fn a_spot_light_carries_its_direction_and_half_angle() {
+    let direction: Vector3D = Vector3D::new(0.0, -1.0, 0.0);
+    let light: Light = Light::new_spot(
+        Vector3D::zero(),
+        direction,
+        Vector3D::new(1.0, 1.0, 1.0),
+        2.0,
+        0.5,
+    );
+    assert_eq!(light.get_kind(), LightType::Spot, "the type is Spot");
+    assert_eq!(
+        light.get_direction(),
+        direction,
+        "the direction round-trips"
+    );
+    assert!(
+        epsilon(light.get_intensity(), 2.0),
+        "the intensity round-trips"
+    );
+    assert!(
+        epsilon(light.get_spot_cos(), 0.5_f64.cos()),
+        "the half angle is stored as its cosine, got {}",
+        light.get_spot_cos()
+    );
+}
+
+#[test]
+fn a_directional_light_points_and_is_unbounded() {
+    let light: Light =
+        Light::new_directional(Vector3D::new(0.0, 3.0, 0.0), Vector3D::new(1.0, 1.0, 1.0));
+    assert_eq!(light.get_kind(), LightType::Directional, "the type sticks");
+    assert_eq!(
+        light.get_direction(),
+        Vector3D::new(0.0, 1.0, 0.0),
+        "a directional light is defined by its direction alone"
+    );
+    assert!(
+        epsilon(light.get_falloff(), 0.0),
+        "and no falloff term, since a directional light never attenuates, got {}",
+        light.get_falloff()
+    );
+    assert!(
+        light.get_position() == Vector3D::zero(),
+        "a directional light is not positioned anywhere, it comes from infinity"
+    );
+    assert!(
+        epsilon(light.get_spot_cos(), 0.0),
+        "and it has no cone either, got {}",
+        light.get_spot_cos()
+    );
+}
+
+#[test]
+fn the_light_type_enum_is_matchable() {
+    let point: LightType = LightType::Point;
+    let spot: LightType = LightType::Spot;
+    let label: &str = match point {
+        LightType::Point => "point",
+        LightType::Spot => "spot",
+        LightType::Directional => "directional",
+    };
+    assert_eq!(label, "point", "a point light labels as point");
+    assert_ne!(spot, point, "and spot is a distinct type");
+}
+
+#[test]
+fn the_collider_shape_enums_default_to_the_box_form() {
+    assert_eq!(
+        ColliderShape::default(),
+        ColliderShape::Aabb,
+        "the 2D default is Aabb"
+    );
+    assert_eq!(
+        ColliderShape3D::default(),
+        ColliderShape3D::Aabb,
+        "the 3D default is Aabb"
+    );
+    assert_ne!(
+        ColliderShape::Circle,
+        ColliderShape::Aabb,
+        "the variants are distinct"
+    );
+    assert_ne!(ColliderShape3D::Sphere, ColliderShape3D::Aabb, "in 3D too");
 }

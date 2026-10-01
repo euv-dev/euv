@@ -185,4 +185,14 @@ class! {
     pub c_anim_scale_normal {
         transform: "scale(1)";
     }
+
+    // The gesture demo's touch surface: tall enough to drag in, with the
+    // browser's own touch and text gestures suppressed so a drag reads as a
+    // drag rather than a scroll or a selection.
+    pub c_event_gesture_zone {
+        min-height: "340px";
+        touch-action: "none";
+        user-select: "none";
+        -webkit-user-select: "none";
+    }
 }

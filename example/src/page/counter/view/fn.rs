@@ -5,6 +5,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The counter demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageCounterProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_counter(node: VirtualNode<PageCounterProps>) -> VirtualNode {
     let PageCounterProps: PageCounterProps = node.try_get_props().unwrap_or_default();
@@ -23,7 +28,7 @@ pub(crate) fn page_counter(node: VirtualNode<PageCounterProps>) -> VirtualNode {
                     class: c_counter_text()
                     "The current count is "
                     span {
-                        id: COUNTER_ID
+                        id: "counter"
                         class: c_counter_value()
                         count
                     }

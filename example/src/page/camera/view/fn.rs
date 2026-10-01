@@ -15,6 +15,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The camera page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageCameraProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_camera(node: VirtualNode<PageCameraProps>) -> VirtualNode {
     let _page_camera_props: PageCameraProps = node.try_get_props().unwrap_or_default();
@@ -37,7 +42,7 @@ pub(crate) fn page_camera(node: VirtualNode<PageCameraProps>) -> VirtualNode {
                 div {
                     class: c_camera_video_container()
                     video {
-                        id: CAMERA_VIDEO_ID
+                        id: "camera-video"
                         class: if { state.get_camera_open().get() } {
                             c_camera_video_active()
                         } else {
@@ -67,7 +72,7 @@ pub(crate) fn page_camera(node: VirtualNode<PageCameraProps>) -> VirtualNode {
                                 class: c_camera_placeholder_content()
                                 span {
                                     class: c_camera_placeholder_icon()
-                                    CAMERA_PLACEHOLDER_ICON
+                                    "📷"
                                 }
                                 p {
                                     class: c_camera_placeholder_text()

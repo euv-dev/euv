@@ -29,7 +29,7 @@ impl UseEuvLayout {
         let Some(timeout_window) = window() else {
             return mobile_signal;
         };
-        App::use_window_event("resize", move || {
+        App::use_window_event(EVENT_RESIZE, move || {
             let old_timer: Option<i32> = timer_signal.get();
             if let Some(timer_id) = old_timer {
                 timeout_window.clear_timeout_with_handle(timer_id);
@@ -129,7 +129,7 @@ impl UseEuvLayout {
         App::use_window_event("webkitfullscreenchange", || {
             Self::apply_cached_insets();
         });
-        App::use_window_event("resize", || {
+        App::use_window_event(EVENT_RESIZE, || {
             Self::apply_cached_insets();
         });
         Router::register_popstate_guard(Rc::new(|| {
@@ -255,32 +255,32 @@ impl UseEuvLayout {
         let _: Result<(), JsValue> = sentinel.style().set_property("pointer-events", "none");
         let _: Result<(), JsValue> = sentinel
             .style()
-            .set_property("padding-top", "env(safe-area-inset-top, 0px)");
+            .set_property(CSS_PROPERTY_PADDING_TOP, CSS_SAFE_AREA_INSET_TOP);
         let _: Result<(), JsValue> = sentinel
             .style()
-            .set_property("padding-right", "env(safe-area-inset-right, 0px)");
+            .set_property(CSS_PROPERTY_PADDING_RIGHT, CSS_SAFE_AREA_INSET_RIGHT);
         let _: Result<(), JsValue> = sentinel
             .style()
-            .set_property("padding-bottom", "env(safe-area-inset-bottom, 0px)");
+            .set_property(CSS_PROPERTY_PADDING_BOTTOM, CSS_SAFE_AREA_INSET_BOTTOM);
         let _: Result<(), JsValue> = sentinel
             .style()
-            .set_property("padding-left", "env(safe-area-inset-left, 0px)");
+            .set_property(CSS_PROPERTY_PADDING_LEFT, CSS_SAFE_AREA_INSET_LEFT);
         let _: Result<Node, JsValue> = body.append_child(&sentinel);
         let Some(computed) = win.get_computed_style(&sentinel).ok().flatten() else {
             let _: Result<Node, JsValue> = body.remove_child(&sentinel);
             return;
         };
         let top_value: String = computed
-            .get_property_value("padding-top")
+            .get_property_value(CSS_PROPERTY_PADDING_TOP)
             .unwrap_or_default();
         let right_value: String = computed
-            .get_property_value("padding-right")
+            .get_property_value(CSS_PROPERTY_PADDING_RIGHT)
             .unwrap_or_default();
         let bottom_value: String = computed
-            .get_property_value("padding-bottom")
+            .get_property_value(CSS_PROPERTY_PADDING_BOTTOM)
             .unwrap_or_default();
         let left_value: String = computed
-            .get_property_value("padding-left")
+            .get_property_value(CSS_PROPERTY_PADDING_LEFT)
             .unwrap_or_default();
         let _: Result<Node, JsValue> = body.remove_child(&sentinel);
         if top_value.is_empty() || top_value == "0px" {
@@ -325,19 +325,19 @@ impl UseEuvLayout {
         let Some(document_value) = window_value.document() else {
             return;
         };
-        let apply_to = |element: &HtmlElement| {
+        let apply_to: &dyn Fn(&HtmlElement) = &|element: &HtmlElement| {
             let _: Result<(), JsValue> = element
                 .style()
-                .set_property("--safe-area-inset-top", &top_value);
+                .set_property(CSS_CUSTOM_PROPERTY_SAFE_AREA_TOP, &top_value);
             let _: Result<(), JsValue> = element
                 .style()
-                .set_property("--safe-area-inset-right", &right_value);
+                .set_property(CSS_CUSTOM_PROPERTY_SAFE_AREA_RIGHT, &right_value);
             let _: Result<(), JsValue> = element
                 .style()
-                .set_property("--safe-area-inset-bottom", &bottom_value);
+                .set_property(CSS_CUSTOM_PROPERTY_SAFE_AREA_BOTTOM, &bottom_value);
             let _: Result<(), JsValue> = element
                 .style()
-                .set_property("--safe-area-inset-left", &left_value);
+                .set_property(CSS_CUSTOM_PROPERTY_SAFE_AREA_LEFT, &left_value);
         };
         if let Some(app_root) = document_value
             .query_selector(".c_mobile_app_root")

@@ -29,7 +29,7 @@ pub(crate) fn app() -> VirtualNode {
         html! {
             div {
                 key: locale_of(&parse_route(&route_signal.get()).0).prefix
-                style: STYLE_DISPLAY_CONTENTS
+                class: c_euv_display_contents()
                 if { mobile_signal.get() } {
                     docs_mobile_shell {
                         route_signal
@@ -103,7 +103,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
                     class: c_nav_theme_toggle()
                     button {
                         class: c_nav_theme_button()
-                        title: THEME_TOGGLE_TITLE
+                        title: "切换主题"
                         onclick: ThemeState::toggle(theme_signal)
                         theme_icon_node(theme_signal)
                     }
@@ -112,7 +112,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
             }
             main {
                 class: c_app_main()
-                style: STYLE_USER_SELECT_TEXT
+                class: c_euv_user_select_text()
                 docs_main {
                     route_signal
                 }
@@ -164,14 +164,14 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                 }
                 button {
                     class: c_mobile_theme_button()
-                    title: THEME_TOGGLE_TITLE
+                    title: "切换主题"
                     onclick: ThemeState::toggle(theme_signal)
                     theme_icon_node(theme_signal)
                 }
             }
             main {
                 class: c_mobile_main()
-                style: STYLE_USER_SELECT_TEXT
+                class: c_euv_user_select_text()
                 docs_main {
                     route_signal
                 }
@@ -331,7 +331,7 @@ fn nav_footer_node(github: Option<&'static str>) -> VirtualNode {
         a {
             class: c_nav_footer()
             href: url
-            target: LINK_TARGET_BLANK
+            target: "_blank"
             onclick: Router::external_link_handler(url)
             div {
                 class: c_nav_footer_divider()
@@ -342,7 +342,7 @@ fn nav_footer_node(github: Option<&'static str>) -> VirtualNode {
                 span {
                     class: c_nav_footer_brand()
                     {
-                        FOOTER_BRAND
+                        "Euv & Wasm"
                     }
                 }
                 " 构建"

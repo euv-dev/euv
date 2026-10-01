@@ -37,7 +37,7 @@ use super::*;
 ///
 /// # Returns
 ///
-/// - `'static str` - A `'static str` value.
+/// - `&'static str` - A `&'static str` value.
 pub(crate) fn webgpu_status_text(
     loaded: bool,
     active: bool,

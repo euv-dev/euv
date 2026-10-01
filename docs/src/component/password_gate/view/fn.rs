@@ -143,13 +143,13 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                 p {
                     class: c_pw_gate_hint()
                     {
-                        PASSWORD_GATE_HINT
+                        "本文受密码保护，输入密码后即可查看内容。"
                     }
                 }
                 input {
                     id: input_id.clone()
-                    type: INPUT_TYPE_PASSWORD
-                    placeholder: INPUT_PLACEHOLDER_PASSWORD
+                    type: "password"
+                    placeholder: "密码"
                     autocomplete: "off"
                     class: if { !error_signal.get().is_empty() } {
                         c_euv_input_error()
@@ -174,11 +174,11 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                         onclick: submit
                         if { busy_signal.get() } {
                             {
-                                PASSWORD_GATE_BUSY_LABEL
+                                "验证中…"
                             }
                         } else {
                             {
-                                PASSWORD_GATE_IDLE_LABEL
+                                "解锁"
                             }
                         }
                     }

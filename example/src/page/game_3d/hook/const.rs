@@ -1,6 +1,3 @@
-/// The HTML `id` attribute value for the 3D game canvas element.
-pub(crate) const GAME_3D_CANVAS_ID: &str = "game-3d-canvas";
-
 /// The CSS selector used to query the 3D game canvas element from the DOM.
 pub(crate) const GAME_3D_CANVAS_SELECTOR: &str = "#game-3d-canvas";
 
@@ -149,14 +146,8 @@ pub(crate) const GAME_3D_CUBE_EDGES: [(usize, usize); 12] = [
     (3, 7),
 ];
 
-/// The HTML `id` attribute value for the 3D WebGPU canvas element.
-pub(crate) const GAME_3D_WEBGPU_CANVAS_ID: &str = "game-3d-webgpu-canvas";
-
 /// The CSS selector used to query the 3D WebGPU canvas element from the DOM.
 pub(crate) const GAME_3D_WEBGPU_CANVAS_SELECTOR: &str = "#game-3d-webgpu-canvas";
-
-/// The HTML `id` attribute value for the 3D WebGPU loading overlay canvas.
-pub(crate) const GAME_3D_WEBGPU_LOADING_CANVAS_ID: &str = "game-3d-webgpu-loading-canvas";
 
 /// The CSS selector for the 3D WebGPU loading overlay canvas.
 pub(crate) const GAME_3D_WEBGPU_LOADING_CANVAS_SELECTOR: &str = "#game-3d-webgpu-loading-canvas";
@@ -317,14 +308,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
-/// The HTML `id` attribute value for the 3D WebGL canvas element.
-pub(crate) const GAME_3D_WEBGL_CANVAS_ID: &str = "game-3d-webgl-canvas";
-
 /// The CSS selector used to query the 3D WebGL canvas element from the DOM.
 pub(crate) const GAME_3D_WEBGL_CANVAS_SELECTOR: &str = "#game-3d-webgl-canvas";
-
-/// The HTML `id` attribute value for the 3D WebGL loading overlay canvas.
-pub(crate) const GAME_3D_WEBGL_LOADING_CANVAS_ID: &str = "game-3d-webgl-loading-canvas";
 
 /// The CSS selector for the 3D WebGL loading overlay canvas.
 pub(crate) const GAME_3D_WEBGL_LOADING_CANVAS_SELECTOR: &str = "#game-3d-webgl-loading-canvas";

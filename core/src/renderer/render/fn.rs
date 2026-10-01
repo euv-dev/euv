@@ -189,7 +189,10 @@ where
         }
         return;
     }
-    let mut iter = nodes.into_iter();
+    // `I` is generic over `IntoIterator`, so the concrete iterator type is an
+    // associated type rather than a concrete one; `<I as IntoIterator>::IntoIter`
+    // is the nameable form of it.
+    let mut iter: <I as IntoIterator>::IntoIter = nodes.into_iter();
     let Some(first) = iter.next() else {
         return;
     };

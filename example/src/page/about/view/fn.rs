@@ -55,7 +55,7 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                     class: c_home_content()
                     h1 {
                         class: c_home_title()
-                        BRAND_NAME
+                        "Euv"
                     }
                     div {
                         class: c_home_badge_row()
@@ -73,15 +73,15 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                         a {
                             class: c_home_btn_primary()
                             href: EUV_REPOSITORY
-                            target: ABOUT_LINK_TARGET_BLANK
+                            target: "_blank"
                             onclick: Router::external_link_handler(EUV_REPOSITORY)
-                            ABOUT_GITHUB_BUTTON_LABEL
+                            "GitHub"
                         }
                         a {
                             class: c_home_btn_secondary()
                             href: next_route_for_href
                             onclick: Router::link_handler(next_route)
-                            ABOUT_BROWSE_BUTTON_LABEL
+                            "Browse"
                         }
                     }
                 }
@@ -96,11 +96,11 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                     }
                     div {
                         class: c_home_stat_value()
-                        ABOUT_STAT_WASM_VALUE
+                        "WASM"
                     }
                     div {
                         class: c_home_stat_label()
-                        ABOUT_STAT_RUNTIME_LABEL
+                        "Runtime"
                     }
                 }
                 div {
@@ -111,11 +111,11 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                     }
                     div {
                         class: c_home_stat_value()
-                        ABOUT_STAT_RUST_VALUE
+                        "Rust"
                     }
                     div {
                         class: c_home_stat_label()
-                        ABOUT_STAT_LANGUAGE_LABEL
+                        "Language"
                     }
                 }
                 div {
@@ -126,11 +126,11 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                     }
                     div {
                         class: c_home_stat_value()
-                        ABOUT_STAT_VDOM_VALUE
+                        "VDOM"
                     }
                     div {
                         class: c_home_stat_label()
-                        ABOUT_STAT_ARCHITECTURE_LABEL
+                        "Architecture"
                     }
                 }
                 div {
@@ -145,23 +145,23 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                     }
                     div {
                         class: c_home_stat_label()
-                        ABOUT_STAT_CRATES_LABEL
+                        "Crates"
                     }
                 }
             }
             div {
                 h2 {
                     class: c_home_section_title()
-                    ABOUT_SECTION_FEATURES_TITLE
+                    "Features"
                 }
                 p {
                     class: c_home_section_desc()
-                    ABOUT_SECTION_FEATURES_DESC
+                    "Everything you need for declarative cross-platform UI development."
                 }
                 div {
                     class: c_home_feature_grid()
                     euv_card {
-                        title: ABOUT_FEATURE_REACTIVE_SIGNALS_TITLE
+                        title: "Reactive Signals"
                         div {
                             class: c_feature_card()
                             div {
@@ -172,17 +172,17 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                                 }
                                 h4 {
                                     class: c_feature_name()
-                                    ABOUT_FEATURE_REACTIVE_SIGNALS_NAME
+                                    "Signal-Based Reactivity"
                                 }
                             }
                             p {
                                 class: c_feature_desc()
-                                ABOUT_FEATURE_REACTIVE_SIGNALS_DESC
+                                "Fine-grained reactive state management with automatic dependency tracking. Signals only notify dependents that read them, avoiding unnecessary re-renders."
                             }
                         }
                     }
                     euv_card {
-                        title: ABOUT_FEATURE_VIRTUAL_DOM_TITLE
+                        title: "Virtual DOM"
                         div {
                             class: c_feature_card()
                             div {
@@ -193,17 +193,17 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                                 }
                                 h4 {
                                     class: c_feature_name()
-                                    ABOUT_FEATURE_VIRTUAL_DOM_NAME
+                                    "Efficient Diffing"
                                 }
                             }
                             p {
                                 class: c_feature_desc()
-                                ABOUT_FEATURE_VIRTUAL_DOM_DESC
+                                "Virtual DOM with optimized reconciliation for smooth 60fps updates. The differ computes the minimal set of DOM operations needed to sync the UI with the latest state."
                             }
                         }
                     }
                     euv_card {
-                        title: ABOUT_FEATURE_HTML_MACROS_TITLE
+                        title: "HTML Macros"
                         div {
                             class: c_feature_card()
                             div {
@@ -214,17 +214,17 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                                 }
                                 h4 {
                                     class: c_feature_name()
-                                    ABOUT_FEATURE_HTML_MACROS_NAME
+                                    "Declarative Syntax"
                                 }
                             }
                             p {
                                 class: c_feature_desc()
-                                ABOUT_FEATURE_HTML_MACROS_DESC
+                                "Write UI with familiar HTML-like macros that compile to efficient Rust at build time. No runtime template engine — just zero-cost abstractions."
                             }
                         }
                     }
                     euv_card {
-                        title: ABOUT_FEATURE_CROSS_PLATFORM_TITLE
+                        title: "Cross-Platform"
                         div {
                             class: c_feature_card()
                             div {
@@ -235,12 +235,12 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                                 }
                                 h4 {
                                     class: c_feature_name()
-                                    ABOUT_FEATURE_CROSS_PLATFORM_NAME
+                                    "WebAssembly Powered"
                                 }
                             }
                             p {
                                 class: c_feature_desc()
-                                ABOUT_FEATURE_CROSS_PLATFORM_DESC
+                                "Run anywhere with WASM — browsers, servers, and native platforms via the bridge. Share the same Rust codebase across all targets."
                             }
                         }
                     }
@@ -249,53 +249,53 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
             div {
                 h2 {
                     class: c_home_section_title()
-                    ABOUT_SECTION_PACKAGE_INFO_TITLE
+                    "Package Info"
                 }
                 euv_card {
-                    title: ABOUT_CARD_PROJECT_DETAILS_TITLE
+                    title: "Project Details"
                     euv_info {
-                        label: ABOUT_INFO_NAME_LABEL
+                        label: "Name"
                         EUV_PACKAGE_NAME
                     }
                     euv_info {
-                        label: ABOUT_INFO_VERSION_LABEL
+                        label: "Version"
                         version.clone()
                     }
                     euv_info {
-                        label: ABOUT_INFO_EDITION_LABEL
+                        label: "Edition"
                         EUV_EDITION
                     }
                     euv_info {
-                        label: ABOUT_INFO_LICENSE_LABEL
+                        label: "License"
                         EUV_LICENSE
                     }
                     euv_info {
-                        label: ABOUT_INFO_AUTHORS_LABEL
+                        label: "Authors"
                         EUV_AUTHORS
                     }
                     euv_info {
-                        label: ABOUT_INFO_REPOSITORY_LABEL
+                        label: "Repository"
                         a {
                             class: c_info_link()
                             href: EUV_REPOSITORY
-                            target: ABOUT_LINK_TARGET_BLANK
+                            target: "_blank"
                             onclick: Router::external_link_handler(EUV_REPOSITORY)
                             EUV_REPOSITORY_NAME
                         }
                     }
                 }
                 euv_card {
-                    title: ABOUT_CARD_BUILD_INFORMATION_TITLE
+                    title: "Build Information"
                     euv_info {
-                        label: ABOUT_BUILD_DATE_LABEL
+                        label: "Date"
                         EUV_BUILD_DATE
                     }
                     euv_info {
-                        label: ABOUT_BUILD_TIME_LABEL
+                        label: "Time"
                         EUV_BUILD_CLOCK
                     }
                     euv_info {
-                        label: ABOUT_BUILD_TIMESTAMP_LABEL
+                        label: "Timestamp"
                         EUV_BUILD_TIMESTAMP
                     }
                 }
@@ -304,12 +304,12 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                 div {
                     h2 {
                         class: c_home_section_title()
-                        ABOUT_SECTION_NATIVE_BRIDGE_TITLE
+                        "Native Bridge"
                     }
                     euv_card {
-                        title: ABOUT_CARD_BRIDGE_INTEGRATION_TITLE
+                        title: "bridge Integration"
                         euv_info {
-                            label: ABOUT_BRIDGE_PERMISSIONS_LABEL
+                            label: "Permissions"
                             native_bridge_state.get_permissions()
                         }
                     }

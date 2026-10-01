@@ -20,103 +20,103 @@ pub(crate) fn page_router(node: VirtualNode<PageRouterProps>) -> VirtualNode {
         div {
             class: c_page_router()
             match { route_signal.get().as_str() } {
-                ROUTE_HOME | ROUTE_ABOUT => {
+                "/" | "/about" => {
                     page_about {}
                 }
-                ROUTE_ANIMATION => {
+                "/animation" => {
                     page_animation {}
                 }
-                ROUTE_CUSTOM_ATTRS => {
+                "/custom-attrs" => {
                     page_custom_attrs {}
                 }
-                ROUTE_BADGE => {
+                "/badge" => {
                     page_badge {}
                 }
-                ROUTE_COMPONENT_BINDING => {
+                "/component-binding" => {
                     page_component_binding {}
                 }
-                ROUTE_BROWSER => {
+                "/browser" => {
                     page_browser {}
                 }
-                ROUTE_CAMERA => {
+                "/camera" => {
                     page_camera {}
                 }
-                ROUTE_CANVAS => {
+                "/canvas" => {
                     page_canvas {}
                 }
-                ROUTE_CONDITIONAL => {
+                "/conditional" => {
                     page_conditional {}
                 }
-                ROUTE_COUNTER => {
+                "/counter" => {
                     page_counter {}
                 }
-                ROUTE_DYNAMIC_COMPONENT => {
+                "/dynamic-component" => {
                     page_dynamic_component {}
                 }
-                ROUTE_EVENT => {
+                "/event" => {
                     page_event {}
                 }
-                ROUTE_FORM => {
+                "/form" => {
                     page_form {}
                 }
-                ROUTE_HOOKS_TIMING => {
+                "/hooks-timing" => {
                     page_hooks_timing {}
                 }
-                ROUTE_HOOKS_ASYNC => {
+                "/hooks-async" => {
                     page_hooks_async {}
                 }
-                ROUTE_HOOKS_PROTECT => {
+                "/hooks-protect" => {
                     page_hooks_protect {}
                 }
-                ROUTE_HOOKS_I18N => {
+                "/hooks-i18n" => {
                     page_hooks_i18n {}
                 }
-                ROUTE_GAME_2D => {
+                "/game-2d" => {
                     page_game_2d {}
                 }
-                ROUTE_GAME_3D => {
+                "/game-3d" => {
                     page_game_3d {}
                 }
-                GESTURE_ROUTE => {
+                "/gesture" => {
                     page_gesture {}
                 }
-                ROUTE_KEEP_ALIVE => {
+                "/keep-alive" => {
                     page_keep_alive {}
                 }
-                ROUTE_LIFECYCLE => {
+                "/lifecycle" => {
                     page_lifecycle {}
                 }
-                ROUTE_LIGHTING => {
+                "/lighting" => {
                     page_lighting {}
                 }
-                ROUTE_LIST => {
+                "/list" => {
                     page_list {}
                 }
-                ROUTE_MODAL => {
+                "/modal" => {
                     page_modal {}
                 }
-                ROUTE_OBSERVER => {
+                "/observer" => {
                     page_observer {}
                 }
-                ROUTE_RAYTRACE => {
+                "/raytrace" => {
                     page_raytrace {}
                 }
-                ROUTE_SSE => {
+                "/sse" => {
                     page_sse {}
                 }
-                ROUTE_SELECT => {
+                "/select" => {
                     page_select {}
                 }
-                ROUTE_TIMER => {
+                "/timer" => {
                     page_timer {}
                 }
-                ROUTE_FILE_UPLOAD => {
+                "/file-upload" => {
                     page_file_upload {}
                 }
-                ROUTE_VIRTUAL_LIST => {
+                "/virtual-list" => {
                     page_virtual_list {}
                 }
-                ROUTE_WEBSOCKET => {
+                "/websocket" => {
                     page_websocket {}
                 }
                 _ => {
