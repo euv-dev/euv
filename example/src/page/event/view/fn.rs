@@ -497,18 +497,18 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             .get_media_event_log()
             .set(EVENT_VIDEO_EVENT_CAN_PLAY.to_string());
     });
-    let on_audio_volume_change = move |_: Event| {
+    let on_audio_volume_change: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         media
             .get_media_event_log()
             .set(EVENT_VIDEO_EVENT_VOLUME_CHANGE.to_string());
         Console::log(EVENT_LOG_VIDEO_VOLUME_CHANGE);
-    };
+    });
     let on_audio_time_update: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         media
             .get_media_event_log()
             .set(EVENT_VIDEO_EVENT_TIME_UPDATE.to_string());
     });
-    let on_video_play = move |_: Event| {
+    let on_video_play: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video
             .get_video_status()
             .set(EVENT_AUDIO_STATE_PLAYING.to_string());
@@ -516,7 +516,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             .get_video_event_log()
             .set(EVENT_AUDIO_PLAY_LABEL.to_string());
         Console::log(EVENT_LOG_VIDEO_PLAY);
-    };
+    });
     let on_video_pause: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video
             .get_video_status()
@@ -594,7 +594,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             .get_video_event_log()
             .set(EVENT_VIDEO_EVENT_TIME_UPDATE.to_string());
     });
-    let on_video_duration_change = move |event: Event| {
+    let on_video_duration_change: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(target) = event.target()
             && let Ok(video_el) = target.clone().dyn_into::<HtmlMediaElement>()
         {
@@ -605,18 +605,18 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             .get_video_event_log()
             .set(EVENT_VIDEO_EVENT_DURATION_CHANGE.to_string());
         Console::log(EVENT_LOG_VIDEO_DURATION_CHANGE);
-    };
+    });
     let on_video_progress: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video
             .get_video_event_log()
             .set(EVENT_VIDEO_EVENT_PROGRESS.to_string());
     });
-    let on_video_seeking = move |_: Event| {
+    let on_video_seeking: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video
             .get_video_event_log()
             .set(EVENT_VIDEO_EVENT_SEEKING.to_string());
         Console::log(EVENT_LOG_VIDEO_SEEKING);
-    };
+    });
     let on_video_seeked: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video
             .get_video_event_log()
