@@ -890,23 +890,25 @@ pub(crate) fn print_server_urls(config: &ServerUrlConfig) {
 ///
 /// - `Result<(), EuvError>` - Indicates success or failure of the formatting operation.
 pub async fn run_hyperlane_fmt() -> Result<(), EuvError> {
-    let args: hyperlane_cli::Args = hyperlane_cli::Args {
-        command: hyperlane_cli::CommandType::Fmt,
-        check: false,
-        manifest_path: None,
-        bump_type: None,
-        max_retries: 0,
-        project_name: None,
-        template_type: None,
-        model_sub_type: None,
-        component_name: None,
-    };
-    hyperlane_cli::execute_fmt(&args)
+    let mut command: Command = Command::new(CARGO_COMMAND);
+    command.arg(FMT_SUBCOMMAND);
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let output: Output = command
+        .output()
         .await
         .map_err(|error: io::Error| EuvError::Io {
-            message: String::from("hyperlane-cli fmt error"),
+            message: String::from(FMT_ERROR_MESSAGE),
             error,
-        })
+        })?;
+    let stdout: String = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr: String = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if !output.status.success() {
+        return Err(EuvError::Io {
+            message: String::from(FMT_ERROR_MESSAGE),
+            error: io::Error::other(format!("{stdout} {stderr}")),
+        });
+    }
+    Ok(())
 }
 
 /// Reads the wasm-bindgen JS bridge produced by `wasm-pack build
