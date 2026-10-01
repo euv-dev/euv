@@ -301,3 +301,28 @@ fn several_handlers_on_one_channel_all_receive_the_event() {
         "the channel must report two handlers"
     );
 }
+
+#[test]
+fn generated_entity_ids_are_unique_and_increasing() {
+    let first: u64 = Entity::generate_id();
+    let second: u64 = Entity::generate_id();
+    let third: u64 = Entity::generate_id();
+    assert_ne!(first, second, "two generated ids must differ");
+    assert_ne!(second, third, "and so must the next one");
+    assert_ne!(first, third, "across the whole triple");
+    assert!(second > first, "ids are handed out in increasing order");
+    assert!(third > second, "and keep increasing");
+}
+
+#[test]
+fn distinct_entities_do_not_share_a_generated_id() {
+    let a: Entity = Entity::create("a");
+    let b: Entity = Entity::create("b");
+    let c: Entity = Entity::create("c");
+    assert_ne!(a.get_id(), b.get_id(), "two entities must not collide");
+    assert_ne!(b.get_id(), c.get_id(), "across all three");
+    assert!(
+        a.get_id() < b.get_id() && b.get_id() < c.get_id(),
+        "ids are allocated in creation order"
+    );
+}

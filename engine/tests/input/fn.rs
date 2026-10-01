@@ -470,3 +470,15 @@ fn the_input_action_enum_covers_the_four_states_a_button_can_be_in() {
         }
     }
 }
+
+#[test]
+fn a_fresh_gamepad_manager_reports_no_connected_pads() {
+    let mut manager: GamepadManager = GamepadManager::default();
+    assert_eq!(manager.connected_count(), 0, "nothing is plugged in yet");
+    assert!(!manager.is_connected(0), "index zero is not connected");
+    assert!(!manager.is_connected(7), "nor is an arbitrary index");
+    assert!(
+        manager.state_mut(0).is_none(),
+        "and there is no state to hand out for an unknown pad"
+    );
+}
