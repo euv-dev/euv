@@ -940,7 +940,6 @@ fn ray_intersect_aabb_reports_a_forward_hit() {
     );
 }
 
-
 fn epsilon(actual: f64, expected: f64) -> bool {
     (actual - expected).abs() < 1e-9
 }

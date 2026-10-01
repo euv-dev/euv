@@ -412,7 +412,6 @@ fn the_three_edge_sets_are_mutually_consistent_for_one_frame() {
     assert!(released_again.contains(&1), "but letting go is a release");
 }
 
-
 #[test]
 fn reading_a_raw_axis_past_the_end_of_the_list_is_zero_not_a_panic() {
     let axes: Vec<f64> = vec![0.0, 1.0, -1.0];
