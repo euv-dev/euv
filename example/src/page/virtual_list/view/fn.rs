@@ -9,6 +9,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The virtual list demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageVirtualListProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_virtual_list(node: VirtualNode<PageVirtualListProps>) -> VirtualNode {
     let PageVirtualListProps: PageVirtualListProps = node.try_get_props().unwrap_or_default();

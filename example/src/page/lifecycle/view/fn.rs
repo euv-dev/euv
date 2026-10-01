@@ -5,6 +5,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The lifecycle demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageLifecycleProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_lifecycle(node: VirtualNode<PageLifecycleProps>) -> VirtualNode {
     let PageLifecycleProps: PageLifecycleProps = node.try_get_props().unwrap_or_default();

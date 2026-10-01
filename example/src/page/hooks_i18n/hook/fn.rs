@@ -33,6 +33,15 @@ pub(crate) const HOOKS_I18N_ZH_MESSAGES: [(&str, &str); 2] =
 
 /// Builds a click handler that switches the supplied i18n
 /// handle to the supplied locale.
+///
+/// # Arguments
+///
+/// - `I18n` - The `handle` argument.
+/// - `String` - The `locale` argument.
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The value this function returns.
+///
 pub(crate) fn hooks_i18n_switch(handle: I18n, locale: String) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         handle.change_locale(locale.as_str());
@@ -41,6 +50,15 @@ pub(crate) fn hooks_i18n_switch(handle: I18n, locale: String) -> Option<Rc<dyn F
 
 /// Returns the translated message for `key` on the supplied
 /// handle, falling back to the key itself if missing.
+///
+/// # Arguments
+///
+/// - `I18n` - The `handle` argument.
+/// - `&'static str` - The `key` argument.
+/// # Returns
+///
+/// - `String` - The value this function returns.
+///
 pub(crate) fn hooks_i18n_translate(handle: I18n, key: &'static str) -> String {
     handle.t(key)
 }

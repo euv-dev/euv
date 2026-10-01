@@ -5,6 +5,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The form demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageFormProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_form(node: VirtualNode<PageFormProps>) -> VirtualNode {
     let PageFormProps: PageFormProps = node.try_get_props().unwrap_or_default();

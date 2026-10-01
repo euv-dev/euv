@@ -5,6 +5,14 @@ use super::*;
 ///
 /// The three rows share a single browser timer so the page can
 /// drive transitions without spinning up an HTTP server.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageHooksAsyncProps>` - The `node` argument.
+/// # Returns
+///
+/// - `VirtualNode` - The value this function returns.
+///
 #[component]
 pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> VirtualNode {
     let PageHooksAsyncProps: PageHooksAsyncProps = node.try_get_props().unwrap_or_default();

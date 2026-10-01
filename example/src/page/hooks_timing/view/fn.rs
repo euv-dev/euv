@@ -7,6 +7,14 @@ use super::*;
 /// `App::use_interval` ticker; timestamps come from
 /// `performance.now()` because `std::time::Instant::now()` panics on
 /// `wasm32-unknown-unknown`.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageHooksTimingProps>` - The `node` argument.
+/// # Returns
+///
+/// - `VirtualNode` - The value this function returns.
+///
 #[component]
 pub(crate) fn page_hooks_timing(node: VirtualNode<PageHooksTimingProps>) -> VirtualNode {
     let PageHooksTimingProps: PageHooksTimingProps = node.try_get_props().unwrap_or_default();

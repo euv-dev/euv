@@ -9,6 +9,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The WebSocket chat page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageWebsocketProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_websocket(node: VirtualNode<PageWebsocketProps>) -> VirtualNode {
     let PageWebsocketProps: PageWebsocketProps = node.try_get_props().unwrap_or_default();

@@ -354,6 +354,19 @@ pub(crate) fn map_client_to_canvas(
 /// `canvas_selector` is unused here but kept in the signature for symmetry
 /// with the Canvas 2D helper, which needs it to read the live CSS box via
 /// `read_canvas_size`.
+///
+/// # Arguments
+///
+/// - `&Rc<Cell<bool>>` - The `resize_dirty_for_loop` argument.
+/// - `&Rc<RefCell<(f64, f64)>>` - The `last_canvas_size_for_loop` argument.
+/// - `&Rc<RefCell<Vec<Ball>>>` - The `balls` argument.
+/// - `&Rc<RefCell<Vec<Vector2D>>>` - The `prev_for_loop` argument.
+/// - `&CanvasCache` - The `canvas_cache` argument.
+/// - `&'static str` - The `_canvas_selector` argument.
+/// # Returns
+///
+/// - `bool` - The value this function returns.
+///
 pub(crate) fn handle_rescale_dirty(
     resize_dirty_for_loop: &Rc<Cell<bool>>,
     last_canvas_size_for_loop: &Rc<RefCell<(f64, f64)>>,
@@ -421,6 +434,16 @@ pub(crate) fn handle_rescale_dirty(
 /// guarantee the SSAA backing store is re-acquired at the new size on
 /// the very next frame while the positions already see the right
 /// bounds.
+///
+/// # Arguments
+///
+/// - `&Rc<Cell<bool>>` - The `resize_dirty_for_loop` argument.
+/// - `&Rc<RefCell<(f64, f64)>>` - The `last_canvas_size_for_loop` argument.
+/// - `&Rc<RefCell<Vec<Ball>>>` - The `balls` argument.
+/// - `&Rc<RefCell<Vec<Vector2D>>>` - The `prev_for_loop` argument.
+/// - `&CanvasCache` - The `canvas_cache` argument.
+/// - `&Rc<RefCell<Option<SsaaCanvas>>>` - The `context_clone` argument.
+///
 pub(crate) fn handle_rescale_dirty_canvas2d(
     resize_dirty_for_loop: &Rc<Cell<bool>>,
     last_canvas_size_for_loop: &Rc<RefCell<(f64, f64)>>,
@@ -832,6 +855,11 @@ pub(crate) fn resolve_ball_collision(a: &mut Ball, b: &mut Ball) {
 /// handful of genuine pairwise contacts (e.g. the bottom row of a stable
 /// stack where each ball legitimately touches two neighbours) without
 /// triggering the shrink on every contact.
+///
+/// # Arguments
+///
+/// - `&mut [Ball]` - The `balls` argument.
+///
 pub(crate) fn resolve_stuck_balls(balls: &mut [Ball]) {
     let count: usize = balls.len();
     if count == 0 {

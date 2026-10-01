@@ -43,6 +43,11 @@ fn build_file_list(state: UseFileUpload) -> VirtualNode {
 /// # Returns
 ///
 /// - `VirtualNode` - The file upload demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageFileUploadProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_file_upload(node: VirtualNode<PageFileUploadProps>) -> VirtualNode {
     let PageFileUploadProps: PageFileUploadProps = node.try_get_props().unwrap_or_default();

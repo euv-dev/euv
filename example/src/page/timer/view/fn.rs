@@ -20,6 +20,11 @@ fn format_time(total_seconds: i32) -> String {
 /// # Returns
 ///
 /// - `VirtualNode` - The timer demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageTimerProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_timer(node: VirtualNode<PageTimerProps>) -> VirtualNode {
     let PageTimerProps: PageTimerProps = node.try_get_props().unwrap_or_default();

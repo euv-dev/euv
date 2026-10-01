@@ -5,6 +5,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The 404 page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageNotFoundProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_not_found(node: VirtualNode<PageNotFoundProps>) -> VirtualNode {
     let PageNotFoundProps: PageNotFoundProps = node.try_get_props().unwrap_or_default();

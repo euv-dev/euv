@@ -5,6 +5,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The badge demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageBadgeProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_badge(node: VirtualNode<PageBadgeProps>) -> VirtualNode {
     let PageBadgeProps: PageBadgeProps = node.try_get_props().unwrap_or_default();

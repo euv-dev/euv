@@ -9,6 +9,11 @@ use super::*;
 /// # Returns
 ///
 /// - `VirtualNode` - The custom attributes demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageCustomAttrsProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_custom_attrs(node: VirtualNode<PageCustomAttrsProps>) -> VirtualNode {
     let PageCustomAttrsProps: PageCustomAttrsProps = node.try_get_props().unwrap_or_default();
