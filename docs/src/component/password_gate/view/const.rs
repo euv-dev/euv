@@ -5,7 +5,10 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "center";
-        min-height: "60vh";
+        // 60% of the scroll container rather than 60% of the viewport: the
+        // gate sits inside `c_app_main`, so a viewport unit would be taller
+        // than the visible area and push the unlock form below the fold.
+        min-height: "60%";
         padding: format!("{} {}", var!(space-4xl), var!(space-lg));
     }
 

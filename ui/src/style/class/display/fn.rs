@@ -957,7 +957,11 @@ class! {
         text-align: "center";
         gap: var!(space-md);
         padding: format!("{} {}", var!(space-4xl), var!(space-md));
-        min-height: "50vh";
+        // Half the available height, not half the viewport: the result block
+        // lives inside a scroll container, so a viewport unit would be taller
+        // than the visible area on short pages and leave the buttons below
+        // the fold.
+        min-height: "50%";
     }
 
     pub c_euv_result_code {
@@ -991,6 +995,17 @@ class! {
         min-width: "0px";
         max-width: "1080px";
         margin: "0px auto";
+        // Fill the visible area of the scroll container (`c_app_main`,
+        // `overflow: auto` with a definite `height: 100%`) so the content
+        // column has room to push its tail to the bottom. A viewport unit
+        // would be wrong here: `100vh` measures the whole window including
+        // the app header, overshooting the visible area by the header
+        // height and pushing pagination/footer one header past the fold.
+        // Being a direct child of the scroll container, a percentage does
+        // resolve against its content box — put it one level deeper and
+        // the intermediate auto-height flex row makes `100%` degenerate to
+        // `auto`.
+        min-height: "100%";
     }
 
     pub c_euv_doc_content {
@@ -1003,17 +1018,40 @@ class! {
         //   - when the article is longer, the tail sits right after the
         //     article in normal flow (because content height exceeds
         //     min-height, there's no remaining space to distribute).
-        // `min-height: 100vh` stretches the column to at least one full
-        // viewport tall — without this, a short article would leave the
-        // tail directly under the body instead of at the bottom of the
-        // viewport.
+        // The scroll container is `c_app_main` (`overflow: auto`), not the
+        // window, so a viewport unit measures the whole window including the
+        // app header. `100vh` therefore overshoots by the header height and
+        // pushes the tail one header past the fold on a short page. Height
+        // comes from `c_euv_doc_layout` (a direct child of the scroll
+        // container, where a percentage resolves); here `align-items:
+        // stretch` — the flex default — makes this column take that height
+        // so `space-between` has the full column to distribute across.
+        //   - article shorter than the column: `space-between` drops the
+        //     tail to the bottom edge of the visible area;
+        //   - article longer: the column grows with it and the tail follows
+        //     the body in normal flow, scrolling with the page.
         flex: "1";
         min-width: "0px";
         max-width: var!(content-max-width);
         display: "flex";
         flex-direction: "column";
         justify-content: "space-between";
-        min-height: "100vh";
+    }
+
+    pub c_euv_doc_body {
+        // Groups the page title and the rendered markdown into a single
+        // flex item. Without this the column would hold the `<h1>` and
+        // the `<article>` as two separate items, and
+        // `justify-content: space-between` would push them apart — a wide
+        // blank band between the title and the first paragraph on any
+        // page whose body is shorter than the column.
+        display: "flex";
+        flex-direction: "column";
+        // The body takes its natural height; only the tail is pushed to
+        // the far end. `flex-shrink: 0` keeps a long body from being
+        // compressed when the column is height-constrained.
+        flex: "0 0 auto";
+        min-width: "0px";
     }
 
     pub c_euv_doc_tail {

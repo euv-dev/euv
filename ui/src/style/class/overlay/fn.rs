@@ -537,7 +537,11 @@ class! {
         @media ((max-width: 767px)) {
             max-width: "100%";
             width: "calc(100% - 32px)";
-            max-height: "85vh";
+            // Percentage of the fixed overlay (which is already the full
+            // window), so the sheet is capped by the screen it sits on
+            // rather than by a viewport unit that ignores the safe-area
+            // insets the overlay does not account for.
+            max-height: "85%";
             overflow-y: "auto";
         }
     }
@@ -613,7 +617,12 @@ class! {
         bottom: "0px";
         left: "0px";
         right: "0px";
-        height: format!("calc(76vh - {})", var!(safe-area-inset-bottom));
+        // A fixed element with `bottom` anchored resolves percentage heights
+        // against the initial containing block, so `76%` and `76vh` measure
+        // the same box here — the percentage form is used to keep viewport
+        // units out of the codebase. The safe-area inset is still subtracted
+        // so the panel clears a home indicator.
+        height: format!("calc(76% - {})", var!(safe-area-inset-bottom));
         background: var!(background);
         z-index: "10001";
         display: "flex";

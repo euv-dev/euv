@@ -51,6 +51,7 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
                          .c_euv_sidebar_link::before { left: -8px !important; } \
                          .c_euv_sidebar_link:hover::before, .c_euv_sidebar_group_title:hover::before { background: currentColor !important; } \
                          .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #000) !important; border: 0 !important; box-shadow: none !important; } \
+             .c_euv_sidebar_link:not(.c_euv_sidebar_link_active):not(.c_euv_sidebar_link_active_flush):hover::before, .c_euv_sidebar_group_title:not(.c_euv_sidebar_group_title_active):not(.c_euv_sidebar_group_title_root):not(.c_euv_sidebar_group_title_root_active):hover::before { background: currentColor !important; } \
                          .c_euv_sidebar_link_active, .c_euv_sidebar_group_title_active { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
                          .c_euv_sidebar_link_active::before, .c_euv_sidebar_group_title_active::before { background: var(--accent, #000) !important; content: '' !important; position: absolute !important; width: 5px !important; top: 0 !important; bottom: 0 !important; pointer-events: none !important; left: -8px !important; } \
                          .c_euv_sidebar_group_title_active::before { left: -2px !important; } \
@@ -59,13 +60,25 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
                          .c_theme_dark .c_euv_sidebar_link_active, .c_theme_dark .c_euv_sidebar_group_title_active { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
                          .c_theme_dark .c_euv_sidebar_link_active::before, .c_theme_dark .c_euv_sidebar_group_title_active::before { background: var(--accent, #fff) !important; } \
                          .c_theme_dark .c_euv_sidebar_link_active:hover, .c_theme_dark .c_euv_sidebar_group_title_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
+                         .c_euv_sidebar_group_title_root, .c_euv_sidebar_group_title_root_active { position: relative !important; } \
+                         .c_euv_sidebar_group_title_root::before { content: '' !important; position: absolute !important; top: 0 !important; bottom: 0 !important; left: 0 !important; width: 4px !important; background: transparent !important; pointer-events: none !important; } \
+                         .c_euv_sidebar_group_title_root:hover::before { background: var(--foreground, #000) !important; } \
+                         .c_theme_dark .c_euv_sidebar_group_title_root:hover::before { background: var(--foreground, #fff) !important; } \
+                         .c_euv_sidebar_group_title_root_active::before { background: var(--text-on-accent, #fff) !important; } \
+                         .c_euv_sidebar_group_title_root:hover { background: var(--muted, #f4f4f5) !important; color: var(--foreground, #000) !important; } \
+                         .c_euv_sidebar_group_title_root_active, .c_euv_sidebar_group_title_root_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; } \
+                         .c_theme_dark .c_euv_sidebar_group_title_root:hover { background: var(--muted, #27272a) !important; color: var(--foreground, #fff) !important; } \
+                         .c_euv_sidebar_link_active_flush, .c_euv_sidebar_group_title_active, .c_euv_sidebar_group_title_root_active { position: relative !important; margin-left: calc(-1 * (8px + 8px + 1px)) !important; width: calc(100% + 8px + 8px + 1px) !important; } \
+                         .c_euv_sidebar_link_active_flush::before, .c_euv_sidebar_group_title_active::before { left: 0 !important; } \
+                         .c_euv_sidebar_link_active_flush:hover::before { background: var(--accent, #000) !important; } \
              \
-             .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; min-height: auto !important; height: auto !important; width: 100% !important; } \
-             .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 100vh !important; justify-content: flex-start !important; } \
+             .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; width: 100% !important; } \
+             /* `min-height: 100%` fills the visible area of `c_app_main` so the tail can be pushed to the bottom; a viewport unit overshoots by the header. `space-between` puts the tail at the bottom when the article is short and lets it follow the article when the article is long. Not sticky, not fixed: the tail scrolls with the page. */ \
+             .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; justify-content: space-between !important; } \
              .c_euv_doc_content article.md-body { display: block !important; flex: 0 0 auto !important; min-height: 0 !important; overflow: visible !important; } \
              .c_euv_doc_content article.md-body > div { display: block !important; min-height: 0 !important; } \
              .c_euv_doc_tail { display: block !important; flex: 0 0 auto !important; } \
-                         .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; position: sticky !important; top: 0 !important; align-self: flex-start !important; max-height: 100vh !important; overflow-y: auto !important; } \
+                         .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; position: sticky !important; top: 0 !important; align-self: flex-start !important; max-height: 100% !important; overflow-y: auto !important; } \
                          .c_euv_toc_link_nested { padding-left: 0.75rem !important; font-size: var(--font-sm, 0.875rem) !important; color: var(--muted-foreground, #555) !important; line-height: 1.5 !important; } \
                          .c_euv_toc_link, .c_euv_toc_link_nested { font-weight: 400 !important; } \
                          .c_euv_toc_link:hover, .c_euv_toc_link_nested:hover { color: var(--accent, #000) !important; font-weight: 700 !important; } \
@@ -76,7 +89,7 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
              .c_euv_pagination_link { padding: var(--space-md, 0.75rem) !important; gap: var(--space-2xs, 0.25rem) !important; min-width: 0 !important; max-width: none !important; } \
              .c_euv_footer { padding-top: var(--space-lg, 1rem) !important; padding-bottom: var(--space-md, 0.75rem) !important; flex: 0 0 auto !important; } \
              \
-             .c_docs_page_title { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0; padding-top: 0; color: var(--foreground, #000); } \
+             .c_docs_page_title { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 var(--space-lg, 1rem) 0; padding-top: 0; color: var(--foreground, #000); } \
              .md-body > :first-child { margin-top: 0 !important; } \
              .md-body h1:first-of-type, .md-body h2:first-of-type, .md-body h3:first-of-type, .md-body h4:first-of-type, .md-body h5:first-of-type, .md-body h6:first-of-type { margin-top: 0 !important; } \
              .md-body > div:first-child > :first-child { margin-top: 0 !important; } \

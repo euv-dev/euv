@@ -197,12 +197,17 @@ class! {
         // Without this the whole row flex container scrolls as a single
         // block and the nav appears to slide off-screen with the content.
         // `align-self: stretch` (the row flex default) is overridden by
-        // `flex-start` so the sticky height is the natural 100vh and not
-        // stretched to match the (much taller) main column.
+        // `flex-start` so the sticky height is the natural full height and
+        // not stretched to match the (much taller) main column.
+        // `100%` rather than `100vh`: the app root is a `height: 100%`
+        // flex column, so a percentage resolves against the real available
+        // box (viewport minus any safe-area inset) instead of the whole
+        // window — on a device with a notch the viewport unit would make the
+        // nav taller than the screen and push its footer below the fold.
         position: "sticky";
         top: "0px";
         align-self: "flex-start";
-        height: "100vh";
+        height: "100%";
         flex-shrink: "0";
         padding-top: var!(safe-area-inset-top);
         @media ((max-width: 767px)) {
@@ -971,11 +976,47 @@ class! {
         background: var!(accent);
         color: var!(text-on-accent);
         font-weight: "600";
+        // Same flush fill as `c_euv_sidebar_link_active_flush`: a nested
+        // active group title should read as one block with the sidebar, not
+        // as a chip sitting 17px in from the edge. Keep the left padding so
+        // the label does not jump out from under the cursor, and pay for the
+        // shift with a matching negative margin.
+        margin-left: format!("-{}px", var!(side-indent-num));
+        width: format!("calc(100% + {}px)", var!(side-indent-num));
         :hover {
             box-shadow: "none";
         }
     }
 
+    // A top-level group row carries the same click cue as a nested one, but
+    // without a `c_euv_sidebar_children` ancestor to line up with, so the
+    // inset bar needs its own variant. The offset lives on the shadow rather
+    // than on `padding`, so the label never moves under the cursor.
+    pub c_euv_sidebar_group_title_root {
+        display: "flex";
+        align-items: "center";
+        justify-content: "space-between";
+        width: "100%";
+        padding: format!("{} {}", var!(space-md), var!(space-md));
+        font-size: var!(font-base);
+        font-weight: "400";
+        cursor: "pointer";
+        text-align: "left";
+        :hover {
+            box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
+            background: var!(muted);
+        }
+    }
+
+    pub c_euv_sidebar_group_title_root_active {
+        background: var!(accent);
+        color: var!(text-on-accent);
+        font-weight: "600";
+        :hover {
+            box-shadow: "none";
+            background: var!(accent);
+        }
+    }
 
     pub c_euv_sidebar_group_arrow {
         font-size: var!(font-xs);
@@ -1047,6 +1088,37 @@ class! {
         // foreground color is invisible and only competes for the eye's
         // focus. The accent fill + bold text already announce "you are
         // here".
+        :hover {
+            box-shadow: "none";
+        }
+    }
+
+
+    // An active child needs the accent fill to read as one continuous block
+    // against the sidebar, not as a chip floating inside its parent's gutter.
+    // `c_euv_sidebar_children` insets every nesting level by
+    // `margin-left + padding-left` and paints a dashed guide on the way in, so
+    // a nested active link that keeps its own background starts 17px to the
+    // right of the row above it. This variant pulls the active fill back out
+    // to the sidebar's own left edge while leaving non-active rows indented,
+    // so the highlight lines up with the header and the section label.
+    // The negative margin is safe because the row is the full width of its
+    // container: the fill grows leftward into the parent's padding and
+    // nothing to its left moves.
+    pub c_euv_sidebar_link_active_flush {
+        display: "block";
+        padding: format!("{} {}", var!(space-md), var!(space-md));
+        // `var!()` expands to a bare `var(--token)`, so the unit has to live
+        // inside the token — writing `-{}px` here would emit
+        // `calc(-var(--side-indent-num)px)`, which is not a length and gets
+        // dropped by the parser.
+        margin-left: format!("-{}px", var!(side-indent-num));
+        width: format!("calc(100% + {}px)", var!(side-indent-num));
+        font-size: var!(font-base);
+        background: var!(accent);
+        color: var!(text-on-accent);
+        font-weight: "600";
+        cursor: "pointer";
         :hover {
             box-shadow: "none";
         }

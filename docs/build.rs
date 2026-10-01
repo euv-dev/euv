@@ -1125,6 +1125,9 @@ fn render_markdown(body: &str, route: &str) -> (Vec<AstBlock>, Vec<Heading>, Opt
     let mut headings: Vec<Heading> = Vec::new();
     let mut first_h1: Option<String> = None;
     let mut used_slugs: HashSet<String> = HashSet::new();
+    // Tracks whether the leading h1 has been consumed, carried across
+    // segments so an h1 at the top of a later segment is still dropped.
+    let mut h1_done: bool = false;
 
     for segment in segments {
         match segment {
@@ -1134,8 +1137,10 @@ fn render_markdown(body: &str, route: &str) -> (Vec<AstBlock>, Vec<Heading>, Opt
                     headings: &mut headings,
                     first_h1: &mut first_h1,
                     used_slugs: &mut used_slugs,
+                    h1_seen: h1_done,
                 };
                 blocks.extend(parse_blocks(&src, &mut ctx));
+                h1_done = ctx.h1_seen;
             }
             Segment::Container { kind, title, body } => {
                 let mut ctx: ParseCtx = ParseCtx {
@@ -1143,8 +1148,10 @@ fn render_markdown(body: &str, route: &str) -> (Vec<AstBlock>, Vec<Heading>, Opt
                     headings: &mut headings,
                     first_h1: &mut first_h1,
                     used_slugs: &mut used_slugs,
+                    h1_seen: h1_done,
                 };
                 let inner: Vec<AstBlock> = parse_blocks(&body, &mut ctx);
+                h1_done = ctx.h1_seen;
                 blocks.push(AstBlock::Container {
                     title: title.unwrap_or_else(|| kind.to_uppercase()),
                     kind,
@@ -1166,6 +1173,15 @@ struct ParseCtx<'a> {
     first_h1: &'a mut Option<String>,
     /// Slug dedup set.
     used_slugs: &'a mut HashSet<String>,
+    /// Whether the first h1 has already been consumed.
+    ///
+    /// The page shell renders the title as an `<h1>` of its own, so a
+    /// leading `# Title` in the markdown body would show the same words
+    /// twice with a divider between them. The first h1 is captured into
+    /// `first_h1` (as the title fallback) and then dropped from the
+    /// block stream. Only the leading one is dropped — a second h1 later
+    /// in the body is a real section heading and is kept.
+    h1_seen: bool,
 }
 
 /// A source segment: plain markdown or a `:::` custom container.
@@ -1409,8 +1425,16 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
                         text: text.clone(),
                     });
                 }
-                if n == 1 && ctx.first_h1.is_none() {
-                    *ctx.first_h1 = Some(text);
+                if n == 1 && !ctx.h1_seen {
+                    // The leading h1 becomes the page title, which the
+                    // shell already renders as its own `<h1>`. Emitting
+                    // the block too would print the title twice with a
+                    // heading rule between the copies.
+                    ctx.h1_seen = true;
+                    if ctx.first_h1.is_none() {
+                        *ctx.first_h1 = Some(text);
+                    }
+                    continue;
                 }
                 blocks.push(AstBlock::Heading {
                     level: n,
