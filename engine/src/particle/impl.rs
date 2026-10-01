@@ -132,33 +132,53 @@ impl ParticleEmitter {
     /// from the emission budget while active, integrates motion and gravity,
     /// and removes expired particles.
     ///
+    /// Integration and expiry share a single sweep over the live particles.
+    /// A read cursor integrates each particle and a write cursor compacts the
+    /// survivors downward, so the whole update costs one pass instead of the
+    /// integrate pass plus a separate `retain` pass. Survivors keep their
+    /// relative order: a dead slot is only ever refilled by swapping a live
+    /// particle into it, and the element that gets displaced lands past the
+    /// final truncation point. The compaction also moves no memory when
+    /// nothing expired, where `retain` still walks the whole vector.
+    ///
     /// # Arguments
     ///
     /// - `f64` - The time elapsed since the last update, in seconds.
     pub fn update(&mut self, delta_time: f64) {
         let delta_time: f64 = delta_time.max(0.0);
+        let config: ParticleConfig = self.get_config();
         if self.get_active() {
-            *self.get_mut_emit_accumulator() += self.get_config().get_emission_rate() * delta_time;
+            *self.get_mut_emit_accumulator() += config.get_emission_rate() * delta_time;
             let mut spawn_count: usize = self.get_emit_accumulator() as usize;
-            let capacity: usize = self
-                .get_config()
+            let capacity: usize = config
                 .get_max_particles()
-                .saturating_sub(self.get_particles().len());
+                .saturating_sub(self.get_mut_particles().len());
             spawn_count = spawn_count.min(capacity);
             *self.get_mut_emit_accumulator() -= spawn_count as f64;
             for _ in 0..spawn_count {
                 self.spawn_particle();
             }
         }
-        let gravity: Vector2D = self.get_config().get_gravity();
-        for particle in self.get_mut_particles().iter_mut() {
-            *particle.get_mut_velocity() += gravity.scaled(delta_time);
-            let velocity: Vector2D = particle.get_velocity();
-            *particle.get_mut_position() += velocity.scaled(delta_time);
-            *particle.get_mut_age() += delta_time;
+        let gravity_step: Vector2D = config.get_gravity().scaled(delta_time);
+        let particles: &mut Vec<Particle> = self.get_mut_particles();
+        let mut survivors: usize = 0;
+        for index in 0..particles.len() {
+            let expired: bool = {
+                let particle: &mut Particle = &mut particles[index];
+                *particle.get_mut_velocity() += gravity_step;
+                let velocity: Vector2D = particle.get_velocity();
+                *particle.get_mut_position() += velocity.scaled(delta_time);
+                *particle.get_mut_age() += delta_time;
+                particle.get_age() >= particle.get_lifetime()
+            };
+            if !expired {
+                if survivors != index {
+                    particles.swap(survivors, index);
+                }
+                survivors += 1;
+            }
         }
-        self.get_mut_particles()
-            .retain(|particle: &Particle| particle.get_age() < particle.get_lifetime());
+        particles.truncate(survivors);
     }
 
     /// Spawns the given number of particles immediately, regardless of the
