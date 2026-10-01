@@ -103,7 +103,7 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             footer: footer_text
             if { !page.title.is_empty() } {
                 h1 {
-                    class: { CLASS_DOCS_PAGE_TITLE }
+                    class: CLASS_DOCS_PAGE_TITLE
                     {
                         page.title
                     }

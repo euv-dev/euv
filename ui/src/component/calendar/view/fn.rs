@@ -22,9 +22,7 @@ fn calendar_weekday(weekday: EuvCalendarWeekday) -> VirtualNode {
     html! {
         div {
             class: c_euv_calendar_weekday()
-            key: {
-                label
-            }
+            key: label
             {
                 label
             }
@@ -68,9 +66,7 @@ fn calendar_day(day: EuvCalendarDay, selected: Signal<u32>) -> VirtualNode {
             } else {
                 c_euv_calendar_day()
             }
-            key: {
-                day_number.to_string()
-            }
+            key: day_number.to_string()
             onclick: on_calendar_day_click(selected, day_number)
             day_text
         }

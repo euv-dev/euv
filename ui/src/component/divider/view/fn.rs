@@ -26,9 +26,7 @@ pub fn euv_divider(node: VirtualNode<EuvDividerProps>) -> VirtualNode {
     html! {
         div {
             class: c_euv_divider()
-            class: {
-                orientation_class()
-            }
+            class: orientation_class()
             if !label.is_empty() {
                 div {
                     class: c_euv_divider_labeled()

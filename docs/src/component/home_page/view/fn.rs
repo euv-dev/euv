@@ -145,20 +145,20 @@ pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualN
             class: CLASS_FEATURE_CARD_INNER
             if { has_icon() } {
                 div {
-                    class: { CLASS_FEATURE_CARD_ICON }
+                    class: CLASS_FEATURE_CARD_ICON
                     {
                         feature.icon
                     }
                 }
             }
             div {
-                class: { CLASS_FEATURE_CARD_TITLE }
+                class: CLASS_FEATURE_CARD_TITLE
                 {
                     feature.title
                 }
             }
             div {
-                class: { CLASS_FEATURE_CARD_DETAILS }
+                class: CLASS_FEATURE_CARD_DETAILS
                 {
                     feature.details
                 }

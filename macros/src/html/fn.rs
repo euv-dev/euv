@@ -1741,7 +1741,31 @@ pub(crate) fn parse_attr_value(content: ParseStream, key_str: &str) -> syn::Resu
             Ok(HtmlAttrValue::Expr(style_content.parse()?))
         }
     } else {
-        Ok(HtmlAttrValue::Expr(content.parse()?))
+        // A bare identifier immediately followed by `{ .. }` is ambiguous: it is
+        // either a struct literal (`Style { color: "red" }`) or a static value
+        // followed by a child block (`class: CLASS_X` then `{ text }`). Distinguish
+        // them by looking inside the brace: a struct literal must start with a
+        // field initialiser (`ident :`), which can never be a child expression,
+        // whereas a child block holds a plain expression. That lets a static
+        // class constant be written bare even when the next child is a `{ .. }`
+        // text node; braces remain required only for a genuinely dynamic value.
+        if content.peek(Ident) && content.peek2(Brace) {
+            let forked: ParseBuffer<'_> = content.fork();
+            let _probe_ident: Ident = forked.parse()?;
+            let inner: ParseBuffer<'_>;
+            braced!(inner in forked);
+            let is_struct_literal: bool = inner.peek(Ident) && inner.peek2(Colon);
+            if !is_struct_literal {
+                let ident: Ident = content.parse()?;
+                let expr_path: syn::ExprPath = syn::ExprPath {
+                    attrs: Vec::new(),
+                    qself: None,
+                    path: syn::Path::from(ident),
+                };
+                return Ok(HtmlAttrValue::Expr(Expr::Path(expr_path)));
+            }
+        }
+        Ok(HtmlAttrValue::Expr(strip_braces_from_expr(&content.parse()?).clone()))
     }
 }
 
