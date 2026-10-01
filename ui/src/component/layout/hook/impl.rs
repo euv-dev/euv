@@ -325,7 +325,7 @@ impl UseEuvLayout {
         let Some(document_value) = window_value.document() else {
             return;
         };
-        let apply_to = |element: &HtmlElement| {
+        let apply_to: &dyn Fn(&HtmlElement) = &|element: &HtmlElement| {
             let _: Result<(), JsValue> = element
                 .style()
                 .set_property("--safe-area-inset-top", &top_value);

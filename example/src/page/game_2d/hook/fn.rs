@@ -1578,7 +1578,7 @@ pub(crate) fn game_2d_canvas_clear_color(canvas_selector: &str) -> (f64, f64, f6
     else {
         return (0.0, 0.0, 0.0);
     };
-    let mut channels = inner
+    let mut channels: std::iter::FilterMap<std::str::Split<'_, char>, _> = inner
         .split(',')
         .filter_map(|part: &str| part.trim().parse::<f64>().ok());
     let r: f64 = channels.next().unwrap_or_default() / 255.0;

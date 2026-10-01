@@ -346,7 +346,7 @@ fn collect_visible_edges(world_vertices: &[Vector3D], camera: &Camera3D) -> Vec<
         if !is_face_visible(&face_world, camera) {
             continue;
         }
-        let mut add = |a: usize, b: usize| {
+        let add: &mut dyn FnMut(usize, usize) = &mut |a: usize, b: usize| {
             let key: (usize, usize) = if a < b { (a, b) } else { (b, a) };
             visible_face_edges.insert(key);
         };
@@ -1217,7 +1217,7 @@ pub(crate) fn game_3d_canvas_clear_color(canvas_selector: &str) -> (f64, f64, f6
     else {
         return (0.0, 0.0, 0.0);
     };
-    let mut channels = inner
+    let mut channels: std::iter::FilterMap<std::str::Split<'_, char>, _> = inner
         .split(',')
         .filter_map(|part: &str| part.trim().parse::<f64>().ok());
     let r: f64 = channels.next().unwrap_or_default() / 255.0;
