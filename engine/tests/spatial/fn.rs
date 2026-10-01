@@ -1,5 +1,9 @@
 use super::*;
 
+fn epsilon(actual: f64, expected: f64) -> bool {
+    (actual - expected).abs() < 1e-9
+}
+
 fn box_at(x: f64, y: f64) -> (Vector2D, Vector2D) {
     (Vector2D::new(x, y), Vector2D::new(x + 10.0, y + 10.0))
 }
@@ -309,5 +313,123 @@ fn three_dimensional_query_into_resets_the_caller_buffers() {
     assert!(
         !seen.contains(&4242),
         "query_into must clear the caller scratch set"
+    );
+}
+
+#[test]
+fn boxes_overlap_is_true_for_overlapping_touching_and_contained_boxes() {
+    let a: AABB3D = AABB3D::new(
+        Vector3D::new(0.0, 0.0, 0.0),
+        Vector3D::new(10.0, 10.0, 10.0),
+    );
+    let overlapping: AABB3D = AABB3D::new(
+        Vector3D::new(5.0, 0.0, 0.0),
+        Vector3D::new(15.0, 10.0, 10.0),
+    );
+    let touching: AABB3D = AABB3D::new(
+        Vector3D::new(10.0, 0.0, 0.0),
+        Vector3D::new(20.0, 10.0, 10.0),
+    );
+    let contained: AABB3D = AABB3D::new(Vector3D::new(2.0, 2.0, 2.0), Vector3D::new(4.0, 4.0, 4.0));
+    assert!(
+        AABB3D::broad_phase(a, overlapping),
+        "partial overlap counts"
+    );
+    assert!(
+        AABB3D::broad_phase(a, touching),
+        "flush faces count as touching"
+    );
+    assert!(
+        AABB3D::broad_phase(a, contained),
+        "a box inside another counts"
+    );
+    assert!(
+        AABB3D::broad_phase(contained, a),
+        "and the order does not matter"
+    );
+}
+
+#[test]
+fn boxes_overlap_is_false_for_disjoint_and_merely_adjacent_faces() {
+    let a: AABB3D = AABB3D::new(
+        Vector3D::new(0.0, 0.0, 0.0),
+        Vector3D::new(10.0, 10.0, 10.0),
+    );
+    let apart: AABB3D = AABB3D::new(
+        Vector3D::new(50.0, 0.0, 0.0),
+        Vector3D::new(60.0, 10.0, 10.0),
+    );
+    let past: AABB3D = AABB3D::new(
+        Vector3D::new(11.0, 0.0, 0.0),
+        Vector3D::new(20.0, 10.0, 10.0),
+    );
+    assert!(
+        !AABB3D::broad_phase(a, apart),
+        "well separated boxes do not"
+    );
+    assert!(
+        !AABB3D::broad_phase(a, past),
+        "a gap of even one unit culls the pair, and it is not symmetric about the diagonal either"
+    );
+    let touching: AABB3D = AABB3D::new(
+        Vector3D::new(10.0, 0.0, 0.0),
+        Vector3D::new(20.0, 10.0, 10.0),
+    );
+    assert!(
+        AABB3D::broad_phase(a, touching),
+        "a shared face still counts"
+    );
+}
+
+#[test]
+fn with_half_extent_squares_the_region_around_the_origin() {
+    let tree: QuadTree2D = QuadTree2D::with_half_extent(256.0);
+    let (min, max) = tree.bounds();
+    assert!(
+        epsilon(min.get_x(), -256.0) && epsilon(min.get_y(), -256.0),
+        "min is -half extent"
+    );
+    assert!(
+        (max.get_x() - 256.0).abs() < 1e-5 && (max.get_y() - 256.0).abs() < 1e-5,
+        "max is +half extent, widened by EPSILON so subdivision always makes progress, got {max:?}"
+    );
+    let width: f64 = max.get_x() - min.get_x();
+    assert!(
+        (width - 512.0).abs() < 1e-5,
+        "the region is twice the half extent wide plus the EPSILON widening, got {width}"
+    );
+}
+
+#[test]
+fn with_half_extent_absolutes_its_argument_and_survives_a_degenerate_one() {
+    let positive: QuadTree2D = QuadTree2D::with_half_extent(-100.0);
+    let (min, _max) = positive.bounds();
+    assert!(
+        min.get_x() <= 0.0,
+        "a negative half extent is made positive, got {}",
+        min.get_x()
+    );
+    for degenerate in [0.0, f64::NAN] {
+        let tree: QuadTree2D = QuadTree2D::with_half_extent(degenerate);
+        let (low, high) = tree.bounds();
+        assert!(
+            high.get_x() > low.get_x(),
+            "a degenerate half extent must still yield a non-empty region, got {low:?}..{high:?}"
+        );
+    }
+}
+
+#[test]
+fn a_quadtree_entry_round_trips_its_index_and_box() {
+    let entry: QuadTreeEntry2D =
+        QuadTreeEntry2D::new(5, Vector2D::new(1.0, 2.0), Vector2D::new(3.0, 4.0));
+    assert_eq!(entry.get_index(), 5, "the body index round-trips");
+    assert!(
+        epsilon(entry.get_min().get_x(), 1.0),
+        "the min corner round-trips"
+    );
+    assert!(
+        epsilon(entry.get_max().get_y(), 4.0),
+        "the max corner round-trips"
     );
 }

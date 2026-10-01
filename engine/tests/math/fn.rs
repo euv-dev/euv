@@ -103,7 +103,7 @@ fn lerp_angle_takes_the_short_way_round() {
         "the short way from 0 to 3pi/2 runs backwards through -pi/2, so halfway is -pi/4, got {halfway}"
     );
     assert!(
-        close(Numeric::lerp_angle(0.0, FRAC_PI_2, 0.5), (FRAC_PI_2 / 2.0)),
+        close(Numeric::lerp_angle(0.0, FRAC_PI_2, 0.5), FRAC_PI_2 / 2.0),
         "a forward quarter turn halfway is pi/8"
     );
 }
@@ -202,7 +202,7 @@ fn sign_reports_direction_and_sign_or_positive_never_goes_negative() {
 fn wrap_folds_a_value_into_the_half_open_range() {
     let folded: f64 = Numeric::wrap(7.0, 5.0);
     assert!(
-        folded >= 0.0 && folded < 5.0,
+        (0.0..5.0).contains(&folded),
         "wrap must land in [0, max), got {folded}"
     );
     assert!(close(folded, 2.0), "7 wraps to 2 over a period of 5");
