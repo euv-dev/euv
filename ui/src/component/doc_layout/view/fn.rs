@@ -30,15 +30,26 @@ pub fn euv_doc_layout(node: VirtualNode<EuvDocLayoutProps>) -> VirtualNode {
             class: c_euv_doc_layout()
             div {
                 class: c_euv_doc_content()
-                // Two parallel children:
-                //   1. the page body (article) — grows to its natural height;
-                //   2. a wrapper containing pagination + footer — sits beside
-                //      the body. Combined with `justify-content: space-between`
-                //      on this flex column (see `c_euv_doc_content`), the
-                //      wrapper drops to the bottom of the scroll area when the
-                //      body is short, and follows the body in normal flow
-                //      when the body is long enough to fill the viewport.
-                children
+                // Exactly two flex children, so `justify-content:
+                // space-between` has two ends to distribute between:
+                //   1. the page body — the `<h1>` title and the rendered
+                //      markdown, grouped in one wrapper so they travel
+                //      together and the title is never separated from the
+                //      first paragraph;
+                //   2. `c_euv_doc_tail` — pagination plus footer.
+                // When the body is short the tail drops to the bottom of
+                // the scroll area; when the body is taller the column
+                // grows and the tail follows in normal flow.
+                // The body wrapper must be a real element (not a
+                // `display: contents` slot): a transparent slot hoists
+                // the title and the article into the column as separate
+                // flex items, which makes `space-between` distribute the
+                // free space *between the title and the first paragraph*
+                // — that is what opened a large gap under the title.
+                div {
+                    class: c_euv_doc_body()
+                    children
+                }
                 div {
                     class: c_euv_doc_tail()
                     euv_pagination {

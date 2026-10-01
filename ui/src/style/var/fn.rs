@@ -48,6 +48,16 @@ vars! {
         space-4xl: "40px";
         space-7xl: "80px";
 
+        // Sidebar nesting indent, in two forms. `side-indent` carries its own
+        // `px` so it can be dropped into a plain `var()` position;
+        // `side-indent-num` is the same number without a unit, for the places
+        // that have to do arithmetic (`calc(100% + 17px)`, `-17px`) where
+        // appending `px` to a var would produce invalid CSS. Keep the two in
+        // step: `side-indent` is `space-sm * 2 + 1px` — the
+        // `c_euv_sidebar_children` margin, its padding, and its dashed border.
+        side-indent: "17px";
+        side-indent-num: "17";
+
         // ═══════════════════════════════════════════════════════════════════════
         // Font Size Scale (shadcn/ui)
         // ═══════════════════════════════════════════════════════════════════════
@@ -110,11 +120,17 @@ vars! {
         min-height-base: "36px";
         min-height-sm: "36px";
         // Desktop sidebar adaptive width:
-        //   `clamp(min, 22vw, max)` lets the column grow with viewport up to
-        //   a comfortable cap so long English titles (e.g. "Internationalization")
-        //   no longer wrap. On the mobile drawer the same var is consumed
-        //   with `min(100%, max)` instead — see `c_app_nav` / drawer classes.
-        nav-width: "clamp(248px, 22vw, 320px)";
+        //   `clamp(min, 22%, max)` lets the column grow with the available
+        //   width up to a comfortable cap so long English titles (e.g.
+        //   "Internationalization") no longer wrap. On the mobile drawer the
+        //   same var is consumed with `min(100%, max)` instead — see
+        //   `c_app_nav` / drawer classes.
+        //   A percentage is used rather than a viewport width: the nav's
+        //   containing block is the app root row, which is the full window
+        //   width, so the two agree — but the percentage stays correct if a
+        //   future shell constrains that row (e.g. a split view), and it
+        //   keeps viewport units out of the codebase.
+        nav-width: "clamp(248px, 22%, 320px)";
         nav-width-min: "248px";
         nav-width-max: "320px";
         content-max-width: "820px";
@@ -207,6 +223,16 @@ vars! {
         space-4xl: "40px";
         space-7xl: "80px";
 
+        // Sidebar nesting indent, in two forms. `side-indent` carries its own
+        // `px` so it can be dropped into a plain `var()` position;
+        // `side-indent-num` is the same number without a unit, for the places
+        // that have to do arithmetic (`calc(100% + 17px)`, `-17px`) where
+        // appending `px` to a var would produce invalid CSS. Keep the two in
+        // step: `side-indent` is `space-sm * 2 + 1px` — the
+        // `c_euv_sidebar_children` margin, its padding, and its dashed border.
+        side-indent: "17px";
+        side-indent-num: "17";
+
         // ═══════════════════════════════════════════════════════════════════════
         // Font Size Scale (same as light)
         // ═══════════════════════════════════════════════════════════════════════
@@ -269,11 +295,17 @@ vars! {
         min-height-base: "36px";
         min-height-sm: "36px";
         // Desktop sidebar adaptive width:
-        //   `clamp(min, 22vw, max)` lets the column grow with viewport up to
-        //   a comfortable cap so long English titles (e.g. "Internationalization")
-        //   no longer wrap. On the mobile drawer the same var is consumed
-        //   with `min(100%, max)` instead — see `c_app_nav` / drawer classes.
-        nav-width: "clamp(248px, 22vw, 320px)";
+        //   `clamp(min, 22%, max)` lets the column grow with the available
+        //   width up to a comfortable cap so long English titles (e.g.
+        //   "Internationalization") no longer wrap. On the mobile drawer the
+        //   same var is consumed with `min(100%, max)` instead — see
+        //   `c_app_nav` / drawer classes.
+        //   A percentage is used rather than a viewport width: the nav's
+        //   containing block is the app root row, which is the full window
+        //   width, so the two agree — but the percentage stays correct if a
+        //   future shell constrains that row (e.g. a split view), and it
+        //   keeps viewport units out of the codebase.
+        nav-width: "clamp(248px, 22%, 320px)";
         nav-width-min: "248px";
         nav-width-max: "320px";
         content-max-width: "820px";

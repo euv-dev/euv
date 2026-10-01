@@ -2,8 +2,8 @@ use euv_engine::*;
 
 use std::collections::HashSet;
 
-fn sorted(items: &Vec<usize>) -> Vec<usize> {
-    let mut copy: Vec<usize> = items.clone();
+fn sorted(items: &[usize]) -> Vec<usize> {
+    let mut copy: Vec<usize> = items.to_vec();
     copy.sort_unstable();
     copy
 }
@@ -17,7 +17,7 @@ fn tree(bounds: f64, capacity: usize, depth: usize) -> QuadTree2D {
     )
 }
 
-fn brute_force(rects: &Vec<(Vector2D, Vector2D)>, min: Vector2D, max: Vector2D) -> Vec<usize> {
+fn brute_force(rects: &[(Vector2D, Vector2D)], min: Vector2D, max: Vector2D) -> Vec<usize> {
     let mut out: Vec<usize> = Vec::new();
     for (index, (a, b)) in rects.iter().enumerate() {
         let hit: bool = a.get_x() <= max.get_x()

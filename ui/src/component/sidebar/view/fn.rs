@@ -65,8 +65,18 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
             };
         };
         let active: bool = path == link;
+        // A leaf under a collapsed-in group is inset by `c_euv_sidebar_children`.
+        // When it is the active page the accent fill has to reach back to the
+        // sidebar edge, otherwise the highlight reads as a chip floating in a
+        // gutter instead of a row of the nav. `prefix` is empty only for a
+        // top-level leaf, which is already flush and keeps the plain class.
+        let flush: bool = !prefix.is_empty();
         let link_class: fn() -> &'static Css = if active {
-            c_euv_sidebar_link_active
+            if flush {
+                c_euv_sidebar_link_active_flush
+            } else {
+                c_euv_sidebar_link_active
+            }
         } else {
             c_euv_sidebar_link
         };
@@ -100,12 +110,35 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
         key
     };
     let open: bool = !collapsed.get().contains(&key);
-    let arrow_class: fn() -> &'static Css = if open {
+    let active: bool = item.link.is_some_and(|link: &'static str| path == link);
+    // The arrow span used to carry two `class:` attributes — the first
+    // returned the base or open-arrow class, the second layered the active
+    // class on top. On an active row that meant `c_euv_sidebar_group_arrow`'s
+    // `:hover` inset bar in `foreground` (white in dark mode) was painted
+    // straight over the accent fill, which is what showed up as a white edge
+    // on hover. Pick exactly one class instead.
+    let arrow_class: fn() -> &'static Css = if active {
+        c_euv_sidebar_group_arrow_active
+    } else if open {
         c_euv_sidebar_group_arrow_open
     } else {
         c_euv_sidebar_group_arrow
     };
-    let active: bool = item.link.is_some_and(|link: &'static str| path == link);
+    // A top-level group has no `c_euv_sidebar_children` ancestor to line up
+    // with, so it uses the `_root` title variant — the same row with a
+    // heavier, inset hover bar that stays clear of the sidebar edge.
+    let is_root: bool = prefix.is_empty();
+    let title_class: fn() -> &'static Css = if is_root {
+        if active {
+            c_euv_sidebar_group_title_root_active
+        } else {
+            c_euv_sidebar_group_title_root
+        }
+    } else if active {
+        c_euv_sidebar_group_title_active
+    } else {
+        c_euv_sidebar_group_title
+    };
     let title_node: VirtualNode = match item.link {
         Some(link) => html! {
             a {
@@ -134,23 +167,13 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
     div {
         class: c_euv_sidebar_group()
         div {
-            class: c_euv_sidebar_group_title()
-            class: if active {
-                c_euv_sidebar_group_title_active()
-            } else {
-                c_euv_sidebar_group_title()
-            }
+            class: title_class()
             onclick: toggle_navigate_group(collapsed, key.clone(), item.link, on_navigate.clone(), active)
             span {
                 title_node
             }
             span {
                 class: arrow_class()
-                class: if active {
-                    c_euv_sidebar_group_arrow_active()
-                } else {
-                    c_euv_sidebar_group_arrow()
-                }
                 "▸"
             }
         }
