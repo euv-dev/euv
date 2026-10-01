@@ -1765,7 +1765,9 @@ pub(crate) fn parse_attr_value(content: ParseStream, key_str: &str) -> syn::Resu
                 return Ok(HtmlAttrValue::Expr(Expr::Path(expr_path)));
             }
         }
-        Ok(HtmlAttrValue::Expr(strip_braces_from_expr(&content.parse()?).clone()))
+        Ok(HtmlAttrValue::Expr(
+            strip_braces_from_expr(&content.parse()?).clone(),
+        ))
     }
 }
 
