@@ -106,6 +106,21 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
         c_euv_sidebar_group_arrow
     };
     let active: bool = item.link.is_some_and(|link: &'static str| path == link);
+    // A top-level group has no `c_euv_sidebar_children` ancestor to line up
+    // with, so it uses the `_root` title variant — the same row with a
+    // heavier, inset hover bar that stays clear of the sidebar edge.
+    let is_root: bool = prefix.is_empty();
+    let title_class: fn() -> &'static Css = if is_root {
+        if active {
+            c_euv_sidebar_group_title_root_active
+        } else {
+            c_euv_sidebar_group_title_root
+        }
+    } else if active {
+        c_euv_sidebar_group_title_active
+    } else {
+        c_euv_sidebar_group_title
+    };
     let title_node: VirtualNode = match item.link {
         Some(link) => html! {
             a {
@@ -134,12 +149,7 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
     div {
         class: c_euv_sidebar_group()
         div {
-            class: c_euv_sidebar_group_title()
-            class: if active {
-                c_euv_sidebar_group_title_active()
-            } else {
-                c_euv_sidebar_group_title()
-            }
+            class: title_class()
             onclick: toggle_navigate_group(collapsed, key.clone(), item.link, on_navigate.clone(), active)
             span {
                 title_node

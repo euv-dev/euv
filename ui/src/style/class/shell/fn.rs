@@ -455,9 +455,16 @@ class! {
 
 
     pub c_nav_footer {
-        padding: format!("{} {}", var!(space-lg), var!(edge-gutter-nav));
+        // Asymmetric padding: the divider is painted at `top: 0` inside this
+        // box, so the top padding is the gap between the divider and the
+        // attribution text. The bottom padding is what separates the text
+        // from the bottom of the sidebar — keep it to `space-md` so the
+        // footer reads as sitting on the bottom edge instead of floating
+        // above a wide empty band (the old `space-lg` bottom padding was
+        // doubled by the row's own line-height).
+        padding: format!("{} {} {}", var!(space-lg), var!(edge-gutter-nav), var!(space-md));
         @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(space-lg), var!(edge-gutter-mobile));
+            padding: format!("{} {} {}", var!(space-lg), var!(edge-gutter-mobile), var!(space-md));
         }
         position: "relative";
         font-size: var!(font-xs);
@@ -963,6 +970,41 @@ class! {
         // hover (see comment on `c_euv_sidebar_link:hover`).
         :hover {
             box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
+        }
+    }
+
+
+    // A top-level group title has no `c_euv_sidebar_children` ancestor, so
+    // the base hover bar paints flush against the sidebar's own left edge
+    // and reads as part of the sidebar border rather than as an affordance.
+    // This variant insets the bar by the row's own left padding and doubles
+    // its weight, so a first-level row gets the same "you can click this"
+    // cue a nested row does, just with room around it. The offset lives on
+    // the shadow rather than on `padding`, so the text never moves.
+    pub c_euv_sidebar_group_title_root {
+        display: "flex";
+        align-items: "center";
+        justify-content: "space-between";
+        width: "100%";
+        padding: format!("{} {}", var!(space-md), var!(space-md));
+        font-size: var!(font-base);
+        font-weight: "400";
+        cursor: "pointer";
+        text-align: "left";
+        :hover {
+            box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
+            background: var!(muted);
+        }
+    }
+
+
+    pub c_euv_sidebar_group_title_root_active {
+        background: var!(accent);
+        color: var!(text-on-accent);
+        font-weight: "600";
+        :hover {
+            box-shadow: "none";
+            background: var!(accent);
         }
     }
 
