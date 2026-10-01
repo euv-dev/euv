@@ -191,10 +191,10 @@ impl Scheduler {
     /// # Arguments
     ///
     /// - `F` - The closure to execute with batching enabled.
-    /// - `R` - The result type produced by the closure.
     ///
     /// # Returns
     ///
+    /// - `R` - The value the closure returns, forwarded unchanged.
     pub(crate) fn batch<F, R>(callback: F) -> R
     where
         F: FnOnce() -> R,

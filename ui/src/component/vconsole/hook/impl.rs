@@ -30,7 +30,7 @@ impl Console {
     ///
     /// # Arguments
     ///
-    /// - `M: AsRef<str>` - The message to log.
+    /// - `M` - The message to log.
     pub fn log<M>(message: M)
     where
         M: AsRef<str>,
@@ -47,7 +47,7 @@ impl Console {
     ///
     /// # Arguments
     ///
-    /// - `M: AsRef<str>` - The warning message to log.
+    /// - `M` - The warning message to log.
     pub fn warn<M>(message: M)
     where
         M: AsRef<str>,
@@ -64,7 +64,7 @@ impl Console {
     ///
     /// # Arguments
     ///
-    /// - `M: AsRef<str>` - The error message to log.
+    /// - `M` - The error message to log.
     pub fn error<M>(message: M)
     where
         M: AsRef<str>,
@@ -184,6 +184,10 @@ impl Console {
     /// snapshot. Used by `append_entry` after mutating the shared
     /// `RefCell`, so subscribers receive the latest snapshot without
     /// the `RefCell` borrow aliasing the signal listener registry.
+    ///
+    /// # Arguments
+    ///
+    /// - `Vec<ConsoleEntry>` - The new snapshot published to the log signal.
     fn replace_signal(next: Vec<ConsoleEntry>) {
         if let Some(log) = Self::get_signal() {
             log.set(next);
@@ -206,8 +210,8 @@ impl Display for LogFilter {
         let label: &str = match self {
             LogFilter::All => "All",
             LogFilter::Log => "Log",
-            LogFilter::Warn => "Warn",
-            LogFilter::Error => "Error",
+            LogFilter::Warn => VCONSOLE_LOG_FILTER_WARN_LABEL,
+            LogFilter::Error => VCONSOLE_LOG_FILTER_ERROR_LABEL,
         };
         write!(formatter, "{}", label)
     }
@@ -219,7 +223,7 @@ impl LogLevel {
     ///
     /// # Returns
     ///
-    /// - `&str` - The badge label string ("LOG", "WRN", "ERR").
+    /// - `&'static str` - The badge label string ("LOG", "WRN", "ERR").
     pub(crate) fn badge(self) -> &'static str {
         match self {
             LogLevel::Log => "LOG",

@@ -70,17 +70,23 @@ impl<T: Debug> Debug for VirtualNode<T> {
                 key,
                 props,
             } => formatter
-                .debug_struct("Element")
-                .field("tag", tag)
-                .field("attributes", attributes)
-                .field("children", children)
-                .field("key", key)
-                .field("props", props)
+                .debug_struct(DEBUG_NAME_ELEMENT)
+                .field(DEBUG_FIELD_TAG, tag)
+                .field(DEBUG_FIELD_ATTRIBUTES, attributes)
+                .field(DEBUG_FIELD_CHILDREN, children)
+                .field(DEBUG_FIELD_KEY, key)
+                .field(DEBUG_FIELD_PROPS, props)
                 .finish(),
-            Self::Text(text_node) => formatter.debug_tuple("Text").field(text_node).finish(),
-            Self::Fragment(children) => formatter.debug_tuple("Fragment").field(children).finish(),
-            Self::Dynamic(_) => formatter.debug_tuple("Dynamic").finish(),
-            Self::Empty => formatter.debug_tuple("Empty").finish(),
+            Self::Text(text_node) => formatter
+                .debug_tuple(DEBUG_NAME_TEXT)
+                .field(text_node)
+                .finish(),
+            Self::Fragment(children) => formatter
+                .debug_tuple(DEBUG_NAME_FRAGMENT)
+                .field(children)
+                .finish(),
+            Self::Dynamic(_) => formatter.debug_tuple(DEBUG_NAME_DYNAMIC).finish(),
+            Self::Empty => formatter.debug_tuple(DEBUG_NAME_EMPTY).finish(),
         }
     }
 }
@@ -306,7 +312,7 @@ impl<T> VirtualNode<T> {
     ///
     /// # Arguments
     ///
-    /// - `I: IntoIterator<Item = AttributeEntry>` - The extra entries to append.
+    /// - `I` - The extra entries to append.
     ///
     /// # Returns
     ///
@@ -371,7 +377,7 @@ impl VirtualNode<()> {
     ///
     /// # Arguments
     ///
-    /// - `F: FnMut(&mut HookContext) -> Self + 'static` - The render function.
+    /// - `F` - The render function.
     ///
     /// # Returns
     ///

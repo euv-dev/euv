@@ -72,7 +72,7 @@ pub fn route_matches(route_path: &str, request_path: &str) -> bool {
 ///
 /// # Returns
 ///
-/// - `Option<'a NestedRouteConfig>` - `Some(...)` on success, `None` otherwise.
+/// - `Option<&'a NestedRouteConfig>` - `Some(...)` on success, `None` otherwise.
 pub fn find_active_route<'a>(
     path: &str,
     routes: &'a [NestedRouteConfig],
@@ -124,7 +124,7 @@ pub fn find_active_route<'a>(
 ///
 /// # Returns
 ///
-/// - `Vec<'a NestedRouteConfig>` - A `Vec<'a NestedRouteConfig>` value.
+/// - `Vec<&'a NestedRouteConfig>` - A `Vec<'a NestedRouteConfig>` value.
 pub fn route_chain<'a>(path: &str, routes: &'a [NestedRouteConfig]) -> Vec<&'a NestedRouteConfig> {
     let mut chain: Vec<&'a NestedRouteConfig> = Vec::new();
     build_chain(path, routes, &mut chain);

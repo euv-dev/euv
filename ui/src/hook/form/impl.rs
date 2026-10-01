@@ -135,10 +135,9 @@ impl FormState {
     ///
     /// # Arguments
     ///
-    /// - `&HashMap<&'static str, Validator>` -
-    ///   Per-field validator map. Each validator is a
-    ///   closure that takes the current value and
-    ///   returns `Some(error_message)` or `None`.
+    /// - `&HashMap<&'static str, Validator>` - Per-field validator map. Each
+    ///   validator is a closure that takes the current value and returns
+    ///   `Some(error_message)` or `None`.
     ///
     /// # Returns
     ///
@@ -177,14 +176,11 @@ impl FormState {
     ///
     /// # Arguments
     ///
-    /// - `&HashMap<&'static str, Validator>` -
-    ///   Validators to run before invoking the handler.
-    ///   Pass an empty map to skip validation entirely
+    /// - `&HashMap<&'static str, Validator>` - Validators to run before
+    ///   invoking the handler. Pass an empty map to skip validation entirely
     ///   (the handler always runs).
-    /// - `impl FnOnce(&HashMap<&'static str, String>)` -
-    ///   The submit handler. Receives the current values
-    ///   map by reference — clone what you need to keep
-    ///   past the call.
+    /// - `F` - The submit handler. Receives the current values map by
+    ///   reference — clone what you need to keep past the call.
     ///
     /// # Returns
     ///

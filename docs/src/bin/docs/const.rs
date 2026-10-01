@@ -112,3 +112,13 @@ pub const EUV_NO_TYPESCRIPT_FLAG: &str = "--no-typescript";
 
 /// Argument missing the value for `--out <DIR>` / `--name <NAME>`.
 pub const MSG_FLAG_REQUIRES_VALUE: &str = "flag requires a value";
+
+/// Error when the required `<SRC_DIR>` positional argument is absent.
+pub const MSG_MISSING_SRC_DIR: &str = "missing required <SRC_DIR> argument";
+
+/// The SPA shell `euv build` writes into the output root; also copied
+/// to `404.html` below so static hosts serve the app for unknown paths.
+pub const INDEX_HTML_FILE_NAME: &str = "index.html";
+
+/// The static-host 404 fallback, a copy of the SPA shell.
+pub const NOT_FOUND_HTML_FILE_NAME: &str = "404.html";

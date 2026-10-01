@@ -7,7 +7,7 @@ impl NativeEventHandler {
     /// # Arguments
     ///
     /// - `&'static str` - The event name (e.g., "click", "input", "hashchange").
-    /// - `FnMut(Event) + 'static` - The callback to invoke when the event fires.
+    /// - `F` - The callback to invoke when the event fires.
     ///
     /// # Returns
     ///

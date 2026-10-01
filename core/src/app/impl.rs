@@ -15,7 +15,7 @@ impl App {
     ///
     /// # Arguments
     ///
-    /// - `FnOnce() -> T` - A closure that computes the initial value of the signal.
+    /// - `F` - A closure that computes the initial value of the signal.
     ///
     /// # Returns
     ///
@@ -43,7 +43,7 @@ impl App {
     ///
     /// # Arguments
     ///
-    /// - `F: FnOnce() -> R` - The closure to execute with batched updates.
+    /// - `F` - The closure to execute with batched updates.
     ///
     /// # Returns
     ///
@@ -64,8 +64,8 @@ impl App {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - A CSS selector string to locate the target element.
-    /// - `FnOnce() -> VirtualNode + 'static` - A closure that returns the virtual DOM tree to render.
+    /// - `S` - A CSS selector string to locate the target element.
+    /// - `F` - A closure that returns the virtual DOM tree to render.
     pub fn mount<S, F>(selector: S, render_fn: F)
     where
         S: AsRef<str>,
@@ -100,7 +100,7 @@ impl App {
     ///
     /// # Arguments
     ///
-    /// - `FnOnce() + 'static` - The cleanup callback to execute on context teardown.
+    /// - `F` - The cleanup callback to execute on context teardown.
     pub fn use_cleanup<F>(cleanup: F)
     where
         F: FnOnce() + 'static,
@@ -124,7 +124,7 @@ impl App {
     /// # Arguments
     ///
     /// - `i32` - The interval period in milliseconds.
-    /// - `FnMut() + 'static` - The closure to invoke on each interval tick.
+    /// - `F` - The closure to invoke on each interval tick.
     ///
     /// # Returns
     ///
@@ -154,8 +154,8 @@ impl App {
     ///
     /// # Arguments
     ///
-    /// - `E: AsRef<str>` - The event name to listen for (e.g., "hashchange", "popstate", "resize").
-    /// - `FnMut() + 'static` - The callback to invoke when the event fires.
+    /// - `E` - The event name to listen for (e.g., "hashchange", "popstate", "resize").
+    /// - `F` - The callback to invoke when the event fires.
     pub fn use_window_event<E, F>(event_name: E, callback: F)
     where
         E: AsRef<str>,
@@ -177,11 +177,6 @@ impl App {
     /// re-renders at the same hook index return the same instance. This
     /// means cloning a ref into an event handler closure will keep the
     /// ref pointing at the live DOM element across re-renders.
-    ///
-    /// # Arguments
-    ///
-    /// - No arguments; the element type is inferred from how the handle is
-    ///   used (`NodeRef<HtmlInputElement>`, `NodeRef<HtmlDivElement>`, …).
     ///
     /// # Returns
     ///

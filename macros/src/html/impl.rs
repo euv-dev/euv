@@ -943,7 +943,7 @@ impl HtmlDynamicTag {
     /// # Arguments
     ///
     /// - `&[String]` - Shared reference to a `[String]`.
-    /// - `&HashMap<String, String>` - Shared reference to a `HashMap<String, String>`.
+    /// - `Option<&HashMap<String, String>>` - The optional prop-field type map.
     ///
     /// # Returns
     ///
@@ -1040,7 +1040,7 @@ impl ToTokens for HtmlElement {
         // `Tag::Portal(target_string)` with the children spliced
         // in directly, so the renderer can recognise it as a
         // portal without going through a runtime dispatch path.
-        let is_portal: bool = tag_name == "portal";
+        let is_portal: bool = tag_name == TAG_NAME_PORTAL;
         let is_component: bool = !is_portal && self.get_is_ident_tag() && is_user_fn(&tag_name);
         if is_portal {
             tokens.extend(self.portal_element_tokens());
@@ -1093,7 +1093,7 @@ impl HtmlElement {
             .iter()
             .find_map(|(key, value): &(proc_macro2::TokenStream, HtmlAttrValue)| {
                 let key_string: String = extract_attr_key_string(key);
-                if key_string != "target" {
+                if key_string != ATTR_KEY_TARGET {
                     return None;
                 }
                 if let HtmlAttrValue::Expr(expr) = value {
@@ -1114,14 +1114,14 @@ impl HtmlElement {
                 }
             })
             .unwrap_or_else(|| {
-                quote! { compile_error!("portal element requires a `target:` attribute") }
+                quote! { compile_error!(#ERR_PORTAL_REQUIRES_TARGET) }
             });
         let attr_tokens: Vec<proc_macro2::TokenStream> = self
             .get_attributes()
             .iter()
             .filter_map(|(key, value): &(proc_macro2::TokenStream, HtmlAttrValue)| {
                 let key_string: String = extract_attr_key_string(key);
-                if key_string == "target" {
+                if key_string == ATTR_KEY_TARGET {
                     // Already consumed above as the portal target.
                     return None;
                 }
@@ -1201,7 +1201,7 @@ impl HtmlElement {
     ///
     /// # Arguments
     ///
-    /// - `&HashMap<String, String>` - Shared reference to a `HashMap<String, String>`.
+    /// - `Option<&HashMap<String, String>>` - The optional prop-field type map.
     ///
     /// # Returns
     ///
@@ -1306,17 +1306,39 @@ impl HtmlElement {
 /// `TokenStream` formatter into the derive output. Other variants
 /// delegate to their `Debug` impls.
 impl Debug for HtmlNode {
+    /// Formats the node variant-by-variant, delegating to the `Debug`
+    /// impls of the inner values.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut Formatter<'_>` - The formatter.
+    ///
+    /// # Returns
+    ///
+    /// - `fmt::Result` - The result of the formatting operation.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Element(element) => formatter.debug_tuple("Element").field(element).finish(),
+            Self::Element(element) => formatter
+                .debug_tuple(DEBUG_VARIANT_ELEMENT)
+                .field(element)
+                .finish(),
             Self::Text(lit) => fmt_lit_str(lit, formatter),
-            Self::Expr(expr) => formatter.debug_tuple("Expr").field(expr).finish(),
-            Self::Dynamic(expr) => formatter.debug_tuple("Dynamic").field(expr).finish(),
+            Self::Expr(expr) => formatter
+                .debug_tuple(DEBUG_VARIANT_EXPR)
+                .field(expr)
+                .finish(),
+            Self::Dynamic(expr) => formatter
+                .debug_tuple(DEBUG_VARIANT_DYNAMIC)
+                .field(expr)
+                .finish(),
             Self::If(html_if) => formatter.debug_tuple("If").field(html_if).finish(),
-            Self::Match(html_match) => formatter.debug_tuple("Match").field(html_match).finish(),
+            Self::Match(html_match) => formatter
+                .debug_tuple(DEBUG_VARIANT_MATCH)
+                .field(html_match)
+                .finish(),
             Self::For(html_for) => formatter.debug_tuple("For").field(html_for).finish(),
             Self::DynamicTag(dynamic_tag) => formatter
-                .debug_tuple("DynamicTag")
+                .debug_tuple(DEBUG_VARIANT_DYNAMIC_TAG)
                 .field(dynamic_tag)
                 .finish(),
         }

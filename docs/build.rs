@@ -1,3 +1,5 @@
+mod codegen;
+
 use std::{
     collections::{HashSet, VecDeque},
     env::var,
@@ -10,6 +12,8 @@ use {
     pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd},
     serde_yaml::Value,
 };
+
+use codegen::*;
 
 /// Root of the project README.md frontmatter (site + locales block).
 #[derive(Debug)]
@@ -237,16 +241,16 @@ struct SideItem {
 /// Entry point of the build script.
 fn main() {
     let manifest_dir: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let docs_dir: PathBuf = match var("EUV_DOCS_SRC_DIR") {
+    let docs_dir: PathBuf = match var(ENV_DOCS_SRC_DIR) {
         Ok(path) => PathBuf::from(path),
-        Err(_) => manifest_dir.join("docs"),
+        Err(_) => manifest_dir.join(DIR_DOCS),
     };
-    let www_dir: PathBuf = match var("EUV_DOCS_OUT_DIR") {
+    let www_dir: PathBuf = match var(ENV_DOCS_OUT_DIR) {
         Ok(path) => PathBuf::from(path),
         Err(_) => manifest_dir.join("www"),
     };
-    let Ok(out_dir) = var("OUT_DIR") else {
-        fail("OUT_DIR is not set; a build script must run under cargo");
+    let Ok(out_dir) = var(ENV_OUT_DIR) else {
+        fail(ERROR_OUT_DIR_MISSING);
     };
 
     println!("cargo:rerun-if-changed={}", docs_dir.display());
@@ -255,7 +259,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
     let Some(config): Option<Config> = load_config_from_readme(&docs_dir) else {
-        fail("site-level config (site + locales) missing from README.md frontmatter");
+        fail(ERROR_SITE_CONFIG_MISSING);
     };
 
     // (content directory, URL prefix) per locale. A file directly under
@@ -275,7 +279,7 @@ fn main() {
         pages.push(process_page(&docs_dir, file, &locale_prefixes));
     }
 
-    let public_dir: PathBuf = docs_dir.join("public");
+    let public_dir: PathBuf = docs_dir.join(DIR_PUBLIC);
     if public_dir.is_dir() {
         copy_dir(&public_dir, &www_dir);
     }
@@ -294,7 +298,7 @@ fn main() {
     }
 
     let code: String = codegen(&config, &pages, &sidebars);
-    if let Err(reason) = fs::write(PathBuf::from(out_dir).join("docs_gen.rs"), code) {
+    if let Err(reason) = fs::write(PathBuf::from(out_dir).join(GENERATED_FILE_NAME), code) {
         fail(&format!("failed to write docs_gen.rs: {reason}"));
     }
 }
@@ -358,12 +362,19 @@ fn resolve_locale_roots(
 /// Loads the site-level configuration (site + locales) from
 /// `<SRC_DIR>/../README.md` frontmatter. Returns `None` when the file is
 /// missing or its frontmatter does not contain a `site` block.
+/// # Arguments
+///
+/// - `&Path` - the docs content root that `../README.md` is resolved against
+///
+/// # Returns
+///
+/// - `Option<Config>` - the parsed `site` and `locales` blocks, or `None` when the frontmatter is missing or carries no `site` block
 fn load_config_from_readme(docs_dir: &Path) -> Option<Config> {
-    let readme_path: PathBuf = docs_dir.join("../README.md");
+    let readme_path: PathBuf = docs_dir.join(README_RELATIVE_PATH);
     let raw: String = fs::read_to_string(&readme_path).ok()?;
     let (fm, _body) = split_frontmatter(&raw);
-    let site_yaml: &Value = fm.get(Value::String("site".to_string()))?;
-    let locales_yaml: &Value = fm.get(Value::String("locales".to_string()))?;
+    let site_yaml: &Value = fm.get(Value::String(YAML_SITE.to_string()))?;
+    let locales_yaml: &Value = fm.get(Value::String(YAML_LOCALES.to_string()))?;
     let locales_seq: &[Value] = locales_yaml.as_sequence()?.as_slice();
     let locales: Vec<LocaleConfig> = locales_seq.iter().filter_map(parse_locale_config).collect();
     Some(Config {
@@ -372,31 +383,52 @@ fn load_config_from_readme(docs_dir: &Path) -> Option<Config> {
     })
 }
 
+/// Reads the `[site]` block of the README frontmatter into a [`SiteConfig`].
+///
+/// # Arguments
+///
+/// - `&Value` - the `site` YAML mapping to read
+///
+/// # Returns
+///
+/// - `Option<SiteConfig>` - the site block, or `None` when it has no `title` string
 fn parse_site_config(yaml: &Value) -> Option<SiteConfig> {
     Some(SiteConfig {
-        title: yaml_str(yaml, "title")?,
+        title: yaml_str(yaml, YAML_TITLE)?,
     })
 }
 
+/// Reads one `[[locales]]` frontmatter entry into a [`LocaleConfig`].
+/// Every required field must be a present string; the optional label,
+/// title, footer, navigation-label and navbar fields fall back to `None`
+/// and are defaulted later during codegen.
+///
+/// # Arguments
+///
+/// - `&Value` - one `[[locales]]` YAML sequence entry to read
+///
+/// # Returns
+///
+/// - `Option<LocaleConfig>` - the locale entry, or `None` when a required field is missing
 fn parse_locale_config(yaml: &Value) -> Option<LocaleConfig> {
-    let navbar_items: Vec<NavItemConfig> = yaml_list(yaml, "navbar")
+    let navbar_items: Vec<NavItemConfig> = yaml_list(yaml, YAML_NAVBAR)
         .iter()
         .filter_map(|n: &Value| {
             Some(NavItemConfig {
-                text: yaml_str(n, "text")?,
-                link: yaml_str(n, "link")?,
+                text: yaml_str(n, YAML_TEXT)?,
+                link: yaml_str(n, YAML_LINK)?,
             })
         })
         .collect();
     Some(LocaleConfig {
-        prefix: yaml_str(yaml, "prefix")?,
+        prefix: yaml_str(yaml, YAML_PREFIX)?,
         dir: yaml_str(yaml, "dir")?,
-        label: yaml_str(yaml, "label")?,
-        title: yaml_str(yaml, "title"),
-        footer: yaml_str(yaml, "footer"),
-        toc_label: yaml_str(yaml, "toc_label"),
-        prev_label: yaml_str(yaml, "prev_label"),
-        next_label: yaml_str(yaml, "next_label"),
+        label: yaml_str(yaml, YAML_LABEL)?,
+        title: yaml_str(yaml, YAML_TITLE),
+        footer: yaml_str(yaml, YAML_FOOTER),
+        toc_label: yaml_str(yaml, YAML_TOC_LABEL),
+        prev_label: yaml_str(yaml, YAML_PREV_LABEL),
+        next_label: yaml_str(yaml, YAML_NEXT_LABEL),
         navbar: if navbar_items.is_empty() {
             None
         } else {
@@ -421,6 +453,15 @@ fn collect_md_count(dir: &Path) -> usize {
     files.len()
 }
 
+/// Collects every markdown file under `dir` into `out`, recursively,
+/// skipping a `public` directory that sits directly below `root`.
+///
+/// # Arguments
+///
+/// - `&Path` - the tree root a `public` directory directly below it is skipped from
+/// - `&Path` - the directory whose entries are read
+/// - `&mut Vec<PathBuf>` - the sink that every `*.md` path is pushed into
+///
 fn collect_md(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
@@ -428,7 +469,7 @@ fn collect_md(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
         if path.is_dir() {
-            if path.file_name().is_some_and(|n: &OsStr| n == "public")
+            if path.file_name().is_some_and(|n: &OsStr| n == DIR_PUBLIC)
                 && path.parent() == Some(root)
             {
                 continue;
@@ -447,10 +488,25 @@ fn collect_md(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
 /// `/essay/posts/2025/img.jpg`. Directories named `public` are skipped
 /// because they are handled by `copy_dir(docs/public -> www/)` above
 /// and contain site-level assets, not page-level assets.
+/// # Arguments
+///
+/// - `&Path` - the docs content root, also the root the relative paths are kept against
+/// - `&Path` - the site output root the assets are copied into
+///
 fn copy_doc_assets(docs_dir: &Path, www_dir: &Path) {
     copy_doc_assets_recurse(docs_dir, docs_dir, www_dir);
 }
 
+/// Recursive worker of [`copy_doc_assets`]: copies every non-markdown
+/// file under `dir` into `www_dir`, recreating the directory tree and
+/// skipping a `public` directory that sits directly below `root`.
+///
+/// # Arguments
+///
+/// - `&Path` - the docs content root, also the root the relative paths are kept against
+/// - `&Path` - the directory whose entries are read
+/// - `&Path` - the site output root the assets are copied into
+///
 fn copy_doc_assets_recurse(root: &Path, dir: &Path, www_dir: &Path) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
@@ -458,7 +514,7 @@ fn copy_doc_assets_recurse(root: &Path, dir: &Path, www_dir: &Path) {
     for entry in entries.flatten() {
         let path: PathBuf = entry.path();
         if path.is_dir() {
-            if path.file_name().is_some_and(|n: &OsStr| n == "public")
+            if path.file_name().is_some_and(|n: &OsStr| n == DIR_PUBLIC)
                 && path.parent() == Some(root)
             {
                 continue;
@@ -478,6 +534,11 @@ fn copy_doc_assets_recurse(root: &Path, dir: &Path, www_dir: &Path) {
 }
 
 /// Recursively copies a directory tree.
+/// # Arguments
+///
+/// - `&Path` - the directory tree to copy from
+/// - `&Path` - the existing-or-new directory the tree is copied into
+///
 fn copy_dir(src: &Path, dst: &Path) {
     let Ok(entries) = fs::read_dir(src) else {
         return;
@@ -507,6 +568,15 @@ fn copy_dir(src: &Path, dst: &Path) {
 ///    is `<repo>/docs` and `file` lives at `<repo>/docs/docs/...md`).
 ///    Drop the first segment to recover the intended markdown-relative
 ///    path.
+/// # Arguments
+///
+/// - `&Path` - the markdown file to make relative
+/// - `&Path` - the docs or locale root to strip from `file`
+///
+/// # Returns
+///
+/// - `PathBuf` - the markdown-relative path, or the recovered path when `file`
+///   does not actually live under `prefix`
 fn strip_path_prefix(file: &Path, prefix: &Path) -> PathBuf {
     let rel: PathBuf = match file.strip_prefix(prefix) {
         Ok(rel) => rel.to_path_buf(),
@@ -550,6 +620,15 @@ fn strip_path_prefix(file: &Path, prefix: &Path) -> PathBuf {
 }
 
 /// Parses one markdown file into a [`Page`].
+/// # Arguments
+///
+/// - `&Path` - the docs content root, used to resolve the owning locale
+/// - `&Path` - the markdown file to parse
+/// - `&[(String, String)]` - the `(content dir, URL prefix)` pair per locale
+///
+/// # Returns
+///
+/// - `Page` - the parsed page, with its route, title, block AST and TOC
 fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String)]) -> Page {
     let raw: String = match fs::read_to_string(file) {
         Ok(raw) => raw,
@@ -615,8 +694,8 @@ fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String
 
     let route: String = route_for(&segments, &locale);
 
-    let fm_title: Option<String> = yaml_str(&frontmatter, "title");
-    let order: i64 = yaml_i64(&frontmatter, "order").unwrap_or(0);
+    let fm_title: Option<String> = yaml_str(&frontmatter, YAML_TITLE);
+    let order: i64 = yaml_i64(&frontmatter, YAML_ORDER).unwrap_or(0);
 
     let (blocks, headings, first_h1) = render_markdown(body, &route);
 
@@ -624,50 +703,50 @@ fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String
         .or(first_h1)
         .unwrap_or_else(|| prettify(stem_of(&segments)));
 
-    let home: bool = yaml_bool(&frontmatter, "home");
-    let hero_text: String = yaml_str(&frontmatter, "heroText")
-        .or_else(|| yaml_str(&frontmatter, "hero_text"))
+    let home: bool = yaml_bool(&frontmatter, YAML_HOME);
+    let hero_text: String = yaml_str(&frontmatter, YAML_HERO_TEXT_CAMEL)
+        .or_else(|| yaml_str(&frontmatter, YAML_HERO_TEXT_SNAKE))
         .unwrap_or_default();
-    let tagline: String = yaml_str(&frontmatter, "tagline").unwrap_or_default();
-    let footer: String = yaml_str(&frontmatter, "footer").unwrap_or_default();
+    let tagline: String = yaml_str(&frontmatter, YAML_TAGLINE).unwrap_or_default();
+    let footer: String = yaml_str(&frontmatter, YAML_FOOTER).unwrap_or_default();
 
-    let actions: Vec<(String, String, String)> = yaml_list(&frontmatter, "actions")
+    let actions: Vec<(String, String, String)> = yaml_list(&frontmatter, YAML_ACTIONS)
         .iter()
         .map(|item: &Value| {
             (
-                yaml_str(item, "text").unwrap_or_default(),
-                yaml_str(item, "link").unwrap_or_default(),
-                yaml_str(item, "type").unwrap_or_else(|| "primary".to_string()),
+                yaml_str(item, YAML_TEXT).unwrap_or_default(),
+                yaml_str(item, YAML_LINK).unwrap_or_default(),
+                yaml_str(item, YAML_TYPE).unwrap_or_else(|| ACTION_KIND_PRIMARY.to_string()),
             )
         })
         .collect();
 
-    let features: Vec<(String, String, String, String)> = yaml_list(&frontmatter, "features")
+    let features: Vec<(String, String, String, String)> = yaml_list(&frontmatter, YAML_FEATURES)
         .iter()
         .map(|item: &Value| {
             (
-                yaml_str(item, "icon").unwrap_or_default(),
-                yaml_str(item, "title").unwrap_or_default(),
-                yaml_str(item, "details").unwrap_or_default(),
-                yaml_str(item, "link").unwrap_or_default(),
+                yaml_str(item, YAML_ICON).unwrap_or_default(),
+                yaml_str(item, YAML_TITLE).unwrap_or_default(),
+                yaml_str(item, YAML_DETAILS).unwrap_or_default(),
+                yaml_str(item, YAML_LINK).unwrap_or_default(),
             )
         })
         .collect();
 
-    let stats: Vec<(String, String, String)> = yaml_list(&frontmatter, "stats")
+    let stats: Vec<(String, String, String)> = yaml_list(&frontmatter, YAML_STATS)
         .iter()
         .map(|item: &Value| {
             (
-                yaml_str(item, "icon").unwrap_or_default(),
-                yaml_str(item, "value").unwrap_or_default(),
-                yaml_str(item, "label").unwrap_or_default(),
+                yaml_str(item, YAML_ICON).unwrap_or_default(),
+                yaml_str(item, YAML_VALUE).unwrap_or_default(),
+                yaml_str(item, YAML_LABEL).unwrap_or_default(),
             )
         })
         .collect();
 
     let private: bool = is_private_page(&frontmatter);
     let password_hash: String = if private {
-        match yaml_str(&frontmatter, "password") {
+        match yaml_str(&frontmatter, YAML_PASSWORD) {
             Some(plain) if !plain.is_empty() => sha256_hex(&plain),
             Some(_) | None => {
                 eprintln!(
@@ -697,10 +776,10 @@ fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String
         private,
         password_hash,
         sidebar: frontmatter
-            .get("sidebar")
+            .get(YAML_SIDEBAR)
             .and_then(|v: &Value| v.as_bool())
             .unwrap_or(true),
-        sidebar_order: yaml_list(&frontmatter, "sidebar_order")
+        sidebar_order: yaml_list(&frontmatter, YAML_SIDEBAR_ORDER)
             .iter()
             .filter_map(|v: &Value| v.as_str().map(|s: &str| s.to_string()))
             .collect(),
@@ -711,13 +790,22 @@ fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String
 /// Reads the VuePress-style `index` flag: `false` on a `README.md` /
 /// `index.md` drops the directory index page so its sidebar group only
 /// toggles collapse. Non-index pages always render.
+/// # Arguments
+///
+/// - `&Value` - the page frontmatter to read the `index` flag from
+/// - `&[String]` - the markdown-relative path segments, used to find the file stem
+///
+/// # Returns
+///
+/// - `bool` - `true` when the page is emitted, `false` when it is a directory
+///   index page that frontmatter `index: false` opted out of codegen
 fn renders_index(frontmatter: &Value, segments: &[String]) -> bool {
     let stem: String = stem_of(segments);
-    if stem != "README" && stem != "index" {
+    if stem != README_STEM && stem != INDEX_STEM {
         return true;
     }
     frontmatter
-        .get("index")
+        .get(YAML_INDEX)
         .and_then(|v: &Value| v.as_bool())
         .unwrap_or(true)
 }
@@ -726,6 +814,15 @@ fn renders_index(frontmatter: &Value, segments: &[String]) -> bool {
 ///
 /// - `README.md` / `index.md` → directory route with trailing slash.
 /// - `foo.md` → `/foo.html`.
+/// # Arguments
+///
+/// - `&[String]` - the markdown-relative path segments of the page
+/// - `&str` - the URL prefix of the locale that owns the page
+///
+/// # Returns
+///
+/// - `String` - the site route, e.g. `/guide/` for a directory index or
+///   `/guide/foo.html` for a leaf page
 fn route_for(segments: &[String], locale: &str) -> String {
     let stem: String = stem_of(segments);
     let dir_parts: &[String] = if segments.is_empty() {
@@ -738,7 +835,7 @@ fn route_for(segments: &[String], locale: &str) -> String {
     } else {
         format!("{}/", dir_parts.join("/"))
     };
-    if stem == "README" || stem == "index" {
+    if stem == README_STEM || stem == INDEX_STEM {
         let base: String = format!("/{dir_path}");
         join_locale_route(locale, &base)
     } else {
@@ -748,6 +845,15 @@ fn route_for(segments: &[String], locale: &str) -> String {
 }
 
 /// Joins a locale prefix with a base route.
+/// # Arguments
+///
+/// - `&str` - the URL prefix of the owning locale, `/` for the root locale
+/// - `&str` - the base route the prefix is prepended to
+///
+/// # Returns
+///
+/// - `String` - the joined route; `base` unchanged for the `/` locale, otherwise
+///   the prefix with any trailing slash removed, then `base`
 fn join_locale_route(locale: &str, base: &str) -> String {
     if locale == "/" {
         base.to_string()
@@ -757,6 +863,14 @@ fn join_locale_route(locale: &str, base: &str) -> String {
 }
 
 /// Returns the file stem of the last segment.
+/// # Arguments
+///
+/// - `&[String]` - the markdown-relative path segments of the page
+///
+/// # Returns
+///
+/// - `String` - the last segment with its `.md` extension removed, or the empty
+///   string when there is no segment
 fn stem_of(segments: &[String]) -> String {
     segments
         .last()
@@ -765,6 +879,14 @@ fn stem_of(segments: &[String]) -> String {
 }
 
 /// Converts a file/dir name into a human title (`getting-started` → `Getting Started`).
+/// # Arguments
+///
+/// - `String` - the file or directory name to prettify
+///
+/// # Returns
+///
+/// - `String` - the name with `-` / `_` turned into spaces and each word
+///   capitalised, or `Index` when the result would be empty
 fn prettify(name: String) -> String {
     let mut out: String = String::new();
     let mut capitalize: bool = true;
@@ -780,13 +902,21 @@ fn prettify(name: String) -> String {
         }
     }
     if out.is_empty() {
-        "Index".to_string()
+        FALLBACK_TITLE_INDEX.to_string()
     } else {
         out
     }
 }
 
 /// Splits a markdown source into (frontmatter YAML value, body).
+/// # Arguments
+///
+/// - `&str` - the raw markdown source
+///
+/// # Returns
+///
+/// - `(Value, &str)` - the parsed frontmatter YAML and the body that follows it;
+///   `(Value::Null, raw)` when there is no frontmatter block
 fn split_frontmatter(raw: &str) -> (Value, &str) {
     let trimmed: &str = raw.trim_start();
     if !trimmed.starts_with("---") {
@@ -796,7 +926,7 @@ fn split_frontmatter(raw: &str) -> (Value, &str) {
     let Some(after_open) = after_open.strip_prefix(['\n', '\r'].as_ref()) else {
         return (Value::Null, raw);
     };
-    let Some(end) = after_open.find("\n---") else {
+    let Some(end) = after_open.find(FRONTMATTER_TERMINATOR) else {
         return (Value::Null, raw);
     };
     let fm_src: &str = &after_open[..end];
@@ -806,6 +936,15 @@ fn split_frontmatter(raw: &str) -> (Value, &str) {
 }
 
 /// Reads a string field from a YAML mapping.
+/// # Arguments
+///
+/// - `&Value` - the YAML mapping to read from
+/// - `&str` - the key to read
+///
+/// # Returns
+///
+/// - `Option<String>` - the string value at `key`, or `None` when the key is
+///   absent or is not a string
 fn yaml_str(value: &Value, key: &str) -> Option<String> {
     value
         .get(key)
@@ -814,11 +953,29 @@ fn yaml_str(value: &Value, key: &str) -> Option<String> {
 }
 
 /// Reads an i64 field from a YAML mapping.
+/// # Arguments
+///
+/// - `&Value` - the YAML mapping to read from
+/// - `&str` - the key to read
+///
+/// # Returns
+///
+/// - `Option<i64>` - the integer value at `key`, or `None` when the key is
+///   absent or is not an integer
 fn yaml_i64(value: &Value, key: &str) -> Option<i64> {
     value.get(key).and_then(|v: &Value| v.as_i64())
 }
 
 /// Reads a bool field from a YAML mapping.
+/// # Arguments
+///
+/// - `&Value` - the YAML mapping to read from
+/// - `&str` - the key to read
+///
+/// # Returns
+///
+/// - `bool` - the boolean value at `key`, or `false` when the key is absent
+///   or is not a boolean
 fn yaml_bool(value: &Value, key: &str) -> bool {
     value
         .get(key)
@@ -827,6 +984,15 @@ fn yaml_bool(value: &Value, key: &str) -> bool {
 }
 
 /// Reads a list field from a YAML mapping.
+/// # Arguments
+///
+/// - `&'a Value` - the YAML mapping to read from
+/// - `&str` - the key to read
+///
+/// # Returns
+///
+/// - `&'a [Value]` - the sequence value at `key`, or an empty slice when the key
+///   is absent or is not a sequence
 fn yaml_list<'a>(value: &'a Value, key: &str) -> &'a [Value] {
     value
         .get(key)
@@ -871,19 +1037,26 @@ fn yaml_list<'a>(value: &'a Value, key: &str) -> &'a [Value] {
 /// non-empty `password:` field next to it — the build panics
 /// otherwise, on the principle that the user explicitly opted into
 /// a gate and a silent fall-back would be worse than a hard failure.
+/// # Arguments
+///
+/// - `&Value` - the page frontmatter to inspect
+///
+/// # Returns
+///
+/// - `bool` - `true` when any of the three recognised private markers is present
 fn is_private_page(value: &Value) -> bool {
     if value
-        .get("private")
+        .get(MARKER_PRIVATE)
         .and_then(|v: &Value| v.as_bool())
         .unwrap_or(false)
     {
         return true;
     }
-    if let Some(category) = value.get("category") {
+    if let Some(category) = value.get(YAML_CATEGORY) {
         match category {
             Value::String(s) => {
                 if s.split(',')
-                    .any(|t: &str| t.trim().eq_ignore_ascii_case("private"))
+                    .any(|t: &str| t.trim().eq_ignore_ascii_case(MARKER_PRIVATE))
                 {
                     return true;
                 }
@@ -891,7 +1064,7 @@ fn is_private_page(value: &Value) -> bool {
             Value::Sequence(seq) => {
                 for item in seq {
                     if let Some(s) = item.as_str()
-                        && s.trim().eq_ignore_ascii_case("private")
+                        && s.trim().eq_ignore_ascii_case(MARKER_PRIVATE)
                     {
                         return true;
                     }
@@ -900,7 +1073,7 @@ fn is_private_page(value: &Value) -> bool {
             _ => {}
         }
     }
-    if let Some(head) = value.get("head").and_then(|v: &Value| v.as_sequence()) {
+    if let Some(head) = value.get(YAML_HEAD).and_then(|v: &Value| v.as_sequence()) {
         for entry in head {
             let Some(entry_seq) = entry.as_sequence() else {
                 continue;
@@ -909,7 +1082,7 @@ fn is_private_page(value: &Value) -> bool {
             let Some(first) = iter.next() else {
                 continue;
             };
-            if first.as_str() != Some("meta") {
+            if first.as_str() != Some(HEAD_ENTRY_META) {
                 continue;
             }
             for attrs in iter {
@@ -917,17 +1090,17 @@ fn is_private_page(value: &Value) -> bool {
                     continue;
                 };
                 let name: &str = attrs_map
-                    .get(Value::String("name".to_string()))
+                    .get(Value::String(HEAD_ATTR_NAME.to_string()))
                     .and_then(|v: &Value| v.as_str())
                     .unwrap_or("");
                 let content: &str = attrs_map
-                    .get(Value::String("content".to_string()))
+                    .get(Value::String(HEAD_ATTR_CONTENT.to_string()))
                     .and_then(|v: &Value| v.as_str())
                     .unwrap_or("");
-                if name.eq_ignore_ascii_case("keywords")
+                if name.eq_ignore_ascii_case(HEAD_ATTR_KEYWORDS)
                     && content
                         .split(|c: char| c == ',' || c.is_whitespace())
-                        .any(|t: &str| t.trim().eq_ignore_ascii_case("private"))
+                        .any(|t: &str| t.trim().eq_ignore_ascii_case(MARKER_PRIVATE))
                 {
                     return true;
                 }
@@ -938,6 +1111,14 @@ fn is_private_page(value: &Value) -> bool {
 }
 
 /// Renders markdown source into a block AST, extracting headings + first h1.
+/// # Arguments
+///
+/// - `&str` - the markdown body, frontmatter already stripped
+/// - `&str` - the page route, used to build heading permalinks
+///
+/// # Returns
+///
+/// - `(Vec<AstBlock>, Vec<Heading>, Option<String>)` - the block AST, the h2/h3 anchor TOC entries, and the first h1 text
 fn render_markdown(body: &str, route: &str) -> (Vec<AstBlock>, Vec<Heading>, Option<String>) {
     let segments: Vec<Segment> = split_containers(&transform_github_alerts(body));
     let mut blocks: Vec<AstBlock> = Vec::new();
@@ -1002,12 +1183,17 @@ enum Segment {
     },
 }
 
-/// Recognised GitHub-flavoured alert kinds accepted on blockquote markers.
-const GITHUB_ALERT_KINDS: &[&str] = &["tip", "note", "warning", "danger", "important", "caution"];
-
 /// Rewrites `> [!TIP]` / `> [!NOTE]` / `> [!WARNING]` / `> [!DANGER]`
 /// / `> [!IMPORTANT]` / `> [!CAUTION]` blockquotes into the
 /// `::: kind [title]\n…\n:::` form so `split_containers` picks them up.
+/// # Arguments
+///
+/// - `&str` - the markdown body to rewrite
+///
+/// # Returns
+///
+/// - `String` - the body with every GitHub alert blockquote replaced by the
+///   equivalent `:::` container block
 fn transform_github_alerts(body: &str) -> String {
     let mut out: String = String::with_capacity(body.len());
     let lines: Vec<&str> = body.lines().collect();
@@ -1059,13 +1245,20 @@ fn transform_github_alerts(body: &str) -> String {
                 break;
             }
         }
-        out.push_str(":::\n");
+        out.push_str(CONTAINER_FENCE_CLOSE);
         idx = body_idx;
     }
     out
 }
 
 /// Splits source into markdown / container segments (containers do not nest).
+/// # Arguments
+///
+/// - `&str` - the markdown source to split
+///
+/// # Returns
+///
+/// - `Vec<Segment>` - one segment per markdown run or `:::` container, in source order
 fn split_containers(src: &str) -> Vec<Segment> {
     let mut segments: Vec<Segment> = Vec::new();
     let mut buf: String = String::new();
@@ -1076,7 +1269,7 @@ fn split_containers(src: &str) -> Vec<Segment> {
 
     for line in src.lines() {
         let trimmed: &str = line.trim_end();
-        if !in_container && trimmed.starts_with(":::") {
+        if !in_container && trimmed.starts_with(CONTAINER_FENCE) {
             let rest: &str = trimmed[3..].trim();
             if rest.is_empty() {
                 buf.push_str(line);
@@ -1090,7 +1283,7 @@ fn split_containers(src: &str) -> Vec<Segment> {
             }
             let mut parts: std::str::SplitN<'_, fn(char) -> bool> =
                 rest.splitn(2, char::is_whitespace);
-            kind = parts.next().unwrap_or("info").to_string();
+            kind = parts.next().unwrap_or(CONTAINER_DEFAULT_KIND).to_string();
             title = parts
                 .next()
                 .map(str::trim)
@@ -1100,7 +1293,7 @@ fn split_containers(src: &str) -> Vec<Segment> {
             body.clear();
             continue;
         }
-        if in_container && trimmed == ":::" {
+        if in_container && trimmed == CONTAINER_FENCE {
             segments.push(Segment::Container {
                 kind: std::mem::take(&mut kind),
                 title: title.take(),
@@ -1138,6 +1331,14 @@ enum EndCtx {
 }
 
 /// Parses a block sequence until the matching end tag.
+/// # Arguments
+///
+/// - `&str` - the markdown source of the block run to parse
+/// - `&mut ParseCtx` - the shared parse state collecting headings, the first h1 and used slugs
+///
+/// # Returns
+///
+/// - `Vec<AstBlock>` - the parsed block sequence
 fn parse_blocks(src: &str, ctx: &mut ParseCtx) -> Vec<AstBlock> {
     let options: Options = Options::ENABLE_TABLES
         | Options::ENABLE_STRIKETHROUGH
@@ -1154,6 +1355,14 @@ type EventIter<'a> = std::iter::Peekable<std::collections::vec_deque::IntoIter<E
 
 /// Whether an event starts an inline run (tight list items have no
 /// paragraph wrapper, so inline events can appear at block level).
+/// # Arguments
+///
+/// - `&Event` - the event to classify
+///
+/// # Returns
+///
+/// - `bool` - `true` when the event opens an inline run, including the inline
+///   container tags
 fn is_inline_event(event: &Event) -> bool {
     matches!(
         event,
@@ -1175,6 +1384,15 @@ fn is_inline_event(event: &Event) -> bool {
 }
 
 /// Core block-stream parser.
+/// # Arguments
+///
+/// - `&mut EventIter` - the peekable event stream, advanced as blocks are parsed
+/// - `&mut ParseCtx` - the shared parse state collecting headings, the first h1 and used slugs
+/// - `EndCtx` - which block-level end tag terminates this parse frame
+///
+/// # Returns
+///
+/// - `Vec<AstBlock>` - the parsed block sequence, up to and including the frame's end tag
 fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Vec<AstBlock> {
     let mut blocks: Vec<AstBlock> = Vec::new();
     while let Some(event) = it.next() {
@@ -1289,6 +1507,14 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
 }
 
 /// Parses one table row (head or body) into a vector of cell inlines.
+/// # Arguments
+///
+/// - `&mut EventIter` - the peekable event stream, advanced as cells are parsed
+/// - `&mut ParseCtx` - the shared parse state collecting headings, the first h1 and used slugs
+///
+/// # Returns
+///
+/// - `Vec<Vec<Inline>>` - the parsed inline nodes of each cell in the row
 fn parse_table_row(it: &mut EventIter, ctx: &mut ParseCtx) -> Vec<Vec<Inline>> {
     let mut cells: Vec<Vec<Inline>> = Vec::new();
     loop {
@@ -1307,6 +1533,15 @@ fn parse_table_row(it: &mut EventIter, ctx: &mut ParseCtx) -> Vec<Vec<Inline>> {
 ///
 /// When `consume_end` is false the terminating `End` event is left on the
 /// iterator (used for tight list items whose inline run ends at `End(Item)`).
+/// # Arguments
+///
+/// - `&mut EventIter` - the peekable event stream, advanced as inlines are parsed
+/// - `&mut ParseCtx` - the shared parse state collecting headings, the first h1 and used slugs
+/// - `bool` - whether the terminating `End` event is consumed or left on the iterator
+///
+/// # Returns
+///
+/// - `Vec<Inline>` - the parsed inline nodes, after the `**strong**` rescue pass
 fn parse_inlines(it: &mut EventIter, ctx: &mut ParseCtx, consume_end: bool) -> Vec<Inline> {
     let mut inlines: Vec<Inline> = Vec::new();
     loop {
@@ -1340,6 +1575,14 @@ fn parse_inlines(it: &mut EventIter, ctx: &mut ParseCtx, consume_end: bool) -> V
 /// delimiter token and wraps nearest-pair contents in `Inline::Strong`.
 /// Code spans and other non-text inlines are opaque to the scan, so a
 /// literal `**` inside code is never rewritten.
+/// # Arguments
+///
+/// - `Vec<Inline>` - the inline nodes to coalesce and re-parse
+///
+/// # Returns
+///
+/// - `Vec<Inline>` - the same nodes with every literal `**`-delimited span that holds
+///   content wrapped in `Inline::Strong`
 fn rescue_strong(inlines: Vec<Inline>) -> Vec<Inline> {
     enum Tok {
         El(Inline),
@@ -1442,6 +1685,13 @@ fn rescue_strong(inlines: Vec<Inline>) -> Vec<Inline> {
 }
 
 /// Converts one event into inline nodes, recursing for container tags.
+/// # Arguments
+///
+/// - `&mut EventIter` - the peekable event stream, advanced for container tags
+/// - `&mut ParseCtx` - the shared parse state, used for link and image rewriting
+/// - `Event` - the single event to convert into inline nodes
+/// - `&mut Vec<Inline>` - the sink the resulting inline nodes are pushed into
+///
 fn collect_inline(it: &mut EventIter, ctx: &mut ParseCtx, event: Event, inlines: &mut Vec<Inline>) {
     match event {
         Event::Text(text) => inlines.push(Inline::Text(text.to_string())),
@@ -1482,6 +1732,14 @@ fn collect_inline(it: &mut EventIter, ctx: &mut ParseCtx, event: Event, inlines:
 }
 
 /// Extracts plain text from inline nodes.
+/// # Arguments
+///
+/// - `&[Inline]` - the inline nodes to flatten
+///
+/// # Returns
+///
+/// - `String` - the concatenated plain text, with breaks turned into spaces and
+///   the result trimmed
 fn inline_plain_text(inlines: &[Inline]) -> String {
     let mut text: String = String::new();
     for inline in inlines {
@@ -1499,6 +1757,13 @@ fn inline_plain_text(inlines: &[Inline]) -> String {
 }
 
 /// Converts a heading level enum to a number.
+/// # Arguments
+///
+/// - `HeadingLevel` - the pulldown-cmark heading level
+///
+/// # Returns
+///
+/// - `u8` - the level as a number, `1` for `H1` through `6` for `H6`
 fn heading_level_num(level: HeadingLevel) -> u8 {
     match level {
         HeadingLevel::H1 => 1,
@@ -1511,6 +1776,14 @@ fn heading_level_num(level: HeadingLevel) -> u8 {
 }
 
 /// Slugifies heading text (keeps CJK characters, VuePress-style).
+/// # Arguments
+///
+/// - `&str` - the heading text to slugify
+///
+/// # Returns
+///
+/// - `String` - the lowercase alphanumeric slug with single dashes, or `section`
+///   when the text has no slug-safe character at all
 fn slugify(text: &str) -> String {
     let mut out: String = String::new();
     let mut last_dash: bool = false;
@@ -1527,13 +1800,21 @@ fn slugify(text: &str) -> String {
         out.pop();
     }
     if out.is_empty() {
-        "section".to_string()
+        FALLBACK_SLUG_SECTION.to_string()
     } else {
         out
     }
 }
 
 /// Ensures slug uniqueness within a page.
+/// # Arguments
+///
+/// - `&str` - the slug to register
+/// - `&mut HashSet<String>` - the per-page set of already-used slugs
+///
+/// # Returns
+///
+/// - `String` - the slug, or the first `-N` suffixed variant that is still free
 fn unique_slug(base: &str, used: &mut HashSet<String>) -> String {
     if used.insert(base.to_string()) {
         return base.to_string();
@@ -1552,8 +1833,19 @@ fn unique_slug(base: &str, used: &mut HashSet<String>) -> String {
 ///
 /// Returns `(href, external)` where internal hrefs carry the `#` hash-router
 /// prefix (plus an optional `#anchor` suffix).
+/// # Arguments
+///
+/// - `&str` - the raw markdown link target
+/// - `&str` - the route of the page holding the link
+///
+/// # Returns
+///
+/// - `(String, bool)` - the rewritten href and whether the target is an external URL
 fn rewrite_link(dest: &str, route: &str) -> (String, bool) {
-    if dest.starts_with("http://") || dest.starts_with("https://") || dest.starts_with("mailto:") {
+    if dest.starts_with(URL_SCHEME_HTTP)
+        || dest.starts_with(URL_SCHEME_HTTPS)
+        || dest.starts_with(URL_SCHEME_MAILTO)
+    {
         return (dest.to_string(), true);
     }
     if let Some(anchor) = dest.strip_prefix('#') {
@@ -1563,7 +1855,7 @@ fn rewrite_link(dest: &str, route: &str) -> (String, bool) {
         Some((p, a)) => (p, Some(a)),
         None => (dest, None),
     };
-    let mut href: String = if path_part.ends_with(".md") || path_part.ends_with(".md/") {
+    let mut href: String = if path_part.ends_with(MD_SUFFIX) || path_part.ends_with(MD_DIR_SUFFIX) {
         let resolved: String = resolve_relative(route, path_part);
         format!("#{resolved}")
     } else if path_part.starts_with('/') {
@@ -1572,7 +1864,7 @@ fn rewrite_link(dest: &str, route: &str) -> (String, bool) {
         dest.to_string()
     };
     if let Some(anchor) = anchor_part
-        && (path_part.ends_with(".md") || path_part.starts_with('/'))
+        && (path_part.ends_with(MD_SUFFIX) || path_part.starts_with('/'))
     {
         href = format!("{href}#{anchor}");
     }
@@ -1590,11 +1882,20 @@ fn rewrite_link(dest: &str, route: &str) -> (String, bool) {
 /// have placed the asset. Without this rewrite the browser fetches
 /// `/essay/09-19/img.jpg` and the SPA's nginx rule serves the index
 /// shell (0 bytes, text/html), so `<img>.naturalWidth` ends up 0.
+/// # Arguments
+///
+/// - `&str` - the raw markdown image `src`
+/// - `&str` - the route of the page holding the image; kept for signature symmetry
+///
+/// # Returns
+///
+/// - `String` - the SPA-relative src, or `dest` unchanged when it is an
+///   external, inline or object URL
 fn rewrite_image_src(dest: &str, _route: &str) -> String {
-    if dest.starts_with("http://")
-        || dest.starts_with("https://")
-        || dest.starts_with("data:")
-        || dest.starts_with("blob:")
+    if dest.starts_with(URL_SCHEME_HTTP)
+        || dest.starts_with(URL_SCHEME_HTTPS)
+        || dest.starts_with(URL_SCHEME_DATA)
+        || dest.starts_with(URL_SCHEME_BLOB)
     {
         return dest.to_string();
     }
@@ -1613,13 +1914,21 @@ fn rewrite_image_src(dest: &str, _route: &str) -> String {
 /// (`./img/…`), mirroring [`rewrite_image_src`] for markdown images so
 /// the browser resolves the URL against the deployed `<base href="./">`.
 /// Protocol-relative (`//host/x`) and external URLs are left untouched.
+/// # Arguments
+///
+/// - `&str` - the raw inline or block HTML to rewrite
+///
+/// # Returns
+///
+/// - `String` - the HTML with every root-absolute `src=` attribute rewritten to
+///   the SPA-relative `./…` form
 fn rewrite_html_asset_src(html: &str) -> String {
-    if !html.contains("src=") {
+    if !html.contains(HTML_SRC_ATTR) {
         return html.to_string();
     }
     let mut out: String = String::with_capacity(html.len() + 8);
     let mut rest: &str = html;
-    while let Some(idx) = rest.find("src=") {
+    while let Some(idx) = rest.find(HTML_SRC_ATTR) {
         out.push_str(&rest[..idx + 4]);
         let after: &str = &rest[idx + 4..];
         match after.strip_prefix(['"', '\'']) {
@@ -1636,6 +1945,14 @@ fn rewrite_html_asset_src(html: &str) -> String {
 }
 
 /// Resolves a relative markdown path against the current page route.
+/// # Arguments
+///
+/// - `&str` - the route of the page holding the link
+/// - `&str` - the relative markdown path from that link
+///
+/// # Returns
+///
+/// - `String` - the resolved route the relative path points at
 fn resolve_relative(route: &str, rel: &str) -> String {
     let rel: &str = rel.trim_end_matches('/');
     let mut stack: Vec<String> = Vec::new();
@@ -1671,9 +1988,17 @@ fn resolve_relative(route: &str, rel: &str) -> String {
 }
 
 /// Converts a markdown path (`/guide/foo.md`) to a route (`/guide/foo.html`).
+/// # Arguments
+///
+/// - `&str` - the markdown path to convert
+///
+/// # Returns
+///
+/// - `String` - the route it maps to: the parent directory for a `README.md` /
+///   `.html` path otherwise
 fn md_path_to_route(path: &str) -> String {
     let path: &str = path.trim_end_matches('/');
-    if path.ends_with("README.md") || path.ends_with("index.md") {
+    if path.ends_with(README_MD) || path.ends_with(INDEX_MD) {
         let dir: &str = &path[..path.rfind('/').unwrap_or(0) + 1];
         return dir.to_string();
     }
@@ -1684,6 +2009,17 @@ fn md_path_to_route(path: &str) -> String {
 }
 
 /// Recursively builds the sidebar tree for one locale directory.
+/// # Arguments
+///
+/// - `&Path` - the directory whose entries become sidebar items
+/// - `&Path` - the locale root that relative paths are kept against
+/// - `&str` - the URL prefix of the locale owning `dir`
+/// - `&[Page]` - every parsed page, used to resolve titles, routes and ordering
+///
+/// # Returns
+///
+/// - `Vec<SideItem>` - the sidebar tree of `dir`, ordered by `sidebar_order`, then
+///   frontmatter `order`, then title
 fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -> Vec<SideItem> {
     let mut items: Vec<(String, SideItem)> = Vec::new();
     let Ok(entries) = fs::read_dir(dir) else {
@@ -1698,7 +2034,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             .map(|n: &OsStr| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         if path.is_dir() {
-            if name == "public" && path.parent() == Some(locale_root) {
+            if name == DIR_PUBLIC && path.parent() == Some(locale_root) {
                 continue;
             }
             let children: Vec<SideItem> = build_sidebar(&path, locale_root, locale, pages);
@@ -1710,7 +2046,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
                 })
                 .collect();
             let mut segs: Vec<String> = rel_segments;
-            segs.push("README.md".to_string());
+            segs.push(README_MD.to_string());
             let readme_route: String = route_for(&segs, locale);
             let readme_page: Option<&Page> = pages.iter().find(|p: &&Page| p.route == readme_route);
             let index_page: Option<&Page> = readme_page.filter(|page: &&Page| page.index);
@@ -1744,7 +2080,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
                     children,
                 },
             ));
-        } else if name.ends_with(".md") && name != "README.md" && name != "index.md" {
+        } else if name.ends_with(MD_SUFFIX) && name != README_MD && name != INDEX_MD {
             let rel_segments: Vec<String> = strip_path_prefix(&path, locale_root)
                 .components()
                 .filter_map(|c: Component<'_>| match c {
@@ -1784,7 +2120,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
             })
             .collect();
         let mut segs: Vec<String> = rel_segments;
-        segs.push("README.md".to_string());
+        segs.push(README_MD.to_string());
         route_for(&segs, locale)
     };
     let order_list: &[String] = pages
@@ -1824,11 +2160,18 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
 }
 
 /// Emits the generated Rust source.
+/// # Arguments
+///
+/// - `&Config` - the site-level configuration to emit
+/// - `&[Page]` - every page to emit
+/// - `&[(String, Vec<SideItem>)]` - the `(prefix, sidebar tree)` pair per locale
+///
+/// # Returns
+///
+/// - `String` - the generated Rust source defining `crate::data::SITE`
 fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]) -> String {
     let mut code: String = String::new();
-    code.push_str(
-        "// @generated by build.rs — do not edit.\n//\n// Constructed from docs/config.toml and docs/**/*.md at build time.\n\n",
-    );
+    code.push_str(GENERATED_BANNER);
 
     let mut pages_code: String = String::new();
     for page in pages {
@@ -1858,7 +2201,7 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
                     "euv_ui::EuvHeroAction {{ text: {:?}, link: {:?}, primary: {:?} }}",
                     text,
                     link,
-                    kind == "primary"
+                    kind == ACTION_KIND_PRIMARY
                 )
             })
             .collect::<Vec<String>>()
@@ -1942,15 +2285,15 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
             locale
                 .toc_label
                 .clone()
-                .unwrap_or_else(|| "On this page".to_string()),
+                .unwrap_or_else(|| DEFAULT_TOC_LABEL.to_string()),
             locale
                 .prev_label
                 .clone()
-                .unwrap_or_else(|| "Previous".to_string()),
+                .unwrap_or_else(|| DEFAULT_PREV_LABEL.to_string()),
             locale
                 .next_label
                 .clone()
-                .unwrap_or_else(|| "Next".to_string()),
+                .unwrap_or_else(|| DEFAULT_NEXT_LABEL.to_string()),
             navbar,
             sidebar_code,
         ));
@@ -1966,6 +2309,13 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
 }
 
 /// Emits a `&'static [DocsBlock]` expression.
+/// # Arguments
+///
+/// - `&[AstBlock]` - the block nodes to emit
+///
+/// # Returns
+///
+/// - `String` - a `&'static [EuvMdBlock]`-shaped expression for `blocks`
 fn emit_blocks(blocks: &[AstBlock]) -> String {
     let inner: String = blocks
         .iter()
@@ -2028,7 +2378,7 @@ fn emit_blocks(blocks: &[AstBlock]) -> String {
                 "euv_ui::EuvMdBlock::Container {{ kind: {kind:?}, title: {title:?}, blocks: {} }}",
                 emit_blocks(blocks)
             ),
-            AstBlock::Rule => "euv_ui::EuvMdBlock::Rule".to_string(),
+            AstBlock::Rule => CODE_MD_BLOCK_RULE.to_string(),
             AstBlock::Html(html) => format!("euv_ui::EuvMdBlock::Html({html:?})"),
         })
         .collect::<Vec<String>>()
@@ -2037,6 +2387,13 @@ fn emit_blocks(blocks: &[AstBlock]) -> String {
 }
 
 /// Emits a `&'static [DocsInline]` expression.
+/// # Arguments
+///
+/// - `&[Inline]` - the inline nodes to emit
+///
+/// # Returns
+///
+/// - `String` - a `&'static [EuvMdInline]`-shaped expression for `inlines`
 fn emit_inlines(inlines: &[Inline]) -> String {
     let inner: String = inlines
         .iter()
@@ -2066,8 +2423,8 @@ fn emit_inlines(inlines: &[Inline]) -> String {
             Inline::TaskMarker(checked) => {
                 format!("euv_ui::EuvMdInline::TaskMarker({checked})")
             }
-            Inline::SoftBreak => "euv_ui::EuvMdInline::SoftBreak".to_string(),
-            Inline::HardBreak => "euv_ui::EuvMdInline::HardBreak".to_string(),
+            Inline::SoftBreak => CODE_MD_INLINE_SOFT_BREAK.to_string(),
+            Inline::HardBreak => CODE_MD_INLINE_HARD_BREAK.to_string(),
             Inline::Html(html) => format!("euv_ui::EuvMdInline::Html({html:?})"),
         })
         .collect::<Vec<String>>()
@@ -2076,13 +2433,20 @@ fn emit_inlines(inlines: &[Inline]) -> String {
 }
 
 /// Recursively emits a sidebar slice expression.
+/// # Arguments
+///
+/// - `&[SideItem]` - the sidebar tree to emit
+///
+/// # Returns
+///
+/// - `String` - a `&'static [EuvSidebarItem]`-shaped expression for `items`
 fn emit_sidebar(items: &[SideItem]) -> String {
     let inner: String = items
         .iter()
         .map(|item: &SideItem| {
             let link: String = match &item.link {
                 Some(route) => format!("Some({route:?})"),
-                None => "None".to_string(),
+                None => CODE_NONE.to_string(),
             };
             let children: String = emit_sidebar(&item.children);
             format!(
@@ -2103,8 +2467,15 @@ fn emit_sidebar(items: &[SideItem]) -> String {
 // `docs_gen.rs`.
 
 /// Returns the hex-encoded SHA-256 digest of `input`.
+/// # Arguments
+///
+/// - `&str` - the message to hash; hashed as its UTF-8 bytes
+///
+/// # Returns
+///
+/// - `String` - the 64-character lowercase hex SHA-256 digest
 fn sha256_hex(input: &str) -> String {
-    let digest: [u8; 32] = sha256(input.as_bytes());
+    let digest: Sha256Digest = sha256(input.as_bytes());
     let mut out: String = String::with_capacity(64);
     for byte in digest {
         out.push_str(&format!("{byte:02x}"));
@@ -2112,11 +2483,21 @@ fn sha256_hex(input: &str) -> String {
     out
 }
 
+/// The 32-byte raw SHA-256 digest, as returned by [`sha256`].
+type Sha256Digest = [u8; 32];
+
 /// Computes the SHA-256 message digest of `message`. Returns the
 /// 32-byte raw digest; use [`sha256_hex`] for a printable form.
 ///
 /// Reference: FIPS PUB 180-4 §6.2.
-fn sha256(message: &[u8]) -> [u8; 32] {
+/// # Arguments
+///
+/// - `&[u8]` - the message bytes to hash
+///
+/// # Returns
+///
+/// - `Sha256Digest` - the 32-byte raw digest; use [`sha256_hex`] for a printable form
+fn sha256(message: &[u8]) -> Sha256Digest {
     const K: [u32; 64] = [
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
         0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
@@ -2192,7 +2573,7 @@ fn sha256(message: &[u8]) -> [u8; 32] {
         hash[6] = hash[6].wrapping_add(g);
         hash[7] = hash[7].wrapping_add(h);
     }
-    let mut out: [u8; 32] = [0; 32];
+    let mut out: Sha256Digest = [0; 32];
     for (i, word) in hash.iter().enumerate() {
         out[i * 4..i * 4 + 4].copy_from_slice(&word.to_be_bytes());
     }

@@ -13,7 +13,7 @@ impl HmrState {
     ///
     /// # Arguments
     ///
-    /// - `I: IntoIterator<Item = (String, String)>` - A generic type parameter.
+    /// - `I` - A generic type parameter.
     pub fn from_entries<I>(entries: I) -> Self
     where
         I: IntoIterator<Item = (String, String)>,
@@ -30,8 +30,8 @@ impl HmrState {
     ///
     /// # Arguments
     ///
-    /// - `K: Into<String>` - A generic type parameter.
-    /// - `V: Into<String>` - A generic type parameter.
+    /// - `K` - A generic type parameter convertible into a map key.
+    /// - `V` - A generic type parameter convertible into a map value.
     pub fn set<K, V>(&mut self, key: K, value: V)
     where
         K: Into<String>,
@@ -48,7 +48,7 @@ impl HmrState {
     ///
     /// # Returns
     ///
-    /// - `Option<str>` - The current value (or a snapshot thereof).
+    /// - `Option<&str>` - The current value (or a snapshot thereof).
     pub fn get(&self, key: &str) -> Option<&str> {
         self.get_entries().get(key).map(|s: &String| s.as_str())
     }

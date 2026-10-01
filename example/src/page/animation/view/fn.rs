@@ -2,6 +2,11 @@ use super::*;
 
 /// An animation demo page showcasing CSS animations and transitions.
 ///
+/// # Arguments
+///
+/// - `VirtualNode<PageAnimationProps>` - The page component node carrying the
+///   page props.
+///
 /// # Returns
 ///
 /// - `VirtualNode` - The animation demo page virtual DOM tree.

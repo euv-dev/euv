@@ -7,7 +7,7 @@ use super::*;
 ///
 /// # Arguments
 ///
-/// - `VirtualNode` - The props node.
+/// - `VirtualNode<LimitedCounterProps>` - The props node.
 ///
 /// # Returns
 ///
@@ -25,18 +25,18 @@ pub(crate) fn limited_counter(node: VirtualNode<LimitedCounterProps>) -> Virtual
             class: c_binding_child_box()
             p {
                 class: c_binding_child_label()
-                "Limited Counter"
+                BINDING_LIMITED_COUNTER_TITLE
             }
             p {
                 class: c_binding_demo_text()
-                "Props received: disabled="
+                BINDING_PROPS_DISABLED_PREFIX
                 span {
                     class: c_binding_typed_prop_value()
                     {
                         disabled.get().to_string()
                     }
                 }
-                ", max_count="
+                BINDING_PROPS_MAX_COUNT_INFIX
                 span {
                     class: c_binding_typed_prop_value()
                     {
@@ -54,7 +54,7 @@ pub(crate) fn limited_counter(node: VirtualNode<LimitedCounterProps>) -> Virtual
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: "Reset"
+                    label: BINDING_RESET_BUTTON_LABEL
                     onclick: on_reset
                     disabled: disabled
                 }
@@ -62,7 +62,7 @@ pub(crate) fn limited_counter(node: VirtualNode<LimitedCounterProps>) -> Virtual
             if { disabled } {
                 p {
                     class: c_binding_typed_warning()
-                    "Counter is disabled!"
+                    BINDING_DISABLED_WARNING
                 }
             }
         }
@@ -91,12 +91,12 @@ pub(crate) fn child_input(text_signal: Signal<String>, count_signal: Signal<i32>
             class: c_binding_child_box()
             p {
                 class: c_binding_child_label()
-                "Child Component"
+                BINDING_CHILD_COMPONENT_TITLE
             }
             euv_input {
                 id: CHILD_INPUT_TEXT_ID
                 name: CHILD_INPUT_TEXT_NAME
-                label: "Edit shared text:"
+                label: BINDING_SHARED_TEXT_INPUT_LABEL
                 autocomplete: BINDING_AUTOCOMPLETE_OFF
                 value: text_signal
                 oninput: UseEuvInput::on_input_value(text_signal)
@@ -104,7 +104,7 @@ pub(crate) fn child_input(text_signal: Signal<String>, count_signal: Signal<i32>
             }
             div {
                 class: c_counter_text()
-                "Shared count: "
+                BINDING_SHARED_COUNT_PREFIX
                 span {
                     class: c_counter_value()
                     count_value
@@ -146,7 +146,7 @@ pub(crate) fn temperature_converter(
                 label {
                     for: TEMPERATURE_CELSIUS_ID
                     class: c_form_label()
-                    "Celsius"
+                    BINDING_CELSIUS_LABEL
                 }
                 input {
                     id: TEMPERATURE_CELSIUS_ID
@@ -167,7 +167,7 @@ pub(crate) fn temperature_converter(
                 label {
                     for: TEMPERATURE_FAHRENHEIT_ID
                     class: c_form_label()
-                    "Fahrenheit"
+                    BINDING_FAHRENHEIT_LABEL
                 }
                 input {
                     id: TEMPERATURE_FAHRENHEIT_ID
@@ -301,6 +301,11 @@ pub(crate) fn color_mixer(
 /// A component binding demo page showcasing props passing with callbacks,
 /// two-way binding, and cross-component reactive binding.
 ///
+/// # Arguments
+///
+/// - `VirtualNode<PageComponentBindingProps>` - The page component node
+///   carrying the page props.
+///
 /// # Returns
 ///
 /// - `VirtualNode` - The component binding demo page virtual DOM tree.
@@ -317,19 +322,19 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
             class: c_page_container()
             euv_header {
                 icon: "🔗"
-                title: "Component Binding"
-                subtitle: "Props passing with callbacks, two-way binding via shared Signals, and cross-component reactive binding using watch!."
+                title: BINDING_PAGE_TITLE
+                subtitle: BINDING_PAGE_SUBTITLE
             }
             euv_card {
-                title: "Props & Callbacks"
+                title: BINDING_PROPS_CARDBACK_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "The parent component passes a string message to the child via props. The child communicates back to the parent through callback functions triggered on user interaction."
+                    BINDING_PROPS_CARD_DESC
                 }
                 euv_input {
                     id: BINDING_PARENT_MESSAGE_ID
                     name: BINDING_PARENT_MESSAGE_NAME
-                    label: "Parent message: "
+                    label: BINDING_PARENT_MESSAGE_INPUT_LABEL
                     input_type: BINDING_TEXT_TYPE
                     autocomplete: BINDING_AUTOCOMPLETE_OFF
                     value: props_state.get_parent_message()
@@ -338,7 +343,7 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                 }
                 p {
                     class: c_binding_demo_text()
-                    "Message: "
+                    BINDING_PARENT_MESSAGE_ECHO_PREFIX
                     span {
                         class: c_event_highlight()
                         props_state.get_parent_message()
@@ -348,13 +353,13 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                     class: c_binding_parent_box()
                     p {
                         class: c_binding_child_label()
-                        "Typed Props Controls"
+                        BINDING_TYPED_PROPS_TITLE
                     }
                     div {
                         class: c_button_controls()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Toggle"
+                            label: BINDING_TOGGLE_BUTTON_LABEL
                             onclick: typed_props_on_toggle_disabled(typed_state.get_disabled())
                         }
                     }
@@ -362,7 +367,7 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                         class: c_binding_typed_prop_group()
                         label {
                             class: c_form_label()
-                            "Max: "
+                            BINDING_MAX_PREFIX
                             span {
                                 class: c_binding_typed_prop_value()
                                 typed_state.get_max_count()
@@ -371,7 +376,7 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                     }
                     p {
                         class: c_binding_demo_text()
-                        "Count: "
+                        BINDING_COUNT_PREFIX
                         span {
                             class: c_counter_value()
                             typed_state.get_current_count()
@@ -391,20 +396,20 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                 }
             }
             euv_card {
-                title: "Two-Way Binding (Shared Signal)"
+                title: BINDING_TWO_WAY_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "Both parent and child components share the same Signal instances. Any mutation in either component is immediately reflected in the other — no callbacks or event listeners needed."
+                    BINDING_TWO_WAY_CARD_DESC
                 }
                 div {
                     class: c_binding_parent_box()
                     p {
                         class: c_binding_child_label()
-                        "Parent Component"
+                        BINDING_PARENT_COMPONENT_TITLE
                     }
                     p {
                         class: c_binding_demo_text()
-                        "Text: "
+                        BINDING_SHARED_TEXT_PREFIX
                         span {
                             class: c_event_highlight()
                             two_way_state.get_shared_text()
@@ -412,7 +417,7 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                     }
                     p {
                         class: c_binding_demo_text()
-                        "Count: "
+                        BINDING_COUNT_PREFIX
                         span {
                             class: c_counter_value()
                             two_way_state.get_shared_count()
@@ -429,29 +434,29 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                 }
             }
             euv_card {
-                title: "Cross-Component Reactive Binding (watch!)"
+                title: BINDING_CROSS_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "Signals are linked across components using the watch! macro. Changing one Signal automatically updates the other through a reactive side effect."
+                    BINDING_CROSS_CARD_DESC
                 }
                 h4 {
                     class: c_binding_section_title()
-                    "Temperature Converter"
+                    BINDING_TEMPERATURE_CONVERTER_TITLE
                 }
                 p {
                     class: c_hint()
-                    "Edit either temperature field — the other updates reactively via watch!"
+                    BINDING_TEMPERATURE_CONVERTER_HINT
                 }
                 {
                     temperature_converter(cross_state.get_celsius(), cross_state.get_fahrenheit())
                 }
                 h4 {
                     class: c_binding_section_title()
-                    "Color Mixer"
+                    BINDING_COLOR_MIXER_TITLE
                 }
                 p {
                     class: c_hint()
-                    "Adjust the RGB sliders — the hex color and preview update reactively via watch!"
+                    BINDING_COLOR_MIXER_HINT
                 }
                 {
                     color_mixer(cross_state.get_red(), cross_state.get_green(), cross_state.get_blue(), cross_state.get_hex_color())

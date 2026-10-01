@@ -174,7 +174,7 @@ impl HookContext {
     /// # Arguments
     ///
     /// - `HookContext` - The hook context to set as active during closure execution.
-    /// - `F: FnOnce() -> R` - The closure to execute with the given context.
+    /// - `F` - The closure to execute with the given context.
     ///
     /// # Returns
     ///
@@ -201,7 +201,7 @@ impl HookContext {
     ///
     /// # Arguments
     ///
-    /// - `FnOnce() -> T` - A closure that computes the initial value of the signal.
+    /// - `F` - A closure that computes the initial value of the signal.
     ///
     /// # Returns
     ///
@@ -245,7 +245,7 @@ impl HookContext {
     ///
     /// # Arguments
     ///
-    /// - `FnOnce() + 'static` - The cleanup callback to execute on context teardown.
+    /// - `F` - The cleanup callback to execute on context teardown.
     pub fn cleanup<F>(cleanup: F)
     where
         F: FnOnce() + 'static,
@@ -277,8 +277,8 @@ impl HookContext {
     ///
     /// # Arguments
     ///
-    /// - `E: AsRef<str>` - The event name to listen for (e.g., "hashchange", "popstate", "resize").
-    /// - `FnMut() + 'static` - The callback to invoke when the event fires.
+    /// - `E` - The event name to listen for (e.g., "hashchange", "popstate", "resize").
+    /// - `F` - The callback to invoke when the event fires.
     pub fn window_event<E, F>(event_name: E, callback: F)
     where
         E: AsRef<str>,
@@ -318,7 +318,7 @@ impl HookContext {
     /// # Arguments
     ///
     /// - `i32` - The interval period in milliseconds.
-    /// - `FnMut() + 'static` - The closure to invoke on each interval tick.
+    /// - `F` - The closure to invoke on each interval tick.
     ///
     /// # Returns
     ///
@@ -386,12 +386,12 @@ impl HookContext {
     ///
     /// # Arguments
     ///
-    /// - `F: FnOnce() -> T` - Constructor that produces a fresh value
+    /// - `F` - Constructor that produces a fresh value
     ///   of type `T` when the slot has never been written.
     ///
     /// # Returns
     ///
-    /// - `T: Clone + 'static` - Either the previously-stored
+    /// - `T` - Either the previously-stored
     ///   value (cheap clone / copy) or a fresh one from
     ///   `factory`.
     pub fn use_hook<T, F>(factory: F) -> T

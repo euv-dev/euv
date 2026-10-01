@@ -1,6 +1,12 @@
 use super::*;
 
-/// A browser API demo page showcasing localStorage, sessionStorage, clipboard, window, navigator, and location.
+/// A browser API demo page showcasing localStorage, sessionStorage,
+/// clipboard, window, navigator, and location.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageBrowserProps>` - The page component node carrying the
+///   page props.
 ///
 /// # Returns
 ///
@@ -14,14 +20,14 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
             class: c_page_container()
             euv_header {
                 icon: "🌐"
-                title: "Browser APIs"
-                subtitle: "Interact with browser storage, clipboard, window metrics, navigator info, location URL, and developer console — all through euv's typed hook APIs."
+                title: BROWSER_PAGE_TITLE
+                subtitle: BROWSER_PAGE_SUBTITLE
             }
             euv_card {
-                title: "localStorage"
+                title: BROWSER_LOCAL_STORAGE_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "Store, retrieve, and remove persistent key-value data. Data in localStorage survives page reloads and browser restarts."
+                    BROWSER_LOCAL_STORAGE_CARD_DESC
                 }
                 div {
                     class: c_browser_api_row()
@@ -38,7 +44,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                     euv_field {
                         id: LOCAL_STORAGE_VALUE_ID
                         name: LOCAL_STORAGE_VALUE_NAME
-                        label: "Value"
+                        label: BROWSER_VALUE_LABEL
                         input_type: BROWSER_TEXT_TYPE
                         placeholder: LOCAL_STORAGE_VALUE_PLACEHOLDER
                         autocomplete: BROWSER_AUTOCOMPLETE_OFF
@@ -60,7 +66,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Remove"
+                        label: BROWSER_REMOVE_BUTTON_LABEL
                         onclick: state.on_local_storage_remove()
                     }
                 }
@@ -68,7 +74,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                     class: c_browser_result_box()
                     span {
                         class: c_browser_result_label()
-                        "Result: "
+                        BROWSER_RESULT_PREFIX
                     }
                     span {
                         class: c_browser_result_value()
@@ -77,10 +83,10 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: "sessionStorage"
+                title: BROWSER_SESSION_STORAGE_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "Store key-value data for the duration of the page session. Data is cleared when the tab or window is closed."
+                    BROWSER_SESSION_STORAGE_CARD_DESC
                 }
                 div {
                     class: c_browser_api_row()
@@ -97,7 +103,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                     euv_field {
                         id: SESSION_STORAGE_VALUE_ID
                         name: SESSION_STORAGE_VALUE_NAME
-                        label: "Value"
+                        label: BROWSER_VALUE_LABEL
                         input_type: BROWSER_TEXT_TYPE
                         placeholder: SESSION_STORAGE_VALUE_PLACEHOLDER
                         autocomplete: BROWSER_AUTOCOMPLETE_OFF
@@ -119,7 +125,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Remove"
+                        label: BROWSER_REMOVE_BUTTON_LABEL
                         onclick: state.on_session_storage_remove()
                     }
                 }
@@ -127,7 +133,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                     class: c_browser_result_box()
                     span {
                         class: c_browser_result_label()
-                        "Result: "
+                        BROWSER_RESULT_PREFIX
                     }
                     span {
                         class: c_browser_result_value()
@@ -136,15 +142,15 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: "Clipboard API"
+                title: BROWSER_CLIPBOARD_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "Write text to the system clipboard or read the current clipboard contents. Requires a secure context (HTTPS or localhost)."
+                    BROWSER_CLIPBOARD_CARD_DESC
                 }
                 euv_field {
                     id: CLIPBOARD_TEXT_ID
                     name: CLIPBOARD_TEXT_NAME
-                    label: "Text to copy"
+                    label: BROWSER_CLIPBOARD_TEXT_LABEL
                     input_type: BROWSER_TEXT_TYPE
                     placeholder: CLIPBOARD_TEXT_PLACEHOLDER
                     autocomplete: BROWSER_AUTOCOMPLETE_OFF
@@ -155,12 +161,12 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                     class: c_browser_api_actions()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Copy"
+                        label: BROWSER_COPY_BUTTON_LABEL
                         onclick: state.on_clipboard_copy()
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Paste"
+                        label: BROWSER_PASTE_BUTTON_LABEL
                         onclick: state.on_clipboard_paste()
                     }
                 }
@@ -168,7 +174,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                     class: c_browser_result_box()
                     span {
                         class: c_browser_result_label()
-                        "Result: "
+                        BROWSER_RESULT_PREFIX
                     }
                     span {
                         class: c_browser_result_value()
@@ -177,16 +183,16 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: "Window"
+                title: BROWSER_WINDOW_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "Read the browser window's inner width and height in CSS pixels. Click Refresh Size after resizing the window."
+                    BROWSER_WINDOW_CARD_DESC
                 }
                 div {
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Refresh Size"
+                        label: BROWSER_REFRESH_SIZE_BUTTON_LABEL
                         onclick: state.on_window_refresh_size()
                     }
                 }
@@ -196,7 +202,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                         class: c_browser_info_item()
                         span {
                             class: c_browser_info_label()
-                            "Inner Size"
+                            BROWSER_INNER_SIZE_LABEL
                         }
                         span {
                             class: c_browser_info_value()
@@ -206,10 +212,10 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: "Navigator"
+                title: BROWSER_NAVIGATOR_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "Read the browser's User-Agent string and preferred language. Useful for analytics, feature detection, and localization."
+                    BROWSER_NAVIGATOR_CARD_DESC
                 }
                 div {
                     class: c_browser_info_grid()
@@ -217,7 +223,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                         class: c_browser_info_item()
                         span {
                             class: c_browser_info_label()
-                            "User Agent"
+                            BROWSER_USER_AGENT_LABEL
                         }
                         span {
                             class: c_browser_info_value()
@@ -228,7 +234,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                         class: c_browser_info_item()
                         span {
                             class: c_browser_info_label()
-                            "Language"
+                            BROWSER_LANGUAGE_LABEL
                         }
                         span {
                             class: c_browser_info_value()
@@ -238,10 +244,10 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: "Location"
+                title: BROWSER_LOCATION_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "Read the current page's full URL components: href, origin, and pathname. All values are read-only and update automatically on navigation."
+                    BROWSER_LOCATION_CARD_DESC
                 }
                 div {
                     class: c_browser_info_grid()
@@ -249,7 +255,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                         class: c_browser_info_item()
                         span {
                             class: c_browser_info_label()
-                            "Href"
+                            BROWSER_HREF_LABEL
                         }
                         span {
                             class: c_browser_info_value()
@@ -260,7 +266,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                         class: c_browser_info_item()
                         span {
                             class: c_browser_info_label()
-                            "Origin"
+                            BROWSER_ORIGIN_LABEL
                         }
                         span {
                             class: c_browser_info_value()
@@ -271,7 +277,7 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                         class: c_browser_info_item()
                         span {
                             class: c_browser_info_label()
-                            "Pathname"
+                            BROWSER_PATHNAME_LABEL
                         }
                         span {
                             class: c_browser_info_value()
@@ -281,15 +287,15 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: "Console"
+                title: BROWSER_CONSOLE_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "Send log, warning, and error messages to the browser developer console. Open DevTools (F12) to see the output."
+                    BROWSER_CONSOLE_CARD_DESC
                 }
                 euv_field {
                     id: CONSOLE_MESSAGE_ID
                     name: CONSOLE_MESSAGE_NAME
-                    label: "Console message"
+                    label: BROWSER_CONSOLE_MESSAGE_LABEL
                     input_type: BROWSER_TEXT_TYPE
                     placeholder: CONSOLE_MESSAGE_PLACEHOLDER
                     autocomplete: BROWSER_AUTOCOMPLETE_OFF
@@ -305,12 +311,12 @@ pub(crate) fn page_browser(node: VirtualNode<PageBrowserProps>) -> VirtualNode {
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Warn"
+                        label: BROWSER_WARN_BUTTON_LABEL
                         onclick: UseEuvBrowser::on_console_warn(state.get_console_input())
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Error"
+                        label: BROWSER_ERROR_BUTTON_LABEL
                         onclick: UseEuvBrowser::on_console_error(state.get_console_input())
                     }
                 }

@@ -6,10 +6,9 @@ impl NestedRouteConfig {
     ///
     /// # Arguments
     ///
-    /// - `impl Into<String>` - The route path.
-    /// - `F: Fn() -> VirtualNode + 'static` - The component closure.
-    /// - `Vec<NestedRouteConfig>` - The child
-    ///   routes.
+    /// - `P` - The route path, converted into the stored `String`.
+    /// - `F` - The component closure.
+    /// - `Vec<NestedRouteConfig>` - The child routes.
     pub fn new<P, F>(path: P, component: F, children: Vec<NestedRouteConfig>) -> Self
     where
         P: Into<String>,
@@ -35,7 +34,7 @@ impl NestedRouteConfig {
     ///
     /// # Returns
     ///
-    /// - `[NestedRouteConfig]` - Slice of all child route configs.
+    /// - `&[NestedRouteConfig]` - Slice of all child route configs.
     pub fn children(&self) -> &[NestedRouteConfig] {
         self.get_children()
     }

@@ -63,7 +63,7 @@ impl ThemeState {
             return;
         };
         let media_query: Option<MediaQueryList> = window
-            .match_media("(prefers-color-scheme: dark)")
+            .match_media(THEME_DARK_SCHEME_MEDIA_QUERY)
             .ok()
             .flatten();
         let Some(mql) = media_query else {
@@ -76,8 +76,10 @@ impl ThemeState {
                 theme_signal.set(detected);
             }
         }));
-        let _: Result<(), JsValue> =
-            mql.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref());
+        let _: Result<(), JsValue> = mql.add_event_listener_with_callback(
+            THEME_MEDIA_QUERY_CHANGE_EVENT,
+            closure.as_ref().unchecked_ref(),
+        );
         closure.forget();
     }
 
@@ -95,7 +97,7 @@ impl ThemeState {
             return THEME_LIGHT.to_string();
         };
         let is_dark: bool = window
-            .match_media("(prefers-color-scheme: dark)")
+            .match_media(THEME_DARK_SCHEME_MEDIA_QUERY)
             .ok()
             .flatten()
             .map(|mql: MediaQueryList| mql.matches())

@@ -6,11 +6,11 @@ impl Display for EuvError {
     ///
     /// # Arguments
     ///
-    /// - `&mut Formatter` - The formatter.
+    /// - `&mut Formatter<'_>` - The formatter.
     ///
     /// # Returns
     ///
-    /// - `FmtResult` - The result of the formatting operation.
+    /// - `std::fmt::Result` - The result of the formatting operation.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             EuvError::Io { message, error } => write!(formatter, "{message}: {error}"),

@@ -24,7 +24,11 @@ impl Router {
             let Some(document_value) = window_value.document() else {
                 return;
             };
-            if let Some(main_element) = document_value.query_selector("main").ok().flatten() {
+            if let Some(main_element) = document_value
+                .query_selector(ROUTER_MAIN_ELEMENT_SELECTOR)
+                .ok()
+                .flatten()
+            {
                 let html_element: HtmlElement = main_element.unchecked_into();
                 html_element.set_scroll_top(0);
             }
@@ -50,7 +54,7 @@ impl Router {
     ///
     /// - `Signal<String>` - The reactive signal that holds the current route and will be updated on each hash change.
     pub fn use_hash_change(route_signal: Signal<String>) {
-        App::use_window_event("hashchange", move || {
+        App::use_window_event(ROUTER_WINDOW_EVENT_HASH_CHANGE, move || {
             WINDOW_EVENT_DEPTH.with(|depth: &Cell<usize>| depth.set(depth.get() + 1));
             route_signal.set(Self::current_route());
             WINDOW_EVENT_DEPTH.with(|depth: &Cell<usize>| depth.set(depth.get() - 1));
@@ -85,7 +89,7 @@ impl Router {
             }
             was_drawer_open.set(is_open);
         });
-        App::use_window_event("popstate", move || {
+        App::use_window_event(ROUTER_WINDOW_EVENT_POP_STATE, move || {
             WINDOW_EVENT_DEPTH.with(|depth: &Cell<usize>| depth.set(depth.get() + 1));
             // The guard callbacks run arbitrary page code, and the ones shipped
             // with euv set signals and call back into `Router` (a fullscreen
@@ -445,7 +449,7 @@ impl Router {
     ///
     /// # Arguments
     ///
-    /// - `U: AsRef<str>` - The URL to open.
+    /// - `U` - The URL to open.
     pub fn open_system_browser<U>(url: U)
     where
         U: AsRef<str>,
@@ -453,7 +457,7 @@ impl Router {
         let Some(window_value) = window() else {
             return;
         };
-        if let Ok(open_fn) = Reflect::get(&window_value, &JsValue::from_str("open"))
+        if let Ok(open_fn) = Reflect::get(&window_value, &JsValue::from_str(ROUTER_WINDOW_OPEN_KEY))
             .and_then(|value: JsValue| value.dyn_into::<Function>())
         {
             let _: Result<JsValue, JsValue> = open_fn.call2(
@@ -474,7 +478,7 @@ impl Router {
     ///
     /// # Arguments
     ///
-    /// - `U: AsRef<str>` - The external URL to open on click.
+    /// - `U` - The external URL to open on click.
     ///
     /// # Returns
     ///
@@ -484,7 +488,7 @@ impl Router {
         U: AsRef<str>,
     {
         let url_string: String = url.as_ref().to_string();
-        NativeEventHandler::create("click", move |event: Event| {
+        NativeEventHandler::create(ROUTER_EXTERNAL_LINK_EVENT_TYPE, move |event: Event| {
             event.prevent_default();
             Self::open_system_browser(&url_string);
         })
@@ -499,7 +503,7 @@ impl Router {
     /// # Arguments
     ///
     /// - `Signal<bool>` - The drawer open signal.
-    /// - `T: AsRef<str>` - The target route.
+    /// - `T` - The target route.
     pub fn close_drawer_and_navigate<T>(_drawer_open: Signal<bool>, target: T)
     where
         T: AsRef<str>,

@@ -10,6 +10,11 @@ use super::*;
 /// A tab bar allows switching between the Canvas 2D, WebGL, and
 /// WebGPU backends for comparison.
 ///
+/// # Arguments
+///
+/// - `VirtualNode<PageGame2DProps>` - The page component node carrying the
+///   page props.
+///
 /// # Returns
 ///
 /// - `VirtualNode` - The 2D game demo page virtual DOM tree.
@@ -24,11 +29,11 @@ pub(crate) fn page_game_2d(node: VirtualNode<PageGame2DProps>) -> VirtualNode {
             class: c_page_container()
             euv_header {
                 icon: "🎮"
-                title: "2D Game Engine"
-                subtitle: "A bouncing balls physics demo powered by euv-engine. Click on the canvas to spawn balls. Each ball has gravity, wall bouncing with restitution, and impulse-based ball-to-ball collision. Switch tabs to compare Canvas 2D, WebGL, and WebGPU rendering backends."
+                title: GAME_2D_HEADER_TITLE
+                subtitle: GAME_2D_HEADER_SUBTITLE
             }
             euv_card {
-                title: "2D Rendering Demo"
+                title: GAME_2D_CANVAS_CARD_TITLE
                 div {
                     class: c_tab_bar()
                     div {
@@ -78,24 +83,24 @@ pub(crate) fn page_game_2d(node: VirtualNode<PageGame2DProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: "2D Engine Features"
+                title: GAME_2D_FEATURES_CARD_TITLE
                 match { tab } {
                     Game2DTab::Canvas2D => {
                         p {
                             class: c_game_description()
-                            "This demo uses euv-engine's Vector2D for position/velocity math, impulse-based collision resolution with mass proportional to radius squared, wall reflection with configurable restitution, and a fixed-timestep game loop with accumulator pattern for deterministic physics at 60 Hz. The WebGPU tab demonstrates GPU-accelerated rendering with a WGSL shader pipeline."
+                            GAME_2D_CANVAS_DESCRIPTION
                         }
                     }
                     Game2DTab::WebGpu => {
                         p {
                             class: c_game_description()
-                            "This demo uses euv-engine's WebGpuRenderer to initialize a GPU device, create a render pipeline from a WGSL shader, and render the same bouncing balls scene as the Canvas 2D tab: every ball is drawn as a shader-generated quad with per-ball position, radius, and color uploaded to a uniform buffer each frame. Click or tap to spawn balls; pause and clear work exactly like Canvas 2D. Requires a WebGPU-capable browser (Chrome 113+, Edge 113+)."
+                            GAME_2D_WEBGPU_DESCRIPTION
                         }
                     }
                     Game2DTab::WebGl => {
                         p {
                             class: c_game_description()
-                            "This demo uses euv-engine's WebGl2Backend to acquire a WebGL 2 context, compile a GLSL ES 3.00 program, and render the same bouncing balls scene as the Canvas 2D tab: every ball is drawn as a shader-generated quad with per-ball position, radius, and color uploaded to vec4 uniform arrays each frame. Click or tap to spawn balls; pause and clear work exactly like Canvas 2D. Works in every modern browser with WebGL 2 support."
+                            GAME_2D_WEBGL_DESCRIPTION
                         }
                     }
                 }
@@ -107,6 +112,10 @@ pub(crate) fn page_game_2d(node: VirtualNode<PageGame2DProps>) -> VirtualNode {
 /// Renders the Canvas 2D bouncing balls demo tab content.
 ///
 /// Contains the full Canvas 2D game with stats bar, canvas, and controls.
+///
+/// # Arguments
+///
+/// - `UseGame2DFullscreen` - The fullscreen controller hook.
 ///
 /// # Returns
 ///
@@ -151,9 +160,9 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
     let ball_count: usize = state.get_ball_count().get();
     let total: usize = state.get_total_spawned().get();
     let pause_label: &str = if state.get_running().get() {
-        "Pause"
+        GAME_2D_PAUSE_LABEL
     } else {
-        "Resume"
+        GAME_2D_RESUME_LABEL
     };
     html! {
         div {
@@ -161,7 +170,7 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    "FPS: "
+                    GAME_2D_FPS_PREFIX
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -169,7 +178,7 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
                 }
                 span {
                     class: c_game_stats_label()
-                    "Balls: "
+                    GAME_2D_BALLS_PREFIX
                     span {
                         class: c_game_stats_count_value()
                         ball_count
@@ -177,7 +186,7 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
                 }
                 span {
                     class: c_game_stats_label()
-                    "Total: "
+                    GAME_2D_TOTAL_PREFIX
                     span {
                         class: c_game_stats_total_value()
                         total
@@ -211,7 +220,7 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Exit"
+                            label: GAME_2D_EXIT_BUTTON_LABEL
                             onclick: game_2d_on_exit_fullscreen(canvas_2d_fullscreen)
                         }
                     }
@@ -226,12 +235,12 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: "Clear"
+                    label: GAME_2D_CLEAR_BUTTON_LABEL
                     onclick: on_clear
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: "Enter Fullscreen"
+                    label: GAME_2D_ENTER_FULLSCREEN_BUTTON_LABEL
                     onclick: game_2d_on_enter_fullscreen(fullscreen, canvas_2d_fullscreen)
                 }
             }
@@ -245,13 +254,14 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
 /// spawning, rendered through a WGSL pipeline instead of the 2D context.
 /// Adds a WebGPU status readout to the stats bar.
 ///
+/// # Arguments
+///
+/// - `UseGame2DWebGpu` - The WebGPU backend controller hook.
+/// - `UseGame2DFullscreen` - The fullscreen controller hook.
+///
 /// # Returns
 ///
 /// - `VirtualNode` - The WebGPU tab virtual DOM tree.
-///
-/// # Arguments
-///
-/// - `UseGame2DWebGpu` - A `UseGame2DWebGpu` parameter.
 fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -> VirtualNode {
     let game: UseGame2D = use_game_2d_state();
     let web_gpu_fullscreen: Signal<bool> = fullscreen.get_web_gpu();
@@ -296,9 +306,9 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
     let init_error_code: &str = state.get_init_error_code().get();
     let status_text: &str = webgpu_status_text(loaded, active, init_error_code);
     let pause_label: &str = if game.get_running().get() {
-        "Pause"
+        GAME_2D_PAUSE_LABEL
     } else {
-        "Resume"
+        GAME_2D_RESUME_LABEL
     };
     html! {
         div {
@@ -306,7 +316,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    "FPS: "
+                    GAME_2D_FPS_PREFIX
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -314,7 +324,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                 }
                 span {
                     class: c_game_stats_label()
-                    "Balls: "
+                    GAME_2D_BALLS_PREFIX
                     span {
                         class: c_game_stats_count_value()
                         ball_count
@@ -322,7 +332,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                 }
                 span {
                     class: c_game_stats_label()
-                    "Total: "
+                    GAME_2D_TOTAL_PREFIX
                     span {
                         class: c_game_stats_total_value()
                         total
@@ -330,7 +340,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                 }
                 span {
                     class: c_game_stats_label()
-                    "Status: "
+                    GAME_2D_STATUS_PREFIX
                     span {
                         class: c_game_stats_count_value()
                         status_text
@@ -370,7 +380,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Exit"
+                            label: GAME_2D_EXIT_BUTTON_LABEL
                             onclick: game_2d_on_exit_fullscreen(web_gpu_fullscreen)
                         }
                     }
@@ -385,12 +395,12 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: "Clear"
+                    label: GAME_2D_CLEAR_BUTTON_LABEL
                     onclick: on_clear
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: "Enter Fullscreen"
+                    label: GAME_2D_ENTER_FULLSCREEN_BUTTON_LABEL
                     onclick: game_2d_on_enter_fullscreen(fullscreen, web_gpu_fullscreen)
                 }
             }
@@ -416,15 +426,15 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
 /// - `&'static str` - The banner text.
 fn webgl_status_text(loaded: bool, active: bool, init_error_code: &str) -> &'static str {
     if !loaded {
-        return "Initializing...";
+        return GAME_2D_INITIALIZING_STATUS;
     }
     if active {
-        return "WebGL Active";
+        return GAME_2D_WEBGL_ACTIVE_STATUS;
     }
     if init_error_code.is_empty() {
-        "WebGL not supported"
+        GAME_2D_WEBGL_NOT_SUPPORTED_STATUS
     } else {
-        "WebGL init failed"
+        GAME_2D_WEBGL_INIT_FAILED_STATUS
     }
 }
 
@@ -434,13 +444,14 @@ fn webgl_status_text(loaded: bool, active: bool, init_error_code: &str) -> &'sta
 /// spawning, rendered through a GLSL ES 3.00 program instead of the 2D
 /// context. Adds a WebGL status readout to the stats bar.
 ///
+/// # Arguments
+///
+/// - `UseGame2DWebGl` - The WebGL backend controller hook.
+/// - `UseGame2DFullscreen` - The fullscreen controller hook.
+///
 /// # Returns
 ///
 /// - `VirtualNode` - The WebGL tab virtual DOM tree.
-///
-/// # Arguments
-///
-/// - `UseGame2DWebGl` - A `UseGame2DWebGl` parameter.
 fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> VirtualNode {
     let game: UseGame2D = use_game_2d_state();
     let web_gl_fullscreen: Signal<bool> = fullscreen.get_web_gl();
@@ -485,9 +496,9 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
     let init_error_code: &str = state.get_init_error_code().get();
     let status_text: &str = webgl_status_text(loaded, active, init_error_code);
     let pause_label: &str = if game.get_running().get() {
-        "Pause"
+        GAME_2D_PAUSE_LABEL
     } else {
-        "Resume"
+        GAME_2D_RESUME_LABEL
     };
     html! {
         div {
@@ -495,7 +506,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    "FPS: "
+                    GAME_2D_FPS_PREFIX
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -503,7 +514,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                 }
                 span {
                     class: c_game_stats_label()
-                    "Balls: "
+                    GAME_2D_BALLS_PREFIX
                     span {
                         class: c_game_stats_count_value()
                         ball_count
@@ -511,7 +522,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                 }
                 span {
                     class: c_game_stats_label()
-                    "Total: "
+                    GAME_2D_TOTAL_PREFIX
                     span {
                         class: c_game_stats_total_value()
                         total
@@ -519,7 +530,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                 }
                 span {
                     class: c_game_stats_label()
-                    "Status: "
+                    GAME_2D_STATUS_PREFIX
                     span {
                         class: c_game_stats_count_value()
                         status_text
@@ -559,7 +570,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Exit"
+                            label: GAME_2D_EXIT_BUTTON_LABEL
                             onclick: game_2d_on_exit_fullscreen(web_gl_fullscreen)
                         }
                     }
@@ -574,12 +585,12 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: "Clear"
+                    label: GAME_2D_CLEAR_BUTTON_LABEL
                     onclick: on_clear
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: "Enter Fullscreen"
+                    label: GAME_2D_ENTER_FULLSCREEN_BUTTON_LABEL
                     onclick: game_2d_on_enter_fullscreen(fullscreen, web_gl_fullscreen)
                 }
             }

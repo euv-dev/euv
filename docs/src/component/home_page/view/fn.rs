@@ -11,6 +11,14 @@ const ROUTE_HASH_PREFIX: &str = "#";
 /// `euv_feature_grid`) because that component does not accept a link
 /// on `EuvFeature`. The `icon` field is hidden when empty or equal to
 /// the placeholder string `"blog"` so it does not leak as literal text.
+///
+/// # Arguments
+///
+/// - `VirtualNode<DocsPageProps>` - The props node carrying the route signal.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The home page virtual DOM tree.
 #[component]
 pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     let DocsPageProps { route_signal }: DocsPageProps = node.try_get_props().unwrap_or_default();
@@ -70,6 +78,14 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
 /// Renders the home-page stat tiles (icon + value + label) in one row,
 /// mirroring the euv example home stats section. Empty stats render
 /// nothing.
+///
+/// # Arguments
+///
+/// - `VirtualNode<DocsStatsRowProps>` - The props node carrying the stats.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The stats row virtual DOM tree, or an empty node.
 #[component]
 pub(crate) fn docs_stats_row(node: VirtualNode<DocsStatsRowProps>) -> VirtualNode {
     let DocsStatsRowProps { stats }: DocsStatsRowProps = node.try_get_props().unwrap_or_default();
@@ -111,30 +127,38 @@ pub(crate) fn docs_stats_row(node: VirtualNode<DocsStatsRowProps>) -> VirtualNod
 
 /// Renders one feature card. When the feature has a `link`, the entire
 /// card is wrapped in an `<a>` so the whole tile is clickable.
+///
+/// # Arguments
+///
+/// - `VirtualNode<DocsFeatureProps>` - The props node carrying the feature.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The feature card virtual DOM tree.
 #[component]
 pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualNode {
     let DocsFeatureProps { feature }: DocsFeatureProps = node.try_get_props().unwrap_or_default();
-    let show_icon: bool = !feature.icon.is_empty() && feature.icon != "blog";
+    let show_icon: bool = !feature.icon.is_empty() && feature.icon != FEATURE_ICON_PLACEHOLDER;
     let has_icon: fn() -> bool = if show_icon { || true } else { || false };
     let inner: VirtualNode = html! {
         div {
-            class: "c_docs_feature_card_inner"
+            class: { CLASS_FEATURE_CARD_INNER }
             if { has_icon() } {
                 div {
-                    class: "c_docs_feature_card_icon"
+                    class: { CLASS_FEATURE_CARD_ICON }
                     {
                         feature.icon
                     }
                 }
             }
             div {
-                class: "c_docs_feature_card_title"
+                class: { CLASS_FEATURE_CARD_TITLE }
                 {
                     feature.title
                 }
             }
             div {
-                class: "c_docs_feature_card_details"
+                class: { CLASS_FEATURE_CARD_DETAILS }
                 {
                     feature.details
                 }
@@ -144,19 +168,19 @@ pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualN
     if feature.link.is_empty() {
         html! {
             div {
-                class: "c_docs_feature_card"
+                class: { CLASS_FEATURE_CARD }
                 key: feature.title
                 inner
             }
         }
-    } else if feature.link.starts_with("http") {
+    } else if feature.link.starts_with(URL_SCHEME_HTTP_PREFIX) {
         html! {
             a {
-                class: "c_docs_feature_card"
+                class: { CLASS_FEATURE_CARD }
                 key: feature.title
                 href: feature.link
-                target: "_blank"
-                rel: "noopener noreferrer"
+                target: LINK_TARGET_BLANK
+                rel: LINK_REL_NOOPENER
                 onclick: Router::external_link_handler(feature.link)
                 inner
             }
@@ -164,7 +188,7 @@ pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualN
     } else {
         html! {
             a {
-                class: "c_docs_feature_card"
+                class: { CLASS_FEATURE_CARD }
                 key: feature.title
                 href: {
                     let mut
@@ -183,6 +207,14 @@ pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualN
 }
 
 /// Renders a grid of feature cards. Empty grid renders nothing.
+///
+/// # Arguments
+///
+/// - `VirtualNode<DocsFeatureGridProps>` - The props node carrying the features.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The feature grid virtual DOM tree, or an empty node.
 #[component]
 pub(crate) fn docs_feature_grid(node: VirtualNode<DocsFeatureGridProps>) -> VirtualNode {
     let DocsFeatureGridProps { features }: DocsFeatureGridProps =
@@ -194,7 +226,7 @@ pub(crate) fn docs_feature_grid(node: VirtualNode<DocsFeatureGridProps>) -> Virt
     }
     html! {
         div {
-            class: "c_docs_feature_grid"
+            class: { CLASS_FEATURE_GRID }
             for feature in features.iter() {
                 docs_feature_card {
                     feature: *feature

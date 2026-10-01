@@ -6,6 +6,11 @@ use super::*;
 /// `--out=<DIR>`, `--name <NAME>` / `--name=<NAME>`, `--index-html <FILE>`
 /// / `--index-html=<FILE>`, `--debug`, `--release`. Positional `<SRC_DIR>`
 /// is required.
+///
+/// # Returns
+///
+/// - `Result<Args, String>` - The parsed arguments, or a human-readable
+///   message when the required `<SRC_DIR>` positional is missing.
 pub fn parse_args() -> Result<Args, String> {
     let mut positional: Vec<PathBuf> = Vec::new();
     let mut out_dir: Option<PathBuf> = None;
@@ -67,7 +72,7 @@ pub fn parse_args() -> Result<Args, String> {
     let src_dir: PathBuf = positional
         .into_iter()
         .next()
-        .ok_or_else(|| "missing required <SRC_DIR> argument".to_string())?;
+        .ok_or_else(|| MSG_MISSING_SRC_DIR.to_string())?;
     let out_dir: PathBuf = out_dir.unwrap_or_else(|| PathBuf::from(DEFAULT_OUT_DIR));
     let name: &'static str = match name {
         Some(value) => Box::leak(value.into_boxed_str()),
@@ -78,6 +83,15 @@ pub fn parse_args() -> Result<Args, String> {
 
 /// Invoke `euv build` for the supplied [`Args`], applying the env-var
 /// contract that `build.rs` understands.
+///
+/// # Arguments
+///
+/// - `&Args` - The parsed command line driving the build.
+///
+/// # Returns
+///
+/// - `Result<(), String>` - `Ok` once the site is written, or a message
+///   describing which phase failed.
 pub fn run(args: &Args) -> Result<(), String> {
     let manifest_dir: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let src_dir: &Path = args.get_src_dir().as_path();
@@ -169,8 +183,8 @@ pub fn run(args: &Args) -> Result<(), String> {
     // like GitHub Pages serve the SPA shell for unknown paths instead
     // of returning a plain 404 — the wasm router will then resolve the
     // locale-specific route client-side.
-    let index_html: PathBuf = out_dir.join("index.html");
-    let not_found_html: PathBuf = out_dir.join("404.html");
+    let index_html: PathBuf = out_dir.join(INDEX_HTML_FILE_NAME);
+    let not_found_html: PathBuf = out_dir.join(NOT_FOUND_HTML_FILE_NAME);
     if index_html.is_file() && !not_found_html.exists() {
         std::fs::copy(&index_html, &not_found_html)
             .map_err(|e: std::io::Error| format!("copy 404.html: {e}"))?;
@@ -183,6 +197,16 @@ pub fn run(args: &Args) -> Result<(), String> {
 /// `public/` is treated as success (the source may have no static
 /// assets); per-file copy errors are returned verbatim so the user
 /// sees them.
+///
+/// # Arguments
+///
+/// - `&Path` - The site source directory holding `public/`.
+/// - `&Path` - The output directory receiving the copied assets.
+///
+/// # Returns
+///
+/// - `Result<(), String>` - `Ok` when every entry copied, or the first
+///   per-file error.
 fn copy_public_assets(src_dir: &Path, out_dir: &Path) -> Result<(), String> {
     let public_dir: PathBuf = src_dir.join(PUBLIC_DIR_NAME);
     if !public_dir.is_dir() {
@@ -193,6 +217,16 @@ fn copy_public_assets(src_dir: &Path, out_dir: &Path) -> Result<(), String> {
 
 /// Walk `src` and copy every entry under it to the matching relative
 /// path under `dst`, creating intermediate directories as needed.
+///
+/// # Arguments
+///
+/// - `&Path` - The directory to read entries from.
+/// - `&Path` - The directory receiving the mirrored tree.
+///
+/// # Returns
+///
+/// - `Result<(), String>` - `Ok` when the whole tree copied, or the
+///   first error encountered.
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     let entries: Vec<std::fs::DirEntry> = std::fs::read_dir(src)
         .map_err(|e: std::io::Error| format!("read_dir({}): {e}", src.display()))?

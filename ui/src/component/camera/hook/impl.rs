@@ -10,8 +10,6 @@ thread_local! {
     static DETECT_FN_CACHE: RefCell<Option<Function>> = const { RefCell::new(None) };
 }
 
-const DETECT_FN_KEY: &str = "detect";
-
 /// Implementation of camera functionality.
 impl UseEuvCamera {
     /// Creates camera state for controlling camera stream and QR scanning.
@@ -48,7 +46,7 @@ impl UseEuvCamera {
     /// - `Result<(), String>` - `Ok(())` on success, or an error message on failure.
     pub(crate) fn open(video_selector: &str, facing: EuvCameraFacing) -> Result<(), String> {
         let Some(window_value) = window() else {
-            return Err("no global window exists".to_string());
+            return Err(CAMERA_NO_WINDOW_ERROR.to_string());
         };
         let navigator: Navigator = window_value.navigator();
         let media_devices: MediaDevices = navigator
@@ -62,7 +60,7 @@ impl UseEuvCamera {
         let video_constraint: Object = Object::new();
         let _: Result<bool, JsValue> = Reflect::set(
             &video_constraint,
-            &JsValue::from_str("facingMode"),
+            &JsValue::from_str(CAMERA_FACING_MODE_KEY),
             &JsValue::from_str(facing_mode),
         );
         constraints.set_video(&video_constraint);
@@ -88,7 +86,10 @@ impl UseEuvCamera {
             }));
         let on_rejected: Closure<dyn FnMut(JsValue)> =
             Closure::wrap(Box::new(move |error: JsValue| {
-                web_sys::console::log_2(&wasm_bindgen::JsValue::from_str("[euv-camera]"), &error);
+                web_sys::console::log_2(
+                    &wasm_bindgen::JsValue::from_str(CAMERA_LOG_PREFIX),
+                    &error,
+                );
             }));
         let _: Promise = promise.then(&on_fulfilled).catch(&on_rejected);
         on_fulfilled.forget();
@@ -225,10 +226,11 @@ impl UseEuvCamera {
             if let Some(function) = cache.borrow().as_ref() {
                 return function.clone();
             }
-            let function: Function = Reflect::get(detector, &JsValue::from_str(DETECT_FN_KEY))
-                .ok()
-                .and_then(|value: JsValue| value.dyn_into::<Function>().ok())
-                .unwrap_or_else(|| Function::new_no_args("return Promise.resolve([])"));
+            let function: Function =
+                Reflect::get(detector, &JsValue::from_str(CAMERA_DETECT_FN_KEY))
+                    .ok()
+                    .and_then(|value: JsValue| value.dyn_into::<Function>().ok())
+                    .unwrap_or_else(|| Function::new_no_args(CAMERA_DETECT_FALLBACK_BODY));
             *cache.borrow_mut() = Some(function.clone());
             function
         })
@@ -258,21 +260,24 @@ impl UseEuvCamera {
         let Some(window_value) = window() else {
             return;
         };
-        let barcode_detector_key: JsValue = JsValue::from_str("BarcodeDetector");
+        let barcode_detector_key: JsValue = JsValue::from_str(CAMERA_BARCODE_DETECTOR_KEY);
         let barcode_detector_constructor: Function =
             match Reflect::get(&window_value, &barcode_detector_key) {
                 Ok(value) if !value.is_undefined() && !value.is_null() => value.unchecked_into(),
                 _ => {
                     self.get_error_message()
-                        .set("BarcodeDetector API is not supported in this browser".to_string());
+                        .set(CAMERA_BARCODE_UNSUPPORTED_MESSAGE.to_string());
                     return;
                 }
             };
         let formats_array: Array = Array::new();
-        formats_array.push(&JsValue::from_str("qr_code"));
+        formats_array.push(&JsValue::from_str(CAMERA_BARCODE_FORMAT_QR_CODE));
         let init_object: Object = Object::new();
-        let _: Result<bool, JsValue> =
-            Reflect::set(&init_object, &JsValue::from_str("formats"), &formats_array);
+        let _: Result<bool, JsValue> = Reflect::set(
+            &init_object,
+            &JsValue::from_str(CAMERA_BARCODE_FORMATS_KEY),
+            &formats_array,
+        );
         let args_array: Array = Array::new();
         args_array.push(&init_object.into());
         let detector: JsValue = match Reflect::construct(&barcode_detector_constructor, &args_array)
@@ -299,9 +304,12 @@ impl UseEuvCamera {
                     return;
                 }
                 let text: Option<String> = barcodes.get(0).as_string().or_else(|| {
-                    Reflect::get(&barcodes.get(0), &JsValue::from_str("rawValue"))
-                        .ok()
-                        .and_then(|v: JsValue| v.as_string())
+                    Reflect::get(
+                        &barcodes.get(0),
+                        &JsValue::from_str(CAMERA_BARCODE_RAW_VALUE_KEY),
+                    )
+                    .ok()
+                    .and_then(|v: JsValue| v.as_string())
                 });
                 if let Some(text) = text {
                     self_for_closure.get_scan_result().set(text.clone());
@@ -516,7 +524,7 @@ impl UseEuvCamera {
             let _: Result<(), JsValue> = window_value.location().set_href(url);
             return;
         }
-        if let Ok(open_fn) = Reflect::get(&window_value, &JsValue::from_str("open"))
+        if let Ok(open_fn) = Reflect::get(&window_value, &JsValue::from_str(CAMERA_WINDOW_OPEN_KEY))
             .and_then(|value: JsValue| value.dyn_into::<Function>())
         {
             let _: Result<JsValue, JsValue> = open_fn.call2(

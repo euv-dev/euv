@@ -163,3 +163,15 @@ pub const CHAR_SEMICOLON: char = ';';
 
 /// The letter `t`, used in keyword detection.
 pub const CHAR_LETTER_T: char = 't';
+
+/// The error message for a failed directory read during `.rs` file discovery.
+pub const ERROR_READ_DIRECTORY: &str = "Failed to read directory";
+
+/// The error message for a failed directory-entry iteration during `.rs` file discovery.
+pub const ERROR_READ_ENTRY_IN_DIRECTORY: &str = "Failed to read entry in directory";
+
+/// The error message for a failed source-file read during formatting.
+pub const ERROR_READ_FILE: &str = "Failed to read";
+
+/// The error message for a failed source-file write during formatting.
+pub const ERROR_WRITE_FILE: &str = "Failed to write";

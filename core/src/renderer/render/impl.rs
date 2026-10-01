@@ -1048,8 +1048,9 @@ impl Renderer {
                                     element_value.unchecked_into::<Element>()
                                 });
                         let _: Result<(), JsValue> =
-                            marker.set_attribute("data-euv-portal", selector);
-                        let _: Result<(), JsValue> = marker.set_attribute("style", "display:none");
+                            marker.set_attribute(DATA_EUV_PORTAL, selector);
+                        let _: Result<(), JsValue> =
+                            marker.set_attribute(ATTR_STYLE, PORTAL_MARKER_STYLE);
                         let target: Element = document
                             .query_selector(selector)
                             .ok()
@@ -1613,8 +1614,8 @@ impl Mount {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - A CSS selector string to locate the target element.
-    /// - `FnOnce() -> VirtualNode + 'static` - A closure that returns the virtual DOM tree.
+    /// - `S` - A CSS selector string to locate the target element.
+    /// - `F` - A closure that returns the virtual DOM tree.
     pub(crate) fn setup<S, F>(selector: S, render_fn: F)
     where
         S: AsRef<str>,

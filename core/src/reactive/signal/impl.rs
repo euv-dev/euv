@@ -53,7 +53,7 @@ where
     ///
     /// # Arguments
     ///
-    /// - `T: Clone + PartialEq + 'static` - The initial value of the signal.
+    /// - `T` - The initial value of the signal.
     ///
     /// # Returns
     ///
@@ -88,7 +88,7 @@ where
     ///
     /// # Returns
     ///
-    /// - `T: Clone + PartialEq + 'static` - The current value of the signal.
+    /// - `T` - The current value of the signal.
     pub fn get(&self) -> T {
         let idx: usize = self.get_inner();
         Self::with_slab::<_, Option<T>>(
@@ -141,7 +141,7 @@ where
     ///
     /// # Arguments
     ///
-    /// - `F: FnOnce(&T) -> R` - Closure receiving `&T`.
+    /// - `F` - Closure receiving `&T`.
     ///
     /// # Returns
     ///
@@ -189,7 +189,7 @@ where
     ///
     /// # Arguments
     ///
-    /// - `FnMut() + 'static` - The callback to invoke when the signal changes.
+    /// - `F` - The callback to invoke when the signal changes.
     ///
     /// # Returns
     ///
@@ -292,11 +292,11 @@ where
     ///
     /// # Arguments
     ///
-    /// - `T: Clone + PartialEq + 'static` - A generic type parameter.
+    /// - `T` - The new value to assign to the signal.
     ///
     /// # Returns
     ///
-    /// - `bool` - A boolean.
+    /// - `bool` - `true` when the value changed and listeners were notified.
     fn update(&self, value: T) -> bool {
         let idx: usize = self.get_inner();
         // Phase 1: publish the new value and take ownership of the listener
@@ -378,6 +378,12 @@ where
     /// typical append-into-existing-list call from O(N) to O(1). Only the
     /// rare cases (first add, or `dynamic_id` re-added after a previous
     /// unsubscription) fall back to the full scan + push.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut SignalInner<T>` - The already-borrowed inner state owning
+    ///   the dependent list.
+    /// - `usize` - The dynamic node ID to record as a dependent.
     fn push_dependent(inner: &mut SignalInner<T>, dynamic_id: usize) {
         let deps: &mut Vec<usize> = inner.get_mut_dependents();
         if let Some(last) = deps.last() {
@@ -428,7 +434,7 @@ where
     ///
     /// # Arguments
     ///
-    /// - `T: Clone + PartialEq + 'static` - The new value to assign to the signal.
+    /// - `T` - The new value to assign to the signal.
     pub fn set(&self, value: T) {
         if self.update(value) {
             let dependents: Vec<usize> = self.take_dependents();
@@ -559,7 +565,7 @@ impl FireHandle {
     ///
     /// # Arguments
     ///
-    /// - `F: FnMut() + 'static` - The fire closure to leak.
+    /// - `F` - The fire closure to leak.
     ///
     /// # Returns
     ///
@@ -665,6 +671,14 @@ impl SignalSlab {
     /// Append-only: the slot index issued here is never reused for another
     /// signal, which is what makes stale-handle reads sound (they always
     /// resolve to this slot's original, possibly deactivated, inner state).
+    ///
+    /// # Arguments
+    ///
+    /// - `SignalInner<T>` - The typed inner state to store in a new slot.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - The freshly issued slot index.
     pub(crate) fn insert<T>(&mut self, inner: SignalInner<T>) -> usize
     where
         T: Clone + PartialEq + 'static,
@@ -682,6 +696,16 @@ impl SignalSlab {
     /// freed, so `None` means the caller is holding a corrupted handle —
     /// surfaced as `None` rather than panicking so that stale handles
     /// degrade into safe no-ops (matching the `alive == false` semantics).
+    ///
+    /// # Arguments
+    ///
+    /// - `usize` - The slot index previously issued by
+    ///   [`SignalSlab::insert`].
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&mut SignalInner<T>>` - The typed view of the slot, or
+    ///   `None` when the index is out of bounds or belongs to another `T`.
     pub(crate) fn get_mut<T>(&mut self, idx: usize) -> Option<&mut SignalInner<T>>
     where
         T: Clone + PartialEq + 'static,

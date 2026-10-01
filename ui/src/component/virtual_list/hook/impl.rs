@@ -3,6 +3,11 @@ use super::*;
 /// Encapsulated access to the global pending measurement set.
 impl PendingMeasureCell {
     /// Returns a mutable reference to the set of pending container ids.
+    ///
+    /// # Returns
+    ///
+    /// - `&'static mut HashSet<String>` - Mutable access to the process-wide
+    ///   set of container ids awaiting measurement.
     fn get_mut_pending_measure() -> &'static mut HashSet<String> {
         unsafe {
             &mut *(*std::ptr::addr_of_mut!(PENDING_MEASURE_BY_ID))
@@ -128,7 +133,7 @@ impl UseVirtualList {
     ///
     /// # Arguments
     ///
-    /// - `C: AsRef<str>` - The container element id.
+    /// - `C` - The container element id.
     ///
     /// # Returns
     ///

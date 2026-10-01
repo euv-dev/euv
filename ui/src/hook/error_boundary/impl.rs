@@ -20,7 +20,7 @@ impl ErrorBoundary {
     ///
     /// # Arguments
     ///
-    /// - `F: FnOnce() -> R + UnwindSafe` - A generic type parameter.
+    /// - `F` - A generic type parameter.
     ///
     /// # Returns
     ///

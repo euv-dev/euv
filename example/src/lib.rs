@@ -3,11 +3,12 @@
 //! A demonstration application showcasing the euv component system,
 //! reactive signals, routing, and HTML macros.
 
+mod app;
 mod component;
 mod page;
 mod style;
 
-pub(crate) use {component::*, page::*, style::*};
+pub(crate) use {app::*, component::*, page::*, style::*};
 
 pub use std::{
     cell::RefMut,
@@ -40,5 +41,5 @@ use {
 pub fn main() {
     console_error_panic_hook::set_once();
     inject_app_global_css();
-    App::mount("#app", app);
+    App::mount(APP_MOUNT_SELECTOR, app);
 }

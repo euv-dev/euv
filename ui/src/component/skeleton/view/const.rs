@@ -17,3 +17,12 @@ pub const SKELETON_WIDTH_DEFAULT: &str = "100%";
 /// a caller can match a circular avatar or a pill-shaped chip without the
 /// rest of the component library losing its `border-radius: 0px` rule.
 pub const SKELETON_RADIUS: &str = "2px";
+
+/// The inline-style property name carrying a skeleton line's width.
+pub const SKELETON_STYLE_WIDTH: &str = "width: ";
+
+/// The inline-style property name carrying a skeleton line's height.
+pub const SKELETON_STYLE_HEIGHT: &str = " height: ";
+
+/// The inline-style property name carrying a skeleton line's corner radius.
+pub const SKELETON_STYLE_RADIUS: &str = " border-radius: ";

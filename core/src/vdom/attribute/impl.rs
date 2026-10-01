@@ -61,7 +61,7 @@ impl AttributeValue {
     ///
     /// # Arguments
     ///
-    /// - `F: Fn() -> String + 'static` - A closure that computes the current attribute value.
+    /// - `F` - A closure that computes the current attribute value.
     ///   Called once per render of the enclosing dynamic node.
     ///
     /// # Returns
@@ -122,6 +122,15 @@ impl AttributeValue {
     /// the regression that wiped every multi-class CssRef entry (e.g.
     /// the `c_binding_slider` class next to a parameterized
     /// `c_slider_value("30%")` on the same `<input>`).
+    ///
+    /// # Arguments
+    ///
+    /// - `&[Self]` - The class attribute values to merge, in order.
+    ///
+    /// # Returns
+    ///
+    /// - `String` - The merged class list, segments separated by a
+    ///   single space; empty when no segment survived filtering.
     fn join_class_segments(values: &[Self]) -> String {
         let mut joined: String = String::new();
         for value in values.iter() {
@@ -203,6 +212,15 @@ impl AttributeValue {
     /// style merging uses. Avoids the intermediate `Vec<String>` plus
     /// `join(" ")` round-trip of the previous implementation, dropping
     /// per-render allocation count from `N + 2` to `1`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[Self]` - The style attribute values to merge, in order.
+    ///
+    /// # Returns
+    ///
+    /// - `String` - The merged CSS declarations, segments separated by a
+    ///   single space; empty when no segment carried a declaration.
     fn join_style_segments(values: &[Self]) -> String {
         let mut joined: String = String::new();
         for value in values.iter() {
@@ -367,7 +385,7 @@ impl Css {
     ///
     /// # Arguments
     ///
-    /// - `I: AsRef<str>` - The serialized pseudo rules string.
+    /// - `I` - The serialized pseudo rules string.
     ///
     /// # Returns
     ///
@@ -412,7 +430,7 @@ impl Css {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - The serialized media rules string.
+    /// - `S` - The serialized media rules string.
     ///
     /// # Returns
     ///
@@ -671,7 +689,7 @@ impl Css {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - An array of CSS property name-value pairs.
+    /// - `&[(K, V)]` - An array of CSS property name-value pairs.
     ///
     /// # Returns
     ///
@@ -765,7 +783,7 @@ impl Css {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - The CSS text to inject (e.g., reset styles, keyframes, media queries).
+    /// - `S` - The CSS text to inject (e.g., reset styles, keyframes, media queries).
     ///
     /// # Panics
     ///
@@ -788,7 +806,7 @@ impl Display for Css {
     ///
     /// # Arguments
     ///
-    /// - `&mut Formatter` - The formatter.
+    /// - `&mut Formatter<'_>` - The formatter.
     ///
     /// # Returns
     ///

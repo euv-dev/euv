@@ -14,7 +14,7 @@ use super::*;
 ///
 /// # Arguments
 ///
-/// - `&ParseStream` - The parse stream to check.
+/// - `ParseStream` - The parse stream to check.
 ///
 /// # Returns
 ///

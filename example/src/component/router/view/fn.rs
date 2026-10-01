@@ -7,7 +7,7 @@ use super::*;
 ///
 /// # Arguments
 ///
-/// - `PageRouterProps` - The typed props containing the route signal.
+/// - `VirtualNode<PageRouterProps>` - The typed props containing the route signal.
 ///
 /// # Returns
 ///
@@ -20,103 +20,103 @@ pub(crate) fn page_router(node: VirtualNode<PageRouterProps>) -> VirtualNode {
         div {
             class: c_page_router()
             match { route_signal.get().as_str() } {
-                "/" | "/about" => {
+                ROUTE_HOME | ROUTE_ABOUT => {
                     page_about {}
                 }
-                "/animation" => {
+                ROUTE_ANIMATION => {
                     page_animation {}
                 }
-                "/custom-attrs" => {
+                ROUTE_CUSTOM_ATTRS => {
                     page_custom_attrs {}
                 }
-                "/badge" => {
+                ROUTE_BADGE => {
                     page_badge {}
                 }
-                "/component-binding" => {
+                ROUTE_COMPONENT_BINDING => {
                     page_component_binding {}
                 }
-                "/browser" => {
+                ROUTE_BROWSER => {
                     page_browser {}
                 }
-                "/camera" => {
+                ROUTE_CAMERA => {
                     page_camera {}
                 }
-                "/canvas" => {
+                ROUTE_CANVAS => {
                     page_canvas {}
                 }
-                "/conditional" => {
+                ROUTE_CONDITIONAL => {
                     page_conditional {}
                 }
-                "/counter" => {
+                ROUTE_COUNTER => {
                     page_counter {}
                 }
-                "/dynamic-component" => {
+                ROUTE_DYNAMIC_COMPONENT => {
                     page_dynamic_component {}
                 }
-                "/event" => {
+                ROUTE_EVENT => {
                     page_event {}
                 }
-                "/form" => {
+                ROUTE_FORM => {
                     page_form {}
                 }
-                "/hooks-timing" => {
+                ROUTE_HOOKS_TIMING => {
                     page_hooks_timing {}
                 }
-                "/hooks-async" => {
+                ROUTE_HOOKS_ASYNC => {
                     page_hooks_async {}
                 }
-                "/hooks-protect" => {
+                ROUTE_HOOKS_PROTECT => {
                     page_hooks_protect {}
                 }
-                "/hooks-i18n" => {
+                ROUTE_HOOKS_I18N => {
                     page_hooks_i18n {}
                 }
-                "/game-2d" => {
+                ROUTE_GAME_2D => {
                     page_game_2d {}
                 }
-                "/game-3d" => {
+                ROUTE_GAME_3D => {
                     page_game_3d {}
                 }
                 GESTURE_ROUTE => {
                     page_gesture {}
                 }
-                "/keep-alive" => {
+                ROUTE_KEEP_ALIVE => {
                     page_keep_alive {}
                 }
-                "/lifecycle" => {
+                ROUTE_LIFECYCLE => {
                     page_lifecycle {}
                 }
-                "/lighting" => {
+                ROUTE_LIGHTING => {
                     page_lighting {}
                 }
-                "/list" => {
+                ROUTE_LIST => {
                     page_list {}
                 }
-                "/modal" => {
+                ROUTE_MODAL => {
                     page_modal {}
                 }
-                "/observer" => {
+                ROUTE_OBSERVER => {
                     page_observer {}
                 }
-                "/raytrace" => {
+                ROUTE_RAYTRACE => {
                     page_raytrace {}
                 }
-                "/sse" => {
+                ROUTE_SSE => {
                     page_sse {}
                 }
-                "/select" => {
+                ROUTE_SELECT => {
                     page_select {}
                 }
-                "/timer" => {
+                ROUTE_TIMER => {
                     page_timer {}
                 }
-                "/file-upload" => {
+                ROUTE_FILE_UPLOAD => {
                     page_file_upload {}
                 }
-                "/virtual-list" => {
+                ROUTE_VIRTUAL_LIST => {
                     page_virtual_list {}
                 }
-                "/websocket" => {
+                ROUTE_WEBSOCKET => {
                     page_websocket {}
                 }
                 _ => {

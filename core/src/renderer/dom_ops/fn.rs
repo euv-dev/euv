@@ -100,6 +100,17 @@ pub(crate) fn ensure_dom_op_table() -> Option<DomOpTable> {
 /// `appendChild` / `removeChild` on the element. Equivalent JS cost to
 /// the per-op path (N attribute writes inside the function instead of N
 /// JS round-trips) but only one crossing to enter the function.
+///
+/// # Arguments
+///
+/// - `&JsValue` - The `globalThis` handle the helpers are installed on.
+/// - `&DomOpNames` - The JavaScript-side property names the installed
+///   helpers are published under.
+///
+/// # Returns
+///
+/// - `Option<DomOpTable>` - The installed helper table, or `None` when
+///   evaluation or the property install step failed.
 fn install_dom_op_table(global_value: &JsValue, names: &DomOpNames) -> Option<DomOpTable> {
     let set_attrs_source: &str = "function(elem, names, values) { \
         for (var i = 0; i < names.length; i++) { \
@@ -158,6 +169,16 @@ fn install_dom_op_table(global_value: &JsValue, names: &DomOpNames) -> Option<Do
 }
 
 /// Compiles a JS function body via `js_sys::eval`.
+///
+/// # Arguments
+///
+/// - `&str` - The JavaScript function body, wrapped in parentheses
+///   before evaluation so it parses as an expression.
+///
+/// # Returns
+///
+/// - `Option<Function>` - The compiled function, or `None` when the body
+///   failed to evaluate or did not produce a function object.
 fn eval_function(body: &str) -> Option<Function> {
     let wrapped: String = format!("({})", body);
     js_sys::eval(&wrapped)
@@ -170,6 +191,11 @@ fn eval_function(body: &str) -> Option<Function> {
 /// Falls back to `window` when `globalThis` is not present (older
 /// Safari / non-browser WASM hosts). Returns `None` if neither is
 /// available.
+///
+/// # Returns
+///
+/// - `Option<JsValue>` - The resolved `globalThis` handle, or `None`
+///   when neither `globalThis` nor `window` is reachable.
 fn global_this() -> Option<JsValue> {
     if let Ok(value) = js_sys::eval(JS_GLOBAL_THIS)
         && !value.is_undefined()
@@ -186,6 +212,15 @@ fn global_this() -> Option<JsValue> {
 /// of calling `setAttribute`). For these attributes the renderer must
 /// keep the per-element direct call to preserve the previous semantics
 /// — batched `setAttribute` would silently break input/textarea/etc.
+///
+/// # Arguments
+///
+/// - `&str` - The attribute name to classify.
+///
+/// # Returns
+///
+/// - `bool` - `true` when the attribute must go through the direct
+///   form-property assignment path instead of `setAttribute`.
 pub(crate) fn is_property_attr(name: &str) -> bool {
     name == ATTR_VALUE
         || name == ATTR_CHECKED
@@ -334,6 +369,11 @@ pub(crate) fn apply_child_ops_batch(parent: &Element, ops: &[ChildOp]) {
 
 /// Per-op fallback used when the JS-side batched call fails. Mirrors
 /// the previous patch-path behaviour exactly.
+///
+/// # Arguments
+///
+/// - `&Element` - The parent the child is inserted into or removed from.
+/// - `&ChildOp` - The single child operation to apply.
 fn apply_child_op_fallback(parent: &Element, op: &ChildOp) {
     match op {
         ChildOp::InsertBefore { node, reference } => {

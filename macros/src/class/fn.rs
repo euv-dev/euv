@@ -477,7 +477,7 @@ pub(crate) fn parse_selector(input: ParseStream, initial_colons: usize) -> syn::
 ///
 /// # Arguments
 ///
-/// - `&ParseStream` - The parse stream to check.
+/// - `ParseStream` - The parse stream to check.
 ///
 /// # Returns
 ///
@@ -698,7 +698,7 @@ pub(crate) fn parse_block_content(input: ParseStream) -> syn::Result<BlockConten
 ///
 /// # Arguments
 ///
-/// - `&ParseStream` - The parse stream to check.
+/// - `ParseStream` - The parse stream to check.
 ///
 /// # Returns
 ///
@@ -1094,7 +1094,7 @@ pub(crate) fn at_rule_block_to_static_string(block: &AtRuleBlock) -> String {
 ///
 /// # Returns
 ///
-/// - `&str` - The CSS at-rule prefix string (e.g., "@media ", "@keyframes ").
+/// - `&'static str` - The CSS at-rule prefix string (e.g., "@media ", "@keyframes ").
 pub(crate) fn at_rule_kind_to_css_prefix(kind: &AtRuleKind) -> &'static str {
     match kind {
         AtRuleKind::Media => CSS_MEDIA_PREFIX,
@@ -1115,10 +1115,10 @@ pub(crate) fn at_rule_kind_to_css_prefix(kind: &AtRuleKind) -> &'static str {
         AtRuleKind::FontPaletteValues => CSS_FONT_PALETTE_VALUES_PREFIX,
         AtRuleKind::Document => CSS_DOCUMENT_PREFIX,
         AtRuleKind::StartingStyle => CSS_STARTING_STYLE_PREFIX,
-        AtRuleKind::ViewTransition => "@view-transition ",
-        AtRuleKind::PositionTry => "@position-try ",
-        AtRuleKind::CustomMedia => "@custom-media ",
-        AtRuleKind::Function => "@function ",
+        AtRuleKind::ViewTransition => CSS_VIEW_TRANSITION_PREFIX,
+        AtRuleKind::PositionTry => CSS_POSITION_TRY_PREFIX,
+        AtRuleKind::CustomMedia => CSS_CUSTOM_MEDIA_PREFIX,
+        AtRuleKind::Function => CSS_FUNCTION_PREFIX,
     }
 }
 
@@ -1129,7 +1129,7 @@ pub(crate) fn at_rule_kind_to_css_prefix(kind: &AtRuleKind) -> &'static str {
 /// # Arguments
 ///
 /// - `&mut proc_macro2::TokenStream` - The target token stream to append to.
-/// - `OnceLockParams` - The parameters for the OnceLock function generation.
+/// - `OnceLockParams<'_>` - The parameters for the OnceLock function generation.
 pub(crate) fn emit_once_lock_fn(
     tokens: &mut proc_macro2::TokenStream,
     once_lock_params: OnceLockParams<'_>,

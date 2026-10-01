@@ -1,14 +1,5 @@
 use super::*;
 
-/// localStorage key prefix used to record that a `route` has been
-/// unlocked. The value itself is just a constant `"1"` sentinel — the
-/// password digest lives only in [`DocsPage::password_hash`].
-///
-/// Route is alphanumeric-only into the key so that slashes / locale
-/// prefixes don't collide and so the key is plain ASCII (localStorage
-/// keys must not contain newlines or other control chars).
-const UNLOCK_KEY_PREFIX: &str = "euv-docs:unlocked:";
-
 /// Calls `crypto.subtle.digest("SHA-256", ...)` on the supplied UTF-8
 /// string via a tiny inline JS shim and returns the lower-case hex
 /// digest (64 chars). Returns `None` on environments without
@@ -20,6 +11,15 @@ const UNLOCK_KEY_PREFIX: &str = "euv-docs:unlocked:";
 /// need the typed `web_sys::Crypto` / `web_sys::SubtleCrypto` surfaces,
 /// which aren't enabled in euv's web-sys feature set. The result is a
 /// `Promise<ArrayBuffer>` that we await via `wasm_bindgen_futures`.
+///
+/// # Arguments
+///
+/// - `&str` - The plaintext password typed by the user.
+///
+/// # Returns
+///
+/// - `Option<String>` - The lower-case hex digest, or `None` when
+///   `crypto.subtle` is unavailable or the digest call fails.
 async fn async_sha256_hex(input: &str) -> Option<String> {
     // Build the JS call. We escape backslashes, quotes, and newlines
     // in the input so a hostile password cannot break out of the
@@ -53,6 +53,14 @@ async fn async_sha256_hex(input: &str) -> Option<String> {
 /// Sanitises a route string for use as a localStorage key. Slashes and
 /// non-alphanumeric characters are replaced with `-` so the key is
 /// ASCII and reversible for grep.
+///
+/// # Arguments
+///
+/// - `&str` - The page route to build a key for.
+///
+/// # Returns
+///
+/// - `String` - The `localStorage` key recording this route's unlock.
 fn unlock_key_for(route: &str) -> String {
     let mut out: String = String::with_capacity(UNLOCK_KEY_PREFIX.len() + route.len());
     out.push_str(UNLOCK_KEY_PREFIX);
@@ -82,6 +90,17 @@ fn unlock_key_for(route: &str) -> String {
 ///   message; the password field is cleared so the user can retry
 ///   without leaking what they typed into form history.
 /// # Why a custom form instead of `<euv_field>` / `<euv_button>`
+///
+/// # Arguments
+///
+/// - `VirtualNode<DocsPasswordGateProps>` - The props node carrying the
+///   route, the expected digest and the page title.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The password prompt virtual DOM tree.
+///
+/// # Implementation
 ///
 /// `<euv_field>` auto-routes the `Enter` keypress to the surrounding
 /// form's `onsubmit` only when wrapped in `<form>`. The password gate
@@ -123,12 +142,14 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                 }
                 p {
                     class: c_pw_gate_hint()
-                    "本文受密码保护，输入密码后即可查看内容。"
+                    {
+                        PASSWORD_GATE_HINT
+                    }
                 }
                 input {
                     id: input_id.clone()
-                    type: "password"
-                    placeholder: "密码"
+                    type: INPUT_TYPE_PASSWORD
+                    placeholder: INPUT_PLACEHOLDER_PASSWORD
                     autocomplete: "off"
                     class: if { !error_signal.get().is_empty() } {
                         c_euv_input_error()
@@ -152,9 +173,13 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                         disabled: busy_signal.get()
                         onclick: submit
                         if { busy_signal.get() } {
-                            "验证中…"
+                            {
+                                PASSWORD_GATE_BUSY_LABEL
+                            }
                         } else {
-                            "解锁"
+                            {
+                                PASSWORD_GATE_IDLE_LABEL
+                            }
                         }
                     }
                 }
@@ -168,6 +193,19 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
 /// unlock record into localStorage **and** forces a route re-resolution
 /// so the parent renders the page body instead of the gate. On failure
 /// sets an error message and clears the input.
+///
+/// # Arguments
+///
+/// - `&'static str` - The route being unlocked.
+/// - `&'static str` - The expected SHA-256 hex digest.
+/// - `String` - The `localStorage` key to write on success.
+/// - `Signal<String>` - The bound input value signal.
+/// - `Signal<String>` - The error message signal.
+/// - `Signal<bool>` - The in-flight flag disabling double submits.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The click handler for the unlock button.
 fn submit_handler(
     route: &'static str,
     expected_hash: &'static str,
@@ -212,7 +250,7 @@ fn submit_handler(
                 input_signal.set(String::new());
                 error_signal.set(String::new());
             } else {
-                error_signal.set("密码错误，请重试。".to_string());
+                error_signal.set(PASSWORD_ERROR_MESSAGE.to_string());
                 input_signal.set(String::new());
             }
             busy_signal.set(false);
@@ -224,6 +262,14 @@ fn submit_handler(
 
 /// Updates the bound input signal on each keystroke so the value flows
 /// back into the controlled `<input>` after a wrong-submit clear.
+///
+/// # Arguments
+///
+/// - `Signal<String>` - The bound input value signal.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The `oninput` handler for the password field.
 fn oninput_handler(input_signal: Signal<String>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
         // `Event` derefs to `EventTarget` (via `web_sys::Event`'s own
@@ -241,10 +287,18 @@ fn oninput_handler(input_signal: Signal<String>) -> Option<Rc<dyn Fn(Event)>> {
 
 /// Submits when the user presses `Enter` so they don't have to click
 /// the button with the mouse.
+///
+/// # Arguments
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The submit handler to forward to.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The `onkeydown` handler for the password field.
 fn onkeydown_handler(submit: Option<Rc<dyn Fn(Event)>>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
         if let Some(keyboard) = event.dyn_ref::<KeyboardEvent>()
-            && keyboard.key() == "Enter"
+            && keyboard.key() == KEY_ENTER
             && let Some(handler) = submit.as_ref()
         {
             handler.as_ref()(event);
@@ -259,6 +313,14 @@ fn onkeydown_handler(submit: Option<Rc<dyn Fn(Event)>>) -> Option<Rc<dyn Fn(Even
 /// hasn't unlocked this route yet in this session.
 /// Reads from `localStorage` synchronously; the call is cheap and the
 /// result is a single `bool` branch.
+///
+/// # Arguments
+///
+/// - `&str` - The page route to test.
+///
+/// # Returns
+///
+/// - `bool` - `true` when this route was already unlocked in this browser.
 pub(crate) fn is_unlocked(route: &str) -> bool {
     let key: String = unlock_key_for(route);
     UseEuvBrowser::local_storage_get(&key).as_deref() == Some("1")

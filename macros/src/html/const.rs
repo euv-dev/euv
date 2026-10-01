@@ -116,3 +116,27 @@ pub(crate) const REGISTRY_DIR: &str = "registry";
 
 /// Extracted registry sources directory name under the registry directory.
 pub(crate) const REGISTRY_SRC_DIR: &str = "src";
+
+/// The pseudo-element tag name for a `portal { target: "..." }` element.
+pub(crate) const TAG_NAME_PORTAL: &str = "portal";
+
+/// The attribute key naming the portal mount target.
+pub(crate) const ATTR_KEY_TARGET: &str = "target";
+
+/// The compile error emitted when a `portal` element has no `target:` attribute.
+pub(crate) const ERR_PORTAL_REQUIRES_TARGET: &str = "portal element requires a `target:` attribute";
+
+/// The `Debug` variant name for `HtmlNode::Element`.
+pub(crate) const DEBUG_VARIANT_ELEMENT: &str = "Element";
+
+/// The `Debug` variant name for `HtmlNode::Expr`.
+pub(crate) const DEBUG_VARIANT_EXPR: &str = "Expr";
+
+/// The `Debug` variant name for `HtmlNode::Dynamic`.
+pub(crate) const DEBUG_VARIANT_DYNAMIC: &str = "Dynamic";
+
+/// The `Debug` variant name for `HtmlNode::Match`.
+pub(crate) const DEBUG_VARIANT_MATCH: &str = "Match";
+
+/// The `Debug` variant name for `HtmlNode::DynamicTag`.
+pub(crate) const DEBUG_VARIANT_DYNAMIC_TAG: &str = "DynamicTag";

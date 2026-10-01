@@ -20,7 +20,7 @@ impl<T: Clone + PartialEq + Default + 'static> ThrottledValue<T> {
     ///
     /// # Arguments
     ///
-    /// - `T: Clone + PartialEq + Default + 'static` - A generic type parameter.
+    /// - `T` - A generic type parameter.
     /// - `u64` - The current time in milliseconds (any monotonic
     ///   source; on the web use `performance.now()`).
     pub fn set(&self, next: T, now_ms: u64) {
