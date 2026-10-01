@@ -6,6 +6,7 @@ mod easing;
 mod entity;
 mod r#input;
 mod lighting;
+mod math;
 mod particle;
 mod physics;
 mod pool;
