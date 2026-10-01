@@ -1091,4 +1091,15 @@ class! {
             display: "none";
         }
     }
+
+    // Makes the element's own box disappear while its children stay in the
+    // parent's layout flow, so a wrapper can carry a key or a conditional
+    // without contributing a box.
+    //
+    // The docs shell and page wrappers spelled this as an inline
+    // `style: "display: contents"`; the rule is the same either way, but a
+    // named class keeps the markup declarative and lets the browser cache it.
+    pub c_euv_display_contents {
+        display: "contents";
+    }
 }

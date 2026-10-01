@@ -87,7 +87,7 @@ pub(crate) fn page_gesture(node: VirtualNode<PageGestureProps>) -> VirtualNode {
                     id: "gesture-readout"
                     class: c_event_touch_zone()
                     class: c_event_drag_zone()
-                    style: "min-height: 340px; touch-action: none; user-select: none;"
+                    class: c_event_gesture_zone()
                     ontouchstart: state.on_start
                     ontouchmove: state.on_move
                     ontouchend: state.on_end

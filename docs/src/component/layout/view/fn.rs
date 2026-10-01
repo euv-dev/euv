@@ -29,7 +29,7 @@ pub(crate) fn app() -> VirtualNode {
         html! {
             div {
                 key: locale_of(&parse_route(&route_signal.get()).0).prefix
-                style: "display: contents"
+                class: c_euv_display_contents()
                 if { mobile_signal.get() } {
                     docs_mobile_shell {
                         route_signal
@@ -112,7 +112,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
             }
             main {
                 class: c_app_main()
-                style: "user-select: text"
+                class: c_euv_user_select_text()
                 docs_main {
                     route_signal
                 }
@@ -171,7 +171,7 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
             }
             main {
                 class: c_mobile_main()
-                style: "user-select: text"
+                class: c_euv_user_select_text()
                 docs_main {
                     route_signal
                 }
