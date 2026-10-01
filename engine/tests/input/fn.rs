@@ -411,3 +411,63 @@ fn the_three_edge_sets_are_mutually_consistent_for_one_frame() {
     );
     assert!(released_again.contains(&1), "but letting go is a release");
 }
+
+
+#[test]
+fn reading_a_raw_axis_past_the_end_of_the_list_is_zero_not_a_panic() {
+    let axes: Vec<f64> = vec![0.0, 1.0, -1.0];
+    assert!(
+        epsilon(read_raw_axis(&axes, 0), 0.0),
+        "index zero reads the first entry"
+    );
+    assert!(
+        epsilon(read_raw_axis(&axes, 1), 1.0),
+        "index one reads the second"
+    );
+    assert!(
+        epsilon(read_raw_axis(&axes, 9), 0.0),
+        "an index past the end reads zero"
+    );
+    assert!(
+        epsilon(read_raw_axis(&[], 0), 0.0),
+        "and an empty list reads zero rather than panicking"
+    );
+}
+
+#[test]
+fn a_pad_with_no_readings_reports_nothing_down() {
+    let state: GamepadState = GamepadState::default();
+    assert!(
+        epsilon(state.button_value(0), 0.0),
+        "a pad with no readings reports zero, not a panic"
+    );
+    assert!(!state.is_button_pressed(0), "and nothing is pressed");
+    assert!(!state.is_button_held(0), "nor held");
+    assert!(!state.is_button_released(0), "nor released");
+    assert_eq!(
+        state.button_action(0),
+        InputAction::Idle,
+        "a button with no edges and no hold resolves to Idle"
+    );
+    assert!(epsilon(state.axis(0), 0.0), "and every axis reads zero");
+    assert!(
+        !state.axis_pressed(0, 0.1),
+        "so no axis can read as pressed at a real threshold"
+    );
+}
+
+#[test]
+fn the_input_action_enum_covers_the_four_states_a_button_can_be_in() {
+    let states: Vec<InputAction> = vec![
+        InputAction::Pressed,
+        InputAction::Held,
+        InputAction::Released,
+        InputAction::Idle,
+    ];
+    assert_eq!(states.len(), 4, "a button has exactly four states");
+    for (index, state) in states.iter().enumerate() {
+        for other in states.iter().skip(index + 1) {
+            assert_ne!(state, other, "the states must be distinguishable");
+        }
+    }
+}

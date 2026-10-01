@@ -939,3 +939,105 @@ fn ray_intersect_aabb_reports_a_forward_hit() {
         "a ray pointing away must miss"
     );
 }
+
+
+fn epsilon(actual: f64, expected: f64) -> bool {
+    (actual - expected).abs() < 1e-9
+}
+
+#[test]
+fn the_vector_trait_is_implemented_for_both_vector_types() {
+    assert_eq!(
+        <Vector2D as Vector>::zero(),
+        Vector2D::new(0.0, 0.0),
+        "2D zero"
+    );
+    assert_eq!(
+        <Vector3D as Vector>::zero(),
+        Vector3D::new(0.0, 0.0, 0.0),
+        "3D zero"
+    );
+    let two: Vector2D = Vector2D::new(3.0, 4.0);
+    let three: Vector3D = Vector3D::new(2.0, 3.0, 6.0);
+    assert!(
+        epsilon(two.magnitude(), 5.0),
+        "2D magnitude through the trait"
+    );
+    assert!(
+        epsilon(three.magnitude(), 7.0),
+        "3D magnitude through the trait"
+    );
+    assert!(
+        epsilon(<Vector2D as Vector>::magnitude_squared(&two), 25.0),
+        "the squared form comes from the trait too"
+    );
+    assert!(
+        epsilon(two.normalized().magnitude(), 1.0),
+        "normalized is unit length"
+    );
+    assert_eq!(
+        two.scaled(2.0),
+        Vector2D::new(6.0, 8.0),
+        "scaled through the trait"
+    );
+}
+
+fn generic_dot<V: Vector>(a: V, b: V) -> f64 {
+    a.dot(b)
+}
+
+#[test]
+fn the_vector_trait_is_what_lets_a_dot_call_be_generic() {
+    let a: Vector2D = Vector2D::new(1.0, 2.0);
+    let b: Vector2D = Vector2D::new(3.0, 4.0);
+    assert!(
+        epsilon(generic_dot(a, b), 11.0),
+        "1*3 + 2*4 = 11, reached through the trait bound rather than a concrete type"
+    );
+    let c: Vector3D = Vector3D::new(1.0, 2.0, 3.0);
+    let d: Vector3D = Vector3D::new(4.0, 5.0, 6.0);
+    assert!(
+        epsilon(generic_dot(c, d), 32.0),
+        "and the same generic call works in 3D: 4 + 10 + 18"
+    );
+}
+
+#[test]
+fn the_vector_trait_lerp_agrees_with_the_inherent_method() {
+    let a: Vector2D = Vector2D::new(0.0, 0.0);
+    let b: Vector2D = Vector2D::new(8.0, 4.0);
+    let half: Vector2D = a.lerp(b, 0.5);
+    assert_eq!(half, Vector2D::new(4.0, 2.0), "halfway through the trait");
+    assert_eq!(
+        half,
+        a.lerp(b, 0.5),
+        "and it agrees with the inherent method"
+    );
+}
+
+#[test]
+fn the_interpolable_trait_is_implemented_for_scalars_and_colors() {
+    let a: Color = Color::black();
+    let b: Color = Color::white();
+    let mid: Color = a.lerp(b, 0.5);
+    assert!(
+        epsilon(mid.get_red(), 0.5),
+        "a colour interpolates the same way a scalar would"
+    );
+    assert_eq!(a.lerp(b, 0.0), a, "factor zero returns the receiver");
+    assert_eq!(a.lerp(b, 1.0), b, "factor one returns the target");
+}
+
+#[test]
+fn a_ray2d_carries_its_origin_and_direction() {
+    let ray: Ray2D = Ray2D::new(Vector2D::new(1.0, 2.0), Vector2D::new(0.0, 1.0));
+    assert!(
+        epsilon(ray.get_origin().get_x(), 1.0) && epsilon(ray.get_origin().get_y(), 2.0),
+        "the origin round-trips"
+    );
+    assert_eq!(
+        ray.get_direction(),
+        Vector2D::new(0.0, 1.0),
+        "the direction round-trips"
+    );
+}
