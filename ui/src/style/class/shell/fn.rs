@@ -467,16 +467,30 @@ class! {
 
     pub c_nav_footer {
         // The attribution line sits between the divider painted at `top: 0`
-        // and the bottom edge of the sidebar, so the two vertical paddings
-        // are what decide whether it looks centred in that band. They are
-        // equal: an asymmetric pair read as the text hugging the bottom
-        // edge with a gap above it, which is what made the footer look
-        // detached. `space-md` is the tighter of the two old values and
-        // keeps the row compact against the bottom edge.
+        // and the bottom of the sidebar's visible area, so the two vertical
+        // paddings are what decide whether it looks centred in that band.
+        // They are equal: an asymmetric pair read as the text hugging the
+        // bottom edge with a gap above it, which is what made the footer
+        // look detached. `space-md` is the tighter of the two old values
+        // and keeps the row compact against the bottom edge.
         padding: format!("{} {} {}", var!(space-md), var!(edge-gutter-nav), var!(space-md));
         @media ((max-width: 767px)) {
             padding: format!("{} {} {}", var!(space-md), var!(edge-gutter-mobile), var!(space-md));
         }
+        // The bottom safe-area inset is deliberately NOT re-applied here.
+        // `c_app_root` already reserves it as the shell's own
+        // `padding-bottom`, which lifts the entire shell — sidebar
+        // included — clear of the home indicator before this element ever
+        // lays out. The footer is the last row inside that lifted box, so
+        // its band already ends at the safe edge and `space-md` above and
+        // below is all it needs to centre the line.
+        //
+        // Adding the inset a second time was measured, not assumed: with a
+        // 34px inset the band grew from 42px to 76px, the gap above the
+        // line stayed at 13px and the gap below it became 48px — a 35px
+        // asymmetry, the exact defect these paddings exist to prevent.
+        // The safe-area is counted once, at the shell, and the footer just
+        // fills whatever band that leaves.
         position: "relative";
         font-size: var!(font-xs);
         color: var!(muted-foreground);
