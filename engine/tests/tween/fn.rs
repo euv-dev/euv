@@ -1,5 +1,9 @@
 use super::*;
 
+fn epsilon(actual: f64, expected: f64) -> bool {
+    (actual - expected).abs() < 1e-9
+}
+
 #[test]
 fn a_fresh_tween_reports_the_start_value() {
     let mut tween: Tween<f64> = Tween::create(0.0, 10.0, 1.0);
@@ -210,5 +214,117 @@ fn a_negative_delta_time_does_not_rewind_a_running_tween() {
     assert!(
         after >= before,
         "a negative delta must not move the tween backwards, went from {before} to {after}"
+    );
+}
+
+fn fresh() -> Tween<f64> {
+    Tween::create(0.0, 10.0, 1.0)
+}
+
+#[test]
+fn a_builder_chains_every_stage_and_keeps_the_underlying_values() {
+    let tween: Tween<f64> = fresh()
+        .with_easing(Easing::InOutQuad)
+        .with_delay(0.25)
+        .with_mode(AnimationMode::Loop);
+    assert_eq!(tween.get_easing(), Easing::InOutQuad, "the easing stuck");
+    assert!(epsilon(tween.get_delay(), 0.25), "the delay stuck");
+    assert_eq!(tween.get_mode(), AnimationMode::Loop, "the mode stuck");
+    assert!(
+        epsilon(tween.get_from(), 0.0),
+        "the start value is untouched"
+    );
+    assert!(epsilon(tween.get_to(), 10.0), "as is the end value");
+    assert!(epsilon(tween.get_duration(), 1.0), "and so is the duration");
+}
+
+#[test]
+fn the_setters_move_the_fields_the_getters_read() {
+    let mut tween: Tween<f64> = fresh();
+    tween.set_easing(Easing::OutBounce);
+    tween.set_delay(0.5);
+    tween.set_mode(AnimationMode::PingPong);
+    tween.set_elapsed(0.75);
+    tween.set_direction(-1.0);
+    assert_eq!(tween.get_easing(), Easing::OutBounce, "easing round-trips");
+    assert!(epsilon(tween.get_delay(), 0.5), "delay round-trips");
+    assert_eq!(
+        tween.get_mode(),
+        AnimationMode::PingPong,
+        "mode round-trips"
+    );
+    assert!(epsilon(tween.get_elapsed(), 0.75), "elapsed round-trips");
+    assert!(
+        epsilon(tween.get_direction(), -1.0),
+        "direction round-trips"
+    );
+}
+
+#[test]
+fn a_completion_callback_round_trips_through_its_option() {
+    let mut tween: Tween<f64> = fresh();
+    assert!(
+        tween.try_get_on_complete().is_none(),
+        "a tween built without a builder callback has none"
+    );
+    tween.set_on_complete(Some(Rc::new(|| {})));
+    assert!(
+        tween.try_get_on_complete().is_some(),
+        "and setting one is visible through the getter"
+    );
+    tween.set_on_complete(None);
+    assert!(
+        tween.try_get_on_complete().is_none(),
+        "clearing it goes back to none"
+    );
+}
+
+#[test]
+fn elapsed_can_be_advanced_through_its_mutable_view() {
+    let mut tween: Tween<f64> = fresh();
+    *tween.get_elapsed_mut() = 0.5;
+    assert!(
+        epsilon(tween.get_elapsed(), 0.5),
+        "the mutable view writes through to the getter, got {}",
+        tween.get_elapsed()
+    );
+}
+
+#[test]
+fn set_state_is_the_same_knob_the_update_loop_turns() {
+    let mut tween: Tween<f64> = fresh();
+    assert_eq!(
+        tween.get_state(),
+        TweenState::Running,
+        "a zero-delay tween starts Running, not Delayed"
+    );
+    tween.set_state(TweenState::Running);
+    assert_eq!(tween.get_state(), TweenState::Running, "the state stuck");
+    tween.set_state(TweenState::Finished);
+    assert!(
+        tween.is_finished(),
+        "and the finished state drives is_finished"
+    );
+}
+
+#[test]
+fn a_rewound_elapsed_counter_shows_up_as_a_fresh_start() {
+    let mut tween: Tween<f64> = fresh();
+    tween.set_delay(0.0);
+    let _: f64 = tween.update(0.5);
+    assert!(
+        epsilon(tween.raw_progress(), 0.5),
+        "halfway through, got {}",
+        tween.raw_progress()
+    );
+    *tween.get_elapsed_mut() = 0.0;
+    assert!(
+        epsilon(tween.raw_progress(), 0.0),
+        "zeroing the elapsed counter rewinds the tween"
+    );
+    let value: f64 = tween.value();
+    assert!(
+        epsilon(value, 0.0),
+        "and the value follows it back to the start"
     );
 }
