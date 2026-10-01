@@ -16,6 +16,11 @@ use super::*;
 ///
 /// Every tab reports an honest wall-clock FPS.
 ///
+/// # Arguments
+///
+/// - `VirtualNode<PageLightingProps>` - The page component node carrying the
+///   page props.
+///
 /// # Returns
 /// - `VirtualNode` - The lighting page virtual DOM tree.
 #[component]
@@ -29,11 +34,11 @@ pub(crate) fn page_lighting(node: VirtualNode<PageLightingProps>) -> VirtualNode
             class: c_page_container()
             euv_header {
                 icon: "💡"
-                title: "Phong Lighting"
-                subtitle: "A Phong shading demo rendered three ways: a Canvas 2D software path with an ImageData fast path and adaptive internal resolution, a WebGL 2 GLSL fragment-shader path, and a WebGPU WGSL path. All backends shade the same scene (5 spheres + 1 ground line, 1 directional sun + 1 point lamp) with 2x2 sub-sample coverage, and every tab reports an honest wall-clock FPS. Click Enter Fullscreen for a larger view."
+                title: LIGHTING_HEADER_TITLE
+                subtitle: LIGHTING_HEADER_SUBTITLE
             }
             euv_card {
-                title: "Lighting Demo"
+                title: LIGHTING_CANVAS_CARD_TITLE
                 div {
                     class: c_tab_bar()
                     div {
@@ -83,24 +88,24 @@ pub(crate) fn page_lighting(node: VirtualNode<PageLightingProps>) -> VirtualNode
                 }
             }
             euv_card {
-                title: "Lighting Backends"
+                title: LIGHTING_BACKENDS_CARD_TITLE
                 match { tab } {
                     LightingTab::Canvas2D => {
                         p {
                             class: c_game_description()
-                            "The Canvas 2D tab runs euv-engine's lighting module on the CPU: every frame, every sphere pixel reconstructs the surface normal from its screen-space position (dz = sqrt(r^2 - d^2)) and feeds it to LightingUniforms::shade together with one directional sun and one point lamp, and the ground line is shaded with the same pipeline using a fixed up-pointing normal. Finished frames are packed into a persistent RGBA buffer (gamma 1/2.2, alpha 0 outside the shapes so the theme background shows through) and uploaded with a single put_image_data call, and an EMA of the CPU frame time steps the internal resolution through a 640x480 .. 80x60 ladder (always 4:3, so the fullscreen letterbox holds) to protect the frame rate, starting at 320x240 and climbing only when the budget allows. The FPS counter measures unclamped wall-clock time."
+                            LIGHTING_CANVAS_DESCRIPTION
                         }
                     }
                     LightingTab::WebGl => {
                         p {
                             class: c_game_description()
-                            "The WebGL tab runs the identical scene inside a GLSL ES 3.00 fragment shader drawn on an attribute-less fullscreen triangle (gl_VertexID, no vertex buffers): the five circles, ground row, sun, and point lamp are hardcoded in the shader, and the canvas resolution plus computed background color are uploaded per frame as a vec4 uniform array. The fragment shader mirrors the engine's LightingUniforms::shade term for term (gamma 1/2.2) and anti-aliases at the physical canvas resolution: each fragment takes 2x2 sub-samples in physical pixels and evaluates the analytic scene at each sub-sample's exact logical position (painter's order: background, ground row, spheres back-to-front), so edges stay smooth at any backing resolution. The fixed 4:3 logical scene is letterboxed with a uniform scale so the spheres never stretch at any canvas size. Works in every modern browser with WebGL 2 support."
+                            LIGHTING_WEBGL_DESCRIPTION
                         }
                     }
                     LightingTab::WebGpu => {
                         p {
                             class: c_game_description()
-                            "The WebGPU tab runs the same shader logic expressed in WGSL: a fullscreen triangle generated from @builtin(vertex_index) and a fragment stage that shades the scene with physical-resolution 2x2 sub-sample coverage. Per-frame data arrives in a single 2-vec4 uniform buffer at @group(0) @binding(0) via WebGpuRenderer's create_render_pipeline / create_uniform_buffer / render_frame_with_bind_group helpers. Requires a WebGPU-capable browser (Chrome 113+, Edge 113+)."
+                            LIGHTING_WEBGPU_DESCRIPTION
                         }
                     }
                 }
@@ -142,9 +147,9 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
     let _init_error_code: &str = state.get_init_error_code().get();
     let status_text: &str = lighting_canvas_status_text(active);
     let pause_label: &str = if state.get_running().get() {
-        "Pause"
+        LIGHTING_PAUSE_LABEL
     } else {
-        "Resume"
+        LIGHTING_RESUME_LABEL
     };
     html! {
         div {
@@ -152,7 +157,7 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    "FPS: "
+                    LIGHTING_FPS_PREFIX
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -160,11 +165,11 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
                 }
                 span {
                     class: c_game_stats_label()
-                    "Lights: 1 directional + 1 point"
+                    LIGHTING_LIGHTS_SUMMARY
                 }
                 span {
                     class: c_game_stats_label()
-                    "Scale: "
+                    LIGHTING_SCALE_PREFIX
                     span {
                         class: c_game_stats_count_value()
                         scale_display
@@ -172,7 +177,7 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
                 }
                 span {
                     class: c_game_stats_label()
-                    "Status: "
+                    LIGHTING_STATUS_PREFIX
                     span {
                         class: c_game_stats_total_value()
                         status_text
@@ -210,7 +215,7 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Exit"
+                            label: LIGHTING_EXIT_BUTTON_LABEL
                             onclick: lighting_on_exit_fullscreen(canvas_2d_fullscreen)
                         }
                     }
@@ -225,7 +230,7 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: "Enter Fullscreen"
+                    label: LIGHTING_ENTER_FULLSCREEN_BUTTON_LABEL
                     onclick: lighting_on_enter_fullscreen(canvas_2d_fullscreen)
                 }
             }
@@ -249,9 +254,9 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
 /// - `&'static str` - The banner text.
 fn lighting_canvas_status_text(active: bool) -> &'static str {
     let text: &'static str = if active {
-        "Canvas 2D Active"
+        LIGHTING_CANVAS_2D_ACTIVE_STATUS
     } else {
-        "Initializing..."
+        LIGHTING_INITIALIZING_STATUS
     };
     text
 }
@@ -267,22 +272,22 @@ fn lighting_canvas_status_text(active: bool) -> &'static str {
 ///
 /// - `bool` - Whether initialization has finished (success or failure).
 /// - `bool` - Whether the renderer is active.
-/// - `&str` - The `WebGlInitError::code()` from the last init attempt.
+/// - `&str` - The `WebGl2InitError::code()` from the last init attempt.
 ///
 /// # Returns
 ///
 /// - `&'static str` - The banner text.
 fn lighting_webgl_status_text(loaded: bool, active: bool, init_error_code: &str) -> &'static str {
     if !loaded {
-        return "Initializing...";
+        return LIGHTING_INITIALIZING_STATUS;
     }
     if active {
-        return "WebGL Active";
+        return LIGHTING_WEBGL_ACTIVE_STATUS;
     }
     if init_error_code.is_empty() {
-        "WebGL not supported"
+        LIGHTING_WEBGL_NOT_SUPPORTED_STATUS
     } else {
-        "WebGL init failed"
+        LIGHTING_WEBGL_INIT_FAILED_STATUS
     }
 }
 
@@ -314,9 +319,9 @@ fn lighting_webgl_tab(state: UseLightingWebGl, fullscreen: UseLightingFullscreen
     let init_error_code: &str = state.get_init_error_code().get();
     let status_text: &str = lighting_webgl_status_text(loaded, active, init_error_code);
     let pause_label: &str = if state.get_running().get() {
-        "Pause"
+        LIGHTING_PAUSE_LABEL
     } else {
-        "Resume"
+        LIGHTING_RESUME_LABEL
     };
     html! {
         div {
@@ -324,7 +329,7 @@ fn lighting_webgl_tab(state: UseLightingWebGl, fullscreen: UseLightingFullscreen
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    "FPS: "
+                    LIGHTING_FPS_PREFIX
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -332,11 +337,11 @@ fn lighting_webgl_tab(state: UseLightingWebGl, fullscreen: UseLightingFullscreen
                 }
                 span {
                     class: c_game_stats_label()
-                    "Lights: 1 directional + 1 point"
+                    LIGHTING_LIGHTS_SUMMARY
                 }
                 span {
                     class: c_game_stats_label()
-                    "Status: "
+                    LIGHTING_STATUS_PREFIX
                     span {
                         class: c_game_stats_total_value()
                         status_text
@@ -374,7 +379,7 @@ fn lighting_webgl_tab(state: UseLightingWebGl, fullscreen: UseLightingFullscreen
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Exit"
+                            label: LIGHTING_EXIT_BUTTON_LABEL
                             onclick: lighting_on_exit_fullscreen(web_gl_fullscreen)
                         }
                     }
@@ -389,7 +394,7 @@ fn lighting_webgl_tab(state: UseLightingWebGl, fullscreen: UseLightingFullscreen
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: "Enter Fullscreen"
+                    label: LIGHTING_ENTER_FULLSCREEN_BUTTON_LABEL
                     onclick: lighting_on_enter_fullscreen(web_gl_fullscreen)
                 }
             }
@@ -425,9 +430,9 @@ fn lighting_webgpu_tab(state: UseLightingWebGpu, fullscreen: UseLightingFullscre
     let init_error_code: &str = state.get_init_error_code().get();
     let status_text: &str = webgpu_status_text(loaded, active, init_error_code);
     let pause_label: &str = if state.get_running().get() {
-        "Pause"
+        LIGHTING_PAUSE_LABEL
     } else {
-        "Resume"
+        LIGHTING_RESUME_LABEL
     };
     html! {
         div {
@@ -435,7 +440,7 @@ fn lighting_webgpu_tab(state: UseLightingWebGpu, fullscreen: UseLightingFullscre
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    "FPS: "
+                    LIGHTING_FPS_PREFIX
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -443,11 +448,11 @@ fn lighting_webgpu_tab(state: UseLightingWebGpu, fullscreen: UseLightingFullscre
                 }
                 span {
                     class: c_game_stats_label()
-                    "Lights: 1 directional + 1 point"
+                    LIGHTING_LIGHTS_SUMMARY
                 }
                 span {
                     class: c_game_stats_label()
-                    "Status: "
+                    LIGHTING_STATUS_PREFIX
                     span {
                         class: c_game_stats_total_value()
                         status_text
@@ -485,7 +490,7 @@ fn lighting_webgpu_tab(state: UseLightingWebGpu, fullscreen: UseLightingFullscre
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Exit"
+                            label: LIGHTING_EXIT_BUTTON_LABEL
                             onclick: lighting_on_exit_fullscreen(web_gpu_fullscreen)
                         }
                     }
@@ -500,7 +505,7 @@ fn lighting_webgpu_tab(state: UseLightingWebGpu, fullscreen: UseLightingFullscre
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: "Enter Fullscreen"
+                    label: LIGHTING_ENTER_FULLSCREEN_BUTTON_LABEL
                     onclick: lighting_on_enter_fullscreen(web_gpu_fullscreen)
                 }
             }

@@ -54,7 +54,7 @@ where
     ///
     /// # Returns
     ///
-    /// - `UseAsyncSlot<T, L>` - A `UseAsyncSlot<T, L>` value.
+    /// - `&UseAsyncSlot<T, L>` - A `UseAsyncSlot<T, L>` value.
     unsafe fn slot(&self) -> &UseAsyncSlot<T, L> {
         unsafe { &*(*self.get_inner() as *const UseAsyncSlot<T, L>) }
     }
@@ -108,7 +108,7 @@ where
     ///
     /// # Arguments
     ///
-    /// - `F: FnOnce() -> Fut + 'static` - A generic type parameter.
+    /// - `F` - A generic type parameter.
     pub fn refetch<F, Fut, E>(&self, factory: F)
     where
         F: FnOnce() -> Fut + 'static,

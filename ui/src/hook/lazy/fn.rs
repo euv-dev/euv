@@ -10,10 +10,10 @@ use super::*;
 ///
 /// # Arguments
 ///
-/// - `Rc<dyn Fn() -> T>` - The factory that produces the underlying
-///   value on demand. Wrapped in `Rc` so the `LazyComponent` can be
-///   cloned cheaply and the factory can be invoked multiple times
-///   after a [`LazyComponent::reset`] (when the load state is reset).
+/// - `F` - The factory that produces the underlying value on demand.
+///   It is wrapped in an `Rc` internally so the `LazyComponent` can be
+///   cloned cheaply and the factory can be invoked multiple times after a
+///   [`LazyComponent::reset`] (when the load state is reset).
 ///
 /// # Returns
 ///

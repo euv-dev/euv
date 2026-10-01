@@ -1,4 +1,4 @@
-//! euv
+//! euv-core
 //!
 //! A declarative, cross-platform UI framework for Rust with virtual DOM,
 //! reactive signals, and HTML macros for WebAssembly.
@@ -21,22 +21,28 @@ pub use std::{
     marker::PhantomData,
     mem::{swap, take, zeroed},
     panic::{AssertUnwindSafe, catch_unwind},
+    sync::{LazyLock, OnceLock, RwLock, RwLockReadGuard},
+    thread::LocalKey,
 };
+
+pub use {js_sys::*, lombok_macros::*, wasm_bindgen::prelude::*, web_sys::*};
+
+pub use bin_encode_decode::{Charset, EncodeError};
+
+/// The wall clock [`now_micros`] reads on a host build. On wasm the clock
+/// comes from JS instead, so importing this there is an `unused_imports`
+/// warning — the mirror of the dead-const warning the host build would give
+/// the other half of the same function.
+#[cfg(not(target_arch = "wasm32"))]
+pub use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) use renderer::*;
 
 use std::{
     any::Any,
     cell::{Cell, Ref, RefCell, UnsafeCell},
-    iter::Iterator,
     num::ParseIntError,
-    ops::Deref,
     rc::Rc,
-    sync::{
-        LazyLock,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-    },
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
     vec::Vec,
 };
-
-use {js_sys::*, lombok_macros::*, wasm_bindgen::prelude::*, web_sys::*};

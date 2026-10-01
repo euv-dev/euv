@@ -1,15 +1,17 @@
-//! euv Example
+//! euv-example
 //!
 //! A demonstration application showcasing the euv component system,
 //! reactive signals, routing, and HTML macros.
 
+mod app;
 mod component;
 mod page;
 mod style;
 
-use {component::*, page::*, style::*};
+pub(crate) use {app::*, component::*, page::*, style::*};
 
 pub use std::{
+    cell::RefMut,
     cmp::Ordering,
     collections::HashSet,
     fmt::{self, Debug, Display, Formatter},
@@ -30,7 +32,6 @@ use {
 };
 
 use {
-    lombok_macros::*,
     qrcode::{QrCode, render::svg, types::QrError},
     serde::{Deserialize, Serialize},
 };
@@ -40,5 +41,5 @@ use {
 pub fn main() {
     console_error_panic_hook::set_once();
     inject_app_global_css();
-    App::mount("#app", app);
+    App::mount(APP_MOUNT_SELECTOR, app);
 }

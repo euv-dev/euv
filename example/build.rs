@@ -1,33 +1,18 @@
+mod codegen;
+
 use std::{env::var, fs::write, path::PathBuf};
 
 use chrono::Local;
 
-/// Environment variable key passed to rustc for the package name.
-const ENV_KEY_EUV_PACKAGE_NAME_KEY: &str = "EUV_PACKAGE_NAME";
-/// Environment variable key passed to rustc for the package version.
-const ENV_KEY_EUV_VERSION_KEY: &str = "EUV_VERSION";
-/// Environment variable key passed to rustc for the package description.
-const ENV_KEY_EUV_DESCRIPTION_KEY: &str = "EUV_DESCRIPTION";
-/// Environment variable key passed to rustc for the package repository URL.
-const ENV_KEY_EUV_REPOSITORY_KEY: &str = "EUV_REPOSITORY";
-/// Environment variable key passed to rustc for the package authors.
-const ENV_KEY_EUV_AUTHORS_KEY: &str = "EUV_AUTHORS";
-/// Environment variable key passed to rustc for the package license.
-const ENV_KEY_EUV_LICENSE_KEY: &str = "EUV_LICENSE";
-/// Environment variable key passed to rustc for the Rust edition.
-const ENV_KEY_EUV_EDITION_KEY: &str = "EUV_EDITION";
-/// Environment variable key passed to rustc for the repository name.
-const ENV_KEY_EUV_REPOSITORY_NAME_KEY: &str = "EUV_REPOSITORY_NAME";
-/// Environment variable key passed to rustc for the build time string.
-const ENV_KEY_EUV_BUILD_TIME_KEY: &str = "EUV_BUILD_TIME";
-/// Environment variable key passed to rustc for the build date string.
-const ENV_KEY_EUV_BUILD_DATE_KEY: &str = "EUV_BUILD_DATE";
-/// Environment variable key passed to rustc for the build clock string.
-const ENV_KEY_EUV_BUILD_CLOCK_KEY: &str = "EUV_BUILD_CLOCK";
-/// Environment variable key passed to rustc for the build timestamp.
-const ENV_KEY_EUV_BUILD_TIMESTAMP_KEY: &str = "EUV_BUILD_TIMESTAMP";
-/// File name of the build state marker written to `OUT_DIR`.
-const BUILD_STATE_FILE_NAME: &str = ".euv_build_state";
+use codegen::{
+    BUILD_STATE_FILE_NAME, ENV_CARGO_PKG_AUTHORS, ENV_CARGO_PKG_DESCRIPTION, ENV_CARGO_PKG_EDITION,
+    ENV_CARGO_PKG_LICENSE, ENV_CARGO_PKG_NAME, ENV_CARGO_PKG_REPOSITORY, ENV_CARGO_PKG_VERSION,
+    ENV_KEY_EUV_AUTHORS_KEY, ENV_KEY_EUV_BUILD_CLOCK_KEY, ENV_KEY_EUV_BUILD_DATE_KEY,
+    ENV_KEY_EUV_BUILD_TIME_KEY, ENV_KEY_EUV_BUILD_TIMESTAMP_KEY, ENV_KEY_EUV_DESCRIPTION_KEY,
+    ENV_KEY_EUV_EDITION_KEY, ENV_KEY_EUV_LICENSE_KEY, ENV_KEY_EUV_PACKAGE_NAME_KEY,
+    ENV_KEY_EUV_REPOSITORY_KEY, ENV_KEY_EUV_REPOSITORY_NAME_KEY, ENV_KEY_EUV_VERSION_KEY,
+    ENV_OUT_DIR, EUV_EDITION_FALLBACK, REPOSITORY_SUFFIX_GIT,
+};
 
 /// Entry point of the build script.
 ///
@@ -37,27 +22,28 @@ const BUILD_STATE_FILE_NAME: &str = ".euv_build_state";
 /// `[workspace.package]`). Writes a build-state marker and emits
 /// `cargo:rustc-env=` lines so the example runtime can report its version.
 ///
-/// `edition` is intentionally hard-coded: Cargo does NOT export
-/// `CARGO_PKG_EDITION` for workspace-inherited fields (it only exposes the
-/// env var when the value is inline in the crate's own `[package]` table).
-/// Keep this in sync with `[workspace.package] edition` in the root
-/// `Cargo.toml`.
-const EUV_EDITION_FALLBACK: &str = "2024";
-
+/// The edition falls back to [`EUV_EDITION_FALLBACK`] because Cargo does not
+/// export `CARGO_PKG_EDITION` for workspace-inherited fields.
+///
+/// # Returns
+///
+/// - `Result<(), Box<dyn std::error::Error>>` - `Ok(())` after every metadata
+///   variable was read and every `cargo:rustc-env=` line was emitted, or the
+///   I/O error that aborted the build script.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let out_dir: String = var("OUT_DIR")?;
+    let out_dir: String = var(ENV_OUT_DIR)?;
     let state_file_path: PathBuf = PathBuf::from(&out_dir).join(BUILD_STATE_FILE_NAME);
-    let package_name: String = var("CARGO_PKG_NAME")?;
-    let version_value: String = var("CARGO_PKG_VERSION")?;
-    let description_value: String = var("CARGO_PKG_DESCRIPTION")?;
-    let repository_value: String = var("CARGO_PKG_REPOSITORY")?;
-    let authors_value: String = var("CARGO_PKG_AUTHORS")?;
-    let license_value: String = var("CARGO_PKG_LICENSE")?;
+    let package_name: String = var(ENV_CARGO_PKG_NAME)?;
+    let version_value: String = var(ENV_CARGO_PKG_VERSION)?;
+    let description_value: String = var(ENV_CARGO_PKG_DESCRIPTION)?;
+    let repository_value: String = var(ENV_CARGO_PKG_REPOSITORY)?;
+    let authors_value: String = var(ENV_CARGO_PKG_AUTHORS)?;
+    let license_value: String = var(ENV_CARGO_PKG_LICENSE)?;
     let edition_value: String =
-        var("CARGO_PKG_EDITION").unwrap_or_else(|_| EUV_EDITION_FALLBACK.to_string());
+        var(ENV_CARGO_PKG_EDITION).unwrap_or_else(|_| EUV_EDITION_FALLBACK.to_string());
     let repository_name_value: String = repository_value
         .trim_end_matches('/')
-        .trim_end_matches(".git")
+        .trim_end_matches(REPOSITORY_SUFFIX_GIT)
         .split('/')
         .rev()
         .take(2)

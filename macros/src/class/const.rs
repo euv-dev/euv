@@ -52,6 +52,18 @@ pub(crate) const CSS_DOCUMENT_PREFIX: &str = "@document ";
 /// The CSS `@starting-style` rule marker used in serialized starting-style strings.
 pub(crate) const CSS_STARTING_STYLE_PREFIX: &str = "@starting-style";
 
+/// The CSS `@view-transition` rule marker used in serialized view-transition strings.
+pub(crate) const CSS_VIEW_TRANSITION_PREFIX: &str = "@view-transition ";
+
+/// The CSS `@position-try` rule marker used in serialized position-try strings.
+pub(crate) const CSS_POSITION_TRY_PREFIX: &str = "@position-try ";
+
+/// The CSS `@custom-media` rule marker used in serialized custom-media strings.
+pub(crate) const CSS_CUSTOM_MEDIA_PREFIX: &str = "@custom-media ";
+
+/// The CSS `@function` rule marker used in serialized function strings.
+pub(crate) const CSS_FUNCTION_PREFIX: &str = "@function ";
+
 /// The CSS pseudo-rule serialization separator between selector and style block.
 pub(crate) const CSS_RULE_OPEN: &str = " { ";
 

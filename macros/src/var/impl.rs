@@ -125,20 +125,21 @@ impl ToTokens for VarsDef {
                 let unique_name_expr: proc_macro2::TokenStream = quote! { format!(#name_format, #class_name_str, [#(format!("{:?}", #param_names)), *].join(#STR_HYPHEN)) };
                 let style_expr: proc_macro2::TokenStream =
                     quote! { [#(#css_string_parts), *].concat() };
-                emit_param_css_cache_fn(
-                    tokens,
+                let default_generics: Generics = Generics::default();
+                let args: ParamCssCacheArgs<'_> = ParamCssCacheArgs {
                     visibility,
-                    &quote! { #name },
-                    name.span(),
-                    &class_name_str,
-                    &param_idents,
-                    &unique_name_expr,
-                    &style_expr,
-                    &quote! { Vec::new() },
-                    &quote! { Vec::new() },
-                    &param_defs,
-                    &Generics::default(),
-                );
+                    fn_name_token: &quote! { #name },
+                    fn_name_span: name.span(),
+                    class_name_str: &class_name_str,
+                    param_names: &param_idents,
+                    unique_name_expr: &unique_name_expr,
+                    style_expr: &style_expr,
+                    selector_expr: &quote! { Vec::new() },
+                    at_rule_expr: &quote! { Vec::new() },
+                    param_defs: &param_defs,
+                    generics: &default_generics,
+                };
+                emit_param_css_cache_fn(tokens, &args);
             }
             None => {
                 let name_span: Span = name.span();

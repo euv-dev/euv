@@ -4,8 +4,7 @@ use super::*;
 ///
 /// # Arguments
 ///
-/// - `DesktopLayoutProps` - The typed props containing route, theme, root class, and panel signals.
-/// - `VirtualNode` - The children nodes.
+/// - `VirtualNode<DesktopLayoutProps>` - The typed props containing route, theme, root class, and panel signals.
 ///
 /// # Returns
 ///
@@ -26,7 +25,7 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
                 class: c_app_nav()
                 a {
                     href: GITHUB_URL
-                    target: "_blank"
+                    target: LINK_TARGET_BLANK
                     onclick: Router::external_link_handler(GITHUB_URL)
                     class: c_nav_header()
                     euv_logo {
@@ -39,7 +38,7 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
                 }
                 p {
                     class: c_nav_section_label()
-                    "Pages"
+                    NAV_SECTION_LABEL_PAGES
                 }
                 build_desktop_nav_items {
                     route_signal: route_signal
@@ -60,7 +59,7 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
                 }
                 a {
                     href: GITHUB_URL
-                    target: "_blank"
+                    target: LINK_TARGET_BLANK
                     onclick: Router::external_link_handler(GITHUB_URL)
                     class: c_nav_footer()
                     div {
@@ -68,10 +67,10 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
                     }
                     span {
                         class: c_nav_footer_text()
-                        "Built with "
+                        NAV_FOOTER_CREDIT_PREFIX
                         span {
                             class: c_nav_footer_brand()
-                            "Euv & Wasm"
+                            NAV_FOOTER_CREDIT_BRAND
                         }
                     }
                 }
@@ -93,8 +92,7 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
 ///
 /// # Arguments
 ///
-/// - `MobileLayoutProps` - The typed props containing route, theme, root class, panel, and drawer signals.
-/// - `VirtualNode` - The children nodes.
+/// - `VirtualNode<MobileLayoutProps>` - The typed props containing route, theme, root class, panel, and drawer signals.
 ///
 /// # Returns
 ///
@@ -135,7 +133,7 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                     }
                     a {
                         href: GITHUB_URL
-                        target: "_blank"
+                        target: LINK_TARGET_BLANK
                         onclick: Router::external_link_handler(GITHUB_URL)
                         class: c_mobile_header_logo()
                         euv_logo {
@@ -188,7 +186,7 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                         class: c_mobile_header_logo()
                         a {
                             href: GITHUB_URL
-                            target: "_blank"
+                            target: LINK_TARGET_BLANK
                             onclick: Router::external_link_handler(GITHUB_URL)
                             class: c_mobile_header_logo()
                             euv_logo {
@@ -208,7 +206,7 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                 }
                 p {
                     class: c_nav_section_label()
-                    "Pages"
+                    NAV_SECTION_LABEL_PAGES
                 }
                 build_mobile_nav_items {
                     route_signal: route_signal
@@ -216,7 +214,7 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                 }
                 a {
                     href: GITHUB_URL
-                    target: "_blank"
+                    target: LINK_TARGET_BLANK
                     onclick: Router::external_link_handler(GITHUB_URL)
                     class: c_nav_footer()
                     div {
@@ -224,10 +222,10 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                     }
                     span {
                         class: c_nav_footer_text()
-                        "Built with "
+                        NAV_FOOTER_CREDIT_PREFIX
                         span {
                             class: c_nav_footer_brand()
-                            "Euv & Wasm"
+                            NAV_FOOTER_CREDIT_BRAND
                         }
                     }
                 }
@@ -243,7 +241,7 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
 ///
 /// # Returns
 ///
-/// - `Result<DocsStatus, ()>` — The parsed docs status on success, or an error indicator on failure.
+/// - `Result<DocsStatus, ()>` - The parsed docs status on success, or an error indicator on failure.
 async fn fetch_docs_status_with_retry() -> Result<DocsStatus, ()> {
     let Some(window_value): Option<Window> = window() else {
         return Err(());
@@ -314,7 +312,7 @@ async fn fetch_docs_status_with_retry() -> Result<DocsStatus, ()> {
 ///
 /// # Returns
 ///
-/// - `UpdateResult` — The documentation status, version, and whether an update was triggered.
+/// - `UpdateResult` - The documentation status, version, and whether an update was triggered.
 async fn check_docs_update() -> UpdateResult {
     let parsed: DocsStatus = match fetch_docs_status_with_retry().await {
         Ok(status) => status,
@@ -324,7 +322,7 @@ async fn check_docs_update() -> UpdateResult {
                 version: String::new(),
                 updating: false,
                 data: String::new(),
-                message: "failed to fetch docs status".to_string(),
+                message: MESSAGE_FETCH_DOCS_STATUS_FAILED.to_string(),
             };
         }
     };
@@ -340,7 +338,7 @@ async fn check_docs_update() -> UpdateResult {
             version: parsed.get_version().clone(),
             updating: false,
             data: String::new(),
-            message: "already on the latest version".to_string(),
+            message: MESSAGE_ALREADY_LATEST_VERSION.to_string(),
         };
     }
     if !BridgeConfig::is_available(None) {
@@ -349,7 +347,7 @@ async fn check_docs_update() -> UpdateResult {
             version: parsed.get_version().clone(),
             updating: false,
             data: String::new(),
-            message: "native bridge is not available".to_string(),
+            message: MESSAGE_BRIDGE_UNAVAILABLE.to_string(),
         };
     }
     notify_native_with_retry(parsed.get_doc_status(), parsed.get_version().clone()).await
@@ -368,15 +366,15 @@ async fn check_docs_update() -> UpdateResult {
 /// so the eventual `UpdateResult` keeps the docs.rs fetch context even
 /// after the bridge call fails.
 ///
-/// # Returns
-///
-/// - `UpdateResult` — UI-facing snapshot carrying docs.rs context plus
-///   the most recent `data` / `message` reported by the native side.
-///
 /// # Arguments
 ///
-/// - `bool` - A boolean (`bool`).
-/// - `String` - A `String` parameter.
+/// - `bool` - The docs.rs documentation status carried through the bridge call.
+/// - `String` - The version string carried through the bridge call.
+///
+/// # Returns
+///
+/// - `UpdateResult` - UI-facing snapshot carrying docs.rs context plus
+///   the most recent `data` / `message` reported by the native side.
 async fn notify_native_with_retry(doc_status: bool, version: String) -> UpdateResult {
     let mut attempt: u32 = 0;
     loop {
@@ -453,11 +451,10 @@ async fn notify_native_with_retry(doc_status: bool, version: String) -> UpdateRe
 ///
 /// # Returns
 ///
-/// - `Ok((UpdateStatus, UpdateResultPayload))` — Native-side outcome plus
-///   the full payload, so the caller can read `data` / `message` without
-///   re-deserializing.
-/// - `Err<String>` — Transport-level or deserialization failure that
-///   justifies a retry.
+/// - `Result<(UpdateStatus, UpdateResultPayload), String>` - `Ok` carries the
+///   native-side outcome plus the full payload, so the caller can read `data` /
+///   `message` without re-deserializing; `Err` is a transport-level or
+///   deserialization failure that justifies a retry.
 async fn try_notify_native_once() -> Result<(UpdateStatus, UpdateResultPayload), String> {
     let promise: Promise = BridgeConfig::invoke(INVOKE_UPDATE_CACHE, None, None)?;
     let value: JsValue = JsFuture::from(promise)
@@ -477,11 +474,7 @@ async fn try_notify_native_once() -> Result<(UpdateStatus, UpdateResultPayload),
 ///
 /// # Arguments
 ///
-/// - `u32` — Number of milliseconds to sleep.
-///
-/// # Returns
-///
-/// - `()` — Resolves once the timer fires.
+/// - `u32` - Number of milliseconds to sleep.
 async fn sleep_ms(millis: u32) {
     let Some(window): Option<Window> = window() else {
         return;

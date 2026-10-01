@@ -17,7 +17,7 @@ impl Entity {
     ///
     /// # Arguments
     ///
-    /// - `N: AsRef<str>` - The name of the entity.
+    /// - `N` - The name of the entity.
     ///
     /// # Returns
     ///
@@ -52,6 +52,121 @@ impl Entity {
     }
 }
 
+/// Implements pooled entity lifecycle methods for `Entity`.
+///
+/// These pair [`ObjectPool`] with `Entity` so a spawn/despawn cycle reuses
+/// the same allocation instead of dropping the entity and building a new one.
+/// A recycled entity is reset to a clean state and given a **fresh** id, so a
+/// stale reference held elsewhere can never alias a live entity.
+impl Entity {
+    /// Checks an entity out of the pool, creating one if the pool is empty.
+    ///
+    /// # Arguments
+    ///
+    /// - `N` - The name given to the entity, anything that converts into a
+    ///   `String`.
+    /// - `&mut ObjectPool<Entity>` - The pool the entity is checked out from.
+    ///
+    /// # Returns
+    ///
+    /// - `Entity` - A ready-to-use entity carrying the requested name.
+    pub fn create_pooled<N>(name: N, pool: &mut ObjectPool<Entity>) -> Self
+    where
+        N: Into<String>,
+    {
+        Self::take_from(pool, name.into(), Transform2D::identity())
+    }
+
+    /// Checks an entity out of the pool and places it at `position`.
+    ///
+    /// The position is applied after the recycle reset, so a recycled entity
+    /// never keeps the position it was last drawn at.
+    ///
+    /// # Arguments
+    ///
+    /// - `Vector2D` - Where the entity should sit.
+    /// - `&mut ObjectPool<Entity>` - The pool the entity is checked out from.
+    ///
+    /// # Returns
+    ///
+    /// - `Entity` - A ready-to-use entity at the requested position.
+    pub fn create_pooled_at(position: Vector2D, pool: &mut ObjectPool<Entity>) -> Self {
+        let mut transform: Transform2D = Transform2D::identity();
+        transform.set_position(position);
+        Self::take_from(pool, String::from(DEFAULT_ENTITY_NAME), transform)
+    }
+
+    /// Builds `count` entities into the pool's free list.
+    ///
+    /// Only the shortfall is built, so prewarming an already-warm pool costs
+    /// nothing and a spawn burst does not grow the pool mid-frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `usize` - How many free entities the pool should hold.
+    /// - `&mut ObjectPool<Entity>` - The pool to prewarm.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - The number of entities that were built.
+    pub fn prewarm_pool(count: usize, pool: &mut ObjectPool<Entity>) -> usize {
+        pool.prewarm(count, || Self::create(DEFAULT_ENTITY_NAME))
+    }
+
+    /// Resets an entity and hands it back to the pool.
+    ///
+    /// Components, tags and transform are cleared before the entity is
+    /// released so a recycled entity never inherits stale state. A fresh id
+    /// is assigned on the next checkout, so the released entity's id is not
+    /// reused.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut Entity` - The entity to recycle.
+    /// - `&mut ObjectPool<Entity>` - The pool to return it to.
+    pub fn release_to_pool(entity: &mut Entity, pool: &mut ObjectPool<Entity>) {
+        // The caller's slot is handed a fresh entity so the reference it keeps
+        // is never left aliasing a pooled one, then the released entity is
+        // scrubbed before it goes back: a recycled entity must not inherit the
+        // components, tags or transform it happened to hold on the way out.
+        let mut released: Entity = std::mem::replace(entity, Self::create(DEFAULT_ENTITY_NAME));
+        released.get_mut_components().clear();
+        released.get_mut_tags().clear();
+        *released.get_mut_transform() = Transform2D::identity();
+        pool.release(released);
+    }
+
+    /// Checks out an entity and applies the caller's name and transform.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut ObjectPool<Entity>` - The pool to check out from.
+    /// - `String` - The name to apply.
+    /// - `Transform2D` - The transform to apply.
+    ///
+    /// # Returns
+    ///
+    /// - `Entity` - The reset, freshly-identified entity.
+    fn take_from(pool: &mut ObjectPool<Entity>, name: String, transform: Transform2D) -> Self {
+        let mut entity: Entity = match pool.acquire() {
+            // `acquire` counted the checkout itself, so a recycled entity only
+            // needs its identity and state refreshed.
+            Some(recycled) => recycled,
+            None => {
+                // Nothing was checked out, so the checkout `acquire` skipped has
+                // to be counted here or `len` under-reports the new entity.
+                pool.set_active(pool.get_active() + 1);
+                Self::create(DEFAULT_ENTITY_NAME)
+            }
+        };
+        entity.set_id(Self::generate_id());
+        entity.set_name(name);
+        *entity.get_mut_transform() = transform;
+        entity.set_active(true);
+        entity
+    }
+}
+
 /// Implements lifecycle and component management methods for `Entity`.
 impl Entity {
     /// Adds a component to this entity and calls its `on_start` lifecycle method.
@@ -68,7 +183,7 @@ impl Entity {
     ///
     /// # Arguments
     ///
-    /// - `&str` - The component name to match.
+    /// - `N` - The component name to match.
     ///
     /// # Returns
     ///
@@ -92,7 +207,7 @@ impl Entity {
     ///
     /// # Arguments
     ///
-    /// - `&str` - The component name to match.
+    /// - `N` - The component name to match.
     ///
     /// # Returns
     ///
@@ -160,7 +275,7 @@ impl Entity {
     ///
     /// # Arguments
     ///
-    /// - `&str` - The tag to check.
+    /// - `T` - The tag to check.
     ///
     /// # Returns
     ///
@@ -235,7 +350,7 @@ impl EventBus {
     ///
     /// # Arguments
     ///
-    /// - `E: AsRef<str>` - The event name to clear.
+    /// - `E` - The event name to clear.
     pub fn unsubscribe_all<E>(&mut self, event_name: E)
     where
         E: AsRef<str>,
@@ -247,7 +362,7 @@ impl EventBus {
     ///
     /// # Arguments
     ///
-    /// - `&str` - The event name.
+    /// - `E` - The event name.
     ///
     /// # Returns
     ///
@@ -274,11 +389,11 @@ impl EventBus {
     ///   the `Custom` variant borrows its `name` field).
     fn event_name(event: &EntityEvent) -> &str {
         match event {
-            EntityEvent::Collision { .. } => "collision",
-            EntityEvent::TriggerEnter { .. } => "trigger_enter",
-            EntityEvent::TriggerExit { .. } => "trigger_exit",
-            EntityEvent::Spawn => "spawn",
-            EntityEvent::Destroy => "destroy",
+            EntityEvent::Collision { .. } => ENTITY_EVENT_NAME_COLLISION,
+            EntityEvent::TriggerEnter { .. } => ENTITY_EVENT_NAME_TRIGGER_ENTER,
+            EntityEvent::TriggerExit { .. } => ENTITY_EVENT_NAME_TRIGGER_EXIT,
+            EntityEvent::Spawn => ENTITY_EVENT_NAME_SPAWN,
+            EntityEvent::Destroy => ENTITY_EVENT_NAME_DESTROY,
             EntityEvent::Custom { name, .. } => name.as_str(),
         }
     }

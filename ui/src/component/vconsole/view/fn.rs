@@ -96,17 +96,17 @@ pub fn euv_vconsole_drawer(node: VirtualNode<EuvVconsoleDrawerProps>) -> Virtual
         panel_open,
     }: EuvVconsoleDrawerProps = node.try_get_props().unwrap_or_default();
     let filter_signal: Signal<LogFilter> = App::use_signal(|| LogFilter::All);
-    let on_overlay_click = move |_: Event| {
+    let on_overlay_click: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         Router::overlay_stack_close();
         panel_open.set(false);
-    };
-    let on_clear_click = move |_: Event| {
+    });
+    let on_clear_click: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         Console::clear();
-    };
-    let on_close_click = move |_: Event| {
+    });
+    let on_close_click: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         Router::overlay_stack_close();
         panel_open.set(false);
-    };
+    });
     html! {
         div {
             div {

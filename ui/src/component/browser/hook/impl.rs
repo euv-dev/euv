@@ -15,7 +15,7 @@ impl UseEuvBrowser {
     ///
     /// # Arguments
     ///
-    /// - `K: AsRef<str>` - The key to look up.
+    /// - `K` - The key to look up.
     ///
     /// # Returns
     ///
@@ -33,8 +33,8 @@ impl UseEuvBrowser {
     ///
     /// # Arguments
     ///
-    /// - `K: AsRef<str>` - The key to store.
-    /// - `V: AsRef<str>` - The value to store.
+    /// - `K` - The key to store.
+    /// - `V` - The value to store.
     pub fn local_storage_set<K, V>(key: K, value: V)
     where
         K: AsRef<str>,
@@ -54,7 +54,7 @@ impl UseEuvBrowser {
     ///
     /// # Arguments
     ///
-    /// - `K: AsRef<str>` - The key to remove.
+    /// - `K` - The key to remove.
     pub(crate) fn local_storage_remove<K>(key: K)
     where
         K: AsRef<str>,
@@ -73,7 +73,7 @@ impl UseEuvBrowser {
     ///
     /// # Arguments
     ///
-    /// - `K: AsRef<str>` - The key to look up.
+    /// - `K` - The key to look up.
     ///
     /// # Returns
     ///
@@ -91,8 +91,8 @@ impl UseEuvBrowser {
     ///
     /// # Arguments
     ///
-    /// - `K: AsRef<str>` - The key to store.
-    /// - `V: AsRef<str>` - The value to store.
+    /// - `K` - The key to store.
+    /// - `V` - The value to store.
     pub(crate) fn session_storage_set<K, V>(key: K, value: V)
     where
         K: AsRef<str>,
@@ -112,7 +112,7 @@ impl UseEuvBrowser {
     ///
     /// # Arguments
     ///
-    /// - `K: AsRef<str>` - The key to remove.
+    /// - `K` - The key to remove.
     pub(crate) fn session_storage_remove<K>(key: K)
     where
         K: AsRef<str>,
@@ -137,7 +137,10 @@ impl UseEuvBrowser {
             return String::new();
         };
         let navigator: Navigator = window.navigator();
-        match Reflect::get(&navigator, &JsValue::from_str("clipboard")) {
+        match Reflect::get(
+            &navigator,
+            &JsValue::from_str(BROWSER_NAVIGATOR_CLIPBOARD_KEY),
+        ) {
             Ok(clipboard_obj) if !clipboard_obj.is_undefined() => {
                 let clipboard: Clipboard = navigator.clipboard();
                 let promise: Promise = clipboard.read_text();
@@ -145,11 +148,11 @@ impl UseEuvBrowser {
                 match future.await {
                     Ok(value) => value
                         .as_string()
-                        .unwrap_or_else(|| "No text content".to_string()),
-                    Err(_) => "Failed to read clipboard".to_string(),
+                        .unwrap_or_else(|| BROWSER_CLIPBOARD_NO_TEXT_CONTENT.to_string()),
+                    Err(_) => BROWSER_CLIPBOARD_READ_FAILED.to_string(),
                 }
             }
-            _ => "Clipboard API not available (requires secure context)".to_string(),
+            _ => BROWSER_CLIPBOARD_UNAVAILABLE.to_string(),
         }
     }
 
@@ -157,7 +160,7 @@ impl UseEuvBrowser {
     ///
     /// # Arguments
     ///
-    /// - `T: AsRef<str>` - The text to write.
+    /// - `T` - The text to write.
     ///
     /// # Returns
     ///
@@ -170,7 +173,10 @@ impl UseEuvBrowser {
             return false;
         };
         let navigator: Navigator = window.navigator();
-        match js_sys::Reflect::get(&navigator, &JsValue::from_str("clipboard")) {
+        match js_sys::Reflect::get(
+            &navigator,
+            &JsValue::from_str(BROWSER_NAVIGATOR_CLIPBOARD_KEY),
+        ) {
             Ok(clipboard_obj) if !clipboard_obj.is_undefined() => {
                 let clipboard: Clipboard = navigator.clipboard();
                 let promise: Promise = clipboard.write_text(text.as_ref());
@@ -215,7 +221,7 @@ impl UseEuvBrowser {
         window
             .navigator()
             .user_agent()
-            .unwrap_or_else(|_: JsValue| "Unknown".to_string())
+            .unwrap_or_else(|_: JsValue| BROWSER_VALUE_UNKNOWN.to_string())
     }
 
     /// Reads the browser navigator language.
@@ -230,7 +236,7 @@ impl UseEuvBrowser {
         window
             .navigator()
             .language()
-            .unwrap_or_else(|| "Unknown".to_string())
+            .unwrap_or_else(|| BROWSER_VALUE_UNKNOWN.to_string())
     }
 
     /// Reads the current browser location href.
@@ -245,7 +251,7 @@ impl UseEuvBrowser {
         window
             .location()
             .href()
-            .unwrap_or_else(|_error: JsValue| "Unknown".to_string())
+            .unwrap_or_else(|_error: JsValue| BROWSER_VALUE_UNKNOWN.to_string())
     }
 
     /// Reads the current browser location origin.
@@ -260,7 +266,7 @@ impl UseEuvBrowser {
         window
             .location()
             .origin()
-            .unwrap_or_else(|_error: JsValue| "Unknown".to_string())
+            .unwrap_or_else(|_error: JsValue| BROWSER_VALUE_UNKNOWN.to_string())
     }
 
     /// Reads the current browser location pathname.
@@ -275,14 +281,10 @@ impl UseEuvBrowser {
         window
             .location()
             .pathname()
-            .unwrap_or_else(|_error: JsValue| "Unknown".to_string())
+            .unwrap_or_else(|_error: JsValue| BROWSER_VALUE_UNKNOWN.to_string())
     }
 
     /// Creates a click event handler that sets a localStorage item.
-    ///
-    /// # Arguments
-    ///
-    /// - `UseEuvBrowser` - The browser API state.
     ///
     /// # Returns
     ///
@@ -299,10 +301,6 @@ impl UseEuvBrowser {
     }
 
     /// Creates a click event handler that gets a localStorage item.
-    ///
-    /// # Arguments
-    ///
-    /// - `UseEuvBrowser` - The browser API state.
     ///
     /// # Returns
     ///
@@ -322,10 +320,6 @@ impl UseEuvBrowser {
 
     /// Creates a click event handler that removes a localStorage item.
     ///
-    /// # Arguments
-    ///
-    /// - `UseEuvBrowser` - The browser API state.
-    ///
     /// # Returns
     ///
     /// - `Option<Rc<dyn Fn(Event)>>` - A click handler to remove the localStorage item.
@@ -338,10 +332,6 @@ impl UseEuvBrowser {
     }
 
     /// Creates a click event handler that sets a sessionStorage item.
-    ///
-    /// # Arguments
-    ///
-    /// - `UseEuvBrowser` - The browser API state.
     ///
     /// # Returns
     ///
@@ -359,10 +349,6 @@ impl UseEuvBrowser {
     }
 
     /// Creates a click event handler that gets a sessionStorage item.
-    ///
-    /// # Arguments
-    ///
-    /// - `UseEuvBrowser` - The browser API state.
     ///
     /// # Returns
     ///
@@ -382,10 +368,6 @@ impl UseEuvBrowser {
 
     /// Creates a click event handler that removes a sessionStorage item.
     ///
-    /// # Arguments
-    ///
-    /// - `UseEuvBrowser` - The browser API state.
-    ///
     /// # Returns
     ///
     /// - `Option<Rc<dyn Fn(Event)>>` - A click handler to remove the sessionStorage item.
@@ -399,10 +381,6 @@ impl UseEuvBrowser {
 
     /// Creates a click event handler that copies text to clipboard.
     ///
-    /// # Arguments
-    ///
-    /// - `UseEuvBrowser` - The browser API state.
-    ///
     /// # Returns
     ///
     /// - `Option<Rc<dyn Fn(Event)>>` - A click handler to copy text to clipboard.
@@ -412,36 +390,35 @@ impl UseEuvBrowser {
             let text_clone: String = text.clone();
             let result: Signal<String> = self.get_clipboard_result();
             if text.is_empty() {
-                result.set("Please enter text to copy".to_string());
+                result.set(BROWSER_COPY_EMPTY_TEXT.to_string());
                 return;
             }
             let Some(window) = window() else {
                 return;
             };
             let navigator: Navigator = window.navigator();
-            match js_sys::Reflect::get(&navigator, &JsValue::from_str("clipboard")) {
+            match js_sys::Reflect::get(
+                &navigator,
+                &JsValue::from_str(BROWSER_NAVIGATOR_CLIPBOARD_KEY),
+            ) {
                 Ok(clipboard_obj) if !clipboard_obj.is_undefined() => {
                     spawn_local(async move {
                         let success: bool = Self::clipboard_write_text(&text_clone).await;
                         if success {
-                            result.set("Copied to clipboard!".to_string());
+                            result.set(BROWSER_COPY_SUCCEEDED.to_string());
                         } else {
-                            result.set("Failed to copy".to_string());
+                            result.set(BROWSER_COPY_FAILED.to_string());
                         }
                     });
                 }
                 _ => {
-                    result.set("Clipboard API not available (requires secure context)".to_string());
+                    result.set(BROWSER_CLIPBOARD_UNAVAILABLE.to_string());
                 }
             }
         }))
     }
 
     /// Creates a click event handler that reads text from clipboard.
-    ///
-    /// # Arguments
-    ///
-    /// - `UseEuvBrowser` - The browser API state.
     ///
     /// # Returns
     ///
@@ -453,7 +430,10 @@ impl UseEuvBrowser {
                 return;
             };
             let navigator: Navigator = window.navigator();
-            match js_sys::Reflect::get(&navigator, &JsValue::from_str("clipboard")) {
+            match js_sys::Reflect::get(
+                &navigator,
+                &JsValue::from_str(BROWSER_NAVIGATOR_CLIPBOARD_KEY),
+            ) {
                 Ok(clipboard_obj) if !clipboard_obj.is_undefined() => {
                     spawn_local(async move {
                         let text: String = Self::clipboard_read_text().await;
@@ -461,17 +441,13 @@ impl UseEuvBrowser {
                     });
                 }
                 _ => {
-                    result.set("Clipboard API not available (requires secure context)".to_string());
+                    result.set(BROWSER_CLIPBOARD_UNAVAILABLE.to_string());
                 }
             }
         }))
     }
 
     /// Creates a click event handler that refreshes the window size display.
-    ///
-    /// # Arguments
-    ///
-    /// - `UseEuvBrowser` - The browser API state.
     ///
     /// # Returns
     ///

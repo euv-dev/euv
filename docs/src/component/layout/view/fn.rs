@@ -29,7 +29,7 @@ pub(crate) fn app() -> VirtualNode {
         html! {
             div {
                 key: locale_of(&parse_route(&route_signal.get()).0).prefix
-                style: "display: contents"
+                style: STYLE_DISPLAY_CONTENTS
                 if { mobile_signal.get() } {
                     docs_mobile_shell {
                         route_signal
@@ -60,7 +60,7 @@ pub(crate) fn app() -> VirtualNode {
 ///
 /// # Arguments
 ///
-/// - `DocsShellProps` - The typed props containing the shell signals.
+/// - `VirtualNode<DocsShellProps>` - The props node carrying the shell signals.
 ///
 /// # Returns
 ///
@@ -103,7 +103,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
                     class: c_nav_theme_toggle()
                     button {
                         class: c_nav_theme_button()
-                        title: "切换主题"
+                        title: THEME_TOGGLE_TITLE
                         onclick: ThemeState::toggle(theme_signal)
                         theme_icon_node(theme_signal)
                     }
@@ -112,7 +112,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
             }
             main {
                 class: c_app_main()
-                style: "user-select: text"
+                style: STYLE_USER_SELECT_TEXT
                 docs_main {
                     route_signal
                 }
@@ -127,7 +127,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
 ///
 /// # Arguments
 ///
-/// - `DocsShellProps` - The typed props containing the shell signals.
+/// - `VirtualNode<DocsShellProps>` - The props node carrying the shell signals.
 ///
 /// # Returns
 ///
@@ -164,14 +164,14 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                 }
                 button {
                     class: c_mobile_theme_button()
-                    title: "切换主题"
+                    title: THEME_TOGGLE_TITLE
                     onclick: ThemeState::toggle(theme_signal)
                     theme_icon_node(theme_signal)
                 }
             }
             main {
                 class: c_mobile_main()
-                style: "user-select: text"
+                style: STYLE_USER_SELECT_TEXT
                 docs_main {
                     route_signal
                 }
@@ -331,7 +331,7 @@ fn nav_footer_node(github: Option<&'static str>) -> VirtualNode {
         a {
             class: c_nav_footer()
             href: url
-            target: "_blank"
+            target: LINK_TARGET_BLANK
             onclick: Router::external_link_handler(url)
             div {
                 class: c_nav_footer_divider()
@@ -341,7 +341,9 @@ fn nav_footer_node(github: Option<&'static str>) -> VirtualNode {
                 "基于 "
                 span {
                     class: c_nav_footer_brand()
-                    "Euv & Wasm"
+                    {
+                        FOOTER_BRAND
+                    }
                 }
                 " 构建"
             }
@@ -421,7 +423,9 @@ fn section_label(locale: &'static DocsLocale) -> &'static str {
     locale
         .navbar
         .iter()
-        .find(|item: &&EuvNavbarItem| !item.link.starts_with("http") && item.link != locale.prefix)
+        .find(|item: &&EuvNavbarItem| {
+            !item.link.starts_with(URL_SCHEME_HTTP_PREFIX) && item.link != locale.prefix
+        })
         .map(|item: &EuvNavbarItem| item.text)
         .unwrap_or("文档")
 }
@@ -440,7 +444,7 @@ fn github_link(locale: &'static DocsLocale) -> Option<&'static str> {
     locale
         .navbar
         .iter()
-        .find(|item: &&EuvNavbarItem| item.link.starts_with("http"))
+        .find(|item: &&EuvNavbarItem| item.link.starts_with(URL_SCHEME_HTTP_PREFIX))
         .map(|item: &EuvNavbarItem| item.link)
 }
 
@@ -539,13 +543,17 @@ fn drawer_navigate() -> Option<Rc<dyn Fn(&'static str)>> {
 ///
 /// - `Signal<String>` - The current route signal.
 fn use_anchor_scroll(route_signal: Signal<String>) {
-    let handler = move || {
+    let handler: AnchorScroll = std::sync::Arc::new(move || {
         let raw: String = route_signal.get();
         let (_path, anchor) = parse_route(&raw);
         schedule_scroll(anchor);
-    };
+    });
     handler();
-    route_signal.subscribe(handler);
+    route_signal.subscribe(move || {
+        let raw: String = route_signal.get();
+        let (_path, anchor) = parse_route(&raw);
+        schedule_scroll(anchor);
+    });
 }
 
 /// Defers a scroll until after the reactive re-render.
@@ -578,7 +586,10 @@ fn schedule_scroll(anchor: Option<String>) {
         if !scrolled {
             window.scroll_to_with_x_and_y(0.0, 0.0);
             if let Some(doc) = window.document() {
-                for selector in ["[class*=c_app_main]", "[class*=c_mobile_main]"] {
+                for selector in [
+                    MAIN_CONTAINER_SELECTOR_DESKTOP,
+                    MAIN_CONTAINER_SELECTOR_MOBILE,
+                ] {
                     if let Ok(Some(main)) = doc.query_selector(selector) {
                         main.set_scroll_top(0);
                     }

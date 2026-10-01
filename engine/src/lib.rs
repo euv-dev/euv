@@ -18,6 +18,7 @@ mod lighting;
 mod math;
 mod particle;
 mod physics;
+mod pool;
 mod raytracing;
 mod renderer;
 mod scene;
@@ -25,15 +26,16 @@ mod scheduler;
 mod spatial;
 mod sprite;
 mod timer;
-
 mod tween;
 
-use wasm_bindgen::JsValue;
+pub use wasm_bindgen::JsValue;
 pub use {
     asset::*, audio::*, cell::*, collider::*, config::*, easing::*, engine::*, entity::*, input::*,
-    lighting::*, math::*, particle::*, physics::*, raytracing::*, renderer::*, scene::*,
+    lighting::*, math::*, particle::*, physics::*, pool::*, raytracing::*, renderer::*, scene::*,
     scheduler::*, spatial::*, sprite::*, timer::*, tween::*,
 };
+
+pub use wasm_bindgen_futures::JsFuture;
 
 pub use std::{
     error::Error,
@@ -53,9 +55,4 @@ use std::{
     rc::Rc,
     rc::Weak,
     sync::atomic::{AtomicU64, Ordering},
-};
-
-use {
-    js_sys::*, lombok_macros::*, wasm_bindgen::prelude::*, wasm_bindgen_futures::JsFuture,
-    web_sys::*,
 };

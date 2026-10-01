@@ -13,7 +13,7 @@ pub async fn build_mode(mut args: ModeArgs) -> Result<(), EuvError> {
     reconcile_args(&mut args);
     args.set_crate_path(std::fs::canonicalize(args.get_crate_path()).map_err(
         |error: io::Error| EuvError::IoPath {
-            message: String::from("Invalid crate-path"),
+            message: ERROR_INVALID_CRATE_PATH.to_string(),
             path: args.get_crate_path().clone(),
             error,
         },
@@ -47,7 +47,7 @@ pub async fn fmt_mode(args: FmtArgs) -> Result<(), EuvError> {
     } else {
         std::env::current_dir()
             .map_err(|error: io::Error| EuvError::Io {
-                message: String::from("Failed to get current directory"),
+                message: ERROR_CURRENT_DIRECTORY.to_string(),
                 error,
             })?
             .join(args.get_path())
@@ -73,7 +73,7 @@ pub async fn run_mode(mut args: ModeArgs) -> Result<(), EuvError> {
     reconcile_args(&mut args);
     args.set_crate_path(std::fs::canonicalize(args.get_crate_path()).map_err(
         |error: io::Error| EuvError::IoPath {
-            message: String::from("Invalid crate-path"),
+            message: ERROR_INVALID_CRATE_PATH.to_string(),
             path: args.get_crate_path().clone(),
             error,
         },

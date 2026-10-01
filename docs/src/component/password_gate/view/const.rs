@@ -47,3 +47,12 @@ class! {
         margin-top: var!(space-xl);
     }
 }
+
+/// localStorage key prefix used to record that a `route` has been
+/// unlocked. The value itself is just a constant `"1"` sentinel — the
+/// password digest lives only in `DocsPage::password_hash`.
+///
+/// Route is alphanumeric-only into the key so that slashes / locale
+/// prefixes don't collide and so the key is plain ASCII (localStorage
+/// keys must not contain newlines or other control chars).
+pub(crate) const UNLOCK_KEY_PREFIX: &str = "euv-docs:unlocked:";

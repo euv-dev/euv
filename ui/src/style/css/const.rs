@@ -275,3 +275,85 @@ pub const EUV_MD_CSS: &str = r#"
 }
 .md-body .footnote-definition { font-size: var(--font-sm); color: var(--muted-foreground); }
 "#;
+
+/// Global stylesheet: reset, base element defaults, and theme background.
+///
+/// The background is spliced from the `background` design token so the
+/// page follows the active theme; the rest is a static reset.
+pub const APP_GLOBAL_CSS_HEAD: &str =
+    "html, body, #app { height: 100%; margin: 0; padding: 0; background: ";
+
+/// Global stylesheet: box-sizing reset, form control inheritance, and link styling.
+pub const APP_GLOBAL_CSS_RESET: &str = "* { -webkit-tap-highlight-color: transparent; box-sizing: border-box; margin: 0; padding: 0; border: 0; font: inherit; vertical-align: baseline; } ";
+
+/// Global stylesheet: root line-height and iOS text-size adjustment.
+pub const APP_GLOBAL_CSS_ROOT: &str = "html { line-height: 1.5; -webkit-text-size-adjust: 100%; } ";
+
+/// Global stylesheet: list markers removed from `ol` / `ul`.
+pub const APP_GLOBAL_CSS_LIST: &str = "ol, ul { list-style: none; } ";
+
+/// Global stylesheet: media elements block-level and width-constrained.
+pub const APP_GLOBAL_CSS_MEDIA: &str =
+    "img, picture, video, canvas, svg { display: block; max-width: 100%; } ";
+
+/// Global stylesheet: form controls inherit font and color, transparent background.
+pub const APP_GLOBAL_CSS_FORM: &str =
+    "input, button, textarea, select { font: inherit; color: inherit; background: transparent; } ";
+
+/// Global stylesheet: pointer cursor on buttons.
+pub const APP_GLOBAL_CSS_BUTTON: &str = "button { cursor: pointer; } ";
+
+/// Global stylesheet: anchors render as undecorated, inheriting link color.
+pub const APP_GLOBAL_CSS_LINK: &str = "a { text-decoration: none; color: inherit; }";
+
+/// Global stylesheet: the separator that closes the background rule.
+pub const APP_GLOBAL_CSS_BACKGROUND_CLOSE: &str = "; } ";
+
+/// Scrollbar stylesheet: thin Firefox scrollbars.
+pub const APP_SCROLLBAR_CSS_THIN: &str = "* { scrollbar-width: thin; } ";
+
+/// Scrollbar stylesheet: WebKit scrollbar track and thumb dimensions.
+pub const APP_SCROLLBAR_CSS_WEBKIT: &str = "::-webkit-scrollbar { width: 6px; height: 6px; } ";
+
+/// Scrollbar stylesheet: transparent WebKit scrollbar track.
+pub const APP_SCROLLBAR_CSS_TRACK: &str = "::-webkit-scrollbar-track { background: transparent; } ";
+
+/// Scrollbar stylesheet: square WebKit scrollbar thumb.
+pub const APP_SCROLLBAR_CSS_THUMB: &str = "::-webkit-scrollbar-thumb { border-radius: 0; } ";
+
+/// Scrollbar stylesheet: hidden WebKit scrollbar buttons.
+pub const APP_SCROLLBAR_CSS_BUTTON: &str = "::-webkit-scrollbar-button { display: none !important; width: 0 !important; height: 0 !important; } ";
+
+/// Scrollbar stylesheet: transparent WebKit scrollbar corner.
+pub const APP_SCROLLBAR_CSS_CORNER: &str =
+    "::-webkit-scrollbar-corner { background: transparent; }";
+
+/// Scrollbar stylesheet: narrow viewports hide the scrollbar entirely.
+pub const APP_SCROLLBAR_CSS_MOBILE: &str = "@media (max-width: 767px) { * { scrollbar-width: none; } ::-webkit-scrollbar { width: 0px; height: 0px; } }";
+
+/// Keyframes: continuous rotation used by spinners.
+pub const APP_KEYFRAMES_SPIN: &str =
+    "@keyframes euv-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } ";
+
+/// Keyframes: short fade-and-rise used by entering content.
+pub const APP_KEYFRAMES_FADE_IN: &str = "@keyframes euv-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } } ";
+
+/// Keyframes: attention pulse used by status indicators.
+pub const APP_KEYFRAMES_PULSE: &str =
+    "@keyframes euv-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } } ";
+
+/// Keyframes: bar width sweep used by progress indicators.
+pub const APP_KEYFRAMES_PROGRESS: &str =
+    "@keyframes euv-progress { from { width: 0%; } to { width: 100%; } } ";
+
+/// Keyframes: scale-and-rise entrance used by modals.
+pub const APP_KEYFRAMES_SCALE_IN_MODAL: &str = "@keyframes euv-scale-in-modal { from { opacity: 0; transform: translateY(24px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } } ";
+
+/// Accessibility: suppress the focus ring on keyboard-focusable controls.
+pub const APP_A11Y_CSS_FOCUS_VISIBLE: &str = ":focus-visible { outline: none }";
+
+/// Accessibility: disable animations for users who ask for reduced motion.
+pub const APP_A11Y_CSS_REDUCED_MOTION: &str = "@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-iteration-count: 1 !important; scroll-behavior: auto !important; } } ";
+
+/// Accessibility: suppress hover transforms on touch-primary devices.
+pub const APP_A11Y_CSS_COARSE_POINTER: &str = "@media (hover: none) and (pointer: coarse) { * { -webkit-tap-highlight-color: transparent; } .c_card:hover, .c_home_stat_card:hover { transform: none !important; } .c_home_btn_primary:hover, .c_home_btn_secondary:hover { transform: none !important; } } ";

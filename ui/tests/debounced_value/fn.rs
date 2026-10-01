@@ -1,13 +1,5 @@
 use super::*;
 
-/// Helper body of the `seed_debounced` free function.
-///
-/// # Arguments
-///
-/// - `&DebouncedValue<T>` - Shared reference to a `DebouncedValue<T>`.
-/// - `T: Clone + PartialEq + Default + 'static` - A generic type parameter.
-/// - `u32` - A 32-bit unsigned integer (`u32`).
-/// - `u64` - The current time in milliseconds.
 fn seed_debounced<T: Clone + PartialEq + Default + 'static>(
     debounced: &DebouncedValue<T>,
     initial: T,

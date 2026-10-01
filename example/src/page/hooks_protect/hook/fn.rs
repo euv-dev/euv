@@ -18,7 +18,7 @@ pub(crate) const HOOKS_PROTECT_DEMO_ERROR_MESSAGE: &str = "simulated failure";
 pub(crate) fn hooks_protect_try_healthy(boundary: ErrorBoundary) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         let result: Result<u32, String> = boundary.try_with(|| 7_u32);
-        let _ = result;
+        let _: Result<u32, String> = result;
         boundary.reset();
     }))
 }
@@ -34,7 +34,7 @@ pub(crate) fn hooks_protect_try_healthy(boundary: ErrorBoundary) -> Option<Rc<dy
 /// through [`ErrorBoundary::report_error`].
 pub(crate) fn hooks_protect_try_panic(boundary: ErrorBoundary) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
-        let _ = boundary.try_with(|| 7_u32);
+        let _: Result<u32, String> = boundary.try_with(|| 7_u32);
         boundary.report_error(HOOKS_PROTECT_DEMO_ERROR_MESSAGE);
     }))
 }
@@ -58,7 +58,7 @@ pub(crate) fn hooks_protect_profile_slow(profiler: ProfilerHandle) -> Option<Rc<
             for index in 0_u64..1_000_000_u64 {
                 accumulator = accumulator.wrapping_add(index);
             }
-            let _ = accumulator;
+            let _: u64 = accumulator;
         });
     }))
 }

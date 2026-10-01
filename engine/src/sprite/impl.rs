@@ -218,7 +218,8 @@ impl Animator {
     ///
     /// # Arguments
     ///
-    /// - `&SpriteAnimation` - The current animation.
+    /// - `usize` - The total number of frames in the current animation.
+    /// - `AnimationMode` - The playback mode driving the advance.
     fn advance_frame(&mut self, frame_count: usize, mode: AnimationMode) {
         match mode {
             AnimationMode::Loop => {

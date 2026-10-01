@@ -1,31 +1,55 @@
-/// JS function name (keyed under `globalThis.__euv_dom_ops__`) for the
-/// batched `setAttribute` applier.
+/// Stable prefix shared by every injected DOM-op name.
 ///
-/// `set_attrs(elem, names, values)` — `names` and `values` are parallel
-/// `Array<string>` of equal length. The helper calls
-/// `elem.setAttribute(names[i], values[i])` for every index. One JS
-/// crossing per element replaces N individual `setAttribute` crossings.
-pub(crate) const JS_DOM_OP_SET_ATTRS: &str = "__euv_dom_op_set_attrs";
+/// The prefix is fixed on purpose: it is what makes an injected name
+/// recognisable to euv itself, and to a human reading `globalThis` in a
+/// debugger. What follows the prefix is built once per page load from a
+/// microsecond clock and an encoded suffix, so the *full* name is not a
+/// stable, pre-knowable target. See [`DomOpNames`] for the shape and
+/// [`dom_op_names`] for the one-time construction.
+pub(crate) const JS_DOM_OP_NAME_PREFIX: &str = "__euv_";
 
-/// JS function name (keyed under `globalThis.__euv_dom_ops__`) for the
-/// batched `removeAttribute` applier.
+/// Character set handed to `bin-encode-decode` when encoding the suffix.
 ///
-/// `remove_attrs(elem, names)` — `names` is an `Array<string>`. The
-/// helper calls `elem.removeAttribute(names[i])` for every index. One
-/// JS crossing per element replaces N individual `removeAttribute`
-/// crossings.
-pub(crate) const JS_DOM_OP_REMOVE_ATTRS: &str = "__euv_dom_op_remove_attrs";
-
-/// JS function name (keyed under `globalThis.__euv_dom_ops__`) for the
-/// batched `insertBefore`/`appendChild` applier.
+/// The crate requires exactly 64 *distinct* characters, and only 62
+/// identifier-safe alphanumerics exist, so the last two slots go to `_` and
+/// `$`. Both are legal in a JS identifier and both are legal in a property
+/// key, which is what matters here: `-` would have been the obvious
+/// Base64-alphabet filler and it is *not* a legal identifier character, so a
+/// name containing one only works through bracket access.
 ///
-/// `apply_child_ops(parent, ops)` — `ops` is an `Array<OpKind>` where
-/// `OpKind = { kind: "insertBefore", node, refNode? } | { kind:
-/// "appendChild", node } | { kind: "removeChild", node }`. One JS
-/// crossing per parent replaces N individual child-move crossings.
-pub(crate) const JS_DOM_OP_CHILD_OPS: &str = "__euv_dom_op_child_ops";
+/// The suffix never leads a name — it always follows the `__euv_` prefix —
+/// so the rule that `_` and `$` may not appear first does not apply.
+///
+/// Fixed across builds so a cached wasm bundle always encodes with the same
+/// alphabet.
+pub(crate) const JS_DOM_OP_NAME_CHARSET: &str =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_$";
 
-/// JS object name (keyed under `globalThis`) that holds the
-/// batched DOM-op helpers. Lazily populated by [`ensure_dom_op_table`]
-/// on first patch.
-pub(crate) const JS_DOM_OP_TABLE: &str = "__euv_dom_ops__";
+/// Odd multiplier applied to the microsecond clock before encoding.
+///
+/// A raw timestamp is only as unpredictable as the page load time, which an
+/// attacker can bracket. Mixing with an odd constant spreads the low bits so
+/// successive page loads do not produce visibly related suffixes, and the
+/// clock is read in microseconds rather than milliseconds so two loads in the
+/// same millisecond still differ.
+pub(crate) const JS_DOM_OP_NAME_MIX: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// Fallback suffix used when the clock is unavailable.
+///
+/// Off-wasm there is no `Date.now()`, and a clock that fails must not stop
+/// the table from being installed. The value is a constant, so a host-side
+/// build is *not* protected against a pre-known name — wasm is the target
+/// and the clock is always present there.
+pub(crate) const JS_DOM_OP_NAME_FALLBACK_SUFFIX: &str = "0000000000000000";
+
+/// Name of the JS global holding the batched helper table.
+pub(crate) const JS_GLOBAL_THIS: &str = "globalThis";
+
+/// JS expression returning the sub-millisecond fraction of the high-resolution
+/// clock, used to add resolution [`JS_GLOBAL_THIS`]'s `Date.now()` lacks.
+///
+/// Only the wasm build evaluates JS, so this constant is unreachable on the
+/// host and is gated with it; ungated it is a `dead_code` warning waiting to
+/// happen on every `cargo clippy` that is not targeting wasm32.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const JS_PERFORMANCE_NOW_FRACTION: &str = "performance.now() % 1";

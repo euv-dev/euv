@@ -6,6 +6,20 @@ use super::*;
 /// can locate and manage the dynamic content during re-renders and cleanup.
 pub(crate) const DATA_EUV_DYNAMIC_ID: &str = "data-euv-dynamic-id";
 
+/// The DOM attribute name used to mark an element as a portal placeholder.
+///
+/// The marker carries the original selector in this attribute so future patch
+/// passes can detect "this child is a portal" by querying the attribute. See
+/// `is_portal_marker` in the renderer.
+pub(crate) const DATA_EUV_PORTAL: &str = "data-euv-portal";
+
+/// The inline style value that hides the portal marker element.
+///
+/// The marker is a bookkeeping node rather than real content, so it is kept
+/// out of the layout entirely: a fallback that loses its marker attribute is
+/// invisible anyway.
+pub(crate) const PORTAL_MARKER_STYLE: &str = "display:none";
+
 /// The HTML tag name used for fragment placeholder elements.
 ///
 /// Fragments are rendered as `<slot>` elements with `display:contents` style

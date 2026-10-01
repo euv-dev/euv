@@ -33,7 +33,7 @@ pub(crate) fn format_source(source: &str) -> FmtResult {
 ///
 /// # Arguments
 ///
-/// - `S: AsRef<str>` - The Rust source code content.
+/// - `S` - The Rust source code content.
 ///
 /// # Returns
 ///
@@ -468,7 +468,7 @@ fn extract_block_comment(chars: &[char], start: usize, len: usize) -> (String, u
 ///
 /// # Arguments
 ///
-/// - `B: AsRef<str>` - The raw macro body text (without outer braces).
+/// - `B` - The raw macro body text (without outer braces).
 ///
 /// # Returns
 ///
@@ -495,7 +495,7 @@ where
 ///
 /// # Arguments
 ///
-/// - `B: AsRef<str>` - The raw macro body text (without outer braces).
+/// - `B` - The raw macro body text (without outer braces).
 ///
 /// # Returns
 ///
@@ -908,7 +908,7 @@ fn add_indentation(body: &str) -> String {
                 && chars[peek] != CHAR_SEMICOLON
             {
                 let next_chars: String = chars[peek..(peek + 4).min(len)].iter().collect();
-                if next_chars != "else" {
+                if next_chars != KEYWORD_ELSE {
                     result.push(CHAR_NEWLINE);
                     let indent_depth: i32 = depth.max(0);
                     for _ in 0..indent_depth * 4 {
@@ -937,6 +937,15 @@ fn add_indentation(body: &str) -> String {
 /// skipping the prepend for their continuation lines makes the formatter
 /// idempotent on macro bodies containing block comments with internal
 /// whitespace.
+///
+/// # Arguments
+///
+/// - `&str` - The macro body text to indent.
+/// - `&str` - The indentation string to prepend to each line.
+///
+/// # Returns
+///
+/// - `String` - The indented macro body text.
 fn indented_body_skipping_block_comments(body: &str, indent_str: &str) -> String {
     let chars: Vec<char> = body.chars().collect();
     let len: usize = chars.len();
@@ -1451,7 +1460,7 @@ async fn collect_rs_files(path: &Path) -> Result<Vec<PathBuf>, EuvError> {
             read_dir(&dir)
                 .await
                 .map_err(|error: io::Error| EuvError::IoPath {
-                    message: String::from("Failed to read directory"),
+                    message: ERROR_READ_DIRECTORY.to_string(),
                     path: dir.clone(),
                     error,
                 })?;
@@ -1460,7 +1469,7 @@ async fn collect_rs_files(path: &Path) -> Result<Vec<PathBuf>, EuvError> {
                 .next_entry()
                 .await
                 .map_err(|error: io::Error| EuvError::IoPath {
-                    message: String::from("Failed to read entry in directory"),
+                    message: ERROR_READ_ENTRY_IN_DIRECTORY.to_string(),
                     path: dir.clone(),
                     error,
                 })?
@@ -1501,7 +1510,7 @@ async fn format_file(path: &Path, mode: &FmtMode) -> Result<bool, EuvError> {
         read_to_string(path)
             .await
             .map_err(|error: io::Error| EuvError::IoPath {
-                message: String::from("Failed to read"),
+                message: ERROR_READ_FILE.to_string(),
                 path: path.to_path_buf(),
                 error,
             })?;
@@ -1512,7 +1521,7 @@ async fn format_file(path: &Path, mode: &FmtMode) -> Result<bool, EuvError> {
                 write(path, fmt_result.get_output())
                     .await
                     .map_err(|error: io::Error| EuvError::IoPath {
-                        message: String::from("Failed to write"),
+                        message: ERROR_WRITE_FILE.to_string(),
                         path: path.to_path_buf(),
                         error,
                     })?;

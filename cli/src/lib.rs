@@ -1,4 +1,4 @@
-//! euv CLI
+//! euv-cli
 //!
 //! The official CLI tool for the euv UI framework,
 //! providing run/build/fmt modes with hot reload and
@@ -12,8 +12,6 @@ mod logger;
 mod mode;
 mod server;
 
-pub use build::inline::*;
-use log::SetLoggerError;
 pub use std::{
     error::Error,
     ffi::OsStr,
@@ -22,28 +20,28 @@ pub use std::{
 };
 pub use {build::*, error::*, fmt::*, hmr::*, logger::*, mode::*, server::*};
 
-use std::{
-    collections::HashMap,
-    ffi,
-    fmt::Arguments,
-    io,
-    net::{IpAddr, Ipv4Addr},
-    path::{Component, Path, PathBuf},
-    process::{Output, Stdio},
-    slice::Iter,
-    sync::{Arc, OnceLock},
-    time::Duration,
-};
-
 use {
     clap::Parser,
     color_output::*,
     hyperlane::*,
     ignore::gitignore::{Gitignore, GitignoreBuilder},
+    log::SetLoggerError,
     lombok_macros::*,
     notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher},
     qrcode::{QrCode, render::unicode::Dense1x2},
     serde::Serialize,
+    std::{
+        collections::HashMap,
+        ffi,
+        fmt::Arguments,
+        io,
+        net::{IpAddr, Ipv4Addr},
+        path::{Component, Path, PathBuf},
+        process::{Output, Stdio},
+        slice::Iter,
+        sync::{Arc, OnceLock},
+        time::Duration,
+    },
     tokio::{
         fs::{
             ReadDir, canonicalize, create_dir_all, metadata, read, read_dir, read_to_string,

@@ -146,6 +146,11 @@ pub fn i18n_reset_for_tests() {
 ///
 /// All i18n reads and writes route through this helper so
 /// the lazy-init logic stays in one place.
+///
+/// # Returns
+///
+/// - `&'static RwLock<HashMap<String, HashMap<String, String>>>` - The
+///   global locale-to-message map, initialized on first access.
 pub(crate) fn messages_lock() -> &'static RwLock<HashMap<String, HashMap<String, String>>> {
     I18N_MESSAGES.get_or_init(|| RwLock::new(HashMap::new()))
 }

@@ -31,19 +31,19 @@ pub fn on_upload_files_change(
             return;
         };
         let Some(file_list) = input.files() else {
-            callback("No files selected");
+            callback(UPLOAD_NO_FILES_SELECTED_MESSAGE);
             return;
         };
         let count: u32 = file_list.length();
         if count == 0 {
-            callback("No files selected");
+            callback(UPLOAD_NO_FILES_SELECTED_MESSAGE);
             return;
         }
         let names: Vec<String> = (0..count)
             .filter_map(|index: u32| file_list.get(index).map(|file: File| file.name()))
             .collect();
         if names.is_empty() {
-            callback("No files selected");
+            callback(UPLOAD_NO_FILES_SELECTED_MESSAGE);
             return;
         }
         let summary: &'static str = Box::leak(
@@ -105,10 +105,10 @@ fn upload_file_row(file: EuvUploadFile) -> VirtualNode {
         EuvUploadStatus::Failed => c_euv_upload_file_status_failed,
     };
     let status_label: &'static str = match file.status {
-        EuvUploadStatus::Pending => "Pending",
-        EuvUploadStatus::Uploading => "Uploading",
-        EuvUploadStatus::Done => "Done",
-        EuvUploadStatus::Failed => "Failed",
+        EuvUploadStatus::Pending => UPLOAD_STATUS_PENDING_LABEL,
+        EuvUploadStatus::Uploading => UPLOAD_STATUS_UPLOADING_LABEL,
+        EuvUploadStatus::Done => UPLOAD_STATUS_DONE_LABEL,
+        EuvUploadStatus::Failed => UPLOAD_STATUS_FAILED_LABEL,
     };
     html! {
         div {
@@ -191,7 +191,9 @@ pub fn euv_upload(node: VirtualNode<EuvUploadProps>) -> VirtualNode {
                     onchange: on_upload_files_change(on_files)
                 }
                 span {
-                    "Drop files here or click to browse"
+                    {
+                        UPLOAD_DROPZONE_HINT
+                    }
                 }
             }
             div {

@@ -356,8 +356,8 @@ fn build_camera_basis(eye: Vector3D, yaw: f64, pitch: f64) -> (Vector3D, Vector3
     let look_at: Vector3D = Vector3D::new(0.0, 0.4, 0.0);
     let up: Vector3D = Vector3D::new(0.0, 1.0, 0.0);
     let forward: Vector3D = (look_at - eye).normalized();
-    let _ = yaw;
-    let _ = pitch;
+    let _: f64 = yaw;
+    let _: f64 = pitch;
     let right: Vector3D = forward.cross(up).normalized();
     let up_true: Vector3D = right.cross(forward).normalized();
     (forward, right, up_true)
@@ -653,7 +653,7 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
         let loading_callback: Function =
             loading_closure.as_ref().unchecked_ref::<Function>().clone();
         loading_closure.forget();
-        let _ = window_value
+        let _: Result<i32, JsValue> = window_value
             .set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     }
     let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
@@ -719,7 +719,7 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
                 let lights: LightingUniforms = build_raytrace_lighting(eye, yaw);
                 let render_start: f64 = performance.now();
                 {
-                    let mut buffer = buffer_clone.borrow_mut();
+                    let mut buffer: RefMut<'_, Vec<u8>> = buffer_clone.borrow_mut();
                     let needed: usize = frame_width as usize * frame_height as usize * 4;
                     if buffer.len() != needed {
                         buffer.resize(needed, 0);
@@ -864,7 +864,7 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
             let Some(window_value): Option<Window> = window() else {
                 return;
             };
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timeout_id) = start_timeout_id.get() {
             let Some(window_value): Option<Window> = window() else {
@@ -1287,7 +1287,7 @@ fn raytrace_set_loaded_delayed_canvas2d(loaded: Signal<bool>, millis: i32) {
     let Some(loaded_window): Option<Window> = window() else {
         return;
     };
-    let _ = loaded_window
+    let _: Result<i32, JsValue> = loaded_window
         .set_timeout_with_callback_and_timeout_and_arguments_0(&loaded_callback, millis);
 }
 
@@ -1311,7 +1311,7 @@ fn raytrace_set_loaded_delayed(loaded: Signal<bool>, millis: i32) {
     let Some(loaded_window): Option<Window> = window() else {
         return;
     };
-    let _ = loaded_window
+    let _: Result<i32, JsValue> = loaded_window
         .set_timeout_with_callback_and_timeout_and_arguments_0(&loaded_callback, millis);
 }
 
@@ -1380,13 +1380,13 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
     let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
     let resize_dirty: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let resize_timer: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
-    let renderer_rc: Rc<RefCell<Option<WebGlRenderer>>> = Rc::new(RefCell::new(None));
+    let renderer_rc: Rc<RefCell<Option<WebGl2Backend>>> = Rc::new(RefCell::new(None));
     let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let observer_cell: Rc<RefCell<Option<ResizeObserver>>> = Rc::new(RefCell::new(None));
     raytrace_register_resize_debounce(resize_dirty.clone(), resize_timer.clone());
     let raf_for_cleanup: Rc<Cell<Option<i32>>> = raf_id.clone();
     let cell_for_cleanup: RafClosureCell = closure_cell.clone();
-    let renderer_for_cleanup: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
+    let renderer_for_cleanup: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
     let resize_timer_for_cleanup: Rc<Cell<Option<i32>>> = resize_timer.clone();
     let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
     let observer_for_cleanup: Rc<RefCell<Option<ResizeObserver>>> = observer_cell.clone();
@@ -1397,7 +1397,7 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
         if let Some(cancel_id) = raf_for_cleanup.get()
             && let Some(window_value) = window()
         {
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timer_id) = resize_timer_for_cleanup.get()
             && let Some(window_value) = window()
@@ -1414,7 +1414,7 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
         let _: Option<_> = cell_for_cleanup.try_take();
         // WebGL has no explicit `destroy()` on the context: dropping the
         // last JS reference lets the browser GC reclaim the GL context.
-        let _: Option<WebGlRenderer> = renderer_for_cleanup.borrow_mut().take();
+        let _: Option<WebGl2Backend> = renderer_for_cleanup.borrow_mut().take();
     });
     let cancelled_for_init: Rc<Cell<bool>> = cancelled.clone();
     let Some(loading_window): Option<Window> = window() else {
@@ -1428,7 +1428,7 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     spawn_local(async move {
         if cancelled_for_init.get() {
@@ -1439,7 +1439,7 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
             RAYTRACE_WIDTH,
             RAYTRACE_HEIGHT,
         );
-        let renderer: WebGlRenderer = match Engine::webgl_renderer(&config) {
+        let renderer: WebGl2Backend = match Engine::webgl_renderer(&config) {
             Ok(value) => value,
             Err(error) => {
                 Console::error(format!("[euv-engine][raytrace] webgl init failed: {error}"));
@@ -1448,9 +1448,12 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                 return;
             }
         };
-        let program: WebGlProgram = match renderer
-            .create_program(RAYTRACE_WEBGL_VERTEX_SHADER, RAYTRACE_WEBGL_FRAGMENT_SHADER)
-        {
+        let init_context: WebGl2RenderingContext = renderer.get_context().clone();
+        let program: GlProgram = match GlProgram::create(
+            &init_context,
+            RAYTRACE_WEBGL_VERTEX_SHADER,
+            RAYTRACE_WEBGL_FRAGMENT_SHADER,
+        ) {
             Ok(value) => value,
             Err(error) => {
                 Console::error(format!(
@@ -1461,13 +1464,6 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                 return;
             }
         };
-        // Resolve the uniform location once after link; per-frame
-        // `getUniformLocation` calls are pure overhead and the location is
-        // stable for the lifetime of the program.
-        let params_location: Rc<Option<WebGlUniformLocation>> =
-            Rc::new(renderer.get_uniform_location(&program, "u_params[0]"));
-        let sphere_packs_location: Rc<Option<WebGlUniformLocation>> =
-            Rc::new(renderer.get_uniform_location(&program, "u_sphere_packs[0]"));
         let clear_color: Rc<Cell<(f64, f64, f64)>> = Rc::new(Cell::new(
             game_3d_canvas_clear_color(RAYTRACE_WEBGL_CANVAS_SELECTOR),
         ));
@@ -1476,7 +1472,11 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
         // minimum visible duration even when init completes instantly.
         raytrace_set_loaded_delayed(init_state.get_loaded(), GAME_3D_LOADING_MIN_MILLIS);
         *renderer_rc.borrow_mut() = Some(renderer);
-        let program_rc: Rc<WebGlProgram> = Rc::new(program);
+        // `GlProgram` owns its own name-keyed uniform-location cache, so the
+        // program itself is shared as `RefCell`: `set_uniform_*` needs
+        // `&mut GlProgram`, and a `WebGlProgram` handle alone cannot carry
+        // the cache the old `Rc<WebGlUniformLocation>` did.
+        let program_rc: Rc<RefCell<GlProgram>> = Rc::new(RefCell::new(program));
         // Synchronous resize on CSS-box change. ResizeObserver callbacks
         // run BEFORE the browser paints the next frame, so setting
         // `canvas.width = new_w` inside the observer ensures the very
@@ -1485,7 +1485,7 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
         // backing. `canvas.width` is applied BEFORE `renderer.resize`
         // because the DOM setter is fast while the GL-side realloc can
         // stall the main thread.
-        let renderer_for_observer: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
+        let renderer_for_observer: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
         let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
             Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
                 let Some(window_value): Option<Window> = window() else {
@@ -1543,16 +1543,28 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                 .flatten()
         {
             resize_observer.observe(&element);
-            *observer_cell.borrow_mut() = Some(resize_observer);
+            // `try_borrow_mut`, not `borrow_mut`: the tab-switch cleanup
+            // registered above also mutably borrows this same cell from
+            // `HookContext::switch_arm`, and this backend's init is
+            // asynchronous (WebGPU awaits adapter / device promises, WebGL
+            // defers behind `spawn_local`), so the arm can switch while
+            // init is still in flight and the two borrows genuinely
+            // overlap. That collision is not theoretical: it reproduced
+            // as `already borrowed: BorrowMutError` in
+            // `RefCell<Option<ResizeObserver>>::borrow_mut`, and a
+            // BorrowMutError in WASM aborts the whole app with no
+            // catchable panic. On contention the observer is dropped here
+            // and the loop runs without live resize notifications — the
+            // per-frame backing-store divergence check still resizes.
+            if let Ok(mut observer_slot) = observer_cell.try_borrow_mut() {
+                *observer_slot = Some(resize_observer);
+            }
         }
         let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
         let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
         let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
-        let renderer_for_loop: Rc<RefCell<Option<WebGlRenderer>>> = renderer_rc.clone();
-        let program_for_loop: Rc<WebGlProgram> = program_rc.clone();
-        let params_location_for_loop: Rc<Option<WebGlUniformLocation>> = params_location.clone();
-        let sphere_packs_location_for_loop: Rc<Option<WebGlUniformLocation>> =
-            sphere_packs_location.clone();
+        let renderer_for_loop: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
+        let program_for_loop: Rc<RefCell<GlProgram>> = program_rc.clone();
         let clear_color_for_loop: Rc<Cell<(f64, f64, f64)>> = clear_color.clone();
         let yaw_for_loop: Rc<Cell<f64>> = angles.yaw.clone();
         let pitch_for_loop: Rc<Cell<f64>> = angles.pitch.clone();
@@ -1616,6 +1628,13 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
             let new_physical_width: u32 = (canvas_width * dpr).round() as u32;
             let new_physical_height: u32 = (canvas_height * dpr).round() as u32;
             if let Some(renderer) = renderer_for_loop.borrow_mut().as_mut() {
+                // `set_uniform_*` and `render_frame` both take `&mut self`,
+                // while the context they must draw through is borrowed out
+                // of that same `self`. Clone the handle instead: it is a JS
+                // object reference, so the clone only bumps a refcount and
+                // leaves both the borrow of `renderer` and the GL context
+                // valid for the duration of the frame.
+                let context: WebGl2RenderingContext = renderer.get_context().clone();
                 // Resize the WebGL backing store every frame the CSS box
                 // diverges from `canvas.width` / `canvas.height`. The
                 // per-frame check collapses the stretched-frame window
@@ -1641,21 +1660,25 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                     let sun_position: Vector3D = raytrace_sun_position(yaw);
                     let uniform_data: Vec<f32> =
                         pack_raytrace_gpu_uniform(yaw, pitch, backing_w, backing_h, sun_position);
-                    renderer.set_uniform_4fv(
-                        &program_for_loop,
-                        params_location_for_loop.as_ref().as_ref(),
-                        &uniform_data,
-                    );
                     // Upload the engine's precomputed shadow bounding
                     // spheres. Mirrors the WGSL `u_sphere_packs` binding
                     // so the GLSL path's `soft_shadow_factor` agrees
                     // with the CPU `RayTraceScene::shadow_points`.
                     let sphere_data: Vec<f32> = build_raytrace_sphere_pack_uniform(yaw);
-                    renderer.set_uniform_4fv(
-                        &program_for_loop,
-                        sphere_packs_location_for_loop.as_ref().as_ref(),
-                        &sphere_data,
-                    );
+                    {
+                        let mut program_borrow: RefMut<'_, GlProgram> =
+                            program_for_loop.borrow_mut();
+                        program_borrow.set_uniform_vec4_array(
+                            &context,
+                            "u_params[0]",
+                            &uniform_data,
+                        );
+                        program_borrow.set_uniform_vec4_array(
+                            &context,
+                            "u_sphere_packs[0]",
+                            &sphere_data,
+                        );
+                    }
                     // Refresh the clear color every frame so a theme
                     // toggle takes effect within one paint.
                     let next_clear: (f64, f64, f64) =
@@ -1664,7 +1687,12 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                         clear_color_for_loop.set(next_clear);
                     }
                     let (r, g, b) = clear_color_for_loop.get();
-                    renderer.render_frame(&program_for_loop, (r, g, b, 1.0), 3);
+                    renderer.render_frame(
+                        &context,
+                        &program_for_loop.borrow(),
+                        Color::new(r, g, b, 1.0),
+                        3,
+                    );
                 }
             }
             frame_clone.set(frame_clone.get() + 1);
@@ -1742,7 +1770,7 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
         if let Some(cancel_id) = raf_for_cleanup.get()
             && let Some(window_value) = window()
         {
-            let _ = window_value.cancel_animation_frame(cancel_id);
+            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
         }
         if let Some(timer_id) = resize_timer_for_cleanup.get()
             && let Some(window_value) = window()
@@ -1778,7 +1806,7 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
     }));
     let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
     loading_closure.forget();
-    let _ =
+    let _: Result<i32, JsValue> =
         loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
     spawn_local(async move {
         let config: RenderConfig = RenderConfig::webgpu(
@@ -1914,7 +1942,22 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                 .flatten()
         {
             resize_observer.observe(&element);
-            *observer_cell.borrow_mut() = Some(resize_observer);
+            // `try_borrow_mut`, not `borrow_mut`: the tab-switch cleanup
+            // registered above also mutably borrows this same cell from
+            // `HookContext::switch_arm`, and this backend's init is
+            // asynchronous (WebGPU awaits adapter / device promises, WebGL
+            // defers behind `spawn_local`), so the arm can switch while
+            // init is still in flight and the two borrows genuinely
+            // overlap. That collision is not theoretical: it reproduced
+            // as `already borrowed: BorrowMutError` in
+            // `RefCell<Option<ResizeObserver>>::borrow_mut`, and a
+            // BorrowMutError in WASM aborts the whole app with no
+            // catchable panic. On contention the observer is dropped here
+            // and the loop runs without live resize notifications — the
+            // per-frame backing-store divergence check still resizes.
+            if let Ok(mut observer_slot) = observer_cell.try_borrow_mut() {
+                *observer_slot = Some(resize_observer);
+            }
         }
         let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
         let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
@@ -1993,11 +2036,11 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                     if backing_w != new_physical_width || backing_h != new_physical_height {
                         renderer.get_canvas().set_width(new_physical_width);
                         renderer.get_canvas().set_height(new_physical_height);
-                        let _ = renderer.resize(new_physical_width, new_physical_height);
+                        let _: bool = renderer.resize(new_physical_width, new_physical_height);
                     }
                 }
                 if resize_dirty_frame {
-                    let _ = renderer.resize(new_physical_width, new_physical_height);
+                    let _: bool = renderer.resize(new_physical_width, new_physical_height);
                 }
                 if loop_state.get_running().get() {
                     let yaw: f64 = yaw_for_loop.get();
@@ -2021,7 +2064,7 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                     renderer.render_frame_with_bind_group(
                         &pipeline_for_loop,
                         &bind_group_for_loop,
-                        (r, g, b, 1.0),
+                        Color::new(r, g, b, 1.0),
                         3,
                     );
                 }
@@ -2127,7 +2170,7 @@ pub(crate) fn enter_raytrace_fullscreen(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 
@@ -2153,7 +2196,7 @@ pub(crate) fn exit_raytrace_fullscreen(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 
@@ -2178,7 +2221,7 @@ pub(crate) fn exit_raytrace_fullscreen_from_popstate(tab: Signal<bool>) {
     };
     let event: Result<Event, JsValue> = Event::new("resize");
     if let Ok(event) = event {
-        let _ = window_value.dispatch_event(&event);
+        let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
 }
 

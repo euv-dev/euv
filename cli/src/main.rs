@@ -10,6 +10,10 @@ use clap::Parser;
 /// - `run` — build + file watcher + dev server
 /// - `build` — build only
 /// - `fmt` — format euv macro invocations
+///
+/// # Returns
+///
+/// - `Result<(), EuvError>` - `Ok(())` after the selected mode finished.
 #[tokio::main]
 pub async fn main() -> Result<(), EuvError> {
     Logger::init(log::LevelFilter::Info);

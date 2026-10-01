@@ -203,18 +203,15 @@ pub struct CallbackNamedAdapter<T> {
     pub(crate) name: &'static str,
 }
 
-/// A `Sync` wrapper for single-threaded global `HashSet` access.
+/// Namespace for the injected-class registry accessors.
 ///
-/// SAFETY: This type is only safe to use in single-threaded contexts
-/// (e.g., WASM). It implements `Sync` to allow usage as a `static`
-/// variable, but concurrent access from multiple threads would be
-/// undefined behavior.
-#[derive(Data, Debug, New)]
-pub(crate) struct InjectedClassesCell(
-    /// Interior-mutable storage for the set of CSS class names already
-    /// injected into the DOM.
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub UnsafeCell<HashSet<String>>,
-);
+/// The registry itself lives in `INJECTED_CLASSES` (an `RwLock<HashSet>`
+/// behind a `LazyLock`). This type only carries the associated functions so
+/// the accessors keep a `Type::method()` shape.
+///
+/// It previously wrapped a `UnsafeCell<HashSet<String>>` and was marked
+/// `unsafe impl Sync` so it could sit in a `static mut`. That was undefined
+/// behaviour as soon as two threads touched it, which is exactly what
+/// parallel test runs do.
+#[derive(Debug, Default)]
+pub(crate) struct InjectedClassesCell;

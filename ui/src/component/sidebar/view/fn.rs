@@ -72,9 +72,7 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
         };
         return html! {
             a {
-                class: {
-                    link_class()
-                }
+                class: link_class()
                 // OPT 30: see comment in `euv_navbar` — replace
                 // `format!("#{...}")` with a single `#`-prefix concat.
                 href: {

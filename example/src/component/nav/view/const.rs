@@ -23,6 +23,7 @@ pub(crate) const NAV_ITEMS: &[(&str, &str, &str)] = &[
     ("📄", "Form", "/form"),
     ("🎮", "Game2D", "/game-2d"),
     ("🎲", "Game3D", "/game-3d"),
+    ("👆", "Gesture", "/gesture"),
     ("🌍", "i18n", "/hooks-i18n"),
     ("💚", "KeepAlive", "/keep-alive"),
     ("♻️", "Lifecycle", "/lifecycle"),

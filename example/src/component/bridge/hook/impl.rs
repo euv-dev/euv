@@ -237,7 +237,7 @@ impl UseCacheUpdate {
     ///
     /// # Arguments
     ///
-    /// - `F: FnOnce() -> Fut + 'static` - An async closure that returns `UpdateResult`.
+    /// - `F` - An async closure that returns `UpdateResult`.
     pub(crate) fn load<F, Fut>(self, updater: F)
     where
         F: FnOnce() -> Fut + 'static,
@@ -313,7 +313,7 @@ impl BridgeConfig {
     ) -> Result<Promise, String> {
         let config: BridgeConfig = config.cloned().unwrap_or_default();
         let Some(window_value): Option<Window> = window() else {
-            return Err("no global window exists".to_string());
+            return Err(ERROR_NO_GLOBAL_WINDOW.to_string());
         };
         let bridge_key: JsValue = JsValue::from_str(config.get_global_key());
         let bridge_obj: JsValue = Reflect::get(&window_value, &bridge_key)

@@ -1,22 +1,92 @@
 use super::*;
 
-/// Marks `CurrentHookContextCell` as `Sync` for single-threaded WASM contexts.
-///
-/// SAFETY: `CurrentHookContextCell` is only used in single-threaded WASM contexts.
-/// Concurrent access from multiple threads would be undefined behavior.
-unsafe impl Sync for CurrentHookContextCell {}
-
-/// Marks `MicrotaskCacheCell` as `Sync` for single-threaded WASM contexts.
-///
-/// SAFETY: only mutated through `UnsafeCell` interior-mutability on
-/// the WASM single-threaded runtime.
-unsafe impl Sync for MicrotaskCacheCell {}
-
 /// Static methods for scheduling signal update dispatch and batching.
 ///
 /// Provides centralized scheduling for reactive updates, ensuring efficient
 /// batching and dispatch of signal changes to dependent dynamic nodes.
 impl Scheduler {
+    /// Resolves `window.queueMicrotask` to a `Function` handle.
+    ///
+    /// The lookup crosses into JS, so it is kept out of any `RefCell`
+    /// borrow: the caller stores the result afterwards. Returns `None`
+    /// when the host does not expose `queueMicrotask` or the cast fails.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Function>` - The resolved handle, or `None` if unavailable.
+    fn resolve_queue_microtask() -> Option<Function> {
+        let window_value: Window = window()?;
+        let queue_microtask_value: JsValue =
+            Reflect::get(&window_value, &JsValue::from_str(QUEUE_MICROTASK)).ok()?;
+        queue_microtask_value.dyn_into::<Function>().ok()
+    }
+
+    /// Returns the persistent dispatch closure as a JS `Function`.
+    ///
+    /// `DISPATCH_CLOSURE` is a `Closure<dyn FnMut()>`; `Closure::as_ref`
+    /// yields a `&JsValue` that is the underlying JS function object, so
+    /// the cast is a reinterpretation of the same `JsValue` rather than a
+    /// new borrow. The closure is created inside a `thread_local!` and
+    /// never dropped, so the returned reference is live for the life of
+    /// the thread.
+    ///
+    /// # Returns
+    ///
+    /// - `&'static Function` - The dispatch function handle.
+    fn dispatch_function() -> &'static Function {
+        DISPATCH_CLOSURE.with(|closure: &Closure<dyn FnMut()>| {
+            let value: &JsValue = closure.as_ref();
+            unsafe { &*(value as *const JsValue as *const Function) }
+        })
+    }
+
+    /// Invokes `queue_microtask` with the persistent dispatch closure.
+    ///
+    /// The dispatch `Function` is resolved inside this call, after the
+    /// `MICROTASK_CACHE` borrow has already been released, so the
+    /// `queueMicrotask` invocation never runs under a live `RefCell`
+    /// borrow. `queueMicrotask` schedules a microtask — the callback runs
+    /// later, in a separate turn — but a host that runs it synchronously
+    /// would otherwise re-enter `MICROTASK_CACHE` and hit a refused
+    /// borrow.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Window` - The window whose `queueMicrotask` is being called.
+    /// - `&Function` - The cached `queueMicrotask` handle.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the microtask was queued.
+    fn call_queue_microtask(window_value: &Window, queue_microtask: &Function) -> bool {
+        let dispatch_function: &Function = Self::dispatch_function();
+        queue_microtask
+            .call1(window_value, dispatch_function)
+            .is_ok()
+    }
+
+    /// Whether a JS `Window` is reachable on this host.
+    ///
+    /// `web_sys::window()` resolves the JS global through a
+    /// process-wide `once_cell::Lazy` inside `js_sys`. On a non-WASM host
+    /// (where `cargo test` runs) there is no JS global, so the lookup
+    /// **panics** — and because the `Lazy` is process-wide, that one
+    /// panic poisons it for every other thread, which then fail with
+    /// "Lazy instance has previously been poisoned" in a completely
+    /// unrelated test. The panic is the bug, not the poisoning.
+    ///
+    /// `cfg!(target_arch = "wasm32")` is a compile-time constant, so on
+    /// WASM the whole body is optimised away to `true` and this costs
+    /// nothing; on the host it returns `false` before any JS call is
+    /// made, keeping `Scheduler::update` a pure registry operation.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when JS globals are reachable.
+    fn js_reachable() -> bool {
+        cfg!(target_arch = "wasm32")
+    }
+
     /// Schedules a deferred signal update with precise dirty marking.
     ///
     /// Marks the specified dynamic nodes as dirty and queues a microtask
@@ -38,6 +108,14 @@ impl Scheduler {
         if SUPPRESS_SCHEDULE.load(Ordering::Relaxed) {
             return;
         }
+        // Off-WASM there is no JS global to schedule a microtask against, and
+        // attempting the lookup panics inside `js_sys`'s process-wide
+        // `once_cell::Lazy` — poisoning it for every other thread. Return
+        // before touching any JS so host test runs stay green and the dirty
+        // marking above still happens.
+        if !Self::js_reachable() {
+            return;
+        }
         if SCHEDULED.load(Ordering::Relaxed) {
             return;
         }
@@ -49,47 +127,34 @@ impl Scheduler {
                 return;
             }
         };
-        let queued_microtask: bool = MICROTASK_CACHE.with(|cache: &MicrotaskCacheCell| {
-            let cache_ptr: *mut MicrotaskCache = cache.get_0().get();
-            let cache_ref: &MicrotaskCache = unsafe { &*cache_ptr };
-            if cache_ref.queue_microtask.is_none() {
-                if let Some(window_value_inner) = window() {
-                    let queue_microtask_value: JsValue =
-                        Reflect::get(&window_value_inner, &JsValue::from_str(QUEUE_MICROTASK))
-                            .unwrap_or(JsValue::UNDEFINED);
-                    if let Ok(queue_microtask) = queue_microtask_value.dyn_into::<Function>() {
-                        unsafe {
-                            (*cache_ptr).queue_microtask = Some(queue_microtask);
-                        }
+        let queued_microtask: bool = MICROTASK_CACHE
+            .try_with(|cache: &RefCell<MicrotaskCache>| {
+                // Fast path: a cached `queueMicrotask` handle, cloned out so
+                // the `RefCell` borrow is released before the call crosses
+                // into JS. A refused borrow just falls through to the
+                // resolution path below rather than panicking.
+                if let Ok(guard) = cache.try_borrow()
+                    && let Some(cached) = guard.try_get_queue_microtask().clone()
+                {
+                    return Self::call_queue_microtask(&window_value, &cached);
+                }
+                // Slow path: resolve the handle once and cache it. The
+                // `Reflect::get` + `dyn_into` lookup crosses into JS, so it
+                // runs with no borrow held and the result is stored after.
+                let resolved: Option<Function> = Self::resolve_queue_microtask();
+                if let Some(queue_microtask) = &resolved
+                    && let Ok(mut guard) = cache.try_borrow_mut()
+                {
+                    guard.set_queue_microtask(Some(queue_microtask.clone()));
+                }
+                match resolved {
+                    Some(queue_microtask) => {
+                        Self::call_queue_microtask(&window_value, &queue_microtask)
                     }
+                    None => false,
                 }
-                let cache_ref: &MicrotaskCache = unsafe { &*cache_ptr };
-                if let Some(queue_microtask) = &cache_ref.queue_microtask {
-                    // SAFETY: `DISPATCH_CLOSURE` lives for the duration of
-                    // the program (it is leaked via `Closure::wrap` /
-                    // `Closure::forget` semantics inside the macro).
-                    let dispatch_function: &Function =
-                        DISPATCH_CLOSURE.with(|closure: &Closure<dyn FnMut()>| unsafe {
-                            &*(closure.as_ref() as *const _ as *const Function)
-                        });
-                    return queue_microtask
-                        .call1(&window_value, dispatch_function)
-                        .is_ok();
-                }
-                return false;
-            }
-            let queue_microtask: &Function = match cache_ref.queue_microtask.as_ref() {
-                Some(queue_microtask) => queue_microtask,
-                None => return false,
-            };
-            let dispatch_function: &Function =
-                DISPATCH_CLOSURE.with(|closure: &Closure<dyn FnMut()>| unsafe {
-                    &*(closure.as_ref() as *const _ as *const Function)
-                });
-            queue_microtask
-                .call1(&window_value, dispatch_function)
-                .is_ok()
-        });
+            })
+            .unwrap_or(false);
         if queued_microtask {
             return;
         }
@@ -125,11 +190,11 @@ impl Scheduler {
     ///
     /// # Arguments
     ///
-    /// - `F: FnOnce() -> R` - The closure to execute with batching enabled.
+    /// - `F` - The closure to execute with batching enabled.
     ///
     /// # Returns
     ///
-    /// - `R` - The result of the closure execution.
+    /// - `R` - The value the closure returns, forwarded unchanged.
     pub(crate) fn batch<F, R>(callback: F) -> R
     where
         F: FnOnce() -> R,
@@ -169,20 +234,37 @@ impl Scheduler {
         loop {
             // OPT 6: drain the dirty set rather than scanning the registry.
             // `std::mem::take` swaps in a fresh empty set so the dirty-set
-            // borrow is released before we mutate `SIGNAL_UPDATE_REGISTRY`
-            // in the loop body below. (`HashSet::drain` requires the
-            // `RangeFull` pattern which Rust 2024 reserves as the
+            // borrow is released before we mutate the signal update
+            // registry in the loop body below. (`HashSet::drain` requires
+            // the `RangeFull` pattern which Rust 2024 reserves as the
             // struct-update syntax shorthand.)
-            let dirty_keys: HashSet<usize> = take(Registry::get_mut_dirty_update_ids());
+            let dirty_keys: HashSet<usize> = Registry::take_dirty_update_ids();
             if dirty_keys.is_empty() {
                 break;
             }
             for key in dirty_keys {
-                let entry: SignalUpdateEntry =
-                    match Registry::get_mut_update_registry().remove(&key) {
-                        Some(removed_entry) => removed_entry,
-                        None => continue,
-                    };
+                // The slot is taken out of the registry for the duration of
+                // the callback. A re-render that unmounts this node runs
+                // `cleanup_dynamic_node`, which finds nothing to remove and
+                // therefore cannot free the box while the callback is still
+                // using it — that is why the "put it back" step below
+                // re-checks both `removed` and registry membership.
+                // The entry MUST be taken out of the registry for the
+                // duration of the callback. `get_dynamic` only copies the
+                // pointer, so the key would still be present below and the
+                // `has_dynamic` guard would then treat our own untouched
+                // entry as "a re-entrant pass already replaced it" — freeing
+                // the slot and leaving the dynamic node with no callback.
+                // The node then never re-renders again: the first
+                // signal-driven update after mount works, every later one is
+                // silently dropped.
+                let Some(entry) = Registry::take_dynamic(key) else {
+                    continue;
+                };
+                // SAFETY: `take_dynamic` returns the raw pointer the registry
+                // stores; the entry is still live because nothing removed
+                // it (removal frees the box, and only removal precedes
+                // freeing).
                 let slot: &mut SignalUpdateSlot = unsafe { &mut *entry };
                 if slot.get_removed() {
                     unsafe {
@@ -194,27 +276,26 @@ impl Scheduler {
                 let callback: Option<Box<dyn FnMut()>> = slot.get_mut_callback().take();
                 if let Some(mut callback) = callback {
                     callback();
-                    let slot: &mut SignalUpdateSlot = unsafe { &mut *entry };
                     if !slot.get_removed() {
                         slot.set_callback(Some(callback));
                     }
                 }
-                let slot: &SignalUpdateSlot = unsafe { &*entry };
                 if slot.get_removed() {
                     unsafe {
                         let _: Box<SignalUpdateSlot> = Box::from_raw(entry);
                     }
                     continue;
                 }
-                let registry: &mut HashMap<usize, SignalUpdateEntry> =
-                    Registry::get_mut_update_registry();
-                if registry.contains_key(&key) {
+                // Reinsert only if a re-entrant pass did not already put
+                // this id back (which would leave the old box unreclaimed
+                // and the new one duplicated).
+                if Registry::has_dynamic(key) {
                     unsafe {
                         let _: Box<SignalUpdateSlot> = Box::from_raw(entry);
                     }
                     continue;
                 }
-                registry.insert(key, entry);
+                Registry::put_dynamic(key, entry);
             }
             iterations += 1;
             if iterations >= MAX_ITERATIONS {

@@ -57,7 +57,7 @@ pub trait Vector:
     ///
     /// # Arguments
     ///
-    /// - `&Self` - The other vector.
+    /// - `Self` - The other vector.
     ///
     /// # Returns
     ///

@@ -19,6 +19,7 @@ js-sys = { workspace = true }
 web-sys = { workspace = true }
 wasm-bindgen = { workspace = true }
 lombok-macros = { workspace = true }
+bin-encode-decode = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 
 [dev-dependencies]

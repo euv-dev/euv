@@ -143,50 +143,38 @@ impl HookContext {
     /// Returns a shared reference to the current hook context global state.
     ///
     /// SAFETY: Must only be called from the main thread (WASM single-threaded context).
-    fn try_get_current() -> &'static Option<HookContextRc> {
-        unsafe { &*(*std::ptr::addr_of!(CURRENT_HOOK_CONTEXT)).get_0().get() }
-    }
-
-    /// Returns a mutable reference to the current hook context global state.
+    /// Returns the currently active `HookContext` for this thread.
     ///
-    /// SAFETY: Must only be called from the main thread (WASM single-threaded context).
-    fn try_get_mut_current() -> &'static mut Option<HookContextRc> {
-        unsafe {
-            &mut *(*std::ptr::addr_of_mut!(CURRENT_HOOK_CONTEXT))
-                .get_0()
-                .get()
-        }
-    }
-
-    /// Returns the currently active `HookContext`.
-    ///
-    /// If no hook context has been set, creates and stores a default one
-    /// in the global `CURRENT_HOOK_CONTEXT` cell so subsequent calls
-    /// return the same instance.
+    /// If no hook context has been set, creates and stores a default one in
+    /// the thread-local `CURRENT_HOOK_CONTEXT` cell so subsequent calls on
+    /// this thread return the same instance.
     ///
     /// # Returns
     ///
     /// - `HookContext` - The currently active hook context.
     pub fn current() -> HookContext {
-        match Self::try_get_current() {
-            Some(hook_context_rc) => HookContext::new(hook_context_rc.clone()),
-            None => {
-                let rc: HookContextRc = Rc::new(RefCell::new(HookContextInner::default()));
-                *Self::try_get_mut_current() = Some(rc.clone());
-                HookContext::new(rc)
+        CURRENT_HOOK_CONTEXT.with(|slot: &RefCell<Option<HookContextRc>>| {
+            let existing: Option<HookContextRc> = slot.borrow().clone();
+            if let Some(hook_context_rc) = existing {
+                return HookContext::new(hook_context_rc);
             }
-        }
+            let created: HookContextRc = Rc::new(RefCell::new(HookContextInner::default()));
+            *slot.borrow_mut() = Some(created.clone());
+            HookContext::new(created)
+        })
     }
 
     /// Runs a closure with the given `HookContext` set as the active context.
     ///
     /// Saves the previous context, sets the new one, executes the closure,
-    /// and restores the previous context afterward.
+    /// and restores the previous context afterward. The save/restore pair is
+    /// scoped to the current thread, so concurrent callers cannot restore each
+    /// other's context.
     ///
     /// # Arguments
     ///
     /// - `HookContext` - The hook context to set as active during closure execution.
-    /// - `F: FnOnce() -> R` - The closure to execute with the given context.
+    /// - `F` - The closure to execute with the given context.
     ///
     /// # Returns
     ///
@@ -195,11 +183,13 @@ impl HookContext {
     where
         F: FnOnce() -> R,
     {
-        let previous: Option<HookContextRc> = Self::try_get_mut_current().take();
-        *Self::try_get_mut_current() = Some(context.get_inner().clone());
-        let result: R = callback();
-        *Self::try_get_mut_current() = previous;
-        result
+        CURRENT_HOOK_CONTEXT.with(|slot: &RefCell<Option<HookContextRc>>| {
+            let previous: Option<HookContextRc> = slot.borrow_mut().take();
+            *slot.borrow_mut() = Some(context.get_inner().clone());
+            let result: R = callback();
+            *slot.borrow_mut() = previous;
+            result
+        })
     }
 
     /// Creates a new reactive signal with the given initial value.
@@ -211,7 +201,7 @@ impl HookContext {
     ///
     /// # Arguments
     ///
-    /// - `FnOnce() -> T` - A closure that computes the initial value of the signal.
+    /// - `F` - A closure that computes the initial value of the signal.
     ///
     /// # Returns
     ///
@@ -255,7 +245,7 @@ impl HookContext {
     ///
     /// # Arguments
     ///
-    /// - `FnOnce() + 'static` - The cleanup callback to execute on context teardown.
+    /// - `F` - The cleanup callback to execute on context teardown.
     pub fn cleanup<F>(cleanup: F)
     where
         F: FnOnce() + 'static,
@@ -287,8 +277,8 @@ impl HookContext {
     ///
     /// # Arguments
     ///
-    /// - `E: AsRef<str>` - The event name to listen for (e.g., "hashchange", "popstate", "resize").
-    /// - `FnMut() + 'static` - The callback to invoke when the event fires.
+    /// - `E` - The event name to listen for (e.g., "hashchange", "popstate", "resize").
+    /// - `F` - The callback to invoke when the event fires.
     pub fn window_event<E, F>(event_name: E, callback: F)
     where
         E: AsRef<str>,
@@ -328,7 +318,7 @@ impl HookContext {
     /// # Arguments
     ///
     /// - `i32` - The interval period in milliseconds.
-    /// - `FnMut() + 'static` - The closure to invoke on each interval tick.
+    /// - `F` - The closure to invoke on each interval tick.
     ///
     /// # Returns
     ///
@@ -396,12 +386,12 @@ impl HookContext {
     ///
     /// # Arguments
     ///
-    /// - `F: FnOnce() -> T` - Constructor that produces a fresh value
+    /// - `F` - Constructor that produces a fresh value
     ///   of type `T` when the slot has never been written.
     ///
     /// # Returns
     ///
-    /// - `T: Clone + 'static` - Either the previously-stored
+    /// - `T` - Either the previously-stored
     ///   value (cheap clone / copy) or a fresh one from
     ///   `factory`.
     pub fn use_hook<T, F>(factory: F) -> T

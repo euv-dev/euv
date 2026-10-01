@@ -81,16 +81,16 @@ fn skeleton_line(
 ) -> VirtualNode {
     let mut style: String = String::with_capacity(64);
     let line_width: &str = skeleton_width(width);
-    style.push_str("width: ");
+    style.push_str(SKELETON_STYLE_WIDTH);
     style.push_str(line_width);
     style.push(';');
     if !height.is_empty() {
-        style.push_str(" height: ");
+        style.push_str(SKELETON_STYLE_HEIGHT);
         style.push_str(height);
         style.push(';');
     }
     if rounded.get() {
-        style.push_str(" border-radius: ");
+        style.push_str(SKELETON_STYLE_RADIUS);
         style.push_str(SKELETON_RADIUS);
         style.push(';');
     }

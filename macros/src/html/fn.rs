@@ -95,7 +95,7 @@ pub(crate) fn auto_get_expr_tokens(expr: &Expr, enabled: bool) -> proc_macro2::T
 ///
 /// # Arguments
 ///
-/// - `&ParseStream` - The parse stream to check.
+/// - `ParseStream` - The parse stream to check.
 ///
 /// # Returns
 ///
@@ -815,8 +815,8 @@ fn extract_props_type_from_fn(item_fn: &syn::ItemFn) -> String {
 ///
 /// # Arguments
 ///
-/// - `&ParseBuffer` - The parse buffer of the second brace group.
-/// - `&ParseStream` - The outer parse stream (for `peek2` checks).
+/// - `ParseStream` - The parse stream of the second brace group.
+/// - `ParseStream` - The outer parse stream (for `peek2` checks).
 ///
 /// # Returns
 ///
@@ -1068,7 +1068,7 @@ pub(crate) fn nodes_to_token_vec(children: &[HtmlNode]) -> Vec<proc_macro2::Toke
 ///
 /// # Arguments
 ///
-/// - `&[(Option<Expr>, Vec<HtmlNode>)]` - The branches from an `HtmlIf`.
+/// - `&[(Option<Expr>, Vec<HtmlNode>, bool)]` - The branches from an `HtmlIf`.
 ///
 /// # Returns
 ///
@@ -1150,7 +1150,7 @@ pub(crate) fn children_to_node_tokens(children: &[HtmlNode]) -> proc_macro2::Tok
 ///
 /// # Arguments
 ///
-/// - `&[(Option<Expr>, Vec<HtmlNode>)]` - The branches from an `HtmlIf`.
+/// - `&[(Option<Expr>, Vec<HtmlNode>, bool)]` - The branches from an `HtmlIf`.
 ///
 /// # Returns
 ///
@@ -1513,7 +1513,7 @@ pub(crate) fn strip_braces_from_expr(expr: &Expr) -> &Expr {
 ///
 /// # Arguments
 ///
-/// - `&AttrIfContext` - The parsed attribute-level reactive conditional, default else, and mode.
+/// - `&AttrIfContext<'_>` - The parsed attribute-level reactive conditional, default else, and mode.
 ///
 /// # Returns
 ///
@@ -1569,6 +1569,14 @@ pub(crate) fn attr_if_to_tokens(ctx: &AttrIfContext<'_>) -> proc_macro2::TokenSt
 /// literal-driven `String` construction (no `Display` trait dispatch).
 /// For all other bodies (Css refs, function calls, blocks, etc.) the
 /// previous `(<body>).to_string()` form is preserved verbatim.
+///
+/// # Arguments
+///
+/// - `&Expr` - The branch body expression to lower into a `String`-producing token stream.
+///
+/// # Returns
+///
+/// - `proc_macro2::TokenStream` - The generated `String`-producing tokens.
 fn reactive_body_tokens(body: &Expr) -> proc_macro2::TokenStream {
     if let Expr::Lit(syn::ExprLit {
         lit: syn::Lit::Str(lit_str),
@@ -1733,7 +1741,33 @@ pub(crate) fn parse_attr_value(content: ParseStream, key_str: &str) -> syn::Resu
             Ok(HtmlAttrValue::Expr(style_content.parse()?))
         }
     } else {
-        Ok(HtmlAttrValue::Expr(content.parse()?))
+        // A bare identifier immediately followed by `{ .. }` is ambiguous: it is
+        // either a struct literal (`Style { color: "red" }`) or a static value
+        // followed by a child block (`class: CLASS_X` then `{ text }`). Distinguish
+        // them by looking inside the brace: a struct literal must start with a
+        // field initialiser (`ident :`), which can never be a child expression,
+        // whereas a child block holds a plain expression. That lets a static
+        // class constant be written bare even when the next child is a `{ .. }`
+        // text node; braces remain required only for a genuinely dynamic value.
+        if content.peek(Ident) && content.peek2(Brace) {
+            let forked: ParseBuffer<'_> = content.fork();
+            let _probe_ident: Ident = forked.parse()?;
+            let inner: ParseBuffer<'_>;
+            braced!(inner in forked);
+            let is_struct_literal: bool = inner.peek(Ident) && inner.peek2(Colon);
+            if !is_struct_literal {
+                let ident: Ident = content.parse()?;
+                let expr_path: syn::ExprPath = syn::ExprPath {
+                    attrs: Vec::new(),
+                    qself: None,
+                    path: syn::Path::from(ident),
+                };
+                return Ok(HtmlAttrValue::Expr(Expr::Path(expr_path)));
+            }
+        }
+        Ok(HtmlAttrValue::Expr(
+            strip_braces_from_expr(&content.parse()?).clone(),
+        ))
     }
 }
 
@@ -1748,11 +1782,11 @@ pub(crate) fn parse_attr_value(content: ParseStream, key_str: &str) -> syn::Resu
 ///
 /// # Arguments
 ///
-/// - `Vec<(Ident, HtmlAttrValue)>` - The raw parsed attributes (may contain duplicate keys).
+/// - `HtmlAttrs` - The raw parsed attributes (may contain duplicate keys).
 ///
 /// # Returns
 ///
-/// - `Vec<(Ident, HtmlAttrValue)>` - The merged attributes with at most one `class` and one `style` entry.
+/// - `HtmlAttrs` - The merged attributes with at most one `class` and one `style` entry.
 pub(crate) fn merge_same_key_attributes(attributes: HtmlAttrs) -> HtmlAttrs {
     let mut class_values: Vec<HtmlAttrValue> = Vec::new();
     let mut style_values: Vec<HtmlAttrValue> = Vec::new();
@@ -1807,9 +1841,7 @@ pub(crate) fn merge_same_key_attributes(attributes: HtmlAttrs) -> HtmlAttrs {
 ///
 /// # Arguments
 ///
-/// - `&HtmlAttrValue` - The attribute value to convert.
-/// - `&str` - The attribute key name (used for event detection).
-/// - `bool` - Whether this is a component attribute.
+/// - `&AttrValueContext<'_>` - The attribute value, key name, and component flag to convert.
 ///
 /// # Returns
 ///
@@ -1947,6 +1979,14 @@ pub(crate) fn extract_attr_key_string(key: &proc_macro2::TokenStream) -> String 
 /// The result is intended to be wrapped in `Cow::Owned` at the call site so
 /// every key path produces an owned name; for the static case this is
 /// equivalent to `Cow::Borrowed` after one `String::from`.
+///
+/// # Arguments
+///
+/// - `&proc_macro2::TokenStream` - The raw attribute key tokens to lower.
+///
+/// # Returns
+///
+/// - `proc_macro2::TokenStream` - Token stream evaluating to the owned attribute name.
 pub(crate) fn extract_attr_key_tokens(key: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     let raw: String = key.to_string().replace(CHAR_SPACE, STR_EMPTY);
     if raw.starts_with(CHAR_DOUBLE_QUOTE) && raw.ends_with(CHAR_DOUBLE_QUOTE) {
@@ -2061,8 +2101,7 @@ pub(crate) fn owned_attr_name_token(key: &proc_macro2::TokenStream) -> proc_macr
 ///
 /// # Arguments
 ///
-/// - `&HtmlAttrValue` - The attribute value to convert.
-/// - `&str` - The attribute key name (used for event and special key detection).
+/// - `&AttrEntryContext<'_>` - The attribute value and key name to convert.
 ///
 /// # Returns
 ///
@@ -2170,6 +2209,15 @@ pub(crate) fn prop_field_token(
 /// macro-internal AST. Sibling helper for the hand-rolled `Debug` impl
 /// of `HtmlNode` so the `Text` case doesn't drag a full
 /// `proc_macro2::TokenStream` formatter into derive output.
+///
+/// # Arguments
+///
+/// - `&syn::LitStr` - The text literal carried by the `Text` variant.
+/// - `&mut Formatter<'_>` - The formatter.
+///
+/// # Returns
+///
+/// - `fmt::Result` - The result of the formatting operation.
 pub(crate) fn fmt_lit_str(lit: &syn::LitStr, formatter: &mut Formatter<'_>) -> fmt::Result {
     write!(formatter, "Text({:?})", lit.value())
 }

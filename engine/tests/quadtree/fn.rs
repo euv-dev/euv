@@ -2,32 +2,12 @@ use euv_engine::*;
 
 use std::collections::HashSet;
 
-/// Returns the items in ascending order so result sets compare directly.
-///
-/// # Arguments
-///
-/// - `&Vec<usize>` - The indices to order.
-///
-/// # Returns
-///
-/// - `Vec<usize>` - The same indices, sorted ascending.
 fn sorted(items: &Vec<usize>) -> Vec<usize> {
     let mut copy: Vec<usize> = items.clone();
     copy.sort_unstable();
     copy
 }
 
-/// Builds a quadtree spanning a square region of the given half-extent.
-///
-/// # Arguments
-///
-/// - `f64` - The half-extent of the square region, centred on the origin.
-/// - `usize` - The per-node item capacity before a node subdivides.
-/// - `usize` - The maximum subdivision depth.
-///
-/// # Returns
-///
-/// - `QuadTree2D` - The constructed tree.
 fn tree(bounds: f64, capacity: usize, depth: usize) -> QuadTree2D {
     QuadTree2D::create(
         Vector2D::new(-bounds, -bounds),
@@ -37,17 +17,6 @@ fn tree(bounds: f64, capacity: usize, depth: usize) -> QuadTree2D {
     )
 }
 
-/// Brute-force reference used to cross-check the tree's query results.
-///
-/// # Arguments
-///
-/// - `&Vec<(Vector2D, Vector2D)>` - The indexed rectangles as min/max pairs.
-/// - `Vector2D` - The lower corner of the query region.
-/// - `Vector2D` - The upper corner of the query region.
-///
-/// # Returns
-///
-/// - `Vec<usize>` - The indices of every rectangle overlapping the region.
 fn brute_force(rects: &Vec<(Vector2D, Vector2D)>, min: Vector2D, max: Vector2D) -> Vec<usize> {
     let mut out: Vec<usize> = Vec::new();
     for (index, (a, b)) in rects.iter().enumerate() {

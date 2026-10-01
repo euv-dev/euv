@@ -212,6 +212,14 @@ fn occluder_aabb_extents(occluder: &Occluder) -> (Vector3D, Vector3D) {
 ///
 /// For sphere occluders the tuple is `(center, radius)`. For AABB
 /// occluders a conservative bounding sphere is computed from the AABB.
+///
+/// # Arguments
+///
+/// - `&[Occluder]` - The occluders to flatten into bounding spheres.
+///
+/// # Returns
+///
+/// - `Vec<(Vector3D, f64)>` - The `(center, radius)` sphere of each occluder.
 pub(crate) fn collect_occluder_points(occluders: &[Occluder]) -> Vec<(Vector3D, f64)> {
     let mut out: Vec<(Vector3D, f64)> = Vec::new();
     for occ in occluders.iter() {

@@ -2,6 +2,7 @@ mod counter;
 mod debounced_value;
 mod error_boundary;
 mod form;
+mod gesture;
 mod i18n;
 mod lazy;
 mod previous;

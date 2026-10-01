@@ -20,7 +20,6 @@ impl ServerHook for RequestMiddleware {
     /// `Pragma: no-cache`, and `Expires: 0` on the response.
     ///
     /// # Arguments
-    /// - `self` - The consumed middleware instance.
     /// - `&mut Stream` - The connection stream (unused).
     /// - `&mut Context` - The request context used to set response headers.
     ///
@@ -55,7 +54,6 @@ impl ServerHook for ResponseMiddleware {
     /// If the send fails, marks the stream as closed and rejects the request.
     ///
     /// # Arguments
-    /// - `self` - The consumed middleware instance.
     /// - `&mut Stream` - The connection stream used to send the response bytes.
     /// - `&mut Context` - The request context used to build the response.
     ///
@@ -98,7 +96,6 @@ impl ServerHook for RootRoute {
     /// has not been initialized.
     ///
     /// # Arguments
-    /// - `self` - The consumed route instance.
     /// - `&mut Stream` - The connection stream (unused).
     /// - `&mut Context` - The request context used to write the response.
     ///
@@ -145,7 +142,6 @@ impl ServerHook for IndexRoute {
     ///   the www directory, and sets the appropriate `Content-Type` header.
     ///
     /// # Arguments
-    /// - `self` - The consumed route instance.
     /// - `&mut Stream` - The connection stream (unused).
     /// - `&mut Context` - The request context used to read route params and write the response.
     ///
@@ -156,7 +152,7 @@ impl ServerHook for IndexRoute {
     ///
     /// Does not panic; all error cases set an appropriate HTTP status code.
     async fn handle(self, _: &mut Stream, ctx: &mut Context) -> Status {
-        let path_opt: Option<String> = ctx.try_get_route_param("path");
+        let path_opt: Option<String> = ctx.try_get_route_param(ROUTE_PARAM_PATH);
         let path: String = path_opt.unwrap_or_default();
         if path.contains("..") || path.starts_with('/') || path.starts_with('\\') {
             ctx.get_mut_response().set_status_code(403);
@@ -225,7 +221,6 @@ impl ServerHook for ReloadRoute {
     /// is received, then serializes it as the response body.
     ///
     /// # Arguments
-    /// - `self` - The consumed route instance.
     /// - `&mut Stream` - The connection stream (unused).
     /// - `&mut Context` - The request context used to write the response.
     ///

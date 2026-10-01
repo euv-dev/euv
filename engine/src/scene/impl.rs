@@ -6,7 +6,7 @@ impl SceneManager {
     ///
     /// # Arguments
     ///
-    /// - `T: Scene + 'static` - The concrete scene type.
+    /// - `T` - The concrete scene type.
     ///
     /// # Returns
     ///
@@ -37,7 +37,7 @@ impl SceneManager {
     ///
     /// # Arguments
     ///
-    /// - `N: AsRef<str>` - The name of the scene to remove.
+    /// - `N` - The name of the scene to remove.
     pub fn unregister<N>(&mut self, name: N)
     where
         N: AsRef<str>,
@@ -52,7 +52,7 @@ impl SceneManager {
     ///
     /// # Arguments
     ///
-    /// - `N: AsRef<str>` - The name of the scene to switch to.
+    /// - `N` - The name of the scene to switch to.
     ///
     /// # Returns
     ///
@@ -147,7 +147,7 @@ impl SceneManager {
     ///
     /// # Arguments
     ///
-    /// - `N: AsRef<str>` - The scene name to check.
+    /// - `N` - The scene name to check.
     ///
     /// # Returns
     ///

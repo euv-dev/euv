@@ -4,7 +4,7 @@ use super::*;
 ///
 /// # Arguments
 ///
-/// - `DocsPageProps` - The typed props containing the route signal.
+/// - `VirtualNode<DocsPageProps>` - The typed props node carrying the route signal.
 ///
 /// # Returns
 ///
@@ -19,12 +19,14 @@ pub(crate) fn docs_not_found(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             class: c_page_container()
             euv_result {
                 code: "404"
-                description: "页面不存在"
+                description: NOT_FOUND_DESCRIPTION
                 a {
                     class: c_home_btn_primary()
                     href: format!("#{}", locale.prefix)
                     onclick: Router::link_handler(locale.prefix)
-                    "首页"
+                    {
+                        NOT_FOUND_HOME_LABEL
+                    }
                 }
             }
         }

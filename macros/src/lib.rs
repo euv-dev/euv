@@ -1,4 +1,4 @@
-//! euv_macros
+//! euv-macros
 //!
 //! Procedural macros for the euv UI framework, including the `html!` macro
 //! for declarative UI syntax, the `class!` macro for CSS class definitions,
@@ -54,6 +54,13 @@ use {
 ///
 /// This macro accepts a syntax similar to Dioxus HTML:
 ///
+/// # Arguments
+///
+/// - `TokenStream` - The `html! { ... }` invocation tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - The expanded virtual-DOM construction tokens.
 #[proc_macro]
 pub fn html(input: TokenStream) -> TokenStream {
     parse_html(input)
@@ -70,6 +77,13 @@ pub fn html(input: TokenStream) -> TokenStream {
 /// by value; parameters referenced without braces keep the default
 /// type-based class name.
 ///
+/// # Arguments
+///
+/// - `TokenStream` - The `class! { ... }` invocation tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - The expanded `Css` function tokens.
 #[proc_macro]
 pub fn class(input: TokenStream) -> TokenStream {
     parse_class(input)
@@ -88,6 +102,13 @@ pub fn class(input: TokenStream) -> TokenStream {
 /// corresponding signal. Parameter types are optional and can be annotated
 /// after a colon.
 ///
+/// # Arguments
+///
+/// - `TokenStream` - The `watch! { ... }` invocation tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - The expanded reactive-effect tokens.
 #[proc_macro]
 pub fn watch(input: TokenStream) -> TokenStream {
     parse_watch(input)
@@ -108,6 +129,13 @@ pub fn watch(input: TokenStream) -> TokenStream {
 /// to mark its dependents dirty precisely. The initial value is computed immediately
 /// during first render.
 ///
+/// # Arguments
+///
+/// - `TokenStream` - The `computed! { ... }` invocation tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - The expanded computed-signal tokens.
 #[proc_macro]
 pub fn computed(input: TokenStream) -> TokenStream {
     parse_computed(input)
@@ -122,6 +150,13 @@ pub fn computed(input: TokenStream) -> TokenStream {
 /// Variable names can be written as unquoted kebab-case identifiers
 /// (e.g., `bg-primary`) or as quoted string literals (e.g., `"bg-primary"`).
 ///
+/// # Arguments
+///
+/// - `TokenStream` - The `vars! { ... }` invocation tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - The expanded custom-property injection tokens.
 #[proc_macro]
 pub fn vars(input: TokenStream) -> TokenStream {
     parse_vars(input)
@@ -133,6 +168,13 @@ pub fn vars(input: TokenStream) -> TokenStream {
 /// (e.g., `bg-primary`) or as a quoted string literal (e.g., `"bg-primary"`),
 /// and expands to the CSS string `"var(--bg-primary)"`.
 ///
+/// # Arguments
+///
+/// - `TokenStream` - The `var! { ... }` invocation tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - The expanded `var(--name)` tokens.
 #[proc_macro]
 pub fn var(input: TokenStream) -> TokenStream {
     parse_var(input)
@@ -145,6 +187,13 @@ pub fn var(input: TokenStream) -> TokenStream {
 /// deliberately loud warning that the string is NOT escaped; treat
 /// it like `Element.innerHTML` in JavaScript.
 ///
+/// # Arguments
+///
+/// - `TokenStream` - The `unsafe_no_inline!("...")` invocation tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - The expanded `RawHtml::new` construction tokens.
 #[proc_macro]
 pub fn unsafe_no_inline(input: TokenStream) -> TokenStream {
     parse_unsafe_no_inline(input)

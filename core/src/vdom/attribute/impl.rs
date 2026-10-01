@@ -1,41 +1,9 @@
 use super::*;
 
-/// SAFETY: `InjectedClassesCell` is only used in single-threaded WASM contexts.
-unsafe impl Sync for InjectedClassesCell {}
-
 /// Implementation of injected class tracking for CSS deduplication.
 impl InjectedClassesCell {
-    /// Returns a shared reference to the injected classes set.
-    ///
-    /// # Returns
-    ///
-    /// - `&'static HashSet<String>` - A shared reference to the global set of injected class names.
-    pub(crate) fn get_injected_classes() -> &'static HashSet<String> {
-        unsafe {
-            &*(*std::ptr::addr_of!(INJECTED_CLASSES))
-                .deref()
-                .get_0()
-                .get()
-        }
-    }
-
-    /// Returns a mutable reference to the injected classes set.
-    ///
-    /// # Returns
-    ///
-    /// - `&'static mut HashSet<String>` - A mutable reference to the global set of injected class names.
-    pub(crate) fn get_mut_injected_classes() -> &'static mut HashSet<String> {
-        unsafe {
-            &mut *(*std::ptr::addr_of_mut!(INJECTED_CLASSES))
-                .deref()
-                .get_0()
-                .get()
-        }
-    }
-
-    /// Returns `true` if the given class name has already been injected into the DOM.
-    ///
-    /// Encapsulates `static mut` access so callers do not need `unsafe` blocks.
+    /// Returns `true` if the given class name has already been injected into
+    /// the DOM.
     ///
     /// # Arguments
     ///
@@ -45,18 +13,32 @@ impl InjectedClassesCell {
     ///
     /// - `bool` - Whether the class name has been injected.
     pub(crate) fn is_injected(class_name: &str) -> bool {
-        Self::get_injected_classes().contains(class_name)
+        INJECTED_CLASSES
+            .read()
+            .map(|classes: RwLockReadGuard<'_, HashSet<String>>| classes.contains(class_name))
+            .unwrap_or(false)
     }
 
-    /// Marks a class name as injected so future calls to `is_injected` return `true`.
+    /// Marks a class name as injected so future calls to `is_injected`
+    /// return `true`.
     ///
-    /// Encapsulates `static mut` access so callers do not need `unsafe` blocks.
+    /// A poisoned lock (which only happens if another thread panicked while
+    /// holding the write guard) is recovered from rather than propagated:
+    /// the set is deduplication bookkeeping, so losing a lock must never
+    /// take down the render path.
     ///
     /// # Arguments
     ///
     /// - `&str` - The CSS class name to mark as injected.
     pub(crate) fn mark_injected(class_name: &str) {
-        Self::get_mut_injected_classes().insert(class_name.to_string());
+        let write_result: Result<
+            InjectedClassesWriteGuard<'_>,
+            std::sync::PoisonError<InjectedClassesWriteGuard<'_>>,
+        > = INJECTED_CLASSES.write();
+        let Ok(mut classes) = write_result else {
+            return;
+        };
+        classes.insert(class_name.to_string());
     }
 }
 
@@ -79,7 +61,7 @@ impl AttributeValue {
     ///
     /// # Arguments
     ///
-    /// - `F: Fn() -> String + 'static` - A closure that computes the current attribute value.
+    /// - `F` - A closure that computes the current attribute value.
     ///   Called once per render of the enclosing dynamic node.
     ///
     /// # Returns
@@ -140,6 +122,15 @@ impl AttributeValue {
     /// the regression that wiped every multi-class CssRef entry (e.g.
     /// the `c_binding_slider` class next to a parameterized
     /// `c_slider_value("30%")` on the same `<input>`).
+    ///
+    /// # Arguments
+    ///
+    /// - `&[Self]` - The class attribute values to merge, in order.
+    ///
+    /// # Returns
+    ///
+    /// - `String` - The merged class list, segments separated by a
+    ///   single space; empty when no segment survived filtering.
     fn join_class_segments(values: &[Self]) -> String {
         let mut joined: String = String::new();
         for value in values.iter() {
@@ -221,6 +212,15 @@ impl AttributeValue {
     /// style merging uses. Avoids the intermediate `Vec<String>` plus
     /// `join(" ")` round-trip of the previous implementation, dropping
     /// per-render allocation count from `N + 2` to `1`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[Self]` - The style attribute values to merge, in order.
+    ///
+    /// # Returns
+    ///
+    /// - `String` - The merged CSS declarations, segments separated by a
+    ///   single space; empty when no segment carried a declaration.
     fn join_style_segments(values: &[Self]) -> String {
         let mut joined: String = String::new();
         for value in values.iter() {
@@ -385,7 +385,7 @@ impl Css {
     ///
     /// # Arguments
     ///
-    /// - `I: AsRef<str>` - The serialized pseudo rules string.
+    /// - `I` - The serialized pseudo rules string.
     ///
     /// # Returns
     ///
@@ -430,7 +430,7 @@ impl Css {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - The serialized media rules string.
+    /// - `S` - The serialized media rules string.
     ///
     /// # Returns
     ///
@@ -689,7 +689,7 @@ impl Css {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - An array of CSS property name-value pairs.
+    /// - `&[(K, V)]` - An array of CSS property name-value pairs.
     ///
     /// # Returns
     ///
@@ -783,7 +783,7 @@ impl Css {
     ///
     /// # Arguments
     ///
-    /// - `S: AsRef<str>` - The CSS text to inject (e.g., reset styles, keyframes, media queries).
+    /// - `S` - The CSS text to inject (e.g., reset styles, keyframes, media queries).
     ///
     /// # Panics
     ///
@@ -806,7 +806,7 @@ impl Display for Css {
     ///
     /// # Arguments
     ///
-    /// - `&mut Formatter` - The formatter.
+    /// - `&mut Formatter<'_>` - The formatter.
     ///
     /// # Returns
     ///

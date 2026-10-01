@@ -85,12 +85,6 @@ fn trace_reflection_single_bounce() {
     );
 }
 
-/// Builds the shared scene used by the lighting assertions.
-///
-/// # Returns
-///
-/// - `(Vec<Occluder>, LightingUniforms)` - The occluder set and the
-///   lighting uniforms both configured identically.
 fn demo_scene() -> (Vec<Occluder>, LightingUniforms) {
     let ground: Occluder = Occluder::aabb(
         Vector3D::new(-5.0, -0.6, -5.0),
@@ -137,11 +131,6 @@ fn closest_hit_returns_analytic_t() {
     );
 }
 
-/// Builds a large upward-facing triangle acting as the ground plane.
-///
-/// # Returns
-///
-/// - `Occluder` - The ground triangle occluder.
 fn ground_triangle() -> Occluder {
     Occluder::triangle(
         Vector3D::new(0.0, 0.0, 0.0),
@@ -151,15 +140,6 @@ fn ground_triangle() -> Occluder {
     )
 }
 
-/// Builds a large upward-facing triangle at the given height.
-///
-/// # Arguments
-///
-/// - `f64` - The height of the triangle plane.
-///
-/// # Returns
-///
-/// - `Occluder` - The positioned triangle occluder.
 fn triangle_at_y(plane_y: f64) -> Occluder {
     Occluder::triangle(
         Vector3D::new(0.0, plane_y, 0.0),
@@ -169,30 +149,10 @@ fn triangle_at_y(plane_y: f64) -> Occluder {
     )
 }
 
-/// Reports whether two scalars agree within floating-point tolerance.
-///
-/// # Arguments
-///
-/// - `f64` - The expected value.
-/// - `f64` - The value produced by the code under test.
-///
-/// # Returns
-///
-/// - `bool` - `true` when the two values agree to within the tolerance.
 fn close_to(expected: f64, actual: f64) -> bool {
     (expected - actual).abs() < 1e-9
 }
 
-/// Reports whether two vectors agree component-wise.
-///
-/// # Arguments
-///
-/// - `Vector3D` - The expected vector.
-/// - `Vector3D` - The vector produced by the code under test.
-///
-/// # Returns
-///
-/// - `bool` - `true` when every component agrees to within the tolerance.
 fn vector_is(expected: Vector3D, actual: Vector3D) -> bool {
     close_to(expected.get_x(), actual.get_x())
         && close_to(expected.get_y(), actual.get_y())
@@ -542,17 +502,6 @@ fn trace_bounces_shades_a_triangle_occluder() {
     );
 }
 
-/// Finds the nearest occluder hit without applying a distance bound.
-///
-/// # Arguments
-///
-/// - `&Ray` - The ray to cast.
-/// - `&[Occluder]` - The occluders to test against.
-///
-/// # Returns
-///
-/// - `Option<f64>` - The distance to the nearest hit, or `None` when the
-///   ray misses every occluder.
 fn unbounded_closest_hit(ray: &Ray, occluders: &[Occluder]) -> Option<f64> {
     let origin: Vector3D = ray.get_origin();
     let dir: Vector3D = ray.get_direction();
@@ -592,15 +541,6 @@ fn unbounded_closest_hit(ray: &Ray, occluders: &[Occluder]) -> Option<f64> {
     best
 }
 
-/// Advances a small xorshift state and returns the next value.
-///
-/// # Arguments
-///
-/// - `&mut u64` - The generator state, advanced in place.
-///
-/// # Returns
-///
-/// - `u64` - The next value in the sequence.
 fn next_random(state: &mut u64) -> f64 {
     *state = state
         .wrapping_mul(6364136223846793005)

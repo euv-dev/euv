@@ -20,6 +20,10 @@ pub(crate) const INVOKE_RESOLVE_BRIDGE_GROUP_PERMISSIONS: &str = "resolve_bridge
 /// The bridge group name for querying all permissions.
 pub(crate) const BRIDGE_GROUP_ALL: &str = "all";
 
+/// Error text returned when a bridge command is invoked outside a browser
+/// context, i.e. where the `window` global does not exist at all.
+pub(crate) const ERROR_NO_GLOBAL_WINDOW: &str = "no global window exists";
+
 /// String tag emitted by native on a successful `update_cache`.
 pub(crate) const UPDATE_RESULT_SUCCESS: &str = "success";
 

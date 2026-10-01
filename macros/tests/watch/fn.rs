@@ -2,11 +2,6 @@
 
 use super::*;
 
-/// Helper body of the `new_counter` free function.
-///
-/// # Returns
-///
-/// - `'static Cell<i32>` - A `'static Cell<i32>` value.
 fn new_counter() -> &'static Cell<i32> {
     static POOL: AtomicUsize = AtomicUsize::new(0);
     const CAP: usize = 16;

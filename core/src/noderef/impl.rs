@@ -178,8 +178,8 @@ impl<T: ?Sized> Debug for NodeRef<T> {
     /// - `fmt::Result` - Result of the formatting operation.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("NodeRef")
-            .field("is_set", &self.is_set())
+            .debug_struct(DEBUG_NAME_NODE_REF)
+            .field(DEBUG_FIELD_IS_SET, &self.is_set())
             .finish()
     }
 }

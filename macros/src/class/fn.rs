@@ -477,7 +477,7 @@ pub(crate) fn parse_selector(input: ParseStream, initial_colons: usize) -> syn::
 ///
 /// # Arguments
 ///
-/// - `&ParseStream` - The parse stream to check.
+/// - `ParseStream` - The parse stream to check.
 ///
 /// # Returns
 ///
@@ -698,7 +698,7 @@ pub(crate) fn parse_block_content(input: ParseStream) -> syn::Result<BlockConten
 ///
 /// # Arguments
 ///
-/// - `&ParseStream` - The parse stream to check.
+/// - `ParseStream` - The parse stream to check.
 ///
 /// # Returns
 ///
@@ -1094,7 +1094,7 @@ pub(crate) fn at_rule_block_to_static_string(block: &AtRuleBlock) -> String {
 ///
 /// # Returns
 ///
-/// - `&str` - The CSS at-rule prefix string (e.g., "@media ", "@keyframes ").
+/// - `&'static str` - The CSS at-rule prefix string (e.g., "@media ", "@keyframes ").
 pub(crate) fn at_rule_kind_to_css_prefix(kind: &AtRuleKind) -> &'static str {
     match kind {
         AtRuleKind::Media => CSS_MEDIA_PREFIX,
@@ -1115,10 +1115,10 @@ pub(crate) fn at_rule_kind_to_css_prefix(kind: &AtRuleKind) -> &'static str {
         AtRuleKind::FontPaletteValues => CSS_FONT_PALETTE_VALUES_PREFIX,
         AtRuleKind::Document => CSS_DOCUMENT_PREFIX,
         AtRuleKind::StartingStyle => CSS_STARTING_STYLE_PREFIX,
-        AtRuleKind::ViewTransition => "@view-transition ",
-        AtRuleKind::PositionTry => "@position-try ",
-        AtRuleKind::CustomMedia => "@custom-media ",
-        AtRuleKind::Function => "@function ",
+        AtRuleKind::ViewTransition => CSS_VIEW_TRANSITION_PREFIX,
+        AtRuleKind::PositionTry => CSS_POSITION_TRY_PREFIX,
+        AtRuleKind::CustomMedia => CSS_CUSTOM_MEDIA_PREFIX,
+        AtRuleKind::Function => CSS_FUNCTION_PREFIX,
     }
 }
 
@@ -1129,7 +1129,7 @@ pub(crate) fn at_rule_kind_to_css_prefix(kind: &AtRuleKind) -> &'static str {
 /// # Arguments
 ///
 /// - `&mut proc_macro2::TokenStream` - The target token stream to append to.
-/// - `OnceLockParams` - The parameters for the OnceLock function generation.
+/// - `OnceLockParams<'_>` - The parameters for the OnceLock function generation.
 pub(crate) fn emit_once_lock_fn(
     tokens: &mut proc_macro2::TokenStream,
     once_lock_params: OnceLockParams<'_>,
@@ -1166,36 +1166,31 @@ pub(crate) fn emit_once_lock_fn(
 /// # Arguments
 ///
 /// - `&mut proc_macro2::TokenStream` - The target token stream to append to.
-/// - `&Visibility` - The visibility modifier for the generated function.
-/// - `&proc_macro2::TokenStream` - The function name token.
-/// - `proc_macro2::Span` - The span of the function name (for the const identifier).
-/// - `&str` - The base class name string used as the first cache key component.
-/// - `&[proc_macro2::TokenStream]` - The parameter names (used to build the Debug tuple).
-/// - `&proc_macro2::TokenStream` - Token stream producing the unique class-name expression.
-/// - `&proc_macro2::TokenStream` - Token stream producing the CSS style string.
-/// - `&proc_macro2::TokenStream` - Token stream producing the selector rules vector.
-/// - `&proc_macro2::TokenStream` - Token stream producing the at-rule rules vector.
-/// - `&[proc_macro2::TokenStream]` - The parameter definitions (name: type).
-/// - `Option<&syn::Generics>` - The generic parameters and where clause.
+/// - `&ParamCssCacheArgs<'_>` - The bundled class description: visibility,
+///   function name token and span, class name, parameter names and
+///   definitions, and the unique-name / style / selector / at-rule token
+///   streams, plus the function generics.
 ///
 /// The cache grows unboundedly when a parameter varies continuously (e.g.
 /// a percentage slider); parameterised classes are intended for a small
 /// discrete set of variants.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_param_css_cache_fn(
     tokens: &mut proc_macro2::TokenStream,
-    visibility: &Visibility,
-    fn_name_token: &proc_macro2::TokenStream,
-    fn_name_span: proc_macro2::Span,
-    class_name_str: &str,
-    param_names: &[proc_macro2::TokenStream],
-    unique_name_expr: &proc_macro2::TokenStream,
-    style_expr: &proc_macro2::TokenStream,
-    selector_expr: &proc_macro2::TokenStream,
-    at_rule_expr: &proc_macro2::TokenStream,
-    param_defs: &[proc_macro2::TokenStream],
-    generics: &syn::Generics,
+    args: &ParamCssCacheArgs<'_>,
 ) {
+    let ParamCssCacheArgs {
+        visibility,
+        fn_name_token,
+        fn_name_span,
+        class_name_str,
+        param_names,
+        unique_name_expr,
+        style_expr,
+        selector_expr,
+        at_rule_expr,
+        param_defs,
+        generics,
+    } = *args;
     let const_name: Ident = Ident::new(
         &format!("{}_PARAM_CACHE", class_name_str.to_uppercase()),
         fn_name_span,
@@ -1213,7 +1208,7 @@ pub(crate) fn emit_param_css_cache_fn(
             let cache: &::std::sync::Mutex<::std::collections::HashMap<(String, String), ::euv::Css>> =
                 #const_name_token.get_or_init(|| ::std::sync::Mutex::new(::std::collections::HashMap::new()));
             let key: (String, String) = #key_expr;
-            let mut cache_guard = match cache.lock() {
+            let mut cache_guard: ::std::sync::MutexGuard<::std::collections::HashMap<(String, String), ::euv::Css>> = match cache.lock() {
                 Ok(guard) => guard,
                 Err(_) => {
                     let css: ::euv::Css = ::euv::Css::new(#unique_name_expr, #style_expr, #selector_expr, #at_rule_expr);

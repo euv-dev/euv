@@ -246,9 +246,9 @@ impl<T> Debug for ObjectPool<T> {
     /// - `fmt::Result` - Result of the formatting operation.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("ObjectPool")
-            .field("active", &self.active)
-            .field("available", &self.free.len())
+            .debug_struct(POOL_DEBUG_NAME)
+            .field(POOL_FIELD_ACTIVE, &self.active)
+            .field(POOL_FIELD_AVAILABLE, &self.free.len())
             .finish()
     }
 }

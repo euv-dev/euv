@@ -890,21 +890,537 @@ pub(crate) fn print_server_urls(config: &ServerUrlConfig) {
 ///
 /// - `Result<(), EuvError>` - Indicates success or failure of the formatting operation.
 pub async fn run_hyperlane_fmt() -> Result<(), EuvError> {
-    let args: hyperlane_cli::Args = hyperlane_cli::Args {
-        command: hyperlane_cli::CommandType::Fmt,
-        check: false,
-        manifest_path: None,
-        bump_type: None,
-        max_retries: 0,
-        project_name: None,
-        template_type: None,
-        model_sub_type: None,
-        component_name: None,
-    };
-    hyperlane_cli::execute_fmt(&args)
+    let mut command: Command = Command::new(CARGO_COMMAND);
+    command.arg(FMT_SUBCOMMAND);
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let output: Output = command
+        .output()
         .await
         .map_err(|error: io::Error| EuvError::Io {
-            message: String::from("hyperlane-cli fmt error"),
+            message: String::from(FMT_ERROR_MESSAGE),
             error,
-        })
+        })?;
+    let stdout: String = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr: String = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    if !output.status.success() {
+        return Err(EuvError::Io {
+            message: String::from(FMT_ERROR_MESSAGE),
+            error: io::Error::other(format!("{stdout} {stderr}")),
+        });
+    }
+    Ok(())
+}
+
+/// Reads the wasm-bindgen JS bridge produced by `wasm-pack build
+/// --target web` and returns a synchronous IIFE that inlines the bridge
+/// and its snippet modules, fetches the wasm module from `wasm_url`,
+/// then calls `main()` once the instance is ready.
+///
+/// The bridge's own top-level `import` lines (the tiny snippet helpers
+/// under `./snippets/`) are stripped and their bodies inlined, so the
+/// result is self-contained and the browser makes zero extra requests
+/// for the bridge file.
+/// # Arguments
+///
+/// - `&Path` - Directory holding the wasm-pack output.
+/// - `&str` - File name of the generated JS bridge inside it.
+/// - `&str` - URL the page will fetch the `.wasm` module from.
+///
+/// # Returns
+///
+/// - `Result<String, EuvError>` - The IIFE source, or an error if the
+///   bridge or one of its snippet imports cannot be read.
+pub(crate) async fn build_inline_bridge(
+    pkg_dir: &Path,
+    js_name: &str,
+    wasm_url: &str,
+) -> Result<String, EuvError> {
+    let js_path: std::path::PathBuf = pkg_dir.join(js_name);
+    let bridge_source: String =
+        read_to_string(&js_path)
+            .await
+            .map_err(|error: io::Error| EuvError::IoPath {
+                message: String::from("Failed to read wasm-bindgen JS bridge"),
+                path: js_path.clone(),
+                error,
+            })?;
+    let snippet_bodies: String = collect_snippet_bodies(&bridge_source, pkg_dir).await?;
+    let stripped: String = strip_module_imports(&bridge_source);
+    let js_only: String = strip_trailing_module_exports(&stripped);
+    let wasm_url_json: String = serde_json_wasm_url(wasm_url);
+    Ok(format!(
+        "(function() {{\n\
+         {snippet_bodies}\n\
+         {js_only}\n\
+         var __euv_wasm_url = {wasm_url_json};\n\
+         if (typeof __wbg_init === 'function') {{\n\
+         var __euv_base = (document.querySelector('base[href]') && document.baseURI) || location.href;\n         __wbg_init(new URL(__euv_wasm_url, __euv_base).toString()).then(function() {{\n\
+         if (typeof main === 'function') main();\n\
+         }}).catch(function(e) {{ console.error('[euv] inline bridge init failed:', e); }});\n\
+         }} else if (typeof initSync === 'function') {{\n\
+         initSync();\n\
+         if (typeof main === 'function') main();\n\
+         }} else {{\n\
+         console.error('[euv] inline bridge: no __wbg_init or initSync exported');\n\
+         }}\n\
+         }})();\n"
+    ))
+}
+
+/// Returns the inline `<script>` body to use when JS bridge inlining is
+/// disabled, restoring the classic module import as a fallback during
+/// wasm-pack output transitions.
+///
+/// # Arguments
+///
+/// - `&str` - The module import path the browser should resolve.
+///
+/// # Returns
+///
+/// - `String` - The `<script>` body, ready to be embedded in the page.
+pub(crate) fn build_module_fallback_bridge(import_path: &str) -> String {
+    format!(
+        "    import init, {{ main }} from '{import_path}';\n    \
+         await init();\n    \
+         main();\n"
+    )
+}
+
+/// Returns `true` when the inline bridge should be skipped.
+///
+/// # Returns
+///
+/// - `bool` - `true` if the env var is set to a non-empty value.
+pub(crate) fn inline_bridge_disabled() -> bool {
+    matches!(std::env::var(EUV_NO_INLINE_BRIDGE_ENV), Ok(value) if !value.is_empty())
+}
+
+/// Collects the source of every module the bridge imports, inlined in
+/// dependency order, and materialises each namespace import as a `var`
+/// object so the bridge body keeps working without the module graph.
+///
+/// # Arguments
+///
+/// - `&str` - The bridge source whose `import` lines drive the scan.
+/// - `&Path` - Directory holding the wasm-pack output, used to resolve
+///   each relative specifier.
+///
+/// # Returns
+///
+/// - `Result<String, EuvError>` - The concatenated snippet bodies, or an
+///   error if a specifier escapes the package directory.
+async fn collect_snippet_bodies(bridge_source: &str, pkg_dir: &Path) -> Result<String, EuvError> {
+    let mut bodies: String = String::new();
+    let mut namespace_imports: Vec<NamespaceImport> = Vec::new();
+    for line in bridge_source.lines() {
+        let trimmed: &str = line.trim();
+        if !trimmed.starts_with("import ") {
+            continue;
+        }
+        let rest: &str = match trimmed.strip_prefix("import ") {
+            Some(value) => value,
+            None => continue,
+        };
+        let spec: &str = match extract_import_spec(rest) {
+            Some(value) => value,
+            None => continue,
+        };
+        if is_namespace_import(rest)
+            && let Some(alias) = extract_namespace_alias(rest)
+        {
+            namespace_imports.push(NamespaceImport {
+                alias: alias.to_string(),
+                spec: spec.to_string(),
+            });
+        }
+        let body: Option<String> = read_snippet_module(pkg_dir, spec).await?;
+        if let Some(body) = body {
+            if !bodies.is_empty() {
+                bodies.push('\n');
+            }
+            bodies.push_str(&body);
+        }
+    }
+    for ns in &namespace_imports {
+        let snippet_path: std::path::PathBuf = resolve_snippet_path(pkg_dir, &ns.spec)?;
+        let exports: Vec<String> = if snippet_path.exists() {
+            let raw: String = read_to_string(&snippet_path)
+                .await
+                .map_err(|error: io::Error| EuvError::IoPath {
+                    message: String::from(
+                        "Failed to read wasm-pack snippet module for namespace export scan",
+                    ),
+                    path: snippet_path.clone(),
+                    error,
+                })?;
+            extract_exported_function_names(&raw)
+        } else {
+            Vec::new()
+        };
+        if !bodies.is_empty() {
+            bodies.push('\n');
+        }
+        bodies.push_str(&format!("var {} = {{", ns.alias));
+        for (i, name) in exports.iter().enumerate() {
+            if i > 0 {
+                bodies.push(',');
+            }
+            bodies.push_str(name);
+            bodies.push(':');
+            bodies.push_str(name);
+        }
+        bodies.push_str("};\n");
+    }
+    Ok(bodies)
+}
+
+/// Scans a snippet module for `export function NAME(` declarations and
+/// returns their names. The IIFE relies on function declarations being
+/// hoisted, so these names resolve to the same bindings that
+/// wasm-bindgen's `__wbg_get_imports` expects.
+///
+/// # Arguments
+///
+/// - `&str` - The snippet module source to scan.
+///
+/// # Returns
+///
+/// - `Vec<String>` - Every exported function name, in source order.
+pub fn extract_exported_function_names(source: &str) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for line in source.lines() {
+        let trimmed: &str = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("export function ") {
+            let name_end: usize =
+                match rest.find(|c: char| !c.is_alphanumeric() && c != '_' && c != '$') {
+                    Some(value) => value,
+                    None => rest.len(),
+                };
+            let name: &str = &rest[..name_end];
+            if !name.is_empty() {
+                names.push(name.to_string());
+            }
+        }
+    }
+    names
+}
+
+/// Returns `true` when the clause is a namespace import (`import * as X`).
+///
+/// # Arguments
+///
+/// - `&str` - The import clause, without its leading `import` keyword.
+///
+/// # Returns
+///
+/// - `bool` - `true` for `* as <alias>` clauses.
+pub fn is_namespace_import(rest: &str) -> bool {
+    rest.trim_start().starts_with('*')
+}
+
+/// Extracts the local binding a namespace import introduces.
+///
+/// # Arguments
+///
+/// - `&str` - The import clause, without its leading `import` keyword.
+///
+/// # Returns
+///
+/// - `Option<&str>` - The alias, or `None` if the clause is not a
+///   namespace import or carries no name.
+pub fn extract_namespace_alias(rest: &str) -> Option<&str> {
+    let rest: &str = rest.trim_end_matches(';').trim();
+    if !rest.starts_with('*') {
+        return None;
+    }
+    let rest: &str = rest.strip_prefix('*')?.trim();
+    let rest: &str = rest.strip_prefix("as")?.trim();
+    let end: usize = match rest.find(|c: char| !c.is_alphanumeric() && c != '_' && c != '$') {
+        Some(value) => value,
+        None => rest.len(),
+    };
+    let alias: &str = &rest[..end];
+    if alias.is_empty() { None } else { Some(alias) }
+}
+
+/// Extracts the relative specifier an import clause resolves against.
+///
+/// Bare specifiers are rejected: only `./` and `../` targets are inlined,
+/// because anything else would drag in a module this code does not
+/// control.
+///
+/// # Arguments
+///
+/// - `&str` - The import clause, without its leading `import` keyword.
+///
+/// # Returns
+///
+/// - `Option<&str>` - The specifier with its quotes stripped, or `None`
+///   when the clause has no `from` or names a non-relative module.
+pub fn extract_import_spec(rest: &str) -> Option<&str> {
+    let rest: &str = rest.trim_end_matches(';').trim();
+    let from_idx: usize = rest.find(" from ")?;
+    let spec_part: &str = rest[from_idx + " from ".len()..].trim();
+    let spec: &str = spec_part
+        .trim_start_matches('\'')
+        .trim_start_matches('"')
+        .trim_end_matches('\'')
+        .trim_end_matches('"');
+    if spec.starts_with("./") || spec.starts_with("../") {
+        Some(spec)
+    } else {
+        None
+    }
+}
+
+/// Reads one snippet module and returns its body with the `export` keyword
+/// stripped, so it can be concatenated into the IIFE as a plain
+/// declaration.
+///
+/// # Arguments
+///
+/// - `&Path` - Directory holding the wasm-pack output.
+/// - `&str` - Relative specifier of the snippet to read.
+///
+/// # Returns
+///
+/// - `Result<Option<String>, EuvError>` - The stripped body, `None` if the
+///   file does not exist, or an error if it cannot be read or decoded.
+async fn read_snippet_module(pkg_dir: &Path, spec: &str) -> Result<Option<String>, EuvError> {
+    let snippet_path: std::path::PathBuf = resolve_snippet_path(pkg_dir, spec)?;
+    if !snippet_path.exists() {
+        return Ok(None);
+    }
+    let bytes: Vec<u8> =
+        read(&snippet_path)
+            .await
+            .map_err(|error: io::Error| EuvError::IoPath {
+                message: String::from("Failed to read wasm-pack snippet module"),
+                path: snippet_path.clone(),
+                error,
+            })?;
+    let raw: String = String::from_utf8(bytes).map_err(|error: FromUtf8Error| EuvError::Utf8 {
+        message: String::from("Snippet module is not valid UTF-8"),
+        error,
+    })?;
+    Ok(Some(strip_snippet_export(&raw)))
+}
+
+/// Resolves a relative specifier to a path inside `pkg_dir`.
+///
+/// # Arguments
+///
+/// - `&Path` - Directory holding the wasm-pack output.
+/// - `&str` - Relative specifier taken from the bridge's import clause.
+///
+/// # Returns
+///
+/// - `Result<std::path::PathBuf, EuvError>` - The resolved path, or an error if the
+///   specifier climbs above `pkg_dir`.
+fn resolve_snippet_path(pkg_dir: &Path, spec: &str) -> Result<std::path::PathBuf, EuvError> {
+    let base: &str = spec.trim_start_matches('.').trim_start_matches('/');
+    let mut path: std::path::PathBuf = pkg_dir.to_path_buf();
+    for segment in base.split('/') {
+        if segment.is_empty() || segment == "." {
+            continue;
+        }
+        if segment == ".." {
+            return Err(EuvError::Message(String::from(
+                "Snippet import spec escapes pkg directory",
+            )));
+        }
+        path.push(segment);
+    }
+    Ok(path)
+}
+
+/// Rewrites a snippet module's source into bare declarations by removing
+/// the `export ` prefix from every line that carries one.
+///
+/// # Arguments
+///
+/// - `&str` - The snippet module source.
+///
+/// # Returns
+///
+/// - `String` - The same source with the `export ` keywords removed.
+fn strip_snippet_export(raw: &str) -> String {
+    let mut out: String = String::with_capacity(raw.len());
+    for line in raw.lines() {
+        let trimmed: &str = line.trim();
+        if trimmed.starts_with("export ") {
+            if let Some(rest) = trimmed.strip_prefix("export ") {
+                out.push_str(rest);
+                out.push('\n');
+            }
+        } else {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// Removes the bridge's own `import` lines and any line referencing
+/// `import.meta.url`, since the inlined IIFE has neither.
+///
+/// # Arguments
+///
+/// - `&str` - The bridge source.
+///
+/// # Returns
+///
+/// - `String` - The source with those lines dropped.
+fn strip_module_imports(source: &str) -> String {
+    let mut out: String = String::with_capacity(source.len());
+    for line in source.lines() {
+        let trimmed: &str = line.trim();
+        if trimmed.starts_with("import ") {
+            continue;
+        }
+        if trimmed.contains("import.meta.url") {
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
+/// Removes the bridge's trailing `export { ... }` and `export function`
+/// lines, turning each exported alias into the assignment that keeps the
+/// local function reachable under its exported name.
+///
+/// # Arguments
+///
+/// - `&str` - The bridge source, after [`strip_module_imports`].
+///
+/// # Returns
+///
+/// - `String` - The source with its module-level export syntax removed.
+fn strip_trailing_module_exports(source: &str) -> String {
+    let mut out: String = String::with_capacity(source.len());
+    for line in source.lines() {
+        let trimmed: &str = line.trim();
+        if trimmed.starts_with("export ") && trimmed.contains('{') && trimmed.contains('}') {
+            let inner: &str = &trimmed["export ".len()..];
+            let stripped: &str = match inner.strip_prefix('{') {
+                Some(value) => value,
+                None => {
+                    out.push_str(line);
+                    out.push('\n');
+                    continue;
+                }
+            };
+            let close: usize = match stripped.rfind('}') {
+                Some(value) => value,
+                None => {
+                    out.push_str(line);
+                    out.push('\n');
+                    continue;
+                }
+            };
+            let names_block: &str = &stripped[..close];
+            let inlined: String = inline_export_aliases(names_block.trim());
+            if !inlined.is_empty() {
+                out.push_str(&inlined);
+                out.push('\n');
+            }
+            continue;
+        }
+        if trimmed.starts_with("export function ") {
+            let rest: &str = match trimmed.strip_prefix("export function ") {
+                Some(value) => value,
+                None => {
+                    out.push_str(line);
+                    out.push('\n');
+                    continue;
+                }
+            };
+            let name_end: usize = match rest.find(|c: char| !c.is_alphanumeric() && c != '_') {
+                Some(value) => value,
+                None => rest.len(),
+            };
+            let name: &str = &rest[..name_end];
+            if !name.is_empty() {
+                out.push_str("function ");
+                out.push_str(name);
+                out.push_str(&rest[name_end..]);
+                out.push('\n');
+                continue;
+            }
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
+/// Converts the body of an `export { a, b as c }` clause into the
+/// assignments that keep each local function reachable under its
+/// exported name. Exports of `wasm` are dropped: the IIFE is a plain
+/// `<script>`, so there is no `wasm` binding in scope.
+///
+/// # Arguments
+///
+/// - `&str` - The comma-separated body between the export braces.
+///
+/// # Returns
+///
+/// - `String` - The assignments, one per line, or empty when every alias
+///   is a no-op.
+fn inline_export_aliases(block: &str) -> String {
+    let mut out: String = String::new();
+    for entry in block.split(',') {
+        let entry: &str = entry.trim();
+        if entry.is_empty() {
+            continue;
+        }
+        if let Some((original, exported)) = entry.split_once(" as ") {
+            let original: &str = original.trim();
+            let exported: &str = exported.trim();
+            if original == exported || exported == "default" || original == "wasm" {
+                continue;
+            }
+            out.push_str(exported);
+            out.push_str(" = ");
+            out.push_str(original);
+            out.push_str(";\n");
+        }
+    }
+    out
+}
+
+/// Encodes a URL as a JSON string literal, including the surrounding
+/// quotes.
+///
+/// Hand-rolled rather than `serde_json::to_string` because the value is
+/// interpolated into a template that is already assembling JavaScript,
+/// and the only characters that can appear here are URL characters.
+///
+/// # Arguments
+///
+/// - `&str` - The URL to encode.
+///
+/// # Returns
+///
+/// - `String` - A quoted, escaped JSON string.
+fn serde_json_wasm_url(url: &str) -> String {
+    let mut out: String = String::with_capacity(url.len() + 2);
+    out.push('"');
+    for ch in url.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{08}' => out.push_str("\\b"),
+            '\u{0C}' => out.push_str("\\f"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }

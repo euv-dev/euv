@@ -11,7 +11,7 @@ use super::*;
 /// - `Result<(), EuvError>` - Indicates success or failure of the initialization.
 pub(crate) fn set_global_state(state: Arc<AppState>) -> Result<(), EuvError> {
     APP_STATE.set(state).map_err(|_: Arc<AppState>| {
-        EuvError::Message(String::from("Global state already initialized"))
+        EuvError::Message(ERROR_GLOBAL_STATE_ALREADY_INITIALIZED.to_string())
     })
 }
 
@@ -36,6 +36,14 @@ pub(crate) fn get_global_state() -> Option<Arc<AppState>> {
 /// When inlining is disabled (env var or missing `pkg/<name>.js` file),
 /// returns the classic `<script type="module">` import fallback so the
 /// page still boots.
+///
+/// # Arguments
+///
+/// - `&HtmlConfig` - The HTML configuration holding the serving root and import path.
+///
+/// # Returns
+///
+/// - `String` - The bootstrap script body to inline into the generated HTML.
 async fn resolve_inline_js(config: &HtmlConfig) -> String {
     if inline_bridge_disabled() {
         return build_module_fallback_bridge(config.get_import_path());
@@ -57,7 +65,9 @@ async fn resolve_inline_js(config: &HtmlConfig) -> String {
     let wasm_url: String = if let Some(stem) = js_name.strip_suffix(".js") {
         format!("pkg/{stem}_bg.wasm")
     } else {
-        config.get_import_path().replace(".js", "_bg.wasm")
+        config
+            .get_import_path()
+            .replace(JS_EXTENSION, WASM_FILE_SUFFIX)
     };
     match build_inline_bridge(&pkg_dir, &js_name, &wasm_url).await {
         Ok(snippet) => snippet,
@@ -95,12 +105,12 @@ pub(crate) async fn generate_html(config: &HtmlConfig) -> Result<String, EuvErro
             read(custom_path)
                 .await
                 .map_err(|error: io::Error| EuvError::IoPath {
-                    message: String::from("Failed to read custom index.html"),
+                    message: ERROR_READ_CUSTOM_INDEX_HTML.to_string(),
                     path: custom_path.to_path_buf(),
                     error,
                 })?;
         String::from_utf8(bytes).map_err(|error: FromUtf8Error| EuvError::Utf8 {
-            message: String::from("Custom index.html is not valid UTF-8"),
+            message: ERROR_CUSTOM_INDEX_HTML_NOT_UTF8.to_string(),
             error,
         })?
     } else if config.get_is_release() {
@@ -130,13 +140,13 @@ pub(crate) async fn generate_html(config: &HtmlConfig) -> Result<String, EuvErro
     create_dir_all(config.get_serving_root())
         .await
         .map_err(|error: io::Error| EuvError::Io {
-            message: String::from("Failed to create static directory"),
+            message: ERROR_CREATE_STATIC_DIRECTORY.to_string(),
             error,
         })?;
     write(&index_path, &html)
         .await
         .map_err(|error: io::Error| EuvError::Io {
-            message: String::from("Failed to write index.html"),
+            message: ERROR_WRITE_INDEX_HTML.to_string(),
             error,
         })?;
     Ok(html)

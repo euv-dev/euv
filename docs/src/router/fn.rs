@@ -95,7 +95,7 @@ pub(crate) fn find_page(route: &str) -> Option<&'static DocsPage> {
         .find(|page: &&DocsPage| page.route == route)
         .or_else(|| {
             // `/guide` → `/guide/`, `/guide/` stays as-is.
-            if route.ends_with('/') || route.ends_with(".html") {
+            if route.ends_with('/') || route.ends_with(ROUTE_HTML_SUFFIX) {
                 None
             } else {
                 let with_slash: String = format!("{route}/");
@@ -136,10 +136,10 @@ pub(crate) fn find_page(route: &str) -> Option<&'static DocsPage> {
 ///
 /// # Returns
 ///
-/// - `Some(&'static [EuvSidebarItem])` - The sibling array that contains
-///   the matched item as a direct child, possibly bubbled to a higher
-///   level so the pool has at least two navigable items.
-/// - `None` - The route is not present in this subtree.
+/// - `Option<&'static [EuvSidebarItem]>` - The sibling array that
+///   contains the matched item as a direct child (possibly bubbled to a
+///   higher level so the pool has at least two navigable items), or
+///   `None` when the route is not present in this subtree.
 pub(crate) fn scope_for(
     items: &'static [EuvSidebarItem],
     route: &str,

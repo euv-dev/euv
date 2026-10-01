@@ -123,6 +123,10 @@ impl UseEuvInput {
     /// When the document is too short to scroll the input far enough, the
     /// remaining deficit is added to `<main>` as an inline
     /// `padding-bottom` (cleared on blur by [`Self::on_blur_restore_height`]).
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Rc<dyn Fn(Event)>>` - An event handler performing the scroll on focus.
     pub fn on_focus_scroll_into_view() -> Option<Rc<dyn Fn(Event)>> {
         Some(Rc::new(move |event: Event| {
             let Some(target) = event.target() else {
@@ -182,6 +186,10 @@ impl UseEuvInput {
     /// Blur handler that strips the inline `padding-bottom` injected by
     /// [`Self::on_focus_scroll_into_view`] so the page returns to its
     /// native layout once the keyboard closes.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Rc<dyn Fn(Event)>>` - An event handler removing the inline padding on blur.
     pub fn on_blur_restore_height() -> Option<Rc<dyn Fn(Event)>> {
         Some(Rc::new(move |event: Event| {
             let Some(target) = event.target() else {

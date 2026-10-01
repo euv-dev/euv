@@ -8,9 +8,12 @@ use super::*;
 /// downcast, alive-flag access, and `Any` projections for typed getters
 /// implemented in `impl.rs`.
 pub(crate) trait AnySignalInner: Any {
-    /// Returns `true` if this slot is still considered live (i.e. `alive`).
-    fn alive(&self) -> bool;
     /// Projects the slot as `&mut dyn Any` for downcasting.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut dyn Any` - The slot viewed as a trait object, so the
+    ///   slab can downcast it back to a concrete `SignalInner<T>`.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
@@ -26,10 +29,15 @@ impl<T> AnySignalInner for SignalInner<T>
 where
     T: Clone + PartialEq + 'static,
 {
-    fn alive(&self) -> bool {
-        self.get_alive()
-    }
-
+    /// Returns `self` erased to `&mut dyn Any`.
+    ///
+    /// The slab holds `Box<dyn AnySignalInner>`; this impl recovers the
+    /// concrete [`SignalInner<T>`] view the framework needs for typed
+    /// getters without an extra allocation.
+    ///
+    /// # Returns
+    ///
+    /// - `&mut dyn Any` - The typed inner value erased to a trait object.
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }

@@ -1,9 +1,5 @@
 use super::*;
 
-/// SAFETY: `DomOpTableCell` is only mutated through `UnsafeCell`
-/// interior-mutability on the WASM single-threaded runtime.
-unsafe impl Sync for DomOpTableCell {}
-
 /// Resolves (or installs on first call) the batched DOM-op helpers
 /// under `globalThis.__euv_dom_ops__`.
 ///
@@ -27,57 +23,74 @@ unsafe impl Sync for DomOpTableCell {}
 /// - `Option<DomOpTable>` - The function table, or `None` if it could
 ///   not be resolved.
 pub(crate) fn ensure_dom_op_table() -> Option<DomOpTable> {
-    DOM_OP_TABLE_CELL.with(|cell: &DomOpTableCell| {
-        let cached_ptr: *mut Option<DomOpTable> = cell.0.get();
-        unsafe {
-            if let Some(table) = &*cached_ptr {
-                return Some(table.clone());
-            }
-        }
-        let global_value: JsValue = global_this()?;
-        let table_value: JsValue =
-            match Reflect::get(&global_value, &JsValue::from_str(JS_DOM_OP_TABLE)) {
-                Ok(existing) => existing,
-                Err(_err) => JsValue::UNDEFINED,
+    // Fast path: a cached table, cloned out so the `RefCell` borrow is
+    // released before any JS work happens below.
+    if let Some(cached) = DOM_OP_TABLE
+        .try_with(|cell: &RefCell<Option<DomOpTable>>| {
+            cell.try_borrow()
+                .ok()
+                .and_then(|guard: Ref<Option<DomOpTable>>| guard.clone())
+        })
+        .ok()
+        .flatten()
+    {
+        return Some(cached);
+    }
+    let global_value: JsValue = global_this()?;
+    // Claim the name set before it is used for anything. `set` wins the race
+    // against `get` for the very first caller, so the names are fixed before
+    // the first `Reflect::get` and the lookup and install paths below cannot
+    // disagree about which name they are talking about. A losing caller just
+    // reads the winner's names, which is correct: they are the same set.
+    let _: bool = DomOpNames::set(DomOpNames::build());
+    let names: &'static DomOpNames = DomOpNames::get();
+    let table_value: JsValue = match Reflect::get(&global_value, &JsValue::from_str(&names.table)) {
+        Ok(existing) => existing,
+        Err(_err) => JsValue::UNDEFINED,
+    };
+    let table: DomOpTable = if table_value.is_object() {
+        let set_attrs: Function =
+            match Reflect::get(&table_value, &JsValue::from_str(&names.set_attrs)) {
+                Ok(value) => match value.dyn_into::<Function>() {
+                    Ok(function) => function,
+                    Err(_) => return None,
+                },
+                Err(_err) => return None,
             };
-        let table: DomOpTable = if table_value.is_object() {
-            let set_attrs: Function =
-                match Reflect::get(&table_value, &JsValue::from_str(JS_DOM_OP_SET_ATTRS)) {
-                    Ok(value) => match value.dyn_into::<Function>() {
-                        Ok(function) => function,
-                        Err(_) => return None,
-                    },
-                    Err(_err) => return None,
-                };
-            let remove_attrs: Function =
-                match Reflect::get(&table_value, &JsValue::from_str(JS_DOM_OP_REMOVE_ATTRS)) {
-                    Ok(value) => match value.dyn_into::<Function>() {
-                        Ok(function) => function,
-                        Err(_) => return None,
-                    },
-                    Err(_err) => return None,
-                };
-            let child_ops: Function =
-                match Reflect::get(&table_value, &JsValue::from_str(JS_DOM_OP_CHILD_OPS)) {
-                    Ok(value) => match value.dyn_into::<Function>() {
-                        Ok(function) => function,
-                        Err(_) => return None,
-                    },
-                    Err(_err) => return None,
-                };
-            DomOpTable {
-                set_attrs,
-                remove_attrs,
-                child_ops,
-            }
-        } else {
-            install_dom_op_table(&global_value)?
-        };
-        unsafe {
-            *cached_ptr = Some(table.clone());
+        let remove_attrs: Function =
+            match Reflect::get(&table_value, &JsValue::from_str(&names.remove_attrs)) {
+                Ok(value) => match value.dyn_into::<Function>() {
+                    Ok(function) => function,
+                    Err(_) => return None,
+                },
+                Err(_err) => return None,
+            };
+        let child_ops: Function =
+            match Reflect::get(&table_value, &JsValue::from_str(&names.child_ops)) {
+                Ok(value) => match value.dyn_into::<Function>() {
+                    Ok(function) => function,
+                    Err(_) => return None,
+                },
+                Err(_err) => return None,
+            };
+        DomOpTable {
+            set_attrs,
+            remove_attrs,
+            child_ops,
         }
-        Some(table)
-    })
+    } else {
+        install_dom_op_table(&global_value, names)?
+    };
+    // Cache the resolved table. A refused borrow only costs one extra
+    // `Reflect::get` on the next patch, so the failure is ignored rather
+    // than propagated.
+    let _: Result<(), std::thread::AccessError> =
+        DOM_OP_TABLE.try_with(|cell: &RefCell<Option<DomOpTable>>| {
+            if let Ok(mut guard) = cell.try_borrow_mut() {
+                *guard = Some(table.clone());
+            }
+        });
+    Some(table)
 }
 
 /// Installs the batched DOM-op helpers onto `globalThis.__euv_dom_ops__`.
@@ -87,7 +100,18 @@ pub(crate) fn ensure_dom_op_table() -> Option<DomOpTable> {
 /// `appendChild` / `removeChild` on the element. Equivalent JS cost to
 /// the per-op path (N attribute writes inside the function instead of N
 /// JS round-trips) but only one crossing to enter the function.
-fn install_dom_op_table(global_value: &JsValue) -> Option<DomOpTable> {
+///
+/// # Arguments
+///
+/// - `&JsValue` - The `globalThis` handle the helpers are installed on.
+/// - `&DomOpNames` - The JavaScript-side property names the installed
+///   helpers are published under.
+///
+/// # Returns
+///
+/// - `Option<DomOpTable>` - The installed helper table, or `None` when
+///   evaluation or the property install step failed.
+fn install_dom_op_table(global_value: &JsValue, names: &DomOpNames) -> Option<DomOpTable> {
     let set_attrs_source: &str = "function(elem, names, values) { \
         for (var i = 0; i < names.length; i++) { \
             elem.setAttribute(names[i], values[i]); \
@@ -120,26 +144,23 @@ fn install_dom_op_table(global_value: &JsValue) -> Option<DomOpTable> {
     let remove_attrs: Function = eval_function(remove_attrs_source)?;
     let child_ops: Function = eval_function(child_ops_source)?;
     let table_value: JsValue = js_sys::Object::new().into();
-    let _ = Reflect::set(
+    let _: Result<bool, JsValue> = Reflect::set(
         &table_value,
-        &JsValue::from_str(JS_DOM_OP_SET_ATTRS),
+        &JsValue::from_str(&names.set_attrs),
         set_attrs.as_ref(),
     );
-    let _ = Reflect::set(
+    let _: Result<bool, JsValue> = Reflect::set(
         &table_value,
-        &JsValue::from_str(JS_DOM_OP_REMOVE_ATTRS),
+        &JsValue::from_str(&names.remove_attrs),
         remove_attrs.as_ref(),
     );
-    let _ = Reflect::set(
+    let _: Result<bool, JsValue> = Reflect::set(
         &table_value,
-        &JsValue::from_str(JS_DOM_OP_CHILD_OPS),
+        &JsValue::from_str(&names.child_ops),
         child_ops.as_ref(),
     );
-    let _ = Reflect::set(
-        global_value,
-        &JsValue::from_str(JS_DOM_OP_TABLE),
-        &table_value,
-    );
+    let _: Result<bool, JsValue> =
+        Reflect::set(global_value, &JsValue::from_str(&names.table), &table_value);
     Some(DomOpTable {
         set_attrs,
         remove_attrs,
@@ -148,6 +169,16 @@ fn install_dom_op_table(global_value: &JsValue) -> Option<DomOpTable> {
 }
 
 /// Compiles a JS function body via `js_sys::eval`.
+///
+/// # Arguments
+///
+/// - `&str` - The JavaScript function body, wrapped in parentheses
+///   before evaluation so it parses as an expression.
+///
+/// # Returns
+///
+/// - `Option<Function>` - The compiled function, or `None` when the body
+///   failed to evaluate or did not produce a function object.
 fn eval_function(body: &str) -> Option<Function> {
     let wrapped: String = format!("({})", body);
     js_sys::eval(&wrapped)
@@ -160,8 +191,13 @@ fn eval_function(body: &str) -> Option<Function> {
 /// Falls back to `window` when `globalThis` is not present (older
 /// Safari / non-browser WASM hosts). Returns `None` if neither is
 /// available.
+///
+/// # Returns
+///
+/// - `Option<JsValue>` - The resolved `globalThis` handle, or `None`
+///   when neither `globalThis` nor `window` is reachable.
 fn global_this() -> Option<JsValue> {
-    if let Ok(value) = js_sys::eval("globalThis")
+    if let Ok(value) = js_sys::eval(JS_GLOBAL_THIS)
         && !value.is_undefined()
     {
         return Some(value);
@@ -176,6 +212,15 @@ fn global_this() -> Option<JsValue> {
 /// of calling `setAttribute`). For these attributes the renderer must
 /// keep the per-element direct call to preserve the previous semantics
 /// — batched `setAttribute` would silently break input/textarea/etc.
+///
+/// # Arguments
+///
+/// - `&str` - The attribute name to classify.
+///
+/// # Returns
+///
+/// - `bool` - `true` when the attribute must go through the direct
+///   form-property assignment path instead of `setAttribute`.
 pub(crate) fn is_property_attr(name: &str) -> bool {
     name == ATTR_VALUE
         || name == ATTR_CHECKED
@@ -324,6 +369,11 @@ pub(crate) fn apply_child_ops_batch(parent: &Element, ops: &[ChildOp]) {
 
 /// Per-op fallback used when the JS-side batched call fails. Mirrors
 /// the previous patch-path behaviour exactly.
+///
+/// # Arguments
+///
+/// - `&Element` - The parent the child is inserted into or removed from.
+/// - `&ChildOp` - The single child operation to apply.
 fn apply_child_op_fallback(parent: &Element, op: &ChildOp) {
     match op {
         ChildOp::InsertBefore { node, reference } => {
@@ -337,6 +387,96 @@ fn apply_child_op_fallback(parent: &Element, op: &ChildOp) {
         }
         ChildOp::RemoveChild(node) => {
             let _: Result<Node, JsValue> = parent.remove_child(node);
+        }
+    }
+}
+
+/// Builds the per-load names from the current clock.
+///
+/// The suffix is the microsecond clock, mixed and encoded. Failure of the
+/// encoder is not fatal: it can only fail on a charset the crate rejects,
+/// and [`JS_DOM_OP_NAME_CHARSET`] is a compile-time constant that satisfies
+/// it, so the fallback is a defensive branch rather than a reachable one.
+///
+/// # Returns
+///
+/// - `DomOpNames` - The freshly built names.
+pub(crate) fn build_dom_op_names() -> DomOpNames {
+    let suffix: String = encoded_name_suffix();
+    DomOpNames {
+        table: format!("{}{}", JS_DOM_OP_NAME_PREFIX, suffix),
+        set_attrs: format!("{}dom_op_set_attrs_{}", JS_DOM_OP_NAME_PREFIX, suffix),
+        remove_attrs: format!("{}dom_op_remove_attrs_{}", JS_DOM_OP_NAME_PREFIX, suffix),
+        child_ops: format!("{}dom_op_child_ops_{}", JS_DOM_OP_NAME_PREFIX, suffix),
+    }
+}
+
+/// Returns the encoded per-load suffix.
+///
+/// `bin-encode-decode` zero-pads every input byte into a 3-byte group before
+/// base-encoding, so each byte fed costs one and a third output characters:
+/// six input bytes become a 24-character suffix, not twelve. Six bytes is the
+/// right input because 48 bits is already far more than enough to make the
+/// name unguessable, and a longer input would only pad the identifier out.
+///
+/// The bytes are folded into printable ASCII first, because the encoder takes
+/// `&str` and a raw byte can be zero or above `0x7F`, neither of which
+/// survives the round-trip through `str`.
+///
+/// # Returns
+///
+/// - `String` - The encoded suffix, or
+///   [`JS_DOM_OP_NAME_FALLBACK_SUFFIX`] if the clock or the encoder failed.
+pub(crate) fn encoded_name_suffix() -> String {
+    let micros: u64 = now_micros();
+    let mixed: u64 = micros.wrapping_mul(JS_DOM_OP_NAME_MIX);
+    let printable: [u8; 6] = {
+        let bytes: [u8; 8] = mixed.to_le_bytes();
+        let mut masked: [u8; 6] = [b'0'; 6];
+        for (slot, byte) in masked.iter_mut().zip(bytes.iter().take(6)) {
+            *slot = b'!' + (byte % 94);
+        }
+        masked
+    };
+    let raw: &str = std::str::from_utf8(&printable).unwrap_or(JS_DOM_OP_NAME_FALLBACK_SUFFIX);
+    let encoded: Result<String, EncodeError> =
+        Charset::new().charset(JS_DOM_OP_NAME_CHARSET).encode(raw);
+    match encoded {
+        Ok(suffix) => suffix,
+        Err(_) => String::from(JS_DOM_OP_NAME_FALLBACK_SUFFIX),
+    }
+}
+
+/// Returns the current time in microseconds.
+///
+/// `Date.now()` only reaches millisecond resolution, which is coarse enough
+/// that two page loads inside the same millisecond would share a name, so
+/// the sub-millisecond remainder is taken from `performance.now()`. Off-wasm
+/// neither is available and the host clock is used instead; a host build is
+/// not the security target, so its weaker value is accepted.
+///
+/// # Returns
+///
+/// - `u64` - Microseconds, or `0` if no clock is available.
+pub(crate) fn now_micros() -> u64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let millis: f64 = js_sys::Date::now();
+        let fraction: f64 = js_sys::eval(JS_PERFORMANCE_NOW_FRACTION)
+            .ok()
+            .and_then(|value: JsValue| value.as_f64())
+            .unwrap_or(0.0);
+        let total_micros: f64 = millis * 1000.0 + fraction * 1000.0;
+        if total_micros.is_finite() && total_micros > 0.0 {
+            return total_micros as u64;
+        }
+        0
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(elapsed) => elapsed.as_micros() as u64,
+            Err(_) => 0,
         }
     }
 }

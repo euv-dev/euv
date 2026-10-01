@@ -74,7 +74,7 @@ pub fn use_profiler() -> ProfilerHandle {
 /// # Arguments
 ///
 /// - `&str` - The free-form label that identifies this measurement.
-/// - `F: FnOnce() -> R` - The closure whose execution time is
+/// - `F` - The closure whose execution time is
 ///   measured.
 ///
 /// # Returns

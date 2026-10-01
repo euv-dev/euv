@@ -59,7 +59,7 @@ where
     ///
     /// # Returns
     ///
-    /// - `Option<V>` - The current value (or a snapshot thereof).
+    /// - `Option<&V>` - The current value (or a snapshot thereof).
     pub fn get(&mut self, key: &K) -> Option<&V> {
         if self.get_map().contains_key(key) {
             // Promote the key to the front of the
@@ -83,7 +83,7 @@ where
     ///
     /// # Returns
     ///
-    /// - `Option<V>` - `Some(...)` on success, `None` otherwise.
+    /// - `Option<&V>` - `Some(...)` on success, `None` otherwise.
     pub fn peek(&self, key: &K) -> Option<&V> {
         self.get_map().get(key)
     }
@@ -99,8 +99,8 @@ where
     ///
     /// # Arguments
     ///
-    /// - `K: Clone + Eq + Hash` - A generic type parameter.
-    /// - `V` - A `V` parameter.
+    /// - `K` - The key to look up.
+    /// - `V` - The new value stored under `key`.
     ///
     /// # Returns
     ///
@@ -159,8 +159,8 @@ where
     ///
     /// # Returns
     ///
-    /// - `impl Iterator<Item` - A `impl Iterator<Item` value.
-    pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
+    /// - `impl std::iter::Iterator<Item` - A `impl Iterator<Item` value.
+    pub fn iter(&self) -> impl std::iter::Iterator<Item = (&K, &V)> {
         // We can't return the VecDeque order directly
         // because the entries would be in order-deque
         // order, not MRU-first order. Actually they
@@ -177,8 +177,8 @@ where
     ///
     /// # Returns
     ///
-    /// - `impl Iterator<Item` - A `impl Iterator<Item` value.
-    pub fn keys(&self) -> impl Iterator<Item = &K> {
+    /// - `impl std::iter::Iterator<Item` - A `impl Iterator<Item` value.
+    pub fn keys(&self) -> impl std::iter::Iterator<Item = &K> {
         self.get_order().iter()
     }
 
@@ -187,8 +187,8 @@ where
     ///
     /// # Returns
     ///
-    /// - `impl Iterator<Item` - A `impl Iterator<Item` value.
-    pub fn values(&self) -> impl Iterator<Item = &V> {
+    /// - `impl std::iter::Iterator<Item` - A `impl Iterator<Item` value.
+    pub fn values(&self) -> impl std::iter::Iterator<Item = &V> {
         self.get_order()
             .iter()
             .filter_map(|k: &K| self.get_map().get(k))

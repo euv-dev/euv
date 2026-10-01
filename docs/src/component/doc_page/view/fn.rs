@@ -14,7 +14,7 @@ use super::*;
 ///
 /// # Arguments
 ///
-/// - `DocsPageProps` - The typed props containing the route signal.
+/// - `VirtualNode<DocsPageProps>` - The props node carrying the route signal.
 ///
 /// # Returns
 ///
@@ -27,7 +27,7 @@ pub(crate) fn docs_main(node: VirtualNode<DocsPageProps>) -> VirtualNode {
         Some(page) if page.home => html! {
             div {
                 key: path.clone()
-                style: "display: contents"
+                style: STYLE_DISPLAY_CONTENTS
                 docs_home_page {
                     route_signal
                 }
@@ -36,7 +36,7 @@ pub(crate) fn docs_main(node: VirtualNode<DocsPageProps>) -> VirtualNode {
         Some(page) if page.private && !is_unlocked(&path) => html! {
             div {
                 key: path.clone()
-                style: "display: contents"
+                style: STYLE_DISPLAY_CONTENTS
                 docs_password_gate {
                     route: page.route
                     expected_hash: page.password_hash
@@ -47,7 +47,7 @@ pub(crate) fn docs_main(node: VirtualNode<DocsPageProps>) -> VirtualNode {
         Some(_) => html! {
             div {
                 key: path.clone()
-                style: "display: contents"
+                style: STYLE_DISPLAY_CONTENTS
                 docs_doc_page {
                     route_signal
                 }
@@ -56,7 +56,7 @@ pub(crate) fn docs_main(node: VirtualNode<DocsPageProps>) -> VirtualNode {
         None => html! {
             div {
                 key: path.clone()
-                style: "display: contents"
+                style: STYLE_DISPLAY_CONTENTS
                 docs_not_found {
                     route_signal
                 }
@@ -71,7 +71,7 @@ pub(crate) fn docs_main(node: VirtualNode<DocsPageProps>) -> VirtualNode {
 ///
 /// # Arguments
 ///
-/// - `DocsPageProps` - The typed props containing the route signal.
+/// - `VirtualNode<DocsPageProps>` - The props node carrying the route signal.
 ///
 /// # Returns
 ///
@@ -103,7 +103,7 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             footer: footer_text
             if { !page.title.is_empty() } {
                 h1 {
-                    class: "c_docs_page_title"
+                    class: CLASS_DOCS_PAGE_TITLE
                     {
                         page.title
                     }
@@ -137,12 +137,14 @@ fn prev_next(
     locale: &'static DocsLocale,
     route: &str,
 ) -> (Option<EuvPaginationItem>, Option<EuvPaginationItem>) {
-    let to_item = |item: &'static EuvSidebarItem| -> Option<EuvPaginationItem> {
-        item.link.map(|link: &'static str| EuvPaginationItem {
-            text: item.text,
-            link,
-        })
-    };
+    let to_item: Box<dyn Fn(&'static EuvSidebarItem) -> Option<EuvPaginationItem>> = Box::new(
+        |item: &'static EuvSidebarItem| -> Option<EuvPaginationItem> {
+            item.link.map(|link: &'static str| EuvPaginationItem {
+                text: item.text,
+                link,
+            })
+        },
+    );
     let Some(scope) = scope_for(locale.sidebar, route) else {
         return (None, None);
     };

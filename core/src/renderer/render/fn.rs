@@ -17,7 +17,7 @@ use super::*;
 /// # Arguments
 ///
 /// - `&Element` - The element to bind.
-/// - `F: Fn(&Element, &str) + 'static` - The DOM writer for the value.
+/// - `F` - The DOM writer for the value.
 /// - `Signal<T>` - The source signal.
 pub(crate) fn bind_signal_to_element<T, F>(element: &Element, write: F, signal: Signal<T>)
 where
@@ -172,14 +172,17 @@ pub(crate) fn cached_document() -> Option<Document> {
 /// # Arguments
 ///
 /// - `&Element` - The parent DOM element receiving the children.
-/// - `impl IntoIterator<Item = Node>` - The DOM nodes to attach, in
-///   their final sibling order.
+/// - `I` - Any `IntoIterator<Item = Node>` yielding the DOM nodes to
+///   attach, in their final sibling order.
 ///
 /// # Returns
 ///
 /// - `()` - The appends are best-effort; per-call JS errors are dropped
 ///   to match the previous per-node behaviour.
-pub(crate) fn append_nodes(parent: &Element, nodes: impl IntoIterator<Item = Node>) {
+pub(crate) fn append_nodes<I>(parent: &Element, nodes: I)
+where
+    I: IntoIterator<Item = Node>,
+{
     if !parent.is_connected() {
         for node in nodes {
             let _: Result<Node, JsValue> = parent.append_child(&node);
@@ -286,11 +289,11 @@ pub(crate) fn append_nodes(parent: &Element, nodes: impl IntoIterator<Item = Nod
 ///
 /// # Arguments
 ///
-/// - `old_keys` - Keys of the pre-patch children, in their original
+/// - `&[Option<&'a str>]` - Keys of the pre-patch children, in their original
 ///   DOM order. `None` represents an unkeyed child (rare in
 ///   practice — `patch_children` only dispatches here when both
 ///   sides are fully keyed).
-/// - `new_keys` - Keys of the post-patch children, in their target
+/// - `&[Option<&'a str>]` - Keys of the post-patch children, in their target
 ///   order.
 ///
 /// # Returns
@@ -496,8 +499,8 @@ pub(crate) fn euv_collect_subtree_ids(root: &Element) -> Float64Array {
     let mut stack: Vec<web_sys::Element> = Vec::new();
     stack.push(root.clone());
     while let Some(node) = stack.pop() {
-        let euv_attr: Option<String> = node.get_attribute("data-euv-id");
-        let dynamic_attr: Option<String> = node.get_attribute("data-euv-dynamic-id");
+        let euv_attr: Option<String> = node.get_attribute(DATA_EUV_ID);
+        let dynamic_attr: Option<String> = node.get_attribute(DATA_EUV_DYNAMIC_ID);
         match euv_attr {
             Some(id_str) => match id_str.parse::<f64>() {
                 Ok(parsed) => out.push(parsed),
@@ -512,7 +515,7 @@ pub(crate) fn euv_collect_subtree_ids(root: &Element) -> Float64Array {
             },
             None => out.push(f64::NAN),
         }
-        let children = node.children();
+        let children: HtmlCollection = node.children();
         let len: u32 = children.length();
         for i in (0..len).rev() {
             if let Some(child) = children.item(i) {

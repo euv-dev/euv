@@ -5,12 +5,10 @@ const EPSILON: f64 = 1e-9;
 #[test]
 fn nine_slice_source_rects_cover_full_source() {
     let insets: NineSliceInsets = NineSliceInsets::new(1.0, 1.0, 1.0, 1.0);
-    let rects: Vec<Rect> =
-        insets.source_rects(Rect::new(0.0, 0.0, 3.0, 3.0)).to_vec();
+    let rects: Vec<Rect> = insets.source_rects(Rect::new(0.0, 0.0, 3.0, 3.0)).to_vec();
     for rect in rects.iter() {
         assert!(
-            (rect.get_width() - 1.0).abs() < EPSILON
-                && (rect.get_height() - 1.0).abs() < EPSILON,
+            (rect.get_width() - 1.0).abs() < EPSILON && (rect.get_height() - 1.0).abs() < EPSILON,
             "expected every 3x3 source patch to be 1x1, got {}x{} at ({}, {})",
             rect.get_width(),
             rect.get_height(),
@@ -374,8 +372,7 @@ fn atlas_uv_handles_non_square_atlas_axes_independently() {
 #[test]
 fn atlas_uv_zero_sized_atlas_yields_zeros_not_nan() {
     for size in [(0.0, 0.0), (0.0, 32.0), (32.0, 0.0)] {
-        let uv: UvRect =
-            SpriteAtlas::normalize_uv(Rect::new(16.0, 16.0, 8.0, 8.0), size.0, size.1);
+        let uv: UvRect = SpriteAtlas::normalize_uv(Rect::new(16.0, 16.0, 8.0, 8.0), size.0, size.1);
         assert!(
             uv.get_u0().is_finite()
                 && uv.get_v0().is_finite()
@@ -409,7 +406,7 @@ fn atlas_uv_zero_sized_atlas_yields_zeros_not_nan() {
 fn atlas_regions_insert_get_and_contains() {
     let mut regions: AtlasRegions = AtlasRegions::default();
     assert!(
-        regions.is_empty() && regions.len() == 0,
+        regions.is_empty() && regions.is_empty(),
         "expected a fresh index to be empty, got len {}",
         regions.len(),
     );

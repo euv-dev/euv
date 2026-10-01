@@ -31,7 +31,7 @@ impl ProfilerHandle {
     /// # Arguments
     ///
     /// - `&str` - The label for this measurement.
-    /// - `F: FnOnce() -> R` - The closure to measure. Can
+    /// - `F` - The closure to measure. Can
     ///   return any type — the return value is forwarded to
     ///   the caller unchanged.
     ///

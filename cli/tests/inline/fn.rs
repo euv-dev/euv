@@ -58,7 +58,6 @@ export function euv_event_collect_id_chain(event, max_depth) {
 
 function _private_helper() {}
 
-// Re-exports / non-function exports are ignored.
 export const VERSION = 1;
 export { something };
 "#;

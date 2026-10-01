@@ -24,7 +24,11 @@ impl Router {
             let Some(document_value) = window_value.document() else {
                 return;
             };
-            if let Some(main_element) = document_value.query_selector("main").ok().flatten() {
+            if let Some(main_element) = document_value
+                .query_selector(ROUTER_MAIN_ELEMENT_SELECTOR)
+                .ok()
+                .flatten()
+            {
                 let html_element: HtmlElement = main_element.unchecked_into();
                 html_element.set_scroll_top(0);
             }
@@ -50,7 +54,7 @@ impl Router {
     ///
     /// - `Signal<String>` - The reactive signal that holds the current route and will be updated on each hash change.
     pub fn use_hash_change(route_signal: Signal<String>) {
-        App::use_window_event("hashchange", move || {
+        App::use_window_event(ROUTER_WINDOW_EVENT_HASH_CHANGE, move || {
             WINDOW_EVENT_DEPTH.with(|depth: &Cell<usize>| depth.set(depth.get() + 1));
             route_signal.set(Self::current_route());
             WINDOW_EVENT_DEPTH.with(|depth: &Cell<usize>| depth.set(depth.get() - 1));
@@ -85,13 +89,24 @@ impl Router {
             }
             was_drawer_open.set(is_open);
         });
-        App::use_window_event("popstate", move || {
+        App::use_window_event(ROUTER_WINDOW_EVENT_POP_STATE, move || {
             WINDOW_EVENT_DEPTH.with(|depth: &Cell<usize>| depth.set(depth.get() + 1));
+            // The guard callbacks run arbitrary page code, and the ones shipped
+            // with euv set signals and call back into `Router` (a fullscreen
+            // guard sets its tab signal, then re-enters `apply_cached_insets`
+            // and dispatches a synthetic `resize`). A `Ref` held across those
+            // calls would let that re-entry find `POPSTATE_GUARDS` already
+            // borrowed and abort the instance, so the list is cloned out and the
+            // guard dropped before a single callback is invoked. A contended
+            // list reports "no guard consumed this event", which lets the
+            // overlay stack handle it — a missed guard costs a native-fullscreen
+            // back gesture, panicking costs the app.
             let consumed: bool = POPSTATE_GUARDS.with(|guards: &PopstateGuardList| {
-                guards
-                    .borrow()
-                    .iter()
-                    .any(|entry: &PopstateGuardEntry| entry.1())
+                let snapshot: Vec<PopstateGuardEntry> = match guards.try_borrow() {
+                    Ok(list) => list.clone(),
+                    Err(_) => Vec::new(),
+                };
+                snapshot.iter().any(|entry: &PopstateGuardEntry| entry.1())
             });
             if consumed {
                 WINDOW_EVENT_DEPTH.with(|depth: &Cell<usize>| depth.set(depth.get() - 1));
@@ -221,7 +236,13 @@ impl Router {
             let id: usize = counter.get();
             counter.set(id + 1);
             POPSTATE_GUARDS.with(|guards: &PopstateGuardList| {
-                guards.borrow_mut().push((id, guard));
+                // Best-effort registration. Registration runs during a hook
+                // mount, which can itself be reached from a `popstate` guard
+                // re-entry; a contended list simply leaves the guard
+                // unregistered, and `borrow_mut` would abort the instance.
+                if let Ok(mut entries) = guards.try_borrow_mut() {
+                    entries.push((id, guard.clone()));
+                }
             });
             id
         })
@@ -272,7 +293,15 @@ impl Router {
     /// - `Rc<dyn Fn()>` - The callback that closes the overlay (e.g., sets its visibility signal to `false`).
     pub(crate) fn overlay_stack_push(closer: Rc<dyn Fn()>) {
         OVERLAY_STACK.with(|stack: &OverlayStack| {
-            stack.borrow_mut().push(OverlayEntry { closer });
+            // Best-effort push. A contended cell means a re-entrant open is
+            // already being processed by an outer frame that will push its own
+            // entry, so dropping this one costs a single missing overlay-close
+            // wiring rather than aborting the instance.
+            if let Ok(mut entries) = stack.try_borrow_mut() {
+                entries.push(OverlayEntry {
+                    closer: closer.clone(),
+                });
+            }
         });
         Self::overlay_push_state();
     }
@@ -288,14 +317,22 @@ impl Router {
     /// - `Option<Rc<dyn Fn()>>` - The topmost overlay's close callback, or `None` if no overlay is open.
     pub(crate) fn overlay_stack_pop() -> Option<Rc<dyn Fn()>> {
         let closer: Option<Rc<dyn Fn()>> = OVERLAY_STACK.with(|stack: &OverlayStack| {
-            stack
-                .borrow_mut()
-                .pop()
-                .map(|entry: OverlayEntry| entry.closer)
+            // Best-effort pop: returning `None` under contention lets the
+            // caller fall through to normal navigation, which is a recoverable
+            // outcome. `borrow_mut` here would abort the instance instead.
+            match stack.try_borrow_mut() {
+                Ok(mut entries) => entries.pop().map(|entry: OverlayEntry| entry.closer),
+                Err(_) => None,
+            }
         });
         if let Some(ref closer_ref) = closer {
             MODAL_STACK.with(|stack: &ModalStack| {
-                let mut entries: RefMut<'_, Vec<ModalStackEntry>> = stack.borrow_mut();
+                // The matching entry is dropped on contention: a stale modal
+                // entry is inert (it only affects identity lookup for an
+                // already-closed modal), whereas panicking kills the app.
+                let Ok(mut entries) = stack.try_borrow_mut() else {
+                    return;
+                };
                 if let Some(index) = entries
                     .iter()
                     .rposition(|(_, closer): &ModalStackEntry| Rc::ptr_eq(closer, closer_ref))
@@ -342,15 +379,27 @@ impl Router {
     /// - `Rc<dyn Fn()>` - The callback that closes the modal (e.g., sets the visibility signal to `false`).
     pub fn modal_push(visible: Signal<bool>, closer: Rc<dyn Fn()>) {
         let already_open: bool = MODAL_STACK.with(|stack: &ModalStack| {
-            stack
-                .borrow()
-                .iter()
-                .any(|(signal, _): &ModalStackEntry| *signal == visible)
+            // Cloned out so the identity scan runs with no guard held: the push
+            // below re-borrows, and a scan-in-place would also keep the guard
+            // alive across the `closer.clone()` on the next statement.
+            match stack.try_borrow() {
+                Ok(entries) => entries
+                    .iter()
+                    .any(|(signal, _): &ModalStackEntry| *signal == visible),
+                Err(_) => false,
+            }
         });
         if already_open {
             return;
         }
-        MODAL_STACK.with(|stack: &ModalStack| stack.borrow_mut().push((visible, closer.clone())));
+        MODAL_STACK.with(|stack: &ModalStack| {
+            // Best-effort push; the `overlay_stack_push` below still runs and
+            // still pushes the history entry, so a contended modal stack costs
+            // identity tracking for this modal, not its dismissal.
+            if let Ok(mut entries) = stack.try_borrow_mut() {
+                entries.push((visible, closer.clone()));
+            }
+        });
         Self::overlay_stack_push(closer);
     }
 
@@ -369,7 +418,12 @@ impl Router {
     /// - `Signal<bool>` - The visibility signal identifying the modal to remove.
     pub fn modal_close_via_ui(visible: Signal<bool>) {
         let removed: bool = MODAL_STACK.with(|stack: &ModalStack| {
-            let mut entries: RefMut<'_, Vec<ModalStackEntry>> = stack.borrow_mut();
+            // `removed == false` under contention means the history entry below
+            // is not consumed, so the back gesture is left to the overlay stack;
+            // a stale entry is inert and `borrow_mut` would abort the instance.
+            let Ok(mut entries) = stack.try_borrow_mut() else {
+                return false;
+            };
             if let Some(index) = entries
                 .iter()
                 .rposition(|(signal, _): &ModalStackEntry| *signal == visible)
@@ -395,7 +449,7 @@ impl Router {
     ///
     /// # Arguments
     ///
-    /// - `U: AsRef<str>` - The URL to open.
+    /// - `U` - The URL to open.
     pub fn open_system_browser<U>(url: U)
     where
         U: AsRef<str>,
@@ -403,7 +457,7 @@ impl Router {
         let Some(window_value) = window() else {
             return;
         };
-        if let Ok(open_fn) = Reflect::get(&window_value, &JsValue::from_str("open"))
+        if let Ok(open_fn) = Reflect::get(&window_value, &JsValue::from_str(ROUTER_WINDOW_OPEN_KEY))
             .and_then(|value: JsValue| value.dyn_into::<Function>())
         {
             let _: Result<JsValue, JsValue> = open_fn.call2(
@@ -424,7 +478,7 @@ impl Router {
     ///
     /// # Arguments
     ///
-    /// - `U: AsRef<str>` - The external URL to open on click.
+    /// - `U` - The external URL to open on click.
     ///
     /// # Returns
     ///
@@ -434,7 +488,7 @@ impl Router {
         U: AsRef<str>,
     {
         let url_string: String = url.as_ref().to_string();
-        NativeEventHandler::create("click", move |event: Event| {
+        NativeEventHandler::create(ROUTER_EXTERNAL_LINK_EVENT_TYPE, move |event: Event| {
             event.prevent_default();
             Self::open_system_browser(&url_string);
         })
@@ -449,7 +503,7 @@ impl Router {
     /// # Arguments
     ///
     /// - `Signal<bool>` - The drawer open signal.
-    /// - `T: AsRef<str>` - The target route.
+    /// - `T` - The target route.
     pub fn close_drawer_and_navigate<T>(_drawer_open: Signal<bool>, target: T)
     where
         T: AsRef<str>,

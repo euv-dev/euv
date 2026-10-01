@@ -4,8 +4,7 @@ use super::*;
 ///
 /// # Arguments
 ///
-/// - `NavItemProps` - The typed props containing route signal, icon, label, and target.
-/// - `VirtualNode` - The children nodes.
+/// - `VirtualNode<NavItemProps>` - The typed props containing route signal, icon, label, and target.
 ///
 /// # Returns
 ///
@@ -32,8 +31,7 @@ pub(crate) fn nav_item(node: VirtualNode<NavItemProps>) -> VirtualNode {
 ///
 /// # Arguments
 ///
-/// - `MobileNavItemProps` - The typed props containing route signal, drawer open signal, icon, label, and target.
-/// - `VirtualNode` - The children nodes.
+/// - `VirtualNode<MobileNavItemProps>` - The typed props containing route signal, drawer open signal, icon, label, and target.
 ///
 /// # Returns
 ///
@@ -62,8 +60,7 @@ pub(crate) fn mobile_nav_item(node: VirtualNode<MobileNavItemProps>) -> VirtualN
 ///
 /// # Arguments
 ///
-/// - `BuildDesktopNavItemsProps` - The typed props containing the route signal.
-/// - `VirtualNode` - The children nodes.
+/// - `VirtualNode<BuildDesktopNavItemsProps>` - The typed props containing the route signal.
 ///
 /// # Returns
 ///
@@ -95,8 +92,7 @@ pub(crate) fn build_desktop_nav_items(node: VirtualNode<BuildDesktopNavItemsProp
 ///
 /// # Arguments
 ///
-/// - `BuildMobileNavItemsProps` - The typed props containing route signal and drawer open signal.
-/// - `VirtualNode` - The children nodes.
+/// - `VirtualNode<BuildMobileNavItemsProps>` - The typed props containing route signal and drawer open signal.
 ///
 /// # Returns
 ///

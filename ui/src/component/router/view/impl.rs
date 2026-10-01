@@ -7,7 +7,7 @@ impl EuvRouteConfig {
     /// # Arguments
     ///
     /// - `&'static str` - The route path.
-    /// - `F: Fn() -> VirtualNode + 'static` - The component function.
+    /// - `F` - The component function.
     ///
     /// # Returns
     ///
@@ -66,7 +66,7 @@ impl Router {
     ///
     /// # Arguments
     ///
-    /// - `R: AsRef<str>` - The target route path.
+    /// - `R` - The target route path.
     pub fn navigate<R>(route: R)
     where
         R: AsRef<str>,
@@ -115,7 +115,7 @@ impl Router {
     ///
     /// # Arguments
     ///
-    /// - `R: AsRef<str>` - The target route path.
+    /// - `R` - The target route path.
     ///
     /// # Returns
     ///
@@ -125,7 +125,7 @@ impl Router {
         R: AsRef<str>,
     {
         let route_string: String = route.as_ref().to_string();
-        NativeEventHandler::create("click", move |event: Event| {
+        NativeEventHandler::create(ROUTER_LINK_EVENT_TYPE, move |event: Event| {
             event.prevent_default();
             Self::navigate(&route_string);
         })

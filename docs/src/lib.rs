@@ -1,3 +1,10 @@
+//! euv-docs
+//!
+//! The documentation-site crate for the euv UI framework, built by
+//! `docs/build.rs` from the example app's locale markdown so the
+//! generated pages stay in sync with the source tree.
+
+mod app;
 mod component;
 mod data;
 mod router;
@@ -9,6 +16,7 @@ mod generated {
 pub use std::{cell::RefCell, fmt::Debug, rc::Rc};
 
 pub(crate) use {
+    app::*,
     component::*,
     data::*,
     js_sys::{Promise, decode_uri_component, eval},
@@ -22,95 +30,17 @@ use {
     wasm_bindgen_futures::{JsFuture, spawn_local},
 };
 
+/// Wasm entry point: injects the global stylesheet, mounts the docs
+/// shell into the host page, and installs the two DOM side effects the
+/// router cannot express declaratively (image load marking and the
+/// table-of-contents scroll spy).
 #[wasm_bindgen]
 pub fn main() {
     console_error_panic_hook::set_once();
     inject_app_global_css();
     Css::inject_css(EUV_MD_CSS);
-    Css::inject_css(
-        "html, body { height: 100% !important; overflow: hidden !important; } \
-         #app { height: 100% !important; } \
-         .md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 { padding-left: 0 !important; } \
-         .md-body .header-anchor, .md-body h1:hover .header-anchor, .md-body h2:hover .header-anchor, .md-body h3:hover .header-anchor, .md-body h4:hover .header-anchor, .md-body h5:hover .header-anchor, .md-body h6:hover .header-anchor { display: none !important; } \
-             .md-body img { display: inline-block; width: auto !important; max-width: 100% !important; height: auto; vertical-align: baseline; } \
-             .md-body a > img { display: inline-block; } \
-             .md-body img[src$='.svg'], .md-body img[src*='shields.io'], .md-body img[src*='github.com'] { max-height: 20px; max-width: 100%; } \
-             .md-body table img { max-height: 1.4em; } \
-             \
-             .c_app_main { padding-top: 4.75rem !important; display: flex !important; flex-direction: column !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; } \
-             \
-             .c_nav_footer_divider { left: 0.75rem !important; right: 0.75rem !important; } \
-             .c_nav_section_label { padding-left: 0.75rem !important; } \
-             .c_nav_footer { padding-left: 0.75rem !important; } \
-             .c_euv_sidebar_children { margin-left: 8px !important; padding-left: 8px !important; } \
-             \
-             .c_euv_sidebar_link, .c_euv_sidebar_group_title { position: relative !important; } \
-                         .c_euv_sidebar_link::before, .c_euv_sidebar_group_title::before { content: '' !important; position: absolute !important; top: 0 !important; bottom: 0 !important; width: 5px !important; background: transparent !important; pointer-events: none !important; } \
-                         .c_euv_sidebar_group_title::before { left: -2px !important; } \
-                         .c_euv_sidebar_link::before { left: -8px !important; } \
-                         .c_euv_sidebar_link:hover::before, .c_euv_sidebar_group_title:hover::before { background: currentColor !important; } \
-                         .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #000) !important; border: 0 !important; box-shadow: none !important; } \
-                         .c_euv_sidebar_link_active, .c_euv_sidebar_group_title_active { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
-                         .c_euv_sidebar_link_active::before, .c_euv_sidebar_group_title_active::before { background: var(--accent, #000) !important; content: '' !important; position: absolute !important; width: 5px !important; top: 0 !important; bottom: 0 !important; pointer-events: none !important; left: -8px !important; } \
-                         .c_euv_sidebar_group_title_active::before { left: -2px !important; } \
-                         .c_euv_sidebar_link_active:hover, .c_euv_sidebar_group_title_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
-                         .c_theme_dark .c_euv_sidebar_link:hover, .c_theme_dark .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #fff) !important; box-shadow: none !important; } \
-                         .c_theme_dark .c_euv_sidebar_link_active, .c_theme_dark .c_euv_sidebar_group_title_active { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
-                         .c_theme_dark .c_euv_sidebar_link_active::before, .c_theme_dark .c_euv_sidebar_group_title_active::before { background: var(--accent, #fff) !important; } \
-                         .c_theme_dark .c_euv_sidebar_link_active:hover, .c_theme_dark .c_euv_sidebar_group_title_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
-             \
-             .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; min-height: auto !important; height: auto !important; width: 100% !important; } \
-             .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; min-height: 100vh !important; justify-content: flex-start !important; } \
-             .c_euv_doc_content article.md-body { display: block !important; flex: 0 0 auto !important; min-height: 0 !important; overflow: visible !important; } \
-             .c_euv_doc_content article.md-body > div { display: block !important; min-height: 0 !important; } \
-             .c_euv_doc_tail { display: block !important; flex: 0 0 auto !important; } \
-                         .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; position: sticky !important; top: 0 !important; align-self: flex-start !important; max-height: 100vh !important; overflow-y: auto !important; } \
-                         .c_euv_toc_link_nested { padding-left: 0.75rem !important; font-size: var(--font-sm, 0.875rem) !important; color: var(--muted-foreground, #555) !important; line-height: 1.5 !important; } \
-                         .c_euv_toc_link, .c_euv_toc_link_nested { font-weight: 400 !important; } \
-                         .c_euv_toc_link:hover, .c_euv_toc_link_nested:hover { color: var(--accent, #000) !important; font-weight: 700 !important; } \
-                         .c_euv_toc_link_active, .c_euv_toc_link_nested_active { color: var(--accent, #000) !important; font-weight: 700 !important; } \
-                         .c_theme_dark .c_euv_toc_link:hover, .c_theme_dark .c_euv_toc_link_nested:hover, .c_theme_dark .c_euv_toc_link_active, .c_theme_dark .c_euv_toc_link_nested_active { color: var(--accent, #fff) !important; font-weight: 700 !important; } \
-             \
-             .c_euv_pagination { padding-bottom: var(--space-xl, 1.25rem) !important; gap: var(--gap-component, 1rem) !important; flex-wrap: nowrap !important; align-items: stretch !important; width: 100% !important; } \
-             .c_euv_pagination_link { padding: var(--space-md, 0.75rem) !important; gap: var(--space-2xs, 0.25rem) !important; min-width: 0 !important; max-width: none !important; } \
-             .c_euv_footer { padding-top: var(--space-lg, 1rem) !important; padding-bottom: var(--space-md, 0.75rem) !important; flex: 0 0 auto !important; } \
-             \
-             .c_docs_page_title { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0; padding-top: 0; color: var(--foreground, #000); } \
-             .md-body > :first-child { margin-top: 0 !important; } \
-             .md-body h1:first-of-type, .md-body h2:first-of-type, .md-body h3:first-of-type, .md-body h4:first-of-type, .md-body h5:first-of-type, .md-body h6:first-of-type { margin-top: 0 !important; } \
-             .md-body > div:first-child > :first-child { margin-top: 0 !important; } \
-             .md-body > div:first-child > :first-child > * { margin-top: 0 !important; } \
-             \
-             .c_feature_card { border: 1px dashed var(--foreground, #000) !important; border-radius: 0 !important; padding: 1rem !important; background: transparent !important; } \
-             .c_home_btn_secondary { background: transparent !important; color: #000 !important; border: 1.5px solid #000 !important; } \
-             .c_home_btn_secondary:hover { background: rgba(0,0,0,0.06) !important; } \
-             .c_theme_dark .c_home_btn_secondary { background: transparent !important; color: #fff !important; border-color: #fff !important; } \
-             .c_theme_dark .c_home_btn_secondary:hover { background: rgba(255,255,255,0.10) !important; } \
-             \
-             .c_docs_feature_grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; } \
-             @media (max-width: 767px) { .c_docs_feature_grid { grid-template-columns: minmax(0, 1fr); } } \
-             .c_docs_feature_card { display: flex; flex-direction: column; gap: 0.4rem; padding: 1rem; border: 1px dashed var(--foreground, #000); border-radius: 0; background: transparent; text-decoration: none; color: inherit; transition: background 0.15s ease-out, border-color 0.15s ease-out; min-width: 0; } \
-             .c_docs_feature_card:hover { background: var(--accent-muted, rgba(0,0,0,0.06)); border-color: var(--foreground, #000); } \
-             .c_theme_dark .c_docs_feature_card:hover { background: var(--accent-muted, rgba(255,255,255,0.08)); } \
-             .c_docs_feature_card_inner { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; } \
-             .c_docs_feature_card_icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; } \
-             .c_docs_feature_card_title { font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; } \
-             .c_docs_feature_card_details { font-size: 0.875rem; color: var(--muted-foreground, #555); overflow-wrap: anywhere; } \
-             \
-             .docs-container-tip, .docs-container-note, .docs-container-important, .docs-container-info { border: 1px dashed var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--accent-muted, rgba(0,0,0,0.04)); } \
-             .docs-container-warning, .docs-container-caution { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--accent-muted, rgba(0,0,0,0.04)); } \
-             .docs-container-danger { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: rgba(0,0,0,0.06); } \
-             .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
-             .docs-container-title:empty { display: none; } \
-             \
-             .md-body img:not([data-loaded]) { height: 0px !important; margin: 0px !important; visibility: hidden; } \
-             .md-body img[data-loaded] { transition: opacity 0.2s ease-out; }",
-    );
-    App::mount("#app", app);
-    let _ = js_sys::eval(
-        "(function(){var p=function(i){if(i.dataset.loaded)return;var m=function(){i.dataset.loaded='1';};if(i.complete&&i.naturalWidth>0){m();}else{i.addEventListener('load',m);i.addEventListener('error',m);}};var o=new MutationObserver(function(ms){ms.forEach(function(d){d.addedNodes.forEach(function(n){if(n.tagName==='IMG'){p(n);}if(n.querySelectorAll){n.querySelectorAll('img').forEach(p);}});});});o.observe(document.body,{childList:true,subtree:true});document.querySelectorAll('img').forEach(p);}());",
-    );
-    let _ = js_sys::eval(
-        "(function(){var apply=function(){var h=window.location.hash;var i=h.indexOf('#',h.indexOf('#/')+2);var anchor=i>0?h.slice(i+1):'';var links=document.querySelectorAll('.c_euv_doc_toc a, .c_euv_toc a');var best=null;var bestLen=-1;links.forEach(function(a){a.classList.remove('c_euv_toc_link_active','c_euv_toc_link_nested_active');var href=a.getAttribute('href')||'';var hashIdx=href.lastIndexOf('#');var frag=hashIdx>0?href.slice(hashIdx+1):'';if(anchor&&frag&&anchor===frag){best=a;}});if(!best){links.forEach(function(a){var href=a.getAttribute('href')||'';var hashIdx=href.lastIndexOf('#');var frag=hashIdx>0?href.slice(hashIdx+1):'';if(frag&&anchor&&anchor.indexOf(frag)===0&&frag.length>bestLen){bestLen=frag.length;best=a;}});}if(best){var isNested=best.classList.contains('c_euv_toc_link_nested');best.classList.add(isNested?'c_euv_toc_link_nested_active':'c_euv_toc_link_active');}};apply();window.addEventListener('hashchange',apply);var mo=new MutationObserver(function(){apply();});mo.observe(document.body,{childList:true,subtree:true});}());",
-    );
+    Css::inject_css(APP_GLOBAL_CSS);
+    App::mount(APP_MOUNT_SELECTOR, app);
+    let _: Result<JsValue, JsValue> = js_sys::eval(IMAGE_LOAD_WATCHER_JS);
+    let _: Result<JsValue, JsValue> = js_sys::eval(TOC_SCROLL_SPY_JS);
 }

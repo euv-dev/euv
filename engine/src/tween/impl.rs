@@ -87,7 +87,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// # Arguments
     ///
-    /// - `Easing`: The easing curve to apply.
+    /// - `Easing` - The easing curve to apply.
     pub fn set_easing(&mut self, easing: Easing) {
         self.easing = easing;
     }
@@ -96,7 +96,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// # Arguments
     ///
-    /// - `f64`: The delay in seconds.
+    /// - `f64` - The delay in seconds.
     pub fn set_delay(&mut self, delay: f64) {
         self.delay = delay;
     }
@@ -105,7 +105,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// # Arguments
     ///
-    /// - `f64`: The elapsed time in seconds.
+    /// - `f64` - The elapsed time in seconds.
     pub fn set_elapsed(&mut self, elapsed: f64) {
         self.elapsed = elapsed;
     }
@@ -114,7 +114,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// # Arguments
     ///
-    /// - `TweenState`: The new playback state.
+    /// - `TweenState` - The new playback state.
     pub fn set_state(&mut self, state: TweenState) {
         self.state = state;
     }
@@ -123,7 +123,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// # Arguments
     ///
-    /// - `AnimationMode`: The completion mode.
+    /// - `AnimationMode` - The completion mode.
     pub fn set_mode(&mut self, mode: AnimationMode) {
         self.mode = mode;
     }
@@ -132,7 +132,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// # Arguments
     ///
-    /// - `f64`: The playback direction (1.0 = forward, -1.0 = backward).
+    /// - `f64` - The playback direction (1.0 = forward, -1.0 = backward).
     pub fn set_direction(&mut self, direction: f64) {
         self.direction = direction;
     }
@@ -141,7 +141,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// # Arguments
     ///
-    /// - `Option<Rc<dyn Fn()>>`: The completion callback.
+    /// - `Option<Rc<dyn Fn()>>` - The completion callback.
     pub fn set_on_complete(&mut self, on_complete: Option<Rc<dyn Fn()>>) {
         self.on_complete = on_complete;
     }
@@ -153,13 +153,13 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// # Arguments
     ///
-    /// - `T: Interpolable + Copy` - The start value.
-    /// - `T: Interpolable + Copy` - The end value.
+    /// - `T` - The start value.
+    /// - `T` - The end value.
     /// - `f64` - The interpolation duration in seconds.
     ///
     /// # Returns
     ///
-    /// - `Tween<T: Interpolable + Copy>` - The new tween.
+    /// - `Tween<T>` - The new tween.
     pub fn create(from: T, to: T, duration: f64) -> Tween<T> {
         Tween {
             from,
@@ -251,7 +251,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// # Returns
     ///
-    /// - `T: Interpolable + Copy` - The current interpolated value.
+    /// - `T` - The current interpolated value.
     pub fn update(&mut self, delta_time: f64) -> T {
         if self.get_state() == TweenState::Paused || self.get_state() == TweenState::Finished {
             return self.value();
@@ -274,7 +274,7 @@ impl<T: Interpolable + Copy> Tween<T> {
     ///
     /// # Returns
     ///
-    /// - `T: Interpolable + Copy` - The current eased value.
+    /// - `T` - The current eased value.
     pub fn value(&self) -> T {
         let progress: f64 = self.eased_progress();
         if self.get_direction() == TWEEN_DIRECTION_BACKWARD {
@@ -443,16 +443,16 @@ impl<T: Interpolable + Copy + Debug> Debug for Tween<T> {
     /// - `fmt::Result` - Result of the formatting operation.
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("Tween")
-            .field("from", &self.from)
-            .field("to", &self.to)
-            .field("duration", &self.duration)
-            .field("easing", &self.easing)
-            .field("delay", &self.delay)
-            .field("elapsed", &self.elapsed)
-            .field("state", &self.state)
-            .field("mode", &self.mode)
-            .field("direction", &self.direction)
+            .debug_struct(TWEEN_DEBUG_NAME)
+            .field(TWEEN_FIELD_FROM, &self.from)
+            .field(TWEEN_FIELD_TO, &self.to)
+            .field(TWEEN_FIELD_DURATION, &self.duration)
+            .field(TWEEN_FIELD_EASING, &self.easing)
+            .field(TWEEN_FIELD_DELAY, &self.delay)
+            .field(TWEEN_FIELD_ELAPSED, &self.elapsed)
+            .field(TWEEN_FIELD_STATE, &self.state)
+            .field(TWEEN_FIELD_MODE, &self.mode)
+            .field(TWEEN_FIELD_DIRECTION, &self.direction)
             .finish_non_exhaustive()
     }
 }
