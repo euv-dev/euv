@@ -328,7 +328,13 @@ class! {
 
 
     pub c_nav_theme_toggle {
-        padding: format!("{} {}", var!(space-md), var!(edge-gutter-nav));
+        // The bottom padding here and the top padding of `c_nav_footer` add
+        // up across the boundary between the two rows, while only the
+        // footer's own bottom padding separates the text from the sidebar
+        // edge. Keeping the toggle's vertical padding at `space-sm` puts
+        // the attribution line in the middle of the band it sits in instead
+        // of hugging the bottom, without moving the button itself.
+        padding: format!("{} {}", var!(space-sm), var!(edge-gutter-nav));
         flex-shrink: "0";
         margin-top: "auto";
         @media ((max-width: 767px)) {
@@ -460,9 +466,16 @@ class! {
 
 
     pub c_nav_footer {
-        padding: format!("{} {}", var!(space-lg), var!(edge-gutter-nav));
+        // The attribution line sits between the divider painted at `top: 0`
+        // and the bottom edge of the sidebar, so the two vertical paddings
+        // are what decide whether it looks centred in that band. They are
+        // equal: an asymmetric pair read as the text hugging the bottom
+        // edge with a gap above it, which is what made the footer look
+        // detached. `space-md` is the tighter of the two old values and
+        // keeps the row compact against the bottom edge.
+        padding: format!("{} {} {}", var!(space-md), var!(edge-gutter-nav), var!(space-md));
         @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(space-lg), var!(edge-gutter-mobile));
+            padding: format!("{} {} {}", var!(space-md), var!(edge-gutter-mobile), var!(space-md));
         }
         position: "relative";
         font-size: var!(font-xs);
@@ -470,6 +483,9 @@ class! {
         flex-shrink: "0";
         text-decoration: "none";
         display: "flex";
+        // Both axes: the row is a single line of text, so centring it
+        // vertically inside the padded box is what puts the glyphs in the
+        // middle of the band rather than riding the top edge.
         align-items: "center";
         // Center the "Built with X" attribution line inside the sidebar so
         // it visually balances with the centered brand header above and the
@@ -972,26 +988,13 @@ class! {
     }
 
 
-    pub c_euv_sidebar_group_title_active {
-        background: var!(accent);
-        color: var!(text-on-accent);
-        font-weight: "600";
-        // Same flush fill as `c_euv_sidebar_link_active_flush`: a nested
-        // active group title should read as one block with the sidebar, not
-        // as a chip sitting 17px in from the edge. Keep the left padding so
-        // the label does not jump out from under the cursor, and pay for the
-        // shift with a matching negative margin.
-        margin-left: format!("-{}px", var!(side-indent-num));
-        width: format!("calc(100% + {}px)", var!(side-indent-num));
-        :hover {
-            box-shadow: "none";
-        }
-    }
-
-    // A top-level group row carries the same click cue as a nested one, but
-    // without a `c_euv_sidebar_children` ancestor to line up with, so the
-    // inset bar needs its own variant. The offset lives on the shadow rather
-    // than on `padding`, so the label never moves under the cursor.
+    // A top-level group title has no `c_euv_sidebar_children` ancestor, so
+    // the base hover bar paints flush against the sidebar's own left edge
+    // and reads as part of the sidebar border rather than as an affordance.
+    // This variant insets the bar by the row's own left padding and doubles
+    // its weight, so a first-level row gets the same "you can click this"
+    // cue a nested row does, just with room around it. The offset lives on
+    // the shadow rather than on `padding`, so the text never moves.
     pub c_euv_sidebar_group_title_root {
         display: "flex";
         align-items: "center";
@@ -1008,6 +1011,7 @@ class! {
         }
     }
 
+
     pub c_euv_sidebar_group_title_root_active {
         background: var!(accent);
         color: var!(text-on-accent);
@@ -1017,6 +1021,24 @@ class! {
             background: var!(accent);
         }
     }
+
+
+    pub c_euv_sidebar_group_title_active {
+        background: var!(accent);
+        color: var!(text-on-accent);
+        font-weight: "600";
+        // Same flush fill as `c_euv_sidebar_link_active_flush`: a nested
+        // active group title should read as one block with the sidebar, not
+        // as a chip sitting 17px in from the edge. Keep the left padding so
+        // the label does not jump out from under the cursor, and pay for the
+        // shift with a matching negative margin.
+        margin-left: format!("-{}px", var!(side-indent-num));
+        width: format!("calc(100% + {}px)", var!(side-indent-num));
+        :hover {
+            box-shadow: "none";
+        }
+    }
+
 
     pub c_euv_sidebar_group_arrow {
         font-size: var!(font-xs);

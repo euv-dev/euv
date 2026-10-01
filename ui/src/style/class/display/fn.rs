@@ -936,10 +936,20 @@ class! {
         // typography scale and made the footer feel detached from the
         // pagination.
         margin-top: var!(space-2xl);
-        // `space-lg` top/bottom (1rem) — enough padding for the dashed
-        // border to breathe without pushing the text far from the rule.
-        padding: format!("{} 0px", var!(space-lg));
+        // The dashed rule is this element's own `border-top`, so the
+        // padding below is the gap from the rule to the text and the
+        // padding above is the gap from the preceding content to the rule.
+        // Only one of them belongs to the band inside the rule, and it is
+        // the top one — that is the space between the divider and the text.
+        // `space-md` keeps the text close to the rule; the block is
+        // `display: flex` with `align-items: center` so the line is
+        // centred in the row the padding defines rather than riding its
+        // top edge.
+        padding: format!("{} 0px", var!(space-md));
         border-top: format!("1px dashed {}", var!(border));
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
         text-align: "center";
         font-size: var!(font-sm);
         color: var!(muted-foreground);

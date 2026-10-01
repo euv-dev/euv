@@ -87,7 +87,7 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
              \
              .c_euv_pagination { padding-bottom: var(--space-xl, 1.25rem) !important; gap: var(--gap-component, 1rem) !important; flex-wrap: nowrap !important; align-items: stretch !important; width: 100% !important; } \
              .c_euv_pagination_link { padding: var(--space-md, 0.75rem) !important; gap: var(--space-2xs, 0.25rem) !important; min-width: 0 !important; max-width: none !important; } \
-             .c_euv_footer { padding-top: var(--space-lg, 1rem) !important; padding-bottom: var(--space-md, 0.75rem) !important; flex: 0 0 auto !important; } \
+             .c_euv_footer { padding: var(--space-md, 0.75rem) 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; flex: 0 0 auto !important; } \
              \
              .c_docs_page_title { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 var(--space-lg, 1rem) 0; padding-top: 0; color: var(--foreground, #000); } \
              .md-body > :first-child { margin-top: 0 !important; } \
