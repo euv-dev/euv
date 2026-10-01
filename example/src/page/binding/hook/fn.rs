@@ -29,7 +29,7 @@ pub(crate) fn use_two_way_demo() -> UseTwoWayDemo {
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - A click handler.
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler.
 pub(crate) fn two_way_on_increment(counter: Signal<i32>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         let current: i32 = counter.get();
@@ -45,7 +45,7 @@ pub(crate) fn two_way_on_increment(counter: Signal<i32>) -> Option<Rc<dyn Fn(Eve
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - A click handler.
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler.
 pub(crate) fn two_way_on_decrement(counter: Signal<i32>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         let current: i32 = counter.get();
@@ -115,7 +115,7 @@ pub(crate) fn use_cross_component_demo() -> UseCrossComponentDemo {
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - An input handler.
+/// - `Option<Rc<dyn Fn(Event)>>` - An input handler.
 pub(crate) fn cross_on_input_celsius(signal: Signal<f64>) -> Option<Rc<dyn Fn(Event)>> {
     let pending_value: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
     let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
@@ -161,7 +161,7 @@ pub(crate) fn cross_on_input_celsius(signal: Signal<f64>) -> Option<Rc<dyn Fn(Ev
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - An input handler.
+/// - `Option<Rc<dyn Fn(Event)>>` - An input handler.
 pub(crate) fn cross_on_input_fahrenheit(signal: Signal<f64>) -> Option<Rc<dyn Fn(Event)>> {
     let pending_value: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
     let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
@@ -207,7 +207,7 @@ pub(crate) fn cross_on_input_fahrenheit(signal: Signal<f64>) -> Option<Rc<dyn Fn
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - An input handler.
+/// - `Option<Rc<dyn Fn(Event)>>` - An input handler.
 pub(crate) fn cross_on_input_i32(signal: Signal<i32>) -> Option<Rc<dyn Fn(Event)>> {
     let pending_value: Rc<Cell<i32>> = Rc::new(Cell::new(0));
     let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
@@ -265,7 +265,7 @@ pub(crate) fn use_typed_props_demo() -> UseTypedPropsDemo {
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - A click handler.
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler.
 pub(crate) fn typed_props_on_toggle_disabled(disabled: Signal<bool>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         let current: bool = disabled.get();
@@ -285,7 +285,7 @@ pub(crate) fn typed_props_on_toggle_disabled(disabled: Signal<bool>) -> Option<R
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - A click handler.
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler.
 pub(crate) fn typed_props_on_increment(
     count: Signal<i32>,
     max_count: Signal<i32>,
@@ -314,7 +314,7 @@ pub(crate) fn typed_props_on_increment(
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - A click handler.
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler.
 pub(crate) fn typed_props_on_reset_count(
     count: Signal<i32>,
     disabled: Signal<bool>,

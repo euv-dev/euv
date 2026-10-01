@@ -80,7 +80,7 @@ pub(crate) fn validate_select_textarea(state: UseSelect) {
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - A change handler for the country select.
+/// - `Option<Rc<dyn Fn(Event)>>` - A change handler for the country select.
 pub(crate) fn select_on_country_change(state: UseSelect) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
         if let Some(target) = event.target()
@@ -104,7 +104,7 @@ pub(crate) fn select_on_country_change(state: UseSelect) -> Option<Rc<dyn Fn(Eve
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - An input handler.
+/// - `Option<Rc<dyn Fn(Event)>>` - An input handler.
 pub(crate) fn select_on_input_textarea(state: UseSelect) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
         if let Some(target) = event.target()
@@ -124,7 +124,7 @@ pub(crate) fn select_on_input_textarea(state: UseSelect) -> Option<Rc<dyn Fn(Eve
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - A click handler to submit feedback.
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler to submit feedback.
 pub(crate) fn select_on_submit_feedback(state: UseSelect) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         validate_select_textarea(state);

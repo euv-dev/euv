@@ -159,7 +159,7 @@ where
     ///
     /// # Returns
     ///
-    /// - `impl std::iter::Iterator<Item` - A `impl Iterator<Item` value.
+    /// - `impl std::iter::Iterator<Item = (&K, &V)>` - A `impl Iterator<Item` value.
     pub fn iter(&self) -> impl std::iter::Iterator<Item = (&K, &V)> {
         // We can't return the VecDeque order directly
         // because the entries would be in order-deque
@@ -177,7 +177,7 @@ where
     ///
     /// # Returns
     ///
-    /// - `impl std::iter::Iterator<Item` - A `impl Iterator<Item` value.
+    /// - `impl std::iter::Iterator<Item = &K>` - A `impl Iterator<Item` value.
     pub fn keys(&self) -> impl std::iter::Iterator<Item = &K> {
         self.get_order().iter()
     }
@@ -187,7 +187,7 @@ where
     ///
     /// # Returns
     ///
-    /// - `impl std::iter::Iterator<Item` - A `impl Iterator<Item` value.
+    /// - `impl std::iter::Iterator<Item = &V>` - A `impl Iterator<Item` value.
     pub fn values(&self) -> impl std::iter::Iterator<Item = &V> {
         self.get_order()
             .iter()
