@@ -47,15 +47,6 @@ pub const WASM_PACK_COMMAND: &str = "wasm-pack";
 /// The wasm-pack subcommand for building.
 pub const WASM_PACK_BUILD_SUBCOMMAND: &str = "build";
 
-/// The Cargo command name.
-pub const CARGO_COMMAND: &str = "cargo";
-
-/// The Cargo subcommand for formatting sources.
-pub const FMT_SUBCOMMAND: &str = "fmt";
-
-/// The error message prefix for a failed Cargo formatting run.
-pub const FMT_ERROR_MESSAGE: &str = "cargo fmt error";
-
 /// The wasm-pack argument for specifying the output directory.
 pub const OUT_DIR_ARG: &str = "--out-dir";
 

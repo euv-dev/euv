@@ -584,8 +584,6 @@ pub async fn clean_out_dir(out_dir: &Path) {
 }
 
 /// Executes a full build pipeline: euv fmt, build wasm, generate HTML.
-/// After the serial pipeline completes, hyperlane-cli fmt is spawned in the
-/// background so it does not block the caller.
 /// Notifies the reload channel on build success or failure.
 ///
 /// # Arguments
@@ -628,11 +626,6 @@ pub async fn run_build_pipeline(
         true,
     );
     let html: String = generate_html(&html_config).await?;
-    spawn(async move {
-        if let Err(error) = run_hyperlane_fmt().await {
-            log::warn!("hyperlane-cli fmt error: {error}");
-        }
-    });
     Ok(html)
 }
 
@@ -882,33 +875,6 @@ pub(crate) fn print_server_urls(config: &ServerUrlConfig) {
             }
         }
     }
-}
-
-/// Executes `hyperlane-cli fmt` via the library API to format Rust source files.
-///
-/// # Returns
-///
-/// - `Result<(), EuvError>` - Indicates success or failure of the formatting operation.
-pub async fn run_hyperlane_fmt() -> Result<(), EuvError> {
-    let mut command: Command = Command::new(CARGO_COMMAND);
-    command.arg(FMT_SUBCOMMAND);
-    command.stdout(Stdio::piped()).stderr(Stdio::piped());
-    let output: Output = command
-        .output()
-        .await
-        .map_err(|error: io::Error| EuvError::Io {
-            message: String::from(FMT_ERROR_MESSAGE),
-            error,
-        })?;
-    let stdout: String = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr: String = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    if !output.status.success() {
-        return Err(EuvError::Io {
-            message: String::from(FMT_ERROR_MESSAGE),
-            error: io::Error::other(format!("{stdout} {stderr}")),
-        });
-    }
-    Ok(())
 }
 
 /// Reads the wasm-bindgen JS bridge produced by `wasm-pack build
