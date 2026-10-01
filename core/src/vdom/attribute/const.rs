@@ -73,3 +73,24 @@ pub(crate) const CLASS_PARAM_HASH_FNV_OFFSET: u64 = 14695981039346656037;
 
 /// The FNV-1a prime used to derive stable class-name suffixes from parameter values.
 pub(crate) const CLASS_PARAM_HASH_FNV_PRIME: u64 = 1099511628211;
+
+/// DOM event and property names read across crates.
+///
+/// These are the browser's vocabulary rather than any one component's, and
+/// `core`, `ui` and `example` all read them, so they are named once here
+/// rather than written out at every call site.
+///
+/// The `devicePixelRatio` window property: backing-store pixels per CSS
+/// pixel, which every canvas-rendering page must read before sizing.
+pub const WINDOW_PROPERTY_DEVICE_PIXEL_RATIO: &str = "devicePixelRatio";
+
+/// The `clientX` property of a pointer or mouse event, in CSS pixels
+/// relative to the viewport.
+pub const EVENT_PROPERTY_CLIENT_X: &str = "clientX";
+
+/// The `clientY` property of a pointer or mouse event, in CSS pixels
+/// relative to the viewport.
+pub const EVENT_PROPERTY_CLIENT_Y: &str = "clientY";
+
+/// The `resize` window event, fired when the viewport changes size.
+pub const EVENT_RESIZE: &str = "resize";

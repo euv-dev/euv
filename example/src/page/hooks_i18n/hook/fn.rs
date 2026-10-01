@@ -23,13 +23,15 @@ pub(crate) const HOOKS_I18N_KEY_FAREWELL: &str = "farewell";
 /// underlying `I18n::add_messages` does the
 /// `&str -> String` round-trip on the caller's behalf.
 pub(crate) const HOOKS_I18N_EN_MESSAGES: [(&str, &str); 2] = [
-    ("greeting", "Hello, world!"),
-    ("farewell", "Goodbye, world!"),
+    (HOOKS_I18N_KEY_GREETING, "Hello, world!"),
+    (HOOKS_I18N_KEY_FAREWELL, "Goodbye, world!"),
 ];
 
 /// `zh-CN` translation table.
-pub(crate) const HOOKS_I18N_ZH_MESSAGES: [(&str, &str); 2] =
-    [("greeting", "你好,世界!"), ("farewell", "再见,世界!")];
+pub(crate) const HOOKS_I18N_ZH_MESSAGES: [(&str, &str); 2] = [
+    (HOOKS_I18N_KEY_GREETING, "你好,世界!"),
+    (HOOKS_I18N_KEY_FAREWELL, "再见,世界!"),
+];
 
 /// Builds a click handler that switches the supplied i18n
 /// handle to the supplied locale.

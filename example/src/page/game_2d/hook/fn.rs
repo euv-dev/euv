@@ -331,7 +331,7 @@ pub(crate) fn map_client_to_canvas(
 ///
 /// Two paths trigger the rescale:
 ///
-/// 1. **Debounce-driven path** — `use_window_event("resize", ...)` (or the
+/// 1. **Debounce-driven path** — `use_window_event(EVENT_RESIZE, ...)` (or the
 ///    synthetic `resize` event dispatched by `enter_game_2d_fullscreen`)
 ///    sets `resize_dirty_for_loop`. When the loop ticks and the flag is
 ///    set, this helper resizes the ball positions.
@@ -1402,7 +1402,7 @@ pub(crate) fn start_game_2d_loop(
     let Some(timeout_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event("resize", move || {
+    App::use_window_event(EVENT_RESIZE, move || {
         let old_timer: Option<i32> = timer_for_event.get();
         if let Some(timer_id) = old_timer {
             timeout_window.clear_timeout_with_handle(timer_id);
@@ -1784,7 +1784,7 @@ pub(crate) fn start_game_2d_webgpu_loop(
     let Some(resize_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event("resize", move || {
+    App::use_window_event(EVENT_RESIZE, move || {
         let old_timer: Option<i32> = resize_timer_for_event.get();
         if let Some(timer_id) = old_timer {
             let Some(clear_window): Option<Window> = window() else {
@@ -1989,7 +1989,7 @@ pub(crate) fn start_game_2d_webgpu_loop(
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str("devicePixelRatio"),
+                &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())
@@ -2152,7 +2152,7 @@ pub(crate) fn enter_game_2d_fullscreen(state: UseGame2DFullscreen, tab: Signal<b
     Router::overlay_push_state();
     UseEuvLayout::apply_cached_insets();
     // Dispatch a `resize` event on the window so the existing
-    // `App::use_window_event("resize", ...)` handler fires and the
+    // `App::use_window_event(EVENT_RESIZE, ...)` handler fires and the
     // game loop's `resize_dirty` flag is set. That causes the loop
     // to re-acquire the SSAA canvas with the new (fullscreen)
     // dimensions read from `canvas.clientWidth` / `clientHeight`,
@@ -2161,7 +2161,7 @@ pub(crate) fn enter_game_2d_fullscreen(state: UseGame2DFullscreen, tab: Signal<b
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new("resize");
+    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -2186,7 +2186,7 @@ pub(crate) fn exit_game_2d_fullscreen(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new("resize");
+    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -2209,7 +2209,7 @@ pub(crate) fn exit_game_2d_fullscreen_from_popstate(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new("resize");
+    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -2295,7 +2295,7 @@ pub(crate) fn start_game_2d_webgl_loop(
     let Some(resize_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event("resize", move || {
+    App::use_window_event(EVENT_RESIZE, move || {
         let old_timer: Option<i32> = resize_timer_for_event.get();
         if let Some(timer_id) = old_timer {
             let Some(clear_window): Option<Window> = window() else {
@@ -2487,7 +2487,7 @@ pub(crate) fn start_game_2d_webgl_loop(
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str("devicePixelRatio"),
+                &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())

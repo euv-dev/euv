@@ -10,9 +10,9 @@ impl DynamicTagType {
     pub(crate) fn label(self) -> &'static str {
         match self {
             DynamicTagType::Div => "div",
-            DynamicTagType::Span => "span",
+            DynamicTagType::Span => DYNAMIC_TAG_SPAN,
             DynamicTagType::EuvCard => "euv card",
-            DynamicTagType::Badge => "badge",
+            DynamicTagType::Badge => DYNAMIC_TAG_BADGE,
         }
     }
 }
@@ -32,9 +32,9 @@ impl Display for DynamicTagType {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let tag_name: &str = match self {
             DynamicTagType::Div => "div",
-            DynamicTagType::Span => "span",
+            DynamicTagType::Span => DYNAMIC_TAG_SPAN,
             DynamicTagType::EuvCard => "euv_card",
-            DynamicTagType::Badge => "badge",
+            DynamicTagType::Badge => DYNAMIC_TAG_BADGE,
         };
         f.write_str(tag_name)
     }

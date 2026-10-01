@@ -96,7 +96,7 @@ fn bind_observer(selector: &str) {
 ///
 /// - `String` - A CSS selector string to identify the elements to observe.
 fn schedule_bind_observer(selector: String) {
-    let pending_key: JsValue = JsValue::from_str("__euv_observer_pending");
+    let pending_key: JsValue = JsValue::from_str(OBSERVER_PENDING_KEY);
     let Some(window_value): Option<Window> = window() else {
         return;
     };
@@ -111,7 +111,7 @@ fn schedule_bind_observer(selector: String) {
         let Some(window_value): Option<Window> = window() else {
             return;
         };
-        let key: JsValue = JsValue::from_str("__euv_observer_pending");
+        let key: JsValue = JsValue::from_str(OBSERVER_PENDING_KEY);
         let _: Result<bool, JsValue> = Reflect::set(&window_value, &key, &JsValue::UNDEFINED);
         bind_observer(&selector);
     }));
@@ -166,7 +166,7 @@ pub(crate) fn use_intersection_observer(selector: &str) {
             Reflect::set(&window_value, &observer_key, &JsValue::UNDEFINED);
         let _: Result<bool, JsValue> =
             Reflect::set(&window_value, &listener_key, &JsValue::UNDEFINED);
-        let pending_key: JsValue = JsValue::from_str("__euv_observer_pending");
+        let pending_key: JsValue = JsValue::from_str(OBSERVER_PENDING_KEY);
         let _: Result<bool, JsValue> =
             Reflect::set(&window_value, &pending_key, &JsValue::UNDEFINED);
     });

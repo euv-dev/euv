@@ -29,7 +29,7 @@ impl UseEuvLayout {
         let Some(timeout_window) = window() else {
             return mobile_signal;
         };
-        App::use_window_event("resize", move || {
+        App::use_window_event(EVENT_RESIZE, move || {
             let old_timer: Option<i32> = timer_signal.get();
             if let Some(timer_id) = old_timer {
                 timeout_window.clear_timeout_with_handle(timer_id);
@@ -129,7 +129,7 @@ impl UseEuvLayout {
         App::use_window_event("webkitfullscreenchange", || {
             Self::apply_cached_insets();
         });
-        App::use_window_event("resize", || {
+        App::use_window_event(EVENT_RESIZE, || {
             Self::apply_cached_insets();
         });
         Router::register_popstate_guard(Rc::new(|| {
