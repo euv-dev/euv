@@ -2,6 +2,7 @@ mod api_visibility;
 mod asset;
 mod cell;
 mod collider;
+mod config;
 mod easing;
 mod entity;
 mod r#input;
