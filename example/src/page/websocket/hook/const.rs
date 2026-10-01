@@ -1,9 +1,6 @@
 /// The default WebSocket server URL prefix used for the demo.
 pub(crate) const WEBSOCKET_DEFAULT_URL_PREFIX: &str = "wss://ltpp.vip/api/chat?uuid=";
 
-/// The placeholder text for the WebSocket message input.
-pub(crate) const WEBSOCKET_MESSAGE_PLACEHOLDER: &str = "Enter message to send";
-
 /// The maximum number of WebSocket messages to keep in the display list.
 pub(crate) const WEBSOCKET_MAX_MESSAGES: usize = 100;
 

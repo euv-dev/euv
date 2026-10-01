@@ -29,11 +29,11 @@ pub(crate) fn page_game_2d(node: VirtualNode<PageGame2DProps>) -> VirtualNode {
             class: c_page_container()
             euv_header {
                 icon: "🎮"
-                title: GAME_2D_HEADER_TITLE
-                subtitle: GAME_2D_HEADER_SUBTITLE
+                title: "2D Game Engine"
+                subtitle: "A bouncing balls physics demo powered by euv-engine. Click on the canvas to spawn balls. Each ball has gravity, wall bouncing with restitution, and impulse-based ball-to-ball collision. Switch tabs to compare Canvas 2D, WebGL, and WebGPU rendering backends."
             }
             euv_card {
-                title: GAME_2D_CANVAS_CARD_TITLE
+                title: "2D Rendering Demo"
                 div {
                     class: c_tab_bar()
                     div {
@@ -83,24 +83,24 @@ pub(crate) fn page_game_2d(node: VirtualNode<PageGame2DProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: GAME_2D_FEATURES_CARD_TITLE
+                title: "2D Engine Features"
                 match { tab } {
                     Game2DTab::Canvas2D => {
                         p {
                             class: c_game_description()
-                            GAME_2D_CANVAS_DESCRIPTION
+                            "This demo uses euv-engine's Vector2D for position/velocity math, impulse-based collision resolution with mass proportional to radius squared, wall reflection with configurable restitution, and a fixed-timestep game loop with accumulator pattern for deterministic physics at 60 Hz. The WebGPU tab demonstrates GPU-accelerated rendering with a WGSL shader pipeline."
                         }
                     }
                     Game2DTab::WebGpu => {
                         p {
                             class: c_game_description()
-                            GAME_2D_WEBGPU_DESCRIPTION
+                            "This demo uses euv-engine's WebGpuRenderer to initialize a GPU device, create a render pipeline from a WGSL shader, and render the same bouncing balls scene as the Canvas 2D tab: every ball is drawn as a shader-generated quad with per-ball position, radius, and color uploaded to a uniform buffer each frame. Click or tap to spawn balls; pause and clear work exactly like Canvas 2D. Requires a WebGPU-capable browser (Chrome 113+, Edge 113+)."
                         }
                     }
                     Game2DTab::WebGl => {
                         p {
                             class: c_game_description()
-                            GAME_2D_WEBGL_DESCRIPTION
+                            "This demo uses euv-engine's WebGl2Backend to acquire a WebGL 2 context, compile a GLSL ES 3.00 program, and render the same bouncing balls scene as the Canvas 2D tab: every ball is drawn as a shader-generated quad with per-ball position, radius, and color uploaded to vec4 uniform arrays each frame. Click or tap to spawn balls; pause and clear work exactly like Canvas 2D. Works in every modern browser with WebGL 2 support."
                         }
                     }
                 }
@@ -170,7 +170,7 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    GAME_2D_FPS_PREFIX
+                    "FPS: "
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -178,7 +178,7 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_2D_BALLS_PREFIX
+                    "Balls: "
                     span {
                         class: c_game_stats_count_value()
                         ball_count
@@ -186,7 +186,7 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_2D_TOTAL_PREFIX
+                    "Total: "
                     span {
                         class: c_game_stats_total_value()
                         total
@@ -204,7 +204,7 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: GAME_2D_CANVAS_ID
+                            id: "game-2d-canvas"
                             class: if { canvas_2d_fullscreen.get() } {
                                 c_game_2d_canvas_fullscreen()
                             } else {
@@ -220,7 +220,7 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: GAME_2D_EXIT_BUTTON_LABEL
+                            label: "Exit"
                             onclick: game_2d_on_exit_fullscreen(canvas_2d_fullscreen)
                         }
                     }
@@ -235,12 +235,12 @@ fn game_2d_canvas_tab(fullscreen: UseGame2DFullscreen) -> VirtualNode {
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_2D_CLEAR_BUTTON_LABEL
+                    label: "Clear"
                     onclick: on_clear
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_2D_ENTER_FULLSCREEN_BUTTON_LABEL
+                    label: "Enter Fullscreen"
                     onclick: game_2d_on_enter_fullscreen(fullscreen, canvas_2d_fullscreen)
                 }
             }
@@ -316,7 +316,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    GAME_2D_FPS_PREFIX
+                    "FPS: "
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -324,7 +324,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_2D_BALLS_PREFIX
+                    "Balls: "
                     span {
                         class: c_game_stats_count_value()
                         ball_count
@@ -332,7 +332,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_2D_TOTAL_PREFIX
+                    "Total: "
                     span {
                         class: c_game_stats_total_value()
                         total
@@ -340,7 +340,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_2D_STATUS_PREFIX
+                    "Status: "
                     span {
                         class: c_game_stats_count_value()
                         status_text
@@ -358,7 +358,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: GAME_2D_WEBGPU_CANVAS_ID
+                            id: "game-2d-webgpu-canvas"
                             class: if { web_gpu_fullscreen.get() } {
                                 c_game_2d_canvas_fullscreen()
                             } else {
@@ -369,7 +369,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: GAME_2D_WEBGPU_LOADING_CANVAS_ID
+                                id: "game-2d-webgpu-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -380,7 +380,7 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: GAME_2D_EXIT_BUTTON_LABEL
+                            label: "Exit"
                             onclick: game_2d_on_exit_fullscreen(web_gpu_fullscreen)
                         }
                     }
@@ -395,12 +395,12 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_2D_CLEAR_BUTTON_LABEL
+                    label: "Clear"
                     onclick: on_clear
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_2D_ENTER_FULLSCREEN_BUTTON_LABEL
+                    label: "Enter Fullscreen"
                     onclick: game_2d_on_enter_fullscreen(fullscreen, web_gpu_fullscreen)
                 }
             }
@@ -506,7 +506,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                 class: c_game_stats_bar()
                 span {
                     class: c_game_stats_label()
-                    GAME_2D_FPS_PREFIX
+                    "FPS: "
                     span {
                         class: c_game_stats_fps_value()
                         fps_display
@@ -514,7 +514,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_2D_BALLS_PREFIX
+                    "Balls: "
                     span {
                         class: c_game_stats_count_value()
                         ball_count
@@ -522,7 +522,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_2D_TOTAL_PREFIX
+                    "Total: "
                     span {
                         class: c_game_stats_total_value()
                         total
@@ -530,7 +530,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                 }
                 span {
                     class: c_game_stats_label()
-                    GAME_2D_STATUS_PREFIX
+                    "Status: "
                     span {
                         class: c_game_stats_count_value()
                         status_text
@@ -548,7 +548,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: GAME_2D_WEBGL_CANVAS_ID
+                            id: "game-2d-webgl-canvas"
                             class: if { web_gl_fullscreen.get() } {
                             c_game_2d_canvas_fullscreen()
                         } else {
@@ -559,7 +559,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: GAME_2D_WEBGL_LOADING_CANVAS_ID
+                                id: "game-2d-webgl-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -570,7 +570,7 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                         class: c_game_fullscreen_toolbar()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: GAME_2D_EXIT_BUTTON_LABEL
+                            label: "Exit"
                             onclick: game_2d_on_exit_fullscreen(web_gl_fullscreen)
                         }
                     }
@@ -585,12 +585,12 @@ fn game_2d_webgl_tab(state: UseGame2DWebGl, fullscreen: UseGame2DFullscreen) -> 
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_2D_CLEAR_BUTTON_LABEL
+                    label: "Clear"
                     onclick: on_clear
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: GAME_2D_ENTER_FULLSCREEN_BUTTON_LABEL
+                    label: "Enter Fullscreen"
                     onclick: game_2d_on_enter_fullscreen(fullscreen, web_gl_fullscreen)
                 }
             }

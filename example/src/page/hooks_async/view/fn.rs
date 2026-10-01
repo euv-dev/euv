@@ -104,7 +104,7 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
                             EuvButtonVariant::Outline
                         }
                         label: "Fail"
-                        onclick: hooks_async_fail(suspense, String::from(HOOKS_ASYNC_FAIL_MESSAGE))
+                        onclick: hooks_async_fail(suspense, String::from("demo failure"))
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary

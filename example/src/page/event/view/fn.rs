@@ -703,17 +703,17 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             class: c_page_container()
             euv_header {
                 icon: "🎯"
-                title: EVENT_HEADER_TITLE
-                subtitle: EVENT_HEADER_SUBTITLE
+                title: "Event Handling"
+                subtitle: "Complete browser event demo covering keyboard, mouse, focus, drag-and-drop, wheel, clipboard, touch, form, media, video, and image events."
             }
             euv_card {
-                title: EVENT_KEYBOARD_CARD_TITLE
+                title: "Keyboard Events"
                 input {
-                    id: EVENT_KEYBOARD_ID
-                    name: EVENT_KEYBOARD_NAME
-                    type: EVENT_TEXT_TYPE
-                    autocomplete: EVENT_AUTOCOMPLETE_OFF
-                    placeholder: EVENT_KEYBOARD_PLACEHOLDER
+                    id: "event-keyboard"
+                    name: "keyboard"
+                    type: "text"
+                    autocomplete: "off"
+                    placeholder: "Type here to capture key events..."
                     class: c_euv_input()
                     onkeydown: on_key_down
                     onkeyup: on_key_up
@@ -724,7 +724,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_KEYBOARD_LABEL_KEY_DOWN
+                            "KeyDown:"
                         }
                         span {
                             class: c_event_info_value()
@@ -735,7 +735,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_KEYBOARD_LABEL_KEY_CODE
+                            "KeyCode:"
                         }
                         span {
                             class: c_event_info_value()
@@ -746,7 +746,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_KEYBOARD_LABEL_KEY_UP
+                            "KeyUp:"
                         }
                         span {
                             class: c_event_info_value()
@@ -757,7 +757,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_KEYBOARD_LABEL_REPEAT
+                            "Repeat:"
                         }
                         span {
                             class: c_event_info_value()
@@ -768,7 +768,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_KEYBOARD_LABEL_MODIFIERS
+                            "Modifiers:"
                         }
                         span {
                             class: c_event_info_value()
@@ -778,7 +778,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: EVENT_MOUSE_CARD_TITLE
+                title: "Mouse Events"
                 div {
                     class: c_event_mouse_area()
                     onclick: on_mouse_click
@@ -791,11 +791,11 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                     oncontextmenu: on_context_menu
                     p {
                         class: c_demo_text()
-                        EVENT_MOUSE_CARD_HINT
+                        "Click, double-click, right-click, or move your mouse within this area to track mouse events."
                     }
                     p {
                         class: c_demo_text_muted()
-                        EVENT_MOUSE_CARD_BODY
+                        "Tracks click, dblclick, mousedown, mouseup, mousemove, mouseenter, mouseleave, and contextmenu events."
                     }
                 }
                 div {
@@ -804,7 +804,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_CLICKS
+                            "Clicks:"
                         }
                         span {
                             class: c_event_info_value()
@@ -815,7 +815,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_DOUBLE_CLICKS
+                            "DblClicks:"
                         }
                         span {
                             class: c_event_info_value()
@@ -826,7 +826,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_DOWN
+                            "MouseDown:"
                         }
                         span {
                             class: c_event_info_value()
@@ -837,7 +837,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_UP
+                            "MouseUp:"
                         }
                         span {
                             class: c_event_info_value()
@@ -848,7 +848,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_CLIENT
+                            "Client:"
                         }
                         span {
                             class: c_event_info_value()
@@ -859,7 +859,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_SCREEN
+                            "Screen:"
                         }
                         span {
                             class: c_event_info_value()
@@ -870,7 +870,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_BUTTON
+                            "Button:"
                         }
                         span {
                             class: c_event_info_value()
@@ -881,7 +881,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_BUTTONS
+                            "Buttons:"
                         }
                         span {
                             class: c_event_info_value()
@@ -892,7 +892,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_ENTER
+                            "Enter:"
                         }
                         span {
                             class: c_event_info_value()
@@ -903,7 +903,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_LEAVE
+                            "Leave:"
                         }
                         span {
                             class: c_event_info_value()
@@ -914,7 +914,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_OVER
+                            "Over:"
                         }
                         span {
                             class: c_event_info_value()
@@ -925,7 +925,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MOUSE_LABEL_OUT
+                            "Out:"
                         }
                         span {
                             class: c_event_info_value()
@@ -935,7 +935,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: EVENT_MOUSE_OVER_OUT_CARD_TITLE
+                title: "Mouse Over/Out Events"
                 div {
                     class: c_switcher()
                     div {
@@ -944,11 +944,11 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         onmouseover: on_mouse_over
                         p {
                             class: c_demo_text()
-                            EVENT_MOUSE_OVER_ZONE_LABEL
+                            "Mouse Over zone"
                         }
                         p {
                             class: c_demo_text_muted()
-                            EVENT_MOUSE_OVER_ZONE_HINT
+                            "Move mouse over this area"
                         }
                     }
                     div {
@@ -957,23 +957,23 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         onmouseout: on_mouse_out
                         p {
                             class: c_demo_text()
-                            EVENT_MOUSE_OUT_ZONE_LABEL
+                            "Mouse Out zone"
                         }
                         p {
                             class: c_demo_text_muted()
-                            EVENT_MOUSE_OUT_ZONE_HINT
+                            "Move mouse out of this area"
                         }
                     }
                 }
             }
             euv_card {
-                title: EVENT_FOCUS_CARD_TITLE
+                title: "Focus Events"
                 input {
-                    id: EVENT_FOCUS_ID
-                    name: EVENT_FOCUS_NAME
-                    type: EVENT_TEXT_TYPE
-                    autocomplete: EVENT_AUTOCOMPLETE_OFF
-                    placeholder: EVENT_FOCUS_PLACEHOLDER
+                    id: "event-focus"
+                    name: "focus"
+                    type: "text"
+                    autocomplete: "off"
+                    placeholder: "Click to focus, click outside to blur..."
                     class: c_euv_input()
                     onfocus: on_focus
                     onblur: on_blur
@@ -986,7 +986,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FOCUS_LABEL_STATUS
+                            "Status:"
                         }
                         span {
                             class: c_event_info_value()
@@ -997,7 +997,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FOCUS_LABEL_FOCUS_IN
+                            "FocusIn:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1008,7 +1008,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FOCUS_LABEL_FOCUS_OUT
+                            "FocusOut:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1018,7 +1018,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: EVENT_DRAG_CARD_TITLE
+                title: "Drag Events"
                 div {
                     class: c_event_drag_zone()
                     ondragstart: on_drag_start
@@ -1030,12 +1030,12 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                     ondrop: on_drop
                     div {
                         class: c_event_drag_item()
-                        draggable: EVENT_DRAGGABLE_TRUE
-                        EVENT_DRAG_SOURCE_LABEL
+                        draggable: "true"
+                        "Drag Me"
                     }
                     p {
                         class: c_demo_text_muted()
-                        EVENT_DRAG_CARD_BODY
+                        "dragstart, drag, dragend, dragover, dragenter, dragleave, drop"
                     }
                 }
                 div {
@@ -1044,7 +1044,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FOCUS_LABEL_STATUS
+                            "Status:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1055,7 +1055,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_DRAG_LABEL_POSITION
+                            "Position:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1066,7 +1066,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_DRAG_LABEL_TYPES
+                            "Types:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1076,7 +1076,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: EVENT_FILE_DROP_CARD_TITLE
+                title: "File Drag & Drop"
                 div {
                     class: if { file_drag_over } {
                         c_event_drop_zone_active()
@@ -1093,11 +1093,11 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                     }
                     p {
                         class: c_event_drop_text()
-                        EVENT_FILE_DROP_ZONE_HINT
+                        "Drag & drop files here"
                     }
                     p {
                         class: c_event_drop_hint()
-                        EVENT_FILE_DROP_CARD_BODY
+                        "dragover, dragenter, dragleave, drop"
                     }
                 }
                 div {
@@ -1106,7 +1106,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FOCUS_LABEL_STATUS
+                            "Status:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1117,7 +1117,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FILE_DROP_LABEL_FILES
+                            "Files:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1127,17 +1127,17 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: EVENT_WHEEL_CARD_TITLE
+                title: "Wheel Event"
                 div {
                     class: c_event_wheel_zone()
                     onwheel: on_wheel
                     p {
                         class: c_demo_text()
-                        EVENT_WHEEL_CARD_HINT
+                        "Scroll the mouse wheel within this area to track wheel deltas and scroll mode."
                     }
                     p {
                         class: c_demo_text_muted()
-                        EVENT_WHEEL_CARD_BODY
+                        "Tracks wheel delta (deltaX, deltaY) and delta mode (pixel, line, or page)."
                     }
                 }
                 div {
@@ -1146,7 +1146,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_WHEEL_LABEL_DELTA
+                            "Delta:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1157,7 +1157,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_WHEEL_LABEL_TOTAL_Y
+                            "Total Y:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1167,17 +1167,17 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: EVENT_CLIPBOARD_CARD_TITLE
+                title: "Clipboard Events"
                 div {
                     class: c_event_clipboard_area()
                     input {
-                        id: EVENT_CLIPBOARD_ID
-                        name: EVENT_CLIPBOARD_NAME
-                        type: EVENT_TEXT_TYPE
-                        autocomplete: EVENT_AUTOCOMPLETE_OFF
-                        placeholder: EVENT_CLIPBOARD_PLACEHOLDER
+                        id: "event-clipboard"
+                        name: "clipboard"
+                        type: "text"
+                        autocomplete: "off"
+                        placeholder: "Try copy, cut, or paste here..."
                         class: c_euv_input()
-                        value: EVENT_CLIPBOARD_SAMPLE_TEXT
+                        value: "Sample text for clipboard"
                         oncopy: on_copy
                         oncut: on_cut
                         onpaste: on_paste
@@ -1189,7 +1189,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_CLIPBOARD_LABEL_EVENT
+                            "Event:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1200,7 +1200,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_CLIPBOARD_LABEL_DATA
+                            "Data:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1210,7 +1210,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: EVENT_TOUCH_CARD_TITLE
+                title: "Touch Events"
                 div {
                     class: c_event_touch_zone()
                     ontouchstart: on_touch_start
@@ -1219,11 +1219,11 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                     ontouchcancel: on_touch_cancel
                     p {
                         class: c_demo_text()
-                        EVENT_TOUCH_CARD_HINT
+                        "Touch this area on a mobile device or touchscreen to track touch events."
                     }
                     p {
                         class: c_demo_text_muted()
-                        EVENT_TOUCH_CARD_BODY
+                        "Tracks touchstart, touchmove, touchend, and touchcancel events with touch point details."
                     }
                 }
                 div {
@@ -1232,7 +1232,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_TOUCH_LABEL_TOUCH
+                            "Touch:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1242,7 +1242,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: EVENT_FORM_CARD_TITLE
+                title: "Form Events"
                 div {
                     class: c_event_form_area()
                     form {
@@ -1250,16 +1250,16 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         div {
                             class: c_euv_input_wrapper()
                             label {
-                                for: EVENT_FORM_INPUT_ID
+                                for: "event-form-input"
                                 class: c_form_label()
-                                EVENT_FORM_INPUT_LEGEND
+                                "Input (oninput & onchange)"
                             }
                             input {
-                                type: EVENT_TEXT_TYPE
-                                id: EVENT_FORM_INPUT_ID
-                                name: EVENT_FORM_INPUT_NAME
-                                autocomplete: EVENT_AUTOCOMPLETE_OFF
-                                placeholder: EVENT_FORM_INPUT_PLACEHOLDER
+                                type: "text"
+                                id: "event-form-input"
+                                name: "euv_input"
+                                autocomplete: "off"
+                                placeholder: "Type to trigger input/change events..."
                                 class: c_euv_input()
                                 oninput: on_euv_input
                                 onchange: on_form_change
@@ -1268,47 +1268,47 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         div {
                             class: c_form_checkbox_row()
                             input {
-                                id: EVENT_FORM_CHECKBOX_ID
-                                name: EVENT_FORM_CHECKBOX_NAME
-                                type: EVENT_CHECKBOX_TYPE
-                                autocomplete: EVENT_AUTOCOMPLETE_OFF
+                                id: "event-form-checkbox"
+                                name: "form_checkbox"
+                                type: "checkbox"
+                                autocomplete: "off"
                                 class: c_form_checkbox()
                                 onchange: on_checkbox_change
                             }
                             label {
-                                for: EVENT_FORM_CHECKBOX_ID
+                                for: "event-form-checkbox"
                                 class: c_form_checkbox_label()
-                                EVENT_FORM_CHECKBOX_LEGEND
+                                "Checkbox (onchange)"
                             }
                         }
                         div {
                             class: c_euv_input_wrapper()
                             label {
-                                for: EVENT_FORM_SELECT_ID
+                                for: "event-form-select"
                                 class: c_form_label()
-                                EVENT_FORM_SELECT_LEGEND
+                                "Select (onchange)"
                             }
                             select {
-                                id: EVENT_FORM_SELECT_ID
-                                name: EVENT_FORM_SELECT_NAME
-                                autocomplete: EVENT_AUTOCOMPLETE_OFF
+                                id: "event-form-select"
+                                name: "form_select"
+                                autocomplete: "off"
                                 class: c_select_input()
                                 onchange: on_select_change
                                 option {
                                     value: ""
-                                    EVENT_FORM_SELECT_PLACEHOLDER
+                                    "-- Choose --"
                                 }
                                 option {
-                                    value: EVENT_FORM_OPTION_VALUE_ALPHA
-                                    EVENT_FORM_OPTION_LABEL_ALPHA
+                                    value: "alpha"
+                                    "Alpha"
                                 }
                                 option {
-                                    value: EVENT_FORM_OPTION_VALUE_BETA
-                                    EVENT_FORM_OPTION_LABEL_BETA
+                                    value: "beta"
+                                    "Beta"
                                 }
                                 option {
-                                    value: EVENT_FORM_OPTION_VALUE_GAMMA
-                                    EVENT_FORM_OPTION_LABEL_GAMMA
+                                    value: "gamma"
+                                    "Gamma"
                                 }
                             }
                         }
@@ -1316,7 +1316,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                             class: c_button_controls()
                             euv_button {
                                 variant: EuvButtonVariant::Primary
-                                label: EVENT_FORM_SUBMIT_LABEL
+                                label: "Submit"
                             }
                         }
                     }
@@ -1327,7 +1327,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FORM_LABEL_INPUT
+                            "Input:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1338,7 +1338,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FORM_LABEL_CHANGE
+                            "Change:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1349,7 +1349,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FORM_LABEL_CHECKED
+                            "Checked:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1360,7 +1360,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FORM_LABEL_SELECT
+                            "Select:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1371,7 +1371,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FORM_LABEL_SUBMITS
+                            "Submits:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1381,13 +1381,13 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: EVENT_AUDIO_CARD_TITLE
+                title: "Audio Media Events"
                 div {
                     class: c_event_media_area()
                     audio {
                         class: c_event_audio()
-                        controls: EVENT_CONTROLS_TRUE
-                        src: EVENT_AUDIO_SRC
+                        controls: "true"
+                        src: "https://ltpp.vip/github/pages/docs-pages/pages/audio/time_boils_the_rain.mp3"
                         onplay: on_audio_play
                         onpause: on_audio_pause
                         onended: on_audio_ended
@@ -1397,7 +1397,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         ontimeupdate: on_audio_time_update
                         p {
                             class: c_demo_text_muted()
-                            EVENT_AUDIO_CARD_BODY
+                            "Audio player with play, pause, ended, loadeddata, canplay, volumechange, timeupdate events"
                         }
                     }
                 }
@@ -1407,7 +1407,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FOCUS_LABEL_STATUS
+                            "Status:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1418,7 +1418,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MEDIA_LABEL_LAST_EVENT
+                            "Last Event:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1428,15 +1428,15 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: EVENT_VIDEO_CARD_TITLE
+                title: "Video Events"
                 div {
                     class: c_event_video_area()
                     video {
-                        id: EVENT_VIDEO_ID
+                        id: "event-video"
                         class: c_event_video()
-                        controls: EVENT_CONTROLS_TRUE
-                        preload: EVENT_PRELOAD_METADATA
-                        src: EVENT_VIDEO_SRC
+                        controls: "true"
+                        preload: "metadata"
+                        src: "https://ltpp.vip/github/pages/docs-pages/pages/video/ship.mp4"
                         onplay: on_video_play
                         onpause: on_video_pause
                         onended: on_video_ended
@@ -1460,7 +1460,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         onerror: on_video_error
                         p {
                             class: c_demo_text_muted()
-                            EVENT_VIDEO_CARD_BODY
+                            "Video player with play, pause, ended, loadeddata, loadedmetadata, canplay, canplaythrough, waiting, playing, timeupdate, durationchange, progress, seeking, seeked, volumechange, ratechange, emptied, stalled, suspend, loadstart, error events"
                         }
                     }
                 }
@@ -1470,7 +1470,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FOCUS_LABEL_STATUS
+                            "Status:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1481,7 +1481,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MEDIA_LABEL_LAST_EVENT
+                            "Last Event:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1492,7 +1492,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_VIDEO_LABEL_CURRENT_TIME
+                            "Current Time:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1503,7 +1503,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_VIDEO_LABEL_DURATION
+                            "Duration:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1514,7 +1514,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_VIDEO_LABEL_PLAYBACK_RATE
+                            "Playback Rate:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1525,7 +1525,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_VIDEO_LABEL_BUFFERED
+                            "Buffered:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1535,14 +1535,14 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: EVENT_IMAGE_CARD_TITLE
+                title: "Image Events"
                 div {
                     class: c_event_image_area()
                     img {
-                        id: EVENT_IMAGE_ID
+                        id: "event-image"
                         class: c_event_image()
                         src: qr_code_data_url
-                        alt: EVENT_IMAGE_ALT
+                        alt: "Event Demo Image"
                         onload: on_image_load
                         onerror: on_image_error
                     }
@@ -1557,7 +1557,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_FOCUS_LABEL_STATUS
+                            "Status:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1568,7 +1568,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_MEDIA_LABEL_LAST_EVENT
+                            "Last Event:"
                         }
                         span {
                             class: c_event_info_value()
@@ -1579,7 +1579,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         class: c_event_info_row()
                         span {
                             class: c_event_info_label()
-                            EVENT_IMAGE_LABEL_NATURAL_SIZE
+                            "Natural Size:"
                         }
                         span {
                             class: c_event_info_value()

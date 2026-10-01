@@ -63,7 +63,7 @@ pub(crate) fn page_websocket(node: VirtualNode<PageWebsocketProps>) -> VirtualNo
                     div {
                         class: c_inline_input_row()
                         euv_input {
-                            placeholder: WEBSOCKET_MESSAGE_PLACEHOLDER
+                            placeholder: "Enter message to send"
                             value: state.get_message_input()
                             oninput: UseEuvInput::on_input_value(state.get_message_input())
                             class: c_ws_message_input().clone()

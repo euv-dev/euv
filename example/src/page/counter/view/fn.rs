@@ -23,7 +23,7 @@ pub(crate) fn page_counter(node: VirtualNode<PageCounterProps>) -> VirtualNode {
                     class: c_counter_text()
                     "The current count is "
                     span {
-                        id: COUNTER_ID
+                        id: "counter"
                         class: c_counter_value()
                         count
                     }

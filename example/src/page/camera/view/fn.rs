@@ -37,7 +37,7 @@ pub(crate) fn page_camera(node: VirtualNode<PageCameraProps>) -> VirtualNode {
                 div {
                     class: c_camera_video_container()
                     video {
-                        id: CAMERA_VIDEO_ID
+                        id: "camera-video"
                         class: if { state.get_camera_open().get() } {
                             c_camera_video_active()
                         } else {
@@ -67,7 +67,7 @@ pub(crate) fn page_camera(node: VirtualNode<PageCameraProps>) -> VirtualNode {
                                 class: c_camera_placeholder_content()
                                 span {
                                     class: c_camera_placeholder_icon()
-                                    CAMERA_PLACEHOLDER_ICON
+                                    "📷"
                                 }
                                 p {
                                     class: c_camera_placeholder_text()

@@ -1,18 +1,5 @@
-/// The HTML `id` attribute value for the standalone Lighting demo canvas element.
-pub(crate) const LIGHTING_CANVAS_ID: &str = "lighting-canvas";
-
 /// The CSS selector used to query the Lighting demo canvas element from the DOM.
 pub(crate) const LIGHTING_CANVAS_SELECTOR: &str = "#lighting-canvas";
-
-/// The HTML `id` attribute value for the Lighting Canvas 2D loading overlay canvas.
-///
-/// Mirrors `LIGHTING_WEBGL_LOADING_CANVAS_ID` /
-/// `LIGHTING_WEBGPU_LOADING_CANVAS_ID` so the Canvas 2D tab shares the same
-/// `c_game_loading_overlay` UX as the two GPU-backed tabs. The overlay paints
-/// a centered "Initializing..." line on top of the raytrace canvas during the
-/// SSAA acquire + first warmup frame the CPU tab spends before its render
-/// loop produces the first paint.
-pub(crate) const LIGHTING_LOADING_CANVAS_ID: &str = "lighting-loading-canvas";
 
 /// The CSS selector for the Lighting Canvas 2D loading overlay canvas.
 pub(crate) const LIGHTING_LOADING_CANVAS_SELECTOR: &str = "#lighting-loading-canvas";
@@ -90,26 +77,14 @@ pub(crate) const LIGHTING_ADAPT_SLOW_FRAMES: u32 = 30;
 /// below [`LIGHTING_ADAPT_VERY_FAST_FRAME_MILLIS`] for the same span).
 pub(crate) const LIGHTING_ADAPT_FAST_FRAMES: u32 = 45;
 
-/// The HTML `id` attribute value for the Lighting WebGL canvas element.
-pub(crate) const LIGHTING_WEBGL_CANVAS_ID: &str = "lighting-webgl-canvas";
-
 /// The CSS selector used to query the Lighting WebGL canvas element.
 pub(crate) const LIGHTING_WEBGL_CANVAS_SELECTOR: &str = "#lighting-webgl-canvas";
-
-/// The HTML `id` attribute value for the Lighting WebGL loading overlay canvas.
-pub(crate) const LIGHTING_WEBGL_LOADING_CANVAS_ID: &str = "lighting-webgl-loading-canvas";
 
 /// The CSS selector for the Lighting WebGL loading overlay canvas.
 pub(crate) const LIGHTING_WEBGL_LOADING_CANVAS_SELECTOR: &str = "#lighting-webgl-loading-canvas";
 
-/// The HTML `id` attribute value for the Lighting WebGPU canvas element.
-pub(crate) const LIGHTING_WEBGPU_CANVAS_ID: &str = "lighting-webgpu-canvas";
-
 /// The CSS selector used to query the Lighting WebGPU canvas element.
 pub(crate) const LIGHTING_WEBGPU_CANVAS_SELECTOR: &str = "#lighting-webgpu-canvas";
-
-/// The HTML `id` attribute value for the Lighting WebGPU loading overlay canvas.
-pub(crate) const LIGHTING_WEBGPU_LOADING_CANVAS_ID: &str = "lighting-webgpu-loading-canvas";
 
 /// The CSS selector for the Lighting WebGPU loading overlay canvas.
 pub(crate) const LIGHTING_WEBGPU_LOADING_CANVAS_SELECTOR: &str = "#lighting-webgpu-loading-canvas";

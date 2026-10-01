@@ -27,21 +27,21 @@ pub(crate) fn page_custom_attrs(node: VirtualNode<PageCustomAttrsProps>) -> Virt
             euv_card {
                 title: "HTML Dynamic Attribute (Variable Key & Value)"
                 euv_input {
-                    id: DYNAMIC_KEY_INPUT_ID
-                    name: DYNAMIC_KEY_INPUT_ID
+                    id: "attrs-dynamic-key"
+                    name: "attrs-dynamic-key"
                     label: "Attribute Key"
-                    placeholder: DYNAMIC_KEY_PLACEHOLDER
+                    placeholder: "Enter attr key (e.g. data-custom)"
                     value: dynamic_key
-                    autocomplete: ATTRS_AUTOCOMPLETE_OFF
+                    autocomplete: "off"
                     oninput: attrs_on_input_key(dynamic_key)
                 }
                 euv_input {
-                    id: DYNAMIC_VALUE_INPUT_ID
-                    name: DYNAMIC_VALUE_INPUT_ID
+                    id: "attrs-dynamic-value"
+                    name: "attrs-dynamic-value"
                     label: "Attribute Value"
-                    placeholder: DYNAMIC_VALUE_PLACEHOLDER
+                    placeholder: "Enter attr value"
                     value: dynamic_value
-                    autocomplete: ATTRS_AUTOCOMPLETE_OFF
+                    autocomplete: "off"
                     oninput: attrs_on_input_value(dynamic_value)
                 }
                 div {
@@ -72,21 +72,21 @@ pub(crate) fn page_custom_attrs(node: VirtualNode<PageCustomAttrsProps>) -> Virt
             euv_card {
                 title: "CSS Dynamic Key (class! macro)"
                 euv_input {
-                    id: CLASS_KEY_INPUT_ID
-                    name: CLASS_KEY_INPUT_ID
+                    id: "attrs-class-key"
+                    name: "attrs-class-key"
                     label: "CSS Property Key"
-                    placeholder: CLASS_KEY_PLACEHOLDER
+                    placeholder: "Enter CSS prop key (e.g. color)"
                     value: class_prop_key
-                    autocomplete: ATTRS_AUTOCOMPLETE_OFF
+                    autocomplete: "off"
                     oninput: attrs_on_input_key(class_prop_key)
                 }
                 euv_input {
-                    id: CLASS_VALUE_INPUT_ID
-                    name: CLASS_VALUE_INPUT_ID
+                    id: "attrs-class-value"
+                    name: "attrs-class-value"
                     label: "CSS Property Value"
-                    placeholder: CLASS_VALUE_PLACEHOLDER
+                    placeholder: "Enter CSS prop value (e.g. red)"
                     value: class_prop_value
-                    autocomplete: ATTRS_AUTOCOMPLETE_OFF
+                    autocomplete: "off"
                     oninput: attrs_on_input_value(class_prop_value)
                 }
                 div {

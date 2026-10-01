@@ -22,14 +22,14 @@ pub(crate) fn page_select(node: VirtualNode<PageSelectProps>) -> VirtualNode {
                 div {
                     class: c_euv_input_wrapper()
                     label {
-                        for: SELECT_FRUIT_ID
+                        for: "select-fruit"
                         class: c_form_label()
                         "Choose a fruit"
                     }
                     select {
-                        id: SELECT_FRUIT_ID
-                        name: SELECT_FRUIT_NAME
-                        autocomplete: SELECT_AUTOCOMPLETE_OFF
+                        id: "select-fruit"
+                        name: "fruit"
+                        autocomplete: "off"
                         class: c_select_input()
                         value: state.get_selected_fruit()
                         onchange: UseEuvInput::on_change_value(state.get_selected_fruit())
@@ -67,14 +67,14 @@ pub(crate) fn page_select(node: VirtualNode<PageSelectProps>) -> VirtualNode {
                 div {
                     class: c_euv_input_wrapper()
                     label {
-                        for: SELECT_COUNTRY_ID
+                        for: "select-country"
                         class: c_form_label()
                         "Country"
                     }
                     select {
-                        id: SELECT_COUNTRY_ID
-                        name: SELECT_COUNTRY_NAME
-                        autocomplete: SELECT_AUTOCOMPLETE_COUNTRY
+                        id: "select-country"
+                        name: "country"
+                        autocomplete: "country"
                         class: c_select_input()
                         onchange: select_on_country_change(state)
                         option {
@@ -99,14 +99,14 @@ pub(crate) fn page_select(node: VirtualNode<PageSelectProps>) -> VirtualNode {
                     div {
                         class: c_euv_input_wrapper()
                         label {
-                            for: SELECT_CITY_ID
+                            for: "select-city"
                             class: c_form_label()
                             "City"
                         }
                         select {
-                            id: SELECT_CITY_ID
-                            name: SELECT_CITY_NAME
-                            autocomplete: SELECT_AUTOCOMPLETE_OFF
+                            id: "select-city"
+                            name: "city"
+                            autocomplete: "off"
                             class: c_select_input()
                             value: state.get_selected_city()
                             onchange: UseEuvInput::on_change_value(state.get_selected_city())
@@ -135,23 +135,23 @@ pub(crate) fn page_select(node: VirtualNode<PageSelectProps>) -> VirtualNode {
                 div {
                     class: c_euv_input_wrapper()
                     label {
-                        for: SELECT_FEEDBACK_ID
+                        for: "select-feedback"
                         class: c_form_label()
                         "Your feedback"
                     }
                     textarea {
-                        id: SELECT_FEEDBACK_ID
-                        name: SELECT_FEEDBACK_NAME
-                        autocomplete: SELECT_AUTOCOMPLETE_OFF
+                        id: "select-feedback"
+                        name: "feedback"
+                        autocomplete: "off"
                         class: if { state.get_textarea_error().get().is_empty() } {
                             c_textarea_input()
                         } else {
                             c_textarea_input_error()
                         }
-                        placeholder: SELECT_FEEDBACK_PLACEHOLDER
+                        placeholder: "Share your thoughts..."
                         value: state.get_textarea_content()
                         oninput: select_on_input_textarea(state)
-                        rows: SELECT_FEEDBACK_ROWS
+                        rows: "4"
                     }
                     if { !state.get_textarea_error().get().is_empty() } {
                         p {

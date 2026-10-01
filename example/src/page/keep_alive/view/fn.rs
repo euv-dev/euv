@@ -89,16 +89,16 @@ fn form_tab() -> VirtualNode {
             div {
                 class: c_keep_alive_form_group()
                 label {
-                    for: KEEP_ALIVE_NAME_ID
+                    for: "keep-alive-name"
                     class: c_form_label()
                     "Name"
                 }
                 euv_input {
-                    id: KEEP_ALIVE_NAME_ID
-                    name: KEEP_ALIVE_NAME_NAME
-                    input_type: KEEP_ALIVE_TEXT_TYPE
-                    autocomplete: KEEP_ALIVE_AUTOCOMPLETE_NAME
-                    placeholder: KEEP_ALIVE_NAME_PLACEHOLDER
+                    id: "keep-alive-name"
+                    name: "name"
+                    input_type: "text"
+                    autocomplete: "name"
+                    placeholder: "Enter your name..."
                     value: name
                     oninput: UseEuvInput::on_input_value(name)
                 }
@@ -106,16 +106,16 @@ fn form_tab() -> VirtualNode {
             div {
                 class: c_keep_alive_form_group()
                 label {
-                    for: KEEP_ALIVE_EMAIL_ID
+                    for: "keep-alive-email"
                     class: c_form_label()
                     "Email"
                 }
                 euv_input {
-                    id: KEEP_ALIVE_EMAIL_ID
-                    name: KEEP_ALIVE_EMAIL_NAME
-                    input_type: KEEP_ALIVE_EMAIL_TYPE
-                    autocomplete: KEEP_ALIVE_AUTOCOMPLETE_EMAIL
-                    placeholder: KEEP_ALIVE_EMAIL_PLACEHOLDER
+                    id: "keep-alive-email"
+                    name: "email"
+                    input_type: "email"
+                    autocomplete: "email"
+                    placeholder: "Enter your email..."
                     value: email
                     oninput: UseEuvInput::on_input_value(email)
                 }
@@ -123,18 +123,18 @@ fn form_tab() -> VirtualNode {
             div {
                 class: c_keep_alive_form_group()
                 label {
-                    for: KEEP_ALIVE_MESSAGE_ID
+                    for: "keep-alive-message"
                     class: c_form_label()
                     "Message"
                 }
                 textarea {
-                    id: KEEP_ALIVE_MESSAGE_ID
-                    name: KEEP_ALIVE_MESSAGE_NAME
-                    autocomplete: KEEP_ALIVE_AUTOCOMPLETE_OFF
-                    placeholder: KEEP_ALIVE_MESSAGE_PLACEHOLDER
+                    id: "keep-alive-message"
+                    name: "message"
+                    autocomplete: "off"
+                    placeholder: "Write a message..."
                     value: message.get()
                     class: c_textarea_input()
-                    rows: KEEP_ALIVE_MESSAGE_ROWS
+                    rows: "3"
                     oninput: UseEuvInput::on_input_value(message)
                 }
             }
@@ -429,7 +429,7 @@ pub(crate) fn page_keep_alive(node: VirtualNode<PageKeepAliveProps>) -> VirtualN
                 title: "How It Works"
                 p {
                     class: c_keep_alive_demo_text()
-                    KEEP_ALIVE_DESCRIPTION
+                    "In euv, using match or if to switch between components destroys and recreates them, resetting all hook state. To preserve state (keep-alive), render all tabs simultaneously and toggle visibility with CSS display: none / block. This way, all DynamicNodes and their HookContexts stay alive — signals retain values, intervals keep running, and form inputs are preserved. Watch the console to see that the counter and timer continue working even when their tab is hidden."
                 }
             }
         }

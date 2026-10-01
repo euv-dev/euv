@@ -2,7 +2,7 @@ use super::*;
 
 /// A toggle switch component with two-way binding via a signal.
 ///
-/// Renders a row containing a `<button role=ROLE_SWITCH>` whose appearance
+/// Renders a row containing a `<button role="switch">` whose appearance
 /// tracks the checked state, plus a paired label. The button carries
 /// `aria-checked` so assistive technology announces the on/off state
 /// without depending on the visual classes. Clicking the button toggles
@@ -33,8 +33,8 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
             button {
                 id: id
                 name: name
-                type: INPUT_TYPE_BUTTON
-                role: ROLE_SWITCH
+                type: "button"
+                role: "switch"
                 aria-checked: checked
                 disabled: disabled
                 class: if { checked } {
