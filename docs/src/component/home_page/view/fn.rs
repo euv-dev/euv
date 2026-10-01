@@ -142,7 +142,7 @@ pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualN
     let has_icon: fn() -> bool = if show_icon { || true } else { || false };
     let inner: VirtualNode = html! {
         div {
-            class: { CLASS_FEATURE_CARD_INNER }
+            class: CLASS_FEATURE_CARD_INNER
             if { has_icon() } {
                 div {
                     class: { CLASS_FEATURE_CARD_ICON }
@@ -168,7 +168,7 @@ pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualN
     if feature.link.is_empty() {
         html! {
             div {
-                class: { CLASS_FEATURE_CARD }
+                class: CLASS_FEATURE_CARD
                 key: feature.title
                 inner
             }
@@ -176,7 +176,7 @@ pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualN
     } else if feature.link.starts_with(URL_SCHEME_HTTP_PREFIX) {
         html! {
             a {
-                class: { CLASS_FEATURE_CARD }
+                class: CLASS_FEATURE_CARD
                 key: feature.title
                 href: feature.link
                 target: LINK_TARGET_BLANK
@@ -188,7 +188,7 @@ pub(crate) fn docs_feature_card(node: VirtualNode<DocsFeatureProps>) -> VirtualN
     } else {
         html! {
             a {
-                class: { CLASS_FEATURE_CARD }
+                class: CLASS_FEATURE_CARD
                 key: feature.title
                 href: {
                     let mut
@@ -226,7 +226,7 @@ pub(crate) fn docs_feature_grid(node: VirtualNode<DocsFeatureGridProps>) -> Virt
     }
     html! {
         div {
-            class: { CLASS_FEATURE_GRID }
+            class: CLASS_FEATURE_GRID
             for feature in features.iter() {
                 docs_feature_card {
                     feature: *feature
