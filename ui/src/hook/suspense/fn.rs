@@ -8,7 +8,7 @@ use super::*;
 ///
 /// Pair the returned handle with [`SuspenseHandle::resolve_sync`] /
 /// [`SuspenseHandle::fail`] to transition the phase; the parent
-/// component reads [`SuspenseHandle::state`] (or the underlying
+/// component reads `state` (or the underlying
 /// `phase` signal) to decide whether to render the children or a
 /// fallback.
 ///

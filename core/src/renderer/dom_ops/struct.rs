@@ -50,7 +50,7 @@ thread_local! {
 /// drawing independent ones, so the whole set is still a single random draw
 /// and the four names stay visibly related when inspecting `globalThis`.
 ///
-/// Constructed once and cached in [`DOM_OP_NAMES`]; read through
+/// Constructed once and cached in `DOM_OP_NAMES`; read through
 /// [`DomOpNames::get`].
 #[derive(Clone)]
 pub(crate) struct DomOpNames {

@@ -31,7 +31,7 @@ impl DomOpNames {
     /// The installer calls this before it touches `globalThis`, so the names
     /// are fixed before the first property read. `OnceLock`'s run-once
     /// guarantee is what makes that safe: a second call, or a call after
-    /// [`get`] has already initialised the cell, is refused rather than
+    /// [`DomOpNames::get`] has already initialised the cell, is refused rather than
     /// allowed to swap the names out from under a live table.
     ///
     /// # Arguments
@@ -48,8 +48,8 @@ impl DomOpNames {
 
     /// Builds a fresh name set from the current clock, without caching it.
     ///
-    /// Split out from [`get`] so a caller that needs to *claim* the names can
-    /// build a set and hand it to [`set`] rather than letting `get` build one
+    /// Split out from [`DomOpNames::get`] so a caller that needs to *claim* the names can
+    /// build a set and hand it to [`DomOpNames::set`] rather than letting `get` build one
     /// implicitly. Building costs one clock read and one encode; it happens
     /// once per process, on the first patch.
     ///

@@ -4,8 +4,8 @@
 /// recognisable to euv itself, and to a human reading `globalThis` in a
 /// debugger. What follows the prefix is built once per page load from a
 /// microsecond clock and an encoded suffix, so the *full* name is not a
-/// stable, pre-knowable target. See [`DomOpNames`] for the shape and
-/// [`dom_op_names`] for the one-time construction.
+/// stable, pre-knowable target. See [`DomOpNames`](crate::DomOpNames) for the shape and
+/// `dom_op_names` for the one-time construction.
 pub(crate) const JS_DOM_OP_NAME_PREFIX: &str = "__euv_";
 
 /// Character set handed to `bin-encode-decode` when encoding the suffix.

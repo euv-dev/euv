@@ -69,7 +69,7 @@ impl Router {
     /// overlays close in reverse opening order regardless of type.
     ///
     /// Before consulting the overlay stack, the listener iterates over all registered
-    /// `popstate` guards (see [`register_popstate_guard`]). The first guard that returns
+    /// `popstate` guards (see [`Router::register_popstate_guard`]). The first guard that returns
     /// `true` consumes the event, preventing the overlay stack and normal navigation
     /// from processing it.
     ///
@@ -219,7 +219,7 @@ impl Router {
     /// fullscreen, canvas fullscreen) to intercept the system back gesture without
     /// registering their own independent `popstate` listener.
     ///
-    /// Returns a guard ID that can be passed to [`Router::unregister_popstate_guard`] to
+    /// Returns a guard ID that can be passed to `unregister_popstate_guard` to
     /// remove the guard when it is no longer needed.
     ///
     /// # Arguments

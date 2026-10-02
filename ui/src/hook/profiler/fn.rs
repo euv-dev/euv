@@ -51,7 +51,7 @@ pub fn now_ms() -> f64 {
 ///
 /// Use [`ProfilerHandle::measure`] for a single-shot
 /// "label + closure" form or [`ProfilerHandle::begin`] /
-/// [`ProfilerHandle::end`] for the split-timer form. Reads of
+/// [`ProfilerMark::end`] for the split-timer form. Reads of
 /// [`ProfilerHandle::entries`] inside a render closure subscribe
 /// the render to new entries.
 ///

@@ -15,7 +15,7 @@ pub(crate) const GL_U32_SIZE: u32 = 4;
 pub(crate) const GL_RGBA_TEXEL_SIZE: usize = 4;
 
 /// The number of floats one `mat4` uniform column occupies, which is
-/// also the length of the engine's own [`Matrix4x4`].
+/// also the length of the engine's own [`Matrix4x4`](crate::Matrix4x4).
 pub(crate) const GL_MAT4_FLOATS: usize = 16;
 
 /// The size in bytes of one `mat4` uploaded through a uniform buffer,
@@ -42,53 +42,53 @@ pub(crate) const GL_TEXTURE_UNIT_NONE: u32 = 0xffff_ffff;
 /// green `0x2`, blue `0x4`, alpha `0x8`.
 pub(crate) const GL_COLOR_WRITE_ALL: u32 = 0xf;
 
-/// The red channel bit of a [`GlColorMask`].
+/// The red channel bit of a [`GlColorMask`](crate::GlColorMask)(crate::GlColorMask)(crate::GlColorMask)(crate::GlColorMask)(crate::GlColorMask).
 pub(crate) const GL_COLOR_CHANNEL_RED: u32 = 0x1;
 
-/// The green channel bit of a [`GlColorMask`].
+/// The green channel bit of a [`GlColorMask`](crate::GlColorMask).
 pub(crate) const GL_COLOR_CHANNEL_GREEN: u32 = 0x2;
 
-/// The blue channel bit of a [`GlColorMask`].
+/// The blue channel bit of a [`GlColorMask`](crate::GlColorMask).
 pub(crate) const GL_COLOR_CHANNEL_BLUE: u32 = 0x4;
 
-/// The alpha channel bit of a [`GlColorMask`].
+/// The alpha channel bit of a [`GlColorMask`](crate::GlColorMask).
 pub(crate) const GL_COLOR_CHANNEL_ALPHA: u32 = 0x8;
 
-/// The address mode a sampler uses when its [`AddressMode`] is
+/// The address mode a sampler uses when its [`AddressMode`](crate::AddressMode)(crate::AddressMode)(crate::AddressMode)(crate::AddressMode) is
 /// `ClampToEdge`.
 pub(crate) const GL_ADDRESS_CLAMP_TO_EDGE: u32 = 0x812f;
 
-/// The address mode a sampler uses when its [`AddressMode`] is
+/// The address mode a sampler uses when its [`AddressMode`](crate::AddressMode) is
 /// `MirrorRepeat`.
 pub(crate) const GL_ADDRESS_MIRRORED_REPEAT: u32 = 0x8370;
 
-/// The address mode a sampler uses when its [`AddressMode`] is
+/// The address mode a sampler uses when its [`AddressMode`](crate::AddressMode) is
 /// `Repeat`.
 pub(crate) const GL_ADDRESS_REPEAT: u32 = 0x2901;
 
 /// The blend equation that adds the two scaled terms, the counterpart of
-/// [`BlendOperation::Add`].
+/// [`BlendOperation::Add`](crate::BlendOperation::Add).
 pub(crate) const GL_BLEND_EQUATION_ADD: u32 = 0x8006;
 
 /// The blend factor that discards the term, the counterpart of
-/// [`BlendFactor::Zero`].
+/// [`BlendFactor::Zero`](crate::BlendFactor::Zero).
 pub(crate) const GL_BLEND_FACTOR_ZERO: u32 = 0;
 
 /// The blend factor that passes the term through, the counterpart of
-/// [`BlendFactor::One`].
+/// [`BlendFactor::One`](crate::BlendFactor::One).
 pub(crate) const GL_BLEND_FACTOR_ONE: u32 = 1;
 
 /// The blend factor `GL_ONE_MINUS_SRC_ALPHA`, the conventional
 /// destination factor for alpha blending and the counterpart of
-/// [`BlendFactor::OneMinusSourceAlpha`].
+/// [`BlendFactor::OneMinusSourceAlpha`](crate::BlendFactor::OneMinusSourceAlpha).
 pub(crate) const GL_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA: u32 = 0x0303;
 
 /// The blend factor `GL_SRC_ALPHA`, the counterpart of
-/// [`BlendFactor::SourceAlpha`].
+/// [`BlendFactor::SourceAlpha`](crate::BlendFactor::SourceAlpha).
 pub(crate) const GL_BLEND_FACTOR_SRC_ALPHA: u32 = 0x0302;
 
 /// The blend factor `GL_SRC_ALPHA_SATURATE`, the counterpart of
-/// [`BlendFactor::SourceAlphaSaturated`].
+/// [`BlendFactor::SourceAlphaSaturated`](crate::BlendFactor::SourceAlphaSaturated).
 pub(crate) const GL_BLEND_FACTOR_SRC_ALPHA_SATURATE: u32 = 0x0308;
 
 /// The `FLOAT` vertex attribute component type, and the pixel type a
@@ -96,7 +96,7 @@ pub(crate) const GL_BLEND_FACTOR_SRC_ALPHA_SATURATE: u32 = 0x0308;
 pub(crate) const GL_TYPE_FLOAT: u32 = 0x1406;
 
 /// The `INT` vertex attribute component type, the counterpart of
-/// [`VertexAttributeFormat::Sint32`].
+/// [`VertexAttributeFormat::Sint32`](crate::VertexAttributeFormat::Sint32).
 pub(crate) const GL_TYPE_INT: u32 = 0x1404;
 
 /// The `UNSIGNED_BYTE` vertex attribute component type and the pixel type
@@ -104,7 +104,7 @@ pub(crate) const GL_TYPE_INT: u32 = 0x1404;
 pub(crate) const GL_TYPE_UNSIGNED_BYTE: u32 = 0x1401;
 
 /// The `UNSIGNED_INT` vertex attribute component type, the counterpart of
-/// [`VertexAttributeFormat::Uint32`].
+/// [`VertexAttributeFormat::Uint32`](crate::VertexAttributeFormat::Uint32).
 pub(crate) const GL_TYPE_UNSIGNED_INT: u32 = 0x1405;
 
 /// The `RED` sized-internal-format a single-channel `R32Float` texture

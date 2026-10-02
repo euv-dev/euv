@@ -1,23 +1,23 @@
-/// Debug-format label for the `Element` variant of [`VirtualNode`].
+/// Debug-format label for the `Element` variant of [`VirtualNode`](crate::VirtualNode)(crate::VirtualNode)(crate::VirtualNode)(crate::VirtualNode)(crate::VirtualNode)(crate::VirtualNode).
 ///
 /// Matches the variant name so a printed tree lines up with the source
 /// expression that produced it.
 pub(crate) const DEBUG_NAME_ELEMENT: &str = "Element";
 
-/// Debug-format label for the `Text` variant of [`VirtualNode`].
+/// Debug-format label for the `Text` variant of [`VirtualNode`](crate::VirtualNode).
 pub(crate) const DEBUG_NAME_TEXT: &str = "Text";
 
-/// Debug-format label for the `Fragment` variant of [`VirtualNode`].
+/// Debug-format label for the `Fragment` variant of [`VirtualNode`](crate::VirtualNode).
 pub(crate) const DEBUG_NAME_FRAGMENT: &str = "Fragment";
 
-/// Debug-format label for the `Dynamic` variant of [`VirtualNode`].
+/// Debug-format label for the `Dynamic` variant of [`VirtualNode`](crate::VirtualNode).
 ///
 /// The dynamic node's render function is intentionally elided: it is a
 /// closure, and printing one would add noise without identifying which
 /// node it belongs to.
 pub(crate) const DEBUG_NAME_DYNAMIC: &str = "Dynamic";
 
-/// Debug-format label for the `Empty` variant of [`VirtualNode`].
+/// Debug-format label for the `Empty` variant of [`VirtualNode`](crate::VirtualNode).
 pub(crate) const DEBUG_NAME_EMPTY: &str = "Empty";
 
 /// Debug-format field label for the `tag` of an `Element` node.

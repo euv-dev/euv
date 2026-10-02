@@ -1,6 +1,6 @@
 use super::*;
 
-/// One selectable entry of the [`euv_radio_group`].
+/// One selectable entry of the `euv_radio_group`.
 ///
 /// Carries the machine value submitted with the form and the label the
 /// user reads; the group compares the machine value against its own

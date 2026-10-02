@@ -85,7 +85,7 @@ impl UseEuvLayout {
     /// the fullscreen button on a `<video controls>` element — a browser history
     /// entry is added via `overlay_push_state` so that the system back gesture
     /// will fire `popstate`. A `popstate` guard registered via
-    /// [`register_popstate_guard`] then calls `document.exitFullscreen()` to leave
+    /// [`Router::register_popstate_guard`] then calls `document.exitFullscreen()` to leave
     /// fullscreen, consuming the history entry without navigating to the previous
     /// route. When the native fullscreen is exited through other means (e.g. the
     /// browser's own exit button), the `fullscreenchange` handler consumes the

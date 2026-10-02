@@ -1577,7 +1577,7 @@ impl WebGpuRenderer {
 
     /// Draws indexed primitives on a render pass encoder.
     ///
-    /// The index buffer must already be bound via [`set_index_buffer`].
+    /// The index buffer must already be bound via `set_index_buffer`.
     /// This is the modern path for everything that needs shared vertex
     /// data (mesh renderers, terrain, instanced objects).
     ///
@@ -1604,7 +1604,7 @@ impl WebGpuRenderer {
         );
     }
 
-    /// Variant of [`draw_indexed`] that stops before the end of the
+    /// Variant of `draw_indexed` that stops before the end of the
     /// bound index buffer, drawing `index_count` indices starting at
     /// `first_index`.
     ///
@@ -2934,7 +2934,7 @@ impl WebGpuRenderer {
 
     /// Sets the pipeline on a compute pass encoder.
     ///
-    /// This is the compute counterpart to [`set_pipeline`] — without it,
+    /// This is the compute counterpart to `set_pipeline` — without it,
     /// the only public path into compute was `create_compute_pipeline`
     /// (pipeline handle) followed by `dispatch` (no pipeline argument),
     /// which silently no-op'd in browsers that strictly validate the
@@ -2943,7 +2943,7 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The `GpuComputePassEncoder` (from
-    ///   [`begin_compute_pass`]).
+    ///   `begin_compute_pass`).
     /// - `&JsValue` - The compute pipeline to bind.
     pub fn set_compute_pipeline(&self, pass: &JsValue, pipeline: &JsValue) {
         let set_fn: Function =
@@ -2955,7 +2955,7 @@ impl WebGpuRenderer {
 
     /// Creates a bind group from an explicit `GpuBindGroupLayout`.
     ///
-    /// Unlike [`create_bind_group`], this does not depend on a render
+    /// Unlike `create_bind_group`, this does not depend on a render
     /// pipeline being present to derive the layout. Use it for compute
     /// bind groups, multi-pipeline shared layouts, or any case where the
     /// layout was obtained from `create_bind_group_layout` /
@@ -3292,8 +3292,8 @@ impl WebGpuRenderer {
     /// Creates a `GpuQuerySet` of `timestamp` queries.
     ///
     /// Timestamp query sets enable GPU profiling. After recording
-    /// timestamp writes via [`write_timestamp`], call
-    /// [`resolve_timestamp`] to read the values back.
+    /// timestamp writes via `write_timestamp`, call
+    /// `resolve_timestamp` to read the values back.
     ///
     /// # Arguments
     ///
@@ -3331,14 +3331,14 @@ impl WebGpuRenderer {
     /// render or compute pass.
     ///
     /// Pair the start index with a second write at the end of the
-    /// pass; then call [`resolve_timestamp`] to read back the elapsed
+    /// pass; then call `resolve_timestamp` to read back the elapsed
     /// GPU nanoseconds.
     ///
     /// # Arguments
     ///
     /// - `&JsValue` - The render or compute pass encoder.
     /// - `&JsValue` - The `GpuQuerySet` created via
-    ///   [`create_timestamp_query_set`].
+    ///   `create_timestamp_query_set`.
     /// - `u32` - The query-slot index to write into.
     pub fn write_timestamp(&self, pass: &JsValue, query_set: &JsValue, index: u32) {
         if query_set.is_undefined() || query_set.is_null() {
