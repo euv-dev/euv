@@ -213,3 +213,73 @@ fn the_collider_shape_enums_expose_matchable_variants() {
     assert_eq!(label_two, "aabb", "the 2D shape enum must be matchable");
     assert_eq!(label_three, "sphere", "the 3D shape enum must be matchable");
 }
+
+#[test]
+fn an_axis_aligned_box_answers_the_four_collider_queries() {
+    let collider: AabbCollider = AabbCollider::from_center(Vector2D::new(10.0, 20.0), 4.0, 6.0);
+    assert_eq!(collider.shape(), ColliderShape::Aabb);
+    let rect: Rect = collider.bounding_box();
+    assert_eq!(rect.get_x(), 8.0, "the rect is built around the given centre");
+    assert_eq!(rect.get_y(), 17.0);
+    assert_eq!(rect.get_width(), 4.0);
+    assert_eq!(rect.get_height(), 6.0);
+    assert_eq!(collider.center().get_x(), 10.0);
+    assert_eq!(collider.center().get_y(), 20.0);
+}
+
+#[test]
+fn an_axis_aligned_box_treats_its_edges_as_inside() {
+    let collider: AabbCollider = AabbCollider::from_center(Vector2D::zero(), 4.0, 4.0);
+    assert!(collider.contains_point(Vector2D::zero()), "the centre is inside");
+    assert!(collider.contains_point(Vector2D::new(2.0, 2.0)), "the far edge counts");
+    assert!(collider.contains_point(Vector2D::new(-2.0, -2.0)), "the near edge counts");
+    assert!(
+        !collider.contains_point(Vector2D::new(2.001, 0.0)),
+        "a hair past the edge is outside"
+    );
+}
+
+#[test]
+fn a_circle_collider_answers_the_four_collider_queries() {
+    let collider: CircleCollider = CircleCollider::from_center(Vector2D::new(5.0, -5.0), 3.0);
+    assert_eq!(collider.shape(), ColliderShape::Circle);
+    assert_eq!(collider.center().get_x(), 5.0);
+    assert_eq!(collider.center().get_y(), -5.0);
+    let rect: Rect = collider.bounding_box();
+    assert_eq!(rect.get_width(), 6.0, "the bounding rect spans the diameter");
+    assert_eq!(rect.get_height(), 6.0);
+}
+
+#[test]
+fn a_circle_collider_treats_the_radius_itself_as_inside() {
+    let collider: CircleCollider = CircleCollider::from_center(Vector2D::zero(), 2.0);
+    assert!(collider.contains_point(Vector2D::new(2.0, 0.0)), "exactly at the radius");
+    assert!(collider.contains_point(Vector2D::new(1.5, 0.0)), "well within");
+    assert!(!collider.contains_point(Vector2D::new(2.5, 0.0)), "past the radius");
+}
+
+#[test]
+fn a_three_dimensional_box_answers_the_collider_3d_queries() {
+    let collider: AabbCollider3D =
+        AabbCollider3D::from_center(Vector3D::new(1.0, 2.0, 3.0), 2.0, 4.0, 6.0);
+    assert_eq!(collider.shape(), ColliderShape3D::Aabb);
+    assert_eq!(collider.center().get_x(), 1.0);
+    let box3d: AABB3D = collider.bounding_box();
+    assert_eq!(box3d.get_min().get_x(), 0.0, "min is centre minus half the extent");
+    assert_eq!(box3d.get_min().get_y(), 0.0);
+    assert_eq!(box3d.get_min().get_z(), 0.0);
+    assert_eq!(box3d.get_max().get_z(), 6.0);
+    assert!(collider.contains_point(Vector3D::new(1.0, 2.0, 3.0)), "the centre is inside");
+    assert!(collider.contains_point(Vector3D::new(1.9, 3.9, 5.9)), "near the far corner");
+    assert!(!collider.contains_point(Vector3D::new(50.0, 0.0, 0.0)), "far away is outside");
+}
+
+#[test]
+fn a_sphere_collider_answers_the_collider_3d_queries() {
+    let collider: SphereCollider3D = SphereCollider3D::from_center(Vector3D::zero(), 4.0);
+    assert_eq!(collider.shape(), ColliderShape3D::Sphere);
+    assert!(collider.contains_point(Vector3D::new(0.0, 0.0, 4.0)), "exactly at the radius");
+    assert!(collider.contains_point(Vector3D::new(0.0, 0.0, 0.0)), "at the centre");
+    assert!(!collider.contains_point(Vector3D::new(0.0, 0.0, 5.0)), "past the radius");
+    assert!(!collider.contains_point(Vector3D::new(3.0, 3.0, 0.0)), "diagonally past it");
+}

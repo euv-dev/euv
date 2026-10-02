@@ -1040,3 +1040,51 @@ fn a_ray2d_carries_its_origin_and_direction() {
         "the direction round-trips"
     );
 }
+
+#[test]
+fn interpolating_a_scalar_reaches_both_endpoints_exactly() {
+    let start: f64 = 2.0;
+    let end: f64 = 6.0;
+    assert_eq!(start.lerp(end, 0.0), 2.0, "factor zero stays at self");
+    assert_eq!(start.lerp(end, 1.0), 6.0, "factor one reaches other");
+    assert_eq!(start.lerp(end, 0.5), 4.0, "the midpoint is halfway");
+}
+
+#[test]
+fn interpolating_a_scalar_extrapolates_outside_the_unit_interval() {
+    assert_eq!(0.0_f64.lerp(10.0, 2.0), 20.0, "the factor is not clamped");
+    assert_eq!(0.0_f64.lerp(10.0, -1.0), -10.0, "a negative factor runs backwards");
+}
+
+#[test]
+fn interpolating_a_vector_moves_each_component_independently() {
+    let from: Vector2D = Vector2D::new(0.0, 10.0);
+    let to: Vector2D = Vector2D::new(10.0, 20.0);
+    let mid: Vector2D = from.lerp(to, 0.5);
+    assert_eq!(mid.get_x(), 5.0);
+    assert_eq!(mid.get_y(), 15.0);
+    assert_eq!(from.lerp(to, 0.0).get_x(), 0.0);
+    assert_eq!(from.lerp(to, 1.0).get_y(), 20.0);
+}
+
+#[test]
+fn interpolating_a_three_dimensional_vector_moves_each_component_independently() {
+    let from: Vector3D = Vector3D::new(0.0, 0.0, 0.0);
+    let to: Vector3D = Vector3D::new(4.0, 8.0, 12.0);
+    let mid: Vector3D = from.lerp(to, 0.25);
+    assert_eq!(mid.get_x(), 1.0);
+    assert_eq!(mid.get_y(), 2.0);
+    assert_eq!(mid.get_z(), 3.0);
+}
+
+#[test]
+fn interpolating_a_color_blends_the_rgba_channels_separately() {
+    let black: Color = Color::new(0.0, 0.0, 0.0, 0.0);
+    let white: Color = Color::new(1.0, 1.0, 1.0, 1.0);
+    let grey: Color = black.lerp(white, 0.5);
+    assert_eq!(grey.get_red(), 0.5);
+    assert_eq!(grey.get_green(), 0.5);
+    assert_eq!(grey.get_blue(), 0.5);
+    assert_eq!(grey.get_alpha(), 0.5, "alpha blends with the rest, it is not special");
+    assert_eq!(black.lerp(white, 1.0).get_alpha(), 1.0);
+}

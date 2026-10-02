@@ -433,3 +433,93 @@ fn a_quadtree_entry_round_trips_its_index_and_box() {
         "the max corner round-trips"
     );
 }
+
+#[test]
+fn quad_tree_boxes_overlap_is_true_for_a_shared_region() {
+    assert!(
+        QuadTree2D::boxes_overlap(
+            Vector2D::zero(),
+            Vector2D::new(10.0, 10.0),
+            Vector2D::new(5.0, 5.0),
+            Vector2D::new(15.0, 15.0),
+        ),
+        "two boxes sharing a corner-sized region overlap"
+    );
+}
+
+#[test]
+fn quad_tree_boxes_overlap_is_true_when_the_edges_merely_touch() {
+    assert!(
+        QuadTree2D::boxes_overlap(
+            Vector2D::zero(),
+            Vector2D::new(10.0, 10.0),
+            Vector2D::new(10.0, 0.0),
+            Vector2D::new(20.0, 10.0),
+        ),
+        "the comparison is inclusive, so a shared edge counts as overlap"
+    );
+    assert!(
+        QuadTree2D::boxes_overlap(
+            Vector2D::zero(),
+            Vector2D::new(10.0, 10.0),
+            Vector2D::new(10.0, 10.0),
+            Vector2D::new(20.0, 20.0),
+        ),
+        "a single shared corner counts too"
+    );
+    assert!(
+        QuadTree2D::boxes_overlap(
+            Vector2D::new(10.0, 0.0),
+            Vector2D::new(20.0, 10.0),
+            Vector2D::new(0.0, 0.0),
+            Vector2D::new(10.0, 10.0),
+        ),
+        "the other side of the x comparison is inclusive too: here the first box's \
+         minimum edge is exactly the second box's maximum edge"
+    );
+}
+
+#[test]
+fn quad_tree_boxes_overlap_is_false_when_a_gap_remains_on_any_axis() {
+    assert!(
+        !QuadTree2D::boxes_overlap(
+            Vector2D::zero(),
+            Vector2D::new(10.0, 10.0),
+            Vector2D::new(11.0, 0.0),
+            Vector2D::new(20.0, 10.0),
+        ),
+        "separated along x"
+    );
+    assert!(
+        !QuadTree2D::boxes_overlap(
+            Vector2D::zero(),
+            Vector2D::new(10.0, 10.0),
+            Vector2D::new(0.0, -12.0),
+            Vector2D::new(10.0, -1.0),
+        ),
+        "separated along y by a gap of one unit"
+    );
+    assert!(
+        QuadTree2D::boxes_overlap(
+            Vector2D::zero(),
+            Vector2D::new(10.0, 10.0),
+            Vector2D::new(0.0, -11.0),
+            Vector2D::new(10.0, 0.0),
+        ),
+        "the same boxes meeting exactly at y=0 still overlap, because the \
+         comparison is inclusive on every axis"
+    );
+}
+
+#[test]
+fn quad_tree_boxes_overlap_is_true_when_one_box_swallows_the_other() {
+    assert!(
+        QuadTree2D::boxes_overlap(
+            Vector2D::new(-100.0, -100.0),
+            Vector2D::new(100.0, 100.0),
+            Vector2D::new(1.0, 1.0),
+            Vector2D::new(2.0, 2.0),
+        ),
+        "containment is overlap"
+    );
+}

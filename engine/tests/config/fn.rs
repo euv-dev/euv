@@ -209,3 +209,28 @@ fn the_default_asset_state_is_loading() {
     assert!(loading != loaded, "the three states are distinct");
     assert!(loaded != errored, "including loaded versus errored");
 }
+
+#[test]
+fn the_default_engine_config_uses_the_shared_scheduler_timestep_defaults() {
+    let config: EngineConfig = Engine::default_config();
+    let scheduler: SchedulerConfig = config.get_scheduler();
+    assert_eq!(
+        scheduler.get_fixed_timestep(),
+        DEFAULT_FIXED_TIMESTEP,
+        "the engine must not invent its own timestep"
+    );
+    assert_eq!(
+        scheduler.get_max_frame_time(),
+        DEFAULT_MAX_FRAME_TIME,
+        "the frame-time clamp comes from the same shared constant"
+    );
+}
+
+#[test]
+fn the_default_engine_config_agrees_with_the_plain_default() {
+    assert_eq!(
+        Engine::default_config().get_scheduler().get_fixed_timestep(),
+        EngineConfig::default().get_scheduler().get_fixed_timestep(),
+        "the helper exists so callers need not name the type, not to change it"
+    );
+}
