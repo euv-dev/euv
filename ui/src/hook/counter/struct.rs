@@ -18,8 +18,10 @@ pub struct Counter {
     #[new(skip)]
     pub(crate) value: Signal<i32>,
     /// Optional minimum bound. `None` means unbounded below.
+    #[get(type(copy))]
     pub(crate) min: Option<i32>,
     /// Optional maximum bound. `None` means unbounded above.
+    #[get(type(copy))]
     pub(crate) max: Option<i32>,
     /// Step size used by `increment` / `decrement`.
     pub(crate) step: i32,

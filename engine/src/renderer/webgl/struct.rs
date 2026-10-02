@@ -251,6 +251,7 @@ pub struct GlRenderState {
     /// Which channels the fragment stage may write.
     pub(crate) color_mask: GlColorMask,
     /// The scissor rectangle, or `None` when scissoring is off.
+    #[get(type(copy))]
     pub(crate) scissor: Option<GlScissor>,
     /// The viewport rectangle.
     pub(crate) viewport: GlViewport,

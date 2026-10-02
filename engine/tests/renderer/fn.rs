@@ -713,3 +713,19 @@ fn two_different_default_states_do_not_share_a_viewport() {
     );
     assert_eq!(*wide.get_viewport().get_height(), 900);
 }
+
+#[test]
+fn the_default_gl_state_has_no_scissor_and_says_so_without_panicking() {
+    let state: GlRenderState = GlRenderState::context_defaults(800, 600);
+    assert_eq!(
+        state.get_scissor(),
+        None,
+        "a fresh context starts with scissoring off, so the getter must yield None \
+         rather than unwrapping an empty option"
+    );
+    assert_eq!(
+        state.try_get_scissor(),
+        None,
+        "the safe accessor agrees with the panicking-proof one"
+    );
+}
