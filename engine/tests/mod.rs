@@ -21,6 +21,7 @@ mod sprite;
 mod timer;
 mod tween;
 mod r#webgpu;
+mod wasm_fallback;
 
 use euv_engine::*;
 

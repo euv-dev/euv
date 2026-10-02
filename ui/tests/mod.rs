@@ -13,6 +13,7 @@ mod throttled_value;
 mod toggle;
 mod transition;
 mod use_async;
+mod wasm_fallback;
 
 use {euv::*, euv_ui::*};
 
