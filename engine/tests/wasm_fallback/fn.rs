@@ -33,3 +33,44 @@ fn the_current_time_falls_back_to_zero_without_a_window() {
     );
     assert!(time.is_finite());
 }
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test::wasm_bindgen_test]
+fn the_webgl2_capability_probe_reports_unavailable_without_a_window() {
+    assert!(
+        !WebGl2Backend::is_available(),
+        "node exposes no window, so the probe must say no rather than panic"
+    );
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test::wasm_bindgen_test]
+fn initialising_a_webgl2_backend_without_a_window_reports_the_selector_it_could_not_find() {
+    let config: RenderConfig = RenderConfig::webgl("#stage", 800.0, 600.0);
+    let result: Result<WebGl2Backend, WebGl2InitError> = WebGl2Backend::init(&config);
+    assert_eq!(
+        result.err(),
+        Some(WebGl2InitError::CanvasNotFound("#stage".to_string())),
+        "the selector must be carried into the error so the caller can diagnose it"
+    );
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test::wasm_bindgen_test]
+fn the_webgpu_capability_probe_reports_unavailable_without_a_window() {
+    assert!(
+        !WebGpuRenderer::is_available(),
+        "navigator.gpu is unreachable, so the probe must say no"
+    );
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test::wasm_bindgen_test]
+async fn initialising_a_webgpu_renderer_without_a_window_reports_a_missing_navigator_gpu() {
+    let config: RenderConfig = RenderConfig::webgpu("#stage", 800.0, 600.0);
+    let result: Result<WebGpuRenderer, WebGpuInitError> = WebGpuRenderer::init(&config).await;
+    assert!(
+        matches!(result, Err(WebGpuInitError::NavigatorGpuMissing)),
+        "the error type carries a JsValue, so it is matched by shape rather than compared"
+    );
+}
