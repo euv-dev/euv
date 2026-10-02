@@ -74,3 +74,26 @@ async fn initialising_a_webgpu_renderer_without_a_window_reports_a_missing_navig
         "the error type carries a JsValue, so it is matched by shape rather than compared"
     );
 }
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test::wasm_bindgen_test]
+fn building_a_canvas_renderer_from_a_selector_finds_nothing_without_a_document() {
+    let renderer: Option<CanvasRenderer> = CanvasRenderer::from_selector("#stage", 800.0, 600.0);
+    assert!(
+        renderer.is_none(),
+        "a host with no document cannot satisfy a selector lookup"
+    );
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test::wasm_bindgen_test]
+fn building_a_multisampled_canvas_from_a_selector_finds_nothing_without_a_document() {
+    let canvas: Option<SsaaCanvas> =
+        SsaaCanvas::from_selector_with_scale("#stage", 800.0, 600.0, 2.0);
+    assert!(canvas.is_none());
+    let bare: Option<SsaaCanvas> = SsaaCanvas::from_selector("#stage", 800.0, 600.0);
+    assert!(
+        bare.is_none(),
+        "the unscaled constructor shares the same lookup, so it must fail the same way"
+    );
+}

@@ -657,3 +657,59 @@ fn a_radial_gradient_keeps_both_circles_and_its_stops() {
     assert_eq!(gradient.get_outer_center().get_y(), 10.0);
     assert_eq!(gradient.get_stops().len(), 2);
 }
+
+#[test]
+fn the_three_render_layers_carry_their_documented_z_indices_and_are_visible() {
+    let background: RenderLayer = RenderLayer::background();
+    let foreground: RenderLayer = RenderLayer::foreground();
+    let ui: RenderLayer = RenderLayer::ui();
+    assert_eq!(background.get_z_index(), 0);
+    assert_eq!(foreground.get_z_index(), 100);
+    assert_eq!(ui.get_z_index(), 1000);
+    for layer in [background, foreground, ui] {
+        assert!(
+            layer.get_visible(),
+            "a layer created by one of the named constructors is visible by default"
+        );
+    }
+}
+
+#[test]
+fn the_named_render_layers_are_ordered_background_first() {
+    let background: i32 = RenderLayer::background().get_z_index();
+    let foreground: i32 = RenderLayer::foreground().get_z_index();
+    let ui: i32 = RenderLayer::ui().get_z_index();
+    assert!(
+        background < foreground && foreground < ui,
+        "the names only mean something if they stack in that order, got {background}/{foreground}/{ui}"
+    );
+}
+
+#[test]
+fn the_default_gl_state_seeds_its_viewport_from_the_given_dimensions() {
+    let state: GlRenderState = GlRenderState::context_defaults(321, 654);
+    assert_eq!(
+        *state.get_viewport().get_width(),
+        321,
+        "an unusual width cannot be confused with a baked-in default"
+    );
+    assert_eq!(*state.get_viewport().get_height(), 654);
+    assert_eq!(
+        *state.get_viewport().get_x(),
+        0,
+        "the origin is not part of the arguments"
+    );
+    assert_eq!(*state.get_viewport().get_y(), 0);
+}
+
+#[test]
+fn two_different_default_states_do_not_share_a_viewport() {
+    let narrow: GlRenderState = GlRenderState::context_defaults(100, 200);
+    let wide: GlRenderState = GlRenderState::context_defaults(1600, 900);
+    assert_ne!(
+        *narrow.get_viewport().get_width(),
+        *wide.get_viewport().get_width(),
+        "a cached or hardcoded viewport would make these equal"
+    );
+    assert_eq!(*wide.get_viewport().get_height(), 900);
+}
