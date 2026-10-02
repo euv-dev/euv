@@ -489,3 +489,57 @@ fn merging_no_styles_at_all_yields_an_empty_text_value() {
     let merged: AttributeValue = AttributeValue::merge_style(&[]);
     assert_eq!(merged, AttributeValue::Text(String::new()));
 }
+
+#[test]
+fn a_reactive_attribute_starts_at_the_value_its_closure_produces() {
+    let calls: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let counter: Rc<Cell<u32>> = calls.clone();
+    let attribute: AttributeValue = AttributeValue::reactive(move || {
+        counter.set(counter.get() + 1);
+        String::from("computed")
+    });
+    assert_eq!(calls.get(), 1, "the closure runs once to seed the signal");
+    match attribute {
+        AttributeValue::Signal(signal) => assert_eq!(signal.get(), "computed"),
+        other => panic!("expected a signal-backed attribute, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_reactive_attribute_is_distinct_from_a_literal_one() {
+    let reactive: AttributeValue = AttributeValue::reactive(|| String::from("same"));
+    let literal: AttributeValue = AttributeValue::Text(String::from("same"));
+    assert!(
+        matches!(reactive, AttributeValue::Signal(_)),
+        "a closure-backed attribute must stay signal-backed"
+    );
+    assert!(matches!(literal, AttributeValue::Text(_)));
+}
+
+#[test]
+fn an_event_adapter_becomes_an_event_attribute() {
+    let attribute: AttributeValue = EventAdapter::new(|_event: Event| {}).into_attribute("click");
+    assert!(
+        matches!(attribute, AttributeValue::Event(_)),
+        "an event handler must land in the Event variant, not as text"
+    );
+}
+
+#[test]
+fn the_owned_style_string_matches_the_borrowed_form() {
+    let borrowed: String = Css::style_string(&[("color", "red"), ("margin", "0")]);
+    let owned: String = Css::style_string_owned(&[
+        (String::from("color"), String::from("red")),
+        (String::from("margin"), String::from("0")),
+    ]);
+    assert_eq!(
+        owned, borrowed,
+        "the owned variant exists to avoid borrowing, not to format differently"
+    );
+}
+
+#[test]
+fn the_owned_style_string_of_nothing_is_empty() {
+    let owned: String = Css::style_string_owned(&[]);
+    assert!(owned.is_empty());
+}
