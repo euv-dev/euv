@@ -1,7 +1,5 @@
 mod r#fn;
 
-pub use std::{cell::Cell, rc::Rc};
-
 pub struct CountingHandler {
     pub updates: Rc<Cell<u32>>,
     pub renders: Rc<Cell<u32>>,

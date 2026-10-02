@@ -7,9 +7,12 @@ pub use {r#const::*, r#fn::*, r#struct::*};
 
 use std::{
     env,
+    ffi::OsString,
+    fs::{DirEntry, FileType, copy, create_dir_all, read_dir},
+    io::Error,
     iter::Skip,
     path::{Path, PathBuf},
-    process::{Command, ExitCode, exit},
+    process::{Command, ExitCode, ExitStatus, exit},
 };
 
 /// CLI entry point: parses arguments, runs the build, and maps the

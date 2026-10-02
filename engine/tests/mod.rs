@@ -26,9 +26,9 @@ mod wasm_fallback;
 use euv_engine::*;
 
 use std::{
-    cell::{RefCell, RefMut},
-    collections::HashSet,
-    rc::Rc,
+    cell::{Cell, RefCell, RefMut},
+    collections::{HashMap, HashSet},
+    rc::{Rc, Weak},
 };
 
-use wasm_bindgen::JsValue;
+use {js_sys::Object, wasm_bindgen::JsValue};

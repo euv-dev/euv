@@ -543,7 +543,7 @@ fn drawer_navigate() -> Option<Rc<dyn Fn(&'static str)>> {
 ///
 /// - `Signal<String>` - The current route signal.
 fn use_anchor_scroll(route_signal: Signal<String>) {
-    let handler: AnchorScroll = std::sync::Arc::new(move || {
+    let handler: AnchorScroll = Arc::new(move || {
         let raw: String = route_signal.get();
         let (_path, anchor) = parse_route(&raw);
         schedule_scroll(anchor);

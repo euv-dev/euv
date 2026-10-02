@@ -1,2 +1,4 @@
+use super::*;
+
 /// The scroll-to-anchor callback subscribed to the route signal.
-pub(crate) type AnchorScroll = std::sync::Arc<dyn Fn() + Send + Sync>;
+pub(crate) type AnchorScroll = Arc<dyn Fn() + Send + Sync>;

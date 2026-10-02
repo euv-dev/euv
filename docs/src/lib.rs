@@ -21,6 +21,7 @@ pub(crate) use {
     data::*,
     js_sys::{Promise, decode_uri_component, eval},
     router::*,
+    std::sync::Arc,
     web_sys::{Event, HtmlInputElement, KeyboardEvent, Location},
 };
 
