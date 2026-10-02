@@ -33,7 +33,7 @@ impl InjectedClassesCell {
     pub(crate) fn mark_injected(class_name: &str) {
         let write_result: Result<
             InjectedClassesWriteGuard<'_>,
-            std::sync::PoisonError<InjectedClassesWriteGuard<'_>>,
+            PoisonError<InjectedClassesWriteGuard<'_>>,
         > = INJECTED_CLASSES.write();
         let Ok(mut classes) = write_result else {
             return;
@@ -134,14 +134,14 @@ impl AttributeValue {
     fn join_class_segments(values: &[Self]) -> String {
         let mut joined: String = String::new();
         for value in values.iter() {
-            let segment: std::borrow::Cow<'_, str> = match value {
+            let segment: Cow<'_, str> = match value {
                 Self::Css(css) => {
                     css.inject_style();
                     let name: &str = css.get_name();
                     if name.is_empty() {
                         continue;
                     }
-                    std::borrow::Cow::Borrowed(name)
+                    Cow::Borrowed(name)
                 }
                 Self::CssRef(css) => {
                     css.inject_style();
@@ -149,20 +149,20 @@ impl AttributeValue {
                     if name.is_empty() {
                         continue;
                     }
-                    std::borrow::Cow::Borrowed(name)
+                    Cow::Borrowed(name)
                 }
                 Self::Text(text_value) => {
                     if text_value.is_empty() {
                         continue;
                     }
-                    std::borrow::Cow::Borrowed(text_value.as_str())
+                    Cow::Borrowed(text_value.as_str())
                 }
                 Self::Signal(signal) => {
                     let current: String = signal.get();
                     if current.is_empty() {
                         continue;
                     }
-                    std::borrow::Cow::Owned(current)
+                    Cow::Owned(current)
                 }
                 _ => continue,
             };
@@ -224,19 +224,19 @@ impl AttributeValue {
     fn join_style_segments(values: &[Self]) -> String {
         let mut joined: String = String::new();
         for value in values.iter() {
-            let segment: std::borrow::Cow<'_, str> = match value {
+            let segment: Cow<'_, str> = match value {
                 Self::Text(text_value) => {
                     if text_value.is_empty() {
                         continue;
                     }
-                    std::borrow::Cow::Borrowed(text_value.as_str())
+                    Cow::Borrowed(text_value.as_str())
                 }
                 Self::Signal(signal) => {
                     let current: String = signal.get();
                     if current.is_empty() {
                         continue;
                     }
-                    std::borrow::Cow::Owned(current)
+                    Cow::Owned(current)
                 }
                 _ => continue,
             };

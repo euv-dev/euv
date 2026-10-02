@@ -146,7 +146,7 @@ pub(crate) fn cached_method_name(name: &'static str) -> JsValue {
             const { RefCell::new(None) };
     }
     CACHE.with(|slot: &RefCell<Option<HashMap<&'static str, JsValue>>>| {
-        let mut borrow: std::cell::RefMut<'_, Option<HashMap<&'static str, JsValue>>> =
+        let mut borrow: RefMut<'_, Option<HashMap<&'static str, JsValue>>> =
             slot.borrow_mut();
         let map: &mut HashMap<&'static str, JsValue> = borrow.get_or_insert_with(HashMap::new);
         if let Some(value) = map.get(name) {
@@ -226,7 +226,7 @@ pub(crate) fn cached_method(
     let key: (GpuReceiverClass, &'static str) = (class, method_name);
     FUNCTION_CACHE.with(
         |slot: &RefCell<Option<HashMap<(GpuReceiverClass, &'static str), Function>>>| {
-            let mut borrow: std::cell::RefMut<
+            let mut borrow: RefMut<
                 '_,
                 Option<HashMap<(GpuReceiverClass, &'static str), Function>>,
             > = slot.borrow_mut();

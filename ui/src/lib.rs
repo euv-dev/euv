@@ -13,15 +13,16 @@ pub use wasm_bindgen_futures::*;
 
 pub use std::{
     any::Any,
-    cell::{Cell, RefCell, RefMut, UnsafeCell},
+    cell::{Cell, Ref, RefCell, RefMut, UnsafeCell},
     collections::{HashMap, HashSet},
     fmt::{self, Debug, Display, Formatter},
     hash::Hash,
     ops::Deref,
+    ptr::addr_of_mut,
     panic::{AssertUnwindSafe, UnwindSafe, catch_unwind},
     rc::Rc,
     sync::{
-        LazyLock, OnceLock, RwLock,
+        LazyLock, OnceLock, PoisonError, RwLock, RwLockWriteGuard,
         atomic::{AtomicBool, Ordering},
     },
     time::{Duration, SystemTime, UNIX_EPOCH},

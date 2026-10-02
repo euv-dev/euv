@@ -986,7 +986,7 @@ fn indented_body_skipping_block_comments(body: &str, indent_str: &str) -> String
         }
         if chars[index] == CHAR_NEWLINE {
             current_line.push(CHAR_NEWLINE);
-            let line_owned: String = std::mem::take(&mut current_line);
+            let line_owned: String = take(&mut current_line);
             let line_ref: &str = line_owned.as_str();
             let indented: String = if line_starts_in_comment || line_ref.trim().is_empty() {
                 line_owned

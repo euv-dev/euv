@@ -366,7 +366,7 @@ impl Renderer {
                             _ => None,
                         })
                         .any(|old_callback: &SharedEventCallback| {
-                            std::ptr::eq(Rc::as_ptr(old_callback), Rc::as_ptr(new_callback))
+                            eq(Rc::as_ptr(old_callback), Rc::as_ptr(new_callback))
                         });
                     if !already_attached {
                         self.attach_event_listener(element, handler);

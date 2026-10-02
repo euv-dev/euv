@@ -468,7 +468,7 @@ impl PhysicsWorld2D {
         // its allocation across steps instead of paying one Vec clone
         // (alloc + memcpy) per step per world. It is restored after the
         // iteration loop.
-        let pairs_snapshot: Vec<(usize, usize)> = std::mem::take(self.get_mut_pair_buffer());
+        let pairs_snapshot: Vec<(usize, usize)> = take(self.get_mut_pair_buffer());
         for iteration in 0..PHYSICS_MAX_ITERATIONS {
             let mut any_collision: bool = false;
             for &(i, j) in pairs_snapshot.iter() {
@@ -855,7 +855,7 @@ impl PhysicsWorld3D {
         // its allocation across steps instead of paying one Vec clone
         // (alloc + memcpy) per step per world. It is restored after the
         // iteration loop.
-        let pairs_snapshot: Vec<(usize, usize)> = std::mem::take(self.get_mut_pair_buffer());
+        let pairs_snapshot: Vec<(usize, usize)> = take(self.get_mut_pair_buffer());
         for iteration in 0..PHYSICS_MAX_ITERATIONS {
             let mut any_collision: bool = false;
             for &(i, j) in pairs_snapshot.iter() {

@@ -13,9 +13,19 @@ mod mode;
 mod server;
 
 pub use std::{
+    env::{current_dir, var},
+    // hyperlane exports an async ; the std one is synchronous and
+    // returns its Result directly, so the bare name would silently change which
+    // function this crate calls.
     error::Error,
+    fs::{
+        canonicalize as sync_canonicalize,
+        read_to_string as sync_read_to_string,
+    },
     ffi::OsStr,
     fmt::{Display, Formatter},
+    iter::once,
+    mem::take,
     string::FromUtf8Error,
 };
 pub use {build::*, error::*, fmt::*, hmr::*, logger::*, mode::*, server::*};

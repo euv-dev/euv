@@ -40,9 +40,20 @@ pub(crate) use renderer::*;
 
 use std::{
     any::Any,
-    cell::{Cell, Ref, RefCell, UnsafeCell},
+    cell::{Cell, Ref, RefCell, RefMut, UnsafeCell},
+    // The module rather than the trait: a glob re-export in this crate brings in
+    // a *struct* named Iterator (the JS one), so a bare `Iterator` would resolve
+    // to that. Importing the module keeps the path unambiguous without an `as`
+    // rename, which 6.5 forbids.
+    iter,
     num::ParseIntError,
+    ptr::eq,
     rc::Rc,
-    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+    str::from_utf8,
+    sync::{
+        PoisonError, RwLockWriteGuard,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+    thread::AccessError,
     vec::Vec,
 };

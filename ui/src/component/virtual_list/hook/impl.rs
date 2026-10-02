@@ -10,7 +10,7 @@ impl PendingMeasureCell {
     ///   set of container ids awaiting measurement.
     fn get_mut_pending_measure() -> &'static mut HashSet<String> {
         unsafe {
-            &mut *(*std::ptr::addr_of_mut!(PENDING_MEASURE_BY_ID))
+            &mut *(*addr_of_mut!(PENDING_MEASURE_BY_ID))
                 .deref()
                 .get_0()
                 .get()

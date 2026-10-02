@@ -11,7 +11,7 @@ use super::*;
 /// - `Result<(), EuvError>` - Indicates success or failure.
 pub async fn build_mode(mut args: ModeArgs) -> Result<(), EuvError> {
     reconcile_args(&mut args);
-    args.set_crate_path(std::fs::canonicalize(args.get_crate_path()).map_err(
+    args.set_crate_path(sync_canonicalize(args.get_crate_path()).map_err(
         |error: io::Error| EuvError::IoPath {
             message: ERROR_INVALID_CRATE_PATH.to_string(),
             path: args.get_crate_path().clone(),
@@ -45,7 +45,7 @@ pub async fn fmt_mode(args: FmtArgs) -> Result<(), EuvError> {
     let fmt_path: PathBuf = if args.get_path().is_absolute() {
         args.get_path().clone()
     } else {
-        std::env::current_dir()
+        current_dir()
             .map_err(|error: io::Error| EuvError::Io {
                 message: ERROR_CURRENT_DIRECTORY.to_string(),
                 error,
@@ -71,7 +71,7 @@ pub async fn fmt_mode(args: FmtArgs) -> Result<(), EuvError> {
 /// - `Result<(), EuvError>` - Indicates success or failure.
 pub async fn run_mode(mut args: ModeArgs) -> Result<(), EuvError> {
     reconcile_args(&mut args);
-    args.set_crate_path(std::fs::canonicalize(args.get_crate_path()).map_err(
+    args.set_crate_path(sync_canonicalize(args.get_crate_path()).map_err(
         |error: io::Error| EuvError::IoPath {
             message: ERROR_INVALID_CRATE_PATH.to_string(),
             path: args.get_crate_path().clone(),

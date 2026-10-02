@@ -84,7 +84,7 @@ pub(crate) fn ensure_dom_op_table() -> Option<DomOpTable> {
     // Cache the resolved table. A refused borrow only costs one extra
     // `Reflect::get` on the next patch, so the failure is ignored rather
     // than propagated.
-    let _: Result<(), std::thread::AccessError> =
+    let _: Result<(), AccessError> =
         DOM_OP_TABLE.try_with(|cell: &RefCell<Option<DomOpTable>>| {
             if let Ok(mut guard) = cell.try_borrow_mut() {
                 *guard = Some(table.clone());
@@ -438,7 +438,7 @@ pub(crate) fn encoded_name_suffix() -> String {
         }
         masked
     };
-    let raw: &str = std::str::from_utf8(&printable).unwrap_or(JS_DOM_OP_NAME_FALLBACK_SUFFIX);
+    let raw: &str = from_utf8(&printable).unwrap_or(JS_DOM_OP_NAME_FALLBACK_SUFFIX);
     let encoded: Result<String, EncodeError> =
         Charset::new().charset(JS_DOM_OP_NAME_CHARSET).encode(raw);
     match encoded {

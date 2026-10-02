@@ -53,7 +53,7 @@ impl VertexStepMode {
 /// the normal case rather than the exception. The `|` operator is the
 /// only way the engine combines them, which keeps every bit value in
 /// exactly one place.
-impl std::ops::BitOr for BufferUsage {
+impl BitOr for BufferUsage {
     /// The combined `usage` bitmask.
     type Output = u32;
 
@@ -76,7 +76,7 @@ impl std::ops::BitOr for BufferUsage {
 ///
 /// The texture counterpart of the `|` operator on [`BufferUsage`], with
 /// the same single-source-of-truth rationale.
-impl std::ops::BitOr for TextureUsage {
+impl BitOr for TextureUsage {
     /// The combined `usage` bitmask.
     type Output = u32;
 
@@ -100,7 +100,7 @@ impl std::ops::BitOr for TextureUsage {
 /// The third of the three bitmask-carrying WebGPU enums; see
 /// [`BufferUsage`] for why combining is expressed as an operator rather
 /// than a helper call.
-impl std::ops::BitOr for ShaderStage {
+impl BitOr for ShaderStage {
     /// The combined visibility bitmask.
     type Output = u32;
 

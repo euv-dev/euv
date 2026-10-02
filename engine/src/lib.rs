@@ -49,10 +49,12 @@ pub use std::{
 use euv::*;
 
 use std::{
-    cell::{RefCell, UnsafeCell},
+    cell::{RefCell, RefMut, UnsafeCell},
     collections::{HashMap, HashSet},
-    ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
+    mem::take,
+    ops::{Add, AddAssign, BitOr, Mul, MulAssign, Neg, Sub, SubAssign},
     rc::Rc,
     rc::Weak,
+    slice::from_ref,
     sync::atomic::{AtomicU64, Ordering},
 };

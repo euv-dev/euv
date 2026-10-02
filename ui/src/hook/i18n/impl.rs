@@ -63,12 +63,12 @@ impl I18n {
     /// - `&str` - Shared reference to a `str`.
     /// - `&[MessageEntry]` - Shared reference to a `[MessageEntry]`.
     pub fn add_messages(&self, locale: &str, entries: &[MessageEntry]) {
-        let mut guard: std::sync::RwLockWriteGuard<
+        let mut guard: RwLockWriteGuard<
             'static,
             HashMap<String, HashMap<String, String>>,
         > = messages_lock().write().unwrap_or_else(
-            |e: std::sync::PoisonError<
-                std::sync::RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
+            |e: PoisonError<
+                RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
             >| e.into_inner(),
         );
         let entry_map: &mut HashMap<String, String> = guard.entry(locale.to_string()).or_default();
@@ -88,12 +88,12 @@ impl I18n {
     ///
     /// - `&str` - Shared reference to a `str`.
     pub fn remove_locale(&self, locale: &str) {
-        let mut guard: std::sync::RwLockWriteGuard<
+        let mut guard: RwLockWriteGuard<
             'static,
             HashMap<String, HashMap<String, String>>,
         > = messages_lock().write().unwrap_or_else(
-            |e: std::sync::PoisonError<
-                std::sync::RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
+            |e: PoisonError<
+                RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
             >| e.into_inner(),
         );
         guard.remove(locale);
@@ -111,12 +111,12 @@ impl I18n {
     /// - `&str` - Shared reference to a `str`.
     /// - `&str` - Shared reference to a `str`.
     pub fn remove_message(&self, locale: &str, key: &str) {
-        let mut guard: std::sync::RwLockWriteGuard<
+        let mut guard: RwLockWriteGuard<
             'static,
             HashMap<String, HashMap<String, String>>,
         > = messages_lock().write().unwrap_or_else(
-            |e: std::sync::PoisonError<
-                std::sync::RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
+            |e: PoisonError<
+                RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
             >| e.into_inner(),
         );
         if let Some(entry_map) = guard.get_mut(locale) {
@@ -153,12 +153,12 @@ impl I18n {
         // two `String` clones per call (per `t()` per render).
         self.get_locale().with(|active: &String| {
             self.get_fallback_locale().with(|fallback: &String| {
-                let guard: std::sync::RwLockReadGuard<
+                let guard: RwLockReadGuard<
                     'static,
                     HashMap<String, HashMap<String, String>>,
                 > = messages_lock().read().unwrap_or_else(
-                    |e: std::sync::PoisonError<
-                        std::sync::RwLockReadGuard<
+                    |e: PoisonError<
+                        RwLockReadGuard<
                             'static,
                             HashMap<String, HashMap<String, String>>,
                         >,
@@ -215,10 +215,10 @@ impl I18n {
     ///
     /// - `usize` - Count of registered locales.
     pub fn locale_count(&self) -> usize {
-        let guard: std::sync::RwLockReadGuard<'static, HashMap<String, HashMap<String, String>>> =
+        let guard: RwLockReadGuard<'static, HashMap<String, HashMap<String, String>>> =
             messages_lock().read().unwrap_or_else(
-                |e: std::sync::PoisonError<
-                    std::sync::RwLockReadGuard<'static, HashMap<String, HashMap<String, String>>>,
+                |e: PoisonError<
+                    RwLockReadGuard<'static, HashMap<String, HashMap<String, String>>>,
                 >| e.into_inner(),
             );
         guard.len()
@@ -235,12 +235,12 @@ impl I18n {
     /// - `usize` - Count of currently-registered messages.
     pub fn active_message_count(&self) -> usize {
         self.get_locale().with(|active: &String| {
-            let guard: std::sync::RwLockReadGuard<
+            let guard: RwLockReadGuard<
                 'static,
                 HashMap<String, HashMap<String, String>>,
             > = messages_lock().read().unwrap_or_else(
-                |e: std::sync::PoisonError<
-                    std::sync::RwLockReadGuard<'static, HashMap<String, HashMap<String, String>>>,
+                |e: PoisonError<
+                    RwLockReadGuard<'static, HashMap<String, HashMap<String, String>>>,
                 >| e.into_inner(),
             );
             guard

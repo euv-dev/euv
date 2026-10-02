@@ -101,7 +101,7 @@ fn event_id_chain_fn() -> Option<Function> {
             })
             .filter(|value: &JsValue| value.is_function())
             .and_then(|value: JsValue| value.dyn_into::<Function>().ok());
-        let mut slot: std::cell::RefMut<'_, Option<Option<Function>>> = cell.borrow_mut();
+        let mut slot: RefMut<'_, Option<Option<Function>>> = cell.borrow_mut();
         *slot = Some(resolved.clone());
         resolved
     })

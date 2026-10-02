@@ -341,7 +341,7 @@ pub fn resolve_out_name(args: &ModeArgs) -> String {
 ///
 /// - `Option<String>` - The crate name if found.
 fn read_crate_name_from_toml(path: &Path) -> Option<String> {
-    let content: String = std::fs::read_to_string(path).ok()?;
+    let content: String = sync_read_to_string(path).ok()?;
     let mut in_package: bool = false;
     for line in content.lines() {
         let trimmed: &str = line.trim();
@@ -740,7 +740,7 @@ pub async fn build_wasm(args: &ModeArgs) -> Result<(), EuvError> {
     let display_args: Vec<String> = (if has_existing_build_mode {
         filtered_args.to_vec()
     } else {
-        std::iter::once(build_mode_flag.to_string())
+        once(build_mode_flag.to_string())
             .chain(filtered_args.iter().cloned())
             .collect::<Vec<String>>()
     })
@@ -901,7 +901,7 @@ pub(crate) async fn build_inline_bridge(
     js_name: &str,
     wasm_url: &str,
 ) -> Result<String, EuvError> {
-    let js_path: std::path::PathBuf = pkg_dir.join(js_name);
+    let js_path: PathBuf = pkg_dir.join(js_name);
     let bridge_source: String =
         read_to_string(&js_path)
             .await
@@ -958,7 +958,7 @@ pub(crate) fn build_module_fallback_bridge(import_path: &str) -> String {
 ///
 /// - `bool` - `true` if the env var is set to a non-empty value.
 pub(crate) fn inline_bridge_disabled() -> bool {
-    matches!(std::env::var(EUV_NO_INLINE_BRIDGE_ENV), Ok(value) if !value.is_empty())
+    matches!(var(EUV_NO_INLINE_BRIDGE_ENV), Ok(value) if !value.is_empty())
 }
 
 /// Collects the source of every module the bridge imports, inlined in
@@ -1008,7 +1008,7 @@ async fn collect_snippet_bodies(bridge_source: &str, pkg_dir: &Path) -> Result<S
         }
     }
     for ns in &namespace_imports {
-        let snippet_path: std::path::PathBuf = resolve_snippet_path(pkg_dir, &ns.spec)?;
+        let snippet_path: PathBuf = resolve_snippet_path(pkg_dir, &ns.spec)?;
         let exports: Vec<String> = if snippet_path.exists() {
             let raw: String = read_to_string(&snippet_path)
                 .await
@@ -1153,7 +1153,7 @@ pub fn extract_import_spec(rest: &str) -> Option<&str> {
 /// - `Result<Option<String>, EuvError>` - The stripped body, `None` if the
 ///   file does not exist, or an error if it cannot be read or decoded.
 async fn read_snippet_module(pkg_dir: &Path, spec: &str) -> Result<Option<String>, EuvError> {
-    let snippet_path: std::path::PathBuf = resolve_snippet_path(pkg_dir, spec)?;
+    let snippet_path: PathBuf = resolve_snippet_path(pkg_dir, spec)?;
     if !snippet_path.exists() {
         return Ok(None);
     }
@@ -1181,11 +1181,11 @@ async fn read_snippet_module(pkg_dir: &Path, spec: &str) -> Result<Option<String
 ///
 /// # Returns
 ///
-/// - `Result<std::path::PathBuf, EuvError>` - The resolved path, or an error if the
+/// - `Result<PathBuf, EuvError>` - The resolved path, or an error if the
 ///   specifier climbs above `pkg_dir`.
-fn resolve_snippet_path(pkg_dir: &Path, spec: &str) -> Result<std::path::PathBuf, EuvError> {
+fn resolve_snippet_path(pkg_dir: &Path, spec: &str) -> Result<PathBuf, EuvError> {
     let base: &str = spec.trim_start_matches('.').trim_start_matches('/');
-    let mut path: std::path::PathBuf = pkg_dir.to_path_buf();
+    let mut path: PathBuf = pkg_dir.to_path_buf();
     for segment in base.split('/') {
         if segment.is_empty() || segment == "." {
             continue;
