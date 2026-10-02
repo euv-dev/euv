@@ -523,3 +523,82 @@ fn quad_tree_boxes_overlap_is_true_when_one_box_swallows_the_other() {
         "containment is overlap"
     );
 }
+
+#[test]
+fn a_quad_tree_node_can_be_built_directly_with_its_bounds_depth_and_child_slots() {
+    let children: QuadTreeChildren2D = [usize::MAX, usize::MAX, usize::MAX, usize::MAX];
+    let node: QuadTreeNode2D = QuadTreeNode2D::new(
+        Vector2D::new(-10.0, -10.0),
+        Vector2D::new(10.0, 10.0),
+        0,
+        children,
+        true,
+        false,
+        Vec::new(),
+    );
+    assert_eq!(node.get_min().get_x(), -10.0);
+    assert_eq!(node.get_max().get_y(), 10.0);
+    assert_eq!(node.get_depth(), 0);
+    assert_eq!(node.get_children(), &children, "the unset sentinel round-trips");
+    assert!(node.get_leaf());
+    assert!(!node.get_loose());
+}
+
+#[test]
+fn a_quad_tree_node_is_marked_loose_when_it_holds_an_entry_it_does_not_contain() {
+    let empty: QuadTreeChildren2D = [usize::MAX, usize::MAX, usize::MAX, usize::MAX];
+    let tight: QuadTreeNode2D = QuadTreeNode2D::new(
+        Vector2D::zero(),
+        Vector2D::new(4.0, 4.0),
+        0,
+        empty,
+        true,
+        false,
+        Vec::new(),
+    );
+    let loose: QuadTreeNode2D = QuadTreeNode2D::new(
+        Vector2D::zero(),
+        Vector2D::new(4.0, 4.0),
+        0,
+        empty,
+        true,
+        true,
+        Vec::new(),
+    );
+    assert_ne!(tight, loose, "the loose flag is part of the node's identity");
+    assert!(!tight.get_loose(), "no straddling entry, so the region prune stays sound");
+    assert!(loose.get_loose(), "a straddling entry forces the exact box test");
+}
+
+#[test]
+fn two_quad_tree_nodes_with_the_same_fields_compare_equal() {
+    let first: QuadTreeNode2D = QuadTreeNode2D::new(
+        Vector2D::zero(),
+        Vector2D::new(4.0, 4.0),
+        2,
+        [0, 0, 0, 0],
+        true,
+        false,
+        Vec::new(),
+    );
+    let same: QuadTreeNode2D = QuadTreeNode2D::new(
+        Vector2D::zero(),
+        Vector2D::new(4.0, 4.0),
+        2,
+        [0, 0, 0, 0],
+        true,
+        false,
+        Vec::new(),
+    );
+    let deeper: QuadTreeNode2D = QuadTreeNode2D::new(
+        Vector2D::zero(),
+        Vector2D::new(4.0, 4.0),
+        3,
+        [0, 0, 0, 0],
+        true,
+        false,
+        Vec::new(),
+    );
+    assert_eq!(first, same, "the node is a plain value type");
+    assert_ne!(first, deeper, "depth is part of the identity");
+}
