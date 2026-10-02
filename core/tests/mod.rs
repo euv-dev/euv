@@ -13,6 +13,11 @@ mod vdom_node;
 
 use euv_core::*;
 
-use std::{borrow::Cow, cell::Cell, cmp::Ordering, rc::Rc};
+use std::{
+    borrow::Cow,
+    cell::{Cell, RefCell},
+    cmp::Ordering,
+    rc::Rc,
+};
 
 use {wasm_bindgen::JsValue, wasm_bindgen_test::wasm_bindgen_test};
