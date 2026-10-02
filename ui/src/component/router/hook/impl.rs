@@ -219,8 +219,10 @@ impl Router {
     /// fullscreen, canvas fullscreen) to intercept the system back gesture without
     /// registering their own independent `popstate` listener.
     ///
-    /// Returns a guard ID that can be passed to `unregister_popstate_guard` to
-    /// remove the guard when it is no longer needed.
+    /// Guards stay registered for the lifetime of the page: the guard list is a
+    /// thread-local that is only ever appended to, so a guard registered here
+    /// is consulted by every later `popstate` event. The returned id identifies
+    /// the entry for diagnostics; there is no removal path today.
     ///
     /// # Arguments
     ///
@@ -230,7 +232,7 @@ impl Router {
     ///
     /// # Returns
     ///
-    /// - `usize` - A unique guard ID for later unregistration.
+    /// - `usize` - A unique guard ID identifying this entry in the guard list.
     pub fn register_popstate_guard(guard: Rc<dyn Fn() -> bool>) -> usize {
         NEXT_POPSTATE_GUARD_ID.with(|counter: &Cell<usize>| {
             let id: usize = counter.get();

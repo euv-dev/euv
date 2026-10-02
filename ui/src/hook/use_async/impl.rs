@@ -47,10 +47,9 @@ where
     /// # Safety
     ///
     /// Caller must ensure the slot is alive. The handle owns a
-    /// `Box<UseAsyncSlot<T, L>>` for its lifetime (the slot is
-    /// leaked at allocation time, never dropped) — see
-    /// `release` for the explicit teardown path used by
-    /// `HookContext::clear`.
+    /// `Box<UseAsyncSlot<T, L>>` for its lifetime; the slot is leaked at
+    /// allocation time and never dropped, so there is no teardown path to
+    /// document here.
     ///
     /// # Returns
     ///
