@@ -235,3 +235,111 @@ fn re_registering_a_name_replaces_the_previous_scene() {
         "only the surviving scene must be entered"
     );
 }
+
+fn scene_counters() -> (Rc<RefCell<u32>>, Rc<RefCell<u32>>, Rc<RefCell<f64>>) {
+    (
+        Rc::new(RefCell::new(0)),
+        Rc::new(RefCell::new(0)),
+        Rc::new(RefCell::new(0.0)),
+    )
+}
+
+#[test]
+fn a_requested_scene_transition_only_happens_when_it_is_processed() {
+    let (entered, exited, updates) = scene_counters();
+    let mut manager: SceneManager = SceneManager::default();
+    manager.register(
+        String::from("title"),
+        probe_scene("title", &entered, &exited, &updates),
+    );
+    manager.register(
+        String::from("level-1"),
+        probe_scene("level-1", &entered, &exited, &updates),
+    );
+    assert!(manager.switch_to("title"), "both scenes are registered");
+    assert_eq!(*entered.borrow(), 1, "entering the first scene");
+
+    manager.request_transition(String::from("level-1"));
+    assert_eq!(
+        manager.current_name(),
+        Some("title"),
+        "requesting must not switch on its own"
+    );
+    assert_eq!(*exited.borrow(), 0, "nor may it fire the exit hook");
+
+    manager.process_pending_transition();
+    assert_eq!(
+        manager.current_name(),
+        Some("level-1"),
+        "processing applies the pending name"
+    );
+    assert_eq!(*exited.borrow(), 1, "the old scene is exited exactly once");
+    assert_eq!(*entered.borrow(), 2, "the new scene is entered exactly once");
+}
+
+#[test]
+fn processing_with_nothing_pending_leaves_the_current_scene_alone() {
+    let (entered, exited, updates) = scene_counters();
+    let mut manager: SceneManager = SceneManager::default();
+    manager.register(
+        String::from("title"),
+        probe_scene("title", &entered, &exited, &updates),
+    );
+    manager.switch_to("title");
+    manager.process_pending_transition();
+    assert_eq!(
+        manager.current_name(),
+        Some("title"),
+        "an empty queue is a no-op, not an error"
+    );
+    assert_eq!(*exited.borrow(), 0, "a no-op fires no hooks at all");
+    manager.process_pending_transition();
+    assert_eq!(
+        manager.current_name(),
+        Some("title"),
+        "it stays a no-op when called twice"
+    );
+    assert_eq!(*entered.borrow(), 1, "the scene is still entered only once");
+}
+
+#[test]
+fn a_pending_transition_to_an_unregistered_scene_is_dropped_without_disturbing_the_current_one() {
+    let (entered, exited, updates) = scene_counters();
+    let mut manager: SceneManager = SceneManager::default();
+    manager.register(
+        String::from("title"),
+        probe_scene("title", &entered, &exited, &updates),
+    );
+    manager.switch_to("title");
+    manager.request_transition(String::from("nowhere"));
+    manager.process_pending_transition();
+    assert_eq!(
+        manager.current_name(),
+        Some("title"),
+        "switch_to refuses an unknown name, so the pending name is consumed and ignored"
+    );
+    assert_eq!(*exited.borrow(), 0, "the current scene is not exited");
+}
+
+#[test]
+fn the_pending_name_is_consumed_even_when_the_switch_fails() {
+    let (entered, exited, updates) = scene_counters();
+    let mut manager: SceneManager = SceneManager::default();
+    manager.register(
+        String::from("title"),
+        probe_scene("title", &entered, &exited, &updates),
+    );
+    manager.switch_to("title");
+    manager.request_transition(String::from("nowhere"));
+    manager.process_pending_transition();
+    manager.register(
+        String::from("nowhere"),
+        probe_scene("nowhere", &entered, &exited, &updates),
+    );
+    manager.process_pending_transition();
+    assert_eq!(
+        manager.current_name(),
+        Some("title"),
+        "registering the scene afterwards must not revive the consumed request"
+    );
+}

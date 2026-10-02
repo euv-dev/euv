@@ -283,3 +283,52 @@ fn a_sphere_collider_answers_the_collider_3d_queries() {
     assert!(!collider.contains_point(Vector3D::new(0.0, 0.0, 5.0)), "past the radius");
     assert!(!collider.contains_point(Vector3D::new(3.0, 3.0, 0.0)), "diagonally past it");
 }
+
+fn dynamic_box() -> AabbCollider {
+    AabbCollider::from_center(Vector2D::zero(), 2.0, 2.0)
+}
+
+fn sphere_3d() -> SphereCollider3D {
+    SphereCollider3D::from_center(Vector3D::zero(), 1.0)
+}
+
+#[test]
+fn the_collider_trait_is_usable_as_a_trait_object() {
+    let shapes: [(&dyn Collider, ColliderShape); 2] = [
+        (&dynamic_box(), ColliderShape::Aabb),
+        (
+            &CircleCollider::from_center(Vector2D::zero(), 1.0),
+            ColliderShape::Circle,
+        ),
+    ];
+    for (collider, expected) in shapes {
+        assert_eq!(collider.shape(), expected);
+        assert_eq!(collider.center(), Vector2D::zero());
+        assert!(collider.contains_point(Vector2D::zero()));
+    }
+}
+
+#[test]
+fn the_collider_3d_trait_is_usable_as_a_trait_object() {
+    let shapes: [(&dyn Collider3D, ColliderShape3D); 2] = [
+        (
+            &AabbCollider3D::from_center(Vector3D::zero(), 2.0, 2.0, 2.0),
+            ColliderShape3D::Aabb,
+        ),
+        (&sphere_3d(), ColliderShape3D::Sphere),
+    ];
+    for (collider, expected) in shapes {
+        assert_eq!(collider.shape(), expected);
+        assert_eq!(collider.center(), Vector3D::zero());
+        assert!(collider.contains_point(Vector3D::zero()));
+    }
+}
+
+#[test]
+fn a_collider_bounding_box_can_be_read_through_the_trait_object() {
+    let collider: Box<dyn Collider> = Box::new(dynamic_box());
+    let bounds: Rect = collider.bounding_box();
+    assert_eq!(bounds.get_width(), 2.0);
+    assert_eq!(bounds.get_height(), 2.0);
+    assert!(!collider.contains_point(Vector2D::new(5.0, 5.0)));
+}

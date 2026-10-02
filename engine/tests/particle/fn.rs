@@ -271,3 +271,30 @@ fn render_records_one_circle_per_visible_particle() {
         "every visible particle must contribute one draw command"
     );
 }
+
+#[test]
+fn an_emitter_created_with_defaults_keeps_its_position_and_the_default_config() {
+    let position: Vector2D = Vector2D::new(12.0, -3.0);
+    let emitter: ParticleEmitter = ParticleEmitter::with_defaults(position);
+    assert_eq!(emitter.get_position().get_x(), 12.0);
+    assert_eq!(emitter.get_position().get_y(), -3.0);
+    let config: ParticleConfig = emitter.get_config();
+    assert_eq!(
+        config.get_lifetime_min(),
+        ParticleConfig::default().get_lifetime_min(),
+        "with_defaults must not invent a config of its own"
+    );
+    assert_eq!(emitter.alive_count(), 0, "a fresh emitter holds no particles");
+}
+
+#[test]
+fn two_emitters_created_with_defaults_share_one_config_shape() {
+    let first: ParticleEmitter = ParticleEmitter::with_defaults(Vector2D::zero());
+    let second: ParticleEmitter = ParticleEmitter::with_defaults(Vector2D::new(5.0, 5.0));
+    assert_eq!(
+        first.get_config().get_lifetime_max(),
+        second.get_config().get_lifetime_max()
+    );
+    assert_eq!(first.get_position().get_x(), 0.0);
+    assert_eq!(second.get_position().get_x(), 5.0);
+}

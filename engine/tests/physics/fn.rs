@@ -451,3 +451,29 @@ fn zero_inertia_makes_a_three_dimensional_body_immovable_about_every_axis() {
         stepped.get_angular_velocity()
     );
 }
+
+#[test]
+fn a_dynamic_body_reports_the_dynamic_body_type() {
+    let body: RigidBody2D = RigidBody2D::new_dynamic(1, Vector2D::new(4.0, 5.0));
+    assert_eq!(body.get_body_type(), BodyType::Dynamic);
+    assert!(body.is_dynamic(), "a dynamic body takes part in simulation");
+}
+
+#[test]
+fn a_static_body_reports_the_static_body_type_and_stays_put() {
+    let body: RigidBody2D = RigidBody2D::new_static(2, Vector2D::new(4.0, 5.0));
+    assert_eq!(body.get_body_type(), BodyType::Static);
+    assert!(!body.is_dynamic(), "a static body is never moved by forces");
+}
+
+#[test]
+fn the_three_dimensional_constructors_set_the_same_two_body_types() {
+    assert_eq!(
+        RigidBody3D::new_dynamic(3, Vector3D::zero()).get_body_type(),
+        BodyType::Dynamic
+    );
+    assert_eq!(
+        RigidBody3D::new_static(4, Vector3D::zero()).get_body_type(),
+        BodyType::Static
+    );
+}

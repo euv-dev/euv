@@ -1088,3 +1088,18 @@ fn interpolating_a_color_blends_the_rgba_channels_separately() {
     assert_eq!(grey.get_alpha(), 0.5, "alpha blends with the rest, it is not special");
     assert_eq!(black.lerp(white, 1.0).get_alpha(), 1.0);
 }
+
+fn halfway<T: Interpolable>(from: T, to: T) -> T {
+    from.lerp(to, 0.5)
+}
+
+#[test]
+fn the_interpolable_trait_is_usable_as_a_generic_bound() {
+    assert_eq!(halfway(0.0_f64, 10.0), 5.0);
+    assert_eq!(halfway(Vector2D::zero(), Vector2D::new(8.0, 2.0)).get_y(), 1.0);
+    assert_eq!(
+        halfway(Vector3D::zero(), Vector3D::new(0.0, 0.0, 7.0)).get_z(),
+        3.5
+    );
+    assert_eq!(halfway(Color::new(0.0, 0.0, 0.0, 0.0), Color::new(1.0, 1.0, 1.0, 1.0)).get_red(), 0.5);
+}
