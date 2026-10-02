@@ -258,7 +258,6 @@ fn a_requested_scene_transition_only_happens_when_it_is_processed() {
     );
     assert!(manager.switch_to("title"), "both scenes are registered");
     assert_eq!(*entered.borrow(), 1, "entering the first scene");
-
     manager.request_transition(String::from("level-1"));
     assert_eq!(
         manager.current_name(),
@@ -266,7 +265,6 @@ fn a_requested_scene_transition_only_happens_when_it_is_processed() {
         "requesting must not switch on its own"
     );
     assert_eq!(*exited.borrow(), 0, "nor may it fire the exit hook");
-
     manager.process_pending_transition();
     assert_eq!(
         manager.current_name(),

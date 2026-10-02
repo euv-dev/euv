@@ -502,3 +502,158 @@ fn to_css_rounds_channels_to_bytes_and_keeps_alpha_as_a_fraction() {
         "opaque black is the documented default"
     );
 }
+
+fn three_d_camera() -> Camera3D {
+    Camera3D::create(Vector3D::new(0.0, 0.0, 5.0), Vector3D::zero(), 800.0, 600.0)
+}
+
+fn eye_distance(camera: &Camera3D) -> f64 {
+    (camera.get_position() - camera.get_target()).magnitude()
+}
+
+#[test]
+fn a_three_dimensional_camera_starts_at_the_default_clip_planes() {
+    let camera: Camera3D = three_d_camera();
+    assert_eq!(camera.get_position().get_z(), 5.0);
+    assert_eq!(camera.get_target().get_z(), 0.0);
+    assert_eq!(camera.get_fov(), DEFAULT_CAMERA_FOV);
+    assert_eq!(camera.get_near(), DEFAULT_CAMERA_NEAR);
+    assert_eq!(camera.get_far(), DEFAULT_CAMERA_FAR);
+    assert_eq!(camera.get_up().get_y(), 1.0, "the up vector is world up");
+}
+
+#[test]
+fn a_camera_aspect_is_width_over_height() {
+    assert_eq!(three_d_camera().aspect(), 800.0 / 600.0);
+}
+
+#[test]
+fn a_camera_with_a_degenerate_height_reports_a_neutral_aspect_instead_of_dividing_by_zero() {
+    let camera: Camera3D = Camera3D::create(Vector3D::zero(), Vector3D::zero(), 800.0, 0.0);
+    assert_eq!(camera.aspect(), 1.0, "a zero height must not yield an infinity");
+    let tiny: Camera3D = Camera3D::create(Vector3D::zero(), Vector3D::zero(), 800.0, 1e-12);
+    assert_eq!(tiny.aspect(), 1.0, "the same guard covers a near-zero height");
+    assert!(three_d_camera().aspect().is_finite());
+}
+
+#[test]
+fn a_camera_forward_vector_points_from_the_eye_to_the_target() {
+    let camera: Camera3D = three_d_camera();
+    let forward: Vector3D = camera.forward();
+    assert!(
+        (forward.get_z() + 1.0).abs() < 1e-9,
+        "the eye sits at +z looking down -z, got {}",
+        forward.get_z()
+    );
+    assert_eq!(forward.magnitude(), 1.0, "the direction is normalized");
+}
+
+#[test]
+fn a_camera_projects_its_own_target_onto_the_centre_of_the_viewport() {
+    let camera: Camera3D = three_d_camera();
+    let screen: Vector3D = camera.world_to_screen(camera.get_target());
+    assert!(
+        (screen.get_x() - 400.0).abs() < 1e-6,
+        "the target is on the view axis, so it lands at the horizontal centre, got {}",
+        screen.get_x()
+    );
+    assert!(
+        (screen.get_y() - 300.0).abs() < 1e-6,
+        "and at the vertical centre, got {}",
+        screen.get_y()
+    );
+}
+
+#[test]
+fn a_camera_keeps_its_target_in_frustum_and_drops_a_point_behind_the_eye() {
+    let camera: Camera3D = three_d_camera();
+    assert!(camera.in_frustum(camera.get_target()), "the target is by definition visible");
+    assert!(
+        !camera.in_frustum(Vector3D::new(0.0, 0.0, 50.0)),
+        "a point far behind the eye is outside"
+    );
+    assert!(
+        !camera.in_frustum(Vector3D::new(0.0, 0.0, -5000.0)),
+        "a point far beyond the far plane is outside"
+    );
+}
+
+#[test]
+fn translating_a_three_dimensional_camera_moves_eye_and_target_together() {
+    let mut camera: Camera3D = three_d_camera();
+    let before: Matrix4x4 = camera.view_matrix();
+    camera.translate(Vector3D::new(1.0, 2.0, 0.0));
+    assert_eq!(camera.get_position().get_x(), 1.0);
+    assert_eq!(camera.get_target().get_x(), 1.0, "the target rides along");
+    assert_eq!(camera.get_target().get_y(), 2.0);
+    assert_eq!(camera.get_position().get_z(), 5.0, "only the offset axes moved");
+    assert_ne!(before, camera.view_matrix(), "a moved camera has a different view");
+}
+
+#[test]
+fn zooming_a_three_dimensional_camera_pulls_the_eye_towards_a_fixed_target() {
+    let mut camera: Camera3D = three_d_camera();
+    let before: f64 = eye_distance(&camera);
+    camera.zoom(1.0);
+    let after: f64 = eye_distance(&camera);
+    assert!(
+        (before - after - 1.0).abs() < 1e-9,
+        "zoom moves one unit along the forward axis, {before} -> {after}"
+    );
+    assert_eq!(camera.get_target().get_z(), 0.0, "the target never moves");
+    camera.zoom(-1.0);
+    assert!(
+        (eye_distance(&camera) - before).abs() < 1e-9,
+        "a negative zoom walks it back out again"
+    );
+}
+
+#[test]
+fn orbiting_a_three_dimensional_camera_keeps_the_distance_to_its_target() {
+    let mut camera: Camera3D = three_d_camera();
+    let before: f64 = eye_distance(&camera);
+    camera.orbit(0.7, 0.3);
+    assert!(
+        (eye_distance(&camera) - before).abs() < 1e-9,
+        "orbit is a rotation about the target, not a zoom"
+    );
+    assert_eq!(camera.get_target().get_z(), 0.0, "the target is the pivot");
+    let eye: Vector3D = camera.get_position();
+    assert!(
+        (eye.get_x()).abs() > 1e-6,
+        "a non-zero yaw must actually move the eye sideways"
+    );
+}
+
+#[test]
+fn a_linear_gradient_keeps_its_endpoints_and_its_stops_in_order() {
+    let stops: Vec<(f64, String)> = vec![
+        (0.0, String::from("#000000")),
+        (0.5, String::from("#808080")),
+        (1.0, String::from("#ffffff")),
+    ];
+    let gradient: LinearGradient =
+        LinearGradient::create(Vector2D::zero(), Vector2D::new(0.0, 100.0), stops.clone());
+    assert_eq!(gradient.get_start().get_y(), 0.0);
+    assert_eq!(gradient.get_end().get_y(), 100.0);
+    assert_eq!(gradient.get_stops().len(), 3);
+    assert_eq!(gradient.get_stops()[0], stops[0]);
+    assert_eq!(gradient.get_stops()[2].0, 1.0);
+}
+
+#[test]
+fn a_radial_gradient_keeps_both_circles_and_its_stops() {
+    let stops: Vec<(f64, String)> = vec![(0.0, String::from("#ff0000")), (1.0, String::from("#0000ff"))];
+    let gradient: RadialGradient = RadialGradient::create(
+        Vector2D::new(10.0, 10.0),
+        0.0,
+        Vector2D::new(10.0, 10.0),
+        50.0,
+        stops,
+    );
+    assert_eq!(gradient.get_inner_radius(), 0.0);
+    assert_eq!(gradient.get_outer_radius(), 50.0);
+    assert_eq!(gradient.get_inner_center().get_x(), 10.0);
+    assert_eq!(gradient.get_outer_center().get_y(), 10.0);
+    assert_eq!(gradient.get_stops().len(), 2);
+}
