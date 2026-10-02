@@ -259,3 +259,233 @@ fn merge_class_signal_path_preserves_text_siblings() {
         "Signal value dropped: `{resolved}` is missing the accent class"
     );
 }
+
+fn pseudo(selector: &str, style: &str) -> PseudoRule {
+    PseudoRule::new(selector.to_string(), style.to_string())
+}
+
+fn media(query: &str, style: &str, rules: Vec<PseudoRule>) -> MediaRule {
+    MediaRule::new(query.to_string(), style.to_string(), rules)
+}
+
+#[test]
+fn a_pseudo_rule_block_keeps_the_space_that_precedes_its_closing_brace() {
+    let parsed: Vec<PseudoRule> = Css::parse_pseudo_rules(":hover { color: red; }");
+    assert_eq!(
+        parsed,
+        vec![pseudo(":hover", "color: red; ")],
+        "the open delimiter already swallowed the space before the brace, \
+         so the body runs right up to the closing one"
+    );
+}
+
+#[test]
+fn several_pseudo_blocks_in_one_string_are_parsed_in_order() {
+    let parsed: Vec<PseudoRule> =
+        Css::parse_pseudo_rules(":hover { color: red; }:focus { color: blue; }");
+    assert_eq!(
+        parsed,
+        vec![
+            pseudo(":hover", "color: red; "),
+            pseudo(":focus", "color: blue; ")
+        ]
+    );
+}
+
+#[test]
+fn a_pseudo_block_body_keeps_its_own_semicolons_intact() {
+    let parsed: Vec<PseudoRule> =
+        Css::parse_pseudo_rules("::before { content: 'a;b'; margin: 0 auto; }");
+    assert_eq!(
+        parsed,
+        vec![pseudo("::before", "content: 'a;b'; margin: 0 auto; ")],
+        "only the first closing brace ends the block"
+    );
+}
+
+#[test]
+fn a_pseudo_block_needs_the_exact_space_brace_space_delimiter() {
+    let spaced: Vec<PseudoRule> = Css::parse_pseudo_rules(":active { outline: none; }");
+    assert_eq!(spaced, vec![pseudo(":active", "outline: none; ")]);
+    assert!(
+        Css::parse_pseudo_rules(":active{outline: none;}").is_empty(),
+        "without the surrounding spaces the block is not a serialized rule at all"
+    );
+}
+
+#[test]
+fn a_pseudo_block_with_an_empty_selector_or_body_is_dropped() {
+    assert!(
+        Css::parse_pseudo_rules(" { color: red; }").is_empty(),
+        "a rule with no selector cannot become a CSS rule"
+    );
+    assert!(
+        Css::parse_pseudo_rules(":hover { }").is_empty(),
+        "a rule with no declarations carries no style"
+    );
+    assert!(
+        Css::parse_pseudo_rules(":hover {  }").len() == 1,
+        "one space of body is not empty: the delimiter already consumed one"
+    );
+}
+
+#[test]
+fn an_unterminated_pseudo_block_yields_nothing_rather_than_panicking() {
+    assert!(Css::parse_pseudo_rules(":hover { color: red;").is_empty());
+    assert!(Css::parse_pseudo_rules("").is_empty());
+    assert!(Css::parse_pseudo_rules("no braces at all").is_empty());
+}
+
+#[test]
+fn a_media_rule_is_split_into_its_query_and_its_declarations() {
+    let parsed: Vec<MediaRule> =
+        Css::parse_media_rules("@media (max-width: 767px) { font-size: 14px; }");
+    assert_eq!(parsed.len(), 1);
+    assert_eq!(parsed[0], media("(max-width: 767px)", "font-size: 14px;", vec![]));
+}
+
+#[test]
+fn a_nested_pseudo_block_is_extracted_only_when_it_comes_before_the_declarations() {
+    let pseudo_first: Vec<MediaRule> = Css::parse_media_rules(
+        "@media (max-width: 767px) { ::-webkit-scrollbar { width: 0px; } font-size: 14px; }",
+    );
+    assert_eq!(pseudo_first.len(), 1);
+    assert_eq!(
+        pseudo_first[0],
+        media(
+            "(max-width: 767px)",
+            "font-size: 14px;",
+            vec![pseudo("::-webkit-scrollbar", "width: 0px;")]
+        ),
+        "a body that opens with a selector is split into style plus pseudo rules"
+    );
+    let declaration_first: Vec<MediaRule> = Css::parse_media_rules(
+        "@media (max-width: 767px) { font-size: 14px; ::-webkit-scrollbar { width: 0px; } }",
+    );
+    assert_eq!(declaration_first.len(), 1);
+    assert_eq!(
+        declaration_first[0],
+        media(
+            "(max-width: 767px)",
+            "font-size: 14px; ::-webkit-scrollbar width: 0px;",
+            vec![]
+        ),
+        "once a declaration precedes it the block loses its braces and is inlined \
+         into the style string, keeping no pseudo rules of its own"
+    );
+}
+
+#[test]
+fn two_media_rules_in_one_string_are_parsed_in_order() {
+    let parsed: Vec<MediaRule> = Css::parse_media_rules(
+        "@media (max-width: 767px) { font-size: 14px; }@media (min-width: 1200px) { font-size: 20px; }",
+    );
+    assert_eq!(parsed.len(), 2);
+    assert_eq!(parsed[0], media("(max-width: 767px)", "font-size: 14px;", vec![]));
+    assert_eq!(parsed[1], media("(min-width: 1200px)", "font-size: 20px;", vec![]));
+}
+
+#[test]
+fn a_nested_block_keeps_the_outer_media_rule_from_ending_early() {
+    let parsed: Vec<MediaRule> = Css::parse_media_rules(
+        "@media print { ::before { content: x; } font-size: 10px; }@media screen { font-size: 12px; }",
+    );
+    assert_eq!(
+        parsed.len(),
+        2,
+        "the brace counter must count the nested block before closing the media rule"
+    );
+    assert_eq!(parsed[1], media("screen", "font-size: 12px;", vec![]));
+}
+
+#[test]
+fn an_unbalanced_brace_inside_a_media_value_swallows_the_rest_instead_of_emitting_garbage() {
+    let parsed: Vec<MediaRule> =
+        Css::parse_media_rules("@media print { content: '{'; font-size: 10px; }");
+    assert!(
+        parsed.is_empty(),
+        "the parser is not string-aware, so a literal brace leaves the block unterminated \
+         and the rule is dropped rather than half-parsed"
+    );
+}
+
+#[test]
+fn a_media_rule_with_an_empty_body_or_query_is_dropped() {
+    assert!(Css::parse_media_rules("@media print { }").is_empty());
+    assert!(Css::parse_media_rules("@media  { font-size: 10px; }").is_empty());
+}
+
+#[test]
+fn media_input_that_does_not_start_with_the_media_prefix_yields_nothing() {
+    assert!(Css::parse_media_rules("font-size: 10px;").is_empty());
+    assert!(Css::parse_media_rules("@medi { font-size: 10px; }").is_empty());
+    assert!(Css::parse_media_rules("@media print { font-size: 10px;").is_empty());
+}
+
+#[test]
+fn a_style_string_terminates_every_declaration_and_separates_them_with_spaces() {
+    let styled: String = Css::style_string(&[("color", "red"), ("margin", "0 auto")]);
+    assert_eq!(styled, "color: red; margin: 0 auto;");
+}
+
+#[test]
+fn a_style_string_of_no_properties_is_empty() {
+    let styled: String = Css::style_string::<&str, &str>(&[]);
+    assert!(styled.is_empty());
+}
+
+#[test]
+fn a_style_string_accepts_anything_that_is_as_ref_str() {
+    let from_strings: String = Css::style_string(&[
+        (String::from("color"), String::from("red")),
+        (String::from("margin"), String::from("0")),
+    ]);
+    assert_eq!(from_strings, "color: red; margin: 0;");
+    let from_strs: String = Css::style_string(&[("color", "red"), ("margin", "0")]);
+    assert_eq!(from_strs, "color: red; margin: 0;");
+}
+
+#[test]
+fn a_parameter_class_name_is_stable_and_distinguishes_different_values() {
+    let first: String = Css::param_class_name("sm");
+    let same: String = Css::param_class_name("sm");
+    let other: String = Css::param_class_name("lg");
+    assert_eq!(first, same, "the same value must always yield the same class");
+    assert_ne!(first, other, "different values must not collide");
+    assert!(
+        first.chars().all(|c: char| c.is_ascii_alphanumeric()),
+        "a hex suffix keeps the class name a valid identifier, got {first}"
+    );
+    assert!(!first.is_empty());
+}
+
+#[test]
+fn merging_plain_text_styles_joins_them_with_single_spaces() {
+    let merged: AttributeValue = AttributeValue::merge_style(&[
+        AttributeValue::Text("color: red;".to_string()),
+        AttributeValue::Text("margin: 0;".to_string()),
+    ]);
+    assert_eq!(
+        merged,
+        AttributeValue::Text("color: red; margin: 0;".to_string())
+    );
+}
+
+#[test]
+fn merging_skips_empty_segments_so_no_double_space_appears() {
+    let merged: AttributeValue = AttributeValue::merge_style(&[
+        AttributeValue::Text("color: red;".to_string()),
+        AttributeValue::Text(String::new()),
+        AttributeValue::Text("margin: 0;".to_string()),
+    ]);
+    assert_eq!(
+        merged,
+        AttributeValue::Text("color: red; margin: 0;".to_string())
+    );
+}
+
+#[test]
+fn merging_no_styles_at_all_yields_an_empty_text_value() {
+    let merged: AttributeValue = AttributeValue::merge_style(&[]);
+    assert_eq!(merged, AttributeValue::Text(String::new()));
+}
