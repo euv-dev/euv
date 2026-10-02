@@ -6,6 +6,7 @@ mod gesture;
 mod i18n;
 mod lazy;
 mod previous;
+mod router;
 mod profiler;
 mod suspense;
 mod throttled_value;
