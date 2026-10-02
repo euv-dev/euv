@@ -13,6 +13,7 @@ mod physics;
 mod pool;
 mod quadtree;
 mod raytracing;
+mod renderer;
 mod scene;
 mod scheduler;
 mod spatial;
