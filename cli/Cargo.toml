@@ -34,3 +34,4 @@ lombok-macros = { workspace = true }
 
 [dev-dependencies]
 clap = { workspace = true }
+tokio = { workspace = true }
