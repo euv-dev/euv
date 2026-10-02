@@ -31,3 +31,6 @@ proc-macro2 = { workspace = true }
 color-output = { workspace = true }
 hyperlane-cli = { workspace = true }
 lombok-macros = { workspace = true }
+
+[dev-dependencies]
+clap = { workspace = true }

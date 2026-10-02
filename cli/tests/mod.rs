@@ -1,3 +1,4 @@
+mod build;
 mod fmt;
 mod hmr;
 mod inline;
