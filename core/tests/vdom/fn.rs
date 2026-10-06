@@ -142,7 +142,6 @@ fn opt10_static_text_matches_text_in_debug_layout() {
 
 #[test]
 fn opt11_from_static_css_yields_cssref_not_css() {
-    use std::sync::LazyLock;
     static STATIC_CSS: LazyLock<Css> = LazyLock::new(|| {
         Css::new(
             String::from("opt11-fixture"),
@@ -167,7 +166,6 @@ fn opt11_from_static_css_yields_cssref_not_css() {
 
 #[test]
 fn opt11_cssref_does_not_clone_inner_collections() {
-    use std::sync::LazyLock;
     static STATIC_CSS: LazyLock<Css> = LazyLock::new(|| {
         Css::new(
             String::from("opt11-shared"),

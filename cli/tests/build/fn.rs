@@ -1,9 +1,5 @@
 use super::*;
 
-use clap::Parser;
-
-use std::path::PathBuf;
-
 fn args_from(extra: &[&str]) -> ModeArgs {
     let mut argv: Vec<&str> = vec!["euv"];
     argv.extend_from_slice(extra);
@@ -219,9 +215,6 @@ fn the_serving_route_prefix_is_the_served_directory_relative_to_the_crate() {
         "with the default layout the served root is the www directory itself"
     );
 }
-use super::*;
-
-use std::io;
 
 fn io_error() -> io::Error {
     io::Error::new(io::ErrorKind::NotFound, "no such file")

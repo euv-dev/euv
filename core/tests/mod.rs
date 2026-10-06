@@ -19,6 +19,7 @@ use std::{
     cell::{Cell, RefCell},
     cmp::Ordering,
     rc::Rc,
+    sync::LazyLock,
 };
 
 use {wasm_bindgen::JsValue, wasm_bindgen_test::wasm_bindgen_test};

@@ -1,10 +1,5 @@
 use super::*;
 
-use std::{
-    fs::{create_dir_all, write},
-    path::PathBuf,
-};
-
 fn outside_file(name: &str, file: &str) -> PathBuf {
     let root: PathBuf = temp_dir().join(name);
     create_dir_all(&root).expect("outside dir");

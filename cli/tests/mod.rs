@@ -8,5 +8,9 @@ use euv_cli::*;
 
 use std::{
     env::temp_dir,
-    fs::remove_dir_all,
+    fs::{create_dir_all, remove_dir_all, write},
+    io,
+    path::PathBuf,
 };
+
+use clap::Parser;

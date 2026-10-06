@@ -1,4 +1,4 @@
-use euv_engine::*;
+use super::*;
 
 #[test]
 fn trace_miss_returns_ambient() {
