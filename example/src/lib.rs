@@ -15,6 +15,7 @@ pub use std::{
     cmp::Ordering,
     collections::HashSet,
     fmt::{self, Debug, Display, Formatter},
+    f64::consts::{PI, TAU},
     iter::FilterMap,
     ops::Range,
     str::Split,

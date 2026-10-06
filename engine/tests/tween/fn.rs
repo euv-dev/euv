@@ -174,7 +174,7 @@ fn the_completion_callback_fires_once_when_the_tween_finishes() {
     let mut tween: Tween<f64> = Tween::create(0.0, 1.0, 1.0)
         .with_easing(Easing::Linear)
         .with_on_complete(Rc::new(move || {
-            let mut count: std::cell::RefMut<'_, u32> = sink.borrow_mut();
+            let mut count: RefMut<'_, u32> = sink.borrow_mut();
             *count += 1;
         }));
     let _: f64 = tween.update(2.0);

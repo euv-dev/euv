@@ -180,7 +180,7 @@ fn opt11_cssref_does_not_clone_inner_collections() {
     let AttributeValue::CssRef(css_ref) = value else {
         panic!("expected AttributeValue::CssRef");
     };
-    assert!(std::ptr::eq(
+    assert!(eq(
         css_ref as *const Css,
         &*STATIC_CSS as *const Css
     ));

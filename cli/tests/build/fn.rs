@@ -227,7 +227,7 @@ fn io_error() -> io::Error {
     io::Error::new(io::ErrorKind::NotFound, "no such file")
 }
 
-fn utf8_error() -> std::string::FromUtf8Error {
+fn utf8_error() -> FromUtf8Error {
     match String::from_utf8(vec![0xff, 0xfe]) {
         Ok(_) => panic!("the invalid bytes must not decode"),
         Err(error) => error,

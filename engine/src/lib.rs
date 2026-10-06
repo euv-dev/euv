@@ -39,6 +39,11 @@ pub use wasm_bindgen_futures::JsFuture;
 
 pub use std::{
     error::Error,
+    // Both forms on purpose: the items are the crate's public numeric
+    // vocabulary, and the module itself is what math/const.rs refers to,
+    // because that file declares its own PI / TWO_PI / HALF_PI and importing
+    // the same names there would shadow the very constants it defines.
+    f64::consts,
     f64::consts::{FRAC_PI_2, PI, TAU},
     fmt::{self, Debug, Display, Formatter, Write},
     future::{Future, Ready, ready},

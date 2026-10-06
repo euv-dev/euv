@@ -432,9 +432,9 @@ pub(crate) fn encoded_name_suffix() -> String {
     let mixed: u64 = micros.wrapping_mul(JS_DOM_OP_NAME_MIX);
     let printable: [u8; 6] = {
         let bytes: [u8; 8] = mixed.to_le_bytes();
-        let mut masked: [u8; 6] = [b'0'; 6];
+        let mut masked: [u8; 6] = [DOM_OPS_MASK_DIGIT; 6];
         for (slot, byte) in masked.iter_mut().zip(bytes.iter().take(6)) {
-            *slot = b'!' + (byte % 94);
+            *slot = DOM_OPS_MASK_FILL + (byte % 94);
         }
         masked
     };

@@ -14,6 +14,7 @@ mod vdom_node;
 use euv_core::*;
 
 use std::{
+    ptr::eq,
     borrow::Cow,
     cell::{Cell, RefCell},
     cmp::Ordering,

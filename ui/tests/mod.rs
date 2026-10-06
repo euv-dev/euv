@@ -18,6 +18,7 @@ mod wasm_fallback;
 use {euv::*, euv_ui::*};
 
 use std::{
+    sync::{Mutex, MutexGuard},
     cell::Cell,
     collections::{HashMap, HashSet},
     f64::consts::PI,

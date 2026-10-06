@@ -212,7 +212,7 @@ fn an_event_bus_routes_events_to_the_matching_channel_only() {
     bus.subscribe(
         String::from("spawn"),
         Rc::new(move |_event: &EntityEvent| {
-            let mut count: std::cell::RefMut<'_, u32> = sink.borrow_mut();
+            let mut count: RefMut<'_, u32> = sink.borrow_mut();
             *count += 1;
         }),
     );
@@ -238,7 +238,7 @@ fn a_custom_entity_event_routes_on_its_own_name() {
     bus.subscribe(
         String::from("level_up"),
         Rc::new(move |_event: &EntityEvent| {
-            let mut count: std::cell::RefMut<'_, u32> = sink.borrow_mut();
+            let mut count: RefMut<'_, u32> = sink.borrow_mut();
             *count += 1;
         }),
     );
@@ -261,7 +261,7 @@ fn unsubscribing_all_clears_a_channel() {
     bus.subscribe(
         String::from("spawn"),
         Rc::new(move |_event: &EntityEvent| {
-            let mut count: std::cell::RefMut<'_, u32> = sink.borrow_mut();
+            let mut count: RefMut<'_, u32> = sink.borrow_mut();
             *count += 1;
         }),
     );
@@ -281,14 +281,14 @@ fn several_handlers_on_one_channel_all_receive_the_event() {
     bus.subscribe(
         String::from("spawn"),
         Rc::new(move |_event: &EntityEvent| {
-            let mut count: std::cell::RefMut<'_, u32> = first_sink.borrow_mut();
+            let mut count: RefMut<'_, u32> = first_sink.borrow_mut();
             *count += 1;
         }),
     );
     bus.subscribe(
         String::from("spawn"),
         Rc::new(move |_event: &EntityEvent| {
-            let mut count: std::cell::RefMut<'_, u32> = second_sink.borrow_mut();
+            let mut count: RefMut<'_, u32> = second_sink.borrow_mut();
             *count += 1;
         }),
     );

@@ -106,7 +106,7 @@ fn app_use_node_ref_returns_distinct_refs_per_hook_index() {
     assert!(a.get().is_none());
     assert!(b.get().is_none());
     assert!(
-        !std::ptr::eq(&a as *const _, &b as *const _),
+        !eq(&a as *const _, &b as *const _),
         "Distinct hook indices must yield distinct ref handles"
     );
 }

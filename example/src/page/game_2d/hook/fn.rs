@@ -718,13 +718,13 @@ pub(crate) fn rescale_balls_to_canvas(
             // already fits.
             let mut total_ball_area: f64 = balls
                 .iter()
-                .map(|b: &Ball| b.radius * b.radius * std::f64::consts::PI)
+                .map(|b: &Ball| b.radius * b.radius * PI)
                 .sum();
             let cap: f64 = canvas_area * GAME_2D_MAX_BALL_AREA_RATIO;
             let mut trim_count: usize = 0;
             while total_ball_area > cap && trim_count < balls.len() {
                 let removed: &Ball = &balls[trim_count];
-                total_ball_area -= removed.radius * removed.radius * std::f64::consts::PI;
+                total_ball_area -= removed.radius * removed.radius * PI;
                 trim_count += 1;
             }
             if trim_count > 0 {
@@ -983,7 +983,7 @@ pub(crate) fn render_balls_with_ssaa(
             ball.position.get_y(),
             ball.radius,
             0.0,
-            std::f64::consts::TAU,
+            TAU,
         );
         context.fill();
     }

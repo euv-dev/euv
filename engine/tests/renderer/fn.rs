@@ -462,7 +462,7 @@ fn zoom_by_clamps_at_epsilon_instead_of_reaching_zero() {
 #[test]
 fn world_to_screen_rotates_by_the_negated_camera_rotation() {
     let mut camera: Camera2D = Camera2D::create(800.0, 600.0);
-    camera.set_rotation(std::f64::consts::FRAC_PI_2);
+    camera.set_rotation(consts::FRAC_PI_2);
     assert_vector_close(
         camera.world_to_screen(Vector2D::new(1.0, 0.0)),
         400.0,

@@ -6,7 +6,7 @@ use std::{
 };
 
 fn outside_file(name: &str, file: &str) -> PathBuf {
-    let root: PathBuf = std::env::temp_dir().join(name);
+    let root: PathBuf = temp_dir().join(name);
     create_dir_all(&root).expect("outside dir");
     let target: PathBuf = root.join(file);
     write(&target, "outside the served root").expect("outside file");
@@ -14,8 +14,8 @@ fn outside_file(name: &str, file: &str) -> PathBuf {
 }
 
 fn scratch_root(name: &str) -> PathBuf {
-    let root: PathBuf = std::env::temp_dir().join(format!("euv-cli-server-{name}"));
-    let _ = std::fs::remove_dir_all(&root);
+    let root: PathBuf = temp_dir().join(format!("euv-cli-server-{name}"));
+    let _ = remove_dir_all(&root);
     create_dir_all(root.join("assets")).expect("scratch root");
     create_dir_all(root.join("assets/nested")).expect("scratch assets");
     write(root.join("assets/index.html"), "<html></html>").expect("scratch file");

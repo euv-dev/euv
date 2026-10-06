@@ -30,7 +30,7 @@ fn engine_cell_default_uses_the_inner_default() {
 #[test]
 fn engine_cell_inner_exposes_the_backing_storage() {
     let cell: EngineCell<u32> = EngineCell::new(3);
-    let inner: &std::cell::UnsafeCell<u32> = cell.get_inner();
+    let inner: &UnsafeCell<u32> = cell.get_inner();
     assert_eq!(
         unsafe { *inner.get() },
         3,
@@ -155,8 +155,8 @@ fn maybe_cell_default_is_empty() {
 fn maybe_cell_set_inner_swaps_the_whole_backing_storage() {
     let mut cell: MaybeEngineCell<u32> = MaybeEngineCell::new();
     let _: Result<(), u32> = cell.try_set(8);
-    let previous: std::cell::UnsafeCell<Option<u32>> =
-        cell.set_inner(std::cell::UnsafeCell::new(Some(2)));
+    let previous: UnsafeCell<Option<u32>> =
+        cell.set_inner(UnsafeCell::new(Some(2)));
     assert_eq!(
         unsafe { *previous.get() },
         Some(8),
@@ -172,7 +172,7 @@ fn maybe_cell_set_inner_swaps_the_whole_backing_storage() {
 #[test]
 fn maybe_cell_inner_exposes_the_backing_option_storage() {
     let cell: MaybeEngineCell<u32> = MaybeEngineCell::new();
-    let inner: &std::cell::UnsafeCell<Option<u32>> = cell.get_inner();
+    let inner: &UnsafeCell<Option<u32>> = cell.get_inner();
     assert!(
         unsafe { (*inner.get()).is_none() },
         "the inner accessor must expose the same option storage the cell wraps"

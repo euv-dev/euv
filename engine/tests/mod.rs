@@ -26,6 +26,7 @@ mod wasm_fallback;
 use euv_engine::*;
 
 use std::{
+    cell::UnsafeCell,
     cell::{Cell, RefCell, RefMut},
     collections::{HashMap, HashSet},
     rc::{Rc, Weak},

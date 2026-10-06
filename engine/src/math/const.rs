@@ -1,11 +1,13 @@
+use super::*;
+
 /// The mathematical constant pi (~3.14159).
-pub const PI: f64 = std::f64::consts::PI;
+pub const PI: f64 = consts::PI;
 
 /// Two times pi, the full circle angle in radians (~6.28318).
-pub const TWO_PI: f64 = std::f64::consts::TAU;
+pub const TWO_PI: f64 = consts::TAU;
 
 /// Half of pi, a quarter circle angle in radians (~1.57079).
-pub const HALF_PI: f64 = std::f64::consts::FRAC_PI_2;
+pub const HALF_PI: f64 = consts::FRAC_PI_2;
 
 /// Conversion factor from degrees to radians.
 pub const DEG_TO_RAD: f64 = PI / 180.0;
