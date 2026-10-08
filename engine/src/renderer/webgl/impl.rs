@@ -1781,15 +1781,23 @@ impl WebGl2Backend {
             .is_some()
     }
 
-    /// Resizes the canvas backing store and re-points the shadow's
-    /// viewport at the new size.
+    /// Resizes the GL viewport to the given backing-store size and records
+    /// it in the shadow state.
     ///
-    /// The viewport is written into the shadow rather than issued
-    /// immediately, because a resize changes the canvas dimensions and
-    /// the viewport that was correct for the old ones must be
-    /// re-asserted against the new ones even if the caller's own state
-    /// value did not change. Seeding the shadow makes the next
-    /// [`WebGl2Backend::apply_state`] emit it exactly once.
+    /// The call is **issued to the driver**, not merely folded into the
+    /// shadow. The shadow is the engine's record of what the driver already
+    /// holds, so writing a value there without the matching `gl.viewport`
+    /// makes the two disagree: [`WebGl2Backend::apply_state`] would diff
+    /// against a viewport the driver never received and skip the call
+    /// forever. That is not hypothetical — a caller that sets
+    /// `canvas.width` and then calls `resize` (every demo loop does) left
+    /// the driver viewport frozen at its init size while the drawing buffer
+    /// grew, so the frame rendered into a sub-rect of the surface and the
+    /// browser stretched that corner across the whole element.
+    ///
+    /// Because the viewport is a per-frame-sized property and `gl.viewport`
+    /// is a single cheap call, issuing it here costs nothing measurable and
+    /// removes the "who re-asserts the viewport" question from every caller.
     ///
     /// # Arguments
     ///
@@ -1797,37 +1805,20 @@ impl WebGl2Backend {
     ///   device pixel ratio.
     /// - `u32` - The new physical pixel height.
     pub fn resize(&mut self, width: u32, height: u32) {
-        let mut state: GlRenderState = *self.get_shadow();
-        state.viewport = GlViewport {
+        let viewport: GlViewport = GlViewport {
             x: 0,
             y: 0,
             width: width as i32,
             height: height as i32,
         };
+        self.get_context()
+            .viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+        let mut state: GlRenderState = *self.get_shadow();
+        state.viewport = viewport;
         self.set_shadow(state);
     }
 
     /// Resizes the canvas backing store and re-asserts the GL viewport
-    /// immediately, rather than deferring it to the next
-    /// [`WebGl2Backend::apply_state`].
-    ///
-    /// [`WebGl2Backend::resize`] is the cheaper call and is what a render
-    /// loop should use, because the viewport it seeds is emitted once by
-    /// the following state apply. This variant exists for the caller that
-    /// resizes the DOM canvas itself and needs the GL viewport correct
-    /// before the next paint, with no intervening apply.
-    ///
-    /// # Arguments
-    ///
-    /// - `u32` - The new physical pixel width, already multiplied by the
-    ///   device pixel ratio.
-    /// - `u32` - The new physical pixel height.
-    pub fn resize_now(&mut self, width: u32, height: u32) {
-        self.resize(width, height);
-        self.get_context()
-            .viewport(0, 0, width as i32, height as i32);
-    }
-
     /// Reports whether the context has been lost, which happens when the
     /// browser reclaims the GPU: a tab backgrounded for long enough, a
     /// driver reset, a device change.
@@ -2016,16 +2007,29 @@ impl WebGl2Backend {
         self.set_clear_color_field(color);
     }
 
-    /// Clears the bound framebuffer and folds a full-size viewport into
-    /// the shadow.
+    /// Clears the bound framebuffer and issues the matching full-size
+    /// viewport.
     ///
     /// The clear is issued through `clearColor` plus `clear` rather than
     /// `clearBufferfv` because the former is a two-call pair the driver
     /// folds into a single tile-clear, while the latter is the WebGL 2
     /// entry point that most drivers route through a slower generic
-    /// path. The viewport is written into the shadow as well, so a
-    /// caller that set a smaller viewport for a pass does not have it
-    /// silently left in place by the next frame.
+    /// path.
+    ///
+    /// The viewport is **re-asserted on the driver every frame**, not just
+    /// folded into the shadow. Two reasons, both learned the hard way:
+    ///
+    /// 1. Setting `canvas.width` / `canvas.height` resets the GL viewport
+    ///    to the new surface size in most drivers, but a caller that
+    ///    resizes the canvas and renders *without* routing through
+    ///    [`WebGl2Backend::resize`] would otherwise keep whatever the
+    ///    previous pass left.
+    /// 2. A shadow-only update makes the shadow claim a viewport the
+    ///    driver never received, so the next
+    ///    [`WebGl2Backend::apply_state`] diffs equal and skips the call
+    ///    permanently. Emitting it here — where the frame's real size is
+    ///    already known — is one cheap call and removes the class of bug
+    ///    rather than one instance of it.
     ///
     /// # Arguments
     ///
@@ -2048,13 +2052,15 @@ impl WebGl2Backend {
         context.clear(
             WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT,
         );
-        let mut state: GlRenderState = *self.get_shadow();
-        state.viewport = GlViewport {
+        let viewport: GlViewport = GlViewport {
             x: 0,
             y: 0,
             width: width as i32,
             height: height as i32,
         };
+        context.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+        let mut state: GlRenderState = *self.get_shadow();
+        state.viewport = viewport;
         self.set_shadow(state);
     }
 
