@@ -37,7 +37,7 @@ fn interval_handle_is_eq_and_ne() {
 #[test]
 fn interval_handle_clone() {
     let handle: IntervalHandle = IntervalHandle::new(5);
-    let cloned: IntervalHandle = <IntervalHandle as Clone>::clone(&handle);
+    let cloned: IntervalHandle = handle;
     assert_eq!(handle, cloned);
 }
 
