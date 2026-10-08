@@ -3,7 +3,7 @@ use super::*;
 /// Marks the asset load callback occupying `slot` as having run.
 ///
 /// Called from inside an `onload` / `onerror` closure. The closure cannot
-/// drop itself — a `wasm_bindgen::Closure` must outlive the JavaScript call
+/// drop itself — a `Closure` must outlive the JavaScript call
 /// that is currently executing its trampoline — so it only records that it
 /// has run; [`AssetLoader::collect`] performs the actual drop later from a
 /// context that is not inside a callback.

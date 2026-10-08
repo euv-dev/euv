@@ -1,7 +1,7 @@
 use super::*;
 
 vars! {
-    pub c_theme_light {
+    pub(crate) c_theme_light {
         // ═══════════════════════════════════════════════════════════════════════
         // Monochrome Design Tokens (Black & White only)
         // ═══════════════════════════════════════════════════════════════════════

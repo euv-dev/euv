@@ -357,16 +357,16 @@ pub(crate) fn map_client_to_canvas(
 ///
 /// # Arguments
 ///
-/// - `&Rc<Cell<bool>>` - The `resize_dirty_for_loop` argument.
-/// - `&Rc<RefCell<(f64, f64)>>` - The `last_canvas_size_for_loop` argument.
-/// - `&Rc<RefCell<Vec<Ball>>>` - The `balls` argument.
-/// - `&Rc<RefCell<Vec<Vector2D>>>` - The `prev_for_loop` argument.
-/// - `&CanvasCache` - The `canvas_cache` argument.
-/// - `&'static str` - The `_canvas_selector` argument.
+/// - `&Rc<Cell<bool>>` - The dirty flag set by the debounced resize handler.
+/// - `&Rc<RefCell<(f64, f64)>>` - The canvas dimensions the last physics step ran against.
+/// - `&Rc<RefCell<Vec<Ball>>>` - The live ball list to rescale.
+/// - `&Rc<RefCell<Vec<Vector2D>>>` - The previous-frame ball positions.
+/// - `&CanvasCache` - The cached canvas element used to read the live CSS box.
+/// - `&'static str` - The canvas selector (unused; kept for signature symmetry).
+///
 /// # Returns
 ///
-/// - `bool` - The value this function returns.
-///
+/// - `bool` - True when the dirty flag was set and a rescale ran.
 pub(crate) fn handle_rescale_dirty(
     resize_dirty_for_loop: &Rc<Cell<bool>>,
     last_canvas_size_for_loop: &Rc<RefCell<(f64, f64)>>,
@@ -437,13 +437,12 @@ pub(crate) fn handle_rescale_dirty(
 ///
 /// # Arguments
 ///
-/// - `&Rc<Cell<bool>>` - The `resize_dirty_for_loop` argument.
-/// - `&Rc<RefCell<(f64, f64)>>` - The `last_canvas_size_for_loop` argument.
-/// - `&Rc<RefCell<Vec<Ball>>>` - The `balls` argument.
-/// - `&Rc<RefCell<Vec<Vector2D>>>` - The `prev_for_loop` argument.
-/// - `&CanvasCache` - The `canvas_cache` argument.
-/// - `&Rc<RefCell<Option<SsaaCanvas>>>` - The `context_clone` argument.
-///
+/// - `&Rc<Cell<bool>>` - The dirty flag set by the debounced resize handler.
+/// - `&Rc<RefCell<(f64, f64)>>` - The canvas dimensions the last physics step ran against.
+/// - `&Rc<RefCell<Vec<Ball>>>` - The live ball list to rescale.
+/// - `&Rc<RefCell<Vec<Vector2D>>>` - The previous-frame ball positions.
+/// - `&CanvasCache` - The cached canvas element (deliberately kept across rescale).
+/// - `&Rc<RefCell<Option<SsaaCanvas>>>` - The SSAA wrapper dropped so the backing store is re-acquired at the new size.
 pub(crate) fn handle_rescale_dirty_canvas2d(
     resize_dirty_for_loop: &Rc<Cell<bool>>,
     last_canvas_size_for_loop: &Rc<RefCell<(f64, f64)>>,
@@ -716,10 +715,8 @@ pub(crate) fn rescale_balls_to_canvas(
             // bail out of the trim loop as soon as the ratio is below
             // the cap to avoid an unnecessary O(N) walk when the list
             // already fits.
-            let mut total_ball_area: f64 = balls
-                .iter()
-                .map(|b: &Ball| b.radius * b.radius * PI)
-                .sum();
+            let mut total_ball_area: f64 =
+                balls.iter().map(|b: &Ball| b.radius * b.radius * PI).sum();
             let cap: f64 = canvas_area * GAME_2D_MAX_BALL_AREA_RATIO;
             let mut trim_count: usize = 0;
             while total_ball_area > cap && trim_count < balls.len() {
@@ -858,8 +855,7 @@ pub(crate) fn resolve_ball_collision(a: &mut Ball, b: &mut Ball) {
 ///
 /// # Arguments
 ///
-/// - `&mut [Ball]` - The `balls` argument.
-///
+/// - `&mut [Ball]` - The ball list whose jammed entries are shrunk in place.
 pub(crate) fn resolve_stuck_balls(balls: &mut [Ball]) {
     let count: usize = balls.len();
     if count == 0 {
@@ -1402,7 +1398,7 @@ pub(crate) fn start_game_2d_loop(
     let Some(timeout_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event(EVENT_RESIZE, move || {
+    App::use_window_event(GAME_2D_EVENT_RESIZE, move || {
         let old_timer: Option<i32> = timer_for_event.get();
         if let Some(timer_id) = old_timer {
             timeout_window.clear_timeout_with_handle(timer_id);
@@ -1578,12 +1574,13 @@ pub(crate) fn game_2d_canvas_clear_color(canvas_selector: &str) -> (f64, f64, f6
     else {
         return (0.0, 0.0, 0.0);
     };
-    let mut channels: FilterMap<Split<'_, char>, _> = inner
+    let channels: Vec<f64> = inner
         .split(',')
-        .filter_map(|part: &str| part.trim().parse::<f64>().ok());
-    let r: f64 = channels.next().unwrap_or_default() / 255.0;
-    let g: f64 = channels.next().unwrap_or_default() / 255.0;
-    let b: f64 = channels.next().unwrap_or_default() / 255.0;
+        .filter_map(|part: &str| part.trim().parse::<f64>().ok())
+        .collect();
+    let r: f64 = channels.first().copied().unwrap_or_default() / 255.0;
+    let g: f64 = channels.get(1).copied().unwrap_or_default() / 255.0;
+    let b: f64 = channels.get(2).copied().unwrap_or_default() / 255.0;
     (r, g, b)
 }
 
@@ -1784,7 +1781,7 @@ pub(crate) fn start_game_2d_webgpu_loop(
     let Some(resize_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event(EVENT_RESIZE, move || {
+    App::use_window_event(GAME_2D_EVENT_RESIZE, move || {
         let old_timer: Option<i32> = resize_timer_for_event.get();
         if let Some(timer_id) = old_timer {
             let Some(clear_window): Option<Window> = window() else {
@@ -1989,7 +1986,7 @@ pub(crate) fn start_game_2d_webgpu_loop(
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
+                &JsValue::from_str(GAME_2D_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())
@@ -2161,7 +2158,7 @@ pub(crate) fn enter_game_2d_fullscreen(state: UseGame2DFullscreen, tab: Signal<b
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
+    let event: Result<Event, JsValue> = Event::new(GAME_2D_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -2186,7 +2183,7 @@ pub(crate) fn exit_game_2d_fullscreen(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
+    let event: Result<Event, JsValue> = Event::new(GAME_2D_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -2209,7 +2206,7 @@ pub(crate) fn exit_game_2d_fullscreen_from_popstate(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
+    let event: Result<Event, JsValue> = Event::new(GAME_2D_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -2295,7 +2292,7 @@ pub(crate) fn start_game_2d_webgl_loop(
     let Some(resize_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event(EVENT_RESIZE, move || {
+    App::use_window_event(GAME_2D_EVENT_RESIZE, move || {
         let old_timer: Option<i32> = resize_timer_for_event.get();
         if let Some(timer_id) = old_timer {
             let Some(clear_window): Option<Window> = window() else {
@@ -2487,7 +2484,7 @@ pub(crate) fn start_game_2d_webgl_loop(
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
+                &JsValue::from_str(GAME_2D_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())

@@ -205,11 +205,13 @@ impl BindGroupLayoutEntry {
     /// # Arguments
     ///
     /// - `u32` - The binding index within the bind group.
-    /// - `ShaderStage` - The shader stages that can access the slot.
-    pub fn uniform(binding: u32, visibility: ShaderStage) -> Self {
+    /// - `V` - The shader stages that can access the slot. Either a lone
+    ///   `ShaderStage`, or a `ShaderStages` mask built with `|` when more than one
+    ///   stage reads this binding.
+    pub fn uniform<V: Into<ShaderStages>>(binding: u32, visibility: V) -> Self {
         Self {
             binding,
-            visibility,
+            visibility: visibility.into(),
             ty: BindGroupEntryType::UniformBuffer,
         }
     }
@@ -221,12 +223,14 @@ impl BindGroupLayoutEntry {
     /// # Arguments
     ///
     /// - `u32` - The binding index within the bind group.
-    /// - `ShaderStage` - The shader stages that can access the slot.
+    /// - `V` - The shader stages that can access the slot. Either a lone
+    ///   `ShaderStage`, or a `ShaderStages` mask built with `|` when more than one
+    ///   stage reads this binding.
     /// - `bool` - Whether shaders may only read from the buffer.
-    pub fn storage(binding: u32, visibility: ShaderStage, read_only: bool) -> Self {
+    pub fn storage<V: Into<ShaderStages>>(binding: u32, visibility: V, read_only: bool) -> Self {
         Self {
             binding,
-            visibility,
+            visibility: visibility.into(),
             ty: BindGroupEntryType::StorageBuffer { read_only },
         }
     }
@@ -238,12 +242,14 @@ impl BindGroupLayoutEntry {
     /// # Arguments
     ///
     /// - `u32` - The binding index within the bind group.
-    /// - `ShaderStage` - The shader stages that can access the slot.
+    /// - `V` - The shader stages that can access the slot. Either a lone
+    ///   `ShaderStage`, or a `ShaderStages` mask built with `|` when more than one
+    ///   stage reads this binding.
     /// - `&str` - The texel sample type name used by the shader.
-    pub fn texture(binding: u32, visibility: ShaderStage, sample_type: &str) -> Self {
+    pub fn texture<V: Into<ShaderStages>>(binding: u32, visibility: V, sample_type: &str) -> Self {
         Self {
             binding,
-            visibility,
+            visibility: visibility.into(),
             ty: BindGroupEntryType::SampledTexture {
                 sample_type: sample_type.to_string(),
                 multisampled: false,
@@ -255,12 +261,18 @@ impl BindGroupLayoutEntry {
     /// # Arguments
     ///
     /// - `u32` - The binding index within the bind group.
-    /// - `ShaderStage` - The shader stages that can access the slot.
+    /// - `V` - The shader stages that can access the slot. Either a lone
+    ///   `ShaderStage`, or a `ShaderStages` mask built with `|` when more than one
+    ///   stage reads this binding.
     /// - `&str` - The texel sample type name used by the shader.
-    pub fn texture_multisampled(binding: u32, visibility: ShaderStage, sample_type: &str) -> Self {
+    pub fn texture_multisampled<V: Into<ShaderStages>>(
+        binding: u32,
+        visibility: V,
+        sample_type: &str,
+    ) -> Self {
         Self {
             binding,
-            visibility,
+            visibility: visibility.into(),
             ty: BindGroupEntryType::SampledTexture {
                 sample_type: sample_type.to_string(),
                 multisampled: true,
@@ -274,18 +286,20 @@ impl BindGroupLayoutEntry {
     /// # Arguments
     ///
     /// - `u32` - The binding index within the bind group.
-    /// - `ShaderStage` - The shader stages that can access the slot.
+    /// - `V` - The shader stages that can access the slot. Either a lone
+    ///   `ShaderStage`, or a `ShaderStages` mask built with `|` when more than one
+    ///   stage reads this binding.
     /// - `&str` - The storage texture format name.
     /// - `bool` - Whether shaders may only read from the texture.
-    pub fn storage_texture(
+    pub fn storage_texture<V: Into<ShaderStages>>(
         binding: u32,
-        visibility: ShaderStage,
+        visibility: V,
         format: &str,
         read_only: bool,
     ) -> Self {
         Self {
             binding,
-            visibility,
+            visibility: visibility.into(),
             ty: BindGroupEntryType::StorageTexture {
                 read_only,
                 format: format.to_string(),
@@ -297,11 +311,13 @@ impl BindGroupLayoutEntry {
     /// # Arguments
     ///
     /// - `u32` - The binding index within the bind group.
-    /// - `ShaderStage` - The shader stages that can access the slot.
-    pub fn sampler(binding: u32, visibility: ShaderStage) -> Self {
+    /// - `V` - The shader stages that can access the slot. Either a lone
+    ///   `ShaderStage`, or a `ShaderStages` mask built with `|` when more than one
+    ///   stage reads this binding.
+    pub fn sampler<V: Into<ShaderStages>>(binding: u32, visibility: V) -> Self {
         Self {
             binding,
-            visibility,
+            visibility: visibility.into(),
             ty: BindGroupEntryType::Sampler {
                 filtering: true,
                 comparison: false,
@@ -313,11 +329,13 @@ impl BindGroupLayoutEntry {
     /// # Arguments
     ///
     /// - `u32` - The binding index within the bind group.
-    /// - `ShaderStage` - The shader stages that can access the slot.
-    pub fn sampler_non_filtering(binding: u32, visibility: ShaderStage) -> Self {
+    /// - `V` - The shader stages that can access the slot. Either a lone
+    ///   `ShaderStage`, or a `ShaderStages` mask built with `|` when more than one
+    ///   stage reads this binding.
+    pub fn sampler_non_filtering<V: Into<ShaderStages>>(binding: u32, visibility: V) -> Self {
         Self {
             binding,
-            visibility,
+            visibility: visibility.into(),
             ty: BindGroupEntryType::Sampler {
                 filtering: false,
                 comparison: false,
@@ -329,11 +347,13 @@ impl BindGroupLayoutEntry {
     /// # Arguments
     ///
     /// - `u32` - The binding index within the bind group.
-    /// - `ShaderStage` - The shader stages that can access the slot.
-    pub fn sampler_comparison(binding: u32, visibility: ShaderStage) -> Self {
+    /// - `V` - The shader stages that can access the slot. Either a lone
+    ///   `ShaderStage`, or a `ShaderStages` mask built with `|` when more than one
+    ///   stage reads this binding.
+    pub fn sampler_comparison<V: Into<ShaderStages>>(binding: u32, visibility: V) -> Self {
         Self {
             binding,
-            visibility,
+            visibility: visibility.into(),
             ty: BindGroupEntryType::Sampler {
                 filtering: false,
                 comparison: true,

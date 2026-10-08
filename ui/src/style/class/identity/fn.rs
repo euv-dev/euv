@@ -1,7 +1,7 @@
 use super::*;
 
 class! {
-    pub c_euv_avatar {
+    pub(crate) c_euv_avatar {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -22,7 +22,7 @@ class! {
         -webkit-user-select: "none";
     }
 
-    pub c_euv_avatar_small {
+    pub(crate) c_euv_avatar_small {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -43,7 +43,7 @@ class! {
         -webkit-user-select: "none";
     }
 
-    pub c_euv_avatar_medium {
+    pub(crate) c_euv_avatar_medium {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -64,7 +64,7 @@ class! {
         -webkit-user-select: "none";
     }
 
-    pub c_euv_avatar_large {
+    pub(crate) c_euv_avatar_large {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -85,11 +85,11 @@ class! {
         -webkit-user-select: "none";
     }
 
-    pub c_euv_avatar_square {
+    pub(crate) c_euv_avatar_square {
         border-radius: "50%";
     }
 
-    pub c_euv_icon {
+    pub(crate) c_euv_icon {
         display: "inline-flex";
         align-items: "center";
         justify-content: "center";
@@ -100,7 +100,7 @@ class! {
         -webkit-user-select: "none";
     }
 
-    pub c_euv_icon_label {
+    pub(crate) c_euv_icon_label {
         display: "inline-flex";
         align-items: "center";
         justify-content: "center";
@@ -111,11 +111,11 @@ class! {
         flex-shrink: "0";
     }
 
-    pub c_euv_space {
+    pub(crate) c_euv_space {
         display: "block";
     }
 
-    pub c_euv_panel {
+    pub(crate) c_euv_panel {
         display: "flex";
         flex-direction: "column";
         gap: var!(gap-element);
@@ -123,7 +123,7 @@ class! {
         box-sizing: "border-box";
     }
 
-    pub c_euv_panel_plain {
+    pub(crate) c_euv_panel_plain {
         display: "flex";
         flex-direction: "column";
         gap: var!(gap-element);
@@ -133,7 +133,7 @@ class! {
         background: "transparent";
     }
 
-    pub c_euv_panel_bordered {
+    pub(crate) c_euv_panel_bordered {
         display: "flex";
         flex-direction: "column";
         gap: var!(gap-element);
@@ -144,7 +144,7 @@ class! {
         background: var!(background);
     }
 
-    pub c_euv_panel_dashed {
+    pub(crate) c_euv_panel_dashed {
         display: "flex";
         flex-direction: "column";
         gap: var!(gap-element);
@@ -155,7 +155,7 @@ class! {
         background: var!(background);
     }
 
-    pub c_euv_panel_header {
+    pub(crate) c_euv_panel_header {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
@@ -163,20 +163,20 @@ class! {
         width: "100%";
     }
 
-    pub c_euv_panel_title {
+    pub(crate) c_euv_panel_title {
         font-size: var!(font-lg);
         font-weight: "600";
         color: var!(foreground);
         margin: "0px";
     }
 
-    pub c_euv_panel_subtitle {
+    pub(crate) c_euv_panel_subtitle {
         font-size: var!(font-sm);
         color: var!(muted-foreground);
         margin: "0px";
     }
 
-    pub c_euv_panel_body {
+    pub(crate) c_euv_panel_body {
         display: "flex";
         flex-direction: "column";
         gap: var!(gap-element);
@@ -184,7 +184,7 @@ class! {
         color: var!(foreground);
     }
 
-    pub c_euv_rating {
+    pub(crate) c_euv_rating {
         position: "relative";
         display: "inline-flex";
         align-items: "center";
@@ -195,13 +195,13 @@ class! {
         -webkit-user-select: "none";
     }
 
-    pub c_euv_rating_star {
+    pub(crate) c_euv_rating_star {
         font-size: var!(font-lg);
         line-height: "1";
         color: var!(muted-foreground);
     }
 
-    pub c_euv_rating_fill {
+    pub(crate) c_euv_rating_fill {
         position: "absolute";
         left: "0px";
         top: "0px";
@@ -226,7 +226,7 @@ class! {
     // monospace font and wrap behaviour for the two modes
     // (`expanded: false` = single-line `code`, `expanded: true` =
     // multi-line `pre`).
-    pub c_debug {
+    pub(crate) c_debug {
         display: "flex";
         flex-direction: "row";
         align-items: "baseline";
@@ -241,13 +241,13 @@ class! {
         margin: format!("{} 0px", var!(space-xs));
     }
 
-    pub c_debug_label {
+    pub(crate) c_debug_label {
         font-weight: "600";
         color: var!(accent);
         flex-shrink: "0";
     }
 
-    pub c_debug_value {
+    pub(crate) c_debug_value {
         font-family: "ui-monospace, SFMono-Regular, monospace";
         color: var!(foreground);
         margin: "0px";

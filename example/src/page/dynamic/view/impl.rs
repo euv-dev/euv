@@ -24,6 +24,7 @@ impl Display for DynamicTagType {
     ///
     /// # Arguments
     ///
+    /// - `&Self` - The tag type variant to format.
     /// - `&mut Formatter<'_>` - The formatter to write into.
     ///
     /// # Returns

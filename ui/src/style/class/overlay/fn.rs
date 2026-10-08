@@ -1,13 +1,13 @@
 use super::*;
 
 class! {
-    pub c_euv_tooltip {
+    pub(crate) c_euv_tooltip {
         position: "relative";
         display: "inline-flex";
         align-items: "center";
     }
 
-    pub c_euv_tooltip_bubble {
+    pub(crate) c_euv_tooltip_bubble {
         position: "absolute";
         z-index: "100";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
@@ -26,7 +26,7 @@ class! {
         transition: format!("opacity {} {}", var!(duration-fast), var!(ease-out));
     }
 
-    pub c_euv_tooltip_bubble_top {
+    pub(crate) c_euv_tooltip_bubble_top {
         position: "absolute";
         z-index: "100";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
@@ -48,7 +48,7 @@ class! {
         transition: format!("opacity {} {}", var!(duration-fast), var!(ease-out));
     }
 
-    pub c_euv_tooltip_bubble_bottom {
+    pub(crate) c_euv_tooltip_bubble_bottom {
         position: "absolute";
         z-index: "100";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
@@ -70,7 +70,7 @@ class! {
         transition: format!("opacity {} {}", var!(duration-fast), var!(ease-out));
     }
 
-    pub c_euv_tooltip_bubble_left {
+    pub(crate) c_euv_tooltip_bubble_left {
         position: "absolute";
         z-index: "100";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
@@ -92,7 +92,7 @@ class! {
         transition: format!("opacity {} {}", var!(duration-fast), var!(ease-out));
     }
 
-    pub c_euv_tooltip_bubble_right {
+    pub(crate) c_euv_tooltip_bubble_right {
         position: "absolute";
         z-index: "100";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
@@ -114,13 +114,13 @@ class! {
         transition: format!("opacity {} {}", var!(duration-fast), var!(ease-out));
     }
 
-    pub c_euv_popover {
+    pub(crate) c_euv_popover {
         position: "relative";
         display: "inline-flex";
         align-items: "center";
     }
 
-    pub c_euv_popover_body {
+    pub(crate) c_euv_popover_body {
         position: "absolute";
         z-index: "100";
         min-width: "200px";
@@ -132,7 +132,7 @@ class! {
         transition: format!("opacity {} {}, visibility {} {}", var!(duration-overlay), var!(ease-out), var!(duration-overlay), var!(ease-out));
     }
 
-    pub c_euv_popover_body_open {
+    pub(crate) c_euv_popover_body_open {
         position: "absolute";
         z-index: "100";
         min-width: "200px";
@@ -149,7 +149,7 @@ class! {
         transition: format!("opacity {} {}, visibility {} {}", var!(duration-overlay), var!(ease-out), var!(duration-overlay), var!(ease-out));
     }
 
-    pub c_euv_popover_body_closed {
+    pub(crate) c_euv_popover_body_closed {
         position: "absolute";
         z-index: "100";
         min-width: "200px";
@@ -165,7 +165,7 @@ class! {
         transition: format!("opacity {} {}, visibility {} {}", var!(duration-overlay), var!(ease-out), var!(duration-overlay), var!(ease-out));
     }
 
-    pub c_euv_popover_header {
+    pub(crate) c_euv_popover_header {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
@@ -174,14 +174,14 @@ class! {
         border-bottom: format!("1px dashed {}", var!(border));
     }
 
-    pub c_euv_popover_title {
+    pub(crate) c_euv_popover_title {
         font-size: var!(font-base);
         font-weight: "600";
         color: var!(foreground);
         margin: "0px";
     }
 
-    pub c_euv_calendar {
+    pub(crate) c_euv_calendar {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-md);
@@ -192,34 +192,34 @@ class! {
         background: var!(background);
     }
 
-    pub c_euv_calendar_header {
+    pub(crate) c_euv_calendar_header {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
         gap: var!(space-sm);
     }
 
-    pub c_euv_calendar_title {
+    pub(crate) c_euv_calendar_title {
         font-size: var!(font-base);
         font-weight: "600";
         color: var!(foreground);
         margin: "0px";
     }
 
-    pub c_euv_calendar_nav {
+    pub(crate) c_euv_calendar_nav {
         display: "flex";
         align-items: "center";
         gap: var!(space-xs);
     }
 
-    pub c_euv_calendar_weekdays {
+    pub(crate) c_euv_calendar_weekdays {
         display: "grid";
         grid-template-columns: "repeat(7, 1fr)";
         gap: "0px";
         width: "100%";
     }
 
-    pub c_euv_calendar_weekday {
+    pub(crate) c_euv_calendar_weekday {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -230,14 +230,14 @@ class! {
         border-bottom: format!("1px dashed {}", var!(border));
     }
 
-    pub c_euv_calendar_grid {
+    pub(crate) c_euv_calendar_grid {
         display: "grid";
         grid-template-columns: "repeat(7, 1fr)";
         gap: "0px";
         width: "100%";
     }
 
-    pub c_euv_calendar_day {
+    pub(crate) c_euv_calendar_day {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -259,7 +259,7 @@ class! {
         }
     }
 
-    pub c_euv_calendar_day_muted {
+    pub(crate) c_euv_calendar_day_muted {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -277,7 +277,7 @@ class! {
         -webkit-user-select: "none";
     }
 
-    pub c_euv_calendar_day_today {
+    pub(crate) c_euv_calendar_day_today {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -299,7 +299,7 @@ class! {
         }
     }
 
-    pub c_euv_calendar_day_selected {
+    pub(crate) c_euv_calendar_day_selected {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -317,14 +317,14 @@ class! {
         -webkit-user-select: "none";
     }
 
-    pub c_euv_upload {
+    pub(crate) c_euv_upload {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-md);
         width: "100%";
     }
 
-    pub c_euv_upload_input {
+    pub(crate) c_euv_upload_input {
         position: "absolute";
         width: "1px";
         height: "1px";
@@ -336,7 +336,7 @@ class! {
         outline: "none";
     }
 
-    pub c_euv_upload_drop_active {
+    pub(crate) c_euv_upload_drop_active {
         display: "flex";
         flex-direction: "column";
         align-items: "center";
@@ -360,14 +360,14 @@ class! {
         }
     }
 
-    pub c_euv_upload_list {
+    pub(crate) c_euv_upload_list {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-sm);
         width: "100%";
     }
 
-    pub c_euv_upload_file {
+    pub(crate) c_euv_upload_file {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
@@ -379,7 +379,7 @@ class! {
         border: format!("1px dashed {}", var!(border));
     }
 
-    pub c_euv_upload_file_name {
+    pub(crate) c_euv_upload_file_name {
         font-size: var!(font-sm);
         font-weight: "500";
         color: var!(foreground);
@@ -389,7 +389,7 @@ class! {
         min-width: "0px";
     }
 
-    pub c_euv_upload_file_size {
+    pub(crate) c_euv_upload_file_size {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
         font-family: "ui-monospace, monospace";
@@ -397,7 +397,7 @@ class! {
         flex-shrink: "0";
     }
 
-    pub c_euv_upload_file_status_pending {
+    pub(crate) c_euv_upload_file_status_pending {
         display: "flex";
         align-items: "center";
         gap: var!(space-xs);
@@ -410,7 +410,7 @@ class! {
         flex-shrink: "0";
     }
 
-    pub c_euv_upload_file_status_uploading {
+    pub(crate) c_euv_upload_file_status_uploading {
         display: "flex";
         align-items: "center";
         gap: var!(space-xs);
@@ -423,7 +423,7 @@ class! {
         flex-shrink: "0";
     }
 
-    pub c_euv_upload_file_status_done {
+    pub(crate) c_euv_upload_file_status_done {
         display: "flex";
         align-items: "center";
         gap: var!(space-xs);
@@ -436,7 +436,7 @@ class! {
         flex-shrink: "0";
     }
 
-    pub c_euv_upload_file_status_failed {
+    pub(crate) c_euv_upload_file_status_failed {
         display: "flex";
         align-items: "center";
         gap: var!(space-xs);
@@ -506,7 +506,7 @@ class! {
     // Modal
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_modal_overlay {
+    pub(crate) c_modal_overlay {
         position: "fixed";
         top: "0px";
         left: "0px";
@@ -525,7 +525,7 @@ class! {
         }
     }
 
-    pub c_modal_content {
+    pub(crate) c_modal_content {
         background: var!(background);
         padding: "0px";
         max-width: "480px";
@@ -546,21 +546,21 @@ class! {
         }
     }
 
-    pub c_modal_header {
+    pub(crate) c_modal_header {
         display: "flex";
         justify-content: "space-between";
         align-items: "center";
         padding: format!("{} {} 0px {}", var!(space-md), var!(space-xl), var!(space-xl));
     }
 
-    pub c_modal_title {
+    pub(crate) c_modal_title {
         margin: "0px";
         font-size: var!(font-xl);
         font-weight: "600";
         color: "inherit";
     }
 
-    pub c_modal_body {
+    pub(crate) c_modal_body {
         padding: format!("0px {} {} {}", var!(space-xl), var!(space-md), var!(space-xl));
         color: "inherit";
     }
@@ -576,7 +576,7 @@ class! {
     // VConsole Panel
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_vconsole_badge {
+    pub(crate) c_vconsole_badge {
         position: "absolute";
         top: "-6px";
         right: "-8px";
@@ -595,7 +595,7 @@ class! {
         transition: format!("transform {} {}, opacity {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
     }
 
-    pub c_vconsole_overlay {
+    pub(crate) c_vconsole_overlay {
         position: "fixed";
         top: "0px";
         left: "0px";
@@ -607,12 +607,12 @@ class! {
         transition: format!("opacity {} {}", var!(duration-overlay), var!(ease-out));
     }
 
-    pub c_vconsole_overlay_hidden {
+    pub(crate) c_vconsole_overlay_hidden {
         opacity: "0";
         pointer-events: "none";
     }
 
-    pub c_vconsole_panel {
+    pub(crate) c_vconsole_panel {
         position: "fixed";
         bottom: "0px";
         left: "0px";
@@ -637,12 +637,12 @@ class! {
         }
     }
 
-    pub c_vconsole_panel_closed {
+    pub(crate) c_vconsole_panel_closed {
         transform: "translateY(100%)";
         will-change: "auto";
     }
 
-    pub c_vconsole_fab {
+    pub(crate) c_vconsole_fab {
         position: "fixed";
         bottom: format!("calc({} + {})", var!(edge-gutter-bottom), var!(safe-area-inset-bottom));
         right: var!(edge-gutter);
@@ -653,14 +653,14 @@ class! {
         }
     }
 
-    pub c_vconsole_header {
+    pub(crate) c_vconsole_header {
         display: "flex";
         justify-content: "space-between";
         align-items: "center";
         flex-shrink: "0";
     }
 
-    pub c_vconsole_title {
+    pub(crate) c_vconsole_title {
         color: var!(foreground);
         font-size: var!(font-md);
         font-weight: "600";
@@ -671,7 +671,7 @@ class! {
         gap: var!(space-sm);
     }
 
-    pub c_vconsole_title_dot {
+    pub(crate) c_vconsole_title_dot {
         width: "8px";
         height: "8px";
         background: var!(accent);
@@ -679,13 +679,13 @@ class! {
         animation: "euv-pulse 2s ease-in-out infinite";
     }
 
-    pub c_vconsole_header_actions {
+    pub(crate) c_vconsole_header_actions {
         display: "flex";
         gap: var!(space-sm);
         align-items: "center";
     }
 
-    pub c_vconsole_clear_button {
+    pub(crate) c_vconsole_clear_button {
         display: "inline-flex";
         justify-content: "center";
         align-items: "center";
@@ -702,7 +702,7 @@ class! {
         }
     }
 
-    pub c_vconsole_close_button {
+    pub(crate) c_vconsole_close_button {
         display: "inline-flex";
         justify-content: "center";
         align-items: "center";
@@ -733,7 +733,7 @@ class! {
         }
     }
 
-    pub c_vconsole_body {
+    pub(crate) c_vconsole_body {
         flex: "1";
         overflow-y: "auto";
         contain: "content";
@@ -742,7 +742,7 @@ class! {
         font-size: var!(font-xs);
     }
 
-    pub c_vconsole_log_item {
+    pub(crate) c_vconsole_log_item {
         display: "flex";
         align-items: "center";
         padding: format!("{} 0px", var!(space-sm));
@@ -752,7 +752,7 @@ class! {
         word-break: "break-all";
     }
 
-    pub c_vconsole_empty {
+    pub(crate) c_vconsole_empty {
         color: var!(muted-foreground);
         font-size: var!(font-xs);
         text-align: "center";
@@ -760,28 +760,28 @@ class! {
         overflow: "hidden";
     }
 
-    pub c_vconsole_empty_hidden {
+    pub(crate) c_vconsole_empty_hidden {
         height: "0";
         overflow: "hidden";
         padding: "0";
     }
 
-    pub c_vconsole_log_list {
+    pub(crate) c_vconsole_log_list {
         overflow: "hidden";
     }
 
-    pub c_vconsole_log_list_hidden {
+    pub(crate) c_vconsole_log_list_hidden {
         height: "0";
         overflow: "hidden";
     }
 
-    pub c_vconsole_count {
+    pub(crate) c_vconsole_count {
         color: var!(muted-foreground);
         font-size: var!(font-sm);
         font-weight: "400";
     }
 
-    pub c_vconsole_filter_bar {
+    pub(crate) c_vconsole_filter_bar {
         display: "flex";
         gap: var!(space-sm);
         padding: format!("{} 0px", var!(space-sm));
@@ -790,7 +790,7 @@ class! {
         align-items: "center";
     }
 
-    pub c_vconsole_filter_badge {
+    pub(crate) c_vconsole_filter_badge {
         display: "inline-flex";
         justify-content: "center";
         align-items: "center";
@@ -807,7 +807,7 @@ class! {
         }
     }
 
-    pub c_vconsole_filter_badge_outline {
+    pub(crate) c_vconsole_filter_badge_outline {
         display: "inline-flex";
         justify-content: "center";
         align-items: "center";
@@ -820,7 +820,7 @@ class! {
         border: format!("1.5px solid {}", var!(border));
     }
 
-    pub c_vconsole_level_badge {
+    pub(crate) c_vconsole_level_badge {
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         font-size: var!(font-xs);
         margin-right: var!(space-sm);
@@ -835,11 +835,11 @@ class! {
     // euv_dropdown
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_dropdown {
+    pub(crate) c_euv_dropdown {
         position: "relative";
     }
 
-    pub c_euv_dropdown_menu {
+    pub(crate) c_euv_dropdown_menu {
         position: "absolute";
         top: "44px";
         right: "0px";
@@ -862,15 +862,15 @@ class! {
         z-index: "101";
     }
 
-    pub c_euv_dropdown_menu_open {
+    pub(crate) c_euv_dropdown_menu_open {
         display: "flex";
     }
 
-    pub c_euv_dropdown_menu_closed {
+    pub(crate) c_euv_dropdown_menu_closed {
         display: "none";
     }
 
-    pub c_euv_dropdown_item {
+    pub(crate) c_euv_dropdown_item {
         padding: format!("{} {}", var!(space-sm), var!(space-lg));
         font-size: var!(font-sm);
         text-align: "left";
@@ -889,7 +889,7 @@ class! {
         }
     }
 
-    pub c_euv_dropdown_item_active {
+    pub(crate) c_euv_dropdown_item_active {
         padding: format!("{} {}", var!(space-sm), var!(space-lg));
         font-size: var!(font-sm);
         text-align: "left";
@@ -954,7 +954,7 @@ class! {
     // euv_drawer
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_drawer_overlay {
+    pub(crate) c_euv_drawer_overlay {
         position: "fixed";
         top: "0px";
         left: "0px";
@@ -965,17 +965,17 @@ class! {
         transition: format!("opacity {} {}, visibility {} {}", var!(duration-overlay), var!(ease-out), var!(duration-overlay), var!(ease-out));
     }
 
-    pub c_euv_drawer_overlay_open {
+    pub(crate) c_euv_drawer_overlay_open {
         opacity: "1";
         visibility: "visible";
     }
 
-    pub c_euv_drawer_overlay_closed {
+    pub(crate) c_euv_drawer_overlay_closed {
         opacity: "0";
         visibility: "hidden";
     }
 
-    pub c_euv_drawer {
+    pub(crate) c_euv_drawer {
         position: "fixed";
         top: "0px";
         left: "0px";
@@ -989,12 +989,12 @@ class! {
         transition: format!("transform {} {}, visibility {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
     }
 
-    pub c_euv_drawer_open {
+    pub(crate) c_euv_drawer_open {
         transform: "translateX(0px)";
         visibility: "visible";
     }
 
-    pub c_euv_drawer_closed {
+    pub(crate) c_euv_drawer_closed {
         transform: "translateX(-100%)";
         visibility: "hidden";
     }

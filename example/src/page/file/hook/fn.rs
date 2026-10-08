@@ -12,7 +12,7 @@ pub(crate) fn use_file_upload() -> UseFileUpload {
         App::use_signal(Vec::new),
         App::use_signal(|| false),
         App::use_signal(String::new),
-        App::use_signal(|| FILE_STATUS_NONE.to_string()),
+        App::use_signal(|| FILE_UPLOAD_STATUS_NO_FILES.to_string()),
     )
 }
 
@@ -60,7 +60,9 @@ pub(crate) fn file_upload_on_change(state: UseFileUpload) -> Option<Rc<dyn Fn(Ev
             state.get_file_sizes().set(sizes);
             state.get_file_types().set(types);
             if names.is_empty() {
-                state.get_status().set(FILE_STATUS_NONE.to_string());
+                state
+                    .get_status()
+                    .set(FILE_UPLOAD_STATUS_NO_FILES.to_string());
             } else {
                 let count: usize = names.len();
                 state.get_status().set(format!("{count} file(s) selected"));
@@ -120,6 +122,8 @@ pub(crate) fn file_upload_on_clear(state: UseFileUpload) -> Option<Rc<dyn Fn(Eve
         state.get_file_names().set(Vec::new());
         state.get_file_sizes().set(Vec::new());
         state.get_file_types().set(Vec::new());
-        state.get_status().set(FILE_STATUS_NONE.to_string());
+        state
+            .get_status()
+            .set(FILE_UPLOAD_STATUS_NO_FILES.to_string());
     }))
 }

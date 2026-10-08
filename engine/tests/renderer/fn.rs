@@ -1,5 +1,9 @@
 use super::*;
 
+const DEFAULT_CAMERA_FAR: f64 = 1000.0;
+const DEFAULT_CAMERA_FOV: f64 = 1.0471975511965976;
+const DEFAULT_CAMERA_NEAR: f64 = 0.1;
+
 #[test]
 fn texture_2d_descriptor_default_for_pins_mip_and_sample_counts_to_one() {
     let descriptor: Texture2DDescriptor =
@@ -75,7 +79,7 @@ fn bind_group_entry_binding_reads_the_slot_number_of_every_variant() {
 fn bind_group_layout_entry_uniform_is_a_uniform_buffer_slot() {
     let entry: BindGroupLayoutEntry = BindGroupLayoutEntry::uniform(4, ShaderStage::Vertex);
     assert_eq!(entry.binding, 4);
-    assert_eq!(entry.visibility, ShaderStage::Vertex);
+    assert_eq!(entry.visibility, ShaderStage::Vertex.into());
     assert!(matches!(entry.ty, BindGroupEntryType::UniformBuffer));
 }
 
@@ -164,7 +168,10 @@ fn the_three_sampler_constructors_differ_only_in_filtering_and_comparison() {
 fn color_target_state_for_format_writes_every_channel_without_blending() {
     let state: ColorTargetState = ColorTargetState::for_format(GpuTextureFormat::Bgra8Unorm);
     assert_eq!(state.get_format(), GpuTextureFormat::Bgra8Unorm);
-    assert!(state.get_blend().is_none(), "an unblended target must not carry a blend state");
+    assert!(
+        state.get_blend().is_none(),
+        "an unblended target must not carry a blend state"
+    );
     assert_eq!(state.get_write_mask(), 0xf);
 }
 
@@ -177,8 +184,7 @@ fn multisample_state_with_sample_count_writes_every_sample() {
 
 #[test]
 fn depth_stencil_state_writing_depth_keeps_the_nearer_fragment() {
-    let state: DepthStencilState =
-        DepthStencilState::writing_depth(GpuTextureFormat::Depth24Plus);
+    let state: DepthStencilState = DepthStencilState::writing_depth(GpuTextureFormat::Depth24Plus);
     assert_eq!(state.get_format(), GpuTextureFormat::Depth24Plus);
     assert!(state.get_depth_write_enabled());
     assert_eq!(state.get_depth_compare(), CompareFunction::Less);
@@ -189,7 +195,10 @@ fn blend_component_source_alpha_over_adds_alpha_scaled_source_and_destination() 
     let component: BlendComponent = BlendComponent::source_alpha_over();
     assert_eq!(component.get_operation(), BlendOperation::Add);
     assert_eq!(component.get_source(), BlendFactor::SourceAlpha);
-    assert_eq!(component.get_destination(), BlendFactor::OneMinusSourceAlpha);
+    assert_eq!(
+        component.get_destination(),
+        BlendFactor::OneMinusSourceAlpha
+    );
 }
 
 #[test]
@@ -345,7 +354,7 @@ fn bit_or_ors_the_bits_of_both_operands_in_every_bitmask_family() {
         16 | 4
     );
     assert_eq!(
-        ShaderStage::Vertex | ShaderStage::Fragment,
+        (ShaderStage::Vertex | ShaderStage::Fragment).bits(),
         1 | 2,
         "a bind group visible to both stages needs both bits"
     );
@@ -392,7 +401,12 @@ fn camera_2d_default_is_an_800_by_600_viewport() {
 #[test]
 fn world_to_screen_puts_the_camera_position_at_the_viewport_center() {
     let camera: Camera2D = Camera2D::create(800.0, 600.0);
-    assert_vector_close(camera.world_to_screen(Vector2D::zero()), 400.0, 300.0, "origin");
+    assert_vector_close(
+        camera.world_to_screen(Vector2D::zero()),
+        400.0,
+        300.0,
+        "origin",
+    );
     assert_vector_close(
         camera.world_to_screen(Vector2D::new(100.0, 50.0)),
         500.0,
@@ -530,9 +544,17 @@ fn a_camera_aspect_is_width_over_height() {
 #[test]
 fn a_camera_with_a_degenerate_height_reports_a_neutral_aspect_instead_of_dividing_by_zero() {
     let camera: Camera3D = Camera3D::create(Vector3D::zero(), Vector3D::zero(), 800.0, 0.0);
-    assert_eq!(camera.aspect(), 1.0, "a zero height must not yield an infinity");
+    assert_eq!(
+        camera.aspect(),
+        1.0,
+        "a zero height must not yield an infinity"
+    );
     let tiny: Camera3D = Camera3D::create(Vector3D::zero(), Vector3D::zero(), 800.0, 1e-12);
-    assert_eq!(tiny.aspect(), 1.0, "the same guard covers a near-zero height");
+    assert_eq!(
+        tiny.aspect(),
+        1.0,
+        "the same guard covers a near-zero height"
+    );
     assert!(three_d_camera().aspect().is_finite());
 }
 
@@ -567,7 +589,10 @@ fn a_camera_projects_its_own_target_onto_the_centre_of_the_viewport() {
 #[test]
 fn a_camera_keeps_its_target_in_frustum_and_drops_a_point_behind_the_eye() {
     let camera: Camera3D = three_d_camera();
-    assert!(camera.in_frustum(camera.get_target()), "the target is by definition visible");
+    assert!(
+        camera.in_frustum(camera.get_target()),
+        "the target is by definition visible"
+    );
     assert!(
         !camera.in_frustum(Vector3D::new(0.0, 0.0, 50.0)),
         "a point far behind the eye is outside"
@@ -586,8 +611,16 @@ fn translating_a_three_dimensional_camera_moves_eye_and_target_together() {
     assert_eq!(camera.get_position().get_x(), 1.0);
     assert_eq!(camera.get_target().get_x(), 1.0, "the target rides along");
     assert_eq!(camera.get_target().get_y(), 2.0);
-    assert_eq!(camera.get_position().get_z(), 5.0, "only the offset axes moved");
-    assert_ne!(before, camera.view_matrix(), "a moved camera has a different view");
+    assert_eq!(
+        camera.get_position().get_z(),
+        5.0,
+        "only the offset axes moved"
+    );
+    assert_ne!(
+        before,
+        camera.view_matrix(),
+        "a moved camera has a different view"
+    );
 }
 
 #[test]
@@ -643,7 +676,10 @@ fn a_linear_gradient_keeps_its_endpoints_and_its_stops_in_order() {
 
 #[test]
 fn a_radial_gradient_keeps_both_circles_and_its_stops() {
-    let stops: Vec<(f64, String)> = vec![(0.0, String::from("#ff0000")), (1.0, String::from("#0000ff"))];
+    let stops: Vec<(f64, String)> = vec![
+        (0.0, String::from("#ff0000")),
+        (1.0, String::from("#0000ff")),
+    ];
     let gradient: RadialGradient = RadialGradient::create(
         Vector2D::new(10.0, 10.0),
         0.0,

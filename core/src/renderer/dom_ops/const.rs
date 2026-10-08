@@ -61,4 +61,3 @@ pub(crate) const DOM_OPS_MASK_DIGIT: u8 = b'0';
 /// The byte the mask starts from, so a printable run never contains the
 /// separator the table keys on.
 pub(crate) const DOM_OPS_MASK_FILL: u8 = b'!';
-

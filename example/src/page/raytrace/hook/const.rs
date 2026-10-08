@@ -79,6 +79,12 @@ pub(crate) const RAYTRACE_EVENT_PROPERTY_CLIENT_X: &str = "clientX";
 /// `Touch` object.
 pub(crate) const RAYTRACE_EVENT_PROPERTY_CLIENT_Y: &str = "clientY";
 
+/// The JavaScript event name for the window resize event.
+pub(crate) const RAYTRACE_EVENT_RESIZE: &str = "resize";
+
+/// The JavaScript property name for the device pixel ratio on `Window`.
+pub(crate) const RAYTRACE_EVENT_PROPERTY_DEVICE_PIXEL_RATIO: &str = "devicePixelRatio";
+
 /// Delay in milliseconds before the raytrace loop's first `requestAnimationFrame`
 /// callback is scheduled, allowing the canvas element to mount before the
 /// first frame attempts to acquire a 2D context.

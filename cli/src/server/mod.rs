@@ -4,8 +4,8 @@ mod r#impl;
 mod r#static;
 mod r#struct;
 
-pub use {r#const::*, r#fn::*};
+pub use r#fn::*;
 
-pub(crate) use {r#static::*, r#struct::*};
+pub(crate) use {r#const::*, r#static::*, r#struct::*};
 
 use super::*;

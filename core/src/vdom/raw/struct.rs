@@ -19,5 +19,7 @@ pub struct RawHtml {
     /// The unescaped HTML content.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) content: String,
 }

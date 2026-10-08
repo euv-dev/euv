@@ -1,5 +1,5 @@
 use super::*;
 
 vars! {
-    pub c_example_theme {}
+    pub(crate) c_example_theme {}
 }

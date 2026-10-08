@@ -1,5 +1,15 @@
 use super::*;
 
+const CRATE_PATH_ARG: &str = "--crate-path";
+const DEV_FLAG: &str = "--dev";
+const DOUBLE_DASH: &str = "--";
+const OUT_DIR_ARG: &str = "--out-dir";
+const OUT_NAME_ARG: &str = "--out-name";
+const PORT_ARG: &str = "--port";
+const PROFILING_FLAG: &str = "--profiling";
+const RELEASE_FLAG: &str = "--release";
+const WWW_DIR_ARG: &str = "--www-dir";
+
 fn args_from(extra: &[&str]) -> ModeArgs {
     let mut argv: Vec<&str> = vec!["euv"];
     argv.extend_from_slice(extra);
@@ -20,7 +30,12 @@ fn a_build_mode_flag_is_detected_by_any_of_its_three_spellings() {
 #[test]
 fn a_list_without_a_build_mode_flag_reports_none() {
     assert!(!has_build_mode_flag(&owned(&[])));
-    assert!(!has_build_mode_flag(&owned(&["--out-dir", "pkg", "--target", "web"])));
+    assert!(!has_build_mode_flag(&owned(&[
+        "--out-dir",
+        "pkg",
+        "--target",
+        "web"
+    ])));
     assert!(
         !has_build_mode_flag(&owned(&["--developer"])),
         "a flag that merely starts with --dev is not --dev"
@@ -46,7 +61,8 @@ fn filtering_drops_each_euv_flag_together_with_the_token_after_it() {
 
 #[test]
 fn filtering_lets_the_wasm_pack_flags_that_look_similar_through() {
-    let filtered: Vec<String> = filter_euv_args(&owned(&[OUT_DIR_ARG, "pkg", OUT_NAME_ARG, "game"]));
+    let filtered: Vec<String> =
+        filter_euv_args(&owned(&[OUT_DIR_ARG, "pkg", OUT_NAME_ARG, "game"]));
     assert_eq!(
         filtered,
         vec![
@@ -70,12 +86,13 @@ fn filtering_skips_the_token_after_an_euv_flag_even_when_it_looks_like_another_f
 }
 
 #[test]
-fn filtering_keeps_an_inline_assignment_verbatim_because_the_match_is_exact() {
-    let filtered: Vec<String> = filter_euv_args(&owned(&[&format!("{PORT_ARG}=8080"), RELEASE_FLAG]));
+fn filtering_drops_an_inline_assignment_because_the_flag_name_matches() {
+    let filtered: Vec<String> =
+        filter_euv_args(&owned(&[&format!("{PORT_ARG}=8080"), RELEASE_FLAG]));
     assert_eq!(
         filtered,
-        vec![format!("{PORT_ARG}=8080"), RELEASE_FLAG.to_string()],
-        "EUV_ARGS holds the bare flag, so `--port=8080` never matches and reaches wasm-pack"
+        vec![RELEASE_FLAG.to_string()],
+        "the whitelist compares the flag NAME, so `--port=8080` matches EUV_ARGS and the consumed value never leaks to wasm-pack"
     );
 }
 
@@ -105,7 +122,11 @@ fn filtering_with_no_separator_and_no_euv_args_returns_the_input_unchanged() {
     let filtered: Vec<String> = filter_euv_args(&owned(&["--target", "web", "--release"]));
     assert_eq!(
         filtered,
-        vec!["--target".to_string(), "web".to_string(), "--release".to_string()]
+        vec![
+            "--target".to_string(),
+            "web".to_string(),
+            "--release".to_string()
+        ]
     );
 }
 
@@ -135,7 +156,10 @@ fn a_build_mode_forwarded_inside_wasm_pack_args_still_resolves() {
         "trailing_var_arg swallows the flag, but the mode must still be found"
     );
     let forwarded_profiling: ModeArgs = args_from(&[PROFILING_FLAG]);
-    assert_eq!(resolve_build_mode(&forwarded_profiling), BuildMode::Profiling);
+    assert_eq!(
+        resolve_build_mode(&forwarded_profiling),
+        BuildMode::Profiling
+    );
 }
 
 #[test]
@@ -297,8 +321,7 @@ fn the_source_is_the_cause_when_there_is_one_and_none_otherwise() {
     for error in [io_kind, path_kind, utf8_kind] {
         assert!(
             error.source().is_some(),
-            "{} must hand the caller the underlying cause",
-            error.to_string()
+            "{error} must hand the caller the underlying cause"
         );
     }
     assert!(

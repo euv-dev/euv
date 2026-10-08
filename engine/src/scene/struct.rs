@@ -17,11 +17,13 @@ pub struct SceneManager {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
     pub(crate) pending_scene_name: Option<String>,
     /// The reusable per-frame draw list. Cleared and refilled each render call
     /// so the backing `Vec` capacity is reused across frames.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
     pub(crate) draw_list: DrawList,
 }

@@ -1,6 +1,9 @@
 use super::*;
 
 /// A select demo page showcasing dropdown and cascading selections.
+/// # Arguments
+///
+/// - `VirtualNode<PageSelectProps>` - The component props node.
 ///
 /// # Returns
 ///

@@ -86,10 +86,7 @@ impl UseEuvCamera {
             }));
         let on_rejected: Closure<dyn FnMut(JsValue)> =
             Closure::wrap(Box::new(move |error: JsValue| {
-                web_sys::console::log_2(
-                    &wasm_bindgen::JsValue::from_str(CAMERA_LOG_PREFIX),
-                    &error,
-                );
+                console::log_2(&JsValue::from_str(CAMERA_LOG_PREFIX), &error);
             }));
         let _: Promise = promise.then(&on_fulfilled).catch(&on_rejected);
         on_fulfilled.forget();

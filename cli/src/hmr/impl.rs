@@ -108,7 +108,7 @@ impl HmrState {
     ///
     /// # Returns
     ///
-    /// - `impl Iterator<Item = (&str, &str)>` - A `impl Iterator<Item = (&str, &str)>` value.
+    /// - `impl Iterator<Item = (&str, &str)>` - The borrowed key and value pairs.
     pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
         self.get_entries()
             .iter()

@@ -712,17 +712,7 @@ pub(crate) fn exit_fullscreen_from_popstate(state: UseCanvas) {
     UseEuvLayout::apply_cached_insets();
 }
 
-/// Subscribes to browser `popstate` events to handle the system back
-/// button while the canvas is in fullscreen mode.
-///
-/// When the user presses the system back button while in fullscreen,
-/// this handler exits fullscreen instead of allowing the browser to
-/// navigate to the previous page. The `popstate` event is triggered
-/// by the `pushState` entry that was created when entering fullscreen.
-/// Uses `exit_fullscreen_from_popstate` to avoid double-consuming
-/// history entries.
-///
-///   Loads the persisted stroke color from localStorage.
+/// Loads the persisted stroke color from localStorage.
 ///
 /// Returns the stored color string if available and non-empty,
 /// otherwise returns the default stroke color.

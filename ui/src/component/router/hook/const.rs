@@ -15,16 +15,16 @@ pub(crate) const ACTIVE_NAV_ITEM_SELECTOR: &str = ".c_nav_item_active";
 pub(crate) const NAV_ITEMS_SCROLL_SELECTOR: &str = ".c_nav_items_scroll";
 
 /// The DOM event type bound to an external link that opens in a new tab.
-pub const ROUTER_EXTERNAL_LINK_EVENT_TYPE: &str = "click";
+pub(crate) const ROUTER_EXTERNAL_LINK_EVENT_TYPE: &str = "click";
 
 /// The JS property name of `window.open`.
-pub const ROUTER_WINDOW_OPEN_KEY: &str = "open";
+pub(crate) const ROUTER_WINDOW_OPEN_KEY: &str = "open";
 
 /// The JS property name read from `window.location.pathname` fallbacks.
-pub const ROUTER_MAIN_ELEMENT_SELECTOR: &str = "main";
+pub(crate) const ROUTER_MAIN_ELEMENT_SELECTOR: &str = "main";
 
 /// The window event fired when the URL hash changes.
-pub const ROUTER_WINDOW_EVENT_HASH_CHANGE: &str = "hashchange";
+pub(crate) const ROUTER_WINDOW_EVENT_HASH_CHANGE: &str = "hashchange";
 
 /// The window event fired when the browser navigates through history.
-pub const ROUTER_WINDOW_EVENT_POP_STATE: &str = "popstate";
+pub(crate) const ROUTER_WINDOW_EVENT_POP_STATE: &str = "popstate";

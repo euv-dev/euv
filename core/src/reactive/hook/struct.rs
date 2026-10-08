@@ -12,8 +12,10 @@ pub struct HookContextInner {
     #[debug(skip)]
     pub hooks: Vec<Box<dyn Any>>,
     /// The match arm index from the last render.
-    #[get(type(copy))]
-    pub arm_changed: usize,
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) arm_changed: usize,
     /// Current hook index, incremented on each hook call and reset per render.
     #[get(type(copy))]
     pub hook_index: usize,
@@ -21,7 +23,10 @@ pub struct HookContextInner {
     /// be executed when the hook context is cleared due to a `match` arm
     /// switch.
     #[debug(skip)]
-    pub cleanups: Vec<Box<dyn FnOnce()>>,
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) cleanups: Vec<Box<dyn FnOnce()>>,
 }
 
 /// Manages hook state across render cycles for a DynamicNode.
@@ -46,5 +51,8 @@ pub struct HookContext {
 pub struct IntervalHandle {
     /// The interval ID assigned by the browser.
     #[get(type(copy))]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) interval_id: i32,
 }

@@ -9,7 +9,10 @@ fn device_pixel_ratio_falls_back_to_one_without_a_window() {
         ratio, 1.0,
         "a host with no window must yield the documented default, not a panic"
     );
-    assert!(ratio.is_finite() && ratio >= 1.0, "the default itself is clamped");
+    assert!(
+        ratio.is_finite() && ratio >= 1.0,
+        "the default itself is clamped"
+    );
 }
 
 #[cfg(target_arch = "wasm32")]

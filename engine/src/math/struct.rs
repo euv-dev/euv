@@ -13,9 +13,11 @@ pub struct Numeric;
 pub struct Vector2D {
     /// The horizontal component of the vector.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) x: f64,
     /// The vertical component of the vector.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) y: f64,
 }
 
@@ -24,15 +26,19 @@ pub struct Vector2D {
 pub struct Rect {
     /// The x coordinate of the top-left corner.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) x: f64,
     /// The y coordinate of the top-left corner.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) y: f64,
     /// The width of the rectangle.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) width: f64,
     /// The height of the rectangle.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) height: f64,
 }
 
@@ -41,9 +47,13 @@ pub struct Rect {
 pub struct Circle {
     /// The center point of the circle.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) center: Vector2D,
     /// The radius of the circle.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) radius: f64,
 }
 
@@ -52,12 +62,18 @@ pub struct Circle {
 pub struct Transform2D {
     /// The position offset of the transform.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) position: Vector2D,
     /// The rotation angle in radians.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) rotation: f64,
     /// The scale factors for each axis.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) scale: Vector2D,
 }
 
@@ -66,12 +82,18 @@ pub struct Transform2D {
 pub struct Color {
     /// The red channel value in the range 0.0 to 1.0.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) red: f64,
     /// The green channel value in the range 0.0 to 1.0.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) green: f64,
     /// The blue channel value in the range 0.0 to 1.0.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) blue: f64,
     /// The alpha (opacity) channel value in the range 0.0 to 1.0.
     #[get(type(copy))]
@@ -83,12 +105,16 @@ pub struct Color {
 pub struct Vector3D {
     /// The horizontal component of the vector.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) x: f64,
     /// The vertical component of the vector.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) y: f64,
     /// The depth component of the vector.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) z: f64,
 }
 
@@ -97,15 +123,21 @@ pub struct Vector3D {
 pub struct Quaternion {
     /// The x component of the quaternion.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) x: f64,
     /// The y component of the quaternion.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) y: f64,
     /// The z component of the quaternion.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) z: f64,
     /// The w (scalar) component of the quaternion.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) w: f64,
 }
 
@@ -114,6 +146,8 @@ pub struct Quaternion {
 pub struct Matrix4x4 {
     /// The 16 elements of the matrix in column-major order.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) elements: [f64; 16],
 }
 
@@ -122,12 +156,18 @@ pub struct Matrix4x4 {
 pub struct Transform3D {
     /// The position offset of the transform.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) position: Vector3D,
     /// The rotation as a quaternion.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) rotation: Quaternion,
     /// The scale factors for each axis.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) scale: Vector3D,
 }
 
@@ -136,9 +176,13 @@ pub struct Transform3D {
 pub struct AABB3D {
     /// The minimum corner (smallest x, y, z).
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) min: Vector3D,
     /// The maximum corner (largest x, y, z).
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) max: Vector3D,
 }
 
@@ -147,9 +191,13 @@ pub struct AABB3D {
 pub struct Sphere {
     /// The center point of the sphere.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) center: Vector3D,
     /// The radius of the sphere.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) radius: f64,
 }
 
@@ -158,9 +206,13 @@ pub struct Sphere {
 pub struct Plane {
     /// The normal vector of the plane (should be normalized).
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) normal: Vector3D,
     /// The signed distance from the origin along the normal.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) distance: f64,
 }
 
@@ -169,9 +221,12 @@ pub struct Plane {
 pub struct Ray3D {
     /// The origin point of the ray.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) origin: Vector3D,
     /// The direction vector of the ray (should be normalized).
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) direction: Vector3D,
 }
 
@@ -181,8 +236,11 @@ pub struct Ray3D {
 pub struct Ray2D {
     /// The origin point of the ray.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) origin: Vector2D,
     /// The direction vector of the ray (should be normalized).
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) direction: Vector2D,
 }

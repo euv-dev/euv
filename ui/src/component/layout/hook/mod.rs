@@ -5,7 +5,6 @@ mod r#struct;
 
 pub use r#struct::*;
 
-pub(crate) use r#const::*;
-pub(crate) use r#static::*;
+pub(crate) use {r#const::*, r#static::*};
 
 use super::*;

@@ -39,14 +39,23 @@ where
     /// The maximum number of entries before eviction
     /// kicks in.
     #[get(pub(crate))]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) capacity: usize,
     /// The current entries, keyed by K. Default-initialised
     /// via `#[new(skip)]` (`HashMap::new()`).
     #[new(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) map: HashMap<K, V>,
     /// The MRU-first order. Front = most recently used,
     /// back = least recently used. Default-initialised
     /// via `#[new(skip)]` (`VecDeque::new()`).
     #[new(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) order: VecDeque<K>,
 }

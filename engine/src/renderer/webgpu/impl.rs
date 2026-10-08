@@ -2,6 +2,41 @@ use super::*;
 
 /// Implements async initialization and GPU resource creation for `WebGpuRenderer`.
 impl WebGpuRenderer {
+    /// Builds a renderer from fully prepared GPU handles. Production code
+    /// obtains the handles through `init`; this constructor exists so tests
+    /// can drive the renderer with `Reflect` stand-in objects.
+    ///
+    /// # Arguments
+    ///
+    /// - `WebGpuRendererInit` - The device, queue, context, canvas, format,
+    ///   dimensions, and antialias flag the renderer starts with.
+    ///
+    /// # Returns
+    ///
+    /// - `WebGpuRenderer` - The renderer with all caches empty.
+    pub fn new(init: WebGpuRendererInit) -> Self {
+        Self {
+            device: init.device,
+            queue: init.queue,
+            context: init.context,
+            canvas: init.canvas,
+            format: init.format,
+            width: init.width,
+            height: init.height,
+            antialias: init.antialias,
+            multisample_texture: None,
+            multisample_view: None,
+            depth_texture: None,
+            depth_view: None,
+            depth_format: None,
+            device_lost_callback: None,
+            device_lost: false,
+            pending_error: Rc::new(PendingErrorCell::new()),
+            command_encoder: None,
+            render_pass_descriptor_cache: None,
+        }
+    }
+
     /// Returns `true` if `navigator.gpu` is exposed on the current origin.
     ///
     /// This is the synchronous half of the canonical WebGPU capability
@@ -21,7 +56,7 @@ impl WebGpuRenderer {
     ///
     /// - `bool` - `true` when `navigator.gpu` is a non-null, non-undefined
     ///   object; `false` otherwise (including the "no `window`" runtime
-    ///   case, which `web_sys::window()` returns `None` for).
+    ///   case, which `window()` returns `None` for).
     pub fn is_available() -> bool {
         let window_value: Window = match window() {
             Some(value) => value,
@@ -576,7 +611,7 @@ impl WebGpuRenderer {
     /// # Returns
     ///
     /// - `JsValue` - The created command encoder as a JavaScript value.
-    pub fn create_command_encoder(&self) -> JsValue {
+    pub(crate) fn create_command_encoder(&self) -> JsValue {
         // OPT 2b: cached `device.createCommandEncoder()` — `Function`
         // is the same prototype slot for the device's lifetime, so
         // skipping the `Reflect::get` shaves ~110ns per frame.
@@ -645,7 +680,7 @@ impl WebGpuRenderer {
     /// # Returns
     ///
     /// - `JsValue` - The active render pass encoder as a JavaScript value.
-    pub fn begin_render_pass(&mut self, encoder: &JsValue, clear_color: Color) -> JsValue {
+    pub(crate) fn begin_render_pass(&mut self, encoder: &JsValue, clear_color: Color) -> JsValue {
         let color: ColorAttachment = ColorAttachment {
             view: None,
             resolve_target: None,
@@ -693,7 +728,6 @@ impl WebGpuRenderer {
         color: &ColorAttachment,
         depth: Option<&DepthStencilAttachment>,
     ) -> JsValue {
-        let swap_chain_view: JsValue = self.get_current_texture_view();
         // Resolve MSAA view + resolve target with the same policy as
         // the legacy `begin_render_pass` - prefer the existing
         // multisample view, lazily allocate it if missing, and fall
@@ -709,6 +743,11 @@ impl WebGpuRenderer {
                 (view.clone(), color.try_get_resolve_target().clone())
             }
             _ => {
+                // Only the swap-chain path needs the canvas texture. Reading it in the
+                // caller-supplied-view case would acquire the canvas texture for a frame
+                // nobody renders to it, which is a wasted round trip on every off-screen
+                // pass and presents an untouched swap chain alongside the real output.
+                let swap_chain_view: JsValue = self.get_current_texture_view();
                 if self.get_antialias() {
                     let multisample_view: Option<JsValue> = self
                         .get_multisample_view()
@@ -1479,7 +1518,7 @@ impl WebGpuRenderer {
     ///
     /// - `&JsValue` - The render pass encoder.
     /// - `&JsValue` - The render pipeline to set.
-    pub fn set_pipeline(&self, pass: &JsValue, pipeline: &JsValue) {
+    pub(crate) fn set_pipeline(&self, pass: &JsValue, pipeline: &JsValue) {
         // OPT 2b: cached `pass.setPipeline()` — function is on the
         // shared prototype; the call still passes `this = pass`
         // explicitly because JS `Function` doesn't auto-bind.
@@ -1577,7 +1616,7 @@ impl WebGpuRenderer {
 
     /// Draws indexed primitives on a render pass encoder.
     ///
-    /// The index buffer must already be bound via `set_index_buffer`.
+    /// The index buffer must already be bound via [`Self::set_index_buffer`].
     /// This is the modern path for everything that needs shared vertex
     /// data (mesh renderers, terrain, instanced objects).
     ///
@@ -1604,7 +1643,7 @@ impl WebGpuRenderer {
         );
     }
 
-    /// Variant of `draw_indexed` that stops before the end of the
+    /// Variant of [`Self::draw_indexed`] that stops before the end of the
     /// bound index buffer, drawing `index_count` indices starting at
     /// `first_index`.
     ///
@@ -1634,7 +1673,7 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The render pass encoder to end.
-    pub fn end_render_pass(&self, pass: &JsValue) {
+    pub(crate) fn end_render_pass(&self, pass: &JsValue) {
         // OPT 2b: cached `pass.end()`.
         let end_fn: Function = cached_method(GpuReceiverClass::RenderPass, pass, WEBGPU_METHOD_END)
             .unwrap_or_else(|_| JsValue::UNDEFINED.unchecked_into());
@@ -1650,7 +1689,7 @@ impl WebGpuRenderer {
     /// # Returns
     ///
     /// - `JsValue` - The finished command buffer.
-    pub fn finish_command_encoder(&self, encoder: &JsValue) -> JsValue {
+    pub(crate) fn finish_command_encoder(&self, encoder: &JsValue) -> JsValue {
         // OPT 2b: cached `encoder.finish()`.
         let finish_fn: Function = cached_method(
             GpuReceiverClass::CommandEncoder,
@@ -1891,7 +1930,7 @@ impl WebGpuRenderer {
     /// # Returns
     ///
     /// - `Option<JsValue>` - The most recent error popped, or `None`.
-    pub fn pop_error_sync(&self) -> Option<JsValue> {
+    pub(crate) fn pop_error_sync(&self) -> Option<JsValue> {
         let pop_fn: Function = Reflect::get(
             self.get_device(),
             &JsValue::from_str(WEBGPU_METHOD_POP_ERROR_SCOPE),
@@ -2155,7 +2194,11 @@ impl WebGpuRenderer {
         let _: Result<bool, JsValue> = Reflect::set(
             &descriptor,
             &JsValue::from_str(WEBGPU_PROPERTY_USAGE),
-            &JsValue::from_str(WEBGPU_OFFSCREEN_TEXTURE_USAGE),
+            &JsValue::from_f64(f64::from(texture_usage_mask(&[
+                TextureUsage::RenderAttachment,
+                TextureUsage::TextureBinding,
+                TextureUsage::CopySource,
+            ]))),
         );
         let create_fn: Function = Reflect::get(
             self.get_device(),
@@ -2253,7 +2296,7 @@ impl WebGpuRenderer {
     ///
     /// - `JsValue` - The new `GpuBuffer`, or `JsValue::UNDEFINED` on
     ///   allocation failure.
-    pub fn create_buffer(&self, descriptor: &BufferDescriptor) -> JsValue {
+    pub(crate) fn create_buffer(&self, descriptor: &BufferDescriptor) -> JsValue {
         if descriptor.get_size() == 0 {
             return JsValue::UNDEFINED;
         }
@@ -2400,7 +2443,7 @@ impl WebGpuRenderer {
     ///
     /// - `Option<JsValue>` - The depth texture's default `GpuTextureView`
     ///   on success, `None` on allocation failure.
-    pub fn create_depth_texture(&mut self) -> Option<JsValue> {
+    pub(crate) fn create_depth_texture(&mut self) -> Option<JsValue> {
         if let Some(view) = self.get_depth_view().clone()
             && !view.is_undefined()
         {
@@ -2833,7 +2876,7 @@ impl WebGpuRenderer {
         // in the next popErrorScope() call. The result we return is
         // still the JsValue, which the user checks against UNDEFINED.
         if let Some(error) = self.pop_error_sync() {
-            web_sys::console::error_1(&error);
+            console::error_1(&error);
         }
         result
     }
@@ -2845,7 +2888,7 @@ impl WebGpuRenderer {
     /// - `&JsValue` - The render pass encoder.
     /// - `u32` - The bind group index (`@group(N)` in WGSL).
     /// - `&JsValue` - The bind group to bind.
-    pub fn set_bind_group(&self, pass: &JsValue, index: u32, bind_group: &JsValue) {
+    pub(crate) fn set_bind_group(&self, pass: &JsValue, index: u32, bind_group: &JsValue) {
         // OPT 2b: cached `pass.setBindGroup(index, bindGroup)`. This is
         // called per-entity per-frame in the 500-entity lighting demo;
         // skipping the `Reflect::get` is a 110ns-per-call saving.
@@ -2934,7 +2977,7 @@ impl WebGpuRenderer {
 
     /// Sets the pipeline on a compute pass encoder.
     ///
-    /// This is the compute counterpart to `set_pipeline` — without it,
+    /// This is the compute counterpart to [`Self::set_pipeline`] — without it,
     /// the only public path into compute was `create_compute_pipeline`
     /// (pipeline handle) followed by `dispatch` (no pipeline argument),
     /// which silently no-op'd in browsers that strictly validate the
@@ -2943,7 +2986,7 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The `GpuComputePassEncoder` (from
-    ///   `begin_compute_pass`).
+    ///   [`Self::begin_compute_pass`]).
     /// - `&JsValue` - The compute pipeline to bind.
     pub fn set_compute_pipeline(&self, pass: &JsValue, pipeline: &JsValue) {
         let set_fn: Function =
@@ -2955,7 +2998,7 @@ impl WebGpuRenderer {
 
     /// Creates a bind group from an explicit `GpuBindGroupLayout`.
     ///
-    /// Unlike `create_bind_group`, this does not depend on a render
+    /// Unlike [`Self::create_bind_group`], this does not depend on a render
     /// pipeline being present to derive the layout. Use it for compute
     /// bind groups, multi-pipeline shared layouts, or any case where the
     /// layout was obtained from `create_bind_group_layout` /
@@ -3055,7 +3098,7 @@ impl WebGpuRenderer {
             .call1(self.get_device(), &descriptor)
             .unwrap_or(JsValue::UNDEFINED);
         if let Some(error) = self.pop_error_sync() {
-            web_sys::console::error_1(&error);
+            console::error_1(&error);
         }
         result
     }
@@ -3087,7 +3130,7 @@ impl WebGpuRenderer {
             let _: Result<bool, JsValue> = Reflect::set(
                 &entry_obj,
                 &JsValue::from_str(WEBGPU_PROPERTY_VISIBILITY),
-                &JsValue::from_f64(f64::from(shader_stage_bit(entry.visibility))),
+                &JsValue::from_f64(f64::from(entry.visibility.bits())),
             );
             let binding_obj: Object = Object::new();
             match &entry.ty {
@@ -3292,8 +3335,8 @@ impl WebGpuRenderer {
     /// Creates a `GpuQuerySet` of `timestamp` queries.
     ///
     /// Timestamp query sets enable GPU profiling. After recording
-    /// timestamp writes via `write_timestamp`, call
-    /// `resolve_timestamp` to read the values back.
+    /// timestamp writes via [`Self::write_timestamp`], call
+    /// [`Self::resolve_timestamp`] to read the values back.
     ///
     /// # Arguments
     ///
@@ -3331,14 +3374,14 @@ impl WebGpuRenderer {
     /// render or compute pass.
     ///
     /// Pair the start index with a second write at the end of the
-    /// pass; then call `resolve_timestamp` to read back the elapsed
+    /// pass; then call [`Self::resolve_timestamp`] to read back the elapsed
     /// GPU nanoseconds.
     ///
     /// # Arguments
     ///
     /// - `&JsValue` - The render or compute pass encoder.
     /// - `&JsValue` - The `GpuQuerySet` created via
-    ///   `create_timestamp_query_set`.
+    ///   [`Self::create_timestamp_query_set`].
     /// - `u32` - The query-slot index to write into.
     pub fn write_timestamp(&self, pass: &JsValue, query_set: &JsValue, index: u32) {
         if query_set.is_undefined() || query_set.is_null() {
@@ -3523,8 +3566,19 @@ impl WebGpuRenderer {
         args.set(1, JsValue::from_f64(*viewport.get_y() as f64));
         args.set(2, JsValue::from_f64(*viewport.get_width() as f64));
         args.set(3, JsValue::from_f64(*viewport.get_height() as f64));
-        args.set(4, JsValue::from_f64(WEBGPU_DEFAULT_VIEWPORT_MIN_DEPTH));
-        args.set(5, JsValue::from_f64(WEBGPU_DEFAULT_VIEWPORT_MAX_DEPTH));
+        // Forward the descriptor's depth range instead of the spec defaults. Hardcoding
+        // them here made `ViewportDescriptor::min_depth` / `max_depth` unreachable, so a
+        // pass that narrowed its depth range to dodge z-fighting got the full range back
+        // and nothing said so. A zero `max_depth` still means "unset", because `New`
+        // skips both fields and a freshly built descriptor would otherwise ask for a
+        // zero-width depth range that discards every fragment.
+        let min_depth: f64 = f64::from(*viewport.get_min_depth());
+        let max_depth: f64 = match *viewport.get_max_depth() {
+            0.0 => WEBGPU_DEFAULT_VIEWPORT_MAX_DEPTH,
+            depth => f64::from(depth),
+        };
+        args.set(4, JsValue::from_f64(min_depth));
+        args.set(5, JsValue::from_f64(max_depth));
         if let Ok(set_fn) = cached_method(
             GpuReceiverClass::RenderPass,
             pass,
@@ -3885,7 +3939,7 @@ impl WebGpuRenderer {
         );
         let _: Result<bool, JsValue> = Reflect::set(
             &layout_dict,
-            &JsValue::from_str(WEBGPU_PROPERTY_OFFSET_BYTES),
+            &JsValue::from_str(WEBGPU_PROPERTY_IMAGE_DATA_OFFSET),
             &JsValue::from_f64(0.0),
         );
         let layout_js: JsValue = layout_dict.unchecked_into::<JsValue>();
@@ -4308,7 +4362,7 @@ impl PendingErrorCell {
     /// # Returns
     ///
     /// - `*mut Option<JsValue>` - Raw pointer to the inner storage.
-    pub fn as_ptr(&self) -> *mut Option<JsValue> {
+    pub(crate) fn as_ptr(&self) -> *mut Option<JsValue> {
         self.0.get()
     }
 }

@@ -69,10 +69,8 @@ fn the_root_route_matches_every_non_empty_path() {
 
 #[test]
 fn find_active_route_prefers_the_exact_child_over_its_parent() {
-    let routes: Vec<NestedRouteConfig> = vec![route(
-        "/settings",
-        vec![route("/settings/profile", vec![])],
-    )];
+    let routes: Vec<NestedRouteConfig> =
+        vec![route("/settings", vec![route("/settings/profile", vec![])])];
     let found: Option<&NestedRouteConfig> = find_active_route("/settings/profile", &routes);
     assert_eq!(
         found.map(|r: &NestedRouteConfig| r.path.as_str()),
@@ -82,10 +80,8 @@ fn find_active_route_prefers_the_exact_child_over_its_parent() {
 
 #[test]
 fn find_active_route_falls_back_to_the_parent_when_no_child_matches() {
-    let routes: Vec<NestedRouteConfig> = vec![route(
-        "/settings",
-        vec![route("/settings/profile", vec![])],
-    )];
+    let routes: Vec<NestedRouteConfig> =
+        vec![route("/settings", vec![route("/settings/profile", vec![])])];
     let found: Option<&NestedRouteConfig> = find_active_route("/settings", &routes);
     assert_eq!(
         found.map(|r: &NestedRouteConfig| r.path.as_str()),
@@ -154,14 +150,17 @@ fn a_progress_percent_is_clamped_into_the_zero_to_hundred_range() {
     assert_eq!(progress_percent_clamp(50.0), 50.0);
     assert_eq!(progress_percent_clamp(100.0), 100.0);
     assert_eq!(progress_percent_clamp(-20.0), 0.0);
-    assert_eq!(progress_percent_clamp(140.0), PERCENT_MAX);
+    assert_eq!(progress_percent_clamp(140.0), 100.0);
 }
 
 #[test]
 fn a_nan_progress_percent_becomes_zero_rather_than_propagating() {
     let clamped: f64 = progress_percent_clamp(f64::NAN);
     assert_eq!(clamped, 0.0);
-    assert!(!clamped.is_nan(), "clamp leaves NaN alone, so it must be special-cased");
+    assert!(
+        !clamped.is_nan(),
+        "clamp leaves NaN alone, so it must be special-cased"
+    );
 }
 
 #[test]

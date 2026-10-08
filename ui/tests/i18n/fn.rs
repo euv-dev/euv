@@ -3,11 +3,9 @@ use super::*;
 static I18N_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 fn fresh_i18n() -> (I18n, MutexGuard<'static, ()>) {
-    let guard: MutexGuard<'static, ()> = I18N_TEST_LOCK.lock().unwrap_or_else(
-        |poisoned: PoisonError<MutexGuard<'static, ()>>| {
-            poisoned.into_inner()
-        },
-    );
+    let guard: MutexGuard<'static, ()> = I18N_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned: PoisonError<MutexGuard<'static, ()>>| poisoned.into_inner());
     i18n_reset_for_tests();
     let i18n: I18n = I18n::new(
         Signal::create(String::from("en")),
@@ -17,11 +15,9 @@ fn fresh_i18n() -> (I18n, MutexGuard<'static, ()>) {
 }
 
 fn seeded_i18n() -> (I18n, MutexGuard<'static, ()>) {
-    let guard: MutexGuard<'static, ()> = I18N_TEST_LOCK.lock().unwrap_or_else(
-        |poisoned: PoisonError<MutexGuard<'static, ()>>| {
-            poisoned.into_inner()
-        },
-    );
+    let guard: MutexGuard<'static, ()> = I18N_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned: PoisonError<MutexGuard<'static, ()>>| poisoned.into_inner());
     i18n_reset_for_tests();
     let i18n: I18n = I18n::new(
         Signal::create(String::from("en")),
@@ -35,11 +31,9 @@ fn seeded_i18n() -> (I18n, MutexGuard<'static, ()>) {
 }
 
 fn locked_empty_i18n() -> (I18n, MutexGuard<'static, ()>) {
-    let guard: MutexGuard<'static, ()> = I18N_TEST_LOCK.lock().unwrap_or_else(
-        |poisoned: PoisonError<MutexGuard<'static, ()>>| {
-            poisoned.into_inner()
-        },
-    );
+    let guard: MutexGuard<'static, ()> = I18N_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned: PoisonError<MutexGuard<'static, ()>>| poisoned.into_inner());
     i18n_reset_for_tests();
     let i18n: I18n = I18n::new(
         Signal::create(String::from("en")),

@@ -25,8 +25,6 @@ pub(crate) fn now_millis() -> f64 {
     {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_or(0.0, |elapsed: Duration| {
-                elapsed.as_secs_f64() * 1000.0
-            })
+            .map_or(0.0, |elapsed: Duration| elapsed.as_secs_f64() * 1000.0)
     }
 }

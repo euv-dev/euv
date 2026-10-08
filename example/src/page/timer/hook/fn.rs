@@ -62,8 +62,7 @@ pub(crate) fn stopwatch_on_start(state: UseStopwatch) -> Option<Rc<dyn Fn(Event)
 ///
 /// # Arguments
 ///
-/// - `UseStopwatch` - The `state` argument.
-///
+/// - `UseStopwatch` - The stopwatch state (only `Copy` signals are read from this).
 fn stopwatch_on_start_inner(state: UseStopwatch) {
     let was_running: bool = state.get_running().get();
     if was_running {
@@ -87,8 +86,7 @@ fn stopwatch_on_start_inner(state: UseStopwatch) {
 ///
 /// # Arguments
 ///
-/// - `UseStopwatch` - The `state` argument.
-///
+/// - `UseStopwatch` - The stopwatch state (only `Copy` signals are read from this).
 fn stopwatch_on_pause_inner(state: UseStopwatch) {
     let handle_opt: Option<IntervalHandle> = state.get_handle().get();
     if let Some(existing_handle) = handle_opt {
@@ -104,11 +102,11 @@ fn stopwatch_on_pause_inner(state: UseStopwatch) {
 ///
 /// # Arguments
 ///
-/// - `UseCountdown` - The `state` argument.
+/// - `UseCountdown` - The countdown state (only `Copy` signals are read from this).
+///
 /// # Returns
 ///
-/// - `Option<Rc<dyn Fn(Event)>>` - The value this function returns.
-///
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler that toggles the countdown.
 pub(crate) fn countdown_on_start(state: UseCountdown) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         let was_running: bool = state.get_running().get();
@@ -126,8 +124,7 @@ pub(crate) fn countdown_on_start(state: UseCountdown) -> Option<Rc<dyn Fn(Event)
 ///
 /// # Arguments
 ///
-/// - `UseCountdown` - The `state` argument.
-///
+/// - `UseCountdown` - The countdown state (only `Copy` signals are read from this).
 fn countdown_on_start_inner(state: UseCountdown) {
     let was_running: bool = state.get_running().get();
     if was_running {
@@ -169,8 +166,7 @@ fn countdown_on_start_inner(state: UseCountdown) {
 ///
 /// # Arguments
 ///
-/// - `UseCountdown` - The `state` argument.
-///
+/// - `UseCountdown` - The countdown state (only `Copy` signals are read from this).
 fn countdown_on_pause_inner(state: UseCountdown) {
     let handle_opt: Option<IntervalHandle> = state.get_handle().get();
     if let Some(existing_handle) = handle_opt {

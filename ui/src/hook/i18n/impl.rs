@@ -63,14 +63,12 @@ impl I18n {
     /// - `&str` - Shared reference to a `str`.
     /// - `&[MessageEntry]` - Shared reference to a `[MessageEntry]`.
     pub fn add_messages(&self, locale: &str, entries: &[MessageEntry]) {
-        let mut guard: RwLockWriteGuard<
-            'static,
-            HashMap<String, HashMap<String, String>>,
-        > = messages_lock().write().unwrap_or_else(
-            |e: PoisonError<
-                RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
-            >| e.into_inner(),
-        );
+        let mut guard: RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>> =
+            messages_lock().write().unwrap_or_else(
+                |e: PoisonError<
+                    RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
+                >| e.into_inner(),
+            );
         let entry_map: &mut HashMap<String, String> = guard.entry(locale.to_string()).or_default();
         for (key, value) in entries {
             entry_map.insert((*key).to_string(), (*value).to_string());
@@ -88,14 +86,12 @@ impl I18n {
     ///
     /// - `&str` - Shared reference to a `str`.
     pub fn remove_locale(&self, locale: &str) {
-        let mut guard: RwLockWriteGuard<
-            'static,
-            HashMap<String, HashMap<String, String>>,
-        > = messages_lock().write().unwrap_or_else(
-            |e: PoisonError<
-                RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
-            >| e.into_inner(),
-        );
+        let mut guard: RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>> =
+            messages_lock().write().unwrap_or_else(
+                |e: PoisonError<
+                    RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
+                >| e.into_inner(),
+            );
         guard.remove(locale);
     }
 
@@ -111,14 +107,12 @@ impl I18n {
     /// - `&str` - Shared reference to a `str`.
     /// - `&str` - Shared reference to a `str`.
     pub fn remove_message(&self, locale: &str, key: &str) {
-        let mut guard: RwLockWriteGuard<
-            'static,
-            HashMap<String, HashMap<String, String>>,
-        > = messages_lock().write().unwrap_or_else(
-            |e: PoisonError<
-                RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
-            >| e.into_inner(),
-        );
+        let mut guard: RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>> =
+            messages_lock().write().unwrap_or_else(
+                |e: PoisonError<
+                    RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
+                >| e.into_inner(),
+            );
         if let Some(entry_map) = guard.get_mut(locale) {
             entry_map.remove(key);
         }
@@ -153,17 +147,12 @@ impl I18n {
         // two `String` clones per call (per `t()` per render).
         self.get_locale().with(|active: &String| {
             self.get_fallback_locale().with(|fallback: &String| {
-                let guard: RwLockReadGuard<
-                    'static,
-                    HashMap<String, HashMap<String, String>>,
-                > = messages_lock().read().unwrap_or_else(
-                    |e: PoisonError<
-                        RwLockReadGuard<
-                            'static,
-                            HashMap<String, HashMap<String, String>>,
-                        >,
-                    >| e.into_inner(),
-                );
+                let guard: RwLockReadGuard<'static, HashMap<String, HashMap<String, String>>> =
+                    messages_lock().read().unwrap_or_else(
+                        |e: PoisonError<
+                            RwLockReadGuard<'static, HashMap<String, HashMap<String, String>>>,
+                        >| e.into_inner(),
+                    );
                 if let Some(message) = guard
                     .get(active.as_str())
                     .and_then(|m: &HashMap<String, String>| m.get(key))
@@ -235,14 +224,12 @@ impl I18n {
     /// - `usize` - Count of currently-registered messages.
     pub fn active_message_count(&self) -> usize {
         self.get_locale().with(|active: &String| {
-            let guard: RwLockReadGuard<
-                'static,
-                HashMap<String, HashMap<String, String>>,
-            > = messages_lock().read().unwrap_or_else(
-                |e: PoisonError<
-                    RwLockReadGuard<'static, HashMap<String, HashMap<String, String>>>,
-                >| e.into_inner(),
-            );
+            let guard: RwLockReadGuard<'static, HashMap<String, HashMap<String, String>>> =
+                messages_lock().read().unwrap_or_else(
+                    |e: PoisonError<
+                        RwLockReadGuard<'static, HashMap<String, HashMap<String, String>>>,
+                    >| e.into_inner(),
+                );
             guard
                 .get(active.as_str())
                 .map(|m: &HashMap<String, String>| m.len())

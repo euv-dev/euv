@@ -102,7 +102,7 @@ impl BitOr for TextureUsage {
 /// than a helper call.
 impl BitOr for ShaderStage {
     /// The combined visibility bitmask.
-    type Output = u32;
+    type Output = ShaderStages;
 
     /// Combines two shader stages into their visibility bitmask.
     ///
@@ -112,9 +112,104 @@ impl BitOr for ShaderStage {
     ///
     /// # Returns
     ///
-    /// - `Self::Output` - The bitmask naming both stages.
+    /// - `Self::Output` - The mask naming both stages.
     fn bitor(self, rhs: Self) -> Self::Output {
-        shader_stage_bit(self) | shader_stage_bit(rhs)
+        ShaderStages(shader_stage_bit(self) | shader_stage_bit(rhs))
+    }
+}
+
+/// The mask arithmetic behind [`ShaderStages`], kept next to the
+/// [`BitOr`] impl for [`ShaderStage`] that produces one.
+impl ShaderStages {
+    /// The raw `GPUShaderStage` bitmask this mask stands for.
+    ///
+    /// # Returns
+    ///
+    /// - `u32` - The combined bits, ready for the wire.
+    pub fn bits(self) -> u32 {
+        self.0
+    }
+
+    /// Whether this mask names no stage at all.
+    ///
+    /// A bind group layout slot with an empty mask is visible to
+    /// nothing, which the driver reports as a validation error rather
+    /// than as a silently unreachable binding.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when no stage is named.
+    pub fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Whether one stage is among the stages this mask names.
+    ///
+    /// # Arguments
+    ///
+    /// - `ShaderStage` - The stage to test for.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the stage's bit is set.
+    pub fn contains(self, stage: ShaderStage) -> bool {
+        self.0 & shader_stage_bit(stage) == shader_stage_bit(stage)
+    }
+}
+
+/// Lets a lone stage stand in where a mask is expected, so every
+/// single-stage call site keeps reading as one.
+impl From<ShaderStage> for ShaderStages {
+    /// Widens one stage into a mask naming only that stage.
+    ///
+    /// # Arguments
+    ///
+    /// - `ShaderStage` - The stage the mask should name.
+    ///
+    /// # Returns
+    ///
+    /// - `ShaderStages` - A mask with that stage's single bit set.
+    fn from(value: ShaderStage) -> Self {
+        ShaderStages(shader_stage_bit(value))
+    }
+}
+
+/// Adding a stage to a mask that already names others.
+impl BitOr<ShaderStage> for ShaderStages {
+    /// The widened mask.
+    type Output = ShaderStages;
+
+    /// Sets one more stage's bit, leaving the existing bits alone.
+    ///
+    /// # Arguments
+    ///
+    /// - `ShaderStage` - The stage to add.
+    ///
+    /// # Returns
+    ///
+    /// - `Self::Output` - The mask naming both sides.
+    fn bitor(self, rhs: ShaderStage) -> Self::Output {
+        ShaderStages(self.0 | shader_stage_bit(rhs))
+    }
+}
+
+/// Combining two masks, which is what a caller reaches for when the two
+/// halves of a layout entry are built independently.
+impl BitOr for ShaderStages {
+    /// The union of the two masks.
+    type Output = ShaderStages;
+
+    /// Sets every bit either side names.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - The right-hand mask.
+    ///
+    /// # Returns
+    ///
+    /// - `Self::Output` - The mask naming both sides.
+    fn bitor(self, rhs: Self) -> Self::Output {
+        ShaderStages(self.0 | rhs.0)
     }
 }
 

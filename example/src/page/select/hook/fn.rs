@@ -10,25 +10,52 @@ use super::*;
 ///
 /// - `Vec<(String, String)>` - A list of (value, label) pairs for the cities.
 pub(crate) fn get_cities_by_country(country: &str) -> Vec<(String, String)> {
-    let empty_city: (String, String) = (String::new(), "-- Select City --".to_string());
+    let empty_city: (String, String) = (String::new(), SELECT_CITY_PLACEHOLDER.to_string());
     match country {
-        "china" => vec![
+        SELECT_COUNTRY_CHINA => vec![
             empty_city.clone(),
-            ("beijing".to_string(), "Beijing".to_string()),
-            ("shanghai".to_string(), "Shanghai".to_string()),
-            ("guangzhou".to_string(), "Guangzhou".to_string()),
+            (
+                SELECT_CITY_BEIJING.to_string(),
+                SELECT_CITY_BEIJING_LABEL.to_string(),
+            ),
+            (
+                SELECT_CITY_SHANGHAI.to_string(),
+                SELECT_CITY_SHANGHAI_LABEL.to_string(),
+            ),
+            (
+                SELECT_CITY_GUANGZHOU.to_string(),
+                SELECT_CITY_GUANGZHOU_LABEL.to_string(),
+            ),
         ],
-        "japan" => vec![
+        SELECT_COUNTRY_JAPAN => vec![
             empty_city.clone(),
-            ("tokyo".to_string(), "Tokyo".to_string()),
-            ("osaka".to_string(), "Osaka".to_string()),
-            ("kyoto".to_string(), "Kyoto".to_string()),
+            (
+                SELECT_CITY_TOKYO.to_string(),
+                SELECT_CITY_TOKYO_LABEL.to_string(),
+            ),
+            (
+                SELECT_CITY_OSAKA.to_string(),
+                SELECT_CITY_OSAKA_LABEL.to_string(),
+            ),
+            (
+                SELECT_CITY_KYOTO.to_string(),
+                SELECT_CITY_KYOTO_LABEL.to_string(),
+            ),
         ],
         "usa" => vec![
             empty_city,
-            ("new-york".to_string(), "New York".to_string()),
-            ("los-angeles".to_string(), "Los Angeles".to_string()),
-            ("chicago".to_string(), "Chicago".to_string()),
+            (
+                SELECT_CITY_NEW_YORK.to_string(),
+                SELECT_CITY_NEW_YORK_LABEL.to_string(),
+            ),
+            (
+                SELECT_CITY_LOS_ANGELES.to_string(),
+                SELECT_CITY_LOS_ANGELES_LABEL.to_string(),
+            ),
+            (
+                SELECT_CITY_CHICAGO.to_string(),
+                SELECT_CITY_CHICAGO_LABEL.to_string(),
+            ),
         ],
         _ => Vec::new(),
     }
@@ -41,7 +68,7 @@ pub(crate) fn get_cities_by_country(country: &str) -> Vec<(String, String)> {
 /// - `UseSelect` - The select state.
 pub(crate) fn use_select() -> UseSelect {
     UseSelect::new(
-        App::use_signal(|| "apple".to_string()),
+        App::use_signal(|| SELECT_FRUIT_SIGNAL_INITIAL.to_string()),
         App::use_signal(String::new),
         App::use_signal(String::new),
         App::use_signal(Vec::new),
@@ -61,11 +88,11 @@ pub(crate) fn validate_select_textarea(state: UseSelect) {
     if textarea_value.trim().is_empty() {
         state
             .get_textarea_error()
-            .set("Please enter some feedback.".to_string());
+            .set(SELECT_ERROR_FEEDBACK_REQUIRED.to_string());
     } else if textarea_value.len() > 200 {
         state
             .get_textarea_error()
-            .set("Feedback is too long (max 200 chars).".to_string());
+            .set(SELECT_ERROR_FEEDBACK_TOO_LONG.to_string());
     } else {
         state.get_textarea_error().set(String::new());
     }

@@ -6,7 +6,7 @@ use super::*;
 ///
 /// - `UsePropsDemo` - The props demo state.
 pub(crate) fn use_props_demo() -> UsePropsDemo {
-    UsePropsDemo::new(App::use_signal(|| "Hello from Parent!".to_string()))
+    UsePropsDemo::new(App::use_signal(|| BINDING_PARENT_GREETING_TEXT.to_string()))
 }
 
 /// Creates two-way binding demo state signals.
@@ -16,12 +16,15 @@ pub(crate) fn use_props_demo() -> UsePropsDemo {
 /// - `UseTwoWayDemo` - The two-way binding demo state.
 pub(crate) fn use_two_way_demo() -> UseTwoWayDemo {
     UseTwoWayDemo::new(
-        App::use_signal(|| "Type here...".to_string()),
+        App::use_signal(|| BINDING_SHARED_TEXT_PLACEHOLDER.to_string()),
         App::use_signal(|| 0),
     )
 }
 
 /// Creates a click event handler that increments the shared counter.
+///
+/// The `html!` macro wraps the returned closure into a `NativeEventHandler`
+/// when it is bound to an event attribute.
 ///
 /// # Arguments
 ///
@@ -38,6 +41,9 @@ pub(crate) fn two_way_on_increment(counter: Signal<i32>) -> Option<Rc<dyn Fn(Eve
 }
 
 /// Creates a click event handler that decrements the shared counter.
+///
+/// The `html!` macro wraps the returned closure into a `NativeEventHandler`
+/// when it is bound to an event attribute.
 ///
 /// # Arguments
 ///
@@ -65,7 +71,7 @@ pub(crate) fn use_cross_component_demo() -> UseCrossComponentDemo {
         App::use_signal(|| 79),
         App::use_signal(|| 70),
         App::use_signal(|| 229),
-        App::use_signal(|| "#000000".to_string()),
+        App::use_signal(|| BINDING_HEX_COLOR_INITIAL.to_string()),
     );
     let celsius: Signal<f64> = state.get_celsius();
     let fahrenheit: Signal<f64> = state.get_fahrenheit();
@@ -108,6 +114,9 @@ pub(crate) fn use_cross_component_demo() -> UseCrossComponentDemo {
 /// fire many times per frame), stores the pending value and schedules
 /// a single `requestAnimationFrame` callback. The callback reads the
 /// latest pending value and applies it exactly once per paint frame.
+///
+/// The `html!` macro wraps the returned closure into a `NativeEventHandler`
+/// when it is bound to an event attribute.
 ///
 /// # Arguments
 ///
@@ -155,6 +164,9 @@ pub(crate) fn cross_on_input_celsius(signal: Signal<f64>) -> Option<Rc<dyn Fn(Ev
 /// a single `requestAnimationFrame` callback. The callback reads the
 /// latest pending value and applies it exactly once per paint frame.
 ///
+/// The `html!` macro wraps the returned closure into a `NativeEventHandler`
+/// when it is bound to an event attribute.
+///
 /// # Arguments
 ///
 /// - `Signal<f64>` - The fahrenheit signal.
@@ -200,6 +212,9 @@ pub(crate) fn cross_on_input_fahrenheit(signal: Signal<f64>) -> Option<Rc<dyn Fn
 /// fire many times per frame), stores the pending value and schedules
 /// a single `requestAnimationFrame` callback. The callback reads the
 /// latest pending value and applies it exactly once per paint frame.
+///
+/// The `html!` macro wraps the returned closure into a `NativeEventHandler`
+/// when it is bound to an event attribute.
 ///
 /// # Arguments
 ///
@@ -259,6 +274,9 @@ pub(crate) fn use_typed_props_demo() -> UseTypedPropsDemo {
 
 /// Creates a click event handler that toggles the disabled signal.
 ///
+/// The `html!` macro wraps the returned closure into a `NativeEventHandler`
+/// when it is bound to an event attribute.
+///
 /// # Arguments
 ///
 /// - `Signal<bool>` - The disabled signal to toggle.
@@ -276,6 +294,9 @@ pub(crate) fn typed_props_on_toggle_disabled(disabled: Signal<bool>) -> Option<R
 /// Creates a click event handler that increments the count within the max limit.
 ///
 /// When the disabled signal is true, the handler executes but skips the count update.
+///
+/// The `html!` macro wraps the returned closure into a `NativeEventHandler`
+/// when it is bound to an event attribute.
 ///
 /// # Arguments
 ///
@@ -306,6 +327,9 @@ pub(crate) fn typed_props_on_increment(
 /// Creates a click event handler that resets the count to zero.
 ///
 /// When the disabled signal is true, the handler executes but skips the reset.
+///
+/// The `html!` macro wraps the returned closure into a `NativeEventHandler`
+/// when it is bound to an event attribute.
 ///
 /// # Arguments
 ///

@@ -31,13 +31,16 @@ use super::*;
 ///
 /// # Arguments
 ///
-/// - `bool` - A boolean (`bool`).
-/// - `bool` - A boolean (`bool`).
-/// - `&str` - Shared reference to a `str`.
+/// - `bool` - Whether the renderer finished loading its module, pipeline
+///   and scene; `false` while `Initializing` is still the right banner.
+/// - `bool` - Whether the loaded renderer has acquired a device and is
+///   presenting frames; implies `loaded`.
+/// - `&str` - The engine's stable WebGPU init error code, borrowed from
+///   the caller's own string so the mapping stays allocation-free.
 ///
 /// # Returns
 ///
-/// - `&'static str` - A `&'static str` value.
+/// - `&'static str` - The banner text for the current init state.
 pub(crate) fn webgpu_status_text(
     loaded: bool,
     active: bool,

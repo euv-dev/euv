@@ -375,7 +375,7 @@ fn present_lighting_framebuffer(
     height: u32,
 ) {
     let image_data: Result<ImageData, JsValue> =
-        ImageData::new_with_u8_clamped_array_and_sh(wasm_bindgen::Clamped(buffer), width, height);
+        ImageData::new_with_u8_clamped_array_and_sh(Clamped(buffer), width, height);
     if let Ok(image_data) = image_data {
         let _: Result<(), JsValue> = context.put_image_data(&image_data, 0.0, 0.0);
     }
@@ -737,7 +737,7 @@ fn lighting_register_resize_debounce(
     let Some(resize_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event(EVENT_RESIZE, move || {
+    App::use_window_event(LIGHTING_EVENT_RESIZE, move || {
         let old_timer: Option<i32> = resize_timer_for_event.get();
         if let Some(timer_id) = old_timer {
             let Some(clear_window): Option<Window> = window() else {
@@ -904,7 +904,7 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
                 }
                 let dpr: f64 = Reflect::get(
                     window_value.as_ref(),
-                    &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
+                    &JsValue::from_str(LIGHTING_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
                 )
                 .ok()
                 .and_then(|v: JsValue| v.as_f64())
@@ -997,7 +997,7 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
+                &JsValue::from_str(LIGHTING_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())
@@ -1244,7 +1244,7 @@ pub(crate) fn start_lighting_webgpu_loop(state: UseLightingWebGpu) {
                 }
                 let dpr: f64 = Reflect::get(
                     window_value.as_ref(),
-                    &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
+                    &JsValue::from_str(LIGHTING_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
                 )
                 .ok()
                 .and_then(|v: JsValue| v.as_f64())
@@ -1339,7 +1339,7 @@ pub(crate) fn start_lighting_webgpu_loop(state: UseLightingWebGpu) {
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
+                &JsValue::from_str(LIGHTING_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())
@@ -1483,7 +1483,7 @@ pub(crate) fn enter_lighting_fullscreen(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
+    let event: Result<Event, JsValue> = Event::new(LIGHTING_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -1509,7 +1509,7 @@ pub(crate) fn exit_lighting_fullscreen(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
+    let event: Result<Event, JsValue> = Event::new(LIGHTING_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -1534,7 +1534,7 @@ pub(crate) fn exit_lighting_fullscreen_from_popstate(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
+    let event: Result<Event, JsValue> = Event::new(LIGHTING_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }

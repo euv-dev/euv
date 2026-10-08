@@ -194,7 +194,7 @@ impl DynamicNode {
     /// # Returns
     ///
     /// - `VirtualNode` - The virtual node produced by the render closure.
-    pub fn render(&self, hook_context: &mut HookContext) -> VirtualNode {
+    pub(crate) fn render(&self, hook_context: &mut HookContext) -> VirtualNode {
         let inner: &mut RenderFnInner = unsafe { &mut *self.get_render_fn().get() };
         (inner.get_mut_render_fn())(hook_context)
     }

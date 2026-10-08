@@ -644,7 +644,20 @@ impl Css {
     ///
     /// - `&str` - The CSS text to append.
     ///
+    /// The `cfg!` guard matches the one `Scheduler::current_time` already
+    /// uses: `window()` reads a wasm-only imported static, so on a non-wasm
+    /// target it panics with "cannot access imported statics on non-wasm
+    /// targets" rather than returning `None`. That panic short-circuits the
+    /// graceful `match window() { None => return }` below, and it fires from
+    /// `OnceLock<Css>::get_or_init` — the first time any `c_*()` class
+    /// function is called. Every styled view component calls one, so
+    /// without this guard none of them can be rendered in a native
+    /// `cargo test` process. On wasm the guard is a constant `true` and
+    /// this function behaves exactly as before.
     fn append_css(css_text: &str) {
+        if !cfg!(target_arch = "wasm32") {
+            return;
+        }
         let style_id: &str = EUV_CSS_INJECTED_ID;
         let window_value: Window = match window() {
             Some(window_instance) => window_instance,

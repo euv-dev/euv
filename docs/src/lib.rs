@@ -13,7 +13,7 @@ mod generated {
     include!(concat!(env!("OUT_DIR"), "/docs_gen.rs"));
 }
 
-pub use std::{cell::RefCell, fmt::Debug, rc::Rc};
+pub use std::{rc::Rc, sync::Arc};
 
 pub(crate) use {
     app::*,
@@ -21,12 +21,11 @@ pub(crate) use {
     data::*,
     js_sys::{Promise, decode_uri_component, eval},
     router::*,
-    std::sync::Arc,
-    web_sys::{Event, HtmlInputElement, KeyboardEvent, Location},
+    {Event, HtmlInputElement, KeyboardEvent, Location},
 };
 
 use {
-    euv::{wasm_bindgen::prelude::*, web_sys::*, *},
+    euv::{wasm_bindgen::prelude::*, *},
     euv_ui::*,
     wasm_bindgen_futures::{JsFuture, spawn_local},
 };
@@ -39,7 +38,7 @@ use {
 pub fn main() {
     console_error_panic_hook::set_once();
     inject_app_global_css();
-    Css::inject_css(EUV_MD_CSS);
+    Css::inject_css(euv_md_css());
     Css::inject_css(APP_GLOBAL_CSS);
     App::mount(APP_MOUNT_SELECTOR, app);
     let _: Result<JsValue, JsValue> = js_sys::eval(IMAGE_LOAD_WATCHER_JS);

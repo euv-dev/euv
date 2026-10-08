@@ -117,8 +117,8 @@ thread_local! {
     /// records "looked, and the global is absent". That way a host which
     /// strips the helper costs one lookup per page instead of one per
     /// event, and the fallback path can be taken without a second probe.
-    pub static EVENT_ID_CHAIN_FN: RefCell<
-        Option<Option<Function>>,
+    pub(crate) static EVENT_ID_CHAIN_FN: RefCell<
+        Option<Option<js_sys::Function>>,
     > = const { RefCell::new(None) };
 }
 

@@ -110,7 +110,7 @@ pub enum DrawCommand {
     /// the edges and centre stretch to the destination rectangle.
     DrawNineSlice {
         /// The source texture to slice.
-        image: web_sys::HtmlImageElement,
+        image: HtmlImageElement,
         /// The border insets splitting the texture into nine regions.
         insets: NineSliceInsets,
         /// The top-left position in world space.
@@ -123,7 +123,7 @@ pub enum DrawCommand {
     /// Draws one named region of a sprite atlas texture.
     DrawAtlasRegion {
         /// The atlas texture holding the region.
-        image: web_sys::HtmlImageElement,
+        image: HtmlImageElement,
         /// The region within the atlas, in source pixels.
         source: Rect,
         /// The top-left position in world space.

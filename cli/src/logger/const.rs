@@ -1,5 +1,5 @@
 /// Single space separator used in log output formatting.
-pub const LOG_SPACE: &str = " ";
+pub(crate) const LOG_SPACE: &str = " ";
 
 /// Colon separator used between file path and line number.
-pub const LOG_COLON: &str = ":";
+pub(crate) const LOG_COLON: &str = ":";

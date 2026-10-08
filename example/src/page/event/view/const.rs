@@ -76,6 +76,8 @@ pub(crate) const EVENT_FILE_DRAG_STATE_OVER: &str = "File over zone";
 /// The console log line emitted for the file drag enter handler on the event demo page.
 pub(crate) const EVENT_LOG_FILE_DRAG_ENTER: &str = "DragEnter: file entered drop zone";
 
+/// The HTML draggable attribute value for true.
+pub(crate) const EVENT_DRAGGABLE_TRUE: &str = "true";
 /// The console log line emitted for the file drag leave handler on the event demo page.
 pub(crate) const EVENT_LOG_FILE_DRAG_LEAVE: &str = "DragLeave: file left drop zone";
 
@@ -267,3 +269,256 @@ pub(crate) const EVENT_LOG_IMAGE_LOAD: &str = "Image Load: image loaded successf
 
 /// The console log line emitted for the image error handler on the event demo page.
 pub(crate) const EVENT_LOG_IMAGE_ERROR: &str = "Image Error: failed to load image";
+
+/// The title text for header on the event demo page.
+pub(crate) const EVENT_HEADER_TITLE: &str = "Event Handling";
+
+/// The subtitle text for header on the event demo page.
+pub(crate) const EVENT_HEADER_SUBTITLE: &str = "Complete browser event demo covering keyboard, mouse, focus, drag-and-drop, wheel, clipboard, touch, form, media, video, and image events.";
+
+/// The section heading for the keyboard card on the event demo page.
+pub(crate) const EVENT_KEYBOARD_CARD_TITLE: &str = "Keyboard Events";
+
+/// The `keyboard label key down` text used on the event demo page.
+pub(crate) const EVENT_KEYBOARD_LABEL_KEY_DOWN: &str = "KeyDown:";
+
+/// The `keyboard label key code` text used on the event demo page.
+pub(crate) const EVENT_KEYBOARD_LABEL_KEY_CODE: &str = "KeyCode:";
+
+/// The `keyboard label key up` text used on the event demo page.
+pub(crate) const EVENT_KEYBOARD_LABEL_KEY_UP: &str = "KeyUp:";
+
+/// The `keyboard label repeat` text used on the event demo page.
+pub(crate) const EVENT_KEYBOARD_LABEL_REPEAT: &str = "Repeat:";
+
+/// The `keyboard label modifiers` text used on the event demo page.
+pub(crate) const EVENT_KEYBOARD_LABEL_MODIFIERS: &str = "Modifiers:";
+
+/// The section heading for the mouse card on the event demo page.
+pub(crate) const EVENT_MOUSE_CARD_TITLE: &str = "Mouse Events";
+
+/// The usage hint for the mouse card on the event demo page.
+pub(crate) const EVENT_MOUSE_CARD_HINT: &str =
+    "Click, double-click, right-click, or move your mouse within this area to track mouse events.";
+
+/// The explanatory paragraph for the mouse card on the event demo page.
+pub(crate) const EVENT_MOUSE_CARD_BODY: &str = "Tracks click, dblclick, mousedown, mouseup, mousemove, mouseenter, mouseleave, and contextmenu events.";
+
+/// The `mouse label clicks` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_CLICKS: &str = "Clicks:";
+
+/// The `mouse label double clicks` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_DOUBLE_CLICKS: &str = "DblClicks:";
+
+/// The `mouse label down` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_DOWN: &str = "MouseDown:";
+
+/// The `mouse label up` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_UP: &str = "MouseUp:";
+
+/// The `mouse label client` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_CLIENT: &str = "Client:";
+
+/// The `mouse label screen` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_SCREEN: &str = "Screen:";
+
+/// The `mouse label button` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_BUTTON: &str = "Button:";
+
+/// The `mouse label buttons` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_BUTTONS: &str = "Buttons:";
+
+/// The `mouse label enter` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_ENTER: &str = "Enter:";
+
+/// The `mouse label leave` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_LEAVE: &str = "Leave:";
+
+/// The `mouse label over` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_OVER: &str = "Over:";
+
+/// The `mouse label out` text used on the event demo page.
+pub(crate) const EVENT_MOUSE_LABEL_OUT: &str = "Out:";
+
+/// The section heading for the mouse over out card on the event demo page.
+pub(crate) const EVENT_MOUSE_OVER_OUT_CARD_TITLE: &str = "Mouse Over/Out Events";
+
+/// The label text for mouse over zone on the event demo page.
+pub(crate) const EVENT_MOUSE_OVER_ZONE_LABEL: &str = "Mouse Over zone";
+
+/// The usage hint for mouse over zone on the event demo page.
+pub(crate) const EVENT_MOUSE_OVER_ZONE_HINT: &str = "Move mouse over this area";
+
+/// The label text for mouse out zone on the event demo page.
+pub(crate) const EVENT_MOUSE_OUT_ZONE_LABEL: &str = "Mouse Out zone";
+
+/// The usage hint for mouse out zone on the event demo page.
+pub(crate) const EVENT_MOUSE_OUT_ZONE_HINT: &str = "Move mouse out of this area";
+
+/// The section heading for the focus card on the event demo page.
+pub(crate) const EVENT_FOCUS_CARD_TITLE: &str = "Focus Events";
+
+/// The status text shown for focus label on the event demo page.
+pub(crate) const EVENT_FOCUS_LABEL_STATUS: &str = "Status:";
+
+/// The `focus label focus in` text used on the event demo page.
+pub(crate) const EVENT_FOCUS_LABEL_FOCUS_IN: &str = "FocusIn:";
+
+/// The `focus label focus out` text used on the event demo page.
+pub(crate) const EVENT_FOCUS_LABEL_FOCUS_OUT: &str = "FocusOut:";
+
+/// The section heading for the drag card on the event demo page.
+pub(crate) const EVENT_DRAG_CARD_TITLE: &str = "Drag Events";
+
+/// The label text for drag source on the event demo page.
+pub(crate) const EVENT_DRAG_SOURCE_LABEL: &str = "Drag Me";
+
+/// The explanatory paragraph for the drag card on the event demo page.
+pub(crate) const EVENT_DRAG_CARD_BODY: &str =
+    "dragstart, drag, dragend, dragover, dragenter, dragleave, drop";
+
+/// The `drag label position` text used on the event demo page.
+pub(crate) const EVENT_DRAG_LABEL_POSITION: &str = "Position:";
+
+/// The `drag label types` text used on the event demo page.
+pub(crate) const EVENT_DRAG_LABEL_TYPES: &str = "Types:";
+
+/// The section heading for the file drop card on the event demo page.
+pub(crate) const EVENT_FILE_DROP_CARD_TITLE: &str = "File Drag & Drop";
+
+/// The usage hint for file drop zone on the event demo page.
+pub(crate) const EVENT_FILE_DROP_ZONE_HINT: &str = "Drag & drop files here";
+
+/// The explanatory paragraph for the file drop card on the event demo page.
+pub(crate) const EVENT_FILE_DROP_CARD_BODY: &str = "dragover, dragenter, dragleave, drop";
+
+/// The `file drop label files` text used on the event demo page.
+pub(crate) const EVENT_FILE_DROP_LABEL_FILES: &str = "Files:";
+
+/// The section heading for the wheel card on the event demo page.
+pub(crate) const EVENT_WHEEL_CARD_TITLE: &str = "Wheel Event";
+
+/// The usage hint for the wheel card on the event demo page.
+pub(crate) const EVENT_WHEEL_CARD_HINT: &str =
+    "Scroll the mouse wheel within this area to track wheel deltas and scroll mode.";
+
+/// The explanatory paragraph for the wheel card on the event demo page.
+pub(crate) const EVENT_WHEEL_CARD_BODY: &str =
+    "Tracks wheel delta (deltaX, deltaY) and delta mode (pixel, line, or page).";
+
+/// The `wheel label delta` text used on the event demo page.
+pub(crate) const EVENT_WHEEL_LABEL_DELTA: &str = "Delta:";
+
+/// The `wheel label total y` text used on the event demo page.
+pub(crate) const EVENT_WHEEL_LABEL_TOTAL_Y: &str = "Total Y:";
+
+/// The section heading for the clipboard card on the event demo page.
+pub(crate) const EVENT_CLIPBOARD_CARD_TITLE: &str = "Clipboard Events";
+
+/// The `clipboard sample text` text used on the event demo page.
+pub(crate) const EVENT_CLIPBOARD_SAMPLE_TEXT: &str = "Sample text for clipboard";
+
+/// The `clipboard label event` text used on the event demo page.
+pub(crate) const EVENT_CLIPBOARD_LABEL_EVENT: &str = "Event:";
+
+/// The `clipboard label data` text used on the event demo page.
+pub(crate) const EVENT_CLIPBOARD_LABEL_DATA: &str = "Data:";
+
+/// The section heading for the touch card on the event demo page.
+pub(crate) const EVENT_TOUCH_CARD_TITLE: &str = "Touch Events";
+
+/// The usage hint for the touch card on the event demo page.
+pub(crate) const EVENT_TOUCH_CARD_HINT: &str =
+    "Touch this area on a mobile device or touchscreen to track touch events.";
+
+/// The explanatory paragraph for the touch card on the event demo page.
+pub(crate) const EVENT_TOUCH_CARD_BODY: &str =
+    "Tracks touchstart, touchmove, touchend, and touchcancel events with touch point details.";
+
+/// The `touch label touch` text used on the event demo page.
+pub(crate) const EVENT_TOUCH_LABEL_TOUCH: &str = "Touch:";
+
+/// The section heading for the form card on the event demo page.
+pub(crate) const EVENT_FORM_CARD_TITLE: &str = "Form Events";
+
+/// The fieldset legend for form input on the event demo page.
+pub(crate) const EVENT_FORM_INPUT_LEGEND: &str = "Input (oninput & onchange)";
+
+/// The fieldset legend for form checkbox on the event demo page.
+pub(crate) const EVENT_FORM_CHECKBOX_LEGEND: &str = "Checkbox (onchange)";
+
+/// The fieldset legend for form select on the event demo page.
+pub(crate) const EVENT_FORM_SELECT_LEGEND: &str = "Select (onchange)";
+
+/// The placeholder text for form select on the event demo page.
+pub(crate) const EVENT_FORM_SELECT_PLACEHOLDER: &str = "-- Choose --";
+
+/// The `value` attribute of the `alpha` form option on the event demo page.
+pub(crate) const EVENT_FORM_OPTION_VALUE_ALPHA: &str = "alpha";
+
+/// The visible text of the `alpha` form option on the event demo page.
+pub(crate) const EVENT_FORM_OPTION_LABEL_ALPHA: &str = "Alpha";
+
+/// The `value` attribute of the `beta` form option on the event demo page.
+pub(crate) const EVENT_FORM_OPTION_VALUE_BETA: &str = "beta";
+
+/// The visible text of the `beta` form option on the event demo page.
+pub(crate) const EVENT_FORM_OPTION_LABEL_BETA: &str = "Beta";
+
+/// The `value` attribute of the `gamma` form option on the event demo page.
+pub(crate) const EVENT_FORM_OPTION_VALUE_GAMMA: &str = "gamma";
+
+/// The visible text of the `gamma` form option on the event demo page.
+pub(crate) const EVENT_FORM_OPTION_LABEL_GAMMA: &str = "Gamma";
+
+/// The label text for form submit on the event demo page.
+pub(crate) const EVENT_FORM_SUBMIT_LABEL: &str = "Submit";
+
+/// The `form label input` text used on the event demo page.
+pub(crate) const EVENT_FORM_LABEL_INPUT: &str = "Input:";
+
+/// The `form label change` text used on the event demo page.
+pub(crate) const EVENT_FORM_LABEL_CHANGE: &str = "Change:";
+
+/// The `form label checked` text used on the event demo page.
+pub(crate) const EVENT_FORM_LABEL_CHECKED: &str = "Checked:";
+
+/// The `form label select` text used on the event demo page.
+pub(crate) const EVENT_FORM_LABEL_SELECT: &str = "Select:";
+
+/// The `form label submits` text used on the event demo page.
+pub(crate) const EVENT_FORM_LABEL_SUBMITS: &str = "Submits:";
+
+/// The section heading for the audio card on the event demo page.
+pub(crate) const EVENT_AUDIO_CARD_TITLE: &str = "Audio Media Events";
+
+/// The explanatory paragraph for the audio card on the event demo page.
+pub(crate) const EVENT_AUDIO_CARD_BODY: &str =
+    "Audio player with play, pause, ended, loadeddata, canplay, volumechange, timeupdate events";
+
+/// The `media label last event` text used on the event demo page.
+pub(crate) const EVENT_MEDIA_LABEL_LAST_EVENT: &str = "Last Event:";
+
+/// The section heading for the video card on the event demo page.
+pub(crate) const EVENT_VIDEO_CARD_TITLE: &str = "Video Events";
+
+/// The explanatory paragraph for the video card on the event demo page.
+pub(crate) const EVENT_VIDEO_CARD_BODY: &str = "Video player with play, pause, ended, loadeddata, loadedmetadata, canplay, canplaythrough, waiting, playing, timeupdate, durationchange, progress, seeking, seeked, volumechange, ratechange, emptied, stalled, suspend, loadstart, error events";
+
+/// The `video label current time` text used on the event demo page.
+pub(crate) const EVENT_VIDEO_LABEL_CURRENT_TIME: &str = "Current Time:";
+
+/// The `video label duration` text used on the event demo page.
+pub(crate) const EVENT_VIDEO_LABEL_DURATION: &str = "Duration:";
+
+/// The `video label playback rate` text used on the event demo page.
+pub(crate) const EVENT_VIDEO_LABEL_PLAYBACK_RATE: &str = "Playback Rate:";
+
+/// The `video label buffered` text used on the event demo page.
+pub(crate) const EVENT_VIDEO_LABEL_BUFFERED: &str = "Buffered:";
+
+/// The section heading for the image card on the event demo page.
+pub(crate) const EVENT_IMAGE_CARD_TITLE: &str = "Image Events";
+
+/// The `image label natural size` text used on the event demo page.
+pub(crate) const EVENT_IMAGE_LABEL_NATURAL_SIZE: &str = "Natural Size:";

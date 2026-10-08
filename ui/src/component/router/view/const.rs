@@ -8,4 +8,4 @@ pub(crate) const ROUTE_HASH_PREFIX: &str = "#";
 pub(crate) const DEFAULT_ROUTE_PATH: &str = "/";
 
 /// The DOM event type bound to an internal route link.
-pub const ROUTER_LINK_EVENT_TYPE: &str = "click";
+pub(crate) const ROUTER_LINK_EVENT_TYPE: &str = "click";

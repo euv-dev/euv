@@ -29,7 +29,7 @@ impl UseEuvLayout {
         let Some(timeout_window) = window() else {
             return mobile_signal;
         };
-        App::use_window_event(EVENT_RESIZE, move || {
+        App::use_window_event(WINDOW_EVENT_RESIZE, move || {
             let old_timer: Option<i32> = timer_signal.get();
             if let Some(timer_id) = old_timer {
                 timeout_window.clear_timeout_with_handle(timer_id);
@@ -98,7 +98,7 @@ impl UseEuvLayout {
     pub fn use_safe_area_fix() {
         Self::cache_safe_area_insets();
         Self::init_immersive_safe_area();
-        App::use_window_event("fullscreenchange", || {
+        App::use_window_event(WINDOW_EVENT_FULLSCREEN_CHANGE, || {
             let Some(window_value) = window() else {
                 return;
             };
@@ -126,10 +126,10 @@ impl UseEuvLayout {
                 Self::apply_cached_insets();
             }
         });
-        App::use_window_event("webkitfullscreenchange", || {
+        App::use_window_event(WINDOW_EVENT_WEBKIT_FULLSCREEN_CHANGE, || {
             Self::apply_cached_insets();
         });
-        App::use_window_event(EVENT_RESIZE, || {
+        App::use_window_event(WINDOW_EVENT_RESIZE, || {
             Self::apply_cached_insets();
         });
         Router::register_popstate_guard(Rc::new(|| {
@@ -185,7 +185,7 @@ impl UseEuvLayout {
         let root_element: HtmlElement = root.unchecked_into();
         let _: Result<(), JsValue> = root_element
             .style()
-            .set_property("--euv-mobile-safe-top", &top_value);
+            .set_property(IMMERSIVE_SAFE_TOP_PROPERTY, &top_value);
     }
 
     /// Returns whether the host environment declares immersive (edge-to-edge)
@@ -199,11 +199,13 @@ impl UseEuvLayout {
         let Some(window_value) = window() else {
             return false;
         };
-        let global_flag: bool =
-            js_sys::Reflect::get(&window_value, &JsValue::from_str("__EUV_IMMERSIVE__"))
-                .ok()
-                .and_then(|value: JsValue| value.as_bool())
-                .unwrap_or(false);
+        let global_flag: bool = js_sys::Reflect::get(
+            &window_value,
+            &JsValue::from_str(IMMERSIVE_WINDOW_FLAG_PROPERTY),
+        )
+        .ok()
+        .and_then(|value: JsValue| value.as_bool())
+        .unwrap_or(false);
         if global_flag {
             return true;
         }
@@ -211,12 +213,12 @@ impl UseEuvLayout {
             .document()
             .and_then(|document_value: Document| {
                 document_value
-                    .query_selector(r#"meta[name="euv-immersive"]"#)
+                    .query_selector(IMMERSIVE_META_SELECTOR)
                     .ok()
                     .flatten()
             })
-            .and_then(|meta: Element| meta.get_attribute("content"))
-            .map(|content: String| content == "true")
+            .and_then(|meta: Element| meta.get_attribute(IMMERSIVE_META_CONTENT_ATTRIBUTE))
+            .map(|content: String| content == IMMERSIVE_META_CONTENT_ENABLED)
             .unwrap_or(false)
     }
 
@@ -250,37 +252,49 @@ impl UseEuvLayout {
             return;
         };
         let sentinel: HtmlElement = created_element.unchecked_into();
-        let _: Result<(), JsValue> = sentinel.style().set_property("position", "absolute");
-        let _: Result<(), JsValue> = sentinel.style().set_property("visibility", "hidden");
-        let _: Result<(), JsValue> = sentinel.style().set_property("pointer-events", "none");
+        let _: Result<(), JsValue> = sentinel.style().set_property(
+            SENTINEL_STYLE_POSITION_PROPERTY,
+            SENTINEL_STYLE_POSITION_ABSOLUTE,
+        );
+        let _: Result<(), JsValue> = sentinel.style().set_property(
+            SENTINEL_STYLE_VISIBILITY_PROPERTY,
+            SENTINEL_STYLE_VISIBILITY_HIDDEN,
+        );
+        let _: Result<(), JsValue> = sentinel.style().set_property(
+            SENTINEL_STYLE_POINTER_EVENTS_PROPERTY,
+            SENTINEL_STYLE_POINTER_EVENTS_NONE,
+        );
         let _: Result<(), JsValue> = sentinel
             .style()
-            .set_property(CSS_PROPERTY_PADDING_TOP, CSS_SAFE_AREA_INSET_TOP);
-        let _: Result<(), JsValue> = sentinel
-            .style()
-            .set_property(CSS_PROPERTY_PADDING_RIGHT, CSS_SAFE_AREA_INSET_RIGHT);
-        let _: Result<(), JsValue> = sentinel
-            .style()
-            .set_property(CSS_PROPERTY_PADDING_BOTTOM, CSS_SAFE_AREA_INSET_BOTTOM);
-        let _: Result<(), JsValue> = sentinel
-            .style()
-            .set_property(CSS_PROPERTY_PADDING_LEFT, CSS_SAFE_AREA_INSET_LEFT);
+            .set_property(SAFE_AREA_PADDING_TOP_PROPERTY, SAFE_AREA_PADDING_TOP_VALUE);
+        let _: Result<(), JsValue> = sentinel.style().set_property(
+            SAFE_AREA_PADDING_RIGHT_PROPERTY,
+            SAFE_AREA_PADDING_RIGHT_VALUE,
+        );
+        let _: Result<(), JsValue> = sentinel.style().set_property(
+            SAFE_AREA_PADDING_BOTTOM_PROPERTY,
+            SAFE_AREA_PADDING_BOTTOM_VALUE,
+        );
+        let _: Result<(), JsValue> = sentinel.style().set_property(
+            SAFE_AREA_PADDING_LEFT_PROPERTY,
+            SAFE_AREA_PADDING_LEFT_VALUE,
+        );
         let _: Result<Node, JsValue> = body.append_child(&sentinel);
         let Some(computed) = win.get_computed_style(&sentinel).ok().flatten() else {
             let _: Result<Node, JsValue> = body.remove_child(&sentinel);
             return;
         };
         let top_value: String = computed
-            .get_property_value(CSS_PROPERTY_PADDING_TOP)
+            .get_property_value(SAFE_AREA_PADDING_TOP_PROPERTY)
             .unwrap_or_default();
         let right_value: String = computed
-            .get_property_value(CSS_PROPERTY_PADDING_RIGHT)
+            .get_property_value(SAFE_AREA_PADDING_RIGHT_PROPERTY)
             .unwrap_or_default();
         let bottom_value: String = computed
-            .get_property_value(CSS_PROPERTY_PADDING_BOTTOM)
+            .get_property_value(SAFE_AREA_PADDING_BOTTOM_PROPERTY)
             .unwrap_or_default();
         let left_value: String = computed
-            .get_property_value(CSS_PROPERTY_PADDING_LEFT)
+            .get_property_value(SAFE_AREA_PADDING_LEFT_PROPERTY)
             .unwrap_or_default();
         let _: Result<Node, JsValue> = body.remove_child(&sentinel);
         if top_value.is_empty() || top_value == "0px" {
@@ -328,25 +342,25 @@ impl UseEuvLayout {
         let apply_to: &dyn Fn(&HtmlElement) = &|element: &HtmlElement| {
             let _: Result<(), JsValue> = element
                 .style()
-                .set_property(CSS_CUSTOM_PROPERTY_SAFE_AREA_TOP, &top_value);
+                .set_property(SAFE_AREA_INSET_TOP_PROPERTY, &top_value);
             let _: Result<(), JsValue> = element
                 .style()
-                .set_property(CSS_CUSTOM_PROPERTY_SAFE_AREA_RIGHT, &right_value);
+                .set_property(SAFE_AREA_INSET_RIGHT_PROPERTY, &right_value);
             let _: Result<(), JsValue> = element
                 .style()
-                .set_property(CSS_CUSTOM_PROPERTY_SAFE_AREA_BOTTOM, &bottom_value);
+                .set_property(SAFE_AREA_INSET_BOTTOM_PROPERTY, &bottom_value);
             let _: Result<(), JsValue> = element
                 .style()
-                .set_property(CSS_CUSTOM_PROPERTY_SAFE_AREA_LEFT, &left_value);
+                .set_property(SAFE_AREA_INSET_LEFT_PROPERTY, &left_value);
         };
         if let Some(app_root) = document_value
-            .query_selector(".c_mobile_app_root")
+            .query_selector(APP_ROOT_MOBILE_SELECTOR)
             .ok()
             .flatten()
             .map(|element: Element| element.unchecked_into::<HtmlElement>())
             .or_else(|| {
                 document_value
-                    .query_selector(".c_app_root")
+                    .query_selector(APP_ROOT_DESKTOP_SELECTOR)
                     .ok()
                     .flatten()
                     .map(|element: Element| element.unchecked_into::<HtmlElement>())
@@ -355,7 +369,7 @@ impl UseEuvLayout {
             apply_to(&app_root);
         }
         if let Some(canvas_fullscreen) = document_value
-            .query_selector(".c_canvas_container_fullscreen")
+            .query_selector(FULLSCREEN_CANVAS_CONTAINER_SELECTOR)
             .ok()
             .flatten()
             .map(|element: Element| element.unchecked_into::<HtmlElement>())
@@ -363,7 +377,7 @@ impl UseEuvLayout {
             apply_to(&canvas_fullscreen);
         }
         if let Some(game_fullscreen) = document_value
-            .query_selector(".c_game_container_fullscreen")
+            .query_selector(FULLSCREEN_GAME_CONTAINER_SELECTOR)
             .ok()
             .flatten()
             .map(|element: Element| element.unchecked_into::<HtmlElement>())

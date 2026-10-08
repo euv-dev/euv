@@ -1,7 +1,7 @@
 use super::*;
 
 class! {
-    pub c_form_switch {
+    pub(crate) c_form_switch {
         display: "inline-flex";
         align-items: "center";
         gap: var!(space-sm);
@@ -11,7 +11,7 @@ class! {
         -webkit-user-select: "none";
     }
 
-    pub c_form_switch_row {
+    pub(crate) c_form_switch_row {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
@@ -21,7 +21,7 @@ class! {
         border-bottom: format!("1px dashed {}", var!(border));
     }
 
-    pub c_form_switch_on {
+    pub(crate) c_form_switch_on {
         display: "inline-flex";
         align-items: "center";
         gap: var!(space-sm);
@@ -41,7 +41,7 @@ class! {
         -webkit-user-select: "none";
     }
 
-    pub c_form_switch_track {
+    pub(crate) c_form_switch_track {
         position: "relative";
         width: "44px";
         height: "24px";
@@ -53,7 +53,7 @@ class! {
         transition: format!("{} {}", var!(duration-fast), var!(ease-out));
     }
 
-    pub c_form_switch_thumb {
+    pub(crate) c_form_switch_thumb {
         position: "absolute";
         top: "3px";
         left: "3px";
@@ -65,13 +65,13 @@ class! {
         transition: format!("{} {}", var!(duration-fast), var!(ease-out));
     }
 
-    pub c_form_switch_label {
+    pub(crate) c_form_switch_label {
         font-size: var!(font-base);
         font-weight: "500";
         color: var!(foreground);
     }
 
-    pub c_euv_slider_input {
+    pub(crate) c_euv_slider_input {
         flex: "1";
         width: "100%";
         height: "24px";
@@ -99,7 +99,7 @@ class! {
             -webkit-appearance: "none";
             margin-top: "-6px";
         }
-        :active::-webkit-slider-thumb {
+        : active::-webkit-slider-thumb {
             transform: "scale(0.92)";
         }
         ::-moz-range-track {
@@ -121,14 +121,14 @@ class! {
         }
     }
 
-    pub c_euv_slider_row {
+    pub(crate) c_euv_slider_row {
         display: "flex";
         align-items: "center";
         gap: var!(space-md);
         margin-bottom: var!(space-sm);
     }
 
-    pub c_euv_slider_header {
+    pub(crate) c_euv_slider_header {
         display: "flex";
         align-items: "baseline";
         justify-content: "space-between";
@@ -136,7 +136,7 @@ class! {
         margin-bottom: var!(space-xs);
     }
 
-    pub c_euv_radio_group {
+    pub(crate) c_euv_radio_group {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-sm);
@@ -145,7 +145,7 @@ class! {
         padding: "0px";
     }
 
-    pub c_euv_radio_item {
+    pub(crate) c_euv_radio_item {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
@@ -163,7 +163,7 @@ class! {
         }
     }
 
-    pub c_euv_radio_item_checked {
+    pub(crate) c_euv_radio_item_checked {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -180,7 +180,7 @@ class! {
         line-height: "1";
     }
 
-    pub c_euv_radio_item_unchecked {
+    pub(crate) c_euv_radio_item_unchecked {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -197,7 +197,7 @@ class! {
         line-height: "1";
     }
 
-    pub c_euv_radio_input {
+    pub(crate) c_euv_radio_input {
         position: "absolute";
         width: "1px";
         height: "1px";
@@ -209,7 +209,7 @@ class! {
         outline: "none";
     }
 
-    pub c_progress_bar_fill {
+    pub(crate) c_progress_bar_fill {
         height: "100%";
         width: "0%";
         background: var!(accent);

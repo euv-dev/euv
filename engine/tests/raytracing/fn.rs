@@ -1,5 +1,6 @@
 use super::*;
 
+const EPSILON: f64 = 1e-9;
 #[test]
 fn trace_miss_returns_ambient() {
     let eye: Vector3D = Vector3D::new(0.0, 0.0, 0.0);

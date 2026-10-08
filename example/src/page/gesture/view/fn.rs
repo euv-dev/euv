@@ -77,41 +77,41 @@ pub(crate) fn page_gesture(node: VirtualNode<PageGestureProps>) -> VirtualNode {
         div {
             class: c_page_container()
             euv_header {
-                icon: "👆"
-                title: "Gesture"
-                subtitle: "EuvGestureRecognizer turns raw touch points into swipes, taps, long presses, and two-finger pinches. All four handlers mount on one pad, and the readouts below are driven straight off the recognizer signals."
+                icon: GESTURE_HEADER_ICON
+                title: GESTURE_HEADER_TITLE
+                subtitle: GESTURE_HEADER_SUBTITLE
             }
             euv_card {
-                title: "Gesture Pad"
+                title: GESTURE_PAD_CARD_TITLE
                 div {
-                    id: "gesture-readout"
+                    id: GESTURE_READOUT_CONTAINER_ID
                     class: c_event_touch_zone()
                     class: c_event_drag_zone()
-                    class: c_event_gesture_zone()
+                    style: GESTURE_PAD_STYLE
                     ontouchstart: state.on_start
                     ontouchmove: state.on_move
                     ontouchend: state.on_end
                     ontouchcancel: state.on_cancel
                     p {
                         class: c_demo_text()
-                        "Drag across this pad."
+                        GESTURE_PAD_PRIMARY_TEXT
                     }
                     p {
                         class: c_demo_text_muted()
-                        "Swipe past the threshold to resolve a direction, hold still for a long press, or use two fingers to pinch."
+                        GESTURE_PAD_SECONDARY_TEXT
                     }
                 }
             }
             euv_card {
-                title: "Live Recognizer State"
+                title: GESTURE_READOUT_CARD_TITLE
                 div {
                     class: c_info_row()
                     span {
                         class: c_info_label()
-                        "Last gesture"
+                        GESTURE_LABEL_LAST
                     }
                     span {
-                        id: "gesture-last-value"
+                        id: GESTURE_LAST_VALUE_ID
                         class: c_info_value()
                         last_gesture_text
                     }
@@ -120,10 +120,10 @@ pub(crate) fn page_gesture(node: VirtualNode<PageGestureProps>) -> VirtualNode {
                     class: c_info_row()
                     span {
                         class: c_info_label()
-                        "Drag dx"
+                        GESTURE_LABEL_DRAG_DX
                     }
                     span {
-                        id: "gesture-drag-dx-value"
+                        id: GESTURE_DRAG_DX_VALUE_ID
                         class: c_info_value()
                         drag_dx_text
                     }
@@ -132,10 +132,10 @@ pub(crate) fn page_gesture(node: VirtualNode<PageGestureProps>) -> VirtualNode {
                     class: c_info_row()
                     span {
                         class: c_info_label()
-                        "Drag dy"
+                        GESTURE_LABEL_DRAG_DY
                     }
                     span {
-                        id: "gesture-drag-dy-value"
+                        id: GESTURE_DRAG_DY_VALUE_ID
                         class: c_info_value()
                         drag_dy_text
                     }
@@ -144,10 +144,10 @@ pub(crate) fn page_gesture(node: VirtualNode<PageGestureProps>) -> VirtualNode {
                     class: c_info_row()
                     span {
                         class: c_info_label()
-                        "Travel"
+                        GESTURE_LABEL_DRAG_TRAVEL
                     }
                     span {
-                        id: "gesture-drag-travel-value"
+                        id: GESTURE_DRAG_TRAVEL_VALUE_ID
                         class: c_info_value()
                         drag_travel_text
                     }
@@ -156,10 +156,10 @@ pub(crate) fn page_gesture(node: VirtualNode<PageGestureProps>) -> VirtualNode {
                     class: c_info_row()
                     span {
                         class: c_info_label()
-                        "Pinch distance"
+                        GESTURE_LABEL_PINCH_DISTANCE
                     }
                     span {
-                        id: "gesture-pinch-distance-value"
+                        id: GESTURE_PINCH_DISTANCE_VALUE_ID
                         class: c_info_value()
                         pinch_distance_text
                     }
@@ -168,10 +168,10 @@ pub(crate) fn page_gesture(node: VirtualNode<PageGestureProps>) -> VirtualNode {
                     class: c_info_row()
                     span {
                         class: c_info_label()
-                        "Pinch delta"
+                        GESTURE_LABEL_PINCH_DELTA
                     }
                     span {
-                        id: "gesture-pinch-delta-value"
+                        id: GESTURE_PINCH_DELTA_VALUE_ID
                         class: c_info_value()
                         pinch_delta_text
                     }
@@ -180,35 +180,35 @@ pub(crate) fn page_gesture(node: VirtualNode<PageGestureProps>) -> VirtualNode {
                     class: c_info_row()
                     span {
                         class: c_info_label()
-                        "Pinch scale"
+                        GESTURE_LABEL_PINCH_SCALE
                     }
                     span {
-                        id: "gesture-pinch-scale-value"
+                        id: GESTURE_PINCH_SCALE_VALUE_ID
                         class: c_info_value()
                         pinch_scale_text
                     }
                 }
             }
             euv_card {
-                title: "Recognizer Thresholds"
+                title: GESTURE_CONFIG_CARD_TITLE
                 p {
                     class: c_game_description()
-                    "The pad mounts EuvGestureRecognizer::new(), so every reading below comes from the default threshold set. A 48px swipe threshold keeps fingertip jitter out of the directional gestures, a 10px tap slop separates a tap from a drag, a 500ms press turns a stationary touch into a long press, and a 1% pinch change filters out adjacent-move noise."
+                    GESTURE_CONFIG_DESCRIPTION
                 }
                 euv_info {
-                    label: "Swipe"
+                    label: GESTURE_LABEL_SWIPE_THRESHOLD
                     swipe_threshold_text
                 }
                 euv_info {
-                    label: "Tap slop"
+                    label: GESTURE_LABEL_TAP_SLOP
                     tap_slop_text
                 }
                 euv_info {
-                    label: "Long press"
+                    label: GESTURE_LABEL_LONG_PRESS
                     long_press_text
                 }
                 euv_info {
-                    label: "Pinch"
+                    label: GESTURE_LABEL_PINCH_THRESHOLD
                     pinch_threshold_text
                 }
             }

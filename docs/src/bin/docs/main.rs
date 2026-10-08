@@ -2,18 +2,19 @@ mod r#const;
 mod r#fn;
 mod r#struct;
 
-pub use lombok_macros::*;
-pub use {r#const::*, r#fn::*, r#struct::*};
+pub(crate) use {r#const::*, r#fn::*, r#struct::*};
 
 use std::{
     env,
     ffi::OsString,
-    fs::{DirEntry, FileType, copy, create_dir_all, read_dir},
-    io::Error,
+    fs::{self, DirEntry, FileType},
+    io,
     iter::Skip,
     path::{Path, PathBuf},
     process::{Command, ExitCode, ExitStatus, exit},
 };
+
+use lombok_macros::*;
 
 /// CLI entry point: parses arguments, runs the build, and maps the
 /// outcome onto a process exit code (2 for bad usage, 1 for build failure,

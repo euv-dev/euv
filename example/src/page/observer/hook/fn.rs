@@ -21,7 +21,7 @@ fn bind_observer(selector: &str) {
     let Some(document_value): Option<Document> = window_value.document() else {
         return;
     };
-    let observer_key: JsValue = JsValue::from_str("__euv_observer_instance");
+    let observer_key: JsValue = JsValue::from_str(OBSERVER_WINDOW_PROPERTY_INSTANCE);
     if Reflect::get(&window_value, &observer_key)
         .ok()
         .and_then(|value: JsValue| value.dyn_into::<IntersectionObserver>().ok())
@@ -43,7 +43,7 @@ fn bind_observer(selector: &str) {
             let target: Element = intersection_entry.target();
             let tag_name: String = target.tag_name();
             let intersection_ratio: f64 = intersection_entry.intersection_ratio();
-            let data_index: Option<String> = target.get_attribute("data_index");
+            let data_index: Option<String> = target.get_attribute(OBSERVER_ITEM_INDEX_ATTRIBUTE);
             match data_index {
                 Some(index_value) => {
                     Console::log(format!(
@@ -53,7 +53,7 @@ fn bind_observer(selector: &str) {
                 }
                 None => {
                     let Ok(children): Result<NodeList, JsValue> =
-                        target.query_selector_all("[data_index]")
+                        target.query_selector_all(OBSERVER_ITEM_INDEX_SELECTOR)
                     else {
                         continue;
                     };
@@ -96,7 +96,7 @@ fn bind_observer(selector: &str) {
 ///
 /// - `String` - A CSS selector string to identify the elements to observe.
 fn schedule_bind_observer(selector: String) {
-    let pending_key: JsValue = JsValue::from_str(OBSERVER_PENDING_KEY);
+    let pending_key: JsValue = JsValue::from_str(OBSERVER_WINDOW_PROPERTY_PENDING);
     let Some(window_value): Option<Window> = window() else {
         return;
     };
@@ -111,7 +111,7 @@ fn schedule_bind_observer(selector: String) {
         let Some(window_value): Option<Window> = window() else {
             return;
         };
-        let key: JsValue = JsValue::from_str(OBSERVER_PENDING_KEY);
+        let key: JsValue = JsValue::from_str(OBSERVER_WINDOW_PROPERTY_PENDING);
         let _: Result<bool, JsValue> = Reflect::set(&window_value, &key, &JsValue::UNDEFINED);
         bind_observer(&selector);
     }));
@@ -141,7 +141,7 @@ pub(crate) fn use_intersection_observer(selector: &str) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let listener_key: JsValue = JsValue::from_str("__euv_observer_listener");
+    let listener_key: JsValue = JsValue::from_str(OBSERVER_WINDOW_PROPERTY_LISTENER);
     if Reflect::get(&window_value, &listener_key)
         .unwrap_or(JsValue::UNDEFINED)
         .is_undefined()
@@ -154,8 +154,8 @@ pub(crate) fn use_intersection_observer(selector: &str) {
             Some(window_instance) => window_instance,
             None => return,
         };
-        let observer_key: JsValue = JsValue::from_str("__euv_observer_instance");
-        let listener_key: JsValue = JsValue::from_str("__euv_observer_listener");
+        let observer_key: JsValue = JsValue::from_str(OBSERVER_WINDOW_PROPERTY_INSTANCE);
+        let listener_key: JsValue = JsValue::from_str(OBSERVER_WINDOW_PROPERTY_LISTENER);
         if let Some(observer) = Reflect::get(&window_value, &observer_key)
             .ok()
             .and_then(|value: JsValue| value.dyn_into::<IntersectionObserver>().ok())
@@ -166,7 +166,7 @@ pub(crate) fn use_intersection_observer(selector: &str) {
             Reflect::set(&window_value, &observer_key, &JsValue::UNDEFINED);
         let _: Result<bool, JsValue> =
             Reflect::set(&window_value, &listener_key, &JsValue::UNDEFINED);
-        let pending_key: JsValue = JsValue::from_str(OBSERVER_PENDING_KEY);
+        let pending_key: JsValue = JsValue::from_str(OBSERVER_WINDOW_PROPERTY_PENDING);
         let _: Result<bool, JsValue> =
             Reflect::set(&window_value, &pending_key, &JsValue::UNDEFINED);
     });

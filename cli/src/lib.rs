@@ -18,12 +18,9 @@ pub use std::{
     // returns its Result directly, so the bare name would silently change which
     // function this crate calls.
     error::Error,
-    fs::{
-        canonicalize as sync_canonicalize,
-        read_to_string as sync_read_to_string,
-    },
     ffi::OsStr,
     fmt::{Display, Formatter},
+    fs::{canonicalize as sync_canonicalize, read_to_string as sync_read_to_string},
     iter::once,
     mem::take,
     string::FromUtf8Error,

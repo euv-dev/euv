@@ -4,6 +4,7 @@ fn epsilon(actual: f64, expected: f64) -> bool {
     (actual - expected).abs() < 1e-9
 }
 
+const EPSILON: f64 = 1e-9;
 #[test]
 fn lambert_diffuse_face_normal() {
     let light: Light =
@@ -220,7 +221,7 @@ fn schlick_fresnel_head_on_returns_floor() {
     let view: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
     let f: f64 = apply_schlick_fresnel(light, view, normal);
     assert!(
-        (f - LIGHTING_PBR_ENERGY_CONSERVATION).abs() < EPSILON,
+        (f - 0.04).abs() < EPSILON,
         "head-on fresnel must equal the F0 floor, got {f}"
     );
 }
@@ -254,7 +255,7 @@ fn schlick_fresnel_stays_in_unit_range() {
             normal,
         );
         assert!(
-            (LIGHTING_PBR_ENERGY_CONSERVATION - EPSILON..=1.0 + EPSILON).contains(&f),
+            (0.04 - EPSILON..=1.0 + EPSILON).contains(&f),
             "fresnel out of range: {f}"
         );
     }

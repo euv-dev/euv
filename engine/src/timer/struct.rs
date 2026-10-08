@@ -10,10 +10,12 @@ pub struct Timer {
     /// The countdown duration in seconds.
     #[get(type(copy))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) duration: f64,
     /// Whether the timer restarts automatically after firing.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) repeating: bool,
     /// The time accumulated since the timer started or last fired.
     #[get(type(copy))]
@@ -24,9 +26,15 @@ pub struct Timer {
     /// Whether the timer is currently paused.
     #[get(type(copy))]
     #[new(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) paused: bool,
     /// Whether a one-shot timer has fired and stopped.
     #[get(type(copy))]
     #[new(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) finished: bool,
 }

@@ -148,7 +148,7 @@ impl EngineHandle {
     /// # Returns
     ///
     /// - `bool` - `true` if the renderer was created successfully.
-    pub fn init_canvas(&mut self) -> bool {
+    pub(crate) fn init_canvas(&mut self) -> bool {
         let render_config: &RenderConfig = &self.get_config().get_render();
         let renderer: Option<CanvasRenderer> = CanvasRenderer::from_selector(
             render_config.get_canvas_selector(),
@@ -201,7 +201,7 @@ impl EngineHandle {
     ///
     /// - `Result<WebGl2Backend, WebGl2InitError>` - The initialized renderer,
     ///   or a typed error describing the specific failure.
-    pub fn init_webgl(&mut self) -> Result<WebGl2Backend, WebGl2InitError> {
+    pub(crate) fn init_webgl(&mut self) -> Result<WebGl2Backend, WebGl2InitError> {
         let render_config: &RenderConfig = &self.get_config().get_render();
         let renderer: WebGl2Backend = WebGl2Backend::init(render_config)?;
         self.set_webgl_renderer(Some(renderer.clone()));
@@ -334,7 +334,7 @@ impl EngineHandle {
     /// The loader implements [`Updatable`], so it is registered with the
     /// scheduler's [`TaskRegistry`] rather than polled by hand. On every
     /// fixed step it releases the `onload` / `onerror` callbacks of loads
-    /// that have already settled — a `wasm_bindgen::Closure` cannot be
+    /// that have already settled — a `Closure` cannot be
     /// dropped from inside the callback that is running, so this engine
     /// update is the only safe drop point. Without this the loader would
     /// pin two closures per asset forever and `is_all_loaded` would never

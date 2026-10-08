@@ -12,7 +12,7 @@ categories = ["network-programming", "web-programming"]
 exclude.workspace = true
 
 [workspace.package]
-version = "0.28.10"
+version = "0.28.11"
 readme = "README.md"
 edition = "2024"
 authors = ["root@ltpp.vip"]
@@ -53,15 +53,15 @@ chrono = "0.4.45"
 ignore = "0.4.31"
 js-sys = "0.3.103"
 if-addrs = "0.15.0"
-hyperlane = "21.9.1"
 serde_json = "1.0.151"
 color-output = "10.2.2"
 proc-macro2 = "1.0.107"
-hyperlane-cli = "21.9.1"
+hyperlane-cli = "21.9.0"
 lombok-macros = "10.2.2"
 wasm-bindgen = "0.2.126"
 alloc-no-stdlib = "3.0.0"
 compare_version = "10.2.2"
+hyperlane-core = "=21.9.0"
 bin-encode-decode = "1.2.6"
 serde-wasm-bindgen = "0.6.5"
 wasm-bindgen-test = "0.3.76"
@@ -82,6 +82,9 @@ tokio = { version = "1.53.1", features = [
     "process",
     "rt-multi-thread",
 ] }
+hyperlane = "21.9.0"
+# hyperlane-core 21.11.0 changed Server::route to take two generic
+# arguments; pin the transitive dependency until euv-cli migrates.
 web-sys = { version = "0.3.103", features = [
     "Gpu",
     "Blob",

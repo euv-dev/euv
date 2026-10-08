@@ -5,9 +5,13 @@ use super::*;
 pub struct SchedulerConfig {
     /// The fixed simulation timestep in seconds (e.g., 1/60 for 60 Hz updates).
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) fixed_timestep: f64,
     /// The maximum allowed frame time in seconds before the scheduler starts dropping updates.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) max_frame_time: f64,
 }
 
@@ -90,6 +94,8 @@ pub struct TaskRegistry {
     /// erases the concrete task type so heterogeneous tasks (a `Timer` next
     /// to a `Tween<f64>` next to a `ParticleEmitter`) coexist in one list.
     #[get_mut(pub(crate))]
+    #[get(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) tasks: Vec<Box<dyn Updatable>>,
 }
 
@@ -103,5 +109,6 @@ pub struct TaskRegistry {
 pub struct TaskHandle {
     /// The zero-based index of the task in the registry's task list.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) id: u64,
 }

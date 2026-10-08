@@ -11,7 +11,7 @@ use super::*;
 ///
 /// - `Result<Args, String>` - The parsed arguments, or a human-readable
 ///   message when the required `<SRC_DIR>` positional is missing.
-pub fn parse_args() -> Result<Args, String> {
+pub(crate) fn parse_args() -> Result<Args, String> {
     let mut positional: Vec<PathBuf> = Vec::new();
     let mut out_dir: Option<PathBuf> = None;
     let mut name: Option<String> = None;
@@ -92,7 +92,7 @@ pub fn parse_args() -> Result<Args, String> {
 ///
 /// - `Result<(), String>` - `Ok` once the site is written, or a message
 ///   describing which phase failed.
-pub fn run(args: &Args) -> Result<(), String> {
+pub(crate) fn run(args: &Args) -> Result<(), String> {
     let manifest_dir: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let src_dir: &Path = args.get_src_dir().as_path();
     if !src_dir.is_dir() {
@@ -114,7 +114,7 @@ pub fn run(args: &Args) -> Result<(), String> {
     }
     // Phase 1: prepare output directory and template path.
     let out_dir: &Path = args.get_out_dir().as_path();
-    create_dir_all(out_dir).map_err(|e: Error| {
+    fs::create_dir_all(out_dir).map_err(|e: io::Error| {
         format!(
             "failed to create output directory {}: {e}",
             out_dir.display()
@@ -170,7 +170,7 @@ pub fn run(args: &Args) -> Result<(), String> {
     );
     let status: ExitStatus = command
         .status()
-        .map_err(|e: Error| format!("failed to invoke `{EUV_BIN}` build: {e}"))?;
+        .map_err(|e: io::Error| format!("failed to invoke `{EUV_BIN}` build: {e}"))?;
     if !status.success() {
         return Err(format!("{EUV_BIN} build exited with status {status}"));
     }
@@ -186,8 +186,8 @@ pub fn run(args: &Args) -> Result<(), String> {
     let index_html: PathBuf = out_dir.join(INDEX_HTML_FILE_NAME);
     let not_found_html: PathBuf = out_dir.join(NOT_FOUND_HTML_FILE_NAME);
     if index_html.is_file() && !not_found_html.exists() {
-        copy(&index_html, &not_found_html)
-            .map_err(|e: Error| format!("copy 404.html: {e}"))?;
+        fs::copy(&index_html, &not_found_html)
+            .map_err(|e: io::Error| format!("copy 404.html: {e}"))?;
     }
     println!("euv-docs: build complete -> {}", out_dir.display());
     Ok(())
@@ -228,24 +228,24 @@ fn copy_public_assets(src_dir: &Path, out_dir: &Path) -> Result<(), String> {
 /// - `Result<(), String>` - `Ok` when the whole tree copied, or the
 ///   first error encountered.
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
-    let entries: Vec<DirEntry> = read_dir(src)
-        .map_err(|e: Error| format!("read_dir({}): {e}", src.display()))?
+    let entries: Vec<DirEntry> = fs::read_dir(src)
+        .map_err(|e: io::Error| format!("read_dir({}): {e}", src.display()))?
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|e: Error| format!("read_dir({}): {e}", src.display()))?;
+        .map_err(|e: io::Error| format!("read_dir({}): {e}", src.display()))?;
     for entry in entries {
         let entry_path: PathBuf = entry.path();
         let file_name: OsString = entry.file_name();
         let target_path: PathBuf = dst.join(&file_name);
         let file_type: FileType = entry
             .file_type()
-            .map_err(|e: Error| format!("file_type({}): {e}", entry_path.display()))?;
+            .map_err(|e: io::Error| format!("file_type({}): {e}", entry_path.display()))?;
         if file_type.is_dir() {
-            create_dir_all(&target_path).map_err(|e: Error| {
+            fs::create_dir_all(&target_path).map_err(|e: io::Error| {
                 format!("create_dir_all({}): {e}", target_path.display())
             })?;
             copy_dir_recursive(&entry_path, &target_path)?;
         } else if file_type.is_file() {
-            copy(&entry_path, &target_path).map_err(|e: Error| {
+            fs::copy(&entry_path, &target_path).map_err(|e: io::Error| {
                 format!(
                     "copy {} -> {}: {e}",
                     entry_path.display(),
@@ -258,7 +258,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
 }
 
 /// Print the CLI usage banner to stdout.
-pub fn print_usage() {
+pub(crate) fn print_usage() {
     println!(
         "euv-docs {} — build a markdown directory into a static site.\n\n\
          USAGE:\n  \

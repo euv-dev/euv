@@ -1,3 +1,5 @@
+use super::*;
+
 /// The CSS selector used to query the 3D game canvas element from the DOM.
 pub(crate) const GAME_3D_CANVAS_SELECTOR: &str = "#game-3d-canvas";
 
@@ -99,6 +101,12 @@ pub(crate) const GAME_3D_EVENT_TOUCH_START: &str = "touchstart";
 /// non-passive listener directly on the canvas element to prevent page
 /// scrolling when a finger drags across the canvas on mobile devices.
 pub(crate) const GAME_3D_EVENT_TOUCH_MOVE: &str = "touchmove";
+
+/// The JavaScript event name for the window resize event.
+pub(crate) const GAME_3D_EVENT_RESIZE: &str = "resize";
+
+/// The JavaScript property name for the device pixel ratio on `Window`.
+pub(crate) const GAME_3D_EVENT_PROPERTY_DEVICE_PIXEL_RATIO: &str = "devicePixelRatio";
 
 /// The cube vertex offsets relative to center, defining the 8 corners of a unit cube.
 pub(crate) const GAME_3D_CUBE_VERTICES: [(f64, f64, f64); 8] = [
@@ -428,3 +436,6 @@ void main() {
     out_color = vec4(v_face_color, 1.0);
 }
 "#;
+
+/// Quarter-circle angle in radians, mirroring `FRAC_PI_2`.
+pub(crate) const GAME_3D_HALF_PI: f64 = PI * 0.5;

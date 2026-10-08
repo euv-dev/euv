@@ -217,7 +217,11 @@ fn an_unbounded_counter_reports_no_minimum_without_panicking() {
     );
     assert_eq!(counter.get_max(), None);
     counter.set(5);
-    assert_eq!(counter.get_value().get(), 5, "an unbounded counter still counts");
+    assert_eq!(
+        counter.get_value().get(),
+        5,
+        "an unbounded counter still counts"
+    );
 }
 
 #[test]

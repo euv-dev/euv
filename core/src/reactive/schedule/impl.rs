@@ -67,7 +67,7 @@ impl Scheduler {
 
     /// Whether a JS `Window` is reachable on this host.
     ///
-    /// `web_sys::window()` resolves the JS global through a
+    /// `window()` resolves the JS global through a
     /// process-wide `once_cell::Lazy` inside `js_sys`. On a non-WASM host
     /// (where `cargo test` runs) there is no JS global, so the lookup
     /// **panics** — and because the `Lazy` is process-wide, that one

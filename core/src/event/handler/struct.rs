@@ -7,9 +7,13 @@ use super::*;
 /// borrow checking overhead in the single-threaded WASM context.
 /// The `Rc` provides automatic memory management (freed when last reference drops).
 #[derive(Clone, CustomDebug, Data, New)]
+#[new(pub(crate))]
 pub struct NativeEventHandler {
     /// The name of the event (e.g., "click", "input").
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) event_name: &'static str,
@@ -17,6 +21,9 @@ pub struct NativeEventHandler {
     /// `UnsafeCell` allows mutable access without RefCell overhead.
     /// Safety: only accessed from the main thread in WASM single-threaded context.
     #[debug(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]

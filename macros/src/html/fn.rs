@@ -1801,25 +1801,23 @@ pub(crate) fn merge_same_key_attributes(attributes: HtmlAttrs) -> HtmlAttrs {
             result.push((key, value));
         }
     }
-    type PushMerged =
-        dyn Fn(&mut HtmlAttrs, &str, Vec<HtmlAttrValue>, fn(Vec<HtmlAttrValue>) -> HtmlAttrValue);
-    let push_merged: &PushMerged = &|result: &mut HtmlAttrs,
-                                     key_str: &str,
-                                     mut values: Vec<HtmlAttrValue>,
-                                     wrap: fn(Vec<HtmlAttrValue>) -> HtmlAttrValue|
-     -> () {
-        match values.len() {
-            0 => {}
-            1 => result.push((
-                LitStr::new(key_str, proc_macro2::Span::call_site()).to_token_stream(),
-                values.remove(0),
-            )),
-            _ => result.push((
-                LitStr::new(key_str, proc_macro2::Span::call_site()).to_token_stream(),
-                wrap(values),
-            )),
-        }
-    };
+    let push_merged: PushMergedAttrFn =
+        |result: &mut HtmlAttrs,
+         key_str: &str,
+         mut values: Vec<HtmlAttrValue>,
+         wrap: fn(Vec<HtmlAttrValue>) -> HtmlAttrValue| {
+            match values.len() {
+                0 => {}
+                1 => result.push((
+                    LitStr::new(key_str, proc_macro2::Span::call_site()).to_token_stream(),
+                    values.remove(0),
+                )),
+                _ => result.push((
+                    LitStr::new(key_str, proc_macro2::Span::call_site()).to_token_stream(),
+                    wrap(values),
+                )),
+            }
+        };
     push_merged(
         &mut result,
         ATTR_KEY_CLASS,

@@ -10,26 +10,30 @@ mod style;
 
 pub(crate) use {app::*, component::*, page::*, style::*};
 
-pub use std::{
+pub(crate) use std::{
     cell::RefMut,
     cmp::Ordering,
     collections::HashSet,
+    f64::consts::{FRAC_PI_2, PI, TAU},
     fmt::{self, Debug, Display, Formatter},
-    f64::consts::{PI, TAU},
-    iter::FilterMap,
     ops::Range,
-    str::Split,
 };
 
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
+    iter::Iterator,
     rc::Rc,
 };
 
 use {
     compare_version::*,
-    euv::{js_sys::*, wasm_bindgen::prelude::*, wasm_bindgen_futures::*, web_sys::*, *},
+    euv::{
+        js_sys::*,
+        wasm_bindgen::{Clamped, prelude::*},
+        wasm_bindgen_futures::*,
+        *,
+    },
     euv_engine::*,
     euv_ui::*,
 };
@@ -39,7 +43,10 @@ use {
     serde::{Deserialize, Serialize},
 };
 
-/// Entry point for the euv example application.
+/// Mounts the demo application into the page.
+///
+/// This is the wasm entry point: the engine calls it on load, so it is
+/// never invoked by a test and is not a function anything can name.
 #[wasm_bindgen]
 pub fn main() {
     console_error_panic_hook::set_once();

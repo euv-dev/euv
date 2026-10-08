@@ -23,27 +23,49 @@ pub struct Engine;
 #[derive(Clone, Data, New)]
 pub struct EngineHandle {
     /// The engine configuration containing render and scheduler settings.
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) config: EngineConfig,
     /// The initialized Canvas 2D renderer, or `None` if the WebGPU backend is used or initialization has not yet happened.
+    #[get(type(clone))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) canvas_renderer: Option<CanvasRenderer>,
     /// The initialized WebGPU renderer, or `None` if the Canvas 2D backend is used or initialization has not yet happened.
+    #[get(type(clone))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) webgpu_renderer: Option<WebGpuRenderer>,
     /// The initialized WebGL 2 renderer, or `None` if another backend is used or initialization has not yet happened.
+    #[get(type(clone))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) webgl_renderer: Option<WebGl2Backend>,
     /// The shared input state once `register_input` has attached the DOM
     /// event listeners, or `None` before registration (or if the canvas
     /// selector did not resolve at registration time).
     #[new(skip)]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) input_cell: Option<InputStateCell>,
     /// The shared task registry holding every [`Updatable`] object the
     /// scheduler advances on each fixed step. Always present so callers can
     /// register tasks before `start` is called.
     #[new(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) tasks: TaskRegistryRc,
     /// The shared asset loader, present once `register_assets` has created
     /// it, or `None` when asset loading was never requested.
     #[new(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) asset_loader: Option<AssetLoader>,
     /// The running scheduler handle, or `None` before `start` is called.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) scheduler_handle: Option<SchedulerHandle>,
 }

@@ -90,11 +90,7 @@ fn step_2d_angular_velocity_unchanged() {
 
 #[test]
 fn friction_2d_slows_tangential_slide_to_rest() {
-    let config: PhysicsConfig = PhysicsConfig::new(
-        Vector2D::zero(),
-        DEFAULT_LINEAR_DAMPING,
-        DEFAULT_ANGULAR_DAMPING,
-    );
+    let config: PhysicsConfig = PhysicsConfig::new(Vector2D::zero(), 0.0, 0.0);
     let mut world: PhysicsWorld2D = PhysicsWorld2D::with_config(config);
     let mut ground: RigidBody2D = RigidBody2D::new_static(1, Vector2D::new(0.0, -5.0));
     ground.update_collider(BodyCollider::Aabb(AabbCollider::new(Rect::new(
@@ -135,11 +131,7 @@ fn friction_2d_slows_tangential_slide_to_rest() {
 
 #[test]
 fn friction_2d_frictionless_body_keeps_sliding() {
-    let config: PhysicsConfig = PhysicsConfig::new(
-        Vector2D::zero(),
-        DEFAULT_LINEAR_DAMPING,
-        DEFAULT_ANGULAR_DAMPING,
-    );
+    let config: PhysicsConfig = PhysicsConfig::new(Vector2D::zero(), 0.0, 0.0);
     let mut world: PhysicsWorld2D = PhysicsWorld2D::with_config(config);
     let mut ground: RigidBody2D = RigidBody2D::new_static(1, Vector2D::new(0.0, -5.0));
     ground.update_collider(BodyCollider::Aabb(AabbCollider::new(Rect::new(
@@ -170,11 +162,7 @@ fn friction_2d_frictionless_body_keeps_sliding() {
 
 #[test]
 fn friction_3d_slows_tangential_slide() {
-    let config: PhysicsConfig3D = PhysicsConfig3D::new(
-        Vector3D::zero(),
-        DEFAULT_LINEAR_DAMPING,
-        DEFAULT_ANGULAR_DAMPING,
-    );
+    let config: PhysicsConfig3D = PhysicsConfig3D::new(Vector3D::zero(), 0.0, 0.0);
     let mut world: PhysicsWorld3D = PhysicsWorld3D::with_config(config);
     let mut ground: RigidBody3D = RigidBody3D::new_static(1, Vector3D::zero());
     ground.update_collider(BodyCollider3D::Sphere(SphereCollider3D::from_center(

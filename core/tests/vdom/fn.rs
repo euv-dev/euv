@@ -178,10 +178,7 @@ fn opt11_cssref_does_not_clone_inner_collections() {
     let AttributeValue::CssRef(css_ref) = value else {
         panic!("expected AttributeValue::CssRef");
     };
-    assert!(eq(
-        css_ref as *const Css,
-        &*STATIC_CSS as *const Css
-    ));
+    assert!(ptr::eq(css_ref as *const Css, &*STATIC_CSS as *const Css));
 }
 
 #[test]
@@ -339,7 +336,10 @@ fn a_media_rule_is_split_into_its_query_and_its_declarations() {
     let parsed: Vec<MediaRule> =
         Css::parse_media_rules("@media (max-width: 767px) { font-size: 14px; }");
     assert_eq!(parsed.len(), 1);
-    assert_eq!(parsed[0], media("(max-width: 767px)", "font-size: 14px;", vec![]));
+    assert_eq!(
+        parsed[0],
+        media("(max-width: 767px)", "font-size: 14px;", vec![])
+    );
 }
 
 #[test]
@@ -379,8 +379,14 @@ fn two_media_rules_in_one_string_are_parsed_in_order() {
         "@media (max-width: 767px) { font-size: 14px; }@media (min-width: 1200px) { font-size: 20px; }",
     );
     assert_eq!(parsed.len(), 2);
-    assert_eq!(parsed[0], media("(max-width: 767px)", "font-size: 14px;", vec![]));
-    assert_eq!(parsed[1], media("(min-width: 1200px)", "font-size: 20px;", vec![]));
+    assert_eq!(
+        parsed[0],
+        media("(max-width: 767px)", "font-size: 14px;", vec![])
+    );
+    assert_eq!(
+        parsed[1],
+        media("(min-width: 1200px)", "font-size: 20px;", vec![])
+    );
 }
 
 #[test]
@@ -448,7 +454,10 @@ fn a_parameter_class_name_is_stable_and_distinguishes_different_values() {
     let first: String = Css::param_class_name("sm");
     let same: String = Css::param_class_name("sm");
     let other: String = Css::param_class_name("lg");
-    assert_eq!(first, same, "the same value must always yield the same class");
+    assert_eq!(
+        first, same,
+        "the same value must always yield the same class"
+    );
     assert_ne!(first, other, "different values must not collide");
     assert!(
         first.chars().all(|c: char| c.is_ascii_alphanumeric()),

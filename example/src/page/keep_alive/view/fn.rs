@@ -352,6 +352,9 @@ pub(crate) fn keep_alive_timer_on_reset(
 /// Uses CSS `display: none` to hide inactive tab content instead of
 /// destroying and recreating it, which preserves all hook state (signals,
 /// intervals, form inputs) across tab switches.
+/// # Arguments
+///
+/// - `VirtualNode<PageKeepAliveProps>` - The component props node.
 ///
 /// # Returns
 ///

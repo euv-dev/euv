@@ -73,7 +73,9 @@ fn euv_step(index: usize, step: EuvStep, current: Signal<usize>) -> VirtualNode 
                 if { index < current.get() } {
                     "✓"
                 } else {
-                    { (index + 1).to_string() }
+                    {
+                        (index + 1).to_string()
+                    }
                 }
             }
             div {

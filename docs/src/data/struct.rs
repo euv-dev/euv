@@ -4,97 +4,97 @@ use super::*;
 /// `euv_ui::EuvFeature`; lives here because `EuvFeature` is frozen on
 /// the `euv = "0.18"` pin and cannot be augmented upstream.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct DocsFeature {
+pub(crate) struct DocsFeature {
     /// Card icon (emoji); the literal string `"blog"` is treated as no
     /// icon by `docs_feature_card`.
-    pub icon: &'static str,
-    pub title: &'static str,
-    pub details: &'static str,
+    pub(crate) icon: &'static str,
+    pub(crate) title: &'static str,
+    pub(crate) details: &'static str,
     /// Route or external URL; empty means non-clickable.
-    pub link: &'static str,
+    pub(crate) link: &'static str,
 }
 
 /// One icon+text stat tile on the home page, rendered between the hero
 /// actions and the feature grid (mirrors the euv example home stats row).
 #[derive(Clone, Copy, Debug, Default)]
-pub struct DocsStat {
+pub(crate) struct DocsStat {
     /// Tile icon (emoji).
-    pub icon: &'static str,
+    pub(crate) icon: &'static str,
     /// Bold stat value.
-    pub value: &'static str,
+    pub(crate) value: &'static str,
     /// Muted label under the value.
-    pub label: &'static str,
+    pub(crate) label: &'static str,
 }
 
 /// One rendered markdown page.
 #[derive(Clone, Copy, Debug)]
-pub struct DocsPage {
+pub(crate) struct DocsPage {
     /// Full route (`/guide/getting-started.html`, `/zh/` …).
-    pub route: &'static str,
+    pub(crate) route: &'static str,
     /// Page title.
-    pub title: &'static str,
+    pub(crate) title: &'static str,
     /// Content block AST (rendered by `euv_markdown`).
-    pub blocks: &'static [EuvMdBlock],
+    pub(crate) blocks: &'static [EuvMdBlock],
     /// Anchor TOC entries.
-    pub headings: &'static [EuvTocItem],
+    pub(crate) headings: &'static [EuvTocItem],
     /// Whether this is a home page.
-    pub home: bool,
+    pub(crate) home: bool,
     /// Hero text (home pages).
-    pub hero_text: &'static str,
+    pub(crate) hero_text: &'static str,
     /// Tagline (home pages).
-    pub tagline: &'static str,
+    pub(crate) tagline: &'static str,
     /// Hero actions (home pages).
-    pub actions: &'static [EuvHeroAction],
+    pub(crate) actions: &'static [EuvHeroAction],
     /// Feature cards (home pages) — each card carries an optional
     /// `link` so the home grid renders as a clickable navigation tile.
-    pub features: &'static [DocsFeature],
+    pub(crate) features: &'static [DocsFeature],
     /// Icon+text stat tiles (home pages), rendered between the hero
     /// actions and the feature grid; empty hides the row.
-    pub stats: &'static [DocsStat],
+    pub(crate) stats: &'static [DocsStat],
     /// Frontmatter footer override.
-    pub footer: &'static str,
+    pub(crate) footer: &'static str,
     /// `true` when the page is gated behind a password form. Direct URL
     /// access (paste / refresh) and in-app navigation both check this
     /// flag together with the localStorage unlock record before rendering
     /// the content block AST.
-    pub private: bool,
+    pub(crate) private: bool,
     /// Hex-encoded SHA-256 of the password that unlocks a `private`
     /// page. Empty when `private` is `false`. The plaintext password is
     /// **never** compiled into the WASM bundle — only this digest is,
     /// hashed at build time from the markdown frontmatter.
-    pub password_hash: &'static str,
+    pub(crate) password_hash: &'static str,
 }
 
 /// One locale.
 #[derive(Clone, Copy, Debug)]
-pub struct DocsLocale {
+pub(crate) struct DocsLocale {
     /// Route prefix (`/` or `/zh/`).
-    pub prefix: &'static str,
+    pub(crate) prefix: &'static str,
     /// Human label for the language dropdown.
-    pub label: &'static str,
+    pub(crate) label: &'static str,
     /// Locale title override.
-    pub title: &'static str,
+    pub(crate) title: &'static str,
     /// Footer text.
-    pub footer: &'static str,
+    pub(crate) footer: &'static str,
     /// Right TOC title label.
-    pub toc_label: &'static str,
+    pub(crate) toc_label: &'static str,
     /// Prev-page link label.
-    pub prev_label: &'static str,
+    pub(crate) prev_label: &'static str,
     /// Next-page link label.
-    pub next_label: &'static str,
+    pub(crate) next_label: &'static str,
     /// Navbar items.
-    pub navbar: &'static [EuvNavbarItem],
+    pub(crate) navbar: &'static [EuvNavbarItem],
     /// Sidebar tree.
-    pub sidebar: &'static [EuvSidebarItem],
+    pub(crate) sidebar: &'static [EuvSidebarItem],
 }
 
 /// The whole generated site.
 #[derive(Clone, Copy, Debug)]
-pub struct DocsSite {
+pub(crate) struct DocsSite {
     /// Site title.
-    pub title: &'static str,
+    pub(crate) title: &'static str,
     /// All locales.
-    pub locales: &'static [DocsLocale],
+    pub(crate) locales: &'static [DocsLocale],
     /// All pages.
-    pub pages: &'static [DocsPage],
+    pub(crate) pages: &'static [DocsPage],
 }

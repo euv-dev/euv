@@ -1,28 +1,16 @@
 use super::*;
 
-/// Label used by the trigger-measurement call on every render.
-pub(crate) const HOOKS_PROTECT_PROFILER_LABEL_TRIGGER: &str = "render-trigger";
-
-/// A small value-payload returned by the trigger measurement —
-/// kept short so the profiler entry row stays readable.
-pub(crate) const HOOKS_PROTECT_TRIGGER_RENDER_VALUE: &str = "ok";
-
-/// Synthetic error message used by the panic-demo button
-/// without actually calling `std::panic!` (see
-/// rust-standards R11.3 — demo code must not panic).
-pub(crate) const HOOKS_PROTECT_DEMO_ERROR_MESSAGE: &str = "simulated failure";
-
 /// Build a click handler that runs a healthy closure under the
 /// supplied boundary. The boundary's phase transitions to
 /// `Healthy` after the closure returns.
 ///
 /// # Arguments
 ///
-/// - `ErrorBoundary` - The `boundary` argument.
+/// - `ErrorBoundary` - The boundary to run the healthy closure under.
+///
 /// # Returns
 ///
-/// - `Option<Rc<dyn Fn(Event)>>` - The value this function returns.
-///
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler for the healthy run.
 pub(crate) fn hooks_protect_try_healthy(boundary: ErrorBoundary) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         let result: Result<u32, String> = boundary.try_with(|| 7_u32);
@@ -43,11 +31,11 @@ pub(crate) fn hooks_protect_try_healthy(boundary: ErrorBoundary) -> Option<Rc<dy
 ///
 /// # Arguments
 ///
-/// - `ErrorBoundary` - The `boundary` argument.
+/// - `ErrorBoundary` - The boundary to report the synthetic failure to.
+///
 /// # Returns
 ///
-/// - `Option<Rc<dyn Fn(Event)>>` - The value this function returns.
-///
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler for the panic demo.
 pub(crate) fn hooks_protect_try_panic(boundary: ErrorBoundary) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         let _: Result<u32, String> = boundary.try_with(|| 7_u32);
@@ -60,11 +48,11 @@ pub(crate) fn hooks_protect_try_panic(boundary: ErrorBoundary) -> Option<Rc<dyn 
 ///
 /// # Arguments
 ///
-/// - `ErrorBoundary` - The `boundary` argument.
+/// - `ErrorBoundary` - The boundary to reset.
+///
 /// # Returns
 ///
-/// - `Option<Rc<dyn Fn(Event)>>` - The value this function returns.
-///
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler that resets the boundary.
 pub(crate) fn hooks_protect_reset(boundary: ErrorBoundary) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         boundary.reset();
@@ -76,14 +64,14 @@ pub(crate) fn hooks_protect_reset(boundary: ErrorBoundary) -> Option<Rc<dyn Fn(E
 ///
 /// # Arguments
 ///
-/// - `ProfilerHandle` - The `profiler` argument.
+/// - `ProfilerHandle` - The profiler to record the slow measurement with.
+///
 /// # Returns
 ///
-/// - `Option<Rc<dyn Fn(Event)>>` - The value this function returns.
-///
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler that records the slow measurement.
 pub(crate) fn hooks_protect_profile_slow(profiler: ProfilerHandle) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
-        profiler.measure("slow-op", || {
+        profiler.measure(HOOKS_PROTECT_PROFILER_LABEL_SLOW_OP, || {
             // Tight loop ~ 1 ms; sufficient to show non-zero
             // elapsed time in the entries list.
             let mut accumulator: u64 = 0_u64;
@@ -100,11 +88,11 @@ pub(crate) fn hooks_protect_profile_slow(profiler: ProfilerHandle) -> Option<Rc<
 ///
 /// # Arguments
 ///
-/// - `ProfilerHandle` - The `profiler` argument.
+/// - `ProfilerHandle` - The profiler whose entries are cleared.
+///
 /// # Returns
 ///
-/// - `Option<Rc<dyn Fn(Event)>>` - The value this function returns.
-///
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler that clears the entries.
 pub(crate) fn hooks_protect_profile_clear(profiler: ProfilerHandle) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         profiler.clear();
@@ -116,11 +104,11 @@ pub(crate) fn hooks_protect_profile_clear(profiler: ProfilerHandle) -> Option<Rc
 ///
 /// # Arguments
 ///
-/// - `ProfilerHandle` - The `profiler` argument.
+/// - `ProfilerHandle` - The profiler whose entries are counted.
+///
 /// # Returns
 ///
-/// - `usize` - The value this function returns.
-///
+/// - `usize` - The number of recorded profiler entries.
 pub(crate) fn hooks_protect_entry_count(profiler: ProfilerHandle) -> usize {
     profiler.get_entries().get().len()
 }
@@ -130,11 +118,11 @@ pub(crate) fn hooks_protect_entry_count(profiler: ProfilerHandle) -> usize {
 ///
 /// # Arguments
 ///
-/// - `&ErrorBoundary` - The `boundary` argument.
+/// - `&ErrorBoundary` - The boundary whose phase is inspected.
+///
 /// # Returns
 ///
-/// - `bool` - The value this function returns.
-///
+/// - `bool` - True while the boundary phase is `Healthy`.
 pub(crate) fn hooks_protect_is_healthy(boundary: &ErrorBoundary) -> bool {
     matches!(boundary.get_phase().get(), ErrorBoundaryPhase::Healthy)
 }
@@ -144,11 +132,11 @@ pub(crate) fn hooks_protect_is_healthy(boundary: &ErrorBoundary) -> bool {
 ///
 /// # Arguments
 ///
-/// - `&ErrorBoundary` - The `boundary` argument.
+/// - `&ErrorBoundary` - The boundary whose phase is inspected.
+///
 /// # Returns
 ///
-/// - `bool` - The value this function returns.
-///
+/// - `bool` - True while the boundary phase is `Caught`.
 pub(crate) fn hooks_protect_is_caught(boundary: &ErrorBoundary) -> bool {
     matches!(boundary.get_phase().get(), ErrorBoundaryPhase::Caught(_))
 }
@@ -158,14 +146,14 @@ pub(crate) fn hooks_protect_is_caught(boundary: &ErrorBoundary) -> bool {
 ///
 /// # Arguments
 ///
-/// - `&ErrorBoundary` - The `boundary` argument.
+/// - `&ErrorBoundary` - The boundary whose phase is rendered.
+///
 /// # Returns
 ///
-/// - `String` - The value this function returns.
-///
+/// - `String` - The readable phase label.
 pub(crate) fn hooks_protect_phase_label(boundary: &ErrorBoundary) -> String {
     match boundary.get_phase().get() {
-        ErrorBoundaryPhase::Healthy => String::from("Healthy"),
+        ErrorBoundaryPhase::Healthy => String::from(HOOKS_PROTECT_PHASE_LABEL_HEALTHY),
         ErrorBoundaryPhase::Caught(message) => format!("Caught({message})"),
     }
 }

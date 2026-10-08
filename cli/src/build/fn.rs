@@ -48,8 +48,17 @@ pub fn filter_euv_args(wasm_pack_args: &[String]) -> Vec<String> {
             skip_next = false;
             continue;
         }
-        if EUV_ARGS.contains(&arg.as_str()) {
-            if arg.contains('=') {
+        // Compare the flag NAME, not the whole argument: clap accepts both
+        // `--port 3000` and `--port=3000`, and only the first form ever
+        // matched `EUV_ARGS` exactly. Without the split, `--port=3000` was
+        // forwarded to wasm-pack even though `reconcile_args` had already
+        // consumed its value — the same string both used and leaked.
+        let name: &str = arg.split('=').next().unwrap_or(arg.as_str());
+        if EUV_ARGS.contains(&name) {
+            if arg.contains('=') || name == NO_GITIGNORE_ARG {
+                // `--no-gitignore` is a bare boolean: there is no value to
+                // skip, so treating it like `--port 3000` ate whatever
+                // argument followed it.
                 continue;
             }
             skip_next = true;

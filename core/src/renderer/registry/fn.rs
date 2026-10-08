@@ -48,7 +48,7 @@ fn global_this() -> Option<JsValue> {
     {
         return Some(value);
     }
-    let window_value: web_sys::Window = window()?;
+    let window_value: Window = window()?;
     Some(window_value.into())
 }
 
@@ -174,21 +174,21 @@ pub(crate) fn euv_event_collect_id_chain(event: &JsValue, max_depth: usize) -> F
 ///
 /// - `Float64Array` - The parsed `data-euv-id` values in walk order.
 fn collect_id_chain_rust(event: &JsValue, max_depth: usize) -> Float64Array {
-    let event_target: Option<web_sys::EventTarget> =
+    let event_target: Option<EventTarget> =
         js_sys::Reflect::get(event, &JsValue::from_str(EVENT_TARGET_PROP))
             .ok()
-            .and_then(|value: JsValue| value.dyn_into::<web_sys::EventTarget>().ok());
+            .and_then(|value: JsValue| value.dyn_into::<EventTarget>().ok());
     let Some(target) = event_target else {
         return Float64Array::new_with_length(0);
     };
     let mut ids: Vec<f64> = Vec::new();
-    let mut node: Option<web_sys::Node> = Some(target.unchecked_into::<web_sys::Node>());
+    let mut node: Option<Node> = Some(target.unchecked_into::<Node>());
     let mut depth: usize = 0;
     while let Some(current) = node {
         if max_depth != 0 && depth >= max_depth {
             break;
         }
-        let element: Option<&web_sys::Element> = current.dyn_ref::<web_sys::Element>();
+        let element: Option<&Element> = current.dyn_ref::<Element>();
         if let Some(el) = element
             && let Some(id_str) = el.get_attribute(DATA_EUV_ID)
             && let Ok(parsed) = id_str.parse::<f64>()

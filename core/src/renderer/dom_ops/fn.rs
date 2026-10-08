@@ -84,12 +84,11 @@ pub(crate) fn ensure_dom_op_table() -> Option<DomOpTable> {
     // Cache the resolved table. A refused borrow only costs one extra
     // `Reflect::get` on the next patch, so the failure is ignored rather
     // than propagated.
-    let _: Result<(), AccessError> =
-        DOM_OP_TABLE.try_with(|cell: &RefCell<Option<DomOpTable>>| {
-            if let Ok(mut guard) = cell.try_borrow_mut() {
-                *guard = Some(table.clone());
-            }
-        });
+    let _: Result<(), AccessError> = DOM_OP_TABLE.try_with(|cell: &RefCell<Option<DomOpTable>>| {
+        if let Ok(mut guard) = cell.try_borrow_mut() {
+            *guard = Some(table.clone());
+        }
+    });
     Some(table)
 }
 
@@ -234,7 +233,7 @@ pub(crate) fn is_property_attr(name: &str) -> bool {
 /// single JS-side function call.
 ///
 /// On any failure (table unavailable, JS exception), the function falls
-/// back to per-op `web_sys::Element::set_attribute` calls.
+/// back to per-op `Element::set_attribute` calls.
 ///
 /// # Arguments
 ///
@@ -274,7 +273,7 @@ pub(crate) fn apply_set_attr_batch(element: &Element, ops: &[(String, String)]) 
 /// single JS-side function call.
 ///
 /// On any failure (table unavailable, JS exception), the function falls
-/// back to per-op `web_sys::Element::remove_attribute` calls.
+/// back to per-op `Element::remove_attribute` calls.
 ///
 /// # Arguments
 ///

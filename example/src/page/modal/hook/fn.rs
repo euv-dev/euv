@@ -88,7 +88,9 @@ pub(crate) fn modal_dismiss_handler(visible: Signal<bool>) -> Option<Rc<dyn Fn(E
 pub(crate) fn validate_modal_name(state: UseModal) {
     let name_value: String = state.get_modal_name().get();
     if name_value.trim().is_empty() {
-        state.get_name_error().set("Name is required".to_string());
+        state
+            .get_name_error()
+            .set(MODAL_ERROR_NAME_REQUIRED.to_string());
     } else {
         state.get_name_error().set(String::new());
     }
@@ -102,11 +104,13 @@ pub(crate) fn validate_modal_name(state: UseModal) {
 pub(crate) fn validate_modal_email(state: UseModal) {
     let email_value: String = state.get_modal_email().get();
     if email_value.trim().is_empty() {
-        state.get_email_error().set("Email is required".to_string());
+        state
+            .get_email_error()
+            .set(MODAL_ERROR_EMAIL_REQUIRED.to_string());
     } else if !email_value.contains('@') || !email_value.contains('.') {
         state
             .get_email_error()
-            .set("Please enter a valid email".to_string());
+            .set(MODAL_ERROR_EMAIL_INVALID.to_string());
     } else {
         state.get_email_error().set(String::new());
     }
@@ -227,7 +231,7 @@ pub(crate) fn modal_on_confirm(state: UseModal) -> Option<Rc<dyn Fn(Event)>> {
         }
         state
             .get_confirm_result()
-            .set("Action confirmed!".to_string());
+            .set(MODAL_STATUS_ACTION_CONFIRMED.to_string());
         dismiss_modal(state.get_show_confirm());
     }))
 }
@@ -248,7 +252,7 @@ pub(crate) fn modal_on_cancel_confirm(state: UseModal) -> Option<Rc<dyn Fn(Event
         }
         state
             .get_confirm_result()
-            .set("Action cancelled!".to_string());
+            .set(MODAL_STATUS_ACTION_CANCELLED.to_string());
         dismiss_modal(state.get_show_confirm());
     }))
 }
@@ -348,7 +352,7 @@ pub(crate) fn modal_on_cancel_form(state: UseModal) -> Option<Rc<dyn Fn(Event)>>
         }
         state
             .get_modal_submitted()
-            .set("Form cancelled!".to_string());
+            .set(MODAL_STATUS_FORM_CANCELLED.to_string());
         dismiss_modal(state.get_show_form());
     }))
 }

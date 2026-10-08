@@ -164,12 +164,13 @@ impl UseEuvInput {
                 let remaining: f64 =
                     element_clone.get_bounding_client_rect().bottom() - visible_bottom;
                 if remaining > 0.0 {
-                    if let Ok(Some(main_el)) = element_clone.closest(SELECTOR_MAIN)
+                    if let Ok(Some(main_el)) =
+                        element_clone.closest(FOCUS_SCROLL_CONTAINER_SELECTOR)
                         && let Ok(main) = main_el.dyn_into::<HtmlElement>()
                     {
                         let _: Result<(), JsValue> = main
                             .style()
-                            .set_property("padding-bottom", &format!("{remaining}px"));
+                            .set_property(FOCUS_SCROLL_PADDING_PROPERTY, &format!("{remaining}px"));
                     }
                     window_clone.scroll_by_with_x_and_y(0.0, remaining);
                 }
@@ -198,10 +199,11 @@ impl UseEuvInput {
             let Ok(element) = target.dyn_into::<HtmlElement>() else {
                 return;
             };
-            if let Ok(Some(main_el)) = element.closest(SELECTOR_MAIN)
+            if let Ok(Some(main_el)) = element.closest(FOCUS_SCROLL_CONTAINER_SELECTOR)
                 && let Ok(main) = main_el.dyn_into::<HtmlElement>()
             {
-                let _: Result<String, JsValue> = main.style().remove_property("padding-bottom");
+                let _: Result<String, JsValue> =
+                    main.style().remove_property(FOCUS_SCROLL_PADDING_PROPERTY);
             }
         }))
     }

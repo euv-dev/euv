@@ -9,7 +9,7 @@ impl ConditionalUserType {
     /// - `&'static str` - The display label string.
     pub(crate) fn label(self) -> &'static str {
         match self {
-            ConditionalUserType::Guest => CONDITIONAL_USER_GUEST,
+            ConditionalUserType::Guest => CONDITIONAL_USER_LABEL_GUEST,
             ConditionalUserType::User => "User",
             ConditionalUserType::Admin => "Admin",
         }
@@ -50,7 +50,7 @@ impl Display for ConditionalUserType {
     /// - `fmt::Result` - Whether the formatting succeeded.
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let display_text: &str = match self {
-            ConditionalUserType::Guest => CONDITIONAL_USER_GUEST,
+            ConditionalUserType::Guest => CONDITIONAL_USER_LABEL_GUEST,
             ConditionalUserType::User => "User",
             ConditionalUserType::Admin => "Admin",
         };

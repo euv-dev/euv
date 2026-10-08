@@ -18,6 +18,7 @@ pub use std::{
     collections::{HashMap, HashSet, VecDeque},
     fmt::{self, Debug, Display, Formatter},
     hash::{Hash, Hasher},
+    iter::Iterator,
     marker::PhantomData,
     mem::{swap, take, zeroed},
     panic::{AssertUnwindSafe, catch_unwind},
@@ -27,31 +28,25 @@ pub use std::{
 
 pub use {js_sys::*, lombok_macros::*, wasm_bindgen::prelude::*, web_sys::*};
 
-pub use bin_encode_decode::{Charset, EncodeError};
+pub(crate) use bin_encode_decode::{Charset, EncodeError};
 
 /// The wall clock [`now_micros`] reads on a host build. On wasm the clock
 /// comes from JS instead, so importing this there is an `unused_imports`
 /// warning — the mirror of the dead-const warning the host build would give
 /// the other half of the same function.
 #[cfg(not(target_arch = "wasm32"))]
-pub use std::time::{SystemTime, UNIX_EPOCH};
+pub(crate) use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) use renderer::*;
 
 use std::{
     any::Any,
     cell::{Cell, Ref, RefCell, RefMut, UnsafeCell},
-    // The module rather than the trait: a glob re-export in this crate brings in
-    // a *struct* named Iterator (the JS one), so a bare `Iterator` would resolve
-    // to that. Importing the module keeps the path unambiguous without an `as`
-    // rename, which 6.5 forbids.
-    iter,
     num::ParseIntError,
-    ptr::eq,
     rc::Rc,
     str::from_utf8,
     sync::{
-        PoisonError, RwLockWriteGuard,
+        PoisonError,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     thread::AccessError,

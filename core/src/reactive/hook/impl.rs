@@ -58,7 +58,7 @@ impl HookContext {
     /// # Returns
     ///
     /// - `NodeRef<T>` - A `NodeRef<T>` value.
-    pub fn noderef<T>() -> NodeRef<T>
+    pub(crate) fn noderef<T>() -> NodeRef<T>
     where
         T: ?Sized + 'static,
     {
@@ -129,7 +129,7 @@ impl IntervalHandle {
     ///
     /// Panics if `window()` is unavailable on the current platform.
     pub fn clear(&self) {
-        if let Some(cleanup_window) = web_sys::window() {
+        if let Some(cleanup_window) = window() {
             cleanup_window.clear_interval_with_handle(self.get_interval_id());
         }
     }
@@ -206,7 +206,7 @@ impl HookContext {
     /// # Returns
     ///
     /// - `Signal<T>` - A reactive signal containing the initialized or existing value.
-    pub fn signal<T, F>(init: F) -> Signal<T>
+    pub(crate) fn signal<T, F>(init: F) -> Signal<T>
     where
         T: Clone + PartialEq + 'static,
         F: FnOnce() -> T,
@@ -246,7 +246,7 @@ impl HookContext {
     /// # Arguments
     ///
     /// - `F` - The cleanup callback to execute on context teardown.
-    pub fn cleanup<F>(cleanup: F)
+    pub(crate) fn cleanup<F>(cleanup: F)
     where
         F: FnOnce() + 'static,
     {
@@ -279,7 +279,7 @@ impl HookContext {
     ///
     /// - `E` - The event name to listen for (e.g., "hashchange", "popstate", "resize").
     /// - `F` - The callback to invoke when the event fires.
-    pub fn window_event<E, F>(event_name: E, callback: F)
+    pub(crate) fn window_event<E, F>(event_name: E, callback: F)
     where
         E: AsRef<str>,
         F: FnMut() + 'static,
@@ -327,7 +327,7 @@ impl HookContext {
     /// # Panics
     ///
     /// Panics if `window()` is unavailable on the current platform.
-    pub fn interval<F>(millis: i32, callback: F) -> IntervalHandle
+    pub(crate) fn interval<F>(millis: i32, callback: F) -> IntervalHandle
     where
         F: FnMut() + 'static,
     {
@@ -343,11 +343,11 @@ impl HookContext {
             return *existing;
         }
         let closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(callback));
-        let Some(window) = window() else {
+        let Some(outer_window) = window() else {
             closure.forget();
             return IntervalHandle::new(0);
         };
-        let Ok(interval_id) = window.set_interval_with_callback_and_timeout_and_arguments_0(
+        let Ok(interval_id) = outer_window.set_interval_with_callback_and_timeout_and_arguments_0(
             closure.as_ref().unchecked_ref(),
             millis,
         ) else {
@@ -357,7 +357,7 @@ impl HookContext {
         closure.forget();
         let handle: IntervalHandle = IntervalHandle::new(interval_id);
         inner.get_mut_cleanups().push(Box::new(move || {
-            let Some(cleanup_window) = web_sys::window() else {
+            let Some(cleanup_window) = window() else {
                 return;
             };
             cleanup_window.clear_interval_with_handle(interval_id);

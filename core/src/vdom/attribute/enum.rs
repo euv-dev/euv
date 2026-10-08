@@ -38,7 +38,7 @@ pub enum AttributeValue {
     /// A raw HTML fragment assigned via the `inner_html:` attribute.
     ///
     /// Replaces the element's children wholesale via
-    /// [`web_sys::Element::set_inner_html`]. Unlike `Text` (which the
+    /// [`Element::set_inner_html`]. Unlike `Text` (which the
     /// browser escapes), this variant trusts the input string and runs
     /// any embedded `<script>` tags — it is the euv equivalent of
     /// React's `dangerouslySetInnerHTML`. Always document the XSS

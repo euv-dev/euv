@@ -90,7 +90,7 @@ impl Router {
             let target_route: Option<String> =
                 DEFERRED_NAVIGATION.with(|cell: &Cell<Option<String>>| cell.take());
             if let Some(route_value) = target_route {
-                let Some(nav_window) = web_sys::window() else {
+                let Some(nav_window) = window() else {
                     return;
                 };
                 let nav_location: Location = nav_window.location();

@@ -346,14 +346,10 @@ fn collect_visible_edges(world_vertices: &[Vector3D], camera: &Camera3D) -> Vec<
         if !is_face_visible(&face_world, camera) {
             continue;
         }
-        let add: &mut dyn FnMut(usize, usize) = &mut |a: usize, b: usize| {
+        for (a, b) in [(i0, i1), (i1, i2), (i2, i3), (i3, i0)] {
             let key: (usize, usize) = if a < b { (a, b) } else { (b, a) };
             visible_face_edges.insert(key);
-        };
-        add(i0, i1);
-        add(i1, i2);
-        add(i2, i3);
-        add(i3, i0);
+        }
     }
     GAME_3D_CUBE_EDGES
         .iter()
@@ -839,7 +835,7 @@ pub(crate) fn start_game_3d_loop(
     let Some(timeout_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event(EVENT_RESIZE, move || {
+    App::use_window_event(GAME_3D_EVENT_RESIZE, move || {
         let old_timer: Option<i32> = timer_for_event.get();
         if let Some(timer_id) = old_timer {
             timeout_window.clear_timeout_with_handle(timer_id);
@@ -951,23 +947,27 @@ pub(crate) fn game_3d_on_pointer_move(
         let Some((last_x, last_y)) = last else {
             return;
         };
-        let client_x: f64 =
-            Reflect::get(event.as_ref(), &JsValue::from_str(EVENT_PROPERTY_CLIENT_X))
-                .ok()
-                .and_then(|value: JsValue| value.as_f64())
-                .unwrap_or_default();
-        let client_y: f64 =
-            Reflect::get(event.as_ref(), &JsValue::from_str(EVENT_PROPERTY_CLIENT_Y))
-                .ok()
-                .and_then(|value: JsValue| value.as_f64())
-                .unwrap_or_default();
+        let client_x: f64 = Reflect::get(
+            event.as_ref(),
+            &JsValue::from_str(GAME_3D_EVENT_PROPERTY_CLIENT_X),
+        )
+        .ok()
+        .and_then(|value: JsValue| value.as_f64())
+        .unwrap_or_default();
+        let client_y: f64 = Reflect::get(
+            event.as_ref(),
+            &JsValue::from_str(GAME_3D_EVENT_PROPERTY_CLIENT_Y),
+        )
+        .ok()
+        .and_then(|value: JsValue| value.as_f64())
+        .unwrap_or_default();
         let dx: f64 = client_x - last_x;
         let dy: f64 = client_y - last_y;
         last_pointer.set(Some((client_x, client_y)));
         let yaw: f64 = angles.yaw.get() - dx * 0.01;
         let pitch: f64 = (angles.pitch.get() + dy * 0.01).clamp(
-            -HALF_PI + GAME_3D_PITCH_CLAMP,
-            HALF_PI - GAME_3D_PITCH_CLAMP,
+            -GAME_3D_HALF_PI + GAME_3D_PITCH_CLAMP,
+            GAME_3D_HALF_PI - GAME_3D_PITCH_CLAMP,
         );
         angles.yaw.set(yaw);
         angles.pitch.set(pitch);
@@ -987,16 +987,20 @@ pub(crate) fn game_3d_on_pointer_down(
     last_pointer: Rc<Cell<Option<(f64, f64)>>>,
 ) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
-        let client_x: f64 =
-            Reflect::get(event.as_ref(), &JsValue::from_str(EVENT_PROPERTY_CLIENT_X))
-                .ok()
-                .and_then(|value: JsValue| value.as_f64())
-                .unwrap_or_default();
-        let client_y: f64 =
-            Reflect::get(event.as_ref(), &JsValue::from_str(EVENT_PROPERTY_CLIENT_Y))
-                .ok()
-                .and_then(|value: JsValue| value.as_f64())
-                .unwrap_or_default();
+        let client_x: f64 = Reflect::get(
+            event.as_ref(),
+            &JsValue::from_str(GAME_3D_EVENT_PROPERTY_CLIENT_X),
+        )
+        .ok()
+        .and_then(|value: JsValue| value.as_f64())
+        .unwrap_or_default();
+        let client_y: f64 = Reflect::get(
+            event.as_ref(),
+            &JsValue::from_str(GAME_3D_EVENT_PROPERTY_CLIENT_Y),
+        )
+        .ok()
+        .and_then(|value: JsValue| value.as_f64())
+        .unwrap_or_default();
         last_pointer.set(Some((client_x, client_y)));
     }))
 }
@@ -1105,8 +1109,8 @@ pub(crate) fn game_3d_on_touch_move(
         last_pointer.set(Some((client_x, client_y)));
         let yaw: f64 = angles.yaw.get() - dx * 0.01;
         let pitch: f64 = (angles.pitch.get() + dy * 0.01).clamp(
-            -HALF_PI + GAME_3D_PITCH_CLAMP,
-            HALF_PI - GAME_3D_PITCH_CLAMP,
+            -GAME_3D_HALF_PI + GAME_3D_PITCH_CLAMP,
+            GAME_3D_HALF_PI - GAME_3D_PITCH_CLAMP,
         );
         angles.yaw.set(yaw);
         angles.pitch.set(pitch);
@@ -1221,12 +1225,13 @@ pub(crate) fn game_3d_canvas_clear_color(canvas_selector: &str) -> (f64, f64, f6
     else {
         return (0.0, 0.0, 0.0);
     };
-    let mut channels: FilterMap<Split<'_, char>, _> = inner
+    let channels: Vec<f64> = inner
         .split(',')
-        .filter_map(|part: &str| part.trim().parse::<f64>().ok());
-    let r: f64 = channels.next().unwrap_or_default() / 255.0;
-    let g: f64 = channels.next().unwrap_or_default() / 255.0;
-    let b: f64 = channels.next().unwrap_or_default() / 255.0;
+        .filter_map(|part: &str| part.trim().parse::<f64>().ok())
+        .collect();
+    let r: f64 = channels.first().copied().unwrap_or_default() / 255.0;
+    let g: f64 = channels.get(1).copied().unwrap_or_default() / 255.0;
+    let b: f64 = channels.get(2).copied().unwrap_or_default() / 255.0;
     (r, g, b)
 }
 
@@ -1390,7 +1395,7 @@ pub(crate) fn start_game_3d_webgpu_loop(
     let Some(resize_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event(EVENT_RESIZE, move || {
+    App::use_window_event(GAME_3D_EVENT_RESIZE, move || {
         let old_timer: Option<i32> = resize_timer_for_event.get();
         if let Some(timer_id) = old_timer {
             let Some(clear_window): Option<Window> = window() else {
@@ -1540,7 +1545,7 @@ pub(crate) fn start_game_3d_webgpu_loop(
                 }
                 let dpr: f64 = Reflect::get(
                     window_value.as_ref(),
-                    &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
+                    &JsValue::from_str(GAME_3D_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
                 )
                 .ok()
                 .and_then(|v: JsValue| v.as_f64())
@@ -1667,7 +1672,7 @@ pub(crate) fn start_game_3d_webgpu_loop(
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
+                &JsValue::from_str(GAME_3D_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())
@@ -1835,7 +1840,7 @@ pub(crate) fn start_game_3d_webgl_loop(
     let Some(resize_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event(EVENT_RESIZE, move || {
+    App::use_window_event(GAME_3D_EVENT_RESIZE, move || {
         let old_timer: Option<i32> = resize_timer_for_event.get();
         if let Some(timer_id) = old_timer {
             let Some(clear_window): Option<Window> = window() else {
@@ -2003,7 +2008,7 @@ pub(crate) fn start_game_3d_webgl_loop(
                 }
                 let dpr: f64 = Reflect::get(
                     window_value.as_ref(),
-                    &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
+                    &JsValue::from_str(GAME_3D_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
                 )
                 .ok()
                 .and_then(|v: JsValue| v.as_f64())
@@ -2100,7 +2105,7 @@ pub(crate) fn start_game_3d_webgl_loop(
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str(WINDOW_PROPERTY_DEVICE_PIXEL_RATIO),
+                &JsValue::from_str(GAME_3D_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())
@@ -2292,7 +2297,7 @@ pub(crate) fn enter_game_3d_fullscreen(state: UseGame3DFullscreen, tab: Signal<b
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
+    let event: Result<Event, JsValue> = Event::new(GAME_3D_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -2316,7 +2321,7 @@ pub(crate) fn exit_game_3d_fullscreen(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
+    let event: Result<Event, JsValue> = Event::new(GAME_3D_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -2339,7 +2344,7 @@ pub(crate) fn exit_game_3d_fullscreen_from_popstate(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new(EVENT_RESIZE);
+    let event: Result<Event, JsValue> = Event::new(GAME_3D_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }

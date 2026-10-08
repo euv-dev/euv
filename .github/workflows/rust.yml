@@ -159,7 +159,7 @@ jobs:
       - name: Configure git
         if: steps.check_branch.outputs.skip == 'false'
         run: |
-          git config user.name "eastspire"
+          git config user.name "vshengbro"
           git config user.email "root@ltpp.vip"
       - name: Sync workspace versions
         if: steps.check_branch.outputs.skip == 'false'

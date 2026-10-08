@@ -32,7 +32,7 @@ impl SpriteSheet {
     /// # Returns
     ///
     /// - `Rect` - The source rectangle.
-    pub fn frame_source(&self, index: u32) -> Rect {
+    pub(crate) fn frame_source(&self, index: u32) -> Rect {
         let column: u32 = index % self.get_columns();
         let row: u32 = index / self.get_columns();
         Rect::new(

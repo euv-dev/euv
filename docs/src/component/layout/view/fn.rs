@@ -103,7 +103,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
                     class: c_nav_theme_toggle()
                     button {
                         class: c_nav_theme_button()
-                        title: "切换主题"
+                        title: THEME_TOGGLE_TITLE
                         onclick: ThemeState::toggle(theme_signal)
                         theme_icon_node(theme_signal)
                     }
@@ -164,7 +164,7 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                 }
                 button {
                     class: c_mobile_theme_button()
-                    title: "切换主题"
+                    title: THEME_TOGGLE_TITLE
                     onclick: ThemeState::toggle(theme_signal)
                     theme_icon_node(theme_signal)
                 }
@@ -331,7 +331,7 @@ fn nav_footer_node(github: Option<&'static str>) -> VirtualNode {
         a {
             class: c_nav_footer()
             href: url
-            target: "_blank"
+            target: LINK_TARGET_BLANK
             onclick: Router::external_link_handler(url)
             div {
                 class: c_nav_footer_divider()
@@ -342,7 +342,7 @@ fn nav_footer_node(github: Option<&'static str>) -> VirtualNode {
                 span {
                     class: c_nav_footer_brand()
                     {
-                        "Euv & Wasm"
+                        FOOTER_BRAND
                     }
                 }
                 " 构建"
@@ -492,7 +492,7 @@ fn switch_locale(
         };
         let (path, _anchor) = parse_route(&route_signal.get());
         menu_open.set(false);
-        if let Some(window) = web_sys::window() {
+        if let Some(window) = window() {
             let location: Location = window.location();
             // `set_hash` applies synchronously, so the reload below boots the
             // app straight into the target locale's route.
@@ -566,11 +566,11 @@ fn use_anchor_scroll(route_signal: Signal<String>) {
 ///
 /// - `Option<String>` - The anchor slug; `None` scrolls to the page top.
 fn schedule_scroll(anchor: Option<String>) {
-    let Some(window) = web_sys::window() else {
+    let Some(outer_window) = window() else {
         return;
     };
     let callback: Closure<dyn FnMut()> = Closure::once(move || {
-        let Some(window) = web_sys::window() else {
+        let Some(window) = window() else {
             return;
         };
         let scrolled: bool = anchor
@@ -597,10 +597,11 @@ fn schedule_scroll(anchor: Option<String>) {
             }
         }
     });
-    let _: Result<i32, JsValue> = window.set_timeout_with_callback_and_timeout_and_arguments_0(
-        callback.as_ref().unchecked_ref(),
-        100,
-    );
+    let _: Result<i32, JsValue> = outer_window
+        .set_timeout_with_callback_and_timeout_and_arguments_0(
+            callback.as_ref().unchecked_ref(),
+            100,
+        );
     callback.forget();
 }
 
@@ -719,7 +720,7 @@ fn collect_active_group_keys(
 /// Defers the sidebar scroll until after the reactive re-render (the
 /// expansion above mutates `collapsed`, which re-renders the tree first).
 fn schedule_sidebar_scroll() {
-    let Some(window) = web_sys::window() else {
+    let Some(window) = window() else {
         return;
     };
     let callback: Closure<dyn FnMut()> = Closure::once(scroll_active_sidebar_item);
@@ -741,7 +742,7 @@ fn schedule_sidebar_scroll() {
 /// `Element.scroll_top` setter, which is an instant jump — no animation
 /// — so the sidebar snaps to the new position immediately.
 fn scroll_active_sidebar_item() {
-    let Some(document) = web_sys::window().and_then(|window: Window| window.document()) else {
+    let Some(document) = window().and_then(|window: Window| window.document()) else {
         return;
     };
     let Ok(containers) = document.query_selector_all(SIDEBAR_SCROLL_SELECTOR) else {

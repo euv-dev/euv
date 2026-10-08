@@ -475,7 +475,7 @@ impl CanvasRenderer {
     ///
     /// Applies the active `quality` preset via the shared `apply_quality`
     /// helper so that all smoothing-related settings are kept in sync.
-    pub fn enable_smoothing(&self) {
+    pub(crate) fn enable_smoothing(&self) {
         Self::apply_quality(self.get_context(), self.get_quality());
     }
 
@@ -545,7 +545,7 @@ impl CanvasRenderer {
     ///
     /// - `&CanvasRenderingContext2d` - The target canvas 2D context.
     /// - `&DrawList` - The recorded commands to replay.
-    pub fn replay_context(context: &CanvasRenderingContext2d, list: &DrawList) {
+    pub(crate) fn replay_context(context: &CanvasRenderingContext2d, list: &DrawList) {
         let mut current_fill: Option<Color> = None;
         let mut current_stroke: Option<Color> = None;
         let mut current_line_width: f64 = f64::NAN;
@@ -1013,7 +1013,7 @@ impl Camera3D {
     /// # Returns
     ///
     /// - `Matrix4x4` - The projection matrix.
-    pub fn projection_matrix(&self) -> Matrix4x4 {
+    pub(crate) fn projection_matrix(&self) -> Matrix4x4 {
         Matrix4x4::perspective(
             self.get_fov(),
             self.aspect(),
@@ -1279,7 +1279,7 @@ impl SsaaCanvas {
     ///
     /// Applies the active `quality` preset to both contexts via the shared
     /// `apply_quality` helper.
-    pub fn enable_smoothing(&self) {
+    pub(crate) fn enable_smoothing(&self) {
         let quality: RenderQuality = self.get_quality();
         CanvasRenderer::apply_quality(self.get_display_context(), quality);
         CanvasRenderer::apply_quality(self.get_offscreen_context(), quality);

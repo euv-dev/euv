@@ -7,7 +7,7 @@ use super::*;
 ///
 /// ## Why the store is indexed rather than a plain `Vec`
 ///
-/// A `wasm_bindgen::Closure` must not be dropped while JavaScript is
+/// A `Closure` must not be dropped while JavaScript is
 /// executing it — dropping frees the boxed Rust closure whose trampoline is
 /// currently on the stack. A load callback therefore cannot free itself. The
 /// callbacks instead mark their own slot `settled` in the parallel

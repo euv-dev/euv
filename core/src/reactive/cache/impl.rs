@@ -159,8 +159,8 @@ where
     ///
     /// # Returns
     ///
-    /// - `impl iter::Iterator<Item = (&K, &V)>` - The cached entries.
-    pub fn iter(&self) -> impl iter::Iterator<Item = (&K, &V)> {
+    /// - `impl Iterator<Item = (&K, &V)>` - An iterator over the entries in most-recently-used-first order.
+    pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
         // We can't return the VecDeque order directly
         // because the entries would be in order-deque
         // order, not MRU-first order. Actually they
@@ -177,8 +177,8 @@ where
     ///
     /// # Returns
     ///
-    /// - `impl iter::Iterator<Item = &K>` - The cached keys.
-    pub fn keys(&self) -> impl iter::Iterator<Item = &K> {
+    /// - `impl Iterator<Item = &K>` - An iterator over the keys in most-recently-used-first order.
+    pub fn keys(&self) -> impl Iterator<Item = &K> {
         self.get_order().iter()
     }
 
@@ -187,8 +187,8 @@ where
     ///
     /// # Returns
     ///
-    /// - `impl iter::Iterator<Item = &V>` - The cached values.
-    pub fn values(&self) -> impl iter::Iterator<Item = &V> {
+    /// - `impl Iterator<Item = &V>` - An iterator over the values in most-recently-used-first order.
+    pub fn values(&self) -> impl Iterator<Item = &V> {
         self.get_order()
             .iter()
             .filter_map(|k: &K| self.get_map().get(k))

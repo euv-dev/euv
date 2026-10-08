@@ -5,6 +5,9 @@ use super::*;
 /// Uses a windowed rendering strategy that only creates DOM nodes for the
 /// currently visible items plus a small overscan buffer, keeping the DOM
 /// node count constant regardless of total list size.
+/// # Arguments
+///
+/// - `VirtualNode<PageVirtualListProps>` - The component props node.
 ///
 /// # Returns
 ///

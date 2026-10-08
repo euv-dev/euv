@@ -19,7 +19,7 @@ pub(crate) fn validate_form_username(state: UseForm) {
     if username_value.trim().is_empty() {
         state
             .get_username_error()
-            .set("Username is required".to_string());
+            .set(FORM_USERNAME_REQUIRED_MESSAGE.to_string());
     } else {
         state.get_username_error().set(String::new());
     }
@@ -33,11 +33,13 @@ pub(crate) fn validate_form_username(state: UseForm) {
 pub(crate) fn validate_form_email(state: UseForm) {
     let email_value: String = state.get_email().get();
     if email_value.trim().is_empty() {
-        state.get_email_error().set("Email is required".to_string());
+        state
+            .get_email_error()
+            .set(FORM_EMAIL_REQUIRED_MESSAGE.to_string());
     } else if !email_value.contains('@') || !email_value.contains('.') {
         state
             .get_email_error()
-            .set("Please enter a valid email".to_string());
+            .set(FORM_EMAIL_INVALID_MESSAGE.to_string());
     } else {
         state.get_email_error().set(String::new());
     }
@@ -53,11 +55,11 @@ pub(crate) fn validate_form_password(state: UseForm) {
     if password_value.is_empty() {
         state
             .get_password_error()
-            .set("Password is required".to_string());
+            .set(FORM_PASSWORD_REQUIRED_MESSAGE.to_string());
     } else if password_value.len() < 6 {
         state
             .get_password_error()
-            .set("Password must be at least 6 characters".to_string());
+            .set(FORM_PASSWORD_TOO_SHORT_MESSAGE.to_string());
     } else {
         state.get_password_error().set(String::new());
     }
@@ -73,7 +75,7 @@ pub(crate) fn validate_form_agree(state: UseForm) {
     if !agree_value {
         state
             .get_agree_error()
-            .set("You must agree to the terms".to_string());
+            .set(FORM_AGREE_REQUIRED_MESSAGE.to_string());
     } else {
         state.get_agree_error().set(String::new());
     }

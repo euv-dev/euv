@@ -5,11 +5,11 @@ use super::*;
 ///
 /// # Arguments
 ///
-/// - `VirtualNode<PageHooksI18nProps>` - The `node` argument.
+/// - `VirtualNode<PageHooksI18nProps>` - The props node carrying the page configuration.
+///
 /// # Returns
 ///
-/// - `VirtualNode` - The value this function returns.
-///
+/// - `VirtualNode` - The rendered i18n-hooks page element tree.
 #[component]
 pub(crate) fn page_hooks_i18n(node: VirtualNode<PageHooksI18nProps>) -> VirtualNode {
     let PageHooksI18nProps: PageHooksI18nProps = node.try_get_props().unwrap_or_default();
@@ -34,11 +34,11 @@ pub(crate) fn page_hooks_i18n(node: VirtualNode<PageHooksI18nProps>) -> VirtualN
             class: c_page_container()
             euv_header {
                 icon: "🌐"
-                title: "Hooks — i18n"
-                subtitle: "Switch locales to see the same translation keys resolve to different messages. The handle's `locale` signal drives the reactive read."
+                title: HOOKS_I18N_HEADER_TITLE
+                subtitle: HOOKS_I18N_HEADER_SUBTITLE
             }
             euv_card {
-                title: "Translation"
+                title: HOOKS_I18N_CARD_TITLE
                 div {
                     class: c_button_controls()
                     euv_button {
@@ -62,7 +62,7 @@ pub(crate) fn page_hooks_i18n(node: VirtualNode<PageHooksI18nProps>) -> VirtualN
                 }
                 p {
                     class: c_render_count_text()
-                    "locale: "
+                    HOOKS_I18N_LOCALE_PREFIX
                     span {
                         class: c_counter_value()
                         locale
@@ -70,7 +70,7 @@ pub(crate) fn page_hooks_i18n(node: VirtualNode<PageHooksI18nProps>) -> VirtualN
                 }
                 p {
                     class: c_render_count_text()
-                    "greeting: "
+                    HOOKS_I18N_GREETING_PREFIX
                     span {
                         class: c_counter_value()
                         hooks_i18n_translate(i18n, HOOKS_I18N_KEY_GREETING)
@@ -78,7 +78,7 @@ pub(crate) fn page_hooks_i18n(node: VirtualNode<PageHooksI18nProps>) -> VirtualN
                 }
                 p {
                     class: c_render_count_text()
-                    "farewell: "
+                    HOOKS_I18N_FAREWELL_PREFIX
                     span {
                         class: c_counter_value()
                         hooks_i18n_translate(i18n, HOOKS_I18N_KEY_FAREWELL)

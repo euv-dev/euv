@@ -187,7 +187,7 @@ impl AssetLoader {
 
     /// Releases the load callbacks that have already run.
     ///
-    /// A `wasm_bindgen::Closure` must not be dropped while JavaScript is
+    /// A `Closure` must not be dropped while JavaScript is
     /// executing it, so [`AssetLoader::load_image`] callbacks only mark their
     /// own slot settled. This method is the safe drop point: it must be called
     /// from a context that is not inside a load callback, such as the

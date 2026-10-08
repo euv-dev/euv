@@ -1,6 +1,9 @@
 use super::*;
 
 /// A counter demo page showcasing reactive signal-driven state updates.
+/// # Arguments
+///
+/// - `VirtualNode<PageCounterProps>` - The component props node.
 ///
 /// # Returns
 ///

@@ -165,10 +165,11 @@ impl Numeric {
     ///
     /// - `f64` - The new value moved towards target.
     pub fn approach(current: f64, target: f64, max_delta: f64) -> f64 {
-        if (target - current).abs() <= max_delta {
+        let max_step: f64 = max_delta.abs();
+        if (target - current).abs() <= max_step {
             return target;
         }
-        current + max_delta.signum() * max_delta
+        current + (target - current).signum() * max_step
     }
 
     /// Returns the sign of a value as -1.0, 0.0, or 1.0.

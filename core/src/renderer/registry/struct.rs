@@ -40,6 +40,7 @@ pub(crate) struct SignalUpdateSlot {
     /// The callback to invoke when signal update events fire.
     #[debug(skip)]
     #[get(skip)]
+    #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) callback: Option<Box<dyn FnMut()>>,
     /// Whether this slot has been marked for removal.

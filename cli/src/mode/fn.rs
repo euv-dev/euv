@@ -11,13 +11,13 @@ use super::*;
 /// - `Result<(), EuvError>` - Indicates success or failure.
 pub async fn build_mode(mut args: ModeArgs) -> Result<(), EuvError> {
     reconcile_args(&mut args);
-    args.set_crate_path(sync_canonicalize(args.get_crate_path()).map_err(
-        |error: io::Error| EuvError::IoPath {
+    args.set_crate_path(
+        sync_canonicalize(args.get_crate_path()).map_err(|error: io::Error| EuvError::IoPath {
             message: ERROR_INVALID_CRATE_PATH.to_string(),
             path: args.get_crate_path().clone(),
             error,
-        },
-    )?);
+        })?,
+    );
     let crate_path_str: String = args.get_crate_path().to_string_lossy().to_string();
     if crate_path_str.starts_with(WINDOWS_UNC_PREFIX) {
         args.set_crate_path(PathBuf::from(
@@ -71,13 +71,13 @@ pub async fn fmt_mode(args: FmtArgs) -> Result<(), EuvError> {
 /// - `Result<(), EuvError>` - Indicates success or failure.
 pub async fn run_mode(mut args: ModeArgs) -> Result<(), EuvError> {
     reconcile_args(&mut args);
-    args.set_crate_path(sync_canonicalize(args.get_crate_path()).map_err(
-        |error: io::Error| EuvError::IoPath {
+    args.set_crate_path(
+        sync_canonicalize(args.get_crate_path()).map_err(|error: io::Error| EuvError::IoPath {
             message: ERROR_INVALID_CRATE_PATH.to_string(),
             path: args.get_crate_path().clone(),
             error,
-        },
-    )?);
+        })?,
+    );
     let crate_path_str: String = args.get_crate_path().to_string_lossy().to_string();
     if crate_path_str.starts_with(WINDOWS_UNC_PREFIX) {
         args.set_crate_path(PathBuf::from(

@@ -106,7 +106,7 @@ fn app_use_node_ref_returns_distinct_refs_per_hook_index() {
     assert!(a.get().is_none());
     assert!(b.get().is_none());
     assert!(
-        !eq(&a as *const _, &b as *const _),
+        !ptr::eq(&a as *const _, &b as *const _),
         "Distinct hook indices must yield distinct ref handles"
     );
 }
@@ -141,4 +141,12 @@ fn app_use_window_event_signature_pin() {
     let _: fn() = || {
         App::use_window_event("resize", || {});
     };
+}
+
+#[test]
+fn marking_dependents_dirty_is_safe_with_nothing_watching() {
+    App::schedule_update(&[1, 2, 3]);
+    App::schedule_update(&[]);
+
+    App::schedule_update(&[7]);
 }

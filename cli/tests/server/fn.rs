@@ -36,7 +36,8 @@ async fn a_nested_file_inside_the_base_directory_resolves() {
 async fn a_path_that_climbs_one_level_out_of_the_base_is_refused() {
     let victim: PathBuf = outside_file("euv-cli-server-victim-one", "secret.txt");
     let root: PathBuf = scratch_root("climb-one");
-    let resolved: Option<PathBuf> = resolve_file_in_base(&root, "../euv-cli-server-victim-one/secret.txt").await;
+    let resolved: Option<PathBuf> =
+        resolve_file_in_base(&root, "../euv-cli-server-victim-one/secret.txt").await;
     assert!(
         resolved.is_none(),
         "the file really exists, so only the containment check can refuse it; got {resolved:?} \
