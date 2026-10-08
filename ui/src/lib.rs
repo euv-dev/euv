@@ -9,9 +9,9 @@ mod style;
 
 pub use {component::*, hook::*, style::*};
 
-pub use wasm_bindgen_futures::*;
+use euv::*;
 
-pub use std::{
+use std::{
     any::Any,
     cell::{Cell, Ref, RefCell, RefMut, UnsafeCell},
     collections::{HashMap, HashSet},
@@ -28,4 +28,4 @@ pub use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use euv::*;
+use wasm_bindgen_futures::*;
