@@ -1,0 +1,410 @@
+use super::*;
+
+const DEFAULT_FIXED_TIMESTEP: f64 = 1.0 / 60.0;
+const DEFAULT_MAX_FRAME_TIME: f64 = 0.25;
+
+fn close(actual: f64, expected: f64) -> bool {
+    (actual - expected).abs() < 1e-9
+}
+
+#[test]
+fn each_backend_constructor_picks_its_backend_and_keeps_the_canvas_settings() {
+    for (config, expected) in [
+        (
+            RenderConfig::canvas2d("#app", 800.0, 600.0),
+            RenderBackendType::Canvas2D,
+        ),
+        (
+            RenderConfig::webgpu("#app", 800.0, 600.0),
+            RenderBackendType::WebGpu,
+        ),
+        (
+            RenderConfig::webgl("#app", 800.0, 600.0),
+            RenderBackendType::WebGl,
+        ),
+    ] {
+        assert_eq!(
+            config.get_backend(),
+            expected,
+            "the backend must match the constructor"
+        );
+        assert_eq!(
+            config.get_canvas_selector(),
+            "#app",
+            "the selector round-trips"
+        );
+        assert!(close(config.get_width(), 800.0), "the width round-trips");
+        assert!(close(config.get_height(), 600.0), "the height round-trips");
+    }
+}
+
+#[test]
+fn a_render_config_uses_the_documented_quality_defaults() {
+    let config: RenderConfig = RenderConfig::webgpu("#app", 100.0, 100.0);
+    assert_eq!(
+        config.get_quality(),
+        RenderQuality::High,
+        "the default quality is high"
+    );
+    assert!(config.get_antialias(), "antialiasing defaults on");
+    assert_eq!(
+        config.get_power_preference(),
+        GpuPowerPreference::LowPower,
+        "the default power preference is LowPower, not HighPerformance"
+    );
+}
+
+#[test]
+fn canvas_2d_selects_the_canvas_backend() {
+    let config: RenderConfig = RenderConfig::canvas2d("#stage", 320.0, 240.0);
+    assert_eq!(
+        config.get_backend(),
+        RenderBackendType::Canvas2D,
+        "the canvas2d constructor must select the Canvas2D backend"
+    );
+}
+
+#[test]
+fn the_gpu_power_preference_converts_to_a_web_sys_string() {
+    assert_eq!(
+        GpuPowerPreference::HighPerformance.to_web_sys_string(),
+        "high-performance",
+        "the camelCase GpuPowerPreference maps to the kebab-case GPU enum"
+    );
+    assert_eq!(
+        GpuPowerPreference::LowPower.to_web_sys_string(),
+        "low-power",
+        "and so does the low-power variant"
+    );
+}
+
+#[test]
+fn webgpu_selects_the_webgpu_backend() {
+    let config: RenderConfig = RenderConfig::webgpu("#stage", 320.0, 240.0);
+    assert_eq!(
+        config.get_backend(),
+        RenderBackendType::WebGpu,
+        "the webgpu constructor must select the WebGpu backend"
+    );
+}
+
+#[test]
+fn engine_config_wraps_a_render_config_and_accepts_a_scheduler_override() {
+    let render: RenderConfig = RenderConfig::canvas2d("#root", 320.0, 240.0);
+    let base: EngineConfig = EngineConfig::create(render);
+    assert_eq!(
+        base.get_render().get_canvas_selector(),
+        "#root",
+        "the render config is carried through"
+    );
+    let custom: SchedulerConfig = SchedulerConfig::new(0.125, 0.25);
+    let tuned: EngineConfig = base.with_scheduler(custom);
+    assert!(
+        close(tuned.get_scheduler().get_fixed_timestep(), 0.125),
+        "the timestep override stuck, got {}",
+        tuned.get_scheduler().get_fixed_timestep()
+    );
+    assert!(
+        close(tuned.get_scheduler().get_max_frame_time(), 0.25),
+        "so did the frame clamp"
+    );
+    assert!(
+        tuned.get_render().get_canvas_selector() == "#root",
+        "and the render config is untouched by the scheduler override"
+    );
+}
+
+#[test]
+fn webgl_selects_the_webgl_backend() {
+    let config: RenderConfig = RenderConfig::webgl("#stage", 320.0, 240.0);
+    assert_eq!(
+        config.get_backend(),
+        RenderBackendType::WebGl,
+        "the webgl constructor must select the WebGl backend"
+    );
+}
+
+#[test]
+fn the_default_engine_config_is_the_canvas_backend_at_sixty_hertz() {
+    let config: EngineConfig = EngineConfig::default();
+    assert_eq!(
+        config.get_render().get_backend(),
+        RenderBackendType::Canvas2D,
+        "Canvas2D is the default backend"
+    );
+    assert!(
+        close(config.get_scheduler().get_fixed_timestep(), 1.0 / 60.0),
+        "the default timestep is 60 Hz, got {}",
+        config.get_scheduler().get_fixed_timestep()
+    );
+}
+
+#[test]
+fn the_scheduler_config_reports_its_two_knobs_independently() {
+    let config: SchedulerConfig = SchedulerConfig::new(0.02, 0.1);
+    assert!(
+        close(config.get_fixed_timestep(), 0.02),
+        "the timestep round-trips"
+    );
+    assert!(
+        close(config.get_max_frame_time(), 0.1),
+        "the clamp round-trips"
+    );
+    let defaults: SchedulerConfig = SchedulerConfig::default();
+    assert!(
+        defaults.get_fixed_timestep() > 0.0,
+        "a default timestep must be positive"
+    );
+    assert!(
+        defaults.get_max_frame_time() >= defaults.get_fixed_timestep(),
+        "the frame clamp must be at least one step, or frames would never advance"
+    );
+}
+
+#[test]
+fn current_time_is_zero_off_the_browser() {
+    let now: f64 = SchedulerState::current_time();
+    assert!(
+        close(now, 0.0),
+        "there is no performance.now() outside a browser, so the clock reports zero, got {now}"
+    );
+}
+
+#[test]
+fn a_fresh_scheduler_state_is_uninitialised_and_stopped() {
+    let state: SchedulerState = SchedulerState::default();
+    assert!(!state.get_running(), "a fresh scheduler is not running");
+    assert!(
+        close(state.get_accumulator(), 0.0),
+        "no time has accumulated yet"
+    );
+    assert!(
+        close(state.get_update_count() as f64, 0.0),
+        "no updates have run"
+    );
+    assert!(
+        close(state.get_frame_count() as f64, 0.0),
+        "no frames have run"
+    );
+    assert!(
+        state.get_raf_id().is_none(),
+        "no animation frame is pending"
+    );
+}
+
+#[test]
+fn a_fresh_task_registry_is_empty() {
+    let mut registry: TaskRegistry = TaskRegistry::default();
+    assert!(registry.is_empty(), "a fresh registry holds no tasks");
+    assert!(
+        close(registry.len() as f64, 0.0),
+        "and reports a length of zero"
+    );
+    registry.update_all(0.1);
+    assert!(
+        registry.is_empty(),
+        "advancing an empty registry keeps it empty"
+    );
+}
+
+#[test]
+fn a_fresh_asset_cache_reports_nothing_loaded() {
+    let cache: AssetCache = AssetCache::default();
+    assert!(
+        cache.get_state("missing.png").is_none(),
+        "an unknown url has no state"
+    );
+    assert!(
+        cache.get_image("missing.png").is_none(),
+        "and no image handle"
+    );
+    assert!(close(cache.loaded_count() as f64, 0.0), "nothing is loaded");
+    assert!(
+        cache.is_all_loaded(),
+        "an empty cache is vacuously all loaded"
+    );
+    assert!(
+        cache.is_all_loaded(),
+        "and stays vacuously complete with nothing in flight"
+    );
+}
+
+#[test]
+fn the_default_asset_state_is_loading() {
+    assert_eq!(
+        AssetState::default(),
+        AssetState::Loading,
+        "an entry starts out loading until a callback settles it"
+    );
+    let loading: AssetState = AssetState::Loading;
+    let loaded: AssetState = AssetState::Loaded;
+    let errored: AssetState = AssetState::Error;
+    assert!(loading != loaded, "the three states are distinct");
+    assert!(loaded != errored, "including loaded versus errored");
+}
+
+#[test]
+fn the_default_engine_config_uses_the_shared_scheduler_timestep_defaults() {
+    let config: EngineConfig = Engine::default_config();
+    let scheduler: SchedulerConfig = config.get_scheduler();
+    assert_eq!(
+        scheduler.get_fixed_timestep(),
+        DEFAULT_FIXED_TIMESTEP,
+        "the engine must not invent its own timestep"
+    );
+    assert_eq!(
+        scheduler.get_max_frame_time(),
+        DEFAULT_MAX_FRAME_TIME,
+        "the frame-time clamp comes from the same shared constant"
+    );
+}
+
+#[test]
+fn render_config_keeps_the_selector_and_viewport_it_was_given() {
+    let config: RenderConfig = RenderConfig::canvas2d("#game-root", 1024.0, 768.0);
+    assert_eq!(
+        config.get_canvas_selector(),
+        "#game-root",
+        "the selector is stored verbatim"
+    );
+    assert_eq!(config.get_width(), 1024.0, "the width is stored verbatim");
+    assert_eq!(config.get_height(), 768.0, "the height is stored verbatim");
+}
+
+#[test]
+fn render_config_accepts_an_owned_string_selector() {
+    let selector: String = "#owned".to_string();
+    let config: RenderConfig = RenderConfig::canvas2d(selector, 1.0, 1.0);
+    assert_eq!(
+        config.get_canvas_selector(),
+        "#owned",
+        "the generic selector parameter accepts an owned String"
+    );
+}
+
+#[test]
+fn render_config_falls_back_to_the_documented_defaults_for_the_other_fields() {
+    let config: RenderConfig = RenderConfig::canvas2d("#stage", 320.0, 240.0);
+    assert_eq!(
+        config.get_ssaa_scale_factor(),
+        2.0,
+        "the SSAA scale falls back to the default supersampling factor"
+    );
+    assert!(config.get_antialias(), "anti-aliasing defaults to enabled");
+}
+
+#[test]
+fn render_backend_default_is_canvas2d() {
+    let observed: RenderBackendType = RenderBackendType::default();
+    assert_eq!(
+        observed,
+        RenderBackendType::Canvas2D,
+        "Canvas2D is the universally supported default"
+    );
+}
+
+#[test]
+fn engine_config_create_keeps_the_render_config_it_was_given() {
+    let render: RenderConfig = RenderConfig::webgpu("#gpu", 800.0, 600.0);
+    let config: EngineConfig = EngineConfig::create(render.clone());
+    assert_eq!(
+        config.get_render().get_backend(),
+        RenderBackendType::WebGpu,
+        "create must not rewrite the render backend"
+    );
+    assert_eq!(
+        config.get_render().get_width(),
+        render.get_width(),
+        "create must not rewrite the viewport"
+    );
+}
+
+#[test]
+fn the_default_engine_config_agrees_with_the_plain_default() {
+    assert_eq!(
+        Engine::default_config()
+            .get_scheduler()
+            .get_fixed_timestep(),
+        EngineConfig::default().get_scheduler().get_fixed_timestep(),
+        "the helper exists so callers need not name the type, not to change it"
+    );
+}
+
+#[test]
+fn engine_config_create_installs_the_default_scheduler() {
+    let render: RenderConfig = RenderConfig::canvas2d("#stage", 320.0, 240.0);
+    let config: EngineConfig = EngineConfig::create(render);
+    assert_eq!(
+        config.get_scheduler(),
+        SchedulerConfig::default(),
+        "create installs the default scheduler"
+    );
+}
+
+#[test]
+fn with_scheduler_replaces_the_default_scheduler() {
+    let render: RenderConfig = RenderConfig::canvas2d("#stage", 320.0, 240.0);
+    let base: EngineConfig = EngineConfig::create(render);
+    let replacement: SchedulerConfig = SchedulerConfig::new(1.0 / 120.0, 0.25);
+    let updated: EngineConfig = base.with_scheduler(replacement);
+    assert_eq!(
+        updated.get_scheduler(),
+        replacement,
+        "with_scheduler must install the supplied scheduler"
+    );
+}
+
+#[test]
+fn with_scheduler_leaves_the_render_config_untouched() {
+    let render: RenderConfig = RenderConfig::webgl("#gl", 640.0, 480.0);
+    let base: EngineConfig = EngineConfig::create(render);
+    let updated: EngineConfig = base.with_scheduler(SchedulerConfig::new(0.5, 1.0));
+    assert_eq!(
+        updated.get_render().get_backend(),
+        RenderBackendType::WebGl,
+        "the render config survives a scheduler swap"
+    );
+    assert_eq!(
+        updated.get_render().get_canvas_selector(),
+        "#gl",
+        "the canvas selector survives a scheduler swap"
+    );
+}
+
+#[test]
+fn gpu_power_preference_default_is_low_power() {
+    let observed: GpuPowerPreference = GpuPowerPreference::default();
+    assert_eq!(
+        observed,
+        GpuPowerPreference::LowPower,
+        "the derive default is the battery-friendly adapter hint"
+    );
+}
+
+#[test]
+fn low_power_preference_renders_the_web_spec_string() {
+    let observed: &str = GpuPowerPreference::LowPower.to_web_sys_string();
+    assert_eq!(
+        observed, "low-power",
+        "the WebGPU spec spells the low-power hint with a hyphen"
+    );
+}
+
+#[test]
+fn high_performance_preference_renders_the_web_spec_string() {
+    let observed: &str = GpuPowerPreference::HighPerformance.to_web_sys_string();
+    assert_eq!(
+        observed, "high-performance",
+        "the WebGPU spec spells the high-performance hint with a hyphen"
+    );
+}
+
+#[test]
+fn the_two_power_preferences_render_different_strings() {
+    let low: &str = GpuPowerPreference::LowPower.to_web_sys_string();
+    let high: &str = GpuPowerPreference::HighPerformance.to_web_sys_string();
+    assert_ne!(
+        low, high,
+        "the two adapter hints must not collapse onto one string"
+    );
+}

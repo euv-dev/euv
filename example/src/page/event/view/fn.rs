@@ -497,18 +497,18 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             .get_media_event_log()
             .set(EVENT_VIDEO_EVENT_CAN_PLAY.to_string());
     });
-    let on_audio_volume_change = move |_: Event| {
+    let on_audio_volume_change: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         media
             .get_media_event_log()
             .set(EVENT_VIDEO_EVENT_VOLUME_CHANGE.to_string());
         Console::log(EVENT_LOG_VIDEO_VOLUME_CHANGE);
-    };
+    });
     let on_audio_time_update: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         media
             .get_media_event_log()
             .set(EVENT_VIDEO_EVENT_TIME_UPDATE.to_string());
     });
-    let on_video_play = move |_: Event| {
+    let on_video_play: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video
             .get_video_status()
             .set(EVENT_AUDIO_STATE_PLAYING.to_string());
@@ -516,7 +516,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             .get_video_event_log()
             .set(EVENT_AUDIO_PLAY_LABEL.to_string());
         Console::log(EVENT_LOG_VIDEO_PLAY);
-    };
+    });
     let on_video_pause: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video
             .get_video_status()
@@ -594,7 +594,7 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             .get_video_event_log()
             .set(EVENT_VIDEO_EVENT_TIME_UPDATE.to_string());
     });
-    let on_video_duration_change = move |event: Event| {
+    let on_video_duration_change: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         if let Some(target) = event.target()
             && let Ok(video_el) = target.clone().dyn_into::<HtmlMediaElement>()
         {
@@ -605,18 +605,18 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             .get_video_event_log()
             .set(EVENT_VIDEO_EVENT_DURATION_CHANGE.to_string());
         Console::log(EVENT_LOG_VIDEO_DURATION_CHANGE);
-    };
+    });
     let on_video_progress: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video
             .get_video_event_log()
             .set(EVENT_VIDEO_EVENT_PROGRESS.to_string());
     });
-    let on_video_seeking = move |_: Event| {
+    let on_video_seeking: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video
             .get_video_event_log()
             .set(EVENT_VIDEO_EVENT_SEEKING.to_string());
         Console::log(EVENT_LOG_VIDEO_SEEKING);
-    };
+    });
     let on_video_seeked: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         video
             .get_video_event_log()
@@ -709,11 +709,11 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             euv_card {
                 title: EVENT_KEYBOARD_CARD_TITLE
                 input {
-                    id: EVENT_KEYBOARD_ID
-                    name: EVENT_KEYBOARD_NAME
-                    type: EVENT_TEXT_TYPE
-                    autocomplete: EVENT_AUTOCOMPLETE_OFF
-                    placeholder: EVENT_KEYBOARD_PLACEHOLDER
+                    id: "event-keyboard"
+                    name: "keyboard"
+                    type: "text"
+                    autocomplete: "off"
+                    placeholder: "Type here to capture key events..."
                     class: c_euv_input()
                     onkeydown: on_key_down
                     onkeyup: on_key_up
@@ -969,11 +969,11 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
             euv_card {
                 title: EVENT_FOCUS_CARD_TITLE
                 input {
-                    id: EVENT_FOCUS_ID
-                    name: EVENT_FOCUS_NAME
-                    type: EVENT_TEXT_TYPE
-                    autocomplete: EVENT_AUTOCOMPLETE_OFF
-                    placeholder: EVENT_FOCUS_PLACEHOLDER
+                    id: "event-focus"
+                    name: "focus"
+                    type: "text"
+                    autocomplete: "off"
+                    placeholder: "Click to focus, click outside to blur..."
                     class: c_euv_input()
                     onfocus: on_focus
                     onblur: on_blur
@@ -1171,11 +1171,11 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 div {
                     class: c_event_clipboard_area()
                     input {
-                        id: EVENT_CLIPBOARD_ID
-                        name: EVENT_CLIPBOARD_NAME
-                        type: EVENT_TEXT_TYPE
-                        autocomplete: EVENT_AUTOCOMPLETE_OFF
-                        placeholder: EVENT_CLIPBOARD_PLACEHOLDER
+                        id: "event-clipboard"
+                        name: "clipboard"
+                        type: "text"
+                        autocomplete: "off"
+                        placeholder: "Try copy, cut, or paste here..."
                         class: c_euv_input()
                         value: EVENT_CLIPBOARD_SAMPLE_TEXT
                         oncopy: on_copy
@@ -1250,16 +1250,16 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         div {
                             class: c_euv_input_wrapper()
                             label {
-                                for: EVENT_FORM_INPUT_ID
+                                for: "event-form-input"
                                 class: c_form_label()
                                 EVENT_FORM_INPUT_LEGEND
                             }
                             input {
-                                type: EVENT_TEXT_TYPE
-                                id: EVENT_FORM_INPUT_ID
-                                name: EVENT_FORM_INPUT_NAME
-                                autocomplete: EVENT_AUTOCOMPLETE_OFF
-                                placeholder: EVENT_FORM_INPUT_PLACEHOLDER
+                                type: "text"
+                                id: "event-form-input"
+                                name: "euv_input"
+                                autocomplete: "off"
+                                placeholder: "Type to trigger input/change events..."
                                 class: c_euv_input()
                                 oninput: on_euv_input
                                 onchange: on_form_change
@@ -1268,15 +1268,15 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         div {
                             class: c_form_checkbox_row()
                             input {
-                                id: EVENT_FORM_CHECKBOX_ID
-                                name: EVENT_FORM_CHECKBOX_NAME
-                                type: EVENT_CHECKBOX_TYPE
-                                autocomplete: EVENT_AUTOCOMPLETE_OFF
+                                id: "event-form-checkbox"
+                                name: "form_checkbox"
+                                type: "checkbox"
+                                autocomplete: "off"
                                 class: c_form_checkbox()
                                 onchange: on_checkbox_change
                             }
                             label {
-                                for: EVENT_FORM_CHECKBOX_ID
+                                for: "event-form-checkbox"
                                 class: c_form_checkbox_label()
                                 EVENT_FORM_CHECKBOX_LEGEND
                             }
@@ -1284,14 +1284,14 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                         div {
                             class: c_euv_input_wrapper()
                             label {
-                                for: EVENT_FORM_SELECT_ID
+                                for: "event-form-select"
                                 class: c_form_label()
                                 EVENT_FORM_SELECT_LEGEND
                             }
                             select {
-                                id: EVENT_FORM_SELECT_ID
-                                name: EVENT_FORM_SELECT_NAME
-                                autocomplete: EVENT_AUTOCOMPLETE_OFF
+                                id: "event-form-select"
+                                name: "form_select"
+                                autocomplete: "off"
                                 class: c_select_input()
                                 onchange: on_select_change
                                 option {
@@ -1386,8 +1386,8 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                     class: c_event_media_area()
                     audio {
                         class: c_event_audio()
-                        controls: EVENT_CONTROLS_TRUE
-                        src: EVENT_AUDIO_SRC
+                        controls: "true"
+                        src: "https://ltpp.vip/github/pages/docs-pages/pages/audio/time_boils_the_rain.mp3"
                         onplay: on_audio_play
                         onpause: on_audio_pause
                         onended: on_audio_ended
@@ -1432,11 +1432,11 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 div {
                     class: c_event_video_area()
                     video {
-                        id: EVENT_VIDEO_ID
+                        id: "event-video"
                         class: c_event_video()
-                        controls: EVENT_CONTROLS_TRUE
-                        preload: EVENT_PRELOAD_METADATA
-                        src: EVENT_VIDEO_SRC
+                        controls: "true"
+                        preload: "metadata"
+                        src: "https://ltpp.vip/github/pages/docs-pages/pages/video/ship.mp4"
                         onplay: on_video_play
                         onpause: on_video_pause
                         onended: on_video_ended
@@ -1539,10 +1539,10 @@ pub(crate) fn page_event(node: VirtualNode<PageEventProps>) -> VirtualNode {
                 div {
                     class: c_event_image_area()
                     img {
-                        id: EVENT_IMAGE_ID
+                        id: "event-image"
                         class: c_event_image()
                         src: qr_code_data_url
-                        alt: EVENT_IMAGE_ALT
+                        alt: "Event Demo Image"
                         onload: on_image_load
                         onerror: on_image_error
                     }

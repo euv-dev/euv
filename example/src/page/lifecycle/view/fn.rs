@@ -1,10 +1,18 @@
 use super::*;
 
 /// A lifecycle demo page showing mount and update tracking.
+/// # Arguments
+///
+/// - `VirtualNode<PageLifecycleProps>` - The component props node.
 ///
 /// # Returns
 ///
 /// - `VirtualNode` - The lifecycle demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageLifecycleProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_lifecycle(node: VirtualNode<PageLifecycleProps>) -> VirtualNode {
     let PageLifecycleProps: PageLifecycleProps = node.try_get_props().unwrap_or_default();
@@ -19,31 +27,35 @@ pub(crate) fn page_lifecycle(node: VirtualNode<PageLifecycleProps>) -> VirtualNo
             class: c_page_container()
             euv_header {
                 icon: "♻️"
-                title: "Lifecycle"
-                subtitle: "Track component render counts and watch-driven updates. The watch! macro reacts to Signal changes and logs them to the console."
+                title: LIFECYCLE_HEADER_TITLE
+                subtitle: LIFECYCLE_HEADER_SUBTITLE
             }
             euv_card {
-                title: "Render Counter"
+                title: LIFECYCLE_RENDER_COUNTER_CARD_TITLE
                 p {
                     class: c_render_count_text()
-                    "This page has been rendered "
+                    {
+                        LIFECYCLE_RENDERED_PREFIX
+                    }
                     span {
                         class: c_counter_value()
                         render_count
                     }
-                    " times."
+                    {
+                        LIFECYCLE_RENDERED_SUFFIX
+                    }
                 }
                 div {
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Update"
+                        label: LIFECYCLE_BUTTON_LABEL_UPDATE
                         onclick: lifecycle_on_trigger(state)
                     }
                 }
             }
             euv_card {
-                title: "Event Log"
+                title: LIFECYCLE_EVENT_LOG_CARD_TITLE
                 div {
                     class: c_log_container()
                     for (index, log) in { logs.get().iter().enumerate() } {

@@ -1,10 +1,18 @@
 use super::*;
 
 /// A list rendering demo page with dynamic item management.
+/// # Arguments
+///
+/// - `VirtualNode<PageListProps>` - The component props node.
 ///
 /// # Returns
 ///
 /// - `VirtualNode` - The list demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageListProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_list(node: VirtualNode<PageListProps>) -> VirtualNode {
     let PageListProps: PageListProps = node.try_get_props().unwrap_or_default();
@@ -22,11 +30,11 @@ pub(crate) fn page_list(node: VirtualNode<PageListProps>) -> VirtualNode {
                 div {
                     class: c_inline_input_row()
                     input {
-                        id: LIST_NEW_ITEM_ID
-                        name: LIST_NEW_ITEM_NAME
-                        type: LIST_TEXT_TYPE
-                        autocomplete: LIST_AUTOCOMPLETE_OFF
-                        placeholder: LIST_NEW_ITEM_PLACEHOLDER
+                        id: "list-new-item"
+                        name: "new_item"
+                        type: "text"
+                        autocomplete: "off"
+                        placeholder: "Enter new item"
                         value: state.get_new_item()
                         class: if { state.get_add_error().get().is_empty() } {
                             c_list_input()

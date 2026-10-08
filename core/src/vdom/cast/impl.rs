@@ -139,7 +139,7 @@ impl From<&str> for VirtualNode {
     /// (small heap allocation) — runtime-evaluated text typically comes
     /// here via `format!`, interpolated messages, or formatted signal
     /// values. Macro-generated literal text takes the `Cow::Borrowed`
-    /// fast path in [`crate::html::HtmlNode::Text`] instead.
+    /// fast path in [`TextNode`] instead.
     ///
     /// # Returns
     ///

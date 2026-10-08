@@ -98,7 +98,7 @@ impl Input {
     ///
     /// - `&InputStateCell` - The shared input state.
     /// - `&Window` - The global window.
-    pub fn attach_keyboard(state_cell: &InputStateCell, window: &Window) {
+    pub(crate) fn attach_keyboard(state_cell: &InputStateCell, window: &Window) {
         let state_keydown: InputStateCell = state_cell.clone();
         let keydown_closure: Closure<dyn FnMut(Event)> =
             Closure::wrap(Box::new(move |event: Event| {
@@ -134,7 +134,7 @@ impl Input {
     ///
     /// - `&InputStateCell` - The shared input state.
     /// - `&EventTarget` - The pointer target (typically the canvas element).
-    pub fn attach_pointer(state_cell: &InputStateCell, target: &EventTarget) {
+    pub(crate) fn attach_pointer(state_cell: &InputStateCell, target: &EventTarget) {
         let state_mousedown: InputStateCell = state_cell.clone();
         let mousedown_closure: Closure<dyn FnMut(Event)> =
             Closure::wrap(Box::new(move |event: Event| {
@@ -748,7 +748,7 @@ impl GamepadManager {
     pub fn button_action(&self, index: u32, button: u32) -> InputAction {
         self.state(index)
             .map(|pad: &GamepadState| pad.button_action(button))
-            .unwrap_or_default()
+            .unwrap_or(InputAction::Idle)
     }
 
     /// Counts the gamepads that are currently connected.
@@ -852,7 +852,7 @@ impl GamepadManager {
     ///
     /// - `&GamepadManagerCell` - The shared gamepad manager.
     /// - `&Window` - The global window.
-    pub fn attach_gamepad(manager_cell: &GamepadManagerCell, window: &Window) {
+    pub(crate) fn attach_gamepad(manager_cell: &GamepadManagerCell, window: &Window) {
         let cell_connected: GamepadManagerCell = manager_cell.clone();
         let connected_closure: Closure<dyn FnMut(Event)> =
             Closure::wrap(Box::new(move |event: Event| {

@@ -1,3 +1,5 @@
+use super::*;
+
 /// The DOM attribute name used to store the unique euv identifier on an element.
 ///
 /// This attribute is set on every element that registers an event listener
@@ -115,9 +117,9 @@ thread_local! {
     /// records "looked, and the global is absent". That way a host which
     /// strips the helper costs one lookup per page instead of one per
     /// event, and the fallback path can be taken without a second probe.
-    pub static EVENT_ID_CHAIN_FN: std::cell::RefCell<
-        Option<Option<web_sys::js_sys::Function>>,
-    > = const { std::cell::RefCell::new(None) };
+    pub(crate) static EVENT_ID_CHAIN_FN: RefCell<
+        Option<Option<js_sys::Function>>,
+    > = const { RefCell::new(None) };
 }
 
 /// The JS global object name resolved when no direct handle is available.

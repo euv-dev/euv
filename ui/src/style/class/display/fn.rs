@@ -1,13 +1,13 @@
 use super::*;
 
 class! {
-    pub c_euv_tabs {
+    pub(crate) c_euv_tabs {
         display: "flex";
         flex-direction: "column";
         width: "100%";
     }
 
-    pub c_euv_tabs_bar {
+    pub(crate) c_euv_tabs_bar {
         display: "flex";
         border-bottom: format!("1px dashed {}", var!(border));
         margin-bottom: var!(gap-component);
@@ -17,7 +17,7 @@ class! {
         }
     }
 
-    pub c_euv_tab_item {
+    pub(crate) c_euv_tab_item {
         padding: format!("{} {}", var!(space-md), var!(space-xl));
         cursor: "pointer";
         font-size: var!(font-base);
@@ -35,7 +35,7 @@ class! {
         }
     }
 
-    pub c_euv_tab_item_active {
+    pub(crate) c_euv_tab_item_active {
         padding: format!("{} {}", var!(space-md), var!(space-xl));
         cursor: "pointer";
         font-size: var!(font-base);
@@ -49,15 +49,15 @@ class! {
         white-space: "nowrap";
     }
 
-    pub c_euv_tabs_panel {
+    pub(crate) c_euv_tabs_panel {
         padding: format!("{} 0px", var!(gap-element));
     }
 
-    pub c_euv_collapse_item {
+    pub(crate) c_euv_collapse_item {
         border-bottom: format!("1px dashed {}", var!(border));
     }
 
-    pub c_euv_collapse_header {
+    pub(crate) c_euv_collapse_header {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
@@ -81,7 +81,7 @@ class! {
         }
     }
 
-    pub c_euv_collapse_header_active {
+    pub(crate) c_euv_collapse_header_active {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
@@ -101,14 +101,14 @@ class! {
         -webkit-user-select: "none";
     }
 
-    pub c_euv_collapse_body {
+    pub(crate) c_euv_collapse_body {
         overflow: "hidden";
         font-size: var!(font-base);
         color: var!(foreground);
         transition: format!("max-height {} {}, opacity {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
     }
 
-    pub c_euv_collapse_body_open {
+    pub(crate) c_euv_collapse_body_open {
         overflow: "hidden";
         max-height: "none";
         opacity: "1";
@@ -118,7 +118,7 @@ class! {
         transition: format!("max-height {} {}, opacity {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
     }
 
-    pub c_euv_collapse_body_closed {
+    pub(crate) c_euv_collapse_body_closed {
         overflow: "hidden";
         max-height: "0px";
         opacity: "0";
@@ -127,7 +127,7 @@ class! {
         transition: format!("max-height {} {}, opacity {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
     }
 
-    pub c_euv_breadcrumb {
+    pub(crate) c_euv_breadcrumb {
         display: "flex";
         align-items: "center";
         flex-wrap: "wrap";
@@ -135,7 +135,7 @@ class! {
         font-size: var!(font-sm);
     }
 
-    pub c_euv_breadcrumb_item {
+    pub(crate) c_euv_breadcrumb_item {
         font-size: var!(font-sm);
         color: var!(muted-foreground);
         cursor: "pointer";
@@ -149,26 +149,26 @@ class! {
         }
     }
 
-    pub c_euv_breadcrumb_sep {
+    pub(crate) c_euv_breadcrumb_sep {
         font-size: var!(font-sm);
         color: var!(muted-foreground);
         user-select: "none";
         -webkit-user-select: "none";
     }
 
-    pub c_euv_breadcrumb_current {
+    pub(crate) c_euv_breadcrumb_current {
         font-size: var!(font-sm);
         font-weight: "600";
         color: var!(foreground);
         cursor: "default";
     }
 
-    pub c_euv_divider {
+    pub(crate) c_euv_divider {
         display: "block";
         width: "100%";
     }
 
-    pub c_euv_divider_horizontal {
+    pub(crate) c_euv_divider_horizontal {
         display: "block";
         width: "100%";
         height: "0px";
@@ -177,7 +177,7 @@ class! {
         margin: format!("{} 0px", var!(space-lg));
     }
 
-    pub c_euv_divider_vertical {
+    pub(crate) c_euv_divider_vertical {
         display: "block";
         width: "0px";
         height: "auto";
@@ -187,7 +187,7 @@ class! {
         margin: format!("0px {}", var!(space-sm));
     }
 
-    pub c_euv_divider_labeled {
+    pub(crate) c_euv_divider_labeled {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
@@ -195,7 +195,7 @@ class! {
         margin: format!("{} 0px", var!(space-lg));
     }
 
-    pub c_euv_divider_label_text {
+    pub(crate) c_euv_divider_label_text {
         font-size: var!(font-xs);
         font-weight: "500";
         color: var!(muted-foreground);
@@ -208,7 +208,7 @@ class! {
     // Card Component
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_card {
+    pub(crate) c_card {
         color: var!(foreground);
         box-sizing: "border-box";
     }
@@ -276,7 +276,7 @@ class! {
         }
     }
 
-    pub c_modal_close_button {
+    pub(crate) c_modal_close_button {
         display: "flex";
         justify-content: "center";
         align-items: "center";
@@ -343,7 +343,7 @@ class! {
         }
     }
 
-    pub c_euv_button_outline_md {
+    pub(crate) c_euv_button_outline_md {
         display: "flex";
         justify-content: "center";
         align-items: "center";
@@ -375,7 +375,7 @@ class! {
     // Badges
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_badge {
+    pub(crate) c_badge {
         display: "inline-flex";
         justify-content: "center";
         align-items: "center";
@@ -396,7 +396,7 @@ class! {
         }
     }
 
-    pub c_badge_outline {
+    pub(crate) c_badge_outline {
         display: "inline-flex";
         justify-content: "center";
         align-items: "center";
@@ -413,7 +413,7 @@ class! {
         }
     }
 
-    pub c_euv_tag_solid_black {
+    pub(crate) c_euv_tag_solid_black {
         display: "inline-block";
         vertical-align: "middle";
         text-align: "center";
@@ -428,7 +428,7 @@ class! {
         box-sizing: "border-box";
     }
 
-    pub c_euv_tag_solid_white {
+    pub(crate) c_euv_tag_solid_white {
         display: "inline-block";
         vertical-align: "middle";
         text-align: "center";
@@ -446,7 +446,7 @@ class! {
     // Euv Tag Variants (semantic colour tags)
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_tag_outline_black {
+    pub(crate) c_euv_tag_outline_black {
         display: "inline-block";
         vertical-align: "middle";
         text-align: "center";
@@ -460,7 +460,7 @@ class! {
         box-sizing: "border-box";
     }
 
-    pub c_euv_tag_outline_white {
+    pub(crate) c_euv_tag_outline_white {
         display: "inline-block";
         vertical-align: "middle";
         text-align: "center";
@@ -885,14 +885,14 @@ class! {
         }
     }
 
-    pub c_euv_pagination_label {
+    pub(crate) c_euv_pagination_label {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
         text-transform: "uppercase";
         letter-spacing: "0.08em";
     }
 
-    pub c_euv_pagination_text {
+    pub(crate) c_euv_pagination_text {
         font-size: var!(font-base);
         font-weight: "600";
         color: var!(accent);
@@ -907,11 +907,11 @@ class! {
         min-width: "0px";
     }
 
-    pub c_euv_pagination_next {
+    pub(crate) c_euv_pagination_next {
         text-align: "right";
     }
 
-    pub c_euv_pagination_spacer {
+    pub(crate) c_euv_pagination_spacer {
         flex: "1";
     }
 
@@ -919,7 +919,7 @@ class! {
     // euv_markdown / euv_footer
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_markdown {
+    pub(crate) c_euv_markdown {
         width: "100%";
         min-width: "0px";
     }
@@ -959,7 +959,7 @@ class! {
     // euv_result / euv_doc_layout
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_result {
+    pub(crate) c_euv_result {
         display: "flex";
         flex-direction: "column";
         align-items: "center";
@@ -974,25 +974,25 @@ class! {
         min-height: "50%";
     }
 
-    pub c_euv_result_code {
+    pub(crate) c_euv_result_code {
         font-size: var!(font-6xl);
         font-weight: "700";
         line-height: "1";
         letter-spacing: "-0.02em";
     }
 
-    pub c_euv_result_title {
+    pub(crate) c_euv_result_title {
         font-size: var!(font-2xl);
         font-weight: "600";
         margin: "0px";
     }
 
-    pub c_euv_result_description {
+    pub(crate) c_euv_result_description {
         color: var!(muted-foreground);
         margin: "0px";
     }
 
-    pub c_euv_result_actions {
+    pub(crate) c_euv_result_actions {
         display: "flex";
         gap: var!(space-md);
         margin-top: var!(space-lg);
@@ -1090,5 +1090,16 @@ class! {
         @media ((max-width: 1100px)) {
             display: "none";
         }
+    }
+
+    // Makes the element's own box disappear while its children stay in the
+    // parent's layout flow, so a wrapper can carry a key or a conditional
+    // without contributing a box.
+    //
+    // The docs shell and page wrappers spelled this as an inline
+    // `style: "display: contents"`; the rule is the same either way, but a
+    // named class keeps the markup declarative and lets the browser cache it.
+    pub c_euv_display_contents {
+        display: "contents";
     }
 }

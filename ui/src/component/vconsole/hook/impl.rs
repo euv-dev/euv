@@ -139,7 +139,7 @@ impl Console {
     /// - `ConsoleEntry` - The console entry to append.
     fn append_entry(entry: ConsoleEntry) {
         if let Some(logs_ref) = console_log_ref() {
-            let mut logs: std::cell::RefMut<'_, Vec<ConsoleEntry>> = logs_ref.borrow_mut();
+            let mut logs: RefMut<'_, Vec<ConsoleEntry>> = logs_ref.borrow_mut();
             logs.push(entry);
             if logs.len() > MAX_CONSOLE_LOG_ENTRIES {
                 let excess: usize = logs.len() - MAX_CONSOLE_LOG_ENTRIES;

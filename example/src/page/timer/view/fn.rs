@@ -16,10 +16,18 @@ fn format_time(total_seconds: i32) -> String {
 }
 
 /// A timer demo page with stopwatch and countdown features.
+/// # Arguments
+///
+/// - `VirtualNode<PageTimerProps>` - The component props node.
 ///
 /// # Returns
 ///
 /// - `VirtualNode` - The timer demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageTimerProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_timer(node: VirtualNode<PageTimerProps>) -> VirtualNode {
     let PageTimerProps: PageTimerProps = node.try_get_props().unwrap_or_default();
@@ -75,18 +83,18 @@ pub(crate) fn page_timer(node: VirtualNode<PageTimerProps>) -> VirtualNode {
                 div {
                     class: c_euv_input_wrapper()
                     label {
-                        for: COUNTDOWN_SECONDS_ID
+                        for: "countdown-seconds"
                         class: c_form_label()
                         "Set seconds"
                     }
                     input {
-                        id: COUNTDOWN_SECONDS_ID
-                        name: COUNTDOWN_SECONDS_NAME
-                        type: TIMER_NUMBER_TYPE
-                        autocomplete: TIMER_AUTOCOMPLETE_OFF
-                        min: COUNTDOWN_SECONDS_MIN
-                        max: COUNTDOWN_SECONDS_MAX
-                        placeholder: COUNTDOWN_SECONDS_PLACEHOLDER
+                        id: "countdown-seconds"
+                        name: "seconds"
+                        type: "number"
+                        autocomplete: "off"
+                        min: "1"
+                        max: "3600"
+                        placeholder: "Enter seconds..."
                         value: countdown.get_input()
                         class: c_euv_input()
                         oninput: countdown_on_input(countdown)

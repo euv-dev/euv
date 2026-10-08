@@ -1,6 +1,6 @@
 mod class;
 mod var;
 
-pub use {class::*, var::*};
+pub(crate) use {class::*, var::*};
 
 use super::*;

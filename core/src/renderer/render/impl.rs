@@ -64,7 +64,7 @@ impl Renderer {
     /// # Arguments
     ///
     /// - `VirtualNode` - The new virtual DOM tree to render.
-    pub fn render(&mut self, vnode: VirtualNode) {
+    pub(crate) fn render(&mut self, vnode: VirtualNode) {
         let new_unwrapped: VirtualNode = Self::unwrap_component_owned(vnode);
         let old_tree: Option<VirtualNode> = take(self.get_mut_current_tree());
         if let Some(old_vnode) = old_tree.as_ref() {
@@ -90,7 +90,7 @@ impl Renderer {
     /// # Arguments
     ///
     /// - `VirtualNode` - The new virtual DOM tree to render.
-    pub fn render_full_replace(&mut self, vnode: VirtualNode) {
+    pub(crate) fn render_full_replace(&mut self, vnode: VirtualNode) {
         let new_unwrapped: VirtualNode = Self::unwrap_component_owned(vnode);
         while let Some(child) = self.get_root().first_child() {
             if let Some(element) = child.dyn_ref::<Element>() {
@@ -366,7 +366,7 @@ impl Renderer {
                             _ => None,
                         })
                         .any(|old_callback: &SharedEventCallback| {
-                            std::ptr::eq(Rc::as_ptr(old_callback), Rc::as_ptr(new_callback))
+                            Rc::ptr_eq(old_callback, new_callback)
                         });
                     if !already_attached {
                         self.attach_event_listener(element, handler);

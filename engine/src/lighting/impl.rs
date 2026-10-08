@@ -246,6 +246,10 @@ impl LightingUniforms {
                 continue;
             }
             let mut lambert_input: Light = light.clone();
+            // The falloff distance is the light→surface distance, evaluated
+            // once and shared by every term. Directional lights have no
+            // distance to attenuate, so they keep their raw intensity.
+            let mut falloff_factor: f64 = 1.0;
             match kind {
                 LightType::Directional => {}
                 LightType::Point | LightType::Spot => {
@@ -253,6 +257,8 @@ impl LightingUniforms {
                     let dist: f64 = to_light.magnitude().max(LIGHTING_POINT_LIGHT_MIN_DISTANCE);
                     let dir: Vector3D = to_light.scaled(1.0 / dist);
                     lambert_input.set_direction(dir);
+                    falloff_factor = apply_falloff(dist, light.get_falloff());
+                    lambert_input.set_intensity(light.get_intensity() * falloff_factor);
                 }
             }
             let material_kind: MaterialKind = material.get_kind();
@@ -274,9 +280,7 @@ impl LightingUniforms {
                 MaterialKind::Lambert | MaterialKind::Pbr => Vector3D::zero(),
                 MaterialKind::Phong => {
                     let mut spec_input: Light = lambert_input.clone();
-                    spec_input.set_intensity(
-                        light.get_intensity() * apply_falloff(view_dist, light.get_falloff()),
-                    );
+                    spec_input.set_intensity(light.get_intensity() * falloff_factor);
                     compute_phong(&spec_input, normal, view_dir, material)
                 }
             };

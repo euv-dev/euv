@@ -8,6 +8,8 @@ pub struct SpriteFrame {
     pub(crate) source: Rect,
     /// The duration this frame should be displayed, in seconds.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) duration: f64,
 }
 
@@ -15,12 +17,18 @@ pub struct SpriteFrame {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct SpriteSheet {
     /// The source image element loaded from an asset.
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) image: HtmlImageElement,
     /// The width of each individual frame in pixels.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) frame_width: f64,
     /// The height of each individual frame in pixels.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) frame_height: f64,
     /// The number of columns in the sprite sheet grid.
     #[get(type(copy))]
@@ -38,11 +46,14 @@ pub struct SpriteSheet {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct SpriteAnimation {
     /// The name identifying this animation (e.g., `"idle"`, `"walk"`).
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) name: String,
     /// The ordered list of frames in this animation.
     pub(crate) frames: Vec<SpriteFrame>,
     /// The playback mode (loop, once, ping-pong).
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) mode: AnimationMode,
 }
 
@@ -53,6 +64,7 @@ pub struct Animator {
     #[get(type(clone))]
     #[get_mut(pub(crate))]
     #[new(skip)]
+    #[set(pub(crate))]
     pub(crate) current_animation: Option<SpriteAnimation>,
     /// The index of the current frame being displayed.
     #[get(type(copy))]
@@ -65,6 +77,7 @@ pub struct Animator {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
     pub(crate) elapsed_time: f64,
     /// The current playback state.
     #[get(type(copy))]
@@ -79,11 +92,14 @@ pub struct Animator {
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) flip_x: bool,
     /// Whether to flip the sprite vertically when rendering.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[new(skip)]
+    #[set(pub(crate))]
     pub(crate) flip_y: bool,
 }
 
@@ -99,6 +115,8 @@ pub struct Animator {
 pub struct NineSliceRects {
     /// The nine sub-rectangles in reading order, row-major.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) grid: [[Rect; 3]; 3],
 }
 
@@ -113,15 +131,23 @@ pub struct NineSliceRects {
 pub struct NineSliceInsets {
     /// The left border inset in source pixels.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) left: f64,
     /// The right border inset in source pixels.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) right: f64,
     /// The top border inset in source pixels.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) top: f64,
     /// The bottom border inset in source pixels.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) bottom: f64,
 }
 
@@ -137,9 +163,13 @@ pub struct NineSliceInsets {
 pub struct NineSlice {
     /// The source image element containing the nine patches.
     #[get(type(clone))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) image: HtmlImageElement,
     /// The per-edge border insets defining the split.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) insets: NineSliceInsets,
 }
 
@@ -152,15 +182,23 @@ pub struct NineSlice {
 pub struct UvRect {
     /// The normalized left edge (U at the rectangle's left).
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) u0: f64,
     /// The normalized top edge (V at the rectangle's top).
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) v0: f64,
     /// The normalized right edge (U at the rectangle's right).
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) u1: f64,
     /// The normalized bottom edge (V at the rectangle's bottom).
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) v1: f64,
 }
 
@@ -173,6 +211,8 @@ pub struct UvRect {
 pub struct AtlasRegions {
     /// The named source rectangles keyed by sprite name.
     #[get_mut(pub(crate))]
+    #[get(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) regions: HashMap<String, Rect>,
 }
 
@@ -187,8 +227,12 @@ pub struct AtlasRegions {
 pub struct SpriteAtlas {
     /// The shared image element holding every packed sprite.
     #[get(type(clone))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) image: HtmlImageElement,
     /// The named source rectangles keyed by sprite name.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) regions: AtlasRegions,
 }

@@ -7,10 +7,9 @@ use super::*;
 /// `Pending` / `Resolved(value)` / `Failed(message)` phase across renders.
 ///
 /// Pair the returned handle with [`SuspenseHandle::resolve_sync`] /
-/// [`SuspenseHandle::fail`] to transition the phase; the parent
-/// component reads [`SuspenseHandle::state`] (or the underlying
-/// `phase` signal) to decide whether to render the children or a
-/// fallback.
+/// [`SuspenseHandle::fail`] to transition the phase. The phase itself is a
+/// signal, so any transition re-runs the components that read it; the handle
+/// exposes no accessor for the current value.
 ///
 /// # Returns
 ///

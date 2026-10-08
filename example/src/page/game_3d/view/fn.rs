@@ -194,7 +194,7 @@ fn game_3d_canvas_tab(fullscreen: UseGame3DFullscreen) -> VirtualNode {
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: GAME_3D_CANVAS_ID
+                            id: "game-3d-canvas"
                             class: if { canvas_2d_fullscreen.get() } {
                                 c_game_3d_canvas_fullscreen()
                             } else {
@@ -349,7 +349,7 @@ fn game_3d_webgpu_tab(state: UseGame3DWebGpu, fullscreen: UseGame3DFullscreen) -
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: GAME_3D_WEBGPU_CANVAS_ID
+                            id: "game-3d-webgpu-canvas"
                             class: if { web_gpu_fullscreen.get() } {
                                 c_game_3d_canvas_fullscreen()
                             } else {
@@ -366,7 +366,7 @@ fn game_3d_webgpu_tab(state: UseGame3DWebGpu, fullscreen: UseGame3DFullscreen) -
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: GAME_3D_WEBGPU_LOADING_CANVAS_ID
+                                id: "game-3d-webgpu-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -540,7 +540,7 @@ fn game_3d_webgl_tab(state: UseGame3DWebGl, fullscreen: UseGame3DFullscreen) -> 
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: GAME_3D_WEBGL_CANVAS_ID
+                            id: "game-3d-webgl-canvas"
                             class: if { web_gl_fullscreen.get() } {
                             c_game_3d_canvas_fullscreen()
                         } else {
@@ -557,7 +557,7 @@ fn game_3d_webgl_tab(state: UseGame3DWebGl, fullscreen: UseGame3DFullscreen) -> 
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: GAME_3D_WEBGL_LOADING_CANVAS_ID
+                                id: "game-3d-webgl-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }

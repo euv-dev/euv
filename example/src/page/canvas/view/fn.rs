@@ -8,9 +8,18 @@ use super::*;
 /// Clicking the button enters fullscreen mode with a portrait-oriented
 /// canvas for drawing.
 ///
+/// # Arguments
+///
+/// - `VirtualNode<PageCanvasProps>` - The page node carrying the page props.
+///
 /// # Returns
 ///
 /// - `VirtualNode` - The canvas drawing board page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageCanvasProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
     let _page_canvas_props: PageCanvasProps = node.try_get_props().unwrap_or_default();
@@ -72,16 +81,16 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
             class: c_page_container()
             euv_header {
                 icon: "🎨"
-                title: "Canvas"
-                subtitle: "A freehand drawing board with color picker and line width control. Tap Draw to enter fullscreen canvas mode."
+                title: CANVAS_PAGE_TITLE
+                subtitle: CANVAS_PAGE_SUBTITLE
             }
             euv_card {
-                title: "Drawing Board"
+                title: CANVAS_BOARD_CARD_TITLE
                 div {
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: CANVAS_DRAW_LABEL
+                        label: "Draw"
                         onclick: canvas_on_draw(state)
                     }
                 }
@@ -90,7 +99,7 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
                     if { state.get_snapshot_data_url().get().is_empty() } {
                         div {
                             class: c_canvas_placeholder()
-                            "No drawing yet. Tap Draw to start."
+                            CANVAS_EMPTY_PREVIEW_TEXT
                         }
                     } else {
                         img {
@@ -103,7 +112,7 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
         }
         if { state.get_fullscreen().get() } {
             div {
-                id: CANVAS_CONTAINER_ID
+                id: "canvas-container"
                 class: c_canvas_container_fullscreen()
                 div {
                     class: c_canvas_fullscreen_toolbar()
@@ -113,14 +122,14 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
                             class: c_canvas_fullscreen_toolbar_button()
                             euv_button {
                                 variant: EuvButtonVariant::Primary
-                                label: "Clear"
+                                label: CANVAS_CLEAR_BUTTON_LABEL
                                 onclick: canvas_on_clear(state)
                             }
                         }
                         div {
                             class: c_canvas_fullscreen_toolbar_color_wrapper()
                             input {
-                                type: "color"
+                                type: CANVAS_COLOR_INPUT_TYPE
                                 class: c_canvas_color_input_fullscreen()
                                 value: state.get_stroke_color().get()
                                 oninput: on_color_input
@@ -130,7 +139,7 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
                             class: c_canvas_fullscreen_toolbar_button()
                             euv_button {
                                 variant: EuvButtonVariant::Primary
-                                label: CANVAS_FULLSCREEN_EXIT_LABEL
+                                label: "Exit"
                                 onclick: canvas_on_exit_fullscreen(state)
                             }
                         }
@@ -138,11 +147,11 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
                     div {
                         class: c_canvas_fullscreen_toolbar_row_bottom()
                         input {
-                            type: "range"
+                            type: CANVAS_RANGE_INPUT_TYPE
                             class: c_canvas_fullscreen_range_input()
-                            min: CANVAS_MIN_LINE_WIDTH_ATTR
-                            max: CANVAS_MAX_LINE_WIDTH_ATTR
-                            step: CANVAS_LINE_WIDTH_STEP_ATTR
+                            min: "1"
+                            max: "30"
+                            step: "1"
                             value: initial_line_width.to_string()
                             class: c_slider_value(&format!("{initial_line_width_percent}%"))
                             oninput: canvas_on_line_width_input(state)
@@ -150,10 +159,10 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
                     }
                 }
                 div {
-                    id: CANVAS_FULLSCREEN_WRAPPER_ID
+                    id: "fullscreen-canvas-wrapper"
                     class: c_canvas_drawing_fullscreen_wrapper()
                     canvas {
-                        id: CANVAS_DRAWING_ID
+                        id: "drawing-canvas"
                         class: c_canvas_drawing_fullscreen()
                         onmousedown: on_canvas_mouse_down
                         onmousemove: on_canvas_mouse_move

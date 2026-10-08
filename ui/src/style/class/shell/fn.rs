@@ -155,7 +155,7 @@ class! {
     }
 
 
-    pub c_mobile_app_root {
+    pub(crate) c_mobile_app_root {
         display: "flex";
         flex-direction: "column";
         width: "100%";
@@ -260,7 +260,7 @@ class! {
     }
 
 
-    pub c_euv_logo {
+    pub(crate) c_euv_logo {
         display: "flex";
         background: var!(accent);
         align-items: "center";
@@ -275,14 +275,14 @@ class! {
     }
 
 
-    pub c_euv_logo_nav {
+    pub(crate) c_euv_logo_nav {
         width: "32px";
         height: "32px";
         font-size: var!(font-lg);
     }
 
 
-    pub c_euv_logo_fab {
+    pub(crate) c_euv_logo_fab {
         width: "36px";
         height: "36px";
         font-size: var!(font-xl);
@@ -469,28 +469,34 @@ class! {
         // The attribution line sits between the divider painted at `top: 0`
         // and the bottom of the sidebar's visible area, so the two vertical
         // paddings are what decide whether it looks centred in that band.
-        // They are equal: an asymmetric pair read as the text hugging the
-        // bottom edge with a gap above it, which is what made the footer
-        // look detached. `space-md` is the tighter of the two old values
-        // and keeps the row compact against the bottom edge.
+        // `space-md` is the tighter of the two old values and keeps the row
+        // compact against the bottom edge.
         padding: format!("{} {} {}", var!(space-md), var!(edge-gutter-nav), var!(space-md));
-        @media ((max-width: 767px)) {
-            padding: format!("{} {} {}", var!(space-md), var!(edge-gutter-mobile), var!(space-md));
-        }
-        // The bottom safe-area inset is deliberately NOT re-applied here.
-        // `c_app_root` already reserves it as the shell's own
-        // `padding-bottom`, which lifts the entire shell — sidebar
-        // included — clear of the home indicator before this element ever
-        // lays out. The footer is the last row inside that lifted box, so
-        // its band already ends at the safe edge and `space-md` above and
-        // below is all it needs to centre the line.
+        // On mobile the top padding also carries the bottom safe-area inset.
         //
-        // Adding the inset a second time was measured, not assumed: with a
-        // 34px inset the band grew from 42px to 76px, the gap above the
-        // line stayed at 13px and the gap below it became 48px — a 35px
-        // asymmetry, the exact defect these paddings exist to prevent.
-        // The safe-area is counted once, at the shell, and the footer just
-        // fills whatever band that leaves.
+        // The band this line has to look centred in runs from the divider to
+        // the *page* bottom, not to the bottom of the element that reserves
+        // the safe area. On desktop that element is `c_app_root`, whose
+        // `padding-bottom` lifts the whole sidebar and leaves the inset
+        // region below the footer empty — the symmetric `space-md` pair is
+        // already correct there. The mobile drawer cannot inherit that: it is
+        // `position: fixed`, so it escapes `c_app_root`'s padded box entirely
+        // and reserves `padding-shell-bottom` itself. The inset therefore
+        // lands *below* the footer rather than above it, and a symmetric pair
+        // would leave a gap under the line of `inset` px and `space-md` above
+        // it — a 34px inset turned a 42px band into a visibly lopsided one.
+        //
+        // Adding the inset to the top padding restores the symmetry against
+        // the page bottom at any inset value, which is the invariant that
+        // matters: the band grows upward (the footer is the last row of a
+        // column flex container, so it has room to) and the line stays put
+        // relative to the bottom edge instead of drifting up as the inset
+        // grows.
+        @media ((max-width: 767px)) {
+            padding-top: format!("calc({} + {})", var!(space-md), var!(safe-area-inset-bottom));
+            padding-right: var!(edge-gutter-mobile);
+            padding-bottom: var!(space-md);
+        }
         position: "relative";
         font-size: var!(font-xs);
         color: var!(muted-foreground);
@@ -545,7 +551,7 @@ class! {
     }
 
 
-    pub c_nav_item_active {
+    pub(crate) c_nav_item_active {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
@@ -561,7 +567,7 @@ class! {
     }
 
 
-    pub c_nav_item_inactive {
+    pub(crate) c_nav_item_inactive {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
@@ -581,14 +587,14 @@ class! {
     }
 
 
-    pub c_nav_item_icon {
+    pub(crate) c_nav_item_icon {
         flex-shrink: "0";
         width: "20px";
         text-align: "center";
     }
 
 
-    pub c_nav_item_label {
+    pub(crate) c_nav_item_label {
         flex: "1";
         overflow: "hidden";
         text-overflow: "ellipsis";
@@ -832,7 +838,7 @@ class! {
     // euv_navbar
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_navbar {
+    pub(crate) c_euv_navbar {
         position: "fixed";
         top: "0px";
         left: "0px";
@@ -851,7 +857,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_brand {
+    pub(crate) c_euv_navbar_brand {
         display: "flex";
         align-items: "center";
         gap: var!(gap-element);
@@ -864,7 +870,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_logo {
+    pub(crate) c_euv_navbar_logo {
         width: "32px";
         height: "32px";
         display: "flex";
@@ -877,7 +883,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_links {
+    pub(crate) c_euv_navbar_links {
         display: "flex";
         align-items: "center";
         gap: var!(gap-section);
@@ -888,7 +894,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_link {
+    pub(crate) c_euv_navbar_link {
         font-size: var!(font-sm);
         font-weight: "500";
         color: var!(foreground);
@@ -901,7 +907,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_link_active {
+    pub(crate) c_euv_navbar_link_active {
         font-size: var!(font-sm);
         font-weight: "600";
         color: var!(accent);
@@ -911,7 +917,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_actions {
+    pub(crate) c_euv_navbar_actions {
         display: "flex";
         align-items: "center";
         gap: var!(gap-element);
@@ -937,7 +943,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_menu_button {
+    pub(crate) c_euv_navbar_menu_button {
         display: "none";
         width: "40px";
         height: "40px";
@@ -952,7 +958,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_menu_button_active {
+    pub(crate) c_euv_navbar_menu_button_active {
         display: "none";
         width: "40px";
         height: "40px";
@@ -972,7 +978,7 @@ class! {
     // euv_sidebar
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_sidebar_group {
+    pub(crate) c_euv_sidebar_group {
         margin-bottom: var!(space-xs);
     }
 
@@ -1054,19 +1060,19 @@ class! {
     }
 
 
-    pub c_euv_sidebar_group_arrow {
+    pub(crate) c_euv_sidebar_group_arrow {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
         transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
     }
 
 
-    pub c_euv_sidebar_group_arrow_open {
+    pub(crate) c_euv_sidebar_group_arrow_open {
         transform: "rotate(90deg)";
     }
 
 
-    pub c_euv_sidebar_group_arrow_active {
+    pub(crate) c_euv_sidebar_group_arrow_active {
         color: var!(text-on-accent);
     }
 
@@ -1179,7 +1185,7 @@ class! {
     }
 
 
-    pub c_euv_toc_title {
+    pub(crate) c_euv_toc_title {
         font-size: var!(font-xs);
         font-weight: "700";
         text-transform: "uppercase";

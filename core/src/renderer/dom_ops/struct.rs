@@ -34,7 +34,7 @@ thread_local! {
     /// `Reflect::get(globalThis, "__euv_dom_ops__")` (or installed if
     /// missing); subsequent patches reuse the cached functions without any
     /// further global lookup.
-    pub static DOM_OP_TABLE: RefCell<Option<DomOpTable>> = const { RefCell::new(None) };
+    pub(crate) static DOM_OP_TABLE: RefCell<Option<DomOpTable>> = const { RefCell::new(None) };
 }
 
 /// The per-load set of names the batched DOM-op helpers are published under.
@@ -50,7 +50,7 @@ thread_local! {
 /// drawing independent ones, so the whole set is still a single random draw
 /// and the four names stay visibly related when inspecting `globalThis`.
 ///
-/// Constructed once and cached in [`DOM_OP_NAMES`]; read through
+/// Constructed once and cached in `DOM_OP_NAMES`; read through
 /// [`DomOpNames::get`].
 #[derive(Clone)]
 pub(crate) struct DomOpNames {

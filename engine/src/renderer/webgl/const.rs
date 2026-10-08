@@ -14,10 +14,6 @@ pub(crate) const GL_U32_SIZE: u32 = 4;
 /// `width * height * 4` pixel slice.
 pub(crate) const GL_RGBA_TEXEL_SIZE: usize = 4;
 
-/// The number of floats one `mat4` uniform column occupies, which is
-/// also the length of the engine's own [`Matrix4x4`].
-pub(crate) const GL_MAT4_FLOATS: usize = 16;
-
 /// The size in bytes of one `mat4` uploaded through a uniform buffer,
 /// the record stride of a block holding one transform per object.
 pub(crate) const GL_MAT4_BYTES: u32 = 64;
@@ -32,15 +28,6 @@ pub(crate) const GL_TEXTURE_TARGET_2D: u32 = 0x0de1;
 /// The mip level every allocation and sub-image write targets: the base
 /// of the chain, and the only level a caller may write directly.
 pub(crate) const GL_MIP_LEVEL_ZERO: f64 = 0.0;
-
-/// The value the texture-unit shadow starts at, chosen so that unit zero
-/// is a genuine change and the first bind of a frame is never skipped as
-/// a no-op.
-pub(crate) const GL_TEXTURE_UNIT_NONE: u32 = 0xffff_ffff;
-
-/// The color-write mask that lets every channel through: red `0x1`,
-/// green `0x2`, blue `0x4`, alpha `0x8`.
-pub(crate) const GL_COLOR_WRITE_ALL: u32 = 0xf;
 
 /// The red channel bit of a [`GlColorMask`].
 pub(crate) const GL_COLOR_CHANNEL_RED: u32 = 0x1;
@@ -114,6 +101,24 @@ pub(crate) const GL_FORMAT_R32F: u32 = 0x822e;
 /// The `RED` pixel format matching [`GL_FORMAT_R32F`].
 pub(crate) const GL_FORMAT_RED: u32 = 0x1903;
 
+/// The name of the `texImage2D` method, looked up once and cached
+/// because the `ImageBitmap` overload has no typed `web-sys` binding
+/// without a feature this module does not enable for a single call.
+pub(crate) const GL_METHOD_TEX_IMAGE_2D: &str = "texImage2D";
+
+/// The number of floats one `mat4` uniform column occupies, which is
+/// also the length of the engine's own [`Matrix4x4`].
+pub(crate) const GL_MAT4_FLOATS: usize = 16;
+
+/// The value the texture-unit shadow starts at, chosen so that unit zero
+/// is a genuine change and the first bind of a frame is never skipped as
+/// a no-op.
+pub(crate) const GL_TEXTURE_UNIT_NONE: u32 = 0xffff_ffff;
+
+/// The color-write mask that lets every channel through: red `0x1`,
+/// green `0x2`, blue `0x4`, alpha `0x8`.
+pub(crate) const GL_COLOR_WRITE_ALL: u32 = 0xf;
+
 /// The info log substituted for a `createShader` that returned `None`,
 /// which happens only when the context is lost or out of memory.
 pub(crate) const GL_SHADER_CREATE_FAILED: &str = "createShader returned null";
@@ -121,11 +126,6 @@ pub(crate) const GL_SHADER_CREATE_FAILED: &str = "createShader returned null";
 /// The info log substituted for a `createProgram` that returned `None`,
 /// which happens only when the context is lost or out of memory.
 pub(crate) const GL_PROGRAM_CREATE_FAILED: &str = "createProgram returned null";
-
-/// The name of the `texImage2D` method, looked up once and cached
-/// because the `ImageBitmap` overload has no typed `web-sys` binding
-/// without a feature this module does not enable for a single call.
-pub(crate) const GL_METHOD_TEX_IMAGE_2D: &str = "texImage2D";
 
 /// The `getContext` context id for a WebGL 2 context, which is a
 /// different context object from the WebGL 1 one rather than a version

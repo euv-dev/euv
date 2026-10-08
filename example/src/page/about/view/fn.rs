@@ -55,7 +55,7 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                     class: c_home_content()
                     h1 {
                         class: c_home_title()
-                        BRAND_NAME
+                        "Euv"
                     }
                     div {
                         class: c_home_badge_row()

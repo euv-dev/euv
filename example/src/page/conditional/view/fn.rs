@@ -1,10 +1,18 @@
 use super::*;
 
 /// A conditional rendering demo page.
+/// # Arguments
+///
+/// - `VirtualNode<PageConditionalProps>` - The component props node.
 ///
 /// # Returns
 ///
 /// - `VirtualNode` - The conditional demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageConditionalProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_conditional(node: VirtualNode<PageConditionalProps>) -> VirtualNode {
     let PageConditionalProps: PageConditionalProps = node.try_get_props().unwrap_or_default();
@@ -165,11 +173,11 @@ pub(crate) fn page_conditional(node: VirtualNode<PageConditionalProps>) -> Virtu
                                 "This is the settings tab."
                             }
                             euv_input {
-                                id: SETTINGS_DISPLAY_NAME_ID
+                                id: "settings-display-name"
                                 label: "Display Name"
-                                placeholder: SETTINGS_DISPLAY_NAME_PLACEHOLDER
+                                placeholder: "Enter your name"
                                 value: display_name
-                                autocomplete: CONDITIONAL_AUTOCOMPLETE_NAME
+                                autocomplete: "name"
                             }
                         }
                     }

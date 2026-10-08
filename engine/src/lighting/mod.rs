@@ -6,6 +6,6 @@ mod r#struct;
 
 pub use {r#enum::*, r#fn::*, r#struct::*};
 
-pub use r#const::*;
+pub(crate) use r#const::*;
 
 use super::*;

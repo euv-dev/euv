@@ -4,7 +4,7 @@ use super::*;
 /// [`compute_child_ops_plan`](super::compute_child_ops_plan).
 ///
 /// The enum is consumed verbatim by `patch_children_keyed`, which
-/// translates each variant into a [`crate::dom_ops::ChildOp`]. The
+/// translates each variant into a [`crate::renderer::dom_ops::ChildOp`]. The
 /// plan is generated in execution order: every `Remove` for a
 /// disappearing old key is emitted before any `Move` / `Insert`, so
 /// the renderer's removal pass can detach stale nodes first. After

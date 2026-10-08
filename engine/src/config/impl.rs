@@ -150,7 +150,7 @@ impl GpuPowerPreference {
     ///
     /// Used to set the `powerPreference` field on `GpuRequestAdapterOptions`
     /// via `Reflect::set`, avoiding a direct dependency on the
-    /// `web_sys::GpuPowerPreference` type.
+    /// `GpuPowerPreference` type.
     ///
     /// # Returns
     ///

@@ -6,7 +6,7 @@ fn my_component() -> u32 {
 }
 
 #[component]
-pub fn pub_component() -> &'static str {
+fn pub_component() -> &'static str {
     "hello"
 }
 

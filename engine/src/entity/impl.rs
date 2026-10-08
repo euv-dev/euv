@@ -129,7 +129,7 @@ impl Entity {
         // is never left aliasing a pooled one, then the released entity is
         // scrubbed before it goes back: a recycled entity must not inherit the
         // components, tags or transform it happened to hold on the way out.
-        let mut released: Entity = std::mem::replace(entity, Self::create(DEFAULT_ENTITY_NAME));
+        let mut released: Entity = replace(entity, Self::create(DEFAULT_ENTITY_NAME));
         released.get_mut_components().clear();
         released.get_mut_tags().clear();
         *released.get_mut_transform() = Transform2D::identity();

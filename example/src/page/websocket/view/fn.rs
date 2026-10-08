@@ -6,9 +6,19 @@ use super::*;
 /// and a messages card that displays all received WebSocket messages
 /// as raw text.
 ///
+/// # Arguments
+///
+/// - `VirtualNode<PageWebsocketProps>` - The page component node carrying the
+///   page props.
+///
 /// # Returns
 ///
 /// - `VirtualNode` - The WebSocket chat page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageWebsocketProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_websocket(node: VirtualNode<PageWebsocketProps>) -> VirtualNode {
     let PageWebsocketProps: PageWebsocketProps = node.try_get_props().unwrap_or_default();
@@ -19,33 +29,33 @@ pub(crate) fn page_websocket(node: VirtualNode<PageWebsocketProps>) -> VirtualNo
             class: c_page_container()
             euv_header {
                 icon: "🔌"
-                title: "WebSocket Chat"
-                subtitle: "Connect to a WebSocket chat server with automatic UUID assignment and Ping keep-alive. Send and receive messages in real time."
+                title: WEBSOCKET_HEADER_TITLE
+                subtitle: WEBSOCKET_HEADER_SUBTITLE
             }
             euv_card {
-                title: "Connection"
+                title: WEBSOCKET_CONNECTION_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "A random UUID is generated for each session. Click Connect to establish a real-time bidirectional connection. Ping messages are sent automatically to keep the connection alive."
+                    WEBSOCKET_CONNECTION_CARD_DESCRIPTION
                 }
                 div {
                     class: c_button_controls()
                     if { state.get_connecting().get() } {
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Wait"
+                            label: WEBSOCKET_WAIT_LABEL
                             disabled: state.get_connecting()
                         }
                     } else if { state.get_connected().get() } {
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Close"
+                            label: WEBSOCKET_DISCONNECT_LABEL
                             onclick: websocket_on_disconnect(state)
                         }
                     } else {
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Connect"
+                            label: WEBSOCKET_CONNECT_LABEL
                             onclick: websocket_on_connect(state)
                         }
                     }
@@ -59,11 +69,11 @@ pub(crate) fn page_websocket(node: VirtualNode<PageWebsocketProps>) -> VirtualNo
             }
             if { state.get_connected().get() } {
                 euv_card {
-                    title: "Send Message"
+                    title: WEBSOCKET_SEND_CARD_TITLE
                     div {
                         class: c_inline_input_row()
                         euv_input {
-                            placeholder: WEBSOCKET_MESSAGE_PLACEHOLDER
+                            placeholder: "Enter message to send"
                             value: state.get_message_input()
                             oninput: UseEuvInput::on_input_value(state.get_message_input())
                             class: c_ws_message_input().clone()
@@ -72,7 +82,7 @@ pub(crate) fn page_websocket(node: VirtualNode<PageWebsocketProps>) -> VirtualNo
                             class: c_inline_input_button_wrap()
                             euv_button {
                                 variant: EuvButtonVariant::Primary
-                                label: "Send"
+                                label: WEBSOCKET_SEND_LABEL
                                 onclick: websocket_on_send(state)
                             }
                         }
@@ -80,11 +90,11 @@ pub(crate) fn page_websocket(node: VirtualNode<PageWebsocketProps>) -> VirtualNo
                 }
             }
             euv_card {
-                title: "Messages"
+                title: WEBSOCKET_MESSAGES_CARD_TITLE
                 if { state.get_messages().get().is_empty() } {
                     div {
                         class: c_net_messages_empty()
-                        "No messages yet. Connect to start receiving."
+                        WEBSOCKET_MESSAGES_EMPTY_TEXT
                     }
                 } else {
                     div {

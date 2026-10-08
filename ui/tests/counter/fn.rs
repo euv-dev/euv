@@ -205,3 +205,28 @@ fn counter_set_unchecked_bypasses_bounds() {
         assert!(counter.get() > max);
     }
 }
+
+#[test]
+fn an_unbounded_counter_reports_no_minimum_without_panicking() {
+    let counter: Counter = Counter::new(None, None, 1);
+    assert_eq!(
+        counter.get_min(),
+        None,
+        "Counter::new documents None as unbounded, so the getter must hand back the \
+         option instead of unwrapping it"
+    );
+    assert_eq!(counter.get_max(), None);
+    counter.set(5);
+    assert_eq!(
+        counter.get_value().get(),
+        5,
+        "an unbounded counter still counts"
+    );
+}
+
+#[test]
+fn a_bounded_counter_round_trips_its_minimum() {
+    let counter: Counter = Counter::new(Some(0), Some(10), 1);
+    assert_eq!(counter.get_min(), Some(0));
+    assert_eq!(counter.get_max(), Some(10));
+}

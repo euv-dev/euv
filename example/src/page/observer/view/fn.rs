@@ -5,34 +5,44 @@ use super::*;
 /// Demonstrates how to observe a container element for viewport intersection
 /// changes, logging intersection ratio and child item visibility.
 ///
+/// # Arguments
+///
+/// - `VirtualNode<PageObserverProps>` - The page component node carrying the
+///   page props.
+///
 /// # Returns
 ///
 /// - `VirtualNode` - The observer demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageObserverProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_observer(node: VirtualNode<PageObserverProps>) -> VirtualNode {
     let PageObserverProps: PageObserverProps = node.try_get_props().unwrap_or_default();
-    use_intersection_observer("[data-observer-container]");
+    use_intersection_observer(OBSERVER_CONTAINER_SELECTOR);
     html! {
         div {
             class: c_page_container()
             euv_header {
                 icon: "👁️"
-                title: "Observer"
-                subtitle: "Detect when elements enter or leave the viewport using the IntersectionObserver API. Open the browser console to see intersection events."
+                title: OBSERVER_HEADER_TITLE
+                subtitle: OBSERVER_HEADER_SUBTITLE
             }
             euv_card {
-                title: "Intersection Observer"
+                title: OBSERVER_INTERSECTION_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "The container below is observed for viewport intersection changes."
+                    OBSERVER_CONTAINER_DESC
                 }
                 p {
                     class: c_demo_text_muted()
-                    "Open the browser console to see intersection events logged as you scroll."
+                    OBSERVER_CONSOLE_HINT
                 }
                 ul {
                     class: c_list_ul()
-                    data-observer-container: "true"
+                    data-observer-container: OBSERVER_CONTAINER_ATTR_VALUE
                     for index in 0..100 {
                         li {
                             key: index.to_string()

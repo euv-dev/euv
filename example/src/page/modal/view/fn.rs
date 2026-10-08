@@ -19,35 +19,35 @@ pub(crate) fn page_modal(node: VirtualNode<PageModalProps>) -> VirtualNode {
             class: c_page_container()
             euv_header {
                 icon: "💬"
-                title: MODAL_PAGE_TITLE
-                subtitle: MODAL_PAGE_SUBTITLE
+                title: "Modal Dialog"
+                subtitle: "Overlay dialogs with different content patterns: basic text, confirmation, form input, and nested stacking with back-gesture support."
             }
             euv_card {
-                title: MODAL_BASIC_CARD_TITLE
+                title: "Basic Modal"
                 p {
                     class: c_demo_text()
-                    MODAL_BASIC_CARD_DESC
+                    "A simple modal with static text content. Click the close button or the overlay backdrop to dismiss."
                 }
                 div {
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: MODAL_OPEN_BUTTON_LABEL
+                        label: "Open"
                         onclick: modal_on_open_basic(state)
                     }
                 }
             }
             euv_card {
-                title: MODAL_CONFIRM_CARD_TITLE
+                title: "Confirm Modal"
                 p {
                     class: c_demo_text()
-                    MODAL_CONFIRM_CARD_DESC
+                    "A modal that requires the user to confirm or cancel an action. The result is displayed below the button."
                 }
                 div {
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: MODAL_OPEN_BUTTON_LABEL
+                        label: "Open"
                         onclick: modal_on_open_confirm(state)
                     }
                 }
@@ -59,16 +59,16 @@ pub(crate) fn page_modal(node: VirtualNode<PageModalProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: MODAL_FORM_CARD_TITLE
+                title: "Form Modal"
                 p {
                     class: c_demo_text()
-                    MODAL_FORM_CARD_DESC
+                    "A modal containing validated form inputs. Submission is blocked until all validation rules pass."
                 }
                 div {
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: MODAL_OPEN_BUTTON_LABEL
+                        label: "Open"
                         onclick: modal_on_open_form(state)
                     }
                 }
@@ -80,52 +80,52 @@ pub(crate) fn page_modal(node: VirtualNode<PageModalProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: MODAL_NESTED_CARD_TITLE
+                title: "Nested Modals"
                 p {
                     class: c_demo_text()
-                    MODAL_NESTED_CARD_DESC
+                    "Three stacked modal layers. The system back gesture closes them one at a time, newest first."
                 }
                 div {
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: MODAL_OPEN_BUTTON_LABEL
+                        label: "Open"
                         onclick: modal_on_open_nested_1(state)
                     }
                 }
             }
             if { state.get_show_basic().get() } {
                 euv_modal {
-                    title: MODAL_BASIC_CARD_TITLE
+                    title: "Basic Modal"
                     onclick: modal_dismiss_handler(state.get_show_basic())
                     p {
                         class: c_demo_text()
-                        MODAL_BASIC_BODY_TEXT
+                        "This is a basic modal dialog. Click the close button or the overlay to dismiss."
                     }
                     p {
                         class: c_demo_text_muted()
-                        MODAL_BASIC_BODY_HINT
+                        "Modals are useful for displaying focused content that requires user attention."
                     }
                 }
             }
             if { state.get_show_confirm().get() } {
                 euv_modal {
-                    title: MODAL_CONFIRM_ACTION_TITLE
+                    title: "Confirm Action"
                     onclick: modal_dismiss_handler(state.get_show_confirm())
                     p {
                         class: c_demo_text()
-                        MODAL_CONFIRM_ACTION_TEXT
+                        "Are you sure you want to proceed with this action?"
                     }
                     div {
                         class: c_modal_actions()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: MODAL_CONFIRM_BUTTON_LABEL
+                            label: "Confirm"
                             onclick: modal_on_confirm(state)
                         }
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: MODAL_CANCEL_BUTTON_LABEL
+                            label: "Cancel"
                             onclick: modal_on_cancel_confirm(state)
                         }
                     }
@@ -133,26 +133,26 @@ pub(crate) fn page_modal(node: VirtualNode<PageModalProps>) -> VirtualNode {
             }
             if { state.get_show_form().get() } {
                 euv_modal {
-                    title: MODAL_SIGN_UP_TITLE
+                    title: "Quick Sign Up"
                     onclick: modal_dismiss_handler(state.get_show_form())
                     euv_field {
-                        id: MODAL_NAME_ID
-                        name: MODAL_NAME_NAME
-                        label: MODAL_SIGN_UP_NAME_LABEL
-                        input_type: MODAL_TEXT_TYPE
-                        placeholder: MODAL_NAME_PLACEHOLDER
-                        autocomplete: MODAL_AUTOCOMPLETE_NAME
+                        id: "modal-name"
+                        name: "name"
+                        label: "Name"
+                        input_type: "text"
+                        placeholder: "Enter your name"
+                        autocomplete: "name"
                         value: state.get_modal_name()
                         error: Some(state.get_name_error())
                         oninput: modal_on_input_name(state)
                     }
                     euv_field {
-                        id: MODAL_EMAIL_ID
-                        name: MODAL_EMAIL_NAME
-                        label: MODAL_SIGN_UP_EMAIL_LABEL
-                        input_type: MODAL_EMAIL_TYPE
-                        placeholder: MODAL_EMAIL_PLACEHOLDER
-                        autocomplete: MODAL_AUTOCOMPLETE_EMAIL
+                        id: "modal-email"
+                        name: "email"
+                        label: "Email"
+                        input_type: "email"
+                        placeholder: "Enter your email"
+                        autocomplete: "email"
                         value: state.get_modal_email()
                         error: Some(state.get_email_error())
                         oninput: modal_on_input_email(state)
@@ -167,12 +167,12 @@ pub(crate) fn page_modal(node: VirtualNode<PageModalProps>) -> VirtualNode {
                         class: c_modal_actions()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: MODAL_SUBMIT_BUTTON_LABEL
+                            label: "Submit"
                             onclick: modal_on_form_submit(state)
                         }
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: MODAL_CANCEL_BUTTON_LABEL
+                            label: "Cancel"
                             onclick: modal_on_cancel_form(state)
                         }
                     }
@@ -180,21 +180,21 @@ pub(crate) fn page_modal(node: VirtualNode<PageModalProps>) -> VirtualNode {
             }
             if { state.get_show_nested_1().get() } {
                 euv_modal {
-                    title: MODAL_LAYER_1_TITLE
+                    title: "Nested Modal · Layer 1"
                     onclick: modal_dismiss_handler(state.get_show_nested_1())
                     p {
                         class: c_demo_text()
-                        MODAL_LAYER_1_TEXT
+                        "This is the first layer. Open another modal on top of it."
                     }
                     p {
                         class: c_demo_text_muted()
-                        MODAL_LAYER_1_HINT
+                        "Use the system back gesture to close the topmost layer first."
                     }
                     div {
                         class: c_modal_actions()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: MODAL_OPEN_LAYER_2_BUTTON_LABEL
+                            label: "Open Layer 2"
                             onclick: modal_on_open_nested_2(state)
                         }
                     }
@@ -202,17 +202,17 @@ pub(crate) fn page_modal(node: VirtualNode<PageModalProps>) -> VirtualNode {
             }
             if { state.get_show_nested_2().get() } {
                 euv_modal {
-                    title: MODAL_LAYER_2_TITLE
+                    title: "Nested Modal · Layer 2"
                     onclick: modal_dismiss_handler(state.get_show_nested_2())
                     p {
                         class: c_demo_text()
-                        MODAL_LAYER_2_TEXT
+                        "This is the second layer, stacked over layer 1."
                     }
                     div {
                         class: c_modal_actions()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: MODAL_OPEN_LAYER_3_BUTTON_LABEL
+                            label: "Open Layer 3"
                             onclick: modal_on_open_nested_3(state)
                         }
                     }
@@ -220,15 +220,15 @@ pub(crate) fn page_modal(node: VirtualNode<PageModalProps>) -> VirtualNode {
             }
             if { state.get_show_nested_3().get() } {
                 euv_modal {
-                    title: MODAL_LAYER_3_TITLE
+                    title: "Nested Modal · Layer 3"
                     onclick: modal_dismiss_handler(state.get_show_nested_3())
                     p {
                         class: c_demo_text()
-                        MODAL_LAYER_3_TEXT
+                        "This is the third and innermost layer."
                     }
                     p {
                         class: c_demo_text_muted()
-                        MODAL_NESTED_HINT
+                        "Press back three times: layer 3, then 2, then 1 close in order before leaving the page."
                     }
                 }
             }

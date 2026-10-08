@@ -1,5 +1,5 @@
 /// The default maximum number of bounces evaluated by
-/// [`RayTraceScene::trace`] before returning. Higher values yield more
+/// [`RayTraceScene::trace`](crate::RayTraceScene::trace) before returning. Higher values yield more
 /// accurate reflections at increased computational cost.
 pub(crate) const RAYTRACE_DEFAULT_MAX_BOUNCES: u32 = 4;
 
@@ -13,5 +13,5 @@ pub(crate) const RAYTRACE_DEFAULT_T_MAX: f64 = 1000.0;
 
 /// The Moller-Trumbore determinant magnitude below which a ray is treated as
 /// parallel to the triangle plane and therefore unable to hit it. Pairs with
-/// the shared [`EPSILON`] tolerance.
+/// the shared [`EPSILON`](crate::EPSILON) tolerance.
 pub(crate) const RAYTRACE_TRIANGLE_EPSILON: f64 = 1e-8;

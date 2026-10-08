@@ -1,7 +1,7 @@
 use super::*;
 
 class! {
-    pub c_euv_table {
+    pub(crate) c_euv_table {
         width: "100%";
         border-collapse: "collapse";
         table-layout: "auto";
@@ -14,48 +14,48 @@ class! {
         }
     }
 
-    pub c_euv_table_head {
+    pub(crate) c_euv_table_head {
         font-size: var!(font-xs);
         font-weight: "600";
         letter-spacing: "0.04em";
         text-transform: "uppercase";
     }
 
-    pub c_euv_table_body {
+    pub(crate) c_euv_table_body {
         font-size: var!(font-base);
     }
 
-    pub c_euv_table_row {
+    pub(crate) c_euv_table_row {
         border-bottom: format!("1px dashed {}", var!(border));
     }
 
-    pub c_euv_table_row_zebra {
+    pub(crate) c_euv_table_row_zebra {
         border-bottom: format!("1px dashed {}", var!(border));
         background: var!(accent-muted);
     }
 
-    pub c_euv_table_cell {
+    pub(crate) c_euv_table_cell {
         padding: format!("{} {}", var!(space-md), var!(space-lg));
         text-align: "left";
         vertical-align: "middle";
         white-space: "nowrap";
     }
 
-    pub c_euv_table_cell_center {
+    pub(crate) c_euv_table_cell_center {
         padding: format!("{} {}", var!(space-md), var!(space-lg));
         text-align: "center";
         vertical-align: "middle";
         white-space: "nowrap";
     }
 
-    pub c_euv_table_cell_right {
+    pub(crate) c_euv_table_cell_right {
         padding: format!("{} {}", var!(space-md), var!(space-lg));
         text-align: "right";
         vertical-align: "middle";
         white-space: "nowrap";
     }
 
-    pub c_euv_table_header_cell {
+    pub(crate) c_euv_table_header_cell {
         padding: format!("{} {}", var!(space-md), var!(space-lg));
         text-align: "left";
         vertical-align: "middle";
@@ -67,7 +67,7 @@ class! {
         border-bottom: format!("1px solid {}", var!(border));
     }
 
-    pub c_euv_table_caption {
+    pub(crate) c_euv_table_caption {
         caption-side: "bottom";
         padding-top: var!(space-sm);
         font-size: var!(font-sm);
@@ -75,7 +75,7 @@ class! {
         text-align: "left";
     }
 
-    pub c_euv_stat {
+    pub(crate) c_euv_stat {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-2xs);
@@ -83,7 +83,7 @@ class! {
         border: format!("1px dashed {}", var!(border));
     }
 
-    pub c_euv_stat_icon {
+    pub(crate) c_euv_stat_icon {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -93,7 +93,7 @@ class! {
         flex-shrink: "0";
     }
 
-    pub c_euv_stat_value {
+    pub(crate) c_euv_stat_value {
         font-size: var!(font-2xl);
         font-weight: "700";
         color: var!(accent);
@@ -101,17 +101,17 @@ class! {
         font-family: "ui-monospace, monospace";
     }
 
-    pub c_euv_stat_label {
+    pub(crate) c_euv_stat_label {
         font-size: var!(font-sm);
         color: var!(muted-foreground);
     }
 
-    pub c_euv_stat_hint {
+    pub(crate) c_euv_stat_hint {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
     }
 
-    pub c_euv_steps {
+    pub(crate) c_euv_steps {
         display: "flex";
         flex-direction: "row";
         align-items: "flex-start";
@@ -123,7 +123,7 @@ class! {
         }
     }
 
-    pub c_euv_step {
+    pub(crate) c_euv_step {
         display: "flex";
         flex-direction: "row";
         align-items: "flex-start";
@@ -137,7 +137,7 @@ class! {
         }
     }
 
-    pub c_euv_step_active {
+    pub(crate) c_euv_step_active {
         display: "flex";
         flex-direction: "row";
         align-items: "flex-start";
@@ -151,7 +151,7 @@ class! {
         }
     }
 
-    pub c_euv_step_done {
+    pub(crate) c_euv_step_done {
         display: "flex";
         flex-direction: "row";
         align-items: "flex-start";
@@ -165,7 +165,7 @@ class! {
         }
     }
 
-    pub c_euv_step_marker {
+    pub(crate) c_euv_step_marker {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -182,20 +182,20 @@ class! {
         line-height: "1";
     }
 
-    pub c_euv_step_title {
+    pub(crate) c_euv_step_title {
         font-size: var!(font-base);
         font-weight: "500";
         color: var!(foreground);
         margin: "0px";
     }
 
-    pub c_euv_step_desc {
+    pub(crate) c_euv_step_desc {
         font-size: var!(font-sm);
         color: var!(muted-foreground);
         margin: "0px";
     }
 
-    pub c_euv_step_line {
+    pub(crate) c_euv_step_line {
         flex: "1";
         height: "0px";
         align-self: "center";
@@ -207,14 +207,14 @@ class! {
         }
     }
 
-    pub c_euv_timeline {
+    pub(crate) c_euv_timeline {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-lg);
         width: "100%";
     }
 
-    pub c_euv_timeline_item {
+    pub(crate) c_euv_timeline_item {
         position: "relative";
         display: "flex";
         flex-direction: "row";
@@ -223,7 +223,7 @@ class! {
         padding-left: var!(space-lg);
     }
 
-    pub c_euv_timeline_marker {
+    pub(crate) c_euv_timeline_marker {
         position: "absolute";
         left: "0px";
         top: "0px";
@@ -238,7 +238,7 @@ class! {
         background: var!(background);
     }
 
-    pub c_euv_timeline_content {
+    pub(crate) c_euv_timeline_content {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-2xs);
@@ -246,26 +246,26 @@ class! {
         min-width: "0";
     }
 
-    pub c_euv_timeline_title {
+    pub(crate) c_euv_timeline_title {
         font-size: var!(font-base);
         font-weight: "600";
         color: var!(foreground);
         margin: "0px";
     }
 
-    pub c_euv_timeline_desc {
+    pub(crate) c_euv_timeline_desc {
         font-size: var!(font-sm);
         color: var!(foreground);
         margin: "0px";
     }
 
-    pub c_euv_timeline_time {
+    pub(crate) c_euv_timeline_time {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
         font-family: "ui-monospace, monospace";
     }
 
-    pub c_euv_timeline_line {
+    pub(crate) c_euv_timeline_line {
         position: "absolute";
         left: "4px";
         top: "12px";
@@ -275,7 +275,7 @@ class! {
         border-left: format!("1px solid {}", var!(border));
     }
 
-    pub c_euv_skeleton {
+    pub(crate) c_euv_skeleton {
         display: "block";
         width: "100%";
         height: "16px";
@@ -285,7 +285,7 @@ class! {
         animation: format!("euv-pulse 1.5s {} infinite", var!(ease-in-out));
     }
 
-    pub c_euv_skeleton_line {
+    pub(crate) c_euv_skeleton_line {
         display: "block";
         width: "100%";
         height: "12px";
@@ -326,7 +326,7 @@ class! {
         font-family: "ui-monospace, monospace";
     }
 
-    pub c_virtual_list_container {
+    pub(crate) c_virtual_list_container {
         flex: "1";
         height: "666px";
         max-height: "666px";

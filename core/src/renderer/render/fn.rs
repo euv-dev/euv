@@ -189,7 +189,10 @@ where
         }
         return;
     }
-    let mut iter = nodes.into_iter();
+    // `I` is generic over `IntoIterator`, so the concrete iterator type is an
+    // associated type rather than a concrete one; `<I as IntoIterator>::IntoIter`
+    // is the nameable form of it.
+    let mut iter: <I as IntoIterator>::IntoIter = nodes.into_iter();
     let Some(first) = iter.next() else {
         return;
     };
@@ -496,7 +499,7 @@ pub(crate) fn euv_collect_subtree_ids(root: &Element) -> Float64Array {
     // typical cleanup_subtree calls (5–30 nodes) the Rust loop pays the
     // same crossings in aggregate without a separate JS module load.
     let mut out: Vec<f64> = Vec::new();
-    let mut stack: Vec<web_sys::Element> = Vec::new();
+    let mut stack: Vec<Element> = Vec::new();
     stack.push(root.clone());
     while let Some(node) = stack.pop() {
         let euv_attr: Option<String> = node.get_attribute(DATA_EUV_ID);

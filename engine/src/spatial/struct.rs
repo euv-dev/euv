@@ -9,11 +9,15 @@ use super::*;
 pub struct SpatialHashGrid2D {
     /// The world-space size of each grid cell.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) cell_size: f64,
     /// The inverse of `cell_size`, precomputed for fast coordinate-to-cell hashing.
     #[get(type(copy))]
     #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) inverse_cell_size: f64,
     /// The hash map from cell key to the list of body indices occupying that cell.
     #[get_mut(pub(crate))]
@@ -30,11 +34,15 @@ pub struct SpatialHashGrid2D {
 pub struct SpatialHashGrid3D {
     /// The world-space size of each grid cell.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) cell_size: f64,
     /// The inverse of `cell_size`, precomputed for fast coordinate-to-cell hashing.
     #[get(type(copy))]
     #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) inverse_cell_size: f64,
     /// The hash map from cell key to the list of body indices occupying that cell.
     #[get_mut(pub(crate))]
@@ -56,9 +64,13 @@ pub struct QuadTreeEntry2D {
     pub(crate) index: usize,
     /// The minimum corner of the body's world-space bounding box.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) min: Vector2D,
     /// The maximum corner of the body's world-space bounding box.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) max: Vector2D,
 }
 
@@ -73,15 +85,22 @@ pub struct QuadTreeEntry2D {
 pub struct QuadTreeNode2D {
     /// The minimum corner of the region this node covers.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) min: Vector2D,
     /// The maximum corner of the region this node covers.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) max: Vector2D,
     /// The subdivision level, `0` at the root and incrementing per split.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) depth: usize,
     /// The child node handles, all unset until the node subdivides.
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) children: QuadTreeChildren2D,
     /// A flag that is `true` once the node owns four valid child handles.
     #[get(type(copy))]
@@ -100,6 +119,7 @@ pub struct QuadTreeNode2D {
     pub(crate) loose: bool,
     /// The entries stored directly in this node, including any body that is
     /// too large for, or straddles the boundary of, a single child region.
+    #[set(pub(crate))]
     pub(crate) entries: QuadTreeEntryList2D,
 }
 
@@ -120,15 +140,21 @@ pub struct QuadTreeNode2D {
 #[derive(Clone, Data, Debug, PartialEq)]
 pub struct QuadTree2D {
     /// The arena of all live nodes; node 0 is always the root.
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) nodes: QuadTreeNodeList2D,
     /// The number of entries a node may hold before subdividing.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) capacity: usize,
     /// The deepest subdivision level a node may reach.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) max_depth: usize,
     /// The total number of inserted bodies across every node.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) count: usize,
 }

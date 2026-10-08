@@ -76,7 +76,7 @@ pub struct VertexBufferLayout {
 /// texture that is uploaded to via `queue.writeTexture`. Override fields
 /// after constructing to set `mip_level_count`, `sample_count`, or
 /// different `usage` flags.
-#[derive(Clone, Debug, Getter, New)]
+#[derive(Clone, Data, Debug, New)]
 pub struct Texture2DDescriptor {
     /// The texture width in pixels. Must be > 0.
     #[get(type(copy))]
@@ -187,7 +187,7 @@ pub struct BindGroupLayoutEntry {
     pub binding: u32,
     /// The shader stages that can read this binding. Combine several
     /// with `|`, e.g. `ShaderStage::Vertex | ShaderStage::Fragment`.
-    pub visibility: ShaderStage,
+    pub visibility: ShaderStages,
     /// The resource kind bound at this slot.
     pub ty: BindGroupEntryType,
 }
@@ -498,7 +498,7 @@ pub struct ComputePipelineDescriptor {
 /// texture, and `label` names the resource in the browser's GPU debug
 /// tooling, which is the only way to tell two same-sized textures apart
 /// in a capture.
-#[derive(Clone, Debug, Getter, New)]
+#[derive(Clone, Data, Debug, New)]
 pub struct TextureDescriptor {
     /// The width in texels. Must be greater than zero.
     #[get(type(copy))]
@@ -545,7 +545,7 @@ pub struct TextureDescriptor {
 /// today, where a caller had to know the bit values and pass `64 | 8` by
 /// hand for a uniform-or-vertex buffer. Combine several uses with `|`.
 #[derive(Clone, Debug, Getter, New)]
-pub struct BufferDescriptor {
+pub(crate) struct BufferDescriptor {
     /// The size in bytes. Must be greater than zero.
     #[get(type(copy))]
     pub(crate) size: u64,

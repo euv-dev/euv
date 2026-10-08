@@ -1,5 +1,6 @@
-use euv_engine::*;
+use super::*;
 
+const EPSILON: f64 = 1e-9;
 #[test]
 fn trace_miss_returns_ambient() {
     let eye: Vector3D = Vector3D::new(0.0, 0.0, 0.0);
@@ -618,5 +619,52 @@ fn broad_phase_matches_an_unpruned_scan_over_a_dense_scene() {
     assert!(
         hits > 100,
         "the sweep must genuinely strike geometry for the comparison to mean anything, got {hits} hits",
+    );
+}
+
+#[test]
+fn a_ray_with_depth_keeps_its_geometry_and_only_changes_the_budget() {
+    let ray: Ray = Ray::new(Vector3D::new(0.0, 0.0, 0.0), Vector3D::new(0.0, 0.0, -1.0));
+    let deeper: Ray = ray.with_depth(3);
+    assert_eq!(
+        deeper.get_origin(),
+        ray.get_origin(),
+        "the origin is carried over"
+    );
+    assert_eq!(
+        deeper.get_direction(),
+        ray.get_direction(),
+        "and so is the direction"
+    );
+    assert_eq!(deeper.get_t_min(), ray.get_t_min(), "and the near bound");
+    assert_eq!(deeper.get_t_max(), ray.get_t_max(), "and the far bound");
+    assert_eq!(deeper.get_depth(), 3, "only the bounce budget changes");
+    assert_eq!(
+        ray.get_depth(),
+        0,
+        "and the receiver is untouched, since with_depth takes &self and clones"
+    );
+}
+
+#[test]
+fn trace_follows_the_reflection_path_while_a_zero_bounce_budget_does_not() {
+    let eye: Vector3D = Vector3D::new(0.0, 0.0, 10.0);
+    let mut lights: LightingUniforms = LightingUniforms::with_eye(eye);
+    lights.set_ambient(Vector3D::zero());
+    let mirror_material: Material = Material::phong(Vector3D::zero(), 1.0, 32.0);
+    let mirror: Occluder = Occluder::sphere(Vector3D::zero(), 1.0, mirror_material);
+    let emissive_material: Material = Material::emissive(Vector3D::new(0.0, 1.0, 0.0));
+    let emissive: Occluder =
+        Occluder::sphere(Vector3D::new(0.0, 0.0, 15.0), 1.0, emissive_material);
+    let scene: RayTraceScene = RayTraceScene::new(vec![mirror, emissive]);
+    let ray: Ray = Ray::new(Vector3D::new(0.0, 0.0, 10.0), Vector3D::new(0.0, 0.0, -1.0));
+    let full: Vector3D = scene.trace(ray.clone(), &lights);
+    let no_bounce: Vector3D = scene.trace_with_bounces(ray, &lights, 0);
+    assert!(
+        full.get_y() > no_bounce.get_y(),
+        "trace walks the reflection path on its own, so a zero bounce budget must come back dimmer: \
+         trace {} vs trace_with_bounces(.., 0) {}",
+        full.get_y(),
+        no_bounce.get_y()
     );
 }

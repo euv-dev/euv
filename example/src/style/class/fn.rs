@@ -1,7 +1,7 @@
 use super::*;
 
 class! {
-    pub c_game_stats_bar {
+    pub(crate) c_game_stats_bar {
         display: "flex";
         gap: "16px";
         margin-bottom: "12px";
@@ -9,29 +9,29 @@ class! {
         font-weight: "600";
     }
 
-    pub c_game_stats_label {
+    pub(crate) c_game_stats_label {
         color: "inherit";
     }
 
-    pub c_game_stats_fps_value {
+    pub(crate) c_game_stats_fps_value {
         color: "inherit";
     }
 
-    pub c_game_stats_count_value {
+    pub(crate) c_game_stats_count_value {
         color: "inherit";
     }
 
-    pub c_game_stats_total_value {
+    pub(crate) c_game_stats_total_value {
         color: "inherit";
     }
 
-    pub c_game_description {
+    pub(crate) c_game_description {
         line-height: "1.5";
         color: "inherit";
         margin-bottom: var!(gap-component);
     }
 
-    pub c_game_canvas_wrapper {
+    pub(crate) c_game_canvas_wrapper {
         position: "relative";
         width: "100%";
         // Inline-mode canvas wrapper: gives the canvas a stable 3:2 CSS
@@ -51,7 +51,7 @@ class! {
         max-height: "100%";
     }
 
-    pub c_game_fullscreen_canvas_wrapper {
+    pub(crate) c_game_fullscreen_canvas_wrapper {
         // Fullscreen-mode wrapper: fills the fixed fullscreen
         // container (1248x750 on a 1280x800 viewport) so the canvas
         // packed inside takes the entire viewport minus toolbar
@@ -67,7 +67,7 @@ class! {
         height: "100%";
     }
 
-    pub c_game_3d_canvas {
+    pub(crate) c_game_3d_canvas {
         width: "100%";
         height: "100%";
         cursor: "grab";
@@ -77,7 +77,7 @@ class! {
         object-fit: "contain";
     }
 
-    pub c_game_3d_canvas_fullscreen {
+    pub(crate) c_game_3d_canvas_fullscreen {
         // Fullscreen canvas: CSS box matches the fullscreen wrapper
         // (1248x750 on 1280x800 viewport, 100% of the column). The
         // backing buffer is resized to match via the fullscreen enter
@@ -96,7 +96,7 @@ class! {
         touch-action: "none";
     }
 
-    pub c_raytrace_canvas_fullscreen {
+    pub(crate) c_raytrace_canvas_fullscreen {
         // RayTrace and Lighting are software-rendered 2D canvases with
         // a fixed 4:3 backing buffer (320x240). Their backing buffer
         // is NOT resized on fullscreen enter (re-tracing 1248x750
@@ -116,7 +116,7 @@ class! {
         object-fit: "contain";
     }
 
-    pub c_game_2d_canvas {
+    pub(crate) c_game_2d_canvas {
         width: "100%";
         height: "100%";
         cursor: "pointer";
@@ -126,7 +126,7 @@ class! {
         object-fit: "contain";
     }
 
-    pub c_game_2d_canvas_fullscreen {
+    pub(crate) c_game_2d_canvas_fullscreen {
         // Fullscreen canvas - see c_game_3d_canvas_fullscreen for
         // the resize-on-enter rationale.
         width: "100%";
@@ -137,12 +137,12 @@ class! {
         touch-action: "none";
     }
 
-    pub c_canvas_pixelated {
+    pub(crate) c_canvas_pixelated {
         image-rendering: "pixelated";
         image-rendering: "crisp-edges";
     }
 
-    pub c_game_loading_overlay {
+    pub(crate) c_game_loading_overlay {
         position: "absolute";
         top: "0";
         left: "0";
@@ -151,25 +151,25 @@ class! {
         pointer-events: "none";
     }
 
-    pub c_keep_alive_tab_visible {
+    pub(crate) c_keep_alive_tab_visible {
         display: "block";
     }
 
-    pub c_keep_alive_tab_hidden {
+    pub(crate) c_keep_alive_tab_hidden {
         display: "none";
     }
 
-    pub c_binding_slider_label_accent {
+    pub(crate) c_binding_slider_label_accent {
         color: var!(accent);
     }
 
-    pub c_binding_color_preview_bg(background: &str) {
+    pub(crate) c_binding_color_preview_bg(background: &str) {
         background: {
             background
         };
     }
 
-    pub c_slider_value(value_percent: &str) {
+    pub(crate) c_slider_value(value_percent: &str) {
         {
             "--value"
         }
@@ -178,11 +178,21 @@ class! {
         };
     }
 
-    pub c_anim_scale_shrink {
+    pub(crate) c_anim_scale_shrink {
         transform: "scale(0.85)";
     }
 
-    pub c_anim_scale_normal {
+    pub(crate) c_anim_scale_normal {
         transform: "scale(1)";
+    }
+
+    // The gesture demo's touch surface: tall enough to drag in, with the
+    // browser's own touch and text gestures suppressed so a drag reads as a
+    // drag rather than a scroll or a selection.
+    pub c_event_gesture_zone {
+        min-height: "340px";
+        touch-action: "none";
+        user-select: "none";
+        -webkit-user-select: "none";
     }
 }

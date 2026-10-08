@@ -1,17 +1,5 @@
-/// The HTML `id` attribute value for the RayTrace demo canvas element.
-pub(crate) const RAYTRACE_CANVAS_ID: &str = "raytrace-canvas";
-
 /// The CSS selector used to query the RayTrace demo canvas element from the DOM.
 pub(crate) const RAYTRACE_CANVAS_SELECTOR: &str = "#raytrace-canvas";
-
-/// The HTML `id` attribute value for the RayTrace Canvas 2D loading overlay canvas.
-///
-/// Mirrors `RAYTRACE_WEBGL_LOADING_CANVAS_ID` / `RAYTRACE_WEBGPU_LOADING_CANVAS_ID`
-/// so the three RayTrace tabs share the same `c_game_loading_overlay` UX. The
-/// overlay paints a centered "Initializing..." line on top of the raytrace
-/// canvas during the 200-400 ms warmup window the Canvas 2D tab spends
-/// acquiring the SSAA wrapper and tracing its first per-pixel frame.
-pub(crate) const RAYTRACE_LOADING_CANVAS_ID: &str = "raytrace-loading-canvas";
 
 /// The CSS selector for the RayTrace Canvas 2D loading overlay canvas.
 pub(crate) const RAYTRACE_LOADING_CANVAS_SELECTOR: &str = "#raytrace-loading-canvas";
@@ -91,6 +79,12 @@ pub(crate) const RAYTRACE_EVENT_PROPERTY_CLIENT_X: &str = "clientX";
 /// `Touch` object.
 pub(crate) const RAYTRACE_EVENT_PROPERTY_CLIENT_Y: &str = "clientY";
 
+/// The JavaScript event name for the window resize event.
+pub(crate) const RAYTRACE_EVENT_RESIZE: &str = "resize";
+
+/// The JavaScript property name for the device pixel ratio on `Window`.
+pub(crate) const RAYTRACE_EVENT_PROPERTY_DEVICE_PIXEL_RATIO: &str = "devicePixelRatio";
+
 /// Delay in milliseconds before the raytrace loop's first `requestAnimationFrame`
 /// callback is scheduled, allowing the canvas element to mount before the
 /// first frame attempts to acquire a 2D context.
@@ -140,26 +134,14 @@ pub(crate) const RAYTRACE_ADAPT_SLOW_FRAMES: u32 = 30;
 /// below [`RAYTRACE_ADAPT_VERY_FAST_FRAME_MILLIS`] for the same span).
 pub(crate) const RAYTRACE_ADAPT_FAST_FRAMES: u32 = 45;
 
-/// The HTML `id` attribute value for the RayTrace WebGL canvas element.
-pub(crate) const RAYTRACE_WEBGL_CANVAS_ID: &str = "raytrace-webgl-canvas";
-
 /// The CSS selector used to query the RayTrace WebGL canvas element.
 pub(crate) const RAYTRACE_WEBGL_CANVAS_SELECTOR: &str = "#raytrace-webgl-canvas";
-
-/// The HTML `id` attribute value for the RayTrace WebGL loading overlay canvas.
-pub(crate) const RAYTRACE_WEBGL_LOADING_CANVAS_ID: &str = "raytrace-webgl-loading-canvas";
 
 /// The CSS selector for the RayTrace WebGL loading overlay canvas.
 pub(crate) const RAYTRACE_WEBGL_LOADING_CANVAS_SELECTOR: &str = "#raytrace-webgl-loading-canvas";
 
-/// The HTML `id` attribute value for the RayTrace WebGPU canvas element.
-pub(crate) const RAYTRACE_WEBGPU_CANVAS_ID: &str = "raytrace-webgpu-canvas";
-
 /// The CSS selector used to query the RayTrace WebGPU canvas element.
 pub(crate) const RAYTRACE_WEBGPU_CANVAS_SELECTOR: &str = "#raytrace-webgpu-canvas";
-
-/// The HTML `id` attribute value for the RayTrace WebGPU loading overlay canvas.
-pub(crate) const RAYTRACE_WEBGPU_LOADING_CANVAS_ID: &str = "raytrace-webgpu-loading-canvas";
 
 /// The CSS selector for the RayTrace WebGPU loading overlay canvas.
 pub(crate) const RAYTRACE_WEBGPU_LOADING_CANVAS_SELECTOR: &str = "#raytrace-webgpu-loading-canvas";

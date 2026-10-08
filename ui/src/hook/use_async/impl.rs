@@ -47,10 +47,9 @@ where
     /// # Safety
     ///
     /// Caller must ensure the slot is alive. The handle owns a
-    /// `Box<UseAsyncSlot<T, L>>` for its lifetime (the slot is
-    /// leaked at allocation time, never dropped) — see
-    /// [`Self::release`] for the explicit teardown path used by
-    /// `HookContext::clear`.
+    /// `Box<UseAsyncSlot<T, L>>` for its lifetime; the slot is leaked at
+    /// allocation time and never dropped, so there is no teardown path to
+    /// document here.
     ///
     /// # Returns
     ///
@@ -96,10 +95,19 @@ where
     /// Re-runs the future, ignoring any in-flight result from a
     /// previous attempt.
     ///
-    /// Internally this sets a fresh cancel flag, transitions the
-    /// state to `Loading(L::empty())`, and spawns the future. The
-    /// existing in-flight future will see its cancel flag flipped
-    /// and exit early.
+    /// `factory` is called immediately, on the calling thread, and
+    /// the future it returns is spawned. The handle's state is not
+    /// touched on this path: the write-back to `Ok` / `Err` happens
+    /// inside the spawned task, so a caller that reads
+    /// [`Self::state`] straight after this call still sees the
+    /// previous result.
+    ///
+    /// In the usual `match` on the state, `refetch` is called from the
+    /// `Loading` arm during render, so there is nothing to reset —
+    /// but a `refetch` issued from a settled `Ok` or `Err` (a refresh
+    /// button, say) leaves the stale value on screen until the future
+    /// resolves. Call [`Self::set_state`] with
+    /// `AsyncState::Loading(L::empty())` first if that window matters.
     ///
     /// The error type `E` is intentionally a free type parameter
     /// (rather than `String` or a dedicated `AsyncError` trait) so

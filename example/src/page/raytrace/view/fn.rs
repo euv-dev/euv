@@ -222,7 +222,7 @@ fn raytrace_canvas_tab(
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: RAYTRACE_CANVAS_ID
+                            id: "raytrace-canvas"
                             class: if { canvas_2d_fullscreen.get() } {
                                 c_raytrace_canvas_fullscreen()
                             } else {
@@ -239,7 +239,7 @@ fn raytrace_canvas_tab(
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: RAYTRACE_LOADING_CANVAS_ID
+                                id: "raytrace-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -406,7 +406,7 @@ fn raytrace_webgl_tab(
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: RAYTRACE_WEBGL_CANVAS_ID
+                            id: "raytrace-webgl-canvas"
                             class: if { web_gl_fullscreen.get() } {
                                 c_raytrace_canvas_fullscreen()
                             } else {
@@ -423,7 +423,7 @@ fn raytrace_webgl_tab(
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: RAYTRACE_WEBGL_LOADING_CANVAS_ID
+                                id: "raytrace-webgl-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -560,7 +560,7 @@ fn raytrace_webgpu_tab(
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: RAYTRACE_WEBGPU_CANVAS_ID
+                            id: "raytrace-webgpu-canvas"
                             class: if { web_gpu_fullscreen.get() } {
                                 c_raytrace_canvas_fullscreen()
                             } else {
@@ -577,7 +577,7 @@ fn raytrace_webgpu_tab(
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: RAYTRACE_WEBGPU_LOADING_CANVAS_ID
+                                id: "raytrace-webgpu-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }

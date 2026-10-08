@@ -6,12 +6,17 @@ use super::*;
 pub struct GameAudioContext {
     /// The underlying Web Audio API context.
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) context: AudioContext,
     /// The master gain node controlling overall volume.
     #[set(pub(crate))]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) master_gain: GainNode,
     /// The master volume level in the range 0.0 to 1.0.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) master_volume: f64,
 }
 
@@ -20,9 +25,12 @@ pub struct GameAudioContext {
 pub struct AudioClip {
     /// The decoded audio data buffer.
     #[set(pub(crate))]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) buffer: AudioBuffer,
     /// The name identifying this clip.
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) name: String,
     /// The current playback state.
     #[get(type(copy))]
@@ -31,18 +39,22 @@ pub struct AudioClip {
     /// Whether the clip should loop when it reaches the end.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) looping: bool,
     /// The volume level in the range 0.0 to 1.0.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) volume: f64,
     /// The playback rate multiplier (1.0 = normal speed).
     #[get(type(copy))]
     #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) playback_rate: f64,
     /// The currently active source node, if the clip is playing.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
     pub(crate) source_node: Option<AudioBufferSourceNode>,
 }

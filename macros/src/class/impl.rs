@@ -281,7 +281,7 @@ impl ToTokens for ClassDef {
                         if dynamic_param_names.contains(&param_name.to_string()) {
                             quote! { ::euv::Css::param_class_name(&(#param_name).to_string()) }
                         } else {
-                            quote! { std::any::type_name_of_val(&#param_name).to_string() }
+                            quote! { ::std::any::type_name_of_val(&#param_name).to_string() }
                         }
                     })
                     .collect();

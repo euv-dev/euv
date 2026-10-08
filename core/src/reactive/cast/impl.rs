@@ -198,8 +198,15 @@ impl From<NativeEventHandler> for AttributeValue {
     /// # Arguments
     ///
     /// - `NativeEventHandler` - Input value to convert from.
+    ///
+    /// This is the base case of the `NativeEventHandler` ->
+    /// `AttrValueAdapter<NativeEventHandler>` -> `NativeEventHandler`
+    /// conversion cycle. Calling `.into()` on the adapter instead would
+    /// land back in this impl through the generic
+    /// `From<AttrValueAdapter<T>>` (which unwraps and calls `T::into()`),
+    /// recursing forever.
     fn from(handler: NativeEventHandler) -> Self {
-        AttrValueAdapter::new(handler).into()
+        AttrValueAdapter::new(handler).into_callback_named(CALLBACK_EVENT_NAME)
     }
 }
 
@@ -220,7 +227,9 @@ impl From<Option<NativeEventHandler>> for AttributeValue {
     /// - `Option<NativeEventHandler>` - Input value to convert from.
     fn from(handler: Option<NativeEventHandler>) -> Self {
         match handler {
-            Some(event_handler) => AttrValueAdapter::new(event_handler).into(),
+            Some(event_handler) => {
+                AttrValueAdapter::new(event_handler).into_callback_named(CALLBACK_EVENT_NAME)
+            }
             None => AttributeValue::Text(String::new()),
         }
     }

@@ -148,15 +148,11 @@ impl RigidBody2D {
         match collider? {
             BodyCollider::Aabb(aabb) => {
                 let aabb_rect: Rect = aabb.get_rect();
-                let mut offset_rect: Rect = aabb_rect;
-                offset_rect.set_x(
-                    offset_rect.get_x() + self.get_position().get_x() - aabb_rect.get_width() * 0.5,
-                );
-                offset_rect.set_y(
-                    offset_rect.get_y() + self.get_position().get_y()
-                        - aabb_rect.get_height() * 0.5,
-                );
-                Some(offset_rect)
+                Some(Rect::from_center(
+                    aabb_rect.center() + self.get_position(),
+                    aabb_rect.get_width(),
+                    aabb_rect.get_height(),
+                ))
             }
             BodyCollider::Circle(circle) => {
                 let diameter: f64 = circle.get_circle().get_radius() * 2.0;
@@ -468,7 +464,7 @@ impl PhysicsWorld2D {
         // its allocation across steps instead of paying one Vec clone
         // (alloc + memcpy) per step per world. It is restored after the
         // iteration loop.
-        let pairs_snapshot: Vec<(usize, usize)> = std::mem::take(self.get_mut_pair_buffer());
+        let pairs_snapshot: Vec<(usize, usize)> = take(self.get_mut_pair_buffer());
         for iteration in 0..PHYSICS_MAX_ITERATIONS {
             let mut any_collision: bool = false;
             for &(i, j) in pairs_snapshot.iter() {
@@ -855,7 +851,7 @@ impl PhysicsWorld3D {
         // its allocation across steps instead of paying one Vec clone
         // (alloc + memcpy) per step per world. It is restored after the
         // iteration loop.
-        let pairs_snapshot: Vec<(usize, usize)> = std::mem::take(self.get_mut_pair_buffer());
+        let pairs_snapshot: Vec<(usize, usize)> = take(self.get_mut_pair_buffer());
         for iteration in 0..PHYSICS_MAX_ITERATIONS {
             let mut any_collision: bool = false;
             for &(i, j) in pairs_snapshot.iter() {

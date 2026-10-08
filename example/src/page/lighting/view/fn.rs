@@ -195,7 +195,7 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: LIGHTING_CANVAS_ID
+                            id: "lighting-canvas"
                             class: if { canvas_2d_fullscreen.get() } {
                                 c_raytrace_canvas_fullscreen()
                             } else {
@@ -204,7 +204,7 @@ fn lighting_canvas_tab(fullscreen: UseLightingFullscreen) -> VirtualNode {
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: LIGHTING_LOADING_CANVAS_ID
+                                id: "lighting-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -359,7 +359,7 @@ fn lighting_webgl_tab(state: UseLightingWebGl, fullscreen: UseLightingFullscreen
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: LIGHTING_WEBGL_CANVAS_ID
+                            id: "lighting-webgl-canvas"
                             class: if { web_gl_fullscreen.get() } {
                                 c_raytrace_canvas_fullscreen()
                             } else {
@@ -368,7 +368,7 @@ fn lighting_webgl_tab(state: UseLightingWebGl, fullscreen: UseLightingFullscreen
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: LIGHTING_WEBGL_LOADING_CANVAS_ID
+                                id: "lighting-webgl-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }
@@ -470,7 +470,7 @@ fn lighting_webgpu_tab(state: UseLightingWebGpu, fullscreen: UseLightingFullscre
                     div {
                         class: c_game_fullscreen_canvas_letterbox()
                         canvas {
-                            id: LIGHTING_WEBGPU_CANVAS_ID
+                            id: "lighting-webgpu-canvas"
                             class: if { web_gpu_fullscreen.get() } {
                                 c_raytrace_canvas_fullscreen()
                             } else {
@@ -479,7 +479,7 @@ fn lighting_webgpu_tab(state: UseLightingWebGpu, fullscreen: UseLightingFullscre
                         }
                         if { !state.get_loaded().get() } {
                             canvas {
-                                id: LIGHTING_WEBGPU_LOADING_CANVAS_ID
+                                id: "lighting-webgpu-loading-canvas"
                                 class: c_game_loading_overlay()
                             }
                         }

@@ -1,6 +1,4 @@
-use euv_engine::*;
-
-use std::collections::HashSet;
+use super::*;
 
 fn sorted(items: &[usize]) -> Vec<usize> {
     let mut copy: Vec<usize> = items.to_vec();
@@ -231,7 +229,7 @@ fn many_small_bodies_match_a_brute_force_linear_scan_after_deep_subdivision() {
     assert!(
         inner.is_empty(),
         "a query strictly inside the gap between the corner bodies must return nothing, got {:?}",
-        inner
+        "inner"
     );
     let touching: Vec<usize> = tree.query(Vector2D::new(17.0, 17.0), Vector2D::new(31.0, 31.0));
     assert_eq!(

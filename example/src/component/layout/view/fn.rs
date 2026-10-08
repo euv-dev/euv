@@ -33,7 +33,7 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
                     }
                     span {
                         class: c_nav_brand_title()
-                        BRAND_NAME
+                        "Euv"
                     }
                 }
                 p {
@@ -141,7 +141,7 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                         }
                         span {
                             class: c_nav_brand_title()
-                            BRAND_NAME
+                            "Euv"
                         }
                     }
                 }
@@ -194,7 +194,7 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                             }
                             span {
                                 class: c_nav_brand_title()
-                                BRAND_NAME
+                                "Euv"
                             }
                         }
                     }

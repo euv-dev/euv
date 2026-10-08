@@ -43,7 +43,7 @@ where
 ///
 /// Reachable only through the raw address stored in the handle.
 /// Allocated by [`super::UseAsyncHandle::new_for_fallback`] for the
-/// "no hook context" case and by [`HookContext::use_async`] when
+/// "no hook context" case and by [`use_async`](crate::use_async) when
 /// the hook is registered for the first time.
 #[derive(Clone, Data)]
 pub(crate) struct UseAsyncSlot<T, L>

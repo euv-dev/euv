@@ -27,7 +27,7 @@ pub(crate) fn docs_main(node: VirtualNode<DocsPageProps>) -> VirtualNode {
         Some(page) if page.home => html! {
             div {
                 key: path.clone()
-                style: STYLE_DISPLAY_CONTENTS
+                class: c_euv_display_contents()
                 docs_home_page {
                     route_signal
                 }
@@ -36,7 +36,7 @@ pub(crate) fn docs_main(node: VirtualNode<DocsPageProps>) -> VirtualNode {
         Some(page) if page.private && !is_unlocked(&path) => html! {
             div {
                 key: path.clone()
-                style: STYLE_DISPLAY_CONTENTS
+                class: c_euv_display_contents()
                 docs_password_gate {
                     route: page.route
                     expected_hash: page.password_hash
@@ -47,7 +47,7 @@ pub(crate) fn docs_main(node: VirtualNode<DocsPageProps>) -> VirtualNode {
         Some(_) => html! {
             div {
                 key: path.clone()
-                style: STYLE_DISPLAY_CONTENTS
+                class: c_euv_display_contents()
                 docs_doc_page {
                     route_signal
                 }
@@ -56,7 +56,7 @@ pub(crate) fn docs_main(node: VirtualNode<DocsPageProps>) -> VirtualNode {
         None => html! {
             div {
                 key: path.clone()
-                style: STYLE_DISPLAY_CONTENTS
+                class: c_euv_display_contents()
                 docs_not_found {
                     route_signal
                 }

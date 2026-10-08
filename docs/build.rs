@@ -239,6 +239,9 @@ struct SideItem {
 }
 
 /// Entry point of the build script.
+const ENV_OUT_DIR: &str = "OUT_DIR";
+
+/// Generates the documentation site into the output directory.
 fn main() {
     let manifest_dir: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let docs_dir: PathBuf = match var(ENV_DOCS_SRC_DIR) {
@@ -2152,7 +2155,7 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
         .find(|p: &&Page| p.route == readme_route)
         .map(|p: &Page| p.sidebar_order.as_slice())
         .unwrap_or(&[]);
-    let pin_pos = |key: &str| -> Option<i64> {
+    let pin_pos: &dyn Fn(&str) -> Option<i64> = &|key: &str| -> Option<i64> {
         order_list
             .iter()
             .position(|n: &String| {

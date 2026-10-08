@@ -69,7 +69,7 @@ impl Router {
     /// overlays close in reverse opening order regardless of type.
     ///
     /// Before consulting the overlay stack, the listener iterates over all registered
-    /// `popstate` guards (see [`register_popstate_guard`]). The first guard that returns
+    /// `popstate` guards (see [`Router::register_popstate_guard`]). The first guard that returns
     /// `true` consumes the event, preventing the overlay stack and normal navigation
     /// from processing it.
     ///
@@ -219,8 +219,10 @@ impl Router {
     /// fullscreen, canvas fullscreen) to intercept the system back gesture without
     /// registering their own independent `popstate` listener.
     ///
-    /// Returns a guard ID that can be passed to [`Router::unregister_popstate_guard`] to
-    /// remove the guard when it is no longer needed.
+    /// Guards stay registered for the lifetime of the page: the guard list is a
+    /// thread-local that is only ever appended to, so a guard registered here
+    /// is consulted by every later `popstate` event. The returned id identifies
+    /// the entry for diagnostics; there is no removal path today.
     ///
     /// # Arguments
     ///
@@ -230,7 +232,7 @@ impl Router {
     ///
     /// # Returns
     ///
-    /// - `usize` - A unique guard ID for later unregistration.
+    /// - `usize` - A unique guard ID identifying this entry in the guard list.
     pub fn register_popstate_guard(guard: Rc<dyn Fn() -> bool>) -> usize {
         NEXT_POPSTATE_GUARD_ID.with(|counter: &Cell<usize>| {
             let id: usize = counter.get();
@@ -245,6 +247,35 @@ impl Router {
                 }
             });
             id
+        })
+    }
+
+    /// Removes a `popstate` guard previously added by
+    /// [`Router::register_popstate_guard`].
+    ///
+    /// A guard left registered keeps being consulted on every `popstate`
+    /// event, so a hook that re-mounts without unregistering its guard ends
+    /// up with stale entries that still consume back gestures.
+    ///
+    /// # Arguments
+    ///
+    /// - `usize` - The ID returned by the matching `register_popstate_guard`.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when a guard with that ID was found and removed.
+    pub fn unregister_popstate_guard(guard_id: usize) -> bool {
+        POPSTATE_GUARDS.with(|guards: &PopstateGuardList| {
+            // Same contention contract as the register path: a busy list
+            // leaves the guard in place rather than aborting the instance.
+            match guards.try_borrow_mut() {
+                Ok(mut entries) => {
+                    let before: usize = entries.len();
+                    entries.retain(|(id, _): &PopstateGuardEntry| *id != guard_id);
+                    entries.len() != before
+                }
+                Err(_) => false,
+            }
         })
     }
 

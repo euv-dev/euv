@@ -4,15 +4,22 @@ use super::*;
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct AssetEntry {
     /// The type of this asset.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) asset_type: AssetType,
     /// The current loading state.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
     pub(crate) state: AssetState,
     /// The loaded image element, if this is an image asset.
     #[get(type(clone))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) image: Option<HtmlImageElement>,
     /// The URL this asset was loaded from.
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) url: String,
 }
 
@@ -32,13 +39,20 @@ pub struct AssetCache {
 pub struct AssetLoader {
     /// The shared cache that loaded assets are stored into.
     #[new(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) cache: Rc<EngineCell<AssetCache>>,
     /// The shared counter of loads that have been requested but have not
     /// settled yet. Read through [`AssetLoader::pending_count`].
     #[new(skip)]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) pending: AssetPending,
     /// Stored closures keeping `onload`/`onerror` callbacks alive, preventing memory leaks.
     #[new(skip)]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) closures: AssetClosures,
 }
 

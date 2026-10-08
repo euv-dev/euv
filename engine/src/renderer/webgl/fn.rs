@@ -54,7 +54,7 @@ pub(crate) fn gl_primitive_mode(topology: PrimitiveTopology) -> u32 {
 ///
 /// - `(u32, u32)` - The `UNSIGNED_SHORT` or `UNSIGNED_INT` type, and the
 ///   element size in bytes.
-pub(crate) fn gl_index_type(format: IndexFormat) -> (u32, u32) {
+pub fn gl_index_type(format: IndexFormat) -> (u32, u32) {
     match format {
         IndexFormat::Uint16 => (WebGl2RenderingContext::UNSIGNED_SHORT, GL_U16_SIZE),
         IndexFormat::Uint32 => (WebGl2RenderingContext::UNSIGNED_INT, GL_U32_SIZE),
@@ -78,7 +78,7 @@ pub(crate) fn gl_index_type(format: IndexFormat) -> (u32, u32) {
 ///
 /// - `u32` - `ARRAY_BUFFER`, `ELEMENT_ARRAY_BUFFER`, or
 ///   `UNIFORM_BUFFER`.
-pub(crate) fn gl_buffer_target(usage: BufferUsage) -> u32 {
+pub fn gl_buffer_target(usage: BufferUsage) -> u32 {
     match usage {
         BufferUsage::Index => WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER,
         BufferUsage::Uniform => WebGl2RenderingContext::UNIFORM_BUFFER,
@@ -102,7 +102,7 @@ pub(crate) fn gl_buffer_target(usage: BufferUsage) -> u32 {
 /// # Returns
 ///
 /// - `u32` - `STATIC_DRAW` or `DYNAMIC_DRAW`.
-pub(crate) fn gl_buffer_usage_hint(usage: BufferUsage) -> u32 {
+pub fn gl_buffer_usage_hint(usage: BufferUsage) -> u32 {
     match usage {
         BufferUsage::CopyDestination | BufferUsage::MapWrite | BufferUsage::Storage => {
             WebGl2RenderingContext::DYNAMIC_DRAW
@@ -121,7 +121,7 @@ pub(crate) fn gl_buffer_usage_hint(usage: BufferUsage) -> u32 {
 /// # Returns
 ///
 /// - `u32` - `NEAREST` or `LINEAR`.
-pub(crate) fn gl_filter_mode(filter: FilterMode) -> u32 {
+pub fn gl_filter_mode(filter: FilterMode) -> u32 {
     match filter {
         FilterMode::Nearest => WebGl2RenderingContext::NEAREST,
         FilterMode::Linear => WebGl2RenderingContext::LINEAR,
@@ -144,7 +144,7 @@ pub(crate) fn gl_filter_mode(filter: FilterMode) -> u32 {
 /// # Returns
 ///
 /// - `u32` - One of the four `*_MIPMAP_*` values.
-pub(crate) fn gl_min_filter(filter: FilterMode, mipmap: MipmapFilter) -> u32 {
+pub fn gl_min_filter(filter: FilterMode, mipmap: MipmapFilter) -> u32 {
     match (filter, mipmap) {
         (FilterMode::Nearest, MipmapFilter::Nearest) => {
             WebGl2RenderingContext::NEAREST_MIPMAP_NEAREST
@@ -169,7 +169,7 @@ pub(crate) fn gl_min_filter(filter: FilterMode, mipmap: MipmapFilter) -> u32 {
 /// # Returns
 ///
 /// - `u32` - `REPEAT`, `CLAMP_TO_EDGE`, or `MIRRORED_REPEAT`.
-pub(crate) fn gl_address_mode(mode: AddressMode) -> u32 {
+pub fn gl_address_mode(mode: AddressMode) -> u32 {
     match mode {
         AddressMode::ClampToEdge => GL_ADDRESS_CLAMP_TO_EDGE,
         AddressMode::MirrorRepeat => GL_ADDRESS_MIRRORED_REPEAT,
@@ -187,7 +187,7 @@ pub(crate) fn gl_address_mode(mode: AddressMode) -> u32 {
 ///
 /// - `u32` - The `NEVER` / `LESS` / `EQUAL` / `LEQUAL` / `GREATER` /
 ///   `NOTEQUAL` / `GEQUAL` / `ALWAYS` constant.
-pub(crate) fn gl_compare_function(compare: CompareFunction) -> u32 {
+pub fn gl_compare_function(compare: CompareFunction) -> u32 {
     match compare {
         CompareFunction::Never => WebGl2RenderingContext::NEVER,
         CompareFunction::Less => WebGl2RenderingContext::LESS,
@@ -214,7 +214,7 @@ pub(crate) fn gl_compare_function(compare: CompareFunction) -> u32 {
 /// # Returns
 ///
 /// - `u32` - The `glBlendFunc` factor constant.
-pub(crate) fn gl_blend_factor(factor: BlendFactor) -> u32 {
+pub fn gl_blend_factor(factor: BlendFactor) -> u32 {
     match factor {
         BlendFactor::Zero => GL_BLEND_FACTOR_ZERO,
         BlendFactor::One => GL_BLEND_FACTOR_ONE,
@@ -244,7 +244,7 @@ pub(crate) fn gl_blend_factor(factor: BlendFactor) -> u32 {
 ///
 /// - `u32` - `FUNC_ADD`, `FUNC_SUBTRACT`, `FUNC_REVERSE_SUBTRACT`,
 ///   `MIN`, or `MAX`.
-pub(crate) fn gl_blend_equation(operation: BlendOperation) -> u32 {
+pub fn gl_blend_equation(operation: BlendOperation) -> u32 {
     match operation {
         BlendOperation::Add => GL_BLEND_EQUATION_ADD,
         BlendOperation::Subtract => WebGl2RenderingContext::FUNC_SUBTRACT,
@@ -263,7 +263,7 @@ pub(crate) fn gl_blend_equation(operation: BlendOperation) -> u32 {
 /// # Returns
 ///
 /// - `u32` - `FRONT`, `BACK`, or `FRONT_AND_BACK`.
-pub(crate) fn gl_cull_face(mode: CullMode) -> u32 {
+pub fn gl_cull_face(mode: CullMode) -> u32 {
     match mode {
         CullMode::None => WebGl2RenderingContext::FRONT_AND_BACK,
         CullMode::Front => WebGl2RenderingContext::FRONT,
@@ -280,7 +280,7 @@ pub(crate) fn gl_cull_face(mode: CullMode) -> u32 {
 /// # Returns
 ///
 /// - `u32` - `CW` or `CCW`.
-pub(crate) fn gl_front_face(face: FrontFace) -> u32 {
+pub fn gl_front_face(face: FrontFace) -> u32 {
     match face {
         FrontFace::CounterClockwise => WebGl2RenderingContext::CCW,
         FrontFace::Clockwise => WebGl2RenderingContext::CW,
@@ -304,7 +304,7 @@ pub(crate) fn gl_front_face(face: FrontFace) -> u32 {
 /// - `(u32, u32, bool)` - The component count, the `FLOAT` /
 ///   `UNSIGNED_BYTE` / `UNSIGNED_INT` / `INT` type, and whether the
 ///   integer components are normalized into `0.0..=1.0`.
-pub(crate) fn gl_attribute_layout(format: VertexAttributeFormat) -> (u32, u32, bool) {
+pub fn gl_attribute_layout(format: VertexAttributeFormat) -> (u32, u32, bool) {
     match format {
         VertexAttributeFormat::Float32 => (1, GL_TYPE_FLOAT, false),
         VertexAttributeFormat::Float32x2 => (2, GL_TYPE_FLOAT, false),
@@ -335,7 +335,7 @@ pub(crate) fn gl_attribute_layout(format: VertexAttributeFormat) -> (u32, u32, b
 ///
 /// - `(i32, u32, u32)` - The sized internal format, the pixel format, and
 ///   the pixel type.
-pub(crate) fn gl_texture_layout(format: GpuTextureFormat) -> (i32, u32, u32) {
+pub fn gl_texture_layout(format: GpuTextureFormat) -> (i32, u32, u32) {
     match format {
         GpuTextureFormat::Rgba8Unorm | GpuTextureFormat::Bgra8Unorm => (
             WebGl2RenderingContext::RGBA8 as i32,
@@ -388,7 +388,7 @@ pub(crate) fn gl_texture_layout(format: GpuTextureFormat) -> (i32, u32, u32) {
 /// # Returns
 ///
 /// - `u32` - The sized internal format for `renderbufferStorage`.
-pub(crate) fn gl_renderbuffer_format(format: GpuTextureFormat) -> u32 {
+pub fn gl_renderbuffer_format(format: GpuTextureFormat) -> u32 {
     match format {
         GpuTextureFormat::Rgba8Unorm | GpuTextureFormat::Bgra8Unorm => {
             WebGl2RenderingContext::RGBA8
@@ -411,7 +411,7 @@ pub(crate) fn gl_renderbuffer_format(format: GpuTextureFormat) -> u32 {
 /// # Returns
 ///
 /// - `GlFramebufferStatus` - The named verdict for that code.
-pub(crate) fn gl_framebuffer_status(status: u32) -> GlFramebufferStatus {
+pub fn gl_framebuffer_status(status: u32) -> GlFramebufferStatus {
     match status {
         WebGl2RenderingContext::FRAMEBUFFER_COMPLETE => GlFramebufferStatus::Complete,
         WebGl2RenderingContext::FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT => {
@@ -435,7 +435,7 @@ pub(crate) fn gl_framebuffer_status(status: u32) -> GlFramebufferStatus {
 /// # Returns
 ///
 /// - `u32` - The `TEXTURE0`-relative constant for that unit.
-pub(crate) fn gl_texture_unit(unit: u32) -> u32 {
+pub fn gl_texture_unit(unit: u32) -> u32 {
     WebGl2RenderingContext::TEXTURE0 + unit
 }
 
@@ -445,7 +445,7 @@ pub(crate) fn gl_texture_unit(unit: u32) -> u32 {
 /// # Returns
 ///
 /// - `u32` - The `TEXTURE_2D` constant.
-pub(crate) fn gl_texture_target_2d() -> u32 {
+pub fn gl_texture_target_2d() -> u32 {
     GL_TEXTURE_TARGET_2D
 }
 
@@ -469,7 +469,7 @@ pub(crate) fn gl_texture_target_2d() -> u32 {
 /// # Returns
 ///
 /// - `()` - The array is filled in place.
-pub(crate) fn gl_matrix4_into_f32(matrix: &Matrix4x4, out: &mut [f32]) {
+pub fn gl_matrix4_into_f32(matrix: &Matrix4x4, out: &mut [f32]) {
     let source: [f64; GL_MAT4_FLOATS] = matrix.get_elements();
     for (index, value) in source.iter().enumerate() {
         out[index] = *value as f32;
@@ -492,6 +492,6 @@ pub(crate) fn gl_matrix4_into_f32(matrix: &Matrix4x4, out: &mut [f32]) {
 /// # Returns
 ///
 /// - `i32` - The value to pass to `pixel_storei`.
-pub(crate) fn gl_flip_y(flip: bool) -> i32 {
+pub fn gl_flip_y(flip: bool) -> i32 {
     if flip { 1 } else { 0 }
 }

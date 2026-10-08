@@ -25,18 +25,18 @@ pub(crate) fn limited_counter(node: VirtualNode<LimitedCounterProps>) -> Virtual
             class: c_binding_child_box()
             p {
                 class: c_binding_child_label()
-                BINDING_LIMITED_COUNTER_TITLE
+                "Limited Counter"
             }
             p {
                 class: c_binding_demo_text()
-                BINDING_PROPS_DISABLED_PREFIX
+                "Props received: disabled="
                 span {
                     class: c_binding_typed_prop_value()
                     {
                         disabled.get().to_string()
                     }
                 }
-                BINDING_PROPS_MAX_COUNT_INFIX
+                ", max_count="
                 span {
                     class: c_binding_typed_prop_value()
                     {
@@ -54,7 +54,7 @@ pub(crate) fn limited_counter(node: VirtualNode<LimitedCounterProps>) -> Virtual
                 }
                 euv_button {
                     variant: EuvButtonVariant::Primary
-                    label: BINDING_RESET_BUTTON_LABEL
+                    label: "Reset"
                     onclick: on_reset
                     disabled: disabled
                 }
@@ -62,7 +62,7 @@ pub(crate) fn limited_counter(node: VirtualNode<LimitedCounterProps>) -> Virtual
             if { disabled } {
                 p {
                     class: c_binding_typed_warning()
-                    BINDING_DISABLED_WARNING
+                    "Counter is disabled!"
                 }
             }
         }
@@ -91,20 +91,20 @@ pub(crate) fn child_input(text_signal: Signal<String>, count_signal: Signal<i32>
             class: c_binding_child_box()
             p {
                 class: c_binding_child_label()
-                BINDING_CHILD_COMPONENT_TITLE
+                "Child Component"
             }
             euv_input {
-                id: CHILD_INPUT_TEXT_ID
-                name: CHILD_INPUT_TEXT_NAME
-                label: BINDING_SHARED_TEXT_INPUT_LABEL
-                autocomplete: BINDING_AUTOCOMPLETE_OFF
+                id: "child-input-text"
+                name: "shared_text"
+                label: "Edit shared text:"
+                autocomplete: "off"
                 value: text_signal
                 oninput: UseEuvInput::on_input_value(text_signal)
                 class: c_euv_input_no_transition().clone()
             }
             div {
                 class: c_counter_text()
-                BINDING_SHARED_COUNT_PREFIX
+                "Shared count: "
                 span {
                     class: c_counter_value()
                     count_value
@@ -144,15 +144,15 @@ pub(crate) fn temperature_converter(
             div {
                 class: c_binding_temp_field()
                 label {
-                    for: TEMPERATURE_CELSIUS_ID
+                    for: "temperature-celsius"
                     class: c_form_label()
-                    BINDING_CELSIUS_LABEL
+                    "Celsius"
                 }
                 input {
-                    id: TEMPERATURE_CELSIUS_ID
-                    name: TEMPERATURE_CELSIUS_NAME
-                    type: BINDING_NUMBER_TYPE
-                    autocomplete: BINDING_AUTOCOMPLETE_OFF
+                    id: "temperature-celsius"
+                    name: "celsius"
+                    type: "number"
+                    autocomplete: "off"
                     value: format!("{celsius_value:.1}")
                     class: c_euv_input_no_transition()
                     oninput: cross_on_input_celsius(celsius_signal)
@@ -165,15 +165,15 @@ pub(crate) fn temperature_converter(
             div {
                 class: c_binding_temp_field()
                 label {
-                    for: TEMPERATURE_FAHRENHEIT_ID
+                    for: "temperature-fahrenheit"
                     class: c_form_label()
-                    BINDING_FAHRENHEIT_LABEL
+                    "Fahrenheit"
                 }
                 input {
-                    id: TEMPERATURE_FAHRENHEIT_ID
-                    name: TEMPERATURE_FAHRENHEIT_NAME
-                    type: BINDING_NUMBER_TYPE
-                    autocomplete: BINDING_AUTOCOMPLETE_OFF
+                    id: "temperature-fahrenheit"
+                    name: "fahrenheit"
+                    type: "number"
+                    autocomplete: "off"
                     value: format!("{fahrenheit_value:.1}")
                     class: c_euv_input_no_transition()
                     oninput: cross_on_input_fahrenheit(fahrenheit_signal)
@@ -222,18 +222,18 @@ pub(crate) fn color_mixer(
             div {
                 class: c_binding_slider_row()
                 label {
-                    for: COLOR_MIXER_RED_ID
+                    for: "color-mixer-red"
                     class: c_binding_slider_label()
                     class: c_binding_slider_label_accent()
                     "R"
                 }
                 input {
-                    id: COLOR_MIXER_RED_ID
-                    name: COLOR_MIXER_RED_NAME
-                    type: BINDING_RANGE_TYPE
-                    autocomplete: BINDING_AUTOCOMPLETE_OFF
-                    min: COLOR_MIXER_MIN
-                    max: COLOR_MIXER_MAX
+                    id: "color-mixer-red"
+                    name: "red"
+                    type: "range"
+                    autocomplete: "off"
+                    min: "0"
+                    max: "255"
                     value: red_value.to_string()
                     class: c_binding_slider()
                     class: c_slider_value(&format!("{}%", red_value * 100 / 255))
@@ -247,18 +247,18 @@ pub(crate) fn color_mixer(
             div {
                 class: c_binding_slider_row()
                 label {
-                    for: COLOR_MIXER_GREEN_ID
+                    for: "color-mixer-green"
                     class: c_binding_slider_label()
                     class: c_binding_slider_label_accent()
                     "G"
                 }
                 input {
-                    id: COLOR_MIXER_GREEN_ID
-                    name: COLOR_MIXER_GREEN_NAME
-                    type: BINDING_RANGE_TYPE
-                    autocomplete: BINDING_AUTOCOMPLETE_OFF
-                    min: COLOR_MIXER_MIN
-                    max: COLOR_MIXER_MAX
+                    id: "color-mixer-green"
+                    name: "green"
+                    type: "range"
+                    autocomplete: "off"
+                    min: "0"
+                    max: "255"
                     value: green_value.to_string()
                     class: c_binding_slider()
                     class: c_slider_value(&format!("{}%", green_value * 100 / 255))
@@ -272,18 +272,18 @@ pub(crate) fn color_mixer(
             div {
                 class: c_binding_slider_row()
                 label {
-                    for: COLOR_MIXER_BLUE_ID
+                    for: "color-mixer-blue"
                     class: c_binding_slider_label()
                     class: c_binding_slider_label_accent()
                     "B"
                 }
                 input {
-                    id: COLOR_MIXER_BLUE_ID
-                    name: COLOR_MIXER_BLUE_NAME
-                    type: BINDING_RANGE_TYPE
-                    autocomplete: BINDING_AUTOCOMPLETE_OFF
-                    min: COLOR_MIXER_MIN
-                    max: COLOR_MIXER_MAX
+                    id: "color-mixer-blue"
+                    name: "blue"
+                    type: "range"
+                    autocomplete: "off"
+                    min: "0"
+                    max: "255"
                     value: blue_value.to_string()
                     class: c_binding_slider()
                     class: c_slider_value(&format!("{}%", blue_value * 100 / 255))
@@ -322,28 +322,28 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
             class: c_page_container()
             euv_header {
                 icon: "🔗"
-                title: BINDING_PAGE_TITLE
-                subtitle: BINDING_PAGE_SUBTITLE
+                title: "Component Binding"
+                subtitle: "Props passing with callbacks, two-way binding via shared Signals, and cross-component reactive binding using watch!."
             }
             euv_card {
-                title: BINDING_PROPS_CARDBACK_CARD_TITLE
+                title: "Props & Callbacks"
                 p {
                     class: c_demo_text()
-                    BINDING_PROPS_CARD_DESC
+                    "The parent component passes a string message to the child via props. The child communicates back to the parent through callback functions triggered on user interaction."
                 }
                 euv_input {
-                    id: BINDING_PARENT_MESSAGE_ID
-                    name: BINDING_PARENT_MESSAGE_NAME
-                    label: BINDING_PARENT_MESSAGE_INPUT_LABEL
-                    input_type: BINDING_TEXT_TYPE
-                    autocomplete: BINDING_AUTOCOMPLETE_OFF
+                    id: "binding-parent-message"
+                    name: "parent_message"
+                    label: "Parent message: "
+                    input_type: "text"
+                    autocomplete: "off"
                     value: props_state.get_parent_message()
                     oninput: UseEuvInput::on_input_value(props_state.get_parent_message())
                     class: c_euv_input_no_transition().clone()
                 }
                 p {
                     class: c_binding_demo_text()
-                    BINDING_PARENT_MESSAGE_ECHO_PREFIX
+                    "Message: "
                     span {
                         class: c_event_highlight()
                         props_state.get_parent_message()
@@ -353,13 +353,13 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                     class: c_binding_parent_box()
                     p {
                         class: c_binding_child_label()
-                        BINDING_TYPED_PROPS_TITLE
+                        "Typed Props Controls"
                     }
                     div {
                         class: c_button_controls()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: BINDING_TOGGLE_BUTTON_LABEL
+                            label: "Toggle"
                             onclick: typed_props_on_toggle_disabled(typed_state.get_disabled())
                         }
                     }
@@ -367,7 +367,7 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                         class: c_binding_typed_prop_group()
                         label {
                             class: c_form_label()
-                            BINDING_MAX_PREFIX
+                            "Max: "
                             span {
                                 class: c_binding_typed_prop_value()
                                 typed_state.get_max_count()
@@ -376,7 +376,7 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                     }
                     p {
                         class: c_binding_demo_text()
-                        BINDING_COUNT_PREFIX
+                        "Count: "
                         span {
                             class: c_counter_value()
                             typed_state.get_current_count()
@@ -396,20 +396,20 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                 }
             }
             euv_card {
-                title: BINDING_TWO_WAY_CARD_TITLE
+                title: "Two-Way Binding (Shared Signal)"
                 p {
                     class: c_demo_text()
-                    BINDING_TWO_WAY_CARD_DESC
+                    "Both parent and child components share the same Signal instances. Any mutation in either component is immediately reflected in the other — no callbacks or event listeners needed."
                 }
                 div {
                     class: c_binding_parent_box()
                     p {
                         class: c_binding_child_label()
-                        BINDING_PARENT_COMPONENT_TITLE
+                        "Parent Component"
                     }
                     p {
                         class: c_binding_demo_text()
-                        BINDING_SHARED_TEXT_PREFIX
+                        "Text: "
                         span {
                             class: c_event_highlight()
                             two_way_state.get_shared_text()
@@ -417,7 +417,7 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                     }
                     p {
                         class: c_binding_demo_text()
-                        BINDING_COUNT_PREFIX
+                        "Count: "
                         span {
                             class: c_counter_value()
                             two_way_state.get_shared_count()
@@ -434,29 +434,29 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                 }
             }
             euv_card {
-                title: BINDING_CROSS_CARD_TITLE
+                title: "Cross-Component Reactive Binding (watch!)"
                 p {
                     class: c_demo_text()
-                    BINDING_CROSS_CARD_DESC
+                    "Signals are linked across components using the watch! macro. Changing one Signal automatically updates the other through a reactive side effect."
                 }
                 h4 {
                     class: c_binding_section_title()
-                    BINDING_TEMPERATURE_CONVERTER_TITLE
+                    "Temperature Converter"
                 }
                 p {
                     class: c_hint()
-                    BINDING_TEMPERATURE_CONVERTER_HINT
+                    "Edit either temperature field — the other updates reactively via watch!"
                 }
                 {
                     temperature_converter(cross_state.get_celsius(), cross_state.get_fahrenheit())
                 }
                 h4 {
                     class: c_binding_section_title()
-                    BINDING_COLOR_MIXER_TITLE
+                    "Color Mixer"
                 }
                 p {
                     class: c_hint()
-                    BINDING_COLOR_MIXER_HINT
+                    "Adjust the RGB sliders — the hex color and preview update reactively via watch!"
                 }
                 {
                     color_mixer(cross_state.get_red(), cross_state.get_green(), cross_state.get_blue(), cross_state.get_hex_color())

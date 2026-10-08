@@ -4,7 +4,7 @@ use super::*;
 ///
 /// Renders a `c_euv_radio_group` container holding the group label and
 /// one `c_euv_radio_item` row per option. Each row wraps a real
-/// `<input type=INPUT_TYPE_RADIO>` — visually hidden by `c_euv_radio_input` but
+/// `<input type="radio">` — visually hidden by `c_euv_radio_input` but
 /// still focusable and form-submittable — so keyboard and screen-reader
 /// behaviour is the browser's own. Selecting an option writes its value
 /// into the caller-owned signal through [`on_radio_change`]. The item
@@ -47,7 +47,7 @@ pub fn euv_radio(node: VirtualNode<EuvRadioGroupProps>) -> VirtualNode {
                     }
                     input {
                         name: name
-                        type: INPUT_TYPE_RADIO
+                        type: "radio"
                         value: option.value
                         checked: is_checked
                         class: c_euv_radio_input()

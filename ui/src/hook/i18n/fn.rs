@@ -27,9 +27,9 @@ pub(crate) fn interpolate(template: &str, vars: &HashMap<&'static str, &'static 
     let bytes: &[u8] = template.as_bytes();
     let mut cursor: usize = 0_usize;
     while cursor < bytes.len() {
-        if bytes[cursor] == b'{'
+        if bytes[cursor] == I18N_PLACEHOLDER_OPEN
             && cursor + 1_usize < bytes.len()
-            && bytes[cursor + 1_usize] != b'{'
+            && bytes[cursor + 1_usize] != I18N_PLACEHOLDER_OPEN
         {
             // Look for the matching `}`.
             if let Some(close_rel) = template[cursor + 1_usize..].find('}') {
@@ -130,14 +130,12 @@ pub fn i18n_register(handle: I18n, locale: &str, entries: &[(&'static str, &'sta
 /// expected to live for the lifetime of the app.
 pub fn i18n_reset_for_tests() {
     if let Some(lock) = I18N_MESSAGES.get() {
-        let mut guard: std::sync::RwLockWriteGuard<
-            'static,
-            HashMap<String, HashMap<String, String>>,
-        > = lock.write().unwrap_or_else(
-            |e: std::sync::PoisonError<
-                std::sync::RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
-            >| e.into_inner(),
-        );
+        let mut guard: RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>> =
+            lock.write().unwrap_or_else(
+                |e: PoisonError<
+                    RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
+                >| e.into_inner(),
+            );
         guard.clear();
     }
 }

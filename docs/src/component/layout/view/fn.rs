@@ -29,7 +29,7 @@ pub(crate) fn app() -> VirtualNode {
         html! {
             div {
                 key: locale_of(&parse_route(&route_signal.get()).0).prefix
-                style: STYLE_DISPLAY_CONTENTS
+                class: c_euv_display_contents()
                 if { mobile_signal.get() } {
                     docs_mobile_shell {
                         route_signal
@@ -112,7 +112,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
             }
             main {
                 class: c_app_main()
-                style: STYLE_USER_SELECT_TEXT
+                class: c_euv_user_select_text()
                 docs_main {
                     route_signal
                 }
@@ -171,7 +171,7 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
             }
             main {
                 class: c_mobile_main()
-                style: STYLE_USER_SELECT_TEXT
+                class: c_euv_user_select_text()
                 docs_main {
                     route_signal
                 }
@@ -492,7 +492,7 @@ fn switch_locale(
         };
         let (path, _anchor) = parse_route(&route_signal.get());
         menu_open.set(false);
-        if let Some(window) = web_sys::window() {
+        if let Some(window) = window() {
             let location: Location = window.location();
             // `set_hash` applies synchronously, so the reload below boots the
             // app straight into the target locale's route.
@@ -543,7 +543,7 @@ fn drawer_navigate() -> Option<Rc<dyn Fn(&'static str)>> {
 ///
 /// - `Signal<String>` - The current route signal.
 fn use_anchor_scroll(route_signal: Signal<String>) {
-    let handler: AnchorScroll = std::sync::Arc::new(move || {
+    let handler: AnchorScroll = Arc::new(move || {
         let raw: String = route_signal.get();
         let (_path, anchor) = parse_route(&raw);
         schedule_scroll(anchor);
@@ -566,11 +566,11 @@ fn use_anchor_scroll(route_signal: Signal<String>) {
 ///
 /// - `Option<String>` - The anchor slug; `None` scrolls to the page top.
 fn schedule_scroll(anchor: Option<String>) {
-    let Some(window) = web_sys::window() else {
+    let Some(outer_window) = window() else {
         return;
     };
     let callback: Closure<dyn FnMut()> = Closure::once(move || {
-        let Some(window) = web_sys::window() else {
+        let Some(window) = window() else {
             return;
         };
         let scrolled: bool = anchor
@@ -597,10 +597,11 @@ fn schedule_scroll(anchor: Option<String>) {
             }
         }
     });
-    let _: Result<i32, JsValue> = window.set_timeout_with_callback_and_timeout_and_arguments_0(
-        callback.as_ref().unchecked_ref(),
-        100,
-    );
+    let _: Result<i32, JsValue> = outer_window
+        .set_timeout_with_callback_and_timeout_and_arguments_0(
+            callback.as_ref().unchecked_ref(),
+            100,
+        );
     callback.forget();
 }
 
@@ -719,7 +720,7 @@ fn collect_active_group_keys(
 /// Defers the sidebar scroll until after the reactive re-render (the
 /// expansion above mutates `collapsed`, which re-renders the tree first).
 fn schedule_sidebar_scroll() {
-    let Some(window) = web_sys::window() else {
+    let Some(window) = window() else {
         return;
     };
     let callback: Closure<dyn FnMut()> = Closure::once(scroll_active_sidebar_item);
@@ -741,7 +742,7 @@ fn schedule_sidebar_scroll() {
 /// `Element.scroll_top` setter, which is an instant jump — no animation
 /// — so the sidebar snaps to the new position immediately.
 fn scroll_active_sidebar_item() {
-    let Some(document) = web_sys::window().and_then(|window: Window| window.document()) else {
+    let Some(document) = window().and_then(|window: Window| window.document()) else {
         return;
     };
     let Ok(containers) = document.query_selector_all(SIDEBAR_SCROLL_SELECTOR) else {

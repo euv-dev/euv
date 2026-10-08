@@ -34,9 +34,9 @@ impl<T: ?Sized> NodeRef<T> {
     ///
     /// Use this when you only need the underlying DOM element without
     /// caring about its concrete type (e.g., passing it to a third-party
-    /// JS interop function). For type-safe access, use [`get_cloned`].
+    /// JS interop function). For type-safe access, use [`NodeRef::get_cloned`].
     ///
-    /// [`get_cloned`]: NodeRef::get_cloned
+    /// [`NodeRef::get_cloned`]: NodeRef::get_cloned
     ///
     /// # Returns
     ///
@@ -105,10 +105,10 @@ impl<T: ?Sized> NodeRef<T> {
     /// Clears the currently attached element, if any.
     ///
     /// Called by the renderer when a node is unmounted. After `clear`,
-    /// [`get`] and [`get_cloned`] both return `None` until the next
+    /// [`NodeRef::get`] and [`NodeRef::get_cloned`] both return `None` until the next
     /// `set` call.
     ///
-    /// [`get`]: NodeRef::get
+    /// [`NodeRef::get`]: NodeRef::get
     pub fn clear(&self) {
         let cell: *mut Option<JsValue> = self.get_inner_ref().get();
         unsafe {
@@ -128,7 +128,7 @@ impl<T: ?Sized> NodeRef<T> {
     }
 }
 
-// Blanket impl over the unsized `web_sys::Node` is what most users want,
+// Blanket impl over the unsized `Node` is what most users want,
 // but the macro passes a `JsValue` and the user chooses `T` per use site,
 // so we don't constrain `T` here — `get_cloned`'s `JsCast` bound is the
 // single point where the type check happens.

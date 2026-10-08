@@ -1,5 +1,5 @@
 /// A single validator closure, used by
-/// [`FormState::validate`].
+/// [`crate::FormState::validate`].
 ///
 /// The closure receives the current value of the field and
 /// returns `Some(error_message)` if the value is invalid, or

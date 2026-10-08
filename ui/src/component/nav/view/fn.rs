@@ -25,7 +25,7 @@ pub fn euv_nav_item(node: VirtualNode<EuvNavItemProps>) -> VirtualNode {
     // drops after the comparison, avoiding a redundant binding.
     let is_active: bool = route_signal.get() == target;
     let click_handler: NativeEventHandler = match on_click {
-        Some(handler) => NativeEventHandler::create("click", move |event: Event| {
+        Some(handler) => NativeEventHandler::create(ROUTER_LINK_EVENT_TYPE, move |event: Event| {
             event.prevent_default();
             handler(event);
         }),
@@ -65,7 +65,7 @@ pub fn euv_nav_item(node: VirtualNode<EuvNavItemProps>) -> VirtualNode {
                 href.push_str(&target_string);
                 href
             }
-            target: BLANK_BROWSER_TARGET
+            target: "_blank"
             class: effective_class
             onclick: click_handler
             span {
@@ -104,13 +104,13 @@ pub fn euv_mobile_nav_item(node: VirtualNode<EuvMobileNavItemProps>) -> VirtualN
     // temporary local and compare directly against the signal value.
     let is_active: bool = route_signal.get() == target;
     let nav_target: String = target_string.clone();
-    let on_mobile_nav_click = move |event: Event| {
+    let on_mobile_nav_click: Box<dyn FnMut(Event)> = Box::new(move |event: Event| {
         event.prevent_default();
         Router::overlay_back(Some(nav_target.clone()));
         if let Some(ref callback) = on_navigate {
             callback();
         }
-    };
+    });
     html! {
         a {
             // OPT 30: see comment on the desktop variant above.
@@ -122,7 +122,7 @@ pub fn euv_mobile_nav_item(node: VirtualNode<EuvMobileNavItemProps>) -> VirtualN
                 href.push_str(&target_string);
                 href
             }
-            target: BLANK_BROWSER_TARGET
+            target: "_blank"
             class: if is_active {
                 c_nav_item_active()
             } else {

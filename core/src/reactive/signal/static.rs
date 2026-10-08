@@ -23,5 +23,5 @@ thread_local! {
     /// construction, and `RefCell` restores the aliasing check that the old
     /// `unsafe` bypassed.
 
-    pub static SIGNAL_SLAB: RefCell<SignalSlab> = RefCell::new(SignalSlab::new());
+    pub(crate) static SIGNAL_SLAB: RefCell<SignalSlab> = RefCell::new(SignalSlab::new());
 }

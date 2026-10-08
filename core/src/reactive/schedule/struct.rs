@@ -26,6 +26,9 @@ pub(crate) struct MicrotaskCache {
     /// browser does not expose `queueMicrotask` (the dispatch path
     /// then falls through to `setTimeout` / `requestAnimationFrame`).
     #[debug(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) queue_microtask: Option<Function>,
 }
 

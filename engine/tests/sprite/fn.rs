@@ -1,5 +1,9 @@
 use super::*;
 
+fn epsilon(actual: f64, expected: f64) -> bool {
+    (actual - expected).abs() < 1e-9
+}
+
 const EPSILON: f64 = 1e-9;
 
 #[test]
@@ -410,8 +414,8 @@ fn atlas_regions_insert_get_and_contains() {
         "expected a fresh index to be empty, got len {}",
         regions.len(),
     );
-    let hero: Rect = Rect::new(0.0, 0.0, 16.0, 32.0);
-    regions.insert("hero", hero);
+    let hero_name: &str = "hero";
+    regions.insert(hero_name, Rect::new(0.0, 0.0, 16.0, 32.0));
     regions.insert("coin", Rect::new(16.0, 0.0, 8.0, 8.0));
     assert!(
         regions.len() == 2,
@@ -427,7 +431,7 @@ fn atlas_regions_insert_get_and_contains() {
         "expected an unknown name to be absent",
     );
     assert!(
-        regions.get("hero") == Some(hero),
+        regions.get(hero_name) == Some(Rect::new(0.0, 0.0, 16.0, 32.0)),
         "expected the stored rect back for hero, got {:?}",
         regions.get("hero"),
     );
@@ -438,7 +442,7 @@ fn atlas_regions_insert_get_and_contains() {
     let mut names: Vec<String> = regions.names();
     names.sort();
     assert!(
-        names == vec!["coin".to_string(), "hero".to_string()],
+        names == vec!["coin".to_string(), hero_name.to_string()],
         "expected the two stored names, got {:?}",
         names,
     );
@@ -475,4 +479,505 @@ fn atlas_regions_is_independent_per_instance() {
         !second.contains("hero"),
         "expected a separately constructed index not to see the first index's names",
     );
+}
+
+fn close(actual: f64, expected: f64) -> bool {
+    (actual - expected).abs() < 1e-9
+}
+
+fn rect(x: f64, y: f64, w: f64, h: f64) -> Rect {
+    Rect::new(x, y, w, h)
+}
+
+fn uniform_insets(border: f64) -> NineSliceInsets {
+    NineSliceInsets::new(border, border, border, border)
+}
+
+#[test]
+fn nine_slice_rects_expose_all_nine_patches_by_name() {
+    let grid: NineSliceRects = NineSliceRects::new([
+        [
+            rect(0.0, 0.0, 1.0, 1.0),
+            rect(1.0, 0.0, 1.0, 1.0),
+            rect(2.0, 0.0, 1.0, 1.0),
+        ],
+        [
+            rect(0.0, 1.0, 1.0, 1.0),
+            rect(1.0, 1.0, 1.0, 1.0),
+            rect(2.0, 1.0, 1.0, 1.0),
+        ],
+        [
+            rect(0.0, 2.0, 1.0, 1.0),
+            rect(1.0, 2.0, 1.0, 1.0),
+            rect(2.0, 2.0, 1.0, 1.0),
+        ],
+    ]);
+    assert_eq!(grid.get_top_left(), rect(0.0, 0.0, 1.0, 1.0), "top left");
+    assert_eq!(grid.get_top(), rect(1.0, 0.0, 1.0, 1.0), "top");
+    assert_eq!(grid.get_top_right(), rect(2.0, 0.0, 1.0, 1.0), "top right");
+    assert_eq!(grid.get_left(), rect(0.0, 1.0, 1.0, 1.0), "left");
+    assert_eq!(grid.get_center(), rect(1.0, 1.0, 1.0, 1.0), "center");
+    assert_eq!(grid.get_right(), rect(2.0, 1.0, 1.0, 1.0), "right");
+    assert_eq!(
+        grid.get_bottom_left(),
+        rect(0.0, 2.0, 1.0, 1.0),
+        "bottom left"
+    );
+    assert_eq!(grid.get_bottom(), rect(1.0, 2.0, 1.0, 1.0), "bottom");
+    assert_eq!(
+        grid.get_bottom_right(),
+        rect(2.0, 2.0, 1.0, 1.0),
+        "bottom right"
+    );
+}
+
+#[test]
+fn the_named_patches_read_in_reading_order() {
+    let grid: NineSliceRects = NineSliceRects::new([
+        [
+            rect(0.0, 0.0, 1.0, 1.0),
+            rect(1.0, 0.0, 1.0, 1.0),
+            rect(2.0, 0.0, 1.0, 1.0),
+        ],
+        [
+            rect(0.0, 1.0, 1.0, 1.0),
+            rect(1.0, 1.0, 1.0, 1.0),
+            rect(2.0, 1.0, 1.0, 1.0),
+        ],
+        [
+            rect(0.0, 2.0, 1.0, 1.0),
+            rect(1.0, 2.0, 1.0, 1.0),
+            rect(2.0, 2.0, 1.0, 1.0),
+        ],
+    ]);
+    let reading_order: Vec<Rect> = grid.to_vec();
+    let named: Vec<Rect> = vec![
+        grid.get_top_left(),
+        grid.get_top(),
+        grid.get_top_right(),
+        grid.get_left(),
+        grid.get_center(),
+        grid.get_right(),
+        grid.get_bottom_left(),
+        grid.get_bottom(),
+        grid.get_bottom_right(),
+    ];
+    assert_eq!(
+        reading_order, named,
+        "to_vec must agree with the named accessors"
+    );
+    assert_eq!(reading_order.len(), 9, "there are exactly nine patches");
+}
+
+#[test]
+fn source_rects_split_the_source_into_a_three_by_three_grid() {
+    let insets: NineSliceInsets = uniform_insets(10.0);
+    let source: Rect = rect(0.0, 0.0, 90.0, 90.0);
+    let grid: NineSliceRects = insets.source_rects(source);
+    assert!(
+        close(grid.get_top_left().get_width(), 10.0),
+        "the corner keeps its natural size"
+    );
+    assert!(
+        close(grid.get_center().get_width(), 70.0),
+        "the centre absorbs the rest, got {}",
+        grid.get_center().get_width()
+    );
+    assert!(
+        close(grid.get_top().get_height(), 10.0),
+        "the top strip is one border tall"
+    );
+    assert!(
+        close(grid.get_center().get_height(), 70.0),
+        "and the centre strip is the remainder"
+    );
+}
+
+#[test]
+fn source_rects_honour_the_source_rectangle_offset() {
+    let insets: NineSliceInsets = uniform_insets(10.0);
+    let source: Rect = rect(100.0, 200.0, 90.0, 90.0);
+    let grid: NineSliceRects = insets.source_rects(source);
+    assert!(
+        close(grid.get_top_left().get_x(), 100.0),
+        "x offset carried through"
+    );
+    assert!(
+        close(grid.get_top_left().get_y(), 200.0),
+        "y offset carried through"
+    );
+    assert!(
+        close(grid.get_center().get_x(), 110.0),
+        "the centre starts one border in"
+    );
+}
+
+#[test]
+fn insets_larger_than_the_source_collapse_the_centre_instead_of_inverting_it() {
+    let insets: NineSliceInsets = uniform_insets(80.0);
+    let source: Rect = rect(0.0, 0.0, 90.0, 90.0);
+    let grid: NineSliceRects = insets.source_rects(source);
+    assert!(
+        grid.get_center().get_width() >= 0.0 && grid.get_center().get_height() >= 0.0,
+        "a degenerate centre must collapse to zero, not go negative: {:?}",
+        grid.get_center()
+    );
+    assert!(
+        close(grid.get_center().get_width(), 0.0),
+        "left takes 80 and right is clamped to the remaining 10, so the centre is exactly zero, got {}",
+        grid.get_center().get_width()
+    );
+}
+
+#[test]
+fn a_negative_inset_is_clamped_to_zero() {
+    let insets: NineSliceInsets = uniform_insets(-5.0);
+    let source: Rect = rect(0.0, 0.0, 90.0, 90.0);
+    let grid: NineSliceRects = insets.source_rects(source);
+    assert!(
+        close(grid.get_top_left().get_width(), 0.0),
+        "a negative inset becomes zero"
+    );
+    assert!(
+        close(grid.get_center().get_width(), 90.0),
+        "so the centre takes the whole width"
+    );
+}
+
+#[test]
+fn dest_rects_stretch_the_corners_and_keep_them_fixed() {
+    let insets: NineSliceInsets = uniform_insets(10.0);
+    let dest: Rect = rect(0.0, 0.0, 200.0, 100.0);
+    let grid: NineSliceRects = insets.dest_rects(dest);
+    assert!(
+        close(grid.get_top_left().get_width(), 10.0),
+        "a corner never stretches"
+    );
+    assert!(
+        close(grid.get_center().get_width(), 180.0),
+        "the centre absorbs the remaining width, got {}",
+        grid.get_center().get_width()
+    );
+    assert!(
+        close(grid.get_center().get_height(), 80.0),
+        "and the remaining height"
+    );
+}
+
+#[test]
+fn dest_rects_beyond_the_destination_clamp_without_producing_negative_patches() {
+    let insets: NineSliceInsets = uniform_insets(60.0);
+    let dest: Rect = rect(0.0, 0.0, 90.0, 90.0);
+    let grid: NineSliceRects = insets.dest_rects(dest);
+    for patch in grid.to_vec() {
+        assert!(
+            patch.get_width() >= 0.0 && patch.get_height() >= 0.0,
+            "no patch may invert, got {patch:?}"
+        );
+    }
+    assert!(
+        close(grid.get_center().get_width(), 0.0),
+        "the left edge takes 60 and the right edge the remaining 30, so the centre is exactly zero, got {}",
+        grid.get_center().get_width()
+    );
+}
+
+#[test]
+fn dest_rects_honour_the_destination_offset() {
+    let insets: NineSliceInsets = uniform_insets(10.0);
+    let dest: Rect = rect(50.0, 60.0, 200.0, 100.0);
+    let grid: NineSliceRects = insets.dest_rects(dest);
+    assert!(
+        close(grid.get_top_left().get_x(), 50.0),
+        "x offset carried through"
+    );
+    assert!(
+        close(grid.get_top_left().get_y(), 60.0),
+        "y offset carried through"
+    );
+    assert!(
+        close(grid.get_center().get_x(), 60.0),
+        "the centre starts one border in"
+    );
+}
+
+#[test]
+fn a_zero_sized_destination_produces_all_zero_patches() {
+    let insets: NineSliceInsets = uniform_insets(10.0);
+    let dest: Rect = rect(0.0, 0.0, 0.0, 0.0);
+    let grid: NineSliceRects = insets.dest_rects(dest);
+    for patch in grid.to_vec() {
+        assert!(
+            close(patch.get_width(), 0.0) && close(patch.get_height(), 0.0),
+            "got {patch:?}"
+        );
+    }
+}
+
+fn frame(x: f64, duration: f64) -> SpriteFrame {
+    SpriteFrame::new(Rect::new(x, 0.0, 8.0, 8.0), duration)
+}
+
+fn animation(frames: Vec<SpriteFrame>, mode: AnimationMode) -> SpriteAnimation {
+    SpriteAnimation::new(String::from("walk"), frames, mode)
+}
+
+#[test]
+fn a_fresh_animator_is_idle_with_nothing_to_show() {
+    let animator: Animator = Animator::create();
+    assert!(
+        animator.current_frame_source().is_none(),
+        "with no animation loaded there is no current frame"
+    );
+    assert!(
+        epsilon(animator.get_elapsed_time(), 0.0),
+        "and no time has passed"
+    );
+    assert_eq!(
+        animator.get_current_frame_index(),
+        0,
+        "the frame index starts at zero"
+    );
+}
+
+#[test]
+fn updating_a_stopped_animator_never_advances_it() {
+    let mut animator: Animator = Animator::create();
+    animator.play(animation(
+        vec![frame(0.0, 0.1), frame(8.0, 0.1)],
+        AnimationMode::Loop,
+    ));
+    animator.pause();
+    for _ in 0..20 {
+        animator.update(1.0);
+    }
+    assert_eq!(
+        animator.get_current_frame_index(),
+        0,
+        "a paused animator must not advance no matter how much time is pushed in"
+    );
+    assert!(
+        epsilon(animator.get_elapsed_time(), 0.0),
+        "and it accumulates no elapsed time"
+    );
+}
+
+#[test]
+fn playing_an_animation_puts_the_animator_into_the_playing_state() {
+    let mut animator: Animator = Animator::create();
+    animator.play(animation(vec![frame(0.0, 0.1)], AnimationMode::Loop));
+    assert_eq!(
+        animator.get_state(),
+        AnimationState::Playing,
+        "play starts the clock"
+    );
+    assert!(
+        animator.current_frame_source().is_some(),
+        "and there is now a current frame to report"
+    );
+}
+
+#[test]
+fn pause_and_resume_only_move_between_the_playing_and_paused_states() {
+    let mut animator: Animator = Animator::create();
+    animator.play(animation(vec![frame(0.0, 0.1)], AnimationMode::Loop));
+    animator.resume();
+    assert_eq!(
+        animator.get_state(),
+        AnimationState::Playing,
+        "resume from Playing is a no-op rather than a toggle"
+    );
+    animator.pause();
+    assert_eq!(
+        animator.get_state(),
+        AnimationState::Paused,
+        "pause takes effect"
+    );
+    animator.pause();
+    assert_eq!(
+        animator.get_state(),
+        AnimationState::Paused,
+        "a second pause is also a no-op"
+    );
+    animator.resume();
+    assert_eq!(
+        animator.get_state(),
+        AnimationState::Playing,
+        "resume takes effect"
+    );
+}
+
+#[test]
+fn stop_parks_the_animator_without_resuming_it() {
+    let mut animator: Animator = Animator::create();
+    animator.play(animation(vec![frame(0.0, 0.1)], AnimationMode::Loop));
+    animator.stop();
+    assert_eq!(
+        animator.get_state(),
+        AnimationState::Paused,
+        "stop parks the animator at Paused, it does not reach Finished"
+    );
+    animator.update(1.0);
+    assert_eq!(
+        animator.get_current_frame_index(),
+        0,
+        "and a parked animator does not advance"
+    );
+}
+
+#[test]
+fn a_frame_advances_once_its_own_duration_elapses() {
+    let mut animator: Animator = Animator::create();
+    animator.play(animation(
+        vec![frame(0.0, 0.5), frame(8.0, 0.5), frame(16.0, 0.5)],
+        AnimationMode::Loop,
+    ));
+    animator.update(0.2);
+    assert_eq!(
+        animator.get_current_frame_index(),
+        0,
+        "a partial frame does not advance"
+    );
+    assert!(
+        epsilon(animator.get_elapsed_time(), 0.2),
+        "the partial time is banked"
+    );
+    animator.update(0.4);
+    assert_eq!(
+        animator.get_current_frame_index(),
+        1,
+        "crossing the duration advances exactly one frame"
+    );
+    assert!(
+        epsilon(animator.get_elapsed_time(), 0.0),
+        "the overshoot is discarded rather than carried, so the next frame starts from zero, got {}",
+        animator.get_elapsed_time()
+    );
+}
+
+#[test]
+fn a_looping_animation_wraps_back_to_the_first_frame() {
+    let mut animator: Animator = Animator::create();
+    animator.play(animation(
+        vec![frame(0.0, 0.1), frame(8.0, 0.1), frame(16.0, 0.1)],
+        AnimationMode::Loop,
+    ));
+    for expected in [1usize, 2, 0, 1] {
+        animator.update(0.2);
+        assert_eq!(
+            animator.get_current_frame_index(),
+            expected,
+            "a looping animation must wrap rather than stop at the end"
+        );
+    }
+}
+
+#[test]
+fn a_once_animation_stops_at_its_last_frame() {
+    let mut animator: Animator = Animator::create();
+    animator.play(animation(
+        vec![frame(0.0, 0.1), frame(8.0, 0.1)],
+        AnimationMode::Once,
+    ));
+    animator.update(0.2);
+    assert_eq!(
+        animator.get_current_frame_index(),
+        1,
+        "it advances to the last frame"
+    );
+    animator.update(0.2);
+    assert_eq!(
+        animator.get_current_frame_index(),
+        1,
+        "and a once animation must not advance past the end"
+    );
+}
+
+#[test]
+fn an_animation_with_no_frames_is_safe_to_update() {
+    let mut animator: Animator = Animator::create();
+    animator.play(animation(vec![], AnimationMode::Loop));
+    animator.update(1.0);
+    assert!(
+        animator.current_frame_source().is_none(),
+        "an empty animation reports no current frame rather than panicking"
+    );
+    assert_eq!(
+        animator.get_current_frame_index(),
+        0,
+        "and the index stays put"
+    );
+}
+
+#[test]
+fn the_current_frame_source_tracks_the_frame_the_animator_is_on() {
+    let mut animator: Animator = Animator::create();
+    animator.play(animation(
+        vec![frame(0.0, 0.1), frame(64.0, 0.1)],
+        AnimationMode::Loop,
+    ));
+    let first: Option<Rect> = animator.current_frame_source();
+    let first_rect: Rect = first.expect("the first frame has a source");
+    assert!(
+        epsilon(first_rect.get_x(), 0.0),
+        "the first frame is reported first"
+    );
+    animator.update(0.2);
+    let second: Option<Rect> = animator.current_frame_source();
+    let second_rect: Rect = second.expect("the second frame has a source");
+    assert!(
+        epsilon(second_rect.get_x(), 64.0),
+        "and the reported source follows the frame index, got {second_rect:?}"
+    );
+}
+
+#[test]
+fn a_sprite_frame_carries_its_source_and_duration() {
+    let sprite_frame: SpriteFrame = frame(32.0, 0.125);
+    assert!(
+        epsilon(sprite_frame.get_source().get_x(), 32.0),
+        "the source rect round-trips"
+    );
+    assert!(
+        epsilon(sprite_frame.get_duration(), 0.125),
+        "and so does the duration"
+    );
+}
+
+#[test]
+fn a_sprite_animation_carries_its_name_frames_and_mode() {
+    let sprite_animation: SpriteAnimation = animation(
+        vec![frame(0.0, 0.1), frame(8.0, 0.2)],
+        AnimationMode::PingPong,
+    );
+    assert_eq!(sprite_animation.get_name(), "walk", "the name round-trips");
+    assert_eq!(
+        sprite_animation.get_frames().len(),
+        2,
+        "both frames are held"
+    );
+    assert_eq!(
+        sprite_animation.get_mode(),
+        AnimationMode::PingPong,
+        "and the mode sticks"
+    );
+}
+
+#[test]
+fn the_animation_state_enum_has_three_distinct_states() {
+    let states: Vec<AnimationState> = vec![
+        AnimationState::Playing,
+        AnimationState::Paused,
+        AnimationState::Finished,
+    ];
+    assert_eq!(
+        states.len(),
+        3,
+        "a sprite animation is in one of three states"
+    );
+    for (index, state) in states.iter().enumerate() {
+        for other in states.iter().skip(index + 1) {
+            assert_ne!(state, other, "the states must be distinguishable");
+        }
+    }
 }

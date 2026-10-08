@@ -18,31 +18,29 @@ pub struct ParticleRng {
 
 /// The static configuration of a particle emitter, describing how new
 /// particles are spawned and how they evolve over their lifetime.
+///
+/// Every field is publicly settable, so a caller composes a config by
+/// starting from [`ParticleConfig::default`] and overriding the tunables it
+/// cares about before handing it to [`ParticleEmitter::create`].
 #[derive(Clone, Copy, Data, Debug, New, PartialEq, PartialOrd)]
 pub struct ParticleConfig {
     /// The number of particles spawned per second while the emitter is active.
     #[get(type(copy))]
-    #[set(pub(crate))]
     pub(crate) emission_rate: f64,
     /// The maximum number of simultaneously live particles.
     #[get(type(copy))]
-    #[set(pub(crate))]
     pub(crate) max_particles: usize,
     /// The minimum particle lifetime in seconds.
     #[get(type(copy))]
-    #[set(pub(crate))]
     pub(crate) lifetime_min: f64,
     /// The maximum particle lifetime in seconds.
     #[get(type(copy))]
-    #[set(pub(crate))]
     pub(crate) lifetime_max: f64,
     /// The minimum initial particle speed in world units per second.
     #[get(type(copy))]
-    #[set(pub(crate))]
     pub(crate) speed_min: f64,
     /// The maximum initial particle speed in world units per second.
     #[get(type(copy))]
-    #[set(pub(crate))]
     pub(crate) speed_max: f64,
     /// The central emission direction in radians.
     #[get(type(copy))]
@@ -89,13 +87,14 @@ pub struct Particle {
     #[set(pub(crate))]
     pub(crate) velocity: Vector2D,
     /// The time this particle has been alive, in seconds.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) age: f64,
     /// The total lifetime of this particle, in seconds.
     #[get(type(copy))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) lifetime: f64,
 }
 
@@ -112,28 +111,32 @@ pub struct ParticleEmitter {
     /// The emitter configuration.
     #[get(type(copy))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) config: ParticleConfig,
     /// All currently live particles.
     #[get(type(clone))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
     pub(crate) particles: Vec<Particle>,
     /// The fractional particle spawn budget carried between updates.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
     pub(crate) emit_accumulator: f64,
     /// Whether continuous emission is currently enabled.
     #[get(type(copy))]
-    #[set(pub(crate))]
     #[new(skip)]
+    #[get_mut(pub(crate))]
     pub(crate) active: bool,
     /// The emitter's deterministic random generator.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
     pub(crate) rng: ParticleRng,
 }

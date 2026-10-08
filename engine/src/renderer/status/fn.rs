@@ -148,7 +148,7 @@ pub(crate) fn shader_stage_bit(value: ShaderStage) -> u32 {
 ///
 /// - `&'static str` - the value the renderer writes into a sampler's magnification or
 ///   minification filter field.
-pub(crate) fn filter_mode_name(value: FilterMode) -> &'static str {
+pub fn filter_mode_name(value: FilterMode) -> &'static str {
     match value {
         FilterMode::Nearest => WEBGPU_FILTER_MODE_NEAREST,
 
@@ -169,7 +169,7 @@ pub(crate) fn filter_mode_name(value: FilterMode) -> &'static str {
 /// # Returns
 ///
 /// - `&'static str` - the value the renderer writes into a sampler's `mipmapFilter` field.
-pub(crate) fn mipmap_filter_name(value: MipmapFilter) -> &'static str {
+pub fn mipmap_filter_name(value: MipmapFilter) -> &'static str {
     match value {
         MipmapFilter::Nearest => WEBGPU_FILTER_MODE_NEAREST,
 
@@ -191,7 +191,7 @@ pub(crate) fn mipmap_filter_name(value: MipmapFilter) -> &'static str {
 ///
 /// - `&'static str` - the value the renderer writes into the requested axis of a sampler's
 ///   address-mode field.
-pub(crate) fn address_mode_name(value: AddressMode) -> &'static str {
+pub fn address_mode_name(value: AddressMode) -> &'static str {
     match value {
         AddressMode::ClampToEdge => WEBGPU_ADDRESS_MODE_CLAMP_TO_EDGE,
 
@@ -512,7 +512,7 @@ pub(crate) fn gpu_error_filter_name(value: GpuErrorFilter) -> &'static str {
 /// # Returns
 ///
 /// - `u32` - The bitmask carrying every listed use.
-pub(crate) fn texture_usage_mask(usages: &[TextureUsage]) -> u32 {
+pub fn texture_usage_mask(usages: &[TextureUsage]) -> u32 {
     let mut mask: u32 = 0;
     for usage in usages {
         mask |= texture_usage_bit(*usage);

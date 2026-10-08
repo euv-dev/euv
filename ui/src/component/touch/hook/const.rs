@@ -1,4 +1,4 @@
-/// Wire names for [`EuvGesture`], indexed to match the variant order.
+/// Wire names for [`EuvGesture`](crate::EuvGesture), indexed to match the variant order.
 ///
 /// Kept as a table so `EuvGesture::name` is a lookup rather than a match
 /// arm, and so the spellings are greppable in one place.

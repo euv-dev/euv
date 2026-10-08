@@ -5,9 +5,18 @@ use super::*;
 /// Renders a header, a URL input card for connecting to an SSE server,
 /// and a messages display card showing real-time event data.
 ///
+/// # Arguments
+///
+/// - `VirtualNode<PageSseProps>` - The component node carrying the SSE demo page properties.
+///
 /// # Returns
 ///
 /// - `VirtualNode` - The SSE demo page virtual DOM tree.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageSseProps>` - The `node` argument.
+///
 #[component]
 pub(crate) fn page_sse(node: VirtualNode<PageSseProps>) -> VirtualNode {
     let PageSseProps: PageSseProps = node.try_get_props().unwrap_or_default();
@@ -18,33 +27,33 @@ pub(crate) fn page_sse(node: VirtualNode<PageSseProps>) -> VirtualNode {
             class: c_page_container()
             euv_header {
                 icon: "📡"
-                title: "Server-Sent Events"
-                subtitle: "Connect to an SSE endpoint and receive real-time streaming events from the server. Events appear in the list below as they arrive."
+                title: SSE_DEMO_TITLE
+                subtitle: SSE_DEMO_SUBTITLE
             }
             euv_card {
-                title: "Connection"
+                title: SSE_CONNECTION_CARD_TITLE
                 p {
                     class: c_demo_text()
-                    "Enter the SSE endpoint URL and click Connect to start receiving server-sent events."
+                    SSE_CONNECTION_DESCRIPTION
                 }
                 div {
                     class: c_button_controls()
                     if { state.get_connecting().get() } {
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Wait"
+                            label: SSE_CONNECTING_BUTTON_LABEL
                             disabled: state.get_connecting()
                         }
                     } else if { state.get_connected().get() } {
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Close"
+                            label: SSE_DISCONNECT_BUTTON_LABEL
                             onclick: sse_on_disconnect(state)
                         }
                     } else {
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: "Connect"
+                            label: SSE_CONNECT_BUTTON_LABEL
                             onclick: sse_on_connect(state)
                         }
                     }
@@ -57,11 +66,11 @@ pub(crate) fn page_sse(node: VirtualNode<PageSseProps>) -> VirtualNode {
                 }
             }
             euv_card {
-                title: "Messages"
+                title: SSE_MESSAGES_CARD_TITLE
                 if { state.get_messages().get().is_empty() } {
                     div {
                         class: c_net_messages_empty()
-                        "No messages received yet. Connect to an SSE endpoint to start receiving events."
+                        SSE_MESSAGES_EMPTY_TEXT
                     }
                 } else {
                     div {

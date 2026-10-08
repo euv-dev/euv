@@ -1,6 +1,3 @@
-/// The HTML `id` attribute value for the 2D game canvas element.
-pub(crate) const GAME_2D_CANVAS_ID: &str = "game-2d-canvas";
-
 /// The CSS selector used to query the 2D game canvas element from the DOM.
 pub(crate) const GAME_2D_CANVAS_SELECTOR: &str = "#game-2d-canvas";
 
@@ -57,6 +54,12 @@ pub(crate) const GAME_2D_MAX_BALLS: usize = 100;
 
 /// The debounce interval in milliseconds for the resize event handler.
 pub(crate) const GAME_2D_RESIZE_DEBOUNCE_MILLIS: i32 = 100;
+
+/// The JavaScript event name for the window resize event.
+pub(crate) const GAME_2D_EVENT_RESIZE: &str = "resize";
+
+/// The JavaScript property name for the device pixel ratio on `Window`.
+pub(crate) const GAME_2D_EVENT_PROPERTY_DEVICE_PIXEL_RATIO: &str = "devicePixelRatio";
 
 /// The delay in milliseconds before starting the 2D game loop after page mount.
 ///
@@ -160,15 +163,8 @@ pub(crate) const GAME_2D_STUCK_RADIUS_SHRINK: f64 = 0.97;
 /// instability.
 pub(crate) const GAME_2D_STUCK_MIN_OVERLAP: f64 = 0.5;
 
-/// The HTML `id` attribute value for the 2D WebGPU canvas element.
-pub(crate) const GAME_2D_WEBGPU_CANVAS_ID: &str = "game-2d-webgpu-canvas";
-
 /// The CSS selector used to query the 2D WebGPU canvas element from the DOM.
 pub(crate) const GAME_2D_WEBGPU_CANVAS_SELECTOR: &str = "#game-2d-webgpu-canvas";
-
-/// The HTML `id` attribute value for the 2D WebGPU loading overlay canvas.
-/// Renders "Loading..." via a 2D context while the GPU renderer initializes.
-pub(crate) const GAME_2D_WEBGPU_LOADING_CANVAS_ID: &str = "game-2d-webgpu-loading-canvas";
 
 /// The CSS selector for the 2D WebGPU loading overlay canvas.
 pub(crate) const GAME_2D_WEBGPU_LOADING_CANVAS_SELECTOR: &str = "#game-2d-webgpu-loading-canvas";
@@ -254,14 +250,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
-/// The HTML `id` attribute value for the 2D WebGL canvas element.
-pub(crate) const GAME_2D_WEBGL_CANVAS_ID: &str = "game-2d-webgl-canvas";
-
 /// The CSS selector used to query the 2D WebGL canvas element from the DOM.
 pub(crate) const GAME_2D_WEBGL_CANVAS_SELECTOR: &str = "#game-2d-webgl-canvas";
-
-/// The HTML `id` attribute value for the 2D WebGL loading overlay canvas.
-pub(crate) const GAME_2D_WEBGL_LOADING_CANVAS_ID: &str = "game-2d-webgl-loading-canvas";
 
 /// The CSS selector for the 2D WebGL loading overlay canvas.
 pub(crate) const GAME_2D_WEBGL_LOADING_CANVAS_SELECTOR: &str = "#game-2d-webgl-loading-canvas";
@@ -325,3 +315,6 @@ void main() {
     out_color = vec4(v_color, 1.0);
 }
 "#;
+
+/// Mirrors the engine's math EPSILON.
+pub(crate) const EPSILON: f64 = 1e-6;
