@@ -127,7 +127,7 @@ fn resizing_pushes_the_new_viewport_to_the_driver() {
         .unchecked_into::<Array>()
         .length();
 
-    subject.resize_now(1280, 720);
+    subject.resize(1280, 720);
 
     let fresh: Vec<String> = ops_after(&log, before);
     assert_eq!(
