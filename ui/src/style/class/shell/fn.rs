@@ -190,7 +190,6 @@ class! {
         // stop wrapping at the historic fixed 248px.
         width: var!(nav-width);
         background: var!(background);
-        border-left: format!("2px solid {}", var!(border));
         display: "flex";
         flex-direction: "column";
         // Pin the sidebar to the viewport while the main column scrolls.
