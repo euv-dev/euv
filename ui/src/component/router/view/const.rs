@@ -11,4 +11,4 @@ pub(crate) const DEFAULT_ROUTE_PATH: &str = "/";
 pub(crate) const BLANK_BROWSER_TARGET: &str = "_blank";
 
 /// The DOM event type bound to an internal route link.
-pub const ROUTER_LINK_EVENT_TYPE: &str = "click";
+pub(crate) const ROUTER_LINK_EVENT_TYPE: &str = "click";

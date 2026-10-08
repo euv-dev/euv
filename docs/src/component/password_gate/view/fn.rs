@@ -8,7 +8,7 @@ use super::*;
 /// so the content stays protected).
 ///
 /// Using `eval` keeps the binding typed-but-loose — we don't
-/// need the typed `web_sys::Crypto` / `web_sys::SubtleCrypto` surfaces,
+/// need the typed `Crypto` / `SubtleCrypto` surfaces,
 /// which aren't enabled in euv's web-sys feature set. The result is a
 /// `Promise<ArrayBuffer>` that we await via `wasm_bindgen_futures`.
 ///
@@ -237,7 +237,7 @@ fn submit_handler(
                 // cheapest cross-browser way to nudge the Router hook
                 // back to the parent's listener without adding a new
                 // public API to euv-ui.
-                if let Some(window) = web_sys::window() {
+                if let Some(window) = window() {
                     let location: Location = window.location();
                     let current: String = location.hash().unwrap_or_default();
                     let next: String = if current.is_empty() {
@@ -272,7 +272,7 @@ fn submit_handler(
 /// - `Option<Rc<dyn Fn(Event)>>` - The `oninput` handler for the password field.
 fn oninput_handler(input_signal: Signal<String>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
-        // `Event` derefs to `EventTarget` (via `web_sys::Event`'s own
+        // `Event` derefs to `EventTarget` (via `Event`'s own
         // `target()` method), so we can dyn-ref the target directly
         // without an explicit `unwrap_or(EventTarget::NULL)` — no
         // event ever reaches us without a target.

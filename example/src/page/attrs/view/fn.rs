@@ -5,6 +5,9 @@ use super::*;
 /// Static attributes use compile-time constant keys and values from `const.rs`.
 /// Dynamic attributes allow runtime key and value input via text fields,
 /// demonstrating the `{key}: value` syntax in the `html!` and `class!` macros.
+/// # Arguments
+///
+/// - `VirtualNode<PageCustomAttrsProps>` - The component props node.
 ///
 /// # Returns
 ///

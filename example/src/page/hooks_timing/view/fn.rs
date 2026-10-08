@@ -7,6 +7,15 @@ use super::*;
 /// `App::use_interval` ticker; timestamps come from
 /// `performance.now()` because `std::time::Instant::now()` panics on
 /// `wasm32-unknown-unknown`.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageHooksTimingProps>` - The page component node
+///   carrying the page props.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The timing hooks page virtual DOM tree.
 #[component]
 pub(crate) fn page_hooks_timing(node: VirtualNode<PageHooksTimingProps>) -> VirtualNode {
     let PageHooksTimingProps: PageHooksTimingProps = node.try_get_props().unwrap_or_default();
@@ -32,19 +41,19 @@ pub(crate) fn page_hooks_timing(node: VirtualNode<PageHooksTimingProps>) -> Virt
             class: c_page_container()
             euv_header {
                 icon: "⏲️"
-                title: "Hooks — Timing"
-                subtitle: "DebouncedValue, ThrottledValue, and Previous side-by-side. Each row drives a Signal from a different rate-control policy."
+                title: HOOKS_TIMING_PAGE_TITLE
+                subtitle: HOOKS_TIMING_PAGE_SUBTITLE
             }
             euv_card {
-                title: "Debounce (quiet period)"
+                title: HOOKS_TIMING_ROW_DEBOUNCE_TITLE
                 p {
-                    "Type into the box to seed a pending value; after 300 ms of idle time the debounced signal commits the latest pending value."
+                    HOOKS_TIMING_ROW_DEBOUNCE_BODY
                 }
                 div {
                     class: c_inline_input_row()
                     euv_input {
                         id: TIMING_DEBOUNCE_INPUT_ID
-                        label: "Live input"
+                        label: HOOKS_TIMING_INPUT_LABEL
                         placeholder: TIMING_INPUT_PLACEHOLDER
                         value: live_debounce
                         oninput: timing_debounce_on_input(live_debounce, debounced, current, previous)
@@ -58,15 +67,15 @@ pub(crate) fn page_hooks_timing(node: VirtualNode<PageHooksTimingProps>) -> Virt
                 }
             }
             euv_card {
-                title: "Throttle (max-once-per-window)"
+                title: HOOKS_TIMING_ROW_THROTTLE_TITLE
                 p {
-                    "Type into the box to push pending values into the throttler. The committed value updates at most once every 250 ms."
+                    HOOKS_TIMING_ROW_THROTTLE_BODY
                 }
                 div {
                     class: c_inline_input_row()
                     euv_input {
                         id: TIMING_THROTTLE_INPUT_ID
-                        label: "Live input"
+                        label: HOOKS_TIMING_INPUT_LABEL
                         placeholder: TIMING_INPUT_PLACEHOLDER
                         value: live_throttle
                         oninput: timing_throttle_on_input(live_throttle, throttled, current, previous)
@@ -80,21 +89,21 @@ pub(crate) fn page_hooks_timing(node: VirtualNode<PageHooksTimingProps>) -> Virt
                 }
             }
             euv_card {
-                title: "Previous (snapshot of last render)"
+                title: HOOKS_TIMING_ROW_PREVIOUS_TITLE
                 p {
-                    "Each render is preceded by `previous_step`, which records the current value and reports the snapshot from the previous render."
+                    HOOKS_TIMING_ROW_PREVIOUS_BODY
                 }
                 div {
                     class: c_counter_row()
                     div {
-                        "current:"
+                        HOOKS_TIMING_CURRENT_PREFIX
                         span {
                             class: c_counter_value()
                             current
                         }
                     }
                     div {
-                        "previous:"
+                        HOOKS_TIMING_PREVIOUS_PREFIX
                         span {
                             class: c_counter_value()
                             timing_previous_snapshot(previous)

@@ -54,3 +54,5 @@ pub(crate) const VIEW_UPDATE_RETRY_COUNT: u32 = 8;
 /// The delay duration in milliseconds between retry attempts when
 /// re-notifying the native side (see `VIEW_UPDATE_RETRY_COUNT`).
 pub(crate) const VIEW_UPDATE_RETRY_DELAY_MS: u32 = 1000;
+
+pub(crate) const THEME_DARK: &str = "dark";

@@ -30,7 +30,7 @@ impl NativeEventHandler {
     /// # Arguments
     ///
     /// - `Event` - The event to pass to the callback.
-    pub fn handle(&self, event: Event) {
+    pub(crate) fn handle(&self, event: Event) {
         let callback: &mut Box<dyn FnMut(Event)> = unsafe { &mut *self.get_callback().get() };
         callback(event);
     }

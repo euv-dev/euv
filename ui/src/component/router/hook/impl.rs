@@ -248,6 +248,35 @@ impl Router {
         })
     }
 
+    /// Removes a `popstate` guard previously added by
+    /// [`Router::register_popstate_guard`].
+    ///
+    /// A guard left registered keeps being consulted on every `popstate`
+    /// event, so a hook that re-mounts without unregistering its guard ends
+    /// up with stale entries that still consume back gestures.
+    ///
+    /// # Arguments
+    ///
+    /// - `usize` - The ID returned by the matching `register_popstate_guard`.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when a guard with that ID was found and removed.
+    pub fn unregister_popstate_guard(guard_id: usize) -> bool {
+        POPSTATE_GUARDS.with(|guards: &PopstateGuardList| {
+            // Same contention contract as the register path: a busy list
+            // leaves the guard in place rather than aborting the instance.
+            match guards.try_borrow_mut() {
+                Ok(mut entries) => {
+                    let before: usize = entries.len();
+                    entries.retain(|(id, _): &PopstateGuardEntry| *id != guard_id);
+                    entries.len() != before
+                }
+                Err(_) => false,
+            }
+        })
+    }
+
     /// Pushes a browser history entry for an overlay that is about to open.
     ///
     /// Call this when an overlay (vconsole panel) opens so that the browser

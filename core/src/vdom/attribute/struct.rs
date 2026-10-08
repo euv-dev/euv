@@ -16,10 +16,14 @@ pub struct AttributeEntry {
     /// The name of the attribute.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) name: Cow<'static, str>,
     /// The value of the attribute.
     #[debug(skip)]
     #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) value: AttributeValue,
@@ -38,10 +42,14 @@ pub struct PseudoRule {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     selector: String,
     /// The CSS style declarations for this pseudo rule
     /// (e.g., "background: rgba(79, 70, 229, 0.04); color: #4f46e5;").
     #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     style: String,
@@ -57,8 +65,12 @@ pub struct Css {
     /// The CSS class name used in the DOM.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     name: String,
     /// The CSS style declarations (e.g., "max-width: 800px; margin: 0 auto;").
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     style: String,
@@ -66,8 +78,12 @@ pub struct Css {
     /// (e.g., ":hover", ":focus", ":active", "::before", etc.).
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pseudo_rules: Vec<PseudoRule>,
     /// The media query rules for this class.
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     media_rules: Vec<MediaRule>,
@@ -85,16 +101,23 @@ pub struct MediaRule {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     query: String,
     /// The CSS style declarations inside this media rule
     /// (e.g., "font-size: 14px; padding: 8px;").
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     style: String,
     /// The pseudo-element rules nested inside this media rule
     /// (e.g., `::-webkit-scrollbar { width: "0px"; }`).
     #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pseudo_rules: Vec<PseudoRule>,
@@ -117,6 +140,9 @@ pub struct EventAdapter<T> {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) inner: T,
 }
 
@@ -131,9 +157,15 @@ pub struct EventNamedAdapter<T> {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) inner: T,
     /// The event name (e.g., "click", "mouseover").
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) event_name: &'static str,
@@ -153,6 +185,9 @@ pub struct EventNamedAdapter<T> {
 #[derive(Data, Debug, New)]
 pub struct AttrValueAdapter<T> {
     /// The wrapped value to be adapted into an attribute.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
@@ -181,6 +216,9 @@ pub struct InnerHtmlAdapter<T> {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) inner: T,
 }
 
@@ -195,9 +233,15 @@ pub struct CallbackNamedAdapter<T> {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) inner: T,
     /// The custom attribute name (e.g., "on-increment", "on-change").
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) name: &'static str,

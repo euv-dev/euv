@@ -72,6 +72,7 @@ where
 /// semantics are safe because only the slot index is copied — the actual
 /// slot is owned by the slab and is never freed or recycled.
 #[derive(CustomDebug, Data, Eq, Hash, New, Ord, PartialEq, PartialOrd)]
+#[new(pub(crate))]
 pub struct Signal<T>
 where
     T: Clone + PartialEq + 'static,
@@ -81,11 +82,16 @@ where
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) inner: usize,
     /// Marker for the generic type parameter (uses fn pointer to be `Copy`
     /// regardless of `T`).
     #[debug(skip)]
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) _marker: PhantomData<fn() -> T>,
@@ -98,12 +104,16 @@ where
 /// variable, but concurrent access from multiple threads would be
 /// undefined behavior.
 #[derive(CustomDebug, Data, New)]
+#[new(pub(crate))]
 pub struct SignalCell<T>
 where
     T: Clone + PartialEq + 'static,
 {
     /// Interior-mutable storage for an optional signal handle.
     #[debug(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
@@ -146,6 +156,9 @@ pub(crate) struct SignalSlab {
 pub struct FireHandle {
     /// Address of the leaked `Box<dyn FnMut()>` allocation.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) inner: usize,

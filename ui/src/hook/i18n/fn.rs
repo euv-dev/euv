@@ -130,14 +130,12 @@ pub fn i18n_register(handle: I18n, locale: &str, entries: &[(&'static str, &'sta
 /// expected to live for the lifetime of the app.
 pub fn i18n_reset_for_tests() {
     if let Some(lock) = I18N_MESSAGES.get() {
-        let mut guard: std::sync::RwLockWriteGuard<
-            'static,
-            HashMap<String, HashMap<String, String>>,
-        > = lock.write().unwrap_or_else(
-            |e: std::sync::PoisonError<
-                std::sync::RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
-            >| e.into_inner(),
-        );
+        let mut guard: RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>> =
+            lock.write().unwrap_or_else(
+                |e: PoisonError<
+                    RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>>,
+                >| e.into_inner(),
+            );
         guard.clear();
     }
 }

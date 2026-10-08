@@ -1,6 +1,9 @@
 use super::*;
 
 /// A conditional rendering demo page.
+/// # Arguments
+///
+/// - `VirtualNode<PageConditionalProps>` - The component props node.
 ///
 /// # Returns
 ///

@@ -550,7 +550,7 @@ fn present_raytrace_framebuffer(
     };
     let source_context: CanvasRenderingContext2d = source_context_object.unchecked_into();
     let image_data: Result<ImageData, JsValue> =
-        ImageData::new_with_u8_clamped_array_and_sh(wasm_bindgen::Clamped(buffer), width, height);
+        ImageData::new_with_u8_clamped_array_and_sh(Clamped(buffer), width, height);
     let Ok(image_data) = image_data else {
         return;
     };
@@ -990,8 +990,8 @@ pub(crate) fn raytrace_on_pointer_move(
         last_pointer.set(Some((client_x, client_y)));
         let yaw: f64 = angles.yaw.get() - dx * RAYTRACE_DRAG_SENSITIVITY;
         let pitch: f64 = (angles.pitch.get() + dy * RAYTRACE_DRAG_SENSITIVITY).clamp(
-            -HALF_PI + RAYTRACE_PITCH_CLAMP,
-            HALF_PI - RAYTRACE_PITCH_CLAMP,
+            -FRAC_PI_2 + RAYTRACE_PITCH_CLAMP,
+            FRAC_PI_2 - RAYTRACE_PITCH_CLAMP,
         );
         angles.yaw.set(yaw);
         angles.pitch.set(pitch);
@@ -1120,8 +1120,8 @@ pub(crate) fn raytrace_on_touch_move(
         last_pointer.set(Some((client_x, client_y)));
         let yaw: f64 = angles.yaw.get() - dx * RAYTRACE_DRAG_SENSITIVITY;
         let pitch: f64 = (angles.pitch.get() + dy * RAYTRACE_DRAG_SENSITIVITY).clamp(
-            -HALF_PI + RAYTRACE_PITCH_CLAMP,
-            HALF_PI - RAYTRACE_PITCH_CLAMP,
+            -FRAC_PI_2 + RAYTRACE_PITCH_CLAMP,
+            FRAC_PI_2 - RAYTRACE_PITCH_CLAMP,
         );
         angles.yaw.set(yaw);
         angles.pitch.set(pitch);
@@ -1339,7 +1339,7 @@ fn raytrace_register_resize_debounce(
     let Some(resize_window): Option<Window> = window() else {
         return;
     };
-    App::use_window_event("resize", move || {
+    App::use_window_event(RAYTRACE_EVENT_RESIZE, move || {
         let old_timer: Option<i32> = resize_timer_for_event.get();
         if let Some(timer_id) = old_timer {
             let Some(clear_window): Option<Window> = window() else {
@@ -1510,7 +1510,7 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                 }
                 let dpr: f64 = Reflect::get(
                     window_value.as_ref(),
-                    &JsValue::from_str("devicePixelRatio"),
+                    &JsValue::from_str(RAYTRACE_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
                 )
                 .ok()
                 .and_then(|v: JsValue| v.as_f64())
@@ -1613,7 +1613,7 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str("devicePixelRatio"),
+                &JsValue::from_str(RAYTRACE_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())
@@ -1909,7 +1909,7 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                 }
                 let dpr: f64 = Reflect::get(
                     window_value.as_ref(),
-                    &JsValue::from_str("devicePixelRatio"),
+                    &JsValue::from_str(RAYTRACE_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
                 )
                 .ok()
                 .and_then(|v: JsValue| v.as_f64())
@@ -2015,7 +2015,7 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
             };
             let dpr: f64 = Reflect::get(
                 window_for_dpr.as_ref(),
-                &JsValue::from_str("devicePixelRatio"),
+                &JsValue::from_str(RAYTRACE_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
             )
             .ok()
             .and_then(|value: JsValue| value.as_f64())
@@ -2168,7 +2168,7 @@ pub(crate) fn enter_raytrace_fullscreen(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new("resize");
+    let event: Result<Event, JsValue> = Event::new(RAYTRACE_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -2194,7 +2194,7 @@ pub(crate) fn exit_raytrace_fullscreen(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new("resize");
+    let event: Result<Event, JsValue> = Event::new(RAYTRACE_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }
@@ -2219,7 +2219,7 @@ pub(crate) fn exit_raytrace_fullscreen_from_popstate(tab: Signal<bool>) {
     let Some(window_value): Option<Window> = window() else {
         return;
     };
-    let event: Result<Event, JsValue> = Event::new("resize");
+    let event: Result<Event, JsValue> = Event::new(RAYTRACE_EVENT_RESIZE);
     if let Ok(event) = event {
         let _: Result<bool, JsValue> = window_value.dispatch_event(&event);
     }

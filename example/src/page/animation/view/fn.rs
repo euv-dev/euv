@@ -23,11 +23,11 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
             class: c_page_container()
             euv_header {
                 icon: "🎬"
-                title: "Animation"
-                subtitle: "CSS transitions, keyframe animations, and reactive style changes. Toggle each demo to see how euv binds Signal state to CSS classes and inline styles for smooth, declarative animations."
+                title: ANIMATION_HEADER_TITLE
+                subtitle: ANIMATION_HEADER_SUBTITLE
             }
             euv_card {
-                title: "Fade In / Out"
+                title: ANIMATION_FADE_CARD_TITLE
                 div {
                     class: c_button_controls()
                     euv_button {
@@ -37,9 +37,9 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                             EuvButtonVariant::Primary
                         }
                         label: if { box_visible } {
-                            "Hide Element"
+                            ANIMATION_FADE_HIDE_LABEL
                         } else {
-                            "Show Element"
+                            ANIMATION_FADE_SHOW_LABEL
                         }
                         onclick: UseEuvInput::use_toggle(box_visible)
                     }
@@ -47,12 +47,12 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                 if { box_visible } {
                     div {
                         class: c_anim_fade_in()
-                        "This element fades in and out with a smooth CSS transition. The visibility is controlled by a Signal — when it becomes true, the node is inserted into the Virtual DOM with a fade-in animation."
+                        ANIMATION_FADE_DEMO_TEXT
                     }
                 }
             }
             euv_card {
-                title: "CSS Keyframe Spin"
+                title: ANIMATION_SPIN_CARD_TITLE
                 div {
                     class: c_button_controls()
                     euv_button {
@@ -62,9 +62,9 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                             EuvButtonVariant::Primary
                         }
                         label: if { spin_active } {
-                            "Stop Spin"
+                            ANIMATION_SPIN_STOP_LABEL
                         } else {
-                            "Start Spin"
+                            ANIMATION_SPIN_START_LABEL
                         }
                         onclick: UseEuvInput::use_toggle(spin_active)
                     }
@@ -82,7 +82,7 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                 }
             }
             euv_card {
-                title: "CSS Keyframe Pulse"
+                title: ANIMATION_PULSE_CARD_TITLE
                 div {
                     class: c_button_controls()
                     euv_button {
@@ -92,9 +92,9 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                             EuvButtonVariant::Primary
                         }
                         label: if { pulse_active } {
-                            "Stop Pulse"
+                            ANIMATION_PULSE_STOP_LABEL
                         } else {
-                            "Start Pulse"
+                            ANIMATION_PULSE_START_LABEL
                         }
                         onclick: UseEuvInput::use_toggle(pulse_active)
                     }
@@ -112,17 +112,17 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                 }
             }
             euv_card {
-                title: "Animated Progress Bar"
+                title: ANIMATION_PROGRESS_CARD_TITLE
                 div {
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Start"
+                        label: ANIMATION_PROGRESS_START_LABEL
                         onclick: progress_on_start(progress)
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Reset"
+                        label: ANIMATION_PROGRESS_RESET_LABEL
                         onclick: progress_on_reset(progress)
                     }
                 }
@@ -138,7 +138,7 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                 }
             }
             euv_card {
-                title: "Reactive Inline Style (Scale Transform)"
+                title: ANIMATION_SCALE_CARD_TITLE
                 div {
                     class: c_button_controls()
                     euv_button {
@@ -148,9 +148,9 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                             EuvButtonVariant::Primary
                         }
                         label: if { scale_active } {
-                            "Restore"
+                            ANIMATION_SCALE_RESTORE_LABEL
                         } else {
-                            "Shrink"
+                            ANIMATION_SCALE_SHRINK_LABEL
                         }
                         onclick: UseEuvInput::use_toggle(scale_active)
                     }

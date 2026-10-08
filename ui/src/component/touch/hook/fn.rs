@@ -1,3 +1,5 @@
+use super::*;
+
 /// Returns the current time in milliseconds.
 ///
 /// Reads `Date.now()` through `js_sys` rather than the DOM high-resolution
@@ -21,10 +23,8 @@ pub(crate) fn now_millis() -> f64 {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0.0, |elapsed: std::time::Duration| {
-                elapsed.as_secs_f64() * 1000.0
-            })
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0.0, |elapsed: Duration| elapsed.as_secs_f64() * 1000.0)
     }
 }

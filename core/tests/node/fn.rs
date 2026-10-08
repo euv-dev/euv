@@ -306,3 +306,19 @@ fn native_tag_construction_does_not_panic() {
     .map_err(|_| "panic".to_string());
     assert!(result.is_ok());
 }
+
+fn as_text_through_the_trait<T: AsReactiveText>(value: &T) -> VirtualNode {
+    value.as_reactive_text()
+}
+
+#[test]
+fn a_type_reachable_through_the_trait_produces_its_reactive_text_node() {
+    let signal: Signal<String> = Signal::create(String::from("hello"));
+    let built: VirtualNode = as_text_through_the_trait(&signal);
+
+    assert!(
+        matches!(built, VirtualNode::Text(_)),
+        "the trait is what a generic renderer calls to turn any value into a node, so a \
+         caller that only holds a bound has to get the same result as a direct call"
+    );
+}

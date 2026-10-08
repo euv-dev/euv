@@ -30,6 +30,8 @@ pub struct TextNode {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) content: Cow<'static, str>,
     /// An optional binder that wires a freshly created DOM `Text` node to
     /// its backing signal. The binder is invoked once per DOM text node at
@@ -39,6 +41,9 @@ pub struct TextNode {
     /// place without re-invoking the binder, so re-renders of a bound
     /// position never accumulate subscriptions.
     #[debug(skip)]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
@@ -60,6 +65,7 @@ pub struct TextNode {
 /// when the last reference (either in the VirtualNode tree or the signal update
 /// callback) is dropped.
 #[derive(Clone, CustomDebug, Data, New)]
+#[new(pub(crate))]
 pub struct DynamicNode {
     /// Shared reference to the heap-allocated render closure inner state.
     /// `Rc` ensures automatic deallocation; `UnsafeCell` allows mutable access
@@ -68,9 +74,15 @@ pub struct DynamicNode {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) render_fn: Rc<UnsafeCell<RenderFnInner>>,
     /// Persistent hook context for this dynamic node, storing signal
     /// state and other hook values across render cycles.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]

@@ -11,6 +11,9 @@ use super::*;
 /// Renders a header, a card with a video preview area, camera
 /// control buttons (open/close and switch), and a QR code scan result
 /// display area.
+/// # Arguments
+///
+/// - `VirtualNode<PageCameraProps>` - The component props node.
 ///
 /// # Returns
 ///

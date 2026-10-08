@@ -34,7 +34,7 @@ thread_local! {
     /// `Reflect::get(globalThis, "__euv_dom_ops__")` (or installed if
     /// missing); subsequent patches reuse the cached functions without any
     /// further global lookup.
-    pub static DOM_OP_TABLE: RefCell<Option<DomOpTable>> = const { RefCell::new(None) };
+    pub(crate) static DOM_OP_TABLE: RefCell<Option<DomOpTable>> = const { RefCell::new(None) };
 }
 
 /// The per-load set of names the batched DOM-op helpers are published under.

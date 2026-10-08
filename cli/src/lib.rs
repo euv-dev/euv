@@ -12,12 +12,6 @@ mod logger;
 mod mode;
 mod server;
 
-pub use std::{
-    error::Error,
-    ffi::OsStr,
-    fmt::{Display, Formatter},
-    string::FromUtf8Error,
-};
 pub use {build::*, error::*, fmt::*, hmr::*, logger::*, mode::*, server::*};
 
 use {
@@ -32,13 +26,18 @@ use {
     serde::Serialize,
     std::{
         collections::HashMap,
-        ffi,
-        fmt::Arguments,
-        io,
+        env,
+        error::Error,
+        ffi::{self, OsStr},
+        fmt::{Arguments, Display, Formatter},
+        fs, io,
+        iter::once,
+        mem::take,
         net::{IpAddr, Ipv4Addr},
         path::{Component, Path, PathBuf},
         process::{Output, Stdio},
         slice::Iter,
+        string::FromUtf8Error,
         sync::{Arc, OnceLock},
         time::Duration,
     },

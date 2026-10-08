@@ -410,8 +410,8 @@ fn atlas_regions_insert_get_and_contains() {
         "expected a fresh index to be empty, got len {}",
         regions.len(),
     );
-    let hero: Rect = Rect::new(0.0, 0.0, 16.0, 32.0);
-    regions.insert("hero", hero);
+    let hero_name: &str = "hero";
+    regions.insert(hero_name, Rect::new(0.0, 0.0, 16.0, 32.0));
     regions.insert("coin", Rect::new(16.0, 0.0, 8.0, 8.0));
     assert!(
         regions.len() == 2,
@@ -427,7 +427,7 @@ fn atlas_regions_insert_get_and_contains() {
         "expected an unknown name to be absent",
     );
     assert!(
-        regions.get("hero") == Some(hero),
+        regions.get(hero_name) == Some(Rect::new(0.0, 0.0, 16.0, 32.0)),
         "expected the stored rect back for hero, got {:?}",
         regions.get("hero"),
     );
@@ -438,7 +438,7 @@ fn atlas_regions_insert_get_and_contains() {
     let mut names: Vec<String> = regions.names();
     names.sort();
     assert!(
-        names == vec!["coin".to_string(), "hero".to_string()],
+        names == vec!["coin".to_string(), hero_name.to_string()],
         "expected the two stored names, got {:?}",
         names,
     );

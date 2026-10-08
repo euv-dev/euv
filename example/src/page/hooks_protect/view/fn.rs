@@ -2,6 +2,15 @@ use super::*;
 
 /// A page demonstrating the "protective" hooks
 /// ([`ErrorBoundary`] and [`ProfilerHandle`]).
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageHooksProtectProps>` - The page component node carrying
+///   the page props.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The protective hooks page virtual DOM tree.
 #[component]
 pub(crate) fn page_hooks_protect(node: VirtualNode<PageHooksProtectProps>) -> VirtualNode {
     let PageHooksProtectProps: PageHooksProtectProps = node.try_get_props().unwrap_or_default();
@@ -15,14 +24,14 @@ pub(crate) fn page_hooks_protect(node: VirtualNode<PageHooksProtectProps>) -> Vi
             class: c_page_container()
             euv_header {
                 icon: "🛡️"
-                title: "Hooks — Protect"
-                subtitle: "ErrorBoundary catches panics inside try_with; ProfilerHandle keeps a list of measurements without a global collector."
+                title: HOOKS_PROTECT_HEADER_TITLE
+                subtitle: HOOKS_PROTECT_HEADER_SUBTITLE
             }
             euv_card {
-                title: "ErrorBoundary"
+                title: HOOKS_PROTECT_BOUNDARY_CARD_TITLE
                 p {
                     class: c_render_count_text()
-                    "try_with invokes the supplied closure inside a catch_unwind shim. If the closure panics, the boundary transitions to Caught and the caller gets an Err carrying the message."
+                    HOOKS_PROTECT_BOUNDARY_CARD_DESCRIPTION
                 }
                 div {
                     class: c_button_controls()
@@ -32,7 +41,7 @@ pub(crate) fn page_hooks_protect(node: VirtualNode<PageHooksProtectProps>) -> Vi
                         } else {
                             EuvButtonVariant::Outline
                         }
-                        label: "Healthy"
+                        label: HOOKS_PROTECT_TRY_HEALTHY_LABEL
                         onclick: hooks_protect_try_healthy(boundary)
                     }
                     euv_button {
@@ -41,18 +50,18 @@ pub(crate) fn page_hooks_protect(node: VirtualNode<PageHooksProtectProps>) -> Vi
                         } else {
                             EuvButtonVariant::Outline
                         }
-                        label: "Panic"
+                        label: HOOKS_PROTECT_TRY_PANIC_LABEL
                         onclick: hooks_protect_try_panic(boundary)
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Reset"
+                        label: HOOKS_PROTECT_BOUNDARY_RESET_LABEL
                         onclick: hooks_protect_reset(boundary)
                     }
                 }
                 p {
                     class: c_render_count_text()
-                    "phase: "
+                    HOOKS_PROTECT_PHASE_PREFIX
                     span {
                         class: c_counter_value()
                         hooks_protect_phase_label(&boundary)
@@ -60,27 +69,27 @@ pub(crate) fn page_hooks_protect(node: VirtualNode<PageHooksProtectProps>) -> Vi
                 }
             }
             euv_card {
-                title: "Profiler"
+                title: HOOKS_PROTECT_PROFILER_CARD_TITLE
                 p {
                     class: c_render_count_text()
-                    "Each render records a measurement via profiler_measure. Click to push more rows into the entries list."
+                    HOOKS_PROTECT_PROFILER_CARD_DESCRIPTION
                 }
                 div {
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Measure"
+                        label: HOOKS_PROTECT_PROFILER_MEASURE_LABEL
                         onclick: hooks_protect_profile_slow(profiler)
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Clear"
+                        label: HOOKS_PROTECT_PROFILER_CLEAR_LABEL
                         onclick: hooks_protect_profile_clear(profiler)
                     }
                 }
                 p {
                     class: c_render_count_text()
-                    "entries: "
+                    HOOKS_PROTECT_ENTRIES_PREFIX
                     span {
                         class: c_counter_value()
                         hooks_protect_entry_count(profiler)
@@ -88,7 +97,7 @@ pub(crate) fn page_hooks_protect(node: VirtualNode<PageHooksProtectProps>) -> Vi
                 }
                 p {
                     class: c_render_count_text()
-                    "current render's trigger label: "
+                    HOOKS_PROTECT_TRIGGER_LABEL_PREFIX
                     span {
                         class: c_counter_value()
                         trigger_label

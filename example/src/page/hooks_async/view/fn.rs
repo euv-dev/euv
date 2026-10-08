@@ -5,6 +5,14 @@ use super::*;
 ///
 /// The three rows share a single browser timer so the page can
 /// drive transitions without spinning up an HTTP server.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageHooksAsyncProps>` - The props node carrying the page configuration.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The rendered async-hooks page element tree.
 #[component]
 pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> VirtualNode {
     let PageHooksAsyncProps: PageHooksAsyncProps = node.try_get_props().unwrap_or_default();
@@ -17,26 +25,26 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
             class: c_page_container()
             euv_header {
                 icon: "🌐"
-                title: "Hooks — Async"
-                subtitle: "AsyncState (use_async), lazy factory (use_lazy_component), and suspense phases (use_suspense)."
+                title: HOOKS_ASYNC_HEADER_TITLE
+                subtitle: HOOKS_ASYNC_HEADER_SUBTITLE
             }
             euv_card {
-                title: "use_async"
+                title: HOOKS_ASYNC_CARD_TITLE
                 p {
                     class: c_render_count_text()
-                    "The handle's state exposes an AsyncState machine. The Loading arm carries () by default; the Ok arm carries the resolved value; the Err arm the failure message."
+                    HOOKS_ASYNC_CARD_DESCRIPTION
                 }
                 div {
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Refetch"
+                        label: HOOKS_ASYNC_REFETCH_LABEL
                         onclick: hooks_async_refetch(async_handle)
                     }
                 }
                 p {
                     class: c_render_count_text()
-                    "state: "
+                    HOOKS_ASYNC_STATE_PREFIX
                     span {
                         class: c_counter_value()
                         hooks_async_state_label(async_handle)
@@ -44,35 +52,35 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
                 }
             }
             euv_card {
-                title: "use_lazy_component"
+                title: HOOKS_ASYNC_LAZY_CARD_TITLE
                 p {
                     class: c_render_count_text()
-                    "The factory is only invoked on first access. Click Load to run it once; Reset returns the component to the pending state so the next read invokes the factory again."
+                    HOOKS_ASYNC_LAZY_CARD_DESCRIPTION
                 }
                 div {
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Load"
+                        label: HOOKS_ASYNC_LAZY_LOAD_LABEL
                         onclick: hooks_async_lazy_on_load(lazy_value.clone())
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Reset"
+                        label: HOOKS_ASYNC_RESET_LABEL
                         onclick: hooks_async_lazy_on_reset(lazy_value.clone())
                     }
                 }
                 div {
                     class: c_counter_row()
                     div {
-                        "loaded:"
+                        HOOKS_ASYNC_LAZY_LOADED_PREFIX
                         span {
                             class: c_counter_value()
                             hooks_async_lazy_loaded_label(&lazy_value)
                         }
                     }
                     div {
-                        "is_pending:"
+                        HOOKS_ASYNC_LAZY_PENDING_PREFIX
                         span {
                             class: c_counter_value()
                             hooks_async_lazy_is_pending(&lazy_value)
@@ -81,10 +89,10 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
                 }
             }
             euv_card {
-                title: "use_suspense"
+                title: HOOKS_ASYNC_SUSPENSE_CARD_TITLE
                 p {
                     class: c_render_count_text()
-                    "resolve_sync and fail flip the phase signal — the rendering code branches on the resulting Pending / Resolved / Failed variant."
+                    HOOKS_ASYNC_SUSPENSE_CARD_DESCRIPTION
                 }
                 div {
                     class: c_button_controls()
@@ -94,7 +102,7 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
                         } else {
                             EuvButtonVariant::Outline
                         }
-                        label: "Resolve"
+                        label: HOOKS_ASYNC_SUSPENSE_RESOLVE_LABEL
                         onclick: hooks_async_resolve(suspense, String::from(HOOKS_ASYNC_RESOLVED_VALUE))
                     }
                     euv_button {
@@ -103,18 +111,18 @@ pub(crate) fn page_hooks_async(node: VirtualNode<PageHooksAsyncProps>) -> Virtua
                         } else {
                             EuvButtonVariant::Outline
                         }
-                        label: "Fail"
+                        label: HOOKS_ASYNC_SUSPENSE_FAIL_LABEL
                         onclick: hooks_async_fail(suspense, String::from(HOOKS_ASYNC_FAIL_MESSAGE))
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: "Reset"
+                        label: HOOKS_ASYNC_RESET_LABEL
                         onclick: hooks_async_reset(suspense)
                     }
                 }
                 p {
                     class: c_render_count_text()
-                    "phase: "
+                    HOOKS_ASYNC_PHASE_PREFIX
                     span {
                         class: c_counter_value()
                         hooks_async_suspense_phase_label(&suspense)

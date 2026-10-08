@@ -1,13 +1,11 @@
 use super::*;
 
-static I18N_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static I18N_TEST_LOCK: Mutex<()> = Mutex::new(());
 
-fn fresh_i18n() -> (I18n, std::sync::MutexGuard<'static, ()>) {
-    let guard: std::sync::MutexGuard<'static, ()> = I18N_TEST_LOCK.lock().unwrap_or_else(
-        |poisoned: std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>| {
-            poisoned.into_inner()
-        },
-    );
+fn fresh_i18n() -> (I18n, MutexGuard<'static, ()>) {
+    let guard: MutexGuard<'static, ()> = I18N_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned: PoisonError<MutexGuard<'static, ()>>| poisoned.into_inner());
     i18n_reset_for_tests();
     let i18n: I18n = I18n::new(
         Signal::create(String::from("en")),
@@ -16,12 +14,10 @@ fn fresh_i18n() -> (I18n, std::sync::MutexGuard<'static, ()>) {
     (i18n, guard)
 }
 
-fn seeded_i18n() -> (I18n, std::sync::MutexGuard<'static, ()>) {
-    let guard: std::sync::MutexGuard<'static, ()> = I18N_TEST_LOCK.lock().unwrap_or_else(
-        |poisoned: std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>| {
-            poisoned.into_inner()
-        },
-    );
+fn seeded_i18n() -> (I18n, MutexGuard<'static, ()>) {
+    let guard: MutexGuard<'static, ()> = I18N_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned: PoisonError<MutexGuard<'static, ()>>| poisoned.into_inner());
     i18n_reset_for_tests();
     let i18n: I18n = I18n::new(
         Signal::create(String::from("en")),
@@ -34,12 +30,10 @@ fn seeded_i18n() -> (I18n, std::sync::MutexGuard<'static, ()>) {
     (i18n, guard)
 }
 
-fn locked_empty_i18n() -> (I18n, std::sync::MutexGuard<'static, ()>) {
-    let guard: std::sync::MutexGuard<'static, ()> = I18N_TEST_LOCK.lock().unwrap_or_else(
-        |poisoned: std::sync::PoisonError<std::sync::MutexGuard<'static, ()>>| {
-            poisoned.into_inner()
-        },
-    );
+fn locked_empty_i18n() -> (I18n, MutexGuard<'static, ()>) {
+    let guard: MutexGuard<'static, ()> = I18N_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned: PoisonError<MutexGuard<'static, ()>>| poisoned.into_inner());
     i18n_reset_for_tests();
     let i18n: I18n = I18n::new(
         Signal::create(String::from("en")),
@@ -50,7 +44,7 @@ fn locked_empty_i18n() -> (I18n, std::sync::MutexGuard<'static, ()>) {
 
 #[test]
 fn fresh_i18n_defaults_to_en_locale_and_empty_messages() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = fresh_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = fresh_i18n();
     assert_eq!(i18n.get_locale().get(), "en");
     assert_eq!(i18n.get_fallback_locale().get(), "en");
     assert_eq!(i18n.locale_count(), 0);
@@ -59,47 +53,47 @@ fn fresh_i18n_defaults_to_en_locale_and_empty_messages() {
 
 #[test]
 fn fresh_i18n_returns_key_for_missing_translation() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = fresh_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = fresh_i18n();
     assert_eq!(i18n.t("hello"), "hello");
     assert_eq!(i18n.t("nonexistent"), "nonexistent");
 }
 
 #[test]
 fn locale_and_fallback_locale_accessors_return_signal_clones() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = fresh_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = fresh_i18n();
     let _locale: Signal<String> = *i18n.get_locale();
     let _fallback: Signal<String> = *i18n.get_fallback_locale();
 }
 
 #[test]
 fn reactive_read_via_subscribed_locale_signal_matches_initial_value() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = fresh_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = fresh_i18n();
     let subscribed: Signal<String> = *i18n.get_locale();
     assert_eq!(subscribed.get(), "en");
 }
 
 #[test]
 fn seeded_messages_are_translated_by_active_locale() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     assert_eq!(i18n.t("hello"), "Hello");
     assert_eq!(i18n.t("goodbye"), "Goodbye");
 }
 
 #[test]
 fn seeded_i18n_active_message_count_matches_registered_keys() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     assert_eq!(i18n.active_message_count(), 2);
 }
 
 #[test]
 fn seeded_i18n_locale_count_matches_registered_locales() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     assert_eq!(i18n.locale_count(), 2);
 }
 
 #[test]
 fn i18n_clone_shares_internal_signals() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     let twin: I18n = i18n;
     assert_eq!(twin.t("hello"), "Hello");
     assert_eq!(twin.get_locale().get(), "en");
@@ -107,7 +101,7 @@ fn i18n_clone_shares_internal_signals() {
 
 #[test]
 fn change_locale_updates_active_locale_set_path() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         i18n.change_locale("zh-CN");
     }))
@@ -120,7 +114,7 @@ fn change_locale_updates_active_locale_set_path() {
 
 #[test]
 fn change_locale_falls_back_when_key_missing_set_path() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         i18n.change_locale("zh-CN");
     }))
@@ -137,7 +131,7 @@ fn change_locale_falls_back_when_key_missing_set_path() {
 
 #[test]
 fn change_locale_returns_key_when_neither_locale_has_it_set_path() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         i18n.change_locale("zh-CN");
     }))
@@ -153,7 +147,7 @@ fn change_locale_returns_key_when_neither_locale_has_it_set_path() {
 
 #[test]
 fn change_fallback_locale_changes_fallback_set_path() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         i18n.change_fallback_locale("zh-CN");
         i18n.change_locale("ja");
@@ -166,7 +160,7 @@ fn change_fallback_locale_changes_fallback_set_path() {
 
 #[test]
 fn add_messages_inserts_new_locale_set_path() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = fresh_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = fresh_i18n();
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         let entries: &[MessageEntry] = &[("hello", "Bonjour"), ("goodbye", "Au revoir")];
         i18n.add_messages("fr", entries);
@@ -181,7 +175,7 @@ fn add_messages_inserts_new_locale_set_path() {
 
 #[test]
 fn add_messages_overwrites_existing_entry_set_path() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         let entries: &[MessageEntry] = &[("hello", "Howdy")];
         i18n.add_messages("en", entries);
@@ -194,7 +188,7 @@ fn add_messages_overwrites_existing_entry_set_path() {
 
 #[test]
 fn add_messages_supports_empty_batch_set_path() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         let entries: &[MessageEntry] = &[];
         i18n.add_messages("es", entries);
@@ -208,7 +202,7 @@ fn add_messages_supports_empty_batch_set_path() {
 
 #[test]
 fn remove_locale_drops_locale_from_table_set_path() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         i18n.remove_locale("zh-CN");
     }))
@@ -220,7 +214,7 @@ fn remove_locale_drops_locale_from_table_set_path() {
 
 #[test]
 fn remove_locale_absent_locale_is_noop_set_path() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         i18n.remove_locale("ja");
     }))
@@ -232,7 +226,7 @@ fn remove_locale_absent_locale_is_noop_set_path() {
 
 #[test]
 fn remove_message_drops_single_key_set_path() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         i18n.remove_message("en", "goodbye");
     }))
@@ -245,7 +239,7 @@ fn remove_message_drops_single_key_set_path() {
 
 #[test]
 fn remove_message_absent_key_is_noop_set_path() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = seeded_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = seeded_i18n();
     let ran: bool = catch_unwind(AssertUnwindSafe(|| {
         i18n.remove_message("en", "nonexistent");
     }))
@@ -258,7 +252,7 @@ fn remove_message_absent_key_is_noop_set_path() {
 
 #[test]
 fn t_with_substitutes_placeholders_in_pre_registered_messages() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = locked_empty_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = locked_empty_i18n();
     let entries: &[MessageEntry] = &[("greet", "Hello, {name}!")];
     i18n.add_messages("en", entries);
     let mut vars: HashMap<&'static str, &'static str> = HashMap::new();
@@ -268,7 +262,7 @@ fn t_with_substitutes_placeholders_in_pre_registered_messages() {
 
 #[test]
 fn t_with_leaves_missing_placeholders_as_literal_tokens() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = locked_empty_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = locked_empty_i18n();
     let entries: &[MessageEntry] = &[("greet", "Hello, {name}!")];
     i18n.add_messages("en", entries);
     let vars: HashMap<&'static str, &'static str> = HashMap::new();
@@ -277,7 +271,7 @@ fn t_with_leaves_missing_placeholders_as_literal_tokens() {
 
 #[test]
 fn t_with_substitutes_multiple_placeholders() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = locked_empty_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = locked_empty_i18n();
     let entries: &[MessageEntry] = &[("ordered", "{greeting}, {name}!")];
     i18n.add_messages("en", entries);
     let mut vars: HashMap<&'static str, &'static str> = HashMap::new();
@@ -288,7 +282,7 @@ fn t_with_substitutes_multiple_placeholders() {
 
 #[test]
 fn t_with_supports_underscored_placeholder_names() {
-    let (i18n, _guard): (I18n, std::sync::MutexGuard<'static, ()>) = locked_empty_i18n();
+    let (i18n, _guard): (I18n, MutexGuard<'static, ()>) = locked_empty_i18n();
     let entries: &[MessageEntry] = &[("greet", "Hi, {first_name}!")];
     i18n.add_messages("en", entries);
     let mut vars: HashMap<&'static str, &'static str> = HashMap::new();

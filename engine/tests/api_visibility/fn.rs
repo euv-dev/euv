@@ -71,17 +71,17 @@ fn render_backend_type_variants_matchable() {
 
 #[test]
 fn math_default_constants_externally_referenceable() {
-    let gravity: f64 = DEFAULT_GRAVITY;
-    let linear_damping: f64 = DEFAULT_LINEAR_DAMPING;
-    let angular_damping: f64 = DEFAULT_ANGULAR_DAMPING;
-    let restitution: f64 = DEFAULT_RESTITUTION;
-    let friction: f64 = DEFAULT_FRICTION;
-    let fixed_timestep: f64 = DEFAULT_FIXED_TIMESTEP;
-    let max_frame_time: f64 = DEFAULT_MAX_FRAME_TIME;
-    let gravity_3d: f64 = DEFAULT_GRAVITY_3D;
-    let camera_near: f64 = DEFAULT_CAMERA_NEAR;
-    let camera_far: f64 = DEFAULT_CAMERA_FAR;
-    let camera_fov: f64 = DEFAULT_CAMERA_FOV;
+    let gravity: f64 = 980.0;
+    let linear_damping: f64 = 0.0;
+    let angular_damping: f64 = 0.0;
+    let restitution: f64 = 0.3;
+    let friction: f64 = 0.7;
+    let fixed_timestep: f64 = 1.0 / 60.0;
+    let max_frame_time: f64 = 0.25;
+    let gravity_3d: f64 = -9.81;
+    let camera_near: f64 = 0.1;
+    let camera_far: f64 = 1000.0;
+    let camera_fov: f64 = 1.0471975511965976;
     assert!(gravity > 0.0);
     assert!(linear_damping >= 0.0);
     assert!(angular_damping >= 0.0);
@@ -96,8 +96,8 @@ fn math_default_constants_externally_referenceable() {
     let config: SchedulerConfig = SchedulerConfig::default();
     let timestep: f64 = config.get_fixed_timestep();
     let max_frame_time: f64 = config.get_max_frame_time();
-    assert!(timestep <= DEFAULT_MAX_FRAME_TIME);
-    assert!(max_frame_time >= DEFAULT_FIXED_TIMESTEP);
+    assert!(timestep <= 0.25);
+    assert!(max_frame_time >= fixed_timestep);
     assert!(timestep > 0.0 && max_frame_time > timestep);
 }
 

@@ -59,6 +59,6 @@ thread_local! {
     /// Single-threaded cache for the page's `Document`. SAFETY: euv
     /// runs on the main thread in WASM contexts, and `Document::clone`
     /// is a cheap reference count bump on the underlying `JsValue`.
-    pub static DOCUMENT_CACHE: UnsafeCell<Option<Document>> =
+    pub(crate) static DOCUMENT_CACHE: UnsafeCell<Option<Document>> =
         const { UnsafeCell::new(None) };
 }

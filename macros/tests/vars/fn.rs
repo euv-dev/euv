@@ -23,10 +23,17 @@ fn vars_macro_generates_one_function_per_block() {
 
 #[test]
 fn vars_macro_uses_once_lock_for_caching() {
-    let panicked: bool = catch_unwind(AssertUnwindSafe(|| {
-        let _first: &Css = c_test_bg();
-        let _second: &Css = c_test_bg();
-    }))
-    .is_err();
-    assert!(panicked, "c_test_bg() must panic without a window()");
+    let outcome: thread::Result<(&Css, &Css)> = catch_unwind(AssertUnwindSafe(|| {
+        let first: &Css = c_test_bg();
+        let second: &Css = c_test_bg();
+        (first, second)
+    }));
+    let (first, second): (&Css, &Css) = outcome.expect(
+        "inject_style returns early on a non-wasm target instead of reaching window(), \
+         so a styled class function must be callable from a native cargo test process",
+    );
+    assert!(
+        ptr::eq(first, second),
+        "the OnceLock must hand back the same Css on the second call"
+    );
 }

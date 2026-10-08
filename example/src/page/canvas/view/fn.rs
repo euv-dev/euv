@@ -8,6 +8,10 @@ use super::*;
 /// Clicking the button enters fullscreen mode with a portrait-oriented
 /// canvas for drawing.
 ///
+/// # Arguments
+///
+/// - `VirtualNode<PageCanvasProps>` - The page node carrying the page props.
+///
 /// # Returns
 ///
 /// - `VirtualNode` - The canvas drawing board page virtual DOM tree.
@@ -72,11 +76,11 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
             class: c_page_container()
             euv_header {
                 icon: "🎨"
-                title: "Canvas"
-                subtitle: "A freehand drawing board with color picker and line width control. Tap Draw to enter fullscreen canvas mode."
+                title: CANVAS_PAGE_TITLE
+                subtitle: CANVAS_PAGE_SUBTITLE
             }
             euv_card {
-                title: "Drawing Board"
+                title: CANVAS_BOARD_CARD_TITLE
                 div {
                     class: c_button_controls()
                     euv_button {
@@ -90,7 +94,7 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
                     if { state.get_snapshot_data_url().get().is_empty() } {
                         div {
                             class: c_canvas_placeholder()
-                            "No drawing yet. Tap Draw to start."
+                            CANVAS_EMPTY_PREVIEW_TEXT
                         }
                     } else {
                         img {
@@ -113,14 +117,14 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
                             class: c_canvas_fullscreen_toolbar_button()
                             euv_button {
                                 variant: EuvButtonVariant::Primary
-                                label: "Clear"
+                                label: CANVAS_CLEAR_BUTTON_LABEL
                                 onclick: canvas_on_clear(state)
                             }
                         }
                         div {
                             class: c_canvas_fullscreen_toolbar_color_wrapper()
                             input {
-                                type: "color"
+                                type: CANVAS_COLOR_INPUT_TYPE
                                 class: c_canvas_color_input_fullscreen()
                                 value: state.get_stroke_color().get()
                                 oninput: on_color_input
@@ -138,7 +142,7 @@ pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
                     div {
                         class: c_canvas_fullscreen_toolbar_row_bottom()
                         input {
-                            type: "range"
+                            type: CANVAS_RANGE_INPUT_TYPE
                             class: c_canvas_fullscreen_range_input()
                             min: CANVAS_MIN_LINE_WIDTH_ATTR
                             max: CANVAS_MAX_LINE_WIDTH_ATTR

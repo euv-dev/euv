@@ -1,5 +1,30 @@
 use super::*;
 
+/// Constructor inputs for [`WebGpuRenderer`]. Grouped into one struct so the
+/// constructor stays a single-argument call (the renderer carries enough GPU
+/// handles and canvas parameters that a positional parameter list would be
+/// unwieldy). All fields are public so integration tests can assemble a
+/// renderer around `Reflect` stand-in objects.
+#[derive(Clone, Data)]
+pub struct WebGpuRendererInit {
+    /// The WebGPU device (`GpuDevice`).
+    pub device: JsValue,
+    /// The device's command queue (`GpuQueue`).
+    pub queue: JsValue,
+    /// The WebGPU canvas rendering context (`GpuCanvasContext`).
+    pub context: JsValue,
+    /// The HTML canvas element backing the context.
+    pub canvas: HtmlCanvasElement,
+    /// The texture format string used by the swap chain (e.g., `"bgra8unorm"`).
+    pub format: String,
+    /// The physical pixel width of the canvas backing store.
+    pub width: u32,
+    /// The physical pixel height of the canvas backing store.
+    pub height: u32,
+    /// Whether MSAA anti-aliasing is enabled for render pipelines.
+    pub antialias: bool,
+}
+
 /// A WebGPU rendering backend wrapping the GPU device, queue, and canvas context
 /// for GPU-accelerated rendering on the web.
 ///
@@ -272,7 +297,7 @@ pub struct RenderPassDescriptorCache {
 /// If the engine is ever compiled for a multi-threaded target
 /// (native, `wasm-bindgen-rayon`), this `unsafe impl Sync` is
 /// unsound and must be removed.
-pub struct PendingErrorCell(
+pub(crate) struct PendingErrorCell(
     /// Interior-mutable storage for the optional `JsValue`.
     ///
     /// Marked `pub(crate)` (not just `pub`) because the field is

@@ -163,7 +163,7 @@ pub struct GlBlendState {
 /// presence of an attachment. Keeping the two axes separate here is what
 /// lets a transparent overlay bind a depth buffer it must read but must
 /// not write.
-#[derive(Clone, Copy, Data, Debug, PartialEq)]
+#[derive(Clone, Copy, Data, Debug, New, PartialEq)]
 pub struct GlDepthState {
     /// Whether `DEPTH_TEST` is enabled.
     pub(crate) enabled: bool,
@@ -190,7 +190,7 @@ pub struct GlCullState {
 /// can be expressed, and keeping it a bitmask rather than four booleans
 /// matches the [`ColorTargetState`] write-mask convention the WebGPU path
 /// already uses.
-#[derive(Clone, Copy, Data, Debug, PartialEq)]
+#[derive(Clone, Copy, Data, Debug, New, PartialEq)]
 pub struct GlColorMask {
     /// The four channel bits.
     pub(crate) bits: u32,
@@ -202,7 +202,7 @@ pub struct GlColorMask {
 /// meaningfully different from scissoring being off; the off case is
 /// therefore expressed by the `Option` on [`GlRenderState::scissor`]
 /// rather than by a sentinel rectangle.
-#[derive(Clone, Copy, Data, Debug, PartialEq)]
+#[derive(Clone, Copy, Data, Debug, New, PartialEq)]
 pub struct GlScissor {
     /// The left edge in framebuffer pixels.
     pub(crate) x: i32,
@@ -218,7 +218,7 @@ pub struct GlScissor {
 ///
 /// Stored as signed values because GL accepts a negative origin for
 /// flipped-coordinate passes even though the default is the origin.
-#[derive(Clone, Copy, Data, Debug, PartialEq)]
+#[derive(Clone, Copy, Data, Debug, New, PartialEq)]
 pub struct GlViewport {
     /// The left edge in framebuffer pixels.
     pub(crate) x: i32,
@@ -251,6 +251,7 @@ pub struct GlRenderState {
     /// Which channels the fragment stage may write.
     pub(crate) color_mask: GlColorMask,
     /// The scissor rectangle, or `None` when scissoring is off.
+    #[get(type(copy))]
     pub(crate) scissor: Option<GlScissor>,
     /// The viewport rectangle.
     pub(crate) viewport: GlViewport,
@@ -298,4 +299,52 @@ pub struct WebGl2Backend {
     /// grown on demand so a steady-state readback allocates nothing.
     #[get_mut(pub(crate))]
     pub(crate) readback: Vec<u8>,
+}
+
+/// Constructor inputs for [`WebGl2Backend`].
+///
+/// `WebGl2Backend::init` is the only constructor, and it needs a live
+/// document: it queries the canvas by selector and acquires a `webgl2`
+/// context. Every field on the backend is `pub(crate)`, so without this
+/// struct there is no way to build one from outside the crate and the
+/// state-diffing, draw-call and resize surface is untestable. Naming the
+/// inputs lets a caller that already holds a context construct a backend
+/// without going through DOM lookup.
+#[derive(Clone, Data, New)]
+pub struct WebGl2BackendInit {
+    /// The canvas the backend draws into.
+    pub canvas: HtmlCanvasElement,
+    /// The `webgl2` context every call goes through.
+    pub context: WebGl2RenderingContext,
+    /// The physical pixel width of the drawing buffer.
+    pub width: u32,
+    /// The physical pixel height of the drawing buffer.
+    pub height: u32,
+    /// The colour `begin_frame` clears to.
+    pub clear_color: Color,
+}
+
+/// Constructor inputs for [`GlRenderState`].
+///
+/// `GlRenderState::context_defaults` is the only way to build one today, and
+/// it hard-codes the state a *freshly created* GL context happens to be in.
+/// Every other state — a depth-tested draw, a scissored viewport, a masked
+/// render target — has to be assembled field by field to reach
+/// `WebGl2Backend::apply_state`, which means it cannot be built from outside
+/// the crate. Naming the inputs closes that gap.
+#[derive(Clone, Copy, Data, New)]
+pub struct GlRenderStateInit {
+    /// The depth-test state.
+    pub depth: GlDepthState,
+    /// The blend state.
+    pub blend: GlBlendState,
+    /// The culling and winding state.
+    pub cull: GlCullState,
+    /// Which channels the fragment stage may write.
+    pub color_mask: GlColorMask,
+    /// The scissor rectangle, or `None` when scissoring is off.
+    #[get(type(copy))]
+    pub scissor: Option<GlScissor>,
+    /// The viewport rectangle.
+    pub viewport: GlViewport,
 }

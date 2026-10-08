@@ -119,6 +119,12 @@ pub(crate) const LIGHTING_WEBGPU_LOADING_CANVAS_SELECTOR: &str = "#lighting-webg
 /// color.
 pub(crate) const LIGHTING_GPU_UNIFORM_VEC4_COUNT: usize = 2;
 
+/// The JavaScript event name for the window resize event.
+pub(crate) const LIGHTING_EVENT_RESIZE: &str = "resize";
+
+/// The JavaScript property name for the device pixel ratio on `Window`.
+pub(crate) const LIGHTING_EVENT_PROPERTY_DEVICE_PIXEL_RATIO: &str = "devicePixelRatio";
+
 /// The GLSL ES 3.00 vertex shader source for the Lighting WebGL demo.
 ///
 /// Attribute-less fullscreen triangle generated from `gl_VertexID`, the

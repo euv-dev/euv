@@ -25,7 +25,7 @@ pub fn euv_nav_item(node: VirtualNode<EuvNavItemProps>) -> VirtualNode {
     // drops after the comparison, avoiding a redundant binding.
     let is_active: bool = route_signal.get() == target;
     let click_handler: NativeEventHandler = match on_click {
-        Some(handler) => NativeEventHandler::create("click", move |event: Event| {
+        Some(handler) => NativeEventHandler::create(ROUTER_LINK_EVENT_TYPE, move |event: Event| {
             event.prevent_default();
             handler(event);
         }),

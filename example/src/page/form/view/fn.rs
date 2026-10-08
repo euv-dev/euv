@@ -1,6 +1,9 @@
 use super::*;
 
 /// A form demo page with two-way binding and validation.
+/// # Arguments
+///
+/// - `VirtualNode<PageFormProps>` - The component props node.
 ///
 /// # Returns
 ///

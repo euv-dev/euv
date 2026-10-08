@@ -1587,6 +1587,32 @@ impl GlUniformBlock {
 
 /// Implements default construction for the fixed-function state shadow.
 impl GlRenderState {
+    /// Builds a render state from explicit field values.
+    ///
+    /// `context_defaults` covers only the state a freshly created GL
+    /// context happens to be in. Anything else -- a depth-tested draw,
+    /// a scissored viewport, a masked render target -- has to be assembled
+    /// field by field to reach `apply_state`, which without this is
+    /// impossible from outside the crate.
+    ///
+    /// # Arguments
+    ///
+    /// - `GlRenderStateInit` - The six fixed-function fields.
+    ///
+    /// # Returns
+    ///
+    /// - `GlRenderState` - The assembled state.
+    pub fn from_init(init: GlRenderStateInit) -> Self {
+        Self {
+            depth: init.depth,
+            blend: init.blend,
+            cull: init.cull,
+            color_mask: init.color_mask,
+            scissor: init.scissor,
+            viewport: init.viewport,
+        }
+    }
+
     /// Builds the state a freshly created WebGL 2 context is actually
     /// in.
     ///
@@ -1694,6 +1720,36 @@ impl WebGl2Backend {
             clear_color_field: Color::new(0.0, 0.0, 0.0, 1.0),
             readback: Vec::new(),
         })
+    }
+
+    /// Builds a backend around an already-acquired context.
+    ///
+    /// `init` is the only other constructor and it needs a live
+    /// document: it queries the canvas by selector and asks for a
+    /// `webgl2` context. This one takes the handles directly, so a caller
+    /// that already has a context (a test, or a canvas re-created after a
+    /// context loss) does not have to go through DOM lookup. The shadow
+    /// state is seeded with the values a freshly created GL context
+    /// already holds, so the first `apply_state` emits only what
+    /// genuinely differs.
+    ///
+    /// # Arguments
+    ///
+    /// - `WebGl2BackendInit` - The canvas, context, and viewport.
+    ///
+    /// # Returns
+    ///
+    /// - `WebGl2Backend` - The backend, with an empty readback buffer.
+    pub fn from_init(init: WebGl2BackendInit) -> Self {
+        Self {
+            canvas: init.canvas,
+            context: init.context,
+            shadow: GlRenderState::context_defaults(init.width as i32, init.height as i32),
+            active_unit: GL_TEXTURE_UNIT_NONE,
+            bound_program: JsValue::UNDEFINED,
+            clear_color_field: init.clear_color,
+            readback: Vec::new(),
+        }
     }
 
     /// Reports whether the browser can create a WebGL 2 context at all.
@@ -1956,7 +2012,7 @@ impl WebGl2Backend {
     /// # Arguments
     ///
     /// - `Color` - The clear color, with channels in `0.0..=1.0`.
-    pub fn set_clear_color(&mut self, color: Color) {
+    pub(crate) fn set_clear_color(&mut self, color: Color) {
         self.set_clear_color_field(color);
     }
 
@@ -1976,7 +2032,12 @@ impl WebGl2Backend {
     /// - `&WebGl2RenderingContext` - The context to clear through.
     /// - `u32` - The width of the bound framebuffer, in pixels.
     /// - `u32` - The height of the bound framebuffer, in pixels.
-    pub fn begin_frame(&mut self, context: &WebGl2RenderingContext, width: u32, height: u32) {
+    pub(crate) fn begin_frame(
+        &mut self,
+        context: &WebGl2RenderingContext,
+        width: u32,
+        height: u32,
+    ) {
         let color: Color = self.get_clear_color_field();
         context.clear_color(
             color.get_red() as f32,
@@ -2073,7 +2134,7 @@ impl WebGl2Backend {
     ///
     /// - `&WebGl2RenderingContext` - The context to bind against.
     /// - `&GlProgram` - The program to make current.
-    pub fn use_program(&mut self, context: &WebGl2RenderingContext, program: &GlProgram) {
+    pub(crate) fn use_program(&mut self, context: &WebGl2RenderingContext, program: &GlProgram) {
         let candidate: &JsValue = program.get_program().as_ref();
         if !Object::is(self.get_bound_program(), candidate) {
             context.use_program(Some(program.get_program()));
@@ -2111,7 +2172,7 @@ impl WebGl2Backend {
     /// - `&WebGl2RenderingContext` - The context to draw through.
     /// - `PrimitiveTopology` - How the vertices are assembled.
     /// - `&DrawArgs` - The counts and offsets to draw.
-    pub fn draw_arrays(
+    pub(crate) fn draw_arrays(
         &self,
         context: &WebGl2RenderingContext,
         topology: PrimitiveTopology,

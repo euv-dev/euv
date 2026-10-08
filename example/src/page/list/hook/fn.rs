@@ -29,11 +29,11 @@ pub(crate) fn validate_todo_new_item(state: UseTodoList) {
     if new_item_value.trim().is_empty() {
         state
             .get_add_error()
-            .set("Please enter an item name.".to_string());
+            .set(LIST_ERROR_ITEM_NAME_REQUIRED.to_string());
     } else if new_item_value.trim().len() > 50 {
         state
             .get_add_error()
-            .set("Item name is too long (max 50 chars).".to_string());
+            .set(LIST_ERROR_ITEM_NAME_TOO_LONG.to_string());
     } else {
         state.get_add_error().set(String::new());
     }
@@ -47,7 +47,7 @@ pub(crate) fn validate_todo_new_item(state: UseTodoList) {
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - An input handler.
+/// - `Option<Rc<dyn Fn(Event)>>` - An input handler.
 pub(crate) fn todo_list_on_input_new_item(state: UseTodoList) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |event: Event| {
         if let Some(target) = event.target()
@@ -67,7 +67,7 @@ pub(crate) fn todo_list_on_input_new_item(state: UseTodoList) -> Option<Rc<dyn F
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - A click handler to add a new item.
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler to add a new item.
 pub(crate) fn todo_list_on_add(state: UseTodoList) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         validate_todo_new_item(state);
@@ -91,7 +91,7 @@ pub(crate) fn todo_list_on_add(state: UseTodoList) -> Option<Rc<dyn Fn(Event)>> 
 ///
 /// # Returns
 ///
-/// - `NativeEventHandler` - A click handler to remove the item.
+/// - `Option<Rc<dyn Fn(Event)>>` - A click handler to remove the item.
 pub(crate) fn todo_list_on_remove(
     items: Signal<Vec<String>>,
     index: usize,

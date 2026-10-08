@@ -9,12 +9,7 @@ impl PendingMeasureCell {
     /// - `&'static mut HashSet<String>` - Mutable access to the process-wide
     ///   set of container ids awaiting measurement.
     fn get_mut_pending_measure() -> &'static mut HashSet<String> {
-        unsafe {
-            &mut *(*std::ptr::addr_of_mut!(PENDING_MEASURE_BY_ID))
-                .deref()
-                .get_0()
-                .get()
-        }
+        unsafe { &mut *(*addr_of_mut!(PENDING_MEASURE_BY_ID)).deref().get_0().get() }
     }
 }
 
@@ -173,12 +168,16 @@ impl UseVirtualList {
         item_height: i32,
         overscan_count: usize,
     ) -> (usize, usize, usize, usize) {
-        let visible_start: usize = (scroll_offset / item_height).max(0) as usize;
+        // `item_height` comes straight from user props and a non-positive
+        // value would divide by zero. Clamping mirrors the `viewport_height`
+        // fallback above: degenerate input keeps the list rendering instead
+        // of aborting the frame.
+        let row: i32 = item_height.max(1);
+        let visible_start: usize = (scroll_offset / row).max(0) as usize;
         let visible_count: usize = if viewport_height > 0 {
             let viewport_bottom: i32 = scroll_offset + viewport_height;
-            let visible_end: usize =
-                ((viewport_bottom + item_height - 1) / item_height).max(0) as usize;
-            visible_end - visible_start
+            let visible_end: usize = ((viewport_bottom + row - 1) / row).max(0) as usize;
+            visible_end.saturating_sub(visible_start)
         } else {
             VIRTUAL_LIST_DEFAULT_VISIBLE_COUNT
         };

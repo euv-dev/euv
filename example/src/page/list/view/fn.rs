@@ -1,6 +1,9 @@
 use super::*;
 
 /// A list rendering demo page with dynamic item management.
+/// # Arguments
+///
+/// - `VirtualNode<PageListProps>` - The component props node.
 ///
 /// # Returns
 ///

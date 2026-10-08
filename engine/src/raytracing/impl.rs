@@ -172,7 +172,7 @@ impl Occluder {
     ///
     /// - `Vec<(Vector3D, f64)>` - One bounding sphere per occluder.
     pub fn occluder_points(&self) -> Vec<(Vector3D, f64)> {
-        collect_occluder_points(std::slice::from_ref(self))
+        collect_occluder_points(from_ref(self))
     }
 }
 

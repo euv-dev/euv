@@ -1,20 +1,18 @@
 use super::*;
 
 class! {
-
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Page Banner (unified header with emoji icon)
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_page {
+    pub(crate) c_page {
         position: "relative";
         text-align: "center";
         box-sizing: "border-box";
     }
 
 
-    pub c_page_glow {
+    pub(crate) c_page_glow {
         position: "absolute";
         top: "-50%";
         left: "50%";
@@ -26,13 +24,13 @@ class! {
     }
 
 
-    pub c_page_content {
+    pub(crate) c_page_content {
         position: "relative";
         z-index: "1";
     }
 
 
-    pub c_page_icon {
+    pub(crate) c_page_icon {
         font-size: "36px";
         padding-bottom: var!(space-md);
         @media ((max-width: 767px)) {
@@ -41,7 +39,7 @@ class! {
     }
 
 
-    pub c_page_title {
+    pub(crate) c_page_title {
         font-size: var!(font-4xl);
         font-weight: "800";
         letter-spacing: "-0.03em";
@@ -54,7 +52,7 @@ class! {
     }
 
 
-    pub c_page_subtitle {
+    pub(crate) c_page_subtitle {
         font-size: var!(font-lg);
         color: var!(muted-foreground);
         margin: "0px auto";
@@ -1417,7 +1415,7 @@ class! {
     // Home Page
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_text_ellipsis {
+    pub(crate) c_text_ellipsis {
         overflow: "hidden";
         text-overflow: "ellipsis";
         white-space: "nowrap";
@@ -1467,7 +1465,7 @@ class! {
     // Async / Loading States
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_loading_container {
+    pub(crate) c_loading_container {
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -1486,19 +1484,19 @@ class! {
         animation: "euv-spin 0.8s linear infinite";
     }
 
-    pub c_loading_text_col {
+    pub(crate) c_loading_text_col {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-xs);
     }
 
-    pub c_loading_title {
+    pub(crate) c_loading_title {
         color: var!(foreground);
         font-size: var!(font-md);
         font-weight: "500";
     }
 
-    pub c_loading_subtitle {
+    pub(crate) c_loading_subtitle {
         color: var!(muted-foreground);
         font-size: var!(font-base);
     }

@@ -218,3 +218,33 @@ fn profiler_handle_measure_records_distinct_timestamps() {
         assert!(entries[0].get_timestamp_ms() <= entries[1].get_timestamp_ms());
     }
 }
+
+#[test]
+fn the_profiler_clock_is_a_wall_clock_in_milliseconds() {
+    let first: f64 = now_ms();
+
+    assert!(
+        first > 0.0,
+        "a profiler that starts at zero makes every duration it records meaningless, and the \
+         fallback path (no window) still reports real elapsed time"
+    );
+    let second: f64 = now_ms();
+    assert!(
+        second >= first,
+        "and it never runs backwards, so two reads in a row cannot produce a negative span"
+    );
+}
+
+#[test]
+fn the_profiler_clock_advances_between_two_reads() {
+    let start: f64 = now_ms();
+    let mut spins: u32 = 0;
+    while now_ms() <= start && spins < 1_000_000 {
+        spins += 1;
+    }
+
+    assert!(
+        now_ms() > start,
+        "a clock frozen at one value turns a phase breakdown into a single lump; the test          spins rather than sleeping so it costs nothing"
+    );
+}

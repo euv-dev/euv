@@ -12,9 +12,10 @@ use super::*;
 /// on its own: `concat!` only accepts string *literals*, so a named
 /// constant cannot be spliced into a `concat!` call at compile time.
 ///
-/// # Panics
-///
-/// Panics if `window()` or `document()` is unavailable on the current platform.
+/// Degrades to a no-op when no window or document is reachable:
+/// `Css::inject_css` returns early off wasm, and again when `window()` or
+/// `document()` yields nothing, so calling this from a non-browser host is
+/// safe rather than fatal.
 pub fn inject_app_global_css() {
     Css::inject_css(format!(
         "{APP_GLOBAL_CSS_HEAD}{}{APP_GLOBAL_CSS_BACKGROUND_CLOSE}",
@@ -42,4 +43,14 @@ pub fn inject_app_global_css() {
     Css::inject_css(APP_A11Y_CSS_FOCUS_VISIBLE);
     Css::inject_css(APP_A11Y_CSS_REDUCED_MOTION);
     Css::inject_css(APP_A11Y_CSS_COARSE_POINTER);
+}
+
+/// Injects the markdown stylesheet content. Callers pass the result to
+/// [`Css::inject_css`] once at startup.
+///
+/// # Returns
+///
+/// The markdown stylesheet as a static string slice.
+pub fn euv_md_css() -> &'static str {
+    EUV_MD_CSS
 }

@@ -39,6 +39,9 @@ fn build_file_list(state: UseFileUpload) -> VirtualNode {
 }
 
 /// A file upload demo page showcasing file selection and file list display.
+/// # Arguments
+///
+/// - `VirtualNode<PageFileUploadProps>` - The component props node.
 ///
 /// # Returns
 ///

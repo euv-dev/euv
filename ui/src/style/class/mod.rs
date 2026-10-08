@@ -6,6 +6,8 @@ mod overlay;
 mod page;
 mod shell;
 
-pub use {data::*, display::*, forms::*, identity::*, overlay::*, page::*, shell::*};
+pub use {data::*, display::*, forms::*, overlay::*, page::*, shell::*};
+
+pub(crate) use identity::*;
 
 use super::*;

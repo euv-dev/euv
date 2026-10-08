@@ -7,11 +7,11 @@ use super::*;
 /// - `UseKeyboardEvent` - The keyboard event demo state.
 pub(crate) fn use_keyboard_event() -> UseKeyboardEvent {
     let mut state: UseKeyboardEvent = UseKeyboardEvent::default();
-    state.set_last_key(App::use_signal(|| "None".to_string()));
-    state.set_last_key_code(App::use_signal(|| "None".to_string()));
-    state.set_last_key_up(App::use_signal(|| "None".to_string()));
+    state.set_last_key(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
+    state.set_last_key_code(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
+    state.set_last_key_up(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
     state.set_key_repeat(App::use_signal(|| false));
-    state.set_modifier(App::use_signal(|| "None".to_string()));
+    state.set_modifier(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
     state
 }
 
@@ -24,9 +24,9 @@ pub(crate) fn use_mouse_event() -> UseMouseEvent {
     let mut state: UseMouseEvent = UseMouseEvent::default();
     state.set_click_count(App::use_signal(|| 0));
     state.set_double_click_count(App::use_signal(|| 0));
-    state.set_mouse_pos(App::use_signal(|| "(0, 0)".to_string()));
-    state.set_mouse_screen_pos(App::use_signal(|| "(0, 0)".to_string()));
-    state.set_mouse_button(App::use_signal(|| "None".to_string()));
+    state.set_mouse_pos(App::use_signal(|| EVENT_COORDINATES_INITIAL.to_string()));
+    state.set_mouse_screen_pos(App::use_signal(|| EVENT_COORDINATES_INITIAL.to_string()));
+    state.set_mouse_button(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
     state.set_mouse_buttons(App::use_signal(|| "0".to_string()));
     state.set_mouse_enter_count(App::use_signal(|| 0));
     state.set_mouse_leave_count(App::use_signal(|| 0));
@@ -59,7 +59,7 @@ pub(crate) fn use_drag_event() -> UseDragEvent {
     let mut state: UseDragEvent = UseDragEvent::default();
     state.set_drag_status(App::use_signal(|| "Idle".to_string()));
     state.set_drag_pos(App::use_signal(|| "(-, -)".to_string()));
-    state.set_drag_types(App::use_signal(|| "None".to_string()));
+    state.set_drag_types(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
     state.set_drag_enter_counter(App::use_signal(|| 0));
     state.set_drag_pending_pos(App::use_signal(String::new));
     state.set_drag_raf_id(App::use_signal(|| -1));
@@ -73,7 +73,7 @@ pub(crate) fn use_drag_event() -> UseDragEvent {
 /// - `UseWheelEvent` - The wheel event demo state.
 pub(crate) fn use_wheel_event() -> UseWheelEvent {
     let mut state: UseWheelEvent = UseWheelEvent::default();
-    state.set_wheel_delta(App::use_signal(|| "(0, 0)".to_string()));
+    state.set_wheel_delta(App::use_signal(|| EVENT_COORDINATES_INITIAL.to_string()));
     state.set_wheel_total(App::use_signal(|| 0.0));
     state
 }
@@ -85,8 +85,8 @@ pub(crate) fn use_wheel_event() -> UseWheelEvent {
 /// - `UseClipboardEvent` - The clipboard event demo state.
 pub(crate) fn use_clipboard_event() -> UseClipboardEvent {
     let mut state: UseClipboardEvent = UseClipboardEvent::default();
-    state.set_clipboard_data(App::use_signal(|| "None".to_string()));
-    state.set_clipboard_event_type(App::use_signal(|| "None".to_string()));
+    state.set_clipboard_data(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
+    state.set_clipboard_event_type(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
     state
 }
 
@@ -109,9 +109,9 @@ pub(crate) fn use_touch_event() -> UseTouchEvent {
 pub(crate) fn use_form_event() -> UseFormEvent {
     let mut state: UseFormEvent = UseFormEvent::default();
     state.set_euv_input_value(App::use_signal(String::new));
-    state.set_form_change_value(App::use_signal(|| "None".to_string()));
+    state.set_form_change_value(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
     state.set_form_checkbox(App::use_signal(|| false));
-    state.set_form_select_value(App::use_signal(|| "None".to_string()));
+    state.set_form_select_value(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
     state.set_submit_count(App::use_signal(|| 0));
     state
 }
@@ -124,7 +124,7 @@ pub(crate) fn use_form_event() -> UseFormEvent {
 pub(crate) fn use_media_event() -> UseMediaEvent {
     let mut state: UseMediaEvent = UseMediaEvent::default();
     state.set_media_status(App::use_signal(|| "Not started".to_string()));
-    state.set_media_event_log(App::use_signal(|| "None".to_string()));
+    state.set_media_event_log(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
     state
 }
 
@@ -135,10 +135,12 @@ pub(crate) fn use_media_event() -> UseMediaEvent {
 /// - `UseVideoEvent` - The video event demo state.
 pub(crate) fn use_video_event() -> UseVideoEvent {
     let mut state: UseVideoEvent = UseVideoEvent::default();
-    state.set_video_status(App::use_signal(|| "Not loaded".to_string()));
-    state.set_video_event_log(App::use_signal(|| "None".to_string()));
-    state.set_video_current_time(App::use_signal(|| "0.00".to_string()));
-    state.set_video_duration(App::use_signal(|| "0.00".to_string()));
+    state.set_video_status(App::use_signal(|| {
+        EVENT_MEDIA_STATUS_NOT_LOADED.to_string()
+    }));
+    state.set_video_event_log(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
+    state.set_video_current_time(App::use_signal(|| EVENT_MEDIA_TIME_INITIAL.to_string()));
+    state.set_video_duration(App::use_signal(|| EVENT_MEDIA_TIME_INITIAL.to_string()));
     state.set_video_buffered(App::use_signal(|| "0%".to_string()));
     state.set_video_playback_rate(App::use_signal(|| "1.0".to_string()));
     state
@@ -151,8 +153,10 @@ pub(crate) fn use_video_event() -> UseVideoEvent {
 /// - `UseImageEvent` - The image event demo state.
 pub(crate) fn use_image_event() -> UseImageEvent {
     let mut state: UseImageEvent = UseImageEvent::default();
-    state.set_image_status(App::use_signal(|| "Not loaded".to_string()));
-    state.set_image_event_log(App::use_signal(|| "None".to_string()));
+    state.set_image_status(App::use_signal(|| {
+        EVENT_MEDIA_STATUS_NOT_LOADED.to_string()
+    }));
+    state.set_image_event_log(App::use_signal(|| EVENT_LABEL_INITIAL_NONE.to_string()));
     state.set_image_natural_size(App::use_signal(|| "N/A".to_string()));
     state
 }

@@ -1,3 +1,15 @@
+/// `clamp-to-edge` address mode for U / V / W sampler axes.
+pub(crate) const WEBGPU_ADDRESS_MODE_CLAMP_TO_EDGE: &str = "clamp-to-edge";
+
+pub(crate) const WEBGPU_ADDRESS_MODE_REPEAT: &str = "repeat";
+
+/// Minification / magnification filter mode that picks the nearest texel.
+pub(crate) const WEBGPU_FILTER_MODE_NEAREST: &str = "nearest";
+
+pub(crate) const WEBGPU_ADDRESS_MODE_MIRROR_REPEAT: &str = "mirror-repeat";
+
+pub(crate) const WEBGPU_FILTER_MODE_LINEAR: &str = "linear";
+
 pub(crate) const WEBGPU_VERTEX_FORMAT_FLOAT32: &str = "float32";
 
 /// The CSS composite operation string for the `Luminosity` blend mode.
@@ -29,9 +41,6 @@ pub(crate) const BLEND_MODE_HUE: &str = "hue";
 
 /// The CSS composite operation string for the `Exclusion` blend mode.
 pub(crate) const BLEND_MODE_EXCLUSION: &str = "exclusion";
-
-/// `clamp-to-edge` address mode for U / V / W sampler axes.
-pub(crate) const WEBGPU_ADDRESS_MODE_CLAMP_TO_EDGE: &str = "clamp-to-edge";
 
 /// The bitmask value for `GPUBufferUsage.UNIFORM` (`0x40`), the counterpart
 /// of [`BufferUsage::Uniform`].
@@ -157,8 +166,6 @@ pub(crate) const RENDER_USAGE_INDIRECT: f64 = 256.0;
 
 pub(crate) const WEBGPU_CULL_MODE_BACK: &str = "back";
 
-pub(crate) const WEBGPU_ADDRESS_MODE_REPEAT: &str = "repeat";
-
 /// The WebGPU primitive topology string for triangle lists.
 pub(crate) const WEBGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST: &str = "triangle-list";
 
@@ -176,9 +183,6 @@ pub(crate) const WEBGPU_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA: &str = "one-minus
 pub(crate) const WEBGPU_LOAD_OP_LOAD: &str = "load";
 
 pub(crate) const WEBGPU_FRONT_FACE_COUNTER_CLOCKWISE: &str = "ccw";
-
-/// Minification / magnification filter mode that picks the nearest texel.
-pub(crate) const WEBGPU_FILTER_MODE_NEAREST: &str = "nearest";
 
 pub(crate) const WEBGPU_VERTEX_FORMAT_FLOAT32X3: &str = "float32x3";
 
@@ -203,8 +207,6 @@ pub(crate) const RENDER_USAGE_TEXTURE_BINDING: f64 = 4.0;
 /// 32-bit float depth, no stencil. Required for view-space z-buffers
 /// used in deferred renderers.
 pub(crate) const WEBGPU_DEPTH_FORMAT_DEPTH32_FLOAT: &str = "depth32float";
-
-pub(crate) const WEBGPU_ADDRESS_MODE_MIRROR_REPEAT: &str = "mirror-repeat";
 
 /// The bitmask value for `GPUShaderStage.VERTEX` (`0x01`), the counterpart
 /// of [`ShaderStage::Vertex`].
@@ -251,8 +253,6 @@ pub(crate) const RENDER_USAGE_COPY_SRC: f64 = 4.0;
 
 /// The CSS composite operation string for the `Multiply` blend mode.
 pub(crate) const BLEND_MODE_MULTIPLY: &str = "multiply";
-
-pub(crate) const WEBGPU_FILTER_MODE_LINEAR: &str = "linear";
 
 /// The bitmask value for `GPUBufferUsage.QUERY_RESOLVE` (`0x200`), the counterpart
 /// of [`BufferUsage::QueryResolve`].

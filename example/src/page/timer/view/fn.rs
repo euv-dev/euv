@@ -16,6 +16,9 @@ fn format_time(total_seconds: i32) -> String {
 }
 
 /// A timer demo page with stopwatch and countdown features.
+/// # Arguments
+///
+/// - `VirtualNode<PageTimerProps>` - The component props node.
 ///
 /// # Returns
 ///

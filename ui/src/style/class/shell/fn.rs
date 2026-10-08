@@ -1,7 +1,6 @@
 use super::*;
 
 class! {
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Layout Shell
     // ═══════════════════════════════════════════════════════════════════════════
@@ -155,7 +154,7 @@ class! {
     }
 
 
-    pub c_mobile_app_root {
+    pub(crate) c_mobile_app_root {
         display: "flex";
         flex-direction: "column";
         width: "100%";
@@ -255,7 +254,7 @@ class! {
     }
 
 
-    pub c_euv_logo {
+    pub(crate) c_euv_logo {
         display: "flex";
         background: var!(accent);
         align-items: "center";
@@ -270,14 +269,14 @@ class! {
     }
 
 
-    pub c_euv_logo_nav {
+    pub(crate) c_euv_logo_nav {
         width: "32px";
         height: "32px";
         font-size: var!(font-lg);
     }
 
 
-    pub c_euv_logo_fab {
+    pub(crate) c_euv_logo_fab {
         width: "36px";
         height: "36px";
         font-size: var!(font-xl);
@@ -517,7 +516,7 @@ class! {
     }
 
 
-    pub c_nav_item_active {
+    pub(crate) c_nav_item_active {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
@@ -533,7 +532,7 @@ class! {
     }
 
 
-    pub c_nav_item_inactive {
+    pub(crate) c_nav_item_inactive {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
@@ -553,14 +552,14 @@ class! {
     }
 
 
-    pub c_nav_item_icon {
+    pub(crate) c_nav_item_icon {
         flex-shrink: "0";
         width: "20px";
         text-align: "center";
     }
 
 
-    pub c_nav_item_label {
+    pub(crate) c_nav_item_label {
         flex: "1";
         overflow: "hidden";
         text-overflow: "ellipsis";
@@ -804,7 +803,7 @@ class! {
     // euv_navbar
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_navbar {
+    pub(crate) c_euv_navbar {
         position: "fixed";
         top: "0px";
         left: "0px";
@@ -823,7 +822,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_brand {
+    pub(crate) c_euv_navbar_brand {
         display: "flex";
         align-items: "center";
         gap: var!(gap-element);
@@ -836,7 +835,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_logo {
+    pub(crate) c_euv_navbar_logo {
         width: "32px";
         height: "32px";
         display: "flex";
@@ -849,7 +848,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_links {
+    pub(crate) c_euv_navbar_links {
         display: "flex";
         align-items: "center";
         gap: var!(gap-section);
@@ -860,7 +859,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_link {
+    pub(crate) c_euv_navbar_link {
         font-size: var!(font-sm);
         font-weight: "500";
         color: var!(foreground);
@@ -873,7 +872,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_link_active {
+    pub(crate) c_euv_navbar_link_active {
         font-size: var!(font-sm);
         font-weight: "600";
         color: var!(accent);
@@ -883,7 +882,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_actions {
+    pub(crate) c_euv_navbar_actions {
         display: "flex";
         align-items: "center";
         gap: var!(gap-element);
@@ -909,7 +908,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_menu_button {
+    pub(crate) c_euv_navbar_menu_button {
         display: "none";
         width: "40px";
         height: "40px";
@@ -924,7 +923,7 @@ class! {
     }
 
 
-    pub c_euv_navbar_menu_button_active {
+    pub(crate) c_euv_navbar_menu_button_active {
         display: "none";
         width: "40px";
         height: "40px";
@@ -944,7 +943,7 @@ class! {
     // euv_sidebar
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_sidebar_group {
+    pub(crate) c_euv_sidebar_group {
         margin-bottom: var!(space-xs);
     }
 
@@ -981,7 +980,7 @@ class! {
     // its weight, so a first-level row gets the same "you can click this"
     // cue a nested row does, just with room around it. The offset lives on
     // the shadow rather than on `padding`, so the text never moves.
-    pub c_euv_sidebar_group_title_root {
+    pub(crate) c_euv_sidebar_group_title_root {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
@@ -998,7 +997,7 @@ class! {
     }
 
 
-    pub c_euv_sidebar_group_title_root_active {
+    pub(crate) c_euv_sidebar_group_title_root_active {
         background: var!(accent);
         color: var!(text-on-accent);
         font-weight: "600";
@@ -1019,19 +1018,19 @@ class! {
     }
 
 
-    pub c_euv_sidebar_group_arrow {
+    pub(crate) c_euv_sidebar_group_arrow {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
         transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
     }
 
 
-    pub c_euv_sidebar_group_arrow_open {
+    pub(crate) c_euv_sidebar_group_arrow_open {
         transform: "rotate(90deg)";
     }
 
 
-    pub c_euv_sidebar_group_arrow_active {
+    pub(crate) c_euv_sidebar_group_arrow_active {
         color: var!(text-on-accent);
     }
 
@@ -1113,7 +1112,7 @@ class! {
     }
 
 
-    pub c_euv_toc_title {
+    pub(crate) c_euv_toc_title {
         font-size: var!(font-xs);
         font-weight: "700";
         text-transform: "uppercase";

@@ -4,7 +4,6 @@ mod r#fn;
 mod r#impl;
 mod r#struct;
 
-pub(crate) use super::dom_ops::*;
 pub(crate) use {r#const::*, r#enum::*, r#fn::*, r#struct::*};
 
 use super::*;

@@ -109,6 +109,7 @@ impl<T: ?Sized> NodeRef<T> {
     /// `set` call.
     ///
     /// [`get`]: NodeRef::get
+    /// [`get_cloned`]: NodeRef::get_cloned
     pub fn clear(&self) {
         let cell: *mut Option<JsValue> = self.get_inner_ref().get();
         unsafe {
@@ -128,7 +129,7 @@ impl<T: ?Sized> NodeRef<T> {
     }
 }
 
-// Blanket impl over the unsized `web_sys::Node` is what most users want,
+// Blanket impl over the unsized `Node` is what most users want,
 // but the macro passes a `JsValue` and the user chooses `T` per use site,
 // so we don't constrain `T` here — `get_cloned`'s `JsCast` bound is the
 // single point where the type check happens.

@@ -272,3 +272,87 @@ fn panic_then_reset_then_success() {
         ErrorBoundaryPhase::Healthy
     ));
 }
+
+#[test]
+fn outside_a_render_the_hook_still_hands_back_a_usable_boundary() {
+    let boundary: ErrorBoundary = use_error_boundary();
+
+    assert!(
+        matches!(boundary.get_phase().get(), ErrorBoundaryPhase::Healthy),
+        "with no hook context active the factory result comes straight back, and a fresh \
+         boundary is Healthy — not already Caught, and not an error"
+    );
+}
+
+#[test]
+fn the_hook_returns_the_same_boundary_on_every_render() {
+    let mut context: HookContext = HookContext::default();
+
+    let first: ErrorBoundary = HookContext::with(context.clone(), use_error_boundary);
+    context.reset_index();
+    let second: ErrorBoundary = HookContext::with(context, use_error_boundary);
+
+    first.report_error("child render exploded");
+
+    assert!(
+        matches!(second.get_phase().get(), ErrorBoundaryPhase::Caught(_)),
+        "a hook has to hand back the same slot on every render. If each render allocated a \
+         fresh boundary, the fallback a parent showed would be forgotten on the next render \
+         and a failing child would flash back to healthy instead of staying caught"
+    );
+}
+
+#[test]
+fn two_components_get_boundaries_of_their_own() {
+    let left: HookContext = HookContext::default();
+    let right: HookContext = HookContext::default();
+
+    let first: ErrorBoundary = HookContext::with(left, use_error_boundary);
+    let second: ErrorBoundary = HookContext::with(right, use_error_boundary);
+
+    first.report_error("only the left one broke");
+
+    assert!(
+        matches!(second.get_phase().get(), ErrorBoundaryPhase::Healthy),
+        "the slot belongs to the hook context, not to the hook name: one component's failure \
+         must not put every other component's boundary into the fallback state"
+    );
+}
+
+#[test]
+fn the_hook_boundary_is_usable_rather_than_a_placeholder() {
+    let boundary: ErrorBoundary = use_error_boundary();
+
+    let value: Result<u32, String> = boundary.try_with(|| 7_u32);
+
+    assert_eq!(
+        value,
+        Ok(7),
+        "the handle this hook returns has to be a working boundary, because it is the only \
+         thing a render ever gets"
+    );
+    assert!(
+        matches!(boundary.get_phase().get(), ErrorBoundaryPhase::Healthy),
+        "and a run that did not panic leaves the phase alone"
+    );
+}
+
+#[test]
+fn the_hook_boundary_catches_a_panic_and_reports_it() {
+    let boundary: ErrorBoundary = use_error_boundary();
+
+    let value: Result<u32, String> =
+        boundary.try_with(|| -> u32 { panic!("child render exploded") });
+
+    assert!(
+        value.is_err(),
+        "the panic is the boundary's whole purpose; a hook that returned an inert handle \
+         would let every child render take the page down"
+    );
+    let phase: ErrorBoundaryPhase = boundary.get_phase().get();
+    assert!(
+        matches!(phase, ErrorBoundaryPhase::Caught(_)),
+        "and the phase has to flip to Caught, because that is what the parent renders a \
+         fallback from"
+    );
+}

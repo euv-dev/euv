@@ -6,6 +6,9 @@ use super::*;
 /// the tag name is determined at runtime based on a signal value. When the
 /// signal changes, the dynamic tag automatically re-renders as either a
 /// native HTML element or a user component.
+/// # Arguments
+///
+/// - `VirtualNode<PageDynamicComponentProps>` - The component props node.
 ///
 /// # Returns
 ///
