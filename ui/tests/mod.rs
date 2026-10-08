@@ -55,7 +55,7 @@ mod virtual_list_view;
 use {euv::*, euv_ui::*};
 
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     f64::consts::PI,
     hint::black_box,
