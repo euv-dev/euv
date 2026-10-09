@@ -218,109 +218,119 @@ jobs:
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
-      - name: Get package name and branch info
-        id: package_info
-        run: |
-          echo "package_name=${{ needs.setup.outputs.package_name }}" >> $GITHUB_OUTPUT
-          echo "branch_name=${{ needs.setup.outputs.branch_name }}" >> $GITHUB_OUTPUT
       - name: Check tag status
         id: check_tag
         run: |
           if git tag -l | grep -q "^${{ needs.setup.outputs.tag }}$"; then
             echo "tag_exists=true" >> $GITHUB_OUTPUT
-            echo "🏷️ Tag ${{ needs.setup.outputs.tag }} exists locally"
+            echo "Tag ${{ needs.setup.outputs.tag }} exists locally"
           else
             echo "tag_exists=false" >> $GITHUB_OUTPUT
-            echo "🏷️ Tag ${{ needs.setup.outputs.tag }} does not exist locally"
+            echo "Tag ${{ needs.setup.outputs.tag }} does not exist locally"
           fi
           if git ls-remote --tags origin | grep -q "refs/tags/${{ needs.setup.outputs.tag }}$"; then
             echo "remote_tag_exists=true" >> $GITHUB_OUTPUT
-            echo "🌐 Tag ${{ needs.setup.outputs.tag }} exists on remote"
+            echo "Tag ${{ needs.setup.outputs.tag }} exists on remote"
           else
             echo "remote_tag_exists=false" >> $GITHUB_OUTPUT
-            echo "🌐 Tag ${{ needs.setup.outputs.tag }} does not exist on remote"
+            echo "Tag ${{ needs.setup.outputs.tag }} does not exist on remote"
           fi
       - name: Check release status
         id: check_release
         run: |
           if gh release view "${{ needs.setup.outputs.tag }}" > /dev/null 2>&1; then
             echo "release_exists=true" >> $GITHUB_OUTPUT
-            echo "📦 Release ${{ needs.setup.outputs.tag }} already exists"
+            echo "Release ${{ needs.setup.outputs.tag }} already exists"
           else
             echo "release_exists=false" >> $GITHUB_OUTPUT
-            echo "📦 Release ${{ needs.setup.outputs.tag }} does not exist"
+            echo "Release ${{ needs.setup.outputs.tag }} does not exist"
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build source archive
+        id: build_archive
+        run: |
+          set -e
+          VERSION="${{ needs.setup.outputs.version }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+          echo "Building source archive for $REPO_NAME v$VERSION..."
+          git archive --format=tar.gz --prefix="${REPO_NAME}-${VERSION}/" HEAD > "${REPO_NAME}-${VERSION}.tar.gz"
+          echo "archive_path=${REPO_NAME}-${VERSION}.tar.gz" >> $GITHUB_OUTPUT
       - name: Create or update release
         id: release
         run: |
           set -e
           echo "released=false" >> $GITHUB_OUTPUT
-          PACKAGE_NAME="${{ steps.package_info.outputs.package_name }}"
           VERSION="${{ needs.setup.outputs.version }}"
           TAG="${{ needs.setup.outputs.tag }}"
-          echo "📦 Building source archives..."
-          git archive --format=zip --prefix="${PACKAGE_NAME}-${VERSION}/" HEAD > "${PACKAGE_NAME}-${VERSION}.zip"
-          git archive --format=tar.gz --prefix="${PACKAGE_NAME}-${VERSION}/" HEAD > "${PACKAGE_NAME}-${VERSION}.tar.gz"
+          ARCHIVE="${{ steps.build_archive.outputs.archive_path }}"
+
+          PACKAGES=(
+            "euv-core"
+            "euv-macros"
+            "euv"
+            "euv-engine"
+            "euv-ui"
+            "euv-cli"
+            "euv-docs"
+            "euv-example"
+          )
+
+          NOTES_FILE="$(mktemp)"
+          {
+            printf '## Release %s\n\n' "$TAG"
+            printf '| Package | crates.io | docs.rs |\n'
+            printf '| --- | --- | --- |\n'
+            for pkg in "${PACKAGES[@]}"; do
+              printf '| `%s` | [crates.io](https://crates.io/crates/%s/%s) | [docs.rs](https://docs.rs/%s/%s) |\n' \
+                "$pkg" "$pkg" "$VERSION" "$pkg" "$VERSION"
+            done
+            printf '\nCommit History: https://github.com/%s/commits/%s\n' \
+              "${{ github.repository }}" "$TAG"
+          } > "$NOTES_FILE"
+
+          TITLE="$TAG (monorepo)"
+          TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S UTC')
+
           if [ "${{ steps.check_release.outputs.release_exists }}" = "true" ]; then
-            echo "🔄 Updating existing release: $TAG"
+            echo "Updating existing release: $TAG"
             gh release view "$TAG" --json assets --jq '.assets[].name' | while read asset; do
               if [ -n "$asset" ]; then
-                echo "🗑️ Deleting asset: $asset"
+                echo "Deleting asset: $asset"
                 gh release delete-asset "$TAG" "$asset" --yes || true
               fi
             done
-            BRANCH_NAME="${{ steps.package_info.outputs.branch_name }}"
-          TITLE="[$BRANCH_NAME]($TAG updated $(date '+%Y-%m-%d %H:%M:%S'))"
-          if gh release edit "$TAG" \
-              --title "$TITLE" \
-              --notes "[$BRANCH_NAME] - release $TAG updated at $(date '+%Y-%m-%d %H:%M:%S UTC')
-            ## Changes
-            - Branch: $BRANCH_NAME
-            - Version: $VERSION
-            - Package: $PACKAGE_NAME
-            ## Links
-            📦 [Crate on crates.io](https://crates.io/crates/$PACKAGE_NAME/$VERSION)
-            📚 [Documentation on docs.rs](https://docs.rs/$PACKAGE_NAME/$VERSION)
-            📋 [Commit History](https://github.com/${{ github.repository }}/commits/$TAG)" && \
-               gh release upload "$TAG" "${PACKAGE_NAME}-${VERSION}.zip" "${PACKAGE_NAME}-${VERSION}.tar.gz" --clobber; then
+            if gh release edit "$TAG" \
+                --title "$TITLE (updated $TIMESTAMP)" \
+                --notes-file "$NOTES_FILE" \
+                && gh release upload "$TAG" "$ARCHIVE" --clobber; then
               echo "released=true" >> $GITHUB_OUTPUT
-              echo "✅ Updated release $TAG"
-              echo "🔖 Tag: $TAG"
-              echo "🚀 Release: [GitHub Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG)"
+              echo "Updated release $TAG"
             else
-              echo "❌ Failed to update release"
+              echo "Failed to update release"
+              exit 1
             fi
           else
             if [ "${{ steps.check_tag.outputs.remote_tag_exists }}" = "false" ]; then
-              echo "🏷️ Creating and pushing tag: $TAG"
+              echo "Creating and pushing tag: $TAG"
               git tag "$TAG"
               git push origin "$TAG"
             fi
-            echo "🆕 Creating new release: $TAG"
-            BRANCH_NAME="${{ steps.package_info.outputs.branch_name }}"
-            TITLE="[$BRANCH_NAME]($TAG created $(date '+%Y-%m-%d %H:%M:%S'))"
+            echo "Creating new release: $TAG"
             if gh release create "$TAG" \
-              --title "$TITLE" \
-              --notes "[$BRANCH_NAME] - release $TAG created at $(date '+%Y-%m-%d %H:%M:%S UTC')
-            ## Changes
-            - Branch: $BRANCH_NAME
-            - Version: $VERSION
-            - Package: $PACKAGE_NAME
-            ## Links
-            📦 [Crate on crates.io](https://crates.io/crates/$PACKAGE_NAME/$VERSION)
-            📚 [Documentation on docs.rs](https://docs.rs/$PACKAGE_NAME/$VERSION)
-            📋 [Commit History](https://github.com/${{ github.repository }}/commits/$TAG)" \
-              --latest && \
-               gh release upload "$TAG" "${PACKAGE_NAME}-${VERSION}.zip" "${PACKAGE_NAME}-${VERSION}.tar.gz"; then
+                --title "$TITLE" \
+                --notes-file "$NOTES_FILE" \
+                --latest \
+                && gh release upload "$TAG" "$ARCHIVE"; then
               echo "released=true" >> $GITHUB_OUTPUT
-              echo "✅ Created release $TAG"
-              echo "🔖 Tag: $TAG"
-              echo "🚀 Release: [GitHub Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG)"
+              echo "Created release $TAG"
+              echo "Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG"
             else
-              echo "❌ Failed to create release"
+              echo "Failed to create release"
+              exit 1
             fi
           fi
+
+          rm -f "$NOTES_FILE"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
