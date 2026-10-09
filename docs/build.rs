@@ -261,8 +261,9 @@ fn main() {
     println!("cargo:rerun-if-env-changed=EUV_DOCS_OUT_DIR");
     println!("cargo:rerun-if-changed=build.rs");
 
-    let Some(config): Option<Config> = load_config_from_readme(&docs_dir) else {
-        fail(ERROR_SITE_CONFIG_MISSING);
+    let config: Config = match load_config_from_readme(&docs_dir) {
+        Ok(config) => config,
+        Err(message) => fail(&message),
     };
 
     // (content directory, URL prefix) per locale. A file directly under
@@ -363,27 +364,71 @@ fn resolve_locale_roots(
 }
 
 /// Loads the site-level configuration (site + locales) from
-/// `<SRC_DIR>/../README.md` frontmatter. Returns `None` when the file is
-/// missing or its frontmatter does not contain a `site` block.
+/// `<SRC_DIR>/../README.md` frontmatter.
+///
+/// Every `[[locales]]` entry is validated here: a malformed entry aborts
+/// the build instead of being dropped, and an empty `locales:` sequence
+/// aborts too. Both cases used to degrade silently into a zero-locale
+/// site, whose WASM panicked on `site.locales[0]` at load time.
 /// # Arguments
 ///
 /// - `&Path` - the docs content root that `../README.md` is resolved against
 ///
 /// # Returns
 ///
-/// - `Option<Config>` - the parsed `site` and `locales` blocks, or `None` when the frontmatter is missing or carries no `site` block
-fn load_config_from_readme(docs_dir: &Path) -> Option<Config> {
+/// - `Result<Config, String>` - the parsed `site` and `locales` blocks, or
+///   the reason the build must fail
+fn load_config_from_readme(docs_dir: &Path) -> Result<Config, String> {
     let readme_path: PathBuf = docs_dir.join(README_RELATIVE_PATH);
-    let raw: String = fs::read_to_string(&readme_path).ok()?;
+    let Ok(raw) = fs::read_to_string(&readme_path) else {
+        return Err(ERROR_SITE_CONFIG_MISSING.to_string());
+    };
     let (fm, _body) = split_frontmatter(&raw);
-    let site_yaml: &Value = fm.get(Value::String(YAML_SITE.to_string()))?;
-    let locales_yaml: &Value = fm.get(Value::String(YAML_LOCALES.to_string()))?;
-    let locales_seq: &[Value] = locales_yaml.as_sequence()?.as_slice();
-    let locales: Vec<LocaleConfig> = locales_seq.iter().filter_map(parse_locale_config).collect();
-    Some(Config {
-        site: parse_site_config(site_yaml)?,
-        locales,
-    })
+    let Some(site_yaml) = fm.get(Value::String(YAML_SITE.to_string())) else {
+        return Err(ERROR_SITE_CONFIG_MISSING.to_string());
+    };
+    let Some(locales_yaml) = fm.get(Value::String(YAML_LOCALES.to_string())) else {
+        return Err(ERROR_SITE_CONFIG_MISSING.to_string());
+    };
+    let Some(locales_seq) = locales_yaml.as_sequence() else {
+        return Err(ERROR_LOCALES_NOT_A_SEQUENCE.to_string());
+    };
+    let mut locales: Vec<LocaleConfig> = Vec::with_capacity(locales_seq.len());
+    for (index, entry) in locales_seq.iter().enumerate() {
+        match parse_locale_config(entry) {
+            Ok(locale) => locales.push(locale),
+            Err(reason) => return Err(describe_locale_entry(index, entry, &reason)),
+        }
+    }
+    if locales.is_empty() {
+        return Err(ERROR_LOCALES_EMPTY.to_string());
+    }
+    let Some(site) = parse_site_config(site_yaml) else {
+        return Err(ERROR_SITE_CONFIG_MISSING.to_string());
+    };
+    Ok(Config { site, locales })
+}
+
+/// Names the offending `[[locales]]` entry in a parse failure.
+///
+/// The message identifies the entry by both its zero-based `locales:`
+/// index and its `prefix` when one is readable, so the author can find
+/// the broken block in `README.md` without counting list items.
+/// # Arguments
+///
+/// - `usize` - the entry's zero-based position in the `locales:` sequence
+/// - `&Value` - the malformed `[[locales]]` YAML mapping
+/// - `&str` - the reason `parse_locale_config` rejected the entry
+///
+/// # Returns
+///
+/// - `String` - the full error text, including the located entry
+fn describe_locale_entry(index: usize, entry: &Value, reason: &str) -> String {
+    let located: String = match yaml_str(entry, YAML_PREFIX) {
+        Some(prefix) => format!(" (locales entry #{index}, prefix `{prefix}`)"),
+        None => format!(" (locales entry #{index})"),
+    };
+    format!("{ERROR_LOCALES_MALFORMED}{located}: {reason}")
 }
 
 /// Reads the `[site]` block of the README frontmatter into a [`SiteConfig`].
@@ -402,9 +447,11 @@ fn parse_site_config(yaml: &Value) -> Option<SiteConfig> {
 }
 
 /// Reads one `[[locales]]` frontmatter entry into a [`LocaleConfig`].
-/// Every required field must be a present string; the optional label,
-/// title, footer, navigation-label and navbar fields fall back to `None`
-/// and are defaulted later during codegen.
+/// Every required field (`prefix`, `dir`, `label`) must be a present
+/// string; a missing one is a hard error naming the key, because dropping
+/// the entry silently produced a site whose runtime panicked. The
+/// optional title, footer, navigation-label and navbar fields fall back
+/// to `None` and are defaulted later during codegen.
 ///
 /// # Arguments
 ///
@@ -412,8 +459,12 @@ fn parse_site_config(yaml: &Value) -> Option<SiteConfig> {
 ///
 /// # Returns
 ///
-/// - `Option<LocaleConfig>` - the locale entry, or `None` when a required field is missing
-fn parse_locale_config(yaml: &Value) -> Option<LocaleConfig> {
+/// - `Result<LocaleConfig, String>` - the locale entry, or the reason the
+///   entry is malformed
+fn parse_locale_config(yaml: &Value) -> Result<LocaleConfig, String> {
+    let prefix: String = require_locale_str(yaml, YAML_PREFIX)?;
+    let dir: String = require_locale_str(yaml, YAML_DIR)?;
+    let label: String = require_locale_str(yaml, YAML_LABEL)?;
     let navbar_items: Vec<NavItemConfig> = yaml_list(yaml, YAML_NAVBAR)
         .iter()
         .filter_map(|n: &Value| {
@@ -423,10 +474,10 @@ fn parse_locale_config(yaml: &Value) -> Option<LocaleConfig> {
             })
         })
         .collect();
-    Some(LocaleConfig {
-        prefix: yaml_str(yaml, YAML_PREFIX)?,
-        dir: yaml_str(yaml, "dir")?,
-        label: yaml_str(yaml, YAML_LABEL)?,
+    Ok(LocaleConfig {
+        prefix,
+        dir,
+        label,
         title: yaml_str(yaml, YAML_TITLE),
         footer: yaml_str(yaml, YAML_FOOTER),
         toc_label: yaml_str(yaml, YAML_TOC_LABEL),
@@ -438,6 +489,26 @@ fn parse_locale_config(yaml: &Value) -> Option<LocaleConfig> {
             Some(navbar_items)
         },
     })
+}
+
+/// Reads one required `[[locales]]` string field.
+///
+/// # Arguments
+///
+/// - `&Value` - the `[[locales]]` YAML mapping to read from
+/// - `&str` - the required key to read
+///
+/// # Returns
+///
+/// - `Result<String, String>` - the string value at `key`, or the reason the
+///   required field is absent or not a string
+fn require_locale_str(yaml: &Value, key: &str) -> Result<String, String> {
+    match yaml_str(yaml, key) {
+        Some(value) => Ok(value),
+        None => Err(format!(
+            "required key `{key}` is missing or is not a string"
+        )),
+    }
 }
 
 /// Counts the markdown files under `dir`, used to assert that a locale
