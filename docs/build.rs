@@ -9,6 +9,7 @@ use std::{
 };
 
 use {
+    http_constant::ROOT_PATH,
     pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd},
     serde_yaml::Value,
 };
@@ -266,13 +267,13 @@ fn main() {
         Err(message) => fail(&message),
     };
 
-    // (content directory, URL prefix) per locale. A file directly under
-    // <SRC_DIR> belongs to no locale and is not a page.
-    let locale_prefixes: Vec<(String, String)> = config
-        .locales
-        .iter()
-        .map(|l: &LocaleConfig| (l.dir.clone(), l.prefix.clone()))
-        .collect();
+    // (content directory, every URL prefix served from it) per locale
+    // directory. A file directly under <SRC_DIR> belongs to no locale
+    // and is not a page.
+    let locale_prefixes: Vec<(String, Vec<String>)> = match resolve_locale_prefixes(&config) {
+        Ok(index) => index,
+        Err(message) => fail(&message),
+    };
 
     let mut md_files: Vec<PathBuf> = Vec::new();
     collect_md(&docs_dir, &docs_dir, &mut md_files);
@@ -280,7 +281,7 @@ fn main() {
 
     let mut pages: Vec<Page> = Vec::new();
     for file in &md_files {
-        pages.push(process_page(&docs_dir, file, &locale_prefixes));
+        pages.extend(process_page(&docs_dir, file, &locale_prefixes));
     }
 
     let public_dir: PathBuf = docs_dir.join(DIR_PUBLIC);
@@ -321,12 +322,65 @@ fn fail(message: &str) -> ! {
     std::process::exit(1);
 }
 
+/// Indexes every configured prefix by the content directory that serves it.
+///
+/// A content directory may back SEVERAL URL prefixes: `docs-pages/docs`
+/// declares `prefix: /` + `dir: zh` and `prefix: /zh/` + `dir: zh` because
+/// the same Simplified Chinese tree has to answer both `/<page>` and
+/// `/zh/<page>`. The index therefore holds every prefix declared for a
+/// directory, in declaration order, and `process_page` emits one route per
+/// entry.
+///
+/// The reverse collision is genuinely ambiguous and is rejected: two
+/// directories declaring the same prefix would each emit `/x`, so the
+/// generated site would carry two different pages at one route and the
+/// router would silently serve whichever was emitted first.
+///
+/// # Arguments
+///
+/// - `&Config` - The parsed site configuration listing the locales.
+///
+/// # Returns
+///
+/// - `Result<Vec<(String, Vec<String>)>, String>` - The
+///   `(content dir, URL prefixes)` pairs, or the reason the build must
+///   fail.
+fn resolve_locale_prefixes(config: &Config) -> Result<Vec<(String, Vec<String>)>, String> {
+    let mut index: Vec<(String, Vec<String>)> = Vec::new();
+    let mut owners: Vec<(String, String, usize)> = Vec::new();
+    for (entry, locale) in config.locales.iter().enumerate() {
+        let claimed: Option<usize> = owners
+            .iter()
+            .position(|(prefix, _, _): &(String, String, usize)| prefix == &locale.prefix);
+        if let Some(at) = claimed {
+            let (_, first_dir, first_entry): &(String, String, usize) = &owners[at];
+            return Err(format!(
+                "locales entry #{entry} declares prefix `{}` for dir `{}`, but locales entry #{first_entry} already declares that prefix for dir `{first_dir}`; one URL prefix can serve only one content directory, because both directories would emit the same routes",
+                locale.prefix, locale.dir,
+            ));
+        }
+        let known: Option<usize> = index
+            .iter()
+            .position(|(dir, _): &(String, Vec<String>)| dir == &locale.dir);
+        match known {
+            Some(at) => index[at].1.push(locale.prefix.clone()),
+            None => index.push((locale.dir.clone(), vec![locale.prefix.clone()])),
+        }
+        owners.push((locale.prefix.clone(), locale.dir.clone(), entry));
+    }
+    Ok(index)
+}
+
 /// Resolves every configured locale to its content root under `docs_dir`.
 ///
 /// Each locale's content directory comes from its declared `dir`. There
 /// is no default and no prefix-derived fallback: a missing or empty locale
 /// directory is a build error, because the old behaviour (hardcoding `zh`
 /// for the `/` locale) produced a site with one page and no error at all.
+///
+/// Several locales may share one `dir`; each still contributes its own
+/// `(prefix, root, prefix)` triple, so every declared prefix gets a
+/// sidebar resolved against that shared directory.
 ///
 /// # Arguments
 ///
@@ -693,17 +747,31 @@ fn strip_path_prefix(file: &Path, prefix: &Path) -> PathBuf {
     }
 }
 
-/// Parses one markdown file into a [`Page`].
+/// Parses one markdown file into the [`Page`]s it serves.
+///
+/// A content directory may be claimed by several locale prefixes, so one
+/// markdown file can legitimately produce SEVERAL routes: a page under
+/// `dir: zh` declared by both `/` and `/zh/` is emitted once per prefix,
+/// with the heading permalinks rebuilt per route. The prefix-independent
+/// frontmatter (title, hero, features, ordering, privacy) is re-read per
+/// emitted page, so the N routes differ exactly in their route prefix.
 /// # Arguments
 ///
 /// - `&Path` - the docs content root, used to resolve the owning locale
 /// - `&Path` - the markdown file to parse
-/// - `&[(String, String)]` - the `(content dir, URL prefix)` pair per locale
+/// - `&[(String, Vec<String>)]` - the `(content dir, URL prefixes)` pair
+///   per locale directory, as built by `resolve_locale_prefixes`
 ///
 /// # Returns
 ///
-/// - `Page` - the parsed page, with its route, title, block AST and TOC
-fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String)]) -> Page {
+/// - `Vec<Page>` - one parsed page per prefix serving this file's
+///   directory, in declaration order; a file whose directory is claimed by
+///   exactly one prefix yields exactly one page, as before
+fn process_page(
+    docs_dir: &Path,
+    file: &Path,
+    locale_prefixes: &[(String, Vec<String>)],
+) -> Vec<Page> {
     let raw: String = match fs::read_to_string(file) {
         Ok(raw) => raw,
         Err(reason) => fail(&format!("failed to read {}: {reason}", file.display())),
@@ -715,27 +783,25 @@ fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String
     // one level too high (the duplicate `/docs/ltpp/` sidebar entry).
     // Resolve the owning locale from the path RELATIVE TO <SRC_DIR> before
     // any prefix stripping: the locale directory is the first component and
-    // it is what selects the URL prefix. `strip_path_prefix` would otherwise
-    // consume it (its fallback drops the first component), leaving the page
-    // with no locale and a wrong route.
+    // it is what selects the URL prefixes. `strip_path_prefix` would
+    // otherwise consume it (its fallback drops the first component),
+    // leaving the page with no locale and a wrong route.
     let raw_rel: PathBuf = match file.strip_prefix(docs_dir) {
         Ok(rel) => rel.to_path_buf(),
         Err(_) => file.to_path_buf(),
     };
-    let first_component: Option<String> = raw_rel
-        .components()
-        .find_map(|c: Component<'_>| match c {
-            Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
-            _ => None,
-        })
-        .and_then(|first: String| {
-            locale_prefixes
-                .iter()
-                .find(|entry: &&(String, String)| entry.0 == first)
-                .map(|entry: &(String, String)| entry.1.clone())
-        });
+    let first_dir: Option<String> = raw_rel.components().find_map(|c: Component<'_>| match c {
+        Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+        _ => None,
+    });
+    let owned_prefixes: Option<&Vec<String>> = first_dir.as_ref().and_then(|first: &String| {
+        locale_prefixes
+            .iter()
+            .find(|entry: &&(String, Vec<String>)| &entry.0 == first)
+            .map(|entry: &(String, Vec<String>)| &entry.1)
+    });
 
-    let rel: PathBuf = match &first_component {
+    let rel: PathBuf = match owned_prefixes {
         Some(_) => {
             let mut trimmed: PathBuf = PathBuf::new();
             let mut skipped: bool = false;
@@ -763,28 +829,62 @@ fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String
     // directory name. A locale may live in `en/` yet be served at `/`, and a
     // locale served at `/en/` may live in any directory it likes. Decoupling
     // them is what lets the content tree be reorganised without silently
-    // moving every public URL.
-    let locale: String = first_component.unwrap_or_else(|| "/".to_string());
+    // moving every public URL. A directory claimed by several prefixes
+    // contributes one page per prefix.
+    let prefixes: Vec<String> = match owned_prefixes {
+        Some(list) => list.clone(),
+        None => vec![ROOT_PATH.to_string()],
+    };
 
-    let route: String = route_for(&segments, &locale);
+    prefixes
+        .iter()
+        .map(|prefix: &String| build_page(&frontmatter, body, &segments, prefix, file))
+        .collect()
+}
 
-    let fm_title: Option<String> = yaml_str(&frontmatter, YAML_TITLE);
-    let order: i64 = yaml_i64(&frontmatter, YAML_ORDER).unwrap_or(0);
+/// Builds one [`Page`] for a file already split into frontmatter and body.
+///
+/// The route depends on the serving prefix, and so do the rendered heading
+/// permalinks (`#<route>#<slug>`), which is why this runs once per prefix.
+/// Everything else in the frontmatter is prefix-independent and is read
+/// here rather than in the caller so each page carries its own copy.
+/// # Arguments
+///
+/// - `&Value` - the page frontmatter
+/// - `&str` - the markdown body, with the frontmatter already removed
+/// - `&[String]` - the markdown-relative path segments of the page
+/// - `&str` - the URL prefix of the locale serving this page
+/// - `&Path` - the source file, named in the privacy diagnostic
+///
+/// # Returns
+///
+/// - `Page` - the parsed page, with its route, title, block AST and TOC
+fn build_page(
+    frontmatter: &Value,
+    body: &str,
+    segments: &[String],
+    prefix: &str,
+    file: &Path,
+) -> Page {
+    let route: String = route_for(segments, prefix);
+
+    let fm_title: Option<String> = yaml_str(frontmatter, YAML_TITLE);
+    let order: i64 = yaml_i64(frontmatter, YAML_ORDER).unwrap_or(0);
 
     let (blocks, headings, first_h1) = render_markdown(body, &route);
 
     let title: String = fm_title
         .or(first_h1)
-        .unwrap_or_else(|| prettify(stem_of(&segments)));
+        .unwrap_or_else(|| prettify(stem_of(segments)));
 
-    let home: bool = yaml_bool(&frontmatter, YAML_HOME);
-    let hero_text: String = yaml_str(&frontmatter, YAML_HERO_TEXT_CAMEL)
-        .or_else(|| yaml_str(&frontmatter, YAML_HERO_TEXT_SNAKE))
+    let home: bool = yaml_bool(frontmatter, YAML_HOME);
+    let hero_text: String = yaml_str(frontmatter, YAML_HERO_TEXT_CAMEL)
+        .or_else(|| yaml_str(frontmatter, YAML_HERO_TEXT_SNAKE))
         .unwrap_or_default();
-    let tagline: String = yaml_str(&frontmatter, YAML_TAGLINE).unwrap_or_default();
-    let footer: String = yaml_str(&frontmatter, YAML_FOOTER).unwrap_or_default();
+    let tagline: String = yaml_str(frontmatter, YAML_TAGLINE).unwrap_or_default();
+    let footer: String = yaml_str(frontmatter, YAML_FOOTER).unwrap_or_default();
 
-    let actions: Vec<(String, String, String)> = yaml_list(&frontmatter, YAML_ACTIONS)
+    let actions: Vec<(String, String, String)> = yaml_list(frontmatter, YAML_ACTIONS)
         .iter()
         .map(|item: &Value| {
             (
@@ -795,7 +895,7 @@ fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String
         })
         .collect();
 
-    let features: Vec<(String, String, String, String)> = yaml_list(&frontmatter, YAML_FEATURES)
+    let features: Vec<(String, String, String, String)> = yaml_list(frontmatter, YAML_FEATURES)
         .iter()
         .map(|item: &Value| {
             (
@@ -807,7 +907,7 @@ fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String
         })
         .collect();
 
-    let stats: Vec<(String, String, String)> = yaml_list(&frontmatter, YAML_STATS)
+    let stats: Vec<(String, String, String)> = yaml_list(frontmatter, YAML_STATS)
         .iter()
         .map(|item: &Value| {
             (
@@ -818,9 +918,9 @@ fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String
         })
         .collect();
 
-    let private: bool = is_private_page(&frontmatter);
+    let private: bool = is_private_page(frontmatter);
     let password_hash: String = if private {
-        match yaml_str(&frontmatter, YAML_PASSWORD) {
+        match yaml_str(frontmatter, YAML_PASSWORD) {
             Some(plain) if !plain.is_empty() => sha256_hex(&plain),
             Some(_) | None => {
                 eprintln!(
@@ -853,11 +953,11 @@ fn process_page(docs_dir: &Path, file: &Path, locale_prefixes: &[(String, String
             .get(YAML_SIDEBAR)
             .and_then(|v: &Value| v.as_bool())
             .unwrap_or(true),
-        sidebar_order: yaml_list(&frontmatter, YAML_SIDEBAR_ORDER)
+        sidebar_order: yaml_list(frontmatter, YAML_SIDEBAR_ORDER)
             .iter()
             .filter_map(|v: &Value| v.as_str().map(|s: &str| s.to_string()))
             .collect(),
-        index: renders_index(&frontmatter, &segments),
+        index: renders_index(frontmatter, segments),
     }
 }
 
