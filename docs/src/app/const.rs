@@ -68,7 +68,7 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
                          .c_euv_sidebar_group_title_root:hover { background: var(--muted, #f4f4f5) !important; color: var(--foreground, #000) !important; } \
                          .c_euv_sidebar_group_title_root_active, .c_euv_sidebar_group_title_root_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; } \
                          .c_theme_dark .c_euv_sidebar_group_title_root:hover { background: var(--muted, #27272a) !important; color: var(--foreground, #fff) !important; } \
-                         .c_euv_sidebar_link_active_flush, .c_euv_sidebar_group_title_active, .c_euv_sidebar_group_title_root_active { position: relative !important; margin-left: calc(-1 * (8px + 8px + 1px)) !important; width: calc(100% + 8px + 8px + 1px) !important; } \
+                         .c_euv_sidebar_link_active_flush, .c_euv_sidebar_group_title_active { position: relative !important; margin-left: calc(-1 * (8px + 8px + 1px)) !important; width: calc(100% + 8px + 8px + 1px) !important; } \
                          .c_euv_sidebar_link_active_flush::before, .c_euv_sidebar_group_title_active::before { left: 0 !important; } \
                          .c_euv_sidebar_link_active_flush:hover::before { background: var(--accent, #000) !important; } \
              \
