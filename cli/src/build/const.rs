@@ -48,6 +48,13 @@ pub(crate) const EUV_NO_INLINE_BRIDGE_ENV: &str = "EUV_NO_INLINE_BRIDGE";
 /// Used by the live-reload script in the HTML template and the server route registration.
 pub(crate) const RELOAD_ROUTE: &str = "/__euv_reload";
 
+/// The URL path for the generated index document.
+///
+/// hyperlane 21.12 registers routes through `#[route(...)]`, which feeds the
+/// path to `HookType::Route(&'static str, ..)`, so the `format!` that used to
+/// build this at runtime has to become a literal.
+pub(crate) const INDEX_HTML_ROUTE: &str = "/index.html";
+
 /// The wasm-pack flag indicating a release build.
 pub(crate) const RELEASE_FLAG: &str = "--release";
 

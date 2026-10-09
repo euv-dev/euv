@@ -27,3 +27,19 @@ pub(crate) const HTTP_SCHEME: &str = "http";
 
 /// The Windows UNC path prefix.
 pub(crate) const WINDOWS_UNC_PREFIX: &str = r"\\?\";
+
+/// The `Cache-Control` header name.
+///
+/// http-constant narrowed its own `CACHE_CONTROL` to `pub(crate)` in 21.12.0,
+/// so euv-cli spells the header name locally instead of re-exporting a
+/// constant that upstream may keep tightening.
+pub(crate) const HEADER_CACHE_CONTROL: &str = "cache-control";
+
+/// The `Expires` header name.
+///
+/// Narrowed to `pub(crate)` in http-constant 21.12.0 alongside
+/// `CACHE_CONTROL`; see [`HEADER_CACHE_CONTROL`].
+pub(crate) const HEADER_EXPIRES: &str = "expires";
+
+/// The `Pragma` header name.
+pub(crate) const HEADER_PRAGMA: &str = "pragma";

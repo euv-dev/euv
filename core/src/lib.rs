@@ -46,7 +46,7 @@ use std::{
     rc::Rc,
     str::from_utf8,
     sync::{
-        PoisonError,
+        PoisonError, RwLockWriteGuard,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     thread::AccessError,

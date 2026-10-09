@@ -28,9 +28,9 @@ impl ServerHook for RequestMiddleware {
     async fn handle(self, _: &mut Stream, ctx: &mut Context) -> Status {
         ctx.get_mut_response()
             .set_status_code(200)
-            .set_header(CACHE_CONTROL, NO_CACHE_NO_STORE_MUST_REVALIDATE)
-            .set_header(PRAGMA, NO_CACHE)
-            .set_header(EXPIRES, EXPIRES_DISABLED);
+            .set_header(HEADER_CACHE_CONTROL, NO_CACHE_NO_STORE_MUST_REVALIDATE)
+            .set_header(HEADER_PRAGMA, NO_CACHE)
+            .set_header(HEADER_EXPIRES, EXPIRES_DISABLED);
         Status::Continue
     }
 }

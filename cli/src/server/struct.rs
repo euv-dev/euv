@@ -72,6 +72,7 @@ pub(crate) struct HtmlConfig {
 /// Sets `Cache-Control: no-cache, no-store, must-revalidate`, `Pragma: no-cache`,
 /// and `Expires: 0` on every response to prevent stale WASM assets during development.
 #[derive(Data, New)]
+#[request_middleware]
 pub(crate) struct RequestMiddleware;
 
 /// Response middleware that writes the serialized response to the stream.
@@ -79,6 +80,7 @@ pub(crate) struct RequestMiddleware;
 /// Builds the HTTP response bytes and sends them through the connection stream,
 /// closing the stream if the send fails.
 #[derive(Data, New)]
+#[response_middleware]
 pub(crate) struct ResponseMiddleware;
 
 /// Route handler for the root path serving the injected development HTML.
@@ -102,6 +104,8 @@ pub(crate) struct IndexRoute;
 /// The actual application path prefix (e.g. `www`) is still registered
 /// separately via `IndexRoute` so the original URL continues to work.
 #[derive(Data, New)]
+#[route(ROOT_PATH)]
+#[route(INDEX_HTML_ROUTE)]
 pub(crate) struct RootRoute;
 
 /// Route handler for the reload endpoint using long-polling.
@@ -110,4 +114,5 @@ pub(crate) struct RootRoute;
 /// a single JSON response so the client can distinguish between a successful
 /// rebuild and an error.
 #[derive(Data, New)]
+#[route(RELOAD_ROUTE)]
 pub(crate) struct ReloadRoute;

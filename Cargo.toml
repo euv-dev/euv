@@ -46,36 +46,36 @@ euv-engine = { path = "engine", version = "0.28.15" }
 euv-macros = { path = "macros", version = "0.28.15" }
 euv-example = { path = "example", version = "0.28.15" }
 
-log = "0.4.33"
+log = "0.4.34"
 toml = "0.9.12"
 quote = "1.0.47"
 chrono = "0.4.45"
-ignore = "0.4.31"
-js-sys = "0.3.103"
+ignore = "0.4.33"
+js-sys = "0.3.106"
 if-addrs = "0.15.0"
-hyperlane = "21.9.0"
+hyperlane = "21.12.0"
 serde_json = "1.0.151"
-color-output = "10.2.2"
+color-output = "10.2.3"
 proc-macro2 = "1.0.107"
-hyperlane-cli = "21.9.0"
-lombok-macros = "10.2.2"
-wasm-bindgen = "0.2.126"
+lombok-macros = "10.2.3"
+wasm-bindgen = "0.2.129"
 alloc-no-stdlib = "3.0.0"
-compare_version = "10.2.2"
-hyperlane-core = "=21.9.0"
-bin-encode-decode = "1.2.6"
+hyperlane-cli = "21.12.0"
+compare_version = "10.2.3"
+hyperlane-core = "=21.12.0"
+bin-encode-decode = "10.2.3"
 serde-wasm-bindgen = "0.6.5"
-wasm-bindgen-test = "0.3.76"
-wasm-bindgen-futures = "0.4.76"
+wasm-bindgen-test = "0.3.79"
+wasm-bindgen-futures = "0.4.79"
 console_error_panic_hook = "0.1.7"
-clap = { version = "4.6.4", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"] }
 serde = { version = "1.0.229", features = ["derive"] }
 syn = { version = "3.0.6", features = ["full", "extra-traits"] }
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 notify = { version = "8.2.0", default-features = false, features = [
     "macos_fsevent",
 ] }
-tokio = { version = "1.53.1", features = [
+tokio = { version = "1.53.2", features = [
     "fs",
     "sync",
     "time",
@@ -83,7 +83,7 @@ tokio = { version = "1.53.1", features = [
     "process",
     "rt-multi-thread",
 ] }
-web-sys = { version = "0.3.103", features = [
+web-sys = { version = "0.3.106", features = [
     "Gpu",
     "Blob",
     "File",
@@ -293,7 +293,8 @@ web-sys = { version = "0.3.103", features = [
     "GpuRenderPassColorAttachment",
     "GpuStorageTextureBindingLayout",
     "GpuRenderBundleEncoderDescriptor",
-    "GpuRenderPassDepthStencilAttachment" ] }
+    "GpuRenderPassDepthStencilAttachment",
+] }
 
 [dependencies]
 euv-core = { workspace = true }

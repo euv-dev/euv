@@ -1,7 +1,6 @@
 use super::*;
 
 class! {
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Layout Shell
     // ═══════════════════════════════════════════════════════════════════════════
@@ -154,7 +153,6 @@ class! {
         }
     }
 
-
     pub(crate) c_mobile_app_root {
         display: "flex";
         flex-direction: "column";
@@ -177,7 +175,6 @@ class! {
             background: var!(scrollbar-thumb-active);
         }
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Navigation - Desktop Sidebar
@@ -214,7 +211,6 @@ class! {
         }
     }
 
-
     pub c_nav_header {
         padding: format!("{} {}", var!(space-xl), var!(edge-gutter-nav));
         @media ((max-width: 767px)) {
@@ -250,14 +246,12 @@ class! {
         }
     }
 
-
     pub c_nav_brand_title {
         font-size: var!(font-xl);
         font-weight: "700";
         color: var!(foreground);
         letter-spacing: "-0.02em";
     }
-
 
     pub(crate) c_euv_logo {
         display: "flex";
@@ -273,13 +267,11 @@ class! {
         position: "relative";
     }
 
-
     pub(crate) c_euv_logo_nav {
         width: "32px";
         height: "32px";
         font-size: var!(font-lg);
     }
-
 
     pub(crate) c_euv_logo_fab {
         width: "36px";
@@ -290,7 +282,6 @@ class! {
             height: "44px";
         }
     }
-
 
     pub c_nav_section_label {
         padding: format!("{} {} {} {}", var!(space-md), var!(edge-gutter-nav), var!(space-xs), var!(edge-gutter-nav));
@@ -305,7 +296,6 @@ class! {
         letter-spacing: "0.10em";
         flex-shrink: "0";
     }
-
 
     pub c_nav_items_scroll {
         flex: "1";
@@ -325,7 +315,6 @@ class! {
         }
     }
 
-
     pub c_nav_theme_toggle {
         // The bottom padding here and the top padding of `c_nav_footer` add
         // up across the boundary between the two rows, while only the
@@ -341,7 +330,6 @@ class! {
         }
     }
 
-
     // Optional row in the nav column / drawer for locale switchers or similar
     // widgets, placed between the brand header and the section label.
     pub c_nav_locale_row {
@@ -351,7 +339,6 @@ class! {
         }
         flex-shrink: "0";
     }
-
 
     pub c_nav_locale_button {
         width: "100%";
@@ -387,7 +374,6 @@ class! {
         }
     }
 
-
     // Open state of the locale switcher: the same solid treatment the sidebar
     // gives its current page, so "menu is open" reads as strongly as
     // "this is the page you are on".
@@ -421,7 +407,6 @@ class! {
         }
     }
 
-
     pub c_nav_theme_button {
         width: "100%";
         height: "36px";
@@ -441,7 +426,6 @@ class! {
         }
     }
 
-
     pub c_theme_icon_sun {
         width: "20px";
         height: "20px";
@@ -452,7 +436,6 @@ class! {
         transition: format!("transform {} {}", var!(duration-normal), var!(ease-out));
     }
 
-
     pub c_theme_icon_moon {
         width: "20px";
         height: "20px";
@@ -462,7 +445,6 @@ class! {
         background-image: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='%23000000' stroke='none' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z'/%3E%3C/svg%3E\")";
         transition: format!("transform {} {}", var!(duration-normal), var!(ease-out));
     }
-
 
     pub c_nav_footer {
         // The attribution line sits between the divider painted at `top: 0`
@@ -523,7 +505,6 @@ class! {
         }
     }
 
-
     pub c_nav_footer_divider {
         position: "absolute";
         top: "0";
@@ -537,18 +518,15 @@ class! {
         }
     }
 
-
     pub c_nav_footer_text {
         font-weight: "400";
         letter-spacing: "0.02em";
     }
 
-
     pub c_nav_footer_brand {
         font-weight: "700";
         color: var!(accent);
     }
-
 
     pub(crate) c_nav_item_active {
         display: "flex";
@@ -564,7 +542,6 @@ class! {
         font-weight: "600";
         background: var!(accent);
     }
-
 
     pub(crate) c_nav_item_inactive {
         display: "flex";
@@ -585,13 +562,11 @@ class! {
         }
     }
 
-
     pub(crate) c_nav_item_icon {
         flex-shrink: "0";
         width: "20px";
         text-align: "center";
     }
-
 
     pub(crate) c_nav_item_label {
         flex: "1";
@@ -600,7 +575,6 @@ class! {
         white-space: "nowrap";
         color: "inherit";
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Main Content Area
@@ -635,20 +609,17 @@ class! {
         }
     }
 
-
     pub c_page_router {
         flex: "1";
         display: "flex";
         flex-direction: "column";
     }
 
-
     pub c_page_container {
         width: "100%";
         margin: "0px auto";
         max-width: var!(content-max-width);
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Mobile Layout
@@ -669,13 +640,11 @@ class! {
         border-bottom: format!("1px solid {}", var!(border));
     }
 
-
     pub c_mobile_header_left {
         display: "flex";
         align-items: "center";
         gap: format!("{}", var!(space-md));
     }
-
 
     pub c_mobile_header_logo {
         display: "flex";
@@ -684,7 +653,6 @@ class! {
         text-decoration: "none";
         color: var!(foreground);
     }
-
 
     pub c_mobile_menu_button {
         width: "40px";
@@ -704,7 +672,6 @@ class! {
         }
     }
 
-
     pub c_mobile_theme_button {
         width: "40px";
         height: "40px";
@@ -718,7 +685,6 @@ class! {
             background: "transparent";
         }
     }
-
 
     pub c_mobile_menu_button_active {
         width: "40px";
@@ -737,7 +703,6 @@ class! {
             color: var!(accent);
         }
     }
-
 
     pub c_mobile_drawer_close_button {
         width: "32px";
@@ -760,7 +725,6 @@ class! {
         }
     }
 
-
     pub c_mobile_overlay {
         position: "fixed";
         top: "0px";
@@ -773,12 +737,10 @@ class! {
         transition: format!("opacity {} {}", var!(duration-overlay), var!(ease-out));
     }
 
-
     pub c_mobile_overlay_hidden {
         opacity: "0";
         pointer-events: "none";
     }
-
 
     pub c_mobile_nav_drawer {
         position: "fixed";
@@ -799,11 +761,9 @@ class! {
         overflow: "hidden";
     }
 
-
     pub c_mobile_nav_drawer_closed {
         transform: "translateX(-100%)";
     }
-
 
     pub c_mobile_nav_drawer_header {
         display: "flex";
@@ -824,14 +784,12 @@ class! {
         }
     }
 
-
     pub c_mobile_main {
         c_app_main();
         ::-webkit-scrollbar {
             width: "0px";
         }
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // euv_navbar
@@ -855,7 +813,6 @@ class! {
         }
     }
 
-
     pub(crate) c_euv_navbar_brand {
         display: "flex";
         align-items: "center";
@@ -867,7 +824,6 @@ class! {
         cursor: "pointer";
         flex-shrink: "0";
     }
-
 
     pub(crate) c_euv_navbar_logo {
         width: "32px";
@@ -881,7 +837,6 @@ class! {
         flex-shrink: "0";
     }
 
-
     pub(crate) c_euv_navbar_links {
         display: "flex";
         align-items: "center";
@@ -891,7 +846,6 @@ class! {
             display: "none";
         }
     }
-
 
     pub(crate) c_euv_navbar_link {
         font-size: var!(font-sm);
@@ -905,7 +859,6 @@ class! {
         }
     }
 
-
     pub(crate) c_euv_navbar_link_active {
         font-size: var!(font-sm);
         font-weight: "600";
@@ -914,7 +867,6 @@ class! {
         border-bottom: format!("2px solid {}", var!(accent));
         cursor: "pointer";
     }
-
 
     pub(crate) c_euv_navbar_actions {
         display: "flex";
@@ -925,7 +877,6 @@ class! {
             margin-left: "auto";
         }
     }
-
 
     pub c_euv_navbar_icon_button {
         width: "36px";
@@ -941,7 +892,6 @@ class! {
         }
     }
 
-
     pub(crate) c_euv_navbar_menu_button {
         display: "none";
         width: "40px";
@@ -955,7 +905,6 @@ class! {
             display: "flex";
         }
     }
-
 
     pub(crate) c_euv_navbar_menu_button_active {
         display: "none";
@@ -972,7 +921,6 @@ class! {
         }
     }
 
-
     // ═══════════════════════════════════════════════════════════════════════════
     // euv_sidebar
     // ═══════════════════════════════════════════════════════════════════════════
@@ -980,7 +928,6 @@ class! {
     pub(crate) c_euv_sidebar_group {
         margin-bottom: var!(space-xs);
     }
-
 
     pub c_euv_sidebar_group_title {
         display: "flex";
@@ -1006,7 +953,6 @@ class! {
         }
     }
 
-
     // A top-level group title has no `c_euv_sidebar_children` ancestor, so
     // the base hover bar paints flush against the sidebar's own left edge
     // and reads as part of the sidebar border rather than as an affordance.
@@ -1030,7 +976,6 @@ class! {
         }
     }
 
-
     pub c_euv_sidebar_group_title_root_active {
         c_euv_sidebar_group_title_root();
         background: var!(accent);
@@ -1041,7 +986,6 @@ class! {
             background: var!(accent);
         }
     }
-
 
     pub c_euv_sidebar_group_title_active {
         c_euv_sidebar_group_title();
@@ -1060,23 +1004,19 @@ class! {
         }
     }
 
-
     pub(crate) c_euv_sidebar_group_arrow {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
         transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
     }
 
-
     pub(crate) c_euv_sidebar_group_arrow_open {
         transform: "rotate(90deg)";
     }
 
-
     pub(crate) c_euv_sidebar_group_arrow_active {
         color: var!(text-on-accent);
     }
-
 
     pub c_euv_sidebar_children {
         display: "flex";
@@ -1093,7 +1033,6 @@ class! {
         border-left: format!("1px dashed {}", var!(border));
         animation: format!("euv-fade-in {} {}", var!(duration-normal), var!(ease-out));
     }
-
 
     pub c_euv_sidebar_link {
         display: "block";
@@ -1116,7 +1055,6 @@ class! {
         }
     }
 
-
     pub c_euv_sidebar_link_active {
         display: "block";
         padding: format!("{} {}", var!(space-md), var!(space-md));
@@ -1135,7 +1073,6 @@ class! {
             box-shadow: "none";
         }
     }
-
 
     // An active child needs the accent fill to read as one continuous block
     // against the sidebar, not as a chip floating inside its parent's gutter.
@@ -1167,7 +1104,6 @@ class! {
         }
     }
 
-
     // ═══════════════════════════════════════════════════════════════════════════
     // euv_toc
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1185,7 +1121,6 @@ class! {
         padding-left: var!(space-lg);
     }
 
-
     pub(crate) c_euv_toc_title {
         font-size: var!(font-xs);
         font-weight: "700";
@@ -1194,7 +1129,6 @@ class! {
         color: var!(muted-foreground);
         margin-bottom: var!(space-xs);
     }
-
 
     pub c_euv_toc_link {
         font-size: var!(font-sm);
@@ -1205,7 +1139,6 @@ class! {
             color: var!(accent);
         }
     }
-
 
     pub c_euv_toc_link_nested {
         c_euv_toc_link();

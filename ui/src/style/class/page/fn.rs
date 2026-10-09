@@ -1,7 +1,6 @@
 use super::*;
 
 class! {
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Page Banner (unified header with emoji icon)
     // ═══════════════════════════════════════════════════════════════════════════
@@ -11,7 +10,6 @@ class! {
         text-align: "center";
         box-sizing: "border-box";
     }
-
 
     pub(crate) c_page_glow {
         position: "absolute";
@@ -24,12 +22,10 @@ class! {
         pointer-events: "none";
     }
 
-
     pub(crate) c_page_content {
         position: "relative";
         z-index: "1";
     }
-
 
     pub(crate) c_page_icon {
         font-size: "36px";
@@ -38,7 +34,6 @@ class! {
             font-size: "40px";
         }
     }
-
 
     pub(crate) c_page_title {
         font-size: var!(font-4xl);
@@ -52,7 +47,6 @@ class! {
         }
     }
 
-
     pub(crate) c_page_subtitle {
         font-size: var!(font-lg);
         color: var!(muted-foreground);
@@ -65,7 +59,6 @@ class! {
         }
     }
 
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Camera Page
     // ═══════════════════════════════════════════════════════════════════════════
@@ -73,7 +66,6 @@ class! {
     pub c_camera_video_container {
         margin: format!("{} 0", var!(space-lg));
     }
-
 
     pub c_camera_video_active {
         width: "100%";
@@ -84,13 +76,11 @@ class! {
         box-sizing: "border-box";
     }
 
-
     pub c_camera_video_hidden {
         width: "100%";
         aspect-ratio: "16 / 9";
         display: "none";
     }
-
 
     pub c_camera_video_placeholder {
         width: "100%";
@@ -102,7 +92,6 @@ class! {
         box-sizing: "border-box";
     }
 
-
     pub c_camera_placeholder_content {
         display: "flex";
         flex-direction: "column";
@@ -110,19 +99,16 @@ class! {
         gap: var!(space-md);
     }
 
-
     pub c_camera_placeholder_icon {
         font-size: var!(font-4xl);
         opacity: "1";
     }
-
 
     pub c_camera_placeholder_text {
         font-size: var!(font-base);
         color: "inherit";
         opacity: "1";
     }
-
 
     pub c_camera_error_box {
         margin: format!("{} 0px", var!(gap-component));
@@ -133,12 +119,10 @@ class! {
         box-sizing: "border-box";
     }
 
-
     pub c_camera_scan_result_box {
         margin-top: var!(gap-component);
         box-sizing: "border-box";
     }
-
 
     pub c_camera_scan_result_label {
         font-size: var!(font-sm);
@@ -147,14 +131,12 @@ class! {
         margin-bottom: var!(space-xs);
     }
 
-
     pub c_camera_scan_result_value {
         font-size: var!(font-base);
         color: "inherit";
         word-break: "break-all";
         overflow-wrap: "break-word";
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Canvas Drawing Board
@@ -172,7 +154,6 @@ class! {
         box-sizing: "border-box";
     }
 
-
     pub c_canvas_placeholder {
         color: var!(muted-foreground);
         font-size: var!(font-sm);
@@ -180,14 +161,12 @@ class! {
         padding: var!(space-lg);
     }
 
-
     pub c_canvas_preview_image {
         width: "100%";
         height: "100%";
         object-fit: "cover";
         display: "block";
     }
-
 
     pub c_canvas_container_fullscreen {
         width: "100%";
@@ -203,7 +182,6 @@ class! {
         box-sizing: "border-box";
     }
 
-
     pub c_canvas_drawing_fullscreen_wrapper {
         flex: "1";
         display: "flex";
@@ -213,14 +191,12 @@ class! {
         padding: var!(space-xs);
     }
 
-
     pub c_canvas_drawing_fullscreen {
         border: format!("2px solid {}", var!(border));
         display: "block";
         cursor: "crosshair";
         touch-action: "none";
     }
-
 
     pub c_canvas_fullscreen_toolbar {
         display: "flex";
@@ -232,7 +208,6 @@ class! {
         gap: var!(space-xs);
     }
 
-
     pub c_canvas_fullscreen_toolbar_row_top {
         display: "flex";
         align-items: "center";
@@ -240,7 +215,6 @@ class! {
         width: "100%";
         gap: var!(space-sm);
     }
-
 
     pub c_canvas_fullscreen_toolbar_color_wrapper {
         display: "flex";
@@ -250,7 +224,6 @@ class! {
         min-width: "0";
     }
 
-
     pub c_canvas_color_input_fullscreen {
         width: "100%";
         height: "42px";
@@ -259,13 +232,11 @@ class! {
         padding: format!("{}", var!(space-xs));
     }
 
-
     pub c_canvas_fullscreen_toolbar_row_bottom {
         display: "flex";
         align-items: "center";
         width: "100%";
     }
-
 
     pub c_canvas_fullscreen_range_input {
         flex: "1 1 0%";
@@ -308,12 +279,10 @@ class! {
         }
     }
 
-
     pub c_canvas_fullscreen_toolbar_button {
         flex: "0 0 auto";
         overflow: "hidden";
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Game Fullscreen (2D / 3D)
@@ -348,7 +317,6 @@ class! {
         box-sizing: "border-box";
     }
 
-
     // Toolbar wrapping the fullscreen exit button on game pages.
     //
     // Game pages only need an `Exit` button here (no color picker / line
@@ -364,7 +332,6 @@ class! {
         gap: var!(space-sm);
         box-sizing: "border-box";
     }
-
 
     // Wrapper that fills the fullscreen game container with the canvas.
     //
@@ -390,7 +357,6 @@ class! {
         justify-content: "center";
     }
 
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Custom Attrs Demo
     // ═══════════════════════════════════════════════════════════════════════════
@@ -404,12 +370,10 @@ class! {
         box-sizing: "border-box";
     }
 
-
     pub c_demo_text {
         color: var!(foreground);
         margin-bottom: var!(gap-component);
     }
-
 
     pub c_demo_text_muted {
         color: var!(foreground);
@@ -417,7 +381,6 @@ class! {
         font-size: var!(font-base);
         margin-bottom: "0px";
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Conditional Rendering Demo
@@ -428,13 +391,11 @@ class! {
         color: "inherit";
     }
 
-
     pub c_toggle_title {
         margin-top: "0px";
         color: var!(accent);
         font-size: var!(font-md);
     }
-
 
     pub c_role_button_row {
         display: "flex";
@@ -443,24 +404,20 @@ class! {
         margin-bottom: var!(gap-component);
     }
 
-
     pub c_role_guest_text {
         color: var!(foreground);
         font-size: var!(font-base);
     }
-
 
     pub c_role_user_text {
         color: var!(foreground);
         font-size: var!(font-base);
     }
 
-
     pub c_role_admin_text {
         color: var!(foreground);
         font-size: var!(font-base);
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // 404 Not Found
@@ -472,7 +429,6 @@ class! {
         margin-bottom: var!(gap-component);
     }
 
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Event Demo
     // ═══════════════════════════════════════════════════════════════════════════
@@ -483,12 +439,10 @@ class! {
         margin-top: var!(gap-element);
     }
 
-
     pub c_event_highlight {
         font-weight: "600";
         color: var!(accent);
     }
-
 
     pub c_event_info_grid {
         display: "grid";
@@ -501,7 +455,6 @@ class! {
         }
     }
 
-
     pub c_event_info_row {
         display: "flex";
         align-items: "center";
@@ -509,14 +462,12 @@ class! {
         overflow: "hidden";
     }
 
-
     pub c_event_info_label {
         font-size: var!(font-base);
         font-weight: "600";
         color: var!(foreground);
         flex-shrink: "0";
     }
-
 
     pub c_event_info_value {
         c_text_ellipsis();
@@ -526,7 +477,6 @@ class! {
         font-family: "ui-monospace, monospace";
         flex: "1";
     }
-
 
     pub c_event_mouse_area {
         min-height: "120px";
@@ -538,7 +488,6 @@ class! {
         color: "inherit";
     }
 
-
     pub c_event_drag_zone {
         min-height: "100px";
         padding: format!("{} 0px", var!(space-xl));
@@ -548,7 +497,6 @@ class! {
         color: var!(foreground);
     }
 
-
     pub c_event_drag_zone_active {
         min-height: "100px";
         padding: format!("{} 0px", var!(space-xl));
@@ -557,7 +505,6 @@ class! {
         user-select: "none";
         color: var!(foreground);
     }
-
 
     pub c_event_drag_item {
         display: "inline-block";
@@ -570,14 +517,12 @@ class! {
         margin: var!(space-sm);
     }
 
-
     pub c_event_drop_zone {
         border: format!("2px dashed {}", var!(border));
         padding: format!("{} {}", var!(space-4xl), var!(space-xl));
         text-align: "center";
         cursor: "pointer";
     }
-
 
     pub c_event_drop_zone_active {
         border: format!("2px dashed {}", var!(accent));
@@ -587,13 +532,11 @@ class! {
         background: var!(accent-muted);
     }
 
-
     pub c_event_drop_icon {
         font-size: var!(font-5xl);
         display: "block";
         padding-bottom: var!(space-md);
     }
-
 
     pub c_event_drop_text {
         font-size: var!(font-lg);
@@ -602,14 +545,12 @@ class! {
         padding-bottom: var!(space-md);
     }
 
-
     pub c_event_drop_hint {
         font-size: var!(font-base);
         color: "inherit";
         opacity: "1";
         margin: "0px";
     }
-
 
     pub c_event_wheel_zone {
         min-height: "120px";
@@ -620,11 +561,9 @@ class! {
         color: var!(foreground);
     }
 
-
     pub c_event_clipboard_area {
         color: var!(foreground);
     }
-
 
     pub c_event_touch_zone {
         min-height: "120px";
@@ -636,12 +575,10 @@ class! {
         color: var!(accent);
     }
 
-
     pub c_event_form_area {
         padding: format!("{} 0px", var!(space-lg));
         color: var!(foreground);
     }
-
 
     pub c_event_media_area {
         padding: format!("{} 0px", var!(space-lg));
@@ -650,12 +587,10 @@ class! {
         overflow: "hidden";
     }
 
-
     pub c_event_audio {
         width: "100%";
         max-width: "100%";
     }
-
 
     pub c_event_video_area {
         color: var!(foreground);
@@ -663,12 +598,10 @@ class! {
         overflow: "hidden";
     }
 
-
     pub c_event_video {
         width: "100%";
         max-width: "100%";
     }
-
 
     pub c_event_image_area {
         padding: format!("{} 0px", var!(space-lg));
@@ -681,14 +614,12 @@ class! {
         gap: var!(space-md);
     }
 
-
     pub c_event_image {
         width: "200px";
         max-width: "100%";
         object-fit: "contain";
         display: "block";
     }
-
 
     pub c_event_url_text {
         text-align: "center";
@@ -699,7 +630,6 @@ class! {
         word-break: "break-all";
         width: "100%";
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Timer Demo
@@ -712,7 +642,6 @@ class! {
         color: "inherit";
     }
 
-
     pub c_timer_value {
         font-size: var!(font-base);
         font-weight: "700";
@@ -721,13 +650,11 @@ class! {
         font-family: "ui-monospace, monospace";
     }
 
-
     pub c_timer_controls {
         display: "flex";
         flex-wrap: "wrap";
         gap: var!(gap-element);
     }
-
 
     pub c_timer_done {
         text-align: "center";
@@ -736,7 +663,6 @@ class! {
         font-weight: "600";
         color: var!(foreground);
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Browser API Demo
@@ -752,14 +678,12 @@ class! {
         }
     }
 
-
     pub c_browser_api_actions {
         display: "flex";
         flex-wrap: "wrap";
         gap: var!(gap-element);
         margin: format!("{} 0px", var!(gap-component));
     }
-
 
     pub c_browser_result_box {
         margin-top: var!(gap-component);
@@ -768,17 +692,14 @@ class! {
         color: "inherit";
     }
 
-
     pub c_browser_result_label {
         font-weight: "600";
         color: var!(accent);
     }
 
-
     pub c_browser_result_value {
         color: "inherit";
     }
-
 
     pub c_browser_info_grid {
         display: "grid";
@@ -789,14 +710,12 @@ class! {
         }
     }
 
-
     pub c_browser_info_item {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-xs);
         color: "inherit";
     }
-
 
     pub c_browser_info_label {
         font-size: var!(font-sm);
@@ -807,14 +726,12 @@ class! {
         letter-spacing: "0.05em";
     }
 
-
     pub c_browser_info_value {
         font-size: var!(font-base);
         color: "inherit";
         word-break: "break-all";
         font-family: "ui-monospace, monospace";
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Keep-Alive Demo
@@ -827,11 +744,9 @@ class! {
         gap: var!(gap-element);
     }
 
-
     pub c_keep_alive_tab_panel {
         padding: format!("{} 0px", var!(gap-element));
     }
-
 
     pub c_keep_alive_panel_title {
         margin-top: "0px";
@@ -840,13 +755,11 @@ class! {
         margin-bottom: var!(gap-element);
     }
 
-
     pub c_keep_alive_demo_text {
         color: "inherit";
         font-size: var!(font-base);
         margin-bottom: var!(gap-component);
     }
-
 
     pub c_keep_alive_counter_display {
         display: "flex";
@@ -854,7 +767,6 @@ class! {
         align-items: "center";
         margin: format!("{} 0px", var!(space-xl));
     }
-
 
     pub c_keep_alive_counter_value {
         font-size: var!(font-base);
@@ -864,24 +776,20 @@ class! {
         text-align: "center";
     }
 
-
     pub c_keep_alive_counter_controls {
         display: "flex";
         flex-wrap: "wrap";
         gap: format!("{}", var!(space-md));
     }
 
-
     pub c_keep_alive_form_group {
         margin-bottom: var!(gap-component);
     }
-
 
     pub c_keep_alive_form_preview {
         margin-top: var!(gap-component);
         background: var!(accent-muted);
     }
-
 
     pub c_keep_alive_preview_label {
         font-size: var!(font-base);
@@ -889,7 +797,6 @@ class! {
         color: var!(accent);
         margin: format!("0px 0px {} 0px", var!(space-xs));
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Binding Demo
@@ -902,7 +809,6 @@ class! {
         margin-top: var!(gap-component);
     }
 
-
     pub c_binding_child_label {
         font-size: var!(font-base);
         font-weight: "600";
@@ -911,14 +817,12 @@ class! {
         letter-spacing: "0.05em";
     }
 
-
     pub c_binding_parent_box {
         display: "flex";
         flex-direction: "column";
         gap: var!(gap-component);
         margin-top: var!(gap-component);
     }
-
 
     pub c_binding_section_title {
         margin-top: var!(gap-component);
@@ -928,7 +832,6 @@ class! {
         font-weight: "600";
     }
 
-
     pub c_binding_temp_converter {
         display: "flex";
         align-items: "flex-end";
@@ -937,12 +840,10 @@ class! {
         margin-top: var!(gap-component);
     }
 
-
     pub c_binding_temp_field {
         flex: "1";
         min-width: "120px";
     }
-
 
     pub c_binding_temp_arrow {
         font-size: "20px";
@@ -951,11 +852,9 @@ class! {
         padding-bottom: "10px";
     }
 
-
     pub c_binding_color_mixer {
         margin-top: var!(gap-component);
     }
-
 
     pub c_binding_color_preview {
         width: "100%";
@@ -966,7 +865,6 @@ class! {
         margin-bottom: var!(gap-component);
     }
 
-
     pub c_binding_color_hex {
         font-family: "ui-monospace, monospace";
         font-size: var!(font-xl);
@@ -975,7 +873,6 @@ class! {
         letter-spacing: "0.02em";
     }
 
-
     pub c_binding_slider_row {
         display: "flex";
         align-items: "center";
@@ -983,13 +880,11 @@ class! {
         margin-bottom: var!(space-sm);
     }
 
-
     pub c_binding_slider_label {
         font-size: var!(font-base);
         font-weight: "700";
         min-width: var!(font-sm);
     }
-
 
     pub c_binding_slider {
         flex: "1";
@@ -1038,7 +933,6 @@ class! {
         }
     }
 
-
     pub c_binding_slider_value {
         font-size: var!(font-base);
         font-weight: "500";
@@ -1048,7 +942,6 @@ class! {
         font-family: "ui-monospace, monospace";
     }
 
-
     pub c_binding_typed_prop_value {
         font-family: "ui-monospace, monospace";
         font-size: var!(font-base);
@@ -1057,13 +950,11 @@ class! {
         padding: format!("1px {}", var!(space-sm));
     }
 
-
     pub c_binding_typed_prop_group {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
     }
-
 
     pub c_binding_typed_warning {
         font-size: var!(font-base);
@@ -1072,7 +963,6 @@ class! {
         margin-bottom: "0px";
     }
 
-
     pub c_binding_form_label {
         display: "block";
         color: "inherit";
@@ -1080,12 +970,10 @@ class! {
         font-size: var!(font-base);
     }
 
-
     pub c_binding_demo_text {
         color: "inherit";
         margin: "0px"
     }
-
 
     pub c_binding_compact_button {
         display: "inline-flex";
@@ -1117,7 +1005,6 @@ class! {
         }
     }
 
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Custom Attrs - Dynamic Style
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1135,7 +1022,6 @@ class! {
         // they type becomes the literal CSS rule applied to the paragraph.
     }
 
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Dynamic Component Demo
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1147,13 +1033,11 @@ class! {
         margin-bottom: var!(gap-component);
     }
 
-
     pub c_dynamic_component_panel {
         display: "block";
         min-height: var!(min-height-sm);
         margin-top: var!(gap-component);
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Sticky & CSS Effects Demo
@@ -1178,12 +1062,10 @@ class! {
         }
     }
 
-
     pub c_home_content {
         position: "relative";
         z-index: "1";
     }
-
 
     pub c_home_badge_row {
         display: "inline-flex";
@@ -1191,7 +1073,6 @@ class! {
         gap: var!(space-sm);
         margin-bottom: var!(space-md);
     }
-
 
     pub c_home_badge {
         display: "inline-flex";
@@ -1205,7 +1086,6 @@ class! {
         border: format!("1px solid {}", var!(accent));
     }
 
-
     pub c_home_title {
         font-size: var!(font-5xl);
         font-weight: "800";
@@ -1218,7 +1098,6 @@ class! {
         }
     }
 
-
     pub c_home_subtitle {
         font-size: var!(font-lg);
         color: var!(foreground);
@@ -1230,14 +1109,12 @@ class! {
         }
     }
 
-
     pub c_home_actions {
         display: "flex";
         gap: var!(space-md);
         justify-content: "center";
         flex-wrap: "wrap";
     }
-
 
     pub c_home_btn_primary {
         display: "inline-flex";
@@ -1265,7 +1142,6 @@ class! {
         }
     }
 
-
     pub c_home_btn_secondary {
         display: "inline-flex";
         justify-content: "center";
@@ -1291,7 +1167,6 @@ class! {
         }
     }
 
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Home Page — Stats Row
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1307,7 +1182,6 @@ class! {
         }
     }
 
-
     pub c_home_stat_card {
         display: "flex";
         flex-direction: "column";
@@ -1316,11 +1190,9 @@ class! {
         gap: var!(space-xs);
     }
 
-
     pub c_home_stat_icon {
         font-size: var!(font-2xl);
     }
-
 
     pub c_home_stat_value {
         font-size: var!(font-xl);
@@ -1329,13 +1201,11 @@ class! {
         letter-spacing: "-0.01em";
     }
 
-
     pub c_home_stat_label {
         font-size: var!(font-sm);
         color: var!(muted-foreground);
         font-weight: "500";
     }
-
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Home Page — Section & Feature Cards
@@ -1350,14 +1220,12 @@ class! {
         letter-spacing: "-0.02em";
     }
 
-
     pub c_home_section_desc {
         font-size: var!(font-base);
         color: var!(foreground);
         margin: "0px";
         margin-bottom: var!(space-2xl);
     }
-
 
     pub c_home_feature_grid {
         display: "grid";
@@ -1368,7 +1236,6 @@ class! {
         }
     }
 
-
     pub c_feature_card {
         display: "flex";
         flex-direction: "column";
@@ -1377,13 +1244,11 @@ class! {
         overflow: "hidden";
     }
 
-
     pub c_feature_header {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
     }
-
 
     pub c_feature_icon {
         font-size: var!(font-2xl);
@@ -1394,7 +1259,6 @@ class! {
         flex-shrink: "0";
     }
 
-
     pub c_feature_name {
         font-size: var!(font-lg);
         font-weight: "600";
@@ -1404,7 +1268,6 @@ class! {
         text-overflow: "ellipsis";
         white-space: "nowrap";
     }
-
 
     pub c_feature_desc {
         font-size: var!(font-sm);

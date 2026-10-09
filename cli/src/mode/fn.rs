@@ -69,6 +69,7 @@ pub async fn fmt_mode(args: FmtArgs) -> Result<(), EuvError> {
 /// # Returns
 ///
 /// - `Result<(), EuvError>` - Indicates success or failure.
+#[hyperlane(server: Server)]
 pub async fn run_mode(mut args: ModeArgs) -> Result<(), EuvError> {
     reconcile_args(&mut args);
     args.set_crate_path(
@@ -120,17 +121,11 @@ pub async fn run_mode(mut args: ModeArgs) -> Result<(), EuvError> {
     });
     let pkg_dir: PathBuf = resolve_pkg_dir(&args);
     log::info!("Serving pkg from: {}", pkg_dir.display());
-    let mut server: Server = Server::default();
     let mut server_config: ServerConfig = ServerConfig::default();
     server_config.set_nodelay(Some(false));
     server_config.set_address(Server::format_bind_address(DEFAULT_HOST, args.get_port()));
     server.server_config(server_config);
-    server.request_middleware::<RequestMiddleware>();
-    server.response_middleware::<ResponseMiddleware>();
-    server.route::<RootRoute>("/");
-    server.route::<RootRoute>(format!("/{INDEX_HTML_FILE_NAME}"));
     server.route::<IndexRoute>(format!("{serving_route_prefix}/{{path:.*}}"));
-    server.route::<ReloadRoute>(RELOAD_ROUTE);
     if let Err(error) = set_global_state(Arc::clone(&state)) {
         log::error!("Failed to set global state: {error}");
     }
