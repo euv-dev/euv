@@ -80,11 +80,11 @@ use scheduler::CountingHandler;
 
 use std::{
     cell::{Cell, RefCell, RefMut, UnsafeCell},
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     f64::consts::{self, FRAC_PI_2, PI, TAU},
     fmt::{self, Debug, Write},
     future::{Future, Ready, ready},
-    rc::Rc,
+    rc::{Rc, Weak},
     sync::OnceLock,
 };
 
