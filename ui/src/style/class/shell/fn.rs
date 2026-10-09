@@ -1032,6 +1032,7 @@ class! {
 
 
     pub c_euv_sidebar_group_title_root_active {
+        c_euv_sidebar_group_title_root();
         background: var!(accent);
         color: var!(text-on-accent);
         font-weight: "600";
@@ -1043,6 +1044,7 @@ class! {
 
 
     pub c_euv_sidebar_group_title_active {
+        c_euv_sidebar_group_title();
         background: var!(accent);
         color: var!(text-on-accent);
         font-weight: "600";
