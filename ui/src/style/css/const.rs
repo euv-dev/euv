@@ -13,8 +13,13 @@ pub(crate) const EUV_MD_CSS: &str = r#"
     position: relative;
     font-weight: 700;
     letter-spacing: -0.01em;
-    margin-top: 1.8em;
-    margin-bottom: 0.6em;
+    /* Vertical rhythm is token-driven so article copy sits on the same
+       scale as every other surface in the framework (`space-sm` between
+       text, `gap-component` before a block). em-based margins drift as
+       heading font sizes change, which is what made the docs article
+       spacing read wider than the rest of the UI. */
+    margin-top: var(--gap-component);
+    margin-bottom: var(--space-sm);
     scroll-margin-top: 72px;
     line-height: 1.3;
 }
@@ -41,10 +46,9 @@ pub(crate) const EUV_MD_CSS: &str = r#"
     font-weight: 400;
     transition: opacity 0.15s ease-out;
     user-select: none;
-    /* The `.md-body a` rule below applies `text-decoration: underline
-       dashed` to every anchor. The header-anchor is a typographic
-       icon, not a navigable link in the visual sense, so drop the
-       underline. */
+    /* The `.md-body a` rule below applies `text-decoration: underline` to
+       every anchor. The header-anchor is a typographic icon, not a
+       navigable link in the visual sense, so drop the underline. */
     text-decoration: none;
 }
 .md-body h1:hover .header-anchor,
@@ -129,7 +133,9 @@ pub(crate) const EUV_MD_CSS: &str = r#"
     }
 }
 .md-body p, .md-body ul, .md-body ol, .md-body blockquote, .md-body pre, .md-body table {
-    margin: 1em 0;
+    /* Token rhythm: `space-sm` between blocks of copy, matching
+       `c_page_title` / `c_page_subtitle` in the example app. */
+    margin: var(--space-sm) 0;
 }
 .md-body ul, .md-body ol {
     padding-left: 1.4em;
@@ -137,9 +143,9 @@ pub(crate) const EUV_MD_CSS: &str = r#"
 .md-body ul { list-style: disc; }
 .md-body ol { list-style: decimal; }
 .md-body ul ul, .md-body ul ol, .md-body ol ul, .md-body ol ol {
-    margin: 0.25em 0;
+    margin: var(--space-xs) 0;
 }
-.md-body li { margin: 0.25em 0; }
+.md-body li { margin: var(--space-xs) 0; }
 .md-body li input[type="checkbox"] {
     margin-right: 0.4em;
     accent-color: var(--accent);
@@ -147,14 +153,14 @@ pub(crate) const EUV_MD_CSS: &str = r#"
 .md-body a {
     color: var(--accent);
     font-weight: 500;
+    /* Static underline, no hover variant. A link that restyles itself on
+       hover reads as a state change rather than a link, and the dashed ->
+       solid swap made every hovered link shimmer. Keep one treatment for
+       both states; the accent colour alone carries the affordance. */
     text-decoration: underline;
     text-underline-offset: 3px;
-    text-decoration-style: dashed;
-    text-decoration-color: var(--border);
-}
-.md-body a:hover {
     text-decoration-style: solid;
-    text-decoration-color: var(--accent);
+    text-decoration-color: var(--border);
 }
 .md-body strong { font-weight: 700; }
 .md-body em { font-style: italic; }

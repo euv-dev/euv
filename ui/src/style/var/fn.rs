@@ -51,12 +51,21 @@ vars! {
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
         // `px` so it can be dropped into a plain `var()` position;
         // `side-indent-num` is the same number without a unit, for the places
-        // that have to do arithmetic (`calc(100% + 17px)`, `-17px`) where
+        // that have to do arithmetic (`calc(100% + 9px)`, `-9px`) where
         // appending `px` to a var would produce invalid CSS. Keep the two in
-        // step: `side-indent` is `space-sm * 2 + 1px` — the
-        // `c_euv_sidebar_children` margin, its padding, and its dashed border.
-        side-indent: "17px";
-        side-indent-num: "17";
+        // step: `side-indent` is `space-sm + 1px` — the
+        // `c_euv_sidebar_children` margin plus its dashed border.
+        //
+        // This value must NOT be the full nesting inset. It is only the
+        // distance from a row's own left edge back to the dashed guide that
+        // introduced it, which is `margin-left + border-left-width`
+        // (8 + 1 = 9px). The row's own `padding-left` is *not* part of it:
+        // an active row keeps its padding so the label does not move, and the
+        // negative margin grows the fill leftward into that padding. Using
+        // the full inset (17px) pushed the active fill 8px past the dashed
+        // guide, breaking the tree's left rail.
+        side-indent: "9px";
+        side-indent-num: "9";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Font Size Scale (shadcn/ui)
@@ -102,7 +111,6 @@ vars! {
         padding-shell-bottom: var!(safe-area-inset-bottom);
         padding-main-top: "24px";
         padding-main-top-mobile: "16px";
-        padding-main-bottom: "24px";
         // Edge Gutter — distance from a viewport/shell edge to the chrome
         // anchored there. Every edge-anchored element (mobile header left and
         // right, drawer header, desktop navbar, main column, vconsole FAB)
@@ -226,12 +234,21 @@ vars! {
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
         // `px` so it can be dropped into a plain `var()` position;
         // `side-indent-num` is the same number without a unit, for the places
-        // that have to do arithmetic (`calc(100% + 17px)`, `-17px`) where
+        // that have to do arithmetic (`calc(100% + 9px)`, `-9px`) where
         // appending `px` to a var would produce invalid CSS. Keep the two in
-        // step: `side-indent` is `space-sm * 2 + 1px` — the
-        // `c_euv_sidebar_children` margin, its padding, and its dashed border.
-        side-indent: "17px";
-        side-indent-num: "17";
+        // step: `side-indent` is `space-sm + 1px` — the
+        // `c_euv_sidebar_children` margin plus its dashed border.
+        //
+        // This value must NOT be the full nesting inset. It is only the
+        // distance from a row's own left edge back to the dashed guide that
+        // introduced it, which is `margin-left + border-left-width`
+        // (8 + 1 = 9px). The row's own `padding-left` is *not* part of it:
+        // an active row keeps its padding so the label does not move, and the
+        // negative margin grows the fill leftward into that padding. Using
+        // the full inset (17px) pushed the active fill 8px past the dashed
+        // guide, breaking the tree's left rail.
+        side-indent: "9px";
+        side-indent-num: "9";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Font Size Scale (same as light)
@@ -277,7 +294,6 @@ vars! {
         padding-shell-bottom: var!(safe-area-inset-bottom);
         padding-main-top: "24px";
         padding-main-top-mobile: "16px";
-        padding-main-bottom: "24px";
         // Edge Gutter — distance from a viewport/shell edge to the chrome
         // anchored there. Every edge-anchored element (mobile header left and
         // right, drawer header, desktop navbar, main column, vconsole FAB)

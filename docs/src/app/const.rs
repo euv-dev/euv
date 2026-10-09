@@ -68,22 +68,24 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
                          .c_euv_sidebar_group_title_root:hover { background: var(--muted, #f4f4f5) !important; color: var(--foreground, #000) !important; } \
                          .c_euv_sidebar_group_title_root_active, .c_euv_sidebar_group_title_root_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; } \
                          .c_theme_dark .c_euv_sidebar_group_title_root:hover { background: var(--muted, #27272a) !important; color: var(--foreground, #fff) !important; } \
-                         .c_euv_sidebar_link_active_flush, .c_euv_sidebar_group_title_active { position: relative !important; margin-left: calc(-1 * (8px + 8px + 1px)) !important; width: calc(100% + 8px + 8px + 1px) !important; } \
+                         .c_euv_sidebar_link_active_flush, .c_euv_sidebar_group_title_active { position: relative !important; margin-left: -9px !important; width: calc(100% + 9px) !important; padding-left: calc(12px + 9px) !important; } \
                          .c_euv_sidebar_link_active_flush::before, .c_euv_sidebar_group_title_active::before { left: 0 !important; } \
                          .c_euv_sidebar_link_active_flush:hover::before { background: var(--accent, #000) !important; } \
              \
-             .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; width: 100% !important; } \
+             .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; width: 100% !important; flex-shrink: 0 !important; } \
              /* `min-height: 100%` fills the visible area of `c_app_main` so the tail can be pushed to the bottom; a viewport unit overshoots by the header. `space-between` puts the tail at the bottom when the article is short and lets it follow the article when the article is long. Not sticky, not fixed: the tail scrolls with the page. */ \
              .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; justify-content: space-between !important; } \
              .c_euv_doc_content article.md-body { display: block !important; flex: 0 0 auto !important; min-height: 0 !important; overflow: visible !important; } \
              .c_euv_doc_content article.md-body > div { display: block !important; min-height: 0 !important; } \
              .c_euv_doc_tail { display: block !important; flex: 0 0 auto !important; } \
-                         .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; position: sticky !important; top: 0 !important; align-self: flex-start !important; max-height: 100% !important; overflow-y: auto !important; } \
+                         .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; position: sticky !important; top: var(--padding-main-top, 24px) !important; align-self: flex-start !important; max-height: 100% !important; overflow-y: auto !important; } \
                          .c_euv_toc_link_nested { padding-left: 0.75rem !important; font-size: var(--font-sm, 0.875rem) !important; color: var(--muted-foreground, #555) !important; line-height: 1.5 !important; } \
                          .c_euv_toc_link, .c_euv_toc_link_nested { font-weight: 400 !important; } \
-                         .c_euv_toc_link:hover, .c_euv_toc_link_nested:hover { color: var(--accent, #000) !important; font-weight: 700 !important; } \
+                         .c_euv_toc_link:hover, .c_euv_toc_link_nested:hover { color: var(--accent, #000) !important; font-weight: 400 !important; } \
                          .c_euv_toc_link_active, .c_euv_toc_link_nested_active { color: var(--accent, #000) !important; font-weight: 700 !important; } \
-                         .c_theme_dark .c_euv_toc_link:hover, .c_theme_dark .c_euv_toc_link_nested:hover, .c_theme_dark .c_euv_toc_link_active, .c_theme_dark .c_euv_toc_link_nested_active { color: var(--accent, #fff) !important; font-weight: 700 !important; } \
+                         .c_euv_toc_link_active:hover, .c_euv_toc_link_nested_active:hover { color: var(--accent, #000) !important; font-weight: 700 !important; } \
+                         .c_theme_dark .c_euv_toc_link:hover, .c_theme_dark .c_euv_toc_link_nested:hover { color: var(--accent, #fff) !important; font-weight: 400 !important; } \
+                         .c_theme_dark .c_euv_toc_link_active, .c_theme_dark .c_euv_toc_link_nested_active, .c_theme_dark .c_euv_toc_link_active:hover, .c_theme_dark .c_euv_toc_link_nested_active:hover { color: var(--accent, #fff) !important; font-weight: 700 !important; } \
              \
              .c_euv_pagination { padding-bottom: var(--space-xl, 1.25rem) !important; gap: var(--gap-component, 1rem) !important; flex-wrap: nowrap !important; align-items: stretch !important; width: 100% !important; } \
              .c_euv_pagination_link { padding: var(--space-md, 0.75rem) !important; gap: var(--space-2xs, 0.25rem) !important; min-width: 0 !important; max-width: none !important; } \
