@@ -24,6 +24,23 @@ pub(crate) const ERROR_OUT_DIR_MISSING: &str =
 pub(crate) const ERROR_SITE_CONFIG_MISSING: &str =
     "site-level config (site + locales) missing from README.md frontmatter";
 
+/// Fatal message emitted when `locales:` is present but not a YAML sequence.
+pub(crate) const ERROR_LOCALES_NOT_A_SEQUENCE: &str =
+    "locales: in README.md frontmatter must be a YAML sequence of [[locales]] entries";
+
+/// Fatal message prefix for a `[[locales]]` entry that is missing a
+/// required key. The offending entry's `locales:` index and `prefix`
+/// value are appended by the build script so the author can locate it.
+pub(crate) const ERROR_LOCALES_MALFORMED: &str = "malformed [[locales]] entry";
+
+/// Fatal message emitted when `locales:` parses but carries no entries.
+///
+/// An empty list used to reach codegen, which emitted `locales: &[]` and
+/// made the runtime router index `site.locales[0]` on an empty slice
+/// ("index out of bounds: the len is 0 but the index is 0").
+pub(crate) const ERROR_LOCALES_EMPTY: &str = "locales: in README.md frontmatter is empty; declare at least one [[locales]] entry \
+     with the required keys prefix, dir and label";
+
 // ---------------------------------------------------------------------------
 // Directory and file names
 // ---------------------------------------------------------------------------
@@ -70,6 +87,9 @@ pub(crate) const YAML_LOCALES: &str = "locales";
 
 /// Frontmatter key holding a locale's URL prefix.
 pub(crate) const YAML_PREFIX: &str = "prefix";
+
+/// Frontmatter key holding a locale's content directory.
+pub(crate) const YAML_DIR: &str = "dir";
 
 /// Frontmatter key holding a locale's dropdown label.
 pub(crate) const YAML_LABEL: &str = "label";
