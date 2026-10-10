@@ -273,3 +273,22 @@ pub(crate) const CODE_MD_INLINE_HARD_BREAK: &str = "euv_ui::EuvMdInline::HardBre
 
 /// Emitted `Option::None` expression for a sidebar item without a link.
 pub(crate) const CODE_NONE: &str = "None";
+
+// ---------------------------------------------------------------------------
+// Per-locale bundling
+// ---------------------------------------------------------------------------
+
+/// The root URL prefix served by the default locale.
+pub(crate) const URL_PREFIX_ROOT: &str = "/";
+
+/// Environment variable selecting which locale a build compiles (`/en/`,
+/// `en`, or a label); unset pins the default (prefix `/`) locale.
+pub(crate) const ENV_DOCS_LOCALE: &str = "EUV_DOCS_LOCALE";
+
+/// Hidden deployment-metadata directory inside the site output.
+pub(crate) const DEPLOY_DIR_NAME: &str = ".deploy";
+
+/// Locale manifest file inside `.deploy/` (one TSV row per unique content
+/// directory: URL prefix, bundle directory, label). The `euv-docs` CLI
+/// reads it to discover the remaining locales after the first build.
+pub(crate) const LOCALE_MANIFEST_FILE_NAME: &str = "locales.tsv";

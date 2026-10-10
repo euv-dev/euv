@@ -61,10 +61,6 @@ pub(crate) const WASM_TARGET_WEB: &str = "web";
 /// is present.
 pub(crate) const CONFIG_FILE_NAME: &str = "config.toml";
 
-/// Sub-directory of `<SRC_DIR>` that holds static assets copied
-/// verbatim into the output root. Mirrors VuePress's `public/` layout.
-pub(crate) const PUBLIC_DIR_NAME: &str = "public";
-
 /// euv subcommand that triggers the actual build.
 pub(crate) const EUV_BUILD_SUBCMD: &str = "build";
 
@@ -109,6 +105,23 @@ pub(crate) const EUV_NO_GITIGNORE_FLAG: &str = "--no-gitignore";
 
 /// CLI flag disabling TypeScript generation in wasm-pack.
 pub(crate) const EUV_NO_TYPESCRIPT_FLAG: &str = "--no-typescript";
+
+/// CLI flag (space form) building a single locale bundle.
+pub(crate) const LOCALE_FLAG: &str = "--locale";
+
+/// Prefix marker for `--locale=<NAME>` inline form; slice delimiter for the value.
+pub(crate) const PREFIX_LOCALE: &str = "--locale=";
+
+/// Environment variable the build script reads for the pinned locale.
+pub(crate) const EUV_DOCS_LOCALE_ENV: &str = "EUV_DOCS_LOCALE";
+
+/// Hidden deployment-metadata directory inside the site output where the
+/// build script writes the locale manifest.
+pub(crate) const DEPLOY_DIR_NAME: &str = ".deploy";
+
+/// Locale manifest file the first build writes into `.deploy/`; the CLI
+/// reads it to discover the remaining locales to build.
+pub(crate) const LOCALE_MANIFEST_FILE_NAME: &str = "locales.tsv";
 
 /// Argument missing the value for `--out <DIR>` / `--name <NAME>`.
 pub(crate) const MSG_FLAG_REQUIRES_VALUE: &str = "flag requires a value";
