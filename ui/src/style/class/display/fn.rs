@@ -1108,4 +1108,59 @@ class! {
     pub c_euv_display_contents {
         display: "contents";
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Home Page Layout
+    // ═══════════════════════════════════════════════════════════════════════
+
+    pub c_home_layout {
+        // Mirrors `c_euv_doc_layout`: fill the visible area of the scroll
+        // container (`c_app_main`, `overflow: auto` with a definite
+        // `height: 100%`) so the column below has room to push its footer to
+        // the bottom. A viewport unit would overshoot by the app header.
+        //
+        // As a flex item of the scroll container's column it must never be
+        // shrunk below its content, or a tall home page collapses and the
+        // sticky-free column loses its height floor.
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+        min-width: "0px";
+        min-height: "100%";
+        flex-shrink: "0";
+        margin: "0px auto";
+        max-width: var!(content-max-width);
+    }
+
+    pub c_home_content {
+        // Two parallel children — the content region (hero, stats, feature
+        // grid, blocks) and `c_home_tail` (the footer). `space-between`
+        // puts the footer at the far end of the column: on a short home page
+        // it drops to the bottom of the visible area, and on a tall one it
+        // follows the content in normal flow.
+        flex: "1";
+        min-width: "0px";
+        display: "flex";
+        flex-direction: "column";
+        justify-content: "space-between";
+    }
+
+    pub c_home_body {
+        // Groups hero + stats + grid + blocks into one flex item. Without
+        // this wrapper `space-between` would distribute the free space
+        // between the hero and the grid, tearing the title away from the
+        // content it introduces.
+        display: "flex";
+        flex-direction: "column";
+        flex-shrink: "0";
+    }
+
+    pub c_home_tail {
+        // Plain block wrapper around the footer so the column keeps exactly
+        // two children. A `display: contents` wrapper would be skipped and
+        // the footer would become a direct flex item, which is the case this
+        // structure exists to avoid.
+        display: "block";
+        flex-shrink: "0";
+    }
 }

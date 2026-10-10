@@ -46,28 +46,37 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     };
     html! {
         div {
-            class: c_page_container()
-            euv_hero {
-                title: hero_title
-                subtitle: page.tagline
-                actions: page.actions
-            }
-            docs_stats_row {
-                stats: page.stats
-            }
-            docs_feature_grid {
-                features: page.features
-            }
-            if { !page.blocks.is_empty() } {
-                euv_markdown {
-                    blocks: page.blocks
+            class: c_home_layout()
+            div {
+                class: c_home_content()
+                div {
+                    class: c_home_body()
+                    euv_hero {
+                        title: hero_title
+                        subtitle: page.tagline
+                        actions: page.actions
+                    }
+                    docs_stats_row {
+                        stats: page.stats
+                    }
+                    docs_feature_grid {
+                        features: page.features
+                    }
+                    if { !page.blocks.is_empty() } {
+                        euv_markdown {
+                            blocks: page.blocks
+                        }
+                    }
                 }
-            }
-            if { !footer_text.is_empty() } {
-                footer {
-                    class: c_euv_footer()
-                    {
-                        footer_text
+                if { !footer_text.is_empty() } {
+                    div {
+                        class: c_home_tail()
+                        footer {
+                            class: c_euv_footer()
+                            {
+                                footer_text
+                            }
+                        }
                     }
                 }
             }

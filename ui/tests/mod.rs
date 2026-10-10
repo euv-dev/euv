@@ -24,6 +24,7 @@ mod profiler;
 mod router;
 mod router_select;
 mod safe_area_contract;
+mod sidebar_first_page;
 mod suspense;
 mod throttled_value;
 mod toggle;

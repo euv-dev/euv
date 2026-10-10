@@ -1,5 +1,41 @@
 use super::*;
 
+/// Returns the first navigable route inside a subtree of sidebar items.
+///
+/// A pure directory (`essay/2025`) carries no index page, so the group
+/// itself is not a destination and the site would render an empty article
+/// for it. The user's intent when clicking the group title is "show me
+/// this section", and the section's first readable page is the only thing
+/// in it that can satisfy that. The search therefore descends:
+/// depth-first, in sidebar order, taking a group's own index page before
+/// any of its children.
+///
+/// The descent repeats for nested groups, so `a/b/c` where only `c/d` has
+/// content still resolves to the first readable page under `c`, following
+/// the same rule at every level. A subtree with no readable page at all
+/// yields `None`, and the caller keeps the current toggle-only behaviour
+/// rather than navigating somewhere arbitrary.
+///
+/// # Arguments
+///
+/// - `&[EuvSidebarItem]` - The subtree to search, in sidebar order.
+///
+/// # Returns
+///
+/// - `Option<&'static str>` - The first readable route, or `None` when the
+///   subtree holds none.
+pub fn first_navigable_route(items: &[EuvSidebarItem]) -> Option<&'static str> {
+    for item in items.iter() {
+        if let Some(link) = item.link {
+            return Some(link);
+        }
+        if let Some(found) = first_navigable_route(item.children) {
+            return Some(found);
+        }
+    }
+    None
+}
+
 /// A generic collapsible navigation tree aligned with common docs frameworks.
 ///
 /// Renders leaf links and collapsible groups recursively. The collapse state
@@ -151,7 +187,7 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
                     href.push_str(link);
                     href
                 }
-                onclick: toggle_navigate_group(collapsed, key.clone(), Some(link), on_navigate.clone(), active)
+                onclick: toggle_navigate_group(collapsed, key.clone(), Some(link), item.children, on_navigate.clone(), active)
                 {
                     item.text
                 }
@@ -168,7 +204,7 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
         class: c_euv_sidebar_group()
         div {
             class: title_class()
-            onclick: toggle_navigate_group(collapsed, key.clone(), item.link, on_navigate.clone(), active)
+            onclick: toggle_navigate_group(collapsed, key.clone(), item.link, item.children, on_navigate.clone(), active)
             span {
                 title_node
             }
@@ -247,6 +283,8 @@ fn navigate_link(
 /// - `Signal<Vec<String>>` - The collapsed-keys signal.
 /// - `String` - The group key.
 /// - `Option<&'static str>` - The group's index route when it exists.
+/// - `&'static [EuvSidebarItem]` - The group's children, searched for the
+///   first readable page when the group has no index of its own.
 /// - `Option<Rc<dyn Fn(&'static str)>>` - The navigation interceptor.
 /// - `bool` - Whether the group's index route is the current route.
 ///
@@ -257,6 +295,7 @@ fn toggle_navigate_group(
     collapsed: Signal<Vec<String>>,
     key: String,
     link: Option<&'static str>,
+    children: &'static [EuvSidebarItem],
     on_navigate: Option<Rc<dyn Fn(&'static str)>>,
     active: bool,
 ) -> Option<Rc<dyn Fn(Event)>> {
@@ -281,16 +320,27 @@ fn toggle_navigate_group(
                 }
                 collapsed.set(keys);
             }
-            // Pure folder with no index page: toggle collapsed.
-            None => {
-                let mut keys: Vec<String> = collapsed.get();
-                if let Some(index) = keys.iter().position(|k: &String| k == &key) {
-                    keys.remove(index);
-                } else {
-                    keys.push(key.clone());
+            // Pure folder with no index page. It is not a destination of
+            // its own — the site renders an empty article for it — so the
+            // click means "take me into this section": navigate to the first
+            // readable page below it, descending through nested directories
+            // until one is found. Only a subtree with nothing readable at all
+            // falls back to folding.
+            None => match first_navigable_route(children) {
+                Some(target) => match &on_navigate {
+                    Some(interceptor) => interceptor(target),
+                    None => Router::navigate(target),
+                },
+                None => {
+                    let mut keys: Vec<String> = collapsed.get();
+                    if let Some(index) = keys.iter().position(|k: &String| k == &key) {
+                        keys.remove(index);
+                    } else {
+                        keys.push(key.clone());
+                    }
+                    collapsed.set(keys);
                 }
-                collapsed.set(keys);
-            }
+            },
         }
     }))
 }
