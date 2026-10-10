@@ -584,7 +584,7 @@ class! {
         flex: "1";
         height: "100%";
         overflow: "auto";
-        padding: format!("{} {} {} {}", var!(padding-main-top), var!(edge-gutter), var!(padding-main-bottom), var!(edge-gutter));
+        padding: format!("{} {} 0 {}", var!(padding-main-top), var!(edge-gutter), var!(edge-gutter));
         scrollbar-color: format!("{} {}", var!(scrollbar-thumb), var!(scrollbar-track));
         ::-webkit-scrollbar {
             width: "6px";
@@ -601,7 +601,7 @@ class! {
             background: var!(scrollbar-thumb-active);
         }
         @media ((max-width: 767px)) {
-            padding: format!("{} {} {} {}", var!(padding-main-top-mobile), var!(edge-gutter-mobile), var!(padding-main-bottom), var!(edge-gutter-mobile));
+            padding: format!("{} {} 0 {}", var!(padding-main-top-mobile), var!(edge-gutter-mobile), var!(edge-gutter-mobile));
             scrollbar-width: "none";
             ::-webkit-scrollbar {
                 width: "0px";
@@ -994,11 +994,12 @@ class! {
         font-weight: "600";
         // Same flush fill as `c_euv_sidebar_link_active_flush`: a nested
         // active group title should read as one block with the sidebar, not
-        // as a chip sitting 17px in from the edge. Keep the left padding so
-        // the label does not jump out from under the cursor, and pay for the
-        // shift with a matching negative margin.
+        // as a chip sitting in from the edge. The negative margin below pulls
+        // the fill out to this level's dashed guide; the left padding pays it
+        // straight back so the label keeps the exact x it has while inactive.
         margin-left: format!("-{}px", var!(side-indent-num));
         width: format!("calc(100% + {}px)", var!(side-indent-num));
+        padding-left: format!("calc({} + {}px)", var!(space-md), var!(side-indent-num));
         :hover {
             box-shadow: "none";
         }
@@ -1077,17 +1078,25 @@ class! {
     // An active child needs the accent fill to read as one continuous block
     // against the sidebar, not as a chip floating inside its parent's gutter.
     // `c_euv_sidebar_children` insets every nesting level by
-    // `margin-left + padding-left` and paints a dashed guide on the way in, so
-    // a nested active link that keeps its own background starts 17px to the
-    // right of the row above it. This variant pulls the active fill back out
-    // to the sidebar's own left edge while leaving non-active rows indented,
-    // so the highlight lines up with the header and the section label.
-    // The negative margin is safe because the row is the full width of its
-    // container: the fill grows leftward into the parent's padding and
-    // nothing to its left moves.
+    // `margin-left + padding-left` and paints a dashed guide on the way in.
+    // The active row must pull its fill back out only as far as the guide it
+    // hangs from — `margin-left + border-left-width`, i.e. `side-indent`
+    // (9px) — so the fill starts exactly at the dashed rail and nothing
+    // crosses it. Compensating by the *full* inset (margin + padding +
+    // border = 17px) is wrong: it also cancels the row's own `padding-left`,
+    // pushing the fill 8px past the guide and past the sidebar's left edge on
+    // shallower levels. The negative margin is otherwise safe because the row
+    // is the full width of its container: the fill grows leftward into the
+    // parent's padding and nothing to its left moves.
     pub c_euv_sidebar_link_active_flush {
         display: "block";
+        // Text must not move between the inactive and active states, so the
+        // negative margin that pulls the fill out to the dashed guide is paid
+        // back here as extra left padding. The two cancel for the label while
+        // the background still reaches the guide. Only `padding-left` is
+        // touched — the shorthand would drop the other three sides.
         padding: format!("{} {}", var!(space-md), var!(space-md));
+        padding-left: format!("calc({} + {}px)", var!(space-md), var!(side-indent-num));
         // `var!()` expands to a bare `var(--token)`, so the unit has to live
         // inside the token — writing `-{}px` here would emit
         // `calc(-var(--side-indent-num)px)`, which is not a length and gets
@@ -1135,13 +1144,35 @@ class! {
         color: var!(muted-foreground);
         cursor: "pointer";
         line-height: "1.5";
+        // Regular weight by default: only the *active* entry carries weight,
+        // so hovering an inactive entry must not bold it or the weight would
+        // read as a false "you are here" cue on mouse-over alone.
+        font-weight: "400";
         :hover {
             color: var!(accent);
+        }
+    }
+
+    pub c_euv_toc_link_active {
+        c_euv_toc_link();
+        color: var!(accent);
+        font-weight: "700";
+        :hover {
+            font-weight: "700";
         }
     }
 
     pub c_euv_toc_link_nested {
         c_euv_toc_link();
         padding-left: var!(space-lg);
+    }
+
+    pub c_euv_toc_link_nested_active {
+        c_euv_toc_link_nested();
+        color: var!(accent);
+        font-weight: "700";
+        :hover {
+            font-weight: "700";
+        }
     }
 }

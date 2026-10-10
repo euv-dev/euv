@@ -1016,6 +1016,14 @@ class! {
         // the intermediate auto-height flex row makes `100%` degenerate to
         // `auto`.
         min-height: "100%";
+        // As a flex item of the scroll container's column, the default
+        // `flex-shrink: 1` lets this row be compressed to the `min-height`
+        // floor — 824px here — even though its content is 12780px tall. A
+        // sticky descendant can only travel inside its containing block, so
+        // the clamped row made `c_euv_doc_toc` unpin after roughly one
+        // viewport of scroll. Never shrink: the row must carry the article's
+        // full height so the sticky range spans the whole page.
+        flex-shrink: "0";
     }
 
     pub c_euv_doc_content {
@@ -1078,15 +1086,13 @@ class! {
         flex-shrink: "0";
         // Pin the TOC column to the viewport while the main content scrolls.
         // The sticky scroll container is `c_app_main` (the overflow:auto
-        // wrapper), so `top: 0` keeps the TOC aligned with the top of the
-        // scrollable area for the whole article. The column is left at its
-        // natural flex stretch height (= the article's content height) so
-        // the sticky range covers the whole main column — without the stretch
-        // the column would shrink to its content height and the sticky would
-        // disengage as soon as the TOC's bottom exits the viewport.
+        // wrapper), so this offset is measured from that container's top edge.
+        // It tracks `padding-main-top` rather than a bare `0` so the pinned
+        // column keeps the same breathing room below the container edge as the
+        // article has below the same edge — the two columns stay on one
+        // vertical rhythm instead of the TOC riding flush against the top.
         position: "sticky";
-        top: "0px";
-        padding-top: var!(padding-main-top);
+        top: var!(padding-main-top);
         @media ((max-width: 1100px)) {
             display: "none";
         }
