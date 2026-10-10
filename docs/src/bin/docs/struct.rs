@@ -30,4 +30,11 @@ pub(crate) struct Args {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     index_html: Option<PathBuf>,
+    /// Single-locale build selector (`--locale en`): `Some` compiles only
+    /// that locale's bundle; `None` builds every locale (default bundle at
+    /// the output root, one sub-directory per additional locale).
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    locale: Option<&'static str>,
 }

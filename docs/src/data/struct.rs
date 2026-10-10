@@ -68,10 +68,8 @@ pub(crate) struct DocsPage {
 /// One locale.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct DocsLocale {
-    /// Route prefix (`/` or `/zh/`).
+    /// Route prefix (`/` or `/en/`).
     pub(crate) prefix: &'static str,
-    /// Human label for the language dropdown.
-    pub(crate) label: &'static str,
     /// Locale title override.
     pub(crate) title: &'static str,
     /// Footer text.
@@ -97,4 +95,27 @@ pub(crate) struct DocsSite {
     pub(crate) locales: &'static [DocsLocale],
     /// All pages.
     pub(crate) pages: &'static [DocsPage],
+}
+
+/// One language entry of the cross-bundle switcher.
+///
+/// Per-locale bundling serves every locale from its own directory (the
+/// default locale at the site root), so switching languages is a
+/// cross-directory navigation rather than an in-app route change.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DocsLanguageLink {
+    /// Human label shown in the dropdown.
+    pub(crate) label: &'static str,
+    /// Bundle directory relative to the site root (`""` or `"en/"`).
+    pub(crate) dir: &'static str,
+}
+
+/// One boot-time redirect for a URL space this bundle does not serve.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DocsRedirect {
+    /// Foreign route prefix as it appears after the `#` (`"/en"`, `"/zh"`).
+    pub(crate) from: &'static str,
+    /// Target bundle directory relative to the site root; `""` rewrites the
+    /// hash inside this bundle (alias of the pinned locale's directory).
+    pub(crate) to_dir: &'static str,
 }

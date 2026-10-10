@@ -221,3 +221,7 @@ pub(crate) const ROUTE_HTML_SUFFIX: &str = ".html";
 /// The URL scheme prefix that marks a link as external (leaving the SPA),
 /// tested with `starts_with` so both `http` and `https` match.
 pub(crate) const URL_SCHEME_HTTP_PREFIX: &str = "http";
+
+/// The root URL path, used as the site-root fallback when the location is
+/// unavailable (non-browser unit tests).
+pub(crate) const URL_PATH_ROOT: &str = "/";

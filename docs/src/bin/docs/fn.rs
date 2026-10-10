@@ -16,6 +16,7 @@ pub(crate) fn parse_args() -> Result<Args, String> {
     let mut out_dir: Option<PathBuf> = None;
     let mut name: Option<String> = None;
     let mut index_html: Option<PathBuf> = None;
+    let mut locale: Option<String> = None;
     let mut release: bool = true;
     let mut iter: Skip<env::Args> = env::args().skip(1);
     while let Some(arg) = iter.next() {
@@ -46,6 +47,12 @@ pub(crate) fn parse_args() -> Result<Args, String> {
                     .ok_or_else(|| format!("{INDEX_HTML_FLAG} {MSG_FLAG_REQUIRES_VALUE}"))?;
                 index_html = Some(PathBuf::from(value));
             }
+            LOCALE_FLAG => {
+                let value: String = iter
+                    .next()
+                    .ok_or_else(|| format!("{LOCALE_FLAG} {MSG_FLAG_REQUIRES_VALUE}"))?;
+                locale = Some(value);
+            }
             DEBUG_FLAG => {
                 release = false;
             }
@@ -60,6 +67,9 @@ pub(crate) fn parse_args() -> Result<Args, String> {
             }
             flag if flag.starts_with(PREFIX_INDEX_HTML) => {
                 index_html = Some(PathBuf::from(&flag[PREFIX_INDEX_HTML.len()..]));
+            }
+            flag if flag.starts_with(PREFIX_LOCALE) => {
+                locale = Some(flag[PREFIX_LOCALE.len()..].to_string());
             }
             flag if flag.starts_with('-') => {
                 return Err(format!("{MSG_UNKNOWN_FLAG}: {flag}"));
@@ -78,11 +88,21 @@ pub(crate) fn parse_args() -> Result<Args, String> {
         Some(value) => Box::leak(value.into_boxed_str()),
         None => DEFAULT_NAME,
     };
-    Ok(Args::new(src_dir, out_dir, name, release, index_html))
+    let locale: Option<&'static str> =
+        locale.map(|value: String| &*Box::leak(value.into_boxed_str()));
+    Ok(Args::new(
+        src_dir, out_dir, name, release, index_html, locale,
+    ))
 }
 
 /// Invoke `euv build` for the supplied [`Args`], applying the env-var
 /// contract that `build.rs` understands.
+///
+/// Per-locale bundling: with `--locale` a single bundle is compiled into
+/// the output directory; without it the default locale builds first (the
+/// build script writes the locale manifest into `<out>/.deploy/`), then
+/// every remaining locale builds into its own sub-directory of the output
+/// root (`<out>/en/`, …), one wasm bundle per locale.
 ///
 /// # Arguments
 ///
@@ -93,6 +113,92 @@ pub(crate) fn parse_args() -> Result<Args, String> {
 /// - `Result<(), String>` - `Ok` once the site is written, or a message
 ///   describing which phase failed.
 pub(crate) fn run(args: &Args) -> Result<(), String> {
+    let user_cwd: PathBuf = env::current_dir().map_err(|e: io::Error| e.to_string())?;
+    let out_dir: PathBuf = {
+        let out_dir: &Path = args.get_out_dir().as_path();
+        if out_dir.is_absolute() {
+            out_dir.to_path_buf()
+        } else {
+            user_cwd.join(out_dir)
+        }
+    };
+    if args.try_get_locale().is_some() {
+        return build_one(args, &out_dir);
+    }
+    // Default locale first: its build writes the locale manifest the loop
+    // below discovers the remaining locales from.
+    build_one(args, &out_dir)?;
+    for entry in read_locale_manifest(&out_dir)? {
+        if entry.dir.is_empty() {
+            continue;
+        }
+        let mut next: Args = args.clone();
+        next.set_locale(Some(&*Box::leak(entry.prefix.into_boxed_str())));
+        build_one(&next, &out_dir.join(entry.dir.trim_end_matches('/')))?;
+    }
+    Ok(())
+}
+
+/// One locale-manifest row (`prefix`, bundle `dir`, human `label`).
+struct LocaleManifestEntry {
+    /// URL prefix of the locale (`/`, `/en/`).
+    prefix: String,
+    /// Bundle directory relative to the output root (`""`, `en/`).
+    dir: String,
+}
+
+/// Reads the locale manifest the first build wrote into
+/// `<out>/.deploy/locales.tsv`.
+///
+/// # Arguments
+///
+/// - `&Path` - The absolute output directory of the completed first build.
+///
+/// # Returns
+///
+/// - `Result<Vec<LocaleManifestEntry>, String>` - One entry per unique
+///   locale content directory, or the read/parse failure.
+fn read_locale_manifest(out_dir: &Path) -> Result<Vec<LocaleManifestEntry>, String> {
+    let path: PathBuf = out_dir
+        .join(DEPLOY_DIR_NAME)
+        .join(LOCALE_MANIFEST_FILE_NAME);
+    let raw: String = fs::read_to_string(&path).map_err(|e: io::Error| {
+        format!(
+            "locale manifest missing at {} after the default-locale build: {e}",
+            path.display()
+        )
+    })?;
+    let mut entries: Vec<LocaleManifestEntry> = Vec::new();
+    for line in raw.lines().skip(1) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let mut columns = line.split('\t');
+        let (Some(prefix), Some(dir), Some(_label)) =
+            (columns.next(), columns.next(), columns.next())
+        else {
+            return Err(format!("malformed locale manifest row: {line}"));
+        };
+        entries.push(LocaleManifestEntry {
+            prefix: prefix.to_string(),
+            dir: dir.to_string(),
+        });
+    }
+    Ok(entries)
+}
+
+/// Builds one locale bundle into `out_dir`.
+///
+/// # Arguments
+///
+/// - `&Args` - The parsed command line; `locale` selects the bundle.
+/// - `&Path` - The absolute output directory for this bundle.
+///
+/// # Returns
+///
+/// - `Result<(), String>` - `Ok` once the bundle is written, or a message
+///   describing which phase failed.
+fn build_one(args: &Args, out_dir: &Path) -> Result<(), String> {
     let manifest_dir: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let src_dir: &Path = args.get_src_dir().as_path();
     if !src_dir.is_dir() {
@@ -113,7 +219,6 @@ pub(crate) fn run(args: &Args) -> Result<(), String> {
         );
     }
     // Phase 1: prepare output directory and template path.
-    let out_dir: &Path = args.get_out_dir().as_path();
     fs::create_dir_all(out_dir).map_err(|e: io::Error| {
         format!(
             "failed to create output directory {}: {e}",
@@ -144,13 +249,10 @@ pub(crate) fn run(args: &Args) -> Result<(), String> {
         .arg(&template_path);
     command.env(EUV_DOCS_SRC_DIR_ENV, src_dir);
     command.env(EUV_DOCS_OUT_DIR_ENV, out_dir);
-    let user_cwd: PathBuf = env::current_dir().unwrap_or_else(|_| manifest_dir.clone());
-    let resolved_out_dir: PathBuf = if out_dir.is_absolute() {
-        out_dir.to_path_buf()
-    } else {
-        user_cwd.join(out_dir)
-    };
-    let pkg_dir: PathBuf = resolved_out_dir.join(PKG_DIR_NAME);
+    if let Some(locale) = args.try_get_locale() {
+        command.env(EUV_DOCS_LOCALE_ENV, locale);
+    }
+    let pkg_dir: PathBuf = out_dir.join(PKG_DIR_NAME);
     command.arg(WASM_PACK_DELIMITER);
     command
         .arg(EUV_TARGET_FLAG)
@@ -174,11 +276,10 @@ pub(crate) fn run(args: &Args) -> Result<(), String> {
     if !status.success() {
         return Err(format!("{EUV_BIN} build exited with status {status}"));
     }
-    // Phase 4: copy `<src_dir>/public/` into the output root. `euv build`
-    // only generates `index.html` + `pkg/*`; static assets that the site
-    // references under `/foo.png` etc. live in the user's source tree
-    // under `public/` and need to be copied into `<out_dir>/` ourselves.
-    copy_public_assets(src_dir, out_dir)?;
+    // Assets are NOT copied here: `build.rs` copies `public/` and per-doc
+    // assets during the wasm build, and only for the default (site-root)
+    // locale bundle — non-default bundles reference the root copies via
+    // rebased `../` URLs, so every asset byte is hosted exactly once.
     // Generate a 404.html fallback (copy of index.html) so static hosts
     // like GitHub Pages serve the SPA shell for unknown paths instead
     // of returning a plain 404 — the wasm router will then resolve the
@@ -190,70 +291,6 @@ pub(crate) fn run(args: &Args) -> Result<(), String> {
             .map_err(|e: io::Error| format!("copy 404.html: {e}"))?;
     }
     println!("euv-docs: build complete -> {}", out_dir.display());
-    Ok(())
-}
-
-/// Recursively copy `<src_dir>/public/` into `<out_dir>/`. Missing
-/// `public/` is treated as success (the source may have no static
-/// assets); per-file copy errors are returned verbatim so the user
-/// sees them.
-///
-/// # Arguments
-///
-/// - `&Path` - The site source directory holding `public/`.
-/// - `&Path` - The output directory receiving the copied assets.
-///
-/// # Returns
-///
-/// - `Result<(), String>` - `Ok` when every entry copied, or the first
-///   per-file error.
-fn copy_public_assets(src_dir: &Path, out_dir: &Path) -> Result<(), String> {
-    let public_dir: PathBuf = src_dir.join(PUBLIC_DIR_NAME);
-    if !public_dir.is_dir() {
-        return Ok(());
-    }
-    copy_dir_recursive(&public_dir, out_dir)
-}
-
-/// Walk `src` and copy every entry under it to the matching relative
-/// path under `dst`, creating intermediate directories as needed.
-///
-/// # Arguments
-///
-/// - `&Path` - The directory to read entries from.
-/// - `&Path` - The directory receiving the mirrored tree.
-///
-/// # Returns
-///
-/// - `Result<(), String>` - `Ok` when the whole tree copied, or the
-///   first error encountered.
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
-    let entries: Vec<DirEntry> = fs::read_dir(src)
-        .map_err(|e: io::Error| format!("read_dir({}): {e}", src.display()))?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e: io::Error| format!("read_dir({}): {e}", src.display()))?;
-    for entry in entries {
-        let entry_path: PathBuf = entry.path();
-        let file_name: OsString = entry.file_name();
-        let target_path: PathBuf = dst.join(&file_name);
-        let file_type: FileType = entry
-            .file_type()
-            .map_err(|e: io::Error| format!("file_type({}): {e}", entry_path.display()))?;
-        if file_type.is_dir() {
-            fs::create_dir_all(&target_path).map_err(|e: io::Error| {
-                format!("create_dir_all({}): {e}", target_path.display())
-            })?;
-            copy_dir_recursive(&entry_path, &target_path)?;
-        } else if file_type.is_file() {
-            fs::copy(&entry_path, &target_path).map_err(|e: io::Error| {
-                format!(
-                    "copy {} -> {}: {e}",
-                    entry_path.display(),
-                    target_path.display()
-                )
-            })?;
-        }
-    }
     Ok(())
 }
 
@@ -269,6 +306,9 @@ pub(crate) fn print_usage() {
              --out <DIR>         Output directory (default: ./dist)\n  \
              --name <NAME>       Wasm package name (default: euv_docs)\n  \
              --index-html <FILE> Custom index.html template (default: CLI-bundled)\n  \
+             --locale <LOCALE>   Build a single locale bundle (prefix `/en/`, dir `en`,\n  \
+                                or label); default builds every locale, one bundle\n  \
+                                per locale under <OUT_DIR>/<locale>/\n  \
              --release           Use release profile (default)\n  \
              --debug             Use dev profile (faster build, slower runtime)\n  \
              -h, --help          Print this help\n  \

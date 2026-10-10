@@ -354,6 +354,11 @@ fn nav_footer_node(github: Option<&'static str>) -> VirtualNode {
 /// Renders the locale switcher row for the nav column / drawer (empty when
 /// the site has a single locale).
 ///
+/// Entries come from the generated `SITE_LANGUAGES` table (one per unique
+/// content directory), not from `SITE.locales`: per-locale bundling
+/// compiles exactly one locale into the wasm, so the full language list no
+/// longer exists in `SITE`.
+///
 /// # Arguments
 ///
 /// - `Signal<String>` - The current route signal.
@@ -363,22 +368,23 @@ fn nav_footer_node(github: Option<&'static str>) -> VirtualNode {
 ///
 /// - `VirtualNode` - The locale row virtual DOM tree.
 fn locale_row_node(route_signal: Signal<String>, locale_menu_open: Signal<bool>) -> VirtualNode {
-    let site: &DocsSite = &crate::generated::SITE;
-    if site.locales.len() <= 1 {
+    let languages: &'static [DocsLanguageLink] = crate::generated::SITE_LANGUAGES;
+    if languages.len() <= 1 {
         return html! {
             ""
         };
     }
-    let (path, _anchor) = parse_route(&route_signal.get());
-    let current: &DocsLocale = locale_of(&path);
-    let current_label: &str = current.label;
-    let items: Vec<EuvDropdownItem> = site
-        .locales
+    let current_label: &str = languages
         .iter()
-        .map(|target: &DocsLocale| EuvDropdownItem {
+        .find(|language: &&DocsLanguageLink| language.dir == crate::generated::SITE_LOCALE_DIR)
+        .map(|language: &DocsLanguageLink| language.label)
+        .unwrap_or(languages[0].label);
+    let items: Vec<EuvDropdownItem> = languages
+        .iter()
+        .map(|target: &DocsLanguageLink| EuvDropdownItem {
             label: target.label,
-            value: target.prefix,
-            active: target.prefix == current.prefix,
+            value: target.dir,
+            active: target.dir == crate::generated::SITE_LOCALE_DIR,
         })
         .collect();
     html! {
@@ -461,12 +467,14 @@ fn toggle_menu(menu_open: Signal<bool>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_| menu_open.set(!menu_open.get())))
 }
 
-/// Switches the current route into the locale chosen from the dropdown.
+/// Switches to the language chosen from the dropdown.
 ///
-/// The shell (sidebar tree, labels, brand title) is locale-bound and computed
-/// at mount, so after navigating to the new locale's route the page is
-/// reloaded — the standard behaviour of i18n documentation sites — to rebuild
-/// every localized label deterministically.
+/// Every locale is its own wasm bundle served from its own directory, so
+/// switching languages navigates across directories: the target URL is the
+/// site root plus the target bundle's directory plus the current (already
+/// prefix-free) in-bundle route. `Location::assign` performs a full load —
+/// the standard behaviour of i18n documentation sites — which also swaps
+/// the wasm bundle itself.
 ///
 /// # Arguments
 ///
@@ -476,29 +484,20 @@ fn toggle_menu(menu_open: Signal<bool>) -> Option<Rc<dyn Fn(Event)>> {
 /// # Returns
 ///
 /// - `Option<Rc<dyn Fn(&'static str)>>` - The select handler receiving the
-///   target locale prefix.
+///   target bundle directory relative to the site root.
 fn switch_locale(
     route_signal: Signal<String>,
     menu_open: Signal<bool>,
 ) -> Option<Rc<dyn Fn(&'static str)>> {
-    Some(Rc::new(move |prefix: &'static str| {
-        let site: &DocsSite = &crate::generated::SITE;
-        let Some(target) = site
-            .locales
-            .iter()
-            .find(|locale: &&DocsLocale| locale.prefix == prefix)
-        else {
-            return;
-        };
-        let (path, _anchor) = parse_route(&route_signal.get());
+    Some(Rc::new(move |dir: &'static str| {
         menu_open.set(false);
+        if dir == crate::generated::SITE_LOCALE_DIR {
+            return;
+        }
         if let Some(window) = window() {
-            let location: Location = window.location();
-            // `set_hash` applies synchronously, so the reload below boots the
-            // app straight into the target locale's route.
-            let route: String = route_in_locale(&path, target);
-            let _: Result<(), JsValue> = location.set_hash(&route);
-            let _: Result<(), JsValue> = location.reload();
+            let route: String = route_signal.get();
+            let url: String = format!("{}{dir}#{route}", site_root());
+            let _: Result<(), JsValue> = window.location().assign(&url);
         }
     }))
 }

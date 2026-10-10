@@ -6,8 +6,7 @@ pub(crate) use {r#const::*, r#fn::*, r#struct::*};
 
 use std::{
     env,
-    ffi::OsString,
-    fs::{self, DirEntry, FileType},
+    fs::{self},
     io,
     iter::Skip,
     path::{Path, PathBuf},

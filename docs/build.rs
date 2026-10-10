@@ -33,7 +33,7 @@ struct SiteConfig {
 }
 
 /// One locale entry.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct LocaleConfig {
     /// Route prefix, e.g. `/` or `/en/`.
     prefix: String,
@@ -260,12 +260,37 @@ fn main() {
     println!("cargo:rerun-if-changed={}", docs_dir.display());
     println!("cargo:rerun-if-env-changed=EUV_DOCS_SRC_DIR");
     println!("cargo:rerun-if-env-changed=EUV_DOCS_OUT_DIR");
+    println!("cargo:rerun-if-env-changed=EUV_DOCS_LOCALE");
     println!("cargo:rerun-if-changed=build.rs");
 
     let config: Config = match load_config_from_readme(&docs_dir) {
         Ok(config) => config,
         Err(message) => fail(&message),
     };
+
+    // Per-locale bundling: every build compiles exactly one locale into the
+    // wasm (the CLI invokes one build per locale). `EUV_DOCS_LOCALE` selects
+    // the locale by prefix (`/en/`), bare directory (`en`), or label; unset
+    // pins the default (prefix `/`) locale. Pages of other locales — and
+    // alias routes of the pinned locale's own content directory (e.g. the
+    // legacy `/zh/` prefix) — are dropped, and the pinned locale's URL
+    // prefix is stripped from every route and internal link, so inside a
+    // bundle every route is prefix-free and the runtime needs no locale
+    // detection at all.
+    let pinned: usize = resolve_pinned_locale(&config);
+    let pinned_prefix: String = config.locales[pinned].prefix.clone();
+    let default_bundle: bool = pinned_prefix == URL_PREFIX_ROOT;
+
+    let public_dir: PathBuf = docs_dir.join(DIR_PUBLIC);
+    // Assets are copied only by the default (site-root) build; non-default
+    // bundles live one directory deeper and reference the root copies via
+    // rebased `../` URLs, so the bytes are hosted exactly once.
+    if default_bundle {
+        if public_dir.is_dir() {
+            copy_dir(&public_dir, &www_dir);
+        }
+        copy_doc_assets(&docs_dir, &www_dir);
+    }
 
     // (content directory, every URL prefix served from it) per locale
     // directory. A file directly under <SRC_DIR> belongs to no locale
@@ -284,25 +309,41 @@ fn main() {
         pages.extend(process_page(&docs_dir, file, &locale_prefixes));
     }
 
-    let public_dir: PathBuf = docs_dir.join(DIR_PUBLIC);
-    if public_dir.is_dir() {
-        copy_dir(&public_dir, &www_dir);
-    }
-    copy_doc_assets(&docs_dir, &www_dir);
-
     let locale_roots: Vec<(String, PathBuf, String)> =
         match resolve_locale_roots(&docs_dir, &config) {
             Ok(roots) => roots,
             Err(message) => fail(&message),
         };
 
-    let mut sidebars: Vec<(String, Vec<SideItem>)> = Vec::new();
-    for (prefix, root, build_locale) in &locale_roots {
-        let items: Vec<SideItem> = build_sidebar(root, root, build_locale, &pages);
-        sidebars.push((prefix.clone(), items));
+    pages.retain(|page: &Page| page_in_locale(&page.route, &pinned_prefix, &config));
+    if pinned_prefix != URL_PREFIX_ROOT {
+        for page in &mut pages {
+            strip_page_prefix(page, &pinned_prefix);
+        }
     }
 
-    let code: String = codegen(&config, &pages, &sidebars);
+    let mut pinned_locale: LocaleConfig = config.locales[pinned].clone();
+    pinned_locale.prefix = URL_PREFIX_ROOT.to_string();
+    if pinned_prefix != URL_PREFIX_ROOT
+        && let Some(items) = &mut pinned_locale.navbar
+    {
+        for item in items {
+            item.link = strip_url_prefix(&item.link, &pinned_prefix);
+        }
+    }
+
+    let pinned_root: PathBuf = docs_dir.join(&config.locales[pinned].dir);
+    // The sidebar is rebuilt against the stripped route space
+    // (`URL_PREFIX_ROOT` as the route prefix), so its links match the
+    // stripped page routes exactly.
+    let sidebar_items: Vec<SideItem> =
+        build_sidebar(&pinned_root, &pinned_root, URL_PREFIX_ROOT, &pages);
+    let sidebars: Vec<(String, Vec<SideItem>)> = vec![(URL_PREFIX_ROOT.to_string(), sidebar_items)];
+    let _ = locale_roots;
+
+    write_locale_manifest(&www_dir, &config);
+
+    let code: String = codegen(&config, &pinned_locale, &pages, &sidebars);
     if let Err(reason) = fs::write(PathBuf::from(out_dir).join(GENERATED_FILE_NAME), code) {
         fail(&format!("failed to write docs_gen.rs: {reason}"));
     }
@@ -320,6 +361,335 @@ fn main() {
 fn fail(message: &str) -> ! {
     eprintln!("error: {message}");
     std::process::exit(1);
+}
+
+/// Resolves which locale this build compiles into the wasm bundle.
+///
+/// `EUV_DOCS_LOCALE` selects the locale by URL prefix (`/en/`), bare
+/// content directory (`en`), or label (`English`); when unset the build
+/// pins the default locale (prefix `/`). Aliases share a content directory
+/// with their canonical locale (the legacy `/zh/` entry backs the same
+/// `zh/` dir as `/`), so the request is resolved to the FIRST entry
+/// declaring that directory — asking for an alias compiles the canonical
+/// bundle, and the alias's URL space is served by the runtime redirect
+/// table instead of duplicate pages.
+///
+/// # Arguments
+///
+/// - `&Config` - The parsed site configuration listing the locales.
+///
+/// # Returns
+///
+/// - `usize` - The index into `config.locales` of the canonical entry of
+///   the locale this bundle compiles.
+fn resolve_pinned_locale(config: &Config) -> usize {
+    let requested: Option<String> = var(ENV_DOCS_LOCALE)
+        .ok()
+        .map(|value: String| value.trim().to_string())
+        .filter(|value: &String| !value.is_empty());
+    let index: usize = match requested {
+        None => config
+            .locales
+            .iter()
+            .position(|locale: &LocaleConfig| locale.prefix == URL_PREFIX_ROOT)
+            .unwrap_or(0),
+        Some(name) => {
+            let bare: &str = name.trim_matches('/');
+            let normalized: String = if bare.is_empty() {
+                URL_PREFIX_ROOT.to_string()
+            } else {
+                format!("/{bare}/")
+            };
+            config
+                .locales
+                .iter()
+                .position(|locale: &LocaleConfig| locale.prefix == normalized)
+                .or_else(|| {
+                    config
+                        .locales
+                        .iter()
+                        .position(|locale: &LocaleConfig| locale.dir == bare)
+                })
+                .or_else(|| {
+                    config
+                        .locales
+                        .iter()
+                        .position(|locale: &LocaleConfig| locale.label == name)
+                })
+                .unwrap_or_else(|| {
+                    let available: String = config
+                        .locales
+                        .iter()
+                        .map(|locale: &LocaleConfig| {
+                            format!("{} (dir {})", locale.prefix, locale.dir)
+                        })
+                        .collect::<Vec<String>>()
+                        .join(", ");
+                    fail(&format!(
+                        "unknown locale `{name}`; available locales: {available}"
+                    ));
+                })
+        }
+    };
+    let dir: &str = &config.locales[index].dir;
+    config
+        .locales
+        .iter()
+        .position(|locale: &LocaleConfig| locale.dir == dir)
+        .unwrap_or(index)
+}
+
+/// Whether `route` belongs to the locale with URL prefix `pinned`.
+///
+/// Every configured prefix ends with `/` and routes are generated as
+/// `<prefix><path>`, so prefix matching is boundary-safe. The default
+/// locale owns every route no other locale claims — which also drops alias
+/// routes (e.g. `/zh/...`) from the default bundle.
+///
+/// # Arguments
+///
+/// - `&str` - The page route being tested.
+/// - `&str` - The pinned locale's URL prefix.
+/// - `&Config` - The parsed site configuration listing every prefix.
+///
+/// # Returns
+///
+/// - `bool` - `true` when the route belongs in this bundle.
+fn page_in_locale(route: &str, pinned: &str, config: &Config) -> bool {
+    if pinned != URL_PREFIX_ROOT {
+        return route.starts_with(pinned);
+    }
+    !config
+        .locales
+        .iter()
+        .filter(|locale: &&LocaleConfig| locale.prefix != URL_PREFIX_ROOT)
+        .any(|locale: &LocaleConfig| route.starts_with(&locale.prefix))
+}
+
+/// Removes the locale URL prefix from an internal route or link.
+///
+/// `/en/ltpp/` → `/ltpp/` under a pinned `/en/`; the locale home `/en/`
+/// collapses to `/`. External (`https://…`) and already-root links are
+/// returned unchanged.
+///
+/// # Arguments
+///
+/// - `&str` - The route or internal link.
+/// - `&str` - The pinned locale's URL prefix (with trailing slash).
+///
+/// # Returns
+///
+/// - `String` - The prefix-free route.
+fn strip_url_prefix(url: &str, pinned: &str) -> String {
+    let head: &str = pinned.trim_end_matches('/');
+    if url == head {
+        return URL_PREFIX_ROOT.to_string();
+    }
+    match url.strip_prefix(pinned) {
+        Some(rest) => format!("{URL_PREFIX_ROOT}{rest}"),
+        None => url.to_string(),
+    }
+}
+
+/// Strips the locale prefix from every internal reference of a page: the
+/// route, heading permalink hrefs (rebuilt from the stripped route), link
+/// destinations inside the block AST, and hero action / feature card links.
+///
+/// # Arguments
+///
+/// - `&mut Page` - The page to rewrite in place.
+/// - `&str` - The pinned locale's URL prefix.
+fn strip_page_prefix(page: &mut Page, pinned: &str) {
+    page.route = strip_url_prefix(&page.route, pinned);
+    strip_blocks_prefix(&mut page.blocks, pinned);
+    for (_text, link, _kind) in &mut page.actions {
+        *link = strip_url_prefix(link, pinned);
+    }
+    for (_icon, _title, _details, link) in &mut page.features {
+        *link = strip_url_prefix(link, pinned);
+    }
+}
+
+/// Strips the locale prefix from link destinations inside a block list.
+///
+/// # Arguments
+///
+/// - `&mut [AstBlock]` - The blocks to rewrite in place.
+/// - `&str` - The pinned locale's URL prefix.
+fn strip_blocks_prefix(blocks: &mut [AstBlock], pinned: &str) {
+    for block in blocks {
+        match block {
+            AstBlock::Heading { inline, .. } => strip_inlines_prefix(inline, pinned),
+            AstBlock::Paragraph(inline) => strip_inlines_prefix(inline, pinned),
+            AstBlock::BlockQuote(inner) => strip_blocks_prefix(inner, pinned),
+            AstBlock::List { items, .. } => {
+                for item in items {
+                    strip_blocks_prefix(item, pinned);
+                }
+            }
+            AstBlock::Table { head, rows } => {
+                for cell in head {
+                    strip_inlines_prefix(cell, pinned);
+                }
+                for row in rows {
+                    for cell in row {
+                        strip_inlines_prefix(cell, pinned);
+                    }
+                }
+            }
+            AstBlock::Container { blocks: inner, .. } => strip_blocks_prefix(inner, pinned),
+            AstBlock::Html(raw) => *raw = rebase_html_asset_srcs(raw),
+            AstBlock::CodeBlock { .. } | AstBlock::Rule => {}
+        }
+    }
+}
+
+/// Strips the locale prefix from link destinations inside an inline list,
+/// and rebases asset URLs (`./img/…` → `../img/…`) for the one-level-deep
+/// bundle directory.
+///
+/// # Arguments
+///
+/// - `&mut [Inline]` - The inline nodes to rewrite in place.
+/// - `&str` - The pinned locale's URL prefix.
+fn strip_inlines_prefix(inlines: &mut [Inline], pinned: &str) {
+    for inline in inlines {
+        match inline {
+            Inline::Link { href, children, .. } => {
+                *href = strip_url_prefix(href, pinned);
+                strip_inlines_prefix(children, pinned);
+            }
+            Inline::Strong(children) | Inline::Em(children) | Inline::Del(children) => {
+                strip_inlines_prefix(children, pinned);
+            }
+            Inline::Image { src, .. } => *src = rebase_asset_url(src),
+            Inline::Html(raw) => *raw = rebase_html_asset_srcs(raw),
+            Inline::Text(_)
+            | Inline::Code(_)
+            | Inline::TaskMarker(_)
+            | Inline::SoftBreak
+            | Inline::HardBreak => {}
+        }
+    }
+}
+
+/// Rebases a site-root-relative asset URL for a non-default locale bundle.
+///
+/// The bundle is served one directory below the site root (`<root>/en/`),
+/// while asset bytes are hosted only at the root by the default-locale
+/// build, so `./img/x.png` (and the bare `img/x.png` form) become
+/// `../img/x.png`. Author-written `../…` URLs already resolve to the root
+/// from one level deep and pass through unchanged, as do absolute and
+/// external URLs.
+///
+/// # Arguments
+///
+/// - `&str` - The asset URL as emitted by `rewrite_image_src`.
+///
+/// # Returns
+///
+/// - `String` - The URL relative to the bundle directory.
+fn rebase_asset_url(url: &str) -> String {
+    if url.is_empty()
+        || url.starts_with("../")
+        || url.starts_with('/')
+        || url.starts_with(URL_SCHEME_HTTP)
+        || url.starts_with(URL_SCHEME_DATA)
+        || url.starts_with(URL_SCHEME_BLOB)
+    {
+        return url.to_string();
+    }
+    if let Some(rest) = url.strip_prefix("./") {
+        return format!("../{rest}");
+    }
+    format!("../{url}")
+}
+
+/// Rebases every `src="…"` attribute inside a raw HTML block for a
+/// non-default locale bundle, mirroring [`rebase_asset_url`].
+///
+/// # Arguments
+///
+/// - `&str` - The raw HTML fragment.
+///
+/// # Returns
+///
+/// - `String` - The fragment with asset `src` attributes rebased.
+fn rebase_html_asset_srcs(html: &str) -> String {
+    let mut out: String = String::with_capacity(html.len());
+    let mut rest: &str = html;
+    while let Some(pos) = rest.find("src=\"") {
+        out.push_str(&rest[..pos + 5]);
+        let after: &str = &rest[pos + 5..];
+        match after.find('"') {
+            Some(end) => {
+                out.push_str(&rebase_asset_url(&after[..end]));
+                rest = &after[end..];
+            }
+            None => {
+                out.push_str(after);
+                return out;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Maps a locale URL prefix to the bundle directory it is served from:
+/// the default locale lives at the site root (`""`), every other locale in
+/// a directory named after its prefix (`/en/` → `en/`).
+///
+/// # Arguments
+///
+/// - `&str` - The locale URL prefix.
+///
+/// # Returns
+///
+/// - `String` - The directory-relative path fragment.
+fn locale_dir_url(prefix: &str) -> String {
+    let trimmed: &str = prefix.trim_matches('/');
+    if trimmed.is_empty() {
+        String::new()
+    } else {
+        format!("{trimmed}/")
+    }
+}
+
+/// Writes `<out>/.deploy/locales.tsv` listing every locale (one row per
+/// unique content directory: URL prefix, bundle directory, label).
+///
+/// The `euv-docs` CLI reads the manifest after the first (default-locale)
+/// build to discover the remaining locales it must build, so the locale
+/// list has exactly one source of truth — the README frontmatter parsed
+/// here — and the CLI never needs its own YAML parser. The file also
+/// documents the deployed bundle layout for debugging.
+///
+/// # Arguments
+///
+/// - `&Path` - The site output directory the current build writes to.
+/// - `&Config` - The parsed site configuration listing the locales.
+fn write_locale_manifest(www_dir: &Path, config: &Config) {
+    let mut seen: Vec<&str> = Vec::new();
+    let mut lines: String = String::from("prefix\tdir\tlabel\n");
+    for locale in &config.locales {
+        if seen.contains(&locale.dir.as_str()) {
+            continue;
+        }
+        seen.push(&locale.dir);
+        lines.push_str(&format!(
+            "{}\t{}\t{}\n",
+            locale.prefix,
+            locale_dir_url(&locale.prefix),
+            locale.label
+        ));
+    }
+    let deploy_dir: PathBuf = www_dir.join(DEPLOY_DIR_NAME);
+    if let Err(reason) = fs::create_dir_all(&deploy_dir)
+        .and_then(|()| fs::write(deploy_dir.join(LOCALE_MANIFEST_FILE_NAME), lines))
+    {
+        fail(&format!("failed to write locale manifest: {reason}"));
+    }
 }
 
 /// Indexes every configured prefix by the content directory that serves it.
@@ -2367,7 +2737,12 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
 /// # Returns
 ///
 /// - `String` - the generated Rust source defining `crate::data::SITE`
-fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]) -> String {
+fn codegen(
+    config: &Config,
+    pinned: &LocaleConfig,
+    pages: &[Page],
+    sidebars: &[(String, Vec<SideItem>)],
+) -> String {
     let mut code: String = String::new();
     code.push_str(GENERATED_BANNER);
 
@@ -2446,7 +2821,10 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
     }
 
     let mut locales_code: String = String::new();
-    for locale in &config.locales {
+    // Exactly one locale is compiled into a bundle: the pinned one, with its
+    // URL prefix rewritten to `/` and its navbar links already stripped, so
+    // the runtime's locale resolution degenerates to a constant.
+    for locale in std::slice::from_ref(pinned) {
         let Some((_, items)): Option<&(String, Vec<SideItem>)> = sidebars
             .iter()
             .find(|(prefix, _): &&(String, Vec<SideItem>)| prefix == &locale.prefix)
@@ -2475,9 +2853,8 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
             .unwrap_or_default();
         let sidebar_code: String = emit_sidebar(sidebar_src);
         locales_code.push_str(&format!(
-            "crate::data::DocsLocale {{ prefix: {:?}, label: {:?}, title: {:?}, footer: {:?}, toc_label: {:?}, prev_label: {:?}, next_label: {:?}, navbar: &[{}], sidebar: {} }},\n",
+            "crate::data::DocsLocale {{ prefix: {:?}, title: {:?}, footer: {:?}, toc_label: {:?}, prev_label: {:?}, next_label: {:?}, navbar: &[{}], sidebar: {} }},\n",
             locale.prefix,
-            locale.label,
             locale.title.clone().unwrap_or_default(),
             locale.footer.clone().unwrap_or_default(),
             locale
@@ -2502,6 +2879,65 @@ fn codegen(config: &Config, pages: &[Page], sidebars: &[(String, Vec<SideItem>)]
         config.site.title,
         locales_code,
         pages_code,
+    ));
+
+    // Language switcher entries: one per unique content directory (aliases
+    // deduplicated). `dir` is the bundle directory relative to the site
+    // root — "" for the default locale, "en/" for `/en/`, and so on.
+    let mut seen_dirs: Vec<&str> = Vec::new();
+    let mut languages_code: String = String::new();
+    for locale in &config.locales {
+        if seen_dirs.contains(&locale.dir.as_str()) {
+            continue;
+        }
+        seen_dirs.push(&locale.dir);
+        languages_code.push_str(&format!(
+            "crate::data::DocsLanguageLink {{ label: {:?}, dir: {:?} }},",
+            locale.label,
+            locale_dir_url(&locale.prefix)
+        ));
+    }
+    code.push_str(&format!(
+        "/// Every site language for the cross-bundle switcher.\npub(crate) static SITE_LANGUAGES: &[crate::data::DocsLanguageLink] = &[{languages_code}];\n"
+    ));
+    code.push_str(&format!(
+        "/// The bundle directory this build is served from (relative to the site root).\npub(crate) const SITE_LOCALE_DIR: &str = {:?};\n",
+        config
+            .locales
+            .iter()
+            .find(|locale: &&LocaleConfig| locale.dir == pinned.dir)
+            .map(|locale: &LocaleConfig| locale_dir_url(&locale.prefix))
+            .unwrap_or_default()
+    ));
+
+    // Boot-time redirects for URL spaces this bundle does not serve: any
+    // other locale's prefix (an old single-bundle link, or a mispaste) jumps
+    // to that locale's bundle directory; an alias of this bundle's own
+    // directory (e.g. `/zh/`) is rewritten in place to the canonical
+    // prefix-free route.
+    let mut redirects_code: String = String::new();
+    for locale in &config.locales {
+        if locale.prefix == URL_PREFIX_ROOT {
+            continue;
+        }
+        let from: &str = locale.prefix.trim_end_matches('/');
+        let to_dir: String = if locale.dir == pinned.dir {
+            String::new()
+        } else {
+            let canonical: &LocaleConfig = config
+                .locales
+                .iter()
+                .find(|candidate: &&LocaleConfig| candidate.dir == locale.dir)
+                .unwrap_or(locale);
+            locale_dir_url(&canonical.prefix)
+        };
+        redirects_code.push_str(&format!(
+            "crate::data::DocsRedirect {{ from: {:?}, to_dir: {:?} }},",
+            from, to_dir
+        ));
+    }
+    code.push_str(&format!(
+        "/// Foreign-prefix redirects applied once at boot.\npub(crate) static SITE_REDIRECTS: &[crate::data::DocsRedirect] = &[{redirects_code}];\n"
     ));
     code
 }
