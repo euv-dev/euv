@@ -47,14 +47,14 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
              \
              .c_euv_sidebar_link, .c_euv_sidebar_group_title { position: relative !important; } \
                          .c_euv_sidebar_link::before, .c_euv_sidebar_group_title::before { content: '' !important; position: absolute !important; top: 0 !important; bottom: 0 !important; width: 5px !important; background: transparent !important; pointer-events: none !important; } \
-                         .c_euv_sidebar_group_title::before { left: -2px !important; } \
-                         .c_euv_sidebar_link::before { left: -8px !important; } \
+                         .c_euv_sidebar_group_title::before { left: -8px !important; } \
+                                      .c_euv_sidebar_link::before { left: -8px !important; } \
                          .c_euv_sidebar_link:hover::before, .c_euv_sidebar_group_title:hover::before { background: currentColor !important; } \
                          .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #000) !important; border: 0 !important; box-shadow: none !important; } \
              .c_euv_sidebar_link:not(.c_euv_sidebar_link_active):not(.c_euv_sidebar_link_active_flush):hover::before, .c_euv_sidebar_group_title:not(.c_euv_sidebar_group_title_active):not(.c_euv_sidebar_group_title_root):not(.c_euv_sidebar_group_title_root_active):hover::before { background: currentColor !important; } \
                          .c_euv_sidebar_link_active, .c_euv_sidebar_group_title_active { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
                          .c_euv_sidebar_link_active::before, .c_euv_sidebar_group_title_active::before { background: var(--accent, #000) !important; content: '' !important; position: absolute !important; width: 5px !important; top: 0 !important; bottom: 0 !important; pointer-events: none !important; left: -8px !important; } \
-                         .c_euv_sidebar_group_title_active::before { left: -2px !important; } \
+                         .c_euv_sidebar_group_title_active::before { left: -8px !important; } \
                          .c_euv_sidebar_link_active:hover, .c_euv_sidebar_group_title_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
                          .c_theme_dark .c_euv_sidebar_link:hover, .c_theme_dark .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #fff) !important; box-shadow: none !important; } \
                          .c_theme_dark .c_euv_sidebar_link_active, .c_theme_dark .c_euv_sidebar_group_title_active { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
