@@ -17,7 +17,7 @@ use super::*;
 /// data: the locale prefixes and the route strings, nothing else.
 /// `router::site()` projects the generated site onto them once, and every
 /// normalisation rule is expressed against this view alone.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RouteSite {
     /// Every locale the site serves, in declaration order.
     pub locales: &'static [RouteLocale],
@@ -26,14 +26,14 @@ pub struct RouteSite {
 }
 
 /// One locale of a [`RouteSite`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RouteLocale {
     /// URL prefix (`/` or `/zh/`).
     pub prefix: &'static str,
 }
 
 /// One page route of a [`RouteSite`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RoutePage {
     /// Full route as `build.rs` generated it.
     pub route: &'static str,
