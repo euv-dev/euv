@@ -1,5 +1,60 @@
 use super::*;
 
+/// Decides whether this host is one where `env(safe-area-inset-*)` describes a
+/// real screen feature worth reserving space for.
+///
+/// The inset only means something where the OS draws a notch, a rounded corner
+/// or a home indicator over the page. iOS is the platform that always has one
+/// (and reports it in every browser, Safari or not). Desktop Safari has one on
+/// notched Macs, and is the only desktop engine that reports the variable at
+/// all. Every other platform — Android, Windows, Linux desktop — either has no
+/// inset to report or lies about it, which is precisely the blank band the
+/// contract variables were introduced to avoid.
+///
+/// Detection reads `navigator.userAgent` rather than `navigator.platform`,
+/// because `platform` reports `MacIntel` for iPadOS and cannot separate it
+/// from a real Mac, and because the value is available synchronously where a
+/// `userAgentData` query would not be.
+///
+/// # Arguments
+///
+/// - `&str` - The `navigator.userAgent` string of the current host.
+///
+/// # Returns
+///
+/// - `bool` - `true` when the host is iOS-family or desktop Safari.
+pub fn needs_safe_area_insets(user_agent: &str) -> bool {
+    let haystack: String = user_agent.to_lowercase();
+    if haystack.contains("iphone") || haystack.contains("ipad") || haystack.contains("ipod") {
+        return true;
+    }
+    if !haystack.contains(USER_AGENT_SAFARI_DESKTOP_TOKEN) {
+        return false;
+    }
+    !has_any_token(&haystack, USER_AGENT_NON_SAFARI_TOKENS)
+}
+
+/// Returns whether any of the comma-separated tokens in `tokens` appears in
+/// `haystack`, which the caller has already lowercased.
+///
+/// The tokens are a comma-separated list rather than one regex-style string
+/// because `str::contains` matches substrings: a `"chrome|firefox"` literal
+/// would never be found in a user agent.
+///
+/// # Arguments
+///
+/// - `&str` - The lowercased user agent to search.
+/// - `&str` - The comma-separated lowercase tokens to look for.
+///
+/// # Returns
+///
+/// - `bool` - `true` when at least one token occurs in the haystack.
+fn has_any_token(haystack: &str, tokens: &str) -> bool {
+    tokens
+        .split(',')
+        .any(|token: &str| haystack.contains(token))
+}
+
 /// Decides whether a viewport is laid out edge-to-edge on its physical screen.
 ///
 /// `env(safe-area-inset-*)` is only meaningful when the page really does reach

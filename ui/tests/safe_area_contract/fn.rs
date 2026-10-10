@@ -1,6 +1,68 @@
 use super::*;
 
 #[test]
+fn only_ios_and_desktop_safari_reserve_a_safe_area() {
+    let cases: [(&str, bool); 8] = [
+        (
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+            true,
+        ),
+        (
+            "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+            true,
+        ),
+        (
+            "Mozilla/5.0 (iPod touch; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1",
+            true,
+        ),
+        (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+            true,
+        ),
+        (
+            "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36",
+            false,
+        ),
+        (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            false,
+        ),
+        (
+            "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
+            false,
+        ),
+        (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+            false,
+        ),
+    ];
+    for (user_agent, expected) in cases {
+        assert_eq!(
+            needs_safe_area_insets(user_agent),
+            expected,
+            "user agent {user_agent:?} was classified wrongly"
+        );
+    }
+}
+
+#[test]
+fn an_ios_user_agent_inside_another_browser_still_counts() {
+    let ios_chrome: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/125.0.0.0 Mobile/15E148 Safari/604.1";
+    assert!(
+        needs_safe_area_insets(ios_chrome),
+        "the notch is a property of the screen, not of the browser installed on it, so Chrome on iOS still needs the inset"
+    );
+}
+
+#[test]
+fn an_empty_or_absent_user_agent_reserves_nothing() {
+    assert!(
+        !needs_safe_area_insets(""),
+        "no user agent means no evidence of a notched screen, and reserving space on a guess is the defect being fixed"
+    );
+}
+
+#[test]
 fn an_immersive_declaration_is_trusted_even_when_the_measurement_is_missing() {
     assert!(
         is_edge_to_edge_viewport(true, None),

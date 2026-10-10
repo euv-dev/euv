@@ -70,6 +70,25 @@ impl UseEuvLayout {
         }))
     }
 
+    /// Returns whether the host platform is one that actually has a safe area
+    /// to reserve.
+    ///
+    /// Every write path for the contract variables goes through this first, so
+    /// a platform without a notch, a rounded corner or a home indicator never
+    /// reserves space for one — not even when the host declares immersive mode
+    /// or reports a flush viewport.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the host is iOS-family or desktop Safari.
+    pub(crate) fn needs_safe_area_insets() -> bool {
+        let Some(window_value) = window() else {
+            return false;
+        };
+        let user_agent: String = window_value.navigator().user_agent().unwrap_or_default();
+        needs_safe_area_insets(&user_agent)
+    }
+
     /// Registers global event listeners that preserve `env(safe-area-inset-*)`
     /// values after exiting any type of fullscreen on Android, and ensures that
     /// the system back button exits native fullscreen instead of navigating away.
@@ -163,6 +182,9 @@ impl UseEuvLayout {
     /// explicit immersive declaration with the runtime
     /// `screen.height - window.innerHeight` measurement.
     fn init_safe_area_contract() {
+        if !Self::needs_safe_area_insets() {
+            return;
+        }
         if !is_edge_to_edge_viewport(Self::is_immersive_declared(), measure_viewport_screen_gap()) {
             return;
         }
@@ -366,8 +388,11 @@ impl UseEuvLayout {
         {
             return;
         }
-        let is_trusted: bool =
-            is_edge_to_edge_viewport(Self::is_immersive_declared(), measure_viewport_screen_gap());
+        let is_trusted: bool = Self::needs_safe_area_insets()
+            && is_edge_to_edge_viewport(
+                Self::is_immersive_declared(),
+                measure_viewport_screen_gap(),
+            );
         let top_value: String = safe_area_contract_value(is_trusted, &raw_top);
         let right_value: String = safe_area_contract_value(is_trusted, &raw_right);
         let bottom_value: String = safe_area_contract_value(is_trusted, &raw_bottom);

@@ -31,6 +31,28 @@ pub(crate) const SAFE_AREA_PIXEL_UNIT: &str = "px";
 /// that crops the viewport out of the screen is never trusted.
 pub(crate) const SAFE_AREA_LETTERBOX_TOLERANCE_PX: f64 = 24.0;
 
+/// The user-agent token identifying desktop Safari, which also carries
+/// "Macintosh" and therefore cannot be told apart from macOS by platform./// The user-agent token identifying desktop Safari, which also carries
+/// "Macintosh" and therefore cannot be told apart from macOS by platform.
+///
+/// Safari is the only desktop browser that implements `env(safe-area-inset-*)`
+/// for a notch, so it stays on the trusted path even though it is not iOS.
+/// Compared against the lowercased user agent, hence the lowercase token.
+pub(crate) const USER_AGENT_SAFARI_DESKTOP_TOKEN: &str = "safari";
+
+/// The user-agent token that must be absent for a Safari match to count.
+///
+/// iOS Safari reports both "Safari" and "CriOS"-style tokens in some
+/// in-app browsers; `Chrome` and `Firefox` on any desktop report "Safari"
+/// only as a compatibility suffix, so excluding them keeps a desktop
+/// Chrome from being treated as a notched host.
+///
+/// Comma-separated rather than a single regex-style string, because
+/// `str::contains` matches substrings and would never find `"chrome|firefox"`
+/// inside a user agent. Compared against the lowercased user agent, hence
+/// the lowercase tokens.
+pub(crate) const USER_AGENT_NON_SAFARI_TOKENS: &str = "chrome,chromium,firefox,edg,opr";
+
 /// The `window` property a host sets to declare edge-to-edge (immersive) mode.
 pub(crate) const IMMERSIVE_WINDOW_FLAG_PROPERTY: &str = "__EUV_IMMERSIVE__";
 
