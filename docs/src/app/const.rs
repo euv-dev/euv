@@ -130,13 +130,23 @@ pub(crate) const IMAGE_LOAD_WATCHER_JS: &str = "(function(){var p=function(i){if
 /// Table-of-contents scroll spy: marks the `.c_euv_toc_link_active`
 /// class on the entry for the section currently at the top of the scroll
 /// container, or the entry matching the URL fragment when one is present.
-/// Re-runs on `hashchange`, on scroll, and on DOM mutations so it survives
-/// re-renders. The activation is idempotent — the class list is only touched
-/// when the active entry actually changes, which keeps the MutationObserver
-/// from re-triggering itself. The URL fragment is percent-decoded before
-/// comparison because `location.hash` is encoded while the `href` fragments
-/// and heading ids are raw UTF-8.
-pub(crate) const TOC_SCROLL_SPY_JS: &str = "(function(){var current=null;var links=function(){return document.querySelectorAll('.c_euv_doc_toc a, .c_euv_toc a');};var frag=function(a){var href=a.getAttribute('href')||'';var i=href.lastIndexOf('#');return i>0?href.slice(i+1):'';};var activate=function(t){if(t===current)return;if(current){current.classList.remove('c_euv_toc_link_active','c_euv_toc_link_nested_active');}current=t||null;if(current){current.classList.add(current.classList.contains('c_euv_toc_link_nested')?'c_euv_toc_link_nested_active':'c_euv_toc_link_active');}};var hashTarget=function(){var h=window.location.hash;var s=h.indexOf('#/');if(s<0)return null;var i=h.indexOf('#',s+2);if(i<0)return null;var anchor='';try{anchor=decodeURIComponent(h.slice(i+1));}catch(e){anchor=h.slice(i+1);}if(!anchor)return null;var best=null;var bestLen=-1;links().forEach(function(a){var f=frag(a);if(!f)return;if(f===anchor){best=a;bestLen=f.length;}else if(anchor.indexOf(f)===0&&f.length>bestLen){bestLen=f.length;best=a;}});return best;};var scrollTarget=function(){var c=document.querySelector('.c_app_main');if(!c)return null;var line=c.getBoundingClientRect().top+100;var best=null;var bestTop=-Infinity;var first=null;var last=null;links().forEach(function(a){var f=frag(a);if(!f)return;if(!first)first=a;last=a;var h=document.getElementById(f);if(!h)return;var top=h.getBoundingClientRect().top;if(top<=line&&top>bestTop){bestTop=top;best=a;}});if(c.scrollTop+c.clientHeight>=c.scrollHeight-4&&last)return last;return best||first;};var apply=function(){activate(hashTarget()||scrollTarget());};apply();window.addEventListener('hashchange',apply);document.addEventListener('scroll',apply,true);new MutationObserver(apply).observe(document.body,{childList:true,subtree:true});}());";
+///
+/// Driven by a short `setInterval` poll of the scroll container's
+/// `scrollTop` rather than by `scroll` events or `requestAnimationFrame`:
+/// the app shell does not reliably propagate scroll events (a delegated
+/// `scroll` listener on `document` can stay silent while the container
+/// scrolls), and rAF is paused entirely in hidden tabs. A 100ms interval
+/// reads one property per tick and early-outs when nothing changed, so it
+/// is effectively free. `hashchange` and a `MutationObserver` remain as
+/// immediate accelerators. Activation is idempotent — class lists are only
+/// touched when the active entry actually changes, so the observer cannot
+/// re-trigger itself. A tick in which the TOC is momentarily absent from
+/// the DOM (mid re-render) leaves the previous state untouched instead of
+/// clearing it, and a tick whose tracked node was replaced by a re-render
+/// re-marks the live node. The URL fragment is percent-decoded before
+/// comparison because `location.hash` is encoded while the `href`
+/// fragments and heading ids are raw UTF-8.
+pub(crate) const TOC_SCROLL_SPY_JS: &str = "(function(){var current=null;var lastST=-1;var lastHash='';var links=function(){return document.querySelectorAll('.c_euv_doc_toc a, .c_euv_toc a');};var frag=function(a){var href=a.getAttribute('href')||'';var i=href.lastIndexOf('#');return i>0?href.slice(i+1):'';};var activate=function(t){if(t===current)return;if(current){current.classList.remove('c_euv_toc_link_active','c_euv_toc_link_nested_active');}current=t||null;if(current){current.classList.add(current.classList.contains('c_euv_toc_link_nested')?'c_euv_toc_link_nested_active':'c_euv_toc_link_active');}};var hashTarget=function(){var h=window.location.hash;var s=h.indexOf('#/');if(s<0)return null;var i=h.indexOf('#',s+2);if(i<0)return null;var anchor='';try{anchor=decodeURIComponent(h.slice(i+1));}catch(e){anchor=h.slice(i+1);}if(!anchor)return null;var best=null;var bestLen=-1;links().forEach(function(a){var f=frag(a);if(!f)return;if(f===anchor){best=a;bestLen=f.length;}else if(anchor.indexOf(f)===0&&f.length>bestLen){bestLen=f.length;best=a;}});return best;};var scrollTarget=function(c){var line=c.getBoundingClientRect().top+100;var best=null;var bestTop=-Infinity;var first=null;var last=null;links().forEach(function(a){var f=frag(a);if(!f)return;if(!first)first=a;last=a;var h=document.getElementById(f);if(!h)return;var top=h.getBoundingClientRect().top;if(top<=line&&top>bestTop){bestTop=top;best=a;}});if(c.scrollTop+c.clientHeight>=c.scrollHeight-4&&last)return last;return best||first;};var apply=function(){var t=hashTarget();if(t){activate(t);return;}if(!links().length)return;var c=document.querySelector('.c_app_main');if(!c)return;activate(scrollTarget(c));};var tick=function(){var c=document.querySelector('.c_app_main');var st=c?c.scrollTop:-1;var h=window.location.hash;var alive=current!==null&&document.contains(current);if(st!==lastST||h!==lastHash||!alive){lastST=st;lastHash=h;if(!alive)current=null;apply();}};apply();window.addEventListener('hashchange',apply);new MutationObserver(apply).observe(document.body,{childList:true,subtree:true});setInterval(tick,100);}());";
 
 /// The `class` of a documentation page's `<h1>` title.
 pub(crate) const CLASS_DOCS_PAGE_TITLE: &str = "c_docs_page_title";
