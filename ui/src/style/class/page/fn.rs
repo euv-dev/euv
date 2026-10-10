@@ -1114,6 +1114,13 @@ class! {
         gap: var!(space-md);
         justify-content: "center";
         flex-wrap: "wrap";
+        // Below the breakpoint the actions become equal-width rows: the two
+        // labels differ in length, so a content-sized wrap leaves the shorter
+        // button visibly narrower and the row reads as misaligned.
+        @media ((max-width: 767px)) {
+            flex-wrap: "nowrap";
+            align-items: "stretch";
+        }
     }
 
     pub c_home_btn_primary {
@@ -1132,6 +1139,10 @@ class! {
         letter-spacing: "0.01em";
         vertical-align: "middle";
         min-height: var!(min-height-sm);
+        @media ((max-width: 767px)) {
+            flex: "1 1 0px";
+            min-width: "0px";
+        }
         :focus-visible {
             outline: "none";
         }
@@ -1157,6 +1168,10 @@ class! {
         letter-spacing: "0.01em";
         vertical-align: "middle";
         min-height: var!(min-height-sm);
+        @media ((max-width: 767px)) {
+            flex: "1 1 0px";
+            min-width: "0px";
+        }
         :focus-visible {
             outline: "none";
         }

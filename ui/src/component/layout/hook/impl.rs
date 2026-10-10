@@ -97,7 +97,7 @@ impl UseEuvLayout {
     /// - Any future fullscreen scenarios
     pub fn use_safe_area_fix() {
         Self::cache_safe_area_insets();
-        Self::init_immersive_safe_area();
+        Self::init_safe_area_contract();
         App::use_window_event(WINDOW_EVENT_FULLSCREEN_CHANGE, || {
             let Some(window_value) = window() else {
                 return;
@@ -148,24 +148,22 @@ impl UseEuvLayout {
         }));
     }
 
-    /// Applies the real top safe-area inset to the mobile header and drawer when
-    /// the host environment declares immersive (edge-to-edge) mode.
+    /// Publishes the measured safe-area insets as CSS contract variables when
+    /// the host genuinely lays out edge-to-edge.
     ///
-    /// Immersive hosts — such as a Tauri Android WebView laid out edge-to-edge —
-    /// declare themselves either by setting `window.__EUV_IMMERSIVE__ = true`
-    /// before app initialisation or by including
-    /// `<meta name="euv-immersive" content="true">` in the document. Only then is
-    /// the cached `env(safe-area-inset-top)` pixel value written to the
-    /// `--euv-mobile-safe-top` CSS custom property on `<html>`, which
-    /// `c_mobile_header` and `c_mobile_nav_drawer` consume for their top padding.
+    /// The measured `env(safe-area-inset-*)` pixels are written to
+    /// `--euv-mobile-safe-top` and `--euv-safe-{right,bottom,left}` on `<html>`,
+    /// which `c_mobile_header`, `c_mobile_nav_drawer`, `c_app_root` and the
+    /// edge-anchored overlays consume as `var(--euv-safe-*, 0px)`. Every one of
+    /// those defaults to `0px`, so a browser host that letterboxes the page yet
+    /// reports non-zero insets renders flush against the screen edge instead of
+    /// reserving a blank band.
     ///
-    /// Browsers that letterbox the page below the system status bar never set the
-    /// marker, so the variable keeps its `0px` default. This deliberately avoids
-    /// trusting `env()` unconditionally: some Android browsers (e.g. VivoBrowser)
-    /// letterbox the page yet still report a non-zero top inset, which would
-    /// otherwise render as a blank band above the navbar.
-    fn init_immersive_safe_area() {
-        if !Self::is_immersive_declared() {
+    /// Trust is decided by `is_edge_to_edge_viewport`, which combines the
+    /// explicit immersive declaration with the runtime
+    /// `screen.height - window.innerHeight` measurement.
+    fn init_safe_area_contract() {
+        if !is_edge_to_edge_viewport(Self::is_immersive_declared(), measure_viewport_screen_gap()) {
             return;
         }
         let top_value: String =
@@ -173,6 +171,16 @@ impl UseEuvLayout {
         if top_value.is_empty() {
             return;
         }
+        Self::apply_safe_area_contract(&top_value);
+    }
+
+    /// Writes the supplied measured top inset and the cached side insets onto
+    /// `<html>` as the safe-area contract variables.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - The measured top safe-area pixel value.
+    fn apply_safe_area_contract(top_value: &str) {
         let Some(window_value) = window() else {
             return;
         };
@@ -183,9 +191,30 @@ impl UseEuvLayout {
             return;
         };
         let root_element: HtmlElement = root.unchecked_into();
+        let right_value: String = safe_area_contract_value(
+            true,
+            &SAFE_AREA_INSET_RIGHT.with(|cell: &RefCell<String>| cell.borrow().clone()),
+        );
+        let bottom_value: String = safe_area_contract_value(
+            true,
+            &SAFE_AREA_INSET_BOTTOM.with(|cell: &RefCell<String>| cell.borrow().clone()),
+        );
+        let left_value: String = safe_area_contract_value(
+            true,
+            &SAFE_AREA_INSET_LEFT.with(|cell: &RefCell<String>| cell.borrow().clone()),
+        );
         let _: Result<(), JsValue> = root_element
             .style()
-            .set_property(IMMERSIVE_SAFE_TOP_PROPERTY, &top_value);
+            .set_property(IMMERSIVE_SAFE_TOP_PROPERTY, top_value);
+        let _: Result<(), JsValue> = root_element
+            .style()
+            .set_property(SAFE_AREA_RIGHT_PROPERTY, &right_value);
+        let _: Result<(), JsValue> = root_element
+            .style()
+            .set_property(SAFE_AREA_BOTTOM_PROPERTY, &bottom_value);
+        let _: Result<(), JsValue> = root_element
+            .style()
+            .set_property(SAFE_AREA_LEFT_PROPERTY, &left_value);
     }
 
     /// Returns whether the host environment declares immersive (edge-to-edge)
@@ -195,7 +224,7 @@ impl UseEuvLayout {
     /// # Returns
     ///
     /// - `bool` - `true` when immersive mode is declared by the host.
-    fn is_immersive_declared() -> bool {
+    pub(crate) fn is_immersive_declared() -> bool {
         let Some(window_value) = window() else {
             return false;
         };
@@ -322,17 +351,27 @@ impl UseEuvLayout {
     /// and outside the app root subtree, so they do not inherit the inline
     /// overrides — they must be patched separately.
     pub fn apply_cached_insets() {
-        let top_value: String =
+        let raw_top: String =
             SAFE_AREA_INSET_TOP.with(|cell: &RefCell<String>| cell.borrow().clone());
-        if top_value.is_empty() {
+        let raw_right: String =
+            SAFE_AREA_INSET_RIGHT.with(|cell: &RefCell<String>| cell.borrow().clone());
+        let raw_bottom: String =
+            SAFE_AREA_INSET_BOTTOM.with(|cell: &RefCell<String>| cell.borrow().clone());
+        let raw_left: String =
+            SAFE_AREA_INSET_LEFT.with(|cell: &RefCell<String>| cell.borrow().clone());
+        if raw_top.is_empty()
+            && raw_right.is_empty()
+            && raw_bottom.is_empty()
+            && raw_left.is_empty()
+        {
             return;
         }
-        let right_value: String =
-            SAFE_AREA_INSET_RIGHT.with(|cell: &RefCell<String>| cell.borrow().clone());
-        let bottom_value: String =
-            SAFE_AREA_INSET_BOTTOM.with(|cell: &RefCell<String>| cell.borrow().clone());
-        let left_value: String =
-            SAFE_AREA_INSET_LEFT.with(|cell: &RefCell<String>| cell.borrow().clone());
+        let is_trusted: bool =
+            is_edge_to_edge_viewport(Self::is_immersive_declared(), measure_viewport_screen_gap());
+        let top_value: String = safe_area_contract_value(is_trusted, &raw_top);
+        let right_value: String = safe_area_contract_value(is_trusted, &raw_right);
+        let bottom_value: String = safe_area_contract_value(is_trusted, &raw_bottom);
+        let left_value: String = safe_area_contract_value(is_trusted, &raw_left);
         let Some(window_value) = window() else {
             return;
         };
@@ -352,6 +391,18 @@ impl UseEuvLayout {
             let _: Result<(), JsValue> = element
                 .style()
                 .set_property(SAFE_AREA_INSET_LEFT_PROPERTY, &left_value);
+            let _: Result<(), JsValue> = element
+                .style()
+                .set_property(IMMERSIVE_SAFE_TOP_PROPERTY, &top_value);
+            let _: Result<(), JsValue> = element
+                .style()
+                .set_property(SAFE_AREA_RIGHT_PROPERTY, &right_value);
+            let _: Result<(), JsValue> = element
+                .style()
+                .set_property(SAFE_AREA_BOTTOM_PROPERTY, &bottom_value);
+            let _: Result<(), JsValue> = element
+                .style()
+                .set_property(SAFE_AREA_LEFT_PROPERTY, &left_value);
         };
         if let Some(app_root) = document_value
             .query_selector(APP_ROOT_MOBILE_SELECTOR)

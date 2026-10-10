@@ -196,27 +196,8 @@ pub(crate) const MAIN_CONTAINER_SELECTOR_MOBILE: &str = "[class*=c_mobile_main]"
 /// The `type` attribute of the password gate's input element.
 pub(crate) const INPUT_TYPE_PASSWORD: &str = "password";
 
-/// The `placeholder` of the password gate's input element.
-pub(crate) const INPUT_PLACEHOLDER_PASSWORD: &str = "密码";
-
-/// The hint paragraph explaining why the page is locked.
-pub(crate) const PASSWORD_GATE_HINT: &str = "本文受密码保护，输入密码后即可查看内容。";
-
-/// The button label shown while the password digest is being computed.
-pub(crate) const PASSWORD_GATE_BUSY_LABEL: &str = "验证中…";
-
-/// The button label shown when the gate is idle.
-pub(crate) const PASSWORD_GATE_IDLE_LABEL: &str = "解锁";
-
-/// The message shown after a wrong password, in place of the page body.
-pub(crate) const PASSWORD_ERROR_MESSAGE: &str = "密码错误，请重试。";
-
 /// The `KeyboardEvent.key` value that submits the password form.
 pub(crate) const KEY_ENTER: &str = "Enter";
-
-/// The `.html` suffix appended to generated page files, tested to decide
-/// whether a route needs a trailing-slash normalisation.
-pub(crate) const ROUTE_HTML_SUFFIX: &str = ".html";
 
 /// The URL scheme prefix that marks a link as external (leaving the SPA),
 /// tested with `starts_with` so both `http` and `https` match.

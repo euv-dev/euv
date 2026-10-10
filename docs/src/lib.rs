@@ -7,20 +7,26 @@
 mod app;
 mod component;
 mod data;
+mod locale;
+mod route;
 mod router;
 
 mod generated {
     include!(concat!(env!("OUT_DIR"), "/docs_gen.rs"));
 }
 
-pub use std::{rc::Rc, sync::Arc};
+pub use {
+    locale::*,
+    route::*,
+    router::*,
+    std::{rc::Rc, sync::Arc},
+};
 
 pub(crate) use {
     app::*,
     component::*,
     data::*,
     js_sys::{Promise, decode_uri_component, eval},
-    router::*,
     {Event, HtmlInputElement, KeyboardEvent, Location},
 };
 

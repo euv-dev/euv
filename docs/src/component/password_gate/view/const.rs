@@ -59,3 +59,12 @@ class! {
 /// prefixes don't collide and so the key is plain ASCII (localStorage
 /// keys must not contain newlines or other control chars).
 pub(crate) const UNLOCK_KEY_PREFIX: &str = "euv-docs:unlocked:";
+
+/// The `id` prefix of the password input element. The route is appended
+/// so two gates on screen at once (a private page plus a private page in
+/// the prefetched locale) keep distinct ids and distinct labels.
+pub(crate) const INPUT_ID_PREFIX: &str = "pw-gate-";
+
+/// The `autocomplete` value that keeps a password manager from
+/// offering to fill or save the unlock field.
+pub(crate) const INPUT_AUTOCOMPLETE_OFF: &str = "off";

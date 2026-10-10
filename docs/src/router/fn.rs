@@ -22,7 +22,7 @@ use super::*;
 /// - `String` - The decoded UTF-8 anchor slug, or the input
 ///   unchanged if decoding fails.
 fn decode_anchor(encoded: &str) -> String {
-    if !encoded.as_bytes().contains(&b'%') {
+    if !encoded.as_bytes().contains(&ANCHOR_ESCAPE) {
         // Fast path: nothing to decode, skip the FFI roundtrip.
         return encoded.to_string();
     }
@@ -50,7 +50,7 @@ fn decode_anchor(encoded: &str) -> String {
 /// # Returns
 ///
 /// - `(String, Option<String>)` - The page path and optional anchor slug.
-pub(crate) fn parse_route(raw: &str) -> (String, Option<String>) {
+pub fn parse_route(raw: &str) -> (String, Option<String>) {
     match raw.split_once('#') {
         Some((path, anchor)) if !anchor.is_empty() => {
             (path.to_string(), Some(decode_anchor(anchor)))
@@ -71,11 +71,13 @@ pub(crate) fn parse_route(raw: &str) -> (String, Option<String>) {
 /// - `&'static DocsLocale` - The matched locale (root locale as fallback).
 pub(crate) fn locale_of(route: &str) -> &'static DocsLocale {
     let site: &DocsSite = &crate::generated::SITE;
+    let owner: Option<&'static RouteLocale> = route_site().locale_of(route);
+    let Some(owner) = owner else {
+        return &site.locales[0];
+    };
     site.locales
         .iter()
-        .filter(|locale: &&DocsLocale| locale.prefix != "/")
-        .find(|locale: &&DocsLocale| route.starts_with(locale.prefix))
-        .or_else(|| site.locales.iter().find(|locale| locale.prefix == "/"))
+        .find(|locale: &&DocsLocale| locale.prefix == owner.prefix)
         .unwrap_or(&site.locales[0])
 }
 
@@ -90,20 +92,10 @@ pub(crate) fn locale_of(route: &str) -> &'static DocsLocale {
 /// - `Option<&'static DocsPage>` - The page when found.
 pub(crate) fn find_page(route: &str) -> Option<&'static DocsPage> {
     let site: &DocsSite = &crate::generated::SITE;
+    let found: &'static RoutePage = route_site().find_page(route)?;
     site.pages
         .iter()
-        .find(|page: &&DocsPage| page.route == route)
-        .or_else(|| {
-            // `/guide` → `/guide/`, `/guide/` stays as-is.
-            if route.ends_with('/') || route.ends_with(ROUTE_HTML_SUFFIX) {
-                None
-            } else {
-                let with_slash: String = format!("{route}/");
-                site.pages
-                    .iter()
-                    .find(|page: &&DocsPage| page.route == with_slash)
-            }
-        })
+        .find(|page: &&DocsPage| page.route == found.route)
 }
 
 /// Finds the sidebar scope that contains the given route.
@@ -225,4 +217,93 @@ pub(crate) fn route_in_locale(route: &str, target: &'static DocsLocale) -> Strin
     } else {
         target.prefix.to_string()
     }
+}
+
+/// Builds the route layer's view of the generated site.
+///
+/// # Returns
+///
+/// - `RouteSite` - The site's locale prefixes and page routes.
+pub(crate) fn build_route_site() -> RouteSite {
+    let site: &'static DocsSite = &crate::generated::SITE;
+    let locales: &'static [RouteLocale] = leak_locales(site.locales);
+    let pages: &'static [RoutePage] = leak_pages(site.pages);
+    RouteSite::new(locales, pages)
+}
+
+/// Projects the generated locale list onto the route layer's view.
+///
+/// # Arguments
+///
+/// - `&'static [DocsLocale]` - The generated locales.
+///
+/// # Returns
+///
+/// - `&'static [RouteLocale]` - The same locales, reduced to prefixes.
+pub(crate) fn leak_locales(locales: &'static [DocsLocale]) -> &'static [RouteLocale] {
+    Box::leak(
+        locales
+            .iter()
+            .map(|locale: &DocsLocale| RouteLocale {
+                prefix: locale.prefix,
+            })
+            .collect::<Vec<RouteLocale>>()
+            .into_boxed_slice(),
+    )
+}
+
+/// Projects the generated page list onto the route layer's view.
+///
+/// # Arguments
+///
+/// - `&'static [DocsPage]` - The generated pages.
+///
+/// # Returns
+///
+/// - `&'static [RoutePage]` - The same pages, reduced to routes.
+pub(crate) fn leak_pages(pages: &'static [DocsPage]) -> &'static [RoutePage] {
+    Box::leak(
+        pages
+            .iter()
+            .map(|page: &DocsPage| RoutePage { route: page.route })
+            .collect::<Vec<RoutePage>>()
+            .into_boxed_slice(),
+    )
+}
+
+/// Returns the generated site projected onto the route layer's view.
+///
+/// # Returns
+///
+/// - `RouteSite` - The site's locale prefixes and page routes.
+pub fn route_site() -> RouteSite {
+    ROUTE_SITE.with(RouteSite::clone)
+}
+
+/// Returns the route prefix the locale owning `route` is served at.
+///
+/// # Arguments
+///
+/// - `&str` - The page route path.
+///
+/// # Returns
+///
+/// - `&'static str` - The owning locale's prefix.
+pub fn locale_prefix_for(route: &str) -> &'static str {
+    locale_of(route).prefix
+}
+
+/// Returns the display label the locale owning `route` is declared
+/// under.
+///
+/// # Arguments
+///
+/// - `&str` - The page route path.
+///
+/// # Returns
+///
+/// - `&'static str` - The owning locale's label, as `build.rs` emitted
+///   it from the content repository's `[[locales]]` frontmatter.
+pub fn locale_label_for(route: &str) -> &'static str {
+    locale_of(route).label
 }

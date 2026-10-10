@@ -89,6 +89,15 @@ fn unlock_key_for(route: &str) -> String {
 /// - On mismatch, replaces the input with a red border + an error
 ///   message; the password field is cleared so the user can retry
 ///   without leaking what they typed into form history.
+///
+/// # Localisation
+///
+/// Every user-facing string — the hint, the button's idle and busy
+/// labels, the error, the input's placeholder and its accessible name —
+/// comes from [`locale_text`], keyed on the route's locale. The view
+/// holds no language branch of its own, so adding a fifth language is a
+/// row in the locale table and nothing here changes.
+///
 /// # Why a custom form instead of `<euv_field>` / `<euv_button>`
 ///
 /// # Arguments
@@ -114,7 +123,7 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
         expected_hash,
         title,
     }: DocsPasswordGateProps = node.try_get_props().unwrap_or_default();
-    let input_id: String = format!("pw-gate-{route}");
+    let input_id: String = format!("{INPUT_ID_PREFIX}{route}");
     let unlock_key: String = unlock_key_for(route);
     let input_signal: Signal<String> = App::use_signal(String::new);
     let error_signal: Signal<String> = App::use_signal(String::new);
@@ -143,14 +152,15 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                 p {
                     class: c_pw_gate_hint()
                     {
-                        PASSWORD_GATE_HINT
+                        locale_text(route, PW_GATE_KEY_HINT)
                     }
                 }
                 input {
                     id: input_id.clone()
                     type: INPUT_TYPE_PASSWORD
-                    placeholder: INPUT_PLACEHOLDER_PASSWORD
-                    autocomplete: "off"
+                    aria-label: locale_text(route, PW_GATE_KEY_LABEL)
+                    placeholder: locale_text(route, PW_GATE_KEY_PLACEHOLDER)
+                    autocomplete: INPUT_AUTOCOMPLETE_OFF
                     class: if { !error_signal.get().is_empty() } {
                         c_euv_input_error()
                     } else {
@@ -174,11 +184,11 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                         onclick: submit
                         if { busy_signal.get() } {
                             {
-                                PASSWORD_GATE_BUSY_LABEL
+                                locale_text(route, PW_GATE_KEY_BUSY)
                             }
                         } else {
                             {
-                                PASSWORD_GATE_IDLE_LABEL
+                                locale_text(route, PW_GATE_KEY_IDLE)
                             }
                         }
                     }
@@ -193,6 +203,12 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
 /// unlock record into localStorage **and** forces a route re-resolution
 /// so the parent renders the page body instead of the gate. On failure
 /// sets an error message and clears the input.
+///
+/// The error text is resolved to the route's locale before the digest
+/// starts rather than read back inside the async block: `locale_text`
+/// reads the generated site, which is `&'static` data, so resolving it
+/// up front keeps the closure free of the site lookup and means the
+/// message cannot change underneath a digest that is already in flight.
 ///
 /// # Arguments
 ///
@@ -214,6 +230,7 @@ fn submit_handler(
     error_signal: Signal<String>,
     busy_signal: Signal<bool>,
 ) -> Option<Rc<dyn Fn(Event)>> {
+    let error_message: String = locale_text(route, PW_GATE_KEY_ERROR);
     Some(Rc::new(move |_event: Event| {
         let typed: String = input_signal.get();
         if typed.is_empty() || busy_signal.get() {
@@ -224,6 +241,7 @@ fn submit_handler(
         let route_static: &'static str = route;
         let unlock_key_owned: String = unlock_key.clone();
         let expected_hash_owned: &'static str = expected_hash;
+        let error_message_owned: String = error_message.clone();
         spawn_local(async move {
             let digest: Option<String> = async_sha256_hex(&typed).await;
             let matched: bool = digest
@@ -250,7 +268,7 @@ fn submit_handler(
                 input_signal.set(String::new());
                 error_signal.set(String::new());
             } else {
-                error_signal.set(PASSWORD_ERROR_MESSAGE.to_string());
+                error_signal.set(error_message_owned);
                 input_signal.set(String::new());
             }
             busy_signal.set(false);

@@ -10,6 +10,27 @@ pub(crate) const WINDOW_EVENT_WEBKIT_FULLSCREEN_CHANGE: &str = "webkitfullscreen
 /// The CSS custom property carrying the real top safe-area inset for the immersive shell.
 pub(crate) const IMMERSIVE_SAFE_TOP_PROPERTY: &str = "--euv-mobile-safe-top";
 
+/// The CSS custom property carrying the real right safe-area inset for the app shell.
+pub(crate) const SAFE_AREA_RIGHT_PROPERTY: &str = "--euv-safe-right";
+
+/// The CSS custom property carrying the real bottom safe-area inset for the app shell.
+pub(crate) const SAFE_AREA_BOTTOM_PROPERTY: &str = "--euv-safe-bottom";
+
+/// The CSS custom property carrying the real left safe-area inset for the app shell.
+pub(crate) const SAFE_AREA_LEFT_PROPERTY: &str = "--euv-safe-left";
+
+/// The inset written for every side whose measured `env()` value is not trusted.
+pub(crate) const SAFE_AREA_ZERO_VALUE: &str = "0px";
+
+/// The unit every resolved `env(safe-area-inset-*)` pixel value ends with.
+pub(crate) const SAFE_AREA_PIXEL_UNIT: &str = "px";
+
+/// The largest `screen.height - window.innerHeight` gap still treated as edge-to-edge.
+///
+/// Any letterbox below a system status bar already exceeds it, so a browser
+/// that crops the viewport out of the screen is never trusted.
+pub(crate) const SAFE_AREA_LETTERBOX_TOLERANCE_PX: f64 = 24.0;
+
 /// The `window` property a host sets to declare edge-to-edge (immersive) mode.
 pub(crate) const IMMERSIVE_WINDOW_FLAG_PROPERTY: &str = "__EUV_IMMERSIVE__";
 

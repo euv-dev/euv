@@ -103,10 +103,10 @@ vars! {
         // ═══════════════════════════════════════════════════════════════════════
         // Layout (shadcn/ui aligned)
         // ═══════════════════════════════════════════════════════════════════════
-        safe-area-inset-top: "env(safe-area-inset-top, 0px)";
-        safe-area-inset-right: "env(safe-area-inset-right, 0px)";
-        safe-area-inset-bottom: "env(safe-area-inset-bottom, 0px)";
-        safe-area-inset-left: "env(safe-area-inset-left, 0px)";
+        safe-area-inset-top: "var(--euv-mobile-safe-top, 0px)";
+        safe-area-inset-right: "var(--euv-safe-right, 0px)";
+        safe-area-inset-bottom: "var(--euv-safe-bottom, 0px)";
+        safe-area-inset-left: "var(--euv-safe-left, 0px)";
         padding-shell-top: var!(safe-area-inset-top);
         padding-shell-bottom: var!(safe-area-inset-bottom);
         padding-main-top: "24px";
@@ -286,10 +286,10 @@ vars! {
         // ═══════════════════════════════════════════════════════════════════════
         // Layout (same as light)
         // ═══════════════════════════════════════════════════════════════════════
-        safe-area-inset-top: "env(safe-area-inset-top, 0px)";
-        safe-area-inset-right: "env(safe-area-inset-right, 0px)";
-        safe-area-inset-bottom: "env(safe-area-inset-bottom, 0px)";
-        safe-area-inset-left: "env(safe-area-inset-left, 0px)";
+        safe-area-inset-top: "var(--euv-mobile-safe-top, 0px)";
+        safe-area-inset-right: "var(--euv-safe-right, 0px)";
+        safe-area-inset-bottom: "var(--euv-safe-bottom, 0px)";
+        safe-area-inset-left: "var(--euv-safe-left, 0px)";
         padding-shell-top: var!(safe-area-inset-top);
         padding-shell-bottom: var!(safe-area-inset-bottom);
         padding-main-top: "24px";

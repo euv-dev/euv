@@ -23,6 +23,7 @@ mod previous_step;
 mod profiler;
 mod router;
 mod router_select;
+mod safe_area_contract;
 mod suspense;
 mod throttled_value;
 mod toggle;
