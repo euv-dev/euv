@@ -153,13 +153,13 @@ pub(crate) const EUV_MD_CSS: &str = r#"
 .md-body a {
     color: var(--accent);
     font-weight: 500;
-    /* Static underline, no hover variant. A link that restyles itself on
-       hover reads as a state change rather than a link, and the dashed ->
-       solid swap made every hovered link shimmer. Keep one treatment for
-       both states; the accent colour alone carries the affordance. */
+    /* Static dashed underline, no hover variant. A link that restyles itself
+       on hover reads as a state change rather than a link, and the dashed ->
+       solid swap made every hovered link shimmer. Keep one treatment for both
+       states; the accent colour alone carries the affordance. */
     text-decoration: underline;
     text-underline-offset: 3px;
-    text-decoration-style: solid;
+    text-decoration-style: dashed;
     text-decoration-color: var(--border);
 }
 .md-body strong { font-weight: 700; }
