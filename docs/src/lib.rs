@@ -43,6 +43,12 @@ use {
 #[wasm_bindgen]
 pub fn main() {
     console_error_panic_hook::set_once();
+    // Foreign-locale hash routes (old single-bundle links, legacy aliases)
+    // are redirected before any rendering work happens; a cross-bundle
+    // redirect replaces the page, so mounting is skipped entirely then.
+    if redirect_foreign_route() {
+        return;
+    }
     inject_app_global_css();
     Css::inject_css(euv_md_css());
     Css::inject_css(APP_GLOBAL_CSS);

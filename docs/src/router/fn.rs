@@ -189,34 +189,77 @@ pub(crate) fn flatten_links(items: &'static [EuvSidebarItem]) -> Vec<&'static Eu
     out
 }
 
-/// Maps a route to the equivalent route in another locale.
+/// Computes the site root URL path from the current location.
 ///
-/// Falls back to the target locale home when the page has no counterpart.
-///
-/// # Arguments
-///
-/// - `&str` - The current page route path.
-/// - `&'static DocsLocale` - The target locale.
+/// Every locale bundle is served from its own directory under the site
+/// root (the default locale at the root itself, `/en/` from `<root>/en/`),
+/// so stripping this bundle's directory (`SITE_LOCALE_DIR`) off the
+/// current pathname yields the site root the language switcher and the
+/// boot redirect build cross-locale URLs from.
 ///
 /// # Returns
 ///
-/// - `String` - The target route.
-pub(crate) fn route_in_locale(route: &str, target: &'static DocsLocale) -> String {
-    let current: &DocsLocale = locale_of(route);
-    let suffix: &str = route
-        .strip_prefix(current.prefix.trim_end_matches('/'))
-        .unwrap_or(route);
-    let suffix: &str = if suffix.is_empty() { "/" } else { suffix };
-    let candidate: String = if target.prefix == "/" {
-        suffix.to_string()
-    } else {
-        format!("{}{}", target.prefix.trim_end_matches('/'), suffix)
+/// - `String` - The site root path with a trailing slash (e.g. `/pages/`).
+pub(crate) fn site_root() -> String {
+    let Some(window) = window() else {
+        return URL_PATH_ROOT.to_string();
     };
-    if find_page(&candidate).is_some() {
-        candidate
-    } else {
-        target.prefix.to_string()
+    let Ok(mut path) = window.location().pathname() else {
+        return URL_PATH_ROOT.to_string();
+    };
+    if !path.ends_with('/') {
+        path.push('/');
     }
+    if !crate::generated::SITE_LOCALE_DIR.is_empty()
+        && let Some(root) = path.strip_suffix(crate::generated::SITE_LOCALE_DIR)
+    {
+        return root.to_string();
+    }
+    path
+}
+
+/// Redirects boot when the hash names a route this bundle does not serve.
+///
+/// Per-locale bundling gives every locale its own directory, but links
+/// written against the old single-bundle site (`<root>/#/en/…`) still
+/// arrive at the default bundle, and alias prefixes (`/zh/…`) arrive at
+/// their canonical bundle. `SITE_REDIRECTS` maps those foreign prefixes:
+/// an entry with an empty `to_dir` rewrites the hash in place, any other
+/// entry replaces the location with the owning bundle's directory.
+///
+/// # Returns
+///
+/// - `bool` - `true` when a cross-directory navigation was started and the
+///   caller must skip mounting (the page is being replaced).
+pub(crate) fn redirect_foreign_route() -> bool {
+    let Some(window) = window() else {
+        return false;
+    };
+    let location: Location = window.location();
+    let Ok(hash) = location.hash() else {
+        return false;
+    };
+    let path: &str = hash.strip_prefix('#').unwrap_or(&hash);
+    for redirect in crate::generated::SITE_REDIRECTS {
+        let head: &str = redirect.from;
+        let boundary: bool = path == head
+            || path
+                .strip_prefix(head)
+                .is_some_and(|rest: &str| rest.starts_with('/'));
+        if !boundary {
+            continue;
+        }
+        let bare: &str = &path[head.len()..];
+        let bare: &str = if bare.is_empty() { URL_PATH_ROOT } else { bare };
+        if redirect.to_dir.is_empty() {
+            let _: Result<(), JsValue> = location.set_hash(bare);
+            return false;
+        }
+        let url: String = format!("{}{}#{}", site_root(), redirect.to_dir, bare);
+        let _: Result<(), JsValue> = location.replace(&url);
+        return true;
+    }
+    false
 }
 
 /// Builds the route layer's view of the generated site.
@@ -296,6 +339,13 @@ pub fn locale_prefix_for(route: &str) -> &'static str {
 /// Returns the display label the locale owning `route` is declared
 /// under.
 ///
+/// The label is matched by route prefix against the site's language
+/// list, which is where `build.rs` puts every label once per-locale
+/// bundling moved them out of `DocsLocale` and into the cross-bundle
+/// switcher. A prefix with no matching entry (the root bundle serving
+/// routes it does not declare) falls back to the first declared label,
+/// so the caller always gets a real string rather than an empty one.
+///
 /// # Arguments
 ///
 /// - `&str` - The page route path.
@@ -305,5 +355,16 @@ pub fn locale_prefix_for(route: &str) -> &'static str {
 /// - `&'static str` - The owning locale's label, as `build.rs` emitted
 ///   it from the content repository's `[[locales]]` frontmatter.
 pub fn locale_label_for(route: &str) -> &'static str {
-    locale_of(route).label
+    let prefix: &str = locale_of(route).prefix;
+    for language in crate::generated::SITE_LANGUAGES {
+        if language.dir.is_empty() && prefix == "/" {
+            return language.label;
+        }
+        if language.dir == prefix.trim_start_matches('/') {
+            return language.label;
+        }
+    }
+    crate::generated::SITE_LANGUAGES
+        .first()
+        .map_or("", |language: &'static DocsLanguageLink| language.label)
 }

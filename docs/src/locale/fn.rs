@@ -11,6 +11,11 @@ use super::*;
 /// back to [`LOCALE_TAG_DEFAULT`], because the English table is the
 /// complete one and a missing tag must never leave the gate blank.
 ///
+/// The label lives on the site's language list rather than on
+/// `DocsLocale`: per-locale bundling serves each language from its own
+/// directory, so the switcher is the one place that carries every
+/// label a bundle can be reached by.
+///
 /// # Arguments
 ///
 /// - `&str` - The page route path.
@@ -19,7 +24,7 @@ use super::*;
 ///
 /// - `&'static str` - The locale tag for the route's locale.
 pub fn locale_tag_for(route: &str) -> &'static str {
-    let label: &str = locale_of(route).label;
+    let label: &str = locale_label_for(route);
     for (entry_label, entry_tag) in LOCALE_TAGS {
         if entry_label == label {
             return entry_tag;
