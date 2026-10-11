@@ -51,45 +51,7 @@ pub(crate) const EUV_NO_INLINE_BRIDGE_ENV: &str = "EUV_NO_INLINE_BRIDGE";
 /// in-app loading overlay and follows the OS colour scheme before the
 /// wasm theme hook takes over. Tokens are declared locally because the
 /// theme classes are injected by the wasm bundle, which has not run yet.
-pub(crate) const LOADING_STYLE: &str = r#"<style>
-      :root {
-        --background: #ffffff;
-        --accent: #000000;
-        --accent-muted: #ffffff;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --background: #000000;
-          --accent: #ffffff;
-          --accent-muted: #000000;
-        }
-      }
-      #euv-loading {
-        position: fixed;
-        inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: var(--background);
-        z-index: 9999;
-      }
-      #euv-loading > div {
-        width: 28px;
-        height: 28px;
-        border: 3px solid var(--accent-muted);
-        border-top-color: var(--accent);
-        border-radius: 50%;
-        box-sizing: border-box;
-        animation: euv-spin 0.8s linear infinite;
-      }
-      @keyframes euv-spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        #euv-loading > div { animation-duration: 1.6s; }
-      }
-    </style>"#;
+pub(crate) const LOADING_STYLE: &str = r#"<style>:root { --background: #ffffff; --accent: #000000; --accent-muted: #ffffff; } @media (prefers-color-scheme: dark) { :root { --background: #000000; --accent: #ffffff; --accent-muted: #000000; } } #euv-loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--background); z-index: 9999; } #euv-loading > div { width: 28px; height: 28px; border: 3px solid var(--accent-muted); border-top-color: var(--accent); border-radius: 50%; box-sizing: border-box; animation: euv-spin 0.8s linear infinite; } @keyframes euv-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @media (prefers-reduced-motion: reduce) { #euv-loading > div { animation-duration: 1.6s; } }</style>"#;
 
 /// The `<div>` element for the pre-render spinner, injected into `<body>`.
 ///
@@ -104,34 +66,7 @@ pub(crate) const LOADING_ELEMENT: &str = r#"<div id="euv-loading"><div></div></d
 /// for the framework's first child: `main()` mounts synchronously but the
 /// renderer commits on the next frame, so removing the spinner on
 /// `main()` alone would expose an empty viewport for one frame.
-pub(crate) const LOADING_REMOVAL_SCRIPT: &str = r#"
-    (function () {
-      var node = document.getElementById('euv-loading');
-      if (!node) {
-        return;
-      }
-      var app = document.getElementById('app');
-      function remove() {
-        if (node && node.parentNode) {
-          node.parentNode.removeChild(node);
-        }
-      }
-      if (!app) {
-        remove();
-        return;
-      }
-      if (app.firstChild) {
-        remove();
-        return;
-      }
-      var observer = new MutationObserver(function () {
-        if (app.firstChild) {
-          observer.disconnect();
-          remove();
-        }
-      });
-      observer.observe(app, { childList: true });
-    })();"#;
+pub(crate) const LOADING_REMOVAL_SCRIPT: &str = r#"(function () { var node = document.getElementById('euv-loading'); if (!node) { return; } var app = document.getElementById('app'); function remove() { if (node && node.parentNode) { node.parentNode.removeChild(node); } } if (!app) { remove(); return; } if (app.firstChild) { remove(); return; } var observer = new MutationObserver(function () { if (app.firstChild) { observer.disconnect(); remove(); } }); observer.observe(app, { childList: true }); })();"#;
 
 /// Placeholder token for the pre-render spinner `<style>` block.
 pub(crate) const LOADING_STYLE_PLACEHOLDER: &str = "__EUV_LOADING_STYLE__";
@@ -263,71 +198,20 @@ pub(crate) const INDEX_HTML_DEV: &str = r#"<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-visual"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-visual" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta
-      name="description"
-      content="A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly."
-    />
-    <meta
-      name="keywords"
-      content="rust, webassembly, wasm, ui-framework, virtual-dom, reactive, declarative-ui, euv"
-    />
+    <meta name="description" content="A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly." />
+    <meta name="keywords" content="rust, webassembly, wasm, ui-framework, virtual-dom, reactive, declarative-ui, euv" />
     <meta property="og:title" content="euv" />
-    <meta
-      property="og:description"
-      content="A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly."
-    />
+    <meta property="og:description" content="A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly." />
     <meta property="og:type" content="website" />
-    <title>Euv</title>
-    __EUV_BASE_HREF_TAG__
-    <style>
-      * {
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-        text-rendering: optimizeLegibility;
-      }
-      canvas {
-        image-rendering: auto;
-      }
-    </style>
-__EUV_LOADING_STYLE__
-  </head>
-  <body>
-__EUV_LOADING_ELEMENT__
-    <div id="app"></div>
+    <title>Euv</title>__EUV_BASE_HREF_TAG__<style>* { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; } canvas { image-rendering: auto; }</style>__EUV_LOADING_STYLE__</head>
+  <body>__EUV_LOADING_ELEMENT__<div id="app"></div>
   </body>
-  <script>
-__EUV_INLINE_JS__
-  </script>
-  <script>
-__EUV_LOADING_REMOVAL__
-  </script>
-  <script>
-    (function () {
-      async function connect() {
-        try {
-          const res = await fetch('/__euv_reload');
-          const data = await res.json();
-          if (data.type === 'Reload') {
-            location.reload();
-          } else if (data.type === 'Error') {
-            console.error('[euv] build error:', data.message);
-            setTimeout(connect, 1000);
-          } else {
-            setTimeout(connect, 1000);
-          }
-        } catch (_) {
-          setTimeout(connect, 2000);
-        }
-      }
-      connect();
-    })();
-  </script>
+  <script>__EUV_INLINE_JS__</script>
+  <script>__EUV_LOADING_REMOVAL__</script>
+  <script>(function () { async function connect() { try { const res = await fetch('/__euv_reload'); const data = await res.json(); if (data.type === 'Reload') { location.reload(); } else if (data.type === 'Error') { console.error('[euv] build error:', data.message); setTimeout(connect, 1000); } else { setTimeout(connect, 1000); } } catch (_) { setTimeout(connect, 2000); } } connect(); })();</script>
 </html>
 "#;
 
@@ -340,50 +224,19 @@ pub(crate) const INDEX_HTML_RELEASE: &str = r#"<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-visual"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-visual" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta
-      name="description"
-      content="A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly."
-    />
-    <meta
-      name="keywords"
-      content="rust, webassembly, wasm, ui-framework, virtual-dom, reactive, declarative-ui, euv"
-    />
+    <meta name="description" content="A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly." />
+    <meta name="keywords" content="rust, webassembly, wasm, ui-framework, virtual-dom, reactive, declarative-ui, euv" />
     <meta property="og:title" content="euv" />
-    <meta
-      property="og:description"
-      content="A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly."
-    />
+    <meta property="og:description" content="A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly." />
     <meta property="og:type" content="website" />
-    <title>Euv</title>
-    __EUV_BASE_HREF_TAG__
-    <style>
-      * {
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-        text-rendering: optimizeLegibility;
-      }
-      canvas {
-        image-rendering: auto;
-      }
-    </style>
-__EUV_LOADING_STYLE__
-  </head>
-  <body>
-__EUV_LOADING_ELEMENT__
-    <div id="app"></div>
+    <title>Euv</title>__EUV_BASE_HREF_TAG__<style>* { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; } canvas { image-rendering: auto; }</style>__EUV_LOADING_STYLE__</head>
+  <body>__EUV_LOADING_ELEMENT__<div id="app"></div>
   </body>
-  <script>
-__EUV_INLINE_JS__
-  </script>
-  <script>
-__EUV_LOADING_REMOVAL__
-  </script>
+  <script>__EUV_INLINE_JS__</script>
+  <script>__EUV_LOADING_REMOVAL__</script>
 </html>
 "#;
 
