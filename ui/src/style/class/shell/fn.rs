@@ -352,25 +352,23 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "center";
-        // The trigger mirrors the sidebar's hover affordance: the dashed
-        // border thickens to the foreground colour and a translucent wash
-        // derived from the text colour appears behind the label. The wash is
-        // `color-mix` on `foreground` rather than `accent-muted`, because in
-        // the monochrome palette `accent-muted` resolves to the same value as
-        // `background` (white on light, black on dark) and would be invisible.
+        // Hover changes the border only. A background wash was removed here
+        // for the same reason it was removed from `c_euv_dropdown_item`: the
+        // locale switcher sits directly above the sidebar, and a tinted
+        // block under the label competed with the page's own scroll position
+        // and made the control look like a selected page rather than a
+        // pending click.
         :hover {
             border-color: var!(foreground);
-            background: format!("color-mix(in srgb, {} 8%, transparent)", var!(foreground));
         }
         :focus-visible {
             outline: "none";
         }
-        // `:active` must not reset the hover styles: it only fires while the
-        // pointer is held, and zeroing the background there is what made the
-        // click look like nothing happened.
+        // `:active` must not reset the hover border either: it only fires
+        // while the pointer is held, and dropping back to the base border
+        // there made the press look like the hover never registered.
         :active {
             border-color: var!(foreground);
-            background: format!("color-mix(in srgb, {} 12%, transparent)", var!(foreground));
         }
     }
 
