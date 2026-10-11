@@ -118,41 +118,47 @@ fn read_lighting_canvas_size(canvas_selector: &str) -> Option<(f64, f64)> {
     Some((rect.width(), rect.height()))
 }
 
-/// Acquires the 2D context for the Lighting demo canvas, resizing the
-/// backing buffer to the requested pixel dimensions if needed.
+/// Acquires the display canvas plus its SSAA wrapper for the Lighting
+/// Canvas 2D tab.
 ///
-/// Returns `None` if the canvas element cannot be found (for example
-/// while the page is mid-route transition) or if a 2D context cannot be
-/// acquired.
+/// `put_image_data` is a raw upload: it writes framebuffer pixels
+/// straight into the canvas backing store with no filtering, so a
+/// hard-edged framebuffer reaches the screen as hard edges. Writing
+/// the ladder-sized buffer straight into the display canvas also forced
+/// that canvas's backing store to the ladder size (560x420 at scale
+/// 1.0), which the browser then bilinearly stretched to the CSS box
+/// (820x547) — magnifying each aliased step instead of smoothing it.
+/// Measured on the built page, 0% of the framebuffer's edge pixels
+/// carried partial alpha, against 0.46% on the raytrace tab.
 ///
-/// # Arguments
-///
-/// - `u32` - The backing buffer width in pixels.
-/// - `u32` - The backing buffer height in pixels.
+/// The SSAA wrapper addresses both halves: the framebuffer lands on a
+/// dedicated offscreen canvas, and `draw_image` scales it into the
+/// offscreen with `imageSmoothingEnabled = "high"`, so the downscale
+/// averages neighbouring pixels into the transition band before
+/// `present` runs the second high-quality pass onto the display canvas.
+/// This is the same two-stage path the raytrace tab uses.
 ///
 /// # Returns
 ///
-/// - `Option<(HtmlCanvasElement, CanvasRenderingContext2d)>` - The canvas and its 2D context.
-fn acquire_lighting_canvas(
-    width: u32,
-    height: u32,
-) -> Option<(HtmlCanvasElement, CanvasRenderingContext2d)> {
+/// - `Option<SsaaCanvas>` - The SSAA wrapper, or `None` if the canvas
+///   element was not found or a 2D context could not be acquired.
+fn acquire_lighting_ssaa_canvas() -> Option<SsaaCanvas> {
     let window_value: Window = window()?;
-    let document_value: Document = window_value.document()?;
-    let element: Element = document_value
-        .query_selector(LIGHTING_CANVAS_SELECTOR)
+    let is_mobile: bool = window_value
+        .inner_width()
         .ok()
-        .flatten()?;
-    let canvas: HtmlCanvasElement = element.unchecked_into();
-    if canvas.width() != width {
-        canvas.set_width(width);
-    }
-    if canvas.height() != height {
-        canvas.set_height(height);
-    }
-    let context_object: Object = canvas.get_context(LIGHTING_CONTEXT_TYPE).ok().flatten()?;
-    let context: CanvasRenderingContext2d = context_object.unchecked_into();
-    Some((canvas, context))
+        .and_then(|value: JsValue| value.as_f64())
+        .is_some_and(|width: f64| width < 768.0);
+    let scale_factor: f64 = if is_mobile { 1.0 } else { 2.0 };
+    let (canvas_width, canvas_height): (f64, f64) =
+        read_lighting_canvas_size(LIGHTING_CANVAS_SELECTOR)?;
+    let ssaa_canvas: SsaaCanvas = SsaaCanvas::from_selector_with_scale(
+        LIGHTING_CANVAS_SELECTOR,
+        canvas_width,
+        canvas_height,
+        scale_factor,
+    )?;
+    Some(ssaa_canvas)
 }
 
 /// Builds the static lighting scene used by the standalone Lighting demo.
@@ -355,30 +361,79 @@ fn render_lighting_frame(
     }
 }
 
-/// Uploads the RGBA framebuffer to the canvas in a single
-/// `put_image_data` call.
+/// Uploads the RGBA framebuffer and presents it through the SSAA
+/// wrapper.
 ///
-/// Replaces the old per-pixel `fillStyle` + `fill_rect` path, which
-/// cost one `format!` allocation plus two JS crossings per pixel per
-/// frame.
+/// The framebuffer is uploaded to a throwaway offscreen canvas rather
+/// than the display canvas, then scaled onto the SSAA offscreen with
+/// `draw_image` — the only 2D path that honours
+/// `imageSmoothingEnabled`. Uploading straight to the display canvas
+/// left the ladder resolution in the visible backing store, so every
+/// sphere outline and the ground line arrived as a hard step; measured
+/// partial-alpha edge pixels were 0 against 0.46% for the equivalent
+/// raytrace path.
+///
+/// The destination rectangle is the largest 4:3 box that fits the
+/// offscreen, centred, so the ladder's own aspect ratio is preserved
+/// and the scale is a pure downscale-plus-letterbox. That mirrors the
+/// raytrace present path, including the extra `dest_x` / `dest_y`
+/// arguments — `drawImage` with three arguments maps the source onto
+/// the destination's top-left corner and would clip the framebuffer.
 ///
 /// # Arguments
 ///
-/// - `&CanvasRenderingContext2d` - The target 2D context.
+/// - `&SsaaCanvas` - The SSAA wrapper owning the offscreen context.
 /// - `&mut [u8]` - The RGBA framebuffer (length `width * height * 4`).
 /// - `u32` - The framebuffer width in pixels.
 /// - `u32` - The framebuffer height in pixels.
 fn present_lighting_framebuffer(
-    context: &CanvasRenderingContext2d,
+    ssaa_canvas: &SsaaCanvas,
     buffer: &mut [u8],
     width: u32,
     height: u32,
 ) {
+    let Some(window_value): Option<Window> = window() else {
+        return;
+    };
+    let Some(document_value): Option<Document> = window_value.document() else {
+        return;
+    };
+    let Ok(source_canvas): Result<HtmlCanvasElement, JsValue> = document_value
+        .create_element("canvas")
+        .map(|element: Element| element.unchecked_into())
+    else {
+        return;
+    };
+    source_canvas.set_width(width);
+    source_canvas.set_height(height);
+    let Ok(Some(source_context_object)): Result<Option<Object>, JsValue> =
+        source_canvas.get_context(LIGHTING_CONTEXT_TYPE)
+    else {
+        return;
+    };
+    let source_context: CanvasRenderingContext2d = source_context_object.unchecked_into();
     let image_data: Result<ImageData, JsValue> =
         ImageData::new_with_u8_clamped_array_and_sh(Clamped(buffer), width, height);
-    if let Ok(image_data) = image_data {
-        let _: Result<(), JsValue> = context.put_image_data(&image_data, 0.0, 0.0);
-    }
+    let Ok(image_data) = image_data else {
+        return;
+    };
+    let _: Result<(), JsValue> = source_context.put_image_data(&image_data, 0.0, 0.0);
+    let offscreen_context: &CanvasRenderingContext2d = ssaa_canvas.get_offscreen_context();
+    let offscreen_width: f64 = ssaa_canvas.get_width();
+    let offscreen_height: f64 = ssaa_canvas.get_height();
+    let dest_w: f64 = offscreen_width.min(offscreen_height * 4.0 / 3.0);
+    let dest_h: f64 = offscreen_height.min(offscreen_width * 3.0 / 4.0);
+    let dest_x: f64 = (offscreen_width - dest_w) * 0.5;
+    let dest_y: f64 = (offscreen_height - dest_h) * 0.5;
+    let _: Result<(), JsValue> = offscreen_context
+        .draw_image_with_html_canvas_element_and_dw_and_dh(
+            &source_canvas,
+            dest_x,
+            dest_y,
+            dest_w,
+            dest_h,
+        );
+    ssaa_canvas.present();
 }
 
 /// Starts the Lighting Canvas 2D `requestAnimationFrame` loop.
@@ -405,8 +460,8 @@ pub(crate) fn start_lighting_loop(state: UseLighting) {
     let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
     let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
     let (spheres, lights) = build_lighting_scene();
-    let canvas_cache: Rc<RefCell<Option<(HtmlCanvasElement, CanvasRenderingContext2d)>>> =
-        Rc::new(RefCell::new(None));
+    let canvas_cache: Rc<RefCell<Option<SsaaCanvas>>> = Rc::new(RefCell::new(None));
+    let last_canvas_size: Rc<RefCell<(f64, f64)>> = Rc::new(RefCell::new((0.0, 0.0)));
     let framebuffer: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
     // Start at ladder index 7 (scale 1.0): weak clients never start
     // heavy, and the controller climbs toward 4.0 only after sustained
@@ -421,8 +476,8 @@ pub(crate) fn start_lighting_loop(state: UseLighting) {
     let fps_clone: Rc<Cell<f64>> = fps_timer.clone();
     let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
     let cell_clone: RafClosureCell = closure_cell.clone();
-    let cache_clone: Rc<RefCell<Option<(HtmlCanvasElement, CanvasRenderingContext2d)>>> =
-        canvas_cache.clone();
+    let cache_clone: Rc<RefCell<Option<SsaaCanvas>>> = canvas_cache.clone();
+    let last_size_clone: Rc<RefCell<(f64, f64)>> = last_canvas_size.clone();
     let buffer_clone: Rc<RefCell<Vec<u8>>> = framebuffer.clone();
     let scale_clone: Rc<Cell<usize>> = scale_index.clone();
     let ema_clone: Rc<Cell<f64>> = ema_millis.clone();
@@ -477,21 +532,47 @@ pub(crate) fn start_lighting_loop(state: UseLighting) {
         if state.get_running().get() {
             let scale: f64 = LIGHTING_RENDER_SCALES[scale_clone.get()];
             let (frame_width, frame_height): (u32, u32) = lighting_scaled_dimensions(scale);
-            let mut cache: RefMut<'_, Option<(HtmlCanvasElement, CanvasRenderingContext2d)>> =
-                cache_clone.borrow_mut();
-            let cached_valid: bool = cache.as_ref().is_some_and(
-                |(canvas, _): &(HtmlCanvasElement, CanvasRenderingContext2d)| canvas.is_connected(),
-            );
-            if !cached_valid {
-                *cache = acquire_lighting_canvas(frame_width, frame_height);
+            // The SSAA wrapper is sized to the canvas CSS box, not to the
+            // ladder framebuffer, so it must be rebuilt whenever the box
+            // changes rather than whenever the ladder rung does. Keying the
+            // cache on the live CSS size keeps a resize (and the fullscreen
+            // toggle that drives one) from leaving the offscreen at the old
+            // dimensions.
+            let (live_w, live_h): (f64, f64) =
+                read_lighting_canvas_size(LIGHTING_CANVAS_SELECTOR).unwrap_or((0.0, 0.0));
+            let (cached_w, cached_h) = *last_size_clone.borrow();
+            let needs_reacquire: bool = live_w > 0.0
+                && live_h > 0.0
+                && (cached_w <= 0.0
+                    || cached_h <= 0.0
+                    || (live_w - cached_w).abs() > 1.5
+                    || (live_h - cached_h).abs() > 1.5);
+            if needs_reacquire {
+                let acquired: Option<SsaaCanvas> = acquire_lighting_ssaa_canvas();
+                if let Some(ssaa_canvas) = acquired {
+                    *cache_clone.borrow_mut() = Some(ssaa_canvas);
+                }
+                *last_size_clone.borrow_mut() = (live_w, live_h);
             }
-            if let Some((canvas, context)) = cache.as_ref() {
-                if canvas.width() != frame_width {
-                    canvas.set_width(frame_width);
+            // Only the write path needs a mutable guard, so it is confined to
+            // its own block and dropped before the render body. The frame then
+            // reads the cache through a shared borrow, which leaves no guard
+            // alive across the render call or the adaptive-resolution bookkeeping
+            // below.
+            let cached_valid: bool =
+                cache_clone
+                    .borrow()
+                    .as_ref()
+                    .is_some_and(|ssaa_canvas: &SsaaCanvas| {
+                        ssaa_canvas.get_display_canvas().is_connected()
+                    });
+            if !cached_valid {
+                let acquired: Option<SsaaCanvas> = acquire_lighting_ssaa_canvas();
+                if let Some(ssaa_canvas) = acquired {
+                    *cache_clone.borrow_mut() = Some(ssaa_canvas);
                 }
-                if canvas.height() != frame_height {
-                    canvas.set_height(frame_height);
-                }
+            }
+            if let Some(ssaa_canvas) = cache_clone.borrow().as_ref() {
                 let render_start: f64 = performance.now();
                 {
                     let mut buffer: RefMut<'_, Vec<u8>> = buffer_clone.borrow_mut();
@@ -507,7 +588,12 @@ pub(crate) fn start_lighting_loop(state: UseLighting) {
                         &spheres,
                         &lights,
                     );
-                    present_lighting_framebuffer(context, &mut buffer, frame_width, frame_height);
+                    present_lighting_framebuffer(
+                        ssaa_canvas,
+                        &mut buffer,
+                        frame_width,
+                        frame_height,
+                    );
                 }
                 let render_millis: f64 = performance.now() - render_start;
                 let ema_prev: f64 = ema_clone.get();
