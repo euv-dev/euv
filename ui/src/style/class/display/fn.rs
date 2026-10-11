@@ -930,12 +930,9 @@ class! {
         // or fixed positioning. This matches the desktop behavior and
         // Avoid any layout interference on mobile (where a sticky footer
         // would overlap the last lines of content while scrolling).
-        // `space-2xl` (1.5rem) above the footer matches the gap between
-        // article and pagination, keeping a consistent rhythm in the
-        // tail block. The previous `space-7xl` (5rem) was far beyond the
-        // typography scale and made the footer feel detached from the
-        // pagination.
-        margin-top: var!(space-2xl);
+        // No top margin: the preceding tail block already carries the gap
+        // between the article and its pagination, so a margin here would
+        // stack with it and leave the rule stranded below an empty band.
         // The dashed rule is this element's own `border-top`, so the
         // padding below is the gap from the rule to the text and the
         // padding above is the gap from the preceding content to the rule.
