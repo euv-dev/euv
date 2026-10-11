@@ -135,7 +135,10 @@ pub(crate) async fn generate_html(config: &HtmlConfig) -> Result<String, EuvErro
         .replace(BASE_HREF_PLACEHOLDER, &base_href_tag)
         .replace(IMPORT_PATH_PLACEHOLDER, config.get_import_path())
         .replace(RELOAD_ROUTE_PLACEHOLDER, RELOAD_ROUTE)
-        .replace(INLINE_JS_PLACEHOLDER, &inline_js);
+        .replace(INLINE_JS_PLACEHOLDER, &inline_js)
+        .replace(LOADING_STYLE_PLACEHOLDER, LOADING_STYLE)
+        .replace(LOADING_ELEMENT_PLACEHOLDER, LOADING_ELEMENT)
+        .replace(LOADING_REMOVAL_PLACEHOLDER, LOADING_REMOVAL_SCRIPT);
     let index_path: PathBuf = config.get_serving_root().join(INDEX_HTML_FILE_NAME);
     create_dir_all(config.get_serving_root())
         .await

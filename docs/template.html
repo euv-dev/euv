@@ -31,13 +31,18 @@
         padding: 0;
       }
     </style>
+__EUV_LOADING_STYLE__
   </head>
   <body>
+__EUV_LOADING_ELEMENT__
     <div id="app"></div>
   </body>
   <script type="module">
     import init, { main } from '__IMPORT_PATH__';
     await init();
     main();
+  </script>
+  <script>
+__EUV_LOADING_REMOVAL__
   </script>
 </html>
