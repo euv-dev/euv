@@ -10,12 +10,6 @@ pub(crate) const LINK_TARGET_BLANK: &str = "_blank";
 /// The sidebar section label that introduces the page list.
 pub(crate) const NAV_SECTION_LABEL_PAGES: &str = "Pages";
 
-/// The leading text of the sidebar footer credit, before the brand span.
-pub(crate) const NAV_FOOTER_CREDIT_PREFIX: &str = "Built with ";
-
-/// The brand name shown in the sidebar footer credit span.
-pub(crate) const NAV_FOOTER_CREDIT_BRAND: &str = "Euv & Wasm";
-
 /// The GitHub repository URL for the project.
 pub(crate) const GITHUB_URL: &str = "https://github.com/euv-dev/euv";
 

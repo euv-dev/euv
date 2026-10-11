@@ -108,7 +108,6 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
                         theme_icon_node(theme_signal)
                     }
                 }
-                nav_footer_node(github_link(locale))
             }
             main {
                 class: c_app_main()
@@ -215,7 +214,6 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                         on_navigate: drawer_navigate()
                     }
                 }
-                nav_footer_node(github_link(locale))
             }
         }
     }
@@ -311,46 +309,6 @@ fn theme_icon_node(theme_signal: Signal<String>) -> VirtualNode {
     }
 }
 
-/// Renders the nav-column footer: divider plus an external "Built with" link
-/// to the site repository (empty when the locale has no external link).
-///
-/// # Arguments
-///
-/// - `Option<&'static str>` - The external repository URL.
-///
-/// # Returns
-///
-/// - `VirtualNode` - The footer virtual DOM tree.
-fn nav_footer_node(github: Option<&'static str>) -> VirtualNode {
-    let Some(url) = github else {
-        return html! {
-            ""
-        };
-    };
-    html! {
-        a {
-            class: c_nav_footer()
-            href: url
-            target: LINK_TARGET_BLANK
-            onclick: Router::external_link_handler(url)
-            div {
-                class: c_nav_footer_divider()
-            }
-            span {
-                class: c_nav_footer_text()
-                "基于 "
-                span {
-                    class: c_nav_footer_brand()
-                    {
-                        FOOTER_BRAND
-                    }
-                }
-                " 构建"
-            }
-        }
-    }
-}
-
 /// Renders the locale switcher row for the nav column / drawer (empty when
 /// the site has a single locale).
 ///
@@ -434,24 +392,6 @@ fn section_label(locale: &'static DocsLocale) -> &'static str {
         })
         .map(|item: &EuvNavbarItem| item.text)
         .unwrap_or("文档")
-}
-
-/// Returns the first external (`http`) navbar link, used as the footer
-/// repository URL.
-///
-/// # Arguments
-///
-/// - `&'static DocsLocale` - The current locale.
-///
-/// # Returns
-///
-/// - `Option<&'static str>` - The external URL.
-fn github_link(locale: &'static DocsLocale) -> Option<&'static str> {
-    locale
-        .navbar
-        .iter()
-        .find(|item: &&EuvNavbarItem| item.link.starts_with(URL_SCHEME_HTTP_PREFIX))
-        .map(|item: &EuvNavbarItem| item.link)
 }
 
 /// Toggles the locale dropdown menu.

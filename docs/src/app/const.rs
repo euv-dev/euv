@@ -184,9 +184,6 @@ pub(crate) const LINK_REL_NOOPENER: &str = "noopener noreferrer";
 /// The `title` (tooltip) of the desktop and mobile theme-toggle buttons.
 pub(crate) const THEME_TOGGLE_TITLE: &str = "切换主题";
 
-/// The footer brand text shown next to the repository link.
-pub(crate) const FOOTER_BRAND: &str = "Euv & Wasm";
-
 /// Selector matching the scrollable main column of the desktop shell.
 pub(crate) const MAIN_CONTAINER_SELECTOR_DESKTOP: &str = "[class*=c_app_main]";
 

@@ -57,23 +57,6 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
                         }
                     }
                 }
-                a {
-                    href: GITHUB_URL
-                    target: LINK_TARGET_BLANK
-                    onclick: Router::external_link_handler(GITHUB_URL)
-                    class: c_nav_footer()
-                    div {
-                        class: c_nav_footer_divider()
-                    }
-                    span {
-                        class: c_nav_footer_text()
-                        NAV_FOOTER_CREDIT_PREFIX
-                        span {
-                            class: c_nav_footer_brand()
-                            NAV_FOOTER_CREDIT_BRAND
-                        }
-                    }
-                }
             }
             main {
                 class: c_app_main()
@@ -211,23 +194,6 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                 build_mobile_nav_items {
                     route_signal: route_signal
                     drawer_open: drawer_open
-                }
-                a {
-                    href: GITHUB_URL
-                    target: LINK_TARGET_BLANK
-                    onclick: Router::external_link_handler(GITHUB_URL)
-                    class: c_nav_footer()
-                    div {
-                        class: c_nav_footer_divider()
-                    }
-                    span {
-                        class: c_nav_footer_text()
-                        NAV_FOOTER_CREDIT_PREFIX
-                        span {
-                            class: c_nav_footer_brand()
-                            NAV_FOOTER_CREDIT_BRAND
-                        }
-                    }
                 }
             }
         }
