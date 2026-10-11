@@ -51,7 +51,7 @@ pub(crate) const EUV_NO_INLINE_BRIDGE_ENV: &str = "EUV_NO_INLINE_BRIDGE";
 /// in-app loading overlay and follows the OS colour scheme before the
 /// wasm theme hook takes over. Tokens are declared locally because the
 /// theme classes are injected by the wasm bundle, which has not run yet.
-pub(crate) const LOADING_STYLE: &str = r#"<style>:root { --background: #ffffff; --accent: #000000; --accent-muted: #ffffff; } @media (prefers-color-scheme: dark) { :root { --background: #000000; --accent: #ffffff; --accent-muted: #000000; } } #euv-loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--background); z-index: 9999; } #euv-loading > div { width: 28px; height: 28px; border: 3px solid var(--accent-muted); border-top-color: var(--accent); border-radius: 50%; box-sizing: border-box; animation: euv-spin 0.8s linear infinite; } @keyframes euv-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } @media (prefers-reduced-motion: reduce) { #euv-loading > div { animation-duration: 1.6s; } }</style>"#;
+pub(crate) const LOADING_STYLE: &str = r#"<style>:root{--background: #ffffff;--accent: #000000;--accent-muted: #ffffff}@media(prefers-color-scheme:dark){:root{--background: #000000;--accent: #ffffff;--accent-muted: #000000}}#euv-loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--background);z-index:9999}#euv-loading>div{width:28px;height:28px;border:3px solid var(--accent-muted);border-top-color:var(--accent);border-radius:50%;box-sizing:border-box;animation:euv-spin .8s linear infinite}@keyframes euv-spin{0%{transform:rotate(0)}to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){#euv-loading>div{animation-duration:1.6s}}</style>""#;
 
 /// The `<div>` element for the pre-render spinner, injected into `<body>`.
 ///
@@ -66,7 +66,7 @@ pub(crate) const LOADING_ELEMENT: &str = r#"<div id="euv-loading"><div></div></d
 /// for the framework's first child: `main()` mounts synchronously but the
 /// renderer commits on the next frame, so removing the spinner on
 /// `main()` alone would expose an empty viewport for one frame.
-pub(crate) const LOADING_REMOVAL_SCRIPT: &str = r#"(function () { var node = document.getElementById('euv-loading'); if (!node) { return; } var app = document.getElementById('app'); function remove() { if (node && node.parentNode) { node.parentNode.removeChild(node); } } if (!app) { remove(); return; } if (app.firstChild) { remove(); return; } var observer = new MutationObserver(function () { if (app.firstChild) { observer.disconnect(); remove(); } }); observer.observe(app, { childList: true }); })();"#;
+pub(crate) const LOADING_REMOVAL_SCRIPT: &str = r#"(function(){var e=document.getElementById("euv-loading");if(!e)return;var n=document.getElementById("app");function r(){e&&e.parentNode&&e.parentNode.removeChild(e)}if(!n){r();return}if(n.firstChild){r();return}var t=new MutationObserver(function(){n.firstChild&&(t.disconnect(),r())});t.observe(n,{childList:true})})();"#;
 
 /// Placeholder token for the pre-render spinner `<style>` block.
 pub(crate) const LOADING_STYLE_PLACEHOLDER: &str = "__EUV_LOADING_STYLE__";
@@ -211,7 +211,7 @@ pub(crate) const INDEX_HTML_DEV: &str = r#"<!doctype html>
   </body>
   <script>__EUV_INLINE_JS__</script>
   <script>__EUV_LOADING_REMOVAL__</script>
-  <script>(function () { async function connect() { try { const res = await fetch('/__euv_reload'); const data = await res.json(); if (data.type === 'Reload') { location.reload(); } else if (data.type === 'Error') { console.error('[euv] build error:', data.message); setTimeout(connect, 1000); } else { setTimeout(connect, 1000); } } catch (_) { setTimeout(connect, 2000); } } connect(); })();</script>
+  <script>(function(){async function e(){try{const t=await(await fetch("/__euv_reload")).json();t.type==="Reload"?location.reload():(t.type==="Error"&&console.error("[euv] build error:",t.message),setTimeout(e,1e3))}catch{setTimeout(e,2e3)}}e()})();</script>
 </html>
 "#;
 
