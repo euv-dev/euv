@@ -1070,6 +1070,11 @@ class! {
     pub c_home_badge_row {
         display: "inline-flex";
         align-items: "center";
+        // A base rule resets this to `flex`, so the row spans the full column
+        // and `text-align: center` on the parent no longer centres it — a flex
+        // child is placed by its own alignment. Without this the badges sit at
+        // the left edge while the centred title below them does not.
+        justify-content: "center";
         gap: var!(space-sm);
         margin-bottom: var!(space-md);
     }
