@@ -12,3 +12,10 @@ pub(crate) const SIDEBAR_SCROLL_SELECTOR: &str = ".c_nav_items_scroll";
 pub(crate) const SIDEBAR_ACTIVE_SELECTOR: &str = ".c_euv_sidebar_link_active, \
      .c_euv_sidebar_link_active_flush, .c_euv_sidebar_group_title_active, \
      .c_euv_sidebar_group_title_root_active";
+/// Breathing room left between the active entry and the container edge it
+/// was scrolled to reveal, in CSS pixels.
+///
+/// Zero would park the entry flush against the edge, which reads as clipped
+/// rather than revealed; a large value reintroduces the drift the minimum
+/// move was meant to remove.
+pub(crate) const SIDEBAR_SCROLL_GAP: f64 = 12.0;

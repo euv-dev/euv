@@ -545,12 +545,14 @@ fn schedule_scroll(anchor: Option<String>) {
 }
 
 /// Keeps the active sidebar entry visible: expands its collapsed ancestor
-/// groups (any depth) and scrolls the sidebar container so the entry sits
-/// near the vertical center, mirroring the euv example's drawer reveal.
+/// groups (any depth) and scrolls the sidebar container so the entry is
+/// fully revealed.
 ///
 /// Runs once at startup, on every route change, and each time the mobile
 /// drawer opens (the desktop aside and the drawer share the `collapsed`
-/// signal, so one expansion covers both).
+/// signal, so one expansion covers both). A theme or locale switch
+/// re-renders the shell and re-enters this hook, but it does not change
+/// the route, so it must not move the sidebar.
 ///
 /// # Arguments
 ///
@@ -563,7 +565,20 @@ fn use_sidebar_reveal(
     drawer_open: Signal<bool>,
 ) {
     reveal_active_sidebar(route_signal, collapsed);
-    route_signal.subscribe(move || reveal_active_sidebar(route_signal, collapsed));
+    // The scroll is tied to the route value, not to the subscribe call. A
+    // signal fires its subscribers whenever it is re-set, and the shell
+    // re-renders on theme and locale changes too, which re-runs this hook
+    // and used to throw the reader's scroll position back to the active
+    // entry mid-page. Comparing against the route this hook last acted on
+    // lets the callback bail when the route did not actually move.
+    let seen_route: Signal<String> = App::use_signal(Router::current_route);
+    route_signal.subscribe(move || {
+        if seen_route.get() == route_signal.get() {
+            return;
+        }
+        seen_route.set(route_signal.get());
+        reveal_active_sidebar(route_signal, collapsed);
+    });
     drawer_open.subscribe(move || {
         if drawer_open.get() {
             reveal_active_sidebar(route_signal, collapsed);
@@ -671,15 +686,21 @@ fn schedule_sidebar_scroll() {
 }
 
 /// Scrolls every visible sidebar container (desktop aside and mobile drawer)
-/// so its active entry sits near the vertical center — the same centering
-/// math as the euv example's `use_scroll_drawer_to_active`.
+/// so its active entry is fully in view, moving no further than it must.
 ///
 /// If the active entry is already fully visible inside the container's
 /// scroll viewport, no scroll is performed (a no-op avoids the jarring
 /// jump that would happen on every nav click while the user reads the
-/// current page). Otherwise the entry is recentred via the plain DOM
-/// `Element.scroll_top` setter, which is an instant jump — no animation
-/// — so the sidebar snaps to the new position immediately.
+/// current page). Otherwise the entry is pulled just past the nearest
+/// edge — top or bottom — by a small breathing gap, via the plain DOM
+/// `Element.scroll_top` setter, which is an instant jump with no
+/// animation, so the sidebar snaps to the new position immediately.
+///
+/// This deliberately does not centre the entry. Centring moved the tree
+/// by up to half the container height on every navigation, which read as
+/// a lurch: landing on the last entry threw the whole sidebar to its
+/// end. The minimum move that reveals the entry is the only amount that
+/// carries information.
 fn scroll_active_sidebar_item() {
     let Some(document) = window().and_then(|window: Window| window.document()) else {
         return;
@@ -708,9 +729,18 @@ fn scroll_active_sidebar_item() {
         {
             continue;
         }
-        let target: f64 = container.scroll_top() as f64
-            + (active_rect.top() - container_rect.top())
-            - (container_rect.height() - active_rect.height()) / 2.0;
-        container.set_scroll_top(target.max(0.0) as i32);
+        // Reveal by the smaller of the two distances, then add the gap so
+        // the entry does not sit flush against the edge it was pulled out
+        // of. Centring would pick the larger one and overshoot.
+        let above: f64 = active_rect.top() - container_rect.top();
+        let below: f64 = active_rect.bottom() - container_rect.bottom();
+        let delta: f64 = if above <= below {
+            -(above + SIDEBAR_SCROLL_GAP)
+        } else {
+            below + SIDEBAR_SCROLL_GAP
+        };
+        let target: f64 = container.scroll_top() as f64 + delta;
+        let max_scroll: f64 = (container.scroll_height() as f64 - container_rect.height()).max(0.0);
+        container.set_scroll_top(target.clamp(0.0, max_scroll) as i32);
     }
 }
