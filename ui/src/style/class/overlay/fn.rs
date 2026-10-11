@@ -875,15 +875,19 @@ class! {
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
-        // Hover signals through the border and the inset bar only — no
-        // background wash. The menu sits over page content, so tinting the
-        // whole row made an unselected option read as a highlighted page
-        // link and washed out the label underneath it. The inset bar keeps
-        // the affordance without painting behind the text, and the border
-        // gives the row a defined edge while the pointer is on it.
+        // Hover signals through the left edge only — no background wash. The
+        // menu sits over page content, so tinting the whole row made an
+        // unselected option read as a highlighted page link and washed out
+        // the label underneath it. The inset bar plus the left border carry
+        // the affordance without painting behind the text or boxing the row.
         border: format!("1px solid transparent");
         :hover {
-            border-color: var!(foreground);
+            // Only the left edge reacts. The previous rule lit the whole
+            // perimeter, which framed the option as a card floating over the
+            // menu; the locale list is a plain vertical stack, so a box on
+            // every side read as a selection rather than a pointer position.
+            // The inset bar carries the affordance on its own.
+            border-left-color: var!(foreground);
             box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
         }
     }
