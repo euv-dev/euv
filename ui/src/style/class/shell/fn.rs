@@ -972,7 +972,6 @@ class! {
         text-align: "left";
         :hover {
             box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
-            background: var!(muted);
         }
     }
 
