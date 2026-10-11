@@ -880,7 +880,16 @@ class! {
         // unselected option read as a highlighted page link and washed out
         // the label underneath it. The inset bar plus the left border carry
         // the affordance without painting behind the text or boxing the row.
-        border: format!("1px solid transparent");
+        //
+        // The row wears a transparent 1px border so the hover bar lands in
+        // the same box as the active item's accent fill. An inset box-shadow
+        // paints over the *padding* box, so with a real border on this row
+        // but not on `c_euv_dropdown_item_active`, the bar came out 2px
+        // shorter than the background it lines up with (33px of bar against
+        // 36px of fill). Both classes reserve the same border now, so the
+        // two agree to the pixel — `c_euv_dropdown_item_active` carries the
+        // same transparent reservation with the accent fill behind it.
+        border: "1px solid transparent";
         :hover {
             // Only the left edge reacts. The previous rule lit the whole
             // perimeter, which framed the option as a card floating over the
@@ -898,6 +907,12 @@ class! {
         text-align: "left";
         cursor: "pointer";
         font-weight: "600";
+        // Same transparent reservation as `c_euv_dropdown_item`, so the
+        // accent fill spans the full border box and a hovered row's inset bar
+        // lines up with it edge for edge. Without this the two classes
+        // differed by 2px in height and the hover bar stopped short of the
+        // active background by exactly that gap.
+        border: "1px solid transparent";
         // The selected item wears the accent fill and the text colour that
         // reads on top of it, the same pairing the sidebar's `_active` link
         // uses. The inset bar is dropped: the full-width fill already carries
