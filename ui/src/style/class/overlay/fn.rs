@@ -875,16 +875,15 @@ class! {
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
-        // Hover mirrors the sidebar's affordance (see `c_euv_sidebar_link`):
-        // an inset 3px bar painted inside the padding box, which never
-        // participates in layout and therefore never shifts the label. A
-        // translucent wash is deliberately NOT used — `accent-muted` resolves
-        // to the same value as `background` in the monochrome palette
-        // (white on light, black on dark), so a background there is
-        // invisible. `color-mix` derives the wash from the actual text colour
-        // so it reads in both themes.
+        // Hover signals through the border and the inset bar only — no
+        // background wash. The menu sits over page content, so tinting the
+        // whole row made an unselected option read as a highlighted page
+        // link and washed out the label underneath it. The inset bar keeps
+        // the affordance without painting behind the text, and the border
+        // gives the row a defined edge while the pointer is on it.
+        border: format!("1px solid transparent");
         :hover {
-            background: format!("color-mix(in srgb, {} 8%, transparent)", var!(foreground));
+            border-color: var!(foreground);
             box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
         }
     }
