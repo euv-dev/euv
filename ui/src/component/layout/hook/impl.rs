@@ -73,10 +73,11 @@ impl UseEuvLayout {
     /// Returns whether the host platform is one that actually has a safe area
     /// to reserve.
     ///
-    /// Every write path for the contract variables goes through this first, so
-    /// a platform without a notch, a rounded corner or a home indicator never
-    /// reserves space for one — not even when the host declares immersive mode
-    /// or reports a flush viewport.
+    /// This gate covers `--euv-safe-{right,bottom,left}` only. The top inset is
+    /// deliberately excluded: `--euv-mobile-safe-top` is injected by the euv app
+    /// and is not subject to this check, so filtering it by user agent would
+    /// lock out exactly the host it was added for — see
+    /// [`Self::init_safe_area_contract`].
     ///
     /// # Returns
     ///
@@ -180,11 +181,10 @@ impl UseEuvLayout {
     ///
     /// Trust is decided by `is_edge_to_edge_viewport`, which combines the
     /// explicit immersive declaration with the runtime
-    /// `screen.height - window.innerHeight` measurement.
+    /// `screen.height - window.innerHeight` measurement. No platform check
+    /// applies here: the top inset is injected by the euv app for an immersive
+    /// Android WebView, so a host that declared itself is taken at its word.
     fn init_safe_area_contract() {
-        if !Self::needs_safe_area_insets() {
-            return;
-        }
         if !is_edge_to_edge_viewport(Self::is_immersive_declared(), measure_viewport_screen_gap()) {
             return;
         }
@@ -213,16 +213,20 @@ impl UseEuvLayout {
             return;
         };
         let root_element: HtmlElement = root.unchecked_into();
+        // The top inset is injected by the euv app and is trusted once the host
+        // declared itself edge-to-edge; the remaining sides additionally require
+        // a platform that actually reports them.
+        let sides_trusted: bool = Self::needs_safe_area_insets();
         let right_value: String = safe_area_contract_value(
-            true,
+            sides_trusted,
             &SAFE_AREA_INSET_RIGHT.with(|cell: &RefCell<String>| cell.borrow().clone()),
         );
         let bottom_value: String = safe_area_contract_value(
-            true,
+            sides_trusted,
             &SAFE_AREA_INSET_BOTTOM.with(|cell: &RefCell<String>| cell.borrow().clone()),
         );
         let left_value: String = safe_area_contract_value(
-            true,
+            sides_trusted,
             &SAFE_AREA_INSET_LEFT.with(|cell: &RefCell<String>| cell.borrow().clone()),
         );
         let _: Result<(), JsValue> = root_element
@@ -388,15 +392,13 @@ impl UseEuvLayout {
         {
             return;
         }
-        let is_trusted: bool = Self::needs_safe_area_insets()
-            && is_edge_to_edge_viewport(
-                Self::is_immersive_declared(),
-                measure_viewport_screen_gap(),
-            );
+        let is_trusted: bool =
+            is_edge_to_edge_viewport(Self::is_immersive_declared(), measure_viewport_screen_gap());
         let top_value: String = safe_area_contract_value(is_trusted, &raw_top);
-        let right_value: String = safe_area_contract_value(is_trusted, &raw_right);
-        let bottom_value: String = safe_area_contract_value(is_trusted, &raw_bottom);
-        let left_value: String = safe_area_contract_value(is_trusted, &raw_left);
+        let sides_trusted: bool = is_trusted && Self::needs_safe_area_insets();
+        let right_value: String = safe_area_contract_value(sides_trusted, &raw_right);
+        let bottom_value: String = safe_area_contract_value(sides_trusted, &raw_bottom);
+        let left_value: String = safe_area_contract_value(sides_trusted, &raw_left);
         let Some(window_value) = window() else {
             return;
         };

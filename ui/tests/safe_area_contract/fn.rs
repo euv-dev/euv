@@ -63,6 +63,19 @@ fn an_empty_or_absent_user_agent_reserves_nothing() {
 }
 
 #[test]
+fn an_android_host_is_gated_out_even_though_it_declares_immersive() {
+    let android: &str = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
+    assert!(
+        !needs_safe_area_insets(android),
+        "Android is excluded from the side-inset gate, so right/bottom/left collapse to 0px there even when the host declares edge-to-edge"
+    );
+    assert!(
+        is_edge_to_edge_viewport(true, Some(0.0)),
+        "the injected top inset is a separate decision: an immersive Android WebView still resolves it, which is what --euv-mobile-safe-top exists for"
+    );
+}
+
+#[test]
 fn an_immersive_declaration_is_trusted_even_when_the_measurement_is_missing() {
     assert!(
         is_edge_to_edge_viewport(true, None),
