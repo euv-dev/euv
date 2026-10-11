@@ -875,29 +875,37 @@ class! {
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
+        // Rows must agree on height or the hover bar never lines up with the
+        // active fill. `line-height: normal` is at the mercy of the glyphs:
+        // English and Korean settle on a 35px row while Japanese takes 38px,
+        // and the language switcher lists all three at once. Pinning the line
+        // height is what makes the stack even, so the left bar can span a row
+        // that matches the active background exactly. 20px is the tallest of
+        // the three natural line heights, so no script is ever clipped.
+        line-height: "20px";
+        text-box-trim: "none";
+        text-box-edge: "none";
         // Hover signals through the left edge only — no background wash. The
         // menu sits over page content, so tinting the whole row made an
         // unselected option read as a highlighted page link and washed out
-        // the label underneath it. The inset bar plus the left border carry
-        // the affordance without painting behind the text or boxing the row.
+        // the label underneath it. The left border carries the affordance
+        // without painting behind the text or boxing the row.
         //
-        // The row wears a transparent 1px border so the hover bar lands in
-        // the same box as the active item's accent fill. An inset box-shadow
-        // paints over the *padding* box, so with a real border on this row
-        // but not on `c_euv_dropdown_item_active`, the bar came out 2px
-        // shorter than the background it lines up with (33px of bar against
-        // 36px of fill). Both classes reserve the same border now, so the
-        // two agree to the pixel — `c_euv_dropdown_item_active` carries the
-        // same transparent reservation with the accent fill behind it.
+        // The row wears a transparent 3px left border so the hover bar needs
+        // no width change and the label never shifts under the pointer. A
+        // real `border-left` paints over the *border* box, matching the
+        // active fill edge for edge; an inset box-shadow paints over the
+        // *padding* box and stopped 2px short. Both classes reserve the same
+        // border, so the two agree.
         border: "1px solid transparent";
+        border-left-width: "3px";
         :hover {
             // Only the left edge reacts. The previous rule lit the whole
             // perimeter, which framed the option as a card floating over the
             // menu; the locale list is a plain vertical stack, so a box on
             // every side read as a selection rather than a pointer position.
-            // The inset bar carries the affordance on its own.
+            // The reserved left border carries the affordance on its own.
             border-left-color: var!(foreground);
-            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
         }
     }
 
@@ -907,12 +915,18 @@ class! {
         text-align: "left";
         cursor: "pointer";
         font-weight: "600";
+        // The same pinned line height as `c_euv_dropdown_item`, for the same
+        // reason: a hovered row's bar has to match this fill to the pixel.
+        line-height: "20px";
         // Same transparent reservation as `c_euv_dropdown_item`, so the
-        // accent fill spans the full border box and a hovered row's inset bar
+        // accent fill spans the full border box and a hovered row's left bar
         // lines up with it edge for edge. Without this the two classes
-        // differed by 2px in height and the hover bar stopped short of the
-        // active background by exactly that gap.
+        // differed by 2px in height and the bar stopped short of the
+        // active background by exactly that gap. The 3px left edge is
+        // reserved here too, so an active row and a hovered row are the same
+        // width and a hovered label sits at the same x as a selected one.
         border: "1px solid transparent";
+        border-left-width: "3px";
         // The selected item wears the accent fill and the text colour that
         // reads on top of it, the same pairing the sidebar's `_active` link
         // uses. The inset bar is dropped: the full-width fill already carries
