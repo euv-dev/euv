@@ -8,6 +8,7 @@ mod mode_args;
 mod run_mode;
 mod server;
 mod serving_path;
+mod template_literals;
 
 use std::{
     collections::HashSet,
