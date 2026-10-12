@@ -153,12 +153,17 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
     // `:hover` inset bar in `foreground` (white in dark mode) was painted
     // straight over the accent fill, which is what showed up as a white edge
     // on hover. Pick exactly one class instead.
-    let arrow_class: fn() -> &'static Css = if active {
-        c_euv_sidebar_group_arrow_active
-    } else if open {
-        c_euv_sidebar_group_arrow_open
-    } else {
-        c_euv_sidebar_group_arrow
+    //
+    // That "exactly one" is also why the arrow stopped tracking the toggle:
+    // `active` and `open` were alternatives, so an active group always took
+    // the active class and never the rotation, whether it was expanded or
+    // collapsed. The two concerns are orthogonal — colour follows the active
+    // fill, rotation follows `collapsed` — so all four combinations exist.
+    let arrow_class: fn() -> &'static Css = match (active, open) {
+        (true, true) => c_euv_sidebar_group_arrow_active_open,
+        (true, false) => c_euv_sidebar_group_arrow_active,
+        (false, true) => c_euv_sidebar_group_arrow_open,
+        (false, false) => c_euv_sidebar_group_arrow,
     };
     // A top-level group has no `c_euv_sidebar_children` ancestor to line up
     // with, so it uses the `_root` title variant — the same row with a

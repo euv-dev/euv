@@ -1040,6 +1040,16 @@ class! {
         color: var!(text-on-accent);
     }
 
+    // The arrow's colour and its rotation are independent: `_active` only
+    // recolours the glyph so it reads on the accent fill, while `_open` only
+    // points it down. An active group can be open *or* collapsed, so it needs
+    // both at once — without this the active branch in `euv_sidebar_group`
+    // won the exclusive match and the arrow stopped following the toggle.
+    pub(crate) c_euv_sidebar_group_arrow_active_open {
+        color: var!(text-on-accent);
+        transform: "rotate(90deg)";
+    }
+
     pub c_euv_sidebar_children {
         display: "flex";
         flex-direction: "column";
