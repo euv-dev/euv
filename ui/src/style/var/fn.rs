@@ -57,11 +57,13 @@ vars! {
         control-row-pad: "9px";
 
         // How far the locale dropdown menu has to reach sideways to sit on the
-        // sidebar rows instead of on its own trigger. The trigger is inset by
-        // `edge-gutter-nav`; the rows below it start one more step in, so a
-        // menu anchored to the trigger box lands this far to the left of the
-        // column it is supposed to continue.
-        dropdown-row-align: "14px";
+        // sidebar rows instead of on its own trigger. The two offsets are NOT
+        // the same number and must not be shared: the trigger is inset by
+        // `edge-gutter-nav` while the rows below it start one more step in, so
+        // the menu moves further on the left than on the right. Both land the
+        // menu box exactly on the row box (measured: rows 34-306, menu 34-306).
+        dropdown-align-left: "14px";
+        dropdown-align-right: "9px";
 
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
         // `px` so it can be dropped into a plain `var()` position;
@@ -255,11 +257,13 @@ vars! {
         control-row-pad: "9px";
 
         // How far the locale dropdown menu has to reach sideways to sit on the
-        // sidebar rows instead of on its own trigger. The trigger is inset by
-        // `edge-gutter-nav`; the rows below it start one more step in, so a
-        // menu anchored to the trigger box lands this far to the left of the
-        // column it is supposed to continue.
-        dropdown-row-align: "14px";
+        // sidebar rows instead of on its own trigger. The two offsets are NOT
+        // the same number and must not be shared: the trigger is inset by
+        // `edge-gutter-nav` while the rows below it start one more step in, so
+        // the menu moves further on the left than on the right. Both land the
+        // menu box exactly on the row box (measured: rows 34-306, menu 34-306).
+        dropdown-align-left: "14px";
+        dropdown-align-right: "9px";
 
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
         // `px` so it can be dropped into a plain `var()` position;

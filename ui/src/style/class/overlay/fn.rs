@@ -848,15 +848,20 @@ class! {
         // menu floated 8px below the button it belongs to.
         top: "36px";
         // Lines the menu up with the sidebar rows below it rather than with
-        // the trigger above it. The trigger is full-bleed inside
-        // `c_nav_locale_row` (one `edge-gutter-nav` in from the sidebar edge),
-        // while the rows start a further nesting step in, so a `width: 100%`
-        // menu inherited the trigger's box and sat well to the left of the
-        // rows it is meant to continue. Offsetting both edges by the same step
-        // pulls the menu onto the row edges; the 1px that remains at each side
-        // is the menu's own border, which the rows do not carry.
-        left: format!("-{}", var!(dropdown-row-align));
-        right: format!("-{}", var!(dropdown-row-align));
+        // the trigger above it. The trigger is inset by `edge-gutter-nav`,
+        // while the rows start a further step in and the sidebar's right
+        // gutter is narrower than its left, so the two offsets differ — hence
+        // two tokens rather than one. Measured with both applied, the menu
+        // box is 34–306 and the row box is 34–306; the 1px that remains at
+        // each side of an item is the menu's own border, which rows lack.
+        //
+        // `var!()` expands to a bare `var(--token)`, so a leading `-` in front
+        // of it emits `-var(--dropdown-align-right)`, which is not a length and
+        // gets dropped by the parser. The negation has to happen inside
+        // `calc()`. `width: auto` rather than `100%`, because `100%` measures
+        // the container and would ignore the right-hand offset.
+        left: format!("calc(-1 * {})", var!(dropdown-align-left));
+        right: format!("calc(-1 * {})", var!(dropdown-align-right));
         width: "auto";
         background: var!(background);
         border: format!("1px solid {}", var!(border));
