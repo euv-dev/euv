@@ -841,20 +841,23 @@ class! {
 
     pub(crate) c_euv_dropdown_menu {
         position: "absolute";
-        top: "44px";
-        right: "0px";
-    /* `width: 100%` instead of `min-width: 140px` so the menu
-                                                                                                                                                           matches the dropdown container (and therefore the
-                                                                                                                                                           trigger button) width exactly. With only `min-width`,
-                                                                                                                                                           a trigger wider than 140px (e.g. the 206px-wide
-                                                                                                                                                           nav-column locale switcher button) leaves a large
-                                                                                                                                                           empty gap on the left of the menu, since `right: 0`
-                                                                                                                                                           anchors only the right edge to the container. With
-                                                                                                                                                           `width: 100%`, the menu's left edge lines up with the
-                                                                                                                                                           trigger's left edge. The default minimum content width
-                                                                                                                                                           is still guaranteed by the inner items' own padding,
-                                                                                                                                                           so we keep the rule without an explicit min. */
-        width: "100%";
+        // Sits flush under the trigger. The row is 36px tall and the container
+        // gives it no padding, so `top: 36px` is the trigger's bottom edge —
+        // any larger value opens a gap that reads as a break between the
+        // button and its menu. This was hardcoded to 44px, which is why the
+        // menu floated 8px below the button it belongs to.
+        top: "36px";
+        // Lines the menu up with the sidebar rows below it rather than with
+        // the trigger above it. The trigger is full-bleed inside
+        // `c_nav_locale_row` (one `edge-gutter-nav` in from the sidebar edge),
+        // while the rows start a further nesting step in, so a `width: 100%`
+        // menu inherited the trigger's box and sat well to the left of the
+        // rows it is meant to continue. Offsetting both edges by the same step
+        // pulls the menu onto the row edges; the 1px that remains at each side
+        // is the menu's own border, which the rows do not carry.
+        left: format!("-{}", var!(dropdown-row-align));
+        right: format!("-{}", var!(dropdown-row-align));
+        width: "auto";
         background: var!(background);
         border: format!("1px solid {}", var!(border));
         box-shadow: var!(shadow-accent-lg);

@@ -56,6 +56,13 @@ vars! {
         // did when each carried its own padding value.
         control-row-pad: "9px";
 
+        // How far the locale dropdown menu has to reach sideways to sit on the
+        // sidebar rows instead of on its own trigger. The trigger is inset by
+        // `edge-gutter-nav`; the rows below it start one more step in, so a
+        // menu anchored to the trigger box lands this far to the left of the
+        // column it is supposed to continue.
+        dropdown-row-align: "14px";
+
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
         // `px` so it can be dropped into a plain `var()` position;
         // `side-indent-num` is the same number without a unit, for the places
@@ -246,6 +253,13 @@ vars! {
         // name so the three families cannot drift apart again the way they
         // did when each carried its own padding value.
         control-row-pad: "9px";
+
+        // How far the locale dropdown menu has to reach sideways to sit on the
+        // sidebar rows instead of on its own trigger. The trigger is inset by
+        // `edge-gutter-nav`; the rows below it start one more step in, so a
+        // menu anchored to the trigger box lands this far to the left of the
+        // column it is supposed to continue.
+        dropdown-row-align: "14px";
 
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
         // `px` so it can be dropped into a plain `var()` position;
