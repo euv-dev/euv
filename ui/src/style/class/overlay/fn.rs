@@ -846,25 +846,14 @@ class! {
         // any larger value opens a gap that reads as a break between the
         // button and its menu. This was hardcoded to 44px, which is why the
         // menu floated 8px below the button it belongs to.
-        top: "36px";
-        // Lines the menu up with the sidebar rows below it rather than with
-        // the trigger above it. The trigger spans 20–297 and the rows span
-        // 34–306, so the menu has to move *inward* on the left and *outward*
-        // on the right: `left` closes half the gap to the rows, `right` opens
-        // the smaller gap on the other side. Measured: rows 34–306, menu
-        // 34–306. The 1px that remains at each side of an item is the menu's
-        // own border, which rows do not carry.
-        //
-        // Both offsets are relative to the dropdown container, and `width`
-        // stays `auto` so the two anchors decide the box together — pinning
-        // one side and measuring the other gave a menu 9px short on the right.
-        //
-        // `var!()` expands to a bare `var(--token)`, so a leading `-` in front
-        // of it emits `-var(--dropdown-align-right)`, which is not a length and
-        // is dropped by the parser. The negation has to happen inside `calc()`.
-        left: var!(dropdown-align-left);
-        right: format!("calc(-1 * {})", var!(dropdown-align-right));
-        width: "auto";
+        top: "44px";
+        right: "0px";
+        // `width: 100%` so the menu matches the dropdown container (and
+        // therefore the trigger button) width exactly. With only `min-width`,
+        // a trigger wider than 140px (e.g. the nav-column locale switcher
+        // button) leaves a large empty gap on the left of the menu, since
+        // `right: 0` anchors only the right edge to the container.
+        width: "100%";
         background: var!(background);
         border: format!("1px solid {}", var!(border));
         box-shadow: var!(shadow-accent-lg);
@@ -881,12 +870,17 @@ class! {
     }
 
     pub(crate) c_euv_dropdown_item {
-        // `space-sm` vertically, NOT `control-row-pad`. This row wears a 1px
-        // border on every side, and the border is inside the 42px box, so the
-        // content has to make room for it: 8 + 24 line + 8 + 2 border = 42 —
-        // the same box `control-row-pad` lands a sidebar row on without its
-        // border. `control-row-pad` here would give 44.
-        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+        // `control-row-pad` vertically, the same value the sidebar rows and the
+        // CTA buttons use: 9 + 24 line + 9 + 3 left border = 42. The row is
+        // only bordered on its left edge, so nothing stacks between neighbours
+        // and the stack reads as one continuous column.
+        //
+        // It was `space-sm` (8px) for as long as the row wore a 1px border on
+        // all four sides: 8 + 24 + 8 + 1 + 1 + 3 = 45 inside a 42px
+        // border-box, so the browser gave back a fraction of the padding on
+        // every row and the options came out with a hairline between them.
+        // Dropping the stacked borders makes 9px the right number again.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-lg));
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
@@ -907,14 +901,20 @@ class! {
         // the label underneath it. The left border carries the affordance
         // without painting behind the text or boxing the row.
         //
-        // The row wears a transparent 3px left border so the hover bar needs
-        // no width change and the label never shifts under the pointer. A
-        // real `border-left` paints over the *border* box, matching the
-        // active fill edge for edge; an inset box-shadow paints over the
-        // *padding* box and stopped 2px short. Both classes reserve the same
-        // border, so the two agree.
-        border: "1px solid transparent";
-        border-left-width: "3px";
+        // Only the LEFT edge is bordered — 3px, transparent until hover, so
+        // the hover bar needs no width change and the label never shifts.
+        //
+        // This used to be `border: 1px solid transparent` plus
+        // `border-left-width: 3px`, i.e. a box on all four sides. In a stack
+        // of rows every horizontal edge is shared between two neighbours, so
+        // the transparent top and bottom of one row sat against those of the
+        // next. Nothing is visible at rest, but each row then had to fit 8px +
+        // 24px line + 8px + 1px + 1px + 3px = 45px of content into a 42px
+        // border-box, and the browser reclaimed the overflow by trimming the
+        // padding — leaving a hairline between every pair of options. Only the
+        // left edge remains, so nothing stacks and 9 + 24 + 9 + 3 = 42 lands
+        // exactly.
+        border-left: "3px solid transparent";
         :hover {
             // Only the left edge reacts. The previous rule lit the whole
             // perimeter, which framed the option as a card floating over the
@@ -926,9 +926,9 @@ class! {
     }
 
     pub(crate) c_euv_dropdown_item_active {
-        // Same vertical padding as `c_euv_dropdown_item` (`space-sm`) — the
-        // accent fill has to be exactly as tall as the row it replaces.
-        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+        // Same vertical padding as `c_euv_dropdown_item` (`control-row-pad`) —
+        // the accent fill has to be exactly as tall as the row it replaces.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-lg));
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
@@ -936,15 +936,12 @@ class! {
         // The same pinned line height as `c_euv_dropdown_item`, for the same
         // reason: a hovered row's bar has to match this fill to the pixel.
         line-height: "24px";
-        // Same transparent reservation as `c_euv_dropdown_item`, so the
-        // accent fill spans the full border box and a hovered row's left bar
-        // lines up with it edge for edge. Without this the two classes
-        // differed by 2px in height and the bar stopped short of the
-        // active background by exactly that gap. The 3px left edge is
-        // reserved here too, so an active row and a hovered row are the same
-        // width and a hovered label sits at the same x as a selected one.
-        border: "1px solid transparent";
-        border-left-width: "3px";
+        // Only the left edge, for the same reason as `c_euv_dropdown_item`:
+        // a border on all four sides stacks between neighbouring rows. The
+        // accent fill spans the full box either way, and reserving the same
+        // 3px left edge keeps a hovered row's bar and an active row's fill
+        // aligned edge for edge and at the same width.
+        border-left: "3px solid transparent";
         // The selected item wears the accent fill and the text colour that
         // reads on top of it, the same pairing the sidebar's `_active` link
         // uses. The inset bar is dropped: the full-width fill already carries
