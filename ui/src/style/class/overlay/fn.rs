@@ -871,10 +871,12 @@ class! {
     }
 
     pub(crate) c_euv_dropdown_item {
-        // `control-row-pad` vertically, same as the sidebar rows and the CTA
-        // buttons: 8px + 24px line + 2px border lands the option on the same
-        // 42px box, so a dropdown option and a button read as one size.
-        padding: format!("{} {}", var!(control-row-pad), var!(space-lg));
+        // `space-sm` vertically, NOT `control-row-pad`. This row wears a 1px
+        // border on every side, and the border is inside the 42px box, so the
+        // content has to make room for it: 8 + 24 line + 8 + 2 border = 42 —
+        // the same box `control-row-pad` lands a sidebar row on without its
+        // border. `control-row-pad` here would give 44.
+        padding: format!("{} {}", var!(space-sm), var!(space-lg));
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
@@ -914,9 +916,9 @@ class! {
     }
 
     pub(crate) c_euv_dropdown_item_active {
-        // Same vertical padding as `c_euv_dropdown_item` (`control-row-pad`) —
-        // the accent fill has to be exactly as tall as the row it replaces.
-        padding: format!("{} {}", var!(control-row-pad), var!(space-lg));
+        // Same vertical padding as `c_euv_dropdown_item` (`space-sm`) — the
+        // accent fill has to be exactly as tall as the row it replaces.
+        padding: format!("{} {}", var!(space-sm), var!(space-lg));
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
