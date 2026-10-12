@@ -871,7 +871,10 @@ class! {
     }
 
     pub(crate) c_euv_dropdown_item {
-        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+        // `control-row-pad` vertically, same as the sidebar rows and the CTA
+        // buttons: 8px + 24px line + 2px border lands the option on the same
+        // 42px box, so a dropdown option and a button read as one size.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-lg));
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
@@ -880,9 +883,10 @@ class! {
         // English and Korean settle on a 35px row while Japanese takes 38px,
         // and the language switcher lists all three at once. Pinning the line
         // height is what makes the stack even, so the left bar can span a row
-        // that matches the active background exactly. 20px is the tallest of
-        // the three natural line heights, so no script is ever clipped.
-        line-height: "20px";
+        // that matches the active background exactly. 24px is the tallest
+        // of the three natural line heights *and* the body line height, so no
+        // script is clipped and the row matches the sidebar and the buttons.
+        line-height: "24px";
         text-box-trim: "none";
         text-box-edge: "none";
         // Hover signals through the left edge only — no background wash. The
@@ -910,14 +914,16 @@ class! {
     }
 
     pub(crate) c_euv_dropdown_item_active {
-        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+        // Same vertical padding as `c_euv_dropdown_item` (`control-row-pad`) —
+        // the accent fill has to be exactly as tall as the row it replaces.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-lg));
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
         font-weight: "600";
         // The same pinned line height as `c_euv_dropdown_item`, for the same
         // reason: a hovered row's bar has to match this fill to the pixel.
-        line-height: "20px";
+        line-height: "24px";
         // Same transparent reservation as `c_euv_dropdown_item`, so the
         // accent fill spans the full border box and a hovered row's left bar
         // lines up with it edge for edge. Without this the two classes

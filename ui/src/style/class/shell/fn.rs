@@ -530,13 +530,14 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        // `space-sm` vertically, same as `c_nav_item_inactive` below and same
-        // reason the sidebar rows use it: two 12px paddings meet to leave 24px
-        // of blank between labels while the row stays 48px tall, so the hover
-        // bar and the active fill sit in twice the air the text occupies.
-        padding: format!("{} {}", var!(space-sm), var!(edge-gutter-nav));
+        // `control-row-pad` vertically, same as `c_nav_item_inactive` below and
+        // same reason the sidebar rows use it: two 12px paddings used to meet
+        // to leave 24px of blank between labels while the row stayed 48px tall,
+        // so the hover bar and the active fill sat in twice the air the text
+        // occupied. 9px lands the row on the same 42px box as `c_home_btn_*`.
+        padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-nav));
         @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(space-sm), var!(edge-gutter-mobile));
+            padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-mobile));
         }
         text-decoration: "none";
         font-size: var!(font-base);
@@ -549,9 +550,9 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        padding: format!("{} {}", var!(space-sm), var!(edge-gutter-nav));
+        padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-nav));
         @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(space-sm), var!(edge-gutter-mobile));
+            padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-mobile));
         }
         text-decoration: "none";
         font-size: var!(font-base);
@@ -947,14 +948,15 @@ class! {
         // the children container — that's the "text and the dashed border
         // share the same x" requirement.
         //
-        // Vertical padding is `space-sm`, not `space-md`. Two adjacent rows
-        // meet through the pair of their paddings, so 12px each left 24px of
-        // blank between labels while the row box stayed 48px tall — the left
+        // Vertical padding is `control-row-pad`, not `space-md`. Two adjacent
+        // rows meet through the pair of their paddings, so 12px each left 24px
+        // of blank between labels while the row box stayed 48px tall — the left
         // rail and the active fill then floated in twice the air the text
-        // occupied. 8px keeps the row a comfortable click target (40px) and
-        // puts the label back in the middle of it. Every sidebar row class
-        // uses this same value, so the rhythm stays even across the tree.
-        padding: format!("{} {}", var!(space-sm), var!(space-md));
+        // occupied. 9px puts every row on the 42px box the CTA buttons
+        // (`c_home_btn_primary`) already use, so a sidebar row, a dropdown
+        // item and a button all read as the same size control. Every sidebar
+        // row class uses this value, so the rhythm stays even across the tree.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
         font-size: var!(font-base);
         font-weight: "400";
         cursor: "pointer";
@@ -976,15 +978,16 @@ class! {
     // cue a nested row does, just with room around it. The offset lives on
     // the shadow rather than on `padding`, so the text never moves.
     //
-    // Vertical padding is `space-sm` like every other sidebar row — see
-    // `c_euv_sidebar_group_title`. A root title sits directly above a nested
-    // one, so a taller row here left the two ends of the same pair mismatched.
+    // Vertical padding is `control-row-pad` like every other sidebar row —
+    // see `c_euv_sidebar_group_title`. A root title sits directly above a
+    // nested one, so a taller row here left the two ends of the same pair
+    // mismatched.
     pub c_euv_sidebar_group_title_root {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
         width: "100%";
-        padding: format!("{} {}", var!(space-sm), var!(space-md));
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
         font-size: var!(font-base);
         font-weight: "400";
         cursor: "pointer";
@@ -1055,9 +1058,10 @@ class! {
 
     pub c_euv_sidebar_link {
         display: "block";
-        // `space-sm` vertically, matching `c_euv_sidebar_group_title` and the
-        // two `_active` classes — see the note there on why 8px and not 12px.
-        padding: format!("{} {}", var!(space-sm), var!(space-md));
+        // `control-row-pad` vertically, matching `c_euv_sidebar_group_title`
+        // and the two `_active` classes — see the note there on why the row is
+        // 42px and not 48px.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
         font-size: var!(font-base);
         color: var!(foreground);
         font-weight: "400";
@@ -1078,9 +1082,9 @@ class! {
 
     pub c_euv_sidebar_link_active {
         display: "block";
-        // Same vertical padding as `c_euv_sidebar_link` — the accent fill has
-        // to be exactly as tall as the row it replaces.
-        padding: format!("{} {}", var!(space-sm), var!(space-md));
+        // Same vertical padding as `c_euv_sidebar_link` (`control-row-pad`) —
+        // the accent fill has to be exactly as tall as the row it replaces.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
         font-size: var!(font-base);
         background: var!(accent);
         color: var!(text-on-accent);
@@ -1118,9 +1122,9 @@ class! {
         // the background still reaches the guide. Only `padding-left` is
         // touched — the shorthand would drop the other three sides.
         //
-        // Vertical padding matches `c_euv_sidebar_link` (`space-sm`), see the
-        // note on that class for why the row is 40px and not 48px.
-        padding: format!("{} {}", var!(space-sm), var!(space-md));
+        // Vertical padding matches `c_euv_sidebar_link` (`control-row-pad`),
+        // see the note on that class for why the row is 42px and not 48px.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
         padding-left: format!("calc({} + {}px)", var!(space-md), var!(side-indent-num));
         // `var!()` expands to a bare `var(--token)`, so the unit has to live
         // inside the token — writing `-{}px` here would emit

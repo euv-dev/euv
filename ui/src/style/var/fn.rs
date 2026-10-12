@@ -48,6 +48,14 @@ vars! {
         space-4xl: "40px";
         space-7xl: "80px";
 
+        // Vertical padding for a row-sized control — the sidebar rows, the
+        // dropdown items and the locale/theme buttons. 9px is what puts
+        // `space-sm`-style content at the 42px box the CTA buttons
+        // (`c_home_btn_*`) already occupy: 9 + 24 line + 9 = 42. Spelled as a
+        // name so the three families cannot drift apart again the way they
+        // did when each carried its own padding value.
+        control-row-pad: "9px";
+
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
         // `px` so it can be dropped into a plain `var()` position;
         // `side-indent-num` is the same number without a unit, for the places
@@ -230,6 +238,14 @@ vars! {
         space-3xl: "32px";
         space-4xl: "40px";
         space-7xl: "80px";
+
+        // Vertical padding for a row-sized control — the sidebar rows, the
+        // dropdown items and the locale/theme buttons. 9px is what puts
+        // `space-sm`-style content at the 42px box the CTA buttons
+        // (`c_home_btn_*`) already occupy: 9 + 24 line + 9 = 42. Spelled as a
+        // name so the three families cannot drift apart again the way they
+        // did when each carried its own padding value.
+        control-row-pad: "9px";
 
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
         // `px` so it can be dropped into a plain `var()` position;
