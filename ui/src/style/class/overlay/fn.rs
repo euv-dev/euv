@@ -848,19 +848,22 @@ class! {
         // menu floated 8px below the button it belongs to.
         top: "36px";
         // Lines the menu up with the sidebar rows below it rather than with
-        // the trigger above it. The trigger starts at `edge-gutter-nav` from
-        // the sidebar edge; the rows below it start one more step in, so the
-        // menu has to move *inward* by that step, not outward. Measured: with
-        // the trigger at 20 and the rows at 34, `left: 14px` puts the menu box
-        // on 34–306 and the row box on 34–306. The 1px that remains at each
-        // side of an item is the menu's own border, which rows do not carry.
+        // the trigger above it. The trigger spans 20–297 and the rows span
+        // 34–306, so the menu has to move *inward* on the left and *outward*
+        // on the right: `left` closes half the gap to the rows, `right` opens
+        // the smaller gap on the other side. Measured: rows 34–306, menu
+        // 34–306. The 1px that remains at each side of an item is the menu's
+        // own border, which rows do not carry.
         //
-        // `right` is pinned rather than offset: with `width: auto` and both
-        // `left` and `right` set, the two offsets fight each other and the box
-        // stretches between them. `left` alone decides the width, so `right: 0`
-        // only has to keep it from resolving against the container.
+        // Both offsets are relative to the dropdown container, and `width`
+        // stays `auto` so the two anchors decide the box together — pinning
+        // one side and measuring the other gave a menu 9px short on the right.
+        //
+        // `var!()` expands to a bare `var(--token)`, so a leading `-` in front
+        // of it emits `-var(--dropdown-align-right)`, which is not a length and
+        // is dropped by the parser. The negation has to happen inside `calc()`.
         left: var!(dropdown-align-left);
-        right: "0px";
+        right: format!("calc(-1 * {})", var!(dropdown-align-right));
         width: "auto";
         background: var!(background);
         border: format!("1px solid {}", var!(border));

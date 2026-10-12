@@ -56,11 +56,14 @@ vars! {
         // did when each carried its own padding value.
         control-row-pad: "9px";
 
-        // How far the locale dropdown menu moves inward to sit on the sidebar
-        // rows instead of on its own trigger. The trigger starts at
-        // `edge-gutter-nav` from the sidebar edge; the rows below it start one
-        // more step in. Measured: trigger 20, rows 34, so the menu needs 14px.
+        // How far the locale dropdown menu moves, on each side, to sit on the
+        // sidebar rows instead of on its own trigger. The two are NOT the same
+        // number and must not be shared: the trigger spans 20–297 while the
+        // rows span 34–306, so the menu moves inward on the left and outward
+        // on the right, by different amounts. Measured with both applied, the
+        // menu box lands on 34–306 — the row box, exactly.
         dropdown-align-left: "14px";
+        dropdown-align-right: "9px";
 
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
         // `px` so it can be dropped into a plain `var()` position;
@@ -253,11 +256,14 @@ vars! {
         // did when each carried its own padding value.
         control-row-pad: "9px";
 
-        // How far the locale dropdown menu moves inward to sit on the sidebar
-        // rows instead of on its own trigger. The trigger starts at
-        // `edge-gutter-nav` from the sidebar edge; the rows below it start one
-        // more step in. Measured: trigger 20, rows 34, so the menu needs 14px.
+        // How far the locale dropdown menu moves, on each side, to sit on the
+        // sidebar rows instead of on its own trigger. The two are NOT the same
+        // number and must not be shared: the trigger spans 20–297 while the
+        // rows span 34–306, so the menu moves inward on the left and outward
+        // on the right, by different amounts. Measured with both applied, the
+        // menu box lands on 34–306 — the row box, exactly.
         dropdown-align-left: "14px";
+        dropdown-align-right: "9px";
 
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
         // `px` so it can be dropped into a plain `var()` position;
