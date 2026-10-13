@@ -70,6 +70,22 @@ fn the_overlay_flag_does_not_change_the_element_shape() {
 }
 
 #[test]
+fn the_spinner_draws_three_quarters_of_the_ring_not_one() {
+    let style: String = c_spinner().get_style().to_string();
+    for side in ["border-top:", "border-right:", "border-bottom:"] {
+        assert!(
+            style.contains(side),
+            "the accent arc must reach {side}, got {style:?} — a single-sided \
+             arc reads as a short stub rather than a ring in motion"
+        );
+    }
+    assert!(
+        !style.contains("border-left:"),
+        "the trailing quarter must stay muted, got {style:?}"
+    );
+}
+
+#[test]
 fn a_loading_without_props_falls_back_to_defaults() {
     let bare: VirtualNode<EuvLoadingProps> = VirtualNode::Element {
         tag: Tag::Element(Cow::Borrowed("div")),

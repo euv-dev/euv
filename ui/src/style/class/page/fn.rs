@@ -1359,10 +1359,12 @@ class! {
     }
 
     pub c_spinner {
-        width: "28px";
-        height: "28px";
-        border: format!("3px solid {}", var!(accent-muted));
-        border-top: format!("3px solid {}", var!(accent));
+        width: "40px";
+        height: "40px";
+        border: format!("4px solid {}", var!(accent-muted));
+        border-top: format!("4px solid {}", var!(accent));
+        border-right: format!("4px solid {}", var!(accent));
+        border-bottom: format!("4px solid {}", var!(accent));
         border-radius: "50%";
         flex-shrink: "0";
         animation: "euv-spin 0.8s linear infinite";

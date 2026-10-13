@@ -45,13 +45,18 @@ pub(crate) const EUV_NO_INLINE_BRIDGE_ENV: &str = "EUV_NO_INLINE_BRIDGE";
 
 /// The `<style>` block for the pre-render spinner.
 ///
-/// The spinner mirrors the framework's own `c_spinner` class (28px ring,
-/// 3px border, `accent` over `accent-muted`, `euv-spin` at 0.8s linear)
+/// The spinner mirrors the framework's own `c_spinner` class (40px ring,
+/// 4px border, `accent` over `accent-muted`, `euv-spin` at 0.8s linear)
 /// and reuses the same design tokens, so it is visually identical to the
 /// in-app loading overlay and follows the OS colour scheme before the
 /// wasm theme hook takes over. Tokens are declared locally because the
 /// theme classes are injected by the wasm bundle, which has not run yet.
-pub(crate) const LOADING_STYLE: &str = r#"<style>:root{--background: #ffffff;--accent: #000000;--accent-muted: #ffffff}@media(prefers-color-scheme:dark){:root{--background: #000000;--accent: #ffffff;--accent-muted: #000000}}#euv-loading{position:fixed;inset:0;display:flex;-webkit-user-select:none;user-select:none;align-items:center;justify-content:center;background:var(--background);z-index:9999}#euv-loading>div{-webkit-user-select:none;user-select:none;width:40px;height:40px;border:4px solid var(--accent-muted);border-top-color:var(--accent);border-radius:50%;box-sizing:border-box;animation:euv-spin .8s linear infinite}@keyframes euv-spin{0%{transform:rotate(0)}to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){#euv-loading>div{animation-duration:1.6s}}</style>"#;
+///
+/// The accent arc spans three quarters of the ring (`border-right` and
+/// `border-bottom` carry `accent` alongside `border-top`), leaving only
+/// the trailing top-left quarter muted. A single-sided arc reads as a
+/// short stub at 40px; three quarters reads as a ring in motion.
+pub(crate) const LOADING_STYLE: &str = r#"<style>:root{--background: #ffffff;--accent: #000000;--accent-muted: #ffffff}@media(prefers-color-scheme:dark){:root{--background: #000000;--accent: #ffffff;--accent-muted: #000000}}#euv-loading{position:fixed;inset:0;display:flex;-webkit-user-select:none;user-select:none;align-items:center;justify-content:center;background:var(--background);z-index:9999}#euv-loading>div{-webkit-user-select:none;user-select:none;width:40px;height:40px;border:4px solid var(--accent-muted);border-top-color:var(--accent);border-right-color:var(--accent);border-bottom-color:var(--accent);border-radius:50%;box-sizing:border-box;animation:euv-spin .8s linear infinite}@keyframes euv-spin{0%{transform:rotate(0)}to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){#euv-loading>div{animation-duration:1.6s}}</style>"#;
 
 /// The `<div>` element for the pre-render spinner, injected into `<body>`.
 ///
