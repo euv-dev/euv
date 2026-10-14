@@ -16,7 +16,7 @@ pub(crate) fn app() -> VirtualNode {
         let route_signal: Signal<String> = App::use_signal(Router::current_route);
         let drawer_open: Signal<bool> = App::use_signal(|| false);
         let locale_menu_open: Signal<bool> = App::use_signal(|| false);
-        let collapsed: Signal<Vec<String>> = App::use_signal(Vec::new);
+        let collapsed: Signal<Vec<String>> = App::use_signal(all_sidebar_group_keys);
         let mobile_signal: Signal<bool> = UseEuvLayout::use_resize();
         UseEuvLayout::use_safe_area_fix();
         let theme_state: ThemeState = ThemeState::use_theme_state(mobile_signal);
@@ -52,6 +52,27 @@ pub(crate) fn app() -> VirtualNode {
             }
         }
     })
+}
+
+/// Seeds the collapsed-keys signal with every group in the route's own
+/// locale, so the sidebar mounts folded to its section titles.
+///
+/// The tree is per-locale, so the default has to be derived from the
+/// locale actually being rendered — seeding from a fixed locale would
+/// fold a tree whose keys the current bundle never emits, leaving the
+/// reader's own sections expanded while dead keys sit in the signal.
+///
+/// The initialiser runs through the hook index once, so a route change
+/// does not re-fold a tree the reader has since opened; only the reveal
+/// pass (`expand_active_groups`) touches the signal afterwards, and it
+/// opens exactly the active page's ancestors.
+///
+/// # Returns
+///
+/// - `Vec<String>` - Every group key of the boot route's sidebar tree.
+fn all_sidebar_group_keys() -> Vec<String> {
+    let (path, _anchor) = parse_route(&Router::current_route());
+    all_group_keys(locale_of(&path).sidebar)
 }
 
 /// Renders the desktop shell: the example's left nav column (brand header,
@@ -656,7 +677,7 @@ fn collect_active_group_keys(
             }
             continue;
         }
-        let key: String = format!("{prefix}/{}", item.text);
+        let key: String = sidebar_group_key(prefix, item.text);
         let mut child_keys: Vec<String> = Vec::new();
         let child_contains: bool =
             collect_active_group_keys(item.children, path, &key, &mut child_keys);

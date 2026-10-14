@@ -189,6 +189,75 @@ pub(crate) fn flatten_links(items: &'static [EuvSidebarItem]) -> Vec<&'static Eu
     out
 }
 
+/// Builds the collapse key of a sidebar group.
+///
+/// The key format is euv-ui's `euv_sidebar_item` recursion contract
+/// (`{prefix}/{text}`, with the top level's prefix empty), and both
+/// ends of the docs shell depend on it agreeing exactly: the seeded
+/// default-collapsed state, the reveal pass that expands the active
+/// page's ancestors, and the component that reads the list. Owning the
+/// format here is what keeps the three from drifting apart.
+///
+/// # Arguments
+///
+/// - `&str` - The group key prefix of the parent level.
+/// - `&str` - The group's display text.
+///
+/// # Returns
+///
+/// - `String` - The group's collapse key.
+pub fn sidebar_group_key(prefix: &str, text: &str) -> String {
+    let mut key: String = String::with_capacity(prefix.len() + 1 + text.len());
+    key.push_str(prefix);
+    key.push(SIDEBAR_GROUP_KEY_SEPARATOR);
+    key.push_str(text);
+    key
+}
+
+/// Collects every group key in a sidebar tree.
+///
+/// Seeding the collapsed-keys signal with this list folds the tree down
+/// to its group titles, which is the state the docs shell mounts with:
+/// a 240-directory sidebar opened to every leaf is a wall of links that
+/// pushes the sections the reader is not in off the bottom.
+///
+/// Leaves are skipped — they carry no key and cannot collapse. Parents
+/// are listed before the groups nested under them, so the order is
+/// stable and matches the tree.
+///
+/// # Arguments
+///
+/// - `&'static [EuvSidebarItem]` - The sidebar tree to walk.
+///
+/// # Returns
+///
+/// - `Vec<String>` - One key per group, at any depth.
+pub fn all_group_keys(items: &'static [EuvSidebarItem]) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::new();
+    collect_group_keys(items, SIDEBAR_GROUP_KEY_ROOT, &mut keys);
+    keys
+}
+
+/// Walks one tree level, appending every group key under `prefix` to
+/// `keys`. Recurses depth-first so a parent key is always listed before
+/// its children.
+///
+/// # Arguments
+///
+/// - `&'static [EuvSidebarItem]` - The items of the current tree level.
+/// - `&str` - The group key prefix of the parent level.
+/// - `&mut Vec<String>` - The collected group keys.
+fn collect_group_keys(items: &'static [EuvSidebarItem], prefix: &str, keys: &mut Vec<String>) {
+    for item in items {
+        if item.children.is_empty() {
+            continue;
+        }
+        let key: String = sidebar_group_key(prefix, item.text);
+        keys.push(key.clone());
+        collect_group_keys(item.children, &key, keys);
+    }
+}
+
 /// Computes the site root URL path from the current location.
 ///
 /// Every locale bundle is served from its own directory under the site
