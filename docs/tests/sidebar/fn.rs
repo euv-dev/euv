@@ -110,3 +110,105 @@ fn a_tree_of_only_leaves_collapses_to_nothing() {
          is what keeps the leaves visible"
     );
 }
+
+static GUIDE_CHILDREN: &[EuvSidebarItem] = &[
+    EuvSidebarItem {
+        text: "install",
+        link: Some("/guide/install.html"),
+        children: &[],
+    },
+    EuvSidebarItem {
+        text: "usage",
+        link: Some("/guide/usage.html"),
+        children: &[],
+    },
+];
+
+static OTHER_CHILDREN: &[EuvSidebarItem] = &[EuvSidebarItem {
+    text: "config",
+    link: Some("/other/config.html"),
+    children: &[],
+}];
+
+static PAGER_TREE: &[EuvSidebarItem] = &[
+    EuvSidebarItem {
+        text: "Guide",
+        link: Some("/guide/"),
+        children: GUIDE_CHILDREN,
+    },
+    EuvSidebarItem {
+        text: "Other",
+        link: Some("/other/"),
+        children: OTHER_CHILDREN,
+    },
+];
+
+#[test]
+fn the_pager_pool_spans_directory_boundaries() {
+    assert_eq!(
+        flatten_links(PAGER_TREE)
+            .iter()
+            .map(|item: &&EuvSidebarItem| item.link)
+            .collect::<Vec<Option<&'static str>>>(),
+        vec![
+            Some("/guide/"),
+            Some("/guide/install.html"),
+            Some("/guide/usage.html"),
+            Some("/other/"),
+            Some("/other/config.html"),
+        ],
+        "the pool is one ordered list for the whole locale, so the reader \
+         can walk from the last page of one directory into the next"
+    );
+}
+
+#[test]
+fn a_directorys_first_page_is_not_the_end_of_the_document() {
+    let pool: Vec<&'static EuvSidebarItem> = flatten_links(PAGER_TREE);
+    let index: usize = pool
+        .iter()
+        .position(|item: &&EuvSidebarItem| item.link == Some("/other/"))
+        .expect("the second directory index is in the pool");
+    assert!(
+        index > 0,
+        "the second directory index is preceded by the first directory's \
+         pages, so it must have a previous entry"
+    );
+    assert_eq!(
+        pool[index - 1].link,
+        Some("/guide/usage.html"),
+        "the previous button points at the last file of the previous \
+         directory rather than being missing"
+    );
+}
+
+#[test]
+fn a_directorys_last_page_has_a_next_entry_in_the_following_directory() {
+    let pool: Vec<&'static EuvSidebarItem> = flatten_links(PAGER_TREE);
+    let index: usize = pool
+        .iter()
+        .position(|item: &&EuvSidebarItem| item.link == Some("/guide/usage.html"))
+        .expect("the first directory's last page is in the pool");
+    assert_eq!(
+        pool.get(index + 1)
+            .and_then(|item: &&'static EuvSidebarItem| item.link),
+        Some("/other/"),
+        "the next button crosses into the following directory instead of \
+         being missing"
+    );
+}
+
+#[test]
+fn only_the_very_first_and_very_last_page_have_no_neighbour() {
+    let pool: Vec<&'static EuvSidebarItem> = flatten_links(PAGER_TREE);
+    for (index, item) in pool.iter().enumerate() {
+        let has_prev: bool = index > 0;
+        let has_next: bool = index + 1 < pool.len();
+        assert!(
+            has_prev || has_next,
+            "only the document's endpoints lack a neighbour, but {:?} is \
+             missing both",
+            item.link
+        );
+    }
+}

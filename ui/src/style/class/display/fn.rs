@@ -924,6 +924,20 @@ class! {
         min-width: "0px";
     }
 
+    // Scroll container for a markdown table.
+    //
+    // The table keeps `display: table` (so it fills the column and its
+    // columns are sized by real table layout), which means the *wrapper*
+    // is what can scroll: `overflow-x` on the table box itself is ignored.
+    // `min-width: 0` is what lets the wrapper shrink inside the flex/grid
+    // prose column instead of being floored by its table's intrinsic width,
+    // so a wide table scrolls rather than pushing the whole article wide.
+    pub(crate) c_euv_markdown_table_scroll {
+        overflow-x: "auto";
+        max-width: "100%";
+        min-width: "0px";
+    }
+
     pub c_euv_footer {
         // Footer sits at the natural end of the article column. The user
         // reaches it by scrolling to the bottom of the article — no sticky

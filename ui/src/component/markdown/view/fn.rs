@@ -122,22 +122,32 @@ fn render_md_block(block: &'static EuvMdBlock) -> VirtualNode {
             }
         }
         EuvMdBlock::Table { head, rows } => html! {
-            table {
-                thead {
-                    tr {
-                        for cell in head.iter() {
-                            th {
-                                { render_md_inlines(cell) }
+            // The scroll container has to be a *wrapper*, not the table
+            // itself: `overflow-x` on a `display: table` box is ignored
+            // by the browser, and setting `display: block` on the table
+            // (the previous workaround) drops it out of table layout, so
+            // the anonymous table shrink-wraps its content instead of
+            // filling the column. The wrapper scrolls; the table inside
+            // keeps real table layout and expands to the column width.
+            div {
+                class: c_euv_markdown_table_scroll()
+                table {
+                    thead {
+                        tr {
+                            for cell in head.iter() {
+                                th {
+                                    { render_md_inlines(cell) }
+                                }
                             }
                         }
                     }
-                }
-                tbody {
-                    for row in rows.iter() {
-                        tr {
-                            for cell in row.iter() {
-                                td {
-                                    { render_md_inlines(cell) }
+                    tbody {
+                        for row in rows.iter() {
+                            tr {
+                                for cell in row.iter() {
+                                    td {
+                                        { render_md_inlines(cell) }
+                                    }
                                 }
                             }
                         }

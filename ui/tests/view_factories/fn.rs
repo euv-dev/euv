@@ -724,6 +724,46 @@ fn a_vconsole_drawer_with_one_entry_beats_one_with_two() {
 static MD_RULE: [EuvMdBlock; 1] = [EuvMdBlock::Rule];
 
 #[test]
+fn the_markdown_table_sheet_keeps_the_table_in_table_layout() {
+    let sheet: &str = euv_md_css();
+    let anchored: String = sheet
+        .split(".md-body table{width:")
+        .nth(1)
+        .map(|rest: &str| format!("width:{rest}"))
+        .unwrap_or_default();
+    let table_rule: &str = anchored.split('}').next().unwrap_or_default();
+    assert!(
+        !table_rule.contains("display:block"),
+        "display:block on the table drops it out of table layout, so it \
+         shrink-wraps its content instead of filling the column — the \
+         reported \"the table does not expand to full width\". \
+         Rule was {table_rule:?}"
+    );
+    assert!(
+        !table_rule.contains("overflow-x"),
+        "overflow-x on a display:table box is ignored by the browser, so \
+         the table can never scroll; the wrapper carries it instead. \
+         Rule was {table_rule:?}"
+    );
+    assert!(
+        table_rule.contains("width:100%"),
+        "without width:100% the table shrink-wraps its content instead of \
+         filling the prose column. Rule was {table_rule:?}"
+    );
+}
+
+#[test]
+fn the_markdown_table_sheet_keeps_every_row_on_one_line() {
+    let sheet: &str = euv_md_css();
+    assert!(
+        sheet.contains("white-space:nowrap"),
+        "cells wrap as soon as the content does not fit, so every row grows \
+         tall and the table reads as broken; cells must stay on one line \
+         and the wrapper scrolls horizontally instead"
+    );
+}
+
+#[test]
 fn a_calendar_renders_one_cell_per_day_plus_the_weekday_header() {
     let node: VirtualNode<EuvCalendarProps> = props(EuvCalendarProps {
         title: "2026-10",

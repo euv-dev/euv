@@ -118,12 +118,22 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
 
 /// Computes the prev/next pagination entries around the current route.
 ///
-/// Locates the current page in the sidebar tree, then walks the sibling
-/// scope (the array containing the matched item as a direct child). For
-/// leaf pages the scope is the immediate sibling array; for directory
-/// READMEs (group with link) the scope is the parent array so the pager
-/// stays anchored inside the directory instead of hopping to an unrelated
-/// project.
+/// The pager pool is the **whole locale sidebar flattened in display
+/// order**, not the current directory's own sibling list. A directory's
+/// index page sits at the head of its own subtree, so a per-directory
+/// pool left its `prev` empty even when the last page of the previous
+/// directory was right there in the tree; the same held for the tail of
+/// every directory. Flattening across directory boundaries makes the
+/// pager a property of *the file's position in the document*, which is
+/// what a reader expects: "the page before this one" and "the page after
+/// this one", crossing into the neighbouring directory when this file
+/// is the first or last of its own.
+///
+/// Sidebar order is the pool order, so the pager always agrees with what
+/// the sidebar shows — including its explicit `sidebar_order` / `order`
+/// frontmatter pinning. A route with no sidebar entry (a page marked
+/// `sidebar: false`, or one reached only by its home link) has no
+/// position in that order, so it gets no pager rather than a guess.
 ///
 /// # Arguments
 ///
@@ -137,29 +147,24 @@ fn prev_next(
     locale: &'static DocsLocale,
     route: &str,
 ) -> (Option<EuvPaginationItem>, Option<EuvPaginationItem>) {
-    let to_item: Box<dyn Fn(&'static EuvSidebarItem) -> Option<EuvPaginationItem>> = Box::new(
-        |item: &'static EuvSidebarItem| -> Option<EuvPaginationItem> {
-            item.link.map(|link: &'static str| EuvPaginationItem {
-                text: item.text,
-                link,
-            })
-        },
-    );
-    let Some(scope) = scope_for(locale.sidebar, route) else {
-        return (None, None);
-    };
-    let pool: Vec<&'static EuvSidebarItem> = flatten_links(scope);
+    let pool: Vec<&'static EuvSidebarItem> = flatten_links(locale.sidebar);
     let pool_index: Option<usize> = pool
         .iter()
         .position(|item: &&'static EuvSidebarItem| item.link == Some(route));
     let Some(pool_index) = pool_index else {
         return (None, None);
     };
-    let prev: Option<EuvPaginationItem> = pool_index
-        .checked_sub(1)
-        .and_then(|i: usize| to_item(pool[i]));
-    let next: Option<EuvPaginationItem> = pool
-        .get(pool_index + 1)
-        .and_then(|item: &&'static EuvSidebarItem| to_item(item));
+    let to_item: fn(Option<&&'static EuvSidebarItem>) -> Option<EuvPaginationItem> =
+        |item: Option<&&'static EuvSidebarItem>| {
+            item.and_then(|item: &&'static EuvSidebarItem| {
+                item.link.map(|link: &'static str| EuvPaginationItem {
+                    text: item.text,
+                    link,
+                })
+            })
+        };
+    let prev: Option<EuvPaginationItem> =
+        to_item(pool_index.checked_sub(1).and_then(|i: usize| pool.get(i)));
+    let next: Option<EuvPaginationItem> = to_item(pool.get(pool_index + 1));
     (prev, next)
 }

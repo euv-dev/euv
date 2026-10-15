@@ -26,6 +26,7 @@ pub(crate) fn app() -> VirtualNode {
         Router::use_overlay_history(drawer_open, mobile_signal);
         use_anchor_scroll(route_signal);
         use_sidebar_reveal(route_signal, collapsed, drawer_open);
+        use_locale_dropdown_dismiss(locale_menu_open);
         html! {
             div {
                 key: locale_of(&parse_route(&route_signal.get()).0).prefix
@@ -413,6 +414,66 @@ fn section_label(locale: &'static DocsLocale) -> &'static str {
         })
         .map(|item: &EuvNavbarItem| item.text)
         .unwrap_or("文档")
+}
+
+/// Closes the locale dropdown when the reader presses outside it.
+///
+/// The menu closes only on selection, so a press anywhere else used to
+/// leave it hanging open over the page — the one dismissal gesture every
+/// menu is expected to have, and the only one missing.
+///
+/// The press is captured on the document rather than on `click`, because
+/// `click` only fires once the browser has resolved what the press meant:
+/// a press that starts outside and lands on a row (or is cancelled by a
+/// drag) would still leave the menu open. Capturing the press is what
+/// makes dismissal feel immediate instead of lagging a frame.
+///
+/// The handler short-circuits on the closed state, so the common case
+/// costs one boolean read instead of a DOM query. "Is this press
+/// inside?" is `closest` from the press target up to the dropdown root,
+/// which means the trigger, a row, and the padding between them all
+/// count as inside and only genuinely foreign DOM dismisses the menu.
+///
+/// Called once from the shell root, which runs once per mount, so the
+/// listener is installed exactly once per page load. It is deliberately
+/// never removed — the document outlives every dropdown state, and the
+/// early return above makes the leftover listener inert.
+///
+/// # Arguments
+///
+/// - `Signal<bool>` - The dropdown open signal, owned by the shell.
+fn use_locale_dropdown_dismiss(menu_open: Signal<bool>) {
+    let Some(window) = window() else {
+        return;
+    };
+    let Some(document) = window.document() else {
+        return;
+    };
+    let handler: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |event: Event| {
+        if !menu_open.get() {
+            return;
+        }
+        let target: JsValue = event
+            .target()
+            .map_or(JsValue::NULL, |event_target: EventTarget| {
+                event_target.into()
+            });
+        let inside: bool = Element::from(target)
+            .closest(LOCALE_DROPDOWN_SELECTOR)
+            .ok()
+            .flatten()
+            .is_some();
+        if !inside {
+            menu_open.set(false);
+        }
+    }) as Box<dyn FnMut(Event)>);
+    let _registered: Result<(), JsValue> = document.add_event_listener_with_callback(
+        DOCUMENT_OUTSIDE_POINTER_EVENT,
+        handler.as_ref().unchecked_ref(),
+    );
+    // `forget` keeps the registration alive for the page's lifetime
+    // instead of dropping the closure the listener still points at.
+    handler.forget();
 }
 
 /// Toggles the locale dropdown menu.
