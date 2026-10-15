@@ -213,8 +213,16 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
             span {
                 title_node
             }
+            // The triangle is its own control, not part of the title row's
+            // click target. It used to sit inside the title `<div>` with no
+            // handler of its own, so a click on the glyph bubbled up to
+            // `toggle_navigate_group` and navigated to the group index (or
+            // jumped to the first child) instead of folding the group —
+            // the arrow has to mean "fold/unfold", nothing else. Give it its
+            // own `stop_propagation` handler so it only ever toggles.
             span {
                 class: arrow_class()
+                onclick: toggle_group_only(collapsed, key.clone())
                 "▸"
             }
         }
@@ -347,6 +355,36 @@ fn toggle_navigate_group(
                 }
             },
         }
+    }))
+}
+
+/// Builds the group title's toggle-only click handler, used by the arrow.
+///
+/// Unlike [`toggle_navigate_group`] this never navigates: the arrow is a
+/// disclosure control, so its only job is to add or remove `key` from the
+/// collapsed set. The event is stopped so it does not bubble into the
+/// enclosing title row, whose handler would otherwise treat the click as a
+/// navigation request.
+///
+/// # Arguments
+///
+/// - `Signal<Vec<String>>` - The collapsed-keys signal.
+/// - `String` - The group key.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The click handler.
+fn toggle_group_only(collapsed: Signal<Vec<String>>, key: String) -> Option<Rc<dyn Fn(Event)>> {
+    Some(Rc::new(move |event: Event| {
+        event.prevent_default();
+        event.stop_propagation();
+        let mut keys: Vec<String> = collapsed.get();
+        if let Some(index) = keys.iter().position(|k: &String| k == &key) {
+            keys.remove(index);
+        } else {
+            keys.push(key.clone());
+        }
+        collapsed.set(keys);
     }))
 }
 

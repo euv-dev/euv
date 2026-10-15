@@ -1026,18 +1026,107 @@ class! {
         }
     }
 
+    // The glyph itself is a 6px `▸`, far too small a target: the clickable
+    // box wants to clear the ~24px that is comfortable to hit, without making
+    // the triangle *look* bigger. So the glyph keeps its font size and the
+    // extra area is built out of transparent padding plus negative margins
+    // that cancel the padding back out — the row keeps its 42px height and
+    // the glyph keeps its place at the right edge, but the invisible hit box
+    // grows to roughly 24x42.
+    //
+    // `euv_sidebar_group` applies exactly ONE arrow class (see the
+    // `(active, open)` match there), so these four variants do not stack and
+    // each one has to repeat the base declarations — the same duplication
+    // `c_euv_sidebar_group_title_root` already uses. Only the colour and the
+    // rotation differ between them.
+    //
+    // `cursor: pointer` and `user-select: none` are load-bearing now that the
+    // arrow is its own control: without them most of the enlarged area keeps
+    // the inherited `default` cursor, and a double-click can select the glyph
+    // as text instead of folding the group.
     pub(crate) c_euv_sidebar_group_arrow {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
         transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        // Invisible hit area: the 6px glyph plus 9px of padding on each side
+        // is ~24px wide, and vertically the negative margins carry it to the
+        // full row height. Written as a literal rather than through `var!`:
+        // `format!` around `var!(...)` yields `-var(--x)`, which is invalid CSS
+        // and the declaration is dropped silently — the row then stays 54px
+        // tall instead of 42px.
+        padding: "9px";
+        // Vertical padding would otherwise leak into layout and grow every row
+        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
+        // exactly the padding they accompany. The hit area is still the full
+        // row height — it just overlaps the row's own padding instead of
+        // pushing the row taller.
+        margin-top: "-9px";
+        margin-bottom: "-9px";
+        margin-right: "-9px";
+        margin-left: "-5px";
+        cursor: "pointer";
+        user-select: "none";
+        flex-shrink: "0";
+        :hover {
+            color: var!(foreground);
+        }
     }
 
     pub(crate) c_euv_sidebar_group_arrow_open {
+        font-size: var!(font-xs);
+        color: var!(muted-foreground);
+        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        padding: "9px";
+        // Vertical padding would otherwise leak into layout and grow every row
+        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
+        // exactly the padding they accompany. The hit area is still the full
+        // row height — it just overlaps the row's own padding instead of
+        // pushing the row taller.
+        margin-top: "-9px";
+        margin-bottom: "-9px";
+        margin-right: "-9px";
+        margin-left: "-5px";
+        cursor: "pointer";
+        user-select: "none";
+        flex-shrink: "0";
         transform: "rotate(90deg)";
+        :hover {
+            color: var!(foreground);
+        }
     }
 
     pub(crate) c_euv_sidebar_group_arrow_active {
+        font-size: var!(font-xs);
+        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        padding: "9px";
+        // Vertical padding would otherwise leak into layout and grow every row
+        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
+        // exactly the padding they accompany. The hit area is still the full
+        // row height — it just overlaps the row's own padding instead of
+        // pushing the row taller.
+        margin-top: "-9px";
+        margin-bottom: "-9px";
+        margin-right: "-9px";
+        margin-left: "-5px";
+        cursor: "pointer";
+        user-select: "none";
+        flex-shrink: "0";
         color: var!(text-on-accent);
+        // An active row sits on the accent fill; the hover colour must stay
+        // the on-accent ink or hovering the arrow flips it to the muted
+        // foreground and it vanishes against the highlight.
+        :hover {
+            color: var!(text-on-accent);
+        }
     }
 
     // The arrow's colour and its rotation are independent: `_active` only
@@ -1046,8 +1135,29 @@ class! {
     // both at once — without this the active branch in `euv_sidebar_group`
     // won the exclusive match and the arrow stopped following the toggle.
     pub(crate) c_euv_sidebar_group_arrow_active_open {
+        font-size: var!(font-xs);
+        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        padding: "9px";
+        // Vertical padding would otherwise leak into layout and grow every row
+        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
+        // exactly the padding they accompany. The hit area is still the full
+        // row height — it just overlaps the row's own padding instead of
+        // pushing the row taller.
+        margin-top: "-9px";
+        margin-bottom: "-9px";
+        margin-right: "-9px";
+        margin-left: "-5px";
+        cursor: "pointer";
+        user-select: "none";
+        flex-shrink: "0";
         color: var!(text-on-accent);
         transform: "rotate(90deg)";
+        :hover {
+            color: var!(text-on-accent);
+        }
     }
 
     pub c_euv_sidebar_children {
