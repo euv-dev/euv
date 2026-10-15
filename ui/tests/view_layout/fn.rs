@@ -76,6 +76,7 @@ fn doc_node(
             prev: None,
             next: None,
             footer,
+            toc_active: Signal::create(String::new()),
         })),
     }
 }
@@ -122,6 +123,7 @@ fn default_doc() -> VirtualNode<EuvDocLayoutProps> {
             prev: None,
             next: None,
             footer: "",
+            toc_active: Signal::create(String::new()),
         })),
     }
 }

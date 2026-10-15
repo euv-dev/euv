@@ -26,7 +26,7 @@ pub(crate) use {
     app::*,
     component::*,
     data::*,
-    js_sys::{Promise, decode_uri_component, eval},
+    js_sys::{Promise, decode_uri_component},
     {Event, HtmlInputElement, KeyboardEvent, Location},
 };
 
@@ -53,6 +53,4 @@ pub fn main() {
     Css::inject_css(euv_md_css());
     Css::inject_css(APP_GLOBAL_CSS);
     App::mount(APP_MOUNT_SELECTOR, app);
-    let _: Result<JsValue, JsValue> = js_sys::eval(IMAGE_LOAD_WATCHER_JS);
-    let _: Result<JsValue, JsValue> = js_sys::eval(TOC_SCROLL_SPY_JS);
 }

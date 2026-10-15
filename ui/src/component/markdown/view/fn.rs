@@ -20,7 +20,7 @@ pub fn euv_markdown(node: VirtualNode<EuvMarkdownProps>) -> VirtualNode {
     html! {
         article {
             class: c_euv_markdown()
-            class: "md-body"
+            class: MD_BODY_PROSE_CLASS
             content
         }
     }
@@ -78,10 +78,9 @@ fn render_md_block(block: &'static EuvMdBlock) -> VirtualNode {
                 // concatenate the constant prefix with the dynamic lang
                 // segment using a single pre-sized buffer.
                 class: {
-                    const LANG_PREFIX: &str = "language-";
                     let mut class: String =
-                        String::with_capacity(LANG_PREFIX.len() + lang.len());
-                    class.push_str(LANG_PREFIX);
+                        String::with_capacity(MD_CODE_LANG_CLASS_PREFIX.len() + lang.len());
+                    class.push_str(MD_CODE_LANG_CLASS_PREFIX);
                     class.push_str(lang);
                     class
                 }
@@ -166,15 +165,14 @@ fn render_md_block(block: &'static EuvMdBlock) -> VirtualNode {
                     // OPT 30: same concat-with-constant pattern as the
                     // `CodeBlock` branch above.
                     class: {
-                        const DOCS_CONTAINER_PREFIX: &str = "docs-container ";
                         let mut class: String =
-                            String::with_capacity(DOCS_CONTAINER_PREFIX.len() + kind.len());
-                        class.push_str(DOCS_CONTAINER_PREFIX);
+                            String::with_capacity(MD_DOCS_CONTAINER_CLASS_PREFIX.len() + kind.len());
+                        class.push_str(MD_DOCS_CONTAINER_CLASS_PREFIX);
                         class.push_str(kind);
                         class
                     }
                     p {
-                        class: "docs-container-title"
+                        class: MD_DOCS_CONTAINER_TITLE_CLASS
                         { *title }
                     }
                     content
@@ -212,7 +210,7 @@ fn render_md_heading(
 ) -> VirtualNode {
     let anchor: VirtualNode = html! {
         a {
-            class: "header-anchor"
+            class: MD_HEADING_ANCHOR_CLASS
             href: href
             span { "#" }
         }
@@ -351,20 +349,28 @@ fn render_md_inline(inline: &'static EuvMdInline) -> VirtualNode {
             img {
                 src: *src
                 alt: *alt
+                // The stylesheet holds an unsettled image at `height: 0`
+                // so a slow image cannot flash at the wrong size and then
+                // reflow the page. Marking it here on both outcomes — and
+                // for a cached image through `mark_image_loaded` at mount —
+                // replaces an injected script plus a body-wide
+                // MutationObserver with two handlers on the element itself.
+                onload: mark_image_loaded()
+                onerror: mark_image_loaded()
             }
         },
         EuvMdInline::TaskMarker(checked) => {
             if *checked {
                 html! {
                     span {
-                        class: "task-marker"
+                        class: MD_TASK_MARKER_CLASS
                         "☑"
                     }
                 }
             } else {
                 html! {
                     span {
-                        class: "task-marker"
+                        class: MD_TASK_MARKER_CLASS
                         "☐"
                     }
                 }
@@ -382,4 +388,30 @@ fn render_md_inline(inline: &'static EuvMdInline) -> VirtualNode {
             }
         },
     }
+}
+
+/// Marks the pressed image as settled so the stylesheet stops holding it at
+/// zero height.
+///
+/// Both outcomes set the attribute: an image that failed to load is just
+/// as settled as one that succeeded, and leaving a broken image collapsed
+/// to `height: 0` hides the fact that anything was there at all.
+///
+/// The attribute is set through `set_attribute` rather than by toggling a
+/// class because the stylesheet matches `[data-loaded]` — presence is the
+/// whole signal.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The handler, bound to `load` and `error`.
+pub(crate) fn mark_image_loaded() -> Option<Rc<dyn Fn(Event)>> {
+    Some(Rc::new(|event: Event| {
+        let target: JsValue = event
+            .target()
+            .map_or(JsValue::NULL, |event_target: EventTarget| {
+                event_target.into()
+            });
+        let _marked: Result<(), JsValue> =
+            Element::from(target).set_attribute(MD_IMAGE_LOADED_ATTR, MD_IMAGE_LOADED_VALUE);
+    }))
 }

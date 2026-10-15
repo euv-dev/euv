@@ -42,6 +42,7 @@ fn toc_node(items: &'static [EuvTocItem]) -> VirtualNode<EuvTocProps> {
         props: Some(Box::new(EuvTocProps {
             title: "Contents",
             items,
+            active: Signal::create(String::new()),
         })),
     }
 }
@@ -171,6 +172,7 @@ fn a_toc_without_props_falls_back_to_defaults() {
         props: Some(Box::new(EuvTocProps {
             title: "",
             items: &TOC_NONE,
+            active: Signal::create(String::new()),
         })),
     });
     assert_eq!(

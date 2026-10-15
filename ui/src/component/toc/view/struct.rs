@@ -15,12 +15,18 @@ pub struct EuvTocItem {
 }
 
 /// Props for the [`euv_toc`] component.
-#[derive(Clone, Copy, CustomDebug, Data, Default, New)]
+#[derive(Clone, CustomDebug, Default)]
 pub struct EuvTocProps {
     /// The list title (for example `On this page`).
-    #[get(type(copy))]
     pub title: &'static str,
     /// The anchor items.
-    #[get(type(copy))]
     pub items: &'static [EuvTocItem],
+    /// The `href` of the entry the reader is currently at; that entry
+    /// renders the `_active` class.
+    ///
+    /// A signal rather than a plain field so scroll-driven highlighting
+    /// is ordinary reactive state the renderer owns: the caller writes
+    /// the signal and the TOC repaints from it. A caller with no
+    /// scroll spy leaves this empty and every entry renders inactive.
+    pub active: Signal<String>,
 }

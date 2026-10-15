@@ -79,6 +79,11 @@ pub(crate) fn docs_main(node: VirtualNode<DocsPageProps>) -> VirtualNode {
 #[component]
 pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     let DocsPageProps { route_signal }: DocsPageProps = node.try_get_props().unwrap_or_default();
+    // The spy lives here rather than in the shell because the TOC it
+    // feeds is per-page state: a new page means a new entry list, and
+    // the spy re-marks the first heading against that list on mount.
+    let toc_active: Signal<String> = App::use_signal(String::new);
+    use_toc_scroll_spy(toc_active);
     let (path, _anchor) = parse_route(&route_signal.get());
     let locale: &DocsLocale = locale_of(&path);
     let Some(page) = find_page(&path) else {
@@ -96,6 +101,7 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
         euv_doc_layout {
             toc_title: locale.toc_label
             toc_items: page.headings
+            toc_active: toc_active
             prev_label: locale.prev_label
             next_label: locale.next_label
             prev: prev
@@ -114,6 +120,194 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             }
         }
     }
+}
+
+/// Keeps the active heading marked in the table of contents as the
+/// reader scrolls.
+///
+/// A reactive `Signal<String>` holds the active entry's `href` and the
+/// TOC paints its `_active` class straight off it, so the highlight is
+/// ordinary declarative state instead of script mutating class lists
+/// behind the renderer's back. The spy only reads geometry and writes
+/// one signal.
+///
+/// Geometry is polled rather than listened to, and the reason is
+/// specific: this shell locks the viewport and scrolls an inner
+/// container, so a delegated `scroll` listener on `document` never sees
+/// that scroll, while `requestAnimationFrame` stops outright in a
+/// hidden tab. A short interval reads one property per tick and
+/// early-outs when it has not moved, so it is effectively free and
+/// behaves the same in a background tab.
+///
+/// An explicit fragment wins over the geometry: arriving at
+/// `#route#section` must highlight that section even though the page
+/// has not been scrolled yet.
+///
+/// # Arguments
+///
+/// - `Signal<String>` - The active TOC entry href, written by the spy.
+fn use_toc_scroll_spy(active: Signal<String>) {
+    App::use_interval(TOC_SPY_INTERVAL_MILLIS, move || {
+        let Some(window) = window() else {
+            return;
+        };
+        let Some(document) = window.document() else {
+            return;
+        };
+        let next: Option<String> = active_toc_entry(&document, &window);
+        if let Some(next) = next
+            && next != active.get()
+        {
+            active.set(next);
+        }
+    });
+}
+
+/// Resolves the `href` of the TOC entry the reader is currently at.
+///
+/// Returns `None` when there is nothing to mark — no TOC on this page,
+/// or no heading resolved — which the caller treats as "leave the
+/// previous highlight alone". Clearing it during a re-render would
+/// flicker the highlight off and back on every time the DOM is replaced.
+///
+/// # Arguments
+///
+/// - `&Document` - The document to query.
+/// - `&Window` - The window, read for the URL fragment.
+///
+/// # Returns
+///
+/// - `Option<String>` - The active entry's `href`.
+fn active_toc_entry(document: &Document, window: &Window) -> Option<String> {
+    let Ok(links) = document.query_selector_all(TOC_SPY_LINK_SELECTOR) else {
+        return None;
+    };
+    let mut entries: Vec<String> = Vec::new();
+    for index in 0..links.length() {
+        let Some(node) = links.item(index) else {
+            continue;
+        };
+        let element: Element = node.unchecked_into();
+        let Some(href) = element.get_attribute(HREF_ATTR) else {
+            continue;
+        };
+        entries.push(href);
+    }
+    if entries.is_empty() {
+        return None;
+    }
+    if let Some(target) = fragment_target(window, &entries) {
+        return entries
+            .iter()
+            .find(|href: &&String| href_anchor(href).as_ref() == Some(&target))
+            .cloned();
+    }
+    scroll_target(document, &entries)
+}
+
+/// Extracts the heading slug an anchor's href points at.
+///
+/// # Arguments
+///
+/// - `&str` - The anchor href (`#<route>#<slug>`).
+///
+/// # Returns
+///
+/// - `Option<String>` - The slug, empty when the href carries none.
+fn href_anchor(href: &str) -> Option<String> {
+    let index: Option<usize> = href.rfind('#').filter(|index: &usize| *index > 0);
+    index
+        .map(|index: usize| href[index + 1..].to_string())
+        .filter(|anchor: &String| !anchor.is_empty())
+}
+
+/// Matches the URL fragment against the TOC entries.
+///
+/// The fragment arrives percent-encoded while heading ids are raw
+/// UTF-8, so it is decoded before comparison; a fragment that fails to
+/// decode is compared verbatim rather than dropped. Prefix matching
+/// backs the longest-id-wins case, so a fragment naming a nested
+/// heading still resolves when both it and its parent section are in
+/// the TOC.
+///
+/// # Arguments
+///
+/// - `&Window` - The window, read for `location.hash`.
+/// - `&[String]` - Every TOC entry href.
+///
+/// # Returns
+///
+/// - `Option<String>` - The matching entry's href.
+fn fragment_target(window: &Window, entries: &[String]) -> Option<String> {
+    let Ok(hash) = window.location().hash() else {
+        return None;
+    };
+    let anchor_start: Option<usize> = hash.rfind('#').filter(|index: &usize| *index > 0);
+    let index: usize = anchor_start?;
+    let raw: &str = &hash[index + 1..];
+    if raw.is_empty() {
+        return None;
+    }
+    let anchor: String = decode_anchor(raw);
+    let mut best: Option<String> = None;
+    let mut best_len: i32 = -1;
+    for href in entries {
+        let Some(slug) = href_anchor(href) else {
+            continue;
+        };
+        if slug == anchor {
+            best = Some(href.clone());
+            break;
+        }
+        if anchor.starts_with(&slug) && slug.len() as i32 > best_len {
+            best_len = slug.len() as i32;
+            best = Some(href.clone());
+        }
+    }
+    best
+}
+
+/// Picks the entry for the heading sitting at the reader's reading line.
+///
+/// The last heading wins once the container is scrolled to its end,
+/// because there the final section is the one being read and the first
+/// still-visible heading is often the very first on the page.
+///
+/// # Arguments
+///
+/// - `&Document` - The document to query.
+/// - `&[String]` - Every TOC entry href.
+///
+/// # Returns
+///
+/// - `Option<String>` - The active entry's `href`.
+fn scroll_target(document: &Document, entries: &[String]) -> Option<String> {
+    let Ok(Some(container)) = document.query_selector(TOC_SPY_CONTAINER_SELECTOR) else {
+        return None;
+    };
+    let rect: DomRect = container.get_bounding_client_rect();
+    let line: f64 = rect.top() + TOC_SPY_READING_LINE_PX;
+    let at_end: bool = container.scroll_top() + container.client_height()
+        >= container.scroll_height() - TOC_SPY_END_TOLERANCE_PX as i32;
+    if at_end && entries.len() > 1 {
+        return entries.last().cloned();
+    }
+    let mut best: Option<String> = None;
+    let mut best_top: f64 = f64::NEG_INFINITY;
+    for href in entries {
+        let Some(slug) = href_anchor(href) else {
+            continue;
+        };
+        let Some(heading) = document.get_element_by_id(slug.as_str()) else {
+            continue;
+        };
+        let top: f64 = heading.get_bounding_client_rect().top();
+        if top <= line && top > best_top {
+            best_top = top;
+            best = Some(href.clone());
+        }
+    }
+    best.or_else(|| entries.first().cloned())
 }
 
 /// Computes the prev/next pagination entries around the current route.

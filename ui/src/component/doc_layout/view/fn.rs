@@ -23,6 +23,7 @@ pub fn euv_doc_layout(node: VirtualNode<EuvDocLayoutProps>) -> VirtualNode {
         prev,
         next,
         footer,
+        toc_active,
     }: EuvDocLayoutProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     html! {
@@ -74,6 +75,7 @@ pub fn euv_doc_layout(node: VirtualNode<EuvDocLayoutProps>) -> VirtualNode {
                     euv_toc {
                         title: toc_title
                         items: toc_items
+                        active: toc_active
                     }
                 }
             }

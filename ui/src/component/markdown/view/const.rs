@@ -16,5 +16,18 @@ pub(crate) const MD_DOCS_CONTAINER_TITLE_CLASS: &str = "docs-container-title";
 /// Class marking the `#` permalink anchor appended to every heading.
 pub(crate) const MD_HEADING_ANCHOR_CLASS: &str = "header-anchor";
 
+/// Attribute flipped on an image once it has settled (loaded or failed).
+///
+/// The stylesheet keeps a not-yet-loaded image at `height: 0` so a slow
+/// image cannot flash at the wrong size and then reflow the page under
+/// the reader. Before this was an injected script plus a
+/// `MutationObserver` watching the whole body; the renderer marks the
+/// image itself instead, which is both cheaper and immune to the
+/// observer missing an image that mounted in the same tick.
+pub(crate) const MD_IMAGE_LOADED_ATTR: &str = "data-loaded";
+
+/// Value written to [`MD_IMAGE_LOADED_ATTR`]; presence is what CSS matches.
+pub(crate) const MD_IMAGE_LOADED_VALUE: &str = "1";
+
 /// Class on the glyph span of a GFM task-list item, checked or unchecked.
 pub(crate) const MD_TASK_MARKER_CLASS: &str = "task-marker";

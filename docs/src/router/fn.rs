@@ -21,7 +21,7 @@ use super::*;
 ///
 /// - `String` - The decoded UTF-8 anchor slug, or the input
 ///   unchanged if decoding fails.
-fn decode_anchor(encoded: &str) -> String {
+pub(crate) fn decode_anchor(encoded: &str) -> String {
     if !encoded.as_bytes().contains(&ANCHOR_ESCAPE) {
         // Fast path: nothing to decode, skip the FFI roundtrip.
         return encoded.to_string();
