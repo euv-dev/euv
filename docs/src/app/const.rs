@@ -44,6 +44,17 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
              .c_nav_section_label { padding-left: 0.75rem !important; } \
              .c_nav_footer { padding-left: 0.75rem !important; } \
              .c_euv_sidebar_children { margin-left: 8px !important; padding-left: 8px !important; } \
+             /* The dashed tree guide is the children's left edge, so a
+                nested marker has to sit against it, not against the
+                content box the 8px padding pushes right. `left: -8px`
+                walks the marker back over exactly that padding, so it
+                abuts the dashed border at every nesting level.
+                Matched by descendant, not child: the renderer wraps
+                each row, so the row is never a direct child of
+                `c_euv_sidebar_children`. */ \
+             .c_euv_sidebar_children .c_euv_sidebar_link::before, .c_euv_sidebar_children .c_euv_sidebar_group_title::before { left: -8px !important; } \
+             .c_euv_sidebar_children .c_euv_sidebar_link_active::before, .c_euv_sidebar_children .c_euv_sidebar_group_title_active::before { left: -8px !important; } \
+             .c_euv_sidebar_children .c_euv_sidebar_link_active_flush::before { left: 0 !important; } \
              \
              .c_euv_sidebar_link, .c_euv_sidebar_group_title { position: relative !important; } \
                          .c_euv_sidebar_link::before, .c_euv_sidebar_group_title::before { content: '' !important; position: absolute !important; top: 0 !important; bottom: 0 !important; width: 5px !important; background: transparent !important; pointer-events: none !important; } \
@@ -53,15 +64,15 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
                          .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #000) !important; border: 0 !important; box-shadow: none !important; } \
              .c_euv_sidebar_link:not(.c_euv_sidebar_link_active):not(.c_euv_sidebar_link_active_flush):hover::before, .c_euv_sidebar_group_title:not(.c_euv_sidebar_group_title_active):not(.c_euv_sidebar_group_title_root):not(.c_euv_sidebar_group_title_root_active):hover::before { background: currentColor !important; } \
                          .c_euv_sidebar_link_active, .c_euv_sidebar_group_title_active { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
-                         .c_euv_sidebar_link_active::before, .c_euv_sidebar_group_title_active::before { background: var(--accent, #000) !important; content: '' !important; position: absolute !important; width: 5px !important; top: 0 !important; bottom: 0 !important; pointer-events: none !important; left: -8px !important; } \
-                         .c_euv_sidebar_group_title_active::before { left: -8px !important; } \
+                         .c_euv_sidebar_link_active::before, .c_euv_sidebar_group_title_active::before { background: var(--accent, #000) !important; content: '' !important; position: absolute !important; width: 5px !important; top: 0 !important; bottom: 0 !important; pointer-events: none !important; left: 0 !important; } \
+                         .c_euv_sidebar_group_title_active::before { left: 0 !important; } \
                          .c_euv_sidebar_link_active:hover, .c_euv_sidebar_group_title_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
                          .c_theme_dark .c_euv_sidebar_link:hover, .c_theme_dark .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #fff) !important; box-shadow: none !important; } \
                          .c_theme_dark .c_euv_sidebar_link_active, .c_theme_dark .c_euv_sidebar_group_title_active { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
                          .c_theme_dark .c_euv_sidebar_link_active::before, .c_theme_dark .c_euv_sidebar_group_title_active::before { background: var(--accent, #fff) !important; } \
                          .c_theme_dark .c_euv_sidebar_link_active:hover, .c_theme_dark .c_euv_sidebar_group_title_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
                          .c_euv_sidebar_group_title_root, .c_euv_sidebar_group_title_root_active { position: relative !important; } \
-                         .c_euv_sidebar_group_title_root::before { content: '' !important; position: absolute !important; top: 0 !important; bottom: 0 !important; left: 0 !important; width: 4px !important; background: transparent !important; pointer-events: none !important; } \
+                         .c_euv_sidebar_group_title_root::before { content: '' !important; position: absolute !important; top: 0 !important; bottom: 0 !important; left: 0 !important; width: 5px !important; background: transparent !important; pointer-events: none !important; } \
                          .c_euv_sidebar_group_title_root:hover::before { background: var(--foreground, #000) !important; } \
                          .c_theme_dark .c_euv_sidebar_group_title_root:hover::before { background: var(--foreground, #fff) !important; } \
                          .c_euv_sidebar_group_title_root_active::before { background: var(--text-on-accent, #fff) !important; } \
