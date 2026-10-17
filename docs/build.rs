@@ -2405,6 +2405,14 @@ fn unique_slug(base: &str, used: &mut HashSet<String>) -> String {
 ///
 /// Returns `(href, external)` where internal hrefs carry the `#` hash-router
 /// prefix (plus an optional `#anchor` suffix).
+///
+/// The anchor is run through [`slugify`] because that is the function the
+/// heading ids it points at were built with: authors naturally write
+/// `[`run_function`](#run_function)` while the heading id is
+/// `run-function` (underscores are not slug-safe), so a verbatim anchor
+/// never resolves. Slugifying is idempotent for already-slugged anchors
+/// and keeps CJK, so `#相关页面` and `#run-function` pass through
+/// unchanged while `#run_function` starts matching its heading.
 /// # Arguments
 ///
 /// - `&str` - the raw markdown link target
@@ -2421,7 +2429,10 @@ fn rewrite_link(dest: &str, route: &str) -> (String, bool) {
         return (dest.to_string(), true);
     }
     if let Some(anchor) = dest.strip_prefix('#') {
-        return (format!("#{route}#{anchor}"), false);
+        if anchor.is_empty() {
+            return (format!("#{route}#"), false);
+        }
+        return (format!("#{route}#{}", slugify(anchor)), false);
     }
     let (path_part, anchor_part) = match dest.split_once('#') {
         Some((p, a)) => (p, Some(a)),
@@ -2436,9 +2447,10 @@ fn rewrite_link(dest: &str, route: &str) -> (String, bool) {
         dest.to_string()
     };
     if let Some(anchor) = anchor_part
+        && !anchor.is_empty()
         && (path_part.ends_with(MD_SUFFIX) || path_part.starts_with('/'))
     {
-        href = format!("{href}#{anchor}");
+        href = format!("{href}#{}", slugify(anchor));
     }
     (href, false)
 }
