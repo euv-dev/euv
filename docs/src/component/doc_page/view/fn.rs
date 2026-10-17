@@ -123,13 +123,13 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
 }
 
 /// Keeps the active heading marked in the table of contents as the
-/// reader scrolls.
+/// reader scrolls, and keeps the URL hash naming that same heading.
 ///
 /// A reactive `Signal<String>` holds the active entry's `href` and the
 /// TOC paints its `_active` class straight off it, so the highlight is
 /// ordinary declarative state instead of script mutating class lists
-/// behind the renderer's back. The spy only reads geometry and writes
-/// one signal.
+/// behind the renderer's back. The spy only reads geometry, writes one
+/// signal, and mirrors the result into `location.hash`.
 ///
 /// Geometry is polled rather than listened to, and the reason is
 /// specific: this shell locks the viewport and scrolls an inner
@@ -139,14 +139,39 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
 /// early-outs when it has not moved, so it is effectively free and
 /// behaves the same in a background tab.
 ///
-/// An explicit fragment wins over the geometry: arriving at
-/// `#route#section` must highlight that section even though the page
-/// has not been scrolled yet.
+/// The URL hash is the single source of truth for the section intent,
+/// and the flows around it are deliberately asymmetric so no feedback
+/// loop can exist:
+///
+/// - **Click / back / paste (hashchange)** — the fragment is an intent:
+///   it wins the highlight while the scroll position has not moved since
+///   the hash changed (the anchor scroll lands within one tick), and the
+///   route signal's own subscriber performs the scroll to the anchor.
+/// - **Scroll (reader)** — geometry decides the active entry and the
+///   result is written back with `history.replaceState`, which fires no
+///   `hashchange`: the URL follows the reader without re-triggering the
+///   anchor scroll or flooding the history stack. Because scroll never
+///   calls `set_hash`, and the hashchange path never writes the hash,
+///   neither direction can re-enter the other.
+///
+/// Once the reader scrolls away from the position a hash change pointed
+/// at, the fragment intent is spent and geometry takes over — so a
+/// clicked entry can never pin the highlight forever.
 ///
 /// # Arguments
 ///
 /// - `Signal<String>` - The active TOC entry href, written by the spy.
 fn use_toc_scroll_spy(active: Signal<String>) {
+    // The hash the spy last saw (or wrote itself) and the scroll position
+    // at that moment. A hash that differs from `seen_hash` arrived from
+    // outside (click, back/forward, paste); while the scroll position has
+    // not moved since, its fragment is treated as the reader's intent.
+    let seen_hash: Signal<String> = App::use_signal(|| {
+        window()
+            .and_then(|window: Window| window.location().hash().ok())
+            .unwrap_or_default()
+    });
+    let scroll_at_hash: Signal<i32> = App::use_signal(|| 0);
     App::use_interval(TOC_SPY_INTERVAL_MILLIS, move || {
         let Some(window) = window() else {
             return;
@@ -154,31 +179,56 @@ fn use_toc_scroll_spy(active: Signal<String>) {
         let Some(document) = window.document() else {
             return;
         };
-        let next: Option<String> = active_toc_entry(&document, &window);
-        if let Some(next) = next
-            && next != active.get()
-        {
-            active.set(next);
+        let Ok(Some(container)) = document.query_selector(TOC_SPY_CONTAINER_SELECTOR) else {
+            return;
+        };
+        let hash: String = window.location().hash().unwrap_or_default();
+        let scroll_top: i32 = container.scroll_top();
+        if hash != seen_hash.get() {
+            seen_hash.set(hash.clone());
+            scroll_at_hash.set(scroll_top);
+        }
+        let Some(entries) = toc_entry_hrefs(&document) else {
+            return;
+        };
+        // The fragment decides only while the scroll has not moved since
+        // the hash last changed; after that, geometry owns the answer.
+        let fragment_pick: Option<String> = if scroll_top == scroll_at_hash.get() {
+            fragment_target(&window, &entries)
+        } else {
+            None
+        };
+        let Some(next) = fragment_pick.or_else(|| scroll_target(&container, &document, &entries))
+        else {
+            return;
+        };
+        if next != active.get() {
+            active.set(next.clone());
+        }
+        if hash != next {
+            // Scroll-driven half of the sync: replaceState fires no
+            // hashchange, so this write cannot re-enter the anchor scroll.
+            sync_hash(&window, &next);
+            seen_hash.set(next);
+            scroll_at_hash.set(scroll_top);
         }
     });
 }
 
-/// Resolves the `href` of the TOC entry the reader is currently at.
+/// Collects every TOC entry's `href` in display order.
 ///
-/// Returns `None` when there is nothing to mark — no TOC on this page,
-/// or no heading resolved — which the caller treats as "leave the
-/// previous highlight alone". Clearing it during a re-render would
-/// flicker the highlight off and back on every time the DOM is replaced.
+/// Returns `None` when the page has no TOC at all — the caller treats
+/// that as "nothing to mark", leaving the previous highlight alone so a
+/// re-render does not flicker it off and back on.
 ///
 /// # Arguments
 ///
 /// - `&Document` - The document to query.
-/// - `&Window` - The window, read for the URL fragment.
 ///
 /// # Returns
 ///
-/// - `Option<String>` - The active entry's `href`.
-fn active_toc_entry(document: &Document, window: &Window) -> Option<String> {
+/// - `Option<Vec<String>>` - The entry hrefs, or `None` when there are none.
+fn toc_entry_hrefs(document: &Document) -> Option<Vec<String>> {
     let Ok(links) = document.query_selector_all(TOC_SPY_LINK_SELECTOR) else {
         return None;
     };
@@ -194,15 +244,27 @@ fn active_toc_entry(document: &Document, window: &Window) -> Option<String> {
         entries.push(href);
     }
     if entries.is_empty() {
-        return None;
+        None
+    } else {
+        Some(entries)
     }
-    if let Some(target) = fragment_target(window, &entries) {
-        return entries
-            .iter()
-            .find(|href: &&String| href_anchor(href).as_ref() == Some(&target))
-            .cloned();
-    }
-    scroll_target(document, &entries)
+}
+
+/// Mirrors the active entry into the URL fragment.
+///
+/// `history.replaceState` — unlike `location.set_hash` — fires no
+/// `hashchange`, which is the structural reason the scroll-driven hash
+/// update cannot loop back into the anchor scroll.
+///
+/// # Arguments
+///
+/// - `&Window` - The window whose history is rewritten.
+/// - `&str` - The entry href (`#<route>#<slug>`) to place in the URL.
+fn sync_hash(window: &Window, href: &str) {
+    let Ok(history) = window.history() else {
+        return;
+    };
+    let _: Result<(), JsValue> = history.replace_state_with_url(&JsValue::NULL, "", Some(href));
 }
 
 /// Extracts the heading slug an anchor's href points at.
@@ -275,16 +337,14 @@ fn fragment_target(window: &Window, entries: &[String]) -> Option<String> {
 ///
 /// # Arguments
 ///
+/// - `&Element` - The scrolling container the spy measures against.
 /// - `&Document` - The document to query.
 /// - `&[String]` - Every TOC entry href.
 ///
 /// # Returns
 ///
 /// - `Option<String>` - The active entry's `href`.
-fn scroll_target(document: &Document, entries: &[String]) -> Option<String> {
-    let Ok(Some(container)) = document.query_selector(TOC_SPY_CONTAINER_SELECTOR) else {
-        return None;
-    };
+fn scroll_target(container: &Element, document: &Document, entries: &[String]) -> Option<String> {
     let rect: DomRect = container.get_bounding_client_rect();
     let line: f64 = rect.top() + TOC_SPY_READING_LINE_PX;
     let at_end: bool = container.scroll_top() + container.client_height()

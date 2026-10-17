@@ -61,6 +61,11 @@ impl Router {
     /// a duplicate history entry, fire `hashchange`, and re-run the route
     /// subscriber's re-render path. Skipping the call avoids all of that.
     ///
+    /// The comparison is against the **full** route including the `#anchor`
+    /// suffix: comparing only the path part swallowed same-page anchor
+    /// navigation outright (`/page` → `/page#section` read as "already
+    /// there", so no hash was ever written and no scroll happened).
+    ///
     /// Multiple rapid `navigate()` calls before the microtask fires are coalesced:
     /// only the **last** target route wins, as earlier routes were superseded by
     ///
@@ -72,17 +77,12 @@ impl Router {
         R: AsRef<str>,
     {
         let route_string: String = route.as_ref().to_string();
-        // Cheap early-return: a navigate() to the route the user is already on
-        // would otherwise queue a microtask, mutate `location.hash`, dispatch
-        // `hashchange`, and run the route subscriber's patch path — for no
-        // observable effect. Strips the optional `#anchor` suffix so callers
-        // can compare against the URL hash form without normalizing themselves.
-        let current: String = Self::current_route();
-        let target_path: &str = match route_string.find('#') {
-            Some(idx) => &route_string[..idx],
-            None => &route_string,
-        };
-        if current == target_path {
+        // Cheap early-return: a navigate() to the exact route the user is
+        // already on (path *and* anchor) would otherwise queue a microtask,
+        // mutate `location.hash`, dispatch `hashchange`, and run the route
+        // subscriber's patch path — for no observable effect. An anchor-only
+        // difference is a real navigation and must go through.
+        if Self::current_route() == route_string {
             return;
         }
         DEFERRED_NAVIGATION.with(|cell: &Cell<Option<String>>| cell.set(Some(route_string)));
