@@ -10,6 +10,7 @@ use super::*;
 pub struct EuvSkeletonProps {
     /// The number of placeholder lines to draw, clamped to
     /// [`skeleton_line_count`]'s `1..=8` range.
+    #[get(type(copy))]
     pub lines: usize,
     /// The inline width applied to every line, e.g. `"60%"` (falls back
     /// to `"100%"` when empty or not a percentage).

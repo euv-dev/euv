@@ -18,10 +18,16 @@ pub struct WebGpuRendererInit {
     /// The texture format string used by the swap chain (e.g., `"bgra8unorm"`).
     pub format: String,
     /// The physical pixel width of the canvas backing store.
+    #[get(type(copy))]
     pub width: u32,
     /// The physical pixel height of the canvas backing store.
+    #[get(type(copy))]
     pub height: u32,
     /// Whether MSAA anti-aliasing is enabled for render pipelines.
+    ///
+    /// `get_width` / `get_height` / `get_antialias` are `type(copy)`: a
+    /// primitive getter hands back the value, not a reference (§17.8.1).
+    #[get(type(copy))]
     pub antialias: bool,
 }
 
@@ -38,22 +44,36 @@ pub struct WebGpuRendererInit {
 #[derive(Clone, Data)]
 pub struct WebGpuRenderer {
     /// The WebGPU device (`GpuDevice`) used to create GPU resources.
-    pub(crate) device: JsValue,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub device: JsValue,
     /// The device's command queue (`GpuQueue`) for submitting command buffers.
-    pub(crate) queue: JsValue,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub queue: JsValue,
     /// The WebGPU canvas rendering context (`GpuCanvasContext`).
-    pub(crate) context: JsValue,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub context: JsValue,
     /// The HTML canvas element backing the WebGPU context.
-    pub(crate) canvas: HtmlCanvasElement,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub canvas: HtmlCanvasElement,
     /// The texture format string used by the canvas's swap chain (e.g., `"bgra8unorm"`).
     #[get(type(clone))]
-    pub(crate) format: String,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub format: String,
     /// The physical pixel width of the canvas backing store.
     #[get(type(copy))]
-    pub(crate) width: u32,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub width: u32,
     /// The physical pixel height of the canvas backing store.
     #[get(type(copy))]
-    pub(crate) height: u32,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub height: u32,
     /// Whether MSAA anti-aliasing is enabled for render pipelines.
     ///
     /// When `true`, the renderer allocates a multisampled intermediate texture
@@ -61,18 +81,24 @@ pub struct WebGpuRenderer {
     /// `false`, render passes attach directly to the swap chain view at
     /// `sampleCount: 1`.
     #[get(type(copy))]
-    pub(crate) antialias: bool,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub antialias: bool,
     /// The multisampled color texture used when `antialias` is `true`.
     ///
     /// `None` when MSAA is disabled. Rebuilt on every resize because the
     /// `width`/`height` are immutable for a given `GpuTexture`.
     #[get(type(clone))]
-    pub(crate) multisample_texture: Option<JsValue>,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub multisample_texture: Option<JsValue>,
     /// The default `GpuTextureView` into `multisample_texture`.
     ///
     /// Cached at texture-create time so `begin_render_pass` does not have to
     /// recreate the view each frame. `None` when MSAA is disabled.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) multisample_view: Option<JsValue>,
     /// The depth-stencil texture used for depth-tested passes.
     ///
@@ -82,19 +108,25 @@ pub struct WebGpuRenderer {
     /// matching default view is cached in `depth_view`.
     ///
     /// `None` until the first depth-tested render pass is opened.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) depth_texture: Option<JsValue>,
     /// The default `GpuTextureView` into `depth_texture`.
     ///
     /// `None` when no depth texture has been allocated.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) depth_view: Option<JsValue>,
     /// The depth-stencil format used for `depth_texture`.
     ///
     /// Stored so subsequent render-pass openers can pass the same format
     /// to the pipeline layout without having to remember it externally.
     /// `None` until the first depth texture is allocated.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) depth_format: Option<String>,
     /// User-supplied closure fired when the underlying `GpuDevice` enters
     /// the `lost` state (browser-initiated context loss, OS driver crash,
@@ -104,7 +136,9 @@ pub struct WebGpuRenderer {
     /// The renderer also stores a separate `device_lost_handle` that
     /// forwards the `GPUDeviceLostInfo` JS value into this callback.
     #[get(type(clone))]
-    pub(crate) device_lost_callback: Option<js_sys::Function>,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub device_lost_callback: Option<js_sys::Function>,
     /// Whether the device is currently in the `lost` state.
     ///
     /// Once flipped to `true`, every GPU operation returns
@@ -112,7 +146,9 @@ pub struct WebGpuRenderer {
     /// renderer and creates a new one (WebGPU has no "recover from lost
     /// device" API).
     #[get(type(copy))]
-    pub(crate) device_lost: bool,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub device_lost: bool,
     /// Shared slot for the most recent popped error-scope value.
     ///
     /// `device.popErrorScope()` returns a `Promise<GPUError?>`; we
@@ -136,6 +172,9 @@ pub struct WebGpuRenderer {
     /// confined to two call sites. This mirrors how euv-core
     /// implements its global registries
     /// (`core/src/renderer/registry/struct.rs:62`).
+    #[get(pub(crate))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) pending_error: Rc<PendingErrorCell>,
     /// The currently-open `GpuCommandEncoder`, if any.
     ///
@@ -147,7 +186,9 @@ pub struct WebGpuRenderer {
     /// be re-acquired via `device.createCommandEncoder()` before
     /// the next frame.
     #[get(type(clone))]
-    pub(crate) command_encoder: Option<JsValue>,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub command_encoder: Option<JsValue>,
     /// OPT 34: cached render-pass descriptor, allocated lazily on the
     /// first call to [`WebGpuRenderer::begin_render_pass_full`].
     ///
@@ -161,7 +202,9 @@ pub struct WebGpuRenderer {
     ///
     /// `None` until the first `begin_render_pass_full` call; `Some(_)`
     /// afterwards and persists for the lifetime of the renderer.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) render_pass_descriptor_cache: Option<RenderPassDescriptorCache>,
 }
 

@@ -5,15 +5,21 @@ use super::*;
 #[derive(Clone, Copy, Data, Debug, Default, New, PartialEq, PartialOrd)]
 pub struct CollisionResult {
     /// The minimum translation vector (MTV) pointing from the first collider to the second.
-    #[get(type(copy))]
+    ///
+    /// `get_normal` is public because tests/collider/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
+    #[get(type(copy))]
     #[set(pub(crate))]
-    pub(crate) normal: Vector2D,
+    pub normal: Vector2D,
     /// The penetration depth (how far the colliders overlap along the normal).
-    #[get(type(copy))]
+    ///
+    /// `get_depth` is public because tests/collider/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
+    #[get(type(copy))]
     #[set(pub(crate))]
-    pub(crate) depth: f64,
+    pub depth: f64,
     /// The contact point where the collision occurs.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
@@ -46,15 +52,21 @@ pub struct CircleCollider {
 #[derive(Clone, Copy, Data, Debug, Default, New, PartialEq, PartialOrd)]
 pub struct CollisionResult3D {
     /// The minimum translation vector (MTV) pointing from the first collider to the second.
-    #[get(type(copy))]
+    ///
+    /// `get_normal` is public because tests/collider/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
+    #[get(type(copy))]
     #[set(pub(crate))]
-    pub(crate) normal: Vector3D,
+    pub normal: Vector3D,
     /// The penetration depth (how far the colliders overlap along the normal).
-    #[get(type(copy))]
+    ///
+    /// `get_depth` is public because tests/collider/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
+    #[get(type(copy))]
     #[set(pub(crate))]
-    pub(crate) depth: f64,
+    pub depth: f64,
     /// The contact point where the collision occurs.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]

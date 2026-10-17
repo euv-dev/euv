@@ -50,8 +50,7 @@ pub struct HookContext {
 #[derive(Clone, Copy, Data, Debug, Default, Eq, Hash, New, Ord, PartialEq, PartialOrd)]
 pub struct IntervalHandle {
     /// The interval ID assigned by the browser.
-    #[get(type(copy))]
-    #[get(pub(crate))]
+    #[get(type(copy), pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) interval_id: i32,

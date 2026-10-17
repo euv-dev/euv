@@ -18,11 +18,7 @@ impl GameAudioContext {
         let _: Result<AudioNode, JsValue> =
             master_gain.connect_with_audio_node(&context.destination());
         master_gain.gain().set_value(AUDIO_DEFAULT_VOLUME as f32);
-        Some(GameAudioContext::new(
-            context,
-            master_gain,
-            AUDIO_DEFAULT_VOLUME,
-        ))
+        Some(GameAudioContext::new(context, master_gain))
     }
 
     /// Sets the master volume for all audio output.
@@ -73,18 +69,20 @@ impl GameAudioContext {
 impl AudioClip {
     /// Creates a new audio clip from a decoded buffer.
     ///
+    /// A clip carries no name: playback is driven by `play` / `stop`, which
+    /// address a clip by identity rather than by label, so a name field would
+    /// only ever be stored and never read.
+    ///
     /// # Arguments
     ///
     /// - `AudioBuffer` - The decoded audio data.
-    /// - `String` - The clip name.
     ///
     /// # Returns
     ///
     /// - `AudioClip` - The new clip.
-    pub fn create(buffer: AudioBuffer, name: String) -> AudioClip {
+    pub fn create(buffer: AudioBuffer) -> AudioClip {
         AudioClip::new(
             buffer,
-            name,
             AudioPlayState::Stopped,
             AUDIO_DEFAULT_LOOP,
             AUDIO_DEFAULT_VOLUME,

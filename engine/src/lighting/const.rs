@@ -25,3 +25,13 @@ pub(crate) const LIGHTING_DEFAULT_SHININESS: f64 = 32.0;
 /// Prevents a divide-by-zero when the shaded point is exactly at the light
 /// position.
 pub(crate) const LIGHTING_POINT_LIGHT_MIN_DISTANCE: f64 = 0.001;
+
+/// The distance handed to a [`LightingUniforms::shade_with_visibility`]
+/// callback for a directional light.
+///
+/// A directional light is infinitely far away, so it has no true distance.
+/// The value is fixed at the ray tracer's `RAYTRACE_DEFAULT_T_MAX` (1000.0)
+/// so a shadow ray cast toward a sun reaches the same far bound as the
+/// primary rays in the same trace. Changing either constant without the
+/// other makes directional shadow rays inconsistent with primary rays.
+pub(crate) const LIGHTING_DIRECTIONAL_VISIBILITY_DISTANCE: f64 = 1000.0;

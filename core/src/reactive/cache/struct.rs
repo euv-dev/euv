@@ -38,11 +38,10 @@ where
 {
     /// The maximum number of entries before eviction
     /// kicks in.
-    #[get(pub(crate))]
-    #[get(pub(crate))]
+    #[get(type(copy), pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) capacity: usize,
+    pub capacity: usize,
     /// The current entries, keyed by K. Default-initialised
     /// via `#[new(skip)]` (`HashMap::new()`).
     #[new(skip)]

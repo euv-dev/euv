@@ -4,7 +4,9 @@ use super::*;
 #[derive(Clone, Copy, Data, Debug, Default, Eq, Hash, New, Ord, PartialEq, PartialOrd)]
 pub(crate) struct UsePropsDemo {
     /// The parent message to pass down to child.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) parent_message: Signal<String>,
 }
 
@@ -12,10 +14,14 @@ pub(crate) struct UsePropsDemo {
 #[derive(Clone, Copy, Data, Debug, Default, Eq, Hash, New, Ord, PartialEq, PartialOrd)]
 pub(crate) struct UseTwoWayDemo {
     /// The shared text value bound between parent and child.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) shared_text: Signal<String>,
     /// The shared counter value bound between parent and child.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) shared_count: Signal<i32>,
 }
 
@@ -23,22 +29,34 @@ pub(crate) struct UseTwoWayDemo {
 #[derive(Clone, Copy, Data, Debug, Default, New, PartialEq, PartialOrd)]
 pub(crate) struct UseCrossComponentDemo {
     /// The temperature in Celsius.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) celsius: Signal<f64>,
     /// The temperature in Fahrenheit (derived).
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) fahrenheit: Signal<f64>,
     /// The RGB red channel value.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) red: Signal<i32>,
     /// The RGB green channel value.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) green: Signal<i32>,
     /// The RGB blue channel value.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) blue: Signal<i32>,
     /// The hex color string (derived).
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) hex_color: Signal<String>,
 }
 
@@ -48,12 +66,18 @@ pub(crate) struct UseCrossComponentDemo {
 #[derive(Clone, Copy, Data, Debug, Default, Eq, Hash, New, Ord, PartialEq, PartialOrd)]
 pub(crate) struct UseTypedPropsDemo {
     /// Whether the child input is disabled.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) disabled: Signal<bool>,
     /// The maximum count allowed.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) max_count: Signal<i32>,
     /// The current count value.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) current_count: Signal<i32>,
 }

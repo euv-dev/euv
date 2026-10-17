@@ -68,7 +68,12 @@ pub struct ProfilerHandle {
     /// pushes a fresh `ProfileEntry` into this vector via
     /// `.set(...)` — the `set` triggers the reactive update
     /// path, so any subscriber re-renders.
-    pub(crate) entries: Signal<Vec<ProfileEntry>>,
+    ///
+    /// Public because `ui/tests/profiler/fn.rs`,
+    /// `ui/tests/hook_traits/fn.rs`, `ui/tests/hook_i18n/fn.rs`
+    /// and `example/src/page/hooks_protect` read it through
+    /// `get_entries()`.
+    pub entries: Signal<Vec<ProfileEntry>>,
 }
 /// A `begin()` marker — RAII guard that records the start
 /// timestamp and the label so the matching `end()` call can
@@ -84,12 +89,31 @@ pub struct ProfilerMark {
     /// The label this marker was created with. Copied out of
     /// the `&str` at construction time so the marker does not
     /// outlive any borrowed string.
+    ///
+    /// `get_label()` is only called by `impl.rs` while building
+    /// the `ProfileEntry`, so the three generated accessors are
+    /// all `pub(crate)`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) label: String,
     /// Wall-clock timestamp captured at `begin()`. Subtracted
     /// from the `end()` timestamp to compute `elapsed_ms`.
+    ///
+    /// `get_started_ms()` is only called by `impl.rs`, so the
+    /// three generated accessors are all `pub(crate)`.
+    #[get(type(copy), pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) started_ms: f64,
     /// Back-reference to the entries signal. Cloned (cheap —
     /// `Signal<T>` is `Copy`-by-pointer) so `end()` can push
     /// without re-borrowing the handle.
+    ///
+    /// Only `impl.rs` pushes through it, so the three
+    /// generated accessors are all `pub(crate)`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) entries: Signal<Vec<ProfileEntry>>,
 }

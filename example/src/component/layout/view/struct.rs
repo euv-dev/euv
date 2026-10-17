@@ -38,8 +38,13 @@ pub(crate) struct MobileLayoutProps {
 #[derive(Clone, Data, Default, Deserialize, New)]
 pub(crate) struct DocsStatus {
     /// Whether the documentation build succeeded.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) doc_status: bool,
     /// The latest version string of the crate.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) version: String,
 }

@@ -1047,7 +1047,7 @@ impl WebGpuRenderer {
                 let _: Result<bool, JsValue> = Reflect::set(
                     &depth_attachment,
                     &cached_method_name(WEBGPU_PROPERTY_DEPTH_READ_ONLY),
-                    &JsValue::from_bool(*depth_desc.get_depth_read_only()),
+                    &JsValue::from_bool(depth_desc.get_depth_read_only()),
                 );
                 let _: Result<bool, JsValue> = Reflect::set(
                     &descriptor,
@@ -3562,18 +3562,18 @@ impl WebGpuRenderer {
         // silently swallowed). Scalars also drop the per-call `Object`
         // allocation and 11 `from_str` property keys.
         let args: Array = Array::new_with_length(6);
-        args.set(0, JsValue::from_f64(*viewport.get_x() as f64));
-        args.set(1, JsValue::from_f64(*viewport.get_y() as f64));
-        args.set(2, JsValue::from_f64(*viewport.get_width() as f64));
-        args.set(3, JsValue::from_f64(*viewport.get_height() as f64));
+        args.set(0, JsValue::from_f64(viewport.get_x() as f64));
+        args.set(1, JsValue::from_f64(viewport.get_y() as f64));
+        args.set(2, JsValue::from_f64(viewport.get_width() as f64));
+        args.set(3, JsValue::from_f64(viewport.get_height() as f64));
         // Forward the descriptor's depth range instead of the spec defaults. Hardcoding
         // them here made `ViewportDescriptor::min_depth` / `max_depth` unreachable, so a
         // pass that narrowed its depth range to dodge z-fighting got the full range back
         // and nothing said so. A zero `max_depth` still means "unset", because `New`
         // skips both fields and a freshly built descriptor would otherwise ask for a
         // zero-width depth range that discards every fragment.
-        let min_depth: f64 = f64::from(*viewport.get_min_depth());
-        let max_depth: f64 = match *viewport.get_max_depth() {
+        let min_depth: f64 = f64::from(viewport.get_min_depth());
+        let max_depth: f64 = match viewport.get_max_depth() {
             0.0 => WEBGPU_DEFAULT_VIEWPORT_MAX_DEPTH,
             depth => f64::from(depth),
         };

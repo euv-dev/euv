@@ -16,6 +16,9 @@ use super::*;
 #[derive(Clone, Data, Debug, Default, New)]
 pub struct Toggle {
     /// The current value signal.
+    ///
+    /// Public because `ui/tests/toggle/fn.rs` reads it
+    /// through `get_value()`.
     #[new(skip)]
-    pub(crate) value: Signal<bool>,
+    pub value: Signal<bool>,
 }

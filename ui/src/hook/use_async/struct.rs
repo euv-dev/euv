@@ -23,8 +23,22 @@ where
     L: Clone + PartialEq + HasLoadingHint + 'static,
 {
     /// Address of the heap-allocated `UseAsyncInner<T, L>` state.
+    ///
+    /// `get_inner()` is only called by `impl.rs` (slot lookup
+    /// and the opaque `Debug` rendering), so the three
+    /// generated accessors are all `pub(crate)`.
+    #[get(type(copy), pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) inner: usize,
     /// `Copy` marker so `UseAsyncHandle` itself is `Copy`.
+    ///
+    /// No accessor of this zero-sized marker is called, so all
+    /// three are skipped rather than left as dead `pub`
+    /// surface over a `pub(crate)` field.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
     pub(crate) _marker: core::marker::PhantomData<fn() -> (T, L)>,
 }
 

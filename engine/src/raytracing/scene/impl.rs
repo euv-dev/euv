@@ -58,6 +58,31 @@ impl Ray {
         }
     }
 
+    /// Returns a clone of this ray with its parameter range replaced.
+    ///
+    /// The new bounds are taken as given, so an inverted or non-finite
+    /// range is representable; both query entry points reject such a ray
+    /// as untraceable rather than letting `NaN` comparisons decide the
+    /// outcome.
+    ///
+    /// # Arguments
+    ///
+    /// - `f64` - The minimum accepted hit parameter.
+    /// - `f64` - The maximum accepted hit parameter.
+    ///
+    /// # Returns
+    ///
+    /// - `Ray` - The cloned ray with the new range.
+    pub fn with_range(&self, t_min: f64, t_max: f64) -> Ray {
+        Ray {
+            origin: self.get_origin(),
+            direction: self.get_direction(),
+            t_min,
+            t_max,
+            depth: self.get_depth(),
+        }
+    }
+
     /// Intersects this ray with the triangle `v0`, `v1`, `v2` using the
     /// Moller-Trumbore algorithm, keeping only hits inside this ray's
     /// `t_min`..=`t_max` range.
@@ -180,8 +205,13 @@ impl Occluder {
 /// [`RayTraceScene`].
 impl RayTraceScene {
     /// Creates a new scene taking ownership of `occluders` and precomputing
-    /// the `(center, radius)` shadow bounding spheres used by
-    /// [`soft_shadow_factor`].
+    /// both the bounding volume hierarchy and the `(center, radius)` shadow
+    /// bounding spheres used by [`soft_shadow_factor`].
+    ///
+    /// The hierarchy is built once here; every later query reuses it, so
+    /// the cost of the BVH never appears in a per-ray measurement. The
+    /// public surface is unchanged from the pre-BVH constructor, which
+    /// takes the occluder list by value.
     ///
     /// # Arguments
     ///
@@ -192,8 +222,11 @@ impl RayTraceScene {
     /// - `RayTraceScene` - The new scene with precomputed shadow data.
     pub fn new(occluders: Vec<Occluder>) -> RayTraceScene {
         let shadow_points: Vec<(Vector3D, f64)> = collect_occluder_points(&occluders);
+        let (nodes, indices): (Vec<RayTraceNode>, Vec<usize>) = build_bvh(&occluders);
         RayTraceScene {
             occluders,
+            nodes,
+            indices,
             shadow_points,
         }
     }
@@ -244,13 +277,7 @@ impl RayTraceScene {
         lights: &LightingUniforms,
         max_bounces: u32,
     ) -> Vector3D {
-        trace_bounces(
-            ray,
-            self.get_occluders(),
-            self.get_shadow_points(),
-            lights,
-            max_bounces,
-        )
+        trace_bounces(ray, self, lights, max_bounces)
     }
 
     /// Finds the closest intersection between a ray and the scene
@@ -258,6 +285,10 @@ impl RayTraceScene {
     ///
     /// The winning occluder's [`Material`] is cloned exactly once, when the
     /// returned [`Hit`] is constructed; losing candidates are never cloned.
+    /// Traversal itself resolves every candidate through the scene's
+    /// bounding volume hierarchy, so the cost scales with the parts of the
+    /// hierarchy the ray actually crosses rather than with the occluder
+    /// count.
     ///
     /// # Arguments
     ///
@@ -268,7 +299,7 @@ impl RayTraceScene {
     /// - `Option<Hit>` - The closest hit, or `None` if the ray misses.
     pub fn closest_hit(&self, ray: &Ray) -> Option<Hit> {
         let occluders: &[Occluder] = self.get_occluders();
-        closest_hit_indexed(ray, occluders).map(
+        closest_hit_indexed(ray, self).map(
             |(index, t, position, normal): (usize, f64, Vector3D, Vector3D)| Hit {
                 t,
                 position,
@@ -276,5 +307,26 @@ impl RayTraceScene {
                 material: occluders[index].get_material().clone(),
             },
         )
+    }
+
+    /// Reports whether anything in the scene blocks the ray's parameter
+    /// range.
+    ///
+    /// This is the any-hit counterpart to [`RayTraceScene::closest_hit`],
+    /// built for shadow segments: it stops at the first blocker instead of
+    /// resolving the whole hierarchy, so a fully occluded light costs less
+    /// than a fully visible one. An empty scene reports `false`, and a ray
+    /// with an inverted or non-finite range reports `false` rather than
+    /// inventing a hit.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Ray` - The ray to test.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when at least one occluder intersects the range.
+    pub fn occluded(&self, ray: &Ray) -> bool {
+        occluded_indexed(ray, self)
     }
 }

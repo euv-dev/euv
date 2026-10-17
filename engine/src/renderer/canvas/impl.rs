@@ -1220,7 +1220,6 @@ impl SsaaCanvas {
             display_context,
             offscreen_canvas,
             offscreen_context,
-            scale_factor,
             width,
             height,
         );

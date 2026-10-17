@@ -25,20 +25,41 @@ pub struct ThrottledValue<T: Clone + PartialEq + Default + 'static> {
     /// The emitted value signal. Defaults to
     /// `Signal::create(T::default())` via
     /// `#[new(skip)]`.
+    ///
+    /// Public because `example/src/page/hooks_timing/view/fn.rs`
+    /// reads it through `get_value()`.
     #[new(skip)]
     #[get(type(copy))]
-    pub(crate) value: Signal<T>,
+    pub value: Signal<T>,
     /// The latest input waiting for the next commit.
     /// Defaults to `Signal::create(None)` via
     /// `#[new(skip)]`.
+    ///
+    /// `get_pending()` is only called by `impl.rs`, so the
+    /// three generated accessors are all `pub(crate)`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[new(skip)]
     pub(crate) pending: Signal<Option<T>>,
     /// The internal idle/cooldown state. Defaults to
     /// `Signal::create(ThrottleState::Idle)` via
     /// `#[new(skip)]`.
+    ///
+    /// `get_state()` is only called by `impl.rs`, so the three
+    /// generated accessors are all `pub(crate)`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[new(skip)]
     pub(crate) state: Signal<ThrottleState>,
     /// The throttle window in milliseconds.
+    ///
+    /// `get_interval_ms()` is only called by `impl.rs`, so the
+    /// three generated accessors are all `pub(crate)`.
+    #[get(type(copy), pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) interval_ms: u32,
 }
 

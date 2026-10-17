@@ -11,48 +11,48 @@ where
     /// The current value of the signal.
     #[debug(skip)]
     #[get(pub(crate))]
-    #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) value: T,
     /// Callbacks to invoke when the value changes, each paired with its
     /// subscription id so [`Signal::unsubscribe`] can detach a single
     /// listener without disturbing the rest.
     #[debug(skip)]
     #[get(pub(crate))]
-    #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) listeners: Vec<ListenerEntry>,
     /// Monotonic counter backing subscription ids for `listeners`.
-    #[get(type(copy))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) next_listener_id: usize,
     /// Ids detached via [`Signal::unsubscribe`] while `update` had the
     /// listener list swapped out. Drained by `update`'s merge-back pass so
     /// a listener detached mid-notification is not resurrected.
     #[debug(skip)]
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) removed_listener_ids: Vec<usize>,
     /// `true` while `update` has the listener list swapped out for
     /// notification. `unsubscribe` consults this flag to decide between
     /// direct removal and deferred removal via `removed_listener_ids`.
-    #[get(type(copy))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) notifying: bool,
     /// Whether this signal is still active. Set to `false` by `deactivate()`
     /// (and `clear_signal_listeners`) to make subsequent `set()` calls
     /// complete no-ops (no value update, no listener invocation, no
     /// dispatch scheduling), ensuring stale closures like orphaned
     /// `setInterval` handlers or pending `spawn_local` futures become harmless.
-    #[get(type(copy))]
-    #[get_mut(pub(crate))]
+    #[get(pub(crate), type(copy))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) alive: bool,
     /// IDs of dynamic nodes that depend on this signal for precise dirty marking.
     /// When this signal changes, only these dynamic nodes are marked dirty
@@ -60,6 +60,8 @@ where
     #[debug(skip)]
     #[get_mut(pub(crate))]
     #[new(skip)]
+    #[get(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) dependents: Vec<usize>,
 }
 
@@ -78,22 +80,25 @@ where
     T: Clone + PartialEq + 'static,
 {
     /// Slot index of the inner state in the global signal slab.
+    ///
+    /// The field is public because `get_inner` must stay public:
+    /// `macros/tests/watch` reads the slot address from outside this
+    /// crate to prove the signal handle is stable across a panic. A
+    /// public getter over a `pub(crate)` field is exactly the
+    /// `public-accessor-leaks-restricted-field` leak, so the field is
+    /// promoted to match rather than the getter narrowed. `set` /
+    /// `get_mut` stay crate-internal — the slot never moves.
     #[debug(skip)]
     #[get(type(copy))]
-    #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) inner: usize,
+    pub inner: usize,
     /// Marker for the generic type parameter (uses fn pointer to be `Copy`
     /// regardless of `T`).
     #[debug(skip)]
-    #[get(type(copy))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
     #[get(pub(crate))]
-    #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) _marker: PhantomData<fn() -> T>,
 }
 
@@ -111,13 +116,9 @@ where
 {
     /// Interior-mutable storage for an optional signal handle.
     #[debug(skip)]
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) inner: UnsafeCell<Option<Signal<T>>>,
+    pub inner: UnsafeCell<Option<Signal<T>>>,
 }
 
 /// Typed slab allocator for `SignalInner<T>`.
@@ -134,8 +135,8 @@ where
 pub(crate) struct SignalSlab {
     /// Slot storage. Index 0..len.
     #[get(pub(crate))]
-    #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) entries: Vec<Box<dyn AnySignalInner>>,
 }
 
@@ -155,11 +156,8 @@ pub(crate) struct SignalSlab {
 #[derive(Clone, Copy, CustomDebug, Data, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct FireHandle {
     /// Address of the leaked `Box<dyn FnMut()>` allocation.
-    #[get(type(copy))]
-    #[get_mut(pub(crate))]
+    #[get(pub(crate), type(copy))]
     #[set(pub(crate))]
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
-    #[set(pub(crate))]
     pub(crate) inner: usize,
 }

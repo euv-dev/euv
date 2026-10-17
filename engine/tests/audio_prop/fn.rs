@@ -61,13 +61,13 @@ fn gain_node(param: &Object) -> GainNode {
     ignore = "stands in a decoded WebAudio buffer as a plain object"
 )]
 fn a_clip_reports_the_channel_count_of_the_buffer_it_was_built_from() {
-    let stereo: AudioClip = AudioClip::create(decoded_buffer(2, 1.5), String::from("stereo"));
+    let stereo: AudioClip = AudioClip::create(decoded_buffer(2, 1.5));
     assert_eq!(
         stereo.channel_count(),
         2,
         "the clip must read numberOfChannels off the buffer rather than assume mono"
     );
-    let mono: AudioClip = AudioClip::create(decoded_buffer(1, 0.25), String::from("mono"));
+    let mono: AudioClip = AudioClip::create(decoded_buffer(1, 0.25));
     assert_eq!(
         mono.channel_count(),
         1,
@@ -82,7 +82,7 @@ fn a_clip_reports_the_channel_count_of_the_buffer_it_was_built_from() {
     ignore = "stands in a decoded WebAudio buffer as a plain object"
 )]
 fn a_clip_reports_the_duration_of_the_buffer_it_was_built_from() {
-    let clip: AudioClip = AudioClip::create(decoded_buffer(2, 1.5), String::from("beep"));
+    let clip: AudioClip = AudioClip::create(decoded_buffer(2, 1.5));
     assert_eq!(
         clip.duration(),
         1.5,
@@ -97,21 +97,15 @@ fn a_clip_reports_the_duration_of_the_buffer_it_was_built_from() {
     ignore = "stands in the WebAudio context and gain graph as plain objects"
 )]
 fn a_context_reads_the_sample_rate_off_the_browser_supplied_context() {
-    let context: GameAudioContext = GameAudioContext::new(
-        browser_context(48000.0, 0.0),
-        gain_node(&silent_param()),
-        1.0,
-    );
+    let context: GameAudioContext =
+        GameAudioContext::new(browser_context(48000.0, 0.0), gain_node(&silent_param()));
     assert_eq!(
         context.sample_rate(),
         48000.0,
         "the sample rate is a property of the live AudioContext, not a hardcoded default"
     );
-    let other: GameAudioContext = GameAudioContext::new(
-        browser_context(22050.0, 0.0),
-        gain_node(&silent_param()),
-        1.0,
-    );
+    let other: GameAudioContext =
+        GameAudioContext::new(browser_context(22050.0, 0.0), gain_node(&silent_param()));
     assert_eq!(
         other.sample_rate(),
         22050.0,
@@ -126,11 +120,8 @@ fn a_context_reads_the_sample_rate_off_the_browser_supplied_context() {
     ignore = "stands in the WebAudio context and gain graph as plain objects"
 )]
 fn a_context_reports_the_playback_time_off_the_browser_supplied_context() {
-    let context: GameAudioContext = GameAudioContext::new(
-        browser_context(48000.0, 12.5),
-        gain_node(&silent_param()),
-        1.0,
-    );
+    let context: GameAudioContext =
+        GameAudioContext::new(browser_context(48000.0, 12.5), gain_node(&silent_param()));
     assert_eq!(
         context.current_time(),
         12.5,
@@ -149,7 +140,6 @@ fn master_volume_is_clamped_into_the_unit_range_before_it_reaches_the_gain_node(
     let context: GameAudioContext = GameAudioContext::new(
         browser_context(48000.0, 0.0),
         gain_node(&recording_param(&sink)),
-        1.0,
     );
 
     context.apply_master_volume(2.0);
@@ -181,7 +171,7 @@ fn suspending_a_context_is_routed_through_to_the_browser_context() {
         js_sys::Function::new_no_args("this.__suspended = true; return this;");
     reflective(&holder, "suspend", suspend.as_ref());
     let browser: AudioContext = holder.clone().unchecked_into();
-    let context: GameAudioContext = GameAudioContext::new(browser, gain_node(&silent_param()), 1.0);
+    let context: GameAudioContext = GameAudioContext::new(browser, gain_node(&silent_param()));
 
     context.suspend();
 

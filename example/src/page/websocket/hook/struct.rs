@@ -35,24 +35,38 @@ pub(crate) struct WsServerMessage {
 #[derive(Clone, Copy, Data, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) struct UseWebSocket {
     /// The WebSocket endpoint URL input.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) url: Signal<String>,
     /// Whether the WebSocket connection is currently active.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) connected: Signal<bool>,
     /// Whether the WebSocket connection is currently being established.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) connecting: Signal<bool>,
     /// The WebSocket message input.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) message_input: Signal<String>,
     /// The received WebSocket messages.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) messages: Signal<Vec<WsMessage>>,
     /// The error message, empty if no error.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) error: Signal<String>,
     /// The interval handle for the Ping keep-alive timer.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) ping_handle: Signal<Option<IntervalHandle>>,
 }

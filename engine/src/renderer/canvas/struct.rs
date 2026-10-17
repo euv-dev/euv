@@ -5,19 +5,26 @@ use super::*;
 pub struct Camera2D {
     /// The world-space position of the camera center.
     #[get(type(copy))]
-    pub(crate) position: Vector2D,
+    #[get_mut(pub(crate))]
+    pub position: Vector2D,
     /// The zoom factor (1.0 = no zoom, 2.0 = 2x magnification).
     #[get(type(copy))]
-    pub(crate) zoom: f64,
+    #[get_mut(pub(crate))]
+    pub zoom: f64,
     /// The rotation angle in radians.
     #[get(type(copy))]
-    pub(crate) rotation: f64,
+    #[get_mut(pub(crate))]
+    pub rotation: f64,
     /// The viewport width in screen pixels.
     #[get(type(copy))]
-    pub(crate) viewport_width: f64,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub viewport_width: f64,
     /// The viewport height in screen pixels.
     #[get(type(copy))]
-    pub(crate) viewport_height: f64,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub viewport_height: f64,
 }
 
 /// A 3D camera that defines the viewport into a 3D world using perspective
@@ -26,31 +33,41 @@ pub struct Camera2D {
 pub struct Camera3D {
     /// The world-space position of the camera (eye).
     #[get(type(copy))]
-    pub(crate) position: Vector3D,
+    #[get_mut(pub(crate))]
+    pub position: Vector3D,
     /// The point the camera is looking at (target).
     #[get(type(copy))]
-    pub(crate) target: Vector3D,
+    #[get_mut(pub(crate))]
+    pub target: Vector3D,
     /// The up direction for the camera.
-    #[get(type(copy))]
     #[new(skip)]
-    pub(crate) up: Vector3D,
+    #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    pub up: Vector3D,
     /// The vertical field of view in radians.
-    #[get(type(copy))]
     #[new(skip)]
-    pub(crate) fov: f64,
+    #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    pub fov: f64,
     /// The near clipping plane distance.
-    #[get(type(copy))]
     #[new(skip)]
-    pub(crate) near: f64,
+    #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    pub near: f64,
     /// The far clipping plane distance.
-    #[get(type(copy))]
     #[new(skip)]
-    pub(crate) far: f64,
-    /// The viewport width in pixels.
     #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    pub far: f64,
+    /// The viewport width in pixels.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) viewport_width: f64,
     /// The viewport height in pixels.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) viewport_height: f64,
 }
 
@@ -59,15 +76,22 @@ pub struct Camera3D {
 #[derive(Clone, Data, New)]
 pub struct CanvasRenderer {
     /// The underlying canvas 2D rendering context.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) context: CanvasRenderingContext2d,
     /// The active camera controlling the viewport.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) camera: Camera2D,
     /// The active rendering quality preset.
     ///
     /// Controls `imageSmoothingEnabled`, `imageSmoothingQuality`, and
     /// `textRendering` on the underlying context. Defaults to `Medium`.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) quality: RenderQuality,
 }
 
@@ -79,12 +103,18 @@ pub struct CanvasRenderer {
 pub struct LinearGradient {
     /// The starting point of the gradient in world space.
     #[get(type(copy))]
-    pub(crate) start: Vector2D,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub start: Vector2D,
     /// The ending point of the gradient in world space.
     #[get(type(copy))]
-    pub(crate) end: Vector2D,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub end: Vector2D,
     /// The ordered list of color stops, each containing a position (0.0 to 1.0) and a CSS color string.
-    pub(crate) stops: Vec<(f64, String)>,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub stops: Vec<(f64, String)>,
 }
 
 /// A radial gradient defined by inner and outer circles and a list of color stops.
@@ -95,18 +125,28 @@ pub struct LinearGradient {
 pub struct RadialGradient {
     /// The center of the inner circle of the gradient.
     #[get(type(copy))]
-    pub(crate) inner_center: Vector2D,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub inner_center: Vector2D,
     /// The radius of the inner circle.
     #[get(type(copy))]
-    pub(crate) inner_radius: f64,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub inner_radius: f64,
     /// The center of the outer circle of the gradient.
     #[get(type(copy))]
-    pub(crate) outer_center: Vector2D,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub outer_center: Vector2D,
     /// The radius of the outer circle.
     #[get(type(copy))]
-    pub(crate) outer_radius: f64,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub outer_radius: f64,
     /// The ordered list of color stops, each containing a position (0.0 to 1.0) and a CSS color string.
-    pub(crate) stops: Vec<(f64, String)>,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub stops: Vec<(f64, String)>,
 }
 
 /// Shadow rendering configuration for drop shadow effects on canvas primitives.
@@ -116,16 +156,24 @@ pub struct RadialGradient {
 #[derive(Clone, Data, Debug, New, PartialEq, PartialOrd)]
 pub struct ShadowConfig {
     /// The CSS color string of the shadow (e.g., `"rgba(0,0,0,0.5)"`).
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) color: String,
     /// The blur radius of the shadow in pixels.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) blur: f64,
     /// The horizontal offset of the shadow in pixels.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) offset_x: f64,
     /// The vertical offset of the shadow in pixels.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) offset_y: f64,
 }
 
@@ -137,10 +185,14 @@ pub struct ShadowConfig {
 pub struct RenderLayer {
     /// The z-index determining draw order. Higher values draw later (on top).
     #[get(type(copy))]
-    pub(crate) z_index: i32,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub z_index: i32,
     /// Whether objects in this layer should be rendered.
     #[get(type(copy))]
-    pub(crate) visible: bool,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub visible: bool,
 }
 
 /// An ordered buffer of deferred draw commands recorded during a frame.
@@ -155,41 +207,55 @@ pub struct DrawList {
     /// The recorded draw commands for the current frame.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) commands: Vec<DrawCommand>,
+    pub commands: Vec<DrawCommand>,
 }
 
 /// A supersampling anti-aliasing (SSAA) canvas wrapper that renders at a higher
 /// resolution on an offscreen canvas and downscales to the display canvas for
 /// smoother polygon edges in software-rendered 3D scenes.
 ///
-/// The offscreen context is scaled by `scale_factor` so that all drawing
-/// code can use logical pixel coordinates without modification. After
+/// The offscreen context is scaled by the supersampling factor so that all
+/// drawing code can use logical pixel coordinates without modification. After
 /// rendering, call `present()` to draw the high-resolution buffer onto the
 /// visible canvas with high-quality image smoothing.
 #[derive(Clone, Data, New)]
 pub struct SsaaCanvas {
     /// The display canvas element visible to the user.
-    pub(crate) display_canvas: HtmlCanvasElement,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub display_canvas: HtmlCanvasElement,
     /// The 2D rendering context of the display canvas used for final presentation.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) display_context: CanvasRenderingContext2d,
     /// The offscreen canvas used for high-resolution rendering.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) offscreen_canvas: HtmlCanvasElement,
-    /// The 2D rendering context of the offscreen canvas, pre-scaled by `scale_factor`.
-    pub(crate) offscreen_context: CanvasRenderingContext2d,
-    /// The supersampling scale factor (e.g., 2.0 means 4x SSAA).
-    #[get(type(copy))]
-    pub(crate) scale_factor: f64,
+    /// The 2D rendering context of the offscreen canvas, pre-scaled by the
+    /// supersampling factor.
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub offscreen_context: CanvasRenderingContext2d,
     /// The rendering quality preset for the downscaling present step.
     ///
     /// Controls the smoothing strategy when the offscreen buffer is
     /// downscaled onto the display canvas. Defaults to `Medium`.
     #[new(skip)]
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) quality: RenderQuality,
     /// The logical display width in CSS pixels.
     #[get(type(copy))]
-    pub(crate) width: f64,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub width: f64,
     /// The logical display height in CSS pixels.
     #[get(type(copy))]
-    pub(crate) height: f64,
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub height: f64,
 }

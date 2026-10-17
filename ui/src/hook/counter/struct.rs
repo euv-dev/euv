@@ -15,14 +15,26 @@ use super::*;
 pub struct Counter {
     /// The current value signal. Defaults to
     /// `Signal::create(0)` because of `#[new(skip)]`.
+    ///
+    /// Public because `ui/tests/counter/fn.rs` reads it
+    /// through `get_value()`.
     #[new(skip)]
-    pub(crate) value: Signal<i32>,
+    pub value: Signal<i32>,
     /// Optional minimum bound. `None` means unbounded below.
+    ///
+    /// Public because `ui/tests/counter/fn.rs` reads it
+    /// through `get_min()`.
     #[get(type(copy))]
-    pub(crate) min: Option<i32>,
+    pub min: Option<i32>,
     /// Optional maximum bound. `None` means unbounded above.
+    ///
+    /// Public because `ui/tests/counter/fn.rs` reads it
+    /// through `get_max()`.
     #[get(type(copy))]
-    pub(crate) max: Option<i32>,
+    pub max: Option<i32>,
     /// Step size used by `increment` / `decrement`.
+    #[get(type(copy), pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) step: i32,
 }

@@ -23,23 +23,35 @@ pub(crate) struct LightingSphere {
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub(crate) struct UseLighting {
     /// The current frames-per-second measurement.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) fps: Signal<f64>,
     /// Whether the lighting loop is currently running.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) running: Signal<bool>,
     /// Whether the Canvas 2D renderer has finished initializing (success or failure).
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loaded: Signal<bool>,
     /// Whether the Canvas 2D renderer is active and rendering.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) active: Signal<bool>,
     /// Whether the lighting loop has been kicked off in this component tree.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loop_started: Signal<bool>,
     /// The current adaptive internal render scale (1.0 = full 320x240,
     /// 2.0 = 640x480 super-sampled).
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) render_scale: Signal<f64>,
     /// The most recent init error code as a stable string.
     ///
@@ -48,7 +60,9 @@ pub(crate) struct UseLighting {
     /// The empty string means "no error" (i.e. init has not started or
     /// succeeded). Storing a stable code rather than the full error
     /// type keeps this state `Copy`.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) init_error_code: Signal<&'static str>,
 }
 
@@ -56,19 +70,29 @@ pub(crate) struct UseLighting {
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub(crate) struct UseLightingWebGl {
     /// The current frames-per-second measurement.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) fps: Signal<f64>,
     /// Whether the WebGL lighting loop is currently running.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) running: Signal<bool>,
     /// Whether the WebGL renderer has finished initializing (success or failure).
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loaded: Signal<bool>,
     /// Whether the WebGL renderer is active and rendering.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) active: Signal<bool>,
     /// Whether the WebGL render loop has been kicked off in this component tree.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loop_started: Signal<bool>,
     /// The most recent init error code as a stable string.
     ///
@@ -77,7 +101,9 @@ pub(crate) struct UseLightingWebGl {
     /// still in flight or has not started). Storing a stable code rather
     /// than the full `WebGl2InitError` keeps this state `Copy` and avoids
     /// surfacing JS error detail into the reactive UI tree.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) init_error_code: Signal<&'static str>,
 }
 
@@ -85,19 +111,29 @@ pub(crate) struct UseLightingWebGl {
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub(crate) struct UseLightingWebGpu {
     /// The current frames-per-second measurement.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) fps: Signal<f64>,
     /// Whether the WebGPU lighting loop is currently running.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) running: Signal<bool>,
     /// Whether the WebGPU renderer has finished initializing (success or failure).
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loaded: Signal<bool>,
     /// Whether the WebGPU renderer is active and rendering.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) active: Signal<bool>,
     /// Whether the WebGPU render loop has been kicked off in this component tree.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loop_started: Signal<bool>,
     /// The most recent init error code as a stable string.
     ///
@@ -106,7 +142,9 @@ pub(crate) struct UseLightingWebGpu {
     /// still in flight or has not started). Storing a stable code rather
     /// than the full `WebGpuInitError` keeps this state `Copy` and avoids
     /// surfacing JS error detail into the reactive UI tree.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) init_error_code: Signal<&'static str>,
 }
 
@@ -121,12 +159,18 @@ pub(crate) struct UseLightingWebGpu {
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub(crate) struct UseLightingFullscreen {
     /// Whether the Canvas 2D tab is currently in landscape fullscreen.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) canvas_2d: Signal<bool>,
     /// Whether the WebGL tab is currently in landscape fullscreen.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) web_gl: Signal<bool>,
     /// Whether the WebGPU tab is currently in landscape fullscreen.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) web_gpu: Signal<bool>,
 }

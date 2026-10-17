@@ -30,7 +30,10 @@ use super::*;
 pub struct Previous<T: Clone + PartialEq + 'static> {
     /// The previous-value signal. `None` until the first
     /// `record` call.
-    pub(crate) previous: Signal<Option<T>>,
+    ///
+    /// Public because `ui/tests/previous/fn.rs` reads it
+    /// through `get_previous()`.
+    pub previous: Signal<Option<T>>,
 }
 
 /// `Previous<T>` is `Copy` when `T` is — `Signal<Option<T>>` is

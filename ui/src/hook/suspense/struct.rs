@@ -11,7 +11,12 @@ use super::*;
 #[derive(Clone, Data, Debug)]
 pub struct SuspenseHandle<T: Clone + PartialEq + 'static> {
     /// The phase signal.
-    pub(crate) phase: Signal<SuspensePhase<T>>,
+    ///
+    /// Public because `ui/tests/suspense/fn.rs`,
+    /// `ui/tests/no_dom_fallback/fn.rs` and
+    /// `example/src/page/hooks_async` read it through
+    /// `get_phase()`.
+    pub phase: Signal<SuspensePhase<T>>,
 }
 
 /// `SuspenseHandle<T>` is `Copy` when `T` is — `Signal<...>` is

@@ -19,7 +19,7 @@ pub(crate) struct Args {
     #[set(pub(crate))]
     name: &'static str,
     /// `true` → `euv build --release`, `false` → `euv build --debug`.
-    #[get(pub(crate))]
+    #[get(type(copy), pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     release: bool,

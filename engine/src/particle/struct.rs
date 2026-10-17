@@ -13,7 +13,7 @@ pub struct ParticleRng {
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) state: u64,
+    pub state: u64,
 }
 
 /// The static configuration of a particle emitter, describing how new
@@ -25,52 +25,67 @@ pub struct ParticleRng {
 #[derive(Clone, Copy, Data, Debug, New, PartialEq, PartialOrd)]
 pub struct ParticleConfig {
     /// The number of particles spawned per second while the emitter is active.
-    #[get(type(copy))]
-    pub(crate) emission_rate: f64,
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    pub emission_rate: f64,
     /// The maximum number of simultaneously live particles.
-    #[get(type(copy))]
-    pub(crate) max_particles: usize,
+    #[get(pub(crate), type(copy))]
+    pub max_particles: usize,
     /// The minimum particle lifetime in seconds.
     #[get(type(copy))]
-    pub(crate) lifetime_min: f64,
+    pub lifetime_min: f64,
     /// The maximum particle lifetime in seconds.
     #[get(type(copy))]
-    pub(crate) lifetime_max: f64,
+    #[get_mut(pub(crate))]
+    pub lifetime_max: f64,
     /// The minimum initial particle speed in world units per second.
-    #[get(type(copy))]
-    pub(crate) speed_min: f64,
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    pub speed_min: f64,
     /// The maximum initial particle speed in world units per second.
-    #[get(type(copy))]
-    pub(crate) speed_max: f64,
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    pub speed_max: f64,
     /// The central emission direction in radians.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[new(skip)]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) angle: f64,
     /// The total cone width around `angle` in radians within which
     /// particle directions are uniformly randomized.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[new(skip)]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) spread: f64,
     /// The constant acceleration applied to every live particle.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[new(skip)]
-    pub(crate) gravity: Vector2D,
+    #[get_mut(pub(crate))]
+    pub gravity: Vector2D,
     /// The particle color at birth.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[new(skip)]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) color_start: Color,
     /// The particle color at death. Set its alpha to 0.0 for a fade-out.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[new(skip)]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) color_end: Color,
     /// The particle radius at birth in world units.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[new(skip)]
-    pub(crate) size_start: f64,
+    #[get_mut(pub(crate))]
+    pub size_start: f64,
     /// The particle radius at death in world units.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[new(skip)]
-    pub(crate) size_end: f64,
+    #[get_mut(pub(crate))]
+    pub size_end: f64,
 }
 
 /// A single live particle.
@@ -79,13 +94,10 @@ pub struct Particle {
     /// The current world-space position.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) position: Vector2D,
-    /// The current velocity in world units per second.
-    #[get(type(copy))]
+    pub position: Vector2D,
+    #[get(type(clone))]
     #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) velocity: Vector2D,
+    pub velocity: Vector2D,
     /// The time this particle has been alive, in seconds.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
@@ -95,7 +107,7 @@ pub struct Particle {
     #[get(type(copy))]
     #[set(pub(crate))]
     #[get_mut(pub(crate))]
-    pub(crate) lifetime: f64,
+    pub lifetime: f64,
 }
 
 /// A point emitter that continuously (or in bursts) spawns particles,
@@ -106,37 +118,32 @@ pub struct ParticleEmitter {
     /// The world-space emission point.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) position: Vector2D,
+    pub position: Vector2D,
     /// The emitter configuration.
-    #[get(type(copy))]
-    #[set(pub(crate))]
+    #[get(type(clone))]
     #[get_mut(pub(crate))]
-    pub(crate) config: ParticleConfig,
+    pub config: ParticleConfig,
     /// All currently live particles.
     #[get(type(clone))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    #[get(pub(crate))]
-    pub(crate) particles: Vec<Particle>,
+    pub particles: Vec<Particle>,
     /// The fractional particle spawn budget carried between updates.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    #[get(pub(crate))]
-    pub(crate) emit_accumulator: f64,
+    pub emit_accumulator: f64,
     /// Whether continuous emission is currently enabled.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[new(skip)]
     #[get_mut(pub(crate))]
-    pub(crate) active: bool,
+    pub active: bool,
     /// The emitter's deterministic random generator.
-    #[get(type(copy))]
+    #[get(type(copy), pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    #[get(pub(crate))]
     pub(crate) rng: ParticleRng,
 }

@@ -110,7 +110,7 @@ impl Material {
         )
     }
 
-    /// Creates a Blinn-Phong material with the given albedo, specular
+    /// Creates a Phong material with the given albedo, specular
     /// strength, and specular exponent.
     ///
     /// # Arguments
@@ -137,7 +137,8 @@ impl Material {
     /// The resulting material is shaded as a Lambertian diffuse term scaled
     /// by a Schlick fresnel factor; its `specular` and `shininess` fields are
     /// not consulted on that path. See [`MaterialKind::Pbr`] for what this
-    /// model does and does not include.
+    /// model does and does not include — in particular, read it as
+    /// "diffuse plus a fresnel rim", not as a physical BRDF.
     ///
     /// # Arguments
     ///
@@ -170,8 +171,8 @@ impl Material {
     }
 }
 
-/// Implements [`LightingUniforms`] builders and the [`LightingUniforms::shade`]
-/// entry point used by the ray tracer.
+/// Implements [`LightingUniforms`] builders and the shading entry points
+/// used by the ray tracer and by any external visibility provider.
 impl LightingUniforms {
     /// Creates a uniform set with an empty light list, default ambient,
     /// and the supplied eye position.
@@ -196,24 +197,31 @@ impl LightingUniforms {
         self.get_mut_lights().push(light);
     }
 
-    /// Shades a surface point by summing ambient, per-light Lambertian, and
-    /// per-light Phong contributions, gated by a soft shadow factor.
+    /// Shades a surface point against `(center, radius)` shadow bounding
+    /// spheres, the pre-existing entry point.
     ///
-    /// The [`MaterialKind`] selects which terms are evaluated per light:
-    /// [`MaterialKind::Lambert`] contributes diffuse only,
-    /// [`MaterialKind::Phong`] adds a Blinn-Phong specular lobe, and
-    /// [`MaterialKind::Pbr`] adds an energy-conserving Schlick fresnel
-    /// factor to the diffuse term and no separate specular lobe. See
-    /// [`MaterialKind::Pbr`] for why that is an approximation and not a
-    /// full physically based model.
+    /// A compatibility shim over
+    /// [`LightingUniforms::shade_with_visibility`] that supplies a callback
+    /// backed by [`soft_shadow_factor`], retained so existing ray-tracing
+    /// callers keep compiling unchanged. New code holding real geometry
+    /// should call [`LightingUniforms::shade_with_visibility`] directly and
+    /// get exact shadows instead of bounding-sphere ones.
+    ///
+    /// Directional lights report full visibility here, unchanged from
+    /// before: a bounding sphere stores a position but no direction, so
+    /// there is no finite segment to cast along and a callback using one
+    /// would have to invent a far bound. That far bound is
+    /// [`LIGHTING_DIRECTIONAL_VISIBILITY_DISTANCE`] and belongs to
+    /// [`LightingUniforms::shade_with_visibility`], where the caller
+    /// supplies its own geometry.
     ///
     /// # Arguments
     ///
     /// - `Vector3D` - The world-space position of the shaded point.
     /// - `Vector3D` - The surface normal (unit length).
     /// - `&Material` - The material at the shaded point.
-    /// - `&[(Vector3D, f64)]` - `(center, radius)` occluder tuples used by
-    ///   [`soft_shadow_factor`].
+    /// - `&[(Vector3D, f64)]` - `(center, radius)` occluder bounding
+    ///   spheres, one per occluder.
     ///
     /// # Returns
     ///
@@ -225,71 +233,177 @@ impl LightingUniforms {
         material: &Material,
         occluders: &[(Vector3D, f64)],
     ) -> Vector3D {
+        self.shade_with_visibility(
+            position,
+            normal,
+            material,
+            |light: &Light, _dir: Vector3D, _max_distance: f64| -> f64 {
+                match light.get_kind() {
+                    LightType::Directional => 1.0,
+                    LightType::Point | LightType::Spot => {
+                        soft_shadow_factor(position, light.get_position(), occluders)
+                    }
+                }
+            },
+        )
+    }
+
+    /// Shades a surface point, asking `visibility` whether each light is
+    /// unoccluded along the segment to that light.
+    ///
+    /// The entry point for real shadow geometry. The callback receives the
+    /// light, the unit direction from the shaded point toward the light,
+    /// and the maximum distance to cast along that direction, and returns a
+    /// visibility factor that multiplies the light's whole contribution.
+    /// Returning `1.0` for every light reproduces the unshadowed result
+    /// exactly.
+    ///
+    /// ## The callback contract
+    ///
+    /// ```text
+    /// F: FnMut(&Light, surface_to_light_dir: Vector3D, max_distance: f64) -> f64
+    /// ```
+    ///
+    /// - `surface_to_light_dir` is the **normalized** direction from
+    ///   `position` toward the light. For a spot light this points *into*
+    ///   the lamp (it is the negation of the cone axis), matching the
+    ///   shading convention used for every other term — cast your shadow
+    ///   ray along this vector and it runs surface→light.
+    /// - `max_distance` is the far bound for that ray: the true
+    ///   surface→light distance for point and spot lights, so the ray can
+    ///   never reach past the lamp, and
+    ///   [`LIGHTING_DIRECTIONAL_VISIBILITY_DISTANCE`] (1000.0, matching
+    ///   the ray tracer's `RAYTRACE_DEFAULT_T_MAX`) for directional
+    ///   lights, which have no distance of their own.
+    /// - The returned factor is clamped to `0.0..=1.0`.
+    ///
+    /// ## When the callback runs
+    ///
+    /// At most once per light, and only for lights that can actually
+    /// contribute. Lights are skipped before any callback work when they
+    /// carry no intensity, fall outside their spot cone, or face away from
+    /// the surface (`dot(normal, light_dir) <= 0`). Those tests are free,
+    /// and skipping them is the point of the ordering: back-facing and
+    /// out-of-cone lights are the common reject path. A light that is fully
+    /// occluded still costs one callback — only the callback knows the
+    /// geometry.
+    ///
+    /// ## Evaluation order
+    ///
+    /// Per light: cone test → facing test → compute `light_dir`, `dist`,
+    /// and `view_dir` **once** → visibility callback → falloff →
+    /// [`MaterialKind`] dispatch. The [`Light`] itself is only read, never
+    /// cloned: a point or spot light's derived direction and attenuating
+    /// intensity live in locals for the duration of the iteration, so the
+    /// diffuse, specular, and fresnel terms all read the same values.
+    ///
+    /// [`MaterialKind`] selects which terms run per light:
+    /// [`MaterialKind::Lambert`] contributes diffuse only,
+    /// [`MaterialKind::Phong`] adds a Phong specular lobe that is zero
+    /// unless the surface faces the light, and [`MaterialKind::Pbr`]
+    /// scales the diffuse term by a Schlick fresnel factor and adds no
+    /// separate specular lobe.
+    ///
+    /// Ambient is added once and is never shadowed; the material's
+    /// emissive term is added last and is likewise unaffected by
+    /// visibility.
+    ///
+    /// # Arguments
+    ///
+    /// - `Vector3D` - The world-space position of the shaded point.
+    /// - `Vector3D` - The surface normal (unit length).
+    /// - `&Material` - The material at the shaded point.
+    /// - `F` - The visibility provider, called once per contributing
+    ///   light.
+    ///
+    /// # Returns
+    ///
+    /// - `Vector3D` - The final shaded color.
+    pub fn shade_with_visibility<F>(
+        &self,
+        position: Vector3D,
+        normal: Vector3D,
+        material: &Material,
+        mut visibility: F,
+    ) -> Vector3D
+    where
+        F: FnMut(&Light, Vector3D, f64) -> f64,
+    {
         let mut color: Vector3D = self.get_ambient();
-        let eye: Vector3D = self.get_eye();
-        let to_eye: Vector3D = eye - position;
-        let view_dist: f64 = to_eye.magnitude();
-        let view_dir: Vector3D = if view_dist > EPSILON {
-            to_eye.scaled(1.0 / view_dist)
-        } else {
-            Vector3D::zero()
-        };
+        let view_dir: Vector3D = unit_vector(self.get_eye() - position);
+        let material_kind: MaterialKind = material.get_kind();
+        let albedo: Vector3D = material.get_albedo();
         for light in self.get_lights().iter() {
             let kind: LightType = light.get_kind();
-            let shadow: f64 = match kind {
-                LightType::Directional => 1.0,
+            // Derived once per light and shared by every term below. The
+            // magnitude is taken once, alongside the unit direction, since
+            // both come from the same vector. The `Light` itself is only
+            // read, never cloned or mutated.
+            let (light_dir, distance): (Vector3D, f64) = match kind {
+                LightType::Directional => (light.get_direction(), 0.0),
                 LightType::Point | LightType::Spot => {
-                    soft_shadow_factor(position, light.get_position(), occluders)
+                    unit_vector_and_length(light.get_position() - position)
                 }
             };
+            // Free rejects first: a light that cannot reach this surface
+            // costs no visibility callback at all.
+            if !light_reaches_position(light, light_dir) {
+                continue;
+            }
+            // A back-facing surface has zero Lambert and zero specular, so
+            // culling here saves a shadow ray per light.
+            if normal.dot(light_dir) <= 0.0 {
+                continue;
+            }
+            // `max_distance` is the **true** surface→light distance, so a
+            // shadow ray can never reach past the lamp. Only the falloff
+            // distance is floored at `LIGHTING_POINT_LIGHT_MIN_DISTANCE`,
+            // to keep a coincident surface from dividing by zero; a
+            // directional light attenuates not at all and its shadow ray
+            // runs to the ray tracer's far bound.
+            let (falloff_factor, shadow_distance): (f64, f64) = match kind {
+                LightType::Directional => (1.0, LIGHTING_DIRECTIONAL_VISIBILITY_DISTANCE),
+                LightType::Point | LightType::Spot => (
+                    apply_falloff(
+                        distance.max(LIGHTING_POINT_LIGHT_MIN_DISTANCE),
+                        light.get_falloff(),
+                    ),
+                    distance,
+                ),
+            };
+            let shadow: f64 = visibility(light, light_dir, shadow_distance).clamp(0.0, 1.0);
             if shadow <= 0.0 {
                 continue;
             }
-            let mut lambert_input: Light = light.clone();
-            // The falloff distance is the light→surface distance, evaluated
-            // once and shared by every term. Directional lights have no
-            // distance to attenuate, so they keep their raw intensity.
-            let mut falloff_factor: f64 = 1.0;
-            match kind {
-                LightType::Directional => {}
-                LightType::Point | LightType::Spot => {
-                    let to_light: Vector3D = light.get_position() - position;
-                    let dist: f64 = to_light.magnitude().max(LIGHTING_POINT_LIGHT_MIN_DISTANCE);
-                    let dir: Vector3D = to_light.scaled(1.0 / dist);
-                    lambert_input.set_direction(dir);
-                    falloff_factor = apply_falloff(dist, light.get_falloff());
-                    lambert_input.set_intensity(light.get_intensity() * falloff_factor);
-                }
-            }
-            let material_kind: MaterialKind = material.get_kind();
+            let intensity: f64 = light.get_intensity() * falloff_factor;
+            let light_color: Vector3D = light.get_color();
             let diffuse: Vector3D = match material_kind {
                 MaterialKind::Pbr => {
-                    let base: Vector3D = compute_lambert(&lambert_input, normal, material);
-                    let fresnel: f64 =
-                        apply_schlick_fresnel(lambert_input.get_direction(), view_dir, normal);
-                    base.scaled(
+                    let fresnel: f64 = apply_schlick_fresnel(light_dir, view_dir, normal);
+                    lambert_term(light_color, intensity, light_dir, normal, albedo).scaled(
                         LIGHTING_PBR_ENERGY_CONSERVATION
                             + (1.0 - LIGHTING_PBR_ENERGY_CONSERVATION) * fresnel,
                     )
                 }
                 MaterialKind::Lambert | MaterialKind::Phong => {
-                    compute_lambert(&lambert_input, normal, material)
+                    lambert_term(light_color, intensity, light_dir, normal, albedo)
                 }
             };
             let specular: Vector3D = match material_kind {
                 MaterialKind::Lambert | MaterialKind::Pbr => Vector3D::zero(),
-                MaterialKind::Phong => {
-                    let mut spec_input: Light = lambert_input.clone();
-                    spec_input.set_intensity(light.get_intensity() * falloff_factor);
-                    compute_phong(&spec_input, normal, view_dir, material)
-                }
+                MaterialKind::Phong => phong_specular_term(
+                    light_color,
+                    intensity,
+                    light_dir,
+                    normal,
+                    view_dir,
+                    material.get_specular(),
+                    material.get_shininess(),
+                ),
             };
-            let mut contribution: Vector3D = diffuse + specular;
-            contribution = contribution.scaled(shadow);
-            color += contribution;
+            color += (diffuse + specular).scaled(shadow);
         }
-        let emissive: Vector3D = material.get_emissive();
-        color += emissive;
+        color += material.get_emissive();
         color
     }
 }

@@ -128,7 +128,6 @@ pub struct EuvDrag {
     /// A finger that traces a loop has a large path length and zero delta,
     /// which is how a drag is told apart from a tap that wandered slightly.
     #[get(type(copy))]
-    #[get(type(copy))]
     pub travel: f64,
 }
 
@@ -224,6 +223,7 @@ pub struct GestureProgress {
     #[get(type(copy))]
     pub last_y: f64,
     /// Accumulated path length in CSS pixels.
+    #[get(type(copy))]
     pub travel: f64,
     /// Distance between the two fingers when a pinch began.
     #[get(type(copy))]

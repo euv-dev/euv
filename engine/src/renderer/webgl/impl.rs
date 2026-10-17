@@ -759,10 +759,10 @@ impl GlTexture {
         format: GpuTextureFormat,
         data: &[u8],
     ) -> bool {
-        let x: u32 = (*region.get_x()).max(0) as u32;
-        let y: u32 = (*region.get_y()).max(0) as u32;
-        let width: u32 = (*region.get_width()).max(0) as u32;
-        let height: u32 = (*region.get_height()).max(0) as u32;
+        let x: u32 = (region.get_x()).max(0) as u32;
+        let y: u32 = (region.get_y()).max(0) as u32;
+        let width: u32 = (region.get_width()).max(0) as u32;
+        let height: u32 = (region.get_height()).max(0) as u32;
         let inside: bool = x.saturating_add(width) <= self.get_width()
             && y.saturating_add(height) <= self.get_height();
         if !inside {
@@ -1160,7 +1160,6 @@ impl GlProgram {
         Ok(GlProgram {
             program,
             uniforms: HashMap::new(),
-            matrix_scratch: [0.0; GL_MAT4_FLOATS],
             blocks: HashMap::new(),
         })
     }
@@ -1915,10 +1914,10 @@ impl WebGl2Backend {
                         true,
                     );
                     context.scissor(
-                        *rectangle.get_x(),
-                        *rectangle.get_y(),
-                        *rectangle.get_width(),
-                        *rectangle.get_height(),
+                        rectangle.get_x(),
+                        rectangle.get_y(),
+                        rectangle.get_width(),
+                        rectangle.get_height(),
                     );
                 }
                 None => {
@@ -1932,10 +1931,10 @@ impl WebGl2Backend {
         }
         if current.viewport != state.viewport {
             context.viewport(
-                *state.viewport.get_x(),
-                *state.viewport.get_y(),
-                *state.viewport.get_width(),
-                *state.viewport.get_height(),
+                state.viewport.get_x(),
+                state.viewport.get_y(),
+                state.viewport.get_width(),
+                state.viewport.get_height(),
             );
         }
         self.set_shadow(*state);

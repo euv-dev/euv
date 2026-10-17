@@ -7,7 +7,7 @@ impl Counter {
     /// value is left at `max`.
     pub fn increment(&self) {
         let current: i32 = self.get_value().get();
-        let mut next: i32 = current.saturating_add(*self.get_step());
+        let mut next: i32 = current.saturating_add(self.get_step());
         if let Some(max) = self.try_get_max() {
             next = next.min(max);
         }
@@ -22,7 +22,7 @@ impl Counter {
     /// at `min`, the value is left at `min`.
     pub fn decrement(&self) {
         let current: i32 = self.get_value().get();
-        let mut next: i32 = current.saturating_sub(*self.get_step());
+        let mut next: i32 = current.saturating_sub(self.get_step());
         if let Some(min) = self.try_get_min() {
             next = next.max(min);
         }

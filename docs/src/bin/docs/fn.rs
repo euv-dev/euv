@@ -232,7 +232,7 @@ fn build_one(args: &Args, out_dir: &Path) -> Result<(), String> {
     command.current_dir(&manifest_dir);
     command
         .arg(EUV_BUILD_SUBCMD)
-        .arg(if *args.get_release() {
+        .arg(if args.get_release() {
             EUV_RELEASE_FLAG
         } else {
             EUV_DEBUG_FLAG

@@ -29,7 +29,7 @@ where
     ///
     /// - `bool` - A boolean.
     pub fn is_full(&self) -> bool {
-        self.get_map().len() >= *self.get_capacity()
+        self.get_map().len() >= self.get_capacity()
     }
 
     /// Returns `true` if the cache contains a value for
@@ -107,7 +107,7 @@ where
     /// - `Option<(K, V)>` - `Some(...)` on success, `None` otherwise.
     pub fn put(&mut self, key: K, value: V) -> Option<(K, V)> {
         // Capacity of 0 — silently drop.
-        if *self.get_capacity() == 0 {
+        if self.get_capacity() == 0 {
             return None;
         }
         // Updating an existing key.
@@ -121,7 +121,7 @@ where
             return None;
         }
         // Inserting a new key. Evict if at capacity.
-        let evicted: Option<(K, V)> = if self.get_map().len() >= *self.get_capacity() {
+        let evicted: Option<(K, V)> = if self.get_map().len() >= self.get_capacity() {
             let victim_key: K = self.get_mut_order().pop_back()?;
             let victim_value: V = self.get_mut_map().remove(&victim_key)?;
             Some((victim_key, victim_value))
@@ -205,7 +205,7 @@ where
     /// - `usize` - A non-negative integer (`usize`).
     pub fn resize(&mut self, new_capacity: usize) {
         self.set_capacity(new_capacity);
-        while self.get_map().len() > *self.get_capacity() {
+        while self.get_map().len() > self.get_capacity() {
             if let Some(victim_key) = self.get_mut_order().pop_back() {
                 self.get_mut_map().remove(&victim_key);
             } else {

@@ -55,7 +55,7 @@ where
     ///
     /// - `&UseAsyncSlot<T, L>` - A `UseAsyncSlot<T, L>` value.
     unsafe fn slot(&self) -> &UseAsyncSlot<T, L> {
-        unsafe { &*(*self.get_inner() as *const UseAsyncSlot<T, L>) }
+        unsafe { &*(self.get_inner() as *const UseAsyncSlot<T, L>) }
     }
 }
 
@@ -183,7 +183,7 @@ where
         // address is meaningless to users and could collide with
         // string-formatted `AsyncState` payloads.
         f.debug_struct("UseAsyncHandle")
-            .field("inner", &format_args!("<opaque 0x{:x}>", *self.get_inner()))
+            .field("inner", &format_args!("<opaque 0x{:x}>", self.get_inner()))
             .finish()
     }
 }

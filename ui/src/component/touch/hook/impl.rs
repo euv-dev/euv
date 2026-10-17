@@ -315,7 +315,7 @@ impl EuvGestureRecognizer {
                         &point,
                         slot.get_start_x(),
                         slot.get_start_y(),
-                        *slot.get_travel(),
+                        slot.get_travel(),
                     )
                 });
                 let pinch_reading: Option<EuvPinch> = move_recognizer
@@ -700,7 +700,7 @@ impl GestureProgress {
         let dy: f64 = self.get_last_y() - self.get_start_y();
         let elapsed: f64 = now_millis() - self.get_started_at();
         let distance: f64 = (dx * dx + dy * dy).sqrt();
-        if distance <= config.tap_slop && *self.get_travel() <= config.tap_slop {
+        if distance <= config.tap_slop && self.get_travel() <= config.tap_slop {
             return Some(if elapsed >= config.long_press_millis {
                 EuvGesture::LongPress
             } else {

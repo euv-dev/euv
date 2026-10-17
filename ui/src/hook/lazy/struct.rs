@@ -17,6 +17,19 @@ use super::*;
 /// between hook contexts.
 #[derive(Clone, Data)]
 pub struct LazyComponent<T: Clone + PartialEq + 'static> {
-    pub(crate) state: Signal<LoadState<T>>,
+    /// The reactive load state.
+    ///
+    /// Public because `ui/tests/lazy/fn.rs` reads it
+    /// through `get_state()`.
+    pub state: Signal<LoadState<T>>,
+    /// The deferred value factory.
+    ///
+    /// `get_factory()` has no caller outside this crate
+    /// (`impl.rs` invokes it internally), so the generated
+    /// getter, mutable getter and setter are all
+    /// `pub(crate)`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) factory: Rc<dyn Fn() -> T>,
 }
