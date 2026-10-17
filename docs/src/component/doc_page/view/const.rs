@@ -23,7 +23,16 @@ pub(crate) const TOC_SPY_READING_LINE_PX: f64 = 100.0;
 pub(crate) const TOC_SPY_END_TOLERANCE_PX: f64 = 4.0;
 
 /// Selector of the scrollable prose column the spy measures against.
-pub(crate) const TOC_SPY_CONTAINER_SELECTOR: &str = ".c_euv_doc_content";
+///
+/// This must name the element that actually scrolls. The shell locks
+/// the viewport (`html, body { overflow: hidden }`) and scrolls
+/// `.c_app_main`, which is the only element carrying `overflow-y: auto`.
+/// `.c_euv_doc_content` is the prose *layout* wrapper: it is a flex column
+/// with `overflow: visible` whose `scrollHeight` equals its
+/// `clientHeight` on every page, so measuring it made the "scrolled to
+/// the end" test permanently true and pinned the highlight to the last
+/// TOC entry no matter where the reader scrolled to.
+pub(crate) const TOC_SPY_CONTAINER_SELECTOR: &str = ".c_app_main";
 
 /// Selector matching every TOC anchor, flat or nested.
 pub(crate) const TOC_SPY_LINK_SELECTOR: &str = ".c_euv_doc_toc a, .c_euv_toc a";
