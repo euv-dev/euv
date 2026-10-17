@@ -56,7 +56,14 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
              .c_euv_sidebar_children .c_euv_sidebar_link_active::before, .c_euv_sidebar_children .c_euv_sidebar_group_title_active::before { left: -8px !important; } \
              .c_euv_sidebar_children .c_euv_sidebar_link_active_flush::before { left: 0 !important; } \
              \
-             .c_euv_sidebar_link, .c_euv_sidebar_group_title { position: relative !important; } \
+             /* Every row class whose ::before marker is absolutely positioned
+                must itself be positioned, or the marker resolves against the
+                nearest positioned ancestor (the sticky `c_app_nav`) and paints
+                a 5px bar down the *full height* of the sidebar instead of the
+                row. `c_euv_sidebar_link_active` (a top-level active leaf) was
+                missing here: measured live, its ::before spanned 295px of the
+                nav column while the row itself is 42px. */ \
+             .c_euv_sidebar_link, .c_euv_sidebar_group_title, .c_euv_sidebar_link_active { position: relative !important; } \
                          .c_euv_sidebar_link::before, .c_euv_sidebar_group_title::before { content: '' !important; position: absolute !important; top: 0 !important; bottom: 0 !important; width: 5px !important; background: transparent !important; pointer-events: none !important; } \
                          .c_euv_sidebar_group_title::before { left: 0 !important; } \
                                     .c_euv_sidebar_link::before { left: 0 !important; } \
