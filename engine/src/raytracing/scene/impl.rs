@@ -83,31 +83,26 @@ impl Ray {
         }
     }
 
-    /// Intersects this ray with the triangle `v0`, `v1`, `v2` using the
-    /// Moller-Trumbore algorithm, keeping only hits inside this ray's
-    /// `t_min`..=`t_max` range.
+    /// Intersects this ray with a triangle using the Moller-Trumbore
+    /// algorithm, keeping only hits inside this ray's `t_min`..=`t_max`
+    /// range.
     ///
     /// The test is two-sided: a hit from either face counts, and the
-    /// returned normal always faces against the ray direction.
+    /// returned normal always faces against the ray direction. This is the
+    /// range-clamped counterpart of the free
+    /// [`intersect_triangle`](crate::intersect_triangle), which reports the
+    /// raw distance however far away the triangle is.
     ///
     /// # Arguments
     ///
-    /// - `Vector3D` - The first triangle vertex.
-    /// - `Vector3D` - The second triangle vertex.
-    /// - `Vector3D` - The third triangle vertex.
+    /// - `[Vector3D; 3]` - The three triangle vertices in winding order.
     ///
     /// # Returns
     ///
     /// - `Option<(f64, Vector3D)>` - The hit distance along the ray and the
     ///   unit normal oriented against the ray direction, or `None` on miss.
-    pub fn intersect_triangle(
-        &self,
-        v0: Vector3D,
-        v1: Vector3D,
-        v2: Vector3D,
-    ) -> Option<(f64, Vector3D)> {
-        let (t, normal): (f64, Vector3D) =
-            intersect_triangle(self.get_origin(), self.get_direction(), v0, v1, v2)?;
+    pub fn intersect_triangle(&self, vertices: [Vector3D; 3]) -> Option<(f64, Vector3D)> {
+        let (t, normal): (f64, Vector3D) = intersect_triangle(self, vertices)?;
         if t < self.get_t_min() || t > self.get_t_max() {
             return None;
         }

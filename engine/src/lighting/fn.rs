@@ -26,47 +26,46 @@ use super::*;
 ///
 /// - `Vector3D` - The diffuse contribution of this light.
 pub fn compute_lambert(light: &Light, normal: Vector3D, material: &Material) -> Vector3D {
-    lambert_term(
-        light.get_color(),
-        light.get_intensity(),
-        light.get_direction(),
-        normal,
-        material.get_albedo(),
-    )
+    let sample: LightSample = LightSample {
+        color: light.get_color(),
+        intensity: light.get_intensity(),
+        direction: light.get_direction(),
+    };
+    lambert_term(&sample, normal, material)
 }
 
 /// The Lambertian term shared by [`compute_lambert`] and
 /// [`LightingUniforms::shade_with_visibility`].
 ///
-/// Unpacking the light into its colour, intensity, and direction is what
-/// lets the shading loop evaluate a light once — one distance, one
-/// direction, one falloff — instead of building a mutated copy of the
-/// [`Light`] per term.
+/// The light arrives as a [`LightSample`] rather than as a [`Light`]
+/// because the shading loop has already resolved it — one distance, one
+/// direction, one falloff — into the colour, intensity, and direction this
+/// term reads. Passing that sample on keeps the [`Light`] un-cloned and
+/// stops each term from re-deriving what the loop measured.
 ///
 /// # Arguments
 ///
-/// - `Vector3D` - The light's RGB color.
-/// - `f64` - The light's intensity, already scaled by any falloff.
-/// - `Vector3D` - The unit direction from the surface toward the light.
+/// - `&LightSample` - The resolved colour, intensity, and direction of the
+///   light being evaluated.
 /// - `Vector3D` - The surface normal (unit length).
-/// - `Vector3D` - The material's diffuse albedo.
+/// - `&Material` - The material at the shaded point; its diffuse albedo is
+///   read here.
 ///
 /// # Returns
 ///
 /// - `Vector3D` - `color * albedo * intensity * max(0, dot(normal, light_dir))`.
 pub(crate) fn lambert_term(
-    light_color: Vector3D,
-    light_intensity: f64,
-    light_dir: Vector3D,
+    sample: &LightSample,
     normal: Vector3D,
-    albedo: Vector3D,
+    material: &Material,
 ) -> Vector3D {
-    let cos: f64 = normal.dot(light_dir).max(0.0);
-    let k: f64 = light_intensity * cos;
+    let albedo: Vector3D = material.get_albedo();
+    let cos: f64 = normal.dot(sample.get_direction()).max(0.0);
+    let k: f64 = sample.get_intensity() * cos;
     Vector3D::new(
-        light_color.get_x() * albedo.get_x() * k,
-        light_color.get_y() * albedo.get_y() * k,
-        light_color.get_z() * albedo.get_z() * k,
+        sample.get_color().get_x() * albedo.get_x() * k,
+        sample.get_color().get_y() * albedo.get_y() * k,
+        sample.get_color().get_z() * albedo.get_z() * k,
     )
 }
 
@@ -99,15 +98,12 @@ pub fn compute_phong(
     view_dir: Vector3D,
     material: &Material,
 ) -> Vector3D {
-    phong_specular_term(
-        light.get_color(),
-        light.get_intensity(),
-        light.get_direction(),
-        normal,
-        view_dir,
-        material.get_specular(),
-        material.get_shininess(),
-    )
+    let sample: LightSample = LightSample {
+        color: light.get_color(),
+        intensity: light.get_intensity(),
+        direction: light.get_direction(),
+    };
+    phong_specular_term(&sample, normal, view_dir, material)
 }
 
 /// The Phong specular term shared by [`compute_phong`] and
@@ -115,34 +111,39 @@ pub fn compute_phong(
 /// unless the surface faces the light, so the lobe cannot survive on the
 /// back side of a surface.
 ///
+/// Like [`lambert_term`], it reads a [`LightSample`] the caller already
+/// resolved and takes the two material scalars through the [`Material`]
+/// itself, so neither the light nor the material is rebuilt per term.
+///
 /// # Arguments
 ///
-/// - `Vector3D` - The light's RGB color.
-/// - `f64` - The light's intensity, already scaled by any falloff.
-/// - `Vector3D` - The unit direction from the surface toward the light.
+/// - `&LightSample` - The resolved colour, intensity, and direction of the
+///   light being evaluated.
 /// - `Vector3D` - The surface normal (unit length).
 /// - `Vector3D` - The unit view direction (from the surface toward the eye).
-/// - `f64` - The material's specular intensity.
-/// - `f64` - The Phong specular exponent.
+/// - `&Material` - The material at the shaded point; its specular intensity
+///   and shininess are read here.
 ///
 /// # Returns
 ///
 /// - `Vector3D` - `color * intensity * specular * spec_factor`.
 pub(crate) fn phong_specular_term(
-    light_color: Vector3D,
-    light_intensity: f64,
-    light_dir: Vector3D,
+    sample: &LightSample,
     normal: Vector3D,
     view_dir: Vector3D,
-    material_specular: f64,
-    shininess: f64,
+    material: &Material,
 ) -> Vector3D {
-    let spec_factor: f64 = phong_specular_factor(light_dir, normal, view_dir, shininess);
-    let k: f64 = light_intensity * spec_factor * material_specular;
+    let spec_factor: f64 = phong_specular_factor(
+        sample.get_direction(),
+        normal,
+        view_dir,
+        material.get_shininess(),
+    );
+    let k: f64 = sample.get_intensity() * spec_factor * material.get_specular();
     Vector3D::new(
-        light_color.get_x() * k,
-        light_color.get_y() * k,
-        light_color.get_z() * k,
+        sample.get_color().get_x() * k,
+        sample.get_color().get_y() * k,
+        sample.get_color().get_z() * k,
     )
 }
 
@@ -476,9 +477,13 @@ pub fn soft_shadow_factor(
     if dist < EPSILON {
         return 1.0;
     }
-    let dir: Vector3D = to_light.scaled(1.0 / dist);
+    let segment: ShadowSegment = ShadowSegment {
+        origin,
+        direction: to_light.scaled(1.0 / dist),
+        distance: dist,
+    };
     for &(center, radius) in occluders.iter() {
-        if segment_crosses_sphere(origin, dir, dist, center, radius) {
+        if segment_crosses_sphere(&segment, center, radius) {
             return 0.0;
         }
     }
@@ -486,7 +491,7 @@ pub fn soft_shadow_factor(
 }
 
 /// Returns whether either ray-sphere root lands strictly inside the open
-/// segment `(EPSILON, dist - EPSILON)`.
+/// segment `(EPSILON, distance - EPSILON)`.
 ///
 /// **Both roots are tested, not just the near one.** A shadow ray is very
 /// often cast from the surface point of one of the occluders themselves:
@@ -495,11 +500,14 @@ pub fn soft_shadow_factor(
 /// the nearest root would report the light as visible through the very
 /// sphere the ray starts inside.
 ///
+/// The segment arrives as a [`ShadowSegment`] so the same start, unit
+/// direction, and distance measured once by [`soft_shadow_factor`] reach
+/// every occluder in the loop instead of being restated per call.
+///
 /// # Arguments
 ///
-/// - `Vector3D` - The segment start (the shaded point).
-/// - `Vector3D` - The unit direction toward the light.
-/// - `f64` - The distance from the segment start to the light.
+/// - `&ShadowSegment` - The segment start, unit direction toward the light,
+///   and distance from the segment start to the light.
 /// - `Vector3D` - The sphere center.
 /// - `f64` - The sphere radius.
 ///
@@ -507,14 +515,12 @@ pub fn soft_shadow_factor(
 ///
 /// - `bool` - `true` when the segment passes through the sphere's interior.
 pub(crate) fn segment_crosses_sphere(
-    origin: Vector3D,
-    dir: Vector3D,
-    dist: f64,
+    segment: &ShadowSegment,
     center: Vector3D,
     radius: f64,
 ) -> bool {
-    let oc: Vector3D = origin - center;
-    let b: f64 = oc.dot(dir);
+    let oc: Vector3D = segment.get_origin() - center;
+    let b: f64 = oc.dot(segment.get_direction());
     let c: f64 = oc.dot(oc) - radius * radius;
     let disc: f64 = b * b - c;
     if disc < 0.0 {
@@ -524,6 +530,6 @@ pub(crate) fn segment_crosses_sphere(
     let near: f64 = -b - sq;
     let far: f64 = -b + sq;
     let inside: f64 = EPSILON;
-    let outside: f64 = dist - EPSILON;
+    let outside: f64 = segment.get_distance() - EPSILON;
     (near > inside && near < outside) || (far > inside && far < outside)
 }

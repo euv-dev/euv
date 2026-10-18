@@ -16,23 +16,17 @@ use super::*;
 /// # Arguments
 ///
 /// - `&FrameBasis` - The validated camera basis.
-/// - `f64` - The pixel's x coordinate.
-/// - `f64` - The pixel's y coordinate, counted from the top row.
-/// - `f64` - The sub-sample's offset within the pixel, in `[0, 1)`.
-/// - `f64` - The second sub-sample's offset within the pixel.
+/// - `&PixelSample` - The pixel coordinates and the sub-sample's offset
+///   within that pixel.
 ///
 /// # Returns
 ///
 /// - `Vector3D` - The unit world-space ray direction.
-pub(crate) fn pixel_direction(
-    basis: &FrameBasis,
-    x: f64,
-    y: f64,
-    offset_x: f64,
-    offset_y: f64,
-) -> Vector3D {
-    let ndc_x: f64 = ((x + offset_x) / basis.get_width() as f64) * 2.0 - 1.0;
-    let ndc_y: f64 = 1.0 - ((y + offset_y) / basis.get_height() as f64) * 2.0;
+pub(crate) fn pixel_direction(basis: &FrameBasis, sample: &PixelSample) -> Vector3D {
+    let ndc_x: f64 =
+        ((sample.get_x() + sample.get_offset_x()) / basis.get_width() as f64) * 2.0 - 1.0;
+    let ndc_y: f64 =
+        1.0 - ((sample.get_y() + sample.get_offset_y()) / basis.get_height() as f64) * 2.0;
     let tan_half: f64 = basis.get_tan_half_fov();
     (basis.get_forward()
         + basis
@@ -82,15 +76,15 @@ pub fn gamma_byte(channel: f64) -> u8 {
 /// them, clamps the linear color to `[0, 1]`, applies the `1 / 2.2` gamma
 /// curve, and writes an opaque alpha. Rows are emitted top-down.
 ///
+/// Frame inputs arrive through the same [`RayTraceFrame`] parameter type
+/// accepted by [`pack_raytrace_frame`]. The scene and mutable output remain
+/// separate, so the descriptor itself contains only read-only frame state.
+///
 /// # Arguments
 ///
 /// - `&RayTraceScene` - The scene to render.
-/// - `&Camera3D` - The camera supplying the eye, target, up, fov, and
-///   near/far range.
-/// - `&LightingUniforms` - The lights, ambient, and shading eye.
-/// - `&RayTraceSettings` - The sampling grid and bounce limit.
-/// - `u32` - The frame width in pixels.
-/// - `u32` - The frame height in pixels.
+/// - `&RayTraceFrame<'_>` - The camera, lights, settings, and dimensions
+///   to render.
 /// - `&mut Vec<u8>` - The destination RGBA buffer, cleared and reused.
 ///
 /// # Returns
@@ -99,24 +93,21 @@ pub fn gamma_byte(channel: f64) -> u8 {
 ///   the frame cannot be rendered.
 pub fn render_raytrace_rgba(
     scene: &RayTraceScene,
-    camera: &Camera3D,
-    lights: &LightingUniforms,
-    settings: &RayTraceSettings,
-    width: u32,
-    height: u32,
+    frame: &RayTraceFrame<'_>,
     out: &mut Vec<u8>,
 ) -> Result<(), String> {
-    settings.validate()?;
-    let basis: FrameBasis = frame_basis(camera, width, height)?;
+    let lights: &LightingUniforms = frame.get_lights();
+    frame.get_settings().validate()?;
+    let basis: FrameBasis = frame_basis(frame.get_camera(), frame.get_width(), frame.get_height())?;
     let pixel_count: usize = (basis.get_width() as usize) * (basis.get_height() as usize);
     let byte_count: usize = match pixel_count.checked_mul(4) {
         Some(count) => count,
         None => return Err(RAYTRACE_ERROR_DIMENSION_OVERFLOW.to_string()),
     };
-    let samples: u32 = settings.get_samples_per_axis();
+    let samples: u32 = frame.get_settings().get_samples_per_axis();
     let sample_scale: f64 = 1.0 / samples as f64;
     let rays: f64 = (samples * samples) as f64;
-    let bounces: u32 = settings.get_max_bounces();
+    let bounces: u32 = frame.get_settings().get_max_bounces();
     out.clear();
     out.resize(byte_count, 0);
     for y in 0..basis.get_height() {
@@ -124,13 +115,13 @@ pub fn render_raytrace_rgba(
             let mut accumulator: Vector3D = Vector3D::zero();
             for sy in 0..samples {
                 for sx in 0..samples {
-                    let direction: Vector3D = pixel_direction(
-                        &basis,
-                        x as f64,
-                        y as f64,
-                        (sx as f64 + 0.5) * sample_scale,
-                        (sy as f64 + 0.5) * sample_scale,
-                    );
+                    let sample: PixelSample = PixelSample {
+                        x: x as f64,
+                        y: y as f64,
+                        offset_x: (sx as f64 + 0.5) * sample_scale,
+                        offset_y: (sy as f64 + 0.5) * sample_scale,
+                    };
+                    let direction: Vector3D = pixel_direction(&basis, &sample);
                     let ray: Ray = Ray::new(basis.get_eye(), direction)
                         .with_range(basis.get_near_t(), basis.get_far_t());
                     accumulator += scene.trace_with_bounces(ray, lights, bounces);

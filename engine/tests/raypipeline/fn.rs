@@ -252,7 +252,16 @@ fn frame_header_layout_and_light_records() {
     let lights: LightingUniforms = lit_scene();
     let settings: RayTraceSettings = RayTraceSettings::with_quality(2, 3);
     let mut packed: Vec<f32> = Vec::new();
-    if let Err(reason) = pack_raytrace_frame(&mut packed, &camera, &lights, &settings, 32, 16) {
+    if let Err(reason) = pack_raytrace_frame(
+        &mut packed,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &settings,
+            width: 32,
+            height: 16,
+        },
+    ) {
         panic!("frame must pack: {reason}");
     }
     assert_eq!(
@@ -325,54 +334,144 @@ fn frame_rejects_invalid_camera_and_dimensions() {
     let settings: RayTraceSettings = RayTraceSettings::new_default();
     let mut packed: Vec<f32> = Vec::new();
     assert!(
-        pack_raytrace_frame(&mut packed, &camera(), &lights, &settings, 0, 16).is_err(),
+        pack_raytrace_frame(
+            &mut packed,
+            &RayTraceFrame {
+                camera: &camera(),
+                lights: &lights,
+                settings: &settings,
+                width: 0,
+                height: 16,
+            }
+        )
+        .is_err(),
         "a zero width must be rejected"
     );
     assert!(
-        pack_raytrace_frame(&mut packed, &camera(), &lights, &settings, 16, 0).is_err(),
+        pack_raytrace_frame(
+            &mut packed,
+            &RayTraceFrame {
+                camera: &camera(),
+                lights: &lights,
+                settings: &settings,
+                width: 16,
+                height: 0,
+            }
+        )
+        .is_err(),
         "a zero height must be rejected"
     );
     let mut degenerate: Camera3D = camera();
     degenerate.set_target(degenerate.get_position());
     assert!(
-        pack_raytrace_frame(&mut packed, &degenerate, &lights, &settings, 16, 16).is_err(),
+        pack_raytrace_frame(
+            &mut packed,
+            &RayTraceFrame {
+                camera: &degenerate,
+                lights: &lights,
+                settings: &settings,
+                width: 16,
+                height: 16,
+            }
+        )
+        .is_err(),
         "a zero forward vector must be rejected"
     );
     let mut parallel: Camera3D = camera();
     let forward: Vector3D = parallel.forward();
     parallel.set_up(forward);
     assert!(
-        pack_raytrace_frame(&mut packed, &parallel, &lights, &settings, 16, 16).is_err(),
+        pack_raytrace_frame(
+            &mut packed,
+            &RayTraceFrame {
+                camera: &parallel,
+                lights: &lights,
+                settings: &settings,
+                width: 16,
+                height: 16,
+            }
+        )
+        .is_err(),
         "an up vector parallel to forward must be rejected"
     );
     let mut wide: Camera3D = camera();
     wide.set_fov(4.0);
     assert!(
-        pack_raytrace_frame(&mut packed, &wide, &lights, &settings, 16, 16).is_err(),
+        pack_raytrace_frame(
+            &mut packed,
+            &RayTraceFrame {
+                camera: &wide,
+                lights: &lights,
+                settings: &settings,
+                width: 16,
+                height: 16,
+            }
+        )
+        .is_err(),
         "an fov at or beyond PI must be rejected"
     );
     let mut inverted: Camera3D = camera();
     inverted.set_near(inverted.get_far());
     assert!(
-        pack_raytrace_frame(&mut packed, &inverted, &lights, &settings, 16, 16).is_err(),
+        pack_raytrace_frame(
+            &mut packed,
+            &RayTraceFrame {
+                camera: &inverted,
+                lights: &lights,
+                settings: &settings,
+                width: 16,
+                height: 16,
+            }
+        )
+        .is_err(),
         "a near plane at or beyond the far plane must be rejected"
     );
     let mut negative: Camera3D = camera();
     negative.set_near(-1.0);
     assert!(
-        pack_raytrace_frame(&mut packed, &negative, &lights, &settings, 16, 16).is_err(),
+        pack_raytrace_frame(
+            &mut packed,
+            &RayTraceFrame {
+                camera: &negative,
+                lights: &lights,
+                settings: &settings,
+                width: 16,
+                height: 16,
+            }
+        )
+        .is_err(),
         "a negative near plane must be rejected"
     );
     let mut unbounded: Camera3D = camera();
     unbounded.set_far(f64::MAX);
     assert!(
-        pack_raytrace_frame(&mut packed, &unbounded, &lights, &settings, 16, 16).is_err(),
+        pack_raytrace_frame(
+            &mut packed,
+            &RayTraceFrame {
+                camera: &unbounded,
+                lights: &lights,
+                settings: &settings,
+                width: 16,
+                height: 16,
+            }
+        )
+        .is_err(),
         "a far plane beyond the f32 range must be rejected, not written as infinity"
     );
     let mut beyond: Camera3D = camera();
     beyond.set_position(Vector3D::new(f64::NAN, 0.0, 0.0));
     assert!(
-        pack_raytrace_frame(&mut packed, &beyond, &lights, &settings, 16, 16).is_err(),
+        pack_raytrace_frame(
+            &mut packed,
+            &RayTraceFrame {
+                camera: &beyond,
+                lights: &lights,
+                settings: &settings,
+                width: 16,
+                height: 16,
+            }
+        )
+        .is_err(),
         "a non-finite eye must be rejected"
     );
 }
@@ -382,17 +481,251 @@ fn frame_reuses_its_buffer() {
     let lights: LightingUniforms = lit_scene();
     let settings: RayTraceSettings = RayTraceSettings::new_default();
     let mut packed: Vec<f32> = Vec::new();
-    if let Err(reason) = pack_raytrace_frame(&mut packed, &camera(), &lights, &settings, 8, 8) {
+    if let Err(reason) = pack_raytrace_frame(
+        &mut packed,
+        &RayTraceFrame {
+            camera: &camera(),
+            lights: &lights,
+            settings: &settings,
+            width: 8,
+            height: 8,
+        },
+    ) {
         panic!("frame must pack: {reason}");
     }
     let capacity: usize = packed.capacity();
-    if let Err(reason) = pack_raytrace_frame(&mut packed, &camera(), &lights, &settings, 8, 8) {
+    if let Err(reason) = pack_raytrace_frame(
+        &mut packed,
+        &RayTraceFrame {
+            camera: &camera(),
+            lights: &lights,
+            settings: &settings,
+            width: 8,
+            height: 8,
+        },
+    ) {
         panic!("frame must pack: {reason}");
     }
     assert_eq!(
         packed.capacity(),
         capacity,
         "repacking an unchanged frame must not reallocate"
+    );
+}
+
+#[test]
+fn frame_struct_carries_its_own_inputs() {
+    let camera: Camera3D = camera();
+    let lights: LightingUniforms = lit_scene();
+    let settings: RayTraceSettings = RayTraceSettings::with_quality(2, 3);
+    let frame: RayTraceFrame<'_> = RayTraceFrame {
+        camera: &camera,
+        lights: &lights,
+        settings: &settings,
+        width: 40,
+        height: 10,
+    };
+    assert!(
+        eq(frame.get_camera(), &camera),
+        "the frame must hand back the very camera it was built from"
+    );
+    assert!(
+        eq(frame.get_lights(), &lights),
+        "the frame must hand back the very lights it was built from"
+    );
+    assert!(
+        eq(frame.get_settings(), &settings),
+        "the frame must hand back the very settings it was built from"
+    );
+    assert_eq!(frame.get_width(), 40, "width must survive the struct");
+    assert_eq!(frame.get_height(), 10, "height must survive the struct");
+}
+
+#[test]
+fn frame_packs_a_non_square_dimensions_pair_into_its_own_slots() {
+    let camera: Camera3D = camera();
+    let lights: LightingUniforms = lit_scene();
+    let settings: RayTraceSettings = RayTraceSettings::with_quality(3, 5);
+    let mut wide: Vec<f32> = Vec::new();
+    if let Err(reason) = pack_raytrace_frame(
+        &mut wide,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &settings,
+            width: 40,
+            height: 10,
+        },
+    ) {
+        panic!("frame must pack: {reason}");
+    }
+    assert_eq!(wide[11], 40.0, "slot 2.w must carry width, not the height");
+    assert_eq!(wide[15], 10.0, "slot 3.w must carry height, not the width");
+    assert!(
+        (wide[7] as f64 - 4.0).abs() < 1e-6,
+        "slot 1.w must carry the 40 / 10 aspect, got {}",
+        wide[7]
+    );
+    assert_eq!(wide[23], 5.0, "slot 5.w must carry max_bounces");
+    assert_eq!(wide[26], 3.0, "slot 6.z must carry samples_per_axis");
+    let mut tall: Vec<f32> = Vec::new();
+    if let Err(reason) = pack_raytrace_frame(
+        &mut tall,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &settings,
+            width: 10,
+            height: 40,
+        },
+    ) {
+        panic!("frame must pack: {reason}");
+    }
+    assert_eq!(tall[11], 10.0, "the transposed width lands in slot 2.w");
+    assert_eq!(tall[15], 40.0, "the transposed height lands in slot 3.w");
+    assert!(
+        (tall[7] as f64 - 0.25).abs() < 1e-6,
+        "the transposed aspect must be the reciprocal, got {}",
+        tall[7]
+    );
+    assert_ne!(
+        wide, tall,
+        "swapping width and height must not produce the same header"
+    );
+}
+
+#[test]
+fn frame_packs_the_camera_lights_and_settings_it_was_given() {
+    let lights: LightingUniforms = lit_scene();
+    let quiet: RayTraceSettings = RayTraceSettings::with_quality(1, 0);
+    let bright: RayTraceSettings = RayTraceSettings::with_quality(2, 2);
+    let low: Camera3D =
+        Camera3D::create(Vector3D::new(0.0, 0.0, 2.0), Vector3D::zero(), 64.0, 64.0);
+    let far: Camera3D =
+        Camera3D::create(Vector3D::new(0.0, 0.0, 9.0), Vector3D::zero(), 64.0, 64.0);
+    let mut near_frame: Vec<f32> = Vec::new();
+    if let Err(reason) = pack_raytrace_frame(
+        &mut near_frame,
+        &RayTraceFrame {
+            camera: &low,
+            lights: &lights,
+            settings: &quiet,
+            width: 8,
+            height: 8,
+        },
+    ) {
+        panic!("frame must pack: {reason}");
+    }
+    let mut far_frame: Vec<f32> = Vec::new();
+    if let Err(reason) = pack_raytrace_frame(
+        &mut far_frame,
+        &RayTraceFrame {
+            camera: &far,
+            lights: &lights,
+            settings: &bright,
+            width: 8,
+            height: 8,
+        },
+    ) {
+        panic!("frame must pack: {reason}");
+    }
+    assert!(
+        (near_frame[2] as f64 - 2.0).abs() < 1e-6,
+        "slot 0.z must carry the first camera's eye depth, got {}",
+        near_frame[2]
+    );
+    assert!(
+        (far_frame[2] as f64 - 9.0).abs() < 1e-6,
+        "slot 0.z must carry the second camera's eye depth, got {}",
+        far_frame[2]
+    );
+    assert_eq!(near_frame[23], 0.0, "the quiet frame carries zero bounces");
+    assert_eq!(far_frame[23], 2.0, "the bright frame carries its bounces");
+    assert_eq!(
+        near_frame[26], 1.0,
+        "the quiet frame carries one sample axis"
+    );
+    assert_eq!(
+        far_frame[26], 2.0,
+        "the bright frame carries its sample axis"
+    );
+    let light_count: usize = near_frame[19] as usize;
+    assert_eq!(
+        near_frame[19], far_frame[19],
+        "both frames read the same lights, so light_count must match"
+    );
+    assert!(
+        light_count > 0,
+        "the fixture must declare at least one light"
+    );
+    let lit_ambient: [f32; 3] = [near_frame[16], near_frame[17], near_frame[18]];
+    assert!(
+        lit_ambient.iter().all(|value: &f32| *value > 0.0),
+        "slot 4.xyz must carry the frame's ambient, got {lit_ambient:?}"
+    );
+}
+
+#[test]
+fn frame_rejects_invalid_dimensions_without_touching_the_buffer() {
+    let camera: Camera3D = camera();
+    let lights: LightingUniforms = lit_scene();
+    let settings: RayTraceSettings = RayTraceSettings::new_default();
+    let good: RayTraceFrame<'_> = RayTraceFrame {
+        camera: &camera,
+        lights: &lights,
+        settings: &settings,
+        width: 8,
+        height: 8,
+    };
+    let mut packed: Vec<f32> = Vec::new();
+    if let Err(reason) = pack_raytrace_frame(&mut packed, &good) {
+        panic!("frame must pack: {reason}");
+    }
+    let kept: Vec<f32> = packed.clone();
+    let zero_width: RayTraceFrame<'_> = RayTraceFrame {
+        camera: &camera,
+        lights: &lights,
+        settings: &settings,
+        width: 0,
+        height: 8,
+    };
+    let zero_height: RayTraceFrame<'_> = RayTraceFrame {
+        camera: &camera,
+        lights: &lights,
+        settings: &settings,
+        width: 8,
+        height: 0,
+    };
+    let bad_settings: RayTraceFrame<'_> = RayTraceFrame {
+        camera: &camera,
+        lights: &lights,
+        settings: &RayTraceSettings::with_quality(9, 1),
+        width: 8,
+        height: 8,
+    };
+    assert!(
+        pack_raytrace_frame(&mut packed, &zero_width).is_err(),
+        "a zero width must be rejected"
+    );
+    assert_eq!(
+        packed, kept,
+        "a rejected width must leave the buffer as it was"
+    );
+    assert!(
+        pack_raytrace_frame(&mut packed, &zero_height).is_err(),
+        "a zero height must be rejected"
+    );
+    assert_eq!(
+        packed, kept,
+        "a rejected height must leave the buffer as it was"
+    );
+    assert!(
+        pack_raytrace_frame(&mut packed, &bad_settings).is_err(),
+        "an invalid sample grid must be rejected"
+    );
+    assert_eq!(
+        packed, kept,
+        "a rejected settings block must leave the buffer as it was"
     );
 }
 
@@ -404,11 +737,13 @@ fn render_rejects_invalid_dimensions_and_settings() {
     assert!(
         render_raytrace_rgba(
             &scene,
-            &camera(),
-            &lights,
-            &RayTraceSettings::new_default(),
-            0,
-            8,
+            &RayTraceFrame {
+                camera: &camera(),
+                lights: &lights,
+                settings: &RayTraceSettings::new_default(),
+                width: 0,
+                height: 8,
+            },
             &mut out
         )
         .is_err(),
@@ -417,11 +752,13 @@ fn render_rejects_invalid_dimensions_and_settings() {
     assert!(
         render_raytrace_rgba(
             &scene,
-            &camera(),
-            &lights,
-            &RayTraceSettings::with_quality(9, 1),
-            8,
-            8,
+            &RayTraceFrame {
+                camera: &camera(),
+                lights: &lights,
+                settings: &RayTraceSettings::with_quality(9, 1),
+                width: 8,
+                height: 8,
+            },
             &mut out
         )
         .is_err(),
@@ -438,11 +775,13 @@ fn render_empty_scene_is_ambient_everywhere() {
     let mut out: Vec<u8> = Vec::new();
     if let Err(reason) = render_raytrace_rgba(
         &scene,
-        &camera,
-        &lights,
-        &RayTraceSettings::new_default(),
-        4,
-        3,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &RayTraceSettings::new_default(),
+            width: 4,
+            height: 3,
+        },
         &mut out,
     ) {
         panic!("empty scene must render: {reason}");
@@ -465,15 +804,33 @@ fn render_reuses_its_output_buffer() {
     let settings: RayTraceSettings = RayTraceSettings::new_default();
     let mut out: Vec<u8> = Vec::new();
     for _ in 0..2 {
-        if let Err(reason) =
-            render_raytrace_rgba(&scene, &camera, &lights, &settings, 6, 5, &mut out)
-        {
+        if let Err(reason) = render_raytrace_rgba(
+            &scene,
+            &RayTraceFrame {
+                camera: &camera,
+                lights: &lights,
+                settings: &settings,
+                width: 6,
+                height: 5,
+            },
+            &mut out,
+        ) {
             panic!("frame must render: {reason}");
         }
     }
     assert_eq!(out.len(), 6 * 5 * 4);
     let capacity: usize = out.capacity();
-    if let Err(reason) = render_raytrace_rgba(&scene, &camera, &lights, &settings, 6, 5, &mut out) {
+    if let Err(reason) = render_raytrace_rgba(
+        &scene,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &settings,
+            width: 6,
+            height: 5,
+        },
+        &mut out,
+    ) {
         panic!("frame must render: {reason}");
     }
     assert_eq!(
@@ -484,6 +841,78 @@ fn render_reuses_its_output_buffer() {
 }
 
 #[test]
+fn render_reuses_its_output_buffer_across_frame_shapes() {
+    let scene: RayTraceScene = mixed_scene();
+    let lights: LightingUniforms = lit_scene();
+    let camera: Camera3D = camera();
+    let settings: RayTraceSettings = RayTraceSettings::new_default();
+    let mut out: Vec<u8> = Vec::new();
+    if let Err(reason) = render_raytrace_rgba(
+        &scene,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &settings,
+            width: 9,
+            height: 4,
+        },
+        &mut out,
+    ) {
+        panic!("wide frame must render: {reason}");
+    }
+    assert_eq!(
+        out.len(),
+        9 * 4 * 4,
+        "a wide frame writes one row per scanline"
+    );
+    let kept: Vec<u8> = out.clone();
+    if let Err(reason) = render_raytrace_rgba(
+        &scene,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &settings,
+            width: 4,
+            height: 9,
+        },
+        &mut out,
+    ) {
+        panic!("tall frame must render: {reason}");
+    }
+    assert_eq!(
+        out.len(),
+        4 * 9 * 4,
+        "resizing the frame must resize the reused buffer, not append to it"
+    );
+    assert_ne!(
+        out, kept,
+        "a transposed frame shape must not reuse the old image"
+    );
+    let tall: Vec<u8> = out.clone();
+    assert!(
+        render_raytrace_rgba(
+            &scene,
+            &RayTraceFrame {
+                camera: &camera,
+                lights: &lights,
+                settings: &settings,
+                width: 4,
+                height: 0,
+            },
+            &mut out,
+        )
+        .is_err(),
+        "a zero height must be rejected"
+    );
+    assert_eq!(
+        out.len(),
+        4 * 9 * 4,
+        "a rejected frame must leave the previous image in the buffer"
+    );
+    assert_eq!(out, tall, "a rejected frame must preserve every image byte");
+}
+
+#[test]
 fn render_is_deterministic_across_repeated_frames() {
     let scene: RayTraceScene = mixed_scene();
     let lights: LightingUniforms = lit_scene();
@@ -491,13 +920,30 @@ fn render_is_deterministic_across_repeated_frames() {
     let settings: RayTraceSettings = RayTraceSettings::with_quality(2, 2);
     let mut first: Vec<u8> = Vec::new();
     let mut second: Vec<u8> = Vec::new();
-    if let Err(reason) = render_raytrace_rgba(&scene, &camera, &lights, &settings, 8, 6, &mut first)
-    {
+    if let Err(reason) = render_raytrace_rgba(
+        &scene,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &settings,
+            width: 8,
+            height: 6,
+        },
+        &mut first,
+    ) {
         panic!("frame must render: {reason}");
     }
-    if let Err(reason) =
-        render_raytrace_rgba(&scene, &camera, &lights, &settings, 8, 6, &mut second)
-    {
+    if let Err(reason) = render_raytrace_rgba(
+        &scene,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &settings,
+            width: 8,
+            height: 6,
+        },
+        &mut second,
+    ) {
         panic!("frame must render: {reason}");
     }
     assert_eq!(first, second, "the same inputs must produce the same frame");
@@ -510,11 +956,13 @@ fn render_produces_distinct_pixels_for_a_mixed_scene() {
     let mut out: Vec<u8> = Vec::new();
     if let Err(reason) = render_raytrace_rgba(
         &scene,
-        &camera(),
-        &lights,
-        &RayTraceSettings::new_default(),
-        24,
-        18,
+        &RayTraceFrame {
+            camera: &camera(),
+            lights: &lights,
+            settings: &RayTraceSettings::new_default(),
+            width: 24,
+            height: 18,
+        },
         &mut out,
     ) {
         panic!("frame must render: {reason}");
@@ -551,15 +999,30 @@ fn render_matches_per_pixel_scene_trace() {
     let width: u32 = 16;
     let height: u32 = 12;
     let mut out: Vec<u8> = Vec::new();
-    if let Err(reason) =
-        render_raytrace_rgba(&scene, &camera, &lights, &settings, width, height, &mut out)
-    {
+    if let Err(reason) = render_raytrace_rgba(
+        &scene,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &settings,
+            width,
+            height,
+        },
+        &mut out,
+    ) {
         panic!("frame must render: {reason}");
     }
     let mut packed: Vec<f32> = Vec::new();
-    if let Err(reason) =
-        pack_raytrace_frame(&mut packed, &camera, &lights, &settings, width, height)
-    {
+    if let Err(reason) = pack_raytrace_frame(
+        &mut packed,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &settings,
+            width,
+            height,
+        },
+    ) {
         panic!("frame must pack: {reason}");
     }
     let eye: &[f32] = &packed[0..4];
@@ -613,22 +1076,26 @@ fn supersampling_refines_the_image() {
     let mut fine: Vec<u8> = Vec::new();
     if let Err(reason) = render_raytrace_rgba(
         &scene,
-        &camera,
-        &lights,
-        &RayTraceSettings::with_quality(1, 2),
-        20,
-        16,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &RayTraceSettings::with_quality(1, 2),
+            width: 20,
+            height: 16,
+        },
         &mut coarse,
     ) {
         panic!("frame must render: {reason}");
     }
     if let Err(reason) = render_raytrace_rgba(
         &scene,
-        &camera,
-        &lights,
-        &RayTraceSettings::with_quality(4, 2),
-        20,
-        16,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &RayTraceSettings::with_quality(4, 2),
+            width: 20,
+            height: 16,
+        },
         &mut fine,
     ) {
         panic!("frame must render: {reason}");
@@ -659,11 +1126,13 @@ fn zero_bounces_still_shades_the_primary_hit() {
     let mut out: Vec<u8> = Vec::new();
     if let Err(reason) = render_raytrace_rgba(
         &emissive,
-        &camera,
-        &lights,
-        &RayTraceSettings::with_quality(1, 0),
-        16,
-        16,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &RayTraceSettings::with_quality(1, 0),
+            width: 16,
+            height: 16,
+        },
         &mut out,
     ) {
         panic!("frame must render: {reason}");
@@ -677,11 +1146,13 @@ fn zero_bounces_still_shades_the_primary_hit() {
     let mut lit_scene_frame: Vec<u8> = Vec::new();
     if let Err(reason) = render_raytrace_rgba(
         &scene,
-        &camera,
-        &lights,
-        &RayTraceSettings::with_quality(1, 0),
-        16,
-        16,
+        &RayTraceFrame {
+            camera: &camera,
+            lights: &lights,
+            settings: &RayTraceSettings::with_quality(1, 0),
+            width: 16,
+            height: 16,
+        },
         &mut lit_scene_frame,
     ) {
         panic!("frame must render: {reason}");

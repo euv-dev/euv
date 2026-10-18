@@ -124,13 +124,12 @@ impl RayTraceScene {
         }
         let mut out: Vec<f32> = Vec::with_capacity(total_floats);
         let primitive_offset: usize = RAYTRACE_PACKED_SCENE_HEADER_VEC4S + node_slots;
-        push_vec4(
-            &mut out,
+        out.extend_from_slice(&[
             pack_index(node_count)?,
             pack_index(primitive_count)?,
             pack_index(primitive_offset)?,
             0.0,
-        );
+        ]);
         for node in nodes.iter() {
             pack_node(&mut out, node)?;
         }

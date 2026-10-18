@@ -52,12 +52,28 @@ impl WebGlRayTraceBackend {
             match uniforms {
                 Ok(pair) => pair,
                 Err(reason) => {
-                    release_partial(&context, Some(&program), None, None, None);
+                    release_partial(
+                        &context,
+                        &WebGlPartialAttach {
+                            program: Some(&program),
+                            vao: None,
+                            scene_texture: None,
+                            frame_texture: None,
+                        },
+                    );
                     return Err(reason);
                 }
             };
         let Some(vao) = context.create_vertex_array() else {
-            release_partial(&context, Some(&program), None, None, None);
+            release_partial(
+                &context,
+                &WebGlPartialAttach {
+                    program: Some(&program),
+                    vao: None,
+                    scene_texture: None,
+                    frame_texture: None,
+                },
+            );
             return Err(backend_error(
                 ERROR_WEBGL_PROGRAM,
                 ERROR_WEBGL_VAO_REJECTED.to_string(),
@@ -74,7 +90,15 @@ impl WebGlRayTraceBackend {
         ) {
             Ok(texture) => texture,
             Err(reason) => {
-                release_partial(&context, Some(&program), Some(&vao), None, None);
+                release_partial(
+                    &context,
+                    &WebGlPartialAttach {
+                        program: Some(&program),
+                        vao: Some(&vao),
+                        scene_texture: None,
+                        frame_texture: None,
+                    },
+                );
                 return Err(reason);
             }
         };
@@ -88,10 +112,12 @@ impl WebGlRayTraceBackend {
             Err(reason) => {
                 release_partial(
                     &context,
-                    Some(&program),
-                    Some(&vao),
-                    Some(&scene_texture),
-                    None,
+                    &WebGlPartialAttach {
+                        program: Some(&program),
+                        vao: Some(&vao),
+                        scene_texture: Some(&scene_texture),
+                        frame_texture: None,
+                    },
                 );
                 return Err(reason);
             }
@@ -192,8 +218,13 @@ impl WebGlRayTraceBackend {
         }
         let context: WebGl2RenderingContext = self.get_context().clone();
         let mut scratch: Vec<f32> = mem::take(self.get_mut_frame_scratch());
+        let upload: WebGlPackedUpload = WebGlPackedUpload {
+            context: &context,
+            unit: WEBGL_TEXTURE_UNIT_FRAME,
+            packed: frame,
+        };
         let outcome: Result<(), JsValue> =
-            ensure_frame_texture(&context, self.get_mut_frame_texture(), &mut scratch, frame);
+            ensure_packed_texture(&upload, self.get_mut_frame_texture(), &mut scratch);
         self.set_frame_scratch(scratch);
         outcome?;
         apply_full_viewport(self.get_context())?;
@@ -252,8 +283,13 @@ impl WebGlRayTraceBackend {
         }
         let context: WebGl2RenderingContext = self.get_context().clone();
         let mut scratch: Vec<f32> = mem::take(self.get_mut_scene_scratch());
+        let upload: WebGlPackedUpload = WebGlPackedUpload {
+            context: &context,
+            unit: WEBGL_TEXTURE_UNIT_SCENE,
+            packed,
+        };
         let outcome: Result<(), JsValue> =
-            ensure_scene_texture(&context, self.get_mut_scene_texture(), &mut scratch, packed);
+            ensure_packed_texture(&upload, self.get_mut_scene_texture(), &mut scratch);
         self.set_scene_scratch(scratch);
         outcome
     }

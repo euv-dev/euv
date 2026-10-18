@@ -85,6 +85,7 @@ use std::{
     f64::consts::{self, FRAC_PI_2, PI, TAU},
     fmt::{self, Debug, Write},
     future::{Future, Ready, ready},
+    ptr::eq,
     rc::{Rc, Weak},
     sync::OnceLock,
 };

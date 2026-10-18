@@ -220,23 +220,6 @@ pub fn pack_vector_upper(
     ])
 }
 
-/// Appends four `f32` values to `out`, reusing its capacity when it
-/// already covers the write.
-///
-/// # Arguments
-///
-/// - `&mut Vec<f32>` - The destination, which keeps its capacity.
-/// - `f32` - The x component.
-/// - `f32` - The y component.
-/// - `f32` - The z component.
-/// - `f32` - The w component.
-pub fn push_vec4(out: &mut Vec<f32>, x: f32, y: f32, z: f32, w: f32) {
-    out.push(x);
-    out.push(y);
-    out.push(z);
-    out.push(w);
-}
-
 /// Converts a `usize` node or primitive index into an exactly
 /// representable `f32`.
 ///
@@ -461,41 +444,39 @@ pub(crate) fn pack_primitive(
         RAYTRACE_ERROR_F32_RANGE,
     )?;
     let vertices: [Vector3D; 3] = occluder.get_vertices();
-    push_vec4(
-        out,
+    out.extend_from_slice(&[
         center_packed[0],
         center_packed[1],
         center_packed[2],
         packed_shape_code(kind),
-    );
-    push_vec4(
-        out,
+    ]);
+    out.extend_from_slice(&[
         extent_packed[0],
         extent_packed[1],
         extent_packed[2],
         packed_material_code(material.get_kind()),
-    );
+    ]);
     let vertex0: [f32; 3] = pack_vector(
         vertices[0],
         RAYTRACE_ERROR_NON_FINITE,
         RAYTRACE_ERROR_F32_RANGE,
     )?;
-    push_vec4(out, vertex0[0], vertex0[1], vertex0[2], bound_index);
+    out.extend_from_slice(&[vertex0[0], vertex0[1], vertex0[2], bound_index]);
     let vertex1: [f32; 3] = pack_vector(
         vertices[1],
         RAYTRACE_ERROR_NON_FINITE,
         RAYTRACE_ERROR_F32_RANGE,
     )?;
-    push_vec4(out, vertex1[0], vertex1[1], vertex1[2], 0.0);
+    out.extend_from_slice(&[vertex1[0], vertex1[1], vertex1[2], 0.0]);
     let vertex2: [f32; 3] = pack_vector(
         vertices[2],
         RAYTRACE_ERROR_NON_FINITE,
         RAYTRACE_ERROR_F32_RANGE,
     )?;
-    push_vec4(out, vertex2[0], vertex2[1], vertex2[2], 0.0);
-    push_vec4(out, albedo[0], albedo[1], albedo[2], specular);
-    push_vec4(out, emissive[0], emissive[1], emissive[2], shininess);
-    push_vec4(out, 0.0, 0.0, 0.0, 0.0);
+    out.extend_from_slice(&[vertex2[0], vertex2[1], vertex2[2], 0.0]);
+    out.extend_from_slice(&[albedo[0], albedo[1], albedo[2], specular]);
+    out.extend_from_slice(&[emissive[0], emissive[1], emissive[2], shininess]);
+    out.extend_from_slice(&[0.0, 0.0, 0.0, 0.0]);
     Ok(())
 }
 
@@ -539,9 +520,9 @@ pub(crate) fn pack_node(out: &mut Vec<f32>, node: &RayTraceNode) -> Result<(), S
     let start: f32 = pack_index(node.get_start())?;
     let count: f32 = pack_index(node.get_count())?;
     let escape: f32 = pack_index(node.get_escape())?;
-    push_vec4(out, lower[0], lower[1], lower[2], start);
-    push_vec4(out, upper[0], upper[1], upper[2], count);
-    push_vec4(out, escape, 0.0, 0.0, 0.0);
+    out.extend_from_slice(&[lower[0], lower[1], lower[2], start]);
+    out.extend_from_slice(&[upper[0], upper[1], upper[2], count]);
+    out.extend_from_slice(&[escape, 0.0, 0.0, 0.0]);
     Ok(())
 }
 
@@ -682,31 +663,35 @@ pub(crate) fn frame_basis(
 /// overflow check, not silently truncated.
 ///
 /// The supplied `out` is cleared and then reused, so its capacity is kept
-/// and a caller packing every frame performs no allocation.
+/// and a caller packing every frame performs no allocation. Every value
+/// the packer reads arrives through one [`RayTraceFrame`], the same
+/// parameter type the CPU renderer takes, so the two backends cannot be
+/// called with mismatched camera, lights, settings, or dimensions.
+///
+/// `out` is cleared only after the settings and the camera have been
+/// validated, so the rejections a caller is most likely to hit — an
+/// out-of-range sample grid, a zero or overflowing dimension, a
+/// degenerate camera — leave the previous frame's contents intact. A
+/// light whose components cannot be represented is a different case: that
+/// check runs inside the write loop, after the clear, so such a frame
+/// leaves a partially written buffer behind rather than the old one.
 ///
 /// # Arguments
 ///
 /// - `&mut Vec<f32>` - The destination packed buffer, cleared then reused.
-/// - `&Camera3D` - The camera supplying the eye, target, up, and fov.
-/// - `&LightingUniforms` - The lights, ambient, and shading eye.
-/// - `&RayTraceSettings` - The sampling and bounce settings.
-/// - `u32` - The frame width in pixels.
-/// - `u32` - The frame height in pixels.
+/// - `&RayTraceFrame<'_>` - The camera, lights, settings, and dimensions
+///   to pack.
 ///
 /// # Returns
 ///
 /// - `Result<(), String>` - `Ok` once the block is packed, or the reason
 ///   the frame cannot be represented.
-pub fn pack_raytrace_frame(
-    out: &mut Vec<f32>,
-    camera: &Camera3D,
-    lights: &LightingUniforms,
-    settings: &RayTraceSettings,
-    width: u32,
-    height: u32,
-) -> Result<(), String> {
+pub fn pack_raytrace_frame(out: &mut Vec<f32>, frame: &RayTraceFrame<'_>) -> Result<(), String> {
+    let camera: &Camera3D = frame.get_camera();
+    let lights: &LightingUniforms = frame.get_lights();
+    let settings: &RayTraceSettings = frame.get_settings();
     settings.validate()?;
-    let basis: FrameBasis = frame_basis(camera, width, height)?;
+    let basis: FrameBasis = frame_basis(camera, frame.get_width(), frame.get_height())?;
     let light_count: usize = lights.get_lights().len();
     let light_slots: usize = light_count
         .checked_mul(RAYTRACE_PACKED_LIGHT_VEC4S)
@@ -756,44 +741,39 @@ pub fn pack_raytrace_frame(
         RAYTRACE_ERROR_LIGHT_F32_RANGE,
     )?;
     out.clear();
-    push_vec4(out, eye[0], eye[1], eye[2], tan_half_fov);
-    push_vec4(
-        out,
+    out.extend_from_slice(&[eye[0], eye[1], eye[2], tan_half_fov]);
+    out.extend_from_slice(&[
         forward_packed[0],
         forward_packed[1],
         forward_packed[2],
         basis.get_aspect() as f32,
-    );
-    push_vec4(
-        out,
+    ]);
+    out.extend_from_slice(&[
         right_packed[0],
         right_packed[1],
         right_packed[2],
         basis.get_width() as f32,
-    );
-    push_vec4(
-        out,
+    ]);
+    out.extend_from_slice(&[
         up_packed[0],
         up_packed[1],
         up_packed[2],
         basis.get_height() as f32,
-    );
-    push_vec4(out, ambient[0], ambient[1], ambient[2], light_count as f32);
-    push_vec4(
-        out,
+    ]);
+    out.extend_from_slice(&[ambient[0], ambient[1], ambient[2], light_count as f32]);
+    out.extend_from_slice(&[
         lighting_eye[0],
         lighting_eye[1],
         lighting_eye[2],
         settings.get_max_bounces() as f32,
-    );
-    push_vec4(
-        out,
+    ]);
+    out.extend_from_slice(&[
         basis.get_near_t() as f32,
         basis.get_far_t() as f32,
         settings.get_samples_per_axis() as f32,
         0.0,
-    );
-    push_vec4(out, 0.0, 0.0, 0.0, 0.0);
+    ]);
+    out.extend_from_slice(&[0.0, 0.0, 0.0, 0.0]);
     for light in lights.get_lights().iter() {
         let position: [f32; 3] = pack_vector(
             light.get_position(),
@@ -825,16 +805,15 @@ pub fn pack_raytrace_frame(
             RAYTRACE_ERROR_LIGHT_NON_FINITE,
             RAYTRACE_ERROR_LIGHT_F32_RANGE,
         )?;
-        push_vec4(
-            out,
+        out.extend_from_slice(&[
             position[0],
             position[1],
             position[2],
             packed_light_code(light.get_kind()),
-        );
-        push_vec4(out, direction[0], direction[1], direction[2], intensity);
-        push_vec4(out, color[0], color[1], color[2], falloff);
-        push_vec4(out, spot_cos, 0.0, 0.0, 0.0);
+        ]);
+        out.extend_from_slice(&[direction[0], direction[1], direction[2], intensity]);
+        out.extend_from_slice(&[color[0], color[1], color[2], falloff]);
+        out.extend_from_slice(&[spot_cos, 0.0, 0.0, 0.0]);
     }
     Ok(())
 }

@@ -173,38 +173,46 @@ pub(crate) fn call2(
     }
 }
 
-/// Calls a method with four arguments.
+/// Issues a non-indexed draw of the geometry a render pass has bound.
 ///
 /// `draw` takes `(vertexCount, instanceCount, firstVertex,
-/// firstInstance)`; handed one array instead, it reads `vertexCount` as
-/// `undefined` and issues no primitives at all.
+/// firstInstance)` as four separate arguments; handed one array instead,
+/// it reads `vertexCount` as `undefined` and issues no primitives at
+/// all. The four counts therefore stay four separate `Function::call4`
+/// arguments here — bundling them into one JS value would silently
+/// produce a frame with nothing drawn — while the Rust side carries them
+/// as one [`DrawArgs`] so the counts cannot be transposed at the call
+/// site.
 ///
 /// # Arguments
 ///
-/// - `&JsValue` - The handle to call on.
-/// - `&str` - The method name.
-/// - `&JsValue` - The first argument.
-/// - `&JsValue` - The second argument.
-/// - `&JsValue` - The third argument.
-/// - `&JsValue` - The fourth argument.
+/// - `&JsValue` - The render pass to draw in.
+/// - `&DrawArgs` - The vertex count, instance count, and the first
+///   vertex and instance the pass starts from.
 ///
 /// # Returns
 ///
 /// - `Result<JsValue, JsValue>` - The call's return value.
-pub(crate) fn call4(
-    target: &JsValue,
-    name: &str,
-    first: &JsValue,
-    second: &JsValue,
-    third: &JsValue,
-    fourth: &JsValue,
-) -> Result<JsValue, JsValue> {
-    let function: Function = method(target, name)?;
-    match function.call4(target, first, second, third, fourth) {
+pub(crate) fn draw_vertices(pass: &JsValue, args: &DrawArgs) -> Result<JsValue, JsValue> {
+    let function: Function = method(pass, BACKEND_WEBGPU_METHOD_DRAW)?;
+    let vertex_count: JsValue = JsValue::from_f64(f64::from(args.get_vertex_count()));
+    let instance_count: JsValue = JsValue::from_f64(f64::from(args.get_instance_count()));
+    let first_vertex: JsValue = JsValue::from_f64(f64::from(args.get_first_vertex()));
+    let first_instance: JsValue = JsValue::from_f64(f64::from(args.get_first_instance()));
+    match function.call4(
+        pass,
+        &vertex_count,
+        &instance_count,
+        &first_vertex,
+        &first_instance,
+    ) {
         Ok(value) => Ok(value),
         Err(reason) => Err(backend_error(
             ERROR_WEBGPU_CALL,
-            format!("{name} threw: {}", describe_webgpu(&reason)),
+            format!(
+                "{BACKEND_WEBGPU_METHOD_DRAW} threw: {}",
+                describe_webgpu(&reason)
+            ),
         )),
     }
 }
