@@ -16,7 +16,7 @@ use super::*;
 /// the backing array's own `copy_from` is what actually reaches the
 /// image, and it copies the traced bytes straight out of linear memory
 /// without an intermediate Rust `Vec`.
-#[derive(Debug, Data)]
+#[derive(Data, Debug)]
 pub struct CanvasRayTraceBackend {
     /// The 2D context every blit goes through.
     #[get(pub(crate))]

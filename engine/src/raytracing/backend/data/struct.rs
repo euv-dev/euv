@@ -22,7 +22,7 @@ use super::*;
 /// accessors the `Data` derive generates, so no consumer can hold a
 /// second reference to an owned resource or write a size the renderer's
 /// own accounting does not know about.
-#[derive(Debug, Data)]
+#[derive(Data, Debug)]
 pub struct RayTraceRenderer {
     /// The canvas element every backend draws into.
     #[get(pub(crate))]
