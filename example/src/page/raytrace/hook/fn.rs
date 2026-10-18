@@ -396,46 +396,39 @@ pub(crate) fn raytrace_error_detail(error: &JsValue) -> String {
 /// actually rendered, and it is cleared again the moment a frame starts
 /// failing, so a dead renderer can never keep reporting itself as live.
 ///
+/// [`RayTraceErrorState`] groups the destination signals, while
+/// [`RayTraceErrorReport`] names the rejected call and its error value.
+///
 /// # Arguments
 ///
-/// - `Signal<bool>` - The tab's `active` flag.
-/// - `Signal<String>` - The tab's error detail signal.
-/// - `Signal<&'static str>` - The tab's stable error code signal.
-/// - `&'static str` - The stable error code for this call site.
-/// - `&str` - A short label naming the call that failed.
-/// - `&JsValue` - The rejected error value.
-pub(crate) fn raytrace_record_error(
-    active: Signal<bool>,
-    error_detail: Signal<String>,
-    init_error_code: Signal<&'static str>,
-    code: &'static str,
-    call: &str,
-    error: &JsValue,
-) {
-    let detail: String = raytrace_error_detail(error);
+/// - `RayTraceErrorState` - The tab's `active` flag, error detail
+///   signal, and stable error code signal.
+/// - `RayTraceErrorReport` - The stable code, the failing call label,
+///   and the rejected error value.
+pub(crate) fn raytrace_record_error(state: RayTraceErrorState, report: RayTraceErrorReport) {
+    let detail: String = raytrace_error_detail(report.get_error());
     Console::error(format!(
-        "{RAYTRACE_LOG_PREFIX} {call} failed [{code}]: {detail}"
+        "{} {} failed [{}]: {}",
+        RAYTRACE_LOG_PREFIX,
+        report.get_call(),
+        report.get_code(),
+        detail
     ));
-    error_detail.set(detail);
-    init_error_code.set(code);
-    active.set(false);
+    state.get_error_detail().set(detail);
+    state.get_init_error_code().set(report.get_code());
+    state.get_active().set(false);
 }
 
 /// Clears the tab's error state after a successful frame.
 ///
 /// # Arguments
 ///
-/// - `Signal<bool>` - The tab's `active` flag.
-/// - `Signal<String>` - The tab's error detail signal.
-/// - `Signal<&'static str>` - The tab's stable error code signal.
-pub(crate) fn raytrace_clear_error(
-    active: Signal<bool>,
-    error_detail: Signal<String>,
-    init_error_code: Signal<&'static str>,
-) {
-    error_detail.set(String::new());
-    init_error_code.set("");
-    active.set(true);
+/// - `RayTraceErrorState` - The tab's `active` flag, error detail
+///   signal, and stable error code signal.
+pub(crate) fn raytrace_clear_error(state: RayTraceErrorState) {
+    state.get_error_detail().set(String::new());
+    state.get_init_error_code().set("");
+    state.get_active().set(true);
 }
 
 /// Schedules a one-shot `setTimeout` whose Rust closure is owned rather
@@ -640,22 +633,18 @@ pub(crate) fn read_raytrace_dpr() -> f64 {
 ///
 /// # Arguments
 ///
-/// - `&mut RayTraceRenderer` - The engine backend.
-/// - `&str` - The CSS selector of the tab's canvas.
-/// - `Signal<bool>` - The tab's `active` flag.
-/// - `Signal<String>` - The tab's error detail signal.
-/// - `Signal<&'static str>` - The tab's stable error code signal.
+/// - `&mut RayTraceRenderer` - The engine backend to resize.
+/// - `RayTraceResizeTarget` - The canvas CSS selector, plus the tab's
+///   `active` flag, error detail signal, and stable error code signal.
 ///
 /// # Returns
 ///
 /// - `bool` - Whether the backend now matches the canvas.
 pub(crate) fn raytrace_resize_backend_to_canvas(
     renderer: &mut RayTraceRenderer,
-    canvas_selector: &str,
-    active: Signal<bool>,
-    error_detail: Signal<String>,
-    init_error_code: Signal<&'static str>,
+    target: RayTraceResizeTarget,
 ) -> bool {
+    let canvas_selector: &str = target.get_canvas_selector();
     let Some(canvas): Option<HtmlCanvasElement> = query_raytrace_canvas(canvas_selector) else {
         return false;
     };
@@ -677,17 +666,17 @@ pub(crate) fn raytrace_resize_backend_to_canvas(
     }
     match renderer.resize(target_width, target_height) {
         Ok(()) => {
-            raytrace_clear_error(active, error_detail, init_error_code);
+            raytrace_clear_error(target.get_state());
             true
         }
         Err(error) => {
             raytrace_record_error(
-                active,
-                error_detail,
-                init_error_code,
-                RAYTRACE_ERROR_CODE_RESIZE,
-                "resize",
-                &error,
+                target.get_state(),
+                RayTraceErrorReport {
+                    code: RAYTRACE_ERROR_CODE_RESIZE,
+                    call: "resize",
+                    error: &error,
+                },
             );
             false
         }
@@ -715,30 +704,22 @@ pub(crate) fn raytrace_resize_backend_to_canvas(
 ///
 /// # Arguments
 ///
-/// - `Rc<Cell<bool>>` - The cancellation flag the loop body checks.
-/// - `Rc<Cell<Option<i32>>>` - The pending animation-frame handle.
-/// - `RafClosureCell` - The cell owning the animation-frame closure.
-/// - `RayTracePendingTimers` - The owner list of
-///   one-shot timers this loop armed.
-/// - `Rc<RefCell<Option<RayTraceRenderer>>>` - The cell owning the engine
-///   backend.
-fn raytrace_release_loop(
-    cancelled: Rc<Cell<bool>>,
-    raf_id: Rc<Cell<Option<i32>>>,
-    closure_cell: RafClosureCell,
-    pending_timers: RayTracePendingTimers,
-    renderer_rc: Rc<RefCell<Option<RayTraceRenderer>>>,
-) {
-    cancelled.set(true);
-    if let Some(cancel_id) = raf_id.get()
+/// - `RayTraceLoopCleanup` - The cancellation flag, the pending
+///   animation-frame handle, the cell owning the animation-frame
+///   closure, the owner list of one-shot timers this loop armed, and
+///   the cell owning the engine backend.
+fn raytrace_release_loop(cleanup: RayTraceLoopCleanup) {
+    cleanup.get_cancelled().set(true);
+    if let Some(cancel_id) = cleanup.get_raf_id().get()
         && let Some(window_value) = window()
     {
         let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
     }
-    raf_id.set(None);
-    raytrace_release_pending_timers(pending_timers);
-    let _: Option<Closure<dyn FnMut()>> = closure_cell.try_take();
-    if let Some(mut renderer) = renderer_rc
+    cleanup.get_raf_id().set(None);
+    raytrace_release_pending_timers(cleanup.get_pending_timers());
+    let _: Option<Closure<dyn FnMut()>> = cleanup.get_closure_cell().try_take();
+    if let Some(mut renderer) = cleanup
+        .get_renderer_cell()
         .try_borrow_mut()
         .ok()
         .and_then(|mut slot: RefMut<'_, Option<RayTraceRenderer>>| slot.take())
@@ -778,6 +759,11 @@ fn raytrace_release_loop(
 pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngles) {
     let init_state: UseRayTrace = state;
     let loop_state: UseRayTrace = state;
+    let error_state: RayTraceErrorState = RayTraceErrorState {
+        active: state.get_active(),
+        error_detail: state.get_error_detail(),
+        init_error_code: state.get_init_error_code(),
+    };
     let renderer_rc: Rc<RefCell<Option<RayTraceRenderer>>> = Rc::new(RefCell::new(None));
     let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
@@ -794,13 +780,13 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
     // backend. Taking the value out of the cell releases the last Rust
     // reference as well, which is what lets the renderer run its `Drop`.
     App::use_cleanup(move || {
-        raytrace_release_loop(
-            cancelled_for_cleanup,
-            raf_for_cleanup,
-            cell_for_cleanup,
-            timers_for_cleanup,
-            renderer_for_cleanup,
-        );
+        raytrace_release_loop(RayTraceLoopCleanup {
+            cancelled: cancelled_for_cleanup,
+            raf_id: raf_for_cleanup,
+            closure_cell: cell_for_cleanup,
+            pending_timers: timers_for_cleanup,
+            renderer_cell: renderer_for_cleanup,
+        });
     });
     let cancelled_for_init: Rc<Cell<bool>> = cancelled.clone();
     let pending_timers_for_init: RayTracePendingTimers = pending_timers.clone();
@@ -832,12 +818,12 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
                 Ok(value) => value,
                 Err(error) => {
                     raytrace_record_error(
-                        init_state.get_active(),
-                        init_state.get_error_detail(),
-                        init_state.get_init_error_code(),
-                        RAYTRACE_ERROR_CODE_INIT,
-                        "canvas2d init",
-                        &error,
+                        error_state,
+                        RayTraceErrorReport {
+                            code: RAYTRACE_ERROR_CODE_INIT,
+                            call: "canvas2d init",
+                            error: &error,
+                        },
                     );
                     init_state.get_loaded().set(true);
                     return;
@@ -897,13 +883,13 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
                 // this call returns, and the release itself defers the
                 // last drop to a microtask, so the closure being taken
                 // from underneath its own frame is safe.
-                raytrace_release_loop(
-                    cancelled_for_loop.clone(),
-                    raf_for_detach.clone(),
-                    cell_for_detach.clone(),
-                    timers_for_detach.clone(),
-                    renderer_for_detach.clone(),
-                );
+                raytrace_release_loop(RayTraceLoopCleanup {
+                    cancelled: cancelled_for_loop.clone(),
+                    raf_id: raf_for_detach.clone(),
+                    closure_cell: cell_for_detach.clone(),
+                    pending_timers: timers_for_detach.clone(),
+                    renderer_cell: renderer_for_detach.clone(),
+                });
                 return;
             }
             let Some(window_value): Option<Window> = window() else {
@@ -945,11 +931,7 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
                 let render_millis: f64 = performance.now() - render_start;
                 match render_result {
                     Ok(()) => {
-                        raytrace_clear_error(
-                            loop_state.get_active(),
-                            loop_state.get_error_detail(),
-                            loop_state.get_init_error_code(),
-                        );
+                        raytrace_clear_error(error_state);
                         if !loop_state.get_loaded().get() {
                             raytrace_set_loaded_delayed(
                                 timers_for_loop.clone(),
@@ -960,12 +942,12 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
                     }
                     Err(error) => {
                         raytrace_record_error(
-                            loop_state.get_active(),
-                            loop_state.get_error_detail(),
-                            loop_state.get_init_error_code(),
-                            RAYTRACE_ERROR_CODE_RENDER,
-                            "canvas2d render",
-                            &error,
+                            error_state,
+                            RayTraceErrorReport {
+                                code: RAYTRACE_ERROR_CODE_RENDER,
+                                call: "canvas2d render",
+                                error: &error,
+                            },
                         );
                     }
                 }
@@ -1040,12 +1022,12 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
                             .set(RAYTRACE_RENDER_SCALES[next]);
                     } else {
                         raytrace_record_error(
-                            loop_state.get_active(),
-                            loop_state.get_error_detail(),
-                            loop_state.get_init_error_code(),
-                            RAYTRACE_ERROR_CODE_RESIZE,
-                            "render scale",
-                            &JsValue::NULL,
+                            error_state,
+                            RayTraceErrorReport {
+                                code: RAYTRACE_ERROR_CODE_RESIZE,
+                                call: "render scale",
+                                error: &JsValue::NULL,
+                            },
                         );
                         // Reset the streak so the controller does not
                         // re-attempt the same rejected rung on the very
@@ -1124,6 +1106,11 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
 pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTraceCameraAngles) {
     let init_state: UseRayTraceWebGl = state;
     let loop_state: UseRayTraceWebGl = state;
+    let error_state: RayTraceErrorState = RayTraceErrorState {
+        active: state.get_active(),
+        error_detail: state.get_error_detail(),
+        init_error_code: state.get_init_error_code(),
+    };
     let renderer_rc: Rc<RefCell<Option<RayTraceRenderer>>> = Rc::new(RefCell::new(None));
     let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
@@ -1151,13 +1138,13 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
     let timers_for_cleanup: RayTracePendingTimers = pending_timers.clone();
     let debounce_for_cleanup: RayTraceDebounceOwner = debounce_owner;
     App::use_cleanup(move || {
-        raytrace_release_loop(
-            cancelled_for_cleanup,
-            raf_for_cleanup,
-            cell_for_cleanup,
-            timers_for_cleanup,
-            renderer_for_cleanup,
-        );
+        raytrace_release_loop(RayTraceLoopCleanup {
+            cancelled: cancelled_for_cleanup,
+            raf_id: raf_for_cleanup,
+            closure_cell: cell_for_cleanup,
+            pending_timers: timers_for_cleanup,
+            renderer_cell: renderer_for_cleanup,
+        });
         // Every step below is independent: a missing `window()` must
         // never skip the observer teardown, so no early returns here.
         if let Some(timer_id) = resize_timer_for_cleanup.get()
@@ -1226,12 +1213,12 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                 Ok(value) => value,
                 Err(error) => {
                     raytrace_record_error(
-                        init_state.get_active(),
-                        init_state.get_error_detail(),
-                        init_state.get_init_error_code(),
-                        RAYTRACE_ERROR_CODE_INIT,
-                        "webgl2 init",
-                        &error,
+                        error_state,
+                        RayTraceErrorReport {
+                            code: RAYTRACE_ERROR_CODE_INIT,
+                            call: "webgl2 init",
+                            error: &error,
+                        },
                     );
                     init_state.get_loaded().set(true);
                     return;
@@ -1266,10 +1253,10 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                     Ok(mut renderer_slot) => match renderer_slot.as_mut() {
                         Some(renderer) => raytrace_resize_backend_to_canvas(
                             renderer,
-                            RAYTRACE_WEBGL_CANVAS_SELECTOR,
-                            loop_state.get_active(),
-                            loop_state.get_error_detail(),
-                            loop_state.get_init_error_code(),
+                            RayTraceResizeTarget {
+                                canvas_selector: RAYTRACE_WEBGL_CANVAS_SELECTOR,
+                                state: error_state,
+                            },
                         ),
                         // The renderer is gone: a tab switch already
                         // disposed it, so there is no surface left to
@@ -1354,13 +1341,13 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                 // a live observer pointing at a disposed backend. It is
                 // disconnected by the hook cleanup, and until then its
                 // resize call is a no-op because the renderer is gone.
-                raytrace_release_loop(
-                    cancelled_for_loop.clone(),
-                    raf_for_detach.clone(),
-                    cell_for_detach.clone(),
-                    timers_for_detach.clone(),
-                    renderer_for_detach.clone(),
-                );
+                raytrace_release_loop(RayTraceLoopCleanup {
+                    cancelled: cancelled_for_loop.clone(),
+                    raf_id: raf_for_detach.clone(),
+                    closure_cell: cell_for_detach.clone(),
+                    pending_timers: timers_for_detach.clone(),
+                    renderer_cell: renderer_for_detach.clone(),
+                });
                 return;
             }
             let Some(window_value): Option<Window> = window() else {
@@ -1401,10 +1388,10 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                         // a size the backend does not have.
                         if !raytrace_resize_backend_to_canvas(
                             renderer,
-                            RAYTRACE_WEBGL_CANVAS_SELECTOR,
-                            loop_state.get_active(),
-                            loop_state.get_error_detail(),
-                            loop_state.get_init_error_code(),
+                            RayTraceResizeTarget {
+                                canvas_selector: RAYTRACE_WEBGL_CANVAS_SELECTOR,
+                                state: error_state,
+                            },
                         ) {
                             return None;
                         }
@@ -1430,11 +1417,7 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
             if running {
                 match render_result {
                     Some(Ok(())) => {
-                        raytrace_clear_error(
-                            loop_state.get_active(),
-                            loop_state.get_error_detail(),
-                            loop_state.get_init_error_code(),
-                        );
+                        raytrace_clear_error(error_state);
                         if !loop_state.get_loaded().get() {
                             raytrace_set_loaded_delayed(
                                 timers_for_loop.clone(),
@@ -1445,12 +1428,12 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                     }
                     Some(Err(error)) => {
                         raytrace_record_error(
-                            loop_state.get_active(),
-                            loop_state.get_error_detail(),
-                            loop_state.get_init_error_code(),
-                            RAYTRACE_ERROR_CODE_RENDER,
-                            "webgl2 render",
-                            &error,
+                            error_state,
+                            RayTraceErrorReport {
+                                code: RAYTRACE_ERROR_CODE_RENDER,
+                                call: "webgl2 render",
+                                error: &error,
+                            },
                         );
                     }
                     // A rejected resize and a missing renderer both land
@@ -1463,12 +1446,12 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                     None => {
                         if loop_state.get_error_detail().get().is_empty() {
                             raytrace_record_error(
-                                loop_state.get_active(),
-                                loop_state.get_error_detail(),
-                                loop_state.get_init_error_code(),
-                                RAYTRACE_ERROR_CODE_RENDER,
-                                "webgl2 render",
-                                &JsValue::NULL,
+                                error_state,
+                                RayTraceErrorReport {
+                                    code: RAYTRACE_ERROR_CODE_RENDER,
+                                    call: "webgl2 render",
+                                    error: &JsValue::NULL,
+                                },
                             );
                         }
                     }
@@ -1530,6 +1513,11 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
 pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTraceCameraAngles) {
     let init_state: UseRayTraceWebGpu = state;
     let loop_state: UseRayTraceWebGpu = state;
+    let error_state: RayTraceErrorState = RayTraceErrorState {
+        active: state.get_active(),
+        error_detail: state.get_error_detail(),
+        init_error_code: state.get_init_error_code(),
+    };
     let renderer_rc: Rc<RefCell<Option<RayTraceRenderer>>> = Rc::new(RefCell::new(None));
     let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
@@ -1560,13 +1548,13 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
         // `dispose` frees the owned buffers, textures, and device eagerly
         // instead of leaving them to GC, which is what lets a fresh
         // `init` acquire a live device rather than reusing a dead one.
-        raytrace_release_loop(
-            cancelled_for_cleanup,
-            raf_for_cleanup,
-            cell_for_cleanup,
-            timers_for_cleanup,
-            renderer_for_cleanup,
-        );
+        raytrace_release_loop(RayTraceLoopCleanup {
+            cancelled: cancelled_for_cleanup,
+            raf_id: raf_for_cleanup,
+            closure_cell: cell_for_cleanup,
+            pending_timers: timers_for_cleanup,
+            renderer_cell: renderer_for_cleanup,
+        });
         // Every step below is independent: a missing `window()` must
         // never skip the observer teardown, so no early returns here.
         if let Some(timer_id) = resize_timer_for_cleanup.get()
@@ -1629,12 +1617,12 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                 Ok(value) => value,
                 Err(error) => {
                     raytrace_record_error(
-                        init_state.get_active(),
-                        init_state.get_error_detail(),
-                        init_state.get_init_error_code(),
-                        RAYTRACE_ERROR_CODE_INIT,
-                        "webgpu init",
-                        &error,
+                        error_state,
+                        RayTraceErrorReport {
+                            code: RAYTRACE_ERROR_CODE_INIT,
+                            call: "webgpu init",
+                            error: &error,
+                        },
                     );
                     init_state.get_loaded().set(true);
                     return;
@@ -1669,10 +1657,10 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                     Ok(mut renderer_slot) => match renderer_slot.as_mut() {
                         Some(renderer) => raytrace_resize_backend_to_canvas(
                             renderer,
-                            RAYTRACE_WEBGPU_CANVAS_SELECTOR,
-                            loop_state.get_active(),
-                            loop_state.get_error_detail(),
-                            loop_state.get_init_error_code(),
+                            RayTraceResizeTarget {
+                                canvas_selector: RAYTRACE_WEBGPU_CANVAS_SELECTOR,
+                                state: error_state,
+                            },
                         ),
                         // The renderer is gone: a tab switch already
                         // disposed it, so there is no surface left to
@@ -1750,13 +1738,13 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                 // a live observer pointing at a disposed backend. It is
                 // disconnected by the hook cleanup, and until then its
                 // resize call is a no-op because the renderer is gone.
-                raytrace_release_loop(
-                    cancelled_for_loop.clone(),
-                    raf_for_detach.clone(),
-                    cell_for_detach.clone(),
-                    timers_for_detach.clone(),
-                    renderer_for_detach.clone(),
-                );
+                raytrace_release_loop(RayTraceLoopCleanup {
+                    cancelled: cancelled_for_loop.clone(),
+                    raf_id: raf_for_detach.clone(),
+                    closure_cell: cell_for_detach.clone(),
+                    pending_timers: timers_for_detach.clone(),
+                    renderer_cell: renderer_for_detach.clone(),
+                });
                 return;
             }
             let Some(window_value): Option<Window> = window() else {
@@ -1795,10 +1783,10 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                         // a size the backend does not have.
                         if !raytrace_resize_backend_to_canvas(
                             renderer,
-                            RAYTRACE_WEBGPU_CANVAS_SELECTOR,
-                            loop_state.get_active(),
-                            loop_state.get_error_detail(),
-                            loop_state.get_init_error_code(),
+                            RayTraceResizeTarget {
+                                canvas_selector: RAYTRACE_WEBGPU_CANVAS_SELECTOR,
+                                state: error_state,
+                            },
                         ) {
                             return None;
                         }
@@ -1824,11 +1812,7 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
             if running {
                 match render_result {
                     Some(Ok(())) => {
-                        raytrace_clear_error(
-                            loop_state.get_active(),
-                            loop_state.get_error_detail(),
-                            loop_state.get_init_error_code(),
-                        );
+                        raytrace_clear_error(error_state);
                         if !loop_state.get_loaded().get() {
                             raytrace_set_loaded_delayed(
                                 timers_for_loop.clone(),
@@ -1839,12 +1823,12 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                     }
                     Some(Err(error)) => {
                         raytrace_record_error(
-                            loop_state.get_active(),
-                            loop_state.get_error_detail(),
-                            loop_state.get_init_error_code(),
-                            RAYTRACE_ERROR_CODE_RENDER,
-                            "webgpu render",
-                            &error,
+                            error_state,
+                            RayTraceErrorReport {
+                                code: RAYTRACE_ERROR_CODE_RENDER,
+                                call: "webgpu render",
+                                error: &error,
+                            },
                         );
                     }
                     // A rejected resize and a missing renderer both land
@@ -1857,12 +1841,12 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                     None => {
                         if loop_state.get_error_detail().get().is_empty() {
                             raytrace_record_error(
-                                loop_state.get_active(),
-                                loop_state.get_error_detail(),
-                                loop_state.get_init_error_code(),
-                                RAYTRACE_ERROR_CODE_RENDER,
-                                "webgpu render",
-                                &JsValue::NULL,
+                                error_state,
+                                RayTraceErrorReport {
+                                    code: RAYTRACE_ERROR_CODE_RENDER,
+                                    call: "webgpu render",
+                                    error: &JsValue::NULL,
+                                },
                             );
                         }
                     }

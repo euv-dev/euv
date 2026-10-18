@@ -145,6 +145,65 @@ pub(crate) struct BvhBuild {
     pub(crate) centroids: Vec<Vector3D>,
 }
 
+/// A half-open slice of the permuted primitive index array that one BVH
+/// node owns.
+///
+/// The named start and count fields are shared by measurement, partition,
+/// and split helpers.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BvhRange {
+    /// The first entry of the range in the primitive index array.
+    pub(crate) start: usize,
+    /// The number of entries in the range.
+    pub(crate) count: usize,
+}
+
+/// The single node one `build_bvh_subtree` call is responsible for
+/// emitting.
+///
+/// The bounds, the primitive range and the nesting level describe which
+/// subtree is being built and at what depth, which is distinct from the
+/// mutable arrays every step shares.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BvhSubtree {
+    /// The `(min, max)` corners covering this subtree.
+    pub(crate) bounds: (Vector3D, Vector3D),
+    /// The primitives this subtree owns.
+    pub(crate) range: BvhRange,
+    /// The nesting level of this subtree, counting from zero at the root.
+    pub(crate) depth: usize,
+}
+
+/// One centroid axis and the position on it where a range is cut.
+///
+/// The surface-area search chooses a split and the fallback median split
+/// picks one too, so both hand the same pair of values to the partition
+/// step instead of it re-reading two loose arguments.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SahSplit {
+    /// `0` for `x`, `1` for `y`, `2` for `z`.
+    pub(crate) axis: usize,
+    /// The split position on that axis.
+    pub(crate) boundary: f64,
+}
+
+/// The mutable build state that every BVH construction step shares.
+///
+/// The node array under construction and the primitive index array it
+/// permutes have to be threaded through every helper, including both sides
+/// of every recursive call. Holding them behind one borrowed context keeps
+/// each helper's remaining parameters to the decisions that helper alone
+/// makes. Constructing the context does not allocate additional storage.
+#[derive(Debug)]
+pub(crate) struct BvhBuildContext<'a> {
+    /// The preorder node array under construction.
+    pub(crate) nodes: &'a mut Vec<RayTraceNode>,
+    /// The primitive index array, partitioned in place.
+    pub(crate) indices: &'a mut [usize],
+    /// The per-primitive bounds and centroids the split search reads.
+    pub(crate) build: &'a BvhBuild,
+}
+
 /// An owned ray-tracing scene with a precomputed bounding volume
 /// hierarchy and shadow data.
 ///

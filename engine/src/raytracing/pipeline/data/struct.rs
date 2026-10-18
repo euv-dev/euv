@@ -17,6 +17,30 @@ pub struct RayTraceSettings {
     pub max_bounces: u32,
 }
 
+/// Read-only frame inputs shared by the CPU renderer and GPU header packer.
+///
+/// Named width and height fields make their roles explicit at call sites.
+/// The camera, lighting, and settings are borrowed; dimensions are copied.
+/// Constructing a frame neither clones those resources nor allocates memory.
+#[derive(Clone, Copy, Debug, Getter)]
+pub struct RayTraceFrame<'a> {
+    /// The camera supplying the eye, target, up, fov, and depth range.
+    #[get(type(copy))]
+    pub camera: &'a Camera3D,
+    /// The lights, ambient, and shading eye.
+    #[get(type(copy))]
+    pub lights: &'a LightingUniforms,
+    /// The sampling grid and bounce limit.
+    #[get(type(copy))]
+    pub settings: &'a RayTraceSettings,
+    /// The frame width in pixels.
+    #[get(type(copy))]
+    pub width: u32,
+    /// The frame height in pixels.
+    #[get(type(copy))]
+    pub height: u32,
+}
+
 /// A validated, immutable description of one frame's camera.
 ///
 /// Building a [`FrameBasis`] performs every check the packed frame header

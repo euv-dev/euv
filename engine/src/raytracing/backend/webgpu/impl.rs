@@ -653,18 +653,13 @@ impl WebGpuRayTraceBackend {
         let group: JsValue = self.get_bind_group();
         let index: JsValue = JsValue::from_f64(BACKEND_WEBGPU_BIND_GROUP_INDEX as f64);
         call2(&pass, BACKEND_WEBGPU_METHOD_SET_BIND_GROUP, &index, &group)?;
-        let vertex_count: JsValue = JsValue::from_f64(BACKEND_WEBGPU_VERTEX_COUNT as f64);
-        let instances: JsValue = JsValue::from_f64(BACKEND_WEBGPU_INSTANCE_COUNT as f64);
-        let first_vertex: JsValue = JsValue::from_f64(BACKEND_WEBGPU_FIRST_VERTEX as f64);
-        let first_instance: JsValue = JsValue::from_f64(BACKEND_WEBGPU_FIRST_INSTANCE as f64);
-        call4(
-            &pass,
-            BACKEND_WEBGPU_METHOD_DRAW,
-            &vertex_count,
-            &instances,
-            &first_vertex,
-            &first_instance,
-        )?;
+        let args: DrawArgs = DrawArgs {
+            vertex_count: BACKEND_WEBGPU_VERTEX_COUNT,
+            instance_count: BACKEND_WEBGPU_INSTANCE_COUNT,
+            first_vertex: BACKEND_WEBGPU_FIRST_VERTEX,
+            first_instance: BACKEND_WEBGPU_FIRST_INSTANCE,
+        };
+        draw_vertices(&pass, &args)?;
         call0(&pass, BACKEND_WEBGPU_METHOD_END)?;
         let command: JsValue = call0(&encoder, BACKEND_WEBGPU_METHOD_FINISH)?;
         let batch: Array = Array::new();

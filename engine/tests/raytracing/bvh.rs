@@ -73,22 +73,18 @@ fn axis_value(value: Vector3D, axis: usize) -> f64 {
     parts[axis]
 }
 
-fn brute_sphere(
-    origin: Vector3D,
-    dir: Vector3D,
-    center: Vector3D,
-    radius: f64,
-    t_min: f64,
-    t_max: f64,
-) -> Option<f64> {
+fn brute_sphere(ray: &Ray, center: Vector3D, radius: f64) -> Option<f64> {
     if !radius.is_finite() || radius < 0.0 {
         return None;
     }
+    let dir: Vector3D = ray.get_direction();
+    let t_min: f64 = ray.get_t_min();
+    let t_max: f64 = ray.get_t_max();
+    let oc: Vector3D = ray.get_origin() - center;
     let a: f64 = dir.dot(dir);
     if !a.is_finite() || a <= 0.0 {
         return None;
     }
-    let oc: Vector3D = origin - center;
     let half_b: f64 = oc.dot(dir);
     let c: f64 = oc.dot(oc) - radius * radius;
     let discriminant: f64 = half_b * half_b - a * c;
@@ -107,14 +103,11 @@ fn brute_sphere(
     None
 }
 
-fn brute_aabb(
-    origin: Vector3D,
-    dir: Vector3D,
-    lower: Vector3D,
-    upper: Vector3D,
-    t_min: f64,
-    t_max: f64,
-) -> Option<f64> {
+fn brute_aabb(ray: &Ray, lower: Vector3D, upper: Vector3D) -> Option<f64> {
+    let origin: Vector3D = ray.get_origin();
+    let dir: Vector3D = ray.get_direction();
+    let t_min: f64 = ray.get_t_min();
+    let t_max: f64 = ray.get_t_max();
     let lo: Vector3D = Vector3D::new(
         lower.get_x().min(upper.get_x()),
         lower.get_y().min(upper.get_y()),
@@ -156,13 +149,12 @@ fn brute_aabb(
 }
 
 fn brute_hit(ray: &Ray, occluders: &[Occluder]) -> Option<(usize, f64)> {
-    let origin: Vector3D = ray.get_origin();
-    let dir: Vector3D = ray.get_direction();
     let t_min: f64 = ray.get_t_min();
     let t_max: f64 = ray.get_t_max();
     if !t_min.is_finite() || !t_max.is_finite() || t_min > t_max {
         return None;
     }
+    let dir: Vector3D = ray.get_direction();
     let squared_length: f64 = dir.dot(dir);
     if !squared_length.is_finite() || squared_length <= 0.0 {
         return None;
@@ -170,25 +162,17 @@ fn brute_hit(ray: &Ray, occluders: &[Occluder]) -> Option<(usize, f64)> {
     let mut best: Option<(usize, f64)> = None;
     for (index, occluder) in occluders.iter().enumerate() {
         let candidate: Option<f64> = match occluder.get_kind() {
-            OccluderKind::Sphere => brute_sphere(
-                origin,
-                dir,
-                occluder.get_center(),
-                occluder.get_extent().get_x(),
-                t_min,
-                t_max,
-            ),
+            OccluderKind::Sphere => {
+                brute_sphere(ray, occluder.get_center(), occluder.get_extent().get_x())
+            }
             OccluderKind::Aabb => {
                 let (lower, upper): (Vector3D, Vector3D) = occluder_bounds(occluder);
-                brute_aabb(origin, dir, lower, upper, t_min, t_max)
+                brute_aabb(ray, lower, upper)
             }
-            OccluderKind::Triangle => {
-                let vertices: [Vector3D; 3] = occluder.get_vertices();
-                match intersect_triangle(origin, dir, vertices[0], vertices[1], vertices[2]) {
-                    Some((t, _)) if t >= t_min && t <= t_max => Some(t),
-                    _ => None,
-                }
-            }
+            OccluderKind::Triangle => match intersect_triangle(ray, occluder.get_vertices()) {
+                Some((t, _)) if t >= t_min && t <= t_max => Some(t),
+                _ => None,
+            },
         };
         if let Some(t) = candidate {
             let wins: bool = match best {

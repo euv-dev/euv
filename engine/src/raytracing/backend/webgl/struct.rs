@@ -99,3 +99,42 @@ pub(crate) struct WebGlRayTraceBackend {
     #[get_mut(pub(crate))]
     pub(crate) dimension_limit_value: u32,
 }
+
+/// The read-only description of one packed-block texture write.
+///
+/// Groups the context, texture unit, and borrowed data used by both growth
+/// and upload. The destination texture and reusable mutable staging buffer
+/// remain separate parameters. Callers choose the scene or frame unit at
+/// the named-field construction site.
+#[derive(Debug, Getter)]
+pub(crate) struct WebGlPackedUpload<'a> {
+    /// The context every call in the write goes through.
+    #[get(pub(crate), type(copy))]
+    pub(crate) context: &'a WebGl2RenderingContext,
+    /// The texture unit the destination texture is bound to.
+    #[get(pub(crate), type(copy))]
+    pub(crate) unit: u32,
+    /// The packed block to write into the destination.
+    #[get(pub(crate), type(copy))]
+    pub(crate) packed: &'a [f32],
+}
+
+/// The GL objects a half-built attach owns at one point in its setup.
+///
+/// Named optional fields record which allocations succeeded before an
+/// initialization error, so cleanup releases only the resources acquired.
+#[derive(Debug, Getter)]
+pub(crate) struct WebGlPartialAttach<'a> {
+    /// The linked program, when the link succeeded.
+    #[get(pub(crate), type(clone))]
+    pub(crate) program: Option<&'a WebGlProgram>,
+    /// The vertex array, when it was created.
+    #[get(pub(crate), type(clone))]
+    pub(crate) vao: Option<&'a WebGlVertexArrayObject>,
+    /// The packed scene data texture, when it was allocated.
+    #[get(pub(crate), type(clone))]
+    pub(crate) scene_texture: Option<&'a WebGlRayTraceTexture>,
+    /// The packed frame data texture, when it was allocated.
+    #[get(pub(crate), type(clone))]
+    pub(crate) frame_texture: Option<&'a WebGlRayTraceTexture>,
+}

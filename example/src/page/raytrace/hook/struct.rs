@@ -206,6 +206,89 @@ pub(crate) struct UseRayTraceFullscreen {
     pub(crate) web_gpu: Signal<bool>,
 }
 
+/// The reactive status signals used to record and clear one tab's errors.
+///
+/// Signal handles are copied, so the same group can be reused by the tab's
+/// initialization, render, and resize paths.
+#[derive(Clone, Copy, Debug, Getter)]
+pub(crate) struct RayTraceErrorState {
+    /// Whether the backend rendered a frame successfully and most
+    /// recently still is.
+    ///
+    /// Cleared by every rejected call, so a dead renderer can never keep
+    /// reporting itself as live.
+    #[get(pub(crate), type(copy))]
+    pub(crate) active: Signal<bool>,
+    /// The most recent engine rejection detail as a human-readable
+    /// string, or empty while the backend is healthy.
+    #[get(pub(crate), type(copy))]
+    pub(crate) error_detail: Signal<String>,
+    /// The most recent rejected call site as a stable code, or empty
+    /// while the backend is healthy.
+    ///
+    /// Stored as a code rather than an error enum so the signal stays
+    /// `Copy` and the banner can tell "this browser cannot host this
+    /// backend" apart from "the backend died mid-run".
+    #[get(pub(crate), type(copy))]
+    pub(crate) init_error_code: Signal<&'static str>,
+}
+
+/// A rejected engine call's stable code, label, and borrowed error value.
+///
+/// Constructing the report allocates nothing. Recording it still formats
+/// the error detail and console message.
+#[derive(Clone, Copy, Debug, Getter)]
+pub(crate) struct RayTraceErrorReport<'a> {
+    /// The stable error code recorded for this call site.
+    #[get(pub(crate), type(copy))]
+    pub(crate) code: &'static str,
+    /// A short label naming the call that failed, e.g. `webgl2 render`.
+    #[get(pub(crate), type(copy))]
+    pub(crate) call: &'a str,
+    /// The rejected error value the engine handed back.
+    #[get(pub(crate), type(copy))]
+    pub(crate) error: &'a JsValue,
+}
+
+/// The canvas selector and status signals for one backend resize.
+///
+/// The mutable renderer remains a separate argument; selectors come from
+/// the tab's module-level constants.
+#[derive(Clone, Copy, Debug, Getter)]
+pub(crate) struct RayTraceResizeTarget {
+    /// The CSS selector of the canvas whose backing store the backend
+    /// must match.
+    #[get(pub(crate), type(copy))]
+    pub(crate) canvas_selector: &'static str,
+    /// The tab's `active` flag, error detail signal, and stable error
+    /// code signal, which a rejected resize reports against.
+    #[get(pub(crate), type(copy))]
+    pub(crate) state: RayTraceErrorState,
+}
+
+/// The handles released when a ray-tracing loop is cancelled or detached.
+///
+/// All fields are reference-counted handles. Cloning the set shares its
+/// resources rather than cloning the renderer or animation-frame closure.
+#[derive(Clone, Getter)]
+pub(crate) struct RayTraceLoopCleanup {
+    /// The cancellation flag the loop body checks before each frame.
+    #[get(pub(crate), type(clone))]
+    pub(crate) cancelled: Rc<Cell<bool>>,
+    /// The pending animation-frame handle, cancelled and then cleared.
+    #[get(pub(crate), type(clone))]
+    pub(crate) raf_id: Rc<Cell<Option<i32>>>,
+    /// The cell owning the animation-frame closure.
+    #[get(pub(crate), type(clone))]
+    pub(crate) closure_cell: RafClosureCell,
+    /// The owner list of one-shot timers this loop armed.
+    #[get(pub(crate), type(clone))]
+    pub(crate) pending_timers: RayTracePendingTimers,
+    /// The cell owning the engine backend, taken out and disposed last.
+    #[get(pub(crate), type(clone))]
+    pub(crate) renderer_cell: Rc<RefCell<Option<RayTraceRenderer>>>,
+}
+
 /// Non-reactive camera orbit angles persisted via a `Signal` wrapper.
 ///
 /// The `Signal` is read once to obtain the `Rc` handles; all subsequent

@@ -170,6 +170,62 @@ fn soft_shadow_no_occluder_returns_one() {
     );
 }
 
+#[test]
+fn soft_shadow_tests_both_ray_sphere_roots_so_a_segment_starting_inside_an_occluder_is_shadowed() {
+    let origin: Vector3D = Vector3D::zero();
+    let light_pos: Vector3D = Vector3D::new(0.0, 0.0, 10.0);
+    let radius: f64 = 1.0;
+    let enclosing: [(Vector3D, f64); 1] = [(Vector3D::new(0.0, 0.0, 0.5), radius)];
+    let from_inside: f64 = soft_shadow_factor(origin, light_pos, &enclosing);
+    assert_eq!(
+        from_inside, 0.0,
+        "the origin is inside the sphere: the near root is -0.5 and the far root is 1.5, so only the far root lies inside the light segment"
+    );
+    let clear_of_it: [(Vector3D, f64); 1] = [(Vector3D::new(5.0, 0.0, 5.0), radius)];
+    let beside: f64 = soft_shadow_factor(origin, light_pos, &clear_of_it);
+    assert!(
+        (beside - 1.0).abs() < EPSILON,
+        "a segment passing through empty space beside the occluder must stay visible, got {beside}"
+    );
+}
+
+#[test]
+fn soft_shadow_ignores_a_sphere_the_segment_only_touches_at_an_endpoint() {
+    let origin: Vector3D = Vector3D::zero();
+    let light_pos: Vector3D = Vector3D::new(0.0, 0.0, 10.0);
+    let radius: f64 = 1.0;
+    let behind_the_surface: [(Vector3D, f64); 1] = [(Vector3D::new(0.0, 0.0, -radius), radius)];
+    let touched_at_the_start: f64 = soft_shadow_factor(origin, light_pos, &behind_the_surface);
+    assert!(
+        (touched_at_the_start - 1.0).abs() < EPSILON,
+        "the segment's open interval starts at EPSILON, so a sphere only tangent at the shaded point is not an occluder, got {touched_at_the_start}"
+    );
+    let beyond_the_light: [(Vector3D, f64); 1] = [(Vector3D::new(0.0, 0.0, 10.0 + radius), radius)];
+    let touched_at_the_end: f64 = soft_shadow_factor(origin, light_pos, &beyond_the_light);
+    assert!(
+        (touched_at_the_end - 1.0).abs() < EPSILON,
+        "the open interval ends at distance - EPSILON, so a sphere only tangent at the lamp is not an occluder, got {touched_at_the_end}"
+    );
+    let midway: [(Vector3D, f64); 1] = [(Vector3D::new(0.0, 0.0, 5.0), radius)];
+    let blocked: f64 = soft_shadow_factor(origin, light_pos, &midway);
+    assert_eq!(
+        blocked, 0.0,
+        "the same sphere placed strictly inside the segment must block, so the endpoint cases above are excluded by the open interval and not by a discarded sphere"
+    );
+}
+
+#[test]
+fn soft_shadow_treats_a_coincident_light_as_visible() {
+    let origin: Vector3D = Vector3D::zero();
+    let on_the_lamp: Vector3D = Vector3D::new(0.0, 0.0, 0.0);
+    let enclosing: [(Vector3D, f64); 1] = [(Vector3D::new(0.0, 0.0, 1.0), 2.0)];
+    let degenerate: f64 = soft_shadow_factor(origin, on_the_lamp, &enclosing);
+    assert!(
+        (degenerate - 1.0).abs() < EPSILON,
+        "a light at the shaded point defines no segment, so there is nothing to occlude and the point must read as lit, got {degenerate}"
+    );
+}
+
 fn lighting_setup() -> LightingUniforms {
     let mut uniforms: LightingUniforms = LightingUniforms::with_eye(Vector3D::new(0.0, 0.0, 10.0));
     uniforms.add_light(Light::new_directional(

@@ -167,7 +167,8 @@ fn intersect_triangle_hits_from_above_at_unit_distance_with_upward_normal() {
     let v2: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
     let origin: Vector3D = Vector3D::new(0.25, 1.0, 0.25);
     let dir: Vector3D = Vector3D::new(0.0, -1.0, 0.0);
-    let hit: Option<(f64, Vector3D)> = intersect_triangle(origin, dir, v0, v1, v2);
+    let ray: Ray = Ray::new(origin, dir);
+    let hit: Option<(f64, Vector3D)> = intersect_triangle(&ray, [v0, v1, v2]);
     assert!(
         hit.is_some(),
         "ray (0.25,1,0.25) -> (0,-1,0) passes through the interior of the y=0 triangle",
@@ -201,7 +202,8 @@ fn intersect_triangle_hits_from_below_at_unit_distance_with_downward_normal() {
     let v2: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
     let origin: Vector3D = Vector3D::new(0.25, -1.0, 0.25);
     let dir: Vector3D = Vector3D::new(0.0, 1.0, 0.0);
-    let hit: Option<(f64, Vector3D)> = intersect_triangle(origin, dir, v0, v1, v2);
+    let ray: Ray = Ray::new(origin, dir);
+    let hit: Option<(f64, Vector3D)> = intersect_triangle(&ray, [v0, v1, v2]);
     assert!(
         hit.is_some(),
         "the test is two-sided, so the back face of the y=0 triangle must also register a hit",
@@ -230,13 +232,8 @@ fn intersect_triangle_misses_beyond_the_hypotenuse() {
     let v0: Vector3D = Vector3D::new(0.0, 0.0, 0.0);
     let v1: Vector3D = Vector3D::new(1.0, 0.0, 0.0);
     let v2: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
-    let hit: Option<(f64, Vector3D)> = intersect_triangle(
-        Vector3D::new(2.0, 1.0, 2.0),
-        Vector3D::new(0.0, -1.0, 0.0),
-        v0,
-        v1,
-        v2,
-    );
+    let beyond: Ray = Ray::new(Vector3D::new(2.0, 1.0, 2.0), Vector3D::new(0.0, -1.0, 0.0));
+    let hit: Option<(f64, Vector3D)> = intersect_triangle(&beyond, [v0, v1, v2]);
     assert!(
         hit.is_none(),
         "the landing point (2, 0, 2) has x + z = 4 > 1, which is outside the triangle",
@@ -248,24 +245,14 @@ fn intersect_triangle_returns_none_for_ray_parallel_to_the_plane() {
     let v0: Vector3D = Vector3D::new(0.0, 0.0, 0.0);
     let v1: Vector3D = Vector3D::new(1.0, 0.0, 0.0);
     let v2: Vector3D = Vector3D::new(0.0, 0.0, 1.0);
-    let parallel_in_plane: Option<(f64, Vector3D)> = intersect_triangle(
-        Vector3D::new(0.25, 1.0, 0.0),
-        Vector3D::new(1.0, 0.0, 0.0),
-        v0,
-        v1,
-        v2,
-    );
+    let in_plane: Ray = Ray::new(Vector3D::new(0.25, 1.0, 0.0), Vector3D::new(1.0, 0.0, 0.0));
+    let parallel_in_plane: Option<(f64, Vector3D)> = intersect_triangle(&in_plane, [v0, v1, v2]);
     assert!(
         parallel_in_plane.is_none(),
         "a direction of (1,0,0) is parallel to the y=0 triangle plane, so the determinant is zero and there is no intersection",
     );
-    let parallel_above: Option<(f64, Vector3D)> = intersect_triangle(
-        Vector3D::new(0.25, 1.0, 0.25),
-        Vector3D::new(1.0, 0.0, 0.0),
-        v0,
-        v1,
-        v2,
-    );
+    let above: Ray = Ray::new(Vector3D::new(0.25, 1.0, 0.25), Vector3D::new(1.0, 0.0, 0.0));
+    let parallel_above: Option<(f64, Vector3D)> = intersect_triangle(&above, [v0, v1, v2]);
     assert!(
         parallel_above.is_none(),
         "even a ray skimming above the plane stays parallel, so it must miss too",
@@ -282,16 +269,10 @@ fn ray_intersect_triangle_rejects_hits_beyond_the_ray_range() {
         Vector3D::new(0.0, -1.0, 0.0),
     );
     assert!(
-        far.intersect_triangle(v0, v1, v2).is_none(),
+        far.intersect_triangle([v0, v1, v2]).is_none(),
         "t = 2000 exceeds the default t_max of 1000, so the ray method must reject the hit",
     );
-    let unbounded: Option<(f64, Vector3D)> = intersect_triangle(
-        Vector3D::new(0.25, 2000.0, 0.25),
-        Vector3D::new(0.0, -1.0, 0.0),
-        v0,
-        v1,
-        v2,
-    );
+    let unbounded: Option<(f64, Vector3D)> = intersect_triangle(&far, [v0, v1, v2]);
     assert!(
         close_to(
             2000.0,
@@ -304,7 +285,7 @@ fn ray_intersect_triangle_rejects_hits_beyond_the_ray_range() {
         Vector3D::new(0.0, -1.0, 0.0),
     );
     assert!(
-        grazing.intersect_triangle(v0, v1, v2).is_none(),
+        grazing.intersect_triangle([v0, v1, v2]).is_none(),
         "t = 0 is below the default t_min of 0.001, so the ray method must reject the self-hit",
     );
 }
@@ -503,14 +484,11 @@ fn trace_bounces_shades_a_triangle_occluder() {
     );
 }
 
-fn oracle_sphere_t(
-    origin: Vector3D,
-    dir: Vector3D,
-    center: Vector3D,
-    radius: f64,
-    t_min: f64,
-    t_max: f64,
-) -> Option<f64> {
+fn oracle_sphere_t(ray: &Ray, center: Vector3D, radius: f64) -> Option<f64> {
+    let origin: Vector3D = ray.get_origin();
+    let dir: Vector3D = ray.get_direction();
+    let t_min: f64 = ray.get_t_min();
+    let t_max: f64 = ray.get_t_max();
     let oc: Vector3D = origin - center;
     let a: f64 = dir.dot(dir);
     if !a.is_finite() || a <= 0.0 {
@@ -534,14 +512,11 @@ fn oracle_sphere_t(
     None
 }
 
-fn oracle_aabb_t(
-    origin: Vector3D,
-    dir: Vector3D,
-    lower: Vector3D,
-    upper: Vector3D,
-    t_min: f64,
-    t_max: f64,
-) -> Option<f64> {
+fn oracle_aabb_t(ray: &Ray, lower: Vector3D, upper: Vector3D) -> Option<f64> {
+    let origin: Vector3D = ray.get_origin();
+    let dir: Vector3D = ray.get_direction();
+    let t_min: f64 = ray.get_t_min();
+    let t_max: f64 = ray.get_t_max();
     let lo: Vector3D = Vector3D::new(
         lower.get_x().min(upper.get_x()),
         lower.get_y().min(upper.get_y()),
@@ -596,13 +571,12 @@ fn oracle_axis(value: Vector3D, axis: usize) -> f64 {
 }
 
 fn unbounded_closest_hit(ray: &Ray, occluders: &[Occluder]) -> Option<f64> {
-    let origin: Vector3D = ray.get_origin();
-    let dir: Vector3D = ray.get_direction();
     let t_min: f64 = ray.get_t_min();
     let t_max: f64 = ray.get_t_max();
     if !t_min.is_finite() || !t_max.is_finite() || t_min > t_max {
         return None;
     }
+    let dir: Vector3D = ray.get_direction();
     let squared_length: f64 = dir.dot(dir);
     if !squared_length.is_finite() || squared_length <= 0.0 {
         return None;
@@ -610,29 +584,14 @@ fn unbounded_closest_hit(ray: &Ray, occluders: &[Occluder]) -> Option<f64> {
     let mut best: Option<f64> = None;
     for occ in occluders.iter() {
         let candidate: Option<f64> = match occ.get_kind() {
-            OccluderKind::Sphere => oracle_sphere_t(
-                origin,
-                dir,
-                occ.get_center(),
-                occ.get_extent().get_x(),
-                t_min,
-                t_max,
-            ),
-            OccluderKind::Aabb => oracle_aabb_t(
-                origin,
-                dir,
-                occ.get_center(),
-                occ.get_extent(),
-                t_min,
-                t_max,
-            ),
-            OccluderKind::Triangle => {
-                let vertices: [Vector3D; 3] = occ.get_vertices();
-                match intersect_triangle(origin, dir, vertices[0], vertices[1], vertices[2]) {
-                    Some((t, _)) if t >= t_min && t <= t_max => Some(t),
-                    _ => None,
-                }
+            OccluderKind::Sphere => {
+                oracle_sphere_t(ray, occ.get_center(), occ.get_extent().get_x())
             }
+            OccluderKind::Aabb => oracle_aabb_t(ray, occ.get_center(), occ.get_extent()),
+            OccluderKind::Triangle => match intersect_triangle(ray, occ.get_vertices()) {
+                Some((t, _)) if t >= t_min && t <= t_max => Some(t),
+                _ => None,
+            },
         };
         if let Some(t) = candidate {
             let keep_earlier: bool = matches!(best, Some(best_t) if best_t <= t);

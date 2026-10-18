@@ -10,6 +10,8 @@ pub(crate) use r#const::*;
 pub(crate) use r#fn::{
     build_bvh, closest_hit_indexed, collect_occluder_points, occluded_indexed, trace_bounces,
 };
-pub(crate) use r#struct::{BvhBuild, RayTraceNode};
+pub(crate) use r#struct::{
+    BvhBuild, BvhBuildContext, BvhRange, BvhSubtree, RayTraceNode, SahSplit,
+};
 
 use super::*;

@@ -92,6 +92,68 @@ pub struct Material {
     pub(crate) emissive: Vector3D,
 }
 
+/// One light's contribution at a single shaded point, resolved once and
+/// then shared by every term that light feeds.
+///
+/// A [`Light`] stores the **authored** values: the intensity before any
+/// falloff, and — for a spot light — the outward cone axis rather than the
+/// direction toward the lamp. Shading needs different numbers: the
+/// surface-to-light direction and the intensity after falloff. Deriving
+/// them into locals keeps the [`Light`] itself un-cloned, but it leaves
+/// each term reading a bare pair of `Vector3D` / `f64` parameters whose
+/// roles no longer match the field names they came from.
+///
+/// A `LightSample` names the derived pair next to the colour they apply
+/// to, so [`lambert_term`] and [`phong_specular_term`] take one borrowed
+/// argument instead of three loose ones and neither rebuilds what the
+/// shading loop already measured. The caller still decides the values:
+/// [`compute_lambert`] samples the authored direction and intensity
+/// directly, while [`LightingUniforms::shade_with_visibility`] samples the
+/// derived direction and the falloff-attenuated intensity.
+///
+/// Every field is a `Copy` scalar or vector, so a sample is built on the
+/// stack and never allocates.
+#[derive(Clone, Copy, Debug, Getter)]
+pub(crate) struct LightSample {
+    /// The light's RGB color.
+    #[get(pub(crate), type(copy))]
+    pub(crate) color: Vector3D,
+    /// The intensity, already scaled by any falloff the caller applied.
+    #[get(pub(crate), type(copy))]
+    pub(crate) intensity: f64,
+    /// The unit direction from the shaded surface toward the light.
+    #[get(pub(crate), type(copy))]
+    pub(crate) direction: Vector3D,
+}
+
+/// The bounded segment a shadow ray travels: a start, a unit direction, and
+/// the length of the leg it covers.
+///
+/// [`soft_shadow_factor`] measures all three once per light and then tests
+/// every occluder sphere against the same segment, which is what keeps the
+/// open-interval bounds identical across the loop — [`EPSILON`] at the near
+/// end and `distance - EPSILON` at the far end, so a root landing exactly
+/// on an endpoint still counts as a miss.
+///
+/// The triple is declared here rather than borrowed from the ray tracer. A
+/// ray-tracing `Ray` carries `t_min` / `t_max` / `depth` for scene
+/// traversal, while a shadow leg here is defined by the two endpoints the
+/// light and the shaded point supply; naming that pair as one value keeps
+/// `lighting` free of a dependency on `raytracing` and of the cycle a
+/// shared `Ray` would risk forming.
+#[derive(Clone, Copy, Debug, Getter)]
+pub(crate) struct ShadowSegment {
+    /// The shaded point the segment starts from.
+    #[get(pub(crate), type(copy))]
+    pub(crate) origin: Vector3D,
+    /// The unit direction from `origin` toward the light.
+    #[get(pub(crate), type(copy))]
+    pub(crate) direction: Vector3D,
+    /// The distance from `origin` to the light.
+    #[get(pub(crate), type(copy))]
+    pub(crate) distance: f64,
+}
+
 /// Bundles of uniforms supplied to lighting and shading routines.
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct LightingUniforms {

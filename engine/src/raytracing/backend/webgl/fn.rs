@@ -439,10 +439,9 @@ pub(crate) fn bind_data_texture(
 ///
 /// # Arguments
 ///
-/// - `&WebGl2RenderingContext` - The context to upload through.
+/// - `&WebGlPackedUpload` - The context, the unit, and the packed block
+///   the write is described by.
 /// - `&WebGlRayTraceTexture` - The destination texture.
-/// - `u32` - The texture unit the texture is bound to.
-/// - `&[f32]` - The packed block.
 /// - `&mut Vec<f32>` - The scratch buffer the upload is built in, reused
 ///   across frames.
 ///
@@ -450,12 +449,12 @@ pub(crate) fn bind_data_texture(
 ///
 /// - `Result<(), JsValue>` - `Ok` once the upload was accepted.
 pub(crate) fn upload_packed(
-    context: &WebGl2RenderingContext,
+    upload: &WebGlPackedUpload,
     target: &WebGlRayTraceTexture,
-    unit: u32,
-    packed: &[f32],
     scratch: &mut Vec<f32>,
 ) -> Result<(), JsValue> {
+    let context: &WebGl2RenderingContext = upload.get_context();
+    let packed: &[f32] = upload.get_packed();
     let slots: usize = packed_slot_count(packed.len());
     if slots == 0 {
         return Err(backend_error(
@@ -473,10 +472,10 @@ pub(crate) fn upload_packed(
     for (index, value) in packed.iter().enumerate() {
         scratch[index] = *value;
     }
-    let upload: &[f32] = &scratch[..needed];
-    let view: Float32Array = Float32Array::from(upload);
+    let staged: &[f32] = &scratch[..needed];
+    let view: Float32Array = Float32Array::from(staged);
     require_clear_gl_error(context, ERROR_WEBGL_UPLOAD, WEBGL_ERROR_SOURCE_PENDING)?;
-    bind_data_texture(context, unit, target.get_texture())?;
+    bind_data_texture(context, upload.get_unit(), target.get_texture())?;
     let outcome: Result<(), JsValue> = context
         .tex_sub_image_2d_with_i32_and_i32_and_u32_and_type_and_opt_array_buffer_view(
             WEBGL_TEXTURE_TARGET_2D,
@@ -495,84 +494,31 @@ pub(crate) fn upload_packed(
     }
 }
 
-/// Grows the scene texture in place when its block no longer fits.
+/// Uploads one packed scene or frame block, growing its texture when needed.
 ///
-/// A block that already fits the current texture reuses it and touches
-/// nothing, so a repeated update at a fixed size issues one
-/// `texSubImage2D` and creates no GL object. A block that does not fit
-/// is allocated once at its own shape: the new texture is bound and
-/// fully written before it is adopted, so a failed allocation or a
-/// failed write leaves the previous, still valid, texture in place. The
-/// texture being replaced is deleted only after the swap succeeds, so a
-/// rejected block never leaves the backend without a usable texture.
+/// Growth allocates and uploads a replacement before adopting it. A failed
+/// replacement is deleted while the previous texture remains owned by the
+/// backend. Blocks that fit reuse the existing texture and staging buffer.
+/// The caller supplies the matching texture and unit in the upload description.
 ///
 /// # Arguments
 ///
-/// - `&WebGl2RenderingContext` - The context to allocate in.
-/// - `&mut WebGlRayTraceTexture` - The current texture, replaced only
-///   on success.
-/// - `&mut Vec<f32>` - The scratch buffer the upload is built in.
-/// - `&[f32]` - The packed scene block.
-///
-/// # Returns
-///
-/// - `Result<(), JsValue>` - `Ok` once the block is live on the GPU.
-pub(crate) fn ensure_scene_texture(
-    context: &WebGl2RenderingContext,
-    current: &mut WebGlRayTraceTexture,
-    scratch: &mut Vec<f32>,
-    packed: &[f32],
-) -> Result<(), JsValue> {
-    grow_texture(context, current, WEBGL_TEXTURE_UNIT_SCENE, scratch, packed)
-}
-
-/// Grows the frame texture in place when its block no longer fits.
-///
-/// The mirror of [`ensure_scene_texture`] for the block every frame
-/// uploads, so a steady frame reuses one allocation and a larger block
-/// reallocates exactly once.
-///
-/// # Arguments
-///
-/// - `&WebGl2RenderingContext` - The context to allocate in.
-/// - `&mut WebGlRayTraceTexture` - The current texture, replaced only
-///   on success.
-/// - `&mut Vec<f32>` - The scratch buffer the upload is built in.
-/// - `&[f32]` - The packed frame block.
-///
-/// # Returns
-///
-/// - `Result<(), JsValue>` - `Ok` once the block is live on the GPU.
-pub(crate) fn ensure_frame_texture(
-    context: &WebGl2RenderingContext,
-    current: &mut WebGlRayTraceTexture,
-    scratch: &mut Vec<f32>,
-    packed: &[f32],
-) -> Result<(), JsValue> {
-    grow_texture(context, current, WEBGL_TEXTURE_UNIT_FRAME, scratch, packed)
-}
-
-/// Reallocates and re-uploads one data texture when its block outgrows
-/// it, mutating it in place only after the new texture is live.
-///
-/// # Arguments
-///
-/// - `&WebGl2RenderingContext` - The context to allocate in.
+/// - `&WebGlPackedUpload` - The context, the unit, and the packed block
+///   the write is described by.
 /// - `&mut WebGlRayTraceTexture` - The texture to grow in place.
-/// - `u32` - The texture unit the texture is bound to.
 /// - `&mut Vec<f32>` - The scratch buffer the upload is built in.
-/// - `&[f32]` - The packed block.
 ///
 /// # Returns
 ///
 /// - `Result<(), JsValue>` - `Ok` once the block is live on the GPU.
-fn grow_texture(
-    context: &WebGl2RenderingContext,
+pub(crate) fn ensure_packed_texture(
+    upload: &WebGlPackedUpload,
     current: &mut WebGlRayTraceTexture,
-    unit: u32,
     scratch: &mut Vec<f32>,
-    packed: &[f32],
 ) -> Result<(), JsValue> {
+    let context: &WebGl2RenderingContext = upload.get_context();
+    let unit: u32 = upload.get_unit();
+    let packed: &[f32] = upload.get_packed();
     let slots: usize = packed_slot_count(packed.len());
     if slots == 0 {
         return Err(backend_error(
@@ -585,7 +531,7 @@ fn grow_texture(
         let limit: u32 = texture_size_limit(context);
         let (width, height): (i32, i32) = packed_shape(packed.len(), limit)?;
         let grown: WebGlRayTraceTexture = create_packed_texture(context, unit, width, height)?;
-        match upload_packed(context, &grown, unit, packed, scratch) {
+        match upload_packed(upload, &grown, scratch) {
             Ok(()) => {}
             Err(reason) => {
                 context.delete_texture(Some(grown.get_texture()));
@@ -598,7 +544,7 @@ fn grow_texture(
         current.set_height(grown.get_height());
         return Ok(());
     }
-    upload_packed(context, current, unit, packed, scratch)
+    upload_packed(upload, current, scratch)
 }
 
 /// Reads the `MAX_TEXTURE_SIZE` of a context.
@@ -766,33 +712,28 @@ pub(crate) fn attach_context(
 
 /// Releases every GL object a half-built attach owns.
 ///
+/// Each object is released at most once and only when it was actually
+/// created, so this is safe to call at any point in a failed attach: the
+/// order is fixed rather than derived from the arguments, and an absent
+/// object contributes nothing.
+///
 /// # Arguments
 ///
 /// - `&WebGl2RenderingContext` - The context the objects belong to.
-/// - `Option<&WebGlProgram>` - The program, when one was linked.
-/// - `Option<&WebGlVertexArrayObject>` - The vertex array, when one was
-///   created.
-/// - `Option<&WebGlRayTraceTexture>` - The scene texture, when one was
-///   allocated.
-/// - `Option<&WebGlRayTraceTexture>` - The frame texture, when one was
-///   allocated.
-pub(crate) fn release_partial(
-    context: &WebGl2RenderingContext,
-    program: Option<&WebGlProgram>,
-    vao: Option<&WebGlVertexArrayObject>,
-    scene_texture: Option<&WebGlRayTraceTexture>,
-    frame_texture: Option<&WebGlRayTraceTexture>,
-) {
-    if let Some(texture) = frame_texture {
+/// - `&WebGlPartialAttach` - The program, vertex array, scene texture,
+///   and frame texture the attach owns so far, each present only once
+///   its own step has succeeded.
+pub(crate) fn release_partial(context: &WebGl2RenderingContext, owned: &WebGlPartialAttach) {
+    if let Some(texture) = owned.get_frame_texture() {
         context.delete_texture(Some(texture.get_texture()));
     }
-    if let Some(texture) = scene_texture {
+    if let Some(texture) = owned.get_scene_texture() {
         context.delete_texture(Some(texture.get_texture()));
     }
-    if let Some(array) = vao {
+    if let Some(array) = owned.get_vao() {
         context.delete_vertex_array(Some(array));
     }
-    if let Some(linked) = program {
+    if let Some(linked) = owned.get_program() {
         context.delete_program(Some(linked));
     }
 }

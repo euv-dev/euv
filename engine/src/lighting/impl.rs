@@ -332,7 +332,6 @@ impl LightingUniforms {
         let mut color: Vector3D = self.get_ambient();
         let view_dir: Vector3D = unit_vector(self.get_eye() - position);
         let material_kind: MaterialKind = material.get_kind();
-        let albedo: Vector3D = material.get_albedo();
         for light in self.get_lights().iter() {
             let kind: LightType = light.get_kind();
             // Derived once per light and shared by every term below. The
@@ -375,31 +374,30 @@ impl LightingUniforms {
             if shadow <= 0.0 {
                 continue;
             }
-            let intensity: f64 = light.get_intensity() * falloff_factor;
-            let light_color: Vector3D = light.get_color();
+            // One resolved light, shared by every term below: the diffuse
+            // and specular lobes and the fresnel scale all read this one
+            // colour, the one attenuated intensity, and the one derived
+            // direction, instead of each re-reading the `Light`.
+            let sample: LightSample = LightSample {
+                color: light.get_color(),
+                intensity: light.get_intensity() * falloff_factor,
+                direction: light_dir,
+            };
             let diffuse: Vector3D = match material_kind {
                 MaterialKind::Pbr => {
                     let fresnel: f64 = apply_schlick_fresnel(light_dir, view_dir, normal);
-                    lambert_term(light_color, intensity, light_dir, normal, albedo).scaled(
+                    lambert_term(&sample, normal, material).scaled(
                         LIGHTING_PBR_ENERGY_CONSERVATION
                             + (1.0 - LIGHTING_PBR_ENERGY_CONSERVATION) * fresnel,
                     )
                 }
                 MaterialKind::Lambert | MaterialKind::Phong => {
-                    lambert_term(light_color, intensity, light_dir, normal, albedo)
+                    lambert_term(&sample, normal, material)
                 }
             };
             let specular: Vector3D = match material_kind {
                 MaterialKind::Lambert | MaterialKind::Pbr => Vector3D::zero(),
-                MaterialKind::Phong => phong_specular_term(
-                    light_color,
-                    intensity,
-                    light_dir,
-                    normal,
-                    view_dir,
-                    material.get_specular(),
-                    material.get_shininess(),
-                ),
+                MaterialKind::Phong => phong_specular_term(&sample, normal, view_dir, material),
             };
             color += (diffuse + specular).scaled(shadow);
         }

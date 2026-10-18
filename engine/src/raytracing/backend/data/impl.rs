@@ -166,15 +166,15 @@ impl RayTraceRenderer {
         settings: &RayTraceSettings,
     ) -> Result<(), JsValue> {
         let mut pixels: Vec<u8> = mem::take(self.get_mut_pixels());
-        let traced: Result<(), String> = render_raytrace_rgba(
-            self.get_scene(),
+        let frame: RayTraceFrame<'_> = RayTraceFrame {
             camera,
             lights,
             settings,
-            self.get_width(),
-            self.get_height(),
-            &mut pixels,
-        );
+            width: self.get_width(),
+            height: self.get_height(),
+        };
+        let traced: Result<(), String> =
+            render_raytrace_rgba(self.get_scene(), &frame, &mut pixels);
         let presented: Result<(), JsValue> = match self.get_mut_adapter().as_mut() {
             Some(adapter) => match traced {
                 Ok(()) => adapter.present(&pixels),
@@ -205,14 +205,14 @@ impl RayTraceRenderer {
         settings: &RayTraceSettings,
     ) -> Result<(), JsValue> {
         let mut frame: Vec<f32> = mem::take(self.get_mut_packed_frame());
-        let packed: Result<(), String> = pack_raytrace_frame(
-            &mut frame,
+        let inputs: RayTraceFrame<'_> = RayTraceFrame {
             camera,
             lights,
             settings,
-            self.get_width(),
-            self.get_height(),
-        );
+            width: self.get_width(),
+            height: self.get_height(),
+        };
+        let packed: Result<(), String> = pack_raytrace_frame(&mut frame, &inputs);
         let drawn: Result<(), JsValue> = match (packed, self.get_mut_adapter().as_mut()) {
             (Ok(()), Some(adapter)) => adapter.draw(&frame),
             (Ok(()), None) => Err(backend_error(ERROR_DISPOSED, ERROR_DISPOSED.to_string())),

@@ -93,33 +93,25 @@ fn slab_interval(
 /// Returns the clipped entry parameter of a ray segment against an AABB.
 ///
 /// The result is `None` when the segment provably cannot touch the box.
-/// The interval is clipped to `t_min`..=`t_max`, so a traversal that
-/// shrinks `t_max` as it discovers nearer hits also prunes the boxes
-/// behind those hits for free. Parallel slabs are handled inside
+/// The interval is clipped to the ray's own `t_min`..=`t_max`, so a
+/// traversal that narrows `t_max` as it discovers nearer hits also prunes
+/// the boxes behind those hits for free. Parallel slabs are handled inside
 /// [`slab_interval`], so an axis-aligned ray running along a face still
 /// reports the other two axes' constraint instead of dividing by zero.
 ///
 /// # Arguments
 ///
-/// - `Vector3D` - The ray origin.
-/// - `Vector3D` - The ray direction, not required to be unit length.
+/// - `&Ray` - The ray whose origin, direction and parameter range are used.
 /// - `Vector3D` - The AABB minimum corner.
 /// - `Vector3D` - The AABB maximum corner.
-/// - `f64` - The minimum ray parameter considered a valid hit.
-/// - `f64` - The maximum ray parameter considered a valid hit.
 ///
 /// # Returns
 ///
-/// - `Option<f64>` - The entry parameter clipped into the requested range,
-///   or `None` when the segment misses the box.
-fn aabb_entry_parameter(
-    origin: Vector3D,
-    dir: Vector3D,
-    lower: Vector3D,
-    upper: Vector3D,
-    t_min: f64,
-    t_max: f64,
-) -> Option<f64> {
+/// - `Option<f64>` - The entry parameter clipped into the ray's range, or
+///   `None` when the segment misses the box.
+fn aabb_entry_parameter(ray: &Ray, lower: Vector3D, upper: Vector3D) -> Option<f64> {
+    let origin: Vector3D = ray.get_origin();
+    let dir: Vector3D = ray.get_direction();
     if !is_finite_vector(origin)
         || !is_finite_vector(dir)
         || !is_finite_vector(lower)
@@ -141,43 +133,40 @@ fn aabb_entry_parameter(
     if t_enter > t_exit {
         return None;
     }
-    let clipped: f64 = t_enter.max(t_min);
-    if clipped > t_exit.min(t_max) {
+    let clipped: f64 = t_enter.max(ray.get_t_min());
+    if clipped > t_exit.min(ray.get_t_max()) {
         return None;
     }
     Some(clipped)
 }
 
-/// Intersects a ray with the triangle `v0`, `v1`, `v2` using the
-/// Moller-Trumbore algorithm.
+/// Intersects a ray with a triangle using the Moller-Trumbore algorithm.
 ///
 /// The test is two-sided: a hit on either face counts, and the returned
 /// normal is flipped when needed so that it always faces against the ray
 /// direction, making back-face hits usable for shading. A ray parallel to
-/// the triangle plane yields `None`. No `t_min`/`t_max` filtering is
-/// applied here; use [`Ray::intersect_triangle`] for the range-clamped
-/// variant.
+/// the triangle plane yields `None`.
+///
+/// The ray's own `t_min`/`t_max` are deliberately not consulted: this free
+/// function reports the raw distance along the ray however far away the
+/// triangle is. [`Ray::intersect_triangle`] is the range-clamped variant and
+/// the two must stay distinguishable at the call site.
 ///
 /// # Arguments
 ///
-/// - `Vector3D` - The ray origin.
-/// - `Vector3D` - The ray direction (expected to be unit length).
-/// - `Vector3D` - The first triangle vertex.
-/// - `Vector3D` - The second triangle vertex.
-/// - `Vector3D` - The third triangle vertex.
+/// - `&Ray` - The ray whose origin and direction are tested; its parameter
+///   range is ignored.
+/// - `[Vector3D; 3]` - The three triangle vertices in winding order.
 ///
 /// # Returns
 ///
 /// - `Option<(f64, Vector3D)>` - The hit distance along the ray and the
 ///   unit surface normal oriented against the ray direction, or `None` on
 ///   miss.
-pub fn intersect_triangle(
-    origin: Vector3D,
-    dir: Vector3D,
-    v0: Vector3D,
-    v1: Vector3D,
-    v2: Vector3D,
-) -> Option<(f64, Vector3D)> {
+pub fn intersect_triangle(ray: &Ray, vertices: [Vector3D; 3]) -> Option<(f64, Vector3D)> {
+    let [v0, v1, v2]: [Vector3D; 3] = vertices;
+    let origin: Vector3D = ray.get_origin();
+    let dir: Vector3D = ray.get_direction();
     let edge1: Vector3D = v1 - v0;
     let edge2: Vector3D = v2 - v0;
     let pvec: Vector3D = dir.cross(edge2);
@@ -321,33 +310,28 @@ fn axis_component(value: Vector3D, axis: usize) -> f64 {
 /// inside the sphere. A ray whose direction is zero, a negative radius, or
 /// any `NaN` input never reports a hit.
 ///
+/// The direction is read from the ray and never normalised, so a non-unit
+/// direction reports a true distance in the ray's own parameterisation.
+///
 /// # Arguments
 ///
-/// - `Vector3D` - The ray origin.
-/// - `Vector3D` - The ray direction, not required to be unit length.
+/// - `&Ray` - The ray whose origin, direction and parameter range are used.
 /// - `Vector3D` - The sphere center.
 /// - `f64` - The sphere radius.
-/// - `f64` - The minimum acceptable hit parameter.
-/// - `f64` - The maximum acceptable hit parameter.
 ///
 /// # Returns
 ///
 /// - `Option<(f64, Vector3D)>` - The hit parameter and the outward unit
 ///   normal, or `None` when the range-constrained ray misses.
-fn intersect_sphere_in_range(
-    origin: Vector3D,
-    dir: Vector3D,
-    center: Vector3D,
-    radius: f64,
-    t_min: f64,
-    t_max: f64,
-) -> Option<(f64, Vector3D)> {
+fn intersect_sphere_in_range(ray: &Ray, center: Vector3D, radius: f64) -> Option<(f64, Vector3D)> {
     // A zero or negative radius describes no surface at all, and the
     // normalising step below would divide by its length, so reject both
     // before any arithmetic.
     if !radius.is_finite() || radius <= 0.0 {
         return None;
     }
+    let origin: Vector3D = ray.get_origin();
+    let dir: Vector3D = ray.get_direction();
     if !is_finite_vector(origin) || !is_finite_vector(dir) || !is_finite_vector(center) {
         return None;
     }
@@ -358,6 +342,8 @@ fn intersect_sphere_in_range(
     if !a.is_finite() || a <= 0.0 {
         return None;
     }
+    let t_min: f64 = ray.get_t_min();
+    let t_max: f64 = ray.get_t_max();
     let oc: Vector3D = origin - center;
     let half_b: f64 = oc.dot(dir);
     let c: f64 = oc.dot(oc) - radius * radius;
@@ -395,25 +381,19 @@ fn intersect_sphere_in_range(
 ///
 /// # Arguments
 ///
-/// - `Vector3D` - The ray origin.
-/// - `Vector3D` - The ray direction, not required to be unit length.
+/// - `&Ray` - The ray whose origin, direction and parameter range are used.
 /// - `Vector3D` - The AABB minimum corner.
 /// - `Vector3D` - The AABB maximum corner.
-/// - `f64` - The minimum acceptable hit parameter.
-/// - `f64` - The maximum acceptable hit parameter.
 ///
 /// # Returns
 ///
 /// - `Option<(f64, Vector3D)>` - The hit parameter and the outward unit
 ///   normal, or `None` when the range-constrained ray misses.
-fn intersect_aabb_in_range(
-    origin: Vector3D,
-    dir: Vector3D,
-    lower: Vector3D,
-    upper: Vector3D,
-    t_min: f64,
-    t_max: f64,
-) -> Option<(f64, Vector3D)> {
+fn intersect_aabb_in_range(ray: &Ray, lower: Vector3D, upper: Vector3D) -> Option<(f64, Vector3D)> {
+    let origin: Vector3D = ray.get_origin();
+    let dir: Vector3D = ray.get_direction();
+    let t_min: f64 = ray.get_t_min();
+    let t_max: f64 = ray.get_t_max();
     if !is_finite_vector(origin) || !is_finite_vector(dir) {
         return None;
     }
@@ -511,8 +491,8 @@ fn intersect_aabb_in_range(
     Some((t, normal))
 }
 
-/// Runs the exact intersection test for one occluder inside a parameter
-/// range.
+/// Runs the exact intersection test for one occluder inside a ray's
+/// parameter range.
 ///
 /// This is the single source of truth for what counts as a hit: sphere,
 /// AABB and triangle each dispatch to their own range-aware routine, and a
@@ -522,69 +502,47 @@ fn intersect_aabb_in_range(
 /// # Arguments
 ///
 /// - `&Occluder` - The occluder to test.
-/// - `Vector3D` - The ray origin.
-/// - `Vector3D` - The ray direction, not required to be unit length.
-/// - `f64` - The minimum acceptable hit parameter.
-/// - `f64` - The maximum acceptable hit parameter.
+/// - `&Ray` - The ray whose origin, direction and parameter range are used.
 ///
 /// # Returns
 ///
 /// - `Option<(f64, Vector3D)>` - The hit parameter and the outward unit
 ///   normal, or `None` when the occluder is missed or degenerate.
-fn intersect_occluder_in_range(
-    occluder: &Occluder,
-    origin: Vector3D,
-    dir: Vector3D,
-    t_min: f64,
-    t_max: f64,
-) -> Option<(f64, Vector3D)> {
+fn intersect_occluder_in_range(occluder: &Occluder, ray: &Ray) -> Option<(f64, Vector3D)> {
+    let t_min: f64 = ray.get_t_min();
+    let t_max: f64 = ray.get_t_max();
     match occluder.get_kind() {
-        OccluderKind::Sphere => intersect_sphere_in_range(
-            origin,
-            dir,
-            occluder.get_center(),
-            occluder.get_extent().get_x(),
-            t_min,
-            t_max,
-        ),
+        OccluderKind::Sphere => {
+            intersect_sphere_in_range(ray, occluder.get_center(), occluder.get_extent().get_x())
+        }
         OccluderKind::Aabb => {
             let (lower, upper): (Vector3D, Vector3D) = occluder_aabb_extents(occluder);
-            intersect_aabb_in_range(origin, dir, lower, upper, t_min, t_max)
+            intersect_aabb_in_range(ray, lower, upper)
         }
-        OccluderKind::Triangle => {
-            let [v0, v1, v2]: [Vector3D; 3] = occluder.get_vertices();
-            match intersect_triangle(origin, dir, v0, v1, v2) {
-                Some((t, normal)) if t.is_finite() && t >= t_min && t <= t_max => Some((t, normal)),
-                _ => None,
-            }
-        }
+        OccluderKind::Triangle => match intersect_triangle(ray, occluder.get_vertices()) {
+            Some((t, normal)) if t.is_finite() && t >= t_min && t <= t_max => Some((t, normal)),
+            _ => None,
+        },
     }
 }
 
-/// Returns the tight AABB covering the primitives listed in
-/// `indices[start..start + count]`.
+/// Returns the tight AABB covering the primitives listed in a range.
 ///
 /// # Arguments
 ///
 /// - `&[usize]` - The primitive indexes of the range to measure.
 /// - `&BvhBuild` - The per-primitive bounds and centroids.
-/// - `usize` - The first index of the range.
-/// - `usize` - The number of indexes in the range.
+/// - `BvhRange` - The primitives to measure.
 ///
 /// # Returns
 ///
 /// - `(Vector3D, Vector3D)` - The `(min, max)` corners covering the range.
-fn bounds_of_range(
-    indices: &[usize],
-    build: &BvhBuild,
-    start: usize,
-    count: usize,
-) -> (Vector3D, Vector3D) {
+fn bounds_of_range(indices: &[usize], build: &BvhBuild, range: BvhRange) -> (Vector3D, Vector3D) {
     let mut lower: Vector3D = Vector3D::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
     let mut upper: Vector3D =
         Vector3D::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
-    for slot in 0..count {
-        let primitive: usize = indices[start + slot];
+    for slot in 0..range.count {
+        let primitive: usize = indices[range.start + slot];
         lower = vector3d_min(lower, build.lower[primitive]);
         upper = vector3d_max(upper, build.upper[primitive]);
     }
@@ -601,19 +559,12 @@ fn bounds_of_range(
 ///
 /// - `&[usize]` - The primitive indexes of the range.
 /// - `&BvhBuild` - The per-primitive bounds and centroids.
-/// - `usize` - The first index of the range.
-/// - `usize` - The number of indexes in the range.
+/// - `BvhRange` - The primitives to measure.
 ///
 /// # Returns
 ///
-/// - `(usize, f64)` - The `(axis, midpoint)` cutting the widest centroid
-///   spread.
-fn longest_centroid_axis(
-    indices: &[usize],
-    build: &BvhBuild,
-    start: usize,
-    count: usize,
-) -> (usize, f64) {
+/// - `SahSplit` - The axis and midpoint cutting the widest centroid spread.
+fn longest_centroid_axis(indices: &[usize], build: &BvhBuild, range: BvhRange) -> SahSplit {
     let centroids: &[Vector3D] = &build.centroids;
     let mut best_axis: usize = 0;
     let mut best_span: f64 = -1.0;
@@ -621,8 +572,8 @@ fn longest_centroid_axis(
     for axis in 0..3 {
         let mut min: f64 = f64::INFINITY;
         let mut max: f64 = f64::NEG_INFINITY;
-        for slot in 0..count {
-            let value: f64 = axis_component(centroids[indices[start + slot]], axis);
+        for slot in 0..range.count {
+            let value: f64 = axis_component(centroids[indices[range.start + slot]], axis);
             min = min.min(value);
             max = max.max(value);
         }
@@ -633,11 +584,14 @@ fn longest_centroid_axis(
             best_mid = (min + max) * 0.5;
         }
     }
-    (best_axis, best_mid)
+    SahSplit {
+        axis: best_axis,
+        boundary: best_mid,
+    }
 }
 
-/// Partitions `indices[start..start + count]` around `split_value` on one
-/// centroid axis and reports where the left partition ends.
+/// Partitions a range around a centroid split and reports where the left
+/// partition ends.
 ///
 /// The partition is an in-place two-way scan, so one level of the build
 /// costs linear time instead of sorting every axis at every level.
@@ -649,10 +603,8 @@ fn longest_centroid_axis(
 ///
 /// - `&mut [usize]` - The primitive index array, partitioned in place.
 /// - `&BvhBuild` - The per-primitive bounds and centroids.
-/// - `usize` - The first index of the range to partition.
-/// - `usize` - The number of indexes in the range.
-/// - `usize` - `0` for `x`, `1` for `y`, `2` for `z`.
-/// - `f64` - The split position on that axis.
+/// - `BvhRange` - The range to partition.
+/// - `SahSplit` - The centroid axis and split position.
 ///
 /// # Returns
 ///
@@ -660,27 +612,28 @@ fn longest_centroid_axis(
 fn partition_range(
     indices: &mut [usize],
     build: &BvhBuild,
-    start: usize,
-    count: usize,
-    axis: usize,
-    split_value: f64,
+    range: BvhRange,
+    split: SahSplit,
 ) -> usize {
     let centroids: &[Vector3D] = &build.centroids;
     let mut left: usize = 0;
-    let mut right: usize = count;
+    let mut right: usize = range.count;
     while left < right {
-        while left < right && axis_component(centroids[indices[start + left]], axis) < split_value {
+        while left < right
+            && axis_component(centroids[indices[range.start + left]], split.axis) < split.boundary
+        {
             left += 1;
         }
         while right > left
-            && axis_component(centroids[indices[start + right - 1]], axis) >= split_value
+            && axis_component(centroids[indices[range.start + right - 1]], split.axis)
+                >= split.boundary
         {
             right -= 1;
         }
         if left >= right {
             break;
         }
-        indices.swap(start + left, start + right - 1);
+        indices.swap(range.start + left, range.start + right - 1);
         left += 1;
         right -= 1;
     }
@@ -700,21 +653,20 @@ fn partition_range(
 ///
 /// - `&[usize]` - The primitive indexes of the range to split.
 /// - `&BvhBuild` - The per-primitive bounds and centroids.
-/// - `usize` - The first index of the range.
-/// - `usize` - The number of indexes in the range.
+/// - `BvhRange` - The range to split.
 /// - `f64` - The surface area of the range's parent bounds.
 ///
 /// # Returns
 ///
-/// - `Option<(usize, f64)>` - The chosen `(axis, split position)`, or
-///   `None` when no bin boundary improves on a leaf.
+/// - `Option<SahSplit>` - The chosen axis and split position, or `None`
+///   when no bin boundary improves on a leaf.
 fn choose_sah_split(
     indices: &[usize],
     build: &BvhBuild,
-    start: usize,
-    count: usize,
+    range: BvhRange,
     parent_area: f64,
-) -> Option<(usize, f64)> {
+) -> Option<SahSplit> {
+    let count: usize = range.count;
     if count < 2 || !parent_area.is_finite() || parent_area <= 0.0 {
         return None;
     }
@@ -724,7 +676,7 @@ fn choose_sah_split(
         let mut centroid_min: f64 = f64::INFINITY;
         let mut centroid_max: f64 = f64::NEG_INFINITY;
         for slot in 0..count {
-            let value: f64 = axis_component(centroids[indices[start + slot]], axis);
+            let value: f64 = axis_component(centroids[indices[range.start + slot]], axis);
             centroid_min = centroid_min.min(value);
             centroid_max = centroid_max.max(value);
         }
@@ -737,7 +689,7 @@ fn choose_sah_split(
         let mut bin_upper: [Vector3D; RAYTRACE_BVH_BINS] = [Vector3D::zero(); RAYTRACE_BVH_BINS];
         let mut bin_count: [usize; RAYTRACE_BVH_BINS] = [0; RAYTRACE_BVH_BINS];
         for slot in 0..count {
-            let primitive: usize = indices[start + slot];
+            let primitive: usize = indices[range.start + slot];
             let scaled: f64 = (axis_component(centroids[primitive], axis) - centroid_min) * scale;
             let mut bin: usize = scaled as usize;
             if bin >= RAYTRACE_BVH_BINS {
@@ -795,7 +747,7 @@ fn choose_sah_split(
     if !cost.is_finite() || cost >= incumbent {
         return None;
     }
-    Some((axis, boundary))
+    Some(SahSplit { axis, boundary })
 }
 
 /// Builds one BVH subtree in preorder, appending its root and descendants.
@@ -808,81 +760,81 @@ fn choose_sah_split(
 /// the finished hierarchy inside the fixed traversal stack, because the
 /// heuristic can otherwise chain linearly on a geometric spread.
 ///
+/// The node array and the index array it permutes live in `context`, and
+/// `subtree` carries only this call's own node, so recursion allocates
+/// nothing beyond the frames themselves.
+///
 /// # Arguments
 ///
-/// - `&mut Vec<RayTraceNode>` - The node array under construction.
-/// - `&mut [usize]` - The primitive index array, permuted in place.
-/// - `&BvhBuild` - The per-primitive bounds and centroids.
-/// - `(Vector3D, Vector3D)` - The bounds of this subtree.
-/// - `usize` - The first primitive index of this range.
-/// - `usize` - The number of primitive indexes in this range.
-/// - `usize` - The nesting level of this subtree, starting at zero.
-fn build_bvh_subtree(
-    nodes: &mut Vec<RayTraceNode>,
-    indices: &mut [usize],
-    build: &BvhBuild,
-    bounds: (Vector3D, Vector3D),
-    start: usize,
-    count: usize,
-    depth: usize,
-) {
-    let root: usize = nodes.len();
-    let too_small_to_split: bool = count <= RAYTRACE_BVH_LEAF_SIZE || count < 2;
-    if too_small_to_split || depth >= RAYTRACE_BVH_MAX_DEPTH {
-        nodes.push(RayTraceNode {
+/// - `&mut BvhBuildContext` - The node array, index array and per-primitive
+///   build data shared by every step of this build.
+/// - `BvhSubtree` - The bounds, primitive range and nesting level of the
+///   node to emit.
+fn build_bvh_subtree(context: &mut BvhBuildContext, subtree: BvhSubtree) {
+    let root: usize = context.nodes.len();
+    let bounds: (Vector3D, Vector3D) = subtree.bounds;
+    let range: BvhRange = subtree.range;
+    let too_small_to_split: bool = range.count <= RAYTRACE_BVH_LEAF_SIZE || range.count < 2;
+    if too_small_to_split || subtree.depth >= RAYTRACE_BVH_MAX_DEPTH {
+        context.nodes.push(RayTraceNode {
             lower: bounds.0,
             upper: bounds.1,
-            start,
-            count,
+            start: range.start,
+            count: range.count,
             escape: root + 1,
         });
         return;
     }
-    let (axis, boundary): (usize, f64) = match choose_sah_split(
-        indices,
+    let build: &BvhBuild = context.build;
+    let split: SahSplit = match choose_sah_split(
+        context.indices,
         build,
-        start,
-        count,
+        range,
         aabb_surface_area(bounds.0, bounds.1),
     ) {
         Some(chosen) => chosen,
-        None => longest_centroid_axis(indices, build, start, count),
+        None => longest_centroid_axis(context.indices, build, range),
     };
-    let partitioned: usize = partition_range(indices, build, start, count, axis, boundary);
-    let left_count: usize = if partitioned == 0 || partitioned == count {
-        count / 2
+    let partitioned: usize = partition_range(context.indices, build, range, split);
+    let left_count: usize = if partitioned == 0 || partitioned == range.count {
+        range.count / 2
     } else {
         partitioned
     };
-    nodes.push(RayTraceNode {
+    context.nodes.push(RayTraceNode {
         lower: bounds.0,
         upper: bounds.1,
-        start,
+        start: range.start,
         count: 0,
         escape: root + 1,
     });
-    let left_bounds: (Vector3D, Vector3D) = bounds_of_range(indices, build, start, left_count);
+    let left_range: BvhRange = BvhRange {
+        start: range.start,
+        count: left_count,
+    };
+    let left_bounds: (Vector3D, Vector3D) = bounds_of_range(context.indices, build, left_range);
     build_bvh_subtree(
-        nodes,
-        indices,
-        build,
-        left_bounds,
-        start,
-        left_count,
-        depth + 1,
+        context,
+        BvhSubtree {
+            bounds: left_bounds,
+            range: left_range,
+            depth: subtree.depth + 1,
+        },
     );
-    let right_bounds: (Vector3D, Vector3D) =
-        bounds_of_range(indices, build, start + left_count, count - left_count);
+    let right_range: BvhRange = BvhRange {
+        start: range.start + left_count,
+        count: range.count - left_count,
+    };
+    let right_bounds: (Vector3D, Vector3D) = bounds_of_range(context.indices, build, right_range);
     build_bvh_subtree(
-        nodes,
-        indices,
-        build,
-        right_bounds,
-        start + left_count,
-        count - left_count,
-        depth + 1,
+        context,
+        BvhSubtree {
+            bounds: right_bounds,
+            range: right_range,
+            depth: subtree.depth + 1,
+        },
     );
-    nodes[root].escape = nodes.len();
+    context.nodes[root].escape = context.nodes.len();
 }
 
 /// Builds the flat BVH for a list of occluders.
@@ -928,9 +880,22 @@ pub(crate) fn build_bvh(occluders: &[Occluder]) -> (Vec<RayTraceNode>, Vec<usize
         upper,
         centroids,
     };
-    let root_bounds: (Vector3D, Vector3D) = bounds_of_range(&indices, &build, 0, count);
+    let root_range: BvhRange = BvhRange { start: 0, count };
+    let root_bounds: (Vector3D, Vector3D) = bounds_of_range(&indices, &build, root_range);
     nodes.reserve(count.saturating_mul(2));
-    build_bvh_subtree(&mut nodes, &mut indices, &build, root_bounds, 0, count, 0);
+    let mut context: BvhBuildContext = BvhBuildContext {
+        nodes: &mut nodes,
+        indices: &mut indices,
+        build: &build,
+    };
+    build_bvh_subtree(
+        &mut context,
+        BvhSubtree {
+            bounds: root_bounds,
+            range: root_range,
+            depth: 0,
+        },
+    );
     (nodes, indices)
 }
 
@@ -994,9 +959,8 @@ fn traceable_direction_of(ray: &Ray) -> Option<Vector3D> {
 ///
 /// # Arguments
 ///
-/// - `&Ray` - The ray being traced.
+/// - `&Ray` - The ray being traced, carrying origin, direction and range.
 /// - `&[Occluder]` - Every primitive in the scene.
-/// - `Vector3D` - The validated ray direction.
 ///
 /// # Returns
 ///
@@ -1005,13 +969,12 @@ fn traceable_direction_of(ray: &Ray) -> Option<Vector3D> {
 fn linear_closest_hit(
     ray: &Ray,
     occluders: &[Occluder],
-    dir: Vector3D,
 ) -> Option<(usize, f64, Vector3D, Vector3D)> {
-    let t_min: f64 = ray.get_t_min();
+    let origin: Vector3D = ray.get_origin();
+    let dir: Vector3D = ray.get_direction();
     let mut best: Option<(usize, f64, Vector3D, Vector3D)> = None;
     for (index, occluder) in occluders.iter().enumerate() {
-        let hit: Option<(f64, Vector3D)> =
-            intersect_occluder_in_range(occluder, ray.get_origin(), dir, t_min, ray.get_t_max());
+        let hit: Option<(f64, Vector3D)> = intersect_occluder_in_range(occluder, ray);
         let Some((t, normal)) = hit else {
             continue;
         };
@@ -1022,7 +985,7 @@ fn linear_closest_hit(
             }
         };
         if nearer {
-            best = Some((index, t, ray.get_origin() + dir.scaled(t), normal));
+            best = Some((index, t, origin + dir.scaled(t), normal));
         }
     }
     best
@@ -1032,24 +995,16 @@ fn linear_closest_hit(
 ///
 /// # Arguments
 ///
-/// - `&Ray` - The ray being tested.
+/// - `&Ray` - The ray being tested, carrying origin, direction and range.
 /// - `&[Occluder]` - Every primitive in the scene.
-/// - `Vector3D` - The validated ray direction.
 ///
 /// # Returns
 ///
 /// - `bool` - Whether any primitive blocks the ray.
-fn linear_occluded(ray: &Ray, occluders: &[Occluder], dir: Vector3D) -> bool {
-    occluders.iter().any(|occluder: &Occluder| {
-        intersect_occluder_in_range(
-            occluder,
-            ray.get_origin(),
-            dir,
-            ray.get_t_min(),
-            ray.get_t_max(),
-        )
-        .is_some()
-    })
+fn linear_occluded(ray: &Ray, occluders: &[Occluder]) -> bool {
+    occluders
+        .iter()
+        .any(|occluder: &Occluder| intersect_occluder_in_range(occluder, ray).is_some())
 }
 
 /// Finds the closest intersection between a ray and a scene's BVH without
@@ -1076,16 +1031,19 @@ pub(crate) fn closest_hit_indexed(
     ray: &Ray,
     scene: &RayTraceScene,
 ) -> Option<(usize, f64, Vector3D, Vector3D)> {
-    let dir: Vector3D = traceable_direction_of(ray)?;
+    // The direction is validated once here rather than threaded through the
+    // traversal: every node test re-reads it from `ray` unchanged, so no
+    // rescaled copy can drift away from the parameterisation `Ray::at`
+    // reconstructs points in.
+    traceable_direction_of(ray)?;
     let nodes: &[RayTraceNode] = scene.get_nodes();
     if nodes.is_empty() {
         return None;
     }
     let occluders: &[Occluder] = scene.get_occluders();
     if occluders.len() <= RAYTRACE_LINEAR_MAX_PRIMITIVES {
-        return linear_closest_hit(ray, occluders, dir);
+        return linear_closest_hit(ray, occluders);
     }
-    let occluders: &[Occluder] = scene.get_occluders();
     let indices: &[usize] = scene.get_indices();
     let origin: Vector3D = ray.get_origin();
     let t_min: f64 = ray.get_t_min();
@@ -1095,17 +1053,11 @@ pub(crate) fn closest_hit_indexed(
     let mut found: bool = false;
     let mut stack: [usize; RAYTRACE_BVH_STACK_SIZE] = [0usize; RAYTRACE_BVH_STACK_SIZE];
     let root: &RayTraceNode = &nodes[0];
+    let dir: Vector3D = ray.get_direction();
     // The root's entry parameter is only a probe: a root the ray misses means
     // the whole subtree is out of range, so `?` on the discarded value is the
     // early return clippy asks for.
-    let _root_entry: f64 = aabb_entry_parameter(
-        origin,
-        dir,
-        root.get_lower(),
-        root.get_upper(),
-        t_min,
-        best_t,
-    )?;
+    let _root_entry: f64 = aabb_entry_parameter(ray, root.get_lower(), root.get_upper())?;
     stack[0] = 0usize;
     let mut depth: usize = 1;
     while depth > 0 {
@@ -1117,22 +1069,11 @@ pub(crate) fn closest_hit_indexed(
             let right_index: usize = nodes[left_index].get_escape();
             let left: &RayTraceNode = &nodes[left_index];
             let right: &RayTraceNode = &nodes[right_index];
-            let left_entry: Option<f64> = aabb_entry_parameter(
-                origin,
-                dir,
-                left.get_lower(),
-                left.get_upper(),
-                t_min,
-                best_t,
-            );
-            let right_entry: Option<f64> = aabb_entry_parameter(
-                origin,
-                dir,
-                right.get_lower(),
-                right.get_upper(),
-                t_min,
-                best_t,
-            );
+            let probe: Ray = ray.with_range(t_min, best_t);
+            let left_entry: Option<f64> =
+                aabb_entry_parameter(&probe, left.get_lower(), left.get_upper());
+            let right_entry: Option<f64> =
+                aabb_entry_parameter(&probe, right.get_lower(), right.get_upper());
             match (left_entry, right_entry) {
                 (None, None) => {}
                 (Some(_), None) => {
@@ -1162,10 +1103,11 @@ pub(crate) fn closest_hit_indexed(
             continue;
         }
         let start: usize = node.get_start();
+        let mut probe: Ray = ray.with_range(t_min, best_t);
         for slot in 0..node.get_count() {
             let primitive: usize = indices[start + slot];
             let hit: Option<(f64, Vector3D)> =
-                intersect_occluder_in_range(&occluders[primitive], origin, dir, t_min, best_t);
+                intersect_occluder_in_range(&occluders[primitive], &probe);
             if let Some((t, normal)) = hit {
                 let nearer: bool = t < best_t;
                 let stable_tie: bool = t == best_t && (!found || primitive < best_index);
@@ -1174,6 +1116,7 @@ pub(crate) fn closest_hit_indexed(
                     best_index = primitive;
                     best_normal = normal;
                     found = true;
+                    probe = ray.with_range(t_min, best_t);
                 }
             }
         }
@@ -1199,36 +1142,21 @@ pub(crate) fn closest_hit_indexed(
 ///
 /// - `bool` - `true` when at least one occluder intersects the range.
 pub(crate) fn occluded_indexed(ray: &Ray, scene: &RayTraceScene) -> bool {
-    let untraceable: Option<Vector3D> = traceable_direction_of(ray);
-    let dir: Vector3D = match untraceable {
-        Some(direction) => direction,
-        None => return false,
-    };
+    if traceable_direction_of(ray).is_none() {
+        return false;
+    }
     let occluders: &[Occluder] = scene.get_occluders();
     if occluders.len() <= RAYTRACE_LINEAR_MAX_PRIMITIVES {
-        return linear_occluded(ray, occluders, dir);
+        return linear_occluded(ray, occluders);
     }
     let nodes: &[RayTraceNode] = scene.get_nodes();
     if nodes.is_empty() {
         return false;
     }
-    let occluders: &[Occluder] = scene.get_occluders();
     let indices: &[usize] = scene.get_indices();
-    let origin: Vector3D = ray.get_origin();
-    let t_min: f64 = ray.get_t_min();
-    let t_max: f64 = ray.get_t_max();
     let mut stack: [usize; RAYTRACE_BVH_STACK_SIZE] = [0usize; RAYTRACE_BVH_STACK_SIZE];
     let root: &RayTraceNode = &nodes[0];
-    if aabb_entry_parameter(
-        origin,
-        dir,
-        root.get_lower(),
-        root.get_upper(),
-        t_min,
-        t_max,
-    )
-    .is_none()
-    {
+    if aabb_entry_parameter(ray, root.get_lower(), root.get_upper()).is_none() {
         return false;
     }
     stack[0] = 0usize;
@@ -1242,14 +1170,8 @@ pub(crate) fn occluded_indexed(ray: &Ray, scene: &RayTraceScene) -> bool {
             let right_index: usize = nodes[left_index].get_escape();
             for child_index in [left_index, right_index] {
                 let child: &RayTraceNode = &nodes[child_index];
-                let entry: Option<f64> = aabb_entry_parameter(
-                    origin,
-                    dir,
-                    child.get_lower(),
-                    child.get_upper(),
-                    t_min,
-                    t_max,
-                );
+                let entry: Option<f64> =
+                    aabb_entry_parameter(ray, child.get_lower(), child.get_upper());
                 if entry.is_some() {
                     stack[depth] = child_index;
                     depth += 1;
@@ -1260,9 +1182,7 @@ pub(crate) fn occluded_indexed(ray: &Ray, scene: &RayTraceScene) -> bool {
         let start: usize = node.get_start();
         for slot in 0..node.get_count() {
             let primitive: usize = indices[start + slot];
-            let blocked: bool =
-                intersect_occluder_in_range(&occluders[primitive], origin, dir, t_min, t_max)
-                    .is_some();
+            let blocked: bool = intersect_occluder_in_range(&occluders[primitive], ray).is_some();
             if blocked {
                 return true;
             }
