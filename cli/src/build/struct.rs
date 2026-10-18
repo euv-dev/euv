@@ -92,7 +92,7 @@ pub struct ModeArgs {
 ///
 /// Formats euv macro invocations (`html!`, `class!`, `vars!`, `watch!`)
 /// in Rust source files.
-#[derive(Clone, Data, Debug, New, Parser)]
+#[derive(Clone, Debug, Getter, New, Parser)]
 pub struct FmtArgs {
     /// Path to the directory or file to format
     #[arg(short, long, default_value = ".")]
@@ -101,21 +101,17 @@ pub struct FmtArgs {
     /// `cli/src/mode/fn.rs`, which is inside this crate. The integration
     /// test constructs a `FmtArgs` through `FmtArgs::new` /
     /// `FmtArgs::parse_from` but never reads the field, so no public
-    /// accessor is required. `get_mut` / `set` are skipped outright — no
+    /// accessor is required. `Getter` does not generate mutators — no
     /// caller anywhere mutates the path after parsing.
     #[get(pub(crate))]
-    #[get_mut(skip)]
-    #[set(skip)]
     pub(crate) path: PathBuf,
     /// Check if formatting is needed without modifying files
     #[arg(long, default_value_t = false)]
     ///
     /// Narrowed for the same reason as [`FmtArgs::path`]: the flag is read
     /// only by `cli/src/mode/fn.rs`, and clap's derive is what writes it,
-    /// so `get_mut` / `set` are skipped.
+    /// so `Getter` is the right derive — it generates no mutators.
     #[get(pub(crate), type(copy))]
-    #[get_mut(skip)]
-    #[set(skip)]
     pub(crate) check: bool,
 }
 

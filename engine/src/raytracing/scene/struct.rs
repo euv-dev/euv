@@ -155,30 +155,22 @@ pub(crate) struct BvhBuild {
 /// [`RayTraceScene::closest_hit`] perform no heap allocation per ray or
 /// per bounce, making the scene the single canonical entry point for
 /// tracing many rays against a static scene.
-#[derive(Clone, Data, Debug, PartialEq)]
+#[derive(Clone, Debug, Getter, PartialEq)]
 pub struct RayTraceScene {
     /// All occluding surfaces in the scene.
-    #[get_mut(skip)]
-    #[set(skip)]
     #[get(pub(crate))]
     pub(crate) occluders: Vec<Occluder>,
     /// The flat preorder BVH over the occluders' bounds. Shared verbatim
     /// with the GPU encoders, so the layout is part of the internal
     /// contract rather than an implementation detail.
-    #[get_mut(skip)]
-    #[set(skip)]
     #[get(pub(crate))]
     pub(crate) nodes: Vec<RayTraceNode>,
     /// The reordered primitive indexes addressed by the leaves' `start` and
     /// `count` fields. Every value stays the occluder's original index.
-    #[get_mut(skip)]
-    #[set(skip)]
     #[get(pub(crate))]
     pub(crate) indices: Vec<usize>,
     /// Precomputed `(center, radius)` shadow bounding spheres, one per
     /// occluder, in the same order as `occluders`.
-    #[get_mut(skip)]
-    #[set(skip)]
     #[get(pub(crate))]
     pub(crate) shadow_points: Vec<(Vector3D, f64)>,
 }
