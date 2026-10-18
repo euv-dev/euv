@@ -1,5 +1,15 @@
 use super::*;
 
+/// A snippet export represented as an alias, a declaration, or an unsupported form.
+pub(crate) enum ExportForm<'a> {
+    /// The bindings inside an `export { ... }` clause.
+    Aliases(&'a str),
+    /// A declaration with its `export` keyword removed.
+    Declaration(&'a str),
+    /// A form that cannot be embedded in the bootstrap.
+    Unsupported,
+}
+
 /// The action to perform.
 ///
 /// - `Run` — build and start the development server with hot-reload

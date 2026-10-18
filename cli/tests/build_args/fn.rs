@@ -170,38 +170,40 @@ fn a_flag_outside_the_whitelist_is_left_for_wasm_pack() {
 #[test]
 fn exported_functions_are_collected_in_source_order() {
     let source: &str = "export function alpha() {}\nexport function beta() {}\n";
-    let observed: Vec<String> = extract_exported_function_names(source);
+    let observed: Vec<String> = extract_exported_names(source);
     assert_eq!(observed, args(&["alpha", "beta"]), "both names, in order");
 }
 
 #[test]
 fn leading_indentation_does_not_hide_an_exported_function() {
     let source: &str = "    export function indented() {}\n";
-    let observed: Vec<String> = extract_exported_function_names(source);
+    let observed: Vec<String> = extract_exported_names(source);
     assert_eq!(observed, args(&["indented"]), "the line is trimmed first");
 }
 
 #[test]
 fn a_private_function_is_not_collected() {
     let source: &str = "function hidden() {}\nexport function shown() {}\n";
-    let observed: Vec<String> = extract_exported_function_names(source);
+    let observed: Vec<String> = extract_exported_names(source);
     assert_eq!(observed, args(&["shown"]), "only the exported one counts");
 }
 
 #[test]
-fn an_arrow_function_export_is_not_a_function_declaration() {
+fn an_arrow_function_export_is_collected_as_an_exported_const() {
     let source: &str = "export const arrow = () => {};\n";
-    let observed: Vec<String> = extract_exported_function_names(source);
+    let observed: Vec<String> = extract_exported_names(source);
     assert!(
-        observed.is_empty(),
-        "the scanner looks for the function declaration form only"
+        observed == args(&["arrow"]),
+        "the scanner collects every exported declaration, and a namespace import \
+         rebuilds each name as a plain property: a namespace binding over an \
+         arrow const is reachable, so dropping it would break the bootstrap"
     );
 }
 
 #[test]
 fn dollar_signs_are_part_of_an_exported_name() {
     let source: &str = "export function $helper() {}\n";
-    let observed: Vec<String> = extract_exported_function_names(source);
+    let observed: Vec<String> = extract_exported_names(source);
     assert_eq!(
         observed,
         args(&["$helper"]),
@@ -212,88 +214,110 @@ fn dollar_signs_are_part_of_an_exported_name() {
 #[test]
 fn a_name_ends_at_the_first_non_identifier_character() {
     let source: &str = "export function typed(a: number) {}\n";
-    let observed: Vec<String> = extract_exported_function_names(source);
+    let observed: Vec<String> = extract_exported_names(source);
     assert_eq!(observed, args(&["typed"]), "the parameter list is cut off");
 }
 
 #[test]
 fn source_without_exports_yields_nothing() {
-    let observed: Vec<String> = extract_exported_function_names("const x = 1;\n");
+    let observed: Vec<String> = extract_exported_names("const x = 1;\n");
     assert!(observed.is_empty(), "no export means no names");
 }
 
 #[test]
 fn a_star_import_is_a_namespace_import() {
-    let observed: bool = is_namespace_import("* as helpers");
+    let observed: bool = parse_import_clause("* as helpers from './h.js'")
+        .map(|clause: ImportClause<'_>| clause.namespace.is_some())
+        .unwrap_or(false);
     assert!(observed, "a leading star marks a namespace import");
 }
 
 #[test]
 fn a_named_import_is_not_a_namespace_import() {
-    let observed: bool = is_namespace_import("{ a, b }");
+    let observed: bool = parse_import_clause("{ a, b } from './h.js'")
+        .map(|clause: ImportClause<'_>| clause.namespace.is_some())
+        .unwrap_or(false);
     assert!(!observed, "a brace list is a named import");
 }
 
 #[test]
 fn a_namespace_import_recovers_its_alias() {
-    let observed: Option<&str> = extract_namespace_alias("* as helpers");
+    let observed: Option<&str> = parse_import_clause("* as helpers from './h.js'")
+        .map(|clause: ImportClause<'_>| clause.namespace)
+        .expect("a namespace clause parses");
     assert_eq!(observed, Some("helpers"), "the alias after as is the name");
 }
 
 #[test]
 fn a_namespace_alias_tolerates_trailing_syntax() {
-    let observed: Option<&str> = extract_namespace_alias("* as helpers;");
+    let observed: Option<&str> = parse_import_clause("* as helpers from './h.js';")
+        .map(|clause: ImportClause<'_>| clause.namespace)
+        .expect("a namespace clause parses");
     assert_eq!(observed, Some("helpers"), "a trailing semicolon is trimmed");
 }
 
 #[test]
-fn a_namespace_alias_of_a_bare_star_is_none() {
-    let observed: Option<&str> = extract_namespace_alias("*");
-    assert_eq!(observed, None, "there is no alias to report");
+fn a_bare_star_is_rejected_rather_than_reported_without_an_alias() {
+    let observed: Result<ImportClause<'_>, EuvError> = parse_import_clause("* from './h.js'");
+    assert!(
+        observed.is_err(),
+        "a star with no binding is an error, not a clause whose alias is empty: \
+         the inliner would otherwise emit a `var` assignment to nothing, which \
+         is not JavaScript"
+    );
 }
 
 #[test]
 fn a_named_import_has_no_namespace_alias() {
-    let observed: Option<&str> = extract_namespace_alias("{ a }");
+    let observed: Option<&str> = parse_import_clause("{ a } from './h.js'")
+        .map(|clause: ImportClause<'_>| clause.namespace)
+        .expect("a named clause parses");
     assert_eq!(observed, None, "a brace list is not a namespace import");
 }
 
 #[test]
 fn a_relative_import_reports_its_specifier() {
-    let observed: Option<&str> = extract_import_spec("{ a } from './local.js'");
-    assert_eq!(observed, Some("./local.js"), "the quoted path is unwrapped");
+    let observed: &str = parse_import_clause("{ a } from './local.js'")
+        .map(|clause: ImportClause<'_>| clause.spec)
+        .expect("a static from clause parses");
+    assert_eq!(observed, "./local.js", "the quoted path is unwrapped");
 }
 
 #[test]
 fn a_parent_relative_import_reports_its_specifier() {
-    let observed: Option<&str> = extract_import_spec("{ a } from '../up.js'");
+    let observed: &str = parse_import_clause("{ a } from '../up.js'")
+        .map(|clause: ImportClause<'_>| clause.spec)
+        .expect("a static from clause parses");
+    assert_eq!(observed, "../up.js", "parent-relative paths count too");
+}
+
+#[test]
+fn a_bare_package_import_parses_its_specifier_verbatim() {
+    let observed: &str = parse_import_clause("{ a } from 'react'")
+        .map(|clause: ImportClause<'_>| clause.spec)
+        .expect("parsing reports the clause's shape");
     assert_eq!(
-        observed,
-        Some("../up.js"),
-        "parent-relative paths count too"
+        observed, "react",
+        "the parser reports the specifier it read; whether it is local is the \
+         inliner's decision, and a parser-level filter would hide that error"
     );
 }
 
 #[test]
-fn a_bare_package_import_is_not_reported() {
-    let observed: Option<&str> = extract_import_spec("{ a } from 'react'");
-    assert_eq!(observed, None, "a package specifier is not a local path");
-}
-
-#[test]
-fn an_import_without_a_from_clause_is_not_reported() {
-    let observed: Option<&str> = extract_import_spec("import './side-effect.js'");
-    assert_eq!(observed, None, "a bare side-effect import names nothing");
+fn an_import_without_a_from_clause_is_rejected() {
+    let observed: Result<ImportClause<'_>, EuvError> = parse_import_clause("'./side-effect.js'");
+    assert!(
+        observed.is_err(),
+        "a bare side-effect import names no specifier, so there is nothing to inline"
+    );
 }
 
 #[test]
 fn double_quoted_specifiers_are_unwrapped_too() {
-    let observed: Option<&str> = extract_import_spec("{ a } from \"./local.js\"");
-    assert_eq!(
-        observed,
-        Some("./local.js"),
-        "both quote styles are accepted"
-    );
+    let observed: &str = parse_import_clause("{ a } from \"./local.js\"")
+        .map(|clause: ImportClause<'_>| clause.spec)
+        .expect("a static from clause parses");
+    assert_eq!(observed, "./local.js", "both quote styles are accepted");
 }
 
 fn argv(items: &[&str]) -> Vec<String> {

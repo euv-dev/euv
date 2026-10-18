@@ -137,11 +137,33 @@ pub(crate) struct ServerUrlConfig {
     pub(crate) index_html_file_name: String,
 }
 
+/// One static `import` clause of the wasm-bindgen bridge, parsed into the
+/// bindings a self-contained bootstrap can reproduce.
+///
+/// A single clause carries at most one of the three binding forms: a
+/// namespace alias (`* as alias`), a list of named bindings (`{ a, b }`),
+/// or a default binding. The borrowed lifetimes tie every binding and the
+/// module specifier to the bridge source line they were sliced from.
+#[derive(Debug)]
+pub struct ImportClause<'a> {
+    /// The module specifier, with its quotes and trailing semicolon removed.
+    pub spec: &'a str,
+    /// The local binding of a `* as alias` namespace import.
+    pub namespace: Option<&'a str>,
+    /// The local binding of a default import.
+    pub default_binding: Option<&'a str>,
+    /// The bindings of a `{ a, b }` named import, in source order.
+    pub named: Vec<&'a str>,
+}
+
 /// A namespace import clause found in the bridge: `import * as alias from
 /// "spec"`.
 ///
-/// Collected while scanning the bridge's imports so the inlined IIFE can
-/// rebuild the alias as a plain object once the module graph is gone.
+/// Collected while scanning the bridge's imports so the inlined bootstrap
+/// can rebuild the alias as a plain object once the module graph is gone.
+/// The owned form exists so a namespace binding survives the async read of
+/// the snippet module it points at.
+#[derive(Debug)]
 pub(crate) struct NamespaceImport {
     /// The local binding the clause introduces.
     pub(crate) alias: String,

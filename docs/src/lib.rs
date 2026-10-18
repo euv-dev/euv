@@ -26,7 +26,7 @@ pub(crate) use {
     app::*,
     component::*,
     data::*,
-    js_sys::{Promise, decode_uri_component},
+    js_sys::Promise,
     {Event, HtmlInputElement, KeyboardEvent, Location},
 };
 

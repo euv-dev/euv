@@ -8,9 +8,15 @@ pub(crate) const INDEX_HTML_FILE_NAME: &str = "index.html";
 /// underscore output convention.
 pub(crate) const STR_HYPHEN: &str = "-";
 
-/// Placeholder token used in HTML templates for the JS import path.
+/// Placeholder token used by legacy HTML templates for the JS import path.
 ///
-/// Replaced at runtime with the resolved import path relative to the www directory.
+/// It is **detected, never substituted**: a template that still carries it
+/// ships a `<script type="module">` whose `import` statement would make the
+/// browser fetch a `.js` file, so [`generate_html`](crate::server::generate_html)
+/// replaces the whole enclosing `<script>` element with the self-contained
+/// inline bootstrap. The token itself never survives into the output.
+///
+/// New templates must use [`INLINE_JS_PLACEHOLDER`] instead.
 pub(crate) const IMPORT_PATH_PLACEHOLDER: &str = "__IMPORT_PATH__";
 
 /// Placeholder token used in HTML templates for the reload endpoint URL.
@@ -20,11 +26,13 @@ pub(crate) const RELOAD_ROUTE_PLACEHOLDER: &str = "__RELOAD_ROUTE__";
 
 /// Placeholder token used in HTML templates for the inlined wasm-bindgen JS bridge.
 ///
-/// Replaced at runtime with the body of `pkg/<name>.js` (with its top-level
-/// `import` statements stripped and the 2 snippet helper functions inlined),
-/// wrapped in a synchronous IIFE that fetches the wasm module and calls
-/// `main()`. This eliminates the separate HTTP request for the JS bridge file
-/// and skips ES module graph parsing on the critical path.
+/// Replaced at runtime with the body of the wasm-pack JS bridge (with its
+/// top-level `import` statements stripped and every snippet module it
+/// references inlined), wrapped in a self-contained IIFE that fetches the
+/// `.wasm` module and calls `main()`. The bridge `.js` file, its `.d.ts`
+/// declarations, its source maps and its `snippets/` modules are deleted
+/// once the HTML carrying this body has been written, so a deployed tree
+/// contains zero JavaScript files.
 pub(crate) const INLINE_JS_PLACEHOLDER: &str = "__EUV_INLINE_JS__";
 
 /// Placeholder token used in HTML templates for the `<base href="..."/>` tag.
@@ -37,11 +45,41 @@ pub(crate) const INLINE_JS_PLACEHOLDER: &str = "__EUV_INLINE_JS__";
 /// on `http://host:port/` instead of `http://host:port/www/`.
 pub(crate) const BASE_HREF_PLACEHOLDER: &str = "__EUV_BASE_HREF_TAG__";
 
-/// Environment variable to disable JS bridge inlining and fall back to the
-/// classic `<script type="module">import init, { main } from '__IMPORT_PATH__'`
-/// bootstrap. Set to any non-empty value to opt out (e.g. when the wasm-pack
-/// output structure changes and the inline pipeline can't recover).
-pub(crate) const EUV_NO_INLINE_BRIDGE_ENV: &str = "EUV_NO_INLINE_BRIDGE";
+/// The name of the directory wasm-pack emits snippet modules into.
+///
+/// Removed once every snippet it holds has been inlined into the HTML and
+/// deleted, so the deployed tree carries no JavaScript.
+pub(crate) const SNIPPET_DIR_NAME: &str = "snippets";
+
+/// The file-name suffixes of every JavaScript artifact wasm-pack emits.
+///
+/// Matched case-insensitively against the last path segment only. A file
+/// whose name ends with one of these is a build product this pipeline
+/// inlined into the HTML and may therefore delete; anything else in the
+/// output directory is the author's and is never touched.
+pub(crate) const GENERATED_JS_SUFFIXES: &[&str] = &[
+    ".js", ".mjs", ".cjs", ".js.map", ".mjs.map", ".cjs.map", ".d.ts",
+];
+
+/// The keywords an `export` line may carry before the declaration it
+/// applies to. Each is stripped so the declaration survives as a bare
+/// statement in the inlined bootstrap.
+pub(crate) const EXPORT_DECLARATION_KEYWORDS: &[&str] = &[
+    "async function ",
+    "function ",
+    "class ",
+    "const ",
+    "let ",
+    "var ",
+];
+
+/// The construct marking a bridge line as un-inlinable on its own.
+///
+/// wasm-bindgen resolves its default `.wasm` URL through `import.meta.url`,
+/// which has no meaning inside the inlined `<script>`. The bootstrap passes
+/// the URL explicitly instead, so a line carrying only that expression is
+/// dropped rather than kept as a syntax error.
+pub(crate) const IMPORT_META_URL_MARKER: &str = "import.meta.url";
 
 /// The `<style>` block for the pre-render spinner.
 ///

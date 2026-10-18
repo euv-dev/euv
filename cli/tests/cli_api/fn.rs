@@ -1215,7 +1215,7 @@ async fn a_build_only_pipeline_stops_at_the_blocked_out_dir() {
 }
 
 #[tokio::test]
-async fn a_full_pipeline_still_emits_html_when_the_build_fails() {
+async fn a_full_pipeline_reports_a_failed_build_and_tells_the_clients_why() {
     let root: PathBuf = scratch("full-pipeline-build-fails");
     let out: PathBuf = root.join("build").join("pkg");
     let args: ModeArgs = mode_args(&[
@@ -1225,29 +1225,238 @@ async fn a_full_pipeline_still_emits_html_when_the_build_fails() {
         "--out-dir",
         &out.to_string_lossy(),
     ]);
-    match run_build_pipeline(&args, None).await {
-        Ok(html) => {
-            assert!(
-                !html.is_empty(),
-                "a failed build still has to leave the dev server something to serve"
-            );
-            let produced: Vec<PathBuf> = fs::read_dir(&out)
-                .map(|entries: fs::ReadDir| {
-                    entries
-                        .filter_map(|entry: io::Result<fs::DirEntry>| entry.ok())
-                        .map(|entry: fs::DirEntry| entry.path())
-                        .collect()
-                })
-                .unwrap_or_default();
-            assert!(
-                produced.is_empty(),
-                "the build left artifacts behind, so this never exercised the failure \
-                 path and proves nothing: {produced:?}"
-            );
+    let (reload_tx, mut reload_rx): (
+        broadcast::Sender<ReloadEvent>,
+        broadcast::Receiver<ReloadEvent>,
+    ) = broadcast::channel(4);
+    let observed: Result<String, EuvError> = run_build_pipeline(&args, Some(&reload_tx)).await;
+    assert!(
+        observed.is_err(),
+        "a failed wasm build must not hand the dev server a page: the returned \
+         HTML is what replaces the previous page in memory, and a page built \
+         against artifacts that do not exist would boot nothing"
+    );
+    let event: ReloadEvent = reload_rx
+        .recv()
+        .await
+        .expect("a failed build notifies the browser instead of reloading it");
+    assert!(
+        matches!(event, ReloadEvent::Error(_)),
+        "the client must be told why, not told to reload: {event:?}"
+    );
+    let produced: Vec<PathBuf> = fs::read_dir(&out)
+        .map(|entries: fs::ReadDir| {
+            entries
+                .filter_map(|entry: io::Result<fs::DirEntry>| entry.ok())
+                .map(|entry: fs::DirEntry| entry.path())
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(
+        produced.is_empty(),
+        "the build left artifacts behind, so this never exercised the failure \
+         path and proves nothing: {produced:?}"
+    );
+}
+
+fn wasm_fixture(tag: &str) -> PathBuf {
+    let root: PathBuf = scratch(&format!("wasm-{tag}"));
+    write_file(
+        &root.join("Cargo.toml"),
+        "[package]\nname = \"euv-cli-pipeline-fixture\"\nversion = \"0.0.0\"\n\
+         edition = \"2021\"\n\n[lib]\ncrate-type = [\"cdylib\"]\n\n\
+         [dependencies]\nwasm-bindgen = \"0.2\"\n\n[workspace]\n",
+    );
+    write_file(
+        &root.join("src").join("lib.rs"),
+        "use wasm_bindgen::prelude::*;\n\n#[wasm_bindgen]\npub fn main() {}\n",
+    );
+    root
+}
+
+fn tree(dir: &Path) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let mut pending: Vec<PathBuf> = vec![dir.to_path_buf()];
+    while let Some(current) = pending.pop() {
+        let Ok(entries) = fs::read_dir(&current) else {
+            continue;
+        };
+        for entry in entries.filter_map(|entry: io::Result<fs::DirEntry>| entry.ok()) {
+            let path: PathBuf = entry.path();
+            let Ok(meta) = fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if meta.is_symlink() || meta.is_file() {
+                found.push(
+                    path.strip_prefix(dir)
+                        .unwrap_or(&path)
+                        .to_string_lossy()
+                        .to_string(),
+                );
+            } else if meta.is_dir() {
+                pending.push(path);
+            }
         }
-        Err(other) => panic!(
-            "a failed build is swallowed on purpose so the dev server still has a page; \
-             surfacing {other:?} here means the pipeline no longer does that"
-        ),
     }
+    found.sort();
+    found
+}
+
+#[tokio::test]
+async fn a_real_wasm_build_produces_a_no_javascript_page_and_no_javascript_on_disk() {
+    let root: PathBuf = wasm_fixture("nojs");
+    let out: PathBuf = root.join("www").join("pkg");
+    let args: ModeArgs = mode_args(&[
+        "--crate-path",
+        &root.to_string_lossy(),
+        "--",
+        "--out-dir",
+        &out.to_string_lossy(),
+    ]);
+    run_build_only_pipeline(&args)
+        .await
+        .expect("a real wasm-pack build succeeds");
+    let html: String = fs::read_to_string(root.join("www").join("index.html"))
+        .expect("the pipeline wrote the page it inlined into");
+    assert!(
+        !html.contains("<script type=\"module\"") && !html.contains("import * as"),
+        "the page must carry no module script: a single inlined bootstrap is the \
+         whole point, and a surviving `import` would re-introduce a module fetch"
+    );
+    assert!(
+        html.contains("<script>"),
+        "the inlined bootstrap lives in a plain script element: no `type=\"module\"`"
+    );
+    let leftovers: Vec<String> = tree(&out)
+        .into_iter()
+        .filter(|name: &String| {
+            let lower: String = name.to_ascii_lowercase();
+            lower.ends_with(".js")
+                || lower.ends_with(".mjs")
+                || lower.ends_with(".cjs")
+                || lower.ends_with(".js.map")
+                || lower.ends_with(".d.ts")
+        })
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "the page no longer imports any of this, so deploying it would ship \
+         unreachable glue: {leftovers:?}"
+    );
+    assert!(
+        tree(&out)
+            .iter()
+            .any(|name: &String| name.ends_with(".wasm")),
+        "the wasm module itself must survive: inlining the JavaScript must not \
+         inline the binary the page still fetches"
+    );
+}
+
+#[tokio::test]
+async fn the_cleanup_keeps_a_non_javascript_asset_an_author_left_inside_the_output() {
+    let root: PathBuf = wasm_fixture("non-js-asset");
+    let out: PathBuf = root.join("www").join("pkg");
+    let args: ModeArgs = mode_args(&[
+        "--crate-path",
+        &root.to_string_lossy(),
+        "--",
+        "--out-dir",
+        &out.to_string_lossy(),
+    ]);
+    run_build_only_pipeline(&args)
+        .await
+        .expect("a real wasm-pack build succeeds");
+    write_file(
+        &out.join("snippets").join("euv-core").join("license.txt"),
+        "MIT",
+    );
+    run_build_only_pipeline(&args)
+        .await
+        .expect("a second real build succeeds");
+    assert!(
+        out.join("snippets")
+            .join("euv-core")
+            .join("license.txt")
+            .exists(),
+        "an asset the build did not generate is the author's: deleting it because \
+         its directory sits under `snippets/` would destroy source data"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_cleanup_leaves_a_symlinked_directory_in_place_instead_of_following_it() {
+    let root: PathBuf = wasm_fixture("symlink-boundary");
+    let out: PathBuf = root.join("www").join("pkg");
+    let outside: PathBuf = root.join("outside");
+    write_file(&outside.join("kept.js"), "export function kept() {}\n");
+    let args: ModeArgs = mode_args(&[
+        "--crate-path",
+        &root.to_string_lossy(),
+        "--",
+        "--out-dir",
+        &out.to_string_lossy(),
+    ]);
+    run_build_only_pipeline(&args)
+        .await
+        .expect("a real wasm-pack build succeeds");
+    let link: PathBuf = out.join("linked");
+    symlink(&outside, &link).expect("create the directory symlink");
+    run_build_only_pipeline(&args)
+        .await
+        .expect("a real build with a symlink present succeeds");
+    assert!(
+        link.is_symlink() && outside.join("kept.js").exists(),
+        "the walk classifies entries with symlink_metadata: a link may leave the \
+         output or close a cycle, and following one would delete outside the tree \
+         this build owns"
+    );
+}
+
+#[tokio::test]
+async fn a_dev_page_base_matches_the_full_registered_nested_route() {
+    let root: PathBuf = wasm_fixture("nested-dev-base");
+    let args: ModeArgs = mode_args(&[
+        "--crate-path",
+        &root.to_string_lossy(),
+        "--www-dir",
+        "dist/site",
+    ]);
+    let html: String = run_build_pipeline(&args, None)
+        .await
+        .expect("the real dev build succeeds");
+    assert!(
+        html.contains("<base href=\"/dist/site/\""),
+        "the base must name the same nested prefix as the asset route"
+    );
+    assert_eq!(resolve_serving_route_prefix(&args), "dist/site");
+    assert!(
+        root.join("dist/site/pkg/euv_cli_pipeline_fixture_bg.wasm")
+            .is_file()
+    );
+}
+
+#[tokio::test]
+async fn a_dev_page_with_external_output_has_a_valid_url_prefix() {
+    let root: PathBuf = wasm_fixture("external-dev-base");
+    let site: PathBuf = scratch("external-dev-site");
+    let args: ModeArgs = mode_args(&[
+        "--crate-path",
+        &root.to_string_lossy(),
+        "--www-dir",
+        &site.to_string_lossy(),
+    ]);
+    let html: String = run_build_pipeline(&args, None)
+        .await
+        .expect("the real dev build succeeds");
+    let prefix: String = resolve_serving_route_prefix(&args);
+    assert!(
+        !prefix.contains('/') && !prefix.contains('\\'),
+        "the output's filesystem ancestors must not become URL segments"
+    );
+    assert!(
+        html.contains(&format!("<base href=\"/{prefix}/\"")),
+        "the base and registered asset route must agree"
+    );
+    assert!(site.join("pkg/euv_cli_pipeline_fixture_bg.wasm").is_file());
 }

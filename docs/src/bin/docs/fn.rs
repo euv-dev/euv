@@ -278,7 +278,7 @@ fn build_one(args: &Args, out_dir: &Path) -> Result<(), String> {
     // locale-specific route client-side.
     let index_html: PathBuf = out_dir.join(INDEX_HTML_FILE_NAME);
     let not_found_html: PathBuf = out_dir.join(NOT_FOUND_HTML_FILE_NAME);
-    if index_html.is_file() && !not_found_html.exists() {
+    if index_html.is_file() {
         fs::copy(&index_html, &not_found_html)
             .map_err(|e: io::Error| format!("copy 404.html: {e}"))?;
     }
