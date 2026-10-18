@@ -43,19 +43,23 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
              .c_nav_footer_divider { left: 0.75rem !important; right: 0.75rem !important; } \
              .c_nav_section_label { padding-left: 0.75rem !important; } \
              .c_nav_footer { padding-left: 0.75rem !important; } \
-             .c_euv_sidebar_children { margin-left: 8px !important; padding-left: 8px !important; } \
-             /* The dashed tree guide is the children's left edge, and the
-                hover marker should *replace* it on the hovered row, not sit
-                beside it. The guide paints at margin-left (8px) of the
-                children container; the row's padding box starts 1px (border)
-                + 8px (padding) further right. `left: -9px` walks the marker
-                back over both, so the 5px bar's left edge lands exactly on
-                the guide and covers its 1px for this row's height — measured
-                bar x == guide x at every nesting level (guide 8px left of
-                the row at all depths). Other rows keep their dashed segment
-                because their ::before stays transparent at rest.
-                Matched by descendant, not child: the renderer wraps
-                each row, so the row is never a direct child of
+             /* The guide has to land on the text x of the parent title above \
+                it, so `margin-left` takes the same `space-md` the parent \
+                row's own left padding uses. `padding-left` stays `space-sm`: \
+                it is the guide-to-child gap and half of the active row's \
+                pull-back, which must still meet the guide. */ \
+             .c_euv_sidebar_children { margin-left: var(--space-md, 12px) !important; padding-left: var(--space-sm, 8px) !important; } \
+             /* The dashed tree guide is the children's left edge, and the \
+                hover marker should *replace* it on the hovered row, not sit \
+                beside it. The row's padding box starts 1px (border) + 8px \
+                (padding) right of the guide, so `left: -9px` walks the marker \
+                back over both and the 5px bar's left edge lands exactly on the \
+                guide, covering its 1px for this row's height — measured bar x \
+                == guide x at every nesting level. It is `padding-left + \
+                border`, never `margin-left`: the margin moved to line the \
+                guide up with the parent label and must not be walked back. \
+                Matched by descendant, not child: the renderer wraps \
+                each row, so the row is never a direct child of \
                 `c_euv_sidebar_children`. */ \
              .c_euv_sidebar_children .c_euv_sidebar_link::before, .c_euv_sidebar_children .c_euv_sidebar_group_title::before { left: -9px !important; } \
              .c_euv_sidebar_children .c_euv_sidebar_link_active::before, .c_euv_sidebar_children .c_euv_sidebar_group_title_active::before { left: -8px !important; } \

@@ -464,8 +464,11 @@ pub fn resolve_serving_route_prefix(args: &ModeArgs) -> String {
                 .replace(CHAR_SLASH_BACK, STR_SLASH_FORWARD)
         })
         .unwrap_or_else(|_| {
-            args.get_www_dir()
-                .replace(CHAR_SLASH_BACK, STR_SLASH_FORWARD)
+            serving_root
+                .file_name()
+                .and_then(|name: &ffi::OsStr| name.to_str())
+                .unwrap_or_default()
+                .to_string()
         })
 }
 
@@ -533,11 +536,12 @@ pub fn resolve_out_dir(args: &ModeArgs) -> PathBuf {
     }
 }
 
-/// Executes a build-only pipeline: formats euv macros, cleans output directory,
-/// builds WASM, and generates HTML.
+/// Formats euv macros, builds WASM, writes HTML, then removes generated glue.
 ///
-/// Unlike `run_build_pipeline`, this cleans the output directory before building
-/// and skips reload notifications — only the essential WASM build artifacts are kept.
+/// The generated `.js`, `.d.ts`, `.js.map` and `snippets/` files are removed
+/// only after the HTML carrying their inlined bootstrap has been written, so a
+/// failed build leaves its artifacts on disk for diagnosis rather than deleting
+/// the evidence and reporting success.
 ///
 /// # Arguments
 ///
@@ -551,18 +555,111 @@ pub async fn run_build_only_pipeline(args: &ModeArgs) -> Result<(), EuvError> {
     if let Err(error) = format_dir(&src_path, FmtMode::Write).await {
         log::warn!("euv fmt error: {error}");
     }
-    let out_dir: PathBuf = resolve_out_dir(args);
-    clean_out_dir(&out_dir).await;
     build_wasm(args).await?;
     log::info!("WASM build completed successfully");
+    finalize_html_output(args, false).await?;
+    Ok(())
+}
+
+/// Writes the page and removes the JavaScript it inlined, in that order.
+///
+/// Every failure propagates: a build that cannot inline its bridge, cannot
+/// write its page, or cannot delete the JavaScript it just inlined reports the
+/// failure rather than shipping a page that imports a deleted file.
+///
+/// # Arguments
+///
+/// - `&ModeArgs` - The CLI arguments.
+/// - `bool` - Whether the page is being generated for the dev server, which
+///   injects a `<base href>` tag.
+///
+/// # Returns
+///
+/// - `Result<String, EuvError>` - The generated HTML.
+pub(crate) async fn finalize_html_output(
+    args: &ModeArgs,
+    is_dev_server: bool,
+) -> Result<String, EuvError> {
     let html_config: HtmlConfig = HtmlConfig::new(
         resolve_serving_root(args).await,
         resolve_import_path(args),
         resolve_build_mode(args) == BuildMode::Release,
         args.try_get_index_html().clone(),
-        false,
+        is_dev_server.then(|| resolve_serving_route_prefix(args)),
     );
-    generate_html(&html_config).await?;
+    let html: String = generate_html(&html_config).await?;
+    let pkg_dir: PathBuf = resolve_out_dir(args);
+    let removed: Vec<PathBuf> = remove_generated_js(&pkg_dir).await?;
+    if !removed.is_empty() {
+        log::info!(
+            "Inlined {} generated JavaScript file(s) into {} and removed them from {}",
+            removed.len(),
+            INDEX_HTML_FILE_NAME,
+            pkg_dir.display()
+        );
+    }
+    assert_no_js_artifacts(&pkg_dir).await?;
+    Ok(html)
+}
+
+/// Fails when the wasm-pack output directory still holds a JavaScript file
+/// this build is responsible for.
+///
+/// Catches the case where a delete silently missed a file: the page would
+/// still boot, but the deployed tree would carry the glue the build just
+/// claimed to have removed.
+///
+/// # Arguments
+///
+/// - `&Path` - The wasm-pack output directory.
+///
+/// # Returns
+///
+/// - `Result<(), EuvError>` - `Ok` when no generated JavaScript remains.
+async fn assert_no_js_artifacts(pkg_dir: &Path) -> Result<(), EuvError> {
+    let mut pending: Vec<PathBuf> = vec![pkg_dir.to_path_buf()];
+    while let Some(dir) = pending.pop() {
+        let mut entries: ReadDir =
+            read_dir(&dir)
+                .await
+                .map_err(|error: io::Error| EuvError::IoPath {
+                    message: String::from("Failed to inspect finalized WASM output"),
+                    path: dir.clone(),
+                    error,
+                })?;
+        while let Some(entry) =
+            entries
+                .next_entry()
+                .await
+                .map_err(|error: io::Error| EuvError::IoPath {
+                    message: String::from("Failed to inspect an entry of finalized WASM output"),
+                    path: dir.clone(),
+                    error,
+                })?
+        {
+            let path: PathBuf = entry.path();
+            let file_type: FileType =
+                entry
+                    .file_type()
+                    .await
+                    .map_err(|error: io::Error| EuvError::IoPath {
+                        message: String::from("Failed to inspect a finalized WASM output file"),
+                        path: path.clone(),
+                        error,
+                    })?;
+            if file_type.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            if is_generated_js_artifact(&path) {
+                return Err(EuvError::Message(format!(
+                    "{} survived the cleanup, so this build would deploy JavaScript; \
+                     the page no longer imports it, and it cannot be served",
+                    path.display()
+                )));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -592,8 +689,13 @@ pub async fn clean_out_dir(out_dir: &Path) {
     }
 }
 
-/// Executes a full build pipeline: euv fmt, build wasm, generate HTML.
-/// Notifies the reload channel on build success or failure.
+/// Executes a full build pipeline: euv fmt, build wasm, generate HTML, then
+/// remove the JavaScript that was inlined into it.
+///
+/// Only a pipeline whose wasm build, page write and JavaScript cleanup all
+/// succeeded broadcasts a reload. A failure at any phase notifies the client
+/// of the error and leaves the previous page in memory, so a browser is never
+/// pointed at a page whose inlined bootstrap references a deleted file.
 ///
 /// # Arguments
 ///
@@ -611,31 +713,41 @@ pub async fn run_build_pipeline(
     if let Err(error) = format_dir(&src_path, FmtMode::Write).await {
         log::warn!("euv fmt error: {error}");
     }
-    match build_wasm(args).await {
-        Ok(()) => {
-            log::info!("WASM build completed successfully");
-            if let Some(sender) = reload_tx {
-                let _: Result<usize, tokio::sync::broadcast::error::SendError<ReloadEvent>> =
-                    sender.send(ReloadEvent::Reload);
-            }
-        }
-        Err(error) => {
-            log::error!("WASM build failed: {error}");
-            if let Some(sender) = reload_tx {
-                let _: Result<usize, tokio::sync::broadcast::error::SendError<ReloadEvent>> =
-                    sender.send(ReloadEvent::Error(error.to_string()));
-            }
-        }
+    if let Err(error) = build_wasm(args).await {
+        log::error!("WASM build failed: {error}");
+        notify_reload(reload_tx, Err(error.to_string()));
+        return Err(error);
     }
-    let html_config: HtmlConfig = HtmlConfig::new(
-        resolve_serving_root(args).await,
-        resolve_import_path(args),
-        resolve_build_mode(args) == BuildMode::Release,
-        args.try_get_index_html().clone(),
-        true,
-    );
-    let html: String = generate_html(&html_config).await?;
+    log::info!("WASM build completed successfully");
+    let html: String = match finalize_html_output(args, true).await {
+        Ok(html) => html,
+        Err(error) => {
+            log::error!("Page generation failed: {error}");
+            notify_reload(reload_tx, Err(error.to_string()));
+            return Err(error);
+        }
+    };
+    notify_reload(reload_tx, Ok(()));
     Ok(html)
+}
+
+/// Sends one reload event to the dev server's clients.
+///
+/// # Arguments
+///
+/// - `Option<&broadcast::Sender<ReloadEvent>>` - The channel, when the caller has one.
+/// - `Result<(), String>` - `Ok` to ask clients to reload, `Err` to tell them
+///   why the rebuild failed.
+fn notify_reload(reload_tx: Option<&broadcast::Sender<ReloadEvent>>, outcome: Result<(), String>) {
+    let Some(sender) = reload_tx else {
+        return;
+    };
+    let event: ReloadEvent = match outcome {
+        Ok(()) => ReloadEvent::Reload,
+        Err(message) => ReloadEvent::Error(message),
+    };
+    let _: Result<usize, tokio::sync::broadcast::error::SendError<ReloadEvent>> =
+        sender.send(event);
 }
 
 /// Watches source files and triggers WASM builds.
@@ -887,14 +999,21 @@ pub(crate) fn print_server_urls(config: &ServerUrlConfig) {
 }
 
 /// Reads the wasm-bindgen JS bridge produced by `wasm-pack build
-/// --target web` and returns a synchronous IIFE that inlines the bridge
-/// and its snippet modules, fetches the wasm module from `wasm_url`,
-/// then calls `main()` once the instance is ready.
+/// --target web` and returns a self-contained IIFE that inlines the
+/// bridge and every module it imports, fetches the wasm module from
+/// `wasm_url`, then calls `main()` once the instance is ready.
 ///
-/// The bridge's own top-level `import` lines (the tiny snippet helpers
-/// under `./snippets/`) are stripped and their bodies inlined, so the
-/// result is self-contained and the browser makes zero extra requests
-/// for the bridge file.
+/// The bridge's own top-level `import` lines (the snippet helpers under
+/// `./snippets/`) are stripped and their bodies inlined, so the result
+/// makes zero HTTP requests for JavaScript: the page carries the whole
+/// module graph in one `<script>`.
+///
+/// Fails closed. A bridge whose bootstrap this cannot reproduce — one
+/// whose `__wbg_init` uses `import.meta.url` on a line that carries
+/// other statements, one that imports a non-relative or named-bound
+/// module — returns an error naming the construct, never a bootstrap
+/// that silently fails in the browser.
+///
 /// # Arguments
 ///
 /// - `&Path` - Directory holding the wasm-pack output.
@@ -903,8 +1022,8 @@ pub(crate) fn print_server_urls(config: &ServerUrlConfig) {
 ///
 /// # Returns
 ///
-/// - `Result<String, EuvError>` - The IIFE source, or an error if the
-///   bridge or one of its snippet imports cannot be read.
+/// - `Result<String, EuvError>` - The IIFE source, or an error naming the
+///   exact unsupported construct when the bridge cannot be inlined.
 pub(crate) async fn build_inline_bridge(
     pkg_dir: &Path,
     js_name: &str,
@@ -919,140 +1038,386 @@ pub(crate) async fn build_inline_bridge(
                 path: js_path.clone(),
                 error,
             })?;
-    let snippet_bodies: String = collect_snippet_bodies(&bridge_source, pkg_dir).await?;
-    let stripped: String = strip_module_imports(&bridge_source);
-    let js_only: String = strip_trailing_module_exports(&stripped);
-    let wasm_url_json: String = serde_json_wasm_url(wasm_url);
+    let inlined: String = inline_module_graph(&bridge_source, pkg_dir).await?;
+    let js_only: String = strip_trailing_module_exports(&inlined);
+    if !js_only.contains("function main(") {
+        return Err(EuvError::Message(format!(
+            "wasm-bindgen bridge '{js_name}' declares no main() for the bootstrap to call"
+        )));
+    }
+    if !js_only.contains("__wbg_get_imports") {
+        return Err(EuvError::Message(format!(
+            "wasm-bindgen bridge '{js_name}' declares no __wbg_get_imports() \
+             for the bootstrap to instantiate the module with"
+        )));
+    }
+    let wasm_url_json: String = encode_js_string(wasm_url);
     Ok(format!(
         "(function() {{\n\
-         {snippet_bodies}\n\
          {js_only}\n\
          var __euv_wasm_url = {wasm_url_json};\n\
+         var __euv_base = (document.querySelector('base[href]') && document.baseURI) || location.href;\n\
+         var __euv_url = new URL(__euv_wasm_url, __euv_base).toString();\n\
+         function __euv_main() {{ if (typeof main === 'function') {{ main(); }} }}\n\
          if (typeof __wbg_init === 'function') {{\n\
-         var __euv_base = (document.querySelector('base[href]') && document.baseURI) || location.href;\n         __wbg_init(new URL(__euv_wasm_url, __euv_base).toString()).then(function() {{\n\
-         if (typeof main === 'function') main();\n\
-         }}).catch(function(e) {{ console.error('[euv] inline bridge init failed:', e); }});\n\
+         __wbg_init(__euv_url).then(__euv_main).catch(function(e) {{\n\
+         console.error('[euv] inline bridge init failed:', e);\n\
+         }});\n\
          }} else if (typeof initSync === 'function') {{\n\
-         initSync();\n\
-         if (typeof main === 'function') main();\n\
+         fetch(__euv_url).then(function(response) {{ return response.arrayBuffer(); }})\n\
+         .then(function(bytes) {{ initSync({{ module: bytes }}); __euv_main(); }})\n\
+         .catch(function(e) {{ console.error('[euv] inline bridge init failed:', e); }});\n\
          }} else {{\n\
-         console.error('[euv] inline bridge: no __wbg_init or initSync exported');\n\
+         console.error('[euv] inline bridge: no __wbg_init or initSync to instantiate the module');\n\
          }}\n\
          }})();\n"
     ))
 }
 
-/// Returns the inline `<script>` body to use when JS bridge inlining is
-/// disabled, restoring the classic module import as a fallback during
-/// wasm-pack output transitions.
+/// Walks the bridge and every module it imports, returning their bodies
+/// concatenated in dependency order with the bridge's own `import` lines
+/// and namespace aliases materialised as plain `var` objects.
+///
+/// Fails closed: an import clause shape this inliner does not model, a
+/// specifier that is not relative, a specifier that escapes the package
+/// directory, a snippet that cannot be read, or a snippet that exports
+/// nothing a namespace import can bind all produce an error instead of a
+/// silently truncated bootstrap.
 ///
 /// # Arguments
 ///
-/// - `&str` - The module import path the browser should resolve.
+/// - `&str` - The bridge source.
+/// - `&Path` - Directory holding the wasm-pack output.
 ///
 /// # Returns
 ///
-/// - `String` - The `<script>` body, ready to be embedded in the page.
-pub(crate) fn build_module_fallback_bridge(import_path: &str) -> String {
-    format!(
-        "    import init, {{ main }} from '{import_path}';\n    \
-         await init();\n    \
-         main();\n"
-    )
-}
-
-/// Returns `true` when the inline bridge should be skipped.
-///
-/// # Returns
-///
-/// - `bool` - `true` if the env var is set to a non-empty value.
-pub(crate) fn inline_bridge_disabled() -> bool {
-    matches!(var(EUV_NO_INLINE_BRIDGE_ENV), Ok(value) if !value.is_empty())
-}
-
-/// Collects the source of every module the bridge imports, inlined in
-/// dependency order, and materialises each namespace import as a `var`
-/// object so the bridge body keeps working without the module graph.
-///
-/// # Arguments
-///
-/// - `&str` - The bridge source whose `import` lines drive the scan.
-/// - `&Path` - Directory holding the wasm-pack output, used to resolve
-///   each relative specifier.
-///
-/// # Returns
-///
-/// - `Result<String, EuvError>` - The concatenated snippet bodies, or an
-///   error if a specifier escapes the package directory.
-async fn collect_snippet_bodies(bridge_source: &str, pkg_dir: &Path) -> Result<String, EuvError> {
-    let mut bodies: String = String::new();
-    let mut namespace_imports: Vec<NamespaceImport> = Vec::new();
+/// - `Result<String, EuvError>` - The concatenated module bodies.
+async fn inline_module_graph(bridge_source: &str, pkg_dir: &Path) -> Result<String, EuvError> {
+    let mut snippets: Vec<(PathBuf, String)> = Vec::new();
+    let mut namespace_clauses: Vec<NamespaceImport> = Vec::new();
     for line in bridge_source.lines() {
         let trimmed: &str = line.trim();
         if !trimmed.starts_with("import ") {
             continue;
         }
-        let rest: &str = match trimmed.strip_prefix("import ") {
-            Some(value) => value,
-            None => continue,
-        };
-        let spec: &str = match extract_import_spec(rest) {
-            Some(value) => value,
-            None => continue,
-        };
-        if is_namespace_import(rest)
-            && let Some(alias) = extract_namespace_alias(rest)
-        {
-            namespace_imports.push(NamespaceImport {
+        let rest: &str = trimmed.strip_prefix("import ").unwrap_or_default();
+        let clause: ImportClause<'_> = parse_import_clause(rest)?;
+        if clause.default_binding.is_some() || !clause.named.is_empty() {
+            return Err(EuvError::Message(format!(
+                "wasm-bindgen bridge imports a default or named binding from '{}', \
+                 which a self-contained bootstrap cannot reproduce",
+                clause.spec
+            )));
+        }
+        if !(clause.spec.starts_with("./") || clause.spec.starts_with("../")) {
+            return Err(EuvError::Message(format!(
+                "wasm-bindgen bridge imports the bare module '{}', which a \
+                 self-contained bootstrap cannot fetch",
+                clause.spec
+            )));
+        }
+        if let Some(alias) = clause.namespace {
+            namespace_clauses.push(NamespaceImport {
                 alias: alias.to_string(),
-                spec: spec.to_string(),
+                spec: clause.spec.to_string(),
             });
         }
-        let body: Option<String> = read_snippet_module(pkg_dir, spec).await?;
-        if let Some(body) = body {
-            if !bodies.is_empty() {
-                bodies.push('\n');
-            }
-            bodies.push_str(&body);
+        let snippet_path: PathBuf = resolve_snippet_path(pkg_dir, clause.spec).await?;
+        if snippets
+            .iter()
+            .any(|(path, _): &(PathBuf, String)| path == &snippet_path)
+        {
+            continue;
         }
+        let raw: String = read_to_string(&snippet_path)
+            .await
+            .map_err(|error: io::Error| EuvError::IoPath {
+                message: String::from("Failed to read wasm-pack snippet module"),
+                path: snippet_path.clone(),
+                error,
+            })?;
+        snippets.push((snippet_path, raw));
     }
-    for ns in &namespace_imports {
-        let snippet_path: PathBuf = resolve_snippet_path(pkg_dir, &ns.spec)?;
-        let exports: Vec<String> = if snippet_path.exists() {
-            let raw: String = read_to_string(&snippet_path)
-                .await
-                .map_err(|error: io::Error| EuvError::IoPath {
-                    message: String::from(
-                        "Failed to read wasm-pack snippet module for namespace export scan",
-                    ),
-                    path: snippet_path.clone(),
-                    error,
-                })?;
-            extract_exported_function_names(&raw)
-        } else {
-            Vec::new()
-        };
-        if !bodies.is_empty() {
-            bodies.push('\n');
+    let mut out: String = String::new();
+    for (snippet_path, raw) in &snippets {
+        let body: String = strip_module_exports(raw).map_err(|error: EuvError| match error {
+            EuvError::Message(message) => EuvError::Message(format!(
+                "{} in snippet module '{}'",
+                message,
+                snippet_path.display()
+            )),
+            other => other,
+        })?;
+        if body.trim().is_empty() {
+            return Err(EuvError::Message(format!(
+                "snippet module '{}' has no inlinable body",
+                snippet_path.display()
+            )));
         }
-        bodies.push_str(&format!("var {} = {{", ns.alias));
-        for (i, name) in exports.iter().enumerate() {
-            if i > 0 {
-                bodies.push(',');
-            }
-            bodies.push_str(name);
-            bodies.push(':');
-            bodies.push_str(name);
-        }
-        bodies.push_str("};\n");
+        out.push_str(&body);
+        out.push('\n');
     }
-    Ok(bodies)
+    for clause in &namespace_clauses {
+        let snippet_path: PathBuf = resolve_snippet_path(pkg_dir, &clause.spec).await?;
+        let raw: String = snippets
+            .iter()
+            .find(|(path, _): &&(PathBuf, String)| *path == snippet_path)
+            .map(|(_, raw): &(PathBuf, String)| raw.clone())
+            .unwrap_or_default();
+        let names: Vec<String> = extract_exported_names(&raw);
+        if names.is_empty() {
+            return Err(EuvError::Message(format!(
+                "snippet module '{}' exports nothing the namespace binding '{}' \
+                 could reference",
+                clause.spec, clause.alias
+            )));
+        }
+        out.push_str(&render_namespace_object(&clause.alias, &names));
+    }
+    for line in bridge_source.lines() {
+        let trimmed: &str = line.trim();
+        if trimmed.starts_with("import ") {
+            continue;
+        }
+        if trimmed.contains(IMPORT_META_URL_MARKER) {
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    Ok(out)
 }
 
-/// Scans a snippet module for `export function NAME(` declarations and
-/// returns their names. The IIFE relies on function declarations being
-/// hoisted, so these names resolve to the same bindings that
-/// wasm-bindgen's `__wbg_get_imports` expects.
+/// Parses one `import` clause, rejecting shapes the inliner cannot model.
+///
+/// # Arguments
+///
+/// - `&str` - The static import clause after the `import` keyword.
+///
+/// # Returns
+///
+/// - `Result<ImportClause<'_>, EuvError>` - Borrowed bindings and module specifier.
+pub fn parse_import_clause(rest: &str) -> Result<ImportClause<'_>, EuvError> {
+    let rest: &str = rest.trim().trim_end_matches(';').trim();
+    let from_idx: usize = rest.find(" from ").ok_or_else(|| {
+        EuvError::Message(format!(
+            "bridge import '{rest}' is not a static `from` clause, which a \
+             self-contained bootstrap cannot reproduce"
+        ))
+    })?;
+    let head: &str = rest[..from_idx].trim();
+    let quoted: &str = rest[from_idx + " from ".len()..].trim();
+    let quote: char = match quoted.chars().next() {
+        Some(quote @ ('\'' | '"')) => quote,
+        _ => {
+            return Err(EuvError::Message(format!(
+                "bridge import specifier '{quoted}' is not a quoted string"
+            )));
+        }
+    };
+    let after: &str = &quoted[quote.len_utf8()..];
+    let spec: &str = after.split(quote).next().unwrap_or_default();
+    if spec.is_empty() {
+        return Err(EuvError::Message(format!(
+            "bridge import '{rest}' names an empty specifier"
+        )));
+    }
+    if head.starts_with('*') {
+        let alias: &str = head
+            .strip_prefix('*')
+            .map(|value: &str| value.trim())
+            .and_then(|value: &str| value.strip_prefix("as "))
+            .map(|value: &str| value.trim())
+            .unwrap_or_default();
+        if alias.is_empty() {
+            return Err(EuvError::Message(format!(
+                "bridge import '{rest}' is a namespace import without a binding"
+            )));
+        }
+        return Ok(ImportClause {
+            spec,
+            namespace: Some(alias),
+            default_binding: None,
+            named: Vec::new(),
+        });
+    }
+    if let Some(inner) = head.strip_prefix('{') {
+        let inner: &str = inner.strip_suffix('}').ok_or_else(|| {
+            EuvError::Message(format!(
+                "bridge import '{rest}' has an unbalanced `{{` clause"
+            ))
+        })?;
+        return Ok(ImportClause {
+            spec,
+            namespace: None,
+            default_binding: None,
+            named: inner
+                .split(',')
+                .map(|entry: &str| entry.trim())
+                .filter(|entry: &&str| !entry.is_empty())
+                .collect(),
+        });
+    }
+    Ok(ImportClause {
+        spec,
+        namespace: None,
+        default_binding: Some(head),
+        named: Vec::new(),
+    })
+}
+
+/// Renders the `var <alias> = { a: a, ... };` statement a namespace import
+/// becomes once the module graph is gone.
+///
+/// # Arguments
+///
+/// - `&str` - Local namespace binding.
+/// - `&[String]` - Exported names to expose on the namespace object.
+///
+/// # Returns
+///
+/// - `String` - The JavaScript namespace declaration.
+fn render_namespace_object(alias: &str, names: &[String]) -> String {
+    let mut out: String = format!("var {alias} = {{");
+    for (index, name) in names.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push_str(name);
+        out.push(':');
+        out.push_str(name);
+    }
+    out.push_str("};\n");
+    out
+}
+
+/// Strips the `export` keyword from a snippet module, turning it into bare
+/// declarations, and rejects export forms a bare declaration cannot carry.
+///
+/// # Arguments
+///
+/// - `&str` - The snippet module source.
+///
+/// # Returns
+///
+/// - `Result<String, EuvError>` - The same source with its `export` keywords
+///   removed, or an error naming the unsupported export form.
+fn strip_module_exports(source: &str) -> Result<String, EuvError> {
+    let mut out: String = String::with_capacity(source.len());
+    for line in source.lines() {
+        let trimmed: &str = line.trim();
+        let Some(rest) = trimmed.strip_prefix("export ") else {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        };
+        match classify_export(rest) {
+            ExportForm::Aliases(clause) => {
+                out.push_str(&render_export_aliases(clause)?);
+            }
+            ExportForm::Declaration(declaration) => {
+                out.push_str(declaration);
+                out.push('\n');
+            }
+            ExportForm::Unsupported => {
+                return Err(EuvError::Message(format!(
+                    "snippet exports '{rest}', a form a self-contained \
+                     bootstrap cannot reproduce"
+                )));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Classifies the text following an `export ` keyword.
+///
+/// # Arguments
+///
+/// - `&str` - Source immediately after the export keyword.
+///
+/// # Returns
+///
+/// - `ExportForm<'_>` - A declaration, alias list, or unsupported export.
+fn classify_export(rest: &str) -> ExportForm<'_> {
+    let trimmed: &str = rest.trim_end().trim_end_matches(';');
+    if let Some(inner) = trimmed.strip_prefix('{')
+        && inner.trim_end().ends_with('}')
+    {
+        return ExportForm::Aliases(inner.trim_end().trim_end_matches('}'));
+    }
+    if EXPORT_DECLARATION_KEYWORDS
+        .iter()
+        .any(|keyword: &&str| trimmed.starts_with(keyword))
+    {
+        return ExportForm::Declaration(trimmed);
+    }
+    ExportForm::Unsupported
+}
+
+/// Renders an `{ a, b as c }` export clause as the assignments that keep
+/// each local binding reachable under its exported name.
+///
+/// An export of `wasm`, or an alias whose two names match, is dropped:
+/// the inlined bootstrap is a plain `<script>` with no module namespace
+/// and no `wasm` binding in scope, and an identity alias needs no
+/// assignment.
+///
+/// # Arguments
+///
+/// - `&str` - The clause body between the braces.
+///
+/// # Returns
+///
+/// - `Result<String, EuvError>` - The assignments, or an error naming a
+///   non-identifier entry.
+fn render_export_aliases(clause: &str) -> Result<String, EuvError> {
+    let mut out: String = String::new();
+    for entry in clause.split(',') {
+        let entry: &str = entry.trim();
+        if entry.is_empty() {
+            continue;
+        }
+        let (original, exported): (&str, &str) = match entry.split_once(" as ") {
+            Some((original, exported)) => (original.trim(), exported.trim()),
+            None => (entry, entry),
+        };
+        if !is_identifier(original) || !is_identifier(exported) {
+            return Err(EuvError::Message(format!(
+                "snippet exports the non-identifier entry '{entry}'"
+            )));
+        }
+        if original == exported || exported == "default" || original == "wasm" {
+            continue;
+        }
+        out.push_str(exported);
+        out.push_str(" = ");
+        out.push_str(original);
+        out.push_str(";\n");
+    }
+    Ok(out)
+}
+
+/// Returns `true` when `value` is a bare JavaScript identifier.
+///
+/// # Arguments
+///
+/// - `&str` - Candidate binding name.
+///
+/// # Returns
+///
+/// - `bool` - Whether the value contains only supported identifier characters.
+fn is_identifier(value: &str) -> bool {
+    !value.is_empty()
+        && !value.starts_with(|c: char| c.is_ascii_digit())
+        && value
+            .chars()
+            .all(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+}
+
+/// Scans a snippet module for every name it exports, so a namespace import
+/// can be rebuilt as a plain object. `export function`, `export async
+/// function`, `export class` and `export const|let|var` all count.
 ///
 /// # Arguments
 ///
@@ -1060,125 +1425,41 @@ async fn collect_snippet_bodies(bridge_source: &str, pkg_dir: &Path) -> Result<S
 ///
 /// # Returns
 ///
-/// - `Vec<String>` - Every exported function name, in source order.
-pub fn extract_exported_function_names(source: &str) -> Vec<String> {
+/// - `Vec<String>` - Every exported name, in source order.
+pub fn extract_exported_names(source: &str) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
     for line in source.lines() {
         let trimmed: &str = line.trim();
-        if let Some(rest) = trimmed.strip_prefix("export function ") {
-            let name_end: usize =
-                match rest.find(|c: char| !c.is_alphanumeric() && c != '_' && c != '$') {
-                    Some(value) => value,
-                    None => rest.len(),
-                };
-            let name: &str = &rest[..name_end];
-            if !name.is_empty() {
-                names.push(name.to_string());
-            }
+        let Some(rest) = trimmed.strip_prefix("export ") else {
+            continue;
+        };
+        let declaration: Option<&str> = EXPORT_DECLARATION_KEYWORDS
+            .iter()
+            .find_map(|keyword: &&str| rest.strip_prefix(keyword));
+        if let Some(name) = declaration.and_then(leading_identifier)
+            && !names.iter().any(|existing: &String| existing == name)
+        {
+            names.push(name.to_string());
         }
     }
     names
 }
 
-/// Returns `true` when the clause is a namespace import (`import * as X`).
+/// Returns the leading identifier of `value`, or `None` when it starts with
+/// something that cannot be one.
 ///
 /// # Arguments
 ///
-/// - `&str` - The import clause, without its leading `import` keyword.
+/// - `&str` - Declaration text starting with the exported name.
 ///
 /// # Returns
 ///
-/// - `bool` - `true` for `* as <alias>` clauses.
-pub fn is_namespace_import(rest: &str) -> bool {
-    rest.trim_start().starts_with('*')
-}
-
-/// Extracts the local binding a namespace import introduces.
-///
-/// # Arguments
-///
-/// - `&str` - The import clause, without its leading `import` keyword.
-///
-/// # Returns
-///
-/// - `Option<&str>` - The alias, or `None` if the clause is not a
-///   namespace import or carries no name.
-pub fn extract_namespace_alias(rest: &str) -> Option<&str> {
-    let rest: &str = rest.trim_end_matches(';').trim();
-    if !rest.starts_with('*') {
-        return None;
-    }
-    let rest: &str = rest.strip_prefix('*')?.trim();
-    let rest: &str = rest.strip_prefix("as")?.trim();
-    let end: usize = match rest.find(|c: char| !c.is_alphanumeric() && c != '_' && c != '$') {
-        Some(value) => value,
-        None => rest.len(),
-    };
-    let alias: &str = &rest[..end];
-    if alias.is_empty() { None } else { Some(alias) }
-}
-
-/// Extracts the relative specifier an import clause resolves against.
-///
-/// Bare specifiers are rejected: only `./` and `../` targets are inlined,
-/// because anything else would drag in a module this code does not
-/// control.
-///
-/// # Arguments
-///
-/// - `&str` - The import clause, without its leading `import` keyword.
-///
-/// # Returns
-///
-/// - `Option<&str>` - The specifier with its quotes stripped, or `None`
-///   when the clause has no `from` or names a non-relative module.
-pub fn extract_import_spec(rest: &str) -> Option<&str> {
-    let rest: &str = rest.trim_end_matches(';').trim();
-    let from_idx: usize = rest.find(" from ")?;
-    let spec_part: &str = rest[from_idx + " from ".len()..].trim();
-    let spec: &str = spec_part
-        .trim_start_matches('\'')
-        .trim_start_matches('"')
-        .trim_end_matches('\'')
-        .trim_end_matches('"');
-    if spec.starts_with("./") || spec.starts_with("../") {
-        Some(spec)
-    } else {
-        None
-    }
-}
-
-/// Reads one snippet module and returns its body with the `export` keyword
-/// stripped, so it can be concatenated into the IIFE as a plain
-/// declaration.
-///
-/// # Arguments
-///
-/// - `&Path` - Directory holding the wasm-pack output.
-/// - `&str` - Relative specifier of the snippet to read.
-///
-/// # Returns
-///
-/// - `Result<Option<String>, EuvError>` - The stripped body, `None` if the
-///   file does not exist, or an error if it cannot be read or decoded.
-async fn read_snippet_module(pkg_dir: &Path, spec: &str) -> Result<Option<String>, EuvError> {
-    let snippet_path: PathBuf = resolve_snippet_path(pkg_dir, spec)?;
-    if !snippet_path.exists() {
-        return Ok(None);
-    }
-    let bytes: Vec<u8> =
-        read(&snippet_path)
-            .await
-            .map_err(|error: io::Error| EuvError::IoPath {
-                message: String::from("Failed to read wasm-pack snippet module"),
-                path: snippet_path.clone(),
-                error,
-            })?;
-    let raw: String = String::from_utf8(bytes).map_err(|error: FromUtf8Error| EuvError::Utf8 {
-        message: String::from("Snippet module is not valid UTF-8"),
-        error,
-    })?;
-    Ok(Some(strip_snippet_export(&raw)))
+/// - `Option<&str>` - The leading identifier, when present.
+fn leading_identifier(value: &str) -> Option<&str> {
+    let end: usize = value
+        .find(|c: char| !c.is_alphanumeric() && c != '_' && c != '$')
+        .unwrap_or(value.len());
+    if end == 0 { None } else { Some(&value[..end]) }
 }
 
 /// Resolves a relative specifier to a path inside `pkg_dir`.
@@ -1192,8 +1473,8 @@ async fn read_snippet_module(pkg_dir: &Path, spec: &str) -> Result<Option<String
 ///
 /// - `Result<PathBuf, EuvError>` - The resolved path, or an error if the
 ///   specifier climbs above `pkg_dir`.
-fn resolve_snippet_path(pkg_dir: &Path, spec: &str) -> Result<PathBuf, EuvError> {
-    let base: &str = spec.trim_start_matches('.').trim_start_matches('/');
+async fn resolve_snippet_path(pkg_dir: &Path, spec: &str) -> Result<PathBuf, EuvError> {
+    let base: &str = spec.strip_prefix("./").unwrap_or(spec);
     let mut path: PathBuf = pkg_dir.to_path_buf();
     for segment in base.split('/') {
         if segment.is_empty() || segment == "." {
@@ -1206,69 +1487,38 @@ fn resolve_snippet_path(pkg_dir: &Path, spec: &str) -> Result<PathBuf, EuvError>
         }
         path.push(segment);
     }
-    Ok(path)
-}
-
-/// Rewrites a snippet module's source into bare declarations by removing
-/// the `export ` prefix from every line that carries one.
-///
-/// # Arguments
-///
-/// - `&str` - The snippet module source.
-///
-/// # Returns
-///
-/// - `String` - The same source with the `export ` keywords removed.
-fn strip_snippet_export(raw: &str) -> String {
-    let mut out: String = String::with_capacity(raw.len());
-    for line in raw.lines() {
-        let trimmed: &str = line.trim();
-        if trimmed.starts_with("export ") {
-            if let Some(rest) = trimmed.strip_prefix("export ") {
-                out.push_str(rest);
-                out.push('\n');
-            }
-        } else {
-            out.push_str(line);
-            out.push('\n');
-        }
+    let root: PathBuf =
+        canonicalize(pkg_dir)
+            .await
+            .map_err(|error: io::Error| EuvError::IoPath {
+                message: String::from("Failed to resolve the WASM output directory"),
+                path: pkg_dir.to_path_buf(),
+                error,
+            })?;
+    let resolved: PathBuf =
+        canonicalize(&path)
+            .await
+            .map_err(|error: io::Error| EuvError::IoPath {
+                message: String::from("Failed to resolve the imported snippet"),
+                path: path.clone(),
+                error,
+            })?;
+    if !resolved.starts_with(root) {
+        return Err(EuvError::Message(format!(
+            "Snippet import '{spec}' resolves outside the WASM output directory",
+        )));
     }
-    out
+    Ok(resolved)
 }
 
-/// Removes the bridge's own `import` lines and any line referencing
-/// `import.meta.url`, since the inlined IIFE has neither.
+/// Removes the bridge's trailing `export { ... }` clauses, turning each
+/// exported alias into the assignment that keeps the local function
+/// reachable under its exported name, and its `export function` lines into
+/// plain declarations.
 ///
 /// # Arguments
 ///
-/// - `&str` - The bridge source.
-///
-/// # Returns
-///
-/// - `String` - The source with those lines dropped.
-fn strip_module_imports(source: &str) -> String {
-    let mut out: String = String::with_capacity(source.len());
-    for line in source.lines() {
-        let trimmed: &str = line.trim();
-        if trimmed.starts_with("import ") {
-            continue;
-        }
-        if trimmed.contains("import.meta.url") {
-            continue;
-        }
-        out.push_str(line);
-        out.push('\n');
-    }
-    out
-}
-
-/// Removes the bridge's trailing `export { ... }` and `export function`
-/// lines, turning each exported alias into the assignment that keeps the
-/// local function reachable under its exported name.
-///
-/// # Arguments
-///
-/// - `&str` - The bridge source, after [`strip_module_imports`].
+/// - `&str` - The bridge source, after its `import` lines were removed.
 ///
 /// # Returns
 ///
@@ -1277,113 +1527,46 @@ fn strip_trailing_module_exports(source: &str) -> String {
     let mut out: String = String::with_capacity(source.len());
     for line in source.lines() {
         let trimmed: &str = line.trim();
-        if trimmed.starts_with("export ") && trimmed.contains('{') && trimmed.contains('}') {
-            let inner: &str = &trimmed["export ".len()..];
-            let stripped: &str = match inner.strip_prefix('{') {
-                Some(value) => value,
-                None => {
-                    out.push_str(line);
-                    out.push('\n');
-                    continue;
+        let Some(rest) = trimmed.strip_prefix("export ") else {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        };
+        match classify_export(rest) {
+            ExportForm::Aliases(clause) => {
+                if let Ok(aliases) = render_export_aliases(clause) {
+                    out.push_str(&aliases);
                 }
-            };
-            let close: usize = match stripped.rfind('}') {
-                Some(value) => value,
-                None => {
-                    out.push_str(line);
-                    out.push('\n');
-                    continue;
-                }
-            };
-            let names_block: &str = &stripped[..close];
-            let inlined: String = inline_export_aliases(names_block.trim());
-            if !inlined.is_empty() {
-                out.push_str(&inlined);
+            }
+            ExportForm::Declaration(declaration) => {
+                out.push_str(declaration);
                 out.push('\n');
             }
-            continue;
-        }
-        if trimmed.starts_with("export function ") {
-            let rest: &str = match trimmed.strip_prefix("export function ") {
-                Some(value) => value,
-                None => {
-                    out.push_str(line);
-                    out.push('\n');
-                    continue;
-                }
-            };
-            let name_end: usize = match rest.find(|c: char| !c.is_alphanumeric() && c != '_') {
-                Some(value) => value,
-                None => rest.len(),
-            };
-            let name: &str = &rest[..name_end];
-            if !name.is_empty() {
-                out.push_str("function ");
-                out.push_str(name);
-                out.push_str(&rest[name_end..]);
+            ExportForm::Unsupported => {
+                out.push_str(line);
                 out.push('\n');
-                continue;
             }
-        }
-        out.push_str(line);
-        out.push('\n');
-    }
-    out
-}
-
-/// Converts the body of an `export { a, b as c }` clause into the
-/// assignments that keep each local function reachable under its
-/// exported name. Exports of `wasm` are dropped: the IIFE is a plain
-/// `<script>`, so there is no `wasm` binding in scope.
-///
-/// # Arguments
-///
-/// - `&str` - The comma-separated body between the export braces.
-///
-/// # Returns
-///
-/// - `String` - The assignments, one per line, or empty when every alias
-///   is a no-op.
-fn inline_export_aliases(block: &str) -> String {
-    let mut out: String = String::new();
-    for entry in block.split(',') {
-        let entry: &str = entry.trim();
-        if entry.is_empty() {
-            continue;
-        }
-        if let Some((original, exported)) = entry.split_once(" as ") {
-            let original: &str = original.trim();
-            let exported: &str = exported.trim();
-            if original == exported || exported == "default" || original == "wasm" {
-                continue;
-            }
-            out.push_str(exported);
-            out.push_str(" = ");
-            out.push_str(original);
-            out.push_str(";\n");
         }
     }
     out
 }
 
-/// Encodes a URL as a JSON string literal, including the surrounding
-/// quotes.
-///
-/// Hand-rolled rather than `serde_json::to_string` because the value is
-/// interpolated into a template that is already assembling JavaScript,
-/// and the only characters that can appear here are URL characters.
+/// Encodes a value as a JavaScript string literal, including the
+/// surrounding quotes, escaping every character that would otherwise end
+/// the literal, open a new line inside it, or close the enclosing
+/// `<script>` element early.
 ///
 /// # Arguments
 ///
-/// - `&str` - The URL to encode.
+/// - `&str` - The value to encode.
 ///
 /// # Returns
 ///
-/// - `String` - A quoted, escaped JSON string.
-fn serde_json_wasm_url(url: &str) -> String {
-    let mut out: String = String::with_capacity(url.len() + 2);
+/// - `String` - A quoted, escaped JavaScript string.
+pub(crate) fn encode_js_string(value: &str) -> String {
+    let mut out: String = String::with_capacity(value.len() + 2);
     out.push('"');
-    for ch in url.chars() {
+    for ch in value.chars() {
         match ch {
             '"' => out.push_str("\\\""),
             '\\' => out.push_str("\\\\"),
@@ -1392,10 +1575,187 @@ fn serde_json_wasm_url(url: &str) -> String {
             '\t' => out.push_str("\\t"),
             '\u{08}' => out.push_str("\\b"),
             '\u{0C}' => out.push_str("\\f"),
+            '<' => out.push_str("\\u003c"),
+            '>' => out.push_str("\\u003e"),
+            '&' => out.push_str("\\u0026"),
+            '\u{2028}' => out.push_str("\\u2028"),
+            '\u{2029}' => out.push_str("\\u2029"),
             c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
             c => out.push(c),
         }
     }
     out.push('"');
     out
+}
+
+/// Deletes every JavaScript artifact wasm-pack emitted for this build:
+/// the bridge itself, its `.d.ts` declarations, its source maps and the
+/// `snippets/` modules that were inlined into the HTML.
+///
+/// Runs only after the HTML carrying the inlined bridge has been written,
+/// and only inside the wasm-pack output directory. The walk classifies each
+/// entry with `symlink_metadata`, so a directory symlink is never followed:
+/// a link pointing outside the output, or into a cycle, is left in place
+/// and named, rather than extending the walk without bound. Every file
+/// that is deleted is first confirmed to resolve inside the output.
+///
+/// A directory wasm-pack itself created is removed only once it is
+/// genuinely empty — `remove_dir`, never `remove_dir_all` — so a
+/// non-JavaScript asset an author left inside `snippets/` survives
+/// together with its directory. Unreadable directories and failed
+/// enumerations are errors, not silent skips: reporting success while
+/// JavaScript remains is exactly the failure this guards against.
+///
+/// # Arguments
+///
+/// - `&Path` - The wasm-pack output directory.
+///
+/// # Returns
+///
+/// - `Result<Vec<PathBuf>, EuvError>` - The files removed, or an error naming
+///   what could not be read or deleted.
+pub(crate) async fn remove_generated_js(pkg_dir: &Path) -> Result<Vec<PathBuf>, EuvError> {
+    let root: PathBuf = match canonicalize(pkg_dir).await {
+        Ok(root) => root,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(Vec::new());
+        }
+        Err(error) => {
+            return Err(EuvError::IoPath {
+                message: String::from("Failed to resolve the wasm-pack output directory"),
+                path: pkg_dir.to_path_buf(),
+                error,
+            });
+        }
+    };
+    let mut removed: Vec<PathBuf> = Vec::new();
+    let mut generated_dirs: Vec<PathBuf> = Vec::new();
+    let mut pending: Vec<PathBuf> = vec![root.clone()];
+    while let Some(dir) = pending.pop() {
+        let mut entries: ReadDir = read_dir(&dir).await.map_err(|error: io::Error| {
+            EuvError::IoPath {
+                message: String::from(
+                    "Failed to list the wasm-pack output directory while removing inlined JavaScript",
+                ),
+                path: dir.clone(),
+                error,
+            }
+        })?;
+        loop {
+            let entry: DirEntry = match entries.next_entry().await {
+                Ok(Some(entry)) => entry,
+                Ok(None) => break,
+                Err(error) => {
+                    return Err(EuvError::IoPath {
+                        message: String::from(
+                            "Failed to read an entry of the wasm-pack output directory while \
+                             removing inlined JavaScript",
+                        ),
+                        path: dir.clone(),
+                        error,
+                    });
+                }
+            };
+            let path: PathBuf = entry.path();
+            let file_type: FileType =
+                entry
+                    .file_type()
+                    .await
+                    .map_err(|error: io::Error| EuvError::IoPath {
+                        message: String::from(
+                            "Failed to stat an entry of the wasm-pack output directory while \
+                         removing inlined JavaScript",
+                        ),
+                        path: path.clone(),
+                        error,
+                    })?;
+            if file_type.is_symlink() {
+                // Never followed: a link may leave the package or close a
+                // cycle, and neither is this walk's to resolve.
+                log::warn!(
+                    "Leaving '{}' in place: it is a symlink, and the cleanup never follows one",
+                    path.display()
+                );
+                continue;
+            }
+            if file_type.is_dir() {
+                if path.starts_with(root.join(SNIPPET_DIR_NAME)) {
+                    generated_dirs.push(path.clone());
+                }
+                pending.push(path);
+                continue;
+            }
+            let canonical: PathBuf =
+                canonicalize(&path)
+                    .await
+                    .map_err(|error: io::Error| EuvError::IoPath {
+                        message: String::from(
+                            "Failed to resolve an entry of the wasm-pack output directory before \
+                         deleting it",
+                        ),
+                        path: path.clone(),
+                        error,
+                    })?;
+            if !canonical.starts_with(&root) {
+                log::warn!(
+                    "Leaving '{}' in place: it resolves outside the wasm-pack output",
+                    path.display()
+                );
+                continue;
+            }
+            if !is_generated_js_artifact(&path) {
+                continue;
+            }
+            remove_file(&path)
+                .await
+                .map_err(|error: io::Error| EuvError::IoPath {
+                    message: String::from(
+                        "Failed to remove a generated JavaScript file after inlining it",
+                    ),
+                    path: path.clone(),
+                    error,
+                })?;
+            removed.push(path);
+        }
+    }
+    for dir in generated_dirs.iter().rev() {
+        match remove_dir(dir).await {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::DirectoryNotEmpty => {}
+            Err(error) => {
+                return Err(EuvError::IoPath {
+                    message: String::from("Failed to remove an emptied snippet directory"),
+                    path: dir.clone(),
+                    error,
+                });
+            }
+        }
+    }
+    log::debug!(
+        "Removed {} generated JavaScript file(s) and {} empty generated directory(ies)",
+        removed.len(),
+        generated_dirs.len()
+    );
+    Ok(removed)
+}
+
+/// Returns `true` for the JavaScript-adjacent files wasm-pack generates:
+/// `.js`, `.mjs`, `.cjs`, their source maps and their `.d.ts` declarations.
+///
+/// # Arguments
+///
+/// - `&Path` - Output file path to classify.
+///
+/// # Returns
+///
+/// - `bool` - Whether the file belongs to the generated JavaScript artifacts.
+fn is_generated_js_artifact(path: &Path) -> bool {
+    let name: String = path
+        .file_name()
+        .and_then(|name: &ffi::OsStr| name.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    GENERATED_JS_SUFFIXES
+        .iter()
+        .any(|suffix: &&str| name.ends_with(suffix))
 }

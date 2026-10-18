@@ -1,6 +1,6 @@
 use super::*;
 
-fn rule_declarations(sheet: &str, selector: &str) -> Option<String> {
+fn rule_pairs(sheet: &str) -> Vec<(String, String)> {
     let mut heads: Vec<&str> = Vec::new();
     let mut bodies: Vec<&str> = Vec::new();
     let mut depth: usize = 0;
@@ -24,10 +24,30 @@ fn rule_declarations(sheet: &str, selector: &str) -> Option<String> {
             _ => {}
         }
     }
-    let position: Option<usize> = heads
-        .iter()
-        .position(|head: &&str| head.split(',').any(|part: &str| part.trim() == selector));
-    position.and_then(|position: usize| bodies.get(position).map(|body: &&str| body.to_string()))
+    heads
+        .into_iter()
+        .zip(bodies)
+        .map(|(head, body): (&str, &str)| (head.to_string(), body.to_string()))
+        .collect()
+}
+
+fn head_covers(head: &str, selector: &str) -> bool {
+    head.split(',').any(|part: &str| part.trim() == selector)
+}
+
+fn rule_declarations(sheet: &str, selector: &str) -> Option<String> {
+    rule_pairs(sheet)
+        .into_iter()
+        .find(|(head, _): &(String, String)| head_covers(head, selector))
+        .map(|(_, body): (String, String)| body)
+}
+
+fn every_rule_declarations(sheet: &str, selector: &str) -> Vec<String> {
+    rule_pairs(sheet)
+        .into_iter()
+        .filter(|(head, _): &(String, String)| head_covers(head, selector))
+        .map(|(_, body): (String, String)| body)
+        .collect()
 }
 
 fn declaration(body: &str, property: &str) -> Option<String> {
@@ -69,18 +89,94 @@ fn inline_code_chips_keep_the_padding_that_separates_them_from_link_underlines()
 }
 
 #[test]
-fn block_level_code_chips_do_not_inherit_the_wrapping_margin() {
+fn single_box_code_chips_do_not_inherit_the_wrapping_margin() {
     let sheet: &str = euv_md_css();
     for selector in [".md-body td code", ".md-body th code", ".md-body pre code"] {
         let body: String = rule_declarations(sheet, selector).unwrap_or_else(|| {
-            panic!("{selector} must keep its own rule, because a block code chip does not wrap between lines")
+            panic!("{selector} must keep its own rule, because the margin it zeroes is the one the wrapped inline chips rely on")
         });
         assert_eq!(
             declaration(&body, "margin"),
             Some("0".to_string()),
-            "{selector} is a single box per line, so the vertical margin that separates wrapped inline chips must not apply to it"
+            "{selector} sits in one unbreakable line next to its cell neighbours \
+             (a table cell is nowrap, a pre block never wraps), so the vertical \
+             margin that separates wrapped inline chips must not apply to it; the \
+             chip's border would otherwise gain outer space it does not need. \
+             Body was {body:?}"
         );
     }
+}
+
+#[test]
+fn table_cell_code_chips_shrink_to_their_own_text() {
+    let sheet: &str = euv_md_css();
+    for selector in [".md-body td code", ".md-body th code"] {
+        let bodies: Vec<String> = every_rule_declarations(sheet, selector);
+        assert!(
+            !bodies.is_empty(),
+            "{selector} must keep its own rule: it is the only thing that \
+             overrides the inline `.md-body code` chip, so dropping it hands the \
+             cell back the prose chip contract"
+        );
+        for body in &bodies {
+            let display: Option<String> = declaration(body, "display");
+            assert_ne!(
+                display.as_deref(),
+                Some("block"),
+                "a block code chip is a box on its own line, so a bordered chip \
+                 inside a table cell stretches to the full cell width, forces a \
+                 line break after it and grows the row to hold every chip \
+                 stacked; the cell is already nowrap, so an inline chip wraps \
+                 nothing and needs no block. Body was {body:?}"
+            );
+            assert_eq!(
+                display.as_deref(),
+                Some("inline-block"),
+                "the cell chip has to stay an inline chip that shrink-wraps its \
+                 own text and keeps its border hugging the glyphs; this is the \
+                 exact declaration the report measured as the full cell width. \
+                 Body was {body:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn table_cell_code_chips_keep_the_inline_chip_geometry() {
+    let sheet: &str = euv_md_css();
+    let base: String = rule_declarations(sheet, ".md-body code").expect(
+        "the markdown body must style inline code, so the cell chip inherits a chip contract to keep",
+    );
+    for selector in [".md-body td code", ".md-body th code"] {
+        for body in every_rule_declarations(sheet, selector) {
+            for property in [
+                "width",
+                "padding",
+                "border",
+                "background",
+                "font-size",
+                "font-family",
+                "text-decoration",
+            ] {
+                assert_eq!(
+                    declaration(&body, property),
+                    None,
+                    "{selector} only overrides the display and the margin, so it \
+                     must not declare {property}; a width here re-stretches the \
+                     chip to the cell width it just stopped inheriting, and the \
+                     chip box is the same box the prose renders. Base chip \
+                     declares it as {:?}, body was {body:?}",
+                    declaration(&base, property)
+                );
+            }
+        }
+    }
+    assert_eq!(
+        declaration(&base, "padding"),
+        Some(".45em .4em".to_string()),
+        "the dashed link underline and the chip border resolve to the same token, \
+         so the padding is the only thing separating them, in cells as in prose"
+    );
 }
 
 #[test]

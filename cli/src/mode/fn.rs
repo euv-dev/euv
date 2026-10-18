@@ -88,20 +88,7 @@ pub async fn run_mode(mut args: ModeArgs) -> Result<(), EuvError> {
         ));
     }
     let serving_route_prefix: String = resolve_serving_route_prefix(&args);
-    let initial_html: String = match run_build_pipeline(&args, None).await {
-        Ok(html) => html,
-        Err(error) => {
-            log::error!("Initial build pipeline failed: {error}");
-            let html_config: HtmlConfig = HtmlConfig::new(
-                resolve_serving_root(&args).await,
-                resolve_import_path(&args),
-                resolve_build_mode(&args) == BuildMode::Release,
-                args.try_get_index_html().clone(),
-                true,
-            );
-            generate_html(&html_config).await?
-        }
-    };
+    let initial_html: String = run_build_pipeline(&args, None).await?;
     print_banner(Action::Run);
     let (reload_tx, _): (
         broadcast::Sender<ReloadEvent>,

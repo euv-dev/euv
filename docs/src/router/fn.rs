@@ -8,9 +8,17 @@ use super::*;
 /// written in the raw UTF-8 form by `build.rs`. `getElementById`
 /// needs the raw form to match, so decode before querying.
 ///
-/// Falls back to the input verbatim if decoding fails or if
-/// `js_sys` is unavailable (e.g. during a unit test outside the
-/// browser), so a malformed anchor never panics the page.
+/// The decoding is plain Rust rather than a `js_sys` call: that call
+/// reaches a wasm import which does not exist off `wasm32`, so it
+/// aborts a host test instead of returning `Err`, and the host is
+/// where this crate's route logic is actually tested. Doing it here
+/// keeps host and browser decoding on one implementation, so the
+/// equality the scroll spy depends on is the equality the tests
+/// assert.
+///
+/// A malformed escape leaves the input untouched rather than
+/// panicking, and `+` is preserved rather than folded to a space:
+/// the caller passes raw URL text, not form encoding.
 ///
 /// # Arguments
 ///
@@ -20,16 +28,52 @@ use super::*;
 /// # Returns
 ///
 /// - `String` - The decoded UTF-8 anchor slug, or the input
-///   unchanged if decoding fails.
+///   unchanged if it carries a malformed escape.
 pub(crate) fn decode_anchor(encoded: &str) -> String {
     if !encoded.as_bytes().contains(&ANCHOR_ESCAPE) {
-        // Fast path: nothing to decode, skip the FFI roundtrip.
+        // Fast path: nothing to decode.
         return encoded.to_string();
     }
-    match decode_uri_component(encoded) {
-        Ok(value) => value.as_string().unwrap_or_else(|| encoded.to_string()),
-        Err(_) => encoded.to_string(),
+    let bytes: &[u8] = encoded.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut index: usize = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            ANCHOR_ESCAPE => match percent_byte(bytes, index) {
+                Some(decoded) => {
+                    out.push(decoded);
+                    index += PERCENT_ESCAPE_LEN;
+                }
+                // A truncated or non-hex escape is not decodable, so the
+                // whole input is kept as written.
+                None => return encoded.to_string(),
+            },
+            byte => {
+                out.push(byte);
+                index += 1;
+            }
+        }
     }
+    // Escapes can split a multi-byte character, so the bytes are only
+    // text once they form valid UTF-8; otherwise keep the raw input.
+    String::from_utf8(out).unwrap_or_else(|_| encoded.to_string())
+}
+
+/// Reads the byte a `%XX` escape encodes.
+///
+/// # Arguments
+///
+/// - `&[u8]` - The input bytes.
+/// - `usize` - The index of the `%` starting the escape.
+///
+/// # Returns
+///
+/// - `Option<u8>` - The decoded byte, or `None` when the escape is
+///   truncated or either digit is not a hex digit.
+fn percent_byte(bytes: &[u8], index: usize) -> Option<u8> {
+    let high: u8 = (*bytes.get(index + 1)? as char).to_digit(HEX_RADIX)? as u8;
+    let low: u8 = (*bytes.get(index + 2)? as char).to_digit(HEX_RADIX)? as u8;
+    Some((high << HEX_NIBBLE_SHIFT) | low)
 }
 
 /// Splits a raw route into its page path and optional in-page anchor.
@@ -58,6 +102,30 @@ pub fn parse_route(raw: &str) -> (String, Option<String>) {
         Some((path, _)) => (path.to_string(), None),
         None => (raw.to_string(), None),
     }
+}
+
+/// Reports whether two hash fragments name the same page and heading.
+///
+/// A fragment arrives in two spellings: `location.hash` reports the
+/// browser's percent-encoded form while the hrefs `build.rs` emits
+/// carry the raw UTF-8 slug, so one heading compares unequal as plain
+/// strings. Both the page path and the decoded heading must match, so
+/// two routes sharing a slug stay distinct, and only the text after
+/// the first `#` is decoded — an encoded `%23` inside a heading stays
+/// part of that heading rather than splitting it.
+///
+/// # Arguments
+///
+/// - `&str` - The left-hand fragment.
+/// - `&str` - The right-hand fragment.
+///
+/// # Returns
+///
+/// - `bool` - `true` when both name the same page and heading.
+pub fn same_route_anchor(left: &str, right: &str) -> bool {
+    let (left_path, left_anchor): (String, Option<String>) = parse_route(left);
+    let (right_path, right_anchor): (String, Option<String>) = parse_route(right);
+    left_path == right_path && left_anchor == right_anchor
 }
 
 /// Finds the locale owning a route (longest prefix match).

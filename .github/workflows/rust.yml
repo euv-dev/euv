@@ -120,6 +120,8 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Build release
         run: cargo check --release --all-features --target wasm32-unknown-unknown --workspace --exclude euv-cli
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
       - name: Test euv-cli (host)
         run: cargo test --all-features -p euv-cli
 

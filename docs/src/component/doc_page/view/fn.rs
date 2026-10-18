@@ -184,7 +184,14 @@ fn use_toc_scroll_spy(active: Signal<String>) {
         };
         let hash: String = window.location().hash().unwrap_or_default();
         let scroll_top: i32 = container.scroll_top();
-        if hash != seen_hash.get() {
+        // Compared through [`same_route_anchor`], never as raw strings:
+        // `seen_hash` holds the raw slug this spy wrote, while
+        // `location.hash` reads it back percent-encoded. A raw `!=`
+        // therefore mistakes the spy's own previous write for an
+        // external change on the next tick, re-arming `scroll_at_hash`
+        // and letting the click/deeplink fragment keep winning the
+        // highlight over the geometry the reader is scrolling into.
+        if !same_route_anchor(&hash, &seen_hash.get()) {
             seen_hash.set(hash.clone());
             scroll_at_hash.set(scroll_top);
         }
@@ -205,7 +212,7 @@ fn use_toc_scroll_spy(active: Signal<String>) {
         if next != active.get() {
             active.set(next.clone());
         }
-        if hash != next {
+        if !same_route_anchor(&hash, &next) {
             // Scroll-driven half of the sync: replaceState fires no
             // hashchange, so this write cannot re-enter the anchor scroll.
             sync_hash(&window, &next);

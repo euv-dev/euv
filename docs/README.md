@@ -90,9 +90,15 @@ euv-docs <SRC_DIR> [--out <OUT_DIR>] [--name <NAME>] [--index-html <FILE>] [--de
 | -------------- | ---------- | ------------------------------------------------------------------------------------------- |
 | `<SRC_DIR>`    | (required) | Directory containing the markdown tree.                                                     |
 | `--out`        | `www`      | Output directory.                                                                           |
-| `--name`       | `euv_docs` | Output package name (`<name>.js` / `<name>_bg.wasm`).                                       |
+| `--name`       | `euv_docs` | WASM output name (`<name>_bg.wasm`); the bootstrap is embedded in HTML.                    |
 | `--index-html` | (none)     | Path to a custom `index.html` template (defaults to `template.html` shipped in the binary). |
 | `--debug`      | (off)      | Enable debug logging.                                                                       |
+
+Each locale emits an HTML shell and a WASM bundle without a separate generated
+JavaScript bridge. The bundled template uses `__EUV_INLINE_JS__` inside a plain
+`<script>` tag; custom templates should use the same placeholder. JavaScript
+still runs inline to initialize WASM. `404.html` is refreshed from the current
+`index.html` on every build so an older bootstrap cannot survive a rebuild.
 
 ## Crate structure
 

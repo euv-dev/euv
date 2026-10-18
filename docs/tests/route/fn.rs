@@ -315,3 +315,100 @@ fn auditing_the_whole_site_reports_no_route_as_missing() {
         "every spelling of a served route must resolve"
     );
 }
+
+#[test]
+fn a_raw_and_a_percent_encoded_heading_name_the_same_anchor() {
+    assert!(
+        same_route_anchor(
+            "#/euv/macros/html/html.html#%E8%AF%AD%E6%B3%95%E9%AA%A8%E6%9E%B6",
+            "#/euv/macros/html/html.html#\u{8BED}\u{6CD5}\u{9AA8}\u{67B6}"
+        ),
+        "the spy writes a raw slug and the browser reads it back percent-encoded, \
+so this equality is what stops it from re-reading its own write as an \
+external change every tick"
+    );
+}
+
+#[test]
+fn a_percent_encoded_heading_decodes_to_the_slug_the_heading_carries() {
+    assert_eq!(
+        parse_route("/a.html#%E8%AF%AD%E6%B3%95").1,
+        Some("\u{8BED}\u{6CD5}".to_string()),
+        "the decoded form is what `getElementById` is queried with"
+    );
+}
+
+#[test]
+fn an_escape_that_spells_itself_is_decoded_rather_than_kept() {
+    assert_eq!(
+        parse_route("/a.html#%23%2F%20b").1,
+        Some("#/ b".to_string()),
+        "each escape is decoded once, and '+' is not folded to a space"
+    );
+}
+
+#[test]
+fn an_ascii_heading_matches_itself_in_both_spellings() {
+    assert!(same_route_anchor(
+        "#/euv/macros/html/html.html#portal",
+        "#/euv/macros/html/html.html#portal"
+    ));
+}
+
+#[test]
+fn two_routes_sharing_a_heading_slug_are_different_anchors() {
+    assert!(
+        !same_route_anchor("#/a.html#\u{6982}\u{89C8}", "#/b.html#\u{6982}\u{89C8}"),
+        "a route change re-arms the fragment intent even when the heading repeats"
+    );
+}
+
+#[test]
+fn two_bare_route_fragments_match_only_their_own_route() {
+    assert!(same_route_anchor("#/a.html", "#/a.html"));
+    assert!(
+        !same_route_anchor("#/a.html", "#/b.html"),
+        "a bare fragment carries no anchor, so the page path is its whole identity"
+    );
+}
+
+#[test]
+fn a_bare_route_fragment_never_matches_a_heading_on_the_same_page() {
+    assert!(!same_route_anchor("#/a.html", "#/a.html#\u{6982}\u{89C8}"));
+}
+
+#[test]
+fn a_hash_inside_the_anchor_never_splits_the_route_again() {
+    assert_eq!(
+        parse_route("/a.html#one#two").0,
+        "/a.html".to_string(),
+        "only the first '#' separates the page from its anchor"
+    );
+    assert_eq!(
+        parse_route("/a.html#one#two").1,
+        Some("one#two".to_string()),
+        "a later '#' belongs to the heading text"
+    );
+}
+
+#[test]
+fn an_undecodable_heading_is_kept_verbatim_rather_than_dropped() {
+    assert_eq!(
+        parse_route("/a.html#%E4%").1,
+        Some("%E4%".to_string()),
+        "a truncated escape still compares as one anchor instead of vanishing"
+    );
+}
+
+#[test]
+fn a_malformed_heading_matches_itself() {
+    assert!(same_route_anchor("#/a.html#%E4%", "#/a.html#%E4%"));
+}
+
+#[test]
+fn nested_slugs_of_one_page_stay_distinct_anchors() {
+    assert!(!same_route_anchor(
+        "#/a.html#section",
+        "#/a.html#section-nested"
+    ));
+}

@@ -1163,14 +1163,17 @@ class! {
     pub c_euv_sidebar_children {
         display: "flex";
         flex-direction: "column";
-        // Compact nesting: keep the dashed tree guide on the left of every
-        // nesting level, but trim its indent so the child's text sits just
-        // to the right of the dashed border instead of a full 33px gutter
-        // away (the old `margin-left: 20px` + `padding-left: 12px` setup).
-        // The numbers chosen (margin 8 + border 1 + padding 8 = 17px) are
-        // large enough to read as a distinct level but small enough that
-        // three-deep trees still fit in a 248–320px sidebar.
-        margin-left: var!(space-sm);
+        // The dashed border is this level's left edge, so it has to paint on
+        // the text x of the parent title above it, at every depth. The parent
+        // label sits one `space-md` right of this container's content-box
+        // left, which is what `margin-left` places. `space-sm` left the guide
+        // 4px short of the parent label at every depth (measured 8/12, 25/29,
+        // 42/46 for guide/label at depth 0/1/2).
+        //
+        // `padding-left` stays `space-sm`: it is the guide-to-child gap and
+        // half of the active row's pull-back, so widening it would move the
+        // marker and the text together.
+        margin-left: var!(space-md);
         padding-left: var!(space-sm);
         border-left: format!("1px dashed {}", var!(border));
         animation: format!("euv-fade-in {} {}", var!(duration-normal), var!(ease-out));
@@ -1223,17 +1226,15 @@ class! {
 
     // An active child needs the accent fill to read as one continuous block
     // against the sidebar, not as a chip floating inside its parent's gutter.
-    // `c_euv_sidebar_children` insets every nesting level by
-    // `margin-left + padding-left` and paints a dashed guide on the way in.
-    // The active row must pull its fill back out only as far as the guide it
-    // hangs from — `margin-left + border-left-width`, i.e. `side-indent`
-    // (9px) — so the fill starts exactly at the dashed rail and nothing
-    // crosses it. Compensating by the *full* inset (margin + padding +
-    // border = 17px) is wrong: it also cancels the row's own `padding-left`,
-    // pushing the fill 8px past the guide and past the sidebar's left edge on
-    // shallower levels. The negative margin is otherwise safe because the row
-    // is the full width of its container: the fill grows leftward into the
-    // parent's padding and nothing to its left moves.
+    // `c_euv_sidebar_children` offsets its rows from the dashed guide by its
+    // own `padding-left` plus the 1px border. The active row pulls its fill
+    // back out to the guide — `padding-left + border-left-width`, i.e.
+    // `side-indent` (9px) — so the fill starts exactly at the dashed rail.
+    // Compensating by the container's `margin-left` as well is wrong: it also
+    // cancels the row's own `padding-left`, pushing the fill past the guide.
+    // The negative margin is otherwise safe because the row is the full width
+    // of its container: the fill grows leftward into the parent's padding and
+    // nothing to its left moves.
     pub c_euv_sidebar_link_active_flush {
         display: "block";
         // Text must not move between the inactive and active states, so the

@@ -42,6 +42,7 @@ use {
         collections::HashMap,
         ffi,
         fmt::Arguments,
+        fs::FileType,
         io,
         net::{IpAddr, Ipv4Addr},
         path::{Component, Path, PathBuf},
@@ -52,8 +53,8 @@ use {
     },
     tokio::{
         fs::{
-            ReadDir, canonicalize, create_dir_all, metadata, read, read_dir, read_to_string,
-            remove_dir_all, remove_file, write,
+            DirEntry, ReadDir, canonicalize, create_dir_all, metadata, read, read_dir,
+            read_to_string, remove_dir, remove_dir_all, remove_file, write,
         },
         process::Command,
         spawn,

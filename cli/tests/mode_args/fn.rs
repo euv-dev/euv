@@ -312,6 +312,30 @@ fn a_www_dir_inside_the_crate_yields_a_relative_route_prefix() {
 }
 
 #[test]
+fn an_absolute_www_directory_outside_the_crate_uses_a_url_segment() {
+    let args: ModeArgs = mode_args(&["--crate-path", "/app", "--www-dir", "/artifacts/site"]);
+    assert_eq!(resolve_serving_route_prefix(&args), "site");
+}
+
+#[test]
+fn an_absolute_out_directory_outside_www_uses_its_serving_parent() {
+    let args: ModeArgs = mode_args(&[
+        "--crate-path",
+        "/app",
+        "--",
+        "--out-dir",
+        "/artifacts/site/pkg",
+    ]);
+    assert_eq!(resolve_serving_route_prefix(&args), "site");
+}
+
+#[test]
+fn a_nested_www_directory_preserves_every_route_segment() {
+    let args: ModeArgs = mode_args(&["--crate-path", "/app", "--www-dir", "dist/site"]);
+    assert_eq!(resolve_serving_route_prefix(&args), "dist/site");
+}
+
+#[test]
 fn an_out_dir_outside_www_yields_its_parent_as_the_prefix() {
     let args: ModeArgs = mode_args(&["--crate-path", "app", "--", "--out-dir", "dist/pkg"]);
     let observed: String = resolve_serving_route_prefix(&args);

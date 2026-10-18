@@ -122,8 +122,9 @@ pub fn euv_sidebar_item(node: VirtualNode<EuvSidebarItemProps>) -> VirtualNode {
                 // OPT 30: see comment in `euv_navbar` — replace
                 // `format!("#{...}")` with a single `#`-prefix concat.
                 href: {
-                    let mut href: String =
-                        String::with_capacity(ROUTE_HASH_PREFIX.len() + link.len());
+                    let mut
+                    href: String =
+                    String::with_capacity(ROUTE_HASH_PREFIX.len() + link.len());
                     href.push_str(ROUTE_HASH_PREFIX);
                     href.push_str(link);
                     href

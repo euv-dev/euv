@@ -86,6 +86,50 @@ fn the_spinner_draws_three_quarters_of_the_ring_not_one() {
 }
 
 #[test]
+fn the_sidebar_guide_aligns_with_the_parent_label_text_at_every_depth() {
+    let children: String = c_euv_sidebar_children().get_style().to_string();
+    let parent: String = c_euv_sidebar_group_title().get_style().to_string();
+    let guide_margin: String = token_of(&children, "margin-left");
+    let parent_padding: String = shorthand_token(&parent, "padding");
+    assert_eq!(
+        guide_margin, parent_padding,
+        "the guide must sit one parent padding-token left of the parent label, \
+         got margin {guide_margin:?} against padding {parent_padding:?} — \
+         children {children:?}, parent {parent:?}"
+    );
+    assert!(
+        token_of(&children, "padding-left") != parent_padding,
+        "the guide-to-child gap is not the same distance as the parent label's \
+         own inset, so matching them would move every child row as well as the \
+         guide, got {children:?}"
+    );
+}
+
+#[test]
+fn the_sidebar_active_row_keeps_its_pull_back_off_the_container_margin() {
+    let children: String = c_euv_sidebar_children().get_style().to_string();
+    let active: String = c_euv_sidebar_link_active_flush().get_style().to_string();
+    assert!(
+        !active.contains("margin-left: var("),
+        "the active fill's own negative margin is the guide distance, not the \
+         container's indent — reading the margin token would stretch it to \
+         13px and push the fill past the guide, got {active:?}"
+    );
+    assert!(
+        active.contains("padding-left: calc(var(--space-md)"),
+        "the pull-back is paid back as left padding so the label keeps its x, got \
+         {active:?}"
+    );
+    assert!(
+        children.contains("border-left: 1px dashed")
+            && children.contains("padding-left: var(--space-sm);"),
+        "the guide the active row pulls back to is the container's dashed \
+         border, offset from its rows by the unchanged `space-sm`, got \
+         {children:?}"
+    );
+}
+
+#[test]
 fn a_loading_without_props_falls_back_to_defaults() {
     let bare: VirtualNode<EuvLoadingProps> = VirtualNode::Element {
         tag: Tag::Element(Cow::Borrowed("div")),
@@ -199,4 +243,27 @@ fn a_stat_always_renders_its_label_and_value_slots() {
 
 fn element_count(node: &VirtualNode, needle: &str) -> usize {
     format!("{node:?}").matches(needle).count()
+}
+
+fn token_of(style: &str, property: &str) -> String {
+    declaration(style, property)
+        .split("var(--")
+        .nth(1)
+        .map(|rest: &str| rest[..rest.find(')').unwrap_or(rest.len())].to_string())
+        .unwrap_or_default()
+}
+
+fn shorthand_token(style: &str, property: &str) -> String {
+    let horizontal: &str = declaration(style, property)
+        .rsplit(' ')
+        .find(|part: &&str| part.starts_with("var(--"))
+        .unwrap_or_default();
+    token_of(&format!("padding-left: {horizontal};"), "padding-left")
+}
+
+fn declaration<'a>(style: &'a str, property: &str) -> &'a str {
+    let found: String = format!("{property}: ");
+    let start: usize = style.find(&found).expect("the property is declared");
+    let rest: &str = &style[start + found.len()..];
+    rest[..rest.find(';').unwrap_or(rest.len())].trim()
 }

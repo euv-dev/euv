@@ -54,17 +54,12 @@ pub(crate) struct HtmlConfig {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) custom_index_html: Option<PathBuf>,
-    /// Whether the HTML is being generated for the dev server (`euv run`).
-    ///
-    /// When `true`, a `<base href="/<serving_root>/">` tag is injected so
-    /// that relative URLs resolve correctly regardless of the page URL.
-    /// When `false` (static build / GitHub Pages), no `<base>` tag is
-    /// injected because the deployed path is controlled by the host, not
-    /// by the local directory name.
-    #[get(pub(crate), type(copy))]
+    /// The registered dev-server route prefix, or `None` for a static build.
+    /// A nested serving directory must use its full route rather than its basename.
+    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) is_dev_server: bool,
+    pub(crate) serving_route_prefix: Option<String>,
 }
 
 /// Request middleware that injects cache-control headers.

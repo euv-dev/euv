@@ -63,16 +63,8 @@ vars! {
         // that have to do arithmetic (`calc(100% + 9px)`, `-9px`) where
         // appending `px` to a var would produce invalid CSS. Keep the two in
         // step: `side-indent` is `space-sm + 1px` — the
-        // `c_euv_sidebar_children` margin plus its dashed border.
-        //
-        // This value must NOT be the full nesting inset. It is only the
-        // distance from a row's own left edge back to the dashed guide that
-        // introduced it, which is `margin-left + border-left-width`
-        // (8 + 1 = 9px). The row's own `padding-left` is *not* part of it:
-        // an active row keeps its padding so the label does not move, and the
-        // negative margin grows the fill leftward into that padding. Using
-        // the full inset (17px) pushed the active fill 8px past the dashed
-        // guide, breaking the tree's left rail.
+        // `c_euv_sidebar_children` `padding-left` plus its dashed border, not
+        // its `margin-left`, which places the guide against the parent label.
         side-indent: "9px";
         side-indent-num: "9";
 
@@ -255,16 +247,8 @@ vars! {
         // that have to do arithmetic (`calc(100% + 9px)`, `-9px`) where
         // appending `px` to a var would produce invalid CSS. Keep the two in
         // step: `side-indent` is `space-sm + 1px` — the
-        // `c_euv_sidebar_children` margin plus its dashed border.
-        //
-        // This value must NOT be the full nesting inset. It is only the
-        // distance from a row's own left edge back to the dashed guide that
-        // introduced it, which is `margin-left + border-left-width`
-        // (8 + 1 = 9px). The row's own `padding-left` is *not* part of it:
-        // an active row keeps its padding so the label does not move, and the
-        // negative margin grows the fill leftward into that padding. Using
-        // the full inset (17px) pushed the active fill 8px past the dashed
-        // guide, breaking the tree's left rail.
+        // `c_euv_sidebar_children` `padding-left` plus its dashed border, not
+        // its `margin-left`, which places the guide against the parent label.
         side-indent: "9px";
         side-indent-num: "9";
 
