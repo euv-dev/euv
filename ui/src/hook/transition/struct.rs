@@ -32,11 +32,21 @@ pub struct TransitionConfig {
 #[derive(Clone, Data, New)]
 pub struct TransitionState {
     /// The current lifecycle phase.
-    pub(crate) phase: Signal<TransitionPhase>,
+    ///
+    /// Public because `ui/tests/transition/fn.rs` and
+    /// `ui/tests/hook_traits/fn.rs` read it through
+    /// `get_phase()`.
+    pub phase: Signal<TransitionPhase>,
     /// The current progress, in `[0.0, 1.0]`. Pinned to
     /// `1.0` for `Entered`, `0.0` for `Exited`, and
     /// intermediate for `Entering` / `Exiting`.
-    pub(crate) progress: Signal<f64>,
+    ///
+    /// Public because `ui/tests/transition/fn.rs` reads it
+    /// through `get_progress()`.
+    pub progress: Signal<f64>,
     /// The duration config (see `TransitionConfig`).
-    pub(crate) config: Signal<TransitionConfig>,
+    ///
+    /// Public because `ui/tests/transition/fn.rs` reads it
+    /// through `get_config()`.
+    pub config: Signal<TransitionConfig>,
 }

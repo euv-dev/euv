@@ -179,7 +179,7 @@ fn the_default_state_a_fresh_backend_starts_with_disables_depth_testing() {
         "scissoring starts off, and the off case is an absent rectangle rather than a zero one"
     );
     assert_eq!(
-        *fresh.get_color_mask().get_bits(),
+        fresh.get_color_mask().get_bits(),
         0xf,
         "all four channels are writable until a draw says otherwise"
     );

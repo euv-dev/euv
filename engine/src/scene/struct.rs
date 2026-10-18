@@ -7,12 +7,12 @@ pub struct SceneManager {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) scenes: HashMap<String, SceneRc>,
+    pub scenes: HashMap<String, SceneRc>,
     /// The name of the currently active scene, if any.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) current_scene_name: Option<String>,
+    pub current_scene_name: Option<String>,
     /// The name of the next scene to switch to (for deferred transitions).
     #[get_mut(pub(crate))]
     #[set(pub(crate))]

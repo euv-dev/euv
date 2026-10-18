@@ -27,15 +27,30 @@ pub struct DebouncedValue<T: Clone + PartialEq + Default + 'static> {
     /// The emitted value signal. Defaults to
     /// `Signal::create(T::default())` via
     /// `#[new(skip)]`.
+    ///
+    /// Public because `example/src/page/hooks_timing/view/fn.rs`
+    /// reads it through `get_value()`.
     #[new(skip)]
     #[get(type(copy))]
-    pub(crate) value: Signal<T>,
+    pub value: Signal<T>,
     /// The internal pending/empty state. Defaults to
     /// `Signal::create(DebounceState::Idle)` via
     /// `#[new(skip)]`.
+    ///
+    /// `get_state()` is only called by `impl.rs`, so the three
+    /// generated accessors are all `pub(crate)`.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     #[new(skip)]
     pub(crate) state: Signal<DebounceState<T>>,
     /// The quiet period in milliseconds.
+    ///
+    /// `get_delay_ms()` is only called by `impl.rs`, so the
+    /// three generated accessors are all `pub(crate)`.
+    #[get(type(copy), pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) delay_ms: u32,
 }
 

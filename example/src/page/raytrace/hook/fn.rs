@@ -1,5 +1,4 @@
 use super::*;
-
 /// Creates the RayTrace Canvas 2D tab reactive state.
 ///
 /// # Returns
@@ -12,19 +11,21 @@ pub(crate) fn use_raytrace_state() -> UseRayTrace {
         loop_started: App::use_signal(|| false),
         auto_rotate: App::use_signal(|| true),
         render_scale: App::use_signal(|| 1.0),
-        // `loaded` is `false` while the SSAA wrapper is being acquired
-        // and the first warmup frame is being traced. The view renders
-        // a `c_game_loading_overlay` canvas on top of the raytrace
-        // canvas for exactly this window so the user sees a centered
-        // "Initializing..." line instead of a half-rendered frame. The
-        // loop flips it to `true` after the first successful render,
-        // matching the WebGL / WebGPU tabs' loading UX.
+        // `loaded` is `false` while the backend is being acquired and the
+        // first frame is being rendered. The view paints a
+        // `c_game_loading_overlay` canvas on top of the raytrace canvas for
+        // exactly this window, so the user sees a centered "Initializing..."
+        // line instead of a half-rendered frame. The loop flips it to
+        // `true` after the first successful render, matching the WebGL and
+        // WebGPU tabs' loading UX.
         loaded: App::use_signal(|| false),
-        // `active` mirrors the WebGL / WebGPU tabs: `true` once the
-        // SSAA canvas is acquired and frames are being traced. The view
-        // does not read it directly today, but exposing it here keeps
-        // the per-tab status surface uniform.
+        // `active` mirrors the WebGL / WebGPU tabs: `true` only once a
+        // frame has actually been rendered through the engine backend.
+        // The view reads it, so a rejected frame cannot present itself as a
+        // healthy renderer.
         active: App::use_signal(|| false),
+        error_detail: App::use_signal(String::new),
+        init_error_code: App::use_signal(|| ""),
     }
 }
 
@@ -42,6 +43,7 @@ pub(crate) fn use_raytrace_webgl_state() -> UseRayTraceWebGl {
         active: App::use_signal(|| false),
         loop_started: App::use_signal(|| false),
         init_error_code: App::use_signal(|| ""),
+        error_detail: App::use_signal(String::new),
     }
 }
 
@@ -59,6 +61,7 @@ pub(crate) fn use_raytrace_webgpu_state() -> UseRayTraceWebGpu {
         active: App::use_signal(|| false),
         loop_started: App::use_signal(|| false),
         init_error_code: App::use_signal(|| ""),
+        error_detail: App::use_signal(String::new),
     }
 }
 
@@ -82,12 +85,11 @@ pub(crate) fn use_raytrace_fullscreen_state() -> UseRayTraceFullscreen {
 }
 
 /// Returns `true` when no element matches the canvas selector, meaning the
-/// page or tab was navigated away from and the game loop should stop.
+/// page or tab was navigated away from and the loop should stop.
 ///
 /// Hook-context cleanups (`App::use_cleanup`) only run on match-arm
 /// switches, not on router navigation, so RAF loops additionally guard on
-/// canvas presence to avoid simulating and rendering against a detached
-/// canvas forever.
+/// canvas presence to avoid rendering against a detached canvas forever.
 ///
 /// # Arguments
 ///
@@ -107,10 +109,10 @@ fn raytrace_canvas_detached(canvas_selector: &str) -> bool {
 /// `getBoundingClientRect`.
 ///
 /// The rect reflects the target CSS size immediately (unlike
-/// `clientWidth`/`clientHeight`, which track the backing store in Chrome
-/// and would create a feedback loop if read every frame). Page-scoped
-/// copy of the game-page helper: the name stays private so it cannot
-/// collide with the `game_2d` / `game_3d` `read_canvas_size` re-exports.
+/// `clientWidth`/`clientHeight`, which track the backing store in Chrome and
+/// would create a feedback loop if read every frame). Page-scoped copy of
+/// the game-page helper: the name stays private so it cannot collide with
+/// the `game_2d` / `game_3d` `read_canvas_size` re-exports.
 ///
 /// # Arguments
 ///
@@ -118,7 +120,7 @@ fn raytrace_canvas_detached(canvas_selector: &str) -> bool {
 ///
 /// # Returns
 ///
-/// - `Option<(f64, f64)>` - The (width, height) in CSS pixels.
+/// - `Option<(f64, f64)>` - The `(width, height)` in CSS pixels.
 fn read_raytrace_canvas_size(canvas_selector: &str) -> Option<(f64, f64)> {
     let window_value: Window = window()?;
     let document_value: Document = window_value.document()?;
@@ -131,245 +133,141 @@ fn read_raytrace_canvas_size(canvas_selector: &str) -> Option<(f64, f64)> {
     Some((rect.width(), rect.height()))
 }
 
-/// Acquires the Canvas 2D context for the RayTrace demo canvas wrapped in
-/// a `SsaaCanvas` so all ray-traced geometry is rendered into an
-/// offscreen 2x backing store and downscaled onto the display canvas
-/// with `imageSmoothingEnabled = true` / `imageSmoothingQuality = "high"`.
+/// Resolves a RayTrace canvas element from its CSS selector.
 ///
-/// Without SSAA the ray-traced framebuffer is uploaded via
-/// `put_image_data` straight to the visible canvas, so the browser
-/// composites it at its native (4:3 ladder) resolution into the 3:2
-/// inline CSS box. The bilinear upscale on a hard-edged framebuffer
-/// produces visible ball-edge and ground-edge aliasing, exactly the
-/// "all elements not anti-aliased" report the user filed.
+/// # Arguments
 ///
-/// The 2x SSAA wrapper produces a smoother downscale pass on every
-/// frame: the 2D context's high-quality image smoothing averages
-/// adjacent framebuffer pixels into the display canvas's backing
-/// store, smoothing the otherwise-jagged edges of the ray-traced
-/// spheres, the ground AABB outline, and the emissive sphere's
-/// terminator.
+/// - `&str` - The CSS selector for the canvas element.
 ///
 /// # Returns
 ///
-/// - `Option<(HtmlCanvasElement, SsaaCanvas)>` - The display canvas
-///   plus the SSAA wrapper, or `None` if the canvas element was not
-///   found or a 2D context could not be acquired.
-fn acquire_raytrace_ssaa_canvas() -> Option<(HtmlCanvasElement, SsaaCanvas)> {
+/// - `Option<HtmlCanvasElement>` - The canvas, or `None` when it is absent
+///   or no longer in the document.
+fn query_raytrace_canvas(canvas_selector: &str) -> Option<HtmlCanvasElement> {
     let window_value: Window = window()?;
-    let is_mobile: bool = window_value
-        .inner_width()
-        .ok()
-        .and_then(|value: JsValue| value.as_f64())
-        .is_some_and(|width: f64| width < 768.0);
-    let scale_factor: f64 = if is_mobile { 1.0 } else { 2.0 };
-    let (canvas_width, canvas_height): (f64, f64) =
-        read_raytrace_canvas_size(RAYTRACE_CANVAS_SELECTOR)?;
-    let ssaa_canvas: SsaaCanvas = SsaaCanvas::from_selector_with_scale(
-        RAYTRACE_CANVAS_SELECTOR,
-        canvas_width,
-        canvas_height,
-        scale_factor,
-    )?;
     let document_value: Document = window_value.document()?;
     let element: Element = document_value
-        .query_selector(RAYTRACE_CANVAS_SELECTOR)
+        .query_selector(canvas_selector)
         .ok()
         .flatten()?;
-    let display_canvas: HtmlCanvasElement = element.unchecked_into();
-    Some((display_canvas, ssaa_canvas))
+    Some(element.unchecked_into())
 }
 
-/// Builds the raytracing scene used by the RayTrace demo for a given
-/// orbit yaw.
+/// Builds the shared ray-tracing scene used by all three RayTrace tabs.
 ///
-/// Four occluders: a mirror sphere in the centre (Phong specular
-/// material drives the reflection), an emissive sphere in the back
-/// (acts as the only secondary light source visible to bounced rays),
-/// the visible sun sphere, and a ground AABB below the spheres.
+/// The scene is deliberately **static**: no light rotates with the camera,
+/// and no occluder is placed along a light's own direction. Every backend
+/// therefore uploads it exactly once, at `RayTraceRenderer::init`, and no
+/// steady-state frame pays a scene repack. It mixes all three primitive
+/// kinds the engine supports so the shared-data contract is visible rather
+/// than claimed:
 ///
-/// The sun sphere is placed at `raytrace_sun_direction(yaw) *
-/// RAYTRACE_SUN_DISTANCE`, i.e. **along** the direction the shading math
-/// receives, so the glowing disk on screen is the actual light position
-/// rather than a decoration pinned to an unrelated spot. Because the sun
-/// direction rotates with the yaw, the scene has to be rebuilt per frame
-/// for the sun sphere and the floor's lit pool to stay locked together.
-///
-/// # Arguments
-///
-/// - `f64` - The current camera yaw in radians.
+/// - **ground AABB** — a wide Lambert plate that catches the directional
+///   sun's shadow.
+/// - **mirror sphere** — a Phong material whose specular term drives the
+///   secondary bounces, so `max_bounces` is doing visible work.
+/// - **emissive sphere** — a standalone `Material::emissive` body. It is
+///   an *object that emits*, not a lamp representation: the new shading
+///   path casts real shadow rays, so putting a point light at its centre
+///   would have the sphere occlude its own light and black out the whole
+///   scene. The demo therefore keeps it purely emissive and places every
+///   actual light where nothing blocks it.
+/// - **mirror triangle** — a two-sided triangle, present so the scene
+///   carries a primitive kind that is neither sphere nor box.
 ///
 /// # Returns
 ///
-/// - `(Vec<Occluder>, Vector3D)` - The scene occluders and the eye position.
-fn build_raytrace_scene(yaw: f64) -> (Vec<Occluder>, Vector3D) {
-    let ground_min: Vector3D = Vector3D::new(-5.0, -0.6, -5.0);
-    let ground_max: Vector3D = Vector3D::new(5.0, -0.5, 5.0);
-    let ground_material: Material = Material::phong(Vector3D::new(0.30, 0.32, 0.36), 0.30, 24.0);
-    let ground: Occluder = Occluder::aabb(ground_min, ground_max, ground_material);
-    let mirror_material: Material = Material::phong(Vector3D::new(0.05, 0.05, 0.06), 1.0, 64.0);
-    let mirror: Occluder = Occluder::sphere(Vector3D::new(0.0, 0.4, 0.0), 0.9, mirror_material);
-    let emissive_material: Material = Material::emissive(Vector3D::new(1.0, 0.45, 0.10));
-    let emissive: Occluder =
-        Occluder::sphere(Vector3D::new(1.6, 0.6, -1.4), 0.45, emissive_material);
-    let sun_material: Material = Material::emissive(Vector3D::new(1.00, 0.95, 0.85));
-    let sun: Occluder = Occluder::sphere(
-        raytrace_sun_position(yaw),
-        RAYTRACE_SUN_RADIUS,
-        sun_material,
+/// - `RayTraceScene` - The shared demo scene.
+pub(crate) fn build_raytrace_scene() -> RayTraceScene {
+    let ground_material: Material = Material::lambert(Vector3D::new(0.62, 0.63, 0.66));
+    let ground: Occluder = Occluder::aabb(
+        Vector3D::new(-6.0, -0.62, -6.0),
+        Vector3D::new(6.0, -0.5, 6.0),
+        ground_material,
     );
-    let occluders: Vec<Occluder> = vec![ground, mirror, emissive, sun];
-    let eye: Vector3D = Vector3D::new(0.0, 0.8, 3.5);
-    (occluders, eye)
+    let mirror_material: Material = Material::phong(Vector3D::new(0.86, 0.87, 0.9), 1.0, 96.0);
+    let mirror: Occluder = Occluder::sphere(Vector3D::new(-0.9, 0.35, 0.2), 0.85, mirror_material);
+    let emissive_material: Material = Material::emissive(Vector3D::new(1.0, 0.42, 0.12));
+    let emissive: Occluder =
+        Occluder::sphere(Vector3D::new(1.75, 0.55, -1.35), 0.42, emissive_material);
+    let panel_material: Material = Material::phong(Vector3D::new(0.24, 0.46, 0.62), 0.9, 48.0);
+    let panel: Occluder = Occluder::triangle(
+        Vector3D::new(-2.7, -0.5, -2.3),
+        Vector3D::new(0.4, 2.55, -3.6),
+        Vector3D::new(2.3, -0.5, -1.15),
+        panel_material,
+    );
+    let occluders: Vec<Occluder> = vec![ground, mirror, emissive, panel];
+    RayTraceScene::new(occluders)
 }
 
-/// Computes the normalized sun direction for the current orbit yaw.
+/// Builds the shared, static lighting for the RayTrace scene.
 ///
-/// Shared by the CPU lighting builder, the visible sun sphere placement,
-/// and the GPU uniform packer so all three backends agree on the light.
+/// Every light sits in open space with a clear line to the geometry it is
+/// meant to light, which matters more here than in the previous demo:
+/// shading now casts exact shadow rays through the same BVH the primary
+/// rays traverse, so a light hidden behind (or inside) an occluder casts
+/// real, hard shadows instead of the old bounding-sphere approximation.
 ///
-/// # Arguments
+/// - **directional sun** — points down and toward the scene from open sky.
+///   Directional lights have no position, so nothing can occlude them.
+/// - **point fill** — hangs above and behind the mirror sphere, in free
+///   space, giving the shadowed side of the scene a visible gradient.
+/// - **spot rim** — aims at the emissive sphere from outside the scene to
+///   make the cone term observable.
 ///
-/// - `f64` - The current camera yaw in radians.
+/// The set is built once and cloned by reference thereafter: because the
+/// lights never move, no frame rebuilds it, so the packed light records
+/// are byte-identical for the life of the loop.
 ///
 /// # Returns
 ///
-/// - `Vector3D` - The unit sun direction.
-fn raytrace_sun_direction(yaw: f64) -> Vector3D {
-    Vector3D::new(-yaw.cos(), -0.5, -yaw.sin()).normalized()
-}
-
-/// Computes the world-space position of the visible sun sphere for the
-/// current orbit yaw.
-///
-/// This is the mirror image of the sun direction about the ground plane,
-/// scaled out to [`RAYTRACE_SUN_DISTANCE`], and it is the reason the
-/// floor's bright pool and the glowing disk finally agree.
-///
-/// The ground is the only surface whose lit pattern carries a positional
-/// cue. `LightingUniforms::shade` hardcodes the shadow factor to `1.0`
-/// for directional lights, and a directional light's Lambert term is
-/// constant across a flat plane, so neither shadows nor diffuse can
-/// place a pool anywhere. What the user actually sees on the floor is
-/// the Phong lobe from `compute_phong`, whose peak lies along
-/// `light_dir - normal * 2 * dot(light_dir, normal)`; for the ground's
-/// `+y` normal that reduces to negating the direction's `y` component.
-/// The pool therefore sits on the `(x, z)` side the sun direction points
-/// from, lifted above the plane.
-///
-/// The previous code placed the sphere at `sun_direction * -8.0`, which
-/// negates `x` and `z` as well and put the disk on the diametrically
-/// opposite side of the scene from the pool it was supposed to explain —
-/// exactly the "floor light does not match the light source" mismatch.
-/// Mirroring only `y` keeps the disk on the pool's side and above the
-/// floor, so the highlight reads as the sun's reflection.
-///
-/// # Arguments
-///
-/// - `f64` - The current camera yaw in radians.
-///
-/// # Returns
-///
-/// - `Vector3D` - The sun sphere centre in world space.
-fn raytrace_sun_position(yaw: f64) -> Vector3D {
-    let direction: Vector3D = raytrace_sun_direction(yaw);
-    Vector3D::new(direction.get_x(), -direction.get_y(), direction.get_z())
-        .scaled(RAYTRACE_SUN_DISTANCE)
-}
-
-/// Builds the per-frame lighting uniforms for the raytrace scene.
-///
-/// The single directional sun rotates with the current yaw so the lit
-/// side of the spheres tracks the orbiting camera: as the user drags
-/// the camera the highlight smoothly slides off the visible side of
-/// the mirror. Ambient and the specular eye stay constant.
-///
-/// The light stays directional on purpose. A point light at the sun's
-/// position would be shadow-tested through `soft_shadow_factor`, which
-/// approximates every occluder by a bounding sphere — the ground AABB's
-/// is 7.07 units in radius and contains every floor point, so each floor
-/// point would occlude itself and the whole ground would render black.
-///
-/// # Arguments
-///
-/// - `Vector3D` - The eye position used for specular calculations.
-/// - `f64` - The current camera yaw in radians.
-///
-/// # Returns
-///
-/// - `LightingUniforms` - The per-frame lighting.
-fn build_raytrace_lighting(eye: Vector3D, yaw: f64) -> LightingUniforms {
-    let sun: Light =
-        Light::new_directional(raytrace_sun_direction(yaw), Vector3D::new(1.0, 0.95, 0.85));
+/// - `LightingUniforms` - The static demo lighting.
+pub(crate) fn build_raytrace_lighting() -> LightingUniforms {
+    let eye: Vector3D = Vector3D::new(
+        RAYTRACE_SHADING_EYE_X,
+        RAYTRACE_SHADING_EYE_Y,
+        RAYTRACE_SHADING_EYE_Z,
+    );
+    let sun: Light = Light::new_directional(
+        Vector3D::new(0.42, -0.86, 0.3).normalized(),
+        Vector3D::new(1.0, 0.95, 0.84),
+    );
+    let fill: Light = Light::new_point(
+        Vector3D::new(-2.6, 2.9, 2.4),
+        Vector3D::new(0.42, 0.52, 0.78),
+        2.6,
+    );
+    let rim: Light = Light::new_spot(
+        Vector3D::new(3.1, 2.35, 1.75),
+        (Vector3D::new(1.75, 0.55, -1.35) - Vector3D::new(3.1, 2.35, 1.75)).normalized(),
+        Vector3D::new(0.78, 0.86, 1.0),
+        3.2,
+        0.62,
+    );
     let mut lights: LightingUniforms = LightingUniforms::with_eye(eye);
-    lights.set_ambient(Vector3D::new(0.10, 0.10, 0.14));
+    lights.set_ambient(Vector3D::new(0.09, 0.1, 0.14));
     lights.add_light(sun);
+    lights.add_light(fill);
+    lights.add_light(rim);
     lights
 }
 
-/// Clamps an `0..=infinity` linear color channel into the `0..=1`
-/// range used by the sRGB gamma curve.
-///
-/// # Arguments
-///
-/// - `f64` - The linear color channel value.
+/// Builds the `RayTraceSettings` every tab renders with.
 ///
 /// # Returns
 ///
-/// - `f64` - The clamped value in `[0, 1]`.
-fn clamp_unit(value: f64) -> f64 {
-    value.clamp(0.0, 1.0)
-}
-
-/// Packs a linear `0..=1` color channel into an sRGB byte, applying the
-/// shared `1/2.2` gamma curve.
-///
-/// # Arguments
-///
-/// - `f64` - The linear color channel value.
-///
-/// # Returns
-///
-/// - `u8` - The gamma-corrected 8-bit channel value.
-fn gamma_byte(value: f64) -> u8 {
-    (clamp_unit(value).powf(1.0 / 2.2) * 255.0).round() as u8
-}
-
-/// Computes the camera basis (forward, right, up_true) for a given
-/// yaw / pitch orbit position.
-///
-/// Mirrors the spherical-to-Cartesian conversion used by the 3D game
-/// page so the two demos produce visually equivalent camera paths. The
-/// `look_at` target is fixed at the scene origin's mid-height; only the
-/// eye position changes with yaw/pitch.
-///
-/// # Arguments
-///
-/// - `Vector3D` - The eye position.
-/// - `f64` - The orbit yaw in radians.
-/// - `f64` - The orbit pitch in radians.
-///
-/// # Returns
-///
-/// - `(Vector3D, Vector3D, Vector3D)` - The (forward, right, up_true) basis.
-fn build_camera_basis(eye: Vector3D, yaw: f64, pitch: f64) -> (Vector3D, Vector3D, Vector3D) {
-    let look_at: Vector3D = Vector3D::new(0.0, 0.4, 0.0);
-    let up: Vector3D = Vector3D::new(0.0, 1.0, 0.0);
-    let forward: Vector3D = (look_at - eye).normalized();
-    let _: f64 = yaw;
-    let _: f64 = pitch;
-    let right: Vector3D = forward.cross(up).normalized();
-    let up_true: Vector3D = right.cross(forward).normalized();
-    (forward, right, up_true)
+/// - `RayTraceSettings` - The shared sampling and bounce settings.
+pub(crate) fn build_raytrace_settings() -> RayTraceSettings {
+    RayTraceSettings::with_quality(RAYTRACE_SAMPLES_PER_AXIS, RAYTRACE_MAX_BOUNCES)
 }
 
 /// Computes the eye position for the given orbit yaw / pitch angles.
 ///
-/// Mirrors the orbit-to-eye conversion in
-/// `create_orbit_camera` from the 3D game page: the camera sits on a
-/// sphere of radius `RAYTRACE_CAMERA_DISTANCE` centred on the scene's
-/// look-at target, so dragging horizontally rotates around the scene
-/// and dragging vertically tilts up / down.
+/// Mirrors the orbit-to-eye conversion the 3D game page uses: the camera
+/// sits on a sphere of radius [`RAYTRACE_CAMERA_DISTANCE`] centred on the
+/// scene's look-at target, so dragging horizontally rotates around the
+/// scene and dragging vertically tilts up / down.
 ///
 /// # Arguments
 ///
@@ -379,14 +277,80 @@ fn build_camera_basis(eye: Vector3D, yaw: f64, pitch: f64) -> (Vector3D, Vector3
 /// # Returns
 ///
 /// - `Vector3D` - The eye position in world space.
-fn compute_eye_position(yaw: f64, pitch: f64) -> Vector3D {
+pub(crate) fn compute_eye_position(yaw: f64, pitch: f64) -> Vector3D {
     let cos_pitch: f64 = pitch.cos();
     let distance: f64 = RAYTRACE_CAMERA_DISTANCE;
     Vector3D::new(
-        distance * yaw.sin() * cos_pitch,
+        RAYTRACE_CAMERA_LOOK_AT_X + distance * yaw.sin() * cos_pitch,
         RAYTRACE_CAMERA_LOOK_AT_Y + distance * pitch.sin(),
         RAYTRACE_CAMERA_LOOK_AT_Z + distance * yaw.cos() * cos_pitch,
     )
+}
+
+/// Builds the orbit camera for a given yaw / pitch and frame size.
+///
+/// The engine's `pack_raytrace_frame` derives the view basis from
+/// `position` / `target` / `up` and rejects a degenerate one, so the demo
+/// supplies all three and never a precomputed basis of its own. The
+/// viewport is the *frame* size, not the CSS size: the engine derives the
+/// aspect from the width and height it is asked to render, which is what
+/// keeps the three backends from disagreeing about aspect while they
+/// resize independently.
+///
+/// # Arguments
+///
+/// - `f64` - The orbit yaw in radians.
+/// - `f64` - The orbit pitch in radians.
+/// - `u32` - The frame width in pixels.
+/// - `u32` - The frame height in pixels.
+///
+/// # Returns
+///
+/// - `Camera3D` - The orbit camera for this frame.
+pub(crate) fn build_raytrace_camera(yaw: f64, pitch: f64, width: u32, height: u32) -> Camera3D {
+    Camera3D::create(
+        compute_eye_position(yaw, pitch),
+        Vector3D::new(
+            RAYTRACE_CAMERA_LOOK_AT_X,
+            RAYTRACE_CAMERA_LOOK_AT_Y,
+            RAYTRACE_CAMERA_LOOK_AT_Z,
+        ),
+        f64::from(width),
+        f64::from(height),
+    )
+}
+
+/// Reads the backing-store width of a tab's canvas.
+///
+/// # Arguments
+///
+/// - `&str` - The CSS selector of the tab's canvas.
+///
+/// # Returns
+///
+/// - `u32` - The backing width in pixels, or `1` when the canvas cannot be
+///   found. A `1`-pixel frame is rejected by the engine, so a vanished
+///   canvas surfaces as a real error rather than a silently empty frame.
+pub(crate) fn raytrace_canvas_backing_width(canvas_selector: &str) -> u32 {
+    query_raytrace_canvas(canvas_selector)
+        .map(|canvas: HtmlCanvasElement| canvas.width())
+        .unwrap_or(1)
+}
+
+/// Reads the backing-store height of a tab's canvas.
+///
+/// # Arguments
+///
+/// - `&str` - The CSS selector of the tab's canvas.
+///
+/// # Returns
+///
+/// - `u32` - The backing height in pixels, or `1` when the canvas cannot be
+///   found.
+pub(crate) fn raytrace_canvas_backing_height(canvas_selector: &str) -> u32 {
+    query_raytrace_canvas(canvas_selector)
+        .map(|canvas: HtmlCanvasElement| canvas.height())
+        .unwrap_or(1)
 }
 
 /// Computes the integer backing buffer dimensions for a render-scale
@@ -399,348 +363,612 @@ fn compute_eye_position(yaw: f64, pitch: f64) -> Vector3D {
 /// # Returns
 ///
 /// - `(u32, u32)` - The `(width, height)` in pixels (always 4:3).
-fn raytrace_scaled_dimensions(scale: f64) -> (u32, u32) {
-    let width: u32 = (RAYTRACE_WIDTH * scale).round() as u32;
-    let height: u32 = (RAYTRACE_HEIGHT * scale).round() as u32;
+pub(crate) fn raytrace_scaled_dimensions(scale: f64) -> (u32, u32) {
+    let width: u32 = (RAYTRACE_WIDTH * scale).round().max(1.0) as u32;
+    let height: u32 = (RAYTRACE_HEIGHT * scale).round().max(1.0) as u32;
     (width, height)
 }
 
-/// Renders one full frame of the RayTrace demo into the RGBA byte
-/// framebuffer.
+/// Extracts a human-readable detail string out of a rejected engine call.
 ///
-/// Builds the camera basis once, then for every pixel in the backing
-/// buffer computes a primary `Ray`, traces it through the precomputed
-/// `RayTraceScene` (zero heap allocation per ray), and packs the
-/// resulting linear color into four RGBA bytes with the shared `1/2.2`
-/// gamma curve. Lighting is rebuilt per frame by the caller so the
-/// directional sun tracks the camera orbit.
+/// A `JsValue` error from the backend is usually a string, but a thrown
+/// object or a number is equally legal, so anything that is not a string
+/// falls back to a fixed placeholder instead of being rendered as
+/// `undefined` on the page.
 ///
 /// # Arguments
 ///
-/// - `&mut [u8]` - The RGBA framebuffer (length `width * height * 4`).
-/// - `u32` - The framebuffer width in pixels.
-/// - `u32` - The framebuffer height in pixels.
-/// - `&RayTraceScene` - The scene with precomputed shadow data.
-/// - `&LightingUniforms` - The per-frame lighting.
-/// - `f64` - The orbit yaw in radians.
-/// - `f64` - The orbit pitch in radians.
-fn render_raytrace_frame(
-    buffer: &mut [u8],
-    width: u32,
-    height: u32,
-    scene: &RayTraceScene,
-    lights: &LightingUniforms,
-    yaw: f64,
-    pitch: f64,
+/// - `&JsValue` - The rejected error value.
+///
+/// # Returns
+///
+/// - `String` - The detail text to log and display.
+pub(crate) fn raytrace_error_detail(error: &JsValue) -> String {
+    error
+        .as_string()
+        .unwrap_or_else(|| RAYTRACE_ERROR_DETAIL_UNKNOWN.to_string())
+}
+
+/// Records a rejected engine call on the tab's reactive state.
+///
+/// Every failure path routes through here, which is what keeps the
+/// status banner honest: `active` is only ever set after a frame has
+/// actually rendered, and it is cleared again the moment a frame starts
+/// failing, so a dead renderer can never keep reporting itself as live.
+///
+/// # Arguments
+///
+/// - `Signal<bool>` - The tab's `active` flag.
+/// - `Signal<String>` - The tab's error detail signal.
+/// - `Signal<&'static str>` - The tab's stable error code signal.
+/// - `&'static str` - The stable error code for this call site.
+/// - `&str` - A short label naming the call that failed.
+/// - `&JsValue` - The rejected error value.
+pub(crate) fn raytrace_record_error(
+    active: Signal<bool>,
+    error_detail: Signal<String>,
+    init_error_code: Signal<&'static str>,
+    code: &'static str,
+    call: &str,
+    error: &JsValue,
 ) {
-    let width_f64: f64 = f64::from(width);
-    let height_f64: f64 = f64::from(height);
-    let eye: Vector3D = compute_eye_position(yaw, pitch);
-    let (forward, right, up_true): (Vector3D, Vector3D, Vector3D) =
-        build_camera_basis(eye, yaw, pitch);
-    let aspect: f64 = width_f64 / height_f64;
-    let focal: f64 = 1.0;
-    let inv_width: f64 = 1.0 / width_f64;
-    let inv_height: f64 = 1.0 / height_f64;
-    let sub_offsets: [(f64, f64); 4] = [(0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75)];
-    let mut index: usize = 0;
-    for y in 0..height {
-        for x in 0..width {
-            let mut acc_r: f64 = 0.0;
-            let mut acc_g: f64 = 0.0;
-            let mut acc_b: f64 = 0.0;
-            for (dx_off, dy_off) in sub_offsets {
-                let px: f64 = f64::from(x) + dx_off;
-                let py: f64 = f64::from(y) + dy_off;
-                let ndc_x: f64 = (px * inv_width) * 2.0 - 1.0;
-                let ndc_y: f64 = 1.0 - (py * inv_height) * 2.0;
-                let dir: Vector3D =
-                    (forward.scaled(focal) + right.scaled(ndc_x * aspect) + up_true.scaled(ndc_y))
-                        .normalized();
-                let ray: Ray = Ray::new(eye, dir);
-                let color: Vector3D = scene.trace(ray, lights);
-                acc_r += color.get_x();
-                acc_g += color.get_y();
-                acc_b += color.get_z();
-            }
-            buffer[index] = gamma_byte(acc_r * 0.25);
-            buffer[index + 1] = gamma_byte(acc_g * 0.25);
-            buffer[index + 2] = gamma_byte(acc_b * 0.25);
-            buffer[index + 3] = 255;
-            index += 4;
+    let detail: String = raytrace_error_detail(error);
+    Console::error(format!(
+        "{RAYTRACE_LOG_PREFIX} {call} failed [{code}]: {detail}"
+    ));
+    error_detail.set(detail);
+    init_error_code.set(code);
+    active.set(false);
+}
+
+/// Clears the tab's error state after a successful frame.
+///
+/// # Arguments
+///
+/// - `Signal<bool>` - The tab's `active` flag.
+/// - `Signal<String>` - The tab's error detail signal.
+/// - `Signal<&'static str>` - The tab's stable error code signal.
+pub(crate) fn raytrace_clear_error(
+    active: Signal<bool>,
+    error_detail: Signal<String>,
+    init_error_code: Signal<&'static str>,
+) {
+    error_detail.set(String::new());
+    init_error_code.set("");
+    active.set(true);
+}
+
+/// Schedules a one-shot `setTimeout` whose Rust closure is owned rather
+/// than leaked with `Closure::forget`.
+///
+/// Every entry is a `(timer handle, closure)` pair so
+/// [`raytrace_release_pending_timers`] can cancel the browser timer
+/// *before* dropping the closure: a timer whose Rust environment has
+/// already been deallocated throws `closure invoked recursively or after
+/// being dropped` at the JavaScript boundary, before any Rust code could
+/// observe the teardown flag. The pairing, not the leak, is what makes
+/// the release order safe.
+///
+/// # Arguments
+///
+/// - `RayTracePendingTimers` - The owner list
+///   shared with the loop's teardown.
+/// - `i32` - The delay in milliseconds before the body runs.
+/// - `F` - The body to run once the timer fires.
+fn raytrace_schedule_one_shot<F>(pending_timers: RayTracePendingTimers, millis: i32, body: F)
+where
+    F: FnMut() + 'static,
+{
+    let timer_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(body));
+    let Some(window_value): Option<Window> = window() else {
+        return;
+    };
+    let timer_callback: Function = timer_closure.as_ref().unchecked_ref::<Function>().clone();
+    match window_value
+        .set_timeout_with_callback_and_timeout_and_arguments_0(&timer_callback, millis)
+    {
+        Ok(timer_id) => {
+            let mut pending_guard: RayTracePendingTimerGuard = match pending_timers.try_borrow_mut()
+            {
+                Ok(guard) => guard,
+                Err(_contended) => return,
+            };
+            pending_guard.push((timer_id, timer_closure));
+        }
+        Err(_reason) => {}
+    }
+}
+
+/// Cancels every pending one-shot timer of a loop and then drops the
+/// Rust closures behind them.
+///
+/// The ids are collected before the owner list is emptied, and each
+/// `clear_timeout` runs while no borrow of the owner list is alive, so
+/// no re-entrant call can observe a contended `RefCell`.
+///
+/// # Arguments
+///
+/// - `RayTracePendingTimers` - The owner list
+///   shared with the loop.
+fn raytrace_release_pending_timers(pending_timers: RayTracePendingTimers) {
+    let timer_ids: Vec<i32> = pending_timers
+        .borrow()
+        .iter()
+        .map(|entry: &(i32, Closure<dyn FnMut()>)| entry.0)
+        .collect();
+    for timer_id in timer_ids {
+        let Some(window_value): Option<Window> = window() else {
+            return;
+        };
+        window_value.clear_timeout_with_handle(timer_id);
+    }
+    let mut pending_guard: RayTracePendingTimerGuard = match pending_timers.try_borrow_mut() {
+        Ok(guard) => guard,
+        Err(_contended) => return,
+    };
+    pending_guard.clear();
+}
+
+/// Sets a tab's `loaded` signal after a short delay so the loading
+/// overlay is actually painted before it is removed.
+///
+/// `init` resolves well inside a single frame for a warm backend, and most
+/// browsers collapse a mount + unmount that happens within one tick into a
+/// single paint, so the overlay would never be seen. Delaying the flip
+/// guarantees every tab shows the same "Initializing..." window.
+///
+/// # Arguments
+///
+/// - `RayTracePendingTimers` - The owner list
+///   the timer is registered in.
+/// - `Signal<bool>` - The tab's `loaded` signal to set.
+/// - `i32` - The delay in milliseconds before setting the signal.
+fn raytrace_set_loaded_delayed(
+    pending_timers: RayTracePendingTimers,
+    loaded: Signal<bool>,
+    millis: i32,
+) {
+    raytrace_schedule_one_shot(pending_timers, millis, move || {
+        loaded.set(true);
+    });
+}
+
+/// Registers the debounced window-resize listener shared by the GPU
+/// backed loops.
+///
+/// The listener body is registered through `App::use_window_event`, so
+/// the framework owns it for exactly as long as the hook context lives
+/// and unregisters it on the same cleanup that runs on a tab switch.
+/// The `Closure` behind the JavaScript callback the body schedules is
+/// therefore handed back as an owner cell for the caller to move into
+/// its own cleanup, rather than being leaked with `Closure::forget`.
+///
+/// It is deliberately *not* released by [`raytrace_release_loop`]: a
+/// handler that is still registered can still be invoked, and dropping
+/// its callback from under it would turn the next window resize into a
+/// thrown exception at the JavaScript boundary. The `cancelled` flag is
+/// what makes that surviving handler inert instead.
+///
+/// # Arguments
+///
+/// - `Rc<Cell<bool>>` - The resize-dirty flag set after the debounce fires.
+/// - `Rc<Cell<Option<i32>>>` - The pending debounce timer handle.
+/// - `Rc<Cell<bool>>` - The loop's cancellation flag, checked before the
+///   debounce timer is armed.
+///
+/// # Returns
+///
+/// - `RayTraceDebounceOwner` - The cell owning the
+///   debounce closure.
+fn raytrace_register_resize_debounce(
+    resize_dirty: Rc<Cell<bool>>,
+    resize_timer: Rc<Cell<Option<i32>>>,
+    cancelled: Rc<Cell<bool>>,
+) -> RayTraceDebounceOwner {
+    let debounce_owner: RayTraceDebounceOwner = Rc::new(RefCell::new(None));
+    let resize_dirty_for_event: Rc<Cell<bool>> = resize_dirty;
+    let resize_timer_for_event: Rc<Cell<Option<i32>>> = resize_timer;
+    let cancelled_for_event: Rc<Cell<bool>> = cancelled;
+    let debounce_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+        resize_dirty_for_event.set(true);
+    }));
+    let debounce_callback: Function = debounce_closure
+        .as_ref()
+        .unchecked_ref::<Function>()
+        .clone();
+    let Some(resize_window): Option<Window> = window() else {
+        *debounce_owner.borrow_mut() = Some(debounce_closure);
+        return debounce_owner;
+    };
+    App::use_window_event(RAYTRACE_EVENT_RESIZE, move || {
+        if cancelled_for_event.get() {
+            return;
+        }
+        let old_timer: Option<i32> = resize_timer_for_event.get();
+        if let Some(timer_id) = old_timer {
+            let Some(clear_window): Option<Window> = window() else {
+                return;
+            };
+            clear_window.clear_timeout_with_handle(timer_id);
+        }
+        let new_timer: i32 = resize_window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(
+                &debounce_callback,
+                RAYTRACE_RESIZE_DEBOUNCE_MILLIS,
+            )
+            .unwrap_or_default();
+        resize_timer_for_event.set(Some(new_timer));
+    });
+    *debounce_owner.borrow_mut() = Some(debounce_closure);
+    debounce_owner
+}
+
+/// Reads the current device pixel ratio, rejecting nonsense values.
+///
+/// # Returns
+///
+/// - `f64` - The device pixel ratio, or `1.0` when it cannot be read or
+///   is not a finite value of at least 1.
+pub(crate) fn read_raytrace_dpr() -> f64 {
+    let Some(window_value): Option<Window> = window() else {
+        return 1.0;
+    };
+    Reflect::get(
+        window_value.as_ref(),
+        &JsValue::from_str(RAYTRACE_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
+    )
+    .ok()
+    .and_then(|value: JsValue| value.as_f64())
+    .filter(|value: &f64| value.is_finite() && *value >= 1.0)
+    .unwrap_or(1.0)
+}
+
+/// Resizes a tab's engine backend to the canvas's physical size.
+///
+/// The renderer is the **single** commit point for the size: it commits
+/// its own dimensions, the canvas backing store, and its pixel buffer
+/// only after the backend has accepted the request, so a rejected size
+/// leaves the canvas showing the previous, still valid, surface. This
+/// wrapper therefore never touches `canvas.width` / `canvas.height`
+/// itself — writing them first would break that transaction, because the
+/// canvas would already be showing a surface the renderer never adopted
+/// when `resize` returns `Err`.
+///
+/// The call is skipped entirely when the target already matches the
+/// backing store: a steady frame therefore performs no DOM write, no
+/// GL / GPU viewport touch, and no reallocation.
+///
+/// # Arguments
+///
+/// - `&mut RayTraceRenderer` - The engine backend.
+/// - `&str` - The CSS selector of the tab's canvas.
+/// - `Signal<bool>` - The tab's `active` flag.
+/// - `Signal<String>` - The tab's error detail signal.
+/// - `Signal<&'static str>` - The tab's stable error code signal.
+///
+/// # Returns
+///
+/// - `bool` - Whether the backend now matches the canvas.
+pub(crate) fn raytrace_resize_backend_to_canvas(
+    renderer: &mut RayTraceRenderer,
+    canvas_selector: &str,
+    active: Signal<bool>,
+    error_detail: Signal<String>,
+    init_error_code: Signal<&'static str>,
+) -> bool {
+    let Some(canvas): Option<HtmlCanvasElement> = query_raytrace_canvas(canvas_selector) else {
+        return false;
+    };
+    let backing_width: u32 = canvas.width();
+    let backing_height: u32 = canvas.height();
+    let dpr: f64 = read_raytrace_dpr();
+    let (css_width, css_height): (f64, f64) =
+        read_raytrace_canvas_size(canvas_selector).unwrap_or((0.0, 0.0));
+    if css_width <= 0.0 || css_height <= 0.0 {
+        return backing_width > 0 && backing_height > 0;
+    }
+    let target_width: u32 = (css_width * dpr).round() as u32;
+    let target_height: u32 = (css_height * dpr).round() as u32;
+    if target_width == 0 || target_height == 0 {
+        return backing_width > 0 && backing_height > 0;
+    }
+    if backing_width == target_width && backing_height == target_height {
+        return true;
+    }
+    match renderer.resize(target_width, target_height) {
+        Ok(()) => {
+            raytrace_clear_error(active, error_detail, init_error_code);
+            true
+        }
+        Err(error) => {
+            raytrace_record_error(
+                active,
+                error_detail,
+                init_error_code,
+                RAYTRACE_ERROR_CODE_RESIZE,
+                "resize",
+                &error,
+            );
+            false
         }
     }
 }
 
-/// Paints the RayTrace CSS-framebackground (the 4:3 ladder region) onto
-/// the supplied `SsaaCanvas` offscreen context and presents the
-/// high-quality downscale to the display canvas.
+/// Releases every resource a RayTrace loop owns, on both teardown paths.
 ///
-/// Three concerns drive the layout:
+/// `App::use_cleanup` fires on a match-arm switch, but a router
+/// navigation mounts a different page without running any cleanup, so a
+/// loop whose canvas left the document reaches its own teardown from the
+/// animation-frame body instead. Both paths converge on this one
+/// function, which is idempotent: every step either checks a handle or
+/// takes a value out of its owner, so running it twice releases nothing
+/// twice.
 ///
-/// 1. **The 4:3 ladder is smaller than the offscreen context.** The
-///    `SsaaCanvas` is sized to the raytrace canvas's CSS box
-///    (`c_game_canvas_wrapper`, 3:2 inline) which is wider than the
-///    4:3 ladder framebuffer. A `put_image_data` upload to `(0, 0)`
-///    would leave the right 12% of the offscreen backing black. The
-///    visual cost is a permanently-letterboxed right edge inside the
-///    SSAA buffer, which the downscale faithfully composites.
-///
-/// 2. **`put_image_data` is a raw upload** with no image-smoothing,
-///    so the ladder framebuffer's hard edges survive the 2x SSAA
-///    downscale only when the ladder size matches the offscreen
-///    physical size exactly. They do not (the ladder is 320x240 at
-///    scale 1.0, the offscreen is `css_w * 2 * dpr` x
-///    `css_h * 2 * dpr`).
-///
-/// 3. **`draw_image` is the only path that respects
-///    `imageSmoothingEnabled`.** We upload the ladder framebuffer
-///    to a fresh 4:3 `HtmlCanvasElement` (its 2D context is
-///    transparent) and then `draw_image` it onto the SSAA offscreen
-///    context centered inside the wrapper's 4:3 letterbox region.
-///    The drawImage call stretches the 4:3 source onto a 4:3
-///    destination with `imageSmoothingEnabled = "high"`, which
-///    smooths the source's hard edges on the way in. The
-///    subsequent `SsaaCanvas::present` does a second
-///    `imageSmoothingHigh` downscale from the offscreen to the
-///    display canvas, stacking two smoothing passes on the same
-///    edge pixels — exactly the dual-stage SSAA the 3D game page
-///    uses for its cube and ball rendering.
-///
-/// The 4:3 destination rectangle is computed from the live canvas
-/// CSS box: `min(width, height * 4/3)` wide, `min(height, width *
-/// 3/4)` tall, centered. Inline (3:2) CSS boxes get a horizontal
-/// letterbox (CSS box wider than 4:3); fullscreen (16:9) CSS boxes
-/// get a vertical letterbox (CSS box taller than 4:3). Either way
-/// the destination is a 4:3 rectangle that exactly fits the ladder
-/// framebuffer's native aspect ratio so the drawImage call does no
-/// additional aspect-ratio stretch.
+/// The animation-frame closure is safe to take even when this runs from
+/// inside that very closure, which is the case on the router-navigation
+/// path. wasm-bindgen 0.2.129 makes `makeMutClosure` bump the closure's
+/// own reference count for the duration of the call and release it in a
+/// `finally`, so dropping the Rust `Closure` mid-invocation only lowers
+/// the count to one and the Rust environment stays alive until the
+/// callback returns. The frame body can therefore keep using every cell
+/// it captured after this function returns.
 ///
 /// # Arguments
 ///
-/// - `&SsaaCanvas` - The SSAA wrapper whose offscreen context is
-///   the draw target.
-/// - `&mut [u8]` - The RGBA framebuffer (length `width * height * 4`).
-/// - `u32` - The framebuffer width in pixels.
-/// - `u32` - The framebuffer height in pixels.
-fn present_raytrace_framebuffer(
-    ssaa_canvas: &SsaaCanvas,
-    buffer: &mut [u8],
-    width: u32,
-    height: u32,
+/// - `Rc<Cell<bool>>` - The cancellation flag the loop body checks.
+/// - `Rc<Cell<Option<i32>>>` - The pending animation-frame handle.
+/// - `RafClosureCell` - The cell owning the animation-frame closure.
+/// - `RayTracePendingTimers` - The owner list of
+///   one-shot timers this loop armed.
+/// - `Rc<RefCell<Option<RayTraceRenderer>>>` - The cell owning the engine
+///   backend.
+fn raytrace_release_loop(
+    cancelled: Rc<Cell<bool>>,
+    raf_id: Rc<Cell<Option<i32>>>,
+    closure_cell: RafClosureCell,
+    pending_timers: RayTracePendingTimers,
+    renderer_rc: Rc<RefCell<Option<RayTraceRenderer>>>,
 ) {
-    let Some(window_value): Option<Window> = window() else {
-        return;
-    };
-    let Some(document_value): Option<Document> = window_value.document() else {
-        return;
-    };
-    let Ok(source_canvas): Result<HtmlCanvasElement, JsValue> = document_value
-        .create_element("canvas")
-        .map(|element: Element| element.unchecked_into())
-    else {
-        return;
-    };
-    source_canvas.set_width(width);
-    source_canvas.set_height(height);
-    let Ok(Some(source_context_object)): Result<Option<Object>, JsValue> =
-        source_canvas.get_context(RAYTRACE_CONTEXT_TYPE)
-    else {
-        return;
-    };
-    let source_context: CanvasRenderingContext2d = source_context_object.unchecked_into();
-    let image_data: Result<ImageData, JsValue> =
-        ImageData::new_with_u8_clamped_array_and_sh(Clamped(buffer), width, height);
-    let Ok(image_data) = image_data else {
-        return;
-    };
-    let _: Result<(), JsValue> = source_context.put_image_data(&image_data, 0.0, 0.0);
-    let offscreen_context: &CanvasRenderingContext2d = ssaa_canvas.get_offscreen_context();
-    let offscreen_width: f64 = ssaa_canvas.get_width();
-    let offscreen_height: f64 = ssaa_canvas.get_height();
-    let dest_w: f64 = offscreen_width.min(offscreen_height * 4.0 / 3.0);
-    let dest_h: f64 = offscreen_height.min(offscreen_width * 3.0 / 4.0);
-    let dest_x: f64 = (offscreen_width - dest_w) * 0.5;
-    let dest_y: f64 = (offscreen_height - dest_h) * 0.5;
-    let _: Result<(), JsValue> = offscreen_context
-        .draw_image_with_html_canvas_element_and_dw_and_dh(
-            &source_canvas,
-            dest_x,
-            dest_y,
-            dest_w,
-            dest_h,
-        );
-    ssaa_canvas.present();
+    cancelled.set(true);
+    if let Some(cancel_id) = raf_id.get()
+        && let Some(window_value) = window()
+    {
+        let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
+    }
+    raf_id.set(None);
+    raytrace_release_pending_timers(pending_timers);
+    let _: Option<Closure<dyn FnMut()>> = closure_cell.try_take();
+    if let Some(mut renderer) = renderer_rc
+        .try_borrow_mut()
+        .ok()
+        .and_then(|mut slot: RefMut<'_, Option<RayTraceRenderer>>| slot.take())
+    {
+        renderer.dispose();
+    }
 }
 
 /// Starts the RayTrace Canvas 2D `requestAnimationFrame` loop.
 ///
-/// Per frame: applies auto-rotate yaw if enabled, rebuilds lighting
-/// from the current yaw, re-traces every pixel into the persistent RGBA
-/// framebuffer, and uploads it with one `put_image_data` call. An
-/// exponential moving average of the CPU render time drives the
+/// The loop owns exactly one [`RayTraceRenderer`] built through the
+/// engine's `RayTraceRenderer::init` with the requested
+/// [`RayTraceBackend::Canvas2D`]. Every frame hands that same backend the
+/// orbit camera, the shared lighting, and the shared settings; the scene is
+/// uploaded once at `init` and never re-sent, because neither the geometry
+/// nor the lights move with the camera.
+///
+/// An exponential moving average of the measured render time drives the
 /// [`RAYTRACE_RENDER_SCALES`] adaptive-resolution ladder: sustained
 /// frames above 115% of the 60 FPS budget step the internal resolution
-/// down one rung, sustained frames below 75% step it back up one rung,
-/// and sustained frames below 45% step it up two rungs at once. The
-/// FPS counter uses unclamped wall-clock elapsed time so it reports
-/// honest rates even below 4 FPS; the `0.25s` clamp applies only to
-/// the yaw animation step. The `use_cleanup` cancellation and
-/// canvas-detached guard mirror the game_2d / game_3d pattern.
+/// down one rung, sustained frames below 75% step it back up, and
+/// sustained frames below 45% step it up two rungs at once. The reported
+/// FPS uses unclamped wall-clock elapsed time so it stays honest even
+/// below 4 FPS; the `0.25s` clamp applies only to the yaw animation step.
+///
+/// A rung change is a real size change, so it is committed through the
+/// same [`raytrace_resize_backend_to_canvas`] path the CSS box uses, and
+/// only on the frames where the rung actually moved: the camera is built
+/// for the *previous* frame's size, the new size is adopted after that
+/// frame renders, and a rejected resize leaves both the backend and the
+/// canvas on their old size instead of presenting a mismatch.
 ///
 /// # Arguments
 ///
 /// - `UseRayTrace` - The RayTrace Canvas 2D tab state.
 /// - `RayTraceCameraAngles` - The non-reactive camera orbit angles.
 pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngles) {
+    let init_state: UseRayTrace = state;
+    let loop_state: UseRayTrace = state;
+    let renderer_rc: Rc<RefCell<Option<RayTraceRenderer>>> = Rc::new(RefCell::new(None));
+    let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
     let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
-    let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
-    let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
-    let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
-    // Only the eye is hoisted: it is constant, so specular highlights
-    // stay stable as the user orbits. The occluder list is intentionally
-    // discarded here because the visible sun sphere's position is a
-    // function of yaw, so the scene (and the `RayTraceScene` that owns
-    // the precomputed shadow bounding spheres) is rebuilt inside the
-    // frame callback to stay in lock-step with the rendered sun.
-    let (_, eye): (Vec<Occluder>, Vector3D) = build_raytrace_scene(0.0);
-    // The `SsaaCanvas` is rebuilt from scratch on a CSS-box resize
-    // (its constructor re-acquires the display canvas, resizes the
-    // display backing store, and allocates a new offscreen canvas at
-    // the new scale). Storing `None` in the cache and re-acquiring on
-    // divergence mirrors the game_2d Canvas 2D pattern (see
-    // `handle_rescale_dirty_canvas2d` in `game_2d/hook/fn.rs`).
-    let ssaa_cache: Rc<RefCell<Option<(HtmlCanvasElement, SsaaCanvas)>>> =
-        Rc::new(RefCell::new(None));
-    let last_canvas_size: Rc<RefCell<(f64, f64)>> = Rc::new(RefCell::new((0.0, 0.0)));
-    let framebuffer: Rc<RefCell<Vec<u8>>> = Rc::new(RefCell::new(Vec::new()));
-    // Start at ladder index 7 (scale 1.0): weak clients never start
-    // heavy, and the controller climbs toward 4.0 only after sustained
-    // fast frames prove the budget allows it.
-    let scale_index: Rc<Cell<usize>> = Rc::new(Cell::new(7));
-    let ema_millis: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
-    let slow_frames: Rc<Cell<u32>> = Rc::new(Cell::new(0));
-    let fast_frames: Rc<Cell<u32>> = Rc::new(Cell::new(0));
-    let very_fast_frames: Rc<Cell<u32>> = Rc::new(Cell::new(0));
-    let last_clone: Rc<Cell<f64>> = last_time.clone();
-    let frame_clone: Rc<Cell<u32>> = frame_count.clone();
-    let fps_clone: Rc<Cell<f64>> = fps_timer.clone();
-    let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
-    let cell_clone: RafClosureCell = closure_cell.clone();
-    let yaw_clone: Rc<Cell<f64>> = angles.yaw.clone();
-    let pitch_clone: Rc<Cell<f64>> = angles.pitch.clone();
-    let cache_clone: Rc<RefCell<Option<(HtmlCanvasElement, SsaaCanvas)>>> = ssaa_cache.clone();
-    let last_size_clone: Rc<RefCell<(f64, f64)>> = last_canvas_size.clone();
-    let buffer_clone: Rc<RefCell<Vec<u8>>> = framebuffer.clone();
-    let scale_clone: Rc<Cell<usize>> = scale_index.clone();
-    let ema_clone: Rc<Cell<f64>> = ema_millis.clone();
-    let slow_clone: Rc<Cell<u32>> = slow_frames.clone();
-    let fast_clone: Rc<Cell<u32>> = fast_frames.clone();
-    let very_fast_clone: Rc<Cell<u32>> = very_fast_frames.clone();
-    let state_for_loop: UseRayTrace = state;
-    // Paint the loading overlay *before* the first frame so the user
-    // sees a centered "Initializing..." line during the SSAA acquire
-    // + first warmup ray pass. The 200-400 ms window is short
-    // enough that the overlay usually disappears in a single frame,
-    // but synchronous WASM module init can delay it further on slow
-    // devices, and without this paint the canvas stays blank /
-    // half-rendered for that entire window.
-    if let Some(window_value) = window() {
-        let loading_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-            draw_game_3d_loading(RAYTRACE_LOADING_CANVAS_SELECTOR, RAYTRACE_CANVAS_SELECTOR);
-        }));
-        let loading_callback: Function =
-            loading_closure.as_ref().unchecked_ref::<Function>().clone();
-        loading_closure.forget();
-        let _: Result<i32, JsValue> = window_value
-            .set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
-    }
-    let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-        if raytrace_canvas_detached(RAYTRACE_CANVAS_SELECTOR) {
-            return;
-        }
-        let Some(window_value): Option<Window> = window() else {
+    let pending_timers: RayTracePendingTimers = Rc::new(RefCell::new(Vec::new()));
+    let renderer_for_cleanup: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
+    let raf_for_cleanup: Rc<Cell<Option<i32>>> = raf_id.clone();
+    let cell_for_cleanup: RafClosureCell = closure_cell.clone();
+    let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
+    let timers_for_cleanup: RayTracePendingTimers = pending_timers.clone();
+    // `dispose` is idempotent by contract, so calling it on the cleanup
+    // path and again on the `Drop` of the dropped renderer cannot
+    // double-free: the second call is a no-op on an already-disposed
+    // backend. Taking the value out of the cell releases the last Rust
+    // reference as well, which is what lets the renderer run its `Drop`.
+    App::use_cleanup(move || {
+        raytrace_release_loop(
+            cancelled_for_cleanup,
+            raf_for_cleanup,
+            cell_for_cleanup,
+            timers_for_cleanup,
+            renderer_for_cleanup,
+        );
+    });
+    let cancelled_for_init: Rc<Cell<bool>> = cancelled.clone();
+    let pending_timers_for_init: RayTracePendingTimers = pending_timers.clone();
+    // Owned by the same pending-timer list as every other one-shot, so
+    // teardown drops the Rust closure instead of leaking it. The DOM
+    // still holds a live reference to the trampoline until the timer
+    // fires, which is what the timeout handle then detaches.
+    raytrace_schedule_one_shot(pending_timers_for_init.clone(), 0, || {
+        draw_game_3d_loading(RAYTRACE_LOADING_CANVAS_SELECTOR, RAYTRACE_CANVAS_SELECTOR);
+    });
+    spawn_local(async move {
+        let Some(canvas): Option<HtmlCanvasElement> =
+            query_raytrace_canvas(RAYTRACE_CANVAS_SELECTOR)
+        else {
+            init_state.get_active().set(false);
+            init_state
+                .get_init_error_code()
+                .set(RAYTRACE_ERROR_CODE_INIT);
+            init_state.get_error_detail().set(String::new());
+            init_state.get_loaded().set(true);
             return;
         };
-        let Some(performance): Option<Performance> = window_value.performance() else {
-            return;
-        };
-        let current_time: f64 = performance.now() / 1000.0;
-        let prev: f64 = last_clone.get();
-        // The unclamped frame time feeds the FPS counter so the reported
-        // rate stays honest even when frames take multiple seconds; only
-        // the yaw animation step consumes the clamped delta.
-        let frame_time: f64 = if prev < 0.0 {
-            1.0 / 60.0
-        } else {
-            current_time - prev
-        };
-        let anim_time: f64 = frame_time.min(0.25);
-        last_clone.set(current_time);
-        if state_for_loop.get_auto_rotate().get() {
-            yaw_clone.set(yaw_clone.get() + RAYTRACE_AUTO_YAW_SPEED * anim_time);
-        }
-        let yaw: f64 = yaw_clone.get();
-        let pitch: f64 = pitch_clone.get();
-        if state_for_loop.get_running().get() {
-            // Resize the SSAA wrapper when the live CSS box diverges
-            // from the cached size. `getBoundingClientRect` is the
-            // only reading that tracks the live layout; using
-            // `canvas.width` / `canvas.height` would loop on the
-            // backing store we just wrote.
-            let (live_w, live_h): (f64, f64) =
-                read_raytrace_canvas_size(RAYTRACE_CANVAS_SELECTOR).unwrap_or((0.0, 0.0));
-            let (cached_w, cached_h) = *last_size_clone.borrow();
-            let needs_reacquire: bool = live_w > 0.0
-                && live_h > 0.0
-                && (cached_w <= 0.0
-                    || cached_h <= 0.0
-                    || (live_w - cached_w).abs() > 1.5
-                    || (live_h - cached_h).abs() > 1.5);
-            if needs_reacquire {
-                if let Some((_, ssaa_canvas)) = acquire_raytrace_ssaa_canvas() {
-                    *cache_clone.borrow_mut() =
-                        Some((ssaa_canvas.get_display_canvas().clone(), ssaa_canvas));
+        // The scene and the lights are both static, so both are built
+        // exactly once here and handed to the engine. From this point on
+        // no frame allocates, clones, or re-packs either one.
+        let scene: RayTraceScene = build_raytrace_scene();
+        let renderer: RayTraceRenderer =
+            match RayTraceRenderer::init(canvas, RayTraceBackend::Canvas2D, &scene).await {
+                Ok(value) => value,
+                Err(error) => {
+                    raytrace_record_error(
+                        init_state.get_active(),
+                        init_state.get_error_detail(),
+                        init_state.get_init_error_code(),
+                        RAYTRACE_ERROR_CODE_INIT,
+                        "canvas2d init",
+                        &error,
+                    );
+                    init_state.get_loaded().set(true);
+                    return;
                 }
-                *last_size_clone.borrow_mut() = (live_w, live_h);
+            };
+        if cancelled_for_init.get() {
+            let mut stale: RayTraceRenderer = renderer;
+            stale.dispose();
+            return;
+        }
+        Console::log(format!(
+            "{RAYTRACE_LOG_PREFIX} {RAYTRACE_LOG_BACKEND_READY} (2d)"
+        ));
+        *renderer_rc.borrow_mut() = Some(renderer);
+        raytrace_set_loaded_delayed(
+            pending_timers_for_init,
+            init_state.get_loaded(),
+            RAYTRACE_LOADING_MIN_MILLIS,
+        );
+        let lights: LightingUniforms = build_raytrace_lighting();
+        let settings: RayTraceSettings = build_raytrace_settings();
+        let scale_index: Rc<Cell<usize>> = Rc::new(Cell::new(RAYTRACE_RENDER_SCALE_START_INDEX));
+        let ema_millis: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+        let slow_frames: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+        let fast_frames: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+        let very_fast_frames: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+        let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
+        let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+        let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+        let renderer_for_loop: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
+        let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
+        let cell_clone: RafClosureCell = closure_cell.clone();
+        let last_clone: Rc<Cell<f64>> = last_time.clone();
+        let frame_clone: Rc<Cell<u32>> = frame_count.clone();
+        let fps_clone: Rc<Cell<f64>> = fps_timer.clone();
+        let scale_clone: Rc<Cell<usize>> = scale_index.clone();
+        let ema_clone: Rc<Cell<f64>> = ema_millis.clone();
+        let slow_clone: Rc<Cell<u32>> = slow_frames.clone();
+        let fast_clone: Rc<Cell<u32>> = fast_frames.clone();
+        let very_fast_clone: Rc<Cell<u32>> = very_fast_frames.clone();
+        let yaw_clone: Rc<Cell<f64>> = angles.yaw.clone();
+        let pitch_clone: Rc<Cell<f64>> = angles.pitch.clone();
+        let cancelled_for_loop: Rc<Cell<bool>> = cancelled.clone();
+        let raf_for_detach: Rc<Cell<Option<i32>>> = raf_id.clone();
+        let cell_for_detach: RafClosureCell = closure_cell.clone();
+        let timers_for_detach: RayTracePendingTimers = pending_timers.clone();
+        let renderer_for_detach: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
+        let timers_for_loop: RayTracePendingTimers = pending_timers.clone();
+        let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+            if cancelled_for_loop.get() {
+                return;
             }
-            let scale: f64 = RAYTRACE_RENDER_SCALES[scale_clone.get()];
-            let (frame_width, frame_height): (u32, u32) = raytrace_scaled_dimensions(scale);
-            if let Some((_canvas, ssaa_canvas)) = cache_clone.borrow().as_ref() {
-                // Rebuild the scene every tick: the visible sun sphere
-                // is positioned along the sun direction, which rotates
-                // with yaw. `RayTraceScene::new` precomputes
-                // `shadow_points` for the engine's `soft_shadow_factor`,
-                // so the bounding-sphere cache has to be refreshed in
-                // lock-step with the occluder positions.
-                let (occluders, _): (Vec<Occluder>, Vector3D) = build_raytrace_scene(yaw);
-                let scene: RayTraceScene = RayTraceScene::new(occluders);
-                let lights: LightingUniforms = build_raytrace_lighting(eye, yaw);
+            if raytrace_canvas_detached(RAYTRACE_CANVAS_SELECTOR) {
+                // Router navigation mounts another page without running
+                // any hook cleanup, so the loop has to reach its own
+                // teardown. The frame body is already unwound by the time
+                // this call returns, and the release itself defers the
+                // last drop to a microtask, so the closure being taken
+                // from underneath its own frame is safe.
+                raytrace_release_loop(
+                    cancelled_for_loop.clone(),
+                    raf_for_detach.clone(),
+                    cell_for_detach.clone(),
+                    timers_for_detach.clone(),
+                    renderer_for_detach.clone(),
+                );
+                return;
+            }
+            let Some(window_value): Option<Window> = window() else {
+                return;
+            };
+            let Some(performance): Option<Performance> = window_value.performance() else {
+                return;
+            };
+            let current_time: f64 = performance.now() / 1000.0;
+            let prev: f64 = last_clone.get();
+            // The unclamped frame time feeds the FPS counter so the reported
+            // rate stays honest even when frames take multiple seconds; only
+            // the yaw animation step consumes the clamped delta.
+            let frame_time: f64 = if prev < 0.0 {
+                1.0 / 60.0
+            } else {
+                current_time - prev
+            };
+            let anim_time: f64 = frame_time.min(0.25);
+            last_clone.set(current_time);
+            if loop_state.get_auto_rotate().get() {
+                yaw_clone.set(yaw_clone.get() + RAYTRACE_AUTO_YAW_SPEED * anim_time);
+            }
+            if loop_state.get_running().get() {
+                let scale: f64 = RAYTRACE_RENDER_SCALES[scale_clone.get()];
+                let (frame_width, frame_height): (u32, u32) = raytrace_scaled_dimensions(scale);
+                let camera: Camera3D = build_raytrace_camera(
+                    yaw_clone.get(),
+                    pitch_clone.get(),
+                    frame_width,
+                    frame_height,
+                );
                 let render_start: f64 = performance.now();
-                {
-                    let mut buffer: RefMut<'_, Vec<u8>> = buffer_clone.borrow_mut();
-                    let needed: usize = frame_width as usize * frame_height as usize * 4;
-                    if buffer.len() != needed {
-                        buffer.resize(needed, 0);
-                    }
-                    render_raytrace_frame(
-                        &mut buffer,
-                        frame_width,
-                        frame_height,
-                        &scene,
-                        &lights,
-                        yaw,
-                        pitch,
-                    );
-                    present_raytrace_framebuffer(
-                        ssaa_canvas,
-                        &mut buffer,
-                        frame_width,
-                        frame_height,
-                    );
-                }
+                let render_result: Result<(), JsValue> =
+                    match renderer_for_loop.borrow_mut().as_mut() {
+                        Some(renderer) => renderer.render(&camera, &lights, &settings),
+                        None => Err(JsValue::NULL),
+                    };
                 let render_millis: f64 = performance.now() - render_start;
+                match render_result {
+                    Ok(()) => {
+                        raytrace_clear_error(
+                            loop_state.get_active(),
+                            loop_state.get_error_detail(),
+                            loop_state.get_init_error_code(),
+                        );
+                        if !loop_state.get_loaded().get() {
+                            raytrace_set_loaded_delayed(
+                                timers_for_loop.clone(),
+                                loop_state.get_loaded(),
+                                RAYTRACE_LOADING_MIN_MILLIS,
+                            );
+                        }
+                    }
+                    Err(error) => {
+                        raytrace_record_error(
+                            loop_state.get_active(),
+                            loop_state.get_error_detail(),
+                            loop_state.get_init_error_code(),
+                            RAYTRACE_ERROR_CODE_RENDER,
+                            "canvas2d render",
+                            &error,
+                        );
+                    }
+                }
                 let ema_prev: f64 = ema_clone.get();
                 let ema: f64 = if ema_prev <= 0.0 {
                     render_millis
@@ -773,10 +1001,10 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
                 {
                     next = index + 1;
                 } else if fast_clone.get() >= RAYTRACE_ADAPT_FAST_FRAMES && index > 0 {
-                    // Sustained headroom far below the budget skips a
-                    // rung so strong hardware reaches the sharp 4.0 top
-                    // of the ladder in a handful of steps instead of
-                    // crawling one rung at a time.
+                    // Sustained headroom far below the budget skips a rung
+                    // so strong hardware reaches the sharp top of the ladder
+                    // in a handful of steps instead of crawling one at a
+                    // time.
                     next = if very_fast_clone.get() >= RAYTRACE_ADAPT_FAST_FRAMES {
                         index.saturating_sub(2)
                     } else {
@@ -784,97 +1012,899 @@ pub(crate) fn start_raytrace_loop(state: UseRayTrace, angles: RayTraceCameraAngl
                     };
                 }
                 if next != index {
-                    scale_clone.set(next);
-                    slow_clone.set(0);
-                    fast_clone.set(0);
-                    very_fast_clone.set(0);
-                    state_for_loop
-                        .get_render_scale()
-                        .set(RAYTRACE_RENDER_SCALES[next]);
-                }
-                // Flip the active / loaded flags on the first successful
-                // frame so the loading overlay unloads and the
-                // `Status: ...` banner reports a live renderer. The
-                // `loaded` set is delayed by
-                // `RAYTRACE_CANVAS_2D_LOADING_MIN_MILLIS` so the
-                // overlay stays painted for a minimum visible duration
-                // even when the SSAA acquire + first frame finishes
-                // in less than a frame budget — the same UX the
-                // WebGL / WebGPU tabs use via `raytrace_set_loaded_delayed`.
-                if !state_for_loop.get_active().get() {
-                    state_for_loop.get_active().set(true);
-                    raytrace_set_loaded_delayed_canvas2d(
-                        state_for_loop.get_loaded(),
-                        RAYTRACE_CANVAS_2D_LOADING_MIN_MILLIS,
-                    );
+                    // A rung change is a real surface change: the frame
+                    // above just rendered at `index`, so the new size is
+                    // committed now, through the one path that owns the
+                    // canvas backing store. A rejected resize reports
+                    // itself and leaves both the backend and the canvas
+                    // on the size the frame used, so the ladder's
+                    // `scale_index` is rolled back with it instead of
+                    // leaving the next frame building a camera for a
+                    // surface the backend does not have.
+                    let (next_width, next_height): (u32, u32) =
+                        raytrace_scaled_dimensions(RAYTRACE_RENDER_SCALES[next]);
+                    let resized: bool = match renderer_for_loop.try_borrow_mut().ok() {
+                        Some(mut renderer_slot) => match renderer_slot.as_mut() {
+                            Some(renderer) => renderer.resize(next_width, next_height).is_ok(),
+                            None => false,
+                        },
+                        None => false,
+                    };
+                    if resized {
+                        scale_clone.set(next);
+                        slow_clone.set(0);
+                        fast_clone.set(0);
+                        very_fast_clone.set(0);
+                        loop_state
+                            .get_render_scale()
+                            .set(RAYTRACE_RENDER_SCALES[next]);
+                    } else {
+                        raytrace_record_error(
+                            loop_state.get_active(),
+                            loop_state.get_error_detail(),
+                            loop_state.get_init_error_code(),
+                            RAYTRACE_ERROR_CODE_RESIZE,
+                            "render scale",
+                            &JsValue::NULL,
+                        );
+                        // Reset the streak so the controller does not
+                        // re-attempt the same rejected rung on the very
+                        // next frame.
+                        slow_clone.set(0);
+                        fast_clone.set(0);
+                        very_fast_clone.set(0);
+                    }
                 }
             }
+            // Only a frame that actually rendered is a rendered frame:
+            // counting the ticks a paused loop still receives would let
+            // the FPS readout claim 60 FPS while nothing is drawn.
+            if loop_state.get_running().get() {
+                frame_clone.set(frame_clone.get() + 1);
+                fps_clone.set(fps_clone.get() + frame_time);
+                if fps_clone.get() >= 1.0 {
+                    let fps: f64 = f64::from(frame_clone.get()) / fps_clone.get();
+                    loop_state.get_fps().set(fps);
+                    frame_clone.set(0);
+                    fps_clone.set(0.0);
+                }
+            }
+            let Some(raf_closure_ref): Option<&'static Closure<dyn FnMut()>> = cell_clone.try_get()
+            else {
+                return;
+            };
+            let next_id: i32 = window_value
+                .request_animation_frame(raf_closure_ref.as_ref().unchecked_ref())
+                .unwrap_or_default();
+            raf_clone.set(Some(next_id));
+        }));
+        let _: Result<(), _> = closure_cell.try_set(raf_closure);
+        let raf_for_start: Rc<Cell<Option<i32>>> = raf_id.clone();
+        let cell_for_start: RafClosureCell = closure_cell.clone();
+        // The delayed kickoff is a one-shot timer owned by the same
+        // pending-timer list as the loading flip, so teardown cancels it
+        // and drops its closure instead of leaking it. The list is
+        // drained on teardown and is not reused afterwards, so no pruning
+        // of already-fired entries is needed.
+        raytrace_schedule_one_shot(
+            pending_timers.clone(),
+            RAYTRACE_LOOP_START_DELAY_MILLIS,
+            move || {
+                let Some(start_window): Option<Window> = window() else {
+                    return;
+                };
+                let Some(start_raf_ref): Option<&'static Closure<dyn FnMut()>> =
+                    cell_for_start.try_get()
+                else {
+                    return;
+                };
+                let start_id: i32 = start_window
+                    .request_animation_frame(start_raf_ref.as_ref().unchecked_ref())
+                    .unwrap_or_default();
+                raf_for_start.set(Some(start_id));
+            },
+        );
+    });
+}
+
+/// Starts the RayTrace WebGL loop driven by `requestAnimationFrame`.
+///
+/// The loop owns exactly one [`RayTraceRenderer`] built through the
+/// engine's `RayTraceRenderer::init` with the requested
+/// [`RayTraceBackend::WebGl2`]. The demo owns no GLSL and no WGSL of its
+/// own: the engine compiles and links its shared shaders during `init`,
+/// uploads the packed scene once, and every frame after that is a
+/// camera / lights / settings update against persistent engine-side
+/// textures and program objects.
+///
+/// # Arguments
+///
+/// - `UseRayTraceWebGl` - The WebGL backend state for signal updates.
+/// - `RayTraceCameraAngles` - The shared non-reactive camera orbit angles.
+pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTraceCameraAngles) {
+    let init_state: UseRayTraceWebGl = state;
+    let loop_state: UseRayTraceWebGl = state;
+    let renderer_rc: Rc<RefCell<Option<RayTraceRenderer>>> = Rc::new(RefCell::new(None));
+    let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
+    let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
+    let resize_dirty: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let resize_timer: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
+    let observer_cell: Rc<RefCell<Option<ResizeObserver>>> = Rc::new(RefCell::new(None));
+    // Owns the ResizeObserver's Rust callback. The observer is built
+    // asynchronously below, but its closure outlives this function, so
+    // the slot is declared here where the cleanup can already reach it.
+    let observer_closure_cell: RayTraceObserverClosureOwner = Rc::new(RefCell::new(None));
+    let pending_timers: RayTracePendingTimers = Rc::new(RefCell::new(Vec::new()));
+    let debounce_owner: RayTraceDebounceOwner = raytrace_register_resize_debounce(
+        resize_dirty.clone(),
+        resize_timer.clone(),
+        cancelled.clone(),
+    );
+    let renderer_for_cleanup: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
+    let raf_for_cleanup: Rc<Cell<Option<i32>>> = raf_id.clone();
+    let cell_for_cleanup: RafClosureCell = closure_cell.clone();
+    let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
+    let resize_timer_for_cleanup: Rc<Cell<Option<i32>>> = resize_timer.clone();
+    let observer_for_cleanup: Rc<RefCell<Option<ResizeObserver>>> = observer_cell.clone();
+    let observer_closure_for_cleanup: RayTraceObserverClosureOwner = observer_closure_cell.clone();
+    let timers_for_cleanup: RayTracePendingTimers = pending_timers.clone();
+    let debounce_for_cleanup: RayTraceDebounceOwner = debounce_owner;
+    App::use_cleanup(move || {
+        raytrace_release_loop(
+            cancelled_for_cleanup,
+            raf_for_cleanup,
+            cell_for_cleanup,
+            timers_for_cleanup,
+            renderer_for_cleanup,
+        );
+        // Every step below is independent: a missing `window()` must
+        // never skip the observer teardown, so no early returns here.
+        if let Some(timer_id) = resize_timer_for_cleanup.get()
+            && let Some(window_value) = window()
+        {
+            window_value.clear_timeout_with_handle(timer_id);
         }
-        frame_clone.set(frame_clone.get() + 1);
-        fps_clone.set(fps_clone.get() + frame_time);
-        if fps_clone.get() >= 1.0 {
-            let fps: f64 = f64::from(frame_clone.get()) / fps_clone.get();
-            state_for_loop.get_fps().set(fps);
-            frame_clone.set(0);
-            fps_clone.set(0.0);
+        // Disconnect the ResizeObserver so its closure (and the renderer
+        // it holds) is released on tab switch. Without this the observer
+        // keeps the renderer alive past the loop's lifetime, holding GPU
+        // resources until GC.
+        if let Some(observer) = observer_for_cleanup
+            .try_borrow_mut()
+            .ok()
+            .and_then(|mut observer_slot: RefMut<'_, Option<ResizeObserver>>| observer_slot.take())
+        {
+            observer.disconnect();
         }
-        let Some(raf_closure_ref): Option<&'static Closure<dyn FnMut()>> = cell_clone.try_get()
+        // Dropped only after `disconnect()`: while the observer is live
+        // the browser may call the trampoline at any point, and a freed
+        // one aborts the whole WASM instance.
+        let _: Option<Closure<dyn FnMut(js_sys::Array, ResizeObserver)>> =
+            observer_closure_for_cleanup
+                .try_borrow_mut()
+                .ok()
+                .and_then(|mut closure_slot: RayTraceObserverCallbackSlot<'_>| closure_slot.take());
+        // Released only here: the resize listener stays registered
+        // across a router navigation, and dropping its callback while it
+        // can still be invoked would make the next window resize throw.
+        let _: Option<Closure<dyn FnMut()>> = debounce_for_cleanup
+            .try_borrow_mut()
+            .ok()
+            .and_then(|mut debounce_slot: RayTraceDebounceCallbackSlot<'_>| debounce_slot.take());
+    });
+    let cancelled_for_init: Rc<Cell<bool>> = cancelled.clone();
+    let pending_timers_for_init: RayTracePendingTimers = pending_timers.clone();
+    let observer_closure_cell_for_init: RayTraceObserverClosureOwner =
+        observer_closure_cell.clone();
+    // Owned by the same pending-timer list as every other one-shot, so
+    // teardown drops the Rust closure instead of leaking it. The DOM
+    // still holds a live reference to the trampoline until the timer
+    // fires, which is what the timeout handle then detaches.
+    raytrace_schedule_one_shot(pending_timers_for_init.clone(), 0, || {
+        draw_game_3d_loading(
+            RAYTRACE_WEBGL_LOADING_CANVAS_SELECTOR,
+            RAYTRACE_WEBGL_CANVAS_SELECTOR,
+        );
+    });
+    spawn_local(async move {
+        let Some(canvas): Option<HtmlCanvasElement> =
+            query_raytrace_canvas(RAYTRACE_WEBGL_CANVAS_SELECTOR)
         else {
+            init_state.get_active().set(false);
+            init_state
+                .get_init_error_code()
+                .set(RAYTRACE_ERROR_CODE_INIT);
+            init_state.get_error_detail().set(String::new());
+            init_state.get_loaded().set(true);
             return;
         };
-        let next_id: i32 = window_value
-            .request_animation_frame(raf_closure_ref.as_ref().unchecked_ref())
-            .unwrap_or_default();
-        raf_clone.set(Some(next_id));
-    }));
-    let _: Result<(), _> = closure_cell.try_set(raf_closure);
-    let start_timeout_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
-    let start_timeout_clone: Rc<Cell<Option<i32>>> = start_timeout_id.clone();
-    let raf_for_start: Rc<Cell<Option<i32>>> = raf_id.clone();
-    let cell_for_start: RafClosureCell = closure_cell.clone();
-    let start_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+        // Static scene: built once, uploaded once, never re-sent. The GPU
+        // backends repack it into the shared `vec4` layout inside `init`.
+        let scene: RayTraceScene = build_raytrace_scene();
+        let renderer: RayTraceRenderer =
+            match RayTraceRenderer::init(canvas, RayTraceBackend::WebGl2, &scene).await {
+                Ok(value) => value,
+                Err(error) => {
+                    raytrace_record_error(
+                        init_state.get_active(),
+                        init_state.get_error_detail(),
+                        init_state.get_init_error_code(),
+                        RAYTRACE_ERROR_CODE_INIT,
+                        "webgl2 init",
+                        &error,
+                    );
+                    init_state.get_loaded().set(true);
+                    return;
+                }
+            };
+        if cancelled_for_init.get() {
+            let mut stale: RayTraceRenderer = renderer;
+            stale.dispose();
+            return;
+        }
+        Console::log(format!(
+            "{RAYTRACE_LOG_PREFIX} {RAYTRACE_LOG_BACKEND_READY} (gl)"
+        ));
+        *renderer_rc.borrow_mut() = Some(renderer);
+        raytrace_set_loaded_delayed(
+            pending_timers_for_init,
+            init_state.get_loaded(),
+            RAYTRACE_LOADING_MIN_MILLIS,
+        );
+        let lights: LightingUniforms = build_raytrace_lighting();
+        let settings: RayTraceSettings = build_raytrace_settings();
+        // Synchronous resize on CSS-box change. ResizeObserver callbacks run
+        // BEFORE the browser paints the next frame, so resizing inside the
+        // observer collapses the stretched-frame window after a fullscreen
+        // transition to zero.
+        let renderer_for_observer: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
+        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
+            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+                let renderer_for_frame: Rc<RefCell<Option<RayTraceRenderer>>> =
+                    renderer_for_observer.clone();
+                let resize_accepted: bool = match renderer_for_frame.try_borrow_mut() {
+                    Ok(mut renderer_slot) => match renderer_slot.as_mut() {
+                        Some(renderer) => raytrace_resize_backend_to_canvas(
+                            renderer,
+                            RAYTRACE_WEBGL_CANVAS_SELECTOR,
+                            loop_state.get_active(),
+                            loop_state.get_error_detail(),
+                            loop_state.get_init_error_code(),
+                        ),
+                        // The renderer is gone: a tab switch already
+                        // disposed it, so there is no surface left to
+                        // resize and nothing to report.
+                        None => true,
+                    },
+                    Err(_contended) => false,
+                };
+                if !resize_accepted {
+                    // `raytrace_resize_backend_to_canvas` already recorded
+                    // the engine's own reason against the status banner;
+                    // this only makes the rejected observer pass visible
+                    // in the console, so a silently frozen surface after a
+                    // fullscreen transition is traceable.
+                    Console::error(format!(
+                        "{RAYTRACE_LOG_PREFIX} resize observer refused the new CSS box; \
+                         the backend keeps its previous size"
+                    ));
+                }
+            }),
+        );
+        let observer_callback: Function = observer_closure
+            .as_ref()
+            .unchecked_ref::<Function>()
+            .clone();
+        // Ownership moves into the slot the cleanup owns. Dropping it here
+        // would let the browser invoke a freed trampoline: the observer
+        // keeps firing after this async init returns.
+        if let Ok(mut closure_slot) = observer_closure_cell_for_init.try_borrow_mut() {
+            *closure_slot = Some(observer_closure);
+        }
+        if let Ok(resize_observer) = ResizeObserver::new(&observer_callback)
+            && let Some(window_value) = window()
+            && let Some(document_value) = window_value.document()
+            && let Some(element) = document_value
+                .query_selector(RAYTRACE_WEBGL_CANVAS_SELECTOR)
+                .ok()
+                .flatten()
+        {
+            resize_observer.observe(&element);
+            // `try_borrow_mut`, not `borrow_mut`: the tab-switch cleanup
+            // registered above also mutably borrows this same cell from
+            // `HookContext::switch_arm`, and this backend's init is
+            // asynchronous, so the arm can switch while init is still in
+            // flight and the two borrows genuinely overlap. A
+            // BorrowMutError in WASM aborts the whole app with no catchable
+            // panic. On contention the observer is dropped here and the loop
+            // runs without live resize notifications — the per-frame
+            // backing-store divergence check still resizes.
+            if let Ok(mut observer_slot) = observer_cell.try_borrow_mut() {
+                *observer_slot = Some(resize_observer);
+            }
+        }
+        let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
+        let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+        let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+        let renderer_for_loop: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
+        let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
+        let cell_clone: RafClosureCell = closure_cell.clone();
+        let last_clone: Rc<Cell<f64>> = last_time.clone();
+        let frame_clone: Rc<Cell<u32>> = frame_count.clone();
+        let fps_clone: Rc<Cell<f64>> = fps_timer.clone();
+        let yaw_clone: Rc<Cell<f64>> = angles.yaw.clone();
+        let pitch_clone: Rc<Cell<f64>> = angles.pitch.clone();
+        let resize_dirty_for_loop: Rc<Cell<bool>> = resize_dirty.clone();
+        let cancelled_for_loop: Rc<Cell<bool>> = cancelled.clone();
+        let raf_for_detach: Rc<Cell<Option<i32>>> = raf_id.clone();
+        let cell_for_detach: RafClosureCell = closure_cell.clone();
+        let timers_for_detach: RayTracePendingTimers = pending_timers.clone();
+        let renderer_for_detach: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
+        let timers_for_loop: RayTracePendingTimers = pending_timers.clone();
+        let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+            if cancelled_for_loop.get() {
+                return;
+            }
+            if raytrace_canvas_detached(RAYTRACE_WEBGL_CANVAS_SELECTOR) {
+                // Router navigation mounts another page without running
+                // any hook cleanup, so the loop has to reach its own
+                // teardown. The ResizeObserver is intentionally *not*
+                // disconnected here: it is still observed and can still
+                // fire, so dropping it from under the browser would leave
+                // a live observer pointing at a disposed backend. It is
+                // disconnected by the hook cleanup, and until then its
+                // resize call is a no-op because the renderer is gone.
+                raytrace_release_loop(
+                    cancelled_for_loop.clone(),
+                    raf_for_detach.clone(),
+                    cell_for_detach.clone(),
+                    timers_for_detach.clone(),
+                    renderer_for_detach.clone(),
+                );
+                return;
+            }
+            let Some(window_value): Option<Window> = window() else {
+                return;
+            };
+            let Some(performance): Option<Performance> = window_value.performance() else {
+                return;
+            };
+            let current_time: f64 = performance.now() / 1000.0;
+            let prev: f64 = last_clone.get();
+            // Unclamped frame time feeds the FPS counter (honest rate);
+            // the clamped delta only drives the yaw animation step.
+            let frame_time: f64 = if prev < 0.0 {
+                1.0 / 60.0
+            } else {
+                current_time - prev
+            };
+            let anim_time: f64 = frame_time.min(0.25);
+            last_clone.set(current_time);
+            if loop_state.get_auto_rotate().get() {
+                yaw_clone.set(yaw_clone.get() + RAYTRACE_AUTO_YAW_SPEED * anim_time);
+            }
+            if resize_dirty_for_loop.get() {
+                resize_dirty_for_loop.set(false);
+            }
+            // A paused loop renders nothing: the previous frame stays on
+            // screen and the backend is not touched at all, which is what
+            // the pause button promises and what keeps a paused tab from
+            // burning a GPU pass per animation frame.
+            let running: bool = loop_state.get_running().get();
+            let render_result: Option<Result<(), JsValue>> = if running {
+                renderer_for_loop.try_borrow_mut().ok().and_then(
+                    |mut renderer_slot: RefMut<'_, Option<RayTraceRenderer>>| {
+                        let renderer: &mut RayTraceRenderer = renderer_slot.as_mut()?;
+                        // The renderer owns the canvas backing store, so a
+                        // rejected resize leaves both on the old size. The
+                        // frame is then skipped rather than drawn against
+                        // a size the backend does not have.
+                        if !raytrace_resize_backend_to_canvas(
+                            renderer,
+                            RAYTRACE_WEBGL_CANVAS_SELECTOR,
+                            loop_state.get_active(),
+                            loop_state.get_error_detail(),
+                            loop_state.get_init_error_code(),
+                        ) {
+                            return None;
+                        }
+                        // The contract exposes no canvas accessor on the
+                        // renderer, so the backing store is read back off
+                        // the DOM element the loop already owns.
+                        let width: u32 =
+                            raytrace_canvas_backing_width(RAYTRACE_WEBGL_CANVAS_SELECTOR);
+                        let height: u32 =
+                            raytrace_canvas_backing_height(RAYTRACE_WEBGL_CANVAS_SELECTOR);
+                        let camera: Camera3D = build_raytrace_camera(
+                            yaw_clone.get(),
+                            pitch_clone.get(),
+                            width,
+                            height,
+                        );
+                        Some(renderer.render(&camera, &lights, &settings))
+                    },
+                )
+            } else {
+                None
+            };
+            if running {
+                match render_result {
+                    Some(Ok(())) => {
+                        raytrace_clear_error(
+                            loop_state.get_active(),
+                            loop_state.get_error_detail(),
+                            loop_state.get_init_error_code(),
+                        );
+                        if !loop_state.get_loaded().get() {
+                            raytrace_set_loaded_delayed(
+                                timers_for_loop.clone(),
+                                loop_state.get_loaded(),
+                                RAYTRACE_LOADING_MIN_MILLIS,
+                            );
+                        }
+                    }
+                    Some(Err(error)) => {
+                        raytrace_record_error(
+                            loop_state.get_active(),
+                            loop_state.get_error_detail(),
+                            loop_state.get_init_error_code(),
+                            RAYTRACE_ERROR_CODE_RENDER,
+                            "webgl2 render",
+                            &error,
+                        );
+                    }
+                    // A rejected resize and a missing renderer both land
+                    // here: neither produced a frame. The resize failure
+                    // already recorded its own code and detail, so it is
+                    // not overwritten with a generic render rejection.
+                    // Control falls through to the frame re-registration
+                    // below either way, which is what lets the loop
+                    // recover once the resize succeeds again.
+                    None => {
+                        if loop_state.get_error_detail().get().is_empty() {
+                            raytrace_record_error(
+                                loop_state.get_active(),
+                                loop_state.get_error_detail(),
+                                loop_state.get_init_error_code(),
+                                RAYTRACE_ERROR_CODE_RENDER,
+                                "webgl2 render",
+                                &JsValue::NULL,
+                            );
+                        }
+                    }
+                }
+            }
+            // Only a frame that actually rendered counts toward the rate.
+            if running {
+                frame_clone.set(frame_clone.get() + 1);
+                fps_clone.set(fps_clone.get() + frame_time);
+                if fps_clone.get() >= 1.0 {
+                    let fps: f64 = f64::from(frame_clone.get()) / fps_clone.get();
+                    loop_state.get_fps().set(fps);
+                    frame_clone.set(0);
+                    fps_clone.set(0.0);
+                }
+            }
+            let Some(raf_closure_ref): Option<&'static Closure<dyn FnMut()>> = cell_clone.try_get()
+            else {
+                return;
+            };
+            let next_id: i32 = window_value
+                .request_animation_frame(raf_closure_ref.as_ref().unchecked_ref())
+                .unwrap_or_default();
+            if cancelled_for_loop.get() {
+                raf_clone.set(None);
+            } else {
+                raf_clone.set(Some(next_id));
+            }
+        }));
+        let _: Result<(), _> = closure_cell.try_set(raf_closure);
         let Some(start_window): Option<Window> = window() else {
             return;
         };
-        let Some(start_raf_ref): Option<&'static Closure<dyn FnMut()>> = cell_for_start.try_get()
+        let Some(start_raf_ref): Option<&'static Closure<dyn FnMut()>> = closure_cell.try_get()
         else {
             return;
         };
         let start_id: i32 = start_window
             .request_animation_frame(start_raf_ref.as_ref().unchecked_ref())
             .unwrap_or_default();
-        raf_for_start.set(Some(start_id));
-    }));
-    let start_callback: Function = start_closure.as_ref().unchecked_ref::<Function>().clone();
-    start_closure.forget();
-    let Some(start_window): Option<Window> = window() else {
-        return;
-    };
-    let timeout_id: i32 = start_window
-        .set_timeout_with_callback_and_timeout_and_arguments_0(
-            &start_callback,
-            RAYTRACE_LOOP_START_DELAY_MILLIS,
-        )
-        .unwrap_or_default();
-    start_timeout_clone.set(Some(timeout_id));
+        raf_id.set(Some(start_id));
+    });
+}
+
+/// Starts the RayTrace WebGPU loop driven by `requestAnimationFrame`.
+///
+/// The loop owns exactly one [`RayTraceRenderer`] built through the
+/// engine's `RayTraceRenderer::init` with the requested
+/// [`RayTraceBackend::WebGpu`]. `init` is asynchronous (it awaits the
+/// adapter and device, then awaits shader compilation), so the whole
+/// sequence runs inside `spawn_local` behind a cancellation guard for tab
+/// switches. A rejected init surfaces its error on the status banner and
+/// the loop exits quietly rather than falling back to another backend.
+///
+/// # Arguments
+///
+/// - `UseRayTraceWebGpu` - The WebGPU backend state for signal updates.
+/// - `RayTraceCameraAngles` - The shared non-reactive camera orbit angles.
+pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTraceCameraAngles) {
+    let init_state: UseRayTraceWebGpu = state;
+    let loop_state: UseRayTraceWebGpu = state;
+    let renderer_rc: Rc<RefCell<Option<RayTraceRenderer>>> = Rc::new(RefCell::new(None));
+    let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
+    let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
+    let resize_dirty: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let resize_timer: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
+    let observer_cell: Rc<RefCell<Option<ResizeObserver>>> = Rc::new(RefCell::new(None));
+    // Owns the ResizeObserver's Rust callback. The observer is built
+    // asynchronously below, but its closure outlives this function, so
+    // the slot is declared here where the cleanup can already reach it.
+    let observer_closure_cell: RayTraceObserverClosureOwner = Rc::new(RefCell::new(None));
+    let pending_timers: RayTracePendingTimers = Rc::new(RefCell::new(Vec::new()));
+    let debounce_owner: RayTraceDebounceOwner = raytrace_register_resize_debounce(
+        resize_dirty.clone(),
+        resize_timer.clone(),
+        cancelled.clone(),
+    );
+    let renderer_for_cleanup: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
     let raf_for_cleanup: Rc<Cell<Option<i32>>> = raf_id.clone();
     let cell_for_cleanup: RafClosureCell = closure_cell.clone();
+    let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
+    let resize_timer_for_cleanup: Rc<Cell<Option<i32>>> = resize_timer.clone();
+    let observer_for_cleanup: Rc<RefCell<Option<ResizeObserver>>> = observer_cell.clone();
+    let observer_closure_for_cleanup: RayTraceObserverClosureOwner = observer_closure_cell.clone();
+    let timers_for_cleanup: RayTracePendingTimers = pending_timers.clone();
+    let debounce_for_cleanup: RayTraceDebounceOwner = debounce_owner;
     App::use_cleanup(move || {
-        if let Some(cancel_id) = raf_for_cleanup.get() {
-            let Some(window_value): Option<Window> = window() else {
-                return;
-            };
-            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
+        // `dispose` frees the owned buffers, textures, and device eagerly
+        // instead of leaving them to GC, which is what lets a fresh
+        // `init` acquire a live device rather than reusing a dead one.
+        raytrace_release_loop(
+            cancelled_for_cleanup,
+            raf_for_cleanup,
+            cell_for_cleanup,
+            timers_for_cleanup,
+            renderer_for_cleanup,
+        );
+        // Every step below is independent: a missing `window()` must
+        // never skip the observer teardown, so no early returns here.
+        if let Some(timer_id) = resize_timer_for_cleanup.get()
+            && let Some(window_value) = window()
+        {
+            window_value.clear_timeout_with_handle(timer_id);
         }
-        if let Some(timeout_id) = start_timeout_id.get() {
-            let Some(window_value): Option<Window> = window() else {
-                return;
-            };
-            window_value.clear_timeout_with_handle(timeout_id);
+        if let Some(observer) = observer_for_cleanup
+            .try_borrow_mut()
+            .ok()
+            .and_then(|mut observer_slot: RefMut<'_, Option<ResizeObserver>>| observer_slot.take())
+        {
+            observer.disconnect();
         }
-        let _: Option<_> = cell_for_cleanup.try_take();
+        // Dropped only after `disconnect()`: while the observer is live
+        // the browser may call the trampoline at any point, and a freed
+        // one aborts the whole WASM instance.
+        let _: Option<Closure<dyn FnMut(js_sys::Array, ResizeObserver)>> =
+            observer_closure_for_cleanup
+                .try_borrow_mut()
+                .ok()
+                .and_then(|mut closure_slot: RayTraceObserverCallbackSlot<'_>| closure_slot.take());
+        // Released only here: the resize listener stays registered
+        // across a router navigation, and dropping its callback while it
+        // can still be invoked would make the next window resize throw.
+        let _: Option<Closure<dyn FnMut()>> = debounce_for_cleanup
+            .try_borrow_mut()
+            .ok()
+            .and_then(|mut debounce_slot: RayTraceDebounceCallbackSlot<'_>| debounce_slot.take());
     });
-    state.get_loop_started().set(true);
+    let cancelled_for_init: Rc<Cell<bool>> = cancelled.clone();
+    let pending_timers_for_init: RayTracePendingTimers = pending_timers.clone();
+    let observer_closure_cell_for_init: RayTraceObserverClosureOwner =
+        observer_closure_cell.clone();
+    // Owned by the same pending-timer list as every other one-shot, so
+    // teardown drops the Rust closure instead of leaking it. The DOM
+    // still holds a live reference to the trampoline until the timer
+    // fires, which is what the timeout handle then detaches.
+    raytrace_schedule_one_shot(pending_timers_for_init.clone(), 0, || {
+        draw_game_3d_loading(
+            RAYTRACE_WEBGPU_LOADING_CANVAS_SELECTOR,
+            RAYTRACE_WEBGPU_CANVAS_SELECTOR,
+        );
+    });
+    spawn_local(async move {
+        let Some(canvas): Option<HtmlCanvasElement> =
+            query_raytrace_canvas(RAYTRACE_WEBGPU_CANVAS_SELECTOR)
+        else {
+            init_state.get_active().set(false);
+            init_state
+                .get_init_error_code()
+                .set(RAYTRACE_ERROR_CODE_INIT);
+            init_state.get_error_detail().set(String::new());
+            init_state.get_loaded().set(true);
+            return;
+        };
+        let scene: RayTraceScene = build_raytrace_scene();
+        let renderer: RayTraceRenderer =
+            match RayTraceRenderer::init(canvas, RayTraceBackend::WebGpu, &scene).await {
+                Ok(value) => value,
+                Err(error) => {
+                    raytrace_record_error(
+                        init_state.get_active(),
+                        init_state.get_error_detail(),
+                        init_state.get_init_error_code(),
+                        RAYTRACE_ERROR_CODE_INIT,
+                        "webgpu init",
+                        &error,
+                    );
+                    init_state.get_loaded().set(true);
+                    return;
+                }
+            };
+        if cancelled_for_init.get() {
+            // The tab was switched away while the adapter / device promises
+            // were in flight. A successfully-created renderer still owns a
+            // live GPU device at this point; destroy it eagerly instead of
+            // leaving it for GC to discover.
+            let mut stale: RayTraceRenderer = renderer;
+            stale.dispose();
+            return;
+        }
+        Console::log(format!(
+            "{RAYTRACE_LOG_PREFIX} {RAYTRACE_LOG_BACKEND_READY} (gpu)"
+        ));
+        *renderer_rc.borrow_mut() = Some(renderer);
+        raytrace_set_loaded_delayed(
+            pending_timers_for_init,
+            init_state.get_loaded(),
+            RAYTRACE_LOADING_MIN_MILLIS,
+        );
+        let lights: LightingUniforms = build_raytrace_lighting();
+        let settings: RayTraceSettings = build_raytrace_settings();
+        let renderer_for_observer: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
+        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
+            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+                let renderer_for_frame: Rc<RefCell<Option<RayTraceRenderer>>> =
+                    renderer_for_observer.clone();
+                let resize_accepted: bool = match renderer_for_frame.try_borrow_mut() {
+                    Ok(mut renderer_slot) => match renderer_slot.as_mut() {
+                        Some(renderer) => raytrace_resize_backend_to_canvas(
+                            renderer,
+                            RAYTRACE_WEBGPU_CANVAS_SELECTOR,
+                            loop_state.get_active(),
+                            loop_state.get_error_detail(),
+                            loop_state.get_init_error_code(),
+                        ),
+                        // The renderer is gone: a tab switch already
+                        // disposed it, so there is no surface left to
+                        // resize and nothing to report.
+                        None => true,
+                    },
+                    Err(_contended) => false,
+                };
+                if !resize_accepted {
+                    // `raytrace_resize_backend_to_canvas` already recorded
+                    // the engine's own reason against the status banner;
+                    // this only makes the rejected observer pass visible
+                    // in the console, so a silently frozen surface after a
+                    // fullscreen transition is traceable.
+                    Console::error(format!(
+                        "{RAYTRACE_LOG_PREFIX} resize observer refused the new CSS box; \
+                         the backend keeps its previous size"
+                    ));
+                }
+            }),
+        );
+        let observer_callback: Function = observer_closure
+            .as_ref()
+            .unchecked_ref::<Function>()
+            .clone();
+        // Ownership moves into the slot the cleanup owns. Dropping it here
+        // would let the browser invoke a freed trampoline: the observer
+        // keeps firing after this async init returns.
+        if let Ok(mut closure_slot) = observer_closure_cell_for_init.try_borrow_mut() {
+            *closure_slot = Some(observer_closure);
+        }
+        if let Ok(resize_observer) = ResizeObserver::new(&observer_callback)
+            && let Some(window_value) = window()
+            && let Some(document_value) = window_value.document()
+            && let Some(element) = document_value
+                .query_selector(RAYTRACE_WEBGPU_CANVAS_SELECTOR)
+                .ok()
+                .flatten()
+        {
+            resize_observer.observe(&element);
+            // See the WebGL loop for why `try_borrow_mut` and not
+            // `borrow_mut`.
+            if let Ok(mut observer_slot) = observer_cell.try_borrow_mut() {
+                *observer_slot = Some(resize_observer);
+            }
+        }
+        let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
+        let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+        let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
+        let renderer_for_loop: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
+        let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
+        let cell_clone: RafClosureCell = closure_cell.clone();
+        let last_clone: Rc<Cell<f64>> = last_time.clone();
+        let frame_clone: Rc<Cell<u32>> = frame_count.clone();
+        let fps_clone: Rc<Cell<f64>> = fps_timer.clone();
+        let yaw_clone: Rc<Cell<f64>> = angles.yaw.clone();
+        let pitch_clone: Rc<Cell<f64>> = angles.pitch.clone();
+        let resize_dirty_for_loop: Rc<Cell<bool>> = resize_dirty.clone();
+        let cancelled_for_loop: Rc<Cell<bool>> = cancelled.clone();
+        let raf_for_detach: Rc<Cell<Option<i32>>> = raf_id.clone();
+        let cell_for_detach: RafClosureCell = closure_cell.clone();
+        let timers_for_detach: RayTracePendingTimers = pending_timers.clone();
+        let renderer_for_detach: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
+        let timers_for_loop: RayTracePendingTimers = pending_timers.clone();
+        let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
+            if cancelled_for_loop.get() {
+                return;
+            }
+            if raytrace_canvas_detached(RAYTRACE_WEBGPU_CANVAS_SELECTOR) {
+                // Router navigation mounts another page without running
+                // any hook cleanup, so the loop has to reach its own
+                // teardown. The ResizeObserver is intentionally *not*
+                // disconnected here: it is still observed and can still
+                // fire, so dropping it from under the browser would leave
+                // a live observer pointing at a disposed backend. It is
+                // disconnected by the hook cleanup, and until then its
+                // resize call is a no-op because the renderer is gone.
+                raytrace_release_loop(
+                    cancelled_for_loop.clone(),
+                    raf_for_detach.clone(),
+                    cell_for_detach.clone(),
+                    timers_for_detach.clone(),
+                    renderer_for_detach.clone(),
+                );
+                return;
+            }
+            let Some(window_value): Option<Window> = window() else {
+                return;
+            };
+            let Some(performance): Option<Performance> = window_value.performance() else {
+                return;
+            };
+            let current_time: f64 = performance.now() / 1000.0;
+            let prev: f64 = last_clone.get();
+            let frame_time: f64 = if prev < 0.0 {
+                1.0 / 60.0
+            } else {
+                current_time - prev
+            };
+            let anim_time: f64 = frame_time.min(0.25);
+            last_clone.set(current_time);
+            if loop_state.get_auto_rotate().get() {
+                yaw_clone.set(yaw_clone.get() + RAYTRACE_AUTO_YAW_SPEED * anim_time);
+            }
+            if resize_dirty_for_loop.get() {
+                resize_dirty_for_loop.set(false);
+            }
+            // A paused loop renders nothing: the previous frame stays on
+            // screen and the device is not touched at all, which is what
+            // the pause button promises and what keeps a paused tab from
+            // burning a GPU pass per animation frame.
+            let running: bool = loop_state.get_running().get();
+            let render_result: Option<Result<(), JsValue>> = if running {
+                renderer_for_loop.try_borrow_mut().ok().and_then(
+                    |mut renderer_slot: RefMut<'_, Option<RayTraceRenderer>>| {
+                        let renderer: &mut RayTraceRenderer = renderer_slot.as_mut()?;
+                        // The renderer owns the canvas backing store, so a
+                        // rejected resize leaves both on the old size. The
+                        // frame is then skipped rather than drawn against
+                        // a size the backend does not have.
+                        if !raytrace_resize_backend_to_canvas(
+                            renderer,
+                            RAYTRACE_WEBGPU_CANVAS_SELECTOR,
+                            loop_state.get_active(),
+                            loop_state.get_error_detail(),
+                            loop_state.get_init_error_code(),
+                        ) {
+                            return None;
+                        }
+                        // The contract exposes no canvas accessor on the
+                        // renderer, so the backing store is read back off
+                        // the DOM element the loop already owns.
+                        let width: u32 =
+                            raytrace_canvas_backing_width(RAYTRACE_WEBGPU_CANVAS_SELECTOR);
+                        let height: u32 =
+                            raytrace_canvas_backing_height(RAYTRACE_WEBGPU_CANVAS_SELECTOR);
+                        let camera: Camera3D = build_raytrace_camera(
+                            yaw_clone.get(),
+                            pitch_clone.get(),
+                            width,
+                            height,
+                        );
+                        Some(renderer.render(&camera, &lights, &settings))
+                    },
+                )
+            } else {
+                None
+            };
+            if running {
+                match render_result {
+                    Some(Ok(())) => {
+                        raytrace_clear_error(
+                            loop_state.get_active(),
+                            loop_state.get_error_detail(),
+                            loop_state.get_init_error_code(),
+                        );
+                        if !loop_state.get_loaded().get() {
+                            raytrace_set_loaded_delayed(
+                                timers_for_loop.clone(),
+                                loop_state.get_loaded(),
+                                RAYTRACE_LOADING_MIN_MILLIS,
+                            );
+                        }
+                    }
+                    Some(Err(error)) => {
+                        raytrace_record_error(
+                            loop_state.get_active(),
+                            loop_state.get_error_detail(),
+                            loop_state.get_init_error_code(),
+                            RAYTRACE_ERROR_CODE_RENDER,
+                            "webgpu render",
+                            &error,
+                        );
+                    }
+                    // A rejected resize and a missing renderer both land
+                    // here: neither produced a frame. The resize failure
+                    // already recorded its own code and detail, so it is
+                    // not overwritten with a generic render rejection.
+                    // Control falls through to the frame re-registration
+                    // below either way, which is what lets the loop
+                    // recover once the resize succeeds again.
+                    None => {
+                        if loop_state.get_error_detail().get().is_empty() {
+                            raytrace_record_error(
+                                loop_state.get_active(),
+                                loop_state.get_error_detail(),
+                                loop_state.get_init_error_code(),
+                                RAYTRACE_ERROR_CODE_RENDER,
+                                "webgpu render",
+                                &JsValue::NULL,
+                            );
+                        }
+                    }
+                }
+            }
+            // Only a frame that actually rendered counts toward the rate.
+            if running {
+                frame_clone.set(frame_clone.get() + 1);
+                fps_clone.set(fps_clone.get() + frame_time);
+                if fps_clone.get() >= 1.0 {
+                    let fps: f64 = f64::from(frame_clone.get()) / fps_clone.get();
+                    loop_state.get_fps().set(fps);
+                    frame_clone.set(0);
+                    fps_clone.set(0.0);
+                }
+            }
+            let Some(raf_closure_ref): Option<&'static Closure<dyn FnMut()>> = cell_clone.try_get()
+            else {
+                return;
+            };
+            let next_id: i32 = window_value
+                .request_animation_frame(raf_closure_ref.as_ref().unchecked_ref())
+                .unwrap_or_default();
+            if cancelled_for_loop.get() {
+                raf_clone.set(None);
+            } else {
+                raf_clone.set(Some(next_id));
+            }
+        }));
+        let _: Result<(), _> = closure_cell.try_set(raf_closure);
+        let Some(start_window): Option<Window> = window() else {
+            return;
+        };
+        let Some(start_raf_ref): Option<&'static Closure<dyn FnMut()>> = closure_cell.try_get()
+        else {
+            return;
+        };
+        let start_id: i32 = start_window
+            .request_animation_frame(start_raf_ref.as_ref().unchecked_ref())
+            .unwrap_or_default();
+        raf_id.set(Some(start_id));
+    });
 }
 
 /// Creates a click handler that toggles a RayTrace tab loop between
@@ -928,7 +1958,8 @@ pub(crate) fn raytrace_on_reset_camera(angles: RayTraceCameraAngles) -> Option<R
     }))
 }
 
-/// Reads the client X coordinate off a `MouseEvent`-like object via reflection.
+/// Reads the client X coordinate off a `MouseEvent`-like object via
+/// reflection.
 ///
 /// # Arguments
 ///
@@ -947,7 +1978,8 @@ fn client_x_from_event(event: &Event) -> f64 {
     .unwrap_or_default()
 }
 
-/// Reads the client Y coordinate off a `MouseEvent`-like object via reflection.
+/// Reads the client Y coordinate off a `MouseEvent`-like object via
+/// reflection.
 ///
 /// # Arguments
 ///
@@ -966,13 +1998,33 @@ fn client_y_from_event(event: &Event) -> f64 {
     .unwrap_or_default()
 }
 
+/// Applies a drag delta to the shared orbit angles and disables
+/// auto-rotate.
+///
+/// # Arguments
+///
+/// - `f64` - The horizontal drag delta in CSS pixels.
+/// - `f64` - The vertical drag delta in CSS pixels.
+/// - `RayTraceCameraAngles` - The shared orbit angles.
+/// - `Signal<bool>` - The auto-rotate signal to disable.
+fn raytrace_apply_drag(dx: f64, dy: f64, angles: RayTraceCameraAngles, auto_rotate: Signal<bool>) {
+    let yaw: f64 = angles.yaw.get() - dx * RAYTRACE_DRAG_SENSITIVITY;
+    let pitch: f64 = (angles.pitch.get() + dy * RAYTRACE_DRAG_SENSITIVITY).clamp(
+        -FRAC_PI_2 + RAYTRACE_PITCH_CLAMP,
+        FRAC_PI_2 - RAYTRACE_PITCH_CLAMP,
+    );
+    angles.yaw.set(yaw);
+    angles.pitch.set(pitch);
+    auto_rotate.set(false);
+}
+
 /// Creates a pointer move handler that updates the camera orbit angles
 /// from drag movement and disables auto-rotate for the rest of the
 /// session.
 ///
 /// # Arguments
 ///
-/// - `RayTraceCameraAngles` - The non-reactive camera orbit angles.
+/// - `RayTraceCameraAngles` - The shared orbit angles.
 /// - `Signal<bool>` - The auto-rotate signal of the active tab's loop.
 /// - `Rc<Cell<Option<(f64, f64)>>>` - The shared last pointer position cell.
 ///
@@ -991,17 +2043,13 @@ pub(crate) fn raytrace_on_pointer_move(
         };
         let client_x: f64 = client_x_from_event(&event);
         let client_y: f64 = client_y_from_event(&event);
-        let dx: f64 = client_x - last_x;
-        let dy: f64 = client_y - last_y;
         last_pointer.set(Some((client_x, client_y)));
-        let yaw: f64 = angles.yaw.get() - dx * RAYTRACE_DRAG_SENSITIVITY;
-        let pitch: f64 = (angles.pitch.get() + dy * RAYTRACE_DRAG_SENSITIVITY).clamp(
-            -FRAC_PI_2 + RAYTRACE_PITCH_CLAMP,
-            FRAC_PI_2 - RAYTRACE_PITCH_CLAMP,
+        raytrace_apply_drag(
+            client_x - last_x,
+            client_y - last_y,
+            angles.clone(),
+            auto_rotate,
         );
-        angles.yaw.set(yaw);
-        angles.pitch.set(pitch);
-        auto_rotate.set(false);
     }))
 }
 
@@ -1100,7 +2148,7 @@ pub(crate) fn raytrace_on_touch_start(
 ///
 /// # Arguments
 ///
-/// - `RayTraceCameraAngles` - The non-reactive camera orbit angles.
+/// - `RayTraceCameraAngles` - The shared orbit angles.
 /// - `Signal<bool>` - The auto-rotate signal of the active tab's loop.
 /// - `Rc<Cell<Option<(f64, f64)>>>` - The shared last pointer position cell.
 ///
@@ -1121,17 +2169,13 @@ pub(crate) fn raytrace_on_touch_move(
             return;
         };
         let (client_x, client_y): (f64, f64) = first_touch_client(&event);
-        let dx: f64 = client_x - last_x;
-        let dy: f64 = client_y - last_y;
         last_pointer.set(Some((client_x, client_y)));
-        let yaw: f64 = angles.yaw.get() - dx * RAYTRACE_DRAG_SENSITIVITY;
-        let pitch: f64 = (angles.pitch.get() + dy * RAYTRACE_DRAG_SENSITIVITY).clamp(
-            -FRAC_PI_2 + RAYTRACE_PITCH_CLAMP,
-            FRAC_PI_2 - RAYTRACE_PITCH_CLAMP,
+        raytrace_apply_drag(
+            client_x - last_x,
+            client_y - last_y,
+            angles.clone(),
+            auto_rotate,
         );
-        angles.yaw.set(yaw);
-        angles.pitch.set(pitch);
-        auto_rotate.set(false);
     }))
 }
 
@@ -1155,976 +2199,20 @@ pub(crate) fn raytrace_on_touch_end(
     }))
 }
 
-/// Packs the engine's precomputed shadow bounding spheres into a
-/// `vec4(center.xyz, radius)` array for the GPU shaders.
-///
-/// Mirrors `RayTraceScene::shadow_points` term for term: the same four
-/// `(center, radius)` pairs that the CPU `soft_shadow_factor` consumes,
-/// but in the WebGL `u_sphere_packs` / WGSL `u_sphere_packs` layout the
-/// shader needs.
-///
-/// # Arguments
-///
-/// - `f64` - The current camera yaw in radians.
-///
-/// # Returns
-///
-/// - `Vec<f32>` - The packed sphere-pack data (16 floats).
-fn build_raytrace_sphere_pack_uniform(yaw: f64) -> Vec<f32> {
-    let (occluders, _): (Vec<Occluder>, Vector3D) = build_raytrace_scene(yaw);
-    let mut data: Vec<f32> = Vec::with_capacity(RAYTRACE_GPU_SPHERE_PACK_COUNT * 4);
-    // The engine precomputes shadow_points inside `RayTraceScene::new`
-    // but exposes the bounding spheres per-occluder via
-    // `Occluder::occluder_points`. The four occluders here are static
-    // sphere/AABB primitives, so each contributes one `(center,
-    // radius)` pair — exactly what `u_sphere_packs[4]` expects.
-    for occluder in occluders.iter() {
-        let points: Vec<(Vector3D, f64)> = occluder.occluder_points();
-        if let Some(&(center, radius)) = points.first() {
-            data.push(center.get_x() as f32);
-            data.push(center.get_y() as f32);
-            data.push(center.get_z() as f32);
-            data.push(radius as f32);
-        }
-    }
-    // Pad short scene lists so the GPU still sees a 4-entry uniform
-    // array. Unreachable bounds => `soft_shadow_factor` returns 1.0,
-    // which is the correct "no occlusion" behavior.
-    while data.len() < RAYTRACE_GPU_SPHERE_PACK_COUNT * 4 {
-        data.push(0.0);
-    }
-    data
-}
-
-/// Packs the per-frame uniform data consumed by the WebGL and WebGPU
-/// raytrace shaders.
-///
-/// Layout (10 `vec4` slots, matching `u_params[10]` / `SceneUniforms`):
-/// orbit eye, camera forward, camera right, camera up, sun direction,
-/// sun color, ambient, canvas resolution, sun screen position (the
-/// sphere centre projected to NDC for the on-screen lamp, to make the
-/// floor's lit pool visibly tied to the same point), and lamp anchor
-/// (the floor-point under the sun where the lit pool converges).
-///
-/// The eye used for specular shading inside the shaders is the fixed
-/// `SHADE_EYE` constant, matching the CPU path.
-///
-/// # Arguments
-///
-/// - `f64` - The orbit yaw in radians.
-/// - `f64` - The orbit pitch in radians.
-/// - `f64` - The canvas backing width in physical pixels.
-/// - `f64` - The canvas backing height in physical pixels.
-/// - `Vector3D` - The sun position in world space (the sun direction
-///   mirrored about the ground plane and scaled by
-///   `RAYTRACE_SUN_DISTANCE`, i.e. [`raytrace_sun_position`]).
-///
-/// # Returns
-///
-/// - `Vec<f32>` - The packed uniform data (40 floats).
-fn pack_raytrace_gpu_uniform(
-    yaw: f64,
-    pitch: f64,
-    width: f64,
-    height: f64,
-    sun_position: Vector3D,
-) -> Vec<f32> {
-    let eye: Vector3D = compute_eye_position(yaw, pitch);
-    let (forward, right, up_true): (Vector3D, Vector3D, Vector3D) =
-        build_camera_basis(eye, yaw, pitch);
-    let sun_dir: Vector3D = raytrace_sun_direction(yaw);
-    let mut data: Vec<f32> = Vec::with_capacity(RAYTRACE_GPU_UNIFORM_VEC4_COUNT * 4);
-    let vectors: [Vector3D; 5] = [eye, forward, right, up_true, sun_dir];
-    for vector in vectors {
-        data.push(vector.get_x() as f32);
-        data.push(vector.get_y() as f32);
-        data.push(vector.get_z() as f32);
-        data.push(0.0);
-    }
-    data.extend_from_slice(&[1.0, 0.95, 0.85, 0.0]);
-    data.extend_from_slice(&[0.10, 0.10, 0.14, 0.0]);
-    data.extend_from_slice(&[width as f32, height as f32, 0.0, 0.0]);
-    // Sun world position, projected: the shader uses `sun_dir *
-    // SUN_DISTANCE` for its ray hits, but the floor's lit pool comes
-    // from the Lambert term `dot(normal, light_dir)` evaluated in
-    // world space. Uploading the resolved `sun_position` here too
-    // lets the renderer cross-check the two stay in lock-step.
-    data.extend_from_slice(&[
-        sun_position.get_x() as f32,
-        sun_position.get_y() as f32,
-        sun_position.get_z() as f32,
-        0.0,
-    ]);
-    // Lamp anchor: the floor-point directly under the sun where the
-    // lit pool converges (the Lambert term reaches its peak). Kept as
-    // a uniform so any future shader-side debug visualisation stays
-    // bound to the same coordinate the eye sees on screen.
-    data.extend_from_slice(&[
-        sun_position.get_x() as f32,
-        GROUND_Y_TOP_FLOOR_LAMP as f32,
-        sun_position.get_z() as f32,
-        0.0,
-    ]);
-    data
-}
-
-/// Sets the Canvas 2D `loaded` signal after a short delay so the
-/// loading overlay is actually painted before it is removed.
-///
-/// Mirrors [`raytrace_set_loaded_delayed`] (used by the WebGL / WebGPU
-/// tabs) and shares its `GAME_3D_LOADING_MIN_MILLIS` floor so the
-/// overlay stays visible for a minimum duration even on devices where
-/// the first frame finishes inside the same `requestAnimationFrame`
-/// tick that the overlay is mounted on. Reusing the same floor keeps
-/// all three RayTrace tabs visually consistent: the user always sees
-/// the "Initializing..." text for the same wall-clock window no
-/// matter which tab they boot the page on or switch into.
-///
-/// # Arguments
-///
-/// - `Signal<bool>` - The Canvas 2D `loaded` signal to set.
-/// - `i32` - The delay in milliseconds before setting the signal.
-fn raytrace_set_loaded_delayed_canvas2d(loaded: Signal<bool>, millis: i32) {
-    let loaded_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-        loaded.set(true);
-    }));
-    let loaded_callback: Function = loaded_closure.as_ref().unchecked_ref::<Function>().clone();
-    loaded_closure.forget();
-    let Some(loaded_window): Option<Window> = window() else {
-        return;
-    };
-    let _: Result<i32, JsValue> = loaded_window
-        .set_timeout_with_callback_and_timeout_and_arguments_0(&loaded_callback, millis);
-}
-
-/// Sets the backend `loaded` signal after a short delay so the loading
-/// overlay is actually painted before it is removed.
-///
-/// Synchronous WebGL init (and fast WebGPU init) would otherwise add and
-/// remove the overlay canvas within a single frame, so the browser never
-/// paints the loading state when switching tabs.
-///
-/// # Arguments
-///
-/// - `Signal<bool>` - The backend `loaded` signal to set.
-/// - `i32` - The delay in milliseconds before setting the signal.
-fn raytrace_set_loaded_delayed(loaded: Signal<bool>, millis: i32) {
-    let loaded_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-        loaded.set(true);
-    }));
-    let loaded_callback: Function = loaded_closure.as_ref().unchecked_ref::<Function>().clone();
-    loaded_closure.forget();
-    let Some(loaded_window): Option<Window> = window() else {
-        return;
-    };
-    let _: Result<i32, JsValue> = loaded_window
-        .set_timeout_with_callback_and_timeout_and_arguments_0(&loaded_callback, millis);
-}
-
-/// Registers the debounced window-resize listener shared by the WebGL
-/// and WebGPU raytrace loops.
-///
-/// # Arguments
-///
-/// - `Rc<Cell<bool>>` - The resize-dirty flag set after the debounce fires.
-/// - `Rc<Cell<Option<i32>>>` - The pending debounce timer handle.
-fn raytrace_register_resize_debounce(
-    resize_dirty: Rc<Cell<bool>>,
-    resize_timer: Rc<Cell<Option<i32>>>,
-) {
-    let resize_dirty_for_event: Rc<Cell<bool>> = resize_dirty.clone();
-    let resize_timer_for_event: Rc<Cell<Option<i32>>> = resize_timer.clone();
-    let debounce_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-        resize_dirty_for_event.set(true);
-    }));
-    let debounce_callback: Function = debounce_closure
-        .as_ref()
-        .unchecked_ref::<Function>()
-        .clone();
-    debounce_closure.forget();
-    let Some(resize_window): Option<Window> = window() else {
-        return;
-    };
-    App::use_window_event(RAYTRACE_EVENT_RESIZE, move || {
-        let old_timer: Option<i32> = resize_timer_for_event.get();
-        if let Some(timer_id) = old_timer {
-            let Some(clear_window): Option<Window> = window() else {
-                return;
-            };
-            clear_window.clear_timeout_with_handle(timer_id);
-        }
-        let new_timer: i32 = resize_window
-            .set_timeout_with_callback_and_timeout_and_arguments_0(
-                &debounce_callback,
-                GAME_3D_RESIZE_DEBOUNCE_MILLIS,
-            )
-            .unwrap_or_default();
-        resize_timer_for_event.set(Some(new_timer));
-    });
-}
-
-/// Starts the RayTrace WebGL loop driven by `requestAnimationFrame`.
-///
-/// Renders the same scene as the Canvas 2D tab through a GLSL ES 3.00
-/// fragment shader on a fullscreen triangle. The canvas backing store
-/// tracks the CSS box times the device pixel ratio (synchronous
-/// ResizeObserver plus a debounced window-resize flag plus a per-frame
-/// divergence check, mirroring the 3D game page), and the shader
-/// aspect-corrects the NDC via the resolution uniform so geometry never
-/// stretches. WebGL initialization is synchronous; the `spawn_local`
-/// wrapper only defers execution past the current render pass so the
-/// canvas element exists in the DOM.
-///
-/// # Arguments
-///
-/// - `UseRayTraceWebGl` - The WebGL backend state for signal updates.
-/// - `RayTraceCameraAngles` - The shared non-reactive camera orbit angles.
-pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTraceCameraAngles) {
-    let init_state: UseRayTraceWebGl = state;
-    let loop_state: UseRayTraceWebGl = state;
-    let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
-    let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
-    let resize_dirty: Rc<Cell<bool>> = Rc::new(Cell::new(false));
-    let resize_timer: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
-    let renderer_rc: Rc<RefCell<Option<WebGl2Backend>>> = Rc::new(RefCell::new(None));
-    let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
-    let observer_cell: Rc<RefCell<Option<ResizeObserver>>> = Rc::new(RefCell::new(None));
-    raytrace_register_resize_debounce(resize_dirty.clone(), resize_timer.clone());
-    let raf_for_cleanup: Rc<Cell<Option<i32>>> = raf_id.clone();
-    let cell_for_cleanup: RafClosureCell = closure_cell.clone();
-    let renderer_for_cleanup: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
-    let resize_timer_for_cleanup: Rc<Cell<Option<i32>>> = resize_timer.clone();
-    let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
-    let observer_for_cleanup: Rc<RefCell<Option<ResizeObserver>>> = observer_cell.clone();
-    App::use_cleanup(move || {
-        cancelled_for_cleanup.set(true);
-        // Every step is independent: a missing `window()` must never skip
-        // the renderer teardown below, so no early returns here.
-        if let Some(cancel_id) = raf_for_cleanup.get()
-            && let Some(window_value) = window()
-        {
-            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
-        }
-        if let Some(timer_id) = resize_timer_for_cleanup.get()
-            && let Some(window_value) = window()
-        {
-            window_value.clear_timeout_with_handle(timer_id);
-        }
-        // Disconnect the ResizeObserver so its closure (and the renderer
-        // it holds via `renderer_for_observer`) is released on tab
-        // switch. Without this the observer keeps the renderer alive
-        // past the loop's lifetime, holding GPU resources until GC.
-        if let Some(observer) = observer_for_cleanup.borrow_mut().take() {
-            observer.disconnect();
-        }
-        let _: Option<_> = cell_for_cleanup.try_take();
-        // WebGL has no explicit `destroy()` on the context: dropping the
-        // last JS reference lets the browser GC reclaim the GL context.
-        let _: Option<WebGl2Backend> = renderer_for_cleanup.borrow_mut().take();
-    });
-    let cancelled_for_init: Rc<Cell<bool>> = cancelled.clone();
-    let Some(loading_window): Option<Window> = window() else {
-        return;
-    };
-    let loading_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-        draw_game_3d_loading(
-            RAYTRACE_WEBGL_LOADING_CANVAS_SELECTOR,
-            RAYTRACE_WEBGL_CANVAS_SELECTOR,
-        );
-    }));
-    let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
-    loading_closure.forget();
-    let _: Result<i32, JsValue> =
-        loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
-    spawn_local(async move {
-        if cancelled_for_init.get() {
-            return;
-        }
-        let config: RenderConfig = RenderConfig::webgl(
-            RAYTRACE_WEBGL_CANVAS_SELECTOR,
-            RAYTRACE_WIDTH,
-            RAYTRACE_HEIGHT,
-        );
-        let renderer: WebGl2Backend = match Engine::webgl_renderer(&config) {
-            Ok(value) => value,
-            Err(error) => {
-                Console::error(format!("[euv-engine][raytrace] webgl init failed: {error}"));
-                init_state.get_init_error_code().set(error.code());
-                init_state.get_loaded().set(true);
-                return;
-            }
-        };
-        let init_context: WebGl2RenderingContext = renderer.get_context().clone();
-        let program: GlProgram = match GlProgram::create(
-            &init_context,
-            RAYTRACE_WEBGL_VERTEX_SHADER,
-            RAYTRACE_WEBGL_FRAGMENT_SHADER,
-        ) {
-            Ok(value) => value,
-            Err(error) => {
-                Console::error(format!(
-                    "[euv-engine][raytrace] webgl program failed: {error}"
-                ));
-                init_state.get_init_error_code().set("WEBGL_PROGRAM_ERROR");
-                init_state.get_loaded().set(true);
-                return;
-            }
-        };
-        let clear_color: Rc<Cell<(f64, f64, f64)>> = Rc::new(Cell::new(
-            game_3d_canvas_clear_color(RAYTRACE_WEBGL_CANVAS_SELECTOR),
-        ));
-        init_state.get_active().set(true);
-        // Delay flipping `loaded` so the loading overlay stays painted for a
-        // minimum visible duration even when init completes instantly.
-        raytrace_set_loaded_delayed(init_state.get_loaded(), GAME_3D_LOADING_MIN_MILLIS);
-        *renderer_rc.borrow_mut() = Some(renderer);
-        // `GlProgram` owns its own name-keyed uniform-location cache, so the
-        // program itself is shared as `RefCell`: `set_uniform_*` needs
-        // `&mut GlProgram`, and a `WebGlProgram` handle alone cannot carry
-        // the cache the old `Rc<WebGlUniformLocation>` did.
-        let program_rc: Rc<RefCell<GlProgram>> = Rc::new(RefCell::new(program));
-        // Synchronous resize on CSS-box change. ResizeObserver callbacks
-        // run BEFORE the browser paints the next frame, so setting
-        // `canvas.width = new_w` inside the observer ensures the very
-        // first paint after fullscreen enter/exit already has the new
-        // backing store instead of one stretched frame of the old
-        // backing. `canvas.width` is applied BEFORE `renderer.resize`
-        // because the DOM setter is fast while the GL-side realloc can
-        // stall the main thread.
-        let renderer_for_observer: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
-        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
-            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
-                let Some(window_value): Option<Window> = window() else {
-                    return;
-                };
-                let Some(document_value): Option<Document> = window_value.document() else {
-                    return;
-                };
-                let Some(element): Option<Element> = document_value
-                    .query_selector(RAYTRACE_WEBGL_CANVAS_SELECTOR)
-                    .ok()
-                    .flatten()
-                else {
-                    return;
-                };
-                let canvas: HtmlCanvasElement = element.unchecked_into();
-                let rect: DomRect = canvas.get_bounding_client_rect();
-                let css_w: f64 = rect.width();
-                let css_h: f64 = rect.height();
-                if css_w <= 0.0 || css_h <= 0.0 {
-                    return;
-                }
-                let dpr: f64 = Reflect::get(
-                    window_value.as_ref(),
-                    &JsValue::from_str(RAYTRACE_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
-                )
-                .ok()
-                .and_then(|v: JsValue| v.as_f64())
-                .filter(|v: &f64| v.is_finite() && *v >= 1.0)
-                .unwrap_or(1.0);
-                let new_w: u32 = (css_w * dpr).round() as u32;
-                let new_h: u32 = (css_h * dpr).round() as u32;
-                let backing_w: u32 = canvas.width();
-                let backing_h: u32 = canvas.height();
-                if backing_w != new_w || backing_h != new_h {
-                    canvas.set_width(new_w);
-                    canvas.set_height(new_h);
-                    if let Some(renderer) = renderer_for_observer.borrow_mut().as_mut() {
-                        renderer.resize(new_w, new_h);
-                    }
-                }
-            }),
-        );
-        let observer_callback: Function = observer_closure
-            .as_ref()
-            .unchecked_ref::<Function>()
-            .clone();
-        observer_closure.forget();
-        if let Ok(resize_observer) = ResizeObserver::new(&observer_callback)
-            && let Some(window_value) = window()
-            && let Some(document_value) = window_value.document()
-            && let Some(element) = document_value
-                .query_selector(RAYTRACE_WEBGL_CANVAS_SELECTOR)
-                .ok()
-                .flatten()
-        {
-            resize_observer.observe(&element);
-            // `try_borrow_mut`, not `borrow_mut`: the tab-switch cleanup
-            // registered above also mutably borrows this same cell from
-            // `HookContext::switch_arm`, and this backend's init is
-            // asynchronous (WebGPU awaits adapter / device promises, WebGL
-            // defers behind `spawn_local`), so the arm can switch while
-            // init is still in flight and the two borrows genuinely
-            // overlap. That collision is not theoretical: it reproduced
-            // as `already borrowed: BorrowMutError` in
-            // `RefCell<Option<ResizeObserver>>::borrow_mut`, and a
-            // BorrowMutError in WASM aborts the whole app with no
-            // catchable panic. On contention the observer is dropped here
-            // and the loop runs without live resize notifications — the
-            // per-frame backing-store divergence check still resizes.
-            if let Ok(mut observer_slot) = observer_cell.try_borrow_mut() {
-                *observer_slot = Some(resize_observer);
-            }
-        }
-        let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
-        let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
-        let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
-        let renderer_for_loop: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
-        let program_for_loop: Rc<RefCell<GlProgram>> = program_rc.clone();
-        let clear_color_for_loop: Rc<Cell<(f64, f64, f64)>> = clear_color.clone();
-        let yaw_for_loop: Rc<Cell<f64>> = angles.yaw.clone();
-        let pitch_for_loop: Rc<Cell<f64>> = angles.pitch.clone();
-        let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
-        let cell_clone: RafClosureCell = closure_cell.clone();
-        let last_clone: Rc<Cell<f64>> = last_time.clone();
-        let frame_clone: Rc<Cell<u32>> = frame_count.clone();
-        let fps_clone: Rc<Cell<f64>> = fps_timer.clone();
-        let resize_dirty_for_loop: Rc<Cell<bool>> = resize_dirty.clone();
-        let cancelled_for_loop: Rc<Cell<bool>> = cancelled.clone();
-        let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-            // Stop on tab-switch cleanup (`cancelled`) or when the canvas
-            // left the document (router navigation fires no cleanup).
-            if cancelled_for_loop.get() || raytrace_canvas_detached(RAYTRACE_WEBGL_CANVAS_SELECTOR)
-            {
-                return;
-            }
-            let Some(window_value): Option<Window> = window() else {
-                return;
-            };
-            let Some(performance): Option<Performance> = window_value.performance() else {
-                return;
-            };
-            let current_time: f64 = performance.now() / 1000.0;
-            let prev: f64 = last_clone.get();
-            // Unclamped frame time feeds the FPS counter (honest rate);
-            // the clamped delta only drives the yaw animation step.
-            let frame_time: f64 = if prev < 0.0 {
-                1.0 / 60.0
-            } else {
-                current_time - prev
-            };
-            let anim_time: f64 = frame_time.min(0.25);
-            last_clone.set(current_time);
-            if loop_state.get_auto_rotate().get() {
-                yaw_for_loop.set(yaw_for_loop.get() + RAYTRACE_AUTO_YAW_SPEED * anim_time);
-            }
-            let resize_dirty_frame: bool = if resize_dirty_for_loop.get() {
-                resize_dirty_for_loop.set(false);
-                true
-            } else {
-                false
-            };
-            let Some(window_for_dpr): Option<Window> = window() else {
-                return;
-            };
-            let dpr: f64 = Reflect::get(
-                window_for_dpr.as_ref(),
-                &JsValue::from_str(RAYTRACE_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
-            )
-            .ok()
-            .and_then(|value: JsValue| value.as_f64())
-            .filter(|value: &f64| value.is_finite() && *value >= 1.0)
-            .unwrap_or(1.0);
-            // Read the canvas's CSS pixel dimensions via
-            // `getBoundingClientRect` (NOT `clientWidth`/`clientHeight` -
-            // the latter track the backing store in Chrome and would
-            // create a feedback loop if read every frame).
-            let (canvas_width, canvas_height): (f64, f64) =
-                read_raytrace_canvas_size(RAYTRACE_WEBGL_CANVAS_SELECTOR).unwrap_or((0.0, 0.0));
-            let new_physical_width: u32 = (canvas_width * dpr).round() as u32;
-            let new_physical_height: u32 = (canvas_height * dpr).round() as u32;
-            if let Some(renderer) = renderer_for_loop.borrow_mut().as_mut() {
-                // `set_uniform_*` and `render_frame` both take `&mut self`,
-                // while the context they must draw through is borrowed out
-                // of that same `self`. Clone the handle instead: it is a JS
-                // object reference, so the clone only bumps a refcount and
-                // leaves both the borrow of `renderer` and the GL context
-                // valid for the duration of the frame.
-                let context: WebGl2RenderingContext = renderer.get_context().clone();
-                // Resize the WebGL backing store every frame the CSS box
-                // diverges from `canvas.width` / `canvas.height`. The
-                // per-frame check collapses the stretched-frame window
-                // after fullscreen transitions to a single frame; the
-                // ResizeObserver path normally beats it to zero.
-                if new_physical_width > 0 && new_physical_height > 0 {
-                    let backing_w: u32 = renderer.get_canvas().width();
-                    let backing_h: u32 = renderer.get_canvas().height();
-                    if backing_w != new_physical_width || backing_h != new_physical_height {
-                        renderer.get_canvas().set_width(new_physical_width);
-                        renderer.get_canvas().set_height(new_physical_height);
-                        renderer.resize(new_physical_width, new_physical_height);
-                    }
-                }
-                if resize_dirty_frame {
-                    renderer.resize(new_physical_width, new_physical_height);
-                }
-                if loop_state.get_running().get() {
-                    let yaw: f64 = yaw_for_loop.get();
-                    let pitch: f64 = pitch_for_loop.get();
-                    let backing_w: f64 = f64::from(renderer.get_canvas().width());
-                    let backing_h: f64 = f64::from(renderer.get_canvas().height());
-                    let sun_position: Vector3D = raytrace_sun_position(yaw);
-                    let uniform_data: Vec<f32> =
-                        pack_raytrace_gpu_uniform(yaw, pitch, backing_w, backing_h, sun_position);
-                    // Upload the engine's precomputed shadow bounding
-                    // spheres. Mirrors the WGSL `u_sphere_packs` binding
-                    // so the GLSL path's `soft_shadow_factor` agrees
-                    // with the CPU `RayTraceScene::shadow_points`.
-                    let sphere_data: Vec<f32> = build_raytrace_sphere_pack_uniform(yaw);
-                    {
-                        let mut program_borrow: RefMut<'_, GlProgram> =
-                            program_for_loop.borrow_mut();
-                        program_borrow.set_uniform_vec4_array(
-                            &context,
-                            "u_params[0]",
-                            &uniform_data,
-                        );
-                        program_borrow.set_uniform_vec4_array(
-                            &context,
-                            "u_sphere_packs[0]",
-                            &sphere_data,
-                        );
-                    }
-                    // Refresh the clear color every frame so a theme
-                    // toggle takes effect within one paint.
-                    let next_clear: (f64, f64, f64) =
-                        game_3d_canvas_clear_color(RAYTRACE_WEBGL_CANVAS_SELECTOR);
-                    if clear_color_for_loop.get() != next_clear {
-                        clear_color_for_loop.set(next_clear);
-                    }
-                    let (r, g, b) = clear_color_for_loop.get();
-                    renderer.render_frame(
-                        &context,
-                        &program_for_loop.borrow(),
-                        Color::new(r, g, b, 1.0),
-                        3,
-                    );
-                }
-            }
-            frame_clone.set(frame_clone.get() + 1);
-            fps_clone.set(fps_clone.get() + frame_time);
-            if fps_clone.get() >= 1.0 {
-                let fps: f64 = f64::from(frame_clone.get()) / fps_clone.get();
-                loop_state.get_fps().set(fps);
-                frame_clone.set(0);
-                fps_clone.set(0.0);
-            }
-            let Some(raf_closure_ref): Option<&'static Closure<dyn FnMut()>> = cell_clone.try_get()
-            else {
-                return;
-            };
-            let next_id: i32 = window_value
-                .request_animation_frame(raf_closure_ref.as_ref().unchecked_ref())
-                .unwrap_or_default();
-            if cancelled_for_loop.get() {
-                raf_clone.set(None);
-            } else {
-                raf_clone.set(Some(next_id));
-            }
-        }));
-        let _: Result<(), _> = closure_cell.try_set(raf_closure);
-        let Some(start_window): Option<Window> = window() else {
-            return;
-        };
-        let Some(start_raf_ref): Option<&'static Closure<dyn FnMut()>> = closure_cell.try_get()
-        else {
-            return;
-        };
-        let start_id: i32 = start_window
-            .request_animation_frame(start_raf_ref.as_ref().unchecked_ref())
-            .unwrap_or_default();
-        raf_id.set(Some(start_id));
-    });
-}
-
-/// Starts the RayTrace WebGPU loop driven by `requestAnimationFrame`.
-///
-/// Renders the same scene as the Canvas 2D tab through a WGSL fragment
-/// shader on a fullscreen triangle, fed by a single 8-`vec4` uniform
-/// buffer at `@group(0) @binding(0)` updated once per frame. WebGPU
-/// initialization is asynchronous (adapter + device promises raced
-/// against a timeout inside the engine), so the whole init runs inside
-/// `spawn_local` with a cancellation guard for tab switches. On failure
-/// the error code is surfaced to the status banner and the loop exits
-/// quietly.
-///
-/// # Arguments
-///
-/// - `UseRayTraceWebGpu` - The WebGPU backend state for signal updates.
-/// - `RayTraceCameraAngles` - The shared non-reactive camera orbit angles.
-pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTraceCameraAngles) {
-    let init_state: UseRayTraceWebGpu = state;
-    let loop_state: UseRayTraceWebGpu = state;
-    let raf_id: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
-    let closure_cell: RafClosureCell = Rc::new(MaybeEngineCell::new());
-    let resize_dirty: Rc<Cell<bool>> = Rc::new(Cell::new(false));
-    let resize_timer: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
-    let renderer_rc: Rc<RefCell<Option<WebGpuRenderer>>> = Rc::new(RefCell::new(None));
-    let cancelled: Rc<Cell<bool>> = Rc::new(Cell::new(false));
-    let observer_cell: Rc<RefCell<Option<ResizeObserver>>> = Rc::new(RefCell::new(None));
-    raytrace_register_resize_debounce(resize_dirty.clone(), resize_timer.clone());
-    let raf_for_cleanup: Rc<Cell<Option<i32>>> = raf_id.clone();
-    let cell_for_cleanup: RafClosureCell = closure_cell.clone();
-    let renderer_for_cleanup: Rc<RefCell<Option<WebGpuRenderer>>> = renderer_rc.clone();
-    let resize_timer_for_cleanup: Rc<Cell<Option<i32>>> = resize_timer.clone();
-    let cancelled_for_cleanup: Rc<Cell<bool>> = cancelled.clone();
-    let observer_for_cleanup: Rc<RefCell<Option<ResizeObserver>>> = observer_cell.clone();
-    App::use_cleanup(move || {
-        cancelled_for_cleanup.set(true);
-        // Every step is independent: a missing `window()` must never skip
-        // the renderer teardown below, so no early returns here.
-        if let Some(cancel_id) = raf_for_cleanup.get()
-            && let Some(window_value) = window()
-        {
-            let _: Result<(), JsValue> = window_value.cancel_animation_frame(cancel_id);
-        }
-        if let Some(timer_id) = resize_timer_for_cleanup.get()
-            && let Some(window_value) = window()
-        {
-            window_value.clear_timeout_with_handle(timer_id);
-        }
-        // Disconnect the ResizeObserver so its closure (and the renderer
-        // it holds via `renderer_for_observer`) is released on tab
-        // switch. Without this the observer keeps the renderer alive
-        // past the loop's lifetime, holding GPU resources until GC.
-        if let Some(observer) = observer_for_cleanup.borrow_mut().take() {
-            observer.disconnect();
-        }
-        let _: Option<_> = cell_for_cleanup.try_take();
-        // Release GPU resources before dropping the renderer so the
-        // device and swap chain are freed eagerly. Without this the
-        // old GPU device can linger until GC, causing a fresh
-        // WebGpuRenderer::init() either to reuse the dead device
-        // (silent black canvas) or to fail to acquire a new one.
-        if let Some(renderer) = renderer_for_cleanup.borrow_mut().take() {
-            renderer.dispose();
-        }
-    });
-    let cancelled_for_init: Rc<Cell<bool>> = cancelled.clone();
-    let Some(loading_window): Option<Window> = window() else {
-        return;
-    };
-    let loading_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-        draw_game_3d_loading(
-            RAYTRACE_WEBGPU_LOADING_CANVAS_SELECTOR,
-            RAYTRACE_WEBGPU_CANVAS_SELECTOR,
-        );
-    }));
-    let loading_callback: Function = loading_closure.as_ref().unchecked_ref::<Function>().clone();
-    loading_closure.forget();
-    let _: Result<i32, JsValue> =
-        loading_window.set_timeout_with_callback_and_timeout_and_arguments_0(&loading_callback, 0);
-    spawn_local(async move {
-        let config: RenderConfig = RenderConfig::webgpu(
-            RAYTRACE_WEBGPU_CANVAS_SELECTOR,
-            RAYTRACE_WIDTH,
-            RAYTRACE_HEIGHT,
-        );
-        let renderer: Result<WebGpuRenderer, WebGpuInitError> =
-            Engine::webgpu_renderer(&config).await;
-        if cancelled_for_init.get() {
-            // The tab was switched away while the adapter / device promises
-            // were in flight. A successfully-created renderer still owns a
-            // live GPU device at this point; destroy it eagerly instead of
-            // leaving it for GC to discover.
-            if let Ok(stale_renderer) = &renderer {
-                stale_renderer.dispose();
-            }
-            return;
-        }
-        let renderer: WebGpuRenderer = match renderer {
-            Ok(value) => value,
-            Err(error) => {
-                Console::error(format!(
-                    "[euv-engine][raytrace] webgpu init failed: {error}"
-                ));
-                init_state.get_init_error_code().set(error.code());
-                init_state.get_loaded().set(true);
-                return;
-            }
-        };
-        let pipeline: JsValue = renderer.create_render_pipeline(RAYTRACE_WEBGPU_SHADER);
-        let uniform_buffer: JsValue =
-            renderer.create_uniform_buffer(&[0.0; RAYTRACE_GPU_UNIFORM_VEC4_COUNT * 4]);
-        // Precomputed shadow bounding spheres for the WGSL
-        // `soft_shadow_factor` mirroring `RayTraceScene::shadow_points`.
-        let sphere_pack_buffer: JsValue =
-            renderer.create_uniform_buffer(&[0.0; RAYTRACE_GPU_SPHERE_PACK_COUNT * 4]);
-        // The WebGPU shader binds the per-frame uniforms at
-        // `@group(0) @binding(0)` and the sphere packs at
-        // `@group(0) @binding(1)`, so the bind group needs both buffers
-        // in entry order. The engine exposes the multi-buffer
-        // constructor as `create_bind_group`; we reuse it here so we
-        // do not need a wrapper.
-        let bind_group: JsValue = renderer.create_bind_group(
-            &pipeline,
-            0,
-            &[
-                BindGroupEntry::Buffer {
-                    binding: 0,
-                    buffer: uniform_buffer.clone(),
-                    offset: 0,
-                    size: None,
-                },
-                BindGroupEntry::Buffer {
-                    binding: 1,
-                    buffer: sphere_pack_buffer.clone(),
-                    offset: 0,
-                    size: None,
-                },
-            ],
-        );
-        let clear_color: Rc<Cell<(f64, f64, f64)>> = Rc::new(Cell::new(
-            game_3d_canvas_clear_color(RAYTRACE_WEBGPU_CANVAS_SELECTOR),
-        ));
-        init_state.get_active().set(true);
-        // Delay flipping `loaded` so the loading overlay stays painted for a
-        // minimum visible duration even when init completes instantly.
-        raytrace_set_loaded_delayed(init_state.get_loaded(), GAME_3D_LOADING_MIN_MILLIS);
-        *renderer_rc.borrow_mut() = Some(renderer);
-        let pipeline_rc: Rc<JsValue> = Rc::new(pipeline);
-        let buffer_rc: Rc<JsValue> = Rc::new(uniform_buffer);
-        let sphere_pack_buffer_rc: Rc<JsValue> = Rc::new(sphere_pack_buffer);
-        let bind_group_rc: Rc<JsValue> = Rc::new(bind_group);
-        // Synchronous resize on CSS-box change; `canvas.width` is applied
-        // BEFORE `renderer.resize(...)` so the first paint after a
-        // fullscreen transition already has a correctly-sized backing
-        // store (mirrors the 3D game page's WebGPU tab).
-        let renderer_for_observer: Rc<RefCell<Option<WebGpuRenderer>>> = renderer_rc.clone();
-        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
-            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
-                let Some(window_value): Option<Window> = window() else {
-                    return;
-                };
-                let Some(document_value): Option<Document> = window_value.document() else {
-                    return;
-                };
-                let Some(element): Option<Element> = document_value
-                    .query_selector(RAYTRACE_WEBGPU_CANVAS_SELECTOR)
-                    .ok()
-                    .flatten()
-                else {
-                    return;
-                };
-                let canvas: HtmlCanvasElement = element.unchecked_into();
-                let rect: DomRect = canvas.get_bounding_client_rect();
-                let css_w: f64 = rect.width();
-                let css_h: f64 = rect.height();
-                if css_w <= 0.0 || css_h <= 0.0 {
-                    return;
-                }
-                let dpr: f64 = Reflect::get(
-                    window_value.as_ref(),
-                    &JsValue::from_str(RAYTRACE_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
-                )
-                .ok()
-                .and_then(|v: JsValue| v.as_f64())
-                .filter(|v: &f64| v.is_finite() && *v >= 1.0)
-                .unwrap_or(1.0);
-                let new_w: u32 = (css_w * dpr).round() as u32;
-                let new_h: u32 = (css_h * dpr).round() as u32;
-                let backing_w: u32 = canvas.width();
-                let backing_h: u32 = canvas.height();
-                if backing_w != new_w || backing_h != new_h {
-                    canvas.set_width(new_w);
-                    canvas.set_height(new_h);
-                    if let Some(renderer) = renderer_for_observer.borrow_mut().as_mut() {
-                        renderer.resize(new_w, new_h);
-                    }
-                }
-            }),
-        );
-        let observer_callback: Function = observer_closure
-            .as_ref()
-            .unchecked_ref::<Function>()
-            .clone();
-        observer_closure.forget();
-        if let Ok(resize_observer) = ResizeObserver::new(&observer_callback)
-            && let Some(window_value) = window()
-            && let Some(document_value) = window_value.document()
-            && let Some(element) = document_value
-                .query_selector(RAYTRACE_WEBGPU_CANVAS_SELECTOR)
-                .ok()
-                .flatten()
-        {
-            resize_observer.observe(&element);
-            // `try_borrow_mut`, not `borrow_mut`: the tab-switch cleanup
-            // registered above also mutably borrows this same cell from
-            // `HookContext::switch_arm`, and this backend's init is
-            // asynchronous (WebGPU awaits adapter / device promises, WebGL
-            // defers behind `spawn_local`), so the arm can switch while
-            // init is still in flight and the two borrows genuinely
-            // overlap. That collision is not theoretical: it reproduced
-            // as `already borrowed: BorrowMutError` in
-            // `RefCell<Option<ResizeObserver>>::borrow_mut`, and a
-            // BorrowMutError in WASM aborts the whole app with no
-            // catchable panic. On contention the observer is dropped here
-            // and the loop runs without live resize notifications — the
-            // per-frame backing-store divergence check still resizes.
-            if let Ok(mut observer_slot) = observer_cell.try_borrow_mut() {
-                *observer_slot = Some(resize_observer);
-            }
-        }
-        let last_time: Rc<Cell<f64>> = Rc::new(Cell::new(-1.0));
-        let frame_count: Rc<Cell<u32>> = Rc::new(Cell::new(0));
-        let fps_timer: Rc<Cell<f64>> = Rc::new(Cell::new(0.0));
-        let renderer_for_loop: Rc<RefCell<Option<WebGpuRenderer>>> = renderer_rc.clone();
-        let pipeline_for_loop: Rc<JsValue> = pipeline_rc.clone();
-        let buffer_for_loop: Rc<JsValue> = buffer_rc.clone();
-        let sphere_pack_buffer_for_loop: Rc<JsValue> = sphere_pack_buffer_rc.clone();
-        let bind_group_for_loop: Rc<JsValue> = bind_group_rc.clone();
-        let clear_color_for_loop: Rc<Cell<(f64, f64, f64)>> = clear_color.clone();
-        let yaw_for_loop: Rc<Cell<f64>> = angles.yaw.clone();
-        let pitch_for_loop: Rc<Cell<f64>> = angles.pitch.clone();
-        let raf_clone: Rc<Cell<Option<i32>>> = raf_id.clone();
-        let cell_clone: RafClosureCell = closure_cell.clone();
-        let last_clone: Rc<Cell<f64>> = last_time.clone();
-        let frame_clone: Rc<Cell<u32>> = frame_count.clone();
-        let fps_clone: Rc<Cell<f64>> = fps_timer.clone();
-        let resize_dirty_for_loop: Rc<Cell<bool>> = resize_dirty.clone();
-        let cancelled_for_loop: Rc<Cell<bool>> = cancelled.clone();
-        let raf_closure: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
-            // Stop on tab-switch cleanup (`cancelled`) or when the canvas
-            // left the document (router navigation fires no cleanup).
-            if cancelled_for_loop.get() || raytrace_canvas_detached(RAYTRACE_WEBGPU_CANVAS_SELECTOR)
-            {
-                return;
-            }
-            let Some(window_value): Option<Window> = window() else {
-                return;
-            };
-            let Some(performance): Option<Performance> = window_value.performance() else {
-                return;
-            };
-            let current_time: f64 = performance.now() / 1000.0;
-            let prev: f64 = last_clone.get();
-            // Unclamped frame time feeds the FPS counter (honest rate);
-            // the clamped delta only drives the yaw animation step.
-            let frame_time: f64 = if prev < 0.0 {
-                1.0 / 60.0
-            } else {
-                current_time - prev
-            };
-            let anim_time: f64 = frame_time.min(0.25);
-            last_clone.set(current_time);
-            if loop_state.get_auto_rotate().get() {
-                yaw_for_loop.set(yaw_for_loop.get() + RAYTRACE_AUTO_YAW_SPEED * anim_time);
-            }
-            let resize_dirty_frame: bool = if resize_dirty_for_loop.get() {
-                resize_dirty_for_loop.set(false);
-                true
-            } else {
-                false
-            };
-            let Some(window_for_dpr): Option<Window> = window() else {
-                return;
-            };
-            let dpr: f64 = Reflect::get(
-                window_for_dpr.as_ref(),
-                &JsValue::from_str(RAYTRACE_EVENT_PROPERTY_DEVICE_PIXEL_RATIO),
-            )
-            .ok()
-            .and_then(|value: JsValue| value.as_f64())
-            .filter(|value: &f64| value.is_finite() && *value >= 1.0)
-            .unwrap_or(1.0);
-            let (canvas_width, canvas_height): (f64, f64) =
-                read_raytrace_canvas_size(RAYTRACE_WEBGPU_CANVAS_SELECTOR).unwrap_or((0.0, 0.0));
-            let new_physical_width: u32 = (canvas_width * dpr).round() as u32;
-            let new_physical_height: u32 = (canvas_height * dpr).round() as u32;
-            // Borrow the renderer exactly once for the entire frame via
-            // `borrow_mut().as_mut()` so the RefMut guard releases
-            // automatically when this block exits, avoiding the
-            // `RefCell already borrowed` panic a second borrow would hit.
-            if let Some(renderer) = renderer_for_loop.borrow_mut().as_mut() {
-                if new_physical_width > 0 && new_physical_height > 0 {
-                    let backing_w: u32 = renderer.get_canvas().width();
-                    let backing_h: u32 = renderer.get_canvas().height();
-                    if backing_w != new_physical_width || backing_h != new_physical_height {
-                        renderer.get_canvas().set_width(new_physical_width);
-                        renderer.get_canvas().set_height(new_physical_height);
-                        let _: bool = renderer.resize(new_physical_width, new_physical_height);
-                    }
-                }
-                if resize_dirty_frame {
-                    let _: bool = renderer.resize(new_physical_width, new_physical_height);
-                }
-                if loop_state.get_running().get() {
-                    let yaw: f64 = yaw_for_loop.get();
-                    let pitch: f64 = pitch_for_loop.get();
-                    let backing_w: f64 = f64::from(renderer.get_canvas().width());
-                    let backing_h: f64 = f64::from(renderer.get_canvas().height());
-                    let sun_position: Vector3D = raytrace_sun_position(yaw);
-                    let uniform_data: Vec<f32> =
-                        pack_raytrace_gpu_uniform(yaw, pitch, backing_w, backing_h, sun_position);
-                    renderer.update_uniform_buffer(&buffer_for_loop, &uniform_data);
-                    let sphere_data: Vec<f32> = build_raytrace_sphere_pack_uniform(yaw);
-                    renderer.update_uniform_buffer(&sphere_pack_buffer_for_loop, &sphere_data);
-                    // Refresh the clear color every frame so a theme
-                    // toggle takes effect within one paint.
-                    let next_clear: (f64, f64, f64) =
-                        game_3d_canvas_clear_color(RAYTRACE_WEBGPU_CANVAS_SELECTOR);
-                    if clear_color_for_loop.get() != next_clear {
-                        clear_color_for_loop.set(next_clear);
-                    }
-                    let (r, g, b) = clear_color_for_loop.get();
-                    renderer.render_frame_with_bind_group(
-                        &pipeline_for_loop,
-                        &bind_group_for_loop,
-                        Color::new(r, g, b, 1.0),
-                        3,
-                    );
-                }
-            }
-            frame_clone.set(frame_clone.get() + 1);
-            fps_clone.set(fps_clone.get() + frame_time);
-            if fps_clone.get() >= 1.0 {
-                let fps: f64 = f64::from(frame_clone.get()) / fps_clone.get();
-                loop_state.get_fps().set(fps);
-                frame_clone.set(0);
-                fps_clone.set(0.0);
-            }
-            let Some(raf_closure_ref): Option<&'static Closure<dyn FnMut()>> = cell_clone.try_get()
-            else {
-                return;
-            };
-            let next_id: i32 = window_value
-                .request_animation_frame(raf_closure_ref.as_ref().unchecked_ref())
-                .unwrap_or_default();
-            if cancelled_for_loop.get() {
-                raf_clone.set(None);
-            } else {
-                raf_clone.set(Some(next_id));
-            }
-        }));
-        let _: Result<(), _> = closure_cell.try_set(raf_closure);
-        let Some(start_window): Option<Window> = window() else {
-            return;
-        };
-        let Some(start_raf_ref): Option<&'static Closure<dyn FnMut()>> = closure_cell.try_get()
-        else {
-            return;
-        };
-        let start_id: i32 = start_window
-            .request_animation_frame(start_raf_ref.as_ref().unchecked_ref())
-            .unwrap_or_default();
-        raf_id.set(Some(start_id));
-    });
-}
-
 /// Creates a click event handler that sets the active tab and exits
 /// any in-flight landscape fullscreen mode before switching.
 ///
 /// Tab switches destroy the previous arm's DOM subtree (the match
 /// expression rebuilds from scratch on arm change), so any tab's
 /// `c_game_container_fullscreen` overlay is unmounted along with the
-/// rest of that arm. The per-tab fullscreen signals are page-scoped
-/// `Signal<bool>` instances, however — they survive arm destruction
-/// because they are registered with the page-level HookContext, not
-/// the per-arm one. Without explicit cleanup the next time the user
-/// revisits that tab the overlay re-mounts even though they did not
-/// press Enter Fullscreen again. Clearing all three signals on every
-/// tab change keeps fullscreen state strictly co-extensive with the
-/// user's last explicit enter/exit action.
+/// rest of that arm. The per-tab fullscreen signals, however, are
+/// page-scoped `Signal<bool>` instances that survive arm destruction
+/// because they are registered with the page-level HookContext, not the
+/// per-arm one. Without explicit cleanup the next time the user revisits
+/// that tab the overlay re-mounts even though they did not press Enter
+/// Fullscreen again. Clearing all three signals on every tab change keeps
+/// fullscreen state strictly co-extensive with the user's last explicit
+/// enter/exit action.
 ///
 /// # Arguments
 ///
@@ -2152,13 +2240,11 @@ pub(crate) fn raytrace_on_tab_select(
 /// Enters landscape fullscreen mode for the RayTrace page on the active
 /// tab.
 ///
-/// Sets the tab-specific fullscreen signal, pushes a history entry so
-/// the system back button can exit, and re-applies safe-area insets to
-/// the newly-mounted overlay container. A synthetic window `resize`
-/// event is dispatched so the WebGL / WebGPU loops resize their backing
-/// stores to the new CSS box; the Canvas 2D tab keeps its fixed 4:3
-/// backing and relies on `object-fit: contain` letterboxing, so it
-/// ignores the event.
+/// Sets the tab-specific fullscreen signal, pushes a history entry so the
+/// system back button can exit, and re-applies safe-area insets to the
+/// newly-mounted overlay container. A synthetic window `resize` event is
+/// dispatched so the GPU-backed loops resize their backing stores to the
+/// new CSS box.
 ///
 /// # Arguments
 ///
@@ -2169,8 +2255,7 @@ pub(crate) fn enter_raytrace_fullscreen(tab: Signal<bool>) {
     UseEuvLayout::apply_cached_insets();
     // Dispatch a `resize` event on the window so the GPU-backed loops'
     // `App::use_window_event(EVENT_RESIZE, ...)` handlers fire and their
-    // `resize_dirty` flags are set. Mirrors
-    // `game_3d/hook/fn.rs::enter_game_3d_fullscreen`.
+    // `resize_dirty` flags are set.
     let Some(window_value): Option<Window> = window() else {
         return;
     };
@@ -2211,8 +2296,8 @@ pub(crate) fn exit_raytrace_fullscreen(tab: Signal<bool>) {
 ///
 /// Used when the exit is triggered by the system back button: the
 /// `popstate` event itself has already consumed the `pushState` entry
-/// that was created when entering fullscreen, so calling
-/// `history.back()` again would over-consume the history stack.
+/// that was created when entering fullscreen, so calling `history.back()`
+/// again would over-consume the history stack.
 ///
 /// # Arguments
 ///

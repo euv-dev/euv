@@ -18,14 +18,28 @@ use super::*;
 #[derive(Clone, Data, New)]
 pub struct FormState {
     /// Per-field current value, keyed by field name.
-    pub(crate) values: Signal<HashMap<&'static str, String>>,
+    ///
+    /// Public because `ui/tests/form/fn.rs` and
+    /// `example/src/page/form` read it through
+    /// `get_values()`.
+    pub values: Signal<HashMap<&'static str, String>>,
     /// Per-field validation error, keyed by field name.
     /// Empty string means "no error".
-    pub(crate) errors: Signal<HashMap<&'static str, String>>,
+    ///
+    /// Public because `ui/tests/form/fn.rs` and
+    /// `example/src/page/form` read it through
+    /// `get_errors()`.
+    pub errors: Signal<HashMap<&'static str, String>>,
     /// Per-field "user has interacted with this field" flag.
-    pub(crate) touched: Signal<HashSet<&'static str>>,
+    ///
+    /// Public because `ui/tests/form/fn.rs` reads it
+    /// through `get_touched()`.
+    pub touched: Signal<HashSet<&'static str>>,
     /// True while a `submit` handler is running. Render
     /// `<button disabled: state.submitting().get()>` to
     /// prevent double-submit.
-    pub(crate) submitting: Signal<bool>,
+    ///
+    /// Public because `ui/tests/form/fn.rs` reads it
+    /// through `get_submitting()`.
+    pub submitting: Signal<bool>,
 }

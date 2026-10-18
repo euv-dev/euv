@@ -11,9 +11,17 @@ use super::*;
 pub struct Cli {
     /// The mode to run in: run (build + server), build (build only), or fmt (format)
     #[command(subcommand)]
+    ///
+    /// Public: `cli/src/main.rs` is the `--bin euv` crate root, a
+    /// different crate from the `euv_cli` library, so its
+    /// `cli.get_command()` call cannot see a `pub(crate)` accessor. The
+    /// field is public to match that getter rather than the getter
+    /// narrowed to `pub(crate)`, which would fail with E0624 at the bin
+    /// call site. `get_mut` / `set` stay crate-internal — clap's derive
+    /// is the only writer and nothing mutates the mode in place.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) command: Mode,
+    pub command: Mode,
 }
 
 /// euv-specific arguments combined with wasm-pack passthrough.
@@ -84,14 +92,26 @@ pub struct ModeArgs {
 ///
 /// Formats euv macro invocations (`html!`, `class!`, `vars!`, `watch!`)
 /// in Rust source files.
-#[derive(Clone, Data, Debug, New, Parser)]
+#[derive(Clone, Debug, Getter, New, Parser)]
 pub struct FmtArgs {
     /// Path to the directory or file to format
     #[arg(short, long, default_value = ".")]
+    ///
+    /// Narrowed to `pub(crate)`: the only getter call sites are in
+    /// `cli/src/mode/fn.rs`, which is inside this crate. The integration
+    /// test constructs a `FmtArgs` through `FmtArgs::new` /
+    /// `FmtArgs::parse_from` but never reads the field, so no public
+    /// accessor is required. `Getter` does not generate mutators — no
+    /// caller anywhere mutates the path after parsing.
+    #[get(pub(crate))]
     pub(crate) path: PathBuf,
     /// Check if formatting is needed without modifying files
     #[arg(long, default_value_t = false)]
-    #[get(type(copy))]
+    ///
+    /// Narrowed for the same reason as [`FmtArgs::path`]: the flag is read
+    /// only by `cli/src/mode/fn.rs`, and clap's derive is what writes it,
+    /// so `Getter` is the right derive — it generates no mutators.
+    #[get(pub(crate), type(copy))]
     pub(crate) check: bool,
 }
 

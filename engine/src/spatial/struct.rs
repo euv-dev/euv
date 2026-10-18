@@ -11,18 +11,18 @@ pub struct SpatialHashGrid2D {
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) cell_size: f64,
+    pub cell_size: f64,
     /// The inverse of `cell_size`, precomputed for fast coordinate-to-cell hashing.
-    #[get(type(copy))]
+    #[get(type(copy), pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     pub(crate) inverse_cell_size: f64,
     /// The hash map from cell key to the list of body indices occupying that cell.
     #[get_mut(pub(crate))]
     #[new(skip)]
-    pub(crate) cells: SpatialCellMap2D,
+    #[set(pub(crate))]
+    pub cells: SpatialCellMap2D,
 }
 
 /// A uniform-grid spatial hash for broad-phase collision culling in 3D.
@@ -36,18 +36,18 @@ pub struct SpatialHashGrid3D {
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) cell_size: f64,
+    pub cell_size: f64,
     /// The inverse of `cell_size`, precomputed for fast coordinate-to-cell hashing.
-    #[get(type(copy))]
+    #[get(type(copy), pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     pub(crate) inverse_cell_size: f64,
     /// The hash map from cell key to the list of body indices occupying that cell.
     #[get_mut(pub(crate))]
     #[new(skip)]
-    pub(crate) cells: SpatialCellMap3D,
+    #[set(pub(crate))]
+    pub cells: SpatialCellMap3D,
 }
 
 /// One inserted body inside a 2D quadtree, stored with its exact
@@ -61,17 +61,19 @@ pub struct SpatialHashGrid3D {
 pub struct QuadTreeEntry2D {
     /// The caller-owned body index, returned verbatim by queries.
     #[get(type(copy))]
-    pub(crate) index: usize,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub index: usize,
     /// The minimum corner of the body's world-space bounding box.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) min: Vector2D,
+    pub min: Vector2D,
     /// The maximum corner of the body's world-space bounding box.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) max: Vector2D,
+    pub max: Vector2D,
 }
 
 /// One node of the 2D quadtree, holding an axis-aligned region plus the
@@ -87,25 +89,26 @@ pub struct QuadTreeNode2D {
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) min: Vector2D,
+    pub min: Vector2D,
     /// The maximum corner of the region this node covers.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) max: Vector2D,
+    pub max: Vector2D,
     /// The subdivision level, `0` at the root and incrementing per split.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) depth: usize,
+    pub depth: usize,
     /// The child node handles, all unset until the node subdivides.
     #[set(pub(crate))]
     #[get_mut(pub(crate))]
-    pub(crate) children: QuadTreeChildren2D,
+    pub children: QuadTreeChildren2D,
     /// A flag that is `true` once the node owns four valid child handles.
     #[get(type(copy))]
     #[set(pub(crate))]
-    pub(crate) leaf: bool,
+    #[get_mut(pub(crate))]
+    pub leaf: bool,
     /// A flag that is `true` once this node retains an entry which is not fully
     /// contained by the node's own region.
     ///
@@ -116,10 +119,13 @@ pub struct QuadTreeNode2D {
     /// is what keeps a body larger than the root region findable.
     #[get(type(copy))]
     #[set(pub(crate))]
-    pub(crate) loose: bool,
+    #[get_mut(pub(crate))]
+    pub loose: bool,
     /// The entries stored directly in this node, including any body that is
     /// too large for, or straddles the boundary of, a single child region.
     #[set(pub(crate))]
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) entries: QuadTreeEntryList2D,
 }
 
@@ -142,19 +148,19 @@ pub struct QuadTree2D {
     /// The arena of all live nodes; node 0 is always the root.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) nodes: QuadTreeNodeList2D,
+    pub nodes: QuadTreeNodeList2D,
     /// The number of entries a node may hold before subdividing.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
-    pub(crate) capacity: usize,
+    #[set(pub(crate))]
+    pub capacity: usize,
     /// The deepest subdivision level a node may reach.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) max_depth: usize,
+    pub max_depth: usize,
     /// The total number of inserted bodies across every node.
-    #[get(pub(crate), type(copy))]
+    #[get(type(copy))]
     #[set(pub(crate))]
     #[get_mut(pub(crate))]
-    pub(crate) count: usize,
+    pub count: usize,
 }

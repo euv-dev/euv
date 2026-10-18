@@ -15,7 +15,7 @@ exclude.workspace = true
 euv = { path = "..", version = "0" }
 euv-ui = { path = "../ui", version = "0" }
 
-lombok-macros = "2.0"
+lombok-macros = { workspace = true }
 
 [build-dependencies]
 serde_yaml = "0.9"

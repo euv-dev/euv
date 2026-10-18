@@ -10,27 +10,28 @@ pub struct RenderConfig {
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) backend: RenderBackendType,
+    pub backend: RenderBackendType,
     /// The CSS selector used to query the canvas element from the DOM.
     #[get(type(clone))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) canvas_selector: String,
+    pub canvas_selector: String,
     /// The logical viewport width in CSS pixels.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
-    pub(crate) width: f64,
+    #[set(pub(crate))]
+    pub width: f64,
     /// The logical viewport height in CSS pixels.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
-    pub(crate) height: f64,
+    #[set(pub(crate))]
+    pub height: f64,
     /// The rendering quality preset for canvas smoothing and SSAA downscaling.
     #[get(type(copy))]
     #[new(skip)]
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) quality: RenderQuality,
+    pub quality: RenderQuality,
     /// Whether MSAA anti-aliasing is enabled for the WebGPU backend.
     ///
     /// Ignored when `backend` is `Canvas2D`.
@@ -38,16 +39,15 @@ pub struct RenderConfig {
     #[new(skip)]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) antialias: bool,
+    pub antialias: bool,
     /// The power preference hint for WebGPU adapter selection.
     ///
     /// Ignored when `backend` is `Canvas2D`.
     #[get(type(copy))]
     #[new(skip)]
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) power_preference: GpuPowerPreference,
+    pub power_preference: GpuPowerPreference,
     /// The SSAA supersampling scale factor for the Canvas 2D backend.
     ///
     /// A value of 2.0 renders at 4x resolution and downscales for smoother
@@ -56,7 +56,7 @@ pub struct RenderConfig {
     #[new(skip)]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) ssaa_scale_factor: f64,
+    pub ssaa_scale_factor: f64,
 }
 
 /// The top-level engine configuration containing rendering and scheduler settings.
@@ -68,11 +68,11 @@ pub struct EngineConfig {
     #[get(type(clone))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) render: RenderConfig,
+    pub render: RenderConfig,
     /// The scheduler configuration controlling the fixed-timestep game loop.
     #[get(type(copy))]
     #[new(skip)]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) scheduler: SchedulerConfig,
+    pub scheduler: SchedulerConfig,
 }

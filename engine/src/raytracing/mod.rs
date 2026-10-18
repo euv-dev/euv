@@ -1,12 +1,7 @@
-mod r#const;
-mod r#enum;
-mod r#fn;
-mod r#impl;
-mod r#struct;
+mod r#backend;
+mod r#pipeline;
+mod r#scene;
 
-pub use {r#enum::*, r#fn::intersect_triangle, r#struct::*};
-
-pub(crate) use r#const::*;
-pub(crate) use r#fn::{closest_hit_indexed, collect_occluder_points, trace_bounces};
+pub use {r#backend::*, r#pipeline::*, r#scene::*};
 
 use super::*;

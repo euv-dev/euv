@@ -2,30 +2,40 @@ use super::*;
 
 /// A light source contributing illumination to a shaded point.
 ///
-/// The fields have meanings that depend on [`LightType`]:
+/// The fields have meanings that depend on [`LightType`]. Directions point
+/// **toward the light source** except for the spot cone axis, which points
+/// outward along the beam; see [`LightType`] for the full convention.
 ///
 /// - For [`LightType::Directional`], `position` is unused and `direction` is
-///   the unit vector pointing from the surface toward the light.
+///   the unit vector from the surface toward the light.
 /// - For [`LightType::Point`], `position` is the world position of the light
 ///   and `direction` is unused.
-/// - For [`LightType::Spot`], both `position` and `direction` are meaningful
-///   and `spot_cos` carries `cos(half_angle)` of the spotlight cone.
+/// - For [`LightType::Spot`], `position` is the lamp position, `direction`
+///   is the cone axis pointing outward along the beam, and `spot_cos`
+///   carries `cos(half_angle)` of the cone.
+///
+/// A light is never mutated during shading:
+/// [`LightingUniforms::shade_with_visibility`] reads it and derives
+/// per-point quantities into locals.
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct Light {
     /// The kind of light source (directional, point, or spot).
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) kind: LightType,
-    /// World-space position for point and spot lights; otherwise unused.
+    pub kind: LightType,
+    /// The world position of the light.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) position: Vector3D,
-    /// Unit direction for directional and spot lights; otherwise unused.
+    pub position: Vector3D,
+    /// Unit direction. Toward the light for [`LightType::Directional`];
+    /// the outward cone axis for [`LightType::Spot`]; unused for
+    /// [`LightType::Point`].
     #[get(type(copy))]
     #[get_mut(pub(crate))]
-    pub(crate) direction: Vector3D,
+    #[set(pub(crate))]
+    pub direction: Vector3D,
     /// RGB intensity multiplier applied to the contribution.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
@@ -35,22 +45,27 @@ pub struct Light {
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) intensity: f64,
+    pub intensity: f64,
     /// Inverse-square falloff factor for point and spot lights.
+    ///
+    /// `pub` rather than `pub(crate)`: the getter is an out-of-crate
+    /// consumer's entry point (`tests/`, and the ray tracer's data stage),
+    /// and a narrowed field behind a public getter would silently
+    /// re-expose it.
     #[get(type(copy))]
-    pub(crate) falloff: f64,
+    pub falloff: f64,
     /// `cos(half_angle)` for spot lights; zero for other kinds.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) spot_cos: f64,
+    pub spot_cos: f64,
 }
 
 /// A material describing how a surface responds to illumination.
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct Material {
     /// The shading model applied during evaluation.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) kind: MaterialKind,
@@ -86,9 +101,13 @@ pub struct LightingUniforms {
     #[set(pub(crate))]
     pub(crate) lights: Vec<Light>,
     /// Ambient light contribution applied to every shaded point.
+    ///
+    /// The raytracing integration suites set the ambient term from outside
+    /// the crate, so the setter stays public; the getter and mut-getter have
+    /// no external consumer and stay crate-internal.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
-    pub(crate) ambient: Vector3D,
+    pub ambient: Vector3D,
     /// View position used for specular term calculation.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]

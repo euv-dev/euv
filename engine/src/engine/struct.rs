@@ -25,19 +25,19 @@ pub struct EngineHandle {
     /// The engine configuration containing render and scheduler settings.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) config: EngineConfig,
+    pub config: EngineConfig,
     /// The initialized Canvas 2D renderer, or `None` if the WebGPU backend is used or initialization has not yet happened.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) canvas_renderer: Option<CanvasRenderer>,
     /// The initialized WebGPU renderer, or `None` if the Canvas 2D backend is used or initialization has not yet happened.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) webgpu_renderer: Option<WebGpuRenderer>,
     /// The initialized WebGL 2 renderer, or `None` if another backend is used or initialization has not yet happened.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) webgl_renderer: Option<WebGl2Backend>,
@@ -47,7 +47,7 @@ pub struct EngineHandle {
     #[new(skip)]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) input_cell: Option<InputStateCell>,
+    pub input_cell: Option<InputStateCell>,
     /// The shared task registry holding every [`Updatable`] object the
     /// scheduler advances on each fixed step. Always present so callers can
     /// register tasks before `start` is called.

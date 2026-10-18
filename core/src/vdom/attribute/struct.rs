@@ -14,16 +14,16 @@ use super::*;
 #[derive(Clone, CustomDebug, Data, New)]
 pub struct AttributeEntry {
     /// The name of the attribute.
+    ///
+    /// `get_name` is public: `ui/tests/view_factories` collects attribute
+    /// names from outside this crate. `get_mut` / `set` stay crate-internal —
+    /// an attribute entry is built once by `New` and never rewritten.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) name: Cow<'static, str>,
+    pub name: Cow<'static, str>,
     /// The value of the attribute.
     #[debug(skip)]
     #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) value: AttributeValue,
@@ -42,14 +42,10 @@ pub struct PseudoRule {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
     selector: String,
     /// The CSS style declarations for this pseudo rule
     /// (e.g., "background: rgba(79, 70, 229, 0.04); color: #4f46e5;").
     #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     style: String,
@@ -63,30 +59,41 @@ pub struct PseudoRule {
 #[derive(Clone, Data, Debug, Default, New)]
 pub struct Css {
     /// The CSS class name used in the DOM.
+    ///
+    /// Public: the `class!` macro expands `get_name()` into consumer
+    /// crates (`ui`, `example`), and the component views in `ui` read it
+    /// directly, so the getter cannot be crate-private. The field is
+    /// public to match that getter — a public getter over a restricted
+    /// field is the leak `public-accessor-leaks-restricted-field`
+    /// reports. Mutation stays crate-internal.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    name: String,
+    pub name: String,
     /// The CSS style declarations (e.g., "max-width: 800px; margin: 0 auto;").
+    ///
+    /// Public for the same reason as [`Css::name`]: the `class!` macro
+    /// expands `get_style()` into consumer crates when a class extends
+    /// another class. Mutation stays crate-internal.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    style: String,
+    pub style: String,
     /// The pseudo-class and pseudo-element rules for this class
     /// (e.g., ":hover", ":focus", ":active", "::before", etc.).
+    ///
+    /// Public for the same reason as [`Css::name`]: the `class!` macro
+    /// expands `get_pseudo_rules()` into consumer crates when a class
+    /// extends another class. Mutation stays crate-internal.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pseudo_rules: Vec<PseudoRule>,
+    pub pseudo_rules: Vec<PseudoRule>,
     /// The media query rules for this class.
+    ///
+    /// Public for the same reason as [`Css::name`]: the `class!` macro
+    /// expands `get_media_rules()` into consumer crates when a class
+    /// extends another class. Mutation stays crate-internal.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    media_rules: Vec<MediaRule>,
+    pub media_rules: Vec<MediaRule>,
 }
 
 /// Represents a CSS @media rule attached to a class.
@@ -101,23 +108,16 @@ pub struct MediaRule {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
     query: String,
     /// The CSS style declarations inside this media rule
     /// (e.g., "font-size: 14px; padding: 8px;").
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
     style: String,
     /// The pseudo-element rules nested inside this media rule
     /// (e.g., `::-webkit-scrollbar { width: "0px"; }`).
     #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pseudo_rules: Vec<PseudoRule>,
@@ -137,13 +137,9 @@ pub struct MediaRule {
 #[derive(Data, Debug, New)]
 pub struct EventAdapter<T> {
     /// The wrapped value to be adapted into an attribute.
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) inner: T,
+    pub inner: T,
 }
 
 /// Adapts an event with a specific event name into an `AttributeValue`.
@@ -154,18 +150,11 @@ pub struct EventAdapter<T> {
 #[derive(Data, Debug, New)]
 pub struct EventNamedAdapter<T> {
     /// The wrapped event value to be adapted.
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) inner: T,
+    pub inner: T,
     /// The event name (e.g., "click", "mouseover").
-    #[get(type(copy))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    #[get(pub(crate))]
+    #[get(type(copy), pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) event_name: &'static str,
@@ -185,13 +174,9 @@ pub struct EventNamedAdapter<T> {
 #[derive(Data, Debug, New)]
 pub struct AttrValueAdapter<T> {
     /// The wrapped value to be adapted into an attribute.
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) inner: T,
+    pub inner: T,
 }
 
 /// Adapts an `inner_html:` payload into the matching `AttributeValue`
@@ -213,13 +198,9 @@ pub struct AttrValueAdapter<T> {
 pub struct InnerHtmlAdapter<T> {
     /// The wrapped value to be adapted into an `AttributeValue` for
     /// the `inner_html:` attribute.
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) inner: T,
+    pub inner: T,
 }
 
 /// Adapts a callback with a custom name into an `AttributeValue`.
@@ -230,18 +211,14 @@ pub struct InnerHtmlAdapter<T> {
 #[derive(Data, Debug, New)]
 pub struct CallbackNamedAdapter<T> {
     /// The wrapped callback to be adapted.
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) inner: T,
+    pub inner: T,
     /// The custom attribute name (e.g., "on-increment", "on-change").
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) name: &'static str,
+    pub name: &'static str,
 }
 
 /// Namespace for the injected-class registry accessors.

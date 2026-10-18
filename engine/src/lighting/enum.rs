@@ -1,16 +1,43 @@
 use super::*;
 
 /// Describes the kind of light source being represented.
+///
+/// ## Direction convention
+///
+/// Every direction a [`Light`] carries is measured **toward the light
+/// source**, with one deliberate exception:
+///
+/// - [`LightType::Directional`]: `direction` points from the surface
+///   toward the light (sourceward), so a surface is lit when
+///   `dot(normal, direction) > 0`.
+/// - [`LightType::Point`]: the direction is derived from
+///   `position - surface_point` at shading time and is also sourceward;
+///   the light stores no direction of its own.
+/// - [`LightType::Spot`]: `direction` points **outward along the cone
+///   axis**, away from the lamp, i.e. the way the light travels. The
+///   surface→light vector used for shading is its negation. This is the
+///   opposite sense from the other two kinds, so a spot light's cone axis
+///   and a spot light's shading direction are *not* the same vector.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum LightType {
-    /// An infinitely distant directional light (e.g. sunlight). The `direction`
-    /// field carries the unit vector pointing away from the light source.
+    /// An infinitely distant directional light (e.g. sunlight).
+    ///
+    /// The `direction` field carries the unit vector pointing from the
+    /// shaded surface toward the light source, matching the convention of
+    /// [`LightType::Point`].
     #[default]
     Directional,
     /// A positional point light with inverse-square falloff.
+    ///
+    /// The light radiates in every direction; the surface→light vector is
+    /// computed from `position` at shading time.
     Point,
     /// A positional spotlight with a cone defined by a unit direction and a
     /// half-angle whose cosine is stored in the light's `spot_cos` field.
+    ///
+    /// The `direction` field is the cone **axis pointing outward** from the
+    /// lamp, in the direction the beam travels — the opposite sense to the
+    /// shading direction derived from `position`.
     Spot,
 }
 
@@ -23,7 +50,7 @@ pub enum MaterialKind {
     /// [`LightingUniforms::shade`] evaluates the diffuse term only.
     #[default]
     Lambert,
-    /// Lambertian diffuse plus Blinn-Phong style specular highlight.
+    /// Lambertian diffuse plus a Phong specular highlight.
     ///
     /// [`LightingUniforms::shade`] evaluates the diffuse term plus a specular
     /// lobe driven by the material's `specular` and `shininess` fields.

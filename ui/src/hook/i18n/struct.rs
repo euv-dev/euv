@@ -50,8 +50,17 @@ pub struct I18n {
     /// The currently-active locale tag. Setting this
     /// via `set_locale` triggers a reactive update that
     /// re-evaluates any reactive `t(...)` read.
-    pub(crate) locale: Signal<String>,
+    ///
+    /// Public because `ui/tests/i18n/fn.rs`,
+    /// `ui/tests/hook_i18n/fn.rs` and
+    /// `example/src/page/hooks_i18n` read it through
+    /// `get_locale()`.
+    pub locale: Signal<String>,
     /// The locale to fall back to when a key is missing
     /// in the active locale. Defaults to `"en"`.
-    pub(crate) fallback_locale: Signal<String>,
+    ///
+    /// Public because `ui/tests/i18n/fn.rs` and
+    /// `ui/tests/hook_i18n/fn.rs` read it through
+    /// `get_fallback_locale()`.
+    pub fallback_locale: Signal<String>,
 }

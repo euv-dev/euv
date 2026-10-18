@@ -25,19 +25,29 @@ pub(crate) struct Cube3D {
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub(crate) struct UseGame3D {
     /// Whether the game loop is currently running.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) running: Signal<bool>,
     /// The current frames-per-second measurement.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) fps: Signal<f64>,
     /// The current number of cubes in the scene.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) cube_count: Signal<usize>,
     /// Whether auto-rotation is enabled.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) auto_rotate: Signal<bool>,
     /// Whether the canvas has finished loading and is ready for interaction.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loaded: Signal<bool>,
 }
 
@@ -62,16 +72,24 @@ pub(crate) struct CubeStore(pub(crate) Rc<RefCell<Vec<Cube3D>>>);
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub(crate) struct UseGame3DWebGpu {
     /// The current frames-per-second measurement.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) fps: Signal<f64>,
     /// Whether the WebGPU renderer has finished initializing (success or failure).
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loaded: Signal<bool>,
     /// Whether the WebGPU renderer is active and rendering.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) active: Signal<bool>,
     /// Whether the WebGPU render loop has been kicked off in this component tree.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loop_started: Signal<bool>,
     /// The most recent init error code as a stable string.
     ///
@@ -80,7 +98,9 @@ pub(crate) struct UseGame3DWebGpu {
     /// still in flight or has not started). Storing a stable code rather
     /// than the full `WebGpuInitError` keeps this state `Copy` and avoids
     /// surfacing JS error detail into the reactive UI tree.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) init_error_code: Signal<&'static str>,
 }
 
@@ -88,21 +108,31 @@ pub(crate) struct UseGame3DWebGpu {
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub(crate) struct UseGame3DWebGl {
     /// The current frames-per-second measurement.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) fps: Signal<f64>,
     /// Whether the WebGL renderer has finished initializing (success or failure).
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loaded: Signal<bool>,
     /// Whether the WebGL renderer is active and rendering.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) active: Signal<bool>,
     /// Whether the WebGL render loop has been kicked off in this component tree.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loop_started: Signal<bool>,
     /// The most recent init error code as a stable string.
     ///
     /// Empty string means "no error" (init still in flight or not started).
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) init_error_code: Signal<&'static str>,
 }
 
@@ -117,12 +147,18 @@ pub(crate) struct UseGame3DWebGl {
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub(crate) struct UseGame3DFullscreen {
     /// Whether the Canvas 2D tab is currently in landscape fullscreen.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) canvas_2d: Signal<bool>,
     /// Whether the WebGL tab is currently in landscape fullscreen.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) web_gl: Signal<bool>,
     /// Whether the WebGPU tab is currently in landscape fullscreen.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) web_gpu: Signal<bool>,
 }

@@ -17,9 +17,12 @@ use super::*;
 #[derive(Clone, Data, Debug, Default, Eq, Hash, New, PartialEq)]
 pub struct RawHtml {
     /// The unescaped HTML content.
+    ///
+    /// `get_content` is public — `core/tests/raw`, `core/tests/raw_html` and
+    /// `macros/tests/unsafe_no_inline` all read it from outside the crate.
+    /// `get_mut` / `set` stay crate-internal so the content is set at
+    /// construction and never mutated afterwards.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) content: String,
+    pub content: String,
 }

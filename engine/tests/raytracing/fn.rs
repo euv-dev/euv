@@ -503,27 +503,129 @@ fn trace_bounces_shades_a_triangle_occluder() {
     );
 }
 
+fn oracle_sphere_t(
+    origin: Vector3D,
+    dir: Vector3D,
+    center: Vector3D,
+    radius: f64,
+    t_min: f64,
+    t_max: f64,
+) -> Option<f64> {
+    let oc: Vector3D = origin - center;
+    let a: f64 = dir.dot(dir);
+    if !a.is_finite() || a <= 0.0 {
+        return None;
+    }
+    let half_b: f64 = oc.dot(dir);
+    let c: f64 = oc.dot(oc) - radius * radius;
+    let discriminant: f64 = half_b * half_b - a * c;
+    if !discriminant.is_finite() || discriminant < 0.0 {
+        return None;
+    }
+    let root: f64 = discriminant.sqrt();
+    let near: f64 = (-half_b - root) / a;
+    let far: f64 = (-half_b + root) / a;
+    if near >= t_min && near <= t_max {
+        return Some(near);
+    }
+    if far >= t_min && far <= t_max {
+        return Some(far);
+    }
+    None
+}
+
+fn oracle_aabb_t(
+    origin: Vector3D,
+    dir: Vector3D,
+    lower: Vector3D,
+    upper: Vector3D,
+    t_min: f64,
+    t_max: f64,
+) -> Option<f64> {
+    let lo: Vector3D = Vector3D::new(
+        lower.get_x().min(upper.get_x()),
+        lower.get_y().min(upper.get_y()),
+        lower.get_z().min(upper.get_z()),
+    );
+    let hi: Vector3D = Vector3D::new(
+        lower.get_x().max(upper.get_x()),
+        lower.get_y().max(upper.get_y()),
+        lower.get_z().max(upper.get_z()),
+    );
+    let mut t_enter: f64 = f64::NEG_INFINITY;
+    let mut t_exit: f64 = f64::INFINITY;
+    for axis in 0..3 {
+        let o: f64 = oracle_axis(origin, axis);
+        let d: f64 = oracle_axis(dir, axis);
+        let slab_lo: f64 = oracle_axis(lo, axis);
+        let slab_hi: f64 = oracle_axis(hi, axis);
+        if slab_lo >= slab_hi {
+            return None;
+        }
+        if d.abs() < 1e-300 {
+            if o < slab_lo || o > slab_hi {
+                return None;
+            }
+            continue;
+        }
+        let first: f64 = (slab_lo - o) / d;
+        let second: f64 = (slab_hi - o) / d;
+        let (near, far): (f64, f64) = if first <= second {
+            (first, second)
+        } else {
+            (second, first)
+        };
+        t_enter = t_enter.max(near);
+        t_exit = t_exit.min(far);
+    }
+    if t_enter > t_exit {
+        return None;
+    }
+    let inside: bool = t_enter <= t_min && t_exit >= t_min;
+    let candidate: f64 = if inside { t_exit } else { t_enter };
+    if candidate >= t_min && candidate <= t_max {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
+fn oracle_axis(value: Vector3D, axis: usize) -> f64 {
+    let parts: [f64; 3] = [value.get_x(), value.get_y(), value.get_z()];
+    parts[axis]
+}
+
 fn unbounded_closest_hit(ray: &Ray, occluders: &[Occluder]) -> Option<f64> {
     let origin: Vector3D = ray.get_origin();
     let dir: Vector3D = ray.get_direction();
     let t_min: f64 = ray.get_t_min();
     let t_max: f64 = ray.get_t_max();
+    if !t_min.is_finite() || !t_max.is_finite() || t_min > t_max {
+        return None;
+    }
+    let squared_length: f64 = dir.dot(dir);
+    if !squared_length.is_finite() || squared_length <= 0.0 {
+        return None;
+    }
     let mut best: Option<f64> = None;
     for occ in occluders.iter() {
         let candidate: Option<f64> = match occ.get_kind() {
-            OccluderKind::Sphere => {
-                let radius: f64 = occ.get_extent().get_x();
-                match ray_sphere_intersect(origin, dir, occ.get_center(), radius) {
-                    Some((t, _)) if t >= t_min && t <= t_max => Some(t),
-                    _ => None,
-                }
-            }
-            OccluderKind::Aabb => {
-                match ray_aabb_intersect(origin, dir, occ.get_center(), occ.get_extent()) {
-                    Some((t_near, _t_far, _)) if t_near >= t_min && t_near <= t_max => Some(t_near),
-                    _ => None,
-                }
-            }
+            OccluderKind::Sphere => oracle_sphere_t(
+                origin,
+                dir,
+                occ.get_center(),
+                occ.get_extent().get_x(),
+                t_min,
+                t_max,
+            ),
+            OccluderKind::Aabb => oracle_aabb_t(
+                origin,
+                dir,
+                occ.get_center(),
+                occ.get_extent(),
+                t_min,
+                t_max,
+            ),
             OccluderKind::Triangle => {
                 let vertices: [Vector3D; 3] = occ.get_vertices();
                 match intersect_triangle(origin, dir, vertices[0], vertices[1], vertices[2]) {
@@ -533,8 +635,8 @@ fn unbounded_closest_hit(ray: &Ray, occluders: &[Occluder]) -> Option<f64> {
             }
         };
         if let Some(t) = candidate {
-            let keep_previous: bool = matches!(&best, Some(previous) if *previous <= t);
-            if !keep_previous {
+            let keep_earlier: bool = matches!(best, Some(best_t) if best_t <= t);
+            if !keep_earlier {
                 best = Some(t);
             }
         }
@@ -607,7 +709,14 @@ fn broad_phase_matches_an_unpruned_scan_over_a_dense_scene() {
             (None, None) => {}
             (Some(e), Some(a)) => assert!(
                 close_to(e, a),
-                "the broad phase returned t={a} but an unpruned scan of every occluder returns {e}",
+                "the broad phase returned t={a} but an unpruned scan of every occluder returns {e}; \
+                 ray origin=({}, {}, {}) dir=({}, {}, {})",
+                ray.get_origin().get_x(),
+                ray.get_origin().get_y(),
+                ray.get_origin().get_z(),
+                dir.get_x(),
+                dir.get_y(),
+                dir.get_z(),
             ),
             (e, a) => panic!("the broad phase returned {a:?} but an unpruned scan returns {e:?}"),
         }
@@ -619,6 +728,77 @@ fn broad_phase_matches_an_unpruned_scan_over_a_dense_scene() {
     assert!(
         hits > 100,
         "the sweep must genuinely strike geometry for the comparison to mean anything, got {hits} hits",
+    );
+}
+
+#[test]
+fn a_ray_that_starts_inside_an_aabb_reports_the_exit_the_oracle_predicts() {
+    let box_low: Vector3D = Vector3D::new(-1.0, -1.0, -1.0);
+    let box_high: Vector3D = Vector3D::new(1.0, 1.0, 1.0);
+    let material: Material = Material::lambert(Vector3D::new(0.4, 0.4, 0.4));
+    let occluders: Vec<Occluder> = vec![Occluder::aabb(box_low, box_high, material)];
+    let scene: RayTraceScene = RayTraceScene::new(occluders.clone());
+    for (origin, direction, expected_t) in [
+        (
+            Vector3D::new(0.0, 0.0, 0.0),
+            Vector3D::new(1.0, 0.0, 0.0),
+            1.0,
+        ),
+        (
+            Vector3D::new(0.0, 0.0, 0.0),
+            Vector3D::new(0.0, 0.0, -1.0),
+            1.0,
+        ),
+        (
+            Vector3D::new(0.5, -0.5, 0.25),
+            Vector3D::new(0.0, 1.0, 0.0),
+            1.5,
+        ),
+        (
+            Vector3D::new(0.5, -0.5, 0.25),
+            Vector3D::new(0.0, -1.0, 0.0),
+            0.5,
+        ),
+    ] {
+        let ray: Ray = Ray::new(origin, direction);
+        let actual: f64 = scene
+            .closest_hit(&ray)
+            .expect("a ray starting inside the box must still hit it")
+            .get_t();
+        assert!(
+            close_to(expected_t, actual),
+            "a ray starting inside the box must report the exit face, expected {expected_t} but got {actual} \
+             for origin ({}, {}, {}) direction ({}, {}, {})",
+            origin.get_x(),
+            origin.get_y(),
+            origin.get_z(),
+            direction.get_x(),
+            direction.get_y(),
+            direction.get_z(),
+        );
+        let expected: Option<f64> = unbounded_closest_hit(&ray, &occluders);
+        assert_eq!(
+            expected,
+            Some(actual),
+            "the independent scan must agree with the broad phase for an inside ray",
+        );
+    }
+}
+
+#[test]
+fn a_ray_inside_an_aabb_past_the_far_bound_is_a_miss() {
+    let material: Material = Material::lambert(Vector3D::new(0.4, 0.4, 0.4));
+    let scene: RayTraceScene = RayTraceScene::new(vec![Occluder::aabb(
+        Vector3D::new(-1.0, -1.0, -1.0),
+        Vector3D::new(1.0, 1.0, 1.0),
+        material,
+    )]);
+    let clipped: Ray =
+        Ray::new(Vector3D::zero(), Vector3D::new(1.0, 0.0, 0.0)).with_range(0.0, 0.5);
+    assert_eq!(
+        scene.closest_hit(&clipped).map(|hit: Hit| hit.get_t()),
+        None,
+        "the exit face lies beyond the clipped far bound, so the segment genuinely misses",
     );
 }
 

@@ -172,13 +172,26 @@ pub(crate) struct ClassInput {
 }
 
 /// Intermediate result from parsing a block's content.
+///
+/// Narrowed for the same reason as [`ClassDef`]: every reader is in this
+/// crate (`class/fn.rs`, `class/impl.rs`), and the bundle is consumed by
+/// destructuring — no accessor of it is called from generated code.
 #[derive(Clone, Data, Debug, New)]
 pub(crate) struct BlockContent {
     /// The CSS properties in this block.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) properties: Vec<(ClassPropKey, ClassPropValue)>,
     /// The nested selector blocks.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) selector_blocks: Vec<SelectorBlock>,
     /// The nested at-rule blocks.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) at_rule_blocks: Vec<AtRuleBlock>,
 }
 
@@ -207,28 +220,66 @@ pub(crate) struct OnceLockParams<'a> {
 ///
 /// Bundled into one struct so [`emit_param_css_cache_fn`](super::emit_param_css_cache_fn)
 /// takes a single argument instead of twelve positional ones.
+///
+/// Narrowed to `pub(crate)` for the same reason as [`OnceLockParams`]: the
+/// consumer is [`emit_param_css_cache_fn`](super::emit_param_css_cache_fn),
+/// which destructures the bundle, and the quoted tokens use the destructured
+/// bindings — so no accessor is reachable from generated code.
 #[derive(Data)]
 pub(crate) struct ParamCssCacheArgs<'a> {
     /// The visibility the generated cache function is emitted with.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) visibility: &'a Visibility,
     /// The generated function's name token.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) fn_name_token: &'a proc_macro2::TokenStream,
     /// The span to attribute the cache constant's name to.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) fn_name_span: proc_macro2::Span,
     /// The kebab-case class name the cache is keyed by.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) class_name_str: &'a str,
     /// The parameter name identifiers forming the cache key.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) param_names: &'a [proc_macro2::TokenStream],
     /// The `unique_name` expression driving cache key uniqueness.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) unique_name_expr: &'a proc_macro2::TokenStream,
     /// The expression producing the class's style declarations.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) style_expr: &'a proc_macro2::TokenStream,
     /// The expression producing the class's selector.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) selector_expr: &'a proc_macro2::TokenStream,
     /// The expression producing the at-rule wrapping the declarations.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) at_rule_expr: &'a proc_macro2::TokenStream,
     /// The generated parameter definitions for the class function.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) param_defs: &'a [proc_macro2::TokenStream],
     /// The class function's generics and where clause.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) generics: &'a syn::Generics,
 }

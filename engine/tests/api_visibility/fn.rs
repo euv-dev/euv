@@ -32,8 +32,8 @@ fn render_pass_depth_stencil_attachment_externally_constructible() {
     assert_eq!(*load, LoadOp::Clear);
     let store: &StoreOp = attachment.get_depth_store_op();
     assert_eq!(*store, StoreOp::Store);
-    let read_only: &bool = attachment.get_depth_read_only();
-    assert!(!*read_only);
+    let read_only: bool = attachment.get_depth_read_only();
+    assert!(!read_only);
     let view: Option<&JsValue> = attachment.try_get_view().as_ref();
     assert!(view.is_none());
 }

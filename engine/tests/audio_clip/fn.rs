@@ -26,7 +26,7 @@ fn decoded_buffer(channels: u32, duration: f64) -> AudioBuffer {
 }
 
 fn clip() -> AudioClip {
-    AudioClip::create(decoded_buffer(2, 1.5), String::from("beep"))
+    AudioClip::create(decoded_buffer(2, 1.5))
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]

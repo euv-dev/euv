@@ -7,13 +7,19 @@ use super::*;
 #[derive(Clone, Copy, Data, Debug, Default, Eq, Hash, New, Ord, PartialEq, PartialOrd)]
 pub(crate) struct UseStopwatch {
     /// The elapsed seconds counter.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) seconds: Signal<i32>,
     /// Whether the stopwatch is currently running.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) running: Signal<bool>,
     /// The active interval handle, if any.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) handle: Signal<Option<IntervalHandle>>,
 }
 
@@ -24,18 +30,28 @@ pub(crate) struct UseStopwatch {
 #[derive(Clone, Copy, Data, Debug, Default, Eq, Hash, New, Ord, PartialEq, PartialOrd)]
 pub(crate) struct UseCountdown {
     /// The total countdown seconds.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) total: Signal<i32>,
     /// The remaining countdown seconds.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) remaining: Signal<i32>,
     /// Whether the countdown is currently running.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) running: Signal<bool>,
     /// The active interval handle, if any.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) handle: Signal<Option<IntervalHandle>>,
     /// The user input string for setting countdown seconds.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) input: Signal<String>,
 }

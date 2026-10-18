@@ -6,13 +6,19 @@ use super::*;
 #[derive(Clone, Copy, Data, New)]
 pub(crate) struct UseEuvNativeBridge {
     /// Whether the native bridge is available on this platform.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) available: Signal<bool>,
     /// Whether data is currently being loaded from the native bridge.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) loading: Signal<bool>,
     /// The resolved bridge group permissions.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) permissions: Signal<String>,
 }
 
@@ -26,19 +32,27 @@ pub(crate) struct UseEuvNativeBridge {
 #[derive(Clone, Copy, Data, New)]
 pub(crate) struct UseCacheUpdate {
     /// Whether the docs.rs build status indicates documentation is available.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) doc_status: Signal<bool>,
     /// The latest version string returned by docs.rs.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) version: Signal<String>,
     /// Whether a cache update operation is currently in progress.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) updating: Signal<bool>,
     /// Most recent `data` payload from the native `update_cache` bridge.
     ///
     /// On `Success` this is the freshly minted snapshot name (e.g.
     /// `v_1731321600123`); on `Failed` it is an empty string.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) data: Signal<String>,
     /// Most recent `message` payload from the native `update_cache` bridge.
     ///
@@ -46,7 +60,9 @@ pub(crate) struct UseCacheUpdate {
     /// on `Failed` it carries the underlying error from the cache layer.
     /// Surfacing it here lets the UI show the native error verbatim
     /// instead of inventing its own message.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) message: Signal<String>,
 }
 
@@ -60,17 +76,30 @@ pub(crate) struct UseCacheUpdate {
 #[derive(Clone, Data, New)]
 pub(crate) struct UpdateResult {
     /// Whether the documentation build succeeded.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) doc_status: bool,
     /// The latest version string of the crate.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) version: String,
     /// Whether a cache update operation was currently in progress when
     /// this result was produced.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) updating: bool,
     /// Snapshot version name reported by the native bridge (empty on failure).
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) data: String,
     /// Human-readable status / error message reported by the native bridge.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) message: String,
 }
 
@@ -89,12 +118,21 @@ pub(crate) struct UpdateResult {
 pub(crate) struct UpdateResultPayload {
     /// Outcome tag deserialized as an enum, so an unknown tag fails the
     /// whole payload rather than silently mis-classifying.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) result: UpdateStatus,
     /// Snapshot version name reported by the native side; empty on failure.
     /// Propagated into `UpdateResult::data` for the UI to surface.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) data: String,
     /// Human-readable status / error message from the native side. Propagated
     /// into `UpdateResult::message` so the UI shows the native error verbatim.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) message: String,
 }
 
@@ -104,12 +142,18 @@ pub(crate) struct UpdateResultPayload {
 #[derive(Clone, Data, Debug, New)]
 pub(crate) struct BridgeConfig {
     /// The global bridge object key on window.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) global_key: &'static str,
     /// The core module key.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) core_key: &'static str,
     /// The invoke function key.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) invoke_key: &'static str,
 }

@@ -3,20 +3,28 @@ use super::*;
 /// A standalone interactive ray-tracing demo page with three rendering
 /// backends.
 ///
-/// All three tabs render the same scene — one mirror sphere, one
-/// emissive sphere, and a ground AABB lit by one directional sun that
-/// rotates with the camera yaw — through different backends:
+/// All three tabs render the *same* static scene through euv-engine's
+/// shared `RayTraceRenderer`, so the tabs differ only in how the engine
+/// reaches the pixels:
 ///
 /// - **2D**: a CPU-side software ray tracer writing a persistent RGBA
 ///   framebuffer with a single `put_image_data` per frame, with 2x2
 ///   SSAA and an adaptive internal resolution ladder.
-/// - **GL**: a WebGL 2 GLSL ES 3.00 fragment shader mirroring the same
-///   `trace_bounces` + `LightingUniforms::shade` math.
-/// - **GPU**: the same pipeline expressed in WGSL on WebGPU.
+/// - **GL**: a WebGL 2 GLSL ES 3.00 fragment shader traversing the
+///   engine's packed BVH out of a data texture.
+/// - **GPU**: the same traversal expressed in WGSL on WebGPU.
+///
+/// The scene mixes every primitive kind the engine traces (an AABB, two
+/// spheres, a triangle) and is lit by one directional sun, one point
+/// fill, and one spot rim. It is built once and never rebuilt, because
+/// nothing in it moves with the camera: the GPU backends upload it at
+/// `init` and never again. This is shader BVH traversal, not native
+/// hardware ray tracing.
 ///
 /// The camera is an orbit camera whose yaw / pitch are shared across
 /// tabs and driven by mouse drag, touch drag, or auto-rotation. The FPS
-/// counter reports honest wall-clock rates on every tab.
+/// counter reports honest wall-clock rates on every tab, and each tab
+/// surfaces the engine's own rejection text when a call fails.
 ///
 /// # Arguments
 ///
@@ -137,7 +145,7 @@ pub(crate) fn page_raytrace(node: VirtualNode<PageRaytraceProps>) -> VirtualNode
 /// Renders the Canvas 2D software raytracing tab content.
 ///
 /// Contains the full Canvas 2D demo: stats bar (FPS, scene, adaptive
-/// render scale), canvas, and controls.
+/// render scale, backend status), canvas, and controls.
 ///
 /// # Arguments
 ///
@@ -176,6 +184,15 @@ fn raytrace_canvas_tab(
     let on_touch_end: Option<Rc<dyn Fn(Event)>> = raytrace_on_touch_end(last_pointer.clone());
     let fps_display: String = format!("{:.1}", state.get_fps().get());
     let scale_display: String = format!("{:.0}%", state.get_render_scale().get() * 100.0);
+    let canvas_2d_loaded: bool = state.get_loaded().get();
+    let canvas_2d_active: bool = state.get_active().get();
+    let canvas_2d_error_code: &str = state.get_init_error_code().get();
+    let canvas_2d_status: String = raytrace_status_text(
+        canvas_2d_loaded,
+        canvas_2d_active,
+        canvas_2d_error_code,
+        &state.get_error_detail().get(),
+    );
     let pause_label: &str = if state.get_running().get() {
         RAYTRACE_PAUSE_LABEL
     } else {
@@ -208,6 +225,14 @@ fn raytrace_canvas_tab(
                     span {
                         class: c_game_stats_count_value()
                         scale_display
+                    }
+                }
+                span {
+                    class: c_game_stats_label()
+                    RAYTRACE_STATUS_PREFIX
+                    span {
+                        class: c_game_stats_total_value()
+                        canvas_2d_status
                     }
                 }
             }
@@ -283,41 +308,65 @@ fn raytrace_canvas_tab(
     }
 }
 
-/// Maps the WebGL init state plus the engine's stable error code to the
+/// Maps a backend's init state plus the engine's stable error code to the
 /// banner text shown next to "Status: ".
 ///
 /// WebGL 2 is supported by every modern browser, so unlike the WebGPU
 /// banner this does not need a full capability decision tree: an init
 /// failure is almost always "browser too old" or a driver blocklist hit.
 ///
+/// The `active` flag is checked *before* the error code on purpose. The
+/// loop clears `active` on every rejected call, so a backend that failed
+/// mid-run can never fall through to the "not supported" wording and claim
+/// the browser lacks a feature it in fact ran.
+///
 /// # Arguments
 ///
 /// - `bool` - Whether initialization has finished (success or failure).
 /// - `bool` - Whether the renderer is active.
-/// - `&str` - The `WebGl2InitError::code()` from the last init attempt.
+/// - `&str` - The stable error code from the last rejected call.
+/// - `&str` - The engine's rejection detail.
 ///
 /// # Returns
 ///
-/// - `&'static str` - The banner text.
-fn raytrace_webgl_status_text(loaded: bool, active: bool, init_error_code: &str) -> &'static str {
-    if !loaded {
-        return RAYTRACE_INITIALIZING_STATUS;
-    }
-    if active {
-        return RAYTRACE_WEBGL_ACTIVE_STATUS;
-    }
-    if init_error_code.is_empty() {
+/// - `String` - The banner text, including the engine's own message when
+///   there is one.
+fn raytrace_status_text(loaded: bool, active: bool, init_error_code: &str, detail: &str) -> String {
+    let status: &str = if !loaded {
+        return RAYTRACE_INITIALIZING_STATUS.to_string();
+    } else if active {
+        RAYTRACE_WEBGL_ACTIVE_STATUS
+    } else if init_error_code.is_empty() {
         RAYTRACE_WEBGL_NOT_SUPPORTED_STATUS
     } else {
         RAYTRACE_WEBGL_INIT_FAILED_STATUS
+    };
+    raytrace_status_with_detail(status, detail)
+}
+
+/// Appends the engine's rejection detail to a status line.
+///
+/// # Arguments
+///
+/// - `&str` - The base status text.
+/// - `&str` - The engine's rejection detail; empty renders nothing extra.
+///
+/// # Returns
+///
+/// - `String` - The status line.
+pub(crate) fn raytrace_status_with_detail(status: &str, detail: &str) -> String {
+    if detail.is_empty() {
+        return status.to_string();
     }
+    format!("{status}{RAYTRACE_STATUS_DETAIL_SEPARATOR}{detail}")
 }
 
 /// Renders the WebGL raytracing tab content.
 ///
 /// Mirrors the Canvas 2D tab: the same scene, orbit camera, and
-/// pointer/touch drag, rendered through a GLSL ES 3.00 program instead
-/// of the 2D context. Adds a WebGL status readout to the stats bar.
+/// pointer/touch drag, rendered through the engine's GLSL ES 3.00 program
+/// instead of the 2D context. Adds a WebGL status readout to the stats
+/// bar.
 ///
 /// # Arguments
 ///
@@ -359,7 +408,12 @@ fn raytrace_webgl_tab(
     let loaded: bool = state.get_loaded().get();
     let active: bool = state.get_active().get();
     let init_error_code: &str = state.get_init_error_code().get();
-    let status_text: &str = raytrace_webgl_status_text(loaded, active, init_error_code);
+    let status_text: String = raytrace_status_text(
+        loaded,
+        active,
+        init_error_code,
+        &state.get_error_detail().get(),
+    );
     let pause_label: &str = if state.get_running().get() {
         RAYTRACE_PAUSE_LABEL
     } else {
@@ -470,8 +524,9 @@ fn raytrace_webgl_tab(
 /// Renders the WebGPU raytracing tab content.
 ///
 /// Mirrors the Canvas 2D tab: the same scene, orbit camera, and
-/// pointer/touch drag, rendered through a WGSL pipeline instead of the
-/// 2D context. Adds a WebGPU status readout to the stats bar.
+/// pointer/touch drag, rendered through the engine's WGSL pipeline
+/// instead of the 2D context. Adds a WebGPU status readout to the stats
+/// bar.
 ///
 /// # Arguments
 ///
@@ -513,7 +568,14 @@ fn raytrace_webgpu_tab(
     let loaded: bool = state.get_loaded().get();
     let active: bool = state.get_active().get();
     let init_error_code: &str = state.get_init_error_code().get();
-    let status_text: &str = webgpu_status_text(loaded, active, init_error_code);
+    // `webgpu_status_text` resolves the *capability* question (no WebGPU at
+    // all, adapter unavailable, device refused). A backend that acquired a
+    // device and then failed is not a capability problem, so the engine's
+    // own detail is appended to whatever wording that helper picked.
+    let status_text: String = raytrace_status_with_detail(
+        webgpu_status_text(loaded, active, init_error_code),
+        &state.get_error_detail().get(),
+    );
     let pause_label: &str = if state.get_running().get() {
         RAYTRACE_PAUSE_LABEL
     } else {

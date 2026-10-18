@@ -5,30 +5,49 @@ use super::*;
 #[derive(Clone, Data, New)]
 pub struct Entity {
     /// The unique identifier of this entity.
-    #[get(type(copy))]
+    ///
+    /// `get_id` is public because tests/entity/fn.rs, tests/pool/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    pub(crate) id: u64,
+    #[get(type(copy))]
+    #[set(pub(crate))]
+    pub id: u64,
     /// The human-readable name of this entity.
+    ///
+    /// `get_name` is public because tests/entity/fn.rs, tests/pool/fn.rs, tests/remaining/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) name: String,
+    pub name: String,
     /// The world-space transform (position, rotation, scale).
-    #[get(type(copy))]
+    ///
+    /// `get_transform` is public because tests/entity/fn.rs, tests/pool/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
+    #[get(type(copy))]
     #[set(pub(crate))]
-    pub(crate) transform: Transform2D,
+    pub transform: Transform2D,
     /// Whether this entity is active and should receive updates.
+    ///
+    /// `get_active` / `set_active` are public because tests/entity/fn.rs, tests/pool/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
+    #[get_mut(pub(crate))]
     #[get(type(copy))]
-    #[get_mut(pub(crate))]
-    pub(crate) active: bool,
+    pub active: bool,
     /// The list of components attached to this entity.
+    ///
+    /// `get_components` is public because tests/entity/fn.rs, tests/pool/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) components: Vec<ComponentRc>,
+    pub components: Vec<ComponentRc>,
     /// Optional tags for grouping and querying entities.
+    ///
+    /// `get_tags` is public because tests/entity/fn.rs, tests/pool/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) tags: Vec<String>,
+    pub tags: Vec<String>,
 }
 
 /// A publish-subscribe event bus for decoupled inter-entity communication.

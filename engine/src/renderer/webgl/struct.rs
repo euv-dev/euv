@@ -12,14 +12,21 @@ use super::*;
 #[derive(Clone, Data, Debug)]
 pub struct GlBuffer {
     /// The GL buffer object.
+    #[get(pub(crate))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) buffer: WebGlBuffer,
     /// The byte capacity the driver last allocated for this buffer.
     #[get(type(copy))]
-    pub(crate) capacity: u32,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub capacity: u32,
     /// The GL usage hint passed at allocation: `STATIC_DRAW` for data
     /// uploaded once, `DYNAMIC_DRAW` for data rewritten every frame.
     #[get(type(copy))]
-    pub(crate) usage: u32,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub usage: u32,
 }
 
 /// A GPU texture holding sampled image data or render-target contents.
@@ -33,20 +40,30 @@ pub struct GlBuffer {
 #[derive(Clone, Data, Debug)]
 pub struct GlTexture {
     /// The GL texture object.
-    pub(crate) texture: WebGlTexture,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub texture: WebGlTexture,
     /// The width in texels the texture was allocated with.
     #[get(type(copy))]
-    pub(crate) width: u32,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub width: u32,
     /// The height in texels the texture was allocated with.
     #[get(type(copy))]
-    pub(crate) height: u32,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub height: u32,
     /// The number of mip levels allocated.
     #[get(type(copy))]
-    pub(crate) levels: u32,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub levels: u32,
     /// Whether `generateMipmap` was called, so a minification filter that
     /// samples across levels is known to be legal.
     #[get(type(copy))]
-    pub(crate) mipmapped: bool,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub mipmapped: bool,
 }
 
 /// A vertex array object: the recorded bundle of buffer bindings and
@@ -59,6 +76,9 @@ pub struct GlTexture {
 #[derive(Clone, Data, Debug)]
 pub struct GlVertexArray {
     /// The GL vertex array object.
+    #[get(pub(crate))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) vao: WebGlVertexArrayObject,
 }
 
@@ -71,24 +91,35 @@ pub struct GlVertexArray {
 #[derive(Clone, Data, Debug)]
 pub struct GlFramebuffer {
     /// The GL framebuffer object.
+    #[get(pub(crate))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) framebuffer: WebGlFramebuffer,
     /// The depth renderbuffer, optionally packed with an 8-bit stencil,
     /// or `None` for a color-only target such as a post-process pass
     /// that reads depth from a texture instead of writing its own.
     #[get(type(clone))]
-    pub(crate) depth: Option<WebGlRenderbuffer>,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub depth: Option<WebGlRenderbuffer>,
     /// The color attachment, retained so a later pass can sample the
     /// rendered result without a separate resolve.
     #[get(type(clone))]
-    pub(crate) color: GlTexture,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub color: GlTexture,
     /// The width every attachment was allocated with, re-checked on
     /// rebind so a window resize re-allocates rather than leaving a
     /// frame whose attachments disagree on size.
     #[get(type(copy))]
-    pub(crate) width: u32,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub width: u32,
     /// The height every attachment was allocated with.
     #[get(type(copy))]
-    pub(crate) height: u32,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub height: u32,
 }
 
 /// A linked GLSL program together with its cached uniform locations.
@@ -102,18 +133,21 @@ pub struct GlFramebuffer {
 #[derive(Clone, Data, Debug)]
 pub struct GlProgram {
     /// The GL program object.
+    #[get(pub(crate))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) program: WebGlProgram,
     /// Uniform locations resolved so far, keyed by uniform name. A
     /// `None` entry records a uniform the compiler removed, so the
     /// negative result is not recomputed every frame either.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) uniforms: HashMap<String, Option<WebGlUniformLocation>>,
-    /// The reusable 16-float scratch slice every `mat4` upload goes
-    /// through. A fixed-size array rather than a `Vec` so uploading a
-    /// [`Matrix4x4`] cannot allocate at all, not even on the first call.
-    pub(crate) matrix_scratch: [f32; GL_MAT4_FLOATS],
     /// The uniform block indices resolved so far, keyed by block name.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) blocks: HashMap<String, u32>,
 }
 
@@ -127,14 +161,21 @@ pub struct GlProgram {
 #[derive(Clone, Data, Debug)]
 pub struct GlUniformBlock {
     /// The GL buffer holding the block's records.
+    #[get(pub(crate))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) buffer: WebGlBuffer,
     /// The binding point index the shader's `layout(binding = N)`
     /// qualifier agrees with.
     #[get(type(copy))]
-    pub(crate) binding: u32,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub binding: u32,
     /// The byte capacity allocated for the block.
     #[get(type(copy))]
-    pub(crate) capacity: u32,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub capacity: u32,
 }
 
 /// The blend and color-write state of one draw.
@@ -147,12 +188,19 @@ pub struct GlUniformBlock {
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub struct GlBlendState {
     /// Whether `BLEND` is enabled for this draw.
-    pub(crate) enabled: bool,
+    #[get(type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub enabled: bool,
     /// The blend applied to the RGB channels.
-    pub(crate) color: BlendComponent,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub color: BlendComponent,
     /// The blend applied to the alpha channel, which is frequently not
     /// the same blend as the color channels.
-    pub(crate) alpha: BlendComponent,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub alpha: BlendComponent,
 }
 
 /// The depth-test state of one draw.
@@ -166,10 +214,18 @@ pub struct GlBlendState {
 #[derive(Clone, Copy, Data, Debug, New, PartialEq)]
 pub struct GlDepthState {
     /// Whether `DEPTH_TEST` is enabled.
-    pub(crate) enabled: bool,
+    #[get(type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub enabled: bool,
     /// The comparison between the fragment's depth and the stored depth.
-    pub(crate) compare: CompareFunction,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub compare: CompareFunction,
     /// Whether a fragment that passes the test updates the depth buffer.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) write_enabled: bool,
 }
 
@@ -177,10 +233,14 @@ pub struct GlDepthState {
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub struct GlCullState {
     /// Which faces are discarded before rasterization.
-    pub(crate) mode: CullMode,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub mode: CullMode,
     /// Which winding order counts as front facing. Flipping it swaps what
     /// [`CullMode::Front`] and [`CullMode::Back`] discard.
-    pub(crate) front_face: FrontFace,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub front_face: FrontFace,
 }
 
 /// Which channels the fragment stage may write, as a raw four-bit mask.
@@ -193,7 +253,10 @@ pub struct GlCullState {
 #[derive(Clone, Copy, Data, Debug, New, PartialEq)]
 pub struct GlColorMask {
     /// The four channel bits.
-    pub(crate) bits: u32,
+    #[get(type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub bits: u32,
 }
 
 /// A scissor rectangle.
@@ -205,13 +268,22 @@ pub struct GlColorMask {
 #[derive(Clone, Copy, Data, Debug, New, PartialEq)]
 pub struct GlScissor {
     /// The left edge in framebuffer pixels.
-    pub(crate) x: i32,
+    #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    pub x: i32,
     /// The bottom edge in framebuffer pixels.
-    pub(crate) y: i32,
+    #[get(type(copy))]
+    pub y: i32,
     /// The width in framebuffer pixels.
-    pub(crate) width: i32,
+    #[get(type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub width: i32,
     /// The height in framebuffer pixels.
-    pub(crate) height: i32,
+    #[get(type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub height: i32,
 }
 
 /// The viewport rectangle, in framebuffer pixels.
@@ -221,13 +293,22 @@ pub struct GlScissor {
 #[derive(Clone, Copy, Data, Debug, New, PartialEq)]
 pub struct GlViewport {
     /// The left edge in framebuffer pixels.
-    pub(crate) x: i32,
+    #[get(type(copy))]
+    pub x: i32,
     /// The bottom edge in framebuffer pixels.
-    pub(crate) y: i32,
+    #[get(type(copy))]
+    #[get_mut(pub(crate))]
+    pub y: i32,
     /// The width in framebuffer pixels.
-    pub(crate) width: i32,
+    #[get(type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub width: i32,
     /// The height in framebuffer pixels.
-    pub(crate) height: i32,
+    #[get(type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub height: i32,
 }
 
 /// The whole fixed-function state of one draw, as a single `Copy` value.
@@ -243,18 +324,30 @@ pub struct GlViewport {
 #[derive(Clone, Copy, Data, Debug, PartialEq)]
 pub struct GlRenderState {
     /// The depth-test state.
-    pub(crate) depth: GlDepthState,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub depth: GlDepthState,
     /// The blend state.
-    pub(crate) blend: GlBlendState,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub blend: GlBlendState,
     /// The culling and winding state.
-    pub(crate) cull: GlCullState,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub cull: GlCullState,
     /// Which channels the fragment stage may write.
-    pub(crate) color_mask: GlColorMask,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub color_mask: GlColorMask,
     /// The scissor rectangle, or `None` when scissoring is off.
     #[get(type(copy))]
-    pub(crate) scissor: Option<GlScissor>,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub scissor: Option<GlScissor>,
     /// The viewport rectangle.
-    pub(crate) viewport: GlViewport,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub viewport: GlViewport,
 }
 
 /// The complete WebGL 2 backend: a context plus the three shadows that
@@ -280,24 +373,40 @@ pub struct WebGl2Backend {
     /// [`WebGl2Backend::get_canvas`] is a plain field read and cannot
     /// fail (the old `context.canvas().expect(..)` could panic if the
     /// context was ever detached from its element).
-    pub(crate) canvas: HtmlCanvasElement,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub canvas: HtmlCanvasElement,
     /// The WebGL 2 rendering context every call goes through.
-    pub(crate) context: WebGl2RenderingContext,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub context: WebGl2RenderingContext,
     /// The last state applied, diffed against to skip redundant calls.
+    #[get(pub(crate))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) shadow: GlRenderState,
     /// The texture unit that is currently active, or
     /// [`GL_TEXTURE_UNIT_NONE`] when the active unit is not yet known.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) active_unit: u32,
     /// The program currently bound, compared with `Object.is`.
+    #[get(pub(crate))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) bound_program: JsValue,
     /// The color [`WebGl2Backend::begin_frame`] clears to.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
     pub(crate) clear_color_field: Color,
     /// The reused destination for
     /// [`WebGl2Backend::read_pixels`](super::WebGl2Backend::read_pixels),
     /// grown on demand so a steady-state readback allocates nothing.
     #[get_mut(pub(crate))]
+    #[get(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) readback: Vec<u8>,
 }
 
@@ -317,8 +426,10 @@ pub struct WebGl2BackendInit {
     /// The `webgl2` context every call goes through.
     pub context: WebGl2RenderingContext,
     /// The physical pixel width of the drawing buffer.
+    #[get(type(copy))]
     pub width: u32,
     /// The physical pixel height of the drawing buffer.
+    #[get(type(copy))]
     pub height: u32,
     /// The colour `begin_frame` clears to.
     pub clear_color: Color,

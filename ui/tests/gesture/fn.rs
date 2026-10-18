@@ -134,7 +134,7 @@ fn gesture_progress_separates_a_looping_drag_from_a_tap() {
     progress.advance(&[point(40, 40)]);
     progress.advance(&[point(0, 40)]);
     progress.advance(&[point(0, 0)]);
-    assert!(*progress.get_travel() > 100.0);
+    assert!(progress.get_travel() > 100.0);
     assert_eq!(progress.finish(&config), None);
 }
 

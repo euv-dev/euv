@@ -16,5 +16,9 @@ use super::*;
 #[derive(Clone, Data, Debug)]
 pub struct ErrorBoundary {
     /// The phase signal.
-    pub(crate) phase: Signal<ErrorBoundaryPhase>,
+    ///
+    /// Public because `ui/tests/error_boundary/fn.rs` and
+    /// `example/src/page/hooks_protect` read it through
+    /// `get_phase()`.
+    pub phase: Signal<ErrorBoundaryPhase>,
 }

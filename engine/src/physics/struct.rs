@@ -4,8 +4,9 @@ use super::*;
 #[derive(Clone, Copy, Data, Debug, New, PartialEq, PartialOrd)]
 pub struct PhysicsConfig {
     /// The gravitational acceleration vector in pixels per second squared.
-    #[get(type(copy))]
-    pub(crate) gravity: Vector2D,
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    pub gravity: Vector2D,
     /// The linear velocity damping coefficient applied per second.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
@@ -24,27 +25,27 @@ pub struct RigidBody2D {
     /// The unique identifier of this body, typically matching a game object ID.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
-    pub(crate) id: u64,
+    #[set(pub(crate))]
+    pub id: u64,
     /// The world-space position of the body's center.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
-    pub(crate) position: Vector2D,
+    pub position: Vector2D,
     /// The linear velocity in pixels per second.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[new(skip)]
-    pub(crate) velocity: Vector2D,
+    pub velocity: Vector2D,
     /// The accumulated force to be applied during the next physics step.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) force_accumulator: Vector2D,
+    pub force_accumulator: Vector2D,
     /// The rotation angle in radians.
-    #[get(type(copy))]
+    #[get(type(copy), pub(crate))]
     #[get_mut(pub(crate))]
     #[new(skip)]
-    #[get(pub(crate))]
     #[set(pub(crate))]
     pub(crate) rotation: f64,
     /// The angular velocity in radians per second.
@@ -52,17 +53,17 @@ pub struct RigidBody2D {
     #[get_mut(pub(crate))]
     #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) angular_velocity: f64,
+    pub angular_velocity: f64,
     /// The mass of the body in kilograms. Static bodies have a mass of 0.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) mass: f64,
+    pub mass: f64,
     /// The precomputed inverse mass (1/mass). Static bodies have 0 inverse mass.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) inverse_mass: f64,
+    pub inverse_mass: f64,
     /// The restitution (bounciness) coefficient in the range 0.0 to 1.0.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
@@ -71,14 +72,15 @@ pub struct RigidBody2D {
     /// The friction coefficient for surface contact.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
-    pub(crate) friction: f64,
+    pub friction: f64,
     /// How this body participates in the simulation.
     #[get(type(copy))]
-    pub(crate) body_type: BodyType,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub body_type: BodyType,
     /// The collider shape attached to this body.
-    #[get(type(copy))]
+    #[get(type(copy), pub(crate))]
     #[new(skip)]
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) collider: Option<BodyCollider>,
@@ -91,18 +93,18 @@ pub struct PhysicsWorld2D {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) bodies: Vec<RigidBody2D>,
+    pub bodies: Vec<RigidBody2D>,
     /// The simulation configuration.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) config: PhysicsConfig,
+    pub config: PhysicsConfig,
     /// The persistent broad-phase grid, cleared and re-inserted each step so its
     /// `HashMap` allocation is reused instead of rebuilt per step.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) grid: SpatialHashGrid2D,
+    pub grid: SpatialHashGrid2D,
     /// Scratch buffer reused by grid queries to avoid a per-query `Vec` allocation.
     #[get_mut(pub(crate))]
     #[new(skip)]
@@ -130,8 +132,7 @@ pub struct PhysicsConfig3D {
     /// The gravitational acceleration vector in meters per second squared.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) gravity: Vector3D,
+    pub gravity: Vector3D,
     /// The linear velocity damping coefficient applied per second.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
@@ -150,28 +151,27 @@ pub struct RigidBody3D {
     /// The unique identifier of this body, typically matching a game object ID.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
-    pub(crate) id: u64,
+    #[set(pub(crate))]
+    pub id: u64,
     /// The world-space position of the body's center.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
-    #[set(pub(crate))]
-    pub(crate) position: Vector3D,
+    pub position: Vector3D,
     /// The linear velocity in meters per second.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[new(skip)]
-    pub(crate) velocity: Vector3D,
+    pub velocity: Vector3D,
     /// The accumulated force to be applied during the next physics step.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) force_accumulator: Vector3D,
+    pub force_accumulator: Vector3D,
     /// The rotation as a quaternion.
-    #[get(type(copy))]
+    #[get(type(copy), pub(crate))]
     #[get_mut(pub(crate))]
     #[new(skip)]
-    #[get(pub(crate))]
     #[set(pub(crate))]
     pub(crate) rotation: Quaternion,
     /// The angular velocity as a 3D vector (axis * speed).
@@ -179,23 +179,23 @@ pub struct RigidBody3D {
     #[get_mut(pub(crate))]
     #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) angular_velocity: Vector3D,
+    pub angular_velocity: Vector3D,
     /// The accumulated torque to be applied during the next physics step.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) torque_accumulator: Vector3D,
+    pub torque_accumulator: Vector3D,
     /// The mass of the body in kilograms. Static bodies have a mass of 0.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) mass: f64,
+    pub mass: f64,
     /// The precomputed inverse mass (1/mass). Static bodies have 0 inverse mass.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) inverse_mass: f64,
+    pub inverse_mass: f64,
     /// The precomputed inverse moment of inertia (scalar, axis-aligned). Static
     /// bodies have 0 inverse inertia. Used to convert accumulated torque into
     /// angular velocity each step.
@@ -203,7 +203,7 @@ pub struct RigidBody3D {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) inverse_inertia: f64,
+    pub inverse_inertia: f64,
     /// The restitution (bounciness) coefficient in the range 0.0 to 1.0.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
@@ -212,14 +212,15 @@ pub struct RigidBody3D {
     /// The friction coefficient for surface contact.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
-    pub(crate) friction: f64,
+    pub friction: f64,
     /// How this body participates in the simulation.
     #[get(type(copy))]
-    pub(crate) body_type: BodyType,
+    #[set(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub body_type: BodyType,
     /// The 3D collider shape attached to this body.
-    #[get(type(copy))]
+    #[get(type(copy), pub(crate))]
     #[new(skip)]
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) collider: Option<BodyCollider3D>,
@@ -232,18 +233,18 @@ pub struct PhysicsWorld3D {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) bodies: Vec<RigidBody3D>,
+    pub bodies: Vec<RigidBody3D>,
     /// The simulation configuration.
     #[get(type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) config: PhysicsConfig3D,
+    pub config: PhysicsConfig3D,
     /// The persistent broad-phase grid, cleared and re-inserted each step so its
     /// `HashMap` allocation is reused instead of rebuilt per step.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) grid: SpatialHashGrid3D,
+    pub grid: SpatialHashGrid3D,
     /// Scratch buffer reused by grid queries to avoid a per-query `Vec` allocation.
     #[get_mut(pub(crate))]
     #[new(skip)]

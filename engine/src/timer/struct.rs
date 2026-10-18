@@ -11,7 +11,7 @@ pub struct Timer {
     #[get(type(copy))]
     #[set(pub(crate))]
     #[get_mut(pub(crate))]
-    pub(crate) duration: f64,
+    pub duration: f64,
     /// Whether the timer restarts automatically after firing.
     #[get(pub(crate), type(copy))]
     #[set(pub(crate))]
@@ -22,18 +22,16 @@ pub struct Timer {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) elapsed: f64,
+    pub elapsed: f64,
     /// Whether the timer is currently paused.
-    #[get(type(copy))]
+    #[get(type(copy), pub(crate))]
     #[new(skip)]
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) paused: bool,
     /// Whether a one-shot timer has fired and stopped.
-    #[get(type(copy))]
+    #[get(type(copy), pub(crate))]
     #[new(skip)]
-    #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) finished: bool,

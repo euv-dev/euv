@@ -3,18 +3,18 @@ use super::*;
 /// Computes the Lambertian (diffuse) contribution of a single light at a
 /// shaded surface point.
 ///
-/// The returned color is computed as:
-///
 /// ```text
-/// color * intensity * max(0, dot(normal, light_dir)) * albedo
+/// color * intensity * albedo * max(0, dot(normal, light_dir))
 /// ```
 ///
-/// For directional lights, `light_dir` is the unit direction toward the
-/// light. For point and spot lights, `light_dir` is the unit direction from
-/// the surface position to the light position. The light's color and
-/// intensity are merged multiplicatively with the Lambertian cosine term
-/// and the material's albedo. The caller is expected to have already
-/// applied any falloff factor.
+/// `light_dir` is the unit direction from the surface toward the light;
+/// any falloff must already be folded into a scaled intensity by the
+/// caller.
+///
+/// A thin wrapper over [`lambert_term`], which takes the same quantities
+/// unpacked instead of through a [`Light`], so a direct call and the same
+/// light routed through [`LightingUniforms::shade_with_visibility`] share
+/// one implementation.
 ///
 /// # Arguments
 ///
@@ -26,34 +26,66 @@ use super::*;
 ///
 /// - `Vector3D` - The diffuse contribution of this light.
 pub fn compute_lambert(light: &Light, normal: Vector3D, material: &Material) -> Vector3D {
-    let light_dir: Vector3D = light.get_direction();
-    let cos: f64 = normal.dot(light_dir).max(0.0);
-    let intensity: f64 = light.get_intensity();
-    let color: Vector3D = light.get_color();
-    let albedo: Vector3D = material.get_albedo();
-    let k: f64 = intensity * cos;
-    Vector3D::new(
-        color.get_x() * albedo.get_x() * k,
-        color.get_y() * albedo.get_y() * k,
-        color.get_z() * albedo.get_z() * k,
+    lambert_term(
+        light.get_color(),
+        light.get_intensity(),
+        light.get_direction(),
+        normal,
+        material.get_albedo(),
     )
 }
 
-/// Computes the Blinn-Phong specular contribution of a single light.
+/// The Lambertian term shared by [`compute_lambert`] and
+/// [`LightingUniforms::shade_with_visibility`].
 ///
-/// Returns:
-///
-/// ```text
-/// light_color * intensity * pow(max(0, dot(reflect(-l, n), v)), shininess) * specular
-/// ```
-///
-/// where `reflect(-l, n)` is the mirror reflection of the light direction
-/// about the surface normal and `v` is the unit view direction from the
-/// shaded point toward the eye.
+/// Unpacking the light into its colour, intensity, and direction is what
+/// lets the shading loop evaluate a light once — one distance, one
+/// direction, one falloff — instead of building a mutated copy of the
+/// [`Light`] per term.
 ///
 /// # Arguments
 ///
-/// - `&Light` - The light source.
+/// - `Vector3D` - The light's RGB color.
+/// - `f64` - The light's intensity, already scaled by any falloff.
+/// - `Vector3D` - The unit direction from the surface toward the light.
+/// - `Vector3D` - The surface normal (unit length).
+/// - `Vector3D` - The material's diffuse albedo.
+///
+/// # Returns
+///
+/// - `Vector3D` - `color * albedo * intensity * max(0, dot(normal, light_dir))`.
+pub(crate) fn lambert_term(
+    light_color: Vector3D,
+    light_intensity: f64,
+    light_dir: Vector3D,
+    normal: Vector3D,
+    albedo: Vector3D,
+) -> Vector3D {
+    let cos: f64 = normal.dot(light_dir).max(0.0);
+    let k: f64 = light_intensity * cos;
+    Vector3D::new(
+        light_color.get_x() * albedo.get_x() * k,
+        light_color.get_y() * albedo.get_y() * k,
+        light_color.get_z() * albedo.get_z() * k,
+    )
+}
+
+/// Computes the Phong specular contribution of a single light.
+///
+/// ```text
+/// color * intensity * specular * pow(max(0, dot(reflect(-l, n), v)), shininess)
+/// ```
+///
+/// where `l` is the unit direction from the surface toward the light, `n`
+/// the surface normal, and `v` the unit view direction from the shaded
+/// point toward the eye. A thin wrapper over [`phong_specular_term`], so
+/// a direct call and the same light routed through
+/// [`LightingUniforms::shade_with_visibility`] share one implementation.
+///
+/// # Arguments
+///
+/// - `&Light` - The light source. Its `direction` must point from the
+///   surface toward the light.
 /// - `Vector3D` - The surface normal (unit length).
 /// - `Vector3D` - The unit view direction (from the surface toward the eye).
 /// - `&Material` - The material at the shaded point.
@@ -67,17 +99,101 @@ pub fn compute_phong(
     view_dir: Vector3D,
     material: &Material,
 ) -> Vector3D {
-    let light_dir: Vector3D = light.get_direction();
-    let reflect: Vector3D = (light_dir - normal.scaled(2.0 * light_dir.dot(normal))).normalized();
-    let spec_factor: f64 = reflect
-        .dot(view_dir)
-        .max(0.0)
-        .powf(material.get_shininess());
-    let specular: f64 = material.get_specular();
-    let intensity: f64 = light.get_intensity();
-    let color: Vector3D = light.get_color();
-    let k: f64 = intensity * spec_factor * specular;
-    Vector3D::new(color.get_x() * k, color.get_y() * k, color.get_z() * k)
+    phong_specular_term(
+        light.get_color(),
+        light.get_intensity(),
+        light.get_direction(),
+        normal,
+        view_dir,
+        material.get_specular(),
+        material.get_shininess(),
+    )
+}
+
+/// The Phong specular term shared by [`compute_phong`] and
+/// [`LightingUniforms::shade_with_visibility`]. Returns the zero vector
+/// unless the surface faces the light, so the lobe cannot survive on the
+/// back side of a surface.
+///
+/// # Arguments
+///
+/// - `Vector3D` - The light's RGB color.
+/// - `f64` - The light's intensity, already scaled by any falloff.
+/// - `Vector3D` - The unit direction from the surface toward the light.
+/// - `Vector3D` - The surface normal (unit length).
+/// - `Vector3D` - The unit view direction (from the surface toward the eye).
+/// - `f64` - The material's specular intensity.
+/// - `f64` - The Phong specular exponent.
+///
+/// # Returns
+///
+/// - `Vector3D` - `color * intensity * specular * spec_factor`.
+pub(crate) fn phong_specular_term(
+    light_color: Vector3D,
+    light_intensity: f64,
+    light_dir: Vector3D,
+    normal: Vector3D,
+    view_dir: Vector3D,
+    material_specular: f64,
+    shininess: f64,
+) -> Vector3D {
+    let spec_factor: f64 = phong_specular_factor(light_dir, normal, view_dir, shininess);
+    let k: f64 = light_intensity * spec_factor * material_specular;
+    Vector3D::new(
+        light_color.get_x() * k,
+        light_color.get_y() * k,
+        light_color.get_z() * k,
+    )
+}
+
+/// Computes the Phong specular factor in the range 0.0..=1.0.
+///
+/// The factor is `pow(max(0, dot(reflect(-l, n), v)), shininess)`.
+///
+/// ## Why `-l` is reflected, not `l`
+///
+/// `reflect(i, n) = i - 2 * dot(i, n) * n` mirrors an **incident** ray `i`
+/// about the normal. The incident ray travels from the light into the
+/// surface, so it is `-l`, and the expansion is
+///
+/// ```text
+/// reflect(-l, n) = -l + 2 * dot(n, l) * n
+/// ```
+///
+/// Reflecting `l` instead yields a vector pointing back at the lamp, so
+/// `dot(reflect, v)` peaks only where the eye is *behind* the surface and
+/// the highlight lands on the unlit side.
+///
+/// With `n` and `l` both unit length the reflection is already unit
+/// length — `|2 * n * d - l|² = 4d² - 4d² + 1 = 1` for `d = dot(n, l)` —
+/// so this needs no normalization, no division, and has no degenerate
+/// case when `l` opposes `n`. The lobe peaks at `v == 2 * n * dot(n, l) -
+/// l`, i.e. off-axis unless the light is exactly head-on.
+///
+/// Returns `0.0` — never `NaN` — when `dot(n, l) <= 0.0`: a surface lit
+/// from behind must not flash a highlight.
+///
+/// # Arguments
+///
+/// - `Vector3D` - The unit direction from the surface toward the light.
+/// - `Vector3D` - The surface normal (unit length).
+/// - `Vector3D` - The unit view direction (from the surface toward the eye).
+/// - `f64` - The Phong specular exponent.
+///
+/// # Returns
+///
+/// - `f64` - The specular factor.
+pub(crate) fn phong_specular_factor(
+    light_dir: Vector3D,
+    normal: Vector3D,
+    view_dir: Vector3D,
+    shininess: f64,
+) -> f64 {
+    if normal.dot(light_dir) <= 0.0 {
+        return 0.0;
+    }
+    let reflected: Vector3D = normal.scaled(2.0 * normal.dot(light_dir)) - light_dir;
+    reflected.dot(view_dir).max(0.0).powf(shininess)
 }
 
 /// Applies the inverse-square falloff formula
@@ -135,12 +251,101 @@ pub fn apply_schlick_fresnel(light_dir: Vector3D, view_dir: Vector3D, normal: Ve
     base + (1.0 - base) * (1.0 - cos).powi(5)
 }
 
+/// Returns the unit-length form of `vector`, or the zero vector when it is
+/// too short to have a meaningful direction.
+///
+/// The threshold is [`EPSILON`], so a degenerate vector normalises to
+/// zero rather than to `NaN` from a division by a vanishing magnitude.
+/// A zero direction is safe downstream: it fails both the facing test and
+/// the cone test.
+///
+/// # Arguments
+///
+/// - `Vector3D` - The vector to normalize.
+///
+/// # Returns
+///
+/// - `Vector3D` - The unit vector, or the zero vector at or below [`EPSILON`].
+pub(crate) fn unit_vector(vector: Vector3D) -> Vector3D {
+    unit_vector_and_length(vector).0
+}
+
+/// Returns `(unit(vector), length)` while taking the magnitude **once**.
+///
+/// Shading needs both the unit direction and the original length of the
+/// same vector; measuring it twice would duplicate the square root on the
+/// hot path. A vector at or below [`EPSILON`] yields
+/// `(zero, 0.0)`.
+///
+/// # Arguments
+///
+/// - `Vector3D` - The vector to normalize.
+///
+/// # Returns
+///
+/// - `(Vector3D, f64)` - The unit vector and the vector's own length.
+pub(crate) fn unit_vector_and_length(vector: Vector3D) -> (Vector3D, f64) {
+    let length: f64 = vector.magnitude();
+    if length <= EPSILON {
+        return (Vector3D::zero(), 0.0);
+    }
+    (vector.scaled(1.0 / length), length)
+}
+
+/// Returns whether `light` can reach a surface point at all, before any
+/// visibility query: the spot cone test plus a zero-intensity reject.
+///
+/// These are the only two rejects a caller can make without geometry, so
+/// [`LightingUniforms::shade_with_visibility`] applies them before
+/// invoking the visibility callback.
+///
+/// ## Why the cone test compares against `-spot_cos`
+///
+/// A spot light stores `direction` as the cone axis pointing **outward**
+/// along the beam, i.e. the way the light travels. `light_dir` points the
+/// other way, from the surface **into** the lamp, so for a surface on the
+/// axis `dot(light_dir, axis)` is `-1.0`, not `+1.0`. Being inside the cone
+/// is therefore
+///
+/// ```text
+/// dot(light_dir, axis) <= -cos(half_angle) == -spot_cos
+/// ```
+///
+/// Testing `dot(light_dir, axis) >= spot_cos` instead would invert the
+/// cone: every point on the beam is rejected and every point behind the
+/// lamp is lit.
+///
+/// When the surface sits exactly on the lamp `light_dir` is zero, whose dot
+/// product with any axis is `0.0`; for a cone of half-angle 90° or narrower
+/// that would read as out of cone. The degenerate case is accepted
+/// explicitly — a surface coincident with a lamp sits at the cone's apex
+/// and is inside it by definition — and the zero `light_dir` makes the
+/// facing test reject it regardless.
+///
+/// # Arguments
+///
+/// - `&Light` - The light being tested.
+/// - `Vector3D` - The normalized direction from the surface toward the light.
+///
+/// # Returns
+///
+/// - `bool` - `false` when the light is out of cone or carries no intensity.
+pub(crate) fn light_reaches_position(light: &Light, light_dir: Vector3D) -> bool {
+    if light.get_intensity() <= 0.0 {
+        return false;
+    }
+    if light.get_kind() != LightType::Spot {
+        return true;
+    }
+    if light_dir == Vector3D::zero() {
+        return true;
+    }
+    light_dir.dot(light.get_direction()) <= -light.get_spot_cos()
+}
+
 /// Intersects a ray with a sphere centered at `center` with radius `radius`.
 ///
-/// Uses the standard quadratic-form ray-sphere test. Returns `Some((t, n))`
-/// where `t` is the nearest positive intersection distance along the ray
-/// and `n` is the outward unit normal at the hit point. Returns `None` if
-/// the ray misses.
+/// Uses the standard quadratic-form ray-sphere test.
 ///
 /// # Arguments
 ///
@@ -241,12 +446,16 @@ pub fn ray_aabb_intersect(
     Some((t_near, t_far, normal))
 }
 
-/// Computes a soft-shadow visibility factor in the range 0.0..=1.0.
+/// Computes a visibility factor in the range 0.0..=1.0 for the segment from
+/// `origin` to `light_pos`.
 ///
-/// Casts a single ray from `origin` toward `light_pos` and checks whether
-/// any sphere in `occluders` blocks the path. Returns 1.0 when no occluder
-/// is intersected, otherwise returns 0.0 (binary shadow). A future
-/// refinement could sample multiple rays to approximate penumbra.
+/// Despite the historical name this is **binary**, not soft: `1.0` when
+/// nothing blocks the segment, `0.0` when anything does. No penumbra is
+/// sampled. Callers that hold real geometry should use
+/// [`LightingUniforms::shade_with_visibility`] with a callback instead;
+/// this is the bounded fallback for callers holding only
+/// `(center, radius)` bounding spheres, which necessarily over-shadow a
+/// ray passing through empty space beside an occluder.
 ///
 /// # Arguments
 ///
@@ -269,12 +478,52 @@ pub fn soft_shadow_factor(
     }
     let dir: Vector3D = to_light.scaled(1.0 / dist);
     for &(center, radius) in occluders.iter() {
-        if let Some((t, _)) = ray_sphere_intersect(origin, dir, center, radius)
-            && t > EPSILON
-            && t < dist - EPSILON
-        {
+        if segment_crosses_sphere(origin, dir, dist, center, radius) {
             return 0.0;
         }
     }
     1.0
+}
+
+/// Returns whether either ray-sphere root lands strictly inside the open
+/// segment `(EPSILON, dist - EPSILON)`.
+///
+/// **Both roots are tested, not just the near one.** A shadow ray is very
+/// often cast from the surface point of one of the occluders themselves:
+/// for that ray the near root sits at `t ≈ 0`, inside the [`EPSILON`]
+/// self-hit threshold, while the far root sits at `t ≈ 2r`. Testing only
+/// the nearest root would report the light as visible through the very
+/// sphere the ray starts inside.
+///
+/// # Arguments
+///
+/// - `Vector3D` - The segment start (the shaded point).
+/// - `Vector3D` - The unit direction toward the light.
+/// - `f64` - The distance from the segment start to the light.
+/// - `Vector3D` - The sphere center.
+/// - `f64` - The sphere radius.
+///
+/// # Returns
+///
+/// - `bool` - `true` when the segment passes through the sphere's interior.
+pub(crate) fn segment_crosses_sphere(
+    origin: Vector3D,
+    dir: Vector3D,
+    dist: f64,
+    center: Vector3D,
+    radius: f64,
+) -> bool {
+    let oc: Vector3D = origin - center;
+    let b: f64 = oc.dot(dir);
+    let c: f64 = oc.dot(oc) - radius * radius;
+    let disc: f64 = b * b - c;
+    if disc < 0.0 {
+        return false;
+    }
+    let sq: f64 = disc.sqrt();
+    let near: f64 = -b - sq;
+    let far: f64 = -b + sq;
+    let inside: f64 = EPSILON;
+    let outside: f64 = dist - EPSILON;
+    (near > inside && near < outside) || (far > inside && far < outside)
 }

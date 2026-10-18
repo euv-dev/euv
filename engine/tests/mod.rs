@@ -37,6 +37,7 @@ mod physics;
 mod physics_world;
 mod pool;
 mod quadtree;
+mod raypipeline;
 mod raytracing;
 mod remaining;
 mod renderer;

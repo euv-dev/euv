@@ -9,17 +9,19 @@ pub struct AssetEntry {
     #[set(pub(crate))]
     pub(crate) asset_type: AssetType,
     /// The current loading state.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) state: AssetState,
     /// The loaded image element, if this is an image asset.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) image: Option<HtmlImageElement>,
     /// The URL this asset was loaded from.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get(pub(crate))]
     pub(crate) url: String,
 }
 
@@ -27,10 +29,13 @@ pub struct AssetEntry {
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct AssetCache {
     /// All cached assets keyed by their source URL.
+    ///
+    /// `get_entries` is public because tests/api_visibility/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     #[new(skip)]
-    pub(crate) entries: HashMap<String, AssetEntry>,
+    pub entries: HashMap<String, AssetEntry>,
 }
 
 /// An asynchronous asset loader that fetches resources over HTTP
@@ -46,14 +51,20 @@ pub struct AssetLoader {
     /// The shared counter of loads that have been requested but have not
     /// settled yet. Read through [`AssetLoader::pending_count`].
     #[new(skip)]
+    ///
+    /// `get_pending` is public because tests/asset/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) pending: AssetPending,
+    pub pending: AssetPending,
     /// Stored closures keeping `onload`/`onerror` callbacks alive, preventing memory leaks.
     #[new(skip)]
+    ///
+    /// `get_closures` is public because tests/asset/fn.rs, tests/asset/mod.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) closures: AssetClosures,
+    pub closures: AssetClosures,
 }
 
 /// The backing store behind [`AssetClosures`].

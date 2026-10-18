@@ -13,68 +13,104 @@ pub struct Input;
 #[derive(Clone, Data, Debug, New, PartialEq)]
 pub struct InputState {
     /// Key codes that were pressed during this frame.
+    ///
+    /// `get_keys_pressed` is public because tests/input/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) keys_pressed: KeyStateSet,
+    #[new(skip)]
+    pub keys_pressed: KeyStateSet,
     /// Key codes that are currently held down.
+    ///
+    /// `get_keys_held` is public because tests/input/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) keys_held: KeyStateSet,
+    #[new(skip)]
+    pub keys_held: KeyStateSet,
     /// Key codes that were released during this frame.
+    ///
+    /// `get_keys_released` is public because tests/input/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) keys_released: KeyStateSet,
+    #[new(skip)]
+    pub keys_released: KeyStateSet,
     /// Mouse buttons that were pressed during this frame.
+    ///
+    /// `get_mouse_buttons_pressed` is public because tests/input/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) mouse_buttons_pressed: HashSet<MouseButton>,
+    #[new(skip)]
+    pub mouse_buttons_pressed: HashSet<MouseButton>,
     /// Mouse buttons that are currently held down.
+    ///
+    /// `get_mouse_buttons_held` is public because tests/input/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) mouse_buttons_held: HashSet<MouseButton>,
+    #[new(skip)]
+    pub mouse_buttons_held: HashSet<MouseButton>,
     /// Mouse buttons that were released during this frame.
+    ///
+    /// `get_mouse_buttons_released` is public because tests/input/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) mouse_buttons_released: HashSet<MouseButton>,
+    #[new(skip)]
+    pub mouse_buttons_released: HashSet<MouseButton>,
     /// The current mouse position in screen coordinates.
-    #[get(type(copy))]
+    ///
+    /// `get_mouse_position` is public because tests/input/fn.rs, tests/input_state/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    #[new(skip)]
+    #[get(type(copy))]
     #[set(pub(crate))]
-    pub(crate) mouse_position: Vector2D,
+    #[new(skip)]
+    pub mouse_position: Vector2D,
     /// The mouse position delta (movement) since the last frame.
-    #[get(type(copy))]
+    ///
+    /// `get_mouse_delta` is public because tests/input/fn.rs, tests/input_state/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    #[new(skip)]
+    #[get(type(copy))]
     #[set(pub(crate))]
-    pub(crate) mouse_delta: Vector2D,
+    #[new(skip)]
+    pub mouse_delta: Vector2D,
     /// Whether the mouse has moved during this frame.
+    ///
+    /// `get_mouse_moved` is public because tests/input/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
+    #[get_mut(pub(crate))]
     #[get(type(copy))]
-    #[get_mut(pub(crate))]
-    #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) mouse_moved: bool,
+    #[new(skip)]
+    pub mouse_moved: bool,
     /// Active touch points mapped by identifier to screen position.
+    ///
+    /// `get_touch_points` is public because tests/input/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) touch_points: TouchPointMap,
+    #[new(skip)]
+    pub touch_points: TouchPointMap,
     /// Touch point identifiers that started during this frame.
+    ///
+    /// `get_touch_started` is public because tests/input/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) touch_started: HashSet<i32>,
+    #[new(skip)]
+    pub touch_started: HashSet<i32>,
     /// Touch point identifiers that ended during this frame.
+    ///
+    /// `get_touch_ended` is public because tests/input/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
-    #[new(skip)]
     #[set(pub(crate))]
-    pub(crate) touch_ended: HashSet<i32>,
+    #[new(skip)]
+    pub touch_ended: HashSet<i32>,
 }
 
 /// Per-frame and steady-state data for a single gamepad index.
@@ -89,8 +125,9 @@ pub struct InputState {
 pub struct GamepadState {
     /// The browser-reported identifier of the device, e.g. a mapping
     /// string such as `Xbox 360 Controller (XInput STANDARD GAMEPAD)`.
-    #[get(type(clone))]
+    #[get(pub(crate), type(clone))]
     #[get_mut(pub(crate))]
+    #[set(pub(crate))]
     pub(crate) id: String,
     /// The current reading of every analog axis, indexed by axis number.
     /// Values outside the deadzone are stored as reported; the deadzone
@@ -108,7 +145,7 @@ pub struct GamepadState {
     pub(crate) button_values: Vec<f64>,
     /// Whether the device is currently connected. A disconnected pad
     /// keeps its last `id` so callers can still identify it.
-    #[get(type(copy))]
+    #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) connected: bool,
@@ -141,12 +178,16 @@ pub struct GamepadState {
 #[derive(Clone, Data, Debug, Default, PartialEq)]
 pub struct GamepadManager {
     /// Every gamepad state ever observed, keyed by gamepad index.
+    ///
+    /// `get_states` is public because tests/gamepad_poll/fn.rs reads this field from
+    /// outside this crate. `get_mut` / `set` stay crate-internal.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) states: GamepadStateMap,
+    pub states: GamepadStateMap,
     /// Gamepad indices that were first seen during this frame.
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
+    #[get(pub(crate))]
     pub(crate) connected: GamepadIndexSet,
     /// Gamepad indices that were last seen leaving during this frame.
     #[get_mut(pub(crate))]
