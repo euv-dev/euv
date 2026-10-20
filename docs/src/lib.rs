@@ -15,12 +15,7 @@ mod generated {
     include!(concat!(env!("OUT_DIR"), "/docs_gen.rs"));
 }
 
-pub use {
-    locale::*,
-    route::*,
-    router::*,
-    std::{rc::Rc, sync::Arc},
-};
+pub use {locale::*, route::*, router::*, std::rc::Rc};
 
 pub(crate) use {
     app::*,

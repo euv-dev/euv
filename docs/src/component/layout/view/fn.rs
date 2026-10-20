@@ -556,23 +556,23 @@ fn drawer_navigate() -> Option<Rc<dyn Fn(&'static str)>> {
 
 /// Scrolls to the in-page anchor after route changes (or to top).
 ///
-/// Subscribes to the route signal; scrolling is deferred with a timeout so
-/// it runs after the reactive DOM update. Also runs once on startup so
-/// deep links with an anchor work on first load.
+/// The scroll follows the route, not the render cycle. The shell
+/// re-renders whenever the theme changes — the theme signal is read while
+/// the shell renders — and re-entering this hook used to scroll again with
+/// the route unchanged, which threw the reader back to the anchor, or to
+/// the top of the page, when they merely switched the theme.
+///
+/// `watch!` runs the body once when the shell mounts, so a deep link still
+/// lands on its heading, and afterwards only when the route actually
+/// moves. Scrolling is deferred with a timeout so it runs after the
+/// reactive DOM update.
 ///
 /// # Arguments
 ///
 /// - `Signal<String>` - The current route signal.
 fn use_anchor_scroll(route_signal: Signal<String>) {
-    let handler: AnchorScroll = Arc::new(move || {
-        let raw: String = route_signal.get();
-        let (_path, anchor) = parse_route(&raw);
-        schedule_scroll(anchor);
-    });
-    handler();
-    route_signal.subscribe(move || {
-        let raw: String = route_signal.get();
-        let (_path, anchor) = parse_route(&raw);
+    watch!(route_signal, |route: String| {
+        let (_path, anchor) = parse_route(&route);
         schedule_scroll(anchor);
     });
 }

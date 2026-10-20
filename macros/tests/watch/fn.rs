@@ -128,3 +128,58 @@ fn watch_macro_does_not_move_signal_expression() {
     assert_eq!(source.get_inner(), source_addr_before);
     assert_eq!(source.get(), 13);
 }
+
+#[test]
+fn watch_macro_body_does_not_run_again_on_a_re_render() {
+    let counter: &'static Cell<i32> = new_counter();
+    let mut hook_context: HookContext = HookContext::current();
+    let source: Signal<i32> = Signal::create(3);
+    HookContext::with(hook_context.clone(), || {
+        watch!(source, |value: i32| {
+            counter.set(counter.get() + 1);
+            assert_eq!(value, 3, "the body sees the watched signal's value");
+        });
+    });
+    assert_eq!(counter.get(), 1, "the body runs once when the hook mounts");
+    hook_context.reset_index();
+    HookContext::with(hook_context.clone(), || {
+        watch!(source, |value: i32| {
+            counter.set(counter.get() + 1);
+            assert_eq!(value, 3, "the body sees the watched signal's value");
+        });
+    });
+    assert_eq!(
+        counter.get(),
+        1,
+        "a re-render replays the hook list from the same hook context, so \
+         the body must not run a second time: a component that acts on \
+         every render would act twice, which is how a scroll-to-anchor \
+         hook threw the reader back to the top of the page on a theme \
+         switch"
+    );
+}
+
+#[test]
+fn watch_macro_body_runs_again_when_the_watched_signal_changes() {
+    let counter: &'static Cell<i32> = new_counter();
+    let hook_context: HookContext = HookContext::current();
+    let source: Signal<i32> = Signal::create(3);
+    HookContext::with(hook_context.clone(), || {
+        watch!(source, |value: i32| {
+            counter.set(counter.get() + 1);
+            assert_eq!(
+                value,
+                source.get(),
+                "the body sees the watched signal's value"
+            );
+        });
+    });
+    assert_eq!(counter.get(), 1, "the body runs once when the hook mounts");
+    source.set(9);
+    assert_eq!(
+        counter.get(),
+        2,
+        "a changed signal must run the body again, or a component that \
+         reacts to a route change would never fire"
+    );
+}
