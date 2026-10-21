@@ -9,6 +9,6 @@ use euv_ui::EuvSidebarItem;
 use std::{
     collections::HashSet,
     ffi::OsStr,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
 };

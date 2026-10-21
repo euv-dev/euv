@@ -62,8 +62,19 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
                 each row, so the row is never a direct child of \
                 `c_euv_sidebar_children`. */ \
              .c_euv_sidebar_children .c_euv_sidebar_link::before, .c_euv_sidebar_children .c_euv_sidebar_group_title::before { left: -9px !important; } \
-             .c_euv_sidebar_children .c_euv_sidebar_link_active::before, .c_euv_sidebar_children .c_euv_sidebar_group_title_active::before { left: -8px !important; } \
-             .c_euv_sidebar_children .c_euv_sidebar_link_active_flush::before { left: 0 !important; } \
+             /* An active row is pulled back to the guide by its own \
+                `margin-left: -9px`, so its padding box *is* the guide and its \
+                marker belongs at `left: 0` — on the accent fill, where it is \
+                invisible. The active group title used to sit in the `-8px` rule \
+                with the active link, but that rule is descendant-scoped \
+                (two classes) and therefore outranks the later `left: 0` rule \
+                (one class): the group's 5px marker was dragged 8px left of the \
+                guide and painted a bold bar in the gutter beside the dashed \
+                rail, which is exactly what the active leaf does not show. \
+                Keep the two active rows in one rule, at the specificity that \
+                actually wins. */ \
+             .c_euv_sidebar_children .c_euv_sidebar_link_active::before { left: -8px !important; } \
+             .c_euv_sidebar_children .c_euv_sidebar_link_active_flush::before, .c_euv_sidebar_children .c_euv_sidebar_group_title_active::before { left: 0 !important; } \
              \
              /* Every row class whose ::before marker is absolutely positioned
                 must itself be positioned, or the marker resolves against the
