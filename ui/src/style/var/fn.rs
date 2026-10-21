@@ -58,11 +58,15 @@ vars! {
 
 
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
-        // `px` so it can be dropped into a plain `var()` position;
-        // `side-indent-num` is the same number without a unit, for the places
-        // that have to do arithmetic (`calc(100% + 9px)`, `-9px`) where
-        // appending `px` to a var would produce invalid CSS. Keep the two in
-        // step: `side-indent` is `space-sm + 1px` — the
+        // `px` so it can be dropped into a plain `var()` position *and* used
+        // directly in `calc()` arithmetic — `calc(100% + var(--side-indent))`
+        // and `calc(-1 * var(--side-indent))` are both valid lengths.
+        // `side-indent-num` is the same number without a unit: a unitless
+        // token can only ever be a number, so `px` must never be glued to it
+        // — the substitution leaves a number token next to an ident, the
+        // parser drops the whole declaration, and the property silently
+        // keeps its initial value. Keep the two in step: `side-indent` is
+        // `space-sm + 1px` — the
         // `c_euv_sidebar_children` `padding-left` plus its dashed border, not
         // its `margin-left`, which places the guide against the parent label.
         side-indent: "9px";
@@ -242,11 +246,15 @@ vars! {
 
 
         // Sidebar nesting indent, in two forms. `side-indent` carries its own
-        // `px` so it can be dropped into a plain `var()` position;
-        // `side-indent-num` is the same number without a unit, for the places
-        // that have to do arithmetic (`calc(100% + 9px)`, `-9px`) where
-        // appending `px` to a var would produce invalid CSS. Keep the two in
-        // step: `side-indent` is `space-sm + 1px` — the
+        // `px` so it can be dropped into a plain `var()` position *and* used
+        // directly in `calc()` arithmetic — `calc(100% + var(--side-indent))`
+        // and `calc(-1 * var(--side-indent))` are both valid lengths.
+        // `side-indent-num` is the same number without a unit: a unitless
+        // token can only ever be a number, so `px` must never be glued to it
+        // — the substitution leaves a number token next to an ident, the
+        // parser drops the whole declaration, and the property silently
+        // keeps its initial value. Keep the two in step: `side-indent` is
+        // `space-sm + 1px` — the
         // `c_euv_sidebar_children` `padding-left` plus its dashed border, not
         // its `margin-left`, which places the guide against the parent label.
         side-indent: "9px";

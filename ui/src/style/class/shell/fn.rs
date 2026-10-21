@@ -1018,9 +1018,16 @@ class! {
         // as a chip sitting in from the edge. The negative margin below pulls
         // the fill out to this level's dashed guide; the left padding pays it
         // straight back so the label keeps the exact x it has while inactive.
-        margin-left: format!("-{}px", var!(side-indent-num));
-        width: format!("calc(100% + {}px)", var!(side-indent-num));
-        padding-left: format!("calc({} + {}px)", var!(space-md), var!(side-indent-num));
+        //
+        // The arithmetic runs through `calc()` on the *length* token
+        // (`--side-indent`, which carries its own unit). Gluing a unit onto
+        // a `var()` — `var(--side-indent-num)px` — is not a length: the
+        // substitution leaves a number token next to an ident, the parser
+        // drops the whole declaration, and the fill never reaches the guide.
+        // A unitless token can only be used as a number inside `calc()`.
+        margin-left: format!("calc(-1 * {})", var!(side-indent));
+        width: format!("calc(100% + {})", var!(side-indent));
+        padding-left: format!("calc({} + {})", var!(space-md), var!(side-indent));
         :hover {
             box-shadow: "none";
         }
@@ -1246,13 +1253,15 @@ class! {
         // Vertical padding matches `c_euv_sidebar_link` (`control-row-pad`),
         // see the note on that class for why the row is 42px and not 48px.
         padding: format!("{} {}", var!(control-row-pad), var!(space-md));
-        padding-left: format!("calc({} + {}px)", var!(space-md), var!(side-indent-num));
-        // `var!()` expands to a bare `var(--token)`, so the unit has to live
-        // inside the token — writing `-{}px` here would emit
-        // `calc(-var(--side-indent-num)px)`, which is not a length and gets
-        // dropped by the parser.
-        margin-left: format!("-{}px", var!(side-indent-num));
-        width: format!("calc(100% + {}px)", var!(side-indent-num));
+        padding-left: format!("calc({} + {})", var!(space-md), var!(side-indent));
+        // The arithmetic runs through `calc()` on the *length* token
+        // (`--side-indent`, which carries its own unit). Gluing a unit onto
+        // a `var()` — `var(--side-indent-num)px` — is not a length: the
+        // substitution leaves a number token next to an ident, the parser
+        // drops the whole declaration, and the fill never reaches the guide.
+        // A unitless token can only be used as a number inside `calc()`.
+        margin-left: format!("calc(-1 * {})", var!(side-indent));
+        width: format!("calc(100% + {})", var!(side-indent));
         font-size: var!(font-base);
         background: var!(accent);
         color: var!(text-on-accent);

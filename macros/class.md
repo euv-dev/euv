@@ -456,11 +456,13 @@ class! {
 
 ```rust
 // ui/src/style/class/shell/fn.rs:1021-1023
-margin-left: format!("-{}px", var!(side-indent-num));
-width: format!("calc(100% + {}px)", var!(side-indent-num));
+margin-left: format!("calc(-1 * {})", var!(side-indent));
+width: format!("calc(100% + {})", var!(side-indent));
 ```
 
-展开结果实测：`"margin-left: calc(100% + 12px); "` 一类，变量名全部替换成 `var(--..)`。
+展开结果：`"margin-left: calc(-1 * var(--side-indent)); "` 一类 —— 变量名全部替换成 `var(--..)`，**不是**替换成变量的值；值由浏览器在计算样式时解析。
+
+> ⚠️ **单位不能直接拼在 `var()` 后面。** `--side-indent-num` 这类不带单位的 token 只能当数字用（`calc(-1 * var(--side-indent-num) * 1px)`）；写成 `var(--side-indent-num)px` 时，替换后是一个数字 token 紧跟一个 `px` ident，**不是合法长度，整条声明会被解析器丢弃**，属性静默保持初始值 —— fmt、clippy、测试全都发现不了。要带单位就用带单位的 token（`--side-indent`），或让单位参与 `calc()` 运算。
 
 ## 错误信息
 
