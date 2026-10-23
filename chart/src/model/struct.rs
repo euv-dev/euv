@@ -5,7 +5,7 @@ use super::*;
 /// One scale serves one axis. The scale knows the data domain (the range
 /// of values the data cover) and the pixel range (the extent of the grid
 /// along the axis), and maps between them.
-#[derive(Clone, Debug, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, lombok_macros::Data, PartialEq)]
 pub struct Scale {
     /// The kind of the scale.
     #[get(type(copy))]
@@ -56,7 +56,7 @@ pub struct AxisTick {
 }
 
 /// The layout of one axis.
-#[derive(Clone, Debug, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, lombok_macros::Data, PartialEq)]
 pub struct AxisLayout {
     /// The index of the axis in the option.
     #[get(type(copy))]
@@ -99,7 +99,7 @@ pub struct AxisLayout {
 }
 
 /// The layout of one cartesian grid.
-#[derive(Clone, Debug, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, lombok_macros::Data, PartialEq)]
 pub struct GridLayout {
     /// The index of the grid in the option.
     #[get(type(copy))]
@@ -156,7 +156,7 @@ pub struct SeriesLayout {
 }
 
 /// The whole layout of a chart.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct ChartLayout {
     /// The width of the chart, in canvas pixels.
     #[get(type(copy))]
@@ -198,7 +198,7 @@ pub struct VisualPiece {
 /// option once, and then asks the map for the colour of every value it
 /// draws — which is what keeps a map of a country from walking the
 /// palette for every region.
-#[derive(Clone, Debug, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, lombok_macros::Data, PartialEq)]
 pub struct VisualMap {
     /// The kind of the visual map.
     #[get(type(copy))]

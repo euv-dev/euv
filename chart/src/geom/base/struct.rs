@@ -12,7 +12,7 @@ use super::*;
 ///
 /// This is the same layout SVG and Canvas2D use, so a transform built here
 /// can be handed to a Canvas2D context verbatim.
-#[derive(Clone, Copy, Debug, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Copy, Debug, lombok_macros::Data, PartialEq)]
 pub struct Transform2D {
     /// The horizontal scale / shear term applied to `x`.
     #[get(type(copy))]
@@ -41,7 +41,7 @@ pub struct Transform2D {
 /// keeps the empty-box case representable: a box that has not been
 /// extended yet is `min > max` on every axis, which is the standard
 /// sentinel for "no geometry yet".
-#[derive(Clone, Copy, Debug, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Copy, Debug, lombok_macros::Data, PartialEq)]
 pub struct BBox {
     /// The smallest `x` reached by the geometry.
     #[get(type(copy))]
@@ -63,7 +63,7 @@ pub struct BBox {
 /// backends, which upload them verbatim, and pixel-space coordinates never
 /// need more than 24 bits of mantissa. Layout arithmetic happens in
 /// `f64` and is narrowed once, when a path is built.
-#[derive(Clone, Copy, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Copy, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct Point {
     /// The horizontal coordinate.
     #[get(type(copy))]
@@ -78,7 +78,7 @@ pub struct Point {
 /// The flat representation keeps the hot triangulation loop free of
 /// indirection: the inner scan reads `points[i]` directly instead of
 /// chasing a per-vertex pointer.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct Polygon {
     /// The vertices, in order.
     pub points: Vec<Point>,
@@ -91,7 +91,7 @@ pub struct Polygon {
 /// expressed as paths. Paths are immutable once built — the builder
 /// produces the final command buffer, and the tessellator consumes it
 /// without mutating it.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct Path {
     /// The command buffer.
     #[get(pub(crate))]
@@ -154,7 +154,7 @@ pub(crate) struct Ellipse {
 ///
 /// The colour lives in the paint layer; this struct carries only what the
 /// tessellator needs to turn a path into stroke geometry.
-#[derive(Clone, Debug, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, lombok_macros::Data, PartialEq)]
 pub struct StrokeStyle {
     /// The line width, in pixels.
     #[get(type(copy))]
@@ -173,7 +173,7 @@ pub struct StrokeStyle {
 ///
 /// `offset` shifts the pattern along the path; a negative offset moves the
 /// pattern backwards.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct DashPattern {
     /// The alternating on/off lengths, in pixels.
     ///

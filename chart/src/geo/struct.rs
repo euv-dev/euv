@@ -10,7 +10,7 @@ pub struct GeoPoint {
 }
 
 /// The box a map covers.
-#[derive(Clone, Copy, Debug, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Copy, Debug, lombok_macros::Data, PartialEq)]
 pub struct GeoBounds {
     /// The westernmost longitude.
     #[get(type(copy))]
@@ -44,7 +44,7 @@ pub struct RegionPolygon {
 /// The name of the region is what the series' data is matched
 /// against: a data item whose name is the name of a region gives that
 /// region its value.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct MapRegion {
     /// The name of the region.
     pub name: String,
@@ -53,7 +53,7 @@ pub struct MapRegion {
 }
 
 /// One map: the regions it is made of, and the box they cover.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct MapData {
     /// The name the map is registered under.
     pub name: String,
@@ -70,14 +70,14 @@ pub struct MapData {
 /// geometry is kept out of the option on purpose — a map of a country
 /// is megabytes of coordinates, and it is the same for every chart
 /// that draws it.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct MapRegistry {
     /// The maps of the registry, by name.
     pub maps: BTreeMap<String, MapData>,
 }
 
 /// One region of a map, in pixel space.
-#[derive(Clone, Debug, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, lombok_macros::Data, PartialEq)]
 pub struct GeoRegionLayout {
     /// The name of the region.
     pub name: String,
@@ -88,7 +88,7 @@ pub struct GeoRegionLayout {
 }
 
 /// A map, in pixel space.
-#[derive(Clone, Debug, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, lombok_macros::Data, PartialEq)]
 pub struct GeoLayout {
     /// The name of the map.
     pub name: String,

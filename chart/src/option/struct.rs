@@ -63,7 +63,7 @@ pub struct LineStyleOption {
 }
 
 /// The text drawn next to a data point, an axis, or a legend entry.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct LabelOption {
     /// Whether the label is drawn.
     #[get(type(copy))]
@@ -698,7 +698,7 @@ pub struct CustomOptions {
 /// One type covers every ECharts series kind: the fields that only make
 /// sense for some kinds are grouped into the matching options struct, and
 /// the renderer ignores the ones that do not apply to its kind.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct SeriesOption {
     /// The kind of the series.
     #[get(type(copy))]
@@ -839,7 +839,7 @@ pub struct SeriesOption {
 }
 
 /// The options of the chart's title.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct TitleOption {
     /// The main title.
     pub text: String,
@@ -944,7 +944,7 @@ pub struct GridOption {
 }
 
 /// The options of one axis.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct AxisOption {
     /// The kind of the axis.
     #[get(type(copy))]
@@ -1047,7 +1047,7 @@ pub struct AxisPointerOption {
 }
 
 /// The options of the chart's tooltip.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct TooltipOption {
     /// Whether the tooltip is drawn.
     #[get(type(copy))]
@@ -1434,7 +1434,7 @@ pub struct BrushOption {
 ///
 /// The field names mirror ECharts' option object, so an ECharts
 /// configuration can be translated field by field.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct ChartOption {
     /// The title of the chart.
     #[get(type(clone))]

@@ -219,7 +219,7 @@ class! {
         // here instead of being left to a side effect.
         margin-top: var!(page-block-gap);
         @media ((max-width: 767px)) {
-        margin-top: var!(page-block-gap-mobile);
+            margin-top: var!(page-block-gap-mobile);
         }
     }
 

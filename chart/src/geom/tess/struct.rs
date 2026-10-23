@@ -71,7 +71,7 @@ pub struct SolidVertex {
 /// `vertices` array reinterpreted as `SolidVertex`, and the index buffer
 /// is the `indices` array. Keeping the two in a single struct lets the
 /// backends share one upload path and one pipeline layout.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct SolidMesh {
     /// The vertices.
     pub vertices: Vec<SolidVertex>,
@@ -95,7 +95,7 @@ pub struct TextVertex {
 }
 
 /// A textured triangle mesh.
-#[derive(Clone, Debug, Default, PartialEq, lombok_macros::Data)]
+#[derive(Clone, Debug, Default, lombok_macros::Data, PartialEq)]
 pub struct TextMesh {
     /// The vertices.
     pub vertices: Vec<TextVertex>,

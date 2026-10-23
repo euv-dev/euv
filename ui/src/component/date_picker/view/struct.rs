@@ -31,7 +31,7 @@ pub struct EuvDatePickerProps {
 }
 
 /// The cache of one month's caption.
-#[derive(Clone, Debug, Default, Data)]
+#[derive(Clone, Data, Debug, Default)]
 pub(crate) struct MonthCaption {
     /// The cached `(year, month, caption)` triple.
     #[get(pub(crate))]
