@@ -1,5 +1,6 @@
 use super::*;
 
+/// Inherent implementation of [`EuvRatingSize`].
 impl EuvRatingSize {
     /// Returns the star glyph edge length in pixels for this size.
     ///

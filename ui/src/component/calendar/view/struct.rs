@@ -35,4 +35,12 @@ pub struct EuvCalendarProps {
     pub days: Vec<EuvCalendarDay>,
     /// The currently selected day number.
     pub selected: Signal<u32>,
+    /// The callback a click on a day cell runs.
+    ///
+    /// The calendar resolves no date of its own, so the cell hands the day
+    /// number and whether the cell belongs to a neighbouring month to this
+    /// callback and leaves the date arithmetic to the caller. When it is
+    /// absent the cell writes its day number into `selected` instead.
+    #[debug(skip)]
+    pub on_day_click: Option<Rc<dyn Fn(u32, bool)>>,
 }

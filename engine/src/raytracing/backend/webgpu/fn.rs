@@ -104,7 +104,6 @@ pub(crate) fn method(target: &JsValue, name: &str) -> Result<Function, JsValue> 
 ///
 /// - `&JsValue` - The handle to call on.
 /// - `&str` - The method name, used in the diagnostic.
-/// - `&JsValue` - The single argument.
 ///
 /// # Returns
 ///
@@ -151,8 +150,6 @@ pub(crate) fn call0(target: &JsValue, name: &str) -> Result<JsValue, JsValue> {
 ///
 /// - `&JsValue` - The handle to call on.
 /// - `&str` - The method name.
-/// - `&JsValue` - The first argument.
-/// - `&JsValue` - The second argument.
 ///
 /// # Returns
 ///
@@ -548,7 +545,6 @@ fn register_error_listener(
 /// # Arguments
 ///
 /// - `&JsValue` - The device to stop observing.
-/// - `&JsValue` - The listener handle `register_error_listener`
 ///   returned.
 pub(crate) fn unregister_error_listener(device: &JsValue, listener: &JsValue) {
     if let Ok(remove) = method(device, BACKEND_WEBGPU_METHOD_REMOVE_LISTENER) {
@@ -754,7 +750,6 @@ pub(crate) fn compilation_messages(info: &JsValue) -> String {
 /// # Arguments
 ///
 /// - `&JsValue` - The queue to write through.
-/// - `&JsValue` - The destination buffer.
 /// - `&[f32]` - The packed block.
 ///
 /// # Returns
@@ -820,8 +815,6 @@ pub(crate) fn destroy_device(device: &JsValue) {
 ///
 /// - `&JsValue` - The device to destroy.
 /// - `Option<&JsValue>` - The scene buffer, when one exists.
-/// - `Option<&JsValue>` - The frame buffer, when one exists.
-/// - `Option<&JsValue>` - The configured context, when one exists.
 ///
 /// # Returns
 ///
@@ -911,9 +904,6 @@ pub(crate) fn packed_layout(device: &JsValue) -> Result<JsValue, JsValue> {
 /// # Arguments
 ///
 /// - `&JsValue` - The device to create the bind group on.
-/// - `&JsValue` - The packed scene buffer.
-/// - `&JsValue` - The packed frame buffer.
-/// - `&JsValue` - The persistent layout.
 ///
 /// # Returns
 ///

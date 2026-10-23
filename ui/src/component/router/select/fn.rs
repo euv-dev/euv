@@ -30,7 +30,6 @@ pub fn normalize_path(path: &str) -> String {
 /// # Arguments
 ///
 /// - `&str` - Shared reference to a `str`.
-/// - `&str` - Shared reference to a `str`.
 ///
 /// # Returns
 ///

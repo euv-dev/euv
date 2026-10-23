@@ -718,7 +718,6 @@ fn expand_active_groups(
 ///
 /// - `&'static [EuvSidebarItem]` - The items of the current tree level.
 /// - `&str` - The active route path.
-/// - `&str` - The group key prefix of the parent level.
 /// - `&mut Vec<String>` - The collected group keys.
 ///
 /// # Returns

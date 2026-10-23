@@ -776,6 +776,7 @@ fn a_calendar_renders_one_cell_per_day_plus_the_weekday_header() {
             EuvCalendarWeekday::Sat,
             EuvCalendarWeekday::Sun,
         ],
+        on_day_click: None,
         days: vec![
             EuvCalendarDay {
                 day: 1,
@@ -802,6 +803,7 @@ fn a_calendar_renders_one_cell_per_day_plus_the_weekday_header() {
         weekdays: Vec::new(),
         days: Vec::new(),
         selected: Signal::create(0),
+        on_day_click: None,
     }));
     assert!(
         count_elements(&rendered) > count_elements(&empty),

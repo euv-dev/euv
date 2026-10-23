@@ -1,5 +1,6 @@
 use super::*;
 
+/// Inherent implementation of [`EuvSwitchState`].
 impl EuvSwitchState {
     /// Creates a state handle for the given checked signal.
     ///

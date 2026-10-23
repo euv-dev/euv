@@ -8,7 +8,6 @@ use super::*;
 /// # Arguments
 ///
 /// - `f64` - The rating value to normalise.
-/// - `f64` - The maximum rating value the percentage is relative to.
 ///
 /// # Returns
 ///

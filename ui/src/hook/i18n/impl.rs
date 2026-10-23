@@ -105,7 +105,6 @@ impl I18n {
     /// # Arguments
     ///
     /// - `&str` - Shared reference to a `str`.
-    /// - `&str` - Shared reference to a `str`.
     pub fn remove_message(&self, locale: &str, key: &str) {
         let mut guard: RwLockWriteGuard<'static, HashMap<String, HashMap<String, String>>> =
             messages_lock().write().unwrap_or_else(

@@ -878,7 +878,6 @@ impl HtmlDynamicTag {
     /// - `&str` - Shared reference to a `str`.
     /// - `&ComponentInfo` - Shared reference to a `ComponentInfo`.
     /// - `&[proc_macro2::TokenStream]` - Shared reference to a `[proc_macro2::TokenStream]`.
-    /// - `&[proc_macro2::TokenStream]` - Shared reference to a `[proc_macro2::TokenStream]`.
     ///
     /// # Returns
     ///

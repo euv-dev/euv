@@ -38,6 +38,10 @@ pub(crate) const NAV_ITEMS: &[(&str, &str, &str)] = &[
     ("⏲️", "Timing", "/hooks-timing"),
     ("⏱️", "Timer", "/timer"),
     ("📁", "Upload", "/file-upload"),
+    ("🧰", "UI Advanced", "/ui-advanced"),
+    ("🗂️", "UI Data", "/ui-data"),
+    ("🧱", "UI Display", "/ui-display"),
+    ("🎛️", "UI Forms", "/ui-forms"),
     ("📊", "VList", "/virtual-list"),
     ("🔌", "WebSocket", "/websocket"),
 ];

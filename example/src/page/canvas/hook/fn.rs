@@ -107,7 +107,6 @@ pub(crate) fn update_snapshot(state: UseCanvas) {
 ///
 /// - `UseCanvas` - The canvas drawing board state.
 /// - `f64` - The x coordinate of the starting point.
-/// - `f64` - The y coordinate of the starting point.
 pub(crate) fn start_drawing(state: UseCanvas, offset_x: f64, offset_y: f64) {
     state.get_drawing().set(true);
     state.get_last_x().set(offset_x);
@@ -159,7 +158,6 @@ pub(crate) fn start_drawing(state: UseCanvas, offset_x: f64, offset_y: f64) {
 ///
 /// - `UseCanvas` - The canvas drawing board state.
 /// - `f64` - The x coordinate of the destination point.
-/// - `f64` - The y coordinate of the destination point.
 pub(crate) fn continue_drawing(state: UseCanvas, offset_x: f64, offset_y: f64) {
     if !state.get_drawing().get() {
         return;
@@ -506,9 +504,6 @@ pub(crate) fn prevent_event_default(event: &Event) {
 /// # Arguments
 ///
 /// - `f64` - The `offsetX` value from the event (used in normal mode).
-/// - `f64` - The `offsetY` value from the event (used in normal mode).
-/// - `f64` - The `clientX` value from the event (used in fullscreen mode).
-/// - `f64` - The `clientY` value from the event (used in fullscreen mode).
 /// - `bool` - Whether the canvas is in fullscreen mode.
 ///
 /// # Returns

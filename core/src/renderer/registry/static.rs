@@ -22,7 +22,7 @@ thread_local! {
     /// was an `O(N)` scan with a `*const SignalUpdateSlot` pointer
     /// dereference + branch per entry. The dirty-set replaces it with a
     /// single `HashSet::drain()` over the IDs that were actually marked
-    /// dirty — a `O(脏节点数)` operation that does no per-slot pointer
+    /// dirty — a `O(dirty node count)` operation that does no per-slot pointer
     /// traversal until the matching slot is found.
     ///
     /// Populated by `Registry::mark_dirty` and drained by

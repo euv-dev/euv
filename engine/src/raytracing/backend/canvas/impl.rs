@@ -1,5 +1,6 @@
 use super::*;
 
+/// Inherent implementation of [`CanvasRayTraceBackend`].
 impl CanvasRayTraceBackend {
     /// Acquires the 2D context and allocates the surface's image and
     /// backing array.
@@ -8,7 +9,6 @@ impl CanvasRayTraceBackend {
     ///
     /// - `&HtmlCanvasElement` - The canvas to draw into.
     /// - `u32` - The surface width in pixels.
-    /// - `u32` - The surface height in pixels.
     ///
     /// # Returns
     ///
@@ -55,7 +55,6 @@ impl CanvasRayTraceBackend {
     /// # Arguments
     ///
     /// - `u32` - The surface width in pixels.
-    /// - `u32` - The surface height in pixels.
     ///
     /// # Returns
     ///

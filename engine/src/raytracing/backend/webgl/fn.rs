@@ -221,7 +221,7 @@ fn drain_gl_error(context: &WebGl2RenderingContext) -> String {
 /// - `&WebGl2RenderingContext` - The context to inspect.
 /// - `&'static str` - The stable error code the failure is reported
 ///   under.
-/// - `&str` - The call the diagnostic names as the source.
+/// - `&str` - The stable error code the failure is reported
 ///
 /// # Returns
 ///
@@ -342,7 +342,6 @@ pub(crate) fn validate_block_capacity(floats: usize, limit: u32) -> Result<(), J
 /// - `&WebGl2RenderingContext` - The context to allocate in.
 /// - `u32` - The texture unit this texture will be bound to.
 /// - `i32` - The texture width in texels.
-/// - `i32` - The texture height in texels.
 ///
 /// # Returns
 ///
@@ -613,10 +612,7 @@ pub(crate) fn viewport_dimension_limit(context: &WebGl2RenderingContext) -> u32 
 /// # Arguments
 ///
 /// - `&WebGl2RenderingContext` - The context to inspect for a lost
-///   state.
 /// - `u32` - The requested width in pixels.
-/// - `u32` - The requested height in pixels.
-/// - `u32` - The largest surface dimension this context accepts.
 ///
 /// # Returns
 ///

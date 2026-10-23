@@ -453,7 +453,6 @@ fn resolve_pinned_locale(config: &Config) -> usize {
 /// # Arguments
 ///
 /// - `&str` - The page route being tested.
-/// - `&str` - The pinned locale's URL prefix.
 /// - `&Config` - The parsed site configuration listing every prefix.
 ///
 /// # Returns
@@ -479,7 +478,6 @@ fn page_in_locale(route: &str, pinned: &str, config: &Config) -> bool {
 /// # Arguments
 ///
 /// - `&str` - The route or internal link.
-/// - `&str` - The pinned locale's URL prefix (with trailing slash).
 ///
 /// # Returns
 ///
@@ -2416,7 +2414,6 @@ fn unique_slug(base: &str, used: &mut HashSet<String>) -> String {
 /// # Arguments
 ///
 /// - `&str` - the raw markdown link target
-/// - `&str` - the route of the page holding the link
 ///
 /// # Returns
 ///
@@ -2469,7 +2466,6 @@ fn rewrite_link(dest: &str, route: &str) -> (String, bool) {
 /// # Arguments
 ///
 /// - `&str` - the raw markdown image `src`
-/// - `&str` - the route of the page holding the image; kept for signature symmetry
 ///
 /// # Returns
 ///

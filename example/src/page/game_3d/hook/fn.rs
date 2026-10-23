@@ -107,9 +107,6 @@ pub(crate) fn create_initial_cubes() -> Vec<Cube3D> {
 /// # Arguments
 ///
 /// - `f64` - The orbit yaw angle in radians.
-/// - `f64` - The orbit pitch angle in radians.
-/// - `f64` - The canvas width in CSS pixels (camera X extent).
-/// - `f64` - The canvas height in CSS pixels (camera Y extent).
 ///
 /// # Returns
 ///
@@ -223,7 +220,6 @@ pub(crate) fn is_face_visible(world_vertices: &[Vector3D], camera: &Camera3D) ->
 /// - `&[Cube3D]` - The cube list to render.
 /// - `&Camera3D` - The camera.
 /// - `f64` - The canvas width in CSS pixels (clear-rect bound).
-/// - `f64` - The canvas height in CSS pixels (clear-rect bound).
 pub(crate) fn render_scene(
     ssaa_canvas: &SsaaCanvas,
     cubes: &[Cube3D],
@@ -535,7 +531,6 @@ pub(crate) fn register_canvas_scroll_guard(canvas_selector: &str) -> Option<Canv
 ///
 /// # Arguments
 ///
-/// - `&str` - Shared reference to a `str`.
 /// - `&str` - Shared reference to a `str`.
 pub(crate) fn draw_game_3d_loading(target_selector: &str, color_source_selector: &str) {
     let Some(window_value): Option<Window> = window() else {

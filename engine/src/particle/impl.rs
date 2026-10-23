@@ -48,7 +48,6 @@ impl ParticleRng {
     /// # Arguments
     ///
     /// - `f64` - The inclusive lower bound.
-    /// - `f64` - The exclusive upper bound.
     ///
     /// # Returns
     ///

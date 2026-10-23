@@ -879,7 +879,6 @@ impl PhysicsWorld3D {
     /// # Arguments
     ///
     /// - `&RigidBody3D` - The first body.
-    /// - `&RigidBody3D` - The second body.
     ///
     /// # Returns
     ///
@@ -948,7 +947,6 @@ impl PhysicsWorld3D {
     /// # Arguments
     ///
     /// - `&mut RigidBody3D` - The first body.
-    /// - `&mut RigidBody3D` - The second body.
     /// - `&CollisionResult3D` - The collision data.
     fn resolve_collision_3d(a: &mut RigidBody3D, b: &mut RigidBody3D, result: &CollisionResult3D) {
         let a_inverse_mass: f64 = a.get_inverse_mass();

@@ -3,9 +3,9 @@ use super::*;
 class! {
     pub(crate) c_game_stats_bar {
         display: "flex";
-        gap: "16px";
-        margin-bottom: "12px";
-        font-size: "14px";
+        gap: var!(space-lg);
+        margin-bottom: var!(space-md);
+        font-size: var!(font-sm);
         font-weight: "600";
     }
 
@@ -111,7 +111,7 @@ class! {
         height: "100%";
         cursor: "grab";
         display: "block";
-        background: "#000000";
+        background: var!(surface-media);
         touch-action: "none";
         object-fit: "contain";
     }

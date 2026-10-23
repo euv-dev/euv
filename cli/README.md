@@ -39,239 +39,31 @@ locales:
 
 ## euv-cli
 
+<img src="https://docs.ltpp.vip/img/euv-cli.png" alt="" height="160">
+
 [![](https://img.shields.io/crates/v/euv-cli.svg)](https://crates.io/crates/euv-cli)
 [![](https://img.shields.io/crates/d/euv-cli.svg)](https://img.shields.io/crates/d/euv-cli.svg)
 [![](https://docs.rs/euv-cli/badge.svg)](https://docs.rs/euv-cli)
-[![](https://github.com/euv-dev/euv/workflows/Rust/badge.svg)](https://github.com/euv-dev/euv/actions?query=workflow:Rust)
-[![](https://img.shields.io/crates/l/euv-cli.svg)](../LICENSE)
+[![](https://github.com/euv-dev/euv/workflows/Rust/badge.svg)](https://github.com/euv-dev/euv/actions?query=workflow=Rust)
+[![](https://img.shields.io/crates/l/euv-cli.svg)](./LICENSE)
 
 </center>
 
 [Api Docs](https://docs.rs/euv-cli/latest/)
 
-> The official CLI tool for the euv UI framework, providing run/build/fmt modes with hot reload and wasm-pack integration.
+> The official CLI tool for the euv UI framework, providing dev/release profiles with run/build modes, hot reload, and wasm-pack integration.
 
 ## Installation
+
+To use this crate, you can run cmd:
 
 ```shell
 cargo install euv-cli
 ```
 
-> After installation, the CLI binary is named `euv`.
-
-## Usage
-
-The CLI uses the pattern `euv <action>` where:
-
-- **Action**: `run` (build + start server), `build` (build only), or `fmt` (format euv macros)
-
-All `wasm-pack build` arguments are transparently forwarded after `--`.
-
-### Run (build + dev server)
-
-```shell
-# Dev build with dev server
-euv run --dev --crate-path ./example --port 80 --www-dir www --index-html ./template.html -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-# Release build with dev server
-euv run --release --crate-path ./example --port 80 --www-dir www --index-html ./template.html -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-# Dev build for local development
-euv run --dev --crate-path ./example --port 80 --www-dir www -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-# Release build for local development
-euv run --release --crate-path ./example --port 80 --www-dir www -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-### Fmt (format euv macros)
-
-Format euv macro invocations (`html!`, `class!`, `vars!`, `watch!`) in Rust source files:
-
-```shell
-# Format all .rs files in the current directory (recursive)
-euv fmt
-
-# Format all .rs files in a specific directory
-euv fmt --path ./src
-
-# Format a single file
-euv fmt --path src/main.rs
-
-# Check if formatting is needed without modifying files
-euv fmt --check
-
-# Check a specific path
-euv fmt --path ./src --check
-```
-
-#### Formatting Rules
-
-- Tag name and `{` separated by exactly one space
-- Attribute name immediately followed by `:`, then one space before the value
-- `if { expr }` / `match { expr }` / `for pattern in { expr }` with proper spacing
-- `=>` in `watch!` macros with proper spacing
-- Content inside expression braces `{ expr }` is preserved verbatim; only template-level whitespace is normalized
-
-#### Fmt Options
-
-| Option    | Short | Default | Description                                           |
-| --------- | ----- | ------- | ----------------------------------------------------- |
-| `--path`  | `-p`  | `.`     | Path to the directory or file to format               |
-| `--check` |       | `false` | Check if formatting is needed without modifying files |
-
-### Build (build only)
-
-```shell
-# Dev build
-euv build --dev --crate-path ./example --www-dir www --index-html ./template.html -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-# Release build
-euv build --release --crate-path ./example --www-dir www --index-html ./template.html -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-# Dev build for local development
-euv build --dev --crate-path ./example --www-dir www -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-# Release build for local development
-euv build --release --crate-path ./example --www-dir www -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-### Via Cargo
-
-#### Run (build + dev server)
-
-```shell
-cargo run -p euv-cli -- run --dev --crate-path ./example --port 80 --www-dir www --index-html ./template.html -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-cargo run -p euv-cli -- run --release --crate-path ./example --port 80 --www-dir www --index-html ./template.html -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-cargo run -p euv-cli -- run --dev --crate-path ./example --port 80 --www-dir www -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-cargo run -p euv-cli -- run --release --crate-path ./example --port 80 --www-dir www -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-#### Build (build only)
-
-```shell
-cargo run -p euv-cli -- build --dev --crate-path ./example --www-dir www --index-html ./template.html -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-cargo run -p euv-cli -- build --release --crate-path ./example --www-dir www --index-html ./template.html -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-cargo run -p euv-cli -- build --dev --crate-path ./example --www-dir www -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-```shell
-cargo run -p euv-cli -- build --release --crate-path ./example --www-dir www -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-```
-
-#### Fmt (format euv macros)
-
-```shell
-# Format euv macros
-cargo run -p euv-cli -- fmt --path ./example
-```
-
-```shell
-# Check formatting
-cargo run -p euv-cli -- fmt --check --path ./example
-```
-
-### Options
-
-| Option         | Short | Default | Description                                                                  |
-| -------------- | ----- | ------- | ---------------------------------------------------------------------------- |
-| `--crate-path` | `-c`  | `.`     | Path to the Rust crate containing the WASM application                       |
-| `--port`       | `-p`  | `80`    | Port for the development server                                              |
-| `--www-dir`    |       | `www`   | Directory name for static assets and generated HTML (relative to crate-path) |
-| `--index-html` |       |         | Path to a custom index.html template file                                    |
-| `--dev`        |       |         | Create a development build (default if no mode specified)                    |
-| `--release`    |       |         | Create a release build with optimizations                                    |
-| `--profiling`  |       |         | Create a profiling build with optimizations and debug info                   |
-
-### How `--www-dir` Works
-
-The `--www-dir` option controls where the CLI looks for and generates static assets:
-
-- **`index.html`** is generated inside `{crate-path}/{www-dir}/`
-- **WASM artifacts** are placed in `{crate-path}/{www-dir}/pkg/` by default (unless overridden by `--out-dir`)
-- **`.gitignore`** generated by `wasm-pack` in the output directory is automatically removed after build
-- **Dev server** serves files under the `/{www-dir}/` route prefix
-- **Bootstrap** is inlined into `index.html`; its WASM URL is resolved relative to the serving root
-
-For example, with `--www-dir www`:
-
-```
-example/
-├── www/           ← static assets directory
-│   ├── index.html    ← generated HTML with inline bootstrap
-│   └── pkg/          ← WASM build output
-│       └── euv_bg.wasm
-```
-
-### Self-contained bootstrap
-
-`euv build` and `euv run` inline the wasm-bindgen bridge and its supported
-snippet modules into HTML in every build profile, including hot rebuilds.
-Generated `.js`, `.mjs`, `.cjs`, source maps, and TypeScript declarations are
-removed from the package output only after the HTML is written successfully.
-The browser still executes JavaScript embedded in HTML to initialize WASM;
-this is not native WASM execution without JavaScript.
-
-Custom templates should put `__EUV_INLINE_JS__` inside a plain `<script>` tag.
-The legacy module bootstrap containing `__IMPORT_PATH__` is migrated when it
-can be recognized safely. An unsupported template or module construct, missing
-bridge, or failed cleanup makes the build fail instead of silently retaining
-external glue or emitting an unusable page. `EUV_NO_INLINE_BRIDGE` no longer
-disables this behavior.
-
-Explicit `--out-dir` and `--out-name` values determine the actual package and
-WASM URL. When the package is outside `--www-dir`, HTML is written beside its
-package directory and the dev server serves that same root. Non-JavaScript
-assets are preserved, and cleanup does not follow directory symlinks.
-
-### wasm-pack Options (transparent passthrough after `--`)
-
-All `wasm-pack build` flags are forwarded as-is. Common options:
-
-| Option              | Description                                                |
-| ------------------- | ---------------------------------------------------------- |
-| `--target`          | Use `web` for the self-contained browser bootstrap        |
-| `--out-dir`         | Output directory with a relative path                      |
-| `--out-name`        | Output file names, defaults to package name                |
-| `--scope`           | The npm scope to use in package.json                       |
-| `--mode`            | Steps to be run: no-install, normal, force                 |
-| `--no-typescript`   | Disable TypeScript declaration file generation             |
-| `--weak-refs`       | Enable usage of the JS weak references proposal            |
-| `--reference-types` | Enable usage of WebAssembly reference types                |
-| `--no-pack`         | Do not generate a package.json                             |
-| `--no-opt`          | Skip optimization with wasm-opt                            |
-
-See `wasm-pack build --help` for the full list of options.
-
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](../LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 ## Contributing
 

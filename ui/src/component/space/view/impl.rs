@@ -1,5 +1,6 @@
 use super::*;
 
+/// Inherent implementation of [`EuvSpaceSize`].
 impl EuvSpaceSize {
     /// Returns the name of the design token backing this step.
     ///

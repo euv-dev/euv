@@ -217,8 +217,8 @@ impl Scheduler {
     /// were added during callback execution. If so, performs additional
     /// passes until the registry stabilizes, up to a maximum iteration limit.
     ///
-    /// OPT 6: replaces the per-tick `O(累计动态节点数)` registry scan
-    /// with an `O(脏节点数)` drain over `DIRTY_UPDATE_IDS`. Each id is
+    /// OPT 6: replaces the per-tick `O(cumulative dynamic node count)` registry scan
+    /// with an `O(dirty node count)` drain over `DIRTY_UPDATE_IDS`. Each id is
     /// pulled from the set exactly once per dispatch, then removed so a
     /// second pass does not re-fire it. The previous
     /// `sweep_removed_entries` step is gone: every `cleanup_*` path

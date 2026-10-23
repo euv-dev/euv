@@ -11,7 +11,6 @@ impl Ray {
     /// # Arguments
     ///
     /// - `Vector3D` - The ray origin.
-    /// - `Vector3D` - The unit direction.
     ///
     /// # Returns
     ///
@@ -68,7 +67,6 @@ impl Ray {
     /// # Arguments
     ///
     /// - `f64` - The minimum accepted hit parameter.
-    /// - `f64` - The maximum accepted hit parameter.
     ///
     /// # Returns
     ///
@@ -138,7 +136,6 @@ impl Occluder {
     /// # Arguments
     ///
     /// - `Vector3D` - The AABB minimum corner.
-    /// - `Vector3D` - The AABB maximum corner.
     /// - `Material` - The surface material.
     ///
     /// # Returns
@@ -164,8 +161,6 @@ impl Occluder {
     /// # Arguments
     ///
     /// - `Vector3D` - The first triangle vertex.
-    /// - `Vector3D` - The second triangle vertex.
-    /// - `Vector3D` - The third triangle vertex.
     /// - `Material` - The surface material.
     ///
     /// # Returns

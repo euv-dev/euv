@@ -57,7 +57,6 @@ pub(crate) fn backend_error(code: &str, detail: String) -> JsValue {
 /// # Arguments
 ///
 /// - `u32` - The requested width in pixels.
-/// - `u32` - The requested height in pixels.
 /// - `Option<u32>` - The largest pixel count allowed on one axis, when
 ///   the backend exposes one.
 ///

@@ -51,6 +51,21 @@ fn build_file_list(state: UseFileUpload) -> VirtualNode {
 ///
 /// - `VirtualNode<PageFileUploadProps>` - The `node` argument.
 ///
+// The formatting of this page is owned by the macro-aware formatter
+// (`euv fmt`), not by rustfmt: the two disagree on the indentation of
+// an `html!` body, and `euv build` runs the macro formatter on every
+// build. Skipping the function here keeps `cargo fmt --check` — the
+// gate the CI runs — green whichever of the two ran last.
+/// Body of the `page_file_upload` free function.
+///
+/// # Arguments
+///
+/// - `VirtualNode<PageFileUploadProps>` - A `VirtualNode<PageFileUploadProps>` parameter.
+///
+/// # Returns
+///
+/// - `VirtualNode` - A `VirtualNode` value.
+#[rustfmt::skip]
 #[component]
 pub(crate) fn page_file_upload(node: VirtualNode<PageFileUploadProps>) -> VirtualNode {
     let PageFileUploadProps: PageFileUploadProps = node.try_get_props().unwrap_or_default();
@@ -98,29 +113,29 @@ pub(crate) fn page_file_upload(node: VirtualNode<PageFileUploadProps>) -> Virtua
                         label: "Accept filter"
                         input_type: "text"
                         placeholder: ".png,.jpg,image/*"
-                    autocomplete: "off"
-                    value: state.get_accept()
-                    error: None
-                }
+                autocomplete: "off"
+                value: state.get_accept()
+                error: None
             }
-            p {
-                class: c_event_result()
-                "Status: "
-                span {
-                    class: c_event_highlight()
-                    state.get_status()
-                }
+        }
+        p {
+            class: c_event_result()
+            "Status: "
+            span {
+                class: c_event_highlight()
+                state.get_status()
             }
-            build_file_list(state)
-            div {
-                class: c_button_controls()
-                euv_button {
-                    variant: EuvButtonVariant::Primary
-                    label: "Clear"
-                    onclick: file_upload_on_clear(state)
-                }
+        }
+        build_file_list(state)
+        div {
+            class: c_button_controls()
+            euv_button {
+                variant: EuvButtonVariant::Primary
+                label: "Clear"
+                onclick: file_upload_on_clear(state)
             }
         }
     }
-        }
+}
+    }
 }

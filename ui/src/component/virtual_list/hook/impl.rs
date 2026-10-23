@@ -151,10 +151,7 @@ impl UseVirtualList {
     /// # Arguments
     ///
     /// - `i32` - The current scroll offset in pixels.
-    /// - `i32` - The current viewport height in pixels.
     /// - `usize` - The total number of items in the list.
-    /// - `i32` - The fixed height of each item in pixels.
-    /// - `usize` - The number of overscan items to render beyond the viewport.
     ///
     /// # Returns
     ///

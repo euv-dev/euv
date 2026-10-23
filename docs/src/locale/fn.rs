@@ -45,7 +45,6 @@ pub fn locale_tag_for(route: &str) -> &'static str {
 /// # Arguments
 ///
 /// - `&str` - The page route path, whose locale selects the table.
-/// - `&str` - The translation key.
 ///
 /// # Returns
 ///
@@ -62,7 +61,6 @@ pub fn locale_text(route: &str, key: &str) -> String {
 /// # Arguments
 ///
 /// - `&str` - The locale tag to read.
-/// - `&str` - The translation key to read.
 ///
 /// # Returns
 ///

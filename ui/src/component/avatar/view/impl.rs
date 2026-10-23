@@ -1,5 +1,6 @@
 use super::*;
 
+/// Inherent implementation of [`EuvAvatarSize`].
 impl EuvAvatarSize {
     /// Returns the square edge length in pixels for this size.
     ///

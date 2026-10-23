@@ -5,7 +5,6 @@ use super::*;
 /// # Arguments
 ///
 /// - `Vector3D` - The first vector.
-/// - `Vector3D` - The second vector.
 ///
 /// # Returns
 ///
@@ -23,7 +22,6 @@ fn vector3d_min(a: Vector3D, b: Vector3D) -> Vector3D {
 /// # Arguments
 ///
 /// - `Vector3D` - The first vector.
-/// - `Vector3D` - The second vector.
 ///
 /// # Returns
 ///
@@ -64,9 +62,6 @@ fn is_finite_vector(value: Vector3D) -> bool {
 /// # Arguments
 ///
 /// - `f64` - The ray origin component on this axis.
-/// - `f64` - The ray direction component on this axis.
-/// - `f64` - The slab lower bound.
-/// - `f64` - The slab upper bound.
 ///
 /// # Returns
 ///
@@ -103,7 +98,6 @@ fn slab_interval(
 ///
 /// - `&Ray` - The ray whose origin, direction and parameter range are used.
 /// - `Vector3D` - The AABB minimum corner.
-/// - `Vector3D` - The AABB maximum corner.
 ///
 /// # Returns
 ///
@@ -271,7 +265,6 @@ pub(crate) fn collect_occluder_points(occluders: &[Occluder]) -> Vec<(Vector3D, 
 /// # Arguments
 ///
 /// - `Vector3D` - The AABB minimum corner.
-/// - `Vector3D` - The AABB maximum corner.
 ///
 /// # Returns
 ///
@@ -383,7 +376,6 @@ fn intersect_sphere_in_range(ray: &Ray, center: Vector3D, radius: f64) -> Option
 ///
 /// - `&Ray` - The ray whose origin, direction and parameter range are used.
 /// - `Vector3D` - The AABB minimum corner.
-/// - `Vector3D` - The AABB maximum corner.
 ///
 /// # Returns
 ///
@@ -1198,7 +1190,6 @@ pub(crate) fn occluded_indexed(ray: &Ray, scene: &RayTraceScene) -> bool {
 ///
 /// - `&Ray` - The incoming ray.
 /// - `Vector3D` - The world-space hit position.
-/// - `Vector3D` - The outward unit normal at the hit point.
 ///
 /// # Returns
 ///
@@ -1236,7 +1227,6 @@ fn bounce_ray(ray: &Ray, position: Vector3D, normal: Vector3D) -> Ray {
 ///
 /// - `&'a RayTraceScene` - The scene to query for blockers.
 /// - `Vector3D` - The world-space shading position.
-/// - `Vector3D` - The surface normal at that position.
 ///
 /// # Returns
 /// - `impl FnMut(&Light, Vector3D, f64) -> f64` - A callback returning the

@@ -117,7 +117,6 @@ pub fn parse_route(raw: &str) -> (String, Option<String>) {
 /// # Arguments
 ///
 /// - `&str` - The left-hand fragment.
-/// - `&str` - The right-hand fragment.
 ///
 /// # Returns
 ///
@@ -216,7 +215,6 @@ pub fn flatten_links(items: &'static [EuvSidebarItem]) -> Vec<&'static EuvSideba
 /// # Arguments
 ///
 /// - `&str` - The group key prefix of the parent level.
-/// - `&str` - The group's display text.
 ///
 /// # Returns
 ///

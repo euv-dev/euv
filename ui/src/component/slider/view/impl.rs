@@ -1,5 +1,6 @@
 use super::*;
 
+/// Inherent implementation of [`EuvSliderHelpers`].
 impl EuvSliderHelpers {
     /// Maps `value` onto the `0.0..=100.0` percentage range spanned by
     /// `min..=max`.
@@ -11,8 +12,6 @@ impl EuvSliderHelpers {
     /// # Arguments
     ///
     /// - `f64` - The value to map.
-    /// - `f64` - The low end of the range.
-    /// - `f64` - The high end of the range.
     ///
     /// # Returns
     ///
@@ -36,7 +35,6 @@ impl EuvSliderHelpers {
     ///
     /// - `Signal<f64>` - The signal updated with the new value.
     /// - `f64` - The low end of the accepted range.
-    /// - `f64` - The high end of the accepted range.
     ///
     /// # Returns
     ///

@@ -11,12 +11,7 @@ use super::*;
 ///
 /// # Returns
 ///
-/// - `VirtualNode` - The SSE demo page virtual DOM tree.
-///
-/// # Arguments
-///
-/// - `VirtualNode<PageSseProps>` - The `node` argument.
-///
+/// - `VirtualNode` - The `VirtualNode` value.
 #[component]
 pub(crate) fn page_sse(node: VirtualNode<PageSseProps>) -> VirtualNode {
     let PageSseProps: PageSseProps = node.try_get_props().unwrap_or_default();

@@ -1,0 +1,26 @@
+[package]
+name = "euv-chart"
+version.workspace = true
+readme.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = """A high-performance charting library for the euv framework, providing an ECharts-compatible option model with WebGPU, WebGL2, and Canvas2D backends behind one API."""
+keywords = ["chart", "echarts", "webgpu", "webgl", "canvas", "wasm"]
+categories = ["web-programming", "visualization", "graphics"]
+exclude.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+euv = { workspace = true }
+euv-core = { workspace = true }
+euv-engine = { workspace = true }
+
+js-sys = { workspace = true }
+web-sys = { workspace = true }
+wasm-bindgen = { workspace = true }
+lombok-macros = { workspace = true }
+wasm-bindgen-futures = { workspace = true }

@@ -293,10 +293,6 @@ where
 /// # Arguments
 ///
 /// - `&[Option<&'a str>]` - Keys of the pre-patch children, in their original
-///   DOM order. `None` represents an unkeyed child (rare in
-///   practice — `patch_children` only dispatches here when both
-///   sides are fully keyed).
-/// - `&[Option<&'a str>]` - Keys of the post-patch children, in their target
 ///   order.
 ///
 /// # Returns

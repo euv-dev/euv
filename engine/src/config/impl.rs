@@ -44,7 +44,6 @@ impl RenderConfig {
     ///
     /// - `S` - The CSS selector for the canvas element.
     /// - `f64` - The viewport width in CSS pixels.
-    /// - `f64` - The viewport height in CSS pixels.
     ///
     /// # Returns
     ///
@@ -68,7 +67,6 @@ impl RenderConfig {
     ///
     /// - `S` - The CSS selector for the canvas element.
     /// - `f64` - The viewport width in CSS pixels.
-    /// - `f64` - The viewport height in CSS pixels.
     ///
     /// # Returns
     ///
@@ -92,7 +90,6 @@ impl RenderConfig {
     ///
     /// - `S` - The CSS selector for the canvas element.
     /// - `f64` - The viewport width in CSS pixels.
-    /// - `f64` - The viewport height in CSS pixels.
     ///
     /// # Returns
     ///

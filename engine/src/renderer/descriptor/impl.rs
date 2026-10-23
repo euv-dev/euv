@@ -12,7 +12,6 @@ impl Texture2DDescriptor {
     /// # Arguments
     ///
     /// - `u32` - The texture width in pixels.
-    /// - `u32` - The texture height in pixels.
     /// - `GpuTextureFormat` - The texel format.
     ///
     /// # Returns
@@ -199,6 +198,7 @@ impl BindGroupEntry {
 // sound here, and what would have to change for multi-threaded targets).
 // ============================================================================
 
+/// Inherent implementation of [`BindGroupLayoutEntry`].
 impl BindGroupLayoutEntry {
     /// Convenience constructor for a uniform-buffer binding slot.
     ///
@@ -493,7 +493,6 @@ impl DrawArgs {
     /// # Arguments
     ///
     /// - `u32` - The number of vertices to draw.
-    /// - `u32` - The number of instances to draw.
     ///
     /// # Returns
     ///
@@ -516,7 +515,6 @@ impl DrawIndexedArgs {
     /// # Arguments
     ///
     /// - `u32` - The number of indices to read.
-    /// - `u32` - The number of instances to draw.
     ///
     /// # Returns
     ///
@@ -540,8 +538,6 @@ impl DispatchArgs {
     /// # Arguments
     ///
     /// - `u32` - The workgroups dispatched along the x axis.
-    /// - `u32` - The workgroups dispatched along the y axis.
-    /// - `u32` - The workgroups dispatched along the z axis.
     ///
     /// # Returns
     ///
