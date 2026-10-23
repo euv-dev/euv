@@ -207,7 +207,6 @@ pub fn route_variants(route: &str) -> Vec<String> {
 /// # Arguments
 ///
 /// - `&str` - A route the site serves.
-/// - `&str` - The prefix of the locale that owns it.
 ///
 /// # Returns
 ///

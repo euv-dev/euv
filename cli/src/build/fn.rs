@@ -379,7 +379,6 @@ fn read_crate_name_from_toml(path: &Path) -> Option<String> {
 /// # Arguments
 ///
 /// - `&Path` - The base directory path.
-/// - `&Path` - The target directory path.
 ///
 /// # Returns
 ///
@@ -1018,7 +1017,6 @@ pub(crate) fn print_server_urls(config: &ServerUrlConfig) {
 ///
 /// - `&Path` - Directory holding the wasm-pack output.
 /// - `&str` - File name of the generated JS bridge inside it.
-/// - `&str` - URL the page will fetch the `.wasm` module from.
 ///
 /// # Returns
 ///

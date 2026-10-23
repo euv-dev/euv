@@ -10,7 +10,6 @@ impl SpriteSheet {
     ///
     /// - `HtmlImageElement` - The sprite sheet image.
     /// - `f64` - The width of each frame.
-    /// - `f64` - The height of each frame.
     ///
     /// # Returns
     ///
@@ -62,7 +61,6 @@ impl SpriteSheet {
     ///
     /// - `&str` - The animation name.
     /// - `u32` - The starting frame index (inclusive).
-    /// - `u32` - The ending frame index (exclusive).
     /// - `AnimationMode` - The playback mode.
     ///
     /// # Returns
@@ -637,7 +635,6 @@ impl NineSlice {
     /// - `&mut DrawList` - The draw list to record into.
     /// - `Vector2D` - The destination top-left position in world space.
     /// - `f64` - The destination width in pixels.
-    /// - `f64` - The destination height in pixels.
     pub fn record(
         &self,
         list: &mut DrawList,
@@ -823,7 +820,6 @@ impl SpriteAtlas {
     ///
     /// - `Rect` - The source rectangle in atlas pixels.
     /// - `f64` - The atlas width in pixels.
-    /// - `f64` - The atlas height in pixels.
     ///
     /// # Returns
     ///
@@ -879,7 +875,6 @@ impl SpriteAtlas {
     /// - `&str` - The sprite name to blit.
     /// - `Vector2D` - The destination top-left position in world space.
     /// - `f64` - The destination width in pixels.
-    /// - `f64` - The destination height in pixels.
     pub fn record(
         &self,
         list: &mut DrawList,

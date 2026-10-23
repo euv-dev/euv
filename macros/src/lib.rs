@@ -212,7 +212,6 @@ pub fn unsafe_no_inline(input: TokenStream) -> TokenStream {
 /// # Arguments
 ///
 /// - `TokenStream` - The attribute arguments (unused).
-/// - `TokenStream` - The item being annotated (passed through unchanged).
 ///
 /// # Returns
 ///

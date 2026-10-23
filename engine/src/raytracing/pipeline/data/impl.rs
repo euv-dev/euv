@@ -24,7 +24,6 @@ impl RayTraceSettings {
     /// # Arguments
     ///
     /// - `u32` - The supersampling grid resolution per axis.
-    /// - `u32` - The maximum number of secondary bounces.
     ///
     /// # Returns
     ///

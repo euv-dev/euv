@@ -84,9 +84,7 @@ pub(crate) fn lambert_term(
 /// # Arguments
 ///
 /// - `&Light` - The light source. Its `direction` must point from the
-///   surface toward the light.
 /// - `Vector3D` - The surface normal (unit length).
-/// - `Vector3D` - The unit view direction (from the surface toward the eye).
 /// - `&Material` - The material at the shaded point.
 ///
 /// # Returns
@@ -118,9 +116,7 @@ pub fn compute_phong(
 /// # Arguments
 ///
 /// - `&LightSample` - The resolved colour, intensity, and direction of the
-///   light being evaluated.
 /// - `Vector3D` - The surface normal (unit length).
-/// - `Vector3D` - The unit view direction (from the surface toward the eye).
 /// - `&Material` - The material at the shaded point; its specular intensity
 ///   and shininess are read here.
 ///
@@ -177,8 +173,6 @@ pub(crate) fn phong_specular_term(
 /// # Arguments
 ///
 /// - `Vector3D` - The unit direction from the surface toward the light.
-/// - `Vector3D` - The surface normal (unit length).
-/// - `Vector3D` - The unit view direction (from the surface toward the eye).
 /// - `f64` - The Phong specular exponent.
 ///
 /// # Returns
@@ -203,8 +197,6 @@ pub(crate) fn phong_specular_factor(
 /// # Arguments
 ///
 /// - `f64` - The distance from the light source. Negative values are
-///   treated as zero.
-/// - `f64` - The falloff coefficient (0.0 disables falloff).
 ///
 /// # Returns
 ///
@@ -234,8 +226,6 @@ pub fn apply_falloff(distance: f64, falloff: f64) -> f64 {
 /// # Arguments
 ///
 /// - `Vector3D` - The unit direction from the surface toward the light.
-/// - `Vector3D` - The unit view direction (from the surface toward the eye).
-/// - `Vector3D` - The surface normal (unit length).
 ///
 /// # Returns
 ///
@@ -351,8 +341,6 @@ pub(crate) fn light_reaches_position(light: &Light, light_dir: Vector3D) -> bool
 /// # Arguments
 ///
 /// - `Vector3D` - The ray origin.
-/// - `Vector3D` - The ray direction (expected to be unit length).
-/// - `Vector3D` - The sphere center.
 /// - `f64` - The sphere radius (must be positive).
 ///
 /// # Returns
@@ -392,9 +380,6 @@ pub fn ray_sphere_intersect(
 /// # Arguments
 ///
 /// - `Vector3D` - The ray origin.
-/// - `Vector3D` - The ray direction (expected to be unit length).
-/// - `Vector3D` - The AABB minimum corner.
-/// - `Vector3D` - The AABB maximum corner.
 ///
 /// # Returns
 ///
@@ -461,7 +446,6 @@ pub fn ray_aabb_intersect(
 /// # Arguments
 ///
 /// - `Vector3D` - The surface point casting the shadow ray.
-/// - `Vector3D` - The light position to test against.
 /// - `&[(Vector3D, f64)]` - A slice of `(center, radius)` occluder spheres.
 ///
 /// # Returns

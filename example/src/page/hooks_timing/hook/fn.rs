@@ -30,7 +30,6 @@ pub(crate) fn timing_now_ms() -> u64 {
 ///
 /// - `Signal<String>` - The live input value signal.
 /// - `DebouncedValue<String>` - The debounced value driver.
-/// - `Signal<String>` - The current row display signal.
 /// - `Previous<String>` - The previous-value tracker.
 ///
 /// # Returns
@@ -62,7 +61,6 @@ pub(crate) fn timing_debounce_on_input(
 ///
 /// - `Signal<String>` - The live input value signal.
 /// - `ThrottledValue<String>` - The throttled value driver.
-/// - `Signal<String>` - The current row display signal.
 /// - `Previous<String>` - The previous-value tracker.
 ///
 /// # Returns

@@ -30,6 +30,10 @@ mod raytrace;
 mod select;
 mod sse;
 mod timer;
+mod ui_advanced;
+mod ui_data;
+mod ui_display;
+mod ui_forms;
 mod virtual_list;
 mod webgpu_status;
 mod websocket;
@@ -39,7 +43,8 @@ pub(crate) use {
     conditional::*, counter::*, dynamic::*, event::*, file::*, form::*, game_2d::*, game_3d::*,
     gesture::*, hooks_async::*, hooks_i18n::*, hooks_protect::*, hooks_timing::*, keep_alive::*,
     lifecycle::*, lighting::*, list::*, modal::*, not_found::*, observer::*, raytrace::*,
-    select::*, sse::*, timer::*, virtual_list::*, webgpu_status::*, websocket::*,
+    select::*, sse::*, timer::*, ui_advanced::*, ui_data::*, ui_display::*, ui_forms::*,
+    virtual_list::*, webgpu_status::*, websocket::*,
 };
 
 use super::*;

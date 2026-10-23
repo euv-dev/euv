@@ -26,98 +26,40 @@ locales:
       - { text: GitHub, link: https://github.com/euv-dev/euv }
 ---
 
-# euv-docs
+<center>
 
-A **documentation site generator** built with
-[euv](https://github.com/euv-dev/euv) + `euv-ui`, compiled to WebAssembly.
+## euv-docs
 
-Write markdown in any directory containing a `README.md` — get a full docs
-site with a home title block, navbar, multi-level collapsible sidebar, right anchor
-TOC, prev/next links, footer, dark mode, and i18n.
+<img src="https://docs.ltpp.vip/img/euv-docs.png" alt="" height="160">
 
-## Quick start
+[![](https://img.shields.io/crates/v/euv-docs.svg)](https://crates.io/crates/euv-docs)
+[![](https://img.shields.io/crates/d/euv-docs.svg)](https://img.shields.io/crates/d/euv-docs.svg)
+[![](https://docs.rs/euv-docs/badge.svg)](https://docs.rs/euv-docs)
+[![](https://github.com/euv-dev/euv/workflows/Rust/badge.svg)](https://github.com/euv-dev/euv/actions?query=workflow=Rust)
+[![](https://img.shields.io/crates/l/euv-docs.svg)](./LICENSE)
 
-```bash
-cargo install euv-cli
+</center>
 
-# dev server with hot reload (run from this directory)
-euv run --dev --port 8080 --index-html docs/template.html -- --target web --out-dir www/pkg --out-name euv_docs --no-typescript --no-pack
+[Api Docs](https://docs.rs/euv-docs/latest/)
 
-# production build → www/
-euv build --release --index-html docs/template.html -- --target web --out-dir www/pkg --out-name euv_docs --no-typescript --no-pack
+> A documentation site generator powered by euv + euv-ui (Rust/WASM).
+
+## Installation
+
+To use this crate, you can run cmd:
+
+```shell
+cargo install euv-docs
 ```
 
-Open <http://localhost:8080> after `euv run`.
+## License
 
-## Writing docs
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-| Source file                         | Route                                    |
-| ----------------------------------- | ---------------------------------------- |
-| `cli/docs/README.md`                | `/` (home, with frontmatter title block) |
-| `cli/docs/guide/README.md`          | `/guide/` (sidebar group index)          |
-| `cli/docs/guide/getting-started.md` | `/guide/getting-started.html`            |
-| `cli/docs/zh/README.md`             | `/zh/` (locale home)                     |
+## Contributing
 
-- **Site config (title, locales, navbar, footer, labels)** —
-  `cli/README.md` frontmatter (single source of truth, replaces the
-  legacy `docs/config.toml`).
-- **Sidebar** — auto-generated from the file tree; order with
-  frontmatter `order: <int>`.
-- **Directory without an index page** — set `index: false` in the
-  directory's `README.md` frontmatter: the page is not
-  rendered (the route 404s like a directory without a README) and the
-  sidebar group keeps the README title but only toggles its children
-  instead of navigating.
-- **Home page** — frontmatter `home: true` + `heroText` / `tagline` /
-  `actions` / `features` / `footer`.
-- **Static assets** — put them in `cli/docs/public/`, reference as
-  `/logo.png`.
+Contributions are welcome! Please open an issue or submit a pull request.
 
-## Building a site from any markdown directory
+## Contact
 
-The `euv-docs` binary builds any directory containing a top-level
-`README.md` (with site config in its frontmatter) plus `**/*.md`
-content files into a static site. Use this to ship documentation for a
-project without modifying euv-docs itself.
-
-```bash
-cargo install --path docs --bin euv-docs
-
-euv-docs <SRC_DIR> [--out <OUT_DIR>] [--name <NAME>] [--index-html <FILE>] [--debug]
-```
-
-| Argument       | Default    | Meaning                                                                                     |
-| -------------- | ---------- | ------------------------------------------------------------------------------------------- |
-| `<SRC_DIR>`    | (required) | Directory containing the markdown tree.                                                     |
-| `--out`        | `www`      | Output directory.                                                                           |
-| `--name`       | `euv_docs` | WASM output name (`<name>_bg.wasm`); the bootstrap is embedded in HTML.                    |
-| `--index-html` | (none)     | Path to a custom `index.html` template (defaults to `template.html` shipped in the binary). |
-| `--debug`      | (off)      | Enable debug logging.                                                                       |
-
-Each locale emits an HTML shell and a WASM bundle without a separate generated
-JavaScript bridge. The bundled template uses `__EUV_INLINE_JS__` inside a plain
-`<script>` tag; custom templates should use the same placeholder. JavaScript
-still runs inline to initialize WASM. `404.html` is refreshed from the current
-`index.html` on every build so an older bootstrap cannot survive a rebuild.
-
-## Crate structure
-
-```
-docs/
-├── src/
-│   ├── bin/docs/          CLI entry: arg parsing, build orchestration
-│   ├── component/         Site layout components
-│   │   ├── doc_page/      Router-level home / doc / 404 switch
-│   │   ├── home_page/     Title block + feature grid + footer
-│   │   ├── layout/        Navbar + sidebar shell
-│   │   ├── not_found/     404 page
-│   │   └── password_gate/ Private page protection
-│   ├── data/              Generated `DocsSite` types (consumed by `build.rs`)
-│   ├── router/            Hash-route parser / link handler
-│   └── lib.rs             WASM entry: inject global styles, mount app
-├── build.rs               Codegen `docs_gen.rs` from `**/*.md` + README frontmatter
-├── template.html          Default `<base href="./">` shell
-├── Cargo.toml             `[package] euv-docs`, `euv = "0.18"` pin (CSS safe-area)
-└── docs/                  (this crate ships demo content only — real docs
-                           live at `cli/docs/`)
-```
+For any inquiries, please reach out to the author at [root@ltpp.vip](mailto:root@ltpp.vip).

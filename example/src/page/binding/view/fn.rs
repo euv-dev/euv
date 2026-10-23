@@ -127,7 +127,6 @@ pub(crate) fn child_input(text_signal: Signal<String>, count_signal: Signal<i32>
 /// # Arguments
 ///
 /// - `Signal<f64>` - The celsius signal.
-/// - `Signal<f64>` - The fahrenheit signal.
 ///
 /// # Returns
 ///
@@ -191,8 +190,6 @@ pub(crate) fn temperature_converter(
 /// # Arguments
 ///
 /// - `Signal<i32>` - The red channel signal.
-/// - `Signal<i32>` - The green channel signal.
-/// - `Signal<i32>` - The blue channel signal.
 /// - `Signal<String>` - The hex color signal.
 ///
 /// # Returns

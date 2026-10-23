@@ -196,7 +196,6 @@ fn render_md_block(block: &'static EuvMdBlock) -> VirtualNode {
 ///
 /// - `u8` - The heading level (1–6).
 /// - `&'static str` - The slug id.
-/// - `&'static str` - The full permalink href.
 /// - `&'static [EuvMdInline]` - The heading content.
 ///
 /// # Returns

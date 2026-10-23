@@ -12,12 +12,7 @@ use super::*;
 ///
 /// # Returns
 ///
-/// - `VirtualNode` - The dynamic component demo page virtual DOM tree.
-///
-/// # Arguments
-///
-/// - `VirtualNode<PageDynamicComponentProps>` - The `node` argument.
-///
+/// - `VirtualNode` - The `VirtualNode` value.
 #[component]
 pub(crate) fn page_dynamic_component(node: VirtualNode<PageDynamicComponentProps>) -> VirtualNode {
     let PageDynamicComponentProps: PageDynamicComponentProps =

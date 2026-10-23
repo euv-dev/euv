@@ -418,7 +418,6 @@ fn game_2d_webgpu_tab(state: UseGame2DWebGpu, fullscreen: UseGame2DFullscreen) -
 /// # Arguments
 ///
 /// - `bool` - Whether initialization has finished (success or failure).
-/// - `bool` - Whether the renderer is active.
 /// - `&str` - The `WebGl2InitError::code()` from the last init attempt.
 ///
 /// # Returns

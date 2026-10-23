@@ -11,7 +11,6 @@ use super::*;
 ///
 /// - `f64` - The value to narrow.
 /// - `&str` - The error message for a non-finite value.
-/// - `&str` - The error message for a value outside the `f32` range.
 ///
 /// # Returns
 ///
@@ -131,7 +130,6 @@ pub(crate) fn pack_upper_bound(value: f64) -> Result<f32, String> {
 ///
 /// - `Vector3D` - The vector to pack.
 /// - `&str` - The error message used for a non-finite component.
-/// - `&str` - The error message used for an `f32`-overflowing component.
 ///
 /// # Returns
 ///
@@ -155,7 +153,6 @@ pub fn pack_vector(
 ///
 /// - `Vector3D` - The vector to narrow.
 /// - `&str` - The error message for a non-finite component.
-/// - `&str` - The error message for an out-of-range component.
 ///
 /// # Returns
 ///
@@ -191,7 +188,6 @@ pub fn pack_vector_lower(
 ///
 /// - `Vector3D` - The vector to narrow.
 /// - `&str` - The error message for a non-finite component.
-/// - `&str` - The error message for an out-of-range component.
 ///
 /// # Returns
 ///
@@ -543,9 +539,7 @@ pub(crate) fn pack_node(out: &mut Vec<f32>, node: &RayTraceNode) -> Result<(), S
 /// # Arguments
 ///
 /// - `&Camera3D` - The camera supplying the eye, target, up, fov, and
-///   depth range.
 /// - `u32` - The frame width in pixels.
-/// - `u32` - The frame height in pixels.
 ///
 /// # Returns
 ///

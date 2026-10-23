@@ -8,7 +8,6 @@ impl AabbCollider {
     ///
     /// - `Vector2D` - The center point.
     /// - `f64` - The width.
-    /// - `f64` - The height.
     ///
     /// # Returns
     ///
@@ -255,8 +254,6 @@ impl AabbCollider3D {
     ///
     /// - `Vector3D` - The center point.
     /// - `f64` - The width.
-    /// - `f64` - The height.
-    /// - `f64` - The depth.
     ///
     /// # Returns
     ///
@@ -530,7 +527,6 @@ impl AABB3D {
     /// # Arguments
     ///
     /// - `AABB3D` - The first bounding box.
-    /// - `AABB3D` - The second bounding box.
     ///
     /// # Returns
     ///

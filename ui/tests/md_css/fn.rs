@@ -108,6 +108,24 @@ fn single_box_code_chips_do_not_inherit_the_wrapping_margin() {
 }
 
 #[test]
+fn inline_code_chips_break_a_long_token_inside_their_own_border() {
+    let sheet: &str = euv_md_css();
+    let body: String = rule_declarations(sheet, ".md-body code").expect(
+        "the markdown body must style inline code, so the rule has to exist for the wrap defect to have a home",
+    );
+    assert_eq!(
+        declaration(&body, "overflow-wrap"),
+        Some("anywhere".to_string()),
+        "the chip is an inline-block box with a border, so its own width is \
+         its min-content width; a single long token (a URL, a path, a long \
+         enum variant) therefore makes the chip wider than the prose column, \
+         and the column then scrolls sideways instead of wrapping the text. \
+         `overflow-wrap: anywhere` lets the token break inside the chip, so \
+         the border keeps hugging the text it wraps."
+    );
+}
+
+#[test]
 fn table_cell_code_chips_shrink_to_their_own_text() {
     let sheet: &str = euv_md_css();
     for selector in [".md-body td code", ".md-body th code"] {

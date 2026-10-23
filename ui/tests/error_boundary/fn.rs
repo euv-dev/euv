@@ -1,4 +1,5 @@
 use super::*;
+
 #[test]
 fn error_boundary_phase_default_is_healthy() {
     let phase: ErrorBoundaryPhase = ErrorBoundaryPhase::default();

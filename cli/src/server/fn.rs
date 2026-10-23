@@ -165,7 +165,6 @@ pub(crate) fn normalize_bootstrap(template: &str) -> Result<String, EuvError> {
 /// # Arguments
 ///
 /// - `&str` - The complete HTML template.
-/// - `&str` - The inline bootstrap placeholder element.
 ///
 /// # Returns
 ///

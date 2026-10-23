@@ -159,8 +159,6 @@ impl Easing {
     /// # Arguments
     ///
     /// - `f64` - The start value.
-    /// - `f64` - The end value.
-    /// - `f64` - The normalized time, typically in the range 0.0 to 1.0.
     ///
     /// # Returns
     ///

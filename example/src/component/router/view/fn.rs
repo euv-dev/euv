@@ -113,6 +113,18 @@ pub(crate) fn page_router(node: VirtualNode<PageRouterProps>) -> VirtualNode {
                 ROUTE_FILE_UPLOAD => {
                     page_file_upload {}
                 }
+                ROUTE_UI_ADVANCED => {
+                    page_ui_advanced {}
+                }
+                ROUTE_UI_DATA => {
+                    page_ui_data {}
+                }
+                ROUTE_UI_DISPLAY => {
+                    page_ui_display {}
+                }
+                ROUTE_UI_FORMS => {
+                    page_ui_forms {}
+                }
                 ROUTE_VIRTUAL_LIST => {
                     page_virtual_list {}
                 }

@@ -30,7 +30,6 @@ pub(crate) trait ElementExt {
     /// # Arguments
     ///
     /// - `&str` - The name of the attribute or property to set.
-    /// - `&str` - The value to assign.
     fn set_attribute_or_property(&self, name: &str, value: &str);
 
     /// Returns the element's `data-euv-id`, assigning a fresh one if absent.

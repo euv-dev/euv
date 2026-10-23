@@ -32,9 +32,6 @@ use super::*;
 /// # Arguments
 ///
 /// - `bool` - Whether the renderer finished loading its module, pipeline
-///   and scene; `false` while `Initializing` is still the right banner.
-/// - `bool` - Whether the loaded renderer has acquired a device and is
-///   presenting frames; implies `loaded`.
 /// - `&str` - The engine's stable WebGPU init error code, borrowed from
 ///   the caller's own string so the mapping stays allocation-free.
 ///

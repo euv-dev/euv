@@ -186,7 +186,6 @@ impl RouteSite {
     /// # Arguments
     ///
     /// - `&str` - A route the site serves.
-    /// - `&str` - The prefix of the locale that owns it.
     ///
     /// # Returns
     ///

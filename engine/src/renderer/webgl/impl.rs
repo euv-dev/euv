@@ -95,6 +95,7 @@ impl Display for WebGlProgramError {
 /// Registers both WebGL error types as standard [`Error`] values.
 impl Error for WebGl2InitError {}
 
+/// Implements [`Error`] for [`WebGlProgramError`].
 impl Error for WebGlProgramError {}
 
 /// Implements buffer creation, upload, and lifetime for a vertex, index,
@@ -126,9 +127,6 @@ impl GlBuffer {
     ///
     /// - `&WebGl2RenderingContext` - The context to allocate against.
     /// - `u32` - The buffer target, as returned by
-    ///   [`gl_buffer_target`].
-    /// - `u32` - The size in bytes to reserve.
-    /// - `u32` - The `bufferData` usage hint, as returned by
     ///   [`gl_buffer_usage_hint`].
     ///
     /// # Returns
@@ -241,7 +239,6 @@ impl GlBuffer {
     ///
     /// - `&WebGl2RenderingContext` - The context to upload through.
     /// - `u32` - The buffer target the buffer is bound under.
-    /// - `u32` - The byte offset to write at.
     /// - `&[u8]` - The bytes to write.
     ///
     /// # Returns
@@ -291,7 +288,6 @@ impl GlBuffer {
     ///
     /// - `&WebGl2RenderingContext` - The context to allocate against.
     /// - `u32` - The buffer target the buffer is bound under.
-    /// - `u32` - The new minimum size in bytes.
     fn grow(&mut self, context: &WebGl2RenderingContext, target: u32, size: u32) {
         context.bind_buffer(target, Some(self.get_buffer()));
         context.buffer_data_with_i32(target, size as i32, self.get_usage());
@@ -322,7 +318,6 @@ impl GlTexture {
     ///
     /// - `&WebGl2RenderingContext` - The context to allocate against.
     /// - `u32` - The width in texels.
-    /// - `u32` - The height in texels.
     /// - `GpuTextureFormat` - The texel format.
     /// - `&[u8]` - The tightly packed RGBA pixels, or empty.
     ///
@@ -501,7 +496,6 @@ impl GlTexture {
     /// - `&WebGl2RenderingContext` - The context to upload through.
     /// - `&Object` - The `ImageBitmap` to upload.
     /// - `u32` - The bitmap's width in pixels.
-    /// - `u32` - The bitmap's height in pixels.
     /// - `GpuTextureFormat` - The texel format to allocate as.
     ///
     /// # Returns
@@ -573,8 +567,6 @@ impl GlTexture {
     /// - `&JsValue` - The context, as the JS receiver.
     /// - `i32` - The sized internal format.
     /// - `u32` - The pixel format.
-    /// - `u32` - The pixel type.
-    /// - `&JsValue` - The image source.
     ///
     /// # Returns
     ///
@@ -915,7 +907,6 @@ impl GlVertexArray {
     ///
     /// - `&WebGl2RenderingContext` - The context to record into.
     /// - `u32` - The attribute index, as recorded on the layout.
-    /// - `u32` - The divisor: zero per vertex, one per instance.
     pub fn set_divisor(&self, context: &WebGl2RenderingContext, index: u32, divisor: u32) {
         self.bind(context);
         context.vertex_attrib_divisor(index, divisor);
@@ -971,7 +962,6 @@ impl GlFramebuffer {
     ///
     /// - `&WebGl2RenderingContext` - The context to allocate against.
     /// - `u32` - The width in pixels.
-    /// - `u32` - The height in pixels.
     /// - `GpuTextureFormat` - The color attachment's format.
     /// - `Option<GpuTextureFormat>` - The depth renderbuffer's format,
     ///   or `None` for a color-only target.
@@ -1067,7 +1057,6 @@ impl GlFramebuffer {
     /// # Arguments
     ///
     /// - `u32` - The width to test against.
-    /// - `u32` - The height to test against.
     ///
     /// # Returns
     ///
@@ -1120,7 +1109,6 @@ impl GlProgram {
     ///
     /// - `&WebGl2RenderingContext` - The context to compile against.
     /// - `&str` - The vertex shader source.
-    /// - `&str` - The fragment shader source.
     ///
     /// # Returns
     ///
@@ -1269,7 +1257,6 @@ impl GlProgram {
     /// - `&WebGl2RenderingContext` - The context to upload through.
     /// - `&str` - The uniform name.
     /// - `f32` - The x component.
-    /// - `f32` - The y component.
     pub fn set_uniform_2f(&mut self, context: &WebGl2RenderingContext, name: &str, x: f32, y: f32) {
         let location: Option<WebGlUniformLocation> = self.uniform(context, name);
         context.uniform2f(location.as_ref(), x, y);
@@ -1282,8 +1269,6 @@ impl GlProgram {
     /// - `&WebGl2RenderingContext` - The context to upload through.
     /// - `&str` - The uniform name.
     /// - `f32` - The x component.
-    /// - `f32` - The y component.
-    /// - `f32` - The z component.
     pub fn set_uniform_3f(
         &mut self,
         context: &WebGl2RenderingContext,
@@ -1303,9 +1288,6 @@ impl GlProgram {
     /// - `&WebGl2RenderingContext` - The context to upload through.
     /// - `&str` - The uniform name.
     /// - `f32` - The x component.
-    /// - `f32` - The y component.
-    /// - `f32` - The z component.
-    /// - `f32` - The w component.
     pub fn set_uniform_4f(
         &mut self,
         context: &WebGl2RenderingContext,
@@ -1448,7 +1430,6 @@ impl GlUniformBlock {
     ///
     /// - `&WebGl2RenderingContext` - The context to allocate against.
     /// - `u32` - The byte capacity to reserve.
-    /// - `u32` - The binding point the shader reads from.
     ///
     /// # Returns
     ///
@@ -1632,7 +1613,6 @@ impl GlRenderState {
     /// # Arguments
     ///
     /// - `i32` - The viewport width in pixels.
-    /// - `i32` - The viewport height in pixels.
     ///
     /// # Returns
     ///
@@ -1801,8 +1781,6 @@ impl WebGl2Backend {
     /// # Arguments
     ///
     /// - `u32` - The new physical pixel width, already multiplied by the
-    ///   device pixel ratio.
-    /// - `u32` - The new physical pixel height.
     pub fn resize(&mut self, width: u32, height: u32) {
         let viewport: GlViewport = GlViewport {
             x: 0,
@@ -1989,7 +1967,6 @@ impl WebGl2Backend {
     /// # Arguments
     ///
     /// - `u32` - The viewport width to seed the shadow with.
-    /// - `u32` - The viewport height to seed the shadow with.
     pub fn invalidate_state(&mut self, width: u32, height: u32) {
         let fresh: GlRenderState = GlRenderState::context_defaults(width as i32, height as i32);
         self.set_shadow(fresh);
@@ -2034,7 +2011,6 @@ impl WebGl2Backend {
     ///
     /// - `&WebGl2RenderingContext` - The context to clear through.
     /// - `u32` - The width of the bound framebuffer, in pixels.
-    /// - `u32` - The height of the bound framebuffer, in pixels.
     pub(crate) fn begin_frame(
         &mut self,
         context: &WebGl2RenderingContext,
@@ -2250,7 +2226,6 @@ impl WebGl2Backend {
     /// - `&WebGl2RenderingContext` - The context to draw through.
     /// - `PrimitiveTopology` - How the vertices are assembled.
     /// - `u32` - The first index to read.
-    /// - `u32` - The last index to read, inclusive.
     /// - `IndexFormat` - The element width of the bound index buffer.
     ///
     /// # Returns
@@ -2344,9 +2319,7 @@ impl WebGl2Backend {
     ///
     /// - `&WebGl2RenderingContext` - The context to read through.
     /// - `i32` - The left edge in pixels.
-    /// - `i32` - The bottom edge in pixels.
     /// - `u32` - The width in pixels.
-    /// - `u32` - The height in pixels.
     ///
     /// # Returns
     ///

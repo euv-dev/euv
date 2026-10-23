@@ -145,7 +145,6 @@ where
 ///
 /// - `&[char]` - The source character slice.
 /// - `usize` - The current position.
-/// - `usize` - The total length of the source.
 ///
 /// # Returns
 ///
@@ -177,7 +176,6 @@ fn is_euv_macro_start(chars: &[char], pos: usize, len: usize) -> bool {
 ///
 /// - `&[char]` - The source character slice.
 /// - `usize` - The start position of the macro name.
-/// - `usize` - The total length of the source.
 ///
 /// # Returns
 ///
@@ -227,7 +225,6 @@ fn is_ident_char(character: char) -> bool {
 ///
 /// - `&[char]` - The source character slice.
 /// - `usize` - The current position.
-/// - `usize` - The total length.
 /// - `&mut String` - The output string to append preserved whitespace/comments to.
 ///
 /// # Returns

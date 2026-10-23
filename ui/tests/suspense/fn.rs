@@ -1,4 +1,5 @@
 use super::*;
+
 #[test]
 fn suspense_phase_default_is_pending() {
     let phase: SuspensePhase<i32> = SuspensePhase::default();

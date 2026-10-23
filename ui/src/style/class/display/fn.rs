@@ -211,6 +211,16 @@ class! {
     pub(crate) c_card {
         color: var!(foreground);
         box-sizing: "border-box";
+        // The card title carries a `gap-component` margin, and that margin
+        // collapses out of the card — the card has no padding and no border
+        // to stop it. The gap between two cards was therefore whatever the
+        // title's margin happened to be, not a value anybody chose. The
+        // block gap is the value the page template asks for, so it is named
+        // here instead of being left to a side effect.
+        margin-top: var!(page-block-gap);
+        @media ((max-width: 767px)) {
+        margin-top: var!(page-block-gap-mobile);
+        }
     }
 
     pub c_card_title {
@@ -376,16 +386,22 @@ class! {
     // ═══════════════════════════════════════════════════════════════════════════
 
     pub(crate) c_badge {
-        display: "inline-flex";
-        justify-content: "center";
-        align-items: "center";
+        // The wrapping-atom recipe (§7): an inline flex box is atomic, so a
+        // wrapped label left-aligns while the border stays at the parent
+        // width — the right border reads as missing. The four `c_euv_tag_*`
+        // variants already use this recipe; a badge is the same kind of
+        // element and must not mix the two.
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        box-sizing: "border-box";
         color: var!(text-on-accent);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         border: format!("1px solid {}", var!(accent));
         font-size: var!(font-xs);
         font-weight: "600";
         cursor: "pointer";
-        text-align: "center";
         background: var!(accent);
         :focus-visible {
             outline: "none";
@@ -397,15 +413,16 @@ class! {
     }
 
     pub(crate) c_badge_outline {
-        display: "inline-flex";
-        justify-content: "center";
-        align-items: "center";
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        box-sizing: "border-box";
         color: var!(foreground);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         font-size: var!(font-xs);
         font-weight: "600";
         cursor: "pointer";
-        text-align: "center";
         border: format!("1.5px solid {}", var!(border));
         @media ((max-width: 767px)) {
             padding: format!("{} {}", var!(space-2xs), var!(space-xs));
@@ -1173,5 +1190,517 @@ class! {
         // structure exists to avoid.
         display: "block";
         flex-shrink: "0";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Empty
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_empty {
+        display: "flex";
+        flex-direction: "column";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        width: "100%";
+        padding: var!(space-3xl);
+        box-sizing: "border-box";
+        text-align: "center";
+    }
+
+    pub(crate) c_euv_empty_icon {
+        font-size: var!(font-3xl);
+        line-height: "1";
+        color: var!(muted-foreground);
+    }
+
+    pub(crate) c_euv_empty_text {
+        font-size: var!(font-lg);
+        font-weight: "600";
+        color: var!(foreground);
+    }
+
+    pub(crate) c_euv_empty_desc {
+        font-size: var!(font-sm);
+        color: var!(muted-foreground);
+        max-width: var!(text-measure);
+    }
+
+    pub(crate) c_euv_empty_action {
+        margin-top: var!(space-sm);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Typography
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_text {
+        margin: "0px";
+        color: var!(foreground);
+        font-size: var!(font-base);
+        line-height: "1.6";
+    }
+
+    pub(crate) c_euv_text_title {
+        margin: "0px";
+        color: var!(foreground);
+        font-size: var!(font-xl);
+        font-weight: "600";
+        line-height: "1.4";
+    }
+
+    pub(crate) c_euv_text_title_lg {
+        margin: "0px";
+        color: var!(foreground);
+        font-size: var!(font-2xl);
+        font-weight: "600";
+        line-height: "1.35";
+    }
+
+    pub(crate) c_euv_text_title_sm {
+        margin: "0px";
+        color: var!(foreground);
+        font-size: var!(font-lg);
+        font-weight: "600";
+        line-height: "1.4";
+    }
+
+    pub(crate) c_euv_text_paragraph {
+        margin: "0px";
+        color: var!(foreground);
+        font-size: var!(font-base);
+        line-height: "1.6";
+    }
+
+    pub(crate) c_euv_text_secondary {
+        margin: "0px";
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        line-height: "1.6";
+    }
+
+    pub(crate) c_euv_text_mono {
+        margin: "0px";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        font-family: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+        line-height: "1.5";
+    }
+
+    pub(crate) c_euv_text_deletion {
+        margin: "0px";
+        color: var!(muted-foreground);
+        font-size: var!(font-base);
+        text-decoration: "line-through";
+        line-height: "1.6";
+    }
+
+    pub(crate) c_euv_text_underline {
+        margin: "0px";
+        color: var!(foreground);
+        font-size: var!(font-base);
+        text-decoration: "underline";
+        line-height: "1.6";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Link
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_link {
+        display: "inline";
+        color: var!(foreground);
+        font-size: var!(font-base);
+        text-decoration: "underline";
+        text-underline-offset: "2px";
+        cursor: "pointer";
+        touch-action: "manipulation";
+        :hover {
+            color: var!(muted-foreground);
+        }
+    }
+
+    pub(crate) c_euv_link_disabled {
+        display: "inline";
+        color: var!(muted-foreground);
+        font-size: var!(font-base);
+        text-decoration: "none";
+        cursor: "not-allowed";
+        opacity: "0.5";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Image
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_image {
+        display: "block";
+        max-width: "100%";
+        height: "auto";
+        border: "none";
+        background: "transparent";
+    }
+
+    pub(crate) c_euv_image_placeholder {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        width: "100%";
+        min-height: var!(min-height-base);
+        padding: var!(space-md);
+        border: format!("1px dashed {}", var!(border));
+        background: var!(background);
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        text-align: "center";
+        box-sizing: "border-box";
+    }
+
+    pub(crate) c_euv_image_failed {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        width: "100%";
+        min-height: var!(min-height-base);
+        padding: var!(space-md);
+        border: format!("1px dashed {}", var!(border));
+        background: var!(background);
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        text-align: "center";
+        box-sizing: "border-box";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Carousel
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_carousel {
+        position: "relative";
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+        overflow: "hidden";
+    }
+
+    pub(crate) c_euv_carousel_track {
+        display: "flex";
+        flex-direction: "row";
+        width: "100%";
+        transition: format!("transform {} {}", var!(duration-normal), var!(ease-out));
+    }
+
+    pub(crate) c_euv_carousel_slide {
+        flex: "0 0 100%";
+        width: "100%";
+        min-width: "100%";
+        box-sizing: "border-box";
+    }
+
+    pub(crate) c_euv_carousel_dots {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        padding-top: var!(space-sm);
+    }
+
+    pub(crate) c_euv_carousel_dot {
+        width: var!(space-sm);
+        height: var!(space-sm);
+        padding: "0px";
+        border: format!("1px solid {}", var!(border));
+        border-radius: "0px";
+        background: var!(background);
+        cursor: "pointer";
+        touch-action: "manipulation";
+        :hover {
+            background: var!(accent-muted);
+        }
+    }
+
+    pub(crate) c_euv_carousel_dot_active {
+        width: var!(space-sm);
+        height: var!(space-sm);
+        padding: "0px";
+        border: format!("1px solid {}", var!(border));
+        border-radius: "0px";
+        background: var!(accent);
+        cursor: "pointer";
+        touch-action: "manipulation";
+        :hover {
+            background: var!(accent);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Anchor
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_anchor {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-xs);
+        width: "100%";
+    }
+
+    pub(crate) c_euv_anchor_title {
+        font-size: var!(font-sm);
+        font-weight: "600";
+        color: var!(foreground);
+        margin-bottom: var!(space-xs);
+    }
+
+    pub(crate) c_euv_anchor_link {
+        display: "block";
+        padding: format!("{} 0px", var!(space-2xs));
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        text-decoration: "none";
+        cursor: "pointer";
+        touch-action: "manipulation";
+        :hover {
+            color: var!(foreground);
+        }
+    }
+
+    pub(crate) c_euv_anchor_link_active {
+        display: "block";
+        padding: format!("{} 0px", var!(space-2xs));
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        font-weight: "600";
+        text-decoration: "none";
+        cursor: "pointer";
+        touch-action: "manipulation";
+        :hover {
+            color: var!(foreground);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Watermark
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_watermark {
+        position: "relative";
+        display: "block";
+        width: "100%";
+    }
+
+    pub(crate) c_euv_watermark_layer {
+        position: "absolute";
+        top: "0px";
+        left: "0px";
+        right: "0px";
+        bottom: "0px";
+        z-index: "1";
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        overflow: "hidden";
+        pointer-events: "none";
+    }
+
+    pub(crate) c_euv_watermark_text {
+        color: var!(muted-foreground);
+        font-size: var!(font-2xl);
+        font-weight: "700";
+        letter-spacing: "0.1em";
+        opacity: "0.12";
+        transform: "rotate(-22deg)";
+        user-select: "none";
+        -webkit-user-select: "none";
+        white-space: "nowrap";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Back To Top
+    // ═══════════════════════════════════════════════════════════════════════════
+
+
+    pub(crate) c_euv_back_top_visible {
+        position: "fixed";
+        right: var!(space-xl);
+        bottom: var!(space-xl);
+        z-index: "900";
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        width: "40px";
+        height: "40px";
+        padding: "0px";
+        border: format!("1px solid {}", var!(border));
+        background: var!(background);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        line-height: "1";
+        cursor: "pointer";
+        box-shadow: var!(shadow-sm);
+        touch-action: "manipulation";
+        :hover {
+            background: var!(accent-muted);
+            color: var!(accent);
+        }
+        @media ((max-width: 767px)) {
+            right: var!(space-lg);
+            bottom: var!(space-lg);
+        }
+    }
+
+    pub(crate) c_euv_back_top_hidden {
+        position: "fixed";
+        right: var!(space-xl);
+        bottom: var!(space-xl);
+        z-index: "900";
+        display: "none";
+        align-items: "center";
+        justify-content: "center";
+        width: "40px";
+        height: "40px";
+        padding: "0px";
+        border: format!("1px solid {}", var!(border));
+        background: var!(background);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        line-height: "1";
+        cursor: "pointer";
+        box-shadow: var!(shadow-sm);
+        touch-action: "manipulation";
+        :hover {
+            background: var!(accent-muted);
+            color: var!(accent);
+        }
+        @media ((max-width: 767px)) {
+            right: var!(space-lg);
+            bottom: var!(space-lg);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Splitter
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_splitter {
+        display: "flex";
+        align-items: "stretch";
+        width: "100%";
+        height: "100%";
+        min-height: "0px";
+    }
+
+    pub(crate) c_euv_splitter_pane {
+        flex: "1";
+        min-width: "0px";
+        min-height: "0px";
+        overflow: "auto";
+    }
+
+    pub(crate) c_euv_splitter_bar {
+        flex: "0 0 6px";
+        align-self: "stretch";
+        background: var!(border);
+        cursor: "col-resize";
+        touch-action: "none";
+        user-select: "none";
+        -webkit-user-select: "none";
+        :hover {
+            background: var!(accent);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Grid
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_grid {
+        display: "flex";
+        flex-wrap: "wrap";
+        width: "100%";
+        box-sizing: "border-box";
+    }
+
+    // A grid row that spaces its columns.
+    //
+    // The spacing is padding on the columns, not a `gap` on the row: a
+    // column's width is a percentage of the row, so a gap would be
+    // added on top of a row that already sums to a hundred percent and
+    // push the last column onto a second line. The row pulls itself
+    // out by half the gutter and the columns pad themselves back in, so
+    // the columns still add up to the row's full width.
+    pub(crate) c_euv_grid_gutter {
+        display: "flex";
+        flex-wrap: "wrap";
+        width: "100%";
+        box-sizing: "border-box";
+        margin-left: {
+            format!("calc({} / -2)", var!(gap-component))
+        };
+        margin-right: {
+            format!("calc({} / -2)", var!(gap-component))
+        };
+    }
+
+    // A grid column. The width is a share of the row, and the caller
+    // sets it inline, so a row's columns add up exactly whatever their
+    // span.
+    pub(crate) c_euv_grid_col {
+        display: "block";
+        flex: "0 0 auto";
+        box-sizing: "border-box";
+        min-width: "0px";
+    }
+
+    // A grid column inside a spaced row. The column keeps its share of
+    // the row and takes half the gutter as padding on each side, which
+    // is what opens the space between two columns.
+    pub(crate) c_euv_grid_gutter_col {
+        display: "block";
+        flex: "0 0 auto";
+        box-sizing: "border-box";
+        min-width: "0px";
+        padding-left: {
+            format!("calc({} / 2)", var!(gap-component))
+        };
+        padding-right: {
+            format!("calc({} / 2)", var!(gap-component))
+        };
+    }
+
+    // A grid column that is pushed to the right by an offset. The
+    // offset's size is set inline, like the column's own width.
+    pub(crate) c_euv_grid_col_offset {
+        display: "block";
+        flex: "0 0 auto";
+        box-sizing: "border-box";
+        min-width: "0px";
+    }
+
+    // A grid column inside a spaced row that is also pushed to the
+    // right by an offset. It is the spaced column and the offset
+    // column at once: the padding that opens the gutter and the offset
+    // that pushes the column along the row.
+    pub(crate) c_euv_grid_gutter_col_offset {
+        display: "block";
+        flex: "0 0 auto";
+        box-sizing: "border-box";
+        min-width: "0px";
+        padding-left: {
+            format!("calc({} / 2)", var!(gap-component))
+        };
+        padding-right: {
+            format!("calc({} / 2)", var!(gap-component))
+        };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Affix
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_affix {
+        position: "sticky";
+        z-index: "10";
+        width: "100%";
+        box-sizing: "border-box";
     }
 }

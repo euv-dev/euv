@@ -88,8 +88,6 @@ where
 /// # Arguments
 ///
 /// - `&JsValue` - The device to create the pipeline on.
-/// - `&JsValue` - The compiled WGSL module.
-/// - `&JsValue` - The layout both packed buffers bind against.
 /// - `&str` - The swap-chain format the fragment stage must target.
 ///
 /// # Returns
@@ -316,6 +314,7 @@ async fn request_device(adapter: &JsValue) -> Result<JsValue, JsValue> {
     Ok(resolved)
 }
 
+/// Inherent implementation of [`WebGpuRayTraceBackend`].
 impl WebGpuRayTraceBackend {
     /// Acquires the device, compiles the shader, and builds the
     /// pipeline, bind group, and both packed buffers.
@@ -441,7 +440,6 @@ impl WebGpuRayTraceBackend {
     /// # Arguments
     ///
     /// - `u32` - The requested width in pixels.
-    /// - `u32` - The requested height in pixels.
     ///
     /// # Returns
     ///
@@ -707,6 +705,7 @@ impl WebGpuRayTraceBackend {
     }
 }
 
+/// Implements [`Drop`] for [`WebGpuRayTraceBackend`].
 impl Drop for WebGpuRayTraceBackend {
     /// Releases the device when the backend is dropped without an
     /// explicit release.
@@ -719,6 +718,7 @@ impl Drop for WebGpuRayTraceBackend {
     }
 }
 
+/// Inherent implementation of [`WebGpuRayTraceBackend`].
 impl WebGpuRayTraceBackend {
     /// Reports the failure the browser recorded, if any.
     ///

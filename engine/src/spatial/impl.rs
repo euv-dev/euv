@@ -35,7 +35,6 @@ impl SpatialHashGrid2D {
     /// # Arguments
     ///
     /// - `f64` - The requested cell size.
-    /// - `f64` - The cell size to use when the request is unusable.
     ///
     /// # Returns
     ///
@@ -63,7 +62,6 @@ impl SpatialHashGrid2D {
     ///
     /// - `usize` - The body index to insert.
     /// - `Vector2D` - The minimum corner of the bounding box.
-    /// - `Vector2D` - The maximum corner of the bounding box.
     pub fn insert(&mut self, index: usize, min: Vector2D, max: Vector2D) {
         let inv: f64 = self.get_inverse_cell_size();
         let min_col: i32 = (min.get_x() * inv).floor() as i32;
@@ -87,7 +85,6 @@ impl SpatialHashGrid2D {
     /// # Arguments
     ///
     /// - `Vector2D` - The minimum corner of the query box.
-    /// - `Vector2D` - The maximum corner of the query box.
     ///
     /// # Returns
     ///
@@ -143,7 +140,6 @@ impl SpatialHashGrid2D {
     /// # Arguments
     ///
     /// - `Vector2D` - The minimum corner of the query box.
-    /// - `Vector2D` - The maximum corner of the query box.
     /// - `&mut Vec<usize>` - The output buffer, cleared then filled with candidates.
     /// - `&mut HashSet<usize>` - The dedup scratch set, cleared then reused.
     pub fn query_into(
@@ -213,7 +209,6 @@ impl SpatialHashGrid3D {
     ///
     /// - `usize` - The body index to insert.
     /// - `Vector3D` - The minimum corner of the bounding box.
-    /// - `Vector3D` - The maximum corner of the bounding box.
     pub fn insert(&mut self, index: usize, min: Vector3D, max: Vector3D) {
         let inv: f64 = self.get_inverse_cell_size();
         let min_col: i32 = (min.get_x() * inv).floor() as i32;
@@ -241,7 +236,6 @@ impl SpatialHashGrid3D {
     /// # Arguments
     ///
     /// - `Vector3D` - The minimum corner of the query box.
-    /// - `Vector3D` - The maximum corner of the query box.
     ///
     /// # Returns
     ///
@@ -301,7 +295,6 @@ impl SpatialHashGrid3D {
     /// # Arguments
     ///
     /// - `Vector3D` - The minimum corner of the query box.
-    /// - `Vector3D` - The maximum corner of the query box.
     /// - `&mut Vec<usize>` - The output buffer, cleared then filled with candidates.
     /// - `&mut HashSet<usize>` - The dedup scratch set, cleared then reused.
     pub fn query_into(
@@ -370,9 +363,7 @@ impl QuadTree2D {
     /// # Arguments
     ///
     /// - `Vector2D` - One corner of the root region.
-    /// - `Vector2D` - The opposite corner of the root region.
     /// - `usize` - The number of entries a node may hold before subdividing.
-    /// - `usize` - The deepest subdivision level a node may reach.
     ///
     /// # Returns
     ///
@@ -485,7 +476,6 @@ impl QuadTree2D {
     ///
     /// - `usize` - The body index to insert.
     /// - `Vector2D` - The minimum corner of the bounding box.
-    /// - `Vector2D` - The maximum corner of the bounding box.
     pub fn insert(&mut self, index: usize, min: Vector2D, max: Vector2D) {
         let entry: QuadTreeEntry2D = QuadTreeEntry2D::new(index, min, max);
         let mut handle: usize = SPATIAL_QUAD_TREE_ROOT_INDEX;
@@ -523,7 +513,6 @@ impl QuadTree2D {
     /// # Arguments
     ///
     /// - `Vector2D` - The minimum corner of the query box.
-    /// - `Vector2D` - The maximum corner of the query box.
     ///
     /// # Returns
     ///
@@ -551,7 +540,6 @@ impl QuadTree2D {
     /// # Arguments
     ///
     /// - `Vector2D` - The minimum corner of the query box.
-    /// - `Vector2D` - The maximum corner of the query box.
     /// - `&mut Vec<usize>` - The output buffer, cleared then filled with candidates.
     /// - `&mut HashSet<usize>` - The dedup scratch set, cleared then reused.
     pub fn query_into(
@@ -610,9 +598,6 @@ impl QuadTree2D {
     /// # Arguments
     ///
     /// - `Vector2D` - The minimum corner of the first box.
-    /// - `Vector2D` - The maximum corner of the first box.
-    /// - `Vector2D` - The minimum corner of the second box.
-    /// - `Vector2D` - The maximum corner of the second box.
     ///
     /// # Returns
     ///
@@ -669,9 +654,6 @@ impl QuadTree2D {
     /// # Arguments
     ///
     /// - `Vector2D` - The minimum corner of the containing region.
-    /// - `Vector2D` - The maximum corner of the containing region.
-    /// - `Vector2D` - The minimum corner of the contained box.
-    /// - `Vector2D` - The maximum corner of the contained box.
     ///
     /// # Returns
     ///
@@ -700,8 +682,6 @@ impl QuadTree2D {
     ///
     /// - `&mut QuadTreeNodeList2D` - The mutable node arena to subdivide in place.
     /// - `usize` - The handle of the node to subdivide.
-    /// - `usize` - The per-node entry capacity.
-    /// - `usize` - The deepest subdivision level allowed.
     fn subdivide(nodes: &mut QuadTreeNodeList2D, handle: usize, capacity: usize, max_depth: usize) {
         if !nodes[handle].get_leaf() || nodes[handle].get_depth() >= max_depth {
             return;

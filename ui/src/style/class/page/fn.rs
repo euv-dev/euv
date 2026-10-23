@@ -69,7 +69,7 @@ class! {
 
     pub c_camera_video_active {
         width: "100%";
-        background: "#000";
+        background: var!(surface-media);
         aspect-ratio: "16 / 9";
         object-fit: "cover";
         border: format!("2px solid {}", var!(accent));
@@ -146,7 +146,7 @@ class! {
         margin: format!("{} 0", var!(space-lg));
         overflow: "hidden";
         border: format!("2px solid {}", var!(border));
-        background: "#ffffff";
+        background: var!(surface-drawing);
         aspect-ratio: "9 / 16";
         display: "flex";
         align-items: "center";
@@ -261,6 +261,8 @@ class! {
             border-radius: "50%";
             cursor: "pointer";
             -webkit-appearance: "none";
+            // The thumb is taller than the track it rides on, so the margin
+            // pulls it up until it sits centred on the track.
             margin-top: "-7px";
         }
         ::-moz-range-track {
@@ -846,9 +848,14 @@ class! {
     }
 
     pub c_binding_temp_arrow {
-        font-size: "20px";
+        font-size: var!(font-xl);
         font-weight: "700";
         color: var!(accent);
+        // The row is `align-items: flex-end`, so the glyph would sit on the
+        // bottom edge of the input. The padding lifts it by half the
+        // difference between the input box and the line box of the glyph —
+        // a number no spacing token holds, because it is derived from the
+        // two heights rather than chosen.
         padding-bottom: "10px";
     }
 
@@ -909,6 +916,8 @@ class! {
             border-radius: "50%";
             cursor: "pointer";
             -webkit-appearance: "none";
+            // The thumb is taller than the track it rides on, so the margin
+            // pulls it up until it sits centred on the track.
             margin-top: "-7px";
         }
         : active::-webkit-slider-thumb {
@@ -1080,9 +1089,12 @@ class! {
     }
 
     pub c_home_badge {
-        display: "inline-flex";
-        justify-content: "center";
-        align-items: "center";
+        // The wrapping-atom recipe (§7), like the tag and the badge.
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        box-sizing: "border-box";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         color: var!(accent);
         font-size: var!(font-xs);
@@ -1133,6 +1145,8 @@ class! {
         justify-content: "center";
         align-items: "center";
         gap: var!(space-sm);
+        // A button is a nowrap element (§7).
+        white-space: "nowrap";
         padding: format!("{} {}", var!(space-sm), var!(space-2xl));
         background: var!(accent);
         color: var!(text-on-accent);
@@ -1163,6 +1177,8 @@ class! {
         justify-content: "center";
         align-items: "center";
         gap: var!(space-sm);
+        // A button is a nowrap element (§7).
+        white-space: "nowrap";
         padding: format!("{} {}", var!(space-sm), var!(space-2xl));
         color: var!(accent);
         font-size: var!(font-base);
@@ -1250,7 +1266,11 @@ class! {
     pub c_home_feature_grid {
         display: "grid";
         grid-template-columns: "repeat(2, 1fr)";
-        gap: var!(space-md);
+        // The cards carry the block gap between them, so the grid only has
+        // to separate the columns: a row gap on top of that would count the
+        // same space twice and the rows would drift apart.
+        column-gap: var!(space-md);
+        row-gap: "0px";
         @media ((max-width: 767px)) {
             grid-template-columns: "1fr";
         }
@@ -1399,7 +1419,7 @@ class! {
         justify-content: "center";
         gap: var!(gap-component);
         background: background;
-        z-index: "1";
+        z-index: "5";
         box-sizing: "border-box";
     }
 

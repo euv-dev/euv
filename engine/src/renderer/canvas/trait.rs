@@ -86,7 +86,6 @@ pub trait RenderBackend {
     ///
     /// - `Vector2D` - The top-left position in world space.
     /// - `f64` - The width.
-    /// - `f64` - The height.
     fn fill_rect(&self, position: Vector2D, width: f64, height: f64);
 
     /// Strokes the outline of a rectangle at the given world-space position and dimensions.
@@ -95,7 +94,6 @@ pub trait RenderBackend {
     ///
     /// - `Vector2D` - The top-left position in world space.
     /// - `f64` - The width.
-    /// - `f64` - The height.
     fn stroke_rect(&self, position: Vector2D, width: f64, height: f64);
 
     /// Fills a circle at the given world-space center with the specified radius.
@@ -119,7 +117,6 @@ pub trait RenderBackend {
     /// # Arguments
     ///
     /// - `Vector2D` - The start point.
-    /// - `Vector2D` - The end point.
     fn draw_line(&self, start: Vector2D, end: Vector2D);
 
     /// Fills text at the given world-space position.
@@ -144,7 +141,6 @@ pub trait RenderBackend {
     /// - `&HtmlImageElement` - The image element to draw.
     /// - `Vector2D` - The top-left position in world space.
     /// - `f64` - The destination width.
-    /// - `f64` - The destination height.
     fn draw_image(&self, image: &HtmlImageElement, position: Vector2D, width: f64, height: f64);
 
     /// Applies a linear gradient as the fill style for subsequent operations.

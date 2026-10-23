@@ -1,5 +1,58 @@
 use super::*;
 
+/// Implementation of the public read side of an attribute entry.
+impl AttributeEntry {
+    /// Returns the CSS class names this attribute carries.
+    ///
+    /// The `class` attribute is the one place where a component's
+    /// styling decisions become observable, so it needs a public read
+    /// side: a component library's tests have to be able to assert
+    /// that a state actually landed on the right class, and an external
+    /// crate cannot read the raw attribute value.
+    ///
+    /// Every shape the attribute can take is reported:
+    /// `Css` and `CssRef` contribute the class name they carry, `Text`
+    /// and `StaticText` contribute their string split on whitespace,
+    /// a `Signal` contributes the class list it currently holds — that
+    /// is the shape a reactive `class:` attribute takes — and the
+    /// remaining shapes, an event handler, contribute nothing, because
+    /// neither is a class list.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<String>` - The class names, in the order they appear.
+    pub fn class_names(&self) -> Vec<String> {
+        match self.get_value() {
+            AttributeValue::Css(css) => vec![css.get_name().clone()],
+            AttributeValue::CssRef(css) => vec![css.get_name().clone()],
+            AttributeValue::Text(text) => split_class_names(text),
+            AttributeValue::StaticText(text) => split_class_names(text),
+            AttributeValue::Signal(signal) => split_class_names(&signal.get()),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Returns the attribute's value as text, when it carries one.
+    ///
+    /// A `Text` or `StaticText` attribute is its own value; a `Css` or
+    /// `CssRef` attribute contributes its class name, because that is
+    /// the text the browser ends up showing for it. The remaining
+    /// shapes — a reactive signal, an event handler — carry no text.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<String>` - The value, when the attribute has one.
+    pub fn text_value(&self) -> Option<String> {
+        match self.get_value() {
+            AttributeValue::Text(text) => Some(text.clone()),
+            AttributeValue::StaticText(text) => Some((*text).to_string()),
+            AttributeValue::Css(css) => Some(css.get_name().clone()),
+            AttributeValue::CssRef(css) => Some(css.get_name().clone()),
+            _ => None,
+        }
+    }
+}
+
 /// Implementation of injected class tracking for CSS deduplication.
 impl InjectedClassesCell {
     /// Returns `true` if the given class name has already been injected into

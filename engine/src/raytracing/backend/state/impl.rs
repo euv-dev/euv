@@ -1,5 +1,6 @@
 use super::*;
 
+/// Inherent implementation of [`RayTraceBackendAdapter`].
 impl RayTraceBackendAdapter {
     /// Attaches one explicitly requested backend.
     ///
@@ -11,7 +12,6 @@ impl RayTraceBackendAdapter {
     /// - `&HtmlCanvasElement` - The canvas to draw into.
     /// - `RayTraceBackend` - The backend to attach.
     /// - `u32` - The surface width in pixels.
-    /// - `u32` - The surface height in pixels.
     ///
     /// # Returns
     ///
@@ -60,7 +60,6 @@ impl RayTraceBackendAdapter {
     /// # Arguments
     ///
     /// - `u32` - The surface width in pixels.
-    /// - `u32` - The surface height in pixels.
     ///
     /// # Returns
     ///

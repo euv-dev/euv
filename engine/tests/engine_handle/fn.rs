@@ -1,6 +1,6 @@
 use super::*;
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 fn a_fresh_handle_hands_back_the_configuration_it_was_built_with() {
     let handle: EngineHandle = Engine::new_handle(EngineConfig::default());
@@ -19,7 +19,7 @@ fn a_fresh_handle_hands_back_the_configuration_it_was_built_with() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(not(target_arch = "wasm32"), ignore = "needs a wasm realm")]
 fn a_supersampled_canvas_lookup_yields_nothing_on_a_host_with_no_document() {
@@ -32,7 +32,7 @@ fn a_supersampled_canvas_lookup_yields_nothing_on_a_host_with_no_document() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(not(target_arch = "wasm32"), ignore = "needs a wasm realm")]
 fn a_default_scale_factor_still_yields_nothing_rather_than_a_broken_canvas() {
@@ -44,7 +44,7 @@ fn a_default_scale_factor_still_yields_nothing_rather_than_a_broken_canvas() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(not(target_arch = "wasm32"), ignore = "needs a wasm realm")]
 fn registering_input_on_a_handle_with_no_document_yields_nothing() {

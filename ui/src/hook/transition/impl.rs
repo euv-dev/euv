@@ -79,7 +79,6 @@ impl TransitionConfig {
     /// # Arguments
     ///
     /// - `u32` - A 32-bit unsigned integer (`u32`).
-    /// - `u32` - A 32-bit unsigned integer (`u32`).
     pub const fn with_durations(enter_ms: u32, exit_ms: u32) -> Self {
         Self { enter_ms, exit_ms }
     }

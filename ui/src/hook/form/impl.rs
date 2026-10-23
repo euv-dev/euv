@@ -92,7 +92,7 @@ impl FormState {
     /// # Arguments
     ///
     /// - `&'static str` - Shared reference to a `'static str`.
-    /// - `&str` - Shared reference to a `str`.
+    /// - `&str` - Shared reference to a `'static str`.
     pub fn set_field(&self, name: &'static str, value: &str) {
         let mut current: HashMap<&'static str, String> = self.get_values().get();
         current.insert(name, value.to_string());

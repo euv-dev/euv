@@ -14,12 +14,7 @@ use super::*;
 ///
 /// # Returns
 ///
-/// - `VirtualNode` - The canvas drawing board page virtual DOM tree.
-///
-/// # Arguments
-///
-/// - `VirtualNode<PageCanvasProps>` - The `node` argument.
-///
+/// - `VirtualNode` - The `VirtualNode` value.
 #[component]
 pub(crate) fn page_canvas(node: VirtualNode<PageCanvasProps>) -> VirtualNode {
     let _page_canvas_props: PageCanvasProps = node.try_get_props().unwrap_or_default();

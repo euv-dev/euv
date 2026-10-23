@@ -7,8 +7,6 @@ impl Numeric {
     /// # Arguments
     ///
     /// - `f64` - The value to clamp.
-    /// - `f64` - The minimum allowed value.
-    /// - `f64` - The maximum allowed value.
     ///
     /// # Returns
     ///
@@ -22,8 +20,6 @@ impl Numeric {
     /// # Arguments
     ///
     /// - `f64` - The start value.
-    /// - `f64` - The end value.
-    /// - `f64` - The interpolation factor, typically in the range 0.0 to 1.0.
     ///
     /// # Returns
     ///
@@ -83,7 +79,6 @@ impl Numeric {
     /// # Arguments
     ///
     /// - `f64` - The source angle in radians.
-    /// - `f64` - The target angle in radians.
     ///
     /// # Returns
     ///
@@ -97,8 +92,6 @@ impl Numeric {
     /// # Arguments
     ///
     /// - `f64` - The source angle in radians.
-    /// - `f64` - The target angle in radians.
-    /// - `f64` - The interpolation factor, typically in the range 0.0 to 1.0.
     ///
     /// # Returns
     ///
@@ -112,7 +105,6 @@ impl Numeric {
     /// # Arguments
     ///
     /// - `Vector2D` - The first point.
-    /// - `Vector2D` - The second point.
     ///
     /// # Returns
     ///
@@ -128,7 +120,6 @@ impl Numeric {
     /// # Arguments
     ///
     /// - `Vector2D` - The first point.
-    /// - `Vector2D` - The second point.
     ///
     /// # Returns
     ///
@@ -142,8 +133,6 @@ impl Numeric {
     /// # Arguments
     ///
     /// - `f64` - The edge minimum.
-    /// - `f64` - The edge maximum.
-    /// - `f64` - The input value.
     ///
     /// # Returns
     ///
@@ -158,8 +147,6 @@ impl Numeric {
     /// # Arguments
     ///
     /// - `f64` - The current value.
-    /// - `f64` - The target value.
-    /// - `f64` - The maximum allowed change.
     ///
     /// # Returns
     ///
@@ -196,7 +183,6 @@ impl Numeric {
     /// # Arguments
     ///
     /// - `f64` - The value to wrap.
-    /// - `f64` - The upper bound of the range.
     ///
     /// # Returns
     ///
@@ -224,7 +210,6 @@ impl Numeric {
     /// # Arguments
     ///
     /// - `Vector3D` - The first point.
-    /// - `Vector3D` - The second point.
     ///
     /// # Returns
     ///
@@ -240,7 +225,6 @@ impl Numeric {
     /// # Arguments
     ///
     /// - `Vector3D` - The first point.
-    /// - `Vector3D` - The second point.
     ///
     /// # Returns
     ///
@@ -257,7 +241,6 @@ impl Interpolable for f64 {
     /// # Arguments
     ///
     /// - `f64` - The opposite endpoint of the interpolation.
-    /// - `f64` - Interpolation factor; typically `[0.0, 1.0]`.
     ///
     /// # Returns
     ///
@@ -740,7 +723,6 @@ impl Rect {
     ///
     /// - `Vector2D` - The center point.
     /// - `f64` - The width.
-    /// - `f64` - The height.
     ///
     /// # Returns
     ///
@@ -834,7 +816,6 @@ impl Rect {
     ///
     /// # Arguments
     ///
-    /// - `Rect` - A `Rect` parameter.
     /// - `Rect` - A `Rect` parameter.
     ///
     /// # Returns
@@ -999,8 +980,6 @@ impl Color {
     /// # Arguments
     ///
     /// - `u8` - The red channel (0-255).
-    /// - `u8` - The green channel (0-255).
-    /// - `u8` - The blue channel (0-255).
     ///
     /// # Returns
     ///
@@ -1597,8 +1576,6 @@ impl Quaternion {
     /// # Arguments
     ///
     /// - `f64` - The yaw (rotation around y axis) in radians.
-    /// - `f64` - The pitch (rotation around x axis) in radians.
-    /// - `f64` - The roll (rotation around z axis) in radians.
     ///
     /// # Returns
     ///
@@ -1859,9 +1836,6 @@ impl Matrix4x4 {
     /// # Arguments
     ///
     /// - `f64` - The vertical field of view in radians.
-    /// - `f64` - The aspect ratio (width / height).
-    /// - `f64` - The near clipping plane distance.
-    /// - `f64` - The far clipping plane distance.
     ///
     /// # Returns
     ///
@@ -1894,11 +1868,6 @@ impl Matrix4x4 {
     /// # Arguments
     ///
     /// - `f64` - The left boundary.
-    /// - `f64` - The right boundary.
-    /// - `f64` - The bottom boundary.
-    /// - `f64` - The top boundary.
-    /// - `f64` - The near clipping plane distance.
-    /// - `f64` - The far clipping plane distance.
     ///
     /// # Returns
     ///
@@ -1939,8 +1908,6 @@ impl Matrix4x4 {
     /// # Arguments
     ///
     /// - `Vector3D` - The eye position.
-    /// - `Vector3D` - The target position to look at.
-    /// - `Vector3D` - The up direction.
     ///
     /// # Returns
     ///
@@ -2160,8 +2127,6 @@ impl AABB3D {
     ///
     /// - `Vector3D` - The center point.
     /// - `f64` - The width.
-    /// - `f64` - The height.
-    /// - `f64` - The depth.
     ///
     /// # Returns
     ///
@@ -2300,7 +2265,6 @@ impl Plane {
     /// # Arguments
     ///
     /// - `Vector3D` - The normal vector.
-    /// - `Vector3D` - A point on the plane.
     ///
     /// # Returns
     ///
