@@ -80,7 +80,7 @@ fn layout_with(attribute: VertexAttribute) -> VertexBufferLayout {
     VertexBufferLayout::new(12, VertexStepMode::Vertex, vec![attribute])
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -104,7 +104,7 @@ fn creating_an_array_object_binds_it_and_then_releases_it() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -159,7 +159,7 @@ fn each_declared_attribute_is_enabled_pointed_and_given_a_divisor() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -186,7 +186,7 @@ fn an_instance_step_mode_records_divisor_one() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -204,7 +204,7 @@ fn unbinding_passes_none_so_the_context_returns_to_its_default_state() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -235,7 +235,7 @@ fn a_layout_with_no_attributes_still_binds_the_array_and_the_buffer() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -260,7 +260,7 @@ fn setting_an_explicit_divisor_records_exactly_that_value() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),

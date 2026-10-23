@@ -7,7 +7,6 @@ impl Camera2D {
     /// # Arguments
     ///
     /// - `f64` - The viewport width in pixels.
-    /// - `f64` - The viewport height in pixels.
     ///
     /// # Returns
     ///
@@ -259,7 +258,6 @@ impl DrawList {
     ///
     /// - `Vector2D` - 2D vector (`Vector2D`).
     /// - `f64` - A 64-bit float (`f64`).
-    /// - `f64` - A 64-bit float (`f64`).
     /// - `Color` - A `Color` parameter.
     pub fn fill_rect(&mut self, position: Vector2D, width: f64, height: f64, color: Color) {
         self.get_mut_commands().push(DrawCommand::FillRect {
@@ -276,9 +274,7 @@ impl DrawList {
     ///
     /// - `Vector2D` - 2D vector (`Vector2D`).
     /// - `f64` - A 64-bit float (`f64`).
-    /// - `f64` - A 64-bit float (`f64`).
     /// - `Color` - A `Color` parameter.
-    /// - `f64` - A 64-bit float (`f64`).
     pub fn stroke_rect(
         &mut self,
         position: Vector2D,
@@ -318,7 +314,6 @@ impl DrawList {
     /// - `Vector2D` - 2D vector (`Vector2D`).
     /// - `f64` - A 64-bit float (`f64`).
     /// - `Color` - A `Color` parameter.
-    /// - `f64` - A 64-bit float (`f64`).
     pub fn stroke_circle(&mut self, center: Vector2D, radius: f64, color: Color, line_width: f64) {
         self.get_mut_commands().push(DrawCommand::StrokeCircle {
             center,
@@ -332,7 +327,6 @@ impl DrawList {
     ///
     /// # Arguments
     ///
-    /// - `Vector2D` - 2D vector (`Vector2D`).
     /// - `Vector2D` - 2D vector (`Vector2D`).
     /// - `Color` - A `Color` parameter.
     /// - `f64` - A 64-bit float (`f64`).
@@ -389,7 +383,6 @@ impl DrawList {
     /// - `Rect` - A `Rect` parameter.
     /// - `Vector2D` - 2D vector (`Vector2D`).
     /// - `f64` - A 64-bit float (`f64`).
-    /// - `f64` - A 64-bit float (`f64`).
     pub fn draw_image_rect(
         &mut self,
         image: &HtmlImageElement,
@@ -436,7 +429,6 @@ impl CanvasRenderer {
     ///
     /// - `S` - The CSS selector for the canvas element.
     /// - `f64` - The viewport width.
-    /// - `f64` - The viewport height.
     ///
     /// # Returns
     ///
@@ -796,7 +788,6 @@ impl CanvasRenderer {
     ///
     /// - `Vector2D` - The top-left position in world space.
     /// - `f64` - The width.
-    /// - `f64` - The height.
     pub fn fill_rect(&self, position: Vector2D, width: f64, height: f64) {
         self.get_context()
             .fill_rect(position.get_x(), position.get_y(), width, height);
@@ -808,7 +799,6 @@ impl CanvasRenderer {
     ///
     /// - `Vector2D` - The top-left position in world space.
     /// - `f64` - The width.
-    /// - `f64` - The height.
     pub fn stroke_rect(&self, position: Vector2D, width: f64, height: f64) {
         self.get_context()
             .stroke_rect(position.get_x(), position.get_y(), width, height);
@@ -847,7 +837,6 @@ impl CanvasRenderer {
     /// # Arguments
     ///
     /// - `Vector2D` - The start point.
-    /// - `Vector2D` - The end point.
     pub fn draw_line(&self, start: Vector2D, end: Vector2D) {
         self.get_context().begin_path();
         self.get_context().move_to(start.get_x(), start.get_y());
@@ -889,7 +878,6 @@ impl CanvasRenderer {
     /// - `&HtmlImageElement` - The image element to draw.
     /// - `Vector2D` - The top-left position in world space.
     /// - `f64` - The destination width.
-    /// - `f64` - The destination height.
     pub fn draw_image(
         &self,
         image: &HtmlImageElement,
@@ -916,7 +904,6 @@ impl CanvasRenderer {
     /// - `Rect` - The source rectangle within the image.
     /// - `Vector2D` - The destination top-left position in world space.
     /// - `f64` - The destination width.
-    /// - `f64` - The destination height.
     pub fn draw_image_rect(
         &self,
         image: &HtmlImageElement,
@@ -948,9 +935,7 @@ impl Camera3D {
     /// # Arguments
     ///
     /// - `Vector3D` - The eye position.
-    /// - `Vector3D` - The target position to look at.
     /// - `f64` - The viewport width.
-    /// - `f64` - The viewport height.
     ///
     /// # Returns
     ///
@@ -1093,7 +1078,6 @@ impl Camera3D {
     /// # Arguments
     ///
     /// - `f64` - The yaw delta in radians (horizontal rotation).
-    /// - `f64` - The pitch delta in radians (vertical rotation).
     pub fn orbit(&mut self, yaw_delta: f64, pitch_delta: f64) {
         let offset: Vector3D = self.get_position() - self.get_target();
         let current_distance: f64 = offset.magnitude();
@@ -1139,7 +1123,6 @@ impl SsaaCanvas {
     ///
     /// - `S` - The CSS selector for the display canvas element.
     /// - `f64` - The logical display width in CSS pixels.
-    /// - `f64` - The logical display height in CSS pixels.
     ///
     /// # Returns
     ///
@@ -1165,8 +1148,6 @@ impl SsaaCanvas {
     ///
     /// - `S` - The CSS selector for the display canvas element.
     /// - `f64` - The logical display width in CSS pixels.
-    /// - `f64` - The logical display height in CSS pixels.
-    /// - `f64` - The supersampling scale factor (e.g., 2.0 for 4x SSAA).
     ///
     /// # Returns
     ///
@@ -1292,7 +1273,6 @@ impl LinearGradient {
     /// # Arguments
     ///
     /// - `Vector2D` - The start point.
-    /// - `Vector2D` - The end point.
     /// - `Vec<(f64, String)>` - The color stops as (position, color) pairs.
     ///
     /// # Returns
@@ -1333,8 +1313,6 @@ impl RadialGradient {
     ///
     /// - `Vector2D` - The inner circle center.
     /// - `f64` - The inner circle radius.
-    /// - `Vector2D` - The outer circle center.
-    /// - `f64` - The outer circle radius.
     /// - `Vec<(f64, String)>` - The color stops as (position, color) pairs.
     ///
     /// # Returns
@@ -1642,7 +1620,6 @@ impl RenderBackend for CanvasRenderer {
     ///
     /// - `Vector2D` - 2D vector (`Vector2D`).
     /// - `f64` - A 64-bit float (`f64`).
-    /// - `f64` - A 64-bit float (`f64`).
     fn fill_rect(&self, position: Vector2D, width: f64, height: f64) {
         self.fill_rect(position, width, height);
     }
@@ -1652,7 +1629,6 @@ impl RenderBackend for CanvasRenderer {
     /// # Arguments
     ///
     /// - `Vector2D` - 2D vector (`Vector2D`).
-    /// - `f64` - A 64-bit float (`f64`).
     /// - `f64` - A 64-bit float (`f64`).
     fn stroke_rect(&self, position: Vector2D, width: f64, height: f64) {
         self.stroke_rect(position, width, height);
@@ -1683,7 +1659,6 @@ impl RenderBackend for CanvasRenderer {
     /// # Arguments
     ///
     /// - `Vector2D` - 2D vector (`Vector2D`).
-    /// - `Vector2D` - 2D vector (`Vector2D`).
     fn draw_line(&self, start: Vector2D, end: Vector2D) {
         self.draw_line(start, end);
     }
@@ -1713,7 +1688,6 @@ impl RenderBackend for CanvasRenderer {
     ///
     /// - `&HtmlImageElement` - Shared reference to a `HtmlImageElement`.
     /// - `Vector2D` - 2D vector (`Vector2D`).
-    /// - `f64` - A 64-bit float (`f64`).
     /// - `f64` - A 64-bit float (`f64`).
     fn draw_image(&self, image: &HtmlImageElement, position: Vector2D, width: f64, height: f64) {
         self.draw_image(image, position, width, height);

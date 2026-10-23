@@ -383,4 +383,43 @@ impl EngineHandle {
             .as_ref()
             .is_some_and(|handle: &SchedulerHandle| handle.is_running())
     }
+
+    /// Returns whether a Canvas 2D renderer is attached to the engine.
+    ///
+    /// The renderer is created when the engine runs on the Canvas 2D
+    /// backend. A handle that was never run, or that ran on another
+    /// backend, has none.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the Canvas 2D renderer is initialized.
+    pub fn has_canvas_renderer(&self) -> bool {
+        self.try_get_canvas_renderer().is_some()
+    }
+
+    /// Returns whether a WebGPU renderer is attached to the engine.
+    ///
+    /// The renderer is created when the engine runs on the WebGPU
+    /// backend. A handle that was never run, or that ran on another
+    /// backend, has none.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the WebGPU renderer is initialized.
+    pub fn has_webgpu_renderer(&self) -> bool {
+        self.try_get_webgpu_renderer().is_some()
+    }
+
+    /// Returns whether a WebGL 2 renderer is attached to the engine.
+    ///
+    /// The renderer is created when the engine runs on the WebGL 2
+    /// backend. A handle that was never run, or that ran on another
+    /// backend, has none.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the WebGL 2 renderer is initialized.
+    pub fn has_webgl_renderer(&self) -> bool {
+        self.try_get_webgl_renderer().is_some()
+    }
 }

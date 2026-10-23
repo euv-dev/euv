@@ -301,7 +301,6 @@ pub(crate) fn typed_props_on_toggle_disabled(disabled: Signal<bool>) -> Option<R
 /// # Arguments
 ///
 /// - `Signal<i32>` - The current count signal.
-/// - `Signal<i32>` - The max count signal.
 /// - `Signal<bool>` - The disabled signal.
 ///
 /// # Returns

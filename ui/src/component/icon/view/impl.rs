@@ -1,5 +1,6 @@
 use super::*;
 
+/// Inherent implementation of [`EuvIconSize`].
 impl EuvIconSize {
     /// Returns the glyph edge length in pixels for this size.
     ///

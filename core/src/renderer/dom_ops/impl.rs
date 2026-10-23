@@ -10,6 +10,7 @@ use super::*;
 /// two threads racing to build it cannot produce two different sets.
 static DOM_OP_NAMES: OnceLock<DomOpNames> = OnceLock::new();
 
+/// Inherent implementation of [`DomOpNames`].
 impl DomOpNames {
     /// Returns the per-load DOM-op names, building them on first call.
     ///

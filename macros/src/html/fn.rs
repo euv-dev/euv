@@ -816,7 +816,6 @@ fn extract_props_type_from_fn(item_fn: &syn::ItemFn) -> String {
 /// # Arguments
 ///
 /// - `ParseStream` - The parse stream of the second brace group.
-/// - `ParseStream` - The outer parse stream (for `peek2` checks).
 ///
 /// # Returns
 ///

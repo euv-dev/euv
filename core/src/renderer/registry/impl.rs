@@ -523,7 +523,7 @@ impl Registry {
 
     /// Returns whether the signal update registry contains any dirty slots.
     ///
-    /// OPT 6: now an O(脏节点数) check against `DIRTY_UPDATE_IDS` instead of
+    /// OPT 6: now an O(dirty node count) check against `DIRTY_UPDATE_IDS` instead of
     /// an O(N) scan of every dynamic node.
     ///
     /// # Returns

@@ -4,7 +4,7 @@ fn config() -> EngineConfig {
     EngineConfig::default()
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -23,7 +23,7 @@ fn creating_an_image_element_yields_nothing_where_there_is_no_document() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -56,7 +56,7 @@ fn a_load_that_cannot_make_an_element_leaves_the_loader_completely_untouched() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -80,7 +80,7 @@ fn asking_for_a_webgl_backend_with_no_window_names_the_missing_canvas() {
 }
 
 #[cfg(target_arch = "wasm32")]
-#[wasm_bindgen_test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 async fn asking_for_a_webgpu_backend_with_no_window_reports_a_missing_navigator() {
     let outcome: Result<WebGpuRenderer, WebGpuInitError> =
         Engine::webgpu_renderer(&config().get_render()).await;
@@ -98,7 +98,7 @@ async fn asking_for_a_webgpu_backend_with_no_window_reports_a_missing_navigator(
 }
 
 #[cfg(target_arch = "wasm32")]
-#[wasm_bindgen_test]
+#[wasm_bindgen_test::wasm_bindgen_test]
 async fn initialising_webgpu_on_a_handle_leaves_every_backend_slot_empty() {
     let mut handle: EngineHandle = Engine::new_handle(config());
 
@@ -109,14 +109,14 @@ async fn initialising_webgpu_on_a_handle_leaves_every_backend_slot_empty() {
         "there is no GPU on this host, so initialization has to fail rather than half-succeed"
     );
     assert!(
-        handle.get_webgpu_renderer().is_none(),
+        !handle.has_webgpu_renderer(),
         "the webgpu slot stays empty: a renderer that failed to initialize must not be stored, \
          or the next frame reads a half-built renderer"
     );
     assert!(
-        handle.get_canvas_renderer().is_none(),
+        !handle.has_canvas_renderer(),
         "and this entry point owns the webgpu slot alone, so it must not have produced a canvas \
          renderer as a side effect"
     );
-    assert!(handle.get_webgl_renderer().is_none(), "nor a webgl one");
+    assert!(!handle.has_webgl_renderer(), "nor a webgl one");
 }

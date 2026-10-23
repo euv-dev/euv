@@ -6,8 +6,8 @@ pub trait Interpolable {
     ///
     /// # Arguments
     ///
-    /// - `Self` - The target value to interpolate towards.
     /// - `f64` - The interpolation factor, typically in the range 0.0 to 1.0.
+    /// - `Self` - The target value to interpolate towards.
     ///
     /// # Returns
     ///
@@ -106,8 +106,8 @@ pub trait Vector:
     ///
     /// # Arguments
     ///
-    /// - `Self` - The target vector.
     /// - `f64` - The interpolation factor, typically in the range 0.0 to 1.0.
+    /// - `Self` - The target vector.
     ///
     /// # Returns
     ///

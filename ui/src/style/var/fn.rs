@@ -28,6 +28,13 @@ vars! {
         // ─── Text Colors ───
         text-on-accent: "#ffffff";
 
+        // ─── Media Surfaces ───
+        // A camera feed and the letterbox around a fullscreen canvas are
+        // black, a drawing preview is white — in both themes. They are
+        // pictures, not chrome, so they do not follow the theme.
+        surface-media: "#000000";
+        surface-drawing: "#ffffff";
+
         // ═══════════════════════════════════════════════════════════════════════
         // Brand / Accent (Black for minimalist)
         // ═══════════════════════════════════════════════════════════════════════
@@ -147,6 +154,10 @@ vars! {
         nav-width-min: "248px";
         nav-width-max: "320px";
         content-max-width: "820px";
+        // The measure a body of text is set to — the line length a reader
+        // can take in without losing the line. Narrower than the content
+        // column, so prose stays readable inside a full-width card.
+        text-measure: "360px";
         mobile-header-height: "52px";
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -215,6 +226,11 @@ vars! {
 
         // ─── Text Colors ───
         text-on-accent: "#000000";
+
+        // ─── Media Surfaces ───
+        // The same in both themes: a picture does not follow the theme.
+        surface-media: "#000000";
+        surface-drawing: "#ffffff";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Brand / Accent (White for dark minimalist)
@@ -335,6 +351,10 @@ vars! {
         nav-width-min: "248px";
         nav-width-max: "320px";
         content-max-width: "820px";
+        // The measure a body of text is set to — the line length a reader
+        // can take in without losing the line. Narrower than the content
+        // column, so prose stays readable inside a full-width card.
+        text-measure: "360px";
         mobile-header-height: "52px";
 
         // ═══════════════════════════════════════════════════════════════════════

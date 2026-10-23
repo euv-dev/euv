@@ -213,10 +213,8 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
 /// # Arguments
 ///
 /// - `&'static str` - The route being unlocked.
-/// - `&'static str` - The expected SHA-256 hex digest.
 /// - `String` - The `localStorage` key to write on success.
 /// - `Signal<String>` - The bound input value signal.
-/// - `Signal<String>` - The error message signal.
 /// - `Signal<bool>` - The in-flight flag disabling double submits.
 ///
 /// # Returns

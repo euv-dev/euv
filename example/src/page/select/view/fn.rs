@@ -7,12 +7,7 @@ use super::*;
 ///
 /// # Returns
 ///
-/// - `VirtualNode` - The select demo page virtual DOM tree.
-///
-/// # Arguments
-///
-/// - `VirtualNode<PageSelectProps>` - The `node` argument.
-///
+/// - `VirtualNode` - The `VirtualNode` value.
 #[component]
 pub(crate) fn page_select(node: VirtualNode<PageSelectProps>) -> VirtualNode {
     let PageSelectProps: PageSelectProps = node.try_get_props().unwrap_or_default();

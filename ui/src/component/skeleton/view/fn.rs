@@ -67,7 +67,6 @@ pub fn euv_skeleton(node: VirtualNode<EuvSkeletonProps>) -> VirtualNode {
 ///
 /// - `usize` - The zero-based position of this line, used as its key.
 /// - `&'static str` - The requested width, e.g. `"60%"`.
-/// - `&'static str` - The requested height, e.g. `"24px"`.
 /// - `Signal<bool>` - Whether the line is drawn with rounded corners.
 ///
 /// # Returns

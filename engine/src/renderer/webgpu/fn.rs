@@ -32,7 +32,6 @@ pub(crate) fn js_error_to_string(value: &JsValue) -> String {
 /// # Arguments
 ///
 /// - `bool` - Select the 32-bit float format when true.
-/// - `bool` - Select the stencil-bearing format when true.
 ///
 /// # Returns
 ///
@@ -62,7 +61,6 @@ pub(crate) fn pick_depth_format(high_precision: bool, with_stencil: bool) -> &'s
 /// # Arguments
 ///
 /// - `bool` - Include the read mode bit when true.
-/// - `bool` - Include the write mode bit when true.
 ///
 /// # Returns
 ///
@@ -88,10 +86,6 @@ pub(crate) fn map_mode_for(read: bool, write: bool) -> u32 {
 /// # Arguments
 ///
 /// - `bool` - Include `RENDER_ATTACHMENT` when true.
-/// - `bool` - Include `COPY_SRC` when true.
-/// - `bool` - Include `COPY_DST` when true.
-/// - `bool` - Include `TEXTURE_BINDING` when true.
-/// - `bool` - Include `STORAGE_BINDING` when true.
 ///
 /// # Returns
 ///
@@ -261,7 +255,6 @@ pub(crate) fn cached_method(
 /// - `GpuReceiverClass` - The receiver's WebGPU class (cache key half).
 /// - `&JsValue` - The receiver (`this`) for the call.
 /// - `&'static str` - A method name matching a `WEBGPU_METHOD_*` constant.
-/// - `&JsValue` - The single argument passed to the method.
 ///
 /// # Returns
 ///

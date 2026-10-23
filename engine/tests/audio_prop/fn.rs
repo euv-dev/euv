@@ -54,7 +54,7 @@ fn gain_node(param: &Object) -> GainNode {
     node
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -75,7 +75,7 @@ fn a_clip_reports_the_channel_count_of_the_buffer_it_was_built_from() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -90,7 +90,7 @@ fn a_clip_reports_the_duration_of_the_buffer_it_was_built_from() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -113,7 +113,7 @@ fn a_context_reads_the_sample_rate_off_the_browser_supplied_context() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -129,7 +129,7 @@ fn a_context_reports_the_playback_time_off_the_browser_supplied_context() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -157,7 +157,7 @@ fn master_volume_is_clamped_into_the_unit_range_before_it_reaches_the_gain_node(
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -183,7 +183,7 @@ fn suspending_a_context_is_routed_through_to_the_browser_context() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),

@@ -358,12 +358,7 @@ pub(crate) fn keep_alive_timer_on_reset(
 ///
 /// # Returns
 ///
-/// - `VirtualNode` - The keep-alive demo page virtual DOM tree.
-///
-/// # Arguments
-///
-/// - `VirtualNode<PageKeepAliveProps>` - The `node` argument.
-///
+/// - `VirtualNode` - The `VirtualNode` value.
 #[component]
 pub(crate) fn page_keep_alive(node: VirtualNode<PageKeepAliveProps>) -> VirtualNode {
     let PageKeepAliveProps: PageKeepAliveProps = node.try_get_props().unwrap_or_default();

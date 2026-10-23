@@ -169,7 +169,7 @@ fn dom_source() -> js_sys::Function {
     )
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -203,7 +203,7 @@ fn the_browser_shaped_globals_can_be_installed_into_the_node_realm() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -227,7 +227,7 @@ fn a_webgl_backend_can_be_built_once_the_document_exists() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -266,7 +266,7 @@ fn the_scheduler_loop_runs_when_its_animation_frame_callback_fires() {
     let _: u32 = renders.get();
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -297,7 +297,7 @@ fn a_stopped_scheduler_does_not_advance_even_if_its_callback_is_fired() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -375,7 +375,7 @@ async fn running_the_engine_on_the_canvas_backend_brings_up_a_renderer_and_a_run
         CountingHandler::spawn();
 
     let handle: EngineHandle = Engine::run(EngineConfig::default(), handler).await;
-    let canvas_up: bool = handle.get_canvas_renderer().is_some();
+    let canvas_up: bool = handle.has_canvas_renderer();
     let pumping: bool = pump_animation_frame();
     handle.stop();
     dom_teardown();

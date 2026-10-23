@@ -1,6 +1,6 @@
 use super::*;
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -27,7 +27,7 @@ fn submitting_command_buffers_reaches_the_queue_with_the_whole_array() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -49,7 +49,7 @@ fn a_single_command_buffer_still_goes_across_as_an_array() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -82,7 +82,7 @@ fn creating_a_vertex_buffer_allocates_then_fills_it_before_returning() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -105,7 +105,7 @@ fn the_internal_caches_start_empty_on_a_freshly_built_renderer() {
     );
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),
@@ -124,7 +124,7 @@ fn a_fresh_renderer_keeps_the_constructor_arguments_it_was_built_with() {
     assert!(!subject.get_antialias(), "and whether multisampling is on");
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(
     not(target_arch = "wasm32"),

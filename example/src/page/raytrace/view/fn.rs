@@ -323,9 +323,7 @@ fn raytrace_canvas_tab(
 /// # Arguments
 ///
 /// - `bool` - Whether initialization has finished (success or failure).
-/// - `bool` - Whether the renderer is active.
 /// - `&str` - The stable error code from the last rejected call.
-/// - `&str` - The engine's rejection detail.
 ///
 /// # Returns
 ///
@@ -349,7 +347,6 @@ fn raytrace_status_text(loaded: bool, active: bool, init_error_code: &str, detai
 /// # Arguments
 ///
 /// - `&str` - The base status text.
-/// - `&str` - The engine's rejection detail; empty renders nothing extra.
 ///
 /// # Returns
 ///

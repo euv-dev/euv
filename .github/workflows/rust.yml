@@ -84,8 +84,13 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
+          targets: wasm32-unknown-unknown
       - name: Run tests
-        run: cargo test --all-features -- --nocapture
+        run: cargo test --all-features --workspace -- --nocapture
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+      - name: Run wasm tests
+        run: cd ui && wasm-pack test --node
 
   clippy:
     needs: setup
@@ -102,7 +107,7 @@ jobs:
           toolchain: stable
           components: clippy
       - name: Run clippy
-        run: cargo clippy --all-features
+        run: cargo clippy --all-features --workspace --all-targets
 
   build:
     needs: setup

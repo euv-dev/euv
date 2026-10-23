@@ -76,7 +76,6 @@ impl Router {
     /// # Arguments
     ///
     /// - `Signal<bool>` - The reactive signal controlling the nav drawer visibility.
-    /// - `Signal<bool>` - The reactive signal tracking whether the viewport is mobile-sized.
     pub fn use_overlay_history(drawer_open: Signal<bool>, mobile_signal: Signal<bool>) {
         let was_drawer_open: Signal<bool> = App::use_signal(|| false);
         watch!(drawer_open, |is_open: bool| {

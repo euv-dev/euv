@@ -412,10 +412,6 @@ impl EuvGestureRecognizer {
     /// # Arguments
     ///
     /// - `f64` - X displacement from start to end, in CSS pixels.
-    /// - `f64` - Y displacement from start to end, in CSS pixels.
-    /// - `f64` - Elapsed time from `touchstart` to `touchend`, in
-    ///   milliseconds.
-    /// - `f64` - Path length travelled, in CSS pixels. A finger that loops
     ///   back to its origin has near-zero displacement but a long path, and
     ///   must not be classified as a tap.
     ///
@@ -502,7 +498,6 @@ impl EuvGestureRecognizer {
     /// # Arguments
     ///
     /// - `f64` - Distance between the two fingers now.
-    /// - `f64` - Distance between the two fingers when the pinch began.
     ///
     /// # Returns
     ///
@@ -522,8 +517,6 @@ impl EuvGestureRecognizer {
     ///
     /// - `&GesturePoint` - The finger that is moving.
     /// - `f64` - X of the point where this drag began.
-    /// - `f64` - Y of the point where this drag began.
-    /// - `f64` - Path length accumulated so far, in CSS pixels.
     ///
     /// # Returns
     ///
@@ -547,6 +540,7 @@ impl EuvGestureRecognizer {
     }
 }
 
+/// Inherent implementation of [`EuvGesture`].
 impl EuvGesture {
     /// Returns the stable lowercase token for this gesture.
     ///
@@ -569,6 +563,7 @@ impl EuvGesture {
         GESTURE_NAMES[index]
     }
 }
+/// Default construction for [`EuvGestureConfig`].
 impl Default for EuvGestureConfig {
     /// Returns the default thresholds, tuned for a finger on glass.
     ///
@@ -589,6 +584,7 @@ impl Default for EuvGestureConfig {
     }
 }
 
+/// Default construction for [`EuvGestureRecognizer`].
 impl Default for EuvGestureRecognizer {
     /// Returns a recognizer using the default thresholds.
     ///
@@ -603,6 +599,7 @@ impl Default for EuvGestureRecognizer {
     }
 }
 
+/// Inherent implementation of [`GestureProgress`].
 impl GestureProgress {
     /// Records the origin of a new touch sequence.
     ///

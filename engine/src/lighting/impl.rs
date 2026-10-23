@@ -11,7 +11,6 @@ impl Light {
     /// # Arguments
     ///
     /// - `Vector3D` - The unit direction toward the light source.
-    /// - `Vector3D` - The RGB intensity multiplier.
     ///
     /// # Returns
     ///
@@ -36,7 +35,6 @@ impl Light {
     /// # Arguments
     ///
     /// - `Vector3D` - The world-space position of the light.
-    /// - `Vector3D` - The RGB intensity multiplier.
     /// - `f64` - The intensity scalar.
     ///
     /// # Returns
@@ -62,10 +60,7 @@ impl Light {
     /// # Arguments
     ///
     /// - `Vector3D` - The world-space position of the light.
-    /// - `Vector3D` - The unit direction the cone opens along.
-    /// - `Vector3D` - The RGB intensity multiplier.
     /// - `f64` - The intensity scalar.
-    /// - `f64` - The half-angle of the cone in radians.
     ///
     /// # Returns
     ///
@@ -117,7 +112,6 @@ impl Material {
     ///
     /// - `Vector3D` - The diffuse albedo color.
     /// - `f64` - The specular intensity in the range 0.0..=1.0.
-    /// - `f64` - The Phong specular exponent.
     ///
     /// # Returns
     ///
@@ -218,7 +212,6 @@ impl LightingUniforms {
     /// # Arguments
     ///
     /// - `Vector3D` - The world-space position of the shaded point.
-    /// - `Vector3D` - The surface normal (unit length).
     /// - `&Material` - The material at the shaded point.
     /// - `&[(Vector3D, f64)]` - `(center, radius)` occluder bounding
     ///   spheres, one per occluder.
@@ -311,7 +304,6 @@ impl LightingUniforms {
     /// # Arguments
     ///
     /// - `Vector3D` - The world-space position of the shaded point.
-    /// - `Vector3D` - The surface normal (unit length).
     /// - `&Material` - The material at the shaded point.
     /// - `F` - The visibility provider, called once per contributing
     ///   light.

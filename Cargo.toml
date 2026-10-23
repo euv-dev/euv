@@ -31,7 +31,17 @@ exclude = [
 ]
 
 [workspace]
-members = ["core", "macros", "cli", "ui", "engine", "example", "docs"]
+members = [
+    "core",
+    "macros",
+    "cli",
+    "ui",
+    "engine",
+    "chart",
+    "chart/bench",
+    "example",
+    "docs",
+]
 resolver = "3"
 
 [lib]
@@ -42,9 +52,11 @@ euv = { path = ".", version = "0.32.0" }
 euv-ui = { path = "ui", version = "0.32.0" }
 euv-cli = { path = "cli", version = "0.32.0" }
 euv-core = { path = "core", version = "0.32.0" }
+euv-chart = { path = "chart", version = "0.32.0" }
 euv-engine = { path = "engine", version = "0.32.0" }
 euv-macros = { path = "macros", version = "0.32.0" }
 euv-example = { path = "example", version = "0.32.0" }
+euv-chart-bench = { path = "chart/bench", version = "0.32.0" }
 
 log = "0.4.34"
 toml = "0.9.12"
@@ -137,6 +149,7 @@ web-sys = { version = "0.3.106", features = [
     "MediaStream",
     "Performance",
     "SubmitEvent",
+    "TextMetrics",
     "WebGlBuffer",
     "WebGlShader",
     "AudioContext",
@@ -172,6 +185,7 @@ web-sys = { version = "0.3.106", features = [
     "ResizeObserver",
     "ScrollBehavior",
     "VisualViewport",
+    "DomRectReadOnly",
     "GpuExtent3dDict",
     "GpuOrigin2dDict",
     "GpuOrigin3dDict",
@@ -314,6 +328,7 @@ euv = { path = "." }
 euv-ui = { path = "ui" }
 euv-cli = { path = "cli" }
 euv-core = { path = "core" }
+euv-chart = { path = "chart" }
 euv-engine = { path = "engine" }
 euv-macros = { path = "macros" }
 euv-example = { path = "example" }

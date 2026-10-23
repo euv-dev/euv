@@ -32,42 +32,68 @@ fn calendar_weekday(weekday: EuvCalendarWeekday) -> VirtualNode {
 
 /// Renders one day cell of the calendar grid.
 ///
-/// Every cell stays mounted; the `_muted`, `_today` and `_selected` modifiers
-/// stack on the base `c_euv_calendar_day` class so a cell can be muted *and*
-/// today *and* selected at once without a combinatorial class explosion.
+/// Every cell stays mounted; the cell picks exactly one class out of the
+/// registry — `_muted`, `_selected`, `_today` or the plain day class — so the
+/// class list of a cell never repeats a token and never leaves two
+/// competing rules to be settled by stylesheet order. The registry entries
+/// are complete cell styles rather than additive modifiers, so one class per
+/// cell is what the cascade can actually honour.
+///
+/// A spill-over cell belongs to the neighbouring month, so it never carries
+/// the selected marker: the day number it shows belongs to another month and
+/// would mark the wrong cell.
 ///
 /// # Arguments
 ///
 /// - `EuvCalendarDay` - The cell to render.
 /// - `Signal<u32>` - The selected-day signal driving the `_selected` modifier.
+/// - `usize` - The position of the cell in the grid, used as its key.
+/// - `Option<Rc<dyn Fn(u32, bool)>>` - The callback a click on the cell runs.
 ///
 /// # Returns
 ///
 /// - `VirtualNode` - The day button.
-fn calendar_day(day: EuvCalendarDay, selected: Signal<u32>) -> VirtualNode {
+fn calendar_day(
+    day: EuvCalendarDay,
+    selected: Signal<u32>,
+    index: usize,
+    on_day_click: Option<Rc<dyn Fn(u32, bool)>>,
+) -> VirtualNode {
     let day_number: u32 = day.day;
     let day_text: String = day_number.to_string();
-    let is_selected: bool = selected.get() == day_number;
-    let base_class: fn() -> &'static Css = if day.muted {
-        c_euv_calendar_day_muted
-    } else {
-        c_euv_calendar_day
+    let is_selected: bool = !day.muted && selected.get() == day_number;
+    // The cell does not resolve the click on its own: the caller owns the
+    // date arithmetic, so the cell hands it the day number and whether the
+    // cell belongs to a neighbouring month. Without a callback the cell
+    // writes its day number into the selected signal, which is what a
+    // calendar used on its own needs.
+    let handler: Option<Rc<dyn Fn(Event)>> = match on_day_click {
+        Some(callback) => {
+            let callback: Rc<dyn Fn(u32, bool)> = Rc::clone(&callback);
+            let muted: bool = day.muted;
+            Some(Rc::new(move |_event: Event| {
+                callback(day_number, muted);
+            }))
+        }
+        None => on_calendar_day_click(selected, day_number),
     };
     html! {
         button {
-            class: base_class()
-            class: if day.today {
+            class: if day.muted {
+                c_euv_calendar_day_muted()
+            } else if is_selected {
+                c_euv_calendar_day_selected()
+            } else if day.today {
                 c_euv_calendar_day_today()
             } else {
                 c_euv_calendar_day()
             }
-            class: if is_selected {
-                c_euv_calendar_day_selected()
-            } else {
-                c_euv_calendar_day()
-            }
-            key: day_number.to_string()
-            onclick: on_calendar_day_click(selected, day_number)
+            // The key has to be unique among the siblings. The day number
+            // is not: the spill-over cells repeat the day numbers of the
+            // month on display, and a duplicated key makes the keyed diff
+            // hand a cell the DOM node of another one.
+            key: index.to_string()
+            onclick: handler
             day_text
         }
     }
@@ -102,6 +128,7 @@ pub fn euv_calendar(node: VirtualNode<EuvCalendarProps>) -> VirtualNode {
         weekdays,
         days,
         selected,
+        on_day_click,
     }: EuvCalendarProps = node.try_get_props().unwrap_or_default();
     let weekday_nodes: Vec<VirtualNode> = weekdays
         .iter()
@@ -109,26 +136,38 @@ pub fn euv_calendar(node: VirtualNode<EuvCalendarProps>) -> VirtualNode {
         .collect();
     let day_nodes: Vec<VirtualNode> = days
         .iter()
-        .map(|day: &EuvCalendarDay| calendar_day(*day, selected))
+        .enumerate()
+        .map(
+            |(index, day): (usize, &calendar::view::r#struct::EuvCalendarDay)| {
+                calendar_day(*day, selected, index, on_day_click.clone())
+            },
+        )
         .collect();
     html! {
         div {
             class: c_euv_calendar()
-            div {
-                class: c_euv_calendar_header()
-                h3 {
-                    class: c_euv_calendar_title()
-                    title
-                }
+            // The header carries the month title and the two month
+            // steps. A calendar that is embedded in a picker brings its
+            // own header, so a calendar with no title renders no header
+            // at all — a header with an empty title and a pair of month
+            // steps that belong to nobody is worse than no header.
+            if !title.is_empty() {
                 div {
-                    class: c_euv_calendar_nav()
-                    button {
-                        class: c_euv_calendar_day()
-                        "‹"
+                    class: c_euv_calendar_header()
+                    h3 {
+                        class: c_euv_calendar_title()
+                        title
                     }
-                    button {
-                        class: c_euv_calendar_day()
-                        "›"
+                    div {
+                        class: c_euv_calendar_nav()
+                        button {
+                            class: c_euv_calendar_day()
+                            "‹"
+                        }
+                        button {
+                            class: c_euv_calendar_day()
+                            "›"
+                        }
                     }
                 }
             }

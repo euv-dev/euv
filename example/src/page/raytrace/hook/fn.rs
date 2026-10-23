@@ -272,7 +272,6 @@ pub(crate) fn build_raytrace_settings() -> RayTraceSettings {
 /// # Arguments
 ///
 /// - `f64` - The orbit yaw in radians.
-/// - `f64` - The orbit pitch in radians.
 ///
 /// # Returns
 ///
@@ -300,9 +299,7 @@ pub(crate) fn compute_eye_position(yaw: f64, pitch: f64) -> Vector3D {
 /// # Arguments
 ///
 /// - `f64` - The orbit yaw in radians.
-/// - `f64` - The orbit pitch in radians.
 /// - `u32` - The frame width in pixels.
-/// - `u32` - The frame height in pixels.
 ///
 /// # Returns
 ///
@@ -546,7 +543,6 @@ fn raytrace_set_loaded_delayed(
 ///
 /// - `Rc<Cell<bool>>` - The resize-dirty flag set after the debounce fires.
 /// - `Rc<Cell<Option<i32>>>` - The pending debounce timer handle.
-/// - `Rc<Cell<bool>>` - The loop's cancellation flag, checked before the
 ///   debounce timer is armed.
 ///
 /// # Returns
@@ -1988,7 +1984,6 @@ fn client_y_from_event(event: &Event) -> f64 {
 /// # Arguments
 ///
 /// - `f64` - The horizontal drag delta in CSS pixels.
-/// - `f64` - The vertical drag delta in CSS pixels.
 /// - `RayTraceCameraAngles` - The shared orbit angles.
 /// - `Signal<bool>` - The auto-rotate signal to disable.
 fn raytrace_apply_drag(dx: f64, dy: f64, angles: RayTraceCameraAngles, auto_rotate: Signal<bool>) {

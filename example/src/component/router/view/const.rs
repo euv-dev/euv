@@ -73,5 +73,13 @@ pub(crate) const ROUTE_TIMER: &str = "/timer";
 pub(crate) const ROUTE_FILE_UPLOAD: &str = "/file-upload";
 /// Route path for the virtual-list demo page.
 pub(crate) const ROUTE_VIRTUAL_LIST: &str = "/virtual-list";
+/// Route path for the display-components demo page.
+pub(crate) const ROUTE_UI_ADVANCED: &str = "/ui-advanced";
+/// Route path for the display-components demo page.
+pub(crate) const ROUTE_UI_DATA: &str = "/ui-data";
+/// Route path for the display-components demo page.
+pub(crate) const ROUTE_UI_DISPLAY: &str = "/ui-display";
+/// Route path for the form-components demo page.
+pub(crate) const ROUTE_UI_FORMS: &str = "/ui-forms";
 /// Route path for the websocket demo page.
 pub(crate) const ROUTE_WEBSOCKET: &str = "/websocket";

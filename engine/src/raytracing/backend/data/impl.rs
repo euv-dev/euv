@@ -242,7 +242,6 @@ impl RayTraceRenderer {
     /// # Arguments
     ///
     /// - `u32` - The new width in pixels.
-    /// - `u32` - The new height in pixels.
     ///
     /// # Returns
     ///
@@ -294,6 +293,7 @@ impl RayTraceRenderer {
     }
 }
 
+/// Implements [`Drop`] for [`RayTraceRenderer`].
 impl Drop for RayTraceRenderer {
     /// Releases the backend resources the renderer owns.
     ///

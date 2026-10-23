@@ -1,5 +1,6 @@
 use super::*;
 
+/// Inherent implementation of [`WebGlRayTraceBackend`].
 impl WebGlRayTraceBackend {
     /// Compiles the ray-trace program and binds the fullscreen vertex
     /// array.
@@ -23,7 +24,6 @@ impl WebGlRayTraceBackend {
     ///
     /// - `&HtmlCanvasElement` - The canvas to draw into.
     /// - `u32` - The surface width in pixels.
-    /// - `u32` - The surface height in pixels.
     ///
     /// # Returns
     ///
@@ -175,7 +175,6 @@ impl WebGlRayTraceBackend {
     /// # Arguments
     ///
     /// - `u32` - The surface width in pixels.
-    /// - `u32` - The surface height in pixels.
     ///
     /// # Returns
     ///

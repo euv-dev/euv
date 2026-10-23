@@ -7,12 +7,7 @@ use super::*;
 ///
 /// # Returns
 ///
-/// - `VirtualNode` - The counter demo page virtual DOM tree.
-///
-/// # Arguments
-///
-/// - `VirtualNode<PageCounterProps>` - The `node` argument.
-///
+/// - `VirtualNode` - The `VirtualNode` value.
 #[component]
 pub(crate) fn page_counter(node: VirtualNode<PageCounterProps>) -> VirtualNode {
     let PageCounterProps: PageCounterProps = node.try_get_props().unwrap_or_default();

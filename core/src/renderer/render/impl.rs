@@ -108,7 +108,6 @@ impl Renderer {
     /// # Arguments
     ///
     /// - `&VirtualNode` - The old virtual node to patch from.
-    /// - `&VirtualNode` - The new virtual node to patch to.
     fn patch_root(&mut self, old_node: &VirtualNode, new_node: &VirtualNode) {
         let dom_child: Option<Node> = self.get_root().first_child();
         let is_element: bool = if let Some(ref dom_child) = dom_child {
@@ -139,7 +138,6 @@ impl Renderer {
     /// # Arguments
     ///
     /// - `&VirtualNode` - The old virtual node.
-    /// - `&VirtualNode` - The new virtual node.
     /// - `&Element` - The real DOM element to patch.
     ///
     /// # Returns
@@ -249,7 +247,6 @@ impl Renderer {
     ///
     /// - `&Element` - The DOM element whose attributes to patch.
     /// - `&[AttributeEntry]` - The old attribute list.
-    /// - `&[AttributeEntry]` - The new attribute list.
     ///
     /// OPT 5: the `data-euv-id` lookup is hoisted out of the per-attribute
     /// event-handler removal path so it only runs when at least one
@@ -549,7 +546,6 @@ impl Renderer {
     /// # Arguments
     ///
     /// - `&[AttributeEntry]` - Shared reference to a `[AttributeEntry]`.
-    /// - `&[AttributeEntry]` - Shared reference to a `[AttributeEntry]`.
     /// - `usize` - A non-negative integer (`usize`).
     fn detach_removed_event_handlers(
         &self,
@@ -591,7 +587,6 @@ impl Renderer {
     ///
     /// - `&Element` - The parent DOM element.
     /// - `&[VirtualNode]` - The old children list.
-    /// - `&[VirtualNode]` - The new children list.
     ///
     /// OPT 3/4: `parent.child_nodes()` is now hoisted to a single
     /// `NodeList` capture taken once per call, then reused across every
@@ -635,7 +630,6 @@ impl Renderer {
     ///
     /// - `&Element` - The parent DOM element.
     /// - `&[VirtualNode]` - The old children list.
-    /// - `&[VirtualNode]` - The new children list.
     ///
     /// OPT 16 (DomOp batched commit): the previous implementation
     /// issued `parent.remove_child` / `parent.insert_before` /
@@ -866,7 +860,6 @@ impl Renderer {
     ///
     /// - `&Element` - The parent DOM element.
     /// - `&[VirtualNode]` - The old children list.
-    /// - `&[VirtualNode]` - The new children list.
     ///
     /// OPT 4: hoists `parent.child_nodes()` to a single live NodeList
     /// reference taken once per call. Replaces the previous per-child
@@ -1425,7 +1418,6 @@ impl Renderer {
     /// # Arguments
     ///
     /// - `&VirtualNode` - The old virtual node.
-    /// - `&VirtualNode` - The new virtual node.
     ///
     /// # Returns
     ///

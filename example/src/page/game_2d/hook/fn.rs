@@ -296,10 +296,7 @@ pub(crate) fn game_2d_on_touch_spawn_ball(
 /// # Arguments
 ///
 /// - `f64` - The client x coordinate.
-/// - `f64` - The client y coordinate.
 /// - `&DomRect` - The cached canvas bounding rect.
-/// - `f64` - The canvas-internal width in CSS pixels.
-/// - `f64` - The canvas-internal height in CSS pixels.
 ///
 /// # Returns
 ///
@@ -583,7 +580,6 @@ pub(crate) fn update_balls(
 ///
 /// - `&mut Ball` - The ball to check and correct.
 /// - `f64` - The canvas width in CSS pixels (wall X bound).
-/// - `f64` - The canvas height in CSS pixels (wall Y bound).
 pub(crate) fn resolve_wall_collision(ball: &mut Ball, canvas_width: f64, canvas_height: f64) {
     if ball.position.get_x() - ball.radius < 0.0 {
         ball.position.set_x(ball.radius);
@@ -662,11 +658,7 @@ pub(crate) fn resolve_wall_collision(ball: &mut Ball, canvas_width: f64, canvas_
 ///
 /// - `&mut Vec<Ball>` - The mutable ball list (length may shrink).
 /// - `&mut Vec<Vector2D>` - The previous-step position buffer
-///   (truncated to match the trimmed ball count).
 /// - `f64` - The previous canvas width in CSS pixels.
-/// - `f64` - The previous canvas height in CSS pixels.
-/// - `f64` - The new canvas width in CSS pixels.
-/// - `f64` - The new canvas height in CSS pixels.
 pub(crate) fn rescale_balls_to_canvas(
     balls: &mut Vec<Ball>,
     prev_positions: &mut Vec<Vector2D>,
@@ -781,7 +773,6 @@ pub(crate) fn rescale_balls_to_canvas(
 /// # Arguments
 ///
 /// - `&mut Ball` - The first ball.
-/// - `&mut Ball` - The second ball.
 pub(crate) fn resolve_ball_collision(a: &mut Ball, b: &mut Ball) {
     let delta: Vector2D = b.position - a.position;
     let distance: f64 = delta.magnitude();
@@ -960,7 +951,6 @@ pub(crate) fn interpolate_balls(
 /// - `&SsaaCanvas` - The SSAA canvas wrapper.
 /// - `&[Ball]` - The ball list to render.
 /// - `f64` - The canvas width in CSS pixels (clear-rect bound).
-/// - `f64` - The canvas height in CSS pixels (clear-rect bound).
 pub(crate) fn render_balls_with_ssaa(
     ssaa_canvas: &SsaaCanvas,
     balls: &[Ball],
@@ -1089,7 +1079,6 @@ pub(crate) fn acquire_game_2d_ssaa_canvas() -> Option<(HtmlCanvasElement, SsaaCa
 ///
 /// # Arguments
 ///
-/// - `&str` - Shared reference to a `str`.
 /// - `&str` - Shared reference to a `str`.
 pub(crate) fn draw_game_2d_loading(target_selector: &str, color_source_selector: &str) {
     let Some(window_value): Option<Window> = window() else {
@@ -1650,8 +1639,6 @@ fn game_2d_ball_gpu_record(ball: &Ball, _dpr: f64) -> ([f32; 4], [f32; 4]) {
 ///
 /// - `&[Ball]` - The ball list for this frame.
 /// - `f64` - The canvas width in CSS pixels (u-vec2 canvas_size.x).
-/// - `f64` - The canvas height in CSS pixels (u-vec2 canvas_size.y).
-/// - `f64` - The live `window.devicePixelRatio` (`>= 1.0`), forwarded to
 ///   [`game_2d_ball_gpu_record`] so each ball's on-screen radius scales
 ///   with the backing store and visually matches the Canvas 2D tab.
 ///

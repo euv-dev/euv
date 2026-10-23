@@ -7,12 +7,7 @@ use super::*;
 ///
 /// # Returns
 ///
-/// - `VirtualNode` - The conditional demo page virtual DOM tree.
-///
-/// # Arguments
-///
-/// - `VirtualNode<PageConditionalProps>` - The `node` argument.
-///
+/// - `VirtualNode` - The `VirtualNode` value.
 #[component]
 pub(crate) fn page_conditional(node: VirtualNode<PageConditionalProps>) -> VirtualNode {
     let PageConditionalProps: PageConditionalProps = node.try_get_props().unwrap_or_default();

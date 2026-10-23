@@ -372,7 +372,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `u32` - Physical pixel width (DPR-multiplied).
-    /// - `u32` - Physical pixel height.
     ///
     /// # Returns
     ///
@@ -461,7 +460,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `u32` - The new physical pixel width (already multiplied by DPR).
-    /// - `u32` - The new physical pixel height.
     ///
     /// # Returns
     ///
@@ -933,7 +931,6 @@ impl WebGpuRenderer {
     /// - `Option<&JsValue>` - Optional resolve target (MSAA only).
     /// - `Option<Color>` - Optional clear color.
     /// - `&'static str` - The load op to encode.
-    /// - `&'static str` - The store op to encode.
     /// - `Option<&DepthStencilAttachment>` - Optional depth-stencil attachment.
     ///
     /// # Returns
@@ -1517,7 +1514,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The render pass encoder.
-    /// - `&JsValue` - The render pipeline to set.
     pub(crate) fn set_pipeline(&self, pass: &JsValue, pipeline: &JsValue) {
         // OPT 2b: cached `pass.setPipeline()` — function is on the
         // shared prototype; the call still passes `this = pass`
@@ -1544,8 +1540,6 @@ impl WebGpuRenderer {
     ///
     /// - `&JsValue` - The render pass encoder.
     /// - `u32` - The slot index; matches the slot the vertex buffer
-    ///   was declared at in the pipeline's `vertex.buffers` array.
-    /// - `&JsValue` - The `GpuBuffer` to bind (typically obtained
     ///   from `create_vertex_buffer`).
     pub fn set_vertex_buffer(&self, pass: &JsValue, slot: u32, buffer: &JsValue) {
         if buffer.is_undefined() || buffer.is_null() {
@@ -1572,7 +1566,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The render pass encoder.
-    /// - `&JsValue` - The `GpuBuffer` containing the index list.
     /// - `IndexFormat` - The element width of the index data. It must
     ///   match the element type of the indices themselves.
     pub fn set_index_buffer(&self, pass: &JsValue, buffer: &JsValue, format: IndexFormat) {
@@ -1654,8 +1647,6 @@ impl WebGpuRenderer {
     ///
     /// - `&JsValue` - The render pass encoder.
     /// - `u32` - The index to start reading at.
-    /// - `u32` - The number of indices to consume.
-    /// - `u32` - The number of instances to draw.
     pub fn draw_indexed_offset(
         &self,
         pass: &JsValue,
@@ -2022,11 +2013,8 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The `GpuCommandEncoder` to begin the pass on.
-    /// - `&JsValue` - The offscreen color attachment view.
     /// - `Option<Color>` - The clear color, or `None` to load the
-    ///   attachment's existing contents.
     /// - `Option<&JsValue>` - An optional depth-stencil view to bind as
-    ///   the depth attachment. Pass `None` to skip depth.
     /// - `Option<f64>` - An optional depth clear value. Ignored when no
     ///   depth view is supplied.
     ///
@@ -2081,12 +2069,7 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The `source` `GpuTexture` to copy from.
-    /// - `&JsValue` - The `destination` `GpuBuffer` that receives the bytes.
     /// - `u32` - The `bytes_per_row` stride of the texture (i.e.
-    ///   `width * bytes_per_pixel`, padded to 256 for non-power-of-two
-    ///   widths).
-    /// - `u32` - The `width` of the texture subregion to copy.
-    /// - `u32` - The `height` of the texture subregion to copy.
     pub fn copy_texture_to_buffer(
         &self,
         source: &JsValue,
@@ -2163,7 +2146,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `u32` - The `width` of the texture in pixels.
-    /// - `u32` - The `height` of the texture in pixels.
     /// - `&str` - The WGSL texture format (e.g. `"rgba8unorm"`).
     ///
     /// # Returns
@@ -2720,7 +2702,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The render or compute pipeline that owns the bind group layout.
-    /// - `&JsValue` - The uniform `GpuBuffer` to bind.
     ///
     /// # Returns
     ///
@@ -2887,7 +2868,6 @@ impl WebGpuRenderer {
     ///
     /// - `&JsValue` - The render pass encoder.
     /// - `u32` - The bind group index (`@group(N)` in WGSL).
-    /// - `&JsValue` - The bind group to bind.
     pub(crate) fn set_bind_group(&self, pass: &JsValue, index: u32, bind_group: &JsValue) {
         // OPT 2b: cached `pass.setBindGroup(index, bindGroup)`. This is
         // called per-entity per-frame in the 500-entity lighting demo;
@@ -2908,7 +2888,6 @@ impl WebGpuRenderer {
     /// - `GpuReceiverClass` - The receiver's WebGPU class.
     /// - `&JsValue` - The pass encoder.
     /// - `u32` - The bind group index (`@group(N)` in WGSL).
-    /// - `&JsValue` - The bind group to bind.
     pub(crate) fn set_bind_group_on(
         &self,
         class: GpuReceiverClass,
@@ -2955,7 +2934,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The render pipeline to use.
-    /// - `&JsValue` - The bind group for `@group(0)`.
     /// - `Color` - The clear color, in 0.0-1.0 per channel.
     /// - `u32` - The number of vertices to draw.
     pub fn render_frame_with_bind_group(
@@ -2986,8 +2964,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The `GpuComputePassEncoder` (from
-    ///   [`Self::begin_compute_pass`]).
-    /// - `&JsValue` - The compute pipeline to bind.
     pub fn set_compute_pipeline(&self, pass: &JsValue, pipeline: &JsValue) {
         let set_fn: Function =
             Reflect::get(pass, &JsValue::from_str(WEBGPU_METHOD_SET_PIPELINE_COMPUTE))
@@ -3248,9 +3224,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The compute pass encoder.
-    /// - `&JsValue` - The compute pipeline.
-    /// - `&JsValue` - The bind group (must have a layout compatible with
-    ///   `pipeline`'s auto-generated layout at `@group(0)`).
     /// - `&DispatchArgs` - The workgroup counts, one per dimension (each
     ///   `1..=65535`).
     pub fn dispatch_with_bind_group(
@@ -3275,7 +3248,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `u32` - The `width` of the texture in pixels.
-    /// - `u32` - The `height` of the texture in pixels.
     /// - `&str` - A `GpuTextureFormat` string (e.g. `"rgba8unorm"`,
     ///   `"r32float"`, `"rgba16float"`).
     ///
@@ -3380,8 +3352,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The render or compute pass encoder.
-    /// - `&JsValue` - The `GpuQuerySet` created via
-    ///   [`Self::create_timestamp_query_set`].
     /// - `u32` - The query-slot index to write into.
     pub fn write_timestamp(&self, pass: &JsValue, query_set: &JsValue, index: u32) {
         if query_set.is_undefined() || query_set.is_null() {
@@ -3399,12 +3369,7 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&JsValue` - The `GpuCommandEncoder` that owns the queries'
-    ///   render/compute passes.
-    /// - `&JsValue` - The `GpuQuerySet`.
     /// - `u32` - First query index to resolve.
-    /// - `u32` - Number of consecutive queries to resolve.
-    /// - `&JsValue` - The destination `GpuBuffer` (must have been
-    ///   created with `QUERY_RESOLVE | COPY_SRC` usage).
     /// - `u64` - Byte offset into the destination buffer.
     pub fn resolve_timestamp(
         &self,
@@ -3600,9 +3565,6 @@ impl WebGpuRenderer {
     ///
     /// - `&JsValue` - The active `GpuRenderPassEncoder`.
     /// - `u32` - X coordinate of the scissor origin in pixels.
-    /// - `u32` - Y coordinate of the scissor origin in pixels.
-    /// - `u32` - Scissor width in pixels.
-    /// - `u32` - Scissor height in pixels.
     pub fn set_scissor_rect(&self, pass: &JsValue, x: u32, y: u32, width: u32, height: u32) {
         // WebGPU `setScissorRect(x, y, width, height)` takes four scalar
         // arguments — the previous descriptor-dict form never validated
@@ -3633,9 +3595,6 @@ impl WebGpuRenderer {
     ///
     /// - `&JsValue` - The active `GpuRenderPassEncoder`.
     /// - `f32` - Red component.
-    /// - `f32` - Green component.
-    /// - `f32` - Blue component.
-    /// - `f32` - Alpha component.
     pub fn set_blend_constant(&self, pass: &JsValue, r: f32, g: f32, b: f32, a: f32) {
         let color_dict: Object = Object::new();
         let _: Result<bool, JsValue> = Reflect::set(
@@ -3701,7 +3660,6 @@ impl WebGpuRenderer {
     ///
     /// - `&JsValue` - The active `GpuRenderPassEncoder`.
     /// - `u32` - Bind-group slot index.
-    /// - `&JsValue` - The `GpuBindGroup` to bind.
     /// - `&[u32]` - Dynamic offsets, one per dynamic-offset binding.
     pub fn set_bind_group_with_dynamic_offsets(
         &self,
@@ -3747,7 +3705,6 @@ impl WebGpuRenderer {
     ///
     /// - `&JsValue` - The active `GpuComputePassEncoder`.
     /// - `u32` - Bind-group slot index.
-    /// - `&JsValue` - The `GpuBindGroup` to bind.
     /// - `&[u32]` - Dynamic offsets for dynamic-offset bindings.
     pub fn set_bind_group_compute_with_dynamic_offsets(
         &self,
@@ -4024,7 +3981,6 @@ impl WebGpuRenderer {
     /// # Arguments
     ///
     /// - `&str` - WGSL source.
-    /// - `&str` - Debug label shown in browser devtools.
     ///
     /// # Returns
     ///
@@ -4078,7 +4034,6 @@ impl WebGpuRenderer {
     ///
     /// - `&JsValue` - The `GpuBuffer` to read back.
     /// - `u64` - Byte offset into the buffer.
-    /// - `u64` - Number of bytes to read.
     ///
     /// # Returns
     ///

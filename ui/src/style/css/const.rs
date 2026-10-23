@@ -86,6 +86,21 @@ pub(crate) const APP_KEYFRAMES_SCALE_IN_MODAL: &str = r#"@keyframes euv-scale-in
 /// Accessibility: suppress the focus ring on keyboard-focusable controls.
 pub(crate) const APP_A11Y_CSS_FOCUS_VISIBLE: &str = r#":focus-visible{outline:none}"#;
 
+/// Accessibility: the focus ring.
+///
+/// The design system is monochrome: `--border`, `--accent` and `--ring`
+/// hold the same ink in both themes, so a focus that only changes the
+/// border colour changes nothing on screen — the focus was invisible on
+/// every form control.
+///
+/// The ring is an inset shadow, so it takes no space and the text does
+/// not shift when the field takes the focus. Its colour is `currentColor`
+/// — the colour of the label of the control: an ink control carries its
+/// label in the paper colour, so the ring is always the one that
+/// contrasts with the surface it sits on, ink on a light field and paper
+/// on an ink button.
+pub(crate) const APP_A11Y_CSS_FOCUS_RING: &str = "input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a[href]:focus-visible{box-shadow:inset 0 0 0 1px currentColor}";
+
 /// Accessibility: disable animations for users who ask for reduced motion.
 pub(crate) const APP_A11Y_CSS_REDUCED_MOTION: &str = r#"@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-iteration-count:1!important;scroll-behavior:auto!important}}"#;
 

@@ -43,7 +43,6 @@ pub(crate) fn attach_canvas_context(
 /// # Arguments
 ///
 /// - `u32` - The surface width in pixels.
-/// - `u32` - The surface height in pixels.
 ///
 /// # Returns
 ///
@@ -91,7 +90,6 @@ pub(crate) fn allocate_canvas_surface(
 /// # Arguments
 ///
 /// - `u32` - The surface width in pixels.
-/// - `u32` - The surface height in pixels.
 ///
 /// # Returns
 ///

@@ -17,12 +17,7 @@ use super::*;
 ///
 /// # Returns
 ///
-/// - `VirtualNode` - The camera page virtual DOM tree.
-///
-/// # Arguments
-///
-/// - `VirtualNode<PageCameraProps>` - The `node` argument.
-///
+/// - `VirtualNode` - The `VirtualNode` value.
 #[component]
 pub(crate) fn page_camera(node: VirtualNode<PageCameraProps>) -> VirtualNode {
     let _page_camera_props: PageCameraProps = node.try_get_props().unwrap_or_default();

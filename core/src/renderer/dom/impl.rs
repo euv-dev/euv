@@ -94,7 +94,6 @@ impl ElementExt for Element {
     /// # Arguments
     ///
     /// - `&str` - The name of the attribute or property to set.
-    /// - `&str` - The value to assign.
     fn set_attribute_or_property(&self, name: &str, value: &str) {
         if name == ATTR_VALUE {
             if let Some(input) = self.dyn_ref::<HtmlInputElement>() {

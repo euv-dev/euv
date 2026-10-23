@@ -283,7 +283,6 @@ fn lighting_scaled_dimensions(scale: f64) -> (u32, u32) {
 ///
 /// - `&mut [u8]` - The RGBA framebuffer (length `width * height * 4`).
 /// - `u32` - The framebuffer width in pixels.
-/// - `u32` - The framebuffer height in pixels.
 /// - `f64` - The current render scale (`framebuffer / logical`).
 /// - `&[LightingSphere]` - The scene spheres in logical coordinates.
 /// - `&LightingUniforms` - The scene lighting.
@@ -385,7 +384,6 @@ fn render_lighting_frame(
 /// - `&SsaaCanvas` - The SSAA wrapper owning the offscreen context.
 /// - `&mut [u8]` - The RGBA framebuffer (length `width * height * 4`).
 /// - `u32` - The framebuffer width in pixels.
-/// - `u32` - The framebuffer height in pixels.
 fn present_lighting_framebuffer(
     ssaa_canvas: &SsaaCanvas,
     buffer: &mut [u8],
@@ -755,7 +753,6 @@ pub(crate) fn lighting_on_toggle_pause(running: Signal<bool>) -> Option<Rc<dyn F
 /// # Arguments
 ///
 /// - `f64` - The canvas backing width in physical pixels.
-/// - `f64` - The canvas backing height in physical pixels.
 /// - `(f64, f64, f64)` - The canvas's computed CSS background color.
 ///
 /// # Returns

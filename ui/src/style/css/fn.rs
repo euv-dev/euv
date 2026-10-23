@@ -41,6 +41,7 @@ pub fn inject_app_global_css() {
     Css::inject_css(APP_KEYFRAMES_PROGRESS);
     Css::inject_css(APP_KEYFRAMES_SCALE_IN_MODAL);
     Css::inject_css(APP_A11Y_CSS_FOCUS_VISIBLE);
+    Css::inject_css(APP_A11Y_CSS_FOCUS_RING);
     Css::inject_css(APP_A11Y_CSS_REDUCED_MOTION);
     Css::inject_css(APP_A11Y_CSS_COARSE_POINTER);
 }

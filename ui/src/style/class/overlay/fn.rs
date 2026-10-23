@@ -9,7 +9,7 @@ class! {
 
     pub(crate) c_euv_tooltip_bubble {
         position: "absolute";
-        z-index: "100";
+        z-index: "140";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
@@ -28,7 +28,7 @@ class! {
 
     pub(crate) c_euv_tooltip_bubble_top {
         position: "absolute";
-        z-index: "100";
+        z-index: "140";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
@@ -50,7 +50,7 @@ class! {
 
     pub(crate) c_euv_tooltip_bubble_bottom {
         position: "absolute";
-        z-index: "100";
+        z-index: "140";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
@@ -72,7 +72,7 @@ class! {
 
     pub(crate) c_euv_tooltip_bubble_left {
         position: "absolute";
-        z-index: "100";
+        z-index: "140";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
@@ -94,7 +94,7 @@ class! {
 
     pub(crate) c_euv_tooltip_bubble_right {
         position: "absolute";
-        z-index: "100";
+        z-index: "140";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
@@ -122,7 +122,7 @@ class! {
 
     pub(crate) c_euv_popover_body {
         position: "absolute";
-        z-index: "100";
+        z-index: "150";
         min-width: "200px";
         box-sizing: "border-box";
         border-radius: "0px";
@@ -134,7 +134,7 @@ class! {
 
     pub(crate) c_euv_popover_body_open {
         position: "absolute";
-        z-index: "100";
+        z-index: "150";
         min-width: "200px";
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
@@ -151,7 +151,7 @@ class! {
 
     pub(crate) c_euv_popover_body_closed {
         position: "absolute";
-        z-index: "100";
+        z-index: "150";
         min-width: "200px";
         box-sizing: "border-box";
         border: format!("1px dashed {}", var!(border));
@@ -695,6 +695,9 @@ class! {
         font-weight: "600";
         cursor: "pointer";
         text-align: "center";
+        // A button is a nowrap element (§7): the label never wraps, so the
+        // border of the inline flex box stays where it belongs.
+        white-space: "nowrap";
         border: format!("1.5px solid {}", var!(border));
         margin-left: "auto";
         :focus-visible {
@@ -791,16 +794,19 @@ class! {
     }
 
     pub(crate) c_vconsole_filter_badge {
-        display: "inline-flex";
-        justify-content: "center";
-        align-items: "center";
+        // The wrapping-atom recipe (§7): same kind of element as the tag and
+        // the badge, so it gets the same box.
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        box-sizing: "border-box";
         color: var!(text-on-accent);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         border: format!("1px solid {}", var!(accent));
         font-size: var!(font-xs);
         font-weight: "600";
         cursor: "pointer";
-        text-align: "center";
         background: var!(accent);
         :focus-visible {
             outline: "none";
@@ -808,15 +814,16 @@ class! {
     }
 
     pub(crate) c_vconsole_filter_badge_outline {
-        display: "inline-flex";
-        justify-content: "center";
-        align-items: "center";
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        box-sizing: "border-box";
         color: var!(foreground);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         font-size: var!(font-xs);
         font-weight: "600";
         cursor: "pointer";
-        text-align: "center";
         border: format!("1.5px solid {}", var!(border));
     }
 
@@ -965,6 +972,8 @@ class! {
         width: "1px";
         height: "1px";
         padding: "0px";
+        // The visually hidden recipe: a 1px box pulled 1px out of the flow,
+        // so it clips at the edge of its parent instead of taking a slot.
         margin: "-1px";
         overflow: "hidden";
         clip: "rect(0, 0, 0, 0)";
@@ -1044,5 +1053,225 @@ class! {
     pub(crate) c_euv_drawer_closed {
         transform: "translateX(-100%)";
         visibility: "hidden";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Message (toast)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_message_stack {
+        position: "fixed";
+        top: var!(space-xl);
+        left: "50%";
+        transform: "translateX(-50%)";
+        z-index: "1100";
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-sm);
+        max-width: "calc(100% - 32px)";
+        pointer-events: "none";
+    }
+
+    pub(crate) c_euv_message {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        min-width: "240px";
+        max-width: "420px";
+        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+        border: format!("1px solid {}", var!(border));
+        background: var!(background);
+        color: var!(foreground);
+        box-shadow: var!(shadow-accent-lg);
+        font-size: var!(font-sm);
+        box-sizing: "border-box";
+        pointer-events: "auto";
+    }
+
+    pub(crate) c_euv_message_text {
+        flex: "1";
+        min-width: "0px";
+        overflow-wrap: "anywhere";
+    }
+
+    pub(crate) c_euv_message_action {
+        flex-shrink: "0";
+        padding: "0px";
+        border: "none";
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        font-weight: "600";
+        text-decoration: "underline";
+        cursor: "pointer";
+        touch-action: "manipulation";
+    }
+
+    pub(crate) c_euv_message_close {
+        flex-shrink: "0";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        padding: "0px";
+        border: "none";
+        background: "transparent";
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        line-height: "1";
+        cursor: "pointer";
+        touch-action: "manipulation";
+        :hover {
+            color: var!(foreground);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Notification
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_notification_stack {
+        position: "fixed";
+        top: var!(space-xl);
+        right: var!(space-xl);
+        z-index: "1200";
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-sm);
+        max-width: "calc(100% - 32px)";
+        pointer-events: "none";
+        @media ((max-width: 767px)) {
+            right: var!(space-lg);
+            left: var!(space-lg);
+            max-width: "none";
+        }
+    }
+
+    pub(crate) c_euv_notification {
+        display: "flex";
+        align-items: "flex-start";
+        gap: var!(space-sm);
+        width: "320px";
+        max-width: "100%";
+        padding: var!(space-md);
+        border: format!("1px solid {}", var!(border));
+        background: var!(background);
+        color: var!(foreground);
+        box-shadow: var!(shadow-accent-lg);
+        font-size: var!(font-sm);
+        box-sizing: "border-box";
+        pointer-events: "auto";
+        @media ((max-width: 767px)) {
+            width: "100%";
+        }
+    }
+
+    pub(crate) c_euv_notification_body {
+        flex: "1";
+        min-width: "0px";
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-xs);
+    }
+
+    pub(crate) c_euv_notification_title {
+        font-size: var!(font-base);
+        font-weight: "600";
+        color: var!(foreground);
+    }
+
+    pub(crate) c_euv_notification_text {
+        font-size: var!(font-sm);
+        color: var!(muted-foreground);
+        overflow-wrap: "anywhere";
+    }
+
+    pub(crate) c_euv_notification_close {
+        flex-shrink: "0";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        padding: "0px";
+        border: "none";
+        background: "transparent";
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        line-height: "1";
+        cursor: "pointer";
+        touch-action: "manipulation";
+        :hover {
+            color: var!(foreground);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Pop Confirm
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_popconfirm {
+        position: "relative";
+        display: "inline-flex";
+        align-items: "center";
+    }
+
+    pub(crate) c_euv_popconfirm_body {
+        position: "absolute";
+        top: "100%";
+        left: "0px";
+        z-index: "150";
+        margin-top: var!(space-2xs);
+        min-width: "220px";
+        box-sizing: "border-box";
+        border: format!("1px solid {}", var!(border));
+        background: var!(background);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        box-shadow: var!(shadow-sm);
+    }
+
+    pub(crate) c_euv_popconfirm_body_open {
+        position: "absolute";
+        top: "100%";
+        left: "0px";
+        z-index: "150";
+        margin-top: var!(space-2xs);
+        min-width: "220px";
+        box-sizing: "border-box";
+        border: format!("1px solid {}", var!(border));
+        background: var!(background);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        box-shadow: var!(shadow-sm);
+        display: "flex";
+        flex-direction: "column";
+    }
+
+    pub(crate) c_euv_popconfirm_body_closed {
+        position: "absolute";
+        top: "100%";
+        left: "0px";
+        z-index: "150";
+        margin-top: var!(space-2xs);
+        min-width: "220px";
+        box-sizing: "border-box";
+        border: format!("1px solid {}", var!(border));
+        background: var!(background);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        box-shadow: var!(shadow-sm);
+        display: "none";
+    }
+
+    pub(crate) c_euv_popconfirm_text {
+        padding: var!(space-md);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        overflow-wrap: "anywhere";
+    }
+
+    pub(crate) c_euv_popconfirm_actions {
+        display: "flex";
+        align-items: "center";
+        justify-content: "flex-end";
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-sm), var!(space-md));
+        border-top: format!("1px dashed {}", var!(border));
     }
 }

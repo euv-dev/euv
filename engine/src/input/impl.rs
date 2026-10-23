@@ -657,7 +657,6 @@ impl GamepadManager {
     /// # Arguments
     ///
     /// - `u32` - The browser-assigned gamepad index.
-    /// - `u32` - The axis index to read.
     ///
     /// # Returns
     ///
@@ -672,7 +671,6 @@ impl GamepadManager {
     /// # Arguments
     ///
     /// - `u32` - The browser-assigned gamepad index.
-    /// - `u32` - The button index to read.
     ///
     /// # Returns
     ///
@@ -688,7 +686,6 @@ impl GamepadManager {
     /// # Arguments
     ///
     /// - `u32` - The browser-assigned gamepad index.
-    /// - `u32` - The button index to check.
     ///
     /// # Returns
     ///
@@ -705,7 +702,6 @@ impl GamepadManager {
     /// # Arguments
     ///
     /// - `u32` - The browser-assigned gamepad index.
-    /// - `u32` - The button index to check.
     ///
     /// # Returns
     ///
@@ -722,7 +718,6 @@ impl GamepadManager {
     /// # Arguments
     ///
     /// - `u32` - The browser-assigned gamepad index.
-    /// - `u32` - The button index to check.
     ///
     /// # Returns
     ///
@@ -739,7 +734,6 @@ impl GamepadManager {
     /// # Arguments
     ///
     /// - `u32` - The browser-assigned gamepad index.
-    /// - `u32` - The button index to check.
     ///
     /// # Returns
     ///

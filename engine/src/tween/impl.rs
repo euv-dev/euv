@@ -154,7 +154,6 @@ impl<T: Interpolable + Copy> Tween<T> {
     /// # Arguments
     ///
     /// - `T` - The start value.
-    /// - `T` - The end value.
     /// - `f64` - The interpolation duration in seconds.
     ///
     /// # Returns

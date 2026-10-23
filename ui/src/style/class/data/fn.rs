@@ -467,4 +467,209 @@ class! {
         flex-shrink: "0";
         margin-left: "auto";
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // List
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_list {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+        border: "none";
+        margin: "0px";
+        padding: "0px";
+        list-style: "none";
+    }
+
+    pub(crate) c_euv_list_item {
+        display: "flex";
+        align-items: "center";
+        justify-content: "space-between";
+        gap: var!(gap-element);
+        width: "100%";
+        padding: format!("{} 0px", var!(space-sm));
+        border-bottom: format!("1px dashed {}", var!(border));
+        box-sizing: "border-box";
+    }
+
+    pub(crate) c_euv_list_item_body {
+        flex: "1";
+        min-width: "0px";
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xs);
+    }
+
+    pub(crate) c_euv_list_item_title {
+        font-size: var!(font-base);
+        font-weight: "500";
+        color: var!(foreground);
+    }
+
+    pub(crate) c_euv_list_item_desc {
+        font-size: var!(font-sm);
+        color: var!(muted-foreground);
+        overflow-wrap: "anywhere";
+    }
+
+    pub(crate) c_euv_list_item_meta {
+        flex-shrink: "0";
+        font-size: var!(font-sm);
+        color: var!(muted-foreground);
+        white-space: "nowrap";
+    }
+
+    pub(crate) c_euv_list_empty {
+        padding: var!(space-xl);
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        text-align: "center";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Descriptions
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_descriptions {
+        display: "grid";
+        grid-template-columns: "repeat(var(--descriptions-columns, 1), minmax(0, 1fr))";
+        width: "100%";
+        border-top: format!("1px dashed {}", var!(border));
+        border-left: format!("1px dashed {}", var!(border));
+        box-sizing: "border-box";
+    }
+
+    pub(crate) c_euv_descriptions_item {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xs);
+        padding: var!(space-sm);
+        border-right: format!("1px dashed {}", var!(border));
+        border-bottom: format!("1px dashed {}", var!(border));
+        box-sizing: "border-box";
+        min-width: "0px";
+    }
+
+    pub(crate) c_euv_descriptions_label {
+        font-size: var!(font-sm);
+        color: var!(muted-foreground);
+    }
+
+    pub(crate) c_euv_descriptions_value {
+        font-size: var!(font-base);
+        color: var!(foreground);
+        overflow-wrap: "anywhere";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Tree
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_tree {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+        font-size: var!(font-base);
+        color: var!(foreground);
+    }
+
+    pub(crate) c_euv_tree_node {
+        display: "flex";
+        flex-direction: "column";
+    }
+
+    pub(crate) c_euv_tree_node_row {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        min-height: var!(min-height-base);
+        padding: format!("{} 0px", var!(space-xs));
+        cursor: "pointer";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        box-sizing: "border-box";
+        :hover {
+            background: var!(accent-muted);
+            color: var!(accent);
+        }
+    }
+
+    pub(crate) c_euv_tree_node_row_active {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        min-height: var!(min-height-base);
+        padding: format!("{} 0px", var!(space-xs));
+        background: var!(accent-muted);
+        color: var!(accent);
+        font-weight: "600";
+        cursor: "pointer";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        box-sizing: "border-box";
+        :hover {
+            background: var!(accent-muted);
+            color: var!(accent);
+        }
+    }
+
+    pub(crate) c_euv_tree_node_toggle {
+        flex-shrink: "0";
+        width: var!(space-md);
+        font-size: var!(font-xs);
+        line-height: "1";
+        color: var!(muted-foreground);
+        text-align: "center";
+    }
+
+    pub(crate) c_euv_tree_node_toggle_open {
+        flex-shrink: "0";
+        width: var!(space-md);
+        font-size: var!(font-xs);
+        line-height: "1";
+        color: var!(muted-foreground);
+        text-align: "center";
+        transform: "rotate(90deg)";
+    }
+
+    pub(crate) c_euv_tree_node_toggle_leaf {
+        flex-shrink: "0";
+        width: var!(space-md);
+        font-size: var!(font-xs);
+        line-height: "1";
+        color: var!(muted-foreground);
+        text-align: "center";
+        opacity: "0";
+    }
+
+    pub(crate) c_euv_tree_node_label {
+        flex: "1";
+        min-width: "0px";
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        white-space: "nowrap";
+    }
+
+    pub(crate) c_euv_tree_node_children {
+        display: "flex";
+        flex-direction: "column";
+        padding-left: var!(space-lg);
+        border-left: format!("1px dashed {}", var!(border));
+        margin-left: format!("calc({} - 1px)", var!(space-md));
+    }
+
+    pub(crate) c_euv_tree_node_children_open {
+        display: "flex";
+        flex-direction: "column";
+        padding-left: var!(space-lg);
+        border-left: format!("1px dashed {}", var!(border));
+        margin-left: format!("calc({} - 1px)", var!(space-md));
+    }
+
+    pub(crate) c_euv_tree_node_children_closed {
+        display: "none";
+    }
 }
