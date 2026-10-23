@@ -117,7 +117,6 @@ fn collect_class_files(directory: &Path, files: &mut Vec<PathBuf>) {
 
 fn declared_z_indexes() -> BTreeMap<String, String> {
     let mut found: BTreeMap<String, String> = BTreeMap::new();
-
     for file in class_files() {
         let text: String = fs::read_to_string(&file).expect("a class file of the ui crate");
         let lines: Vec<&str> = text.lines().collect();
@@ -179,12 +178,10 @@ fn every_z_index_rule_is_registered_in_the_budget() {
         .iter()
         .flat_map(|entry: &(&str, &[&str], &str)| entry.1.iter().copied())
         .collect();
-
     let unregistered: Vec<&String> = declared
         .keys()
         .filter(|name: &&String| !registered.contains(name.as_str()))
         .collect();
-
     assert!(
         unregistered.is_empty(),
         "these rules declare a z-index but are not in the budget: {unregistered:?} — \
@@ -197,7 +194,6 @@ fn every_z_index_rule_is_registered_in_the_budget() {
 fn every_layer_keeps_its_own_slot() {
     let declared: BTreeMap<String, String> = declared_z_indexes();
     let mut offenders: Vec<String> = Vec::new();
-
     for (layer, rules, slot) in BUDGET {
         for rule in *rules {
             match declared.get(*rule) {
@@ -209,7 +205,6 @@ fn every_layer_keeps_its_own_slot() {
             }
         }
     }
-
     assert!(
         offenders.is_empty(),
         "the z-index budget and the classes disagree:\n{}",
@@ -221,7 +216,6 @@ fn every_layer_keeps_its_own_slot() {
 fn two_layers_never_share_a_slot() {
     let mut seen: BTreeMap<String, &str> = BTreeMap::new();
     let mut offenders: Vec<String> = Vec::new();
-
     for (layer, _, slot) in BUDGET {
         match seen.get(*slot) {
             Some(other) if *other != *layer => offenders.push(format!(
@@ -232,7 +226,6 @@ fn two_layers_never_share_a_slot() {
             }
         }
     }
-
     assert!(
         offenders.is_empty(),
         "two layers share a z-index, so their order is decided by the document \
@@ -245,7 +238,6 @@ fn two_layers_never_share_a_slot() {
 fn the_layers_are_stacked_in_the_order_they_are_listed() {
     let mut previous: u32 = 0;
     let mut offenders: Vec<String> = Vec::new();
-
     for (layer, _, slot) in BUDGET {
         let value: u32 = slot.parse().unwrap_or(0);
         if value <= previous {
@@ -255,7 +247,6 @@ fn the_layers_are_stacked_in_the_order_they_are_listed() {
         }
         previous = value;
     }
-
     assert!(
         offenders.is_empty(),
         "the budget is not sorted from the bottom of the stacking order up:\n{}",

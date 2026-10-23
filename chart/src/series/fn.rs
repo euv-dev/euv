@@ -1801,7 +1801,6 @@ pub(crate) fn place_sankey_nodes(nodes: &mut [SankeyNode], links: &[SankeyLink],
         .max(1)
         + 1;
     let gap: f64 = 2.0;
-
     for column in 0..column_count {
         let members: Vec<usize> = nodes
             .iter()

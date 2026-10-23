@@ -18,7 +18,6 @@ pub(crate) fn parse_css_color(input: &str) -> Option<Color> {
         return None;
     }
     let lower: String = text.to_ascii_lowercase();
-
     if let Some(hex) = lower.strip_prefix('#') {
         return parse_hex(hex);
     }
@@ -255,11 +254,9 @@ fn parse_hsl(hue: &str, saturation: &str, lightness: &str) -> Option<(u8, u8, u8
     let hue: f64 = ((hue % 360.0) + 360.0) % 360.0;
     let saturation: f64 = saturation.clamp(0.0, 1.0);
     let lightness: f64 = lightness.clamp(0.0, 1.0);
-
     let chroma: f64 = (1.0 - (2.0 * lightness - 1.0).abs()) * saturation;
     let secondary: f64 = chroma * (1.0 - (((hue / 60.0) % 2.0) - 1.0).abs());
     let match_value: f64 = lightness - chroma / 2.0;
-
     let (red, green, blue) = match hue as u32 / 60 {
         0 => (chroma, secondary, 0.0),
         1 => (secondary, chroma, 0.0),
@@ -268,7 +265,6 @@ fn parse_hsl(hue: &str, saturation: &str, lightness: &str) -> Option<(u8, u8, u8
         4 => (secondary, 0.0, chroma),
         _ => (chroma, 0.0, secondary),
     };
-
     Some((
         ((red + match_value) * 255.0).round().clamp(0.0, 255.0) as u8,
         ((green + match_value) * 255.0).round().clamp(0.0, 255.0) as u8,

@@ -241,7 +241,6 @@ impl ChartBackend for Canvas2dChartBackend {
                 .set_transform(self.get_dpr(), 0.0, 0.0, self.get_dpr(), 0.0, 0.0);
         self.get_context()
             .clear_rect(0.0, 0.0, self.get_width(), self.get_height());
-
         for item in list.items() {
             match &item.cmd {
                 DrawCmd::Fill {

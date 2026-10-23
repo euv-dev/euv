@@ -38,14 +38,12 @@ impl WebGl2ChartBackend {
         attributes.set_stencil(false);
         attributes.set_preserve_drawing_buffer(false);
         let options: &JsValue = attributes.as_ref();
-
         let context: WebGl2RenderingContext = canvas
             .get_context_with_context_options("webgl2", options)
             .ok()
             .flatten()?
             .dyn_into::<WebGl2RenderingContext>()
             .ok()?;
-
         let mut backend: WebGl2ChartBackend = Self {
             canvas: canvas.clone(),
             context,
@@ -116,7 +114,6 @@ impl WebGl2ChartBackend {
         {
             return true;
         }
-
         let Some(program) = WebGl2Program::create(self.get_context()) else {
             return false;
         };
@@ -129,7 +126,6 @@ impl WebGl2ChartBackend {
         let Some(index_buffer) = self.get_context().create_buffer() else {
             return false;
         };
-
         // The vertex layout is recorded in the vertex array object, so
         // it is set up once and every later frame inherits it.
         self.get_context().bind_vertex_array(Some(&vertex_array));
@@ -155,7 +151,6 @@ impl WebGl2ChartBackend {
                 offset,
             );
         }
-
         // The chart draws in the order the display list asks for, with
         // alpha blending and without depth or face culling: the
         // tessellator emits triangles of both windings, and a label has
@@ -171,7 +166,6 @@ impl WebGl2ChartBackend {
             .disable(WebGl2RenderingContext::DEPTH_TEST);
         self.get_context()
             .disable(WebGl2RenderingContext::CULL_FACE);
-
         program.set_samplers(self.get_context());
         self.set_program(Some(program));
         self.set_vertex_array(Some(vertex_array));
@@ -196,13 +190,11 @@ impl WebGl2ChartBackend {
         self.get_mut_indices().clear();
         self.get_mut_batches().clear();
         self.get_mut_gradients().clear();
-
         let mut clip_stack: Vec<Option<WebGl2Scissor>> = Vec::new();
         let mut clip: Option<WebGl2Scissor> = None;
         let mut batch_start: usize = 0_usize;
         let mut batch_kind: WebGl2BatchKind = WebGl2BatchKind::Atlas;
         let mut batch_image: usize = 0_usize;
-
         for item in list.items() {
             match &item.cmd {
                 DrawCmd::Fill {
@@ -335,7 +327,6 @@ impl WebGl2ChartBackend {
                 }
             }
         };
-
         let geometry: StrokeStyle = style.geometry();
         let mesh: SolidMesh = if style.dash.is_solid() {
             self.get_mut_tessellator().stroke(path, &geometry, 0)
@@ -726,21 +717,18 @@ impl WebGl2ChartBackend {
     /// Uploads the gradient ramps and their parameters.
     fn upload_gradients(&mut self) {
         let rows: usize = self.get_gradients().len().max(1);
-
         let mut ramp: Vec<u8> = vec![0_u8; GL_RAMP_WIDTH * rows * 4];
         for (index, gradient) in self.get_gradients().iter().enumerate() {
             let bytes: Vec<u8> = ramp_bytes(gradient);
             let start: usize = index * GL_RAMP_WIDTH * 4;
             ramp[start..start + bytes.len()].copy_from_slice(&bytes);
         }
-
         let mut parameters: Vec<f32> = vec![0.0_f32; GL_PARAMETER_WIDTH * rows * 4];
         for (index, gradient) in self.get_gradients().iter().enumerate() {
             let values: [f32; 8] = parameter_values(gradient);
             let start: usize = index * GL_PARAMETER_WIDTH * 4;
             parameters[start..start + values.len()].copy_from_slice(&values);
         }
-
         // The ramp holds the colours, so it is filtered smoothly.
         let existing: Option<WebGlTexture> = self.try_get_ramp_texture().clone();
         let ramp_texture: WebGlTexture = match existing {
@@ -790,7 +778,6 @@ impl WebGl2ChartBackend {
                 WebGl2RenderingContext::UNSIGNED_BYTE,
                 Some(&ramp),
             );
-
         // The parameters hold coordinates, so they are read exactly and
         // never filtered.
         let existing: Option<WebGlTexture> = self.try_get_parameter_texture().clone();
@@ -913,13 +900,11 @@ impl WebGl2ChartBackend {
         };
         let drawing_width: u32 = self.get_canvas().width();
         let drawing_height: u32 = self.get_canvas().height();
-
         self.get_context()
             .viewport(0, 0, drawing_width as i32, drawing_height as i32);
         self.get_context().clear_color(0.0, 0.0, 0.0, 0.0);
         self.get_context()
             .clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-
         self.get_context().use_program(Some(&program.program));
         program.set_resolution_uniform(
             self.get_context(),
@@ -927,10 +912,8 @@ impl WebGl2ChartBackend {
             self.get_height() as f32,
         );
         program.set_gradient_count_uniform(self.get_context(), self.get_gradients().len() as f32);
-
         self.bind_ramp();
         self.bind_parameters();
-
         // The batches are taken out of the backend for the duration of
         // the draw, so that the texture bindings can be updated while
         // they are walked.
@@ -1094,7 +1077,6 @@ impl ChartBackend for WebGl2ChartBackend {
         if !self.ensure_resources() {
             return;
         }
-
         // The display list is retained between frames, so the geometry
         // is only rebuilt when the list actually changed. An unchanged
         // chart costs one fingerprint, one draw call, and nothing else.
@@ -1107,14 +1089,12 @@ impl ChartBackend for WebGl2ChartBackend {
             self.upload_gradients();
             self.upload_images();
         }
-
         // The atlas grows whenever a new glyph is rasterised into it,
         // which happens while the text is shaped above.
         if self.try_get_atlas_texture().is_none() || shaper.atlas().is_dirty() {
             self.upload_atlas(shaper.atlas());
             shaper.atlas_mut().mark_clean();
         }
-
         self.draw();
     }
 
@@ -1158,7 +1138,6 @@ impl ChartBackend for WebGl2ChartBackend {
         self.set_primary_texture(None);
         self.set_scissor(None);
         self.set_scissor_dirty(true);
-
         // The canvas is left empty rather than holding the last frame.
         self.get_context().viewport(
             0,
@@ -1210,14 +1189,12 @@ impl WebGl2Program {
             WebGl2RenderingContext::FRAGMENT_SHADER,
             GL_FRAGMENT_SHADER,
         )?;
-
         let program: WebGlProgram = context.create_program()?;
         context.attach_shader(&program, &vertex);
         context.attach_shader(&program, &fragment);
         context.link_program(&program);
         context.delete_shader(Some(&vertex));
         context.delete_shader(Some(&fragment));
-
         let linked: bool = context
             .get_program_parameter(&program, WebGl2RenderingContext::LINK_STATUS)
             .as_bool()
@@ -1230,7 +1207,6 @@ impl WebGl2Program {
             context.delete_program(Some(&program));
             return None;
         }
-
         Some(Self {
             resolution: context.get_uniform_location(&program, "u_resolution"),
             atlas: context.get_uniform_location(&program, "u_atlas"),

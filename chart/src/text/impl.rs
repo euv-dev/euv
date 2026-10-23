@@ -64,7 +64,6 @@ impl TextShaper {
         }
         self.shape_plain(text, style, x, y)
     }
-
     /// Shapes a run of plain text.
     ///
     /// # Arguments
@@ -84,14 +83,12 @@ impl TextShaper {
         let mut ascent: f64 = 0.0_f64;
         let mut descent: f64 = 0.0_f64;
         let line_height: f64 = style.line_height_px();
-
         for line in &lines {
             let metrics: TextMetrics = self.get_measurer().measure(line, &font);
             widths.push(metrics.width);
             ascent = ascent.max(metrics.ascent);
             descent = descent.max(metrics.descent);
         }
-
         let block_height: f64 = line_height * lines.len() as f64;
         let top: f64 = match style.vertical_align {
             TextVerticalAlign::Top => y,
@@ -99,7 +96,6 @@ impl TextShaper {
             TextVerticalAlign::Bottom => y - block_height,
             TextVerticalAlign::Baseline => y - ascent,
         };
-
         let mut shaped_lines: Vec<TextLine> = Vec::with_capacity(lines.len());
         for (index, line) in lines.iter().enumerate() {
             let line_width: f64 = widths[index];
@@ -117,7 +113,6 @@ impl TextShaper {
                 width: line_width,
             });
         }
-
         TextRun {
             quads,
             lines: shaped_lines,
@@ -129,7 +124,6 @@ impl TextShaper {
             line_count: lines.len(),
         }
     }
-
     /// Shapes a run of rich text.
     ///
     /// Every run keeps its own font and colour; the runs of one line
@@ -153,7 +147,6 @@ impl TextShaper {
         let mut ascent: f64 = 0.0_f64;
         let mut descent: f64 = 0.0_f64;
         let mut pen_x: f64 = x;
-
         for (name, content) in runs {
             let mut run_style: TextStyle = style.clone();
             if let Some(name) = &name
@@ -194,7 +187,6 @@ impl TextShaper {
             });
             pen_x += metrics.width;
         }
-
         let line_count: usize = shaped_lines.len();
         TextRun {
             quads,
@@ -207,7 +199,6 @@ impl TextShaper {
             line_count,
         }
     }
-
     /// Shapes one line of text into glyph quads.
     ///
     /// # Arguments
@@ -395,16 +386,13 @@ impl GlyphAtlas {
                 advance: 0.0,
             };
         };
-
         let advance: f32 = metrics.width() as f32;
         let left: f32 = metrics.actual_bounding_box_left() as f32;
         let right: f32 = metrics.actual_bounding_box_right() as f32;
         let ascent: f32 = metrics.actual_bounding_box_ascent() as f32;
         let descent: f32 = metrics.actual_bounding_box_descent() as f32;
-
         let glyph_width: f32 = (left + right).ceil().max(0.0);
         let glyph_height: f32 = (ascent + descent).ceil().max(0.0);
-
         // A space has no ink, so it occupies no space in the atlas.
         if glyph_width <= 0.0 || glyph_height <= 0.0 {
             return GlyphEntry {
@@ -417,11 +405,9 @@ impl GlyphAtlas {
                 advance,
             };
         }
-
         let padding: f32 = GLYPH_PADDING;
         let cell_width: f32 = glyph_width + padding * 2.0;
         let cell_height: f32 = glyph_height + padding * 2.0;
-
         if self.get_cursor_x() + cell_width > self.get_width() as f32 {
             self.set_cursor_x(0.0);
             self.set_cursor_y(self.get_cursor_y() + self.get_shelf_height());
@@ -434,12 +420,10 @@ impl GlyphAtlas {
             // chart is redrawn from scratch anyway.
             self.reset();
         }
-
         let x: f32 = self.get_cursor_x();
         let y: f32 = self.get_cursor_y();
         self.set_cursor_x(self.get_cursor_x() + cell_width);
         self.set_shelf_height(self.get_shelf_height().max(cell_height));
-
         // The glyph is drawn with its pen at the cell's left padding and
         // its baseline at the cell's bottom padding.
         let pen_x: f32 = x + padding + left;
@@ -449,9 +433,7 @@ impl GlyphAtlas {
         let _: Result<(), JsValue> =
             self.get_context()
                 .fill_text(&character.to_string(), pen_x as f64, baseline as f64);
-
         self.set_dirty(true);
-
         GlyphEntry {
             u: x / self.get_width() as f32,
             v: y / self.get_height() as f32,

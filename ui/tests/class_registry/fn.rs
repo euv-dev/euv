@@ -101,7 +101,6 @@ fn rules() -> Vec<Rule> {
     }
     found
 }
-
 fn declarations(body: &str) -> Vec<(String, String)> {
     let code: String = body
         .lines()
@@ -130,7 +129,6 @@ fn declarations(body: &str) -> Vec<(String, String)> {
     }
     out
 }
-
 fn numbers(value: &str) -> Vec<f32> {
     let mut out: Vec<f32> = Vec::new();
     let characters: Vec<char> = value.chars().collect();
@@ -160,13 +158,11 @@ fn numbers(value: &str) -> Vec<f32> {
     }
     out
 }
-
 fn is_spacing(property: &str) -> bool {
     let named: bool = property == "gap" || property == "row-gap" || property == "column-gap";
     let padded: bool = property.starts_with("padding") || property.starts_with("margin");
     named || padded && property.len() > "padding".len() - 1
 }
-
 #[test]
 fn a_class_rule_never_hardcodes_a_colour() {
     let mut offenders: Vec<String> = Vec::new();
@@ -206,7 +202,6 @@ fn a_class_rule_never_hardcodes_a_colour() {
         offenders.join("\n")
     );
 }
-
 #[test]
 fn a_class_rule_never_writes_the_top_safe_area_itself() {
     let mut offenders: Vec<String> = Vec::new();
@@ -233,7 +228,6 @@ fn a_class_rule_never_writes_the_top_safe_area_itself() {
         offenders.join("\n")
     );
 }
-
 #[test]
 fn a_class_rule_never_uses_a_bare_hover_block() {
     let mut offenders: Vec<String> = Vec::new();
@@ -252,7 +246,6 @@ fn a_class_rule_never_uses_a_bare_hover_block() {
         offenders.join("\n")
     );
 }
-
 #[test]
 fn a_hardcoded_spacing_literal_is_on_the_scale_or_carries_a_reason() {
     let mut offenders: Vec<String> = Vec::new();
@@ -287,14 +280,12 @@ fn a_hardcoded_spacing_literal_is_on_the_scale_or_carries_a_reason() {
         offenders.join("\n")
     );
 }
-
 fn value_of(declarations: &[(String, String)], property: &str) -> Option<String> {
     declarations
         .iter()
         .find(|entry: &&(String, String)| entry.0 == property)
         .map(|entry: &(String, String)| entry.1.trim_matches('"').to_string())
 }
-
 #[test]
 fn a_bordered_inline_box_is_never_an_atomic_inline_flex() {
     let mut offenders: Vec<String> = Vec::new();
@@ -342,7 +333,6 @@ fn a_bordered_inline_box_is_never_an_atomic_inline_flex() {
         offenders.join("\n")
     );
 }
-
 #[test]
 fn the_ring_token_is_not_an_orphan() {
     let mut used: usize = 0;
@@ -359,7 +349,6 @@ fn the_ring_token_is_not_an_orphan() {
     )
     .expect("the global stylesheet");
     used += global.matches("var(--ring)").count();
-
     assert!(
         used > 0,
         "the `ring` token holds the ink of the theme and is used for the focus ring. In a \
@@ -368,7 +357,6 @@ fn the_ring_token_is_not_an_orphan() {
          every form control."
     );
 }
-
 #[test]
 fn the_cards_are_separated_by_the_block_gap() {
     let card: Option<Rule> = rules()

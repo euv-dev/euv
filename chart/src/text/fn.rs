@@ -19,7 +19,6 @@ pub(crate) fn split_rich_text(text: &str) -> Vec<(Option<String>, String)> {
     let mut current: String = String::new();
     let mut current_style: Option<String> = None;
     let mut characters: Peekable<Chars<'_>> = text.chars().peekable();
-
     while let Some(character) = characters.next() {
         if character != '{' {
             if current_style.is_none() {
@@ -74,7 +73,6 @@ pub(crate) fn split_rich_text(text: &str) -> Vec<(Option<String>, String)> {
     }
     runs
 }
-
 /// Extracts the font size, in pixels, from a CSS `font` shorthand.
 ///
 /// The measurer needs the size to compute the line height, and the
@@ -98,7 +96,6 @@ pub(crate) fn font_size_of(font: &str) -> f64 {
     }
     12.0
 }
-
 /// Estimates the metrics of a run of text.
 ///
 /// The width is the average advance of a Latin character times the font

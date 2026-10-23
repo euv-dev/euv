@@ -24,7 +24,3 @@ web-sys = { workspace = true }
 wasm-bindgen = { workspace = true }
 lombok-macros = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
-
-[[bench]]
-name = "benchmark"
-harness = false

@@ -451,7 +451,6 @@ pub(crate) fn dash_contours(contours: &[Contour], pattern: &[f32], offset: f32) 
     if pattern.is_empty() {
         return contours.to_vec();
     }
-
     // An odd pattern describes an incomplete on/off alternation, so it is
     // repeated once to make the alternation well defined.
     let mut lengths: Vec<f32> = pattern.to_vec();
@@ -462,7 +461,6 @@ pub(crate) fn dash_contours(contours: &[Contour], pattern: &[f32], offset: f32) 
     if lengths.iter().all(|length: &f32| *length <= 0.0) {
         return contours.to_vec();
     }
-
     let mut dashed: Vec<Contour> = Vec::new();
     for contour in contours {
         if contour.points.len() < 2 {

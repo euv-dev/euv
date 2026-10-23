@@ -54,7 +54,6 @@ impl Tessellator {
         let mut current: Contour = Contour::default();
         let mut cursor: (f64, f64) = (0.0_f64, 0.0_f64);
         let mut sub_start: (f64, f64) = (0.0_f64, 0.0_f64);
-
         for command in path.commands() {
             match *command {
                 PathCommand::MoveTo(x, y) => {
@@ -120,7 +119,6 @@ impl Tessellator {
                 }
             }
         }
-
         if current.points.len() > 1 {
             self.get_mut_flat().contours.push(current);
         }

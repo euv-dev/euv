@@ -54,7 +54,6 @@ impl WebGpuChartBackend {
         let format: String = Self::preferred_format(&gpu)?;
         Self::configure_context(&context, &device, &format)?;
         let api: WebGpuApi = WebGpuApi::new(&device, &queue, &context)?;
-
         let uniform_layout: JsValue = Self::create_uniform_layout(&device)?;
         let texture_layout: JsValue = Self::create_texture_layout(&device)?;
         let solid_layout: JsValue =
@@ -63,7 +62,6 @@ impl WebGpuChartBackend {
             &device,
             &[uniform_layout.clone(), texture_layout.clone()],
         )?;
-
         let solid_shader: JsValue = Self::create_shader_module(&device, WEBGPU_SOLID_SHADER)?;
         let textured_shader: JsValue = Self::create_shader_module(&device, WEBGPU_TEXTURED_SHADER)?;
         let solid_pipeline: JsValue =
@@ -75,7 +73,6 @@ impl WebGpuChartBackend {
             &format,
             true,
         )?;
-
         let uniform_buffer: JsValue = Self::create_buffer(
             &device,
             WEBGPU_UNIFORM_SIZE,
@@ -92,10 +89,8 @@ impl WebGpuChartBackend {
                 ),
             ])],
         )?;
-
         let sampler: JsValue = Self::create_sampler(&device)?;
         let (pass_descriptor, pass_attachment) = Self::create_pass_descriptor();
-
         Some(Self {
             canvas: canvas.clone(),
             device,
@@ -964,7 +959,6 @@ impl WebGpuChartBackend {
         self.get_mut_textured_indices().clear();
         self.get_mut_batches().clear();
         self.get_mut_clips().clear();
-
         for item in list.items() {
             match &item.cmd {
                 DrawCmd::Fill {
@@ -998,7 +992,6 @@ impl WebGpuChartBackend {
                 DrawCmd::PopClip => self.pop_clip(),
             }
         }
-
         self.upload_buffers();
     }
 
@@ -1658,7 +1651,6 @@ impl WebGpuChartBackend {
             return;
         };
         gpu_set(self.get_pass_attachment(), WEBGPU_PROPERTY_VIEW, &view);
-
         let Some(encoder) = self
             .get_api()
             .create_command_encoder
@@ -1852,7 +1844,6 @@ impl ChartBackend for WebGpuChartBackend {
     /// - `&mut TextShaper` - Mutable reference to a `TextShaper` (mutated in place).
     fn render(&mut self, list: &DisplayList, shaper: &mut TextShaper) {
         self.sync_atlas(shaper.atlas());
-
         // The atlas starts over when it runs out of room, which moves the
         // glyphs to other places in the texture. The text geometry holds
         // the texture coordinates of the glyphs, so it has to be built
@@ -1862,18 +1853,15 @@ impl ChartBackend for WebGpuChartBackend {
             self.set_fingerprint(None);
         }
         self.set_atlas_glyphs(glyphs);
-
         let fingerprint: u64 = self.list_fingerprint(list);
         if *self.try_get_fingerprint() != Some(fingerprint) {
             self.rebuild(list, shaper);
             self.set_fingerprint(Some(fingerprint));
         }
-
         if shaper.atlas().is_dirty() {
             self.upload_atlas(shaper.atlas());
             shaper.atlas_mut().mark_clean();
         }
-
         self.encode();
     }
 

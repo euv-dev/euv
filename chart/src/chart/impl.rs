@@ -1400,7 +1400,6 @@ impl ChartRenderer {
         {
             style.color = color;
         }
-
         let horizontal: bool =
             legend.orient.unwrap_or(Orientation::Horizontal) == Orientation::Horizontal;
         let mut cursor_x: f64 = legend.left.as_ref().map(|_| 10.0).unwrap_or(10.0);
@@ -1409,7 +1408,6 @@ impl ChartRenderer {
             .as_ref()
             .map(|rect: &BBox| rect.max_y + 10.0)
             .unwrap_or(10.0);
-
         for (index, name) in legend.data.iter().enumerate() {
             let color: Color = palette_color(option, index);
             let symbol: Path = Path::builder()

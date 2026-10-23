@@ -804,7 +804,6 @@ pub(crate) fn ear_clip(points: &[Point], output: &mut Vec<usize>) {
     if count < 3 {
         return;
     }
-
     // Orient the polygon so that the interior is on the left of every
     // directed edge, which is the orientation the ear test assumes.
     let area: f64 = polygon_signed_area(points, 0, count);
@@ -814,7 +813,6 @@ pub(crate) fn ear_clip(points: &[Point], output: &mut Vec<usize>) {
     } else {
         ordered.extend(points.iter().rev().copied());
     }
-
     // The linked list: `next` and `previous` hold the neighbour of each
     // vertex in the remaining polygon.
     let mut next: Vec<usize> = vec![0usize; count];
@@ -823,12 +821,10 @@ pub(crate) fn ear_clip(points: &[Point], output: &mut Vec<usize>) {
         next[index] = (index + 1) % count;
         previous[index] = (index + count - 1) % count;
     }
-
     let mut remaining: usize = count;
     let mut cursor: usize = 0usize;
     let mut guard: usize = 0usize;
     let guard_limit: usize = count * count + count;
-
     while remaining > 3 {
         if guard > guard_limit {
             break;
@@ -853,7 +849,6 @@ pub(crate) fn ear_clip(points: &[Point], output: &mut Vec<usize>) {
 
         cursor = c;
     }
-
     if remaining == 3 {
         let a: usize = cursor;
         let b: usize = next[a];
