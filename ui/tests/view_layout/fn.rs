@@ -59,9 +59,25 @@ const TOC_ONE: [EuvTocItem; 1] = [EuvTocItem {
 }];
 const TOC_NONE: [EuvTocItem; 0] = [];
 
+const FOOTER_LINKS_NONE: [EuvFooterLink; 0] = [];
+const FOOTER_LINKS_ONE: [EuvFooterLink; 1] = [EuvFooterLink {
+    text: "ICP-2026000000-1",
+    link: "https://beian.miit.gov.cn/",
+    icon: "/img/icp.png",
+    alt: "Filing badge",
+}];
+
 fn doc_node(
     toc_items: &'static [EuvTocItem],
     footer: &'static str,
+) -> VirtualNode<EuvDocLayoutProps> {
+    doc_node_with_links(toc_items, footer, &FOOTER_LINKS_NONE)
+}
+
+fn doc_node_with_links(
+    toc_items: &'static [EuvTocItem],
+    footer: &'static str,
+    footer_links: &'static [EuvFooterLink],
 ) -> VirtualNode<EuvDocLayoutProps> {
     VirtualNode::Element {
         tag: Tag::Element(Cow::Borrowed("div")),
@@ -76,6 +92,7 @@ fn doc_node(
             prev: None,
             next: None,
             footer,
+            footer_links,
             toc_active: Signal::create(String::new()),
         })),
     }
@@ -123,6 +140,7 @@ fn default_doc() -> VirtualNode<EuvDocLayoutProps> {
             prev: None,
             next: None,
             footer: "",
+            footer_links: &FOOTER_LINKS_NONE,
             toc_active: Signal::create(String::new()),
         })),
     }
@@ -270,19 +288,108 @@ fn a_doc_layout_preserves_the_children_it_was_given() {
 }
 
 #[test]
-fn a_doc_layout_keeps_a_stable_shape_across_toc_and_footer_combinations() {
-    let shapes: Vec<usize> = [
-        doc_node(&TOC_NONE, ""),
-        doc_node(&TOC_ONE, ""),
-        doc_node(&TOC_NONE, "© 2026"),
-        doc_node(&TOC_ONE, "© 2026"),
-    ]
-    .iter()
-    .map(|n: &VirtualNode<EuvDocLayoutProps>| total_elements(&euv_doc_layout(n.clone())))
-    .collect();
+fn a_doc_layout_keeps_a_stable_shape_across_toc_combinations() {
+    let shapes: Vec<usize> = [doc_node(&TOC_NONE, ""), doc_node(&TOC_ONE, "")]
+        .iter()
+        .map(|n: &VirtualNode<EuvDocLayoutProps>| total_elements(&euv_doc_layout(n.clone())))
+        .collect();
     assert!(
         shapes.windows(2).all(|w: &[usize]| w[0] == w[1]),
-        "the toc and footer branches swap classes rather than add elements, \
-         so the element count must stay constant, got {shapes:?}"
+        "the toc branch swaps classes rather than adding elements, so the \
+         element count must stay constant, got {shapes:?}"
+    );
+}
+
+fn footer_node(text: &'static str, links: &'static [EuvFooterLink]) -> VirtualNode<EuvFooterProps> {
+    VirtualNode::Element {
+        tag: Tag::Element(Cow::Borrowed("div")),
+        attributes: Vec::new(),
+        children: Vec::new(),
+        key: None,
+        props: Some(Box::new(EuvFooterProps { text, links })),
+    }
+}
+
+fn count_links(node: &VirtualNode) -> usize {
+    match node {
+        VirtualNode::Element { tag, children, .. } => {
+            let own: usize = usize::from(format!("{tag:?}") == "Element(\"a\")");
+            own + children.iter().map(count_links).sum::<usize>()
+        }
+        VirtualNode::Fragment(children) => children.iter().map(count_links).sum(),
+        _ => 0,
+    }
+}
+
+fn has_class(node: &VirtualNode, class: &str) -> bool {
+    match node {
+        VirtualNode::Element {
+            attributes,
+            children,
+            ..
+        } => {
+            let own: bool = attributes.iter().any(|entry: &AttributeEntry| {
+                entry.get_name() == "class"
+                    && entry
+                        .class_names()
+                        .iter()
+                        .any(|name: &String| name.as_str() == class)
+            });
+            own || children
+                .iter()
+                .any(|child: &VirtualNode| has_class(child, class))
+        }
+        VirtualNode::Fragment(children) => children
+            .iter()
+            .any(|child: &VirtualNode| has_class(child, class)),
+        _ => false,
+    }
+}
+
+#[test]
+fn a_doc_layout_with_footer_links_differs_from_one_without() {
+    let with: VirtualNode = euv_doc_layout(doc_node_with_links(&TOC_NONE, "", &FOOTER_LINKS_ONE));
+    let without: VirtualNode = euv_doc_layout(doc_node(&TOC_NONE, ""));
+    assert_ne!(with, without, "a filing notice changes the rendered tree");
+}
+
+#[test]
+fn the_footer_renders_one_link_per_notice() {
+    let rendered: VirtualNode = euv_footer(footer_node("MIT", &FOOTER_LINKS_ONE));
+    assert_eq!(
+        count_links(&rendered),
+        1,
+        "the filing notice is one link, got {rendered:?}"
+    );
+    assert!(
+        has_class(&rendered, "c_euv_footer_link"),
+        "the notice carries the link class, got {rendered:?}"
+    );
+}
+
+#[test]
+fn the_footer_renders_the_text_row_and_the_notice_row() {
+    let rendered: VirtualNode = euv_footer(footer_node("MIT", &FOOTER_LINKS_ONE));
+    assert!(
+        has_class(&rendered, "c_euv_footer_text"),
+        "the footer text has its own row, got {rendered:?}"
+    );
+    assert!(
+        has_class(&rendered, "c_euv_footer_links"),
+        "the notices have their own row, got {rendered:?}"
+    );
+}
+
+#[test]
+fn a_footer_without_notices_hides_the_notice_row() {
+    let rendered: VirtualNode = euv_footer(footer_node("MIT", &FOOTER_LINKS_NONE));
+    assert_eq!(
+        count_links(&rendered),
+        0,
+        "there is nothing to link to, got {rendered:?}"
+    );
+    assert!(
+        has_class(&rendered, "c_euv_footer_links_hidden"),
+        "the empty row takes no space, got {rendered:?}"
     );
 }

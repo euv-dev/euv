@@ -59,7 +59,7 @@ where
     ///
     /// - `Self` - A handle to the newly created reactive signal.
     pub fn create(value: T) -> Self {
-        let inner: SignalInner<T> = SignalInner::new(value, Vec::new(), true);
+        let inner: SignalInner<T> = SignalInner::new(Rc::new(value), Vec::new(), true);
         // `usize::MAX` is out of bounds for the append-only slab, so a refused
         // borrow can never be mistaken for a real slot. Falling back to `0`
         // would silently alias whatever signal happens to own the first slot.
@@ -105,13 +105,13 @@ where
                     unreachable!("Signal handle does not resolve to a slab slot");
                 };
                 if !inner.get_alive() {
-                    return Some(inner.get_value().clone());
+                    return Some(inner.get_value().as_ref().clone());
                 }
                 let tracking_id: usize = CURRENT_TRACKING_DYNAMIC_ID.load(Ordering::Relaxed);
                 if tracking_id != usize::MAX {
                     Self::push_dependent(inner, tracking_id);
                 }
-                Some(inner.get_value().clone())
+                Some(inner.get_value().as_ref().clone())
             },
             None,
         )
@@ -151,10 +151,10 @@ where
         F: FnOnce(&T) -> R,
     {
         let idx: usize = self.get_inner();
-        // Phase 1: resolve the slot and clone the value out, releasing the
+        // Phase 1: retain a shared value snapshot, releasing the
         // borrow before any caller code runs. An inactive slot still yields
         // its last stored value and skips dependency registration.
-        let staged: Option<T> = Self::with_slab(
+        let staged: Option<Rc<T>> = Self::with_slab(
             |slab: &mut SignalSlab| {
                 let Some(inner) = slab.get_mut::<T>(idx) else {
                     // Unresolvable handle: unreachable for slab-issued handles
@@ -168,7 +168,7 @@ where
                         Self::push_dependent(inner, tracking_id);
                     }
                 }
-                Some(inner.get_value().clone())
+                Some(Rc::clone(inner.get_value()))
             },
             None,
         );
@@ -176,7 +176,7 @@ where
             unreachable!("Signal handle does not resolve to a slab slot");
         };
         // Phase 2: caller code runs with no slab borrow held.
-        f(&value)
+        f(value.as_ref())
     }
 
     /// Subscribes a callback to be invoked when the signal changes.
@@ -314,10 +314,14 @@ where
                 if !inner.get_alive() {
                     return false;
                 }
-                if *inner.get_value() == value {
+                if *inner.get_value().as_ref() == value {
                     return false;
                 }
-                inner.set_value(value);
+                if let Some(current) = Rc::get_mut(inner.get_mut_value()) {
+                    *current = value;
+                } else {
+                    inner.set_value(Rc::new(value));
+                }
                 inner.set_notifying(true);
                 swap(inner.get_mut_listeners(), &mut listeners);
                 true

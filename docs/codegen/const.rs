@@ -115,6 +115,29 @@ pub(crate) const YAML_TEXT: &str = "text";
 /// Frontmatter key holding a navbar item's link target.
 pub(crate) const YAML_LINK: &str = "link";
 
+/// Frontmatter key holding the site's filing notice block.
+pub(crate) const YAML_COMPLIANCE: &str = "compliance";
+
+/// Frontmatter key holding the ICP filing number.
+pub(crate) const YAML_ICP_NUMBER: &str = "icp_number";
+
+/// Frontmatter key holding the link the ICP filing number points at.
+pub(crate) const YAML_ICP_LINK: &str = "icp_link";
+
+/// Frontmatter key holding the public-security filing number.
+pub(crate) const YAML_POLICE_NUMBER: &str = "police_number";
+
+/// Frontmatter key holding the link the public-security filing number
+/// points at.
+pub(crate) const YAML_POLICE_LINK: &str = "police_link";
+
+/// Frontmatter key holding the local path of the official public-security
+/// filing badge.
+pub(crate) const YAML_POLICE_ICON: &str = "police_icon";
+
+/// Frontmatter key holding the accessible name of the filing badge.
+pub(crate) const YAML_POLICE_ICON_ALT: &str = "police_icon_alt";
+
 /// Frontmatter key holding a hero action's variant.
 pub(crate) const YAML_TYPE: &str = "type";
 
@@ -254,6 +277,27 @@ pub(crate) const DEFAULT_NEXT_LABEL: &str = "Next";
 
 /// Frontmatter `type` value that renders a hero action as the primary one.
 pub(crate) const ACTION_KIND_PRIMARY: &str = "primary";
+
+// ---------------------------------------------------------------------------
+// Filing notice defaults
+// ---------------------------------------------------------------------------
+
+/// The ICP filing query system every ICP filing number links at.
+pub(crate) const DEFAULT_ICP_LINK: &str = "https://beian.miit.gov.cn/";
+
+/// The local path of the official public-security filing badge.
+pub(crate) const DEFAULT_POLICE_ICON: &str = "/img/icp.png";
+
+/// The public-security filing query page, with the record code appended.
+pub(crate) const DEFAULT_POLICE_LINK: &str =
+    "http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=";
+
+/// The public-security filing portal, used when the filing number carries
+/// no record code to address a single filing.
+pub(crate) const DEFAULT_POLICE_PORTAL: &str = "https://beian.mps.gov.cn/";
+
+/// The accessible name of the official public-security filing badge.
+pub(crate) const DEFAULT_POLICE_ICON_ALT: &str = "Public security filing icon";
 
 // ---------------------------------------------------------------------------
 // Generated-source fragments

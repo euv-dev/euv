@@ -1209,6 +1209,11 @@ impl GlProgram {
     /// per-feature flag, and re-querying it every frame would walk the
     /// program's uniform table for a result that can never change.
     ///
+    /// The cache itself is borrowed for the lookup and filled in place
+    /// on a miss, so a call costs a hash lookup rather than a copy of
+    /// the whole table. Only the one location handle the caller is
+    /// handed back is cloned.
+    ///
     /// # Arguments
     ///
     /// - `&WebGl2RenderingContext` - The context to resolve against.
@@ -1224,18 +1229,14 @@ impl GlProgram {
         context: &WebGl2RenderingContext,
         name: &str,
     ) -> Option<WebGlUniformLocation> {
-        match self.get_uniforms().get(name) {
-            Some(cached) => cached.clone(),
-            None => {
-                let resolved: Option<WebGlUniformLocation> =
-                    context.get_uniform_location(self.get_program(), name);
-                let mut table: HashMap<String, Option<WebGlUniformLocation>> =
-                    self.get_uniforms().clone();
-                table.insert(name.to_string(), resolved.clone());
-                self.set_uniforms(table);
-                resolved
-            }
+        if let Some(cached) = self.get_uniforms().get(name) {
+            return cached.clone();
         }
+        let resolved: Option<WebGlUniformLocation> =
+            context.get_uniform_location(self.get_program(), name);
+        self.get_mut_uniforms()
+            .insert(name.to_string(), resolved.clone());
+        resolved
     }
 
     /// Uploads a `float` uniform through its cached location.
@@ -1362,6 +1363,10 @@ impl GlProgram {
     /// make the mismatch permanent rather than recoverable on the next
     /// call.
     ///
+    /// A block that does exist is cached in place, so the second bind of
+    /// the same name costs a hash lookup rather than a fresh trip into
+    /// the driver's uniform block table.
+    ///
     /// # Arguments
     ///
     /// - `&WebGl2RenderingContext` - The context to bind against.
@@ -1385,9 +1390,7 @@ impl GlProgram {
                 if resolved == WebGl2RenderingContext::UNIFORM_BLOCK_INDEX {
                     None
                 } else {
-                    let mut table: HashMap<String, u32> = self.get_blocks().clone();
-                    table.insert(name.to_string(), resolved);
-                    self.set_blocks(table);
+                    self.get_mut_blocks().insert(name.to_string(), resolved);
                     Some(resolved)
                 }
             }

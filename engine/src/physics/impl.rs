@@ -802,19 +802,11 @@ impl PhysicsWorld3D {
         // field on `PhysicsWorld3D`. See `PhysicsWorld2D::resolve_collisions`
         // for the rationale.
         self.get_mut_pair_buffer().clear();
-        // Collect bboxes first (immutable borrow of bodies) then drain the
-        // spatial grid (mutable borrow). Splitting avoids the split-borrow
-        // limitation that method-call-based accessors introduce.
-        // OPT 33: pre-size the bboxes scratch Vec to the current body count
-        // so the first allocation does not double-grow on subsequent frames
-        // (each body's bbox is `O(1)` and the Vec is rebuilt every step).
-        // The actual allocation still happens here — the persistent
-        // `bbox_buffer` field idea was rejected because the immutable-then-
-        // mutable borrow split on `self.bodies` cannot hold both a `&mut`
-        // borrow on `bbox_buffer` and the source `iter()` simultaneously
-        // even with edition 2024 split-borrow rules.
-        let body_count: usize = self.get_bodies().len();
-        let mut bboxes: Vec<(usize, AABB3D)> = Vec::with_capacity(body_count);
+        // Move scratch storage out to read bodies without holding a mutable
+        // accessor borrow. Preserve its allocation for the next step.
+        let mut bboxes: Vec<(usize, AABB3D)> = take(self.get_mut_bbox_buffer());
+        bboxes.clear();
+        bboxes.reserve(body_count);
         bboxes.extend(self.get_bodies().iter().enumerate().filter_map(
             |(index, body): (usize, &RigidBody3D)| {
                 body.bounding_box().map(|bbox: AABB3D| (index, bbox))
@@ -836,15 +828,16 @@ impl PhysicsWorld3D {
             for (index, bbox) in bboxes.iter() {
                 grid.insert(*index, bbox.get_min(), bbox.get_max());
             }
-            for (i, (_, bbox)) in bboxes.iter().enumerate() {
+            for (i, bbox) in bboxes.iter() {
                 grid.query_into(bbox.get_min(), bbox.get_max(), query_buffer, query_seen);
                 for &j in query_buffer.iter() {
-                    if j > i {
-                        pairs.push((i, j));
+                    if j > *i {
+                        pairs.push((*i, j));
                     }
                 }
             }
         }
+        self.set_bbox_buffer(bboxes);
         // `mem::take` moves the pairs out (leaving an empty Vec behind) so
         // the immutable borrow on `self.pair_buffer` ends before the
         // `self.get_mut_bodies()` mutable borrow below — the buffer keeps

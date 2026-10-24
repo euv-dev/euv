@@ -27,7 +27,7 @@ fn recording_context(linked: bool, compiled: bool) -> (WebGl2RenderingContext, O
     reflective(context.as_ref(), "__log", Array::new().as_ref());
     let arm: js_sys::Function = js_sys::Function::new_with_args(
         "target, methods, linked, compiled",
-        "for (const name of JSON.parse(methods)) { target[name] = function() { target.__log.push([name, Array.from(arguments)]); if (name === 'createShader') return { __gl: 'shader' }; if (name === 'createProgram') return { __gl: 'program' }; if (name === 'getShaderParameter') return compiled; if (name === 'getProgramParameter') return linked; if (name === 'getUniformLocation') return { __gl: 'location' }; if (name.indexOf('InfoLog') >= 0) return 'driver says no'; return null; }; }",
+        "for (const name of JSON.parse(methods)) { target[name] = function() { target.__log.push([name, Array.from(arguments)]); if (name === 'createShader') return { __gl: 'shader' }; if (name === 'createProgram') return { __gl: 'program' }; if (name === 'getShaderParameter') return compiled; if (name === 'getProgramParameter') return linked; if (name === 'getUniformLocation') { return arguments[1] === 'u_removed' ? null : { __gl: 'location' }; } if (name.indexOf('InfoLog') >= 0) return 'driver says no'; return null; }; }",
     );
     let armed: Result<JsValue, JsValue> = arm.call4(
         &JsValue::NULL,
@@ -230,6 +230,71 @@ fn a_uniform_location_is_resolved_once_and_then_served_from_cache() {
         count_of(&log, "uniform1f"),
         2,
         "each upload still reaches the driver, cache or not"
+    );
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    ignore = "records a WebGl2RenderingContext stand-in, which only exists under wasm"
+)]
+fn a_uniform_the_compiler_removed_is_looked_up_once_and_its_miss_is_cached() {
+    let (context, log): (WebGl2RenderingContext, Object) = recording_context(true, true);
+    let mut program: GlProgram =
+        GlProgram::create(&context, "vertex body", "fragment body").expect("linked");
+    let after_link: usize = count_of(&log, "getUniformLocation");
+    program.set_uniform_1f(&context, "u_removed", 0.5);
+    program.set_uniform_1f(&context, "u_removed", 0.75);
+    assert_eq!(
+        count_of(&log, "getUniformLocation"),
+        after_link + 1,
+        "a uniform the compiler removed is resolved once, because the miss is cached like a hit"
+    );
+    assert_eq!(
+        count_of(&log, "uniform1f"),
+        2,
+        "each write still reaches the driver, cache or not"
+    );
+    let upload: Array = args_at(&log, "uniform1f", 1);
+    assert!(
+        upload.get(0).is_null() || upload.get(0).is_undefined(),
+        "the cached miss hands the driver no location, which is what an optimized out uniform gets"
+    );
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+#[cfg_attr(
+    not(target_arch = "wasm32"),
+    ignore = "records a WebGl2RenderingContext stand-in, which only exists under wasm"
+)]
+fn a_repeated_uniform_write_reuses_the_cached_location_and_still_carries_the_new_value() {
+    let (context, log): (WebGl2RenderingContext, Object) = recording_context(true, true);
+    let mut program: GlProgram =
+        GlProgram::create(&context, "vertex body", "fragment body").expect("linked");
+    let after_link: usize = count_of(&log, "getUniformLocation");
+    program.set_uniform_1f(&context, "u_alpha", 0.5);
+    program.set_uniform_1f(&context, "u_alpha", 0.75);
+    assert_eq!(
+        count_of(&log, "getUniformLocation"),
+        after_link + 1,
+        "the second write of the same name is served from the cache"
+    );
+    assert_eq!(
+        count_of(&log, "uniform1f"),
+        2,
+        "both writes reach the driver"
+    );
+    let second: Array = args_at(&log, "uniform1f", 1);
+    assert_eq!(
+        second.get(1).as_f64(),
+        Some(0.75),
+        "the second write carries its own value, so the cache holds the location and not the value"
+    );
+    assert!(
+        !second.get(0).is_undefined(),
+        "the cached location is what the second write uploads through"
     );
 }
 

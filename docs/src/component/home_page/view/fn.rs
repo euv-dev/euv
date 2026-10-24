@@ -68,14 +68,12 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
                         }
                     }
                 }
-                if { !footer_text.is_empty() } {
+                if { !footer_text.is_empty() || !site.footer_links.is_empty() } {
                     div {
                         class: c_home_tail()
-                        footer {
-                            class: c_euv_footer()
-                            {
-                                footer_text
-                            }
+                        euv_footer {
+                            text: footer_text
+                            links: site.footer_links
                         }
                     }
                 }

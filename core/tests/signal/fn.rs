@@ -1,5 +1,76 @@
 use super::*;
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn with_reads_do_not_clone_the_payload_but_get_still_does() {
+    let clones: Rc<Cell<usize>> = Rc::new(Cell::new(0));
+    let signal: Signal<CountedSignalValue> =
+        Signal::create(CountedSignalValue::new(7, Rc::clone(&clones)));
+    for _ in 0..SNAPSHOT_READ_COUNT {
+        assert_eq!(
+            signal.with(|value: &CountedSignalValue| value.get_value()),
+            7
+        );
+    }
+    assert_eq!(clones.get(), 0);
+    let owned: CountedSignalValue = signal.get();
+    assert_eq!(owned.get_value(), 7);
+    assert_eq!(clones.get(), 1);
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn nested_with_reads_preserve_snapshots_during_reentrant_writes() {
+    let signal: Signal<Vec<usize>> = Signal::create(vec![1]);
+    let other: Signal<usize> = Signal::create(9);
+    signal.with(|outer: &Vec<usize>| {
+        signal.with(|inner: &Vec<usize>| assert!(ptr::eq(outer, inner)));
+        assert_eq!(other.with(|value: &usize| *value), 9);
+        signal.set(vec![2]);
+        assert_eq!(outer.as_slice(), &[1]);
+        signal.with(|inner: &Vec<usize>| {
+            assert_eq!(inner.as_slice(), &[2]);
+            signal.set(vec![3]);
+            assert_eq!(inner.as_slice(), &[2]);
+        });
+        assert_eq!(outer.as_slice(), &[1]);
+    });
+    assert_eq!(signal.get(), vec![3]);
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn a_reentrant_subscriber_can_read_and_replace_an_active_snapshot() {
+    let signal: Signal<usize> = Signal::create(1);
+    let seen: Rc<Cell<usize>> = Rc::new(Cell::new(0));
+    let observed: Rc<Cell<usize>> = Rc::clone(&seen);
+    let subscription: usize = signal.subscribe(move || {
+        signal.with(|value: &usize| {
+            observed.set(*value);
+            signal.set(3);
+            assert_eq!(*value, 2);
+        });
+    });
+    signal.with(|value: &usize| {
+        signal.set(2);
+        assert_eq!(*value, 1);
+    });
+    assert_eq!(seen.get(), 2);
+    assert_eq!(signal.get(), 3);
+    signal.unsubscribe(subscription);
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn writes_reuse_value_storage_when_no_read_snapshot_is_active() {
+    let signal: Signal<usize> = Signal::create(1);
+    let before: usize = signal.with(|value: &usize| value as *const usize as usize);
+    signal.set(2);
+    let after: usize = signal.with(|value: &usize| value as *const usize as usize);
+    assert_eq!(before, after);
+    assert_eq!(signal.get(), 2);
+}
+
 #[test]
 fn signal_cell_set_then_get() {
     let cell: SignalCell<i32> = SignalCell::default();

@@ -237,10 +237,9 @@ fn merge_class_signal_path_preserves_text_siblings() {
         AttributeValue::Text(String::from("c_binding_slider_label")),
         AttributeValue::Signal(signal_value),
     ]);
-    let AttributeValue::Signal(merged_signal) = merged else {
-        panic!("merge_class should yield Signal when any input is Signal");
+    let AttributeValue::Text(resolved) = merged else {
+        panic!("merge_class should yield a text snapshot of signal inputs");
     };
-    let resolved: String = merged_signal.get();
     let parts: Vec<&str> = resolved
         .split(' ')
         .filter(|s: &&str| !s.is_empty())
@@ -505,22 +504,22 @@ fn a_reactive_attribute_starts_at_the_value_its_closure_produces() {
         counter.set(counter.get() + 1);
         String::from("computed")
     });
-    assert_eq!(calls.get(), 1, "the closure runs once to seed the signal");
+    assert_eq!(
+        calls.get(),
+        1,
+        "the closure runs once to compute the snapshot"
+    );
     match attribute {
-        AttributeValue::Signal(signal) => assert_eq!(signal.get(), "computed"),
-        other => panic!("expected a signal-backed attribute, got {other:?}"),
+        AttributeValue::Text(text) => assert_eq!(text, "computed"),
+        other => panic!("expected a text snapshot, got {other:?}"),
     }
 }
 
 #[test]
-fn a_reactive_attribute_is_distinct_from_a_literal_one() {
+fn a_reactive_snapshot_compares_equal_to_the_same_literal() {
     let reactive: AttributeValue = AttributeValue::reactive(|| String::from("same"));
     let literal: AttributeValue = AttributeValue::Text(String::from("same"));
-    assert!(
-        matches!(reactive, AttributeValue::Signal(_)),
-        "a closure-backed attribute must stay signal-backed"
-    );
-    assert!(matches!(literal, AttributeValue::Text(_)));
+    assert_eq!(reactive, literal);
 }
 
 #[test]
