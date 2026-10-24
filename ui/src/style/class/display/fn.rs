@@ -970,76 +970,48 @@ class! {
         // Only one of them belongs to the band inside the rule, and it is
         // the top one — that is the space between the divider and the text.
         // `space-md` keeps the text close to the rule; the block is
-        // `display: flex` so the rows are centred in the band the padding
+        // `display: flex` so the row is centred in the band the padding
         // defines rather than riding its top edge.
         padding: format!("{} 0px", var!(space-md));
         border-top: format!("1px dashed {}", var!(border));
         display: "flex";
-        // Column, so the link row (the filing notice) sits under the text
-        // line instead of beside it. `align-items: stretch` gives both
-        // rows the column's width, so a notice that does not fit is
-        // truncated instead of pushing the footer wider than the page.
-        flex-direction: "column";
-        align-items: "stretch";
-        justify-content: "center";
-        gap: var!(space-xs);
-        text-align: "center";
-        font-size: var!(font-sm);
-        color: var!(muted-foreground);
-        min-width: "0px";
-    }
-
-    // The footer text line. One line, always: a wrapped license line
-    // would push the notice row down and make the footer taller than
-    // the space the reader left for it.
-    pub c_euv_footer_text {
-        line-height: "1.5";
-        white-space: "nowrap";
-        overflow: "hidden";
-        text-overflow: "ellipsis";
-        min-width: "0px";
-    }
-
-    // The footer link row: the filing numbers and their badges.
-    //
-    // The row never wraps. A notice that does not fit is truncated with
-    // an ellipsis inside its own link, because a filing number cut in
-    // half across two lines is a number nobody can read or copy.
-    pub c_euv_footer_links {
-        display: "flex";
+        // One row: the text and the notices sit side by side and never
+        // wrap. `align-items: center` keeps the badge on the text's
+        // midline, and `overflow: hidden` keeps a long row inside the
+        // column instead of pushing the page wider.
         flex-wrap: "nowrap";
         align-items: "center";
         justify-content: "center";
         gap: var!(space-md);
+        text-align: "center";
+        font-size: var!(font-sm);
+        color: var!(muted-foreground);
         min-width: "0px";
-        max-width: "100%";
         overflow: "hidden";
     }
 
-    // The link row with no link in it. The row stays in the tree, but it
-    // takes no space, so a footer without a filing notice keeps the
-    // spacing it had before the row existed.
-    pub c_euv_footer_links_hidden {
-        display: "none";
-    }
-
-    // One notice.
+    // One item of the footer row.
     //
-    // `inline-block` rather than a flex box: the number is inline text
+    // `inline-block` rather than a flex box: the text is inline content
     // inside this box, so `text-overflow: ellipsis` can cut it with a
-    // dot when the row is too narrow for it. A flex box would put the
-    // number in an anonymous item that no selector can reach, and the
-    // number would be clipped without a hint that it was cut.
-    pub c_euv_footer_link {
+    // dot when the row is too narrow. A flex box would put the text in
+    // an anonymous item that no selector can reach, and the text would
+    // be clipped without a hint that it was cut.
+    pub c_euv_footer_item {
         display: "inline-block";
         min-width: "0px";
         max-width: "100%";
         overflow: "hidden";
         text-overflow: "ellipsis";
         white-space: "nowrap";
+        vertical-align: "middle";
+    }
+
+    // A linked item of the footer row.
+    pub c_euv_footer_item_link {
+        c_euv_footer_item();
         color: "inherit";
         text-decoration: "none";
-        vertical-align: "middle";
         :hover {
             color: var!(accent);
         }
@@ -1051,7 +1023,7 @@ class! {
     // served at its native resolution instead of being scaled by the
     // browser. The margin is the gap to the number: the link is an
     // inline box, so the gap cannot come from a flex `gap`.
-    pub c_euv_footer_link_icon {
+    pub c_euv_footer_item_icon {
         display: "inline-block";
         height: var!(space-xl);
         width: "auto";

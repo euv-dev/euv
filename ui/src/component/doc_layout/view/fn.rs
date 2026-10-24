@@ -23,7 +23,8 @@ pub fn euv_doc_layout(node: VirtualNode<EuvDocLayoutProps>) -> VirtualNode {
         prev,
         next,
         footer,
-        footer_links,
+        footer_link,
+        footer_items,
         toc_active,
     }: EuvDocLayoutProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
@@ -60,10 +61,11 @@ pub fn euv_doc_layout(node: VirtualNode<EuvDocLayoutProps>) -> VirtualNode {
                         prev
                         next
                     }
-                    if { !footer.is_empty() || !footer_links.is_empty() } {
+                    if { !footer.is_empty() || !footer_items.is_empty() } {
                         euv_footer {
                             text: footer
-                            links: footer_links
+                            link: footer_link
+                            items: footer_items
                         }
                     }
                 }

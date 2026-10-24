@@ -1,14 +1,12 @@
 use super::*;
 
-/// One link of the footer link row.
+/// One item of the footer row.
 ///
-/// The canonical use is a filing notice: the text is the filing number
-/// itself — selectable, copyable plain text — while the optional icon is
-/// the official badge the filing authority publishes. The link points at
-/// the authority's own query page, so a reader can verify the number
-/// without trusting the site that shows it.
+/// The text is the notice itself — a filing number, plain and
+/// selectable — while the optional icon is the official badge the
+/// filing authority publishes, served by the site itself.
 #[derive(Clone, Copy, CustomDebug, Data, Default, New)]
-pub struct EuvFooterLink {
+pub struct EuvFooterItem {
     /// The link text.
     #[get(type(copy))]
     pub text: &'static str,
@@ -26,10 +24,18 @@ pub struct EuvFooterLink {
 /// Props for the [`euv_footer`] component.
 #[derive(Clone, Copy, CustomDebug, Data, Default, New)]
 pub struct EuvFooterProps {
-    /// The footer text (for example the license line).
+    /// The plain text of the footer (for example the license line).
+    ///
+    /// An empty text renders no text row, which is how a footer that
+    /// carries nothing but its items is written.
     #[get(type(copy))]
     pub text: &'static str,
-    /// The links rendered under the text; empty renders no link row.
+    /// The destination the text points at.
+    ///
+    /// An empty link renders the text as plain, unlinked text.
     #[get(type(copy))]
-    pub links: &'static [EuvFooterLink],
+    pub link: &'static str,
+    /// The items of the footer row, in display order.
+    #[get(type(copy))]
+    pub items: &'static [EuvFooterItem],
 }
