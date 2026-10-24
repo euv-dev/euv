@@ -1,14 +1,15 @@
 use super::*;
 
-/// The site footer: one line of text plus a row of links.
+/// The site footer: one row of text and links.
 ///
-/// The link row is where a filing notice lives — the number as plain,
-/// selectable text, the official badge as an image, and the destination
-/// pointing at the authority's own query page.
+/// Every part of the content comes from the caller: the text with its
+/// own destination — a license line that opens the project's repository
+/// — and the items, each with its own text, its own destination and its
+/// own optional icon.
 ///
-/// The two rows are always rendered and the empty one is hidden by its
-/// class, so the footer never reserves the space of a row it does not
-/// use.
+/// The row is a single line: an item that does not fit is cut with an
+/// ellipsis instead of wrapping — a filing number broken across two
+/// lines is a number nobody can read or copy.
 ///
 /// # Arguments
 ///
@@ -19,41 +20,61 @@ use super::*;
 /// - `VirtualNode` - The footer virtual DOM tree.
 #[component]
 pub fn euv_footer(node: VirtualNode<EuvFooterProps>) -> VirtualNode {
-    let EuvFooterProps { text, links }: EuvFooterProps = node.try_get_props().unwrap_or_default();
+    let EuvFooterProps { text, link, items }: EuvFooterProps =
+        node.try_get_props().unwrap_or_default();
     html! {
         footer {
             class: c_euv_footer()
-            div {
-                class: c_euv_footer_text()
-                {
-                    text
-                }
-            }
-            div {
-                class: if links.is_empty() {
-                    c_euv_footer_links_hidden()
-                } else {
-                    c_euv_footer_links()
-                }
-                for link in links.iter() {
-                    a {
-                        class: c_euv_footer_link()
-                        href: link.link
-                        target: LINK_TARGET_BLANK
-                        rel: LINK_REL_NOOPENER
-                        if { !link.icon.is_empty() } {
-                            img {
-                                class: c_euv_footer_link_icon()
-                                src: link.icon
-                                alt: link.alt
-                            }
-                        }
-                        {
-                            link.text
-                        }
+            if { !text.is_empty() } {
+                a {
+                    class: c_euv_footer_item_link()
+                    href: link
+                    target: LINK_TARGET_BLANK
+                    rel: LINK_REL_NOOPENER
+                    {
+                        text
                     }
                 }
             }
+            for item in items.iter() {
+                a {
+                    class: c_euv_footer_item_link()
+                    href: item.link
+                    target: LINK_TARGET_BLANK
+                    rel: LINK_REL_NOOPENER
+                    footer_item_icon(item)
+                    {
+                        item.text
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Renders the optional icon of a footer item.
+///
+/// An item without an icon renders nothing, so the caller does not
+/// have to branch on the icon's presence.
+///
+/// # Arguments
+///
+/// - `&EuvFooterItem` - The item to read the icon from.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The icon element, or an empty node.
+fn footer_item_icon(item: &EuvFooterItem) -> VirtualNode {
+    if item.icon.is_empty() {
+        return html! {
+            ""
+        };
+    }
+    html! {
+        img {
+            class: c_euv_footer_item_icon()
+            src: item.icon
+            alt: item.alt
         }
     }
 }

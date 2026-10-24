@@ -12,7 +12,7 @@ categories = ["network-programming", "web-programming"]
 exclude.workspace = true
 
 [workspace.package]
-version = "0.32.5"
+version = "0.32.6"
 readme = "README.md"
 edition = "2024"
 authors = ["root@devhub.vip"]
@@ -38,43 +38,43 @@ resolver = "3"
 crate-type = ["rlib"]
 
 [workspace.dependencies]
-euv = { path = ".", version = "0.32.5" }
-euv-ui = { path = "ui", version = "0.32.5" }
-euv-cli = { path = "cli", version = "0.32.5" }
-euv-core = { path = "core", version = "0.32.5" }
-euv-chart = { path = "chart", version = "0.32.5" }
-euv-engine = { path = "engine", version = "0.32.5" }
-euv-macros = { path = "macros", version = "0.32.5" }
-euv-example = { path = "example", version = "0.32.5" }
+euv = { path = ".", version = "0.32.6" }
+euv-ui = { path = "ui", version = "0.32.6" }
+euv-cli = { path = "cli", version = "0.32.6" }
+euv-core = { path = "core", version = "0.32.6" }
+euv-chart = { path = "chart", version = "0.32.6" }
+euv-engine = { path = "engine", version = "0.32.6" }
+euv-macros = { path = "macros", version = "0.32.6" }
+euv-example = { path = "example", version = "0.32.6" }
 
 log = "0.4.34"
-toml = "0.9.12"
+toml = "0.9.8"
 quote = "1.0.47"
 chrono = "0.4.45"
 ignore = "0.4.33"
 js-sys = "0.3.106"
 if-addrs = "0.15.0"
 hyperlane = "22.0.6"
-serde_json = "1.0.151"
+serde_json = "1.0.154"
 proc-macro2 = "1.0.107"
-color-output = "10.2.11"
+color-output = "10.3.0"
 wasm-bindgen = "0.2.129"
 alloc-no-stdlib = "3.0.0"
-lombok-macros = "10.2.11"
-compare_version = "10.2.11"
+lombok-macros = "10.3.0"
+compare_version = "10.3.0"
 serde-wasm-bindgen = "0.6.5"
 wasm-bindgen-test = "0.3.79"
-bin-encode-decode = "10.2.11"
+bin-encode-decode = "10.3.0"
 wasm-bindgen-futures = "0.4.79"
 console_error_panic_hook = "0.1.7"
 clap = { version = "4.6.7", features = ["derive"] }
 serde = { version = "1.0.229", features = ["derive"] }
-syn = { version = "3.0.6", features = ["full", "extra-traits"] }
+syn = { version = "3.0.9", features = ["full", "extra-traits"] }
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 notify = { version = "8.2.0", default-features = false, features = [
     "macos_fsevent",
 ] }
-tokio = { version = "1.53.2", features = [
+tokio = { version = "1.54.1", features = [
     "fs",
     "sync",
     "time",

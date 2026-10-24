@@ -91,15 +91,20 @@ pub(crate) struct DocsLocale {
 pub(crate) struct DocsSite {
     /// Site title.
     pub(crate) title: &'static str,
+    /// The destination the footer text points at.
+    ///
+    /// Empty renders the footer text as plain, unlinked text.
+    pub(crate) footer_link: &'static str,
     /// All locales.
     pub(crate) locales: &'static [DocsLocale],
     /// All pages.
     pub(crate) pages: &'static [DocsPage],
-    /// The footer links — the site's filing notice.
+    /// The footer items — the site's own notices, next to the license
+    /// line.
     ///
-    /// Empty when the site files nowhere; the footer then carries the
+    /// Empty when the site declares none; the footer then carries the
     /// license line alone.
-    pub(crate) footer_links: &'static [EuvFooterLink],
+    pub(crate) footer_items: &'static [EuvFooterItem],
 }
 
 /// One language entry of the cross-bundle switcher.

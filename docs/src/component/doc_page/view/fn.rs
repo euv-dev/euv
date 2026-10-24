@@ -108,7 +108,8 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             prev: prev
             next: next
             footer: footer_text
-            footer_links: site.footer_links
+            footer_link: site.footer_link
+            footer_items: site.footer_items
             if { !page.title.is_empty() } {
                 h1 {
                     class: CLASS_DOCS_PAGE_TITLE

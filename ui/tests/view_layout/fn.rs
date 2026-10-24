@@ -59,8 +59,8 @@ const TOC_ONE: [EuvTocItem; 1] = [EuvTocItem {
 }];
 const TOC_NONE: [EuvTocItem; 0] = [];
 
-const FOOTER_LINKS_NONE: [EuvFooterLink; 0] = [];
-const FOOTER_LINKS_ONE: [EuvFooterLink; 1] = [EuvFooterLink {
+const FOOTER_ITEMS_NONE: [EuvFooterItem; 0] = [];
+const FOOTER_ITEMS_ONE: [EuvFooterItem; 1] = [EuvFooterItem {
     text: "ICP-2026000000-1",
     link: "https://beian.miit.gov.cn/",
     icon: "/img/icp.png",
@@ -71,13 +71,13 @@ fn doc_node(
     toc_items: &'static [EuvTocItem],
     footer: &'static str,
 ) -> VirtualNode<EuvDocLayoutProps> {
-    doc_node_with_links(toc_items, footer, &FOOTER_LINKS_NONE)
+    doc_node_with_items(toc_items, footer, &FOOTER_ITEMS_NONE)
 }
 
-fn doc_node_with_links(
+fn doc_node_with_items(
     toc_items: &'static [EuvTocItem],
     footer: &'static str,
-    footer_links: &'static [EuvFooterLink],
+    footer_items: &'static [EuvFooterItem],
 ) -> VirtualNode<EuvDocLayoutProps> {
     VirtualNode::Element {
         tag: Tag::Element(Cow::Borrowed("div")),
@@ -92,7 +92,8 @@ fn doc_node_with_links(
             prev: None,
             next: None,
             footer,
-            footer_links,
+            footer_link: "https://github.com/euv-dev/euv",
+            footer_items,
             toc_active: Signal::create(String::new()),
         })),
     }
@@ -140,7 +141,8 @@ fn default_doc() -> VirtualNode<EuvDocLayoutProps> {
             prev: None,
             next: None,
             footer: "",
-            footer_links: &FOOTER_LINKS_NONE,
+            footer_link: "",
+            footer_items: &FOOTER_ITEMS_NONE,
             toc_active: Signal::create(String::new()),
         })),
     }
@@ -300,13 +302,17 @@ fn a_doc_layout_keeps_a_stable_shape_across_toc_combinations() {
     );
 }
 
-fn footer_node(text: &'static str, links: &'static [EuvFooterLink]) -> VirtualNode<EuvFooterProps> {
+fn footer_node(
+    text: &'static str,
+    link: &'static str,
+    items: &'static [EuvFooterItem],
+) -> VirtualNode<EuvFooterProps> {
     VirtualNode::Element {
         tag: Tag::Element(Cow::Borrowed("div")),
         attributes: Vec::new(),
         children: Vec::new(),
         key: None,
-        props: Some(Box::new(EuvFooterProps { text, links })),
+        props: Some(Box::new(EuvFooterProps { text, link, items })),
     }
 }
 
@@ -347,49 +353,53 @@ fn has_class(node: &VirtualNode, class: &str) -> bool {
 }
 
 #[test]
-fn a_doc_layout_with_footer_links_differs_from_one_without() {
-    let with: VirtualNode = euv_doc_layout(doc_node_with_links(&TOC_NONE, "", &FOOTER_LINKS_ONE));
+fn a_doc_layout_with_footer_items_differs_from_one_without() {
+    let with: VirtualNode = euv_doc_layout(doc_node_with_items(&TOC_NONE, "", &FOOTER_ITEMS_ONE));
     let without: VirtualNode = euv_doc_layout(doc_node(&TOC_NONE, ""));
-    assert_ne!(with, without, "a filing notice changes the rendered tree");
+    assert_ne!(with, without, "a footer item changes the rendered tree");
 }
 
 #[test]
-fn the_footer_renders_one_link_per_notice() {
-    let rendered: VirtualNode = euv_footer(footer_node("MIT", &FOOTER_LINKS_ONE));
+fn the_footer_renders_one_link_per_item() {
+    let rendered: VirtualNode = euv_footer(footer_node("", "", &FOOTER_ITEMS_ONE));
     assert_eq!(
         count_links(&rendered),
         1,
         "the filing notice is one link, got {rendered:?}"
     );
     assert!(
-        has_class(&rendered, "c_euv_footer_link"),
-        "the notice carries the link class, got {rendered:?}"
+        has_class(&rendered, "c_euv_footer_item_link"),
+        "the notice carries the item link class, got {rendered:?}"
     );
 }
 
 #[test]
-fn the_footer_renders_the_text_row_and_the_notice_row() {
-    let rendered: VirtualNode = euv_footer(footer_node("MIT", &FOOTER_LINKS_ONE));
-    assert!(
-        has_class(&rendered, "c_euv_footer_text"),
-        "the footer text has its own row, got {rendered:?}"
+fn the_footer_renders_the_text_next_to_the_notice() {
+    let with: VirtualNode = euv_footer(footer_node(
+        "MIT",
+        "https://github.com/euv-dev/euv",
+        &FOOTER_ITEMS_ONE,
+    ));
+    let without: VirtualNode = euv_footer(footer_node("", "", &FOOTER_ITEMS_ONE));
+    assert_ne!(with, without, "the footer text reaches the rendered tree");
+    assert_eq!(
+        count_links(&with),
+        1,
+        "the notice is the one link in the tree, the text lives in a dynamic \
+         branch, got {with:?}"
     );
     assert!(
-        has_class(&rendered, "c_euv_footer_links"),
-        "the notices have their own row, got {rendered:?}"
+        has_class(&with, "c_euv_footer"),
+        "the footer is one row, got {with:?}"
     );
 }
 
 #[test]
-fn a_footer_without_notices_hides_the_notice_row() {
-    let rendered: VirtualNode = euv_footer(footer_node("MIT", &FOOTER_LINKS_NONE));
+fn a_footer_without_items_renders_no_link() {
+    let rendered: VirtualNode = euv_footer(footer_node("", "", &FOOTER_ITEMS_NONE));
     assert_eq!(
         count_links(&rendered),
         0,
         "there is nothing to link to, got {rendered:?}"
-    );
-    assert!(
-        has_class(&rendered, "c_euv_footer_links_hidden"),
-        "the empty row takes no space, got {rendered:?}"
     );
 }

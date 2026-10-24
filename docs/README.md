@@ -52,6 +52,40 @@ To use this crate, you can run cmd:
 cargo install euv-docs
 ```
 
+## Footer items
+
+The footer is one row: the locale's `footer` text, then the items the
+site declares. An item is a link with an optional image in front of its
+text — a filing notice and the official badge the filing authority
+publishes are the canonical use.
+
+Every part of the content comes from the site configuration. The build
+script reads the items as they are written and invents nothing: no
+default link, no derived record code, no default badge path.
+
+```yaml
+site:
+  footer_link: 'https://github.com/euv-dev/euv'
+  footer_items:
+    - text: '<the notice>'
+      link: 'https://…'
+      icon: '/img/…'
+      alt: '<the accessible name of the image>'
+```
+
+| Key            | Meaning                                                     |
+| -------------- | ----------------------------------------------------------- |
+| `footer_link`  | Where the footer text points — the license line opens the project's repository |
+| `footer_items` | The items of the row, in display order                      |
+| `text`         | The link text — plain and selectable                        |
+| `link`         | Where the item points                                       |
+| `icon`         | An optional local image rendered before the text            |
+| `alt`          | The accessible name of that image                           |
+
+The row never wraps: an item that does not fit is cut with an ellipsis
+instead of being broken across two lines, because a notice cut in half
+is a number nobody can read or copy.
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
