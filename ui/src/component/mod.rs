@@ -26,6 +26,7 @@ mod dropdown;
 mod empty;
 mod feature_grid;
 mod field;
+mod footer;
 mod form;
 mod grid;
 mod header;
@@ -89,10 +90,10 @@ pub use {
     breadcrumb::*, browser::*, button::*, calendar::*, camera::*, card::*, carousel::*,
     cascader::*, checkbox::*, checkbox_group::*, collapse::*, date_picker::*, debug::*,
     descriptions::*, divider::*, doc_layout::*, drawer::*, dropdown::*, empty::*, feature_grid::*,
-    field::*, form::*, grid::*, header::*, hero::*, icon::*, image::*, info::*, input::*,
-    layout::*, link::*, list::*, loading::*, logo::*, markdown::*, mentions::*, message::*,
-    modal::*, nav::*, navbar::*, notification::*, number_input::*, pagination::*, panel::*,
-    popconfirm::*, popover::*, progress::*, radio::*, rating::*, result::*, router::*,
+    field::*, footer::*, form::*, grid::*, header::*, hero::*, icon::*, image::*, info::*,
+    input::*, layout::*, link::*, list::*, loading::*, logo::*, markdown::*, mentions::*,
+    message::*, modal::*, nav::*, navbar::*, notification::*, number_input::*, pagination::*,
+    panel::*, popconfirm::*, popover::*, progress::*, radio::*, rating::*, result::*, router::*,
     segmented::*, select::*, sidebar::*, skeleton::*, slider::*, space::*, splitter::*, stat::*,
     steps::*, switch::*, table::*, tabs::*, tag::*, theme::*, time_picker::*, timeline::*, toc::*,
     tooltip::*, touch::*, transfer::*, tree::*, tree_select::*, typography::*, upload::*,

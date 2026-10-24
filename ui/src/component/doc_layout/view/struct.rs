@@ -17,6 +17,12 @@ pub struct EuvDocLayoutProps {
     pub next: Option<EuvPaginationItem>,
     /// The footer text under the pagination (skipped when empty).
     pub footer: &'static str,
+    /// The links rendered under the footer text (skipped when empty).
+    ///
+    /// A filing notice is the canonical use: the number as plain text,
+    /// the official badge as an icon, and the destination pointing at the
+    /// authority's own query page.
+    pub footer_links: &'static [EuvFooterLink],
     /// The `href` of the TOC entry the reader is currently at.
     ///
     /// Passed through to [`euv_toc`] unchanged so a caller that drives

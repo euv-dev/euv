@@ -140,12 +140,21 @@ pub struct GlProgram {
     /// Uniform locations resolved so far, keyed by uniform name. A
     /// `None` entry records a uniform the compiler removed, so the
     /// negative result is not recomputed every frame either.
-    #[get(pub(crate), type(clone))]
+    ///
+    /// The cache is read through a borrow and written through the
+    /// mutable accessor, so looking a name up costs a hash lookup
+    /// rather than a copy of the whole table. Only the single location
+    /// handle a caller actually receives is cloned.
+    #[get(pub(crate))]
     #[set(pub(crate))]
     #[get_mut(pub(crate))]
     pub(crate) uniforms: HashMap<String, Option<WebGlUniformLocation>>,
     /// The uniform block indices resolved so far, keyed by block name.
-    #[get(pub(crate), type(clone))]
+    ///
+    /// Like the uniform cache above, this is borrowed on lookup and
+    /// filled in place on a miss, so a cached block costs no copy of
+    /// the table.
+    #[get(pub(crate))]
     #[set(pub(crate))]
     #[get_mut(pub(crate))]
     pub(crate) blocks: HashMap<String, u32>,

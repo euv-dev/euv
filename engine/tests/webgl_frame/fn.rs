@@ -231,8 +231,13 @@ fn a_second_frame_rebinds_nothing_that_has_not_changed() {
     );
     assert_eq!(
         count_after(&log, "viewport", before),
-        0,
-        "and the viewport is unchanged since the last frame"
+        1,
+        "and the viewport is re-asserted too, because a canvas resize resets it behind the engine's back"
+    );
+    assert_eq!(
+        count_after(&log, "drawArrays", before),
+        1,
+        "while the draw itself still happens once per frame"
     );
 }
 

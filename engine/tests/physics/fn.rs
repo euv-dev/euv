@@ -1,5 +1,49 @@
 use super::*;
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn collision_pairs_keep_original_indices_after_missing_colliders() {
+    for layout in [[0, 0, 1, 2], [0, 1, 0, 2], [1, 0, 0, 2]] {
+        let config: PhysicsConfig3D = PhysicsConfig3D::new(Vector3D::zero(), 0.0, 0.0);
+        let mut world: PhysicsWorld3D = PhysicsWorld3D::with_config(config);
+        for (index, role) in layout.into_iter().enumerate() {
+            let mut body: RigidBody3D = match role {
+                1 => RigidBody3D::new_static(1, Vector3D::zero()),
+                2 => RigidBody3D::new_dynamic(2, Vector3D::new(1.0, 0.0, 0.0)),
+                _ => RigidBody3D::new_dynamic(100 + index as u64, Vector3D::new(10.0, 0.0, 0.0)),
+            };
+            if role != 0 {
+                body.update_collider(BodyCollider3D::Sphere(SphereCollider3D::from_center(
+                    Vector3D::zero(),
+                    1.0,
+                )));
+            }
+            world.add_body(body);
+        }
+        for _ in 0..3 {
+            world
+                .get_body_mut(2)
+                .unwrap()
+                .set_position(Vector3D::new(1.0, 0.0, 0.0));
+            world.step(0.01);
+            assert!(world.get_body(2).unwrap().get_position().get_x() > 1.5);
+            assert_eq!(world.get_body(1).unwrap().get_position().get_x(), 0.0);
+            for (index, role) in layout.into_iter().enumerate() {
+                if role == 0 {
+                    assert_eq!(
+                        world
+                            .get_body(100 + index as u64)
+                            .unwrap()
+                            .get_position()
+                            .get_x(),
+                        10.0
+                    );
+                }
+            }
+        }
+    }
+}
+
 const EPSILON: f64 = 1e-9;
 
 #[test]

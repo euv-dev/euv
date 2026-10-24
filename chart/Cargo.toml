@@ -7,7 +7,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = """A high-performance charting library for the euv framework, providing an ECharts-compatible option model with WebGPU, WebGL2, and Canvas2D backends behind one API."""
-keywords = ["chart", "echarts", "webgpu", "webgl", "canvas", "wasm"]
+keywords = ["chart", "echarts", "webgpu", "webgl", "canvas"]
 categories = ["web-programming", "visualization", "graphics"]
 exclude.workspace = true
 

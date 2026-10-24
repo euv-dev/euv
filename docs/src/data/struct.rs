@@ -95,6 +95,11 @@ pub(crate) struct DocsSite {
     pub(crate) locales: &'static [DocsLocale],
     /// All pages.
     pub(crate) pages: &'static [DocsPage],
+    /// The footer links — the site's filing notice.
+    ///
+    /// Empty when the site files nowhere; the footer then carries the
+    /// license line alone.
+    pub(crate) footer_links: &'static [EuvFooterLink],
 }
 
 /// One language entry of the cross-bundle switcher.

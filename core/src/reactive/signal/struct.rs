@@ -8,12 +8,12 @@ pub(crate) struct SignalInner<T>
 where
     T: Clone,
 {
-    /// The current value of the signal.
+    /// The current value, shared with active read snapshots.
     #[debug(skip)]
     #[get(pub(crate))]
     #[set(pub(crate))]
     #[get_mut(pub(crate))]
-    pub(crate) value: T,
+    pub(crate) value: Rc<T>,
     /// Callbacks to invoke when the value changes, each paired with its
     /// subscription id so [`Signal::unsubscribe`] can detach a single
     /// listener without disturbing the rest.

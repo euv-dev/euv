@@ -5,7 +5,7 @@
 site:
   title: euv-docs
   description: A VuePress-style documentation site powered by euv + euv-ui.
-  logo: "📘"
+  logo: '📘'
 locales:
   - prefix: /
     lang: en-US
@@ -71,4 +71,4 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ## Contact
 
-For any inquiries, please reach out to the author at [root@ltpp.vip](mailto:root@ltpp.vip).
+For any inquiries, please reach out to the author at [root@devhub.vip](mailto:root@devhub.vip).

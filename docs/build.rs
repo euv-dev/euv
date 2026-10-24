@@ -30,6 +30,31 @@ struct Config {
 struct SiteConfig {
     /// Site title shown in the navbar.
     title: String,
+    /// The filing notice shown in the footer.
+    compliance: ComplianceConfig,
+}
+
+/// The site's filing notice.
+///
+/// A site that serves a Chinese domain has to publish its filing numbers
+/// in the footer, each number linked at the authority's own query page,
+/// with the public-security badge the authority publishes next to its
+/// number. Every field is optional: a site that files nowhere carries no
+/// keys at all, and the footer then renders no notice.
+#[derive(Debug, Clone, Default)]
+struct ComplianceConfig {
+    /// The ICP filing number, shown as plain text.
+    icp_number: String,
+    /// The link the ICP filing number points at.
+    icp_link: String,
+    /// The public-security filing number, shown as plain text.
+    police_number: String,
+    /// The link the public-security filing number points at.
+    police_link: String,
+    /// The local path of the official public-security filing badge.
+    police_icon: String,
+    /// The accessible name of the filing badge.
+    police_icon_alt: String,
 }
 
 /// One locale entry.
@@ -258,6 +283,13 @@ fn main() {
     };
 
     println!("cargo:rerun-if-changed={}", docs_dir.display());
+    // The site config lives in the README next to the content root, so it
+    // has to be watched on its own: a change to the filing notice or to
+    // the locale list is a change of the generated site.
+    println!(
+        "cargo:rerun-if-changed={}",
+        docs_dir.join(README_RELATIVE_PATH).display()
+    );
     println!("cargo:rerun-if-env-changed=EUV_DOCS_SRC_DIR");
     println!("cargo:rerun-if-env-changed=EUV_DOCS_OUT_DIR");
     println!("cargo:rerun-if-env-changed=EUV_DOCS_LOCALE");
@@ -347,7 +379,8 @@ fn main() {
 
     write_locale_manifest(&www_dir, &config);
 
-    let code: String = codegen(&config, &pinned_locale, &pages, &sidebars);
+    let footer_links: String = compliance_footer_links(&config.site.compliance, default_bundle);
+    let code: String = codegen(&config, &pinned_locale, &pages, &sidebars, &footer_links);
     if let Err(reason) = fs::write(PathBuf::from(out_dir).join(GENERATED_FILE_NAME), code) {
         fail(&format!("failed to write docs_gen.rs: {reason}"));
     }
@@ -869,7 +902,67 @@ fn describe_locale_entry(index: usize, entry: &Value, reason: &str) -> String {
 fn parse_site_config(yaml: &Value) -> Option<SiteConfig> {
     Some(SiteConfig {
         title: yaml_str(yaml, YAML_TITLE)?,
+        compliance: parse_compliance_config(yaml),
     })
+}
+
+/// Reads the filing notice out of the `[site]` block.
+///
+/// A missing block yields an empty notice, so a site that files nowhere
+/// carries no keys at all. The two numbers are read as written; the two
+/// links and the badge fall back to the authority's own pages, because a
+/// number that is published without a destination to verify it is not a
+/// notice.
+///
+/// # Arguments
+///
+/// - `&Value` - the `site` YAML mapping to read
+///
+/// # Returns
+///
+/// - `ComplianceConfig` - the filing notice of the site
+fn parse_compliance_config(yaml: &Value) -> ComplianceConfig {
+    let Some(block): Option<&Value> = yaml.get(YAML_COMPLIANCE) else {
+        return ComplianceConfig::default();
+    };
+    let icp_number: String = yaml_str(block, YAML_ICP_NUMBER).unwrap_or_default();
+    let police_number: String = yaml_str(block, YAML_POLICE_NUMBER).unwrap_or_default();
+    ComplianceConfig {
+        icp_link: yaml_str(block, YAML_ICP_LINK).unwrap_or_else(|| DEFAULT_ICP_LINK.to_string()),
+        police_link: yaml_str(block, YAML_POLICE_LINK)
+            .unwrap_or_else(|| default_police_link(&police_number)),
+        police_icon: yaml_str(block, YAML_POLICE_ICON)
+            .unwrap_or_else(|| DEFAULT_POLICE_ICON.to_string()),
+        police_icon_alt: yaml_str(block, YAML_POLICE_ICON_ALT)
+            .unwrap_or_else(|| DEFAULT_POLICE_ICON_ALT.to_string()),
+        icp_number,
+        police_number,
+    }
+}
+
+/// Builds the public-security filing link for a filing number.
+///
+/// The authority addresses a single filing by its record code — the
+/// digits of the number — so the link is the query page plus that code.
+/// A number without digits carries no code, and the portal itself is the
+/// closest page that can still be linked.
+///
+/// # Arguments
+///
+/// - `&str` - Shared reference to a `str`.
+///
+/// # Returns
+///
+/// - `String` - A `String` value.
+fn default_police_link(number: &str) -> String {
+    let record: String = number
+        .chars()
+        .filter(|character: &char| character.is_ascii_digit())
+        .collect();
+    if record.is_empty() {
+        return DEFAULT_POLICE_PORTAL.to_string();
+    }
+    format!("{DEFAULT_POLICE_LINK}{record}")
 }
 
 /// Reads one `[[locales]]` frontmatter entry into a [`LocaleConfig`].
@@ -2739,12 +2832,51 @@ fn build_sidebar(dir: &Path, locale_root: &Path, locale: &str, pages: &[Page]) -
         .collect()
 }
 
+/// Builds the footer link entries of the site's filing notice.
+///
+/// The ICP number comes first, then the public-security number with the
+/// official badge in front of it. The badge is a site asset, so it is
+/// rebased like any other asset for a locale bundle that lives one
+/// directory below the site root.
+///
+/// # Arguments
+///
+/// - `&ComplianceConfig` - the filing notice of the site
+/// - `bool` - whether the bundle is the one served at the site root
+///
+/// # Returns
+///
+/// - `String` - the emitted `EuvFooterLink` entries
+fn compliance_footer_links(compliance: &ComplianceConfig, default_bundle: bool) -> String {
+    let mut links: Vec<String> = Vec::new();
+    if !compliance.icp_number.is_empty() {
+        links.push(format!(
+            "euv_ui::EuvFooterLink {{ text: {:?}, link: {:?}, icon: \"\", alt: \"\" }}",
+            compliance.icp_number, compliance.icp_link
+        ));
+    }
+    if !compliance.police_number.is_empty() {
+        let icon: String = if default_bundle {
+            compliance.police_icon.clone()
+        } else {
+            rebase_asset_url(&compliance.police_icon)
+        };
+        links.push(format!(
+            "euv_ui::EuvFooterLink {{ text: {:?}, link: {:?}, icon: {:?}, alt: {:?} }}",
+            compliance.police_number, compliance.police_link, icon, compliance.police_icon_alt
+        ));
+    }
+    links.join(", ")
+}
+
 /// Emits the generated Rust source.
 /// # Arguments
 ///
 /// - `&Config` - the site-level configuration to emit
+/// - `&LocaleConfig` - the locale the bundle is compiled for
 /// - `&[Page]` - every page to emit
 /// - `&[(String, Vec<SideItem>)]` - the `(prefix, sidebar tree)` pair per locale
+/// - `&str` - the emitted `EuvFooterLink` entries of the filing notice
 ///
 /// # Returns
 ///
@@ -2754,6 +2886,7 @@ fn codegen(
     pinned: &LocaleConfig,
     pages: &[Page],
     sidebars: &[(String, Vec<SideItem>)],
+    footer_links: &str,
 ) -> String {
     let mut code: String = String::new();
     code.push_str(GENERATED_BANNER);
@@ -2887,10 +3020,11 @@ fn codegen(
     }
 
     code.push_str(&format!(
-        "/// The generated site model.\npub static SITE: crate::data::DocsSite = crate::data::DocsSite {{\n    title: {:?},\n    locales: &[{}],\n    pages: &[{}],\n}};\n",
+        "/// The generated site model.\npub static SITE: crate::data::DocsSite = crate::data::DocsSite {{\n    title: {:?},\n    locales: &[{}],\n    pages: &[{}],\n    footer_links: &[{}],\n}};\n",
         config.site.title,
         locales_code,
         pages_code,
+        footer_links,
     ));
 
     // Language switcher entries: one per unique content directory (aliases

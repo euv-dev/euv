@@ -86,6 +86,7 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     use_toc_scroll_spy(toc_active);
     let (path, _anchor) = parse_route(&route_signal.get());
     let locale: &DocsLocale = locale_of(&path);
+    let site: &DocsSite = &crate::generated::SITE;
     let Some(page) = find_page(&path) else {
         return html! {
             ""
@@ -107,6 +108,7 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             prev: prev
             next: next
             footer: footer_text
+            footer_links: site.footer_links
             if { !page.title.is_empty() } {
                 h1 {
                     class: CLASS_DOCS_PAGE_TITLE

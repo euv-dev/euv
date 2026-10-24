@@ -1046,7 +1046,13 @@ impl Registry {
         Self::with_registry(
             &NODEREF_REGISTRY,
             |registry: &mut NodeRefRegistryMap| {
-                registry.entry(euv_id).or_default().push(entry);
+                let entries: &mut Vec<NodeRefEntry> = registry.entry(euv_id).or_default();
+                if !entries
+                    .iter()
+                    .any(|existing: &NodeRefEntry| Rc::ptr_eq(existing, &entry))
+                {
+                    entries.push(entry);
+                }
             },
             (),
         );

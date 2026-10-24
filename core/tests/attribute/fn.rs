@@ -1,5 +1,74 @@
 use super::*;
 
+fn assert_snapshot_does_not_allocate_signals<F>(mut build: F)
+where
+    F: FnMut() -> AttributeValue,
+{
+    let before: usize = Signal::create(()).get_inner();
+    for _ in 0..ATTRIBUTE_SNAPSHOT_COUNT {
+        assert!(matches!(build(), AttributeValue::Text(_)));
+    }
+    let after: usize = Signal::create(()).get_inner();
+    assert_eq!(after, before + 1);
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn reactive_snapshots_do_not_allocate_signal_slots() {
+    let source: Signal<String> = Signal::create(String::from("active"));
+    assert_snapshot_does_not_allocate_signals(|| AttributeValue::reactive(move || source.get()));
+    source.set(String::from("updated"));
+    assert_eq!(
+        AttributeValue::reactive(move || source.get()),
+        AttributeValue::Text(String::from("updated"))
+    );
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn merged_classes_do_not_allocate_signal_slots() {
+    let source: Signal<String> = Signal::create(String::from("active"));
+    let values: [AttributeValue; 2] = [
+        AttributeValue::Text(String::from("base")),
+        AttributeValue::Signal(source),
+    ];
+    assert_snapshot_does_not_allocate_signals(|| AttributeValue::merge_class(&values));
+    source.set(String::from("updated"));
+    assert_eq!(
+        AttributeValue::merge_class(&values),
+        AttributeValue::Text(String::from("base updated"))
+    );
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn merged_styles_do_not_allocate_signal_slots() {
+    let source: Signal<String> = Signal::create(String::from("color: red;"));
+    let values: [AttributeValue; 2] = [
+        AttributeValue::Text(String::from("display: block;")),
+        AttributeValue::Signal(source),
+    ];
+    assert_snapshot_does_not_allocate_signals(|| AttributeValue::merge_style(&values));
+    source.set(String::from("color: blue;"));
+    assert_eq!(
+        AttributeValue::merge_style(&values),
+        AttributeValue::Text(String::from("display: block; color: blue;"))
+    );
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn direct_signal_attributes_keep_the_original_binding() {
+    let source: Signal<String> = Signal::create(String::from("before"));
+    let attribute: AttributeValue = AttrValueAdapter::new(source).into();
+    let AttributeValue::Signal(bound) = attribute else {
+        panic!("direct signal attributes must retain their source handle");
+    };
+    assert_eq!(bound.get_inner(), source.get_inner());
+    source.set(String::from("after"));
+    assert_eq!(bound.get(), "after");
+}
+
 #[test]
 fn style_string_renders_a_single_declaration() {
     let observed: String = Css::style_string(&[("color", "red")]);
@@ -297,12 +366,9 @@ fn merge_style_skips_empty_segments() {
 }
 
 #[test]
-fn reactive_wraps_a_computed_string_in_a_signal_backed_value() {
+fn reactive_returns_the_computed_text_snapshot() {
     let observed: AttributeValue = AttributeValue::reactive(|| "color: red;".to_string());
-    assert!(
-        matches!(observed, AttributeValue::Signal(_)),
-        "a computed attribute is signal backed"
-    );
+    assert_eq!(observed, AttributeValue::Text(String::from("color: red;")));
 }
 
 #[test]
