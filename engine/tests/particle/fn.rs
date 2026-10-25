@@ -1,5 +1,41 @@
 use super::*;
 
+#[test]
+fn rendering_and_counting_borrow_particle_storage_without_mutating_it() {
+    let config: ParticleConfig = fixed_lifetime_config(10.0, 64);
+    let mut emitter: ParticleEmitter = ParticleEmitter::create(Vector2D::zero(), config);
+    emitter.burst(32);
+    let before: Vec<Particle> = emitter.get_particles();
+    let mut draw_list: DrawList = DrawList::default();
+    draw_list.fill_circle(Vector2D::zero(), 1.0, Color::white());
+    for _ in 0..4 {
+        assert_eq!(emitter.alive_count(), 32);
+        emitter.render(&mut draw_list);
+    }
+    assert_eq!(draw_list.len(), 129);
+    assert_eq!(emitter.get_particles(), before);
+    let snapshot: Vec<Particle> = emitter.get_particles();
+    emitter.clear();
+    assert_eq!(snapshot, before);
+    assert_eq!(emitter.alive_count(), 0);
+}
+
+#[test]
+fn zero_and_full_bursts_preserve_particle_state() {
+    let config: ParticleConfig = fixed_lifetime_config(10.0, 8);
+    let mut emitter: ParticleEmitter = ParticleEmitter::create(Vector2D::zero(), config);
+    emitter.burst(4);
+    let before: Vec<Particle> = emitter.get_particles();
+    emitter.burst(0);
+    assert_eq!(emitter.get_particles(), before);
+    emitter.burst(usize::MAX);
+    assert_eq!(emitter.alive_count(), 8);
+    let full: Vec<Particle> = emitter.get_particles();
+    emitter.burst(usize::MAX);
+    assert_eq!(emitter.get_particles(), full);
+    assert_eq!(&full[..4], before.as_slice());
+}
+
 fn fixed_lifetime_config(lifetime: f64, max_particles: usize) -> ParticleConfig {
     let mut config: ParticleConfig = ParticleConfig::default();
     config.set_emission_rate(0.0);

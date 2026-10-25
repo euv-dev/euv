@@ -16,8 +16,10 @@ mod hook_traits;
 mod hook_types;
 mod hook_units;
 mod i18n;
+mod i18n_interpolate;
 mod lazy;
 mod md_css;
+mod month_caption;
 mod no_dom_fallback;
 mod previous;
 mod previous_step;
@@ -59,7 +61,9 @@ mod virtual_list_view;
 mod wasm_fallback;
 mod zindex_budget;
 
-use {euv::*, euv_ui::*};
+use super::*;
+
+use euv::*;
 
 use std::{
     cell::{Cell, RefCell},

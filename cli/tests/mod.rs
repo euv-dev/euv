@@ -1,3 +1,4 @@
+mod bootstrap;
 mod build;
 mod build_args;
 mod cli_api;
@@ -9,6 +10,8 @@ mod run_mode;
 mod server;
 mod serving_path;
 mod template_literals;
+
+use super::*;
 
 use std::{
     collections::HashSet,
@@ -22,7 +25,7 @@ use std::{
     string::FromUtf8Error,
 };
 
-use {clap::Parser, euv_cli::*, tokio::sync::broadcast};
+use {clap::Parser, tokio::sync::broadcast};
 
 #[cfg(unix)]
 use std::os::unix::fs::symlink;

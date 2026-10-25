@@ -12,6 +12,10 @@ mod logger;
 mod mode;
 mod server;
 
+#[cfg(test)]
+#[path = "../tests/mod.rs"]
+mod tests;
+
 pub use std::{
     env::{current_dir, var},
     // hyperlane exports an async ; the std one is synchronous and

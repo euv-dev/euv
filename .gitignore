@@ -6,3 +6,7 @@ www
 node_modules
 .hermes/
 dist
+/bench/results/
+/bench/RESULTS.md
+/automation/results/
+.DS_Store

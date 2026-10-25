@@ -1,5 +1,60 @@
 use super::*;
 
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
+fn boolean_attribute_adapter_preserves_the_source_signal_handle() {
+    let source: Signal<bool> = Signal::create(true);
+    let attribute: AttributeValue = AttributeValue::bool_to_attr(source);
+    match attribute {
+        AttributeValue::BoolSignal(binding) => {
+            assert_eq!(binding.get_inner(), source.get_inner());
+            assert!(binding.get());
+            source.set(false);
+            assert!(!binding.get());
+        }
+        _ => panic!("the boolean adapter must not create a string signal"),
+    }
+}
+
+#[test]
+fn merged_signal_segments_preserve_spacing_and_updated_values() {
+    let source: Signal<String> = Signal::create(String::from(" alpha β "));
+    let empty: Signal<String> = Signal::create(String::new());
+    let values: [AttributeValue; 4] = [
+        AttributeValue::Text(String::from("first")),
+        AttributeValue::Signal(empty),
+        AttributeValue::Signal(source),
+        AttributeValue::Signal(source),
+    ];
+    let expected: AttributeValue = AttributeValue::Text(String::from("first  alpha β   alpha β "));
+    assert_eq!(AttributeValue::merge_class(&values), expected);
+    assert_eq!(AttributeValue::merge_style(&values), expected);
+    assert_eq!(source.get(), " alpha β ");
+    source.set(String::from("next"));
+    empty.set(String::from("middle"));
+    let expected: AttributeValue = AttributeValue::Text(String::from("first middle next next"));
+    assert_eq!(AttributeValue::merge_class(&values), expected);
+    assert_eq!(AttributeValue::merge_style(&values), expected);
+}
+
+#[test]
+fn merged_empty_signal_segments_do_not_leave_separators() {
+    let source: Signal<String> = Signal::create(String::new());
+    let values: [AttributeValue; 3] = [
+        AttributeValue::Signal(source),
+        AttributeValue::Signal(source),
+        AttributeValue::Text(String::new()),
+    ];
+    assert_eq!(
+        AttributeValue::merge_class(&values),
+        AttributeValue::Text(String::new())
+    );
+    assert_eq!(
+        AttributeValue::merge_style(&values),
+        AttributeValue::Text(String::new())
+    );
+}
+
 fn assert_snapshot_does_not_allocate_signals<F>(mut build: F)
 where
     F: FnMut() -> AttributeValue,

@@ -10,17 +10,18 @@ description = """A documentation site generator powered by euv + euv-ui (Rust/WA
 keywords = ["docs", "static-site", "wasm", "euv"]
 categories = ["web-programming"]
 exclude.workspace = true
+autotests = false
 
 [dependencies]
-euv = { path = "..", version = "0" }
-euv-ui = { path = "../ui", version = "0" }
+euv = { workspace = true }
+euv-ui = { workspace = true }
 
 lombok-macros = { workspace = true }
 
 [build-dependencies]
-serde_yaml = "0.9"
-pulldown-cmark = "0.12"
-http-constant = "21.12.0"
+serde_yaml = { workspace = true }
+http-constant = { workspace = true }
+pulldown-cmark = { workspace = true }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -28,6 +28,10 @@ mod sprite;
 mod timer;
 mod tween;
 
+#[cfg(test)]
+#[path = "../tests/mod.rs"]
+mod tests;
+
 pub use wasm_bindgen::JsValue;
 pub use {
     asset::*, audio::*, cell::*, collider::*, config::*, easing::*, engine::*, entity::*, input::*,

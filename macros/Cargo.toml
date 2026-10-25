@@ -10,9 +10,14 @@ description = """Procedural macros for the euv UI framework, providing the macro
 keywords = ["cross-platform"]
 categories = ["network-programming", "web-programming"]
 exclude.workspace = true
+autotests = false
 
 [lib]
 proc-macro = true
+
+[[test]]
+name = "expansion"
+path = "tests/expansion/mod.rs"
 
 [dependencies]
 syn = { workspace = true }
@@ -24,4 +29,4 @@ proc-macro2 = { workspace = true }
 lombok-macros = { workspace = true }
 
 [dev-dependencies]
-euv = { path = "../" }
+euv = { workspace = true }

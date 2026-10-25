@@ -11,7 +11,7 @@ mod renderer;
 mod vdom;
 
 #[cfg(test)]
-#[path = "../tests/registry/mod.rs"]
+#[path = "../tests/mod.rs"]
 mod tests;
 
 pub use {app::*, event::*, noderef::*, reactive::*, vdom::*};

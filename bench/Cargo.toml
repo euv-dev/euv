@@ -1,0 +1,37 @@
+[package]
+name = "euv-performance"
+version.workspace = true
+readme.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Reproducible CPU and heap benchmarks for the euv runtime, game engine, and chart library."
+keywords = ["cross-platform", "benchmark", "performance"]
+categories = ["development-tools::profiling"]
+exclude.workspace = true
+publish = false
+autotests = false
+
+[lib]
+crate-type = ["rlib"]
+
+[[bin]]
+name = "euv-performance"
+path = "src/main.rs"
+
+[features]
+default = ["allocation-tracking"]
+allocation-tracking = []
+
+[dependencies]
+euv = { workspace = true }
+euv-chart = { workspace = true }
+euv-engine = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+syn = { workspace = true }
+proc-macro2 = { workspace = true }

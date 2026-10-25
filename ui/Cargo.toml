@@ -10,6 +10,7 @@ description = """Reusable UI component library for the euv framework, providing 
 keywords = ["cross-platform", "ui", "components"]
 categories = ["web-programming", "gui"]
 exclude.workspace = true
+autotests = false
 
 [lib]
 crate-type = ["rlib"]

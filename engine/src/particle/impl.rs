@@ -190,7 +190,7 @@ impl ParticleEmitter {
         let capacity: usize = self
             .get_config()
             .get_max_particles()
-            .saturating_sub(self.get_particles().len());
+            .saturating_sub(self.get_mut_particles().len());
         for _ in 0..count.min(capacity) {
             self.spawn_particle();
         }
@@ -214,7 +214,8 @@ impl ParticleEmitter {
     /// - `&mut DrawList` - The draw list to record commands into.
     pub fn render(&self, draw_list: &mut DrawList) {
         let config: ParticleConfig = self.get_config();
-        for particle in self.get_particles().iter() {
+        let Self { particles, .. }: &Self = self;
+        for particle in particles {
             let t: f64 = if particle.get_lifetime() > 0.0 {
                 (particle.get_age() / particle.get_lifetime()).min(1.0)
             } else {
@@ -237,7 +238,8 @@ impl ParticleEmitter {
     ///
     /// - `usize` - The live particle count.
     pub fn alive_count(&self) -> usize {
-        self.get_particles().len()
+        let Self { particles, .. }: &Self = self;
+        particles.len()
     }
 
     /// Picks the palette index nearest to the given color by squared
