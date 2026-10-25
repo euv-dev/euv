@@ -5,6 +5,7 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  workflow_dispatch:
 env:
   CARGO_TERM_COLOR: always
 jobs:
@@ -57,7 +58,7 @@ jobs:
 
   check:
     needs: setup
-    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && needs.setup.result == 'success'))
+    if: always() && (github.event_name == 'pull_request' || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.setup.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -74,7 +75,7 @@ jobs:
 
   tests:
     needs: setup
-    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && needs.setup.result == 'success'))
+    if: always() && (github.event_name == 'pull_request' || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.setup.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -97,7 +98,7 @@ jobs:
 
   clippy:
     needs: setup
-    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && needs.setup.result == 'success'))
+    if: always() && (github.event_name == 'pull_request' || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.setup.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -116,7 +117,7 @@ jobs:
 
   build:
     needs: setup
-    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && needs.setup.result == 'success'))
+    if: always() && (github.event_name == 'pull_request' || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.setup.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -137,7 +138,7 @@ jobs:
 
   automation:
     needs: setup
-    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && needs.setup.result == 'success'))
+    if: always() && (github.event_name == 'pull_request' || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.setup.result == 'success'))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -213,7 +214,7 @@ jobs:
     permissions:
       contents: write
     needs: [setup, check, tests, clippy, build, automation]
-    if: always() && github.event_name == 'push' && github.ref_name == 'master' && needs.setup.outputs.tag != '' && needs.check.result == 'success' && needs.tests.result == 'success' && needs.clippy.result == 'success' && needs.build.result == 'success' && needs.automation.result == 'success'
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master' && needs.setup.outputs.tag != '' && needs.check.result == 'success' && needs.tests.result == 'success' && needs.clippy.result == 'success' && needs.build.result == 'success' && needs.automation.result == 'success'
     runs-on: ubuntu-latest
     outputs:
       published: ${{ steps.publish.outputs.published }}
@@ -320,7 +321,7 @@ jobs:
     permissions:
       contents: write
       packages: write
-    if: always() && github.event_name == 'push' && github.ref_name == 'master' && needs.setup.outputs.tag != '' && needs.publish.result == 'success'
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master' && needs.setup.outputs.tag != '' && needs.publish.result == 'success'
     runs-on: ubuntu-latest
     outputs:
       released: ${{ steps.release.outputs.released }}
