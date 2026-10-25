@@ -2,6 +2,24 @@ use super::*;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 #[cfg_attr(not(target_arch = "wasm32"), test)]
+fn deactivation_drops_listeners_and_preserves_stale_handle_reads() {
+    let source: Signal<u64> = Signal::create(7);
+    let calls: Rc<Cell<usize>> = Rc::new(Cell::new(0));
+    let observed: Rc<Cell<usize>> = Rc::clone(&calls);
+    source.subscribe(move || observed.set(observed.get() + 1));
+    assert_eq!(Rc::strong_count(&calls), 2);
+    source.deactivate();
+    assert_eq!(Rc::strong_count(&calls), 1);
+    source.set(99);
+    assert_eq!(source.get(), 7);
+    assert_eq!(source.with(|value: &u64| *value), 7);
+    assert_eq!(calls.get(), 0);
+    source.deactivate();
+    assert_eq!(source.get(), 7);
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 fn with_reads_do_not_clone_the_payload_but_get_still_does() {
     let clones: Rc<Cell<usize>> = Rc::new(Cell::new(0));
     let signal: Signal<CountedSignalValue> =

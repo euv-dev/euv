@@ -10,6 +10,7 @@ description = """A high-performance 2D game engine built on the euv framework, f
 keywords = ["cross-platform", "game-engine", "2d", "wasm"]
 categories = ["web-programming", "game-engines"]
 exclude.workspace = true
+autotests = false
 
 [lib]
 crate-type = ["rlib"]

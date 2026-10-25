@@ -17,6 +17,10 @@ mod raw_html;
 mod var;
 mod watch;
 
+#[cfg(test)]
+#[path = "../tests/mod.rs"]
+mod tests;
+
 pub(crate) use {class::*, computed::*, html::*, ident::*, raw_html::*, var::*, watch::*};
 
 pub(crate) use proc_macro2::TokenTree;

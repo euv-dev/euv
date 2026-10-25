@@ -33,6 +33,7 @@ mod lighting;
 mod math;
 mod no_dom_fallback;
 mod particle;
+mod particle_palette;
 mod physics;
 mod physics_world;
 mod pool;
@@ -85,12 +86,15 @@ use std::{
     f64::consts::{self, FRAC_PI_2, PI, TAU},
     fmt::{self, Debug, Write},
     future::{Future, Ready, ready},
+    iter::Iterator,
     ptr::eq,
     rc::{Rc, Weak},
     sync::OnceLock,
 };
 
-use {euv_engine::*, js_sys::*, wasm_bindgen::*, web_sys::*};
+use super::*;
+
+use {js_sys::*, wasm_bindgen::*, web_sys::*};
 
 const RECORDER_SOURCE: &str = r#"
 const seen = [];

@@ -10,6 +10,7 @@ description = """A high-performance charting library for the euv framework, prov
 keywords = ["chart", "echarts", "webgpu", "webgl", "canvas"]
 categories = ["web-programming", "visualization", "graphics"]
 exclude.workspace = true
+autotests = false
 
 [lib]
 crate-type = ["rlib"]

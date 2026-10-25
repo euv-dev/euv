@@ -11,6 +11,10 @@ mod locale;
 mod route;
 mod router;
 
+#[cfg(test)]
+#[path = "../tests/mod.rs"]
+mod tests;
+
 mod generated {
     include!(concat!(env!("OUT_DIR"), "/docs_gen.rs"));
 }

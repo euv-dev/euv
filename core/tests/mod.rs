@@ -10,6 +10,7 @@ mod noderef;
 mod portal;
 mod raw;
 mod raw_html;
+mod registry;
 mod signal;
 mod signal_sub;
 mod vdom;
@@ -17,7 +18,7 @@ mod vdom_cast;
 mod vdom_node;
 mod vdom_tree;
 
-use euv_core::*;
+use super::*;
 
 use std::{
     borrow::Cow,

@@ -8,6 +8,10 @@ mod component;
 mod page;
 mod style;
 
+#[cfg(test)]
+#[path = "../tests/mod.rs"]
+mod tests;
+
 pub(crate) use {app::*, component::*, page::*, style::*};
 
 pub(crate) use std::{

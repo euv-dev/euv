@@ -1,9 +1,10 @@
+mod anchor;
 mod locale;
 mod route;
 mod scroll;
 mod sidebar;
 
-use euv_docs::*;
+use super::*;
 use euv_ui::EuvSidebarItem;
 
 use std::{

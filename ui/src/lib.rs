@@ -8,6 +8,10 @@ mod dom;
 mod hook;
 mod style;
 
+#[cfg(test)]
+#[path = "../tests/mod.rs"]
+mod tests;
+
 pub use {component::*, hook::*, style::*};
 
 use dom::*;

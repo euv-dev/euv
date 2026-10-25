@@ -20,6 +20,10 @@ mod paint;
 mod series;
 mod text;
 
+#[cfg(test)]
+#[path = "../tests/mod.rs"]
+mod tests;
+
 pub use {
     animation::*, backend::*, chart::*, display::*, event::*, geo::*, geom::*, model::*, option::*,
     paint::*, series::*, text::*,

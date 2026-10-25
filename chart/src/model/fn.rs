@@ -282,31 +282,16 @@ pub(crate) fn value_extent(series: &[SeriesOption], axis: Option<&AxisOption>) -
             continue;
         }
         for value in &item.data {
-            let numbers: Vec<f64> = match value {
-                DataValue::List(items) => items
-                    .iter()
-                    .filter_map(|item: &DataValue| item.to_number())
-                    .collect(),
-                DataValue::Object(_) => value
-                    .get(DATA_FIELD_VALUE)
-                    .and_then(|item: &DataValue| item.to_number())
-                    .map(|number: f64| vec![number])
-                    .unwrap_or_default(),
-                other => other
-                    .to_number()
-                    .map(|number: f64| vec![number])
-                    .unwrap_or_default(),
-            };
-            let selected: Option<f64> = match axis {
-                Some(AxisOption {
-                    axis_type: AxisType::Category,
-                    ..
-                }) => numbers.first().copied(),
-                _ => match numbers.len() {
-                    0 => None,
-                    1 => numbers.first().copied(),
-                    _ => numbers.last().copied(),
+            let selected: Option<f64> = match value {
+                DataValue::List(items) => match axis {
+                    Some(AxisOption {
+                        axis_type: AxisType::Category,
+                        ..
+                    }) => items.iter().find_map(DataValue::to_number),
+                    _ => items.iter().rev().find_map(DataValue::to_number),
                 },
+                DataValue::Object(_) => value.get(DATA_FIELD_VALUE).and_then(DataValue::to_number),
+                other => other.to_number(),
             };
             if let Some(number) = selected {
                 min = min.min(number);

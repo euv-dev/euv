@@ -1,18 +1,5 @@
-mod class;
-mod component;
-mod computed;
-mod html_static_style;
-mod unsafe_no_inline;
-mod var;
-mod vars;
-mod watch;
+mod parser;
 
-use euv::*;
+use super::*;
 
-use std::{
-    cell::Cell,
-    panic::{AssertUnwindSafe, catch_unwind},
-    ptr,
-    sync::atomic::{AtomicUsize, Ordering},
-    thread,
-};
+use syn::{Result, parse::Parser};

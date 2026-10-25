@@ -10,6 +10,7 @@ description = """The official CLI tool for the euv UI framework, providing dev/r
 keywords = ["cross-platform"]
 categories = ["network-programming", "web-programming"]
 exclude.workspace = true
+autotests = false
 
 [[bin]]
 name = "euv"

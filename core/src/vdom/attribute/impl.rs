@@ -27,7 +27,7 @@ impl AttributeEntry {
             AttributeValue::CssRef(css) => vec![css.get_name().clone()],
             AttributeValue::Text(text) => split_class_names(text),
             AttributeValue::StaticText(text) => split_class_names(text),
-            AttributeValue::Signal(signal) => split_class_names(&signal.get()),
+            AttributeValue::Signal(signal) => signal.with(|text: &String| split_class_names(text)),
             _ => Vec::new(),
         }
     }
@@ -149,12 +149,9 @@ impl AttributeValue {
 
     /// Joins class attribute values into a single space-separated string.
     ///
-    /// OPT-20: builds the result in a single `String` (amortized growth,
-    /// no intermediate `Vec<String>` + `join(" ")` round-trip), iterating
-    /// the input values by reference and cloning only the segments that
-    /// survive the filter (skipping `_ => None` arms and empty `Text`
-    /// strings), so the per-class render allocation drops from `N + 2`
-    /// to `1`.
+    /// Appends borrowed segments directly to the result. Signal snapshots
+    /// stay borrowed through `with`, avoiding an owned string clone for
+    /// every reactive segment on every render.
     ///
     /// OPT-11: both `Css` and `CssRef` arms inject the style on first
     /// reference. Without the `CssRef` arm the ref would fall through
@@ -172,46 +169,73 @@ impl AttributeValue {
     /// - `String` - The merged class list, segments separated by a
     ///   single space; empty when no segment survived filtering.
     fn join_class_segments(values: &[Self]) -> String {
-        let mut joined: String = String::new();
-        for value in values.iter() {
-            let segment: Cow<'_, str> = match value {
+        let mut joined: String = String::with_capacity(Self::segments_capacity(values, true));
+        for value in values {
+            match value {
                 Self::Css(css) => {
                     css.inject_style();
-                    let name: &str = css.get_name();
-                    if name.is_empty() {
-                        continue;
-                    }
-                    Cow::Borrowed(name)
+                    Self::append_segment(&mut joined, css.get_name());
                 }
                 Self::CssRef(css) => {
                     css.inject_style();
-                    let name: &str = css.get_name();
-                    if name.is_empty() {
-                        continue;
-                    }
-                    Cow::Borrowed(name)
+                    Self::append_segment(&mut joined, css.get_name());
                 }
                 Self::Text(text_value) => {
-                    if text_value.is_empty() {
-                        continue;
-                    }
-                    Cow::Borrowed(text_value.as_str())
+                    Self::append_segment(&mut joined, text_value);
                 }
                 Self::Signal(signal) => {
-                    let current: String = signal.get();
-                    if current.is_empty() {
-                        continue;
-                    }
-                    Cow::Owned(current)
+                    signal.with(|text: &String| Self::append_segment(&mut joined, text));
                 }
-                _ => continue,
-            };
-            if !joined.is_empty() {
-                joined.push(' ');
+                _ => {}
             }
-            joined.push_str(segment.as_ref());
         }
         joined
+    }
+
+    /// Computes the output byte capacity without copying signal payloads.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[Self]` - Input segments whose supported nonempty values are counted.
+    /// - `bool` - Whether CSS class references are accepted by the merge.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Required bytes including separators between nonempty segments.
+    fn segments_capacity(values: &[Self], classes: bool) -> usize {
+        let mut capacity: usize = 0;
+        for value in values {
+            let size: usize = match value {
+                Self::Css(css) if classes => css.get_name().len(),
+                Self::CssRef(css) if classes => css.get_name().len(),
+                Self::Text(text) => text.len(),
+                Self::Signal(signal) => signal.with(String::len),
+                _ => 0,
+            };
+            if size > 0 {
+                if capacity > 0 {
+                    capacity += CHAR_SPACE.len();
+                }
+                capacity += size;
+            }
+        }
+        capacity
+    }
+
+    /// Appends a nonempty segment, separating it from preceding segments.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut String` - The destination string.
+    /// - `&str` - The borrowed segment to append.
+    fn append_segment(joined: &mut String, segment: &str) {
+        if segment.is_empty() {
+            return;
+        }
+        if !joined.is_empty() {
+            joined.push_str(CHAR_SPACE);
+        }
+        joined.push_str(segment);
     }
 
     /// Merges multiple style attribute values into a single `Self`.
@@ -237,11 +261,8 @@ impl AttributeValue {
 
     /// Joins style attribute values into a single space-separated string.
     ///
-    /// OPT-20: same single-`String` approach as `join_class_segments`
-    /// (amortized growth), specialised to the `Text` + `Signal` cases that
-    /// style merging uses. Avoids the intermediate `Vec<String>` plus
-    /// `join(" ")` round-trip of the previous implementation, dropping
-    /// per-render allocation count from `N + 2` to `1`.
+    /// Borrows signal values without allocating intermediate snapshots,
+    /// using the same separator and empty-segment rules as class merging.
     ///
     /// # Arguments
     ///
@@ -252,28 +273,17 @@ impl AttributeValue {
     /// - `String` - The merged CSS declarations, segments separated by a
     ///   single space; empty when no segment carried a declaration.
     fn join_style_segments(values: &[Self]) -> String {
-        let mut joined: String = String::new();
-        for value in values.iter() {
-            let segment: Cow<'_, str> = match value {
+        let mut joined: String = String::with_capacity(Self::segments_capacity(values, false));
+        for value in values {
+            match value {
                 Self::Text(text_value) => {
-                    if text_value.is_empty() {
-                        continue;
-                    }
-                    Cow::Borrowed(text_value.as_str())
+                    Self::append_segment(&mut joined, text_value);
                 }
                 Self::Signal(signal) => {
-                    let current: String = signal.get();
-                    if current.is_empty() {
-                        continue;
-                    }
-                    Cow::Owned(current)
+                    signal.with(|text: &String| Self::append_segment(&mut joined, text));
                 }
-                _ => continue,
-            };
-            if !joined.is_empty() {
-                joined.push(' ');
+                _ => {}
             }
-            joined.push_str(segment.as_ref());
         }
         joined
     }

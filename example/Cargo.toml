@@ -10,6 +10,7 @@ description = """An example application demonstrating the euv UI framework with 
 keywords = ["cross-platform"]
 categories = ["network-programming", "web-programming"]
 exclude.workspace = true
+autotests = false
 
 [dependencies]
 euv = { workspace = true }
