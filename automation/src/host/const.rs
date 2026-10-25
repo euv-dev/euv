@@ -124,9 +124,6 @@ pub(crate) const CONTENT_TYPE_HEADER: &str = "content-type";
 /// Cargo metadata member locating build artifacts.
 pub(crate) const TARGET_DIRECTORY_KEY: &str = "target_directory";
 
-/// Failure when a package has no enclosing workspace directory.
-pub(crate) const ERROR_WORKSPACE_PARENT: &str = "automation package has no workspace parent";
-
 /// Failure when Cargo cannot identify its artifact directory.
 pub(crate) const ERROR_TARGET_DIRECTORY: &str = "Cargo metadata contains no target directory";
 

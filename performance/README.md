@@ -1,16 +1,22 @@
 # euv runtime performance suite
 
-This is a **non-publishable** member of the root euv workspace. Package metadata, dependencies and build profiles are inherited from the root `Cargo.toml`; the member manifest declares no direct dependency paths or versions. It exercises the checked-out framework, engine and chart crates together.
+This is the publishable **`euv-performance`** member of the root euv workspace. Package metadata, dependencies and build profiles are inherited from the root `Cargo.toml`; the member manifest declares no direct dependency paths or versions. It exercises workspace sources in a checkout and released framework, engine and chart dependencies when installed from the registry.
 
-Local reports under `bench/results/` and the generated `bench/RESULTS.md` summary are ignored by Git and excluded by the root workspace package rules. They remain available on disk but are not source or release artifacts.
+Local reports under `performance/results/` and the generated `performance/RESULTS.md` summary are ignored by Git and excluded by the root workspace package rules. They remain available on disk but are not source or release artifacts.
 
 ## Run
 
+After publication, install the CLI with `cargo install euv-performance` and
+run `euv-performance --suite all --output results.json` from any directory.
+For a separate uninstrumented installation, pass `--no-default-features`
+and a distinct `--root` to `cargo install`; do not compare modes using an
+overwritten executable. The checkout commands are:
+
 ```bash
-cargo run --release --manifest-path bench/Cargo.toml --offline -- \
+cargo run --release --manifest-path performance/Cargo.toml --offline -- \
   --label candidate --output /absolute/path/to/results/candidate-allocations.json
 
-cargo run --release --manifest-path bench/Cargo.toml --no-default-features --offline -- \
+cargo run --release --manifest-path performance/Cargo.toml --no-default-features --offline -- \
   --label candidate --output /absolute/path/to/results/candidate-timing.json
 ```
 
@@ -21,7 +27,7 @@ The default build measures allocations. The `--no-default-features` build measur
 A short coverage smoke test:
 
 ```bash
-cargo run --release --manifest-path bench/Cargo.toml --offline -- \
+cargo run --release --manifest-path performance/Cargo.toml --offline -- \
   --ticks 2 --rounds 1 --warmup 1 --label smoke
 ```
 
@@ -67,18 +73,18 @@ BASE=/absolute/path/to/euv-baseline
 OUT=/absolute/path/to/results
 mkdir -p "$BASE" "$OUT"
 git archive <baseline-ref> | tar -x -C "$BASE"
-cp -R bench "$BASE/bench"
+cp -R performance "$BASE/performance"
 cp -R automation "$BASE/automation"
 cp Cargo.toml "$BASE/Cargo.toml"
 cp Cargo.lock "$BASE/Cargo.lock"
 
-CARGO_TARGET_DIR="$OUT/targets/baseline-allocations" cargo run --release --manifest-path "$BASE/bench/Cargo.toml" --offline -- \
+CARGO_TARGET_DIR="$OUT/targets/baseline-allocations" cargo run --release --manifest-path "$BASE/performance/Cargo.toml" --offline -- \
   --label baseline --output "$OUT/baseline-allocations.json"
-CARGO_TARGET_DIR="$OUT/targets/candidate-allocations" cargo run --release --manifest-path bench/Cargo.toml --offline -- \
+CARGO_TARGET_DIR="$OUT/targets/candidate-allocations" cargo run --release --manifest-path performance/Cargo.toml --offline -- \
   --label candidate --output "$OUT/candidate-allocations.json"
-CARGO_TARGET_DIR="$OUT/targets/baseline-timing" cargo run --release --manifest-path "$BASE/bench/Cargo.toml" --no-default-features --offline -- \
+CARGO_TARGET_DIR="$OUT/targets/baseline-timing" cargo run --release --manifest-path "$BASE/performance/Cargo.toml" --no-default-features --offline -- \
   --label baseline --output "$OUT/baseline-timing.json"
-CARGO_TARGET_DIR="$OUT/targets/candidate-timing" cargo run --release --manifest-path bench/Cargo.toml --no-default-features --offline -- \
+CARGO_TARGET_DIR="$OUT/targets/candidate-timing" cargo run --release --manifest-path performance/Cargo.toml --no-default-features --offline -- \
   --label candidate --output "$OUT/candidate-timing.json"
 ```
 
@@ -98,11 +104,11 @@ independent integration-test crate; library unit tests remain enabled and run
 in both benchmark build modes.
 
 ```bash
-cargo test --manifest-path bench/Cargo.toml --all-targets --all-features --offline
-cargo test --manifest-path bench/Cargo.toml --all-targets --no-default-features --offline
-cargo clippy --manifest-path bench/Cargo.toml --all-targets --all-features --offline -- -D warnings
-cargo clippy --manifest-path bench/Cargo.toml --all-targets --no-default-features --offline -- -D warnings
-cargo fmt --manifest-path bench/Cargo.toml -- --check
+cargo test --manifest-path performance/Cargo.toml --all-targets --all-features --offline
+cargo test --manifest-path performance/Cargo.toml --all-targets --no-default-features --offline
+cargo clippy --manifest-path performance/Cargo.toml --all-targets --all-features --offline -- -D warnings
+cargo clippy --manifest-path performance/Cargo.toml --all-targets --no-default-features --offline -- -D warnings
+cargo fmt --manifest-path performance/Cargo.toml -- --check
 ```
 
 Tests execute real mixed frames, verify default coverage and missing-subsystem rejection, check allocator accounting, and assert that warmed particle counting/capacity checks/rendering do not allocate an extra particle vector. A Rust-AST check also rejects direct field access in benchmark business code, including accesses inside formatting macros. Existing CI covers the benchmark through the workspace checks and additionally tests and lints its uninstrumented build.

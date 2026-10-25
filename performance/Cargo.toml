@@ -10,7 +10,7 @@ description = "Reproducible CPU and heap benchmarks for the euv runtime, game en
 keywords = ["cross-platform", "benchmark", "performance"]
 categories = ["development-tools::profiling"]
 exclude.workspace = true
-publish = false
+publish = true
 autotests = false
 
 [lib]

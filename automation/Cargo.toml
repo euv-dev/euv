@@ -10,7 +10,7 @@ description = "Real-browser UI automation and assertions for euv components."
 keywords = ["euv", "testing", "automation", "webdriver"]
 categories = ["development-tools::testing"]
 exclude.workspace = true
-publish = false
+publish = true
 autotests = false
 
 [lib]

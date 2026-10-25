@@ -90,11 +90,7 @@ pub(crate) fn build_fixture(settings: &Settings) -> AutomationResult<PathBuf> {
                     TARGET_FLAG,
                     WASM_TARGET,
                 ])
-                .current_dir(
-                    package
-                        .parent()
-                        .ok_or_else(|| ERROR_WORKSPACE_PARENT.to_string())?,
-                ),
+                .current_dir(&package),
         )?;
         let Output { stdout, .. }: Output = checked_output(
             Command::new(settings.get_cargo())

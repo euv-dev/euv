@@ -1274,6 +1274,11 @@ fn wasm_fixture(tag: &str) -> PathBuf {
     root
 }
 
+fn wasm_fixture_lock() -> &'static Mutex<()> {
+    static LOCK: Mutex<()> = Mutex::const_new(());
+    &LOCK
+}
+
 fn tree(dir: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![dir.to_path_buf()];
@@ -1304,6 +1309,7 @@ fn tree(dir: &Path) -> Vec<String> {
 
 #[tokio::test]
 async fn a_real_wasm_build_produces_a_no_javascript_page_and_no_javascript_on_disk() {
+    let _guard: MutexGuard<'_, ()> = wasm_fixture_lock().lock().await;
     let root: PathBuf = wasm_fixture("nojs");
     let out: PathBuf = root.join("www").join("pkg");
     let args: ModeArgs = mode_args(&[
@@ -1354,6 +1360,7 @@ async fn a_real_wasm_build_produces_a_no_javascript_page_and_no_javascript_on_di
 
 #[tokio::test]
 async fn the_cleanup_keeps_a_non_javascript_asset_an_author_left_inside_the_output() {
+    let _guard: MutexGuard<'_, ()> = wasm_fixture_lock().lock().await;
     let root: PathBuf = wasm_fixture("non-js-asset");
     let out: PathBuf = root.join("www").join("pkg");
     let args: ModeArgs = mode_args(&[
@@ -1386,6 +1393,7 @@ async fn the_cleanup_keeps_a_non_javascript_asset_an_author_left_inside_the_outp
 #[cfg(unix)]
 #[tokio::test]
 async fn the_cleanup_leaves_a_symlinked_directory_in_place_instead_of_following_it() {
+    let _guard: MutexGuard<'_, ()> = wasm_fixture_lock().lock().await;
     let root: PathBuf = wasm_fixture("symlink-boundary");
     let out: PathBuf = root.join("www").join("pkg");
     let outside: PathBuf = root.join("outside");
@@ -1415,6 +1423,7 @@ async fn the_cleanup_leaves_a_symlinked_directory_in_place_instead_of_following_
 
 #[tokio::test]
 async fn a_dev_page_base_matches_the_full_registered_nested_route() {
+    let _guard: MutexGuard<'_, ()> = wasm_fixture_lock().lock().await;
     let root: PathBuf = wasm_fixture("nested-dev-base");
     let args: ModeArgs = mode_args(&[
         "--crate-path",
@@ -1438,6 +1447,7 @@ async fn a_dev_page_base_matches_the_full_registered_nested_route() {
 
 #[tokio::test]
 async fn a_dev_page_with_external_output_has_a_valid_url_prefix() {
+    let _guard: MutexGuard<'_, ()> = wasm_fixture_lock().lock().await;
     let root: PathBuf = wasm_fixture("external-dev-base");
     let site: PathBuf = scratch("external-dev-site");
     let args: ModeArgs = mode_args(&[

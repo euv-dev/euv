@@ -25,7 +25,10 @@ use std::{
     string::FromUtf8Error,
 };
 
-use {clap::Parser, tokio::sync::broadcast};
+use {
+    clap::Parser,
+    tokio::sync::{Mutex, MutexGuard, broadcast},
+};
 
 #[cfg(unix)]
 use std::os::unix::fs::symlink;

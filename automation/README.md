@@ -1,8 +1,14 @@
 # euv UI automation
 
-A non-publishable root-workspace package that builds an actual euv/euv-ui WASM fixture and operates it through an isolated headless ChromeDriver session. Its normal cases use real element clicks, editable-control key input, Enter/Tab, checkbox interaction, modal controls and wheel actions. Browser-side JavaScript is used to observe state, collect diagnostics and reveal a wheel target, not to fake component events or assertions.
+A publishable root-workspace package that builds an actual euv/euv-ui WASM fixture and operates it through an isolated headless ChromeDriver session. Its normal cases use real element clicks, editable-control key input, Enter/Tab, checkbox interaction, modal controls and wheel actions. Browser-side JavaScript is used to observe state, collect diagnostics and reveal a wheel target, not to fake component events or assertions.
 
 ## Run
+
+After publication, install with `cargo install euv-automation`. The installed
+CLI accepts the same options as the checkout runner. Fixture compilation
+starts from the package's own manifest directory rather than assuming a
+parent workspace, so an unpacked registry package is a supported build root.
+Use `--output DIR` to select a writable artifact location.
 
 Prerequisites: a working Rust toolchain with the `wasm32-unknown-unknown` target, a `wasm-bindgen` CLI matching the workspace dependency, compatible Chrome/ChromeDriver, curl and Python 3. Tools are checked for actual, nonempty version output before the run; empty or broken executables cannot report a successful build.
 

@@ -89,7 +89,7 @@ jobs:
       - name: Run tests
         run: |
           cargo test --all-features --workspace -- --nocapture
-          cargo test --manifest-path bench/Cargo.toml --all-targets --no-default-features
+          cargo test --manifest-path performance/Cargo.toml --all-targets --no-default-features
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
       - name: Run wasm tests
@@ -112,7 +112,7 @@ jobs:
       - name: Run clippy
         run: |
           cargo clippy --all-features --workspace --all-targets -- -D warnings
-          cargo clippy --manifest-path bench/Cargo.toml --all-targets --no-default-features -- -D warnings
+          cargo clippy --manifest-path performance/Cargo.toml --all-targets --no-default-features -- -D warnings
 
   build:
     needs: setup
@@ -288,6 +288,32 @@ jobs:
           else
             echo "❌ Main package $PACKAGE_NAME v$VERSION failed to verify on crates.io"
           fi
+
+      - name: Verify published automation and performance packages
+        if: steps.check_branch.outputs.skip == 'false'
+        env:
+          RELEASE_VERSION: ${{ needs.setup.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.error, urllib.request
+          version = os.environ["RELEASE_VERSION"]
+          for package in ["euv-automation", "euv-performance"]:
+              endpoint = f"https://crates.io/api/v1/crates/{package}/{version}"
+              for attempt in range(36):
+                  try:
+                      request = urllib.request.Request(endpoint, headers={"User-Agent": "euv-release-verification/1.0"})
+                      with urllib.request.urlopen(request, timeout=35) as response:
+                          record = json.load(response)["version"]
+                      assert record["crate"] == package and record["num"] == version
+                      assert record["yanked"] is False
+                      print(f"Verified {package} {version} on crates.io")
+                      break
+                  except (urllib.error.URLError, KeyError, ValueError, AssertionError) as error:
+                      if attempt == 35:
+                          raise RuntimeError(f"Publication not verified: {package} {version}") from error
+                      print(f"Waiting for {package} {version}: {error}")
+                      time.sleep(5)
+          PY
 
   release:
     needs: [setup, check, tests, clippy, build, publish]

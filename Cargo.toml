@@ -20,7 +20,7 @@ license = "MIT"
 repository = "https://github.com/euv-dev/euv.git"
 exclude = [
     "target",
-    "bench",
+    "performance",
     "automation",
     "Cargo.lock",
     "sh",
@@ -45,7 +45,7 @@ members = [
     "chart",
     "example",
     "docs",
-    "bench",
+    "performance",
     "automation",
 ]
 resolver = "3"
