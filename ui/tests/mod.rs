@@ -6,6 +6,7 @@ mod divider_view;
 mod error_boundary;
 mod form;
 mod gesture;
+mod headless;
 mod hook_dom_free;
 mod hook_i18n;
 mod hook_pure;
@@ -27,6 +28,7 @@ mod profiler;
 mod router;
 mod router_select;
 mod safe_area_contract;
+#[cfg(not(feature = "custom-styles"))]
 mod sidebar_css;
 mod sidebar_first_page;
 mod suspense;

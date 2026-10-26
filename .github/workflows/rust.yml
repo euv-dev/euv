@@ -89,12 +89,18 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Run tests
         run: |
+          cargo test -p euv-ui
+          cargo test -p euv-ui --no-default-features
+          cargo test -p euv-ui --no-default-features --features custom-styles
           cargo test --all-features --workspace -- --nocapture
           cargo test --manifest-path performance/Cargo.toml --all-targets --no-default-features
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
       - name: Run wasm tests
-        run: cd ui && wasm-pack test --node
+        run: |
+          cd ui
+          wasm-pack test --node
+          wasm-pack test --node --features custom-styles
 
   clippy:
     needs: setup
@@ -112,6 +118,7 @@ jobs:
           components: clippy
       - name: Run clippy
         run: |
+          cargo clippy -p euv-ui --no-default-features --all-targets -- -D warnings
           cargo clippy --all-features --workspace --all-targets -- -D warnings
           cargo clippy --manifest-path performance/Cargo.toml --all-targets --no-default-features -- -D warnings
 
@@ -130,7 +137,9 @@ jobs:
           toolchain: stable
           targets: wasm32-unknown-unknown
       - name: Build release
-        run: cargo check --release --all-features --target wasm32-unknown-unknown --workspace --exclude euv-cli --exclude euv-performance
+        run: |
+          cargo check -p euv-ui --no-default-features --target wasm32-unknown-unknown
+          cargo check --release --all-features --target wasm32-unknown-unknown --workspace --exclude euv-cli --exclude euv-performance
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
       - name: Test euv-cli (host)

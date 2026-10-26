@@ -1,228 +1,7 @@
 use super::*;
 
+#[cfg(not(feature = "custom-styles"))]
 class! {
-    pub(crate) c_euv_tabs {
-        display: "flex";
-        flex-direction: "column";
-        width: "100%";
-    }
-
-    pub(crate) c_euv_tabs_bar {
-        display: "flex";
-        border-bottom: format!("1px dashed {}", var!(border));
-        margin-bottom: var!(gap-component);
-        gap: var!(gap-element);
-        @media ((max-width: 767px)) {
-            flex-wrap: "wrap";
-        }
-    }
-
-    pub(crate) c_euv_tab_item {
-        padding: format!("{} {}", var!(space-md), var!(space-xl));
-        cursor: "pointer";
-        font-size: var!(font-base);
-        font-weight: "500";
-        border-bottom: "2px solid transparent";
-        color: "inherit";
-        background: "transparent";
-        touch-action: "manipulation";
-        user-select: "none";
-        -webkit-user-select: "none";
-        white-space: "nowrap";
-        :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
-        }
-    }
-
-    pub(crate) c_euv_tab_item_active {
-        padding: format!("{} {}", var!(space-md), var!(space-xl));
-        cursor: "pointer";
-        font-size: var!(font-base);
-        font-weight: "500";
-        border-bottom: format!("2px solid {}", var!(accent));
-        color: var!(text-on-accent);
-        background: var!(accent);
-        touch-action: "manipulation";
-        user-select: "none";
-        -webkit-user-select: "none";
-        white-space: "nowrap";
-    }
-
-    pub(crate) c_euv_tabs_panel {
-        padding: format!("{} 0px", var!(gap-element));
-    }
-
-    pub(crate) c_euv_collapse_item {
-        border-bottom: format!("1px dashed {}", var!(border));
-    }
-
-    pub(crate) c_euv_collapse_header {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        width: "100%";
-        min-height: var!(min-height-base);
-        padding: format!("{} 0px", var!(space-sm));
-        cursor: "pointer";
-        text-align: "left";
-        font-size: var!(font-base);
-        font-weight: "500";
-        color: var!(foreground);
-        background: "transparent";
-        border: "none";
-        outline: "none";
-        touch-action: "manipulation";
-        user-select: "none";
-        -webkit-user-select: "none";
-        :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
-        }
-    }
-
-    pub(crate) c_euv_collapse_header_active {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        width: "100%";
-        min-height: var!(min-height-base);
-        padding: format!("{} 0px", var!(space-sm));
-        cursor: "pointer";
-        text-align: "left";
-        font-size: var!(font-base);
-        font-weight: "600";
-        color: var!(accent);
-        background: var!(accent-muted);
-        border: "none";
-        outline: "none";
-        touch-action: "manipulation";
-        user-select: "none";
-        -webkit-user-select: "none";
-    }
-
-    pub(crate) c_euv_collapse_body {
-        overflow: "hidden";
-        font-size: var!(font-base);
-        color: var!(foreground);
-        transition: format!("max-height {} {}, opacity {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
-    }
-
-    pub(crate) c_euv_collapse_body_open {
-        overflow: "hidden";
-        max-height: "none";
-        opacity: "1";
-        padding-bottom: var!(space-md);
-        font-size: var!(font-base);
-        color: var!(foreground);
-        transition: format!("max-height {} {}, opacity {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
-    }
-
-    pub(crate) c_euv_collapse_body_closed {
-        overflow: "hidden";
-        max-height: "0px";
-        opacity: "0";
-        font-size: var!(font-base);
-        color: var!(foreground);
-        transition: format!("max-height {} {}, opacity {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
-    }
-
-    pub(crate) c_euv_breadcrumb {
-        display: "flex";
-        align-items: "center";
-        flex-wrap: "wrap";
-        gap: var!(space-xs);
-        font-size: var!(font-sm);
-    }
-
-    pub(crate) c_euv_breadcrumb_item {
-        font-size: var!(font-sm);
-        color: var!(muted-foreground);
-        cursor: "pointer";
-        text-decoration: "none";
-        touch-action: "manipulation";
-        user-select: "none";
-        -webkit-user-select: "none";
-        :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
-        }
-    }
-
-    pub(crate) c_euv_breadcrumb_sep {
-        font-size: var!(font-sm);
-        color: var!(muted-foreground);
-        user-select: "none";
-        -webkit-user-select: "none";
-    }
-
-    pub(crate) c_euv_breadcrumb_current {
-        font-size: var!(font-sm);
-        font-weight: "600";
-        color: var!(foreground);
-        cursor: "default";
-    }
-
-    pub(crate) c_euv_divider {
-        display: "block";
-        width: "100%";
-    }
-
-    pub(crate) c_euv_divider_horizontal {
-        display: "block";
-        width: "100%";
-        height: "0px";
-        border: "none";
-        border-top: format!("1px solid {}", var!(border));
-        margin: format!("{} 0px", var!(space-lg));
-    }
-
-    pub(crate) c_euv_divider_vertical {
-        display: "block";
-        width: "0px";
-        height: "auto";
-        align-self: "center";
-        border: "none";
-        border-left: format!("1px solid {}", var!(border));
-        margin: format!("0px {}", var!(space-sm));
-    }
-
-    pub(crate) c_euv_divider_labeled {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        width: "100%";
-        margin: format!("{} 0px", var!(space-lg));
-    }
-
-    pub(crate) c_euv_divider_label_text {
-        font-size: var!(font-xs);
-        font-weight: "500";
-        color: var!(muted-foreground);
-        white-space: "nowrap";
-        user-select: "none";
-        -webkit-user-select: "none";
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Card Component
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_card {
-        color: var!(foreground);
-        box-sizing: "border-box";
-        // The card title carries a `gap-component` margin, and that margin
-        // collapses out of the card — the card has no padding and no border
-        // to stop it. The gap between two cards was therefore whatever the
-        // title's margin happened to be, not a value anybody chose. The
-        // block gap is the value the page template asks for, so it is named
-        // here instead of being left to a side effect.
-        margin-top: var!(page-block-gap);
-        @media ((max-width: 767px)) {
-            margin-top: var!(page-block-gap-mobile);
-        }
-    }
-
     pub c_card_title {
         margin: format!("{} 0px", var!(gap-component));
         color: var!(foreground);
@@ -286,32 +65,6 @@ class! {
         }
     }
 
-    pub(crate) c_modal_close_button {
-        display: "flex";
-        justify-content: "center";
-        align-items: "center";
-        color: "inherit";
-        border: "none";
-        padding: format!("{} {}", var!(space-sm), var!(space-md));
-        cursor: "pointer";
-        font-size: "20px";
-        font-weight: "400";
-        vertical-align: "middle";
-        outline: "none";
-        opacity: "1";
-        flex-shrink: "0";
-        transition: format!("opacity {} {}", var!(duration-fast), var!(ease-out));
-        :hover {
-            opacity: "1";
-        }
-        :active {
-            opacity: "1";
-        }
-        :focus {
-            outline: "none";
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Button Controls Container
     // ═══════════════════════════════════════════════════════════════════════════
@@ -351,144 +104,6 @@ class! {
             cursor: "not-allowed";
             opacity: "1";
         }
-    }
-
-    pub(crate) c_euv_button_outline_md {
-        display: "flex";
-        justify-content: "center";
-        align-items: "center";
-        gap: var!(space-sm);
-        flex: "1 1 120px";
-        height: "42px";
-        padding: format!("0px {}", var!(space-xl));
-        color: var!(foreground);
-        border: format!("1px solid {}", var!(border));
-        cursor: "pointer";
-        font-size: var!(font-base);
-        font-weight: "500";
-        outline: "none";
-        white-space: "nowrap";
-        user-select: "none";
-        -webkit-user-select: "none";
-        box-sizing: "border-box";
-        :focus-visible {
-            outline: "none";
-        }
-        :disabled {
-            background: var!(muted-foreground);
-            cursor: "not-allowed";
-            opacity: "1";
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Badges
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_badge {
-        // The wrapping-atom recipe (§7): an inline flex box is atomic, so a
-        // wrapped label left-aligns while the border stays at the parent
-        // width — the right border reads as missing. The four `c_euv_tag_*`
-        // variants already use this recipe; a badge is the same kind of
-        // element and must not mix the two.
-        display: "inline-block";
-        vertical-align: "middle";
-        text-align: "center";
-        line-height: "1";
-        box-sizing: "border-box";
-        color: var!(text-on-accent);
-        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
-        border: format!("1px solid {}", var!(accent));
-        font-size: var!(font-xs);
-        font-weight: "600";
-        cursor: "pointer";
-        background: var!(accent);
-        :focus-visible {
-            outline: "none";
-        }
-        @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(space-2xs), var!(space-xs));
-            font-size: var!(font-xs);
-        }
-    }
-
-    pub(crate) c_badge_outline {
-        display: "inline-block";
-        vertical-align: "middle";
-        text-align: "center";
-        line-height: "1";
-        box-sizing: "border-box";
-        color: var!(foreground);
-        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
-        font-size: var!(font-xs);
-        font-weight: "600";
-        cursor: "pointer";
-        border: format!("1.5px solid {}", var!(border));
-        @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(space-2xs), var!(space-xs));
-            font-size: var!(font-xs);
-        }
-    }
-
-    pub(crate) c_euv_tag_solid_black {
-        display: "inline-block";
-        vertical-align: "middle";
-        text-align: "center";
-        line-height: "1";
-        color: var!(text-on-accent);
-        padding: format!("{} {}", var!(space-xs), var!(space-md));
-        font-size: var!(font-sm);
-        font-weight: "600";
-        cursor: "pointer";
-        background: var!(accent);
-        border: format!("1px solid {}", var!(accent));
-        box-sizing: "border-box";
-    }
-
-    pub(crate) c_euv_tag_solid_white {
-        display: "inline-block";
-        vertical-align: "middle";
-        text-align: "center";
-        line-height: "1";
-        color: var!(foreground);
-        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
-        font-size: var!(font-xs);
-        font-weight: "600";
-        cursor: "pointer";
-        border: format!("1.5px solid {}", var!(accent));
-        box-sizing: "border-box";
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Euv Tag Variants (semantic colour tags)
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_euv_tag_outline_black {
-        display: "inline-block";
-        vertical-align: "middle";
-        text-align: "center";
-        line-height: "1";
-        color: var!(accent);
-        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
-        font-size: var!(font-xs);
-        font-weight: "600";
-        cursor: "pointer";
-        border: format!("1.5px solid {}", var!(accent));
-        box-sizing: "border-box";
-    }
-
-    pub(crate) c_euv_tag_outline_white {
-        display: "inline-block";
-        vertical-align: "middle";
-        text-align: "center";
-        line-height: "1";
-        color: var!(foreground);
-        padding: format!("{} {}", var!(space-xs), var!(space-md));
-        font-size: var!(font-sm);
-        font-weight: "600";
-        cursor: "pointer";
-        border: format!("1.5px solid {}", var!(border));
-        box-sizing: "border-box";
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -902,59 +517,6 @@ class! {
         }
     }
 
-    pub(crate) c_euv_pagination_label {
-        font-size: var!(font-xs);
-        color: var!(muted-foreground);
-        text-transform: "uppercase";
-        letter-spacing: "0.08em";
-    }
-
-    pub(crate) c_euv_pagination_text {
-        font-size: var!(font-base);
-        font-weight: "600";
-        color: var!(accent);
-        // Ellipsize when the link is too narrow for the page title. The
-        // outer `.c_euv_pagination_link` already sets `overflow: hidden`
-        // and `min-width: 0`, so a single `text-overflow: ellipsis` here
-        // is enough — without `white-space: nowrap` the text wraps to
-        // multiple lines and the ellipsis never kicks in.
-        white-space: "nowrap";
-        overflow: "hidden";
-        text-overflow: "ellipsis";
-        min-width: "0px";
-    }
-
-    pub(crate) c_euv_pagination_next {
-        text-align: "right";
-    }
-
-    pub(crate) c_euv_pagination_spacer {
-        flex: "1";
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // euv_markdown / euv_footer
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_euv_markdown {
-        width: "100%";
-        min-width: "0px";
-    }
-
-    // Scroll container for a markdown table.
-    //
-    // The table keeps `display: table` (so it fills the column and its
-    // columns are sized by real table layout), which means the *wrapper*
-    // is what can scroll: `overflow-x` on the table box itself is ignored.
-    // `min-width: 0` is what lets the wrapper shrink inside the flex/grid
-    // prose column instead of being floored by its table's intrinsic width,
-    // so a wide table scrolls rather than pushing the whole article wide.
-    pub(crate) c_euv_markdown_table_scroll {
-        overflow-x: "auto";
-        max-width: "100%";
-        min-width: "0px";
-    }
-
     pub c_euv_footer {
         // Footer sits at the natural end of the article column. The user
         // reaches it by scrolling to the bottom of the article — no sticky
@@ -1029,49 +591,6 @@ class! {
         width: "auto";
         vertical-align: "middle";
         margin-right: var!(space-2xs);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // euv_result / euv_doc_layout
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_euv_result {
-        display: "flex";
-        flex-direction: "column";
-        align-items: "center";
-        justify-content: "center";
-        text-align: "center";
-        gap: var!(space-md);
-        padding: format!("{} {}", var!(space-4xl), var!(space-md));
-        // Half the available height, not half the viewport: the result block
-        // lives inside a scroll container, so a viewport unit would be taller
-        // than the visible area on short pages and leave the buttons below
-        // the fold.
-        min-height: "50%";
-    }
-
-    pub(crate) c_euv_result_code {
-        font-size: var!(font-6xl);
-        font-weight: "700";
-        line-height: "1";
-        letter-spacing: "-0.02em";
-    }
-
-    pub(crate) c_euv_result_title {
-        font-size: var!(font-2xl);
-        font-weight: "600";
-        margin: "0px";
-    }
-
-    pub(crate) c_euv_result_description {
-        color: var!(muted-foreground);
-        margin: "0px";
-    }
-
-    pub(crate) c_euv_result_actions {
-        display: "flex";
-        gap: var!(space-md);
-        margin-top: var!(space-lg);
     }
 
     pub c_euv_doc_layout {
@@ -1238,6 +757,488 @@ class! {
         // structure exists to avoid.
         display: "block";
         flex-shrink: "0";
+    }
+
+    pub(crate) c_euv_tabs {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+    }
+
+    pub(crate) c_euv_tabs_bar {
+        display: "flex";
+        border-bottom: format!("1px dashed {}", var!(border));
+        margin-bottom: var!(gap-component);
+        gap: var!(gap-element);
+        @media ((max-width: 767px)) {
+            flex-wrap: "wrap";
+        }
+    }
+
+    pub(crate) c_euv_tab_item {
+        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        cursor: "pointer";
+        font-size: var!(font-base);
+        font-weight: "500";
+        border-bottom: "2px solid transparent";
+        color: "inherit";
+        background: "transparent";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        white-space: "nowrap";
+        :hover {
+            background: var!(accent-muted);
+            color: var!(accent);
+        }
+    }
+
+    pub(crate) c_euv_tab_item_active {
+        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        cursor: "pointer";
+        font-size: var!(font-base);
+        font-weight: "500";
+        border-bottom: format!("2px solid {}", var!(accent));
+        color: var!(text-on-accent);
+        background: var!(accent);
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        white-space: "nowrap";
+    }
+
+    pub(crate) c_euv_tabs_panel {
+        padding: format!("{} 0px", var!(gap-element));
+    }
+
+    pub(crate) c_euv_collapse_item {
+        border-bottom: format!("1px dashed {}", var!(border));
+    }
+
+    pub(crate) c_euv_collapse_header {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        width: "100%";
+        min-height: var!(min-height-base);
+        padding: format!("{} 0px", var!(space-sm));
+        cursor: "pointer";
+        text-align: "left";
+        font-size: var!(font-base);
+        font-weight: "500";
+        color: var!(foreground);
+        background: "transparent";
+        border: "none";
+        outline: "none";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        :hover {
+            background: var!(accent-muted);
+            color: var!(accent);
+        }
+    }
+
+    pub(crate) c_euv_collapse_header_active {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        width: "100%";
+        min-height: var!(min-height-base);
+        padding: format!("{} 0px", var!(space-sm));
+        cursor: "pointer";
+        text-align: "left";
+        font-size: var!(font-base);
+        font-weight: "600";
+        color: var!(accent);
+        background: var!(accent-muted);
+        border: "none";
+        outline: "none";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+    }
+
+    pub(crate) c_euv_collapse_body {
+        overflow: "hidden";
+        font-size: var!(font-base);
+        color: var!(foreground);
+        transition: format!("max-height {} {}, opacity {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
+    }
+
+    pub(crate) c_euv_collapse_body_open {
+        overflow: "hidden";
+        max-height: "none";
+        opacity: "1";
+        padding-bottom: var!(space-md);
+        font-size: var!(font-base);
+        color: var!(foreground);
+        transition: format!("max-height {} {}, opacity {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
+    }
+
+    pub(crate) c_euv_collapse_body_closed {
+        overflow: "hidden";
+        max-height: "0px";
+        opacity: "0";
+        font-size: var!(font-base);
+        color: var!(foreground);
+        transition: format!("max-height {} {}, opacity {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
+    }
+
+    pub(crate) c_euv_breadcrumb {
+        display: "flex";
+        align-items: "center";
+        flex-wrap: "wrap";
+        gap: var!(space-xs);
+        font-size: var!(font-sm);
+    }
+
+    pub(crate) c_euv_breadcrumb_item {
+        font-size: var!(font-sm);
+        color: var!(muted-foreground);
+        cursor: "pointer";
+        text-decoration: "none";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        :hover {
+            background: var!(accent-muted);
+            color: var!(accent);
+        }
+    }
+
+    pub(crate) c_euv_breadcrumb_sep {
+        font-size: var!(font-sm);
+        color: var!(muted-foreground);
+        user-select: "none";
+        -webkit-user-select: "none";
+    }
+
+    pub(crate) c_euv_breadcrumb_current {
+        font-size: var!(font-sm);
+        font-weight: "600";
+        color: var!(foreground);
+        cursor: "default";
+    }
+
+    pub(crate) c_euv_divider {
+        display: "block";
+        width: "100%";
+    }
+
+    pub(crate) c_euv_divider_horizontal {
+        display: "block";
+        width: "100%";
+        height: "0px";
+        border: "none";
+        border-top: format!("1px solid {}", var!(border));
+        margin: format!("{} 0px", var!(space-lg));
+    }
+
+    pub(crate) c_euv_divider_vertical {
+        display: "block";
+        width: "0px";
+        height: "auto";
+        align-self: "center";
+        border: "none";
+        border-left: format!("1px solid {}", var!(border));
+        margin: format!("0px {}", var!(space-sm));
+    }
+
+    pub(crate) c_euv_divider_labeled {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        width: "100%";
+        margin: format!("{} 0px", var!(space-lg));
+    }
+
+    pub(crate) c_euv_divider_label_text {
+        font-size: var!(font-xs);
+        font-weight: "500";
+        color: var!(muted-foreground);
+        white-space: "nowrap";
+        user-select: "none";
+        -webkit-user-select: "none";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Card Component
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_card {
+        color: var!(foreground);
+        box-sizing: "border-box";
+        // The card title carries a `gap-component` margin, and that margin
+        // collapses out of the card — the card has no padding and no border
+        // to stop it. The gap between two cards was therefore whatever the
+        // title's margin happened to be, not a value anybody chose. The
+        // block gap is the value the page template asks for, so it is named
+        // here instead of being left to a side effect.
+        margin-top: var!(page-block-gap);
+        @media ((max-width: 767px)) {
+            margin-top: var!(page-block-gap-mobile);
+        }
+    }
+
+    pub(crate) c_modal_close_button {
+        display: "flex";
+        justify-content: "center";
+        align-items: "center";
+        color: "inherit";
+        border: "none";
+        padding: format!("{} {}", var!(space-sm), var!(space-md));
+        cursor: "pointer";
+        font-size: "20px";
+        font-weight: "400";
+        vertical-align: "middle";
+        outline: "none";
+        opacity: "1";
+        flex-shrink: "0";
+        transition: format!("opacity {} {}", var!(duration-fast), var!(ease-out));
+        :hover {
+            opacity: "1";
+        }
+        :active {
+            opacity: "1";
+        }
+        :focus {
+            outline: "none";
+        }
+    }
+
+    pub(crate) c_euv_button_outline_md {
+        display: "flex";
+        justify-content: "center";
+        align-items: "center";
+        gap: var!(space-sm);
+        flex: "1 1 120px";
+        height: "42px";
+        padding: format!("0px {}", var!(space-xl));
+        color: var!(foreground);
+        border: format!("1px solid {}", var!(border));
+        cursor: "pointer";
+        font-size: var!(font-base);
+        font-weight: "500";
+        outline: "none";
+        white-space: "nowrap";
+        user-select: "none";
+        -webkit-user-select: "none";
+        box-sizing: "border-box";
+        :focus-visible {
+            outline: "none";
+        }
+        :disabled {
+            background: var!(muted-foreground);
+            cursor: "not-allowed";
+            opacity: "1";
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Badges
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_badge {
+        // The wrapping-atom recipe (§7): an inline flex box is atomic, so a
+        // wrapped label left-aligns while the border stays at the parent
+        // width — the right border reads as missing. The four `c_euv_tag_*`
+        // variants already use this recipe; a badge is the same kind of
+        // element and must not mix the two.
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        box-sizing: "border-box";
+        color: var!(text-on-accent);
+        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
+        border: format!("1px solid {}", var!(accent));
+        font-size: var!(font-xs);
+        font-weight: "600";
+        cursor: "pointer";
+        background: var!(accent);
+        :focus-visible {
+            outline: "none";
+        }
+        @media ((max-width: 767px)) {
+            padding: format!("{} {}", var!(space-2xs), var!(space-xs));
+            font-size: var!(font-xs);
+        }
+    }
+
+    pub(crate) c_badge_outline {
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        box-sizing: "border-box";
+        color: var!(foreground);
+        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
+        font-size: var!(font-xs);
+        font-weight: "600";
+        cursor: "pointer";
+        border: format!("1.5px solid {}", var!(border));
+        @media ((max-width: 767px)) {
+            padding: format!("{} {}", var!(space-2xs), var!(space-xs));
+            font-size: var!(font-xs);
+        }
+    }
+
+    pub(crate) c_euv_tag_solid_black {
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        color: var!(text-on-accent);
+        padding: format!("{} {}", var!(space-xs), var!(space-md));
+        font-size: var!(font-sm);
+        font-weight: "600";
+        cursor: "pointer";
+        background: var!(accent);
+        border: format!("1px solid {}", var!(accent));
+        box-sizing: "border-box";
+    }
+
+    pub(crate) c_euv_tag_solid_white {
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        color: var!(foreground);
+        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
+        font-size: var!(font-xs);
+        font-weight: "600";
+        cursor: "pointer";
+        border: format!("1.5px solid {}", var!(accent));
+        box-sizing: "border-box";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Euv Tag Variants (semantic colour tags)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_tag_outline_black {
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        color: var!(accent);
+        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
+        font-size: var!(font-xs);
+        font-weight: "600";
+        cursor: "pointer";
+        border: format!("1.5px solid {}", var!(accent));
+        box-sizing: "border-box";
+    }
+
+    pub(crate) c_euv_tag_outline_white {
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        color: var!(foreground);
+        padding: format!("{} {}", var!(space-xs), var!(space-md));
+        font-size: var!(font-sm);
+        font-weight: "600";
+        cursor: "pointer";
+        border: format!("1.5px solid {}", var!(border));
+        box-sizing: "border-box";
+    }
+
+    pub(crate) c_euv_pagination_label {
+        font-size: var!(font-xs);
+        color: var!(muted-foreground);
+        text-transform: "uppercase";
+        letter-spacing: "0.08em";
+    }
+
+    pub(crate) c_euv_pagination_text {
+        font-size: var!(font-base);
+        font-weight: "600";
+        color: var!(accent);
+        // Ellipsize when the link is too narrow for the page title. The
+        // outer `.c_euv_pagination_link` already sets `overflow: hidden`
+        // and `min-width: 0`, so a single `text-overflow: ellipsis` here
+        // is enough — without `white-space: nowrap` the text wraps to
+        // multiple lines and the ellipsis never kicks in.
+        white-space: "nowrap";
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        min-width: "0px";
+    }
+
+    pub(crate) c_euv_pagination_next {
+        text-align: "right";
+    }
+
+    pub(crate) c_euv_pagination_spacer {
+        flex: "1";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_markdown / euv_footer
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_markdown {
+        width: "100%";
+        min-width: "0px";
+    }
+
+    // Scroll container for a markdown table.
+    //
+    // The table keeps `display: table` (so it fills the column and its
+    // columns are sized by real table layout), which means the *wrapper*
+    // is what can scroll: `overflow-x` on the table box itself is ignored.
+    // `min-width: 0` is what lets the wrapper shrink inside the flex/grid
+    // prose column instead of being floored by its table's intrinsic width,
+    // so a wide table scrolls rather than pushing the whole article wide.
+    pub(crate) c_euv_markdown_table_scroll {
+        overflow-x: "auto";
+        max-width: "100%";
+        min-width: "0px";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_result / euv_doc_layout
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_result {
+        display: "flex";
+        flex-direction: "column";
+        align-items: "center";
+        justify-content: "center";
+        text-align: "center";
+        gap: var!(space-md);
+        padding: format!("{} {}", var!(space-4xl), var!(space-md));
+        // Half the available height, not half the viewport: the result block
+        // lives inside a scroll container, so a viewport unit would be taller
+        // than the visible area on short pages and leave the buttons below
+        // the fold.
+        min-height: "50%";
+    }
+
+    pub(crate) c_euv_result_code {
+        font-size: var!(font-6xl);
+        font-weight: "700";
+        line-height: "1";
+        letter-spacing: "-0.02em";
+    }
+
+    pub(crate) c_euv_result_title {
+        font-size: var!(font-2xl);
+        font-weight: "600";
+        margin: "0px";
+    }
+
+    pub(crate) c_euv_result_description {
+        color: var!(muted-foreground);
+        margin: "0px";
+    }
+
+    pub(crate) c_euv_result_actions {
+        display: "flex";
+        gap: var!(space-md);
+        margin-top: var!(space-lg);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1751,4 +1752,453 @@ class! {
         width: "100%";
         box-sizing: "border-box";
     }
+}
+
+#[cfg(feature = "custom-styles")]
+class! {
+    pub c_card_title {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Buttons
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_primary_button {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Button Controls Container
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_button_controls {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Euv Button Variants
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_euv_button_primary_md {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Status Boxes
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_error_box {}
+
+    pub c_success_box {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Counter / Signals Demo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_counter_row {}
+
+    pub c_counter_text {}
+
+    pub c_counter_value {}
+
+    pub c_counter_value_row {}
+
+    pub c_badge_row {}
+
+    pub c_badge_hint {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Tabs
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_tab_bar {}
+
+    pub c_tab_item_active {}
+
+    pub c_tab_item_inactive {}
+
+    pub c_tab_content {}
+
+    pub c_tab_text {}
+
+    pub c_tab_text_muted {}
+
+    pub c_tab_text_input {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // List
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_list_input {}
+
+    pub c_list_input_error {}
+
+    pub c_list_error_text {}
+
+    pub c_inline_input_button_wrap {}
+
+    pub c_list_ul {}
+
+    pub c_list_item {}
+
+    pub c_list_item_text {}
+
+    pub c_list_item_button {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Animation Demo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_anim_fade_in {}
+
+    pub c_anim_spin_container {}
+
+    pub c_anim_spin {}
+
+    pub c_anim_spin_stopped {}
+
+    pub c_anim_pulse_container {}
+
+    pub c_anim_pulse {}
+
+    pub c_anim_pulse_stopped {}
+
+    pub c_progress_container {}
+
+    pub c_progress_bar_running {}
+
+    pub c_progress_bar_stopped {}
+
+    pub c_anim_scale_box {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Unified Layout Primitives
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_element_stack {}
+
+    pub c_switcher {}
+
+    pub c_switcher_col {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Unified Description / Hint Text
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_hint {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_pagination
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_euv_pagination {}
+
+    pub c_euv_pagination_link {}
+
+    pub c_euv_footer {}
+
+    // One item of the footer row.
+    //
+    // `inline-block` rather than a flex box: the text is inline content
+    // inside this box, so `text-overflow: ellipsis` can cut it with a
+    // dot when the row is too narrow. A flex box would put the text in
+    // an anonymous item that no selector can reach, and the text would
+    // be clipped without a hint that it was cut.
+    pub c_euv_footer_item {}
+
+    // A linked item of the footer row.
+    pub c_euv_footer_item_link {}
+
+    // The official badge that precedes a filing number.
+    //
+    // The height is the badge's own size (20px), so the picture is
+    // served at its native resolution instead of being scaled by the
+    // browser. The margin is the gap to the number: the link is an
+    // inline box, so the gap cannot come from a flex `gap`.
+    pub c_euv_footer_item_icon {}
+
+    pub c_euv_doc_layout {}
+
+    pub c_euv_doc_content {}
+
+    pub c_euv_doc_body {}
+
+    pub c_euv_doc_tail {}
+
+    pub c_euv_doc_toc {}
+
+    // Makes the element's own box disappear while its children stay in the
+    // parent's layout flow, so a wrapper can carry a key or a conditional
+    // without contributing a box.
+    //
+    // The docs shell and page wrappers spelled this as an inline
+    // `style: "display: contents"`; the rule is the same either way, but a
+    // named class keeps the markup declarative and lets the browser cache it.
+    pub c_euv_display_contents {}
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Home Page Layout
+    // ═══════════════════════════════════════════════════════════════════════
+
+    pub c_home_layout {}
+
+    pub c_home_content {}
+
+    pub c_home_body {}
+
+    pub c_home_tail {}
+
+    pub(crate) c_euv_tabs {}
+
+    pub(crate) c_euv_tabs_bar {}
+
+    pub(crate) c_euv_tab_item {}
+
+    pub(crate) c_euv_tab_item_active {}
+
+    pub(crate) c_euv_tabs_panel {}
+
+    pub(crate) c_euv_collapse_item {}
+
+    pub(crate) c_euv_collapse_header {}
+
+    pub(crate) c_euv_collapse_header_active {}
+
+    pub(crate) c_euv_collapse_body {}
+
+    pub(crate) c_euv_collapse_body_open {}
+
+    pub(crate) c_euv_collapse_body_closed {}
+
+    pub(crate) c_euv_breadcrumb {}
+
+    pub(crate) c_euv_breadcrumb_item {}
+
+    pub(crate) c_euv_breadcrumb_sep {}
+
+    pub(crate) c_euv_breadcrumb_current {}
+
+    pub(crate) c_euv_divider {}
+
+    pub(crate) c_euv_divider_horizontal {}
+
+    pub(crate) c_euv_divider_vertical {}
+
+    pub(crate) c_euv_divider_labeled {}
+
+    pub(crate) c_euv_divider_label_text {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Card Component
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_card {}
+
+    pub(crate) c_modal_close_button {}
+
+    pub(crate) c_euv_button_outline_md {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Badges
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_badge {}
+
+    pub(crate) c_badge_outline {}
+
+    pub(crate) c_euv_tag_solid_black {}
+
+    pub(crate) c_euv_tag_solid_white {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Euv Tag Variants (semantic colour tags)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_tag_outline_black {}
+
+    pub(crate) c_euv_tag_outline_white {}
+
+    pub(crate) c_euv_pagination_label {}
+
+    pub(crate) c_euv_pagination_text {}
+
+    pub(crate) c_euv_pagination_next {}
+
+    pub(crate) c_euv_pagination_spacer {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_markdown / euv_footer
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_markdown {}
+
+    // Scroll container for a markdown table.
+    //
+    // The table keeps `display: table` (so it fills the column and its
+    // columns are sized by real table layout), which means the *wrapper*
+    // is what can scroll: `overflow-x` on the table box itself is ignored.
+    // `min-width: 0` is what lets the wrapper shrink inside the flex/grid
+    // prose column instead of being floored by its table's intrinsic width,
+    // so a wide table scrolls rather than pushing the whole article wide.
+    pub(crate) c_euv_markdown_table_scroll {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_result / euv_doc_layout
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_result {}
+
+    pub(crate) c_euv_result_code {}
+
+    pub(crate) c_euv_result_title {}
+
+    pub(crate) c_euv_result_description {}
+
+    pub(crate) c_euv_result_actions {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Empty
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_empty {}
+
+    pub(crate) c_euv_empty_icon {}
+
+    pub(crate) c_euv_empty_text {}
+
+    pub(crate) c_euv_empty_desc {}
+
+    pub(crate) c_euv_empty_action {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Typography
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_text {}
+
+    pub(crate) c_euv_text_title {}
+
+    pub(crate) c_euv_text_title_lg {}
+
+    pub(crate) c_euv_text_title_sm {}
+
+    pub(crate) c_euv_text_paragraph {}
+
+    pub(crate) c_euv_text_secondary {}
+
+    pub(crate) c_euv_text_mono {}
+
+    pub(crate) c_euv_text_deletion {}
+
+    pub(crate) c_euv_text_underline {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Link
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_link {}
+
+    pub(crate) c_euv_link_disabled {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Image
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_image {}
+
+    pub(crate) c_euv_image_placeholder {}
+
+    pub(crate) c_euv_image_failed {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Carousel
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_carousel {}
+
+    pub(crate) c_euv_carousel_track {}
+
+    pub(crate) c_euv_carousel_slide {}
+
+    pub(crate) c_euv_carousel_dots {}
+
+    pub(crate) c_euv_carousel_dot {}
+
+    pub(crate) c_euv_carousel_dot_active {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Anchor
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_anchor {}
+
+    pub(crate) c_euv_anchor_title {}
+
+    pub(crate) c_euv_anchor_link {}
+
+    pub(crate) c_euv_anchor_link_active {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Watermark
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_watermark {}
+
+    pub(crate) c_euv_watermark_layer {}
+
+    pub(crate) c_euv_watermark_text {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Back To Top
+    // ═══════════════════════════════════════════════════════════════════════════
+
+
+    pub(crate) c_euv_back_top_visible {}
+
+    pub(crate) c_euv_back_top_hidden {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Splitter
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_splitter {}
+
+    pub(crate) c_euv_splitter_pane {}
+
+    pub(crate) c_euv_splitter_bar {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Grid
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_grid {}
+
+    // A grid row that spaces its columns.
+    //
+    // The spacing is padding on the columns, not a `gap` on the row: a
+    // column's width is a percentage of the row, so a gap would be
+    // added on top of a row that already sums to a hundred percent and
+    // push the last column onto a second line. The row pulls itself
+    // out by half the gutter and the columns pad themselves back in, so
+    // the columns still add up to the row's full width.
+    pub(crate) c_euv_grid_gutter {}
+
+    // A grid column. The width is a share of the row, and the caller
+    // sets it inline, so a row's columns add up exactly whatever their
+    // span.
+    pub(crate) c_euv_grid_col {}
+
+    // A grid column inside a spaced row. The column keeps its share of
+    // the row and takes half the gutter as padding on each side, which
+    // is what opens the space between two columns.
+    pub(crate) c_euv_grid_gutter_col {}
+
+    // A grid column that is pushed to the right by an offset. The
+    // offset's size is set inline, like the column's own width.
+    pub(crate) c_euv_grid_col_offset {}
+
+    // A grid column inside a spaced row that is also pushed to the
+    // right by an offset. It is the spaced column and the offset
+    // column at once: the padding that opens the gutter and the offset
+    // that pushes the column along the row.
+    pub(crate) c_euv_grid_gutter_col_offset {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Affix
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_affix {}
 }

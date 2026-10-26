@@ -15,6 +15,10 @@ autotests = false
 [lib]
 crate-type = ["rlib"]
 
+[features]
+default = []
+custom-styles = []
+
 [dependencies]
 euv = { workspace = true }
 

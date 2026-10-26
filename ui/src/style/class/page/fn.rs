@@ -1,64 +1,7 @@
 use super::*;
 
+#[cfg(not(feature = "custom-styles"))]
 class! {
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Page Banner (unified header with emoji icon)
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_page {
-        position: "relative";
-        text-align: "center";
-        box-sizing: "border-box";
-    }
-
-    pub(crate) c_page_glow {
-        position: "absolute";
-        top: "-50%";
-        left: "50%";
-        transform: "translateX(-50%)";
-        width: "400px";
-        max-width: "100%";
-        height: "400px";
-        pointer-events: "none";
-    }
-
-    pub(crate) c_page_content {
-        position: "relative";
-        z-index: "1";
-    }
-
-    pub(crate) c_page_icon {
-        font-size: "36px";
-        padding-bottom: var!(space-md);
-        @media ((max-width: 767px)) {
-            font-size: "40px";
-        }
-    }
-
-    pub(crate) c_page_title {
-        font-size: var!(font-4xl);
-        font-weight: "800";
-        letter-spacing: "-0.03em";
-        margin: "0px";
-        color: var!(foreground);
-        margin-bottom: var!(space-sm);
-        @media ((max-width: 767px)) {
-            font-size: var!(font-3xl);
-        }
-    }
-
-    pub(crate) c_page_subtitle {
-        font-size: var!(font-lg);
-        color: var!(muted-foreground);
-        margin: "0px auto";
-        margin-bottom: var!(space-sm);
-        max-width: "560px";
-        opacity: "1";
-        @media ((max-width: 767px)) {
-            font-size: var!(font-base);
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Camera Page
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1315,16 +1258,6 @@ class! {
         margin: "0px";
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Home Page
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_text_ellipsis {
-        overflow: "hidden";
-        text-overflow: "ellipsis";
-        white-space: "nowrap";
-    }
-
     pub c_info_row {
         display: "flex";
         align-items: "center";
@@ -1365,19 +1298,6 @@ class! {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Async / Loading States
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_loading_container {
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        gap: var!(gap-component);
-        margin: format!("{} 0px", var!(gap-component));
-        box-sizing: "border-box";
-    }
-
     pub c_spinner {
         width: "40px";
         height: "40px";
@@ -1388,23 +1308,6 @@ class! {
         border-radius: "50%";
         flex-shrink: "0";
         animation: "euv-spin 0.8s linear infinite";
-    }
-
-    pub(crate) c_loading_text_col {
-        display: "flex";
-        flex-direction: "column";
-        gap: var!(space-xs);
-    }
-
-    pub(crate) c_loading_title {
-        color: var!(foreground);
-        font-size: var!(font-md);
-        font-weight: "500";
-    }
-
-    pub(crate) c_loading_subtitle {
-        color: var!(muted-foreground);
-        font-size: var!(font-base);
     }
 
     pub c_loading_overlay(background: &str) {
@@ -1485,4 +1388,528 @@ class! {
         font-size: var!(font-base);
         color: var!(foreground);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Page Banner (unified header with emoji icon)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_page {
+        position: "relative";
+        text-align: "center";
+        box-sizing: "border-box";
+    }
+
+    pub(crate) c_page_glow {
+        position: "absolute";
+        top: "-50%";
+        left: "50%";
+        transform: "translateX(-50%)";
+        width: "400px";
+        max-width: "100%";
+        height: "400px";
+        pointer-events: "none";
+    }
+
+    pub(crate) c_page_content {
+        position: "relative";
+        z-index: "1";
+    }
+
+    pub(crate) c_page_icon {
+        font-size: "36px";
+        padding-bottom: var!(space-md);
+        @media ((max-width: 767px)) {
+            font-size: "40px";
+        }
+    }
+
+    pub(crate) c_page_title {
+        font-size: var!(font-4xl);
+        font-weight: "800";
+        letter-spacing: "-0.03em";
+        margin: "0px";
+        color: var!(foreground);
+        margin-bottom: var!(space-sm);
+        @media ((max-width: 767px)) {
+            font-size: var!(font-3xl);
+        }
+    }
+
+    pub(crate) c_page_subtitle {
+        font-size: var!(font-lg);
+        color: var!(muted-foreground);
+        margin: "0px auto";
+        margin-bottom: var!(space-sm);
+        max-width: "560px";
+        opacity: "1";
+        @media ((max-width: 767px)) {
+            font-size: var!(font-base);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Home Page
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_text_ellipsis {
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        white-space: "nowrap";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Async / Loading States
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_loading_container {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(gap-component);
+        margin: format!("{} 0px", var!(gap-component));
+        box-sizing: "border-box";
+    }
+
+    pub(crate) c_loading_text_col {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-xs);
+    }
+
+    pub(crate) c_loading_title {
+        color: var!(foreground);
+        font-size: var!(font-md);
+        font-weight: "500";
+    }
+
+    pub(crate) c_loading_subtitle {
+        color: var!(muted-foreground);
+        font-size: var!(font-base);
+    }
+}
+
+#[cfg(feature = "custom-styles")]
+class! {
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Camera Page
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_camera_video_container {}
+
+    pub c_camera_video_active {}
+
+    pub c_camera_video_hidden {}
+
+    pub c_camera_video_placeholder {}
+
+    pub c_camera_placeholder_content {}
+
+    pub c_camera_placeholder_icon {}
+
+    pub c_camera_placeholder_text {}
+
+    pub c_camera_error_box {}
+
+    pub c_camera_scan_result_box {}
+
+    pub c_camera_scan_result_label {}
+
+    pub c_camera_scan_result_value {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Canvas Drawing Board
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_canvas_preview_container {}
+
+    pub c_canvas_placeholder {}
+
+    pub c_canvas_preview_image {}
+
+    pub c_canvas_container_fullscreen {}
+
+    pub c_canvas_drawing_fullscreen_wrapper {}
+
+    pub c_canvas_drawing_fullscreen {}
+
+    pub c_canvas_fullscreen_toolbar {}
+
+    pub c_canvas_fullscreen_toolbar_row_top {}
+
+    pub c_canvas_fullscreen_toolbar_color_wrapper {}
+
+    pub c_canvas_color_input_fullscreen {}
+
+    pub c_canvas_fullscreen_toolbar_row_bottom {}
+
+    pub c_canvas_fullscreen_range_input {}
+
+    pub c_canvas_fullscreen_toolbar_button {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Game Fullscreen (2D / 3D)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Fullscreen overlay container for the 2D and 3D game pages.
+    //
+    // Mirrors `c_canvas_container_fullscreen` so the safe-area caching
+    // pass in `UseEuvLayout::apply_cached_insets` can pick this selector
+    // up alongside the canvas one. Differs in that the game overlay holds
+    // the *same* `<canvas>` element that the inline page mounts (no
+    // canvas re-creation), so the running game loop, balls, cubes, FPS
+    // counter and other reactive state survive the fullscreen toggle
+    // without reset.
+    pub c_game_container_fullscreen {}
+
+    // Toolbar wrapping the fullscreen exit button on game pages.
+    //
+    // Game pages only need an `Exit` button here (no color picker / line
+    // width control like the canvas drawing board), so the layout is a
+    // single horizontal row at the bottom of the overlay.
+    pub c_game_fullscreen_toolbar {}
+
+    // Wrapper that fills the fullscreen game container with the canvas.
+    //
+    // The game's `<canvas>` backing buffer is 600x400 (3:2). The canvas
+    // itself has `width: 100%; height: 100%` so it fills this wrapper
+    // exactly, and `object-fit: contain` on the canvas class makes the
+    // browser uniformly scale the backing buffer to fit while preserving
+    // its 3:2 aspect ratio. Without `object-fit: contain`, the canvas
+    // would be stretched to whatever shape the wrapper has, making balls
+    // render as horizontally-ovoid ellipses (e.g. on 1280x800 viewports
+    // → 1.6:1, slightly squashed vertically). The letterbox bars appear
+    // inside the canvas element rather than around an outer wrapper, so
+    // the canvas always fills the fullscreen container with the backing
+    // buffer uniformly scaled to its native aspect ratio.
+    pub c_game_fullscreen_canvas_letterbox {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Custom Attrs Demo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_custom_attrs_demo {}
+
+    pub c_demo_text {}
+
+    pub c_demo_text_muted {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Conditional Rendering Demo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_toggle_content {}
+
+    pub c_toggle_title {}
+
+    pub c_role_button_row {}
+
+    pub c_role_guest_text {}
+
+    pub c_role_user_text {}
+
+    pub c_role_admin_text {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 404 Not Found
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_render_count_text {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Event Demo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_event_result {}
+
+    pub c_event_highlight {}
+
+    pub c_event_info_grid {}
+
+    pub c_event_info_row {}
+
+    pub c_event_info_label {}
+
+    pub c_event_info_value {}
+
+    pub c_event_mouse_area {}
+
+    pub c_event_drag_zone {}
+
+    pub c_event_drag_zone_active {}
+
+    pub c_event_drag_item {}
+
+    pub c_event_drop_zone {}
+
+    pub c_event_drop_zone_active {}
+
+    pub c_event_drop_icon {}
+
+    pub c_event_drop_text {}
+
+    pub c_event_drop_hint {}
+
+    pub c_event_wheel_zone {}
+
+    pub c_event_clipboard_area {}
+
+    pub c_event_touch_zone {}
+
+    pub c_event_form_area {}
+
+    pub c_event_media_area {}
+
+    pub c_event_audio {}
+
+    pub c_event_video_area {}
+
+    pub c_event_video {}
+
+    pub c_event_image_area {}
+
+    pub c_event_image {}
+
+    pub c_event_url_text {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Timer Demo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_timer_display {}
+
+    pub c_timer_value {}
+
+    pub c_timer_controls {}
+
+    pub c_timer_done {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Browser API Demo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_browser_api_row {}
+
+    pub c_browser_api_actions {}
+
+    pub c_browser_result_box {}
+
+    pub c_browser_result_label {}
+
+    pub c_browser_result_value {}
+
+    pub c_browser_info_grid {}
+
+    pub c_browser_info_item {}
+
+    pub c_browser_info_label {}
+
+    pub c_browser_info_value {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Keep-Alive Demo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_keep_alive_tab_bar {}
+
+    pub c_keep_alive_tab_panel {}
+
+    pub c_keep_alive_panel_title {}
+
+    pub c_keep_alive_demo_text {}
+
+    pub c_keep_alive_counter_display {}
+
+    pub c_keep_alive_counter_value {}
+
+    pub c_keep_alive_counter_controls {}
+
+    pub c_keep_alive_form_group {}
+
+    pub c_keep_alive_form_preview {}
+
+    pub c_keep_alive_preview_label {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Binding Demo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_binding_child_box {}
+
+    pub c_binding_child_label {}
+
+    pub c_binding_parent_box {}
+
+    pub c_binding_section_title {}
+
+    pub c_binding_temp_converter {}
+
+    pub c_binding_temp_field {}
+
+    pub c_binding_temp_arrow {}
+
+    pub c_binding_color_mixer {}
+
+    pub c_binding_color_preview {}
+
+    pub c_binding_color_hex {}
+
+    pub c_binding_slider_row {}
+
+    pub c_binding_slider_label {}
+
+    pub c_binding_slider {}
+
+    pub c_binding_slider_value {}
+
+    pub c_binding_typed_prop_value {}
+
+    pub c_binding_typed_prop_group {}
+
+    pub c_binding_typed_warning {}
+
+    pub c_binding_form_label {}
+
+    pub c_binding_demo_text {}
+
+    pub c_binding_compact_button {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Custom Attrs - Dynamic Style
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_attrs_dynamic_demo(prop_key: &str, prop_value: &str) {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Dynamic Component Demo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_dynamic_component_tab_bar {}
+
+    pub c_dynamic_component_panel {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Sticky & CSS Effects Demo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Home Page — Section
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_home {}
+
+    pub c_home_content {}
+
+    pub c_home_badge_row {}
+
+    pub c_home_badge {}
+
+    pub c_home_title {}
+
+    pub c_home_subtitle {}
+
+    pub c_home_actions {}
+
+    pub c_home_btn_primary {}
+
+    pub c_home_btn_secondary {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Home Page — Stats Row
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_home_stats {}
+
+    pub c_home_stat_card {}
+
+    pub c_home_stat_icon {}
+
+    pub c_home_stat_value {}
+
+    pub c_home_stat_label {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Home Page — Section & Feature Cards
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_home_section_title {}
+
+    pub c_home_section_desc {}
+
+    pub c_home_feature_grid {}
+
+    pub c_feature_card {}
+
+    pub c_feature_header {}
+
+    pub c_feature_icon {}
+
+    pub c_feature_name {}
+
+    pub c_feature_desc {}
+
+    pub c_info_row {}
+
+    pub c_info_label {}
+
+    pub c_info_value {}
+
+    pub c_info_link {}
+
+    pub c_spinner {}
+
+    pub c_loading_overlay(background: &str) {}
+
+    pub c_error_container {}
+
+    pub c_error_icon {}
+
+    pub c_error_text {}
+
+    pub c_data_box {}
+
+    pub c_data_pre {}
+
+    pub c_fetch_hint {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Log / Console Display
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_log_container {}
+
+    pub c_log_item {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Page Banner (unified header with emoji icon)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_page {}
+
+    pub(crate) c_page_glow {}
+
+    pub(crate) c_page_content {}
+
+    pub(crate) c_page_icon {}
+
+    pub(crate) c_page_title {}
+
+    pub(crate) c_page_subtitle {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Home Page
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_text_ellipsis {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Async / Loading States
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_loading_container {}
+
+    pub(crate) c_loading_text_col {}
+
+    pub(crate) c_loading_title {}
+
+    pub(crate) c_loading_subtitle {}
 }

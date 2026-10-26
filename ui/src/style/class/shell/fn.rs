@@ -1,5 +1,6 @@
 use super::*;
 
+#[cfg(not(feature = "custom-styles"))]
 class! {
     // ═══════════════════════════════════════════════════════════════════════════
     // Layout Shell
@@ -153,29 +154,6 @@ class! {
         }
     }
 
-    pub(crate) c_mobile_app_root {
-        display: "flex";
-        flex-direction: "column";
-        width: "100%";
-        height: "100%";
-        font-family: "system-ui, -apple-system, sans-serif";
-        background: var!(background);
-        color: var!(foreground);
-        padding: format!("0px {} {} {}", var!(safe-area-inset-right), var!(padding-shell-bottom), var!(safe-area-inset-left));
-        scrollbar-color: format!("{} {}", var!(scrollbar-thumb), var!(scrollbar-track));
-        ::-webkit-scrollbar-thumb {
-            background: var!(scrollbar-thumb);
-            border: "none";
-            border-radius: "0px";
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: var!(scrollbar-thumb-hover);
-        }
-        ::-webkit-scrollbar-thumb:active {
-            background: var!(scrollbar-thumb-active);
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Navigation - Desktop Sidebar
     // ═══════════════════════════════════════════════════════════════════════════
@@ -251,36 +229,6 @@ class! {
         font-weight: "700";
         color: var!(foreground);
         letter-spacing: "-0.02em";
-    }
-
-    pub(crate) c_euv_logo {
-        display: "flex";
-        background: var!(accent);
-        align-items: "center";
-        justify-content: "center";
-        color: var!(text-on-accent);
-        font-weight: "700";
-        border: "none";
-        cursor: "pointer";
-        padding: "0px";
-        flex-shrink: "0";
-        position: "relative";
-    }
-
-    pub(crate) c_euv_logo_nav {
-        width: "32px";
-        height: "32px";
-        font-size: var!(font-lg);
-    }
-
-    pub(crate) c_euv_logo_fab {
-        width: "36px";
-        height: "36px";
-        font-size: var!(font-xl);
-        @media ((max-width: 767px)) {
-            width: "44px";
-            height: "44px";
-        }
     }
 
     pub c_nav_section_label {
@@ -526,59 +474,6 @@ class! {
         color: var!(accent);
     }
 
-    pub(crate) c_nav_item_active {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        // `control-row-pad` vertically, same as `c_nav_item_inactive` below and
-        // same reason the sidebar rows use it: two 12px paddings used to meet
-        // to leave 24px of blank between labels while the row stayed 48px tall,
-        // so the hover bar and the active fill sat in twice the air the text
-        // occupied. 9px lands the row on the same 42px box as `c_home_btn_*`.
-        padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-nav));
-        @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-mobile));
-        }
-        text-decoration: "none";
-        font-size: var!(font-base);
-        color: var!(text-on-accent);
-        font-weight: "600";
-        background: var!(accent);
-    }
-
-    pub(crate) c_nav_item_inactive {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-nav));
-        @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-mobile));
-        }
-        text-decoration: "none";
-        font-size: var!(font-base);
-        color: var!(foreground);
-        font-weight: "400";
-        :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
-            box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
-        }
-    }
-
-    pub(crate) c_nav_item_icon {
-        flex-shrink: "0";
-        width: "20px";
-        text-align: "center";
-    }
-
-    pub(crate) c_nav_item_label {
-        flex: "1";
-        overflow: "hidden";
-        text-overflow: "ellipsis";
-        white-space: "nowrap";
-        color: "inherit";
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Main Content Area
     // ═══════════════════════════════════════════════════════════════════════════
@@ -794,93 +689,6 @@ class! {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // euv_navbar
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_euv_navbar {
-        position: "fixed";
-        top: "0px";
-        left: "0px";
-        right: "0px";
-        height: "56px";
-        display: "flex";
-        align-items: "center";
-        gap: var!(gap-element);
-        padding: format!("0px {}", var!(edge-gutter));
-        border-bottom: format!("1px solid {}", var!(border));
-        background: var!(background);
-        z-index: "100";
-        @media ((max-width: 767px)) {
-            padding: format!("0px {}", var!(edge-gutter-mobile));
-        }
-    }
-
-    pub(crate) c_euv_navbar_brand {
-        display: "flex";
-        align-items: "center";
-        gap: var!(gap-element);
-        font-size: var!(font-lg);
-        font-weight: "700";
-        letter-spacing: "-0.02em";
-        color: var!(foreground);
-        cursor: "pointer";
-        flex-shrink: "0";
-    }
-
-    pub(crate) c_euv_navbar_logo {
-        width: "32px";
-        height: "32px";
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        background: var!(accent);
-        color: var!(text-on-accent);
-        font-size: var!(font-lg);
-        flex-shrink: "0";
-    }
-
-    pub(crate) c_euv_navbar_links {
-        display: "flex";
-        align-items: "center";
-        gap: var!(gap-section);
-        margin-left: "auto";
-        @media ((max-width: 767px)) {
-            display: "none";
-        }
-    }
-
-    pub(crate) c_euv_navbar_link {
-        font-size: var!(font-sm);
-        font-weight: "500";
-        color: var!(foreground);
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        border-bottom: "2px solid transparent";
-        cursor: "pointer";
-        :hover {
-            color: var!(accent);
-        }
-    }
-
-    pub(crate) c_euv_navbar_link_active {
-        font-size: var!(font-sm);
-        font-weight: "600";
-        color: var!(accent);
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        border-bottom: format!("2px solid {}", var!(accent));
-        cursor: "pointer";
-    }
-
-    pub(crate) c_euv_navbar_actions {
-        display: "flex";
-        align-items: "center";
-        gap: var!(gap-element);
-        margin-left: var!(gap-section);
-        @media ((max-width: 767px)) {
-            margin-left: "auto";
-        }
-    }
-
     pub c_euv_navbar_icon_button {
         width: "36px";
         height: "36px";
@@ -893,48 +701,6 @@ class! {
         :hover {
             background: var!(accent-muted);
         }
-    }
-
-    pub(crate) c_euv_navbar_menu_button {
-        display: "none";
-        width: "40px";
-        height: "40px";
-        align-items: "center";
-        justify-content: "center";
-        font-size: var!(font-xl);
-        cursor: "pointer";
-        transition: format!("background {} {}", var!(duration-fast), var!(ease-out));
-        @media ((max-width: 767px)) {
-            display: "flex";
-        }
-    }
-
-    pub(crate) c_euv_navbar_menu_button_active {
-        display: "none";
-        width: "40px";
-        height: "40px";
-        align-items: "center";
-        justify-content: "center";
-        font-size: var!(font-xl);
-        cursor: "pointer";
-        background: var!(accent-muted);
-        transition: format!("background {} {}", var!(duration-fast), var!(ease-out));
-        @media ((max-width: 767px)) {
-            display: "flex";
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // euv_sidebar
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_euv_sidebar_group {
-        // The rows carry their own breathing room through `padding`, so a
-        // margin here stacked a *second* gap on top of it. Every row already
-        // met the next one through the pair of paddings; the extra 4px only
-        // showed at group boundaries, where it cut the active fill away from
-        // the row below it and read as a hole in the left rail.
-        margin-bottom: "0px";
     }
 
     pub c_euv_sidebar_group_title {
@@ -1031,6 +797,400 @@ class! {
         :hover {
             box-shadow: "none";
         }
+    }
+
+    pub c_euv_sidebar_children {
+        display: "flex";
+        flex-direction: "column";
+        // The dashed border is this level's left edge, so it has to paint on
+        // the text x of the parent title above it, at every depth. The parent
+        // label sits one `space-md` right of this container's content-box
+        // left, which is what `margin-left` places. `space-sm` left the guide
+        // 4px short of the parent label at every depth (measured 8/12, 25/29,
+        // 42/46 for guide/label at depth 0/1/2).
+        //
+        // `padding-left` stays `space-sm`: it is the guide-to-child gap and
+        // half of the active row's pull-back, so widening it would move the
+        // marker and the text together.
+        margin-left: var!(space-md);
+        padding-left: var!(space-sm);
+        border-left: format!("1px dashed {}", var!(border));
+        animation: format!("euv-fade-in {} {}", var!(duration-normal), var!(ease-out));
+    }
+
+    pub c_euv_sidebar_link {
+        display: "block";
+        // `control-row-pad` vertically, matching `c_euv_sidebar_group_title`
+        // and the two `_active` classes — see the note there on why the row is
+        // 42px and not 48px.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
+        font-size: var!(font-base);
+        color: var!(foreground);
+        font-weight: "400";
+        cursor: "pointer";
+        // Hover: paint a 3px solid bar *between* the dashed tree guide and
+        // the link's text. We use `inset box-shadow` rather than a real
+        // `border-left` because borders participate in the box's layout
+        // (they grow the border-edge and require compensating padding to
+        // keep the text x-position stable — and `calc(12px + 3px - 3px)`
+        // rounds inconsistently across browsers, causing sub-pixel text
+        // shifts on hover). An inset shadow is painted *inside* the
+        // existing padding box without changing layout, so the text never
+        // moves. The dashed parent border is also untouched.
+        :hover {
+            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
+        }
+    }
+
+    pub c_euv_sidebar_link_active {
+        display: "block";
+        // Same vertical padding as `c_euv_sidebar_link` (`control-row-pad`) —
+        // the accent fill has to be exactly as tall as the row it replaces.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
+        font-size: var!(font-base);
+        background: var!(accent);
+        color: var!(text-on-accent);
+        font-weight: "600";
+        cursor: "pointer";
+        // Active link: when the cursor is over it, the accent background
+        // must dominate. Drop the inset bar entirely so the accent fill
+        // carries the visual weight; on dark accent, an inset bar in the
+        // foreground color is invisible and only competes for the eye's
+        // focus. The accent fill + bold text already announce "you are
+        // here".
+        :hover {
+            box-shadow: "none";
+        }
+    }
+
+    // An active child needs the accent fill to read as one continuous block
+    // against the sidebar, not as a chip floating inside its parent's gutter.
+    // `c_euv_sidebar_children` offsets its rows from the dashed guide by its
+    // own `padding-left` plus the 1px border. The active row pulls its fill
+    // back out to the guide — `padding-left + border-left-width`, i.e.
+    // `side-indent` (9px) — so the fill starts exactly at the dashed rail.
+    // Compensating by the container's `margin-left` as well is wrong: it also
+    // cancels the row's own `padding-left`, pushing the fill past the guide.
+    // The negative margin is otherwise safe because the row is the full width
+    // of its container: the fill grows leftward into the parent's padding and
+    // nothing to its left moves.
+    pub c_euv_sidebar_link_active_flush {
+        display: "block";
+        // Text must not move between the inactive and active states, so the
+        // negative margin that pulls the fill out to the dashed guide is paid
+        // back here as extra left padding. The two cancel for the label while
+        // the background still reaches the guide. Only `padding-left` is
+        // touched — the shorthand would drop the other three sides.
+        //
+        // Vertical padding matches `c_euv_sidebar_link` (`control-row-pad`),
+        // see the note on that class for why the row is 42px and not 48px.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
+        padding-left: format!("calc({} + {})", var!(space-md), var!(side-indent));
+        // The arithmetic runs through `calc()` on the *length* token
+        // (`--side-indent`, which carries its own unit). Gluing a unit onto
+        // a `var()` — `var(--side-indent-num)px` — is not a length: the
+        // substitution leaves a number token next to an ident, the parser
+        // drops the whole declaration, and the fill never reaches the guide.
+        // A unitless token can only be used as a number inside `calc()`.
+        margin-left: format!("calc(-1 * {})", var!(side-indent));
+        width: format!("calc(100% + {})", var!(side-indent));
+        font-size: var!(font-base);
+        background: var!(accent);
+        color: var!(text-on-accent);
+        font-weight: "600";
+        cursor: "pointer";
+        :hover {
+            box-shadow: "none";
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_toc
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_euv_toc {
+        // The outer `c_euv_doc_toc` column is already sticky in
+        // `c_app_main`'s scroll context — adding another sticky offset here
+        // would double the offset and the TOC would slide past the top of
+        // the scrollable area instead of staying pinned. Keep the inner
+        // toc purely as a layout container.
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-xs);
+        border-left: format!("1px solid {}", var!(border));
+        padding-left: var!(space-lg);
+    }
+
+    pub c_euv_toc_link {
+        font-size: var!(font-sm);
+        color: var!(muted-foreground);
+        cursor: "pointer";
+        line-height: "1.5";
+        // Regular weight by default: only the *active* entry carries weight,
+        // so hovering an inactive entry must not bold it or the weight would
+        // read as a false "you are here" cue on mouse-over alone.
+        font-weight: "400";
+        :hover {
+            color: var!(accent);
+        }
+    }
+
+    pub c_euv_toc_link_active {
+        c_euv_toc_link();
+        color: var!(accent);
+        font-weight: "700";
+        :hover {
+            font-weight: "700";
+        }
+    }
+
+    pub c_euv_toc_link_nested {
+        c_euv_toc_link();
+        padding-left: var!(space-lg);
+    }
+
+    pub c_euv_toc_link_nested_active {
+        c_euv_toc_link_nested();
+        color: var!(accent);
+        font-weight: "700";
+        :hover {
+            font-weight: "700";
+        }
+    }
+
+    pub(crate) c_mobile_app_root {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+        height: "100%";
+        font-family: "system-ui, -apple-system, sans-serif";
+        background: var!(background);
+        color: var!(foreground);
+        padding: format!("0px {} {} {}", var!(safe-area-inset-right), var!(padding-shell-bottom), var!(safe-area-inset-left));
+        scrollbar-color: format!("{} {}", var!(scrollbar-thumb), var!(scrollbar-track));
+        ::-webkit-scrollbar-thumb {
+            background: var!(scrollbar-thumb);
+            border: "none";
+            border-radius: "0px";
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var!(scrollbar-thumb-hover);
+        }
+        ::-webkit-scrollbar-thumb:active {
+            background: var!(scrollbar-thumb-active);
+        }
+    }
+
+    pub(crate) c_euv_logo {
+        display: "flex";
+        background: var!(accent);
+        align-items: "center";
+        justify-content: "center";
+        color: var!(text-on-accent);
+        font-weight: "700";
+        border: "none";
+        cursor: "pointer";
+        padding: "0px";
+        flex-shrink: "0";
+        position: "relative";
+    }
+
+    pub(crate) c_euv_logo_nav {
+        width: "32px";
+        height: "32px";
+        font-size: var!(font-lg);
+    }
+
+    pub(crate) c_euv_logo_fab {
+        width: "36px";
+        height: "36px";
+        font-size: var!(font-xl);
+        @media ((max-width: 767px)) {
+            width: "44px";
+            height: "44px";
+        }
+    }
+
+    pub(crate) c_nav_item_active {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        // `control-row-pad` vertically, same as `c_nav_item_inactive` below and
+        // same reason the sidebar rows use it: two 12px paddings used to meet
+        // to leave 24px of blank between labels while the row stayed 48px tall,
+        // so the hover bar and the active fill sat in twice the air the text
+        // occupied. 9px lands the row on the same 42px box as `c_home_btn_*`.
+        padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-nav));
+        @media ((max-width: 767px)) {
+            padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-mobile));
+        }
+        text-decoration: "none";
+        font-size: var!(font-base);
+        color: var!(text-on-accent);
+        font-weight: "600";
+        background: var!(accent);
+    }
+
+    pub(crate) c_nav_item_inactive {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-nav));
+        @media ((max-width: 767px)) {
+            padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-mobile));
+        }
+        text-decoration: "none";
+        font-size: var!(font-base);
+        color: var!(foreground);
+        font-weight: "400";
+        :hover {
+            background: var!(accent-muted);
+            color: var!(accent);
+            box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
+        }
+    }
+
+    pub(crate) c_nav_item_icon {
+        flex-shrink: "0";
+        width: "20px";
+        text-align: "center";
+    }
+
+    pub(crate) c_nav_item_label {
+        flex: "1";
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        white-space: "nowrap";
+        color: "inherit";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_navbar
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_navbar {
+        position: "fixed";
+        top: "0px";
+        left: "0px";
+        right: "0px";
+        height: "56px";
+        display: "flex";
+        align-items: "center";
+        gap: var!(gap-element);
+        padding: format!("0px {}", var!(edge-gutter));
+        border-bottom: format!("1px solid {}", var!(border));
+        background: var!(background);
+        z-index: "100";
+        @media ((max-width: 767px)) {
+            padding: format!("0px {}", var!(edge-gutter-mobile));
+        }
+    }
+
+    pub(crate) c_euv_navbar_brand {
+        display: "flex";
+        align-items: "center";
+        gap: var!(gap-element);
+        font-size: var!(font-lg);
+        font-weight: "700";
+        letter-spacing: "-0.02em";
+        color: var!(foreground);
+        cursor: "pointer";
+        flex-shrink: "0";
+    }
+
+    pub(crate) c_euv_navbar_logo {
+        width: "32px";
+        height: "32px";
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        background: var!(accent);
+        color: var!(text-on-accent);
+        font-size: var!(font-lg);
+        flex-shrink: "0";
+    }
+
+    pub(crate) c_euv_navbar_links {
+        display: "flex";
+        align-items: "center";
+        gap: var!(gap-section);
+        margin-left: "auto";
+        @media ((max-width: 767px)) {
+            display: "none";
+        }
+    }
+
+    pub(crate) c_euv_navbar_link {
+        font-size: var!(font-sm);
+        font-weight: "500";
+        color: var!(foreground);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border-bottom: "2px solid transparent";
+        cursor: "pointer";
+        :hover {
+            color: var!(accent);
+        }
+    }
+
+    pub(crate) c_euv_navbar_link_active {
+        font-size: var!(font-sm);
+        font-weight: "600";
+        color: var!(accent);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border-bottom: format!("2px solid {}", var!(accent));
+        cursor: "pointer";
+    }
+
+    pub(crate) c_euv_navbar_actions {
+        display: "flex";
+        align-items: "center";
+        gap: var!(gap-element);
+        margin-left: var!(gap-section);
+        @media ((max-width: 767px)) {
+            margin-left: "auto";
+        }
+    }
+
+    pub(crate) c_euv_navbar_menu_button {
+        display: "none";
+        width: "40px";
+        height: "40px";
+        align-items: "center";
+        justify-content: "center";
+        font-size: var!(font-xl);
+        cursor: "pointer";
+        transition: format!("background {} {}", var!(duration-fast), var!(ease-out));
+        @media ((max-width: 767px)) {
+            display: "flex";
+        }
+    }
+
+    pub(crate) c_euv_navbar_menu_button_active {
+        display: "none";
+        width: "40px";
+        height: "40px";
+        align-items: "center";
+        justify-content: "center";
+        font-size: var!(font-xl);
+        cursor: "pointer";
+        background: var!(accent-muted);
+        transition: format!("background {} {}", var!(duration-fast), var!(ease-out));
+        @media ((max-width: 767px)) {
+            display: "flex";
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_sidebar
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_sidebar_group {
+        // The rows carry their own breathing room through `padding`, so a
+        // margin here stacked a *second* gap on top of it. Every row already
+        // met the next one through the pair of paddings; the extra 4px only
+        // showed at group boundaries, where it cut the active fill away from
+        // the row below it and read as a hole in the left rail.
+        margin-bottom: "0px";
     }
 
     // The glyph itself is a 6px `▸`, far too small a target: the clickable
@@ -1167,69 +1327,132 @@ class! {
         }
     }
 
-    pub c_euv_sidebar_children {
-        display: "flex";
-        flex-direction: "column";
-        // The dashed border is this level's left edge, so it has to paint on
-        // the text x of the parent title above it, at every depth. The parent
-        // label sits one `space-md` right of this container's content-box
-        // left, which is what `margin-left` places. `space-sm` left the guide
-        // 4px short of the parent label at every depth (measured 8/12, 25/29,
-        // 42/46 for guide/label at depth 0/1/2).
-        //
-        // `padding-left` stays `space-sm`: it is the guide-to-child gap and
-        // half of the active row's pull-back, so widening it would move the
-        // marker and the text together.
-        margin-left: var!(space-md);
-        padding-left: var!(space-sm);
-        border-left: format!("1px dashed {}", var!(border));
-        animation: format!("euv-fade-in {} {}", var!(duration-normal), var!(ease-out));
+    pub(crate) c_euv_toc_title {
+        font-size: var!(font-xs);
+        font-weight: "700";
+        text-transform: "uppercase";
+        letter-spacing: "0.08em";
+        color: var!(muted-foreground);
+        margin-bottom: var!(space-xs);
     }
+}
 
-    pub c_euv_sidebar_link {
-        display: "block";
-        // `control-row-pad` vertically, matching `c_euv_sidebar_group_title`
-        // and the two `_active` classes — see the note there on why the row is
-        // 42px and not 48px.
-        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
-        font-size: var!(font-base);
-        color: var!(foreground);
-        font-weight: "400";
-        cursor: "pointer";
-        // Hover: paint a 3px solid bar *between* the dashed tree guide and
-        // the link's text. We use `inset box-shadow` rather than a real
-        // `border-left` because borders participate in the box's layout
-        // (they grow the border-edge and require compensating padding to
-        // keep the text x-position stable — and `calc(12px + 3px - 3px)`
-        // rounds inconsistently across browsers, causing sub-pixel text
-        // shifts on hover). An inset shadow is painted *inside* the
-        // existing padding box without changing layout, so the text never
-        // moves. The dashed parent border is also untouched.
-        :hover {
-            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
-        }
-    }
+#[cfg(feature = "custom-styles")]
+class! {
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Layout Shell
+    // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_sidebar_link_active {
-        display: "block";
-        // Same vertical padding as `c_euv_sidebar_link` (`control-row-pad`) —
-        // the accent fill has to be exactly as tall as the row it replaces.
-        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
-        font-size: var!(font-base);
-        background: var!(accent);
-        color: var!(text-on-accent);
-        font-weight: "600";
-        cursor: "pointer";
-        // Active link: when the cursor is over it, the accent background
-        // must dominate. Drop the inset bar entirely so the accent fill
-        // carries the visual weight; on dark accent, an inset bar in the
-        // foreground color is invisible and only competes for the eye's
-        // focus. The accent fill + bold text already announce "you are
-        // here".
-        :hover {
-            box-shadow: "none";
-        }
-    }
+    pub c_app_root {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Navigation - Desktop Sidebar
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_app_nav {}
+
+    pub c_nav_header {}
+
+    pub c_nav_brand_title {}
+
+    pub c_nav_section_label {}
+
+    pub c_nav_items_scroll {}
+
+    pub c_nav_theme_toggle {}
+
+    // Optional row in the nav column / drawer for locale switchers or similar
+    // widgets, placed between the brand header and the section label.
+    pub c_nav_locale_row {}
+
+    pub c_nav_locale_button {}
+
+    // Open state of the locale switcher: the same solid treatment the sidebar
+    // gives its current page, so "menu is open" reads as strongly as
+    // "this is the page you are on".
+    pub c_nav_locale_button_open {}
+
+    pub c_nav_theme_button {}
+
+    pub c_theme_icon_sun {}
+
+    pub c_theme_icon_moon {}
+
+    pub c_nav_footer {}
+
+    pub c_nav_footer_divider {}
+
+    pub c_nav_footer_text {}
+
+    pub c_nav_footer_brand {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Main Content Area
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_app_main {}
+
+    pub c_page_router {}
+
+    pub c_page_container {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Mobile Layout
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_mobile_header {}
+
+    pub c_mobile_header_left {}
+
+    pub c_mobile_header_logo {}
+
+    pub c_mobile_menu_button {}
+
+    pub c_mobile_theme_button {}
+
+    pub c_mobile_menu_button_active {}
+
+    pub c_mobile_drawer_close_button {}
+
+    pub c_mobile_overlay {}
+
+    pub c_mobile_overlay_hidden {}
+
+    pub c_mobile_nav_drawer {}
+
+    pub c_mobile_nav_drawer_closed {}
+
+    pub c_mobile_nav_drawer_header {}
+
+    pub c_mobile_main {}
+
+    pub c_euv_navbar_icon_button {}
+
+    pub c_euv_sidebar_group_title {}
+
+    // A top-level group title has no `c_euv_sidebar_children` ancestor, so
+    // the base hover bar paints flush against the sidebar's own left edge
+    // and reads as part of the sidebar border rather than as an affordance.
+    // This variant insets the bar by the row's own left padding and doubles
+    // its weight, so a first-level row gets the same "you can click this"
+    // cue a nested row does, just with room around it. The offset lives on
+    // the shadow rather than on `padding`, so the text never moves.
+    //
+    // Vertical padding is `control-row-pad` like every other sidebar row —
+    // see `c_euv_sidebar_group_title`. A root title sits directly above a
+    // nested one, so a taller row here left the two ends of the same pair
+    // mismatched.
+    pub c_euv_sidebar_group_title_root {}
+
+    pub c_euv_sidebar_group_title_root_active {}
+
+    pub c_euv_sidebar_group_title_active {}
+
+    pub c_euv_sidebar_children {}
+
+    pub c_euv_sidebar_link {}
+
+    pub c_euv_sidebar_link_active {}
 
     // An active child needs the accent fill to read as one continuous block
     // against the sidebar, not as a chip floating inside its parent's gutter.
@@ -1242,96 +1465,96 @@ class! {
     // The negative margin is otherwise safe because the row is the full width
     // of its container: the fill grows leftward into the parent's padding and
     // nothing to its left moves.
-    pub c_euv_sidebar_link_active_flush {
-        display: "block";
-        // Text must not move between the inactive and active states, so the
-        // negative margin that pulls the fill out to the dashed guide is paid
-        // back here as extra left padding. The two cancel for the label while
-        // the background still reaches the guide. Only `padding-left` is
-        // touched — the shorthand would drop the other three sides.
-        //
-        // Vertical padding matches `c_euv_sidebar_link` (`control-row-pad`),
-        // see the note on that class for why the row is 42px and not 48px.
-        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
-        padding-left: format!("calc({} + {})", var!(space-md), var!(side-indent));
-        // The arithmetic runs through `calc()` on the *length* token
-        // (`--side-indent`, which carries its own unit). Gluing a unit onto
-        // a `var()` — `var(--side-indent-num)px` — is not a length: the
-        // substitution leaves a number token next to an ident, the parser
-        // drops the whole declaration, and the fill never reaches the guide.
-        // A unitless token can only be used as a number inside `calc()`.
-        margin-left: format!("calc(-1 * {})", var!(side-indent));
-        width: format!("calc(100% + {})", var!(side-indent));
-        font-size: var!(font-base);
-        background: var!(accent);
-        color: var!(text-on-accent);
-        font-weight: "600";
-        cursor: "pointer";
-        :hover {
-            box-shadow: "none";
-        }
-    }
+    pub c_euv_sidebar_link_active_flush {}
 
     // ═══════════════════════════════════════════════════════════════════════════
     // euv_toc
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_toc {
-        // The outer `c_euv_doc_toc` column is already sticky in
-        // `c_app_main`'s scroll context — adding another sticky offset here
-        // would double the offset and the TOC would slide past the top of
-        // the scrollable area instead of staying pinned. Keep the inner
-        // toc purely as a layout container.
-        display: "flex";
-        flex-direction: "column";
-        gap: var!(space-xs);
-        border-left: format!("1px solid {}", var!(border));
-        padding-left: var!(space-lg);
-    }
+    pub c_euv_toc {}
 
-    pub(crate) c_euv_toc_title {
-        font-size: var!(font-xs);
-        font-weight: "700";
-        text-transform: "uppercase";
-        letter-spacing: "0.08em";
-        color: var!(muted-foreground);
-        margin-bottom: var!(space-xs);
-    }
+    pub c_euv_toc_link {}
 
-    pub c_euv_toc_link {
-        font-size: var!(font-sm);
-        color: var!(muted-foreground);
-        cursor: "pointer";
-        line-height: "1.5";
-        // Regular weight by default: only the *active* entry carries weight,
-        // so hovering an inactive entry must not bold it or the weight would
-        // read as a false "you are here" cue on mouse-over alone.
-        font-weight: "400";
-        :hover {
-            color: var!(accent);
-        }
-    }
+    pub c_euv_toc_link_active {}
 
-    pub c_euv_toc_link_active {
-        c_euv_toc_link();
-        color: var!(accent);
-        font-weight: "700";
-        :hover {
-            font-weight: "700";
-        }
-    }
+    pub c_euv_toc_link_nested {}
 
-    pub c_euv_toc_link_nested {
-        c_euv_toc_link();
-        padding-left: var!(space-lg);
-    }
+    pub c_euv_toc_link_nested_active {}
 
-    pub c_euv_toc_link_nested_active {
-        c_euv_toc_link_nested();
-        color: var!(accent);
-        font-weight: "700";
-        :hover {
-            font-weight: "700";
-        }
-    }
+    pub(crate) c_mobile_app_root {}
+
+    pub(crate) c_euv_logo {}
+
+    pub(crate) c_euv_logo_nav {}
+
+    pub(crate) c_euv_logo_fab {}
+
+    pub(crate) c_nav_item_active {}
+
+    pub(crate) c_nav_item_inactive {}
+
+    pub(crate) c_nav_item_icon {}
+
+    pub(crate) c_nav_item_label {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_navbar
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_navbar {}
+
+    pub(crate) c_euv_navbar_brand {}
+
+    pub(crate) c_euv_navbar_logo {}
+
+    pub(crate) c_euv_navbar_links {}
+
+    pub(crate) c_euv_navbar_link {}
+
+    pub(crate) c_euv_navbar_link_active {}
+
+    pub(crate) c_euv_navbar_actions {}
+
+    pub(crate) c_euv_navbar_menu_button {}
+
+    pub(crate) c_euv_navbar_menu_button_active {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_sidebar
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_sidebar_group {}
+
+    // The glyph itself is a 6px `▸`, far too small a target: the clickable
+    // box wants to clear the ~24px that is comfortable to hit, without making
+    // the triangle *look* bigger. So the glyph keeps its font size and the
+    // extra area is built out of transparent padding plus negative margins
+    // that cancel the padding back out — the row keeps its 42px height and
+    // the glyph keeps its place at the right edge, but the invisible hit box
+    // grows to roughly 24x42.
+    //
+    // `euv_sidebar_group` applies exactly ONE arrow class (see the
+    // `(active, open)` match there), so these four variants do not stack and
+    // each one has to repeat the base declarations — the same duplication
+    // `c_euv_sidebar_group_title_root` already uses. Only the colour and the
+    // rotation differ between them.
+    //
+    // `cursor: pointer` and `user-select: none` are load-bearing now that the
+    // arrow is its own control: without them most of the enlarged area keeps
+    // the inherited `default` cursor, and a double-click can select the glyph
+    // as text instead of folding the group.
+    pub(crate) c_euv_sidebar_group_arrow {}
+
+    pub(crate) c_euv_sidebar_group_arrow_open {}
+
+    pub(crate) c_euv_sidebar_group_arrow_active {}
+
+    // The arrow's colour and its rotation are independent: `_active` only
+    // recolours the glyph so it reads on the accent fill, while `_open` only
+    // points it down. An active group can be open *or* collapsed, so it needs
+    // both at once — without this the active branch in `euv_sidebar_group`
+    // won the exclusive match and the arrow stopped following the toggle.
+    pub(crate) c_euv_sidebar_group_arrow_active_open {}
+
+    pub(crate) c_euv_toc_title {}
 }

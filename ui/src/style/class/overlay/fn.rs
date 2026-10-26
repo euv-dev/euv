@@ -1,6 +1,109 @@
 use super::*;
 
+#[cfg(not(feature = "custom-styles"))]
 class! {
+    pub c_euv_feature_grid {
+        display: "grid";
+        grid-template-columns: "repeat(auto-fit, minmax(220px, 1fr))";
+        gap: var!(space-md);
+        width: "100%";
+        @media ((max-width: 767px)) {
+            grid-template-columns: "1fr";
+        }
+    }
+
+    pub c_euv_feature_card {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-sm);
+        padding: var!(space-lg);
+        overflow: "hidden";
+        box-sizing: "border-box";
+        border: format!("1px dashed {}", var!(border));
+    }
+
+    pub c_euv_feature_header {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+    }
+
+    pub c_euv_feature_icon {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        font-size: var!(font-2xl);
+        line-height: "1";
+        color: var!(foreground);
+        flex-shrink: "0";
+    }
+
+    pub c_euv_feature_name {
+        font-size: var!(font-lg);
+        font-weight: "600";
+        color: var!(foreground);
+        margin: "0px";
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        white-space: "nowrap";
+    }
+
+    pub c_euv_feature_desc {
+        font-size: var!(font-sm);
+        color: var!(foreground);
+        margin: "0px";
+    }
+
+    pub c_modal_actions {
+        display: "flex";
+        flex-wrap: "wrap";
+        gap: var!(space-md);
+        margin: format!("{} 0px", var!(space-md));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // File Upload
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_file_upload_input_hidden {
+        position: "absolute";
+        width: "1px";
+        height: "1px";
+        padding: "0px";
+        // The visually hidden recipe: a 1px box pulled 1px out of the flow,
+        // so it clips at the edge of its parent instead of taking a slot.
+        margin: "-1px";
+        overflow: "hidden";
+        clip: "rect(0, 0, 0, 0)";
+        white-space: "nowrap";
+        border: "0px";
+    }
+
+    pub c_file_upload_options {
+        margin: format!("{} 0px", var!(gap-component));
+    }
+
+    pub c_file_upload_item {
+        display: "flex";
+        align-items: "center";
+        gap: format!("{}", var!(space-md));
+        margin: format!("{} 0px", var!(space-sm));
+        font-size: var!(font-base);
+        color: "inherit";
+    }
+
+    pub c_file_upload_item_index {
+        font-size: var!(font-sm);
+        font-weight: "600";
+        color: var!(accent);
+        min-width: "24px";
+    }
+
+    pub c_file_upload_item_name {
+        color: "inherit";
+        word-break: "break-all";
+    }
+
     pub(crate) c_euv_tooltip {
         position: "relative";
         display: "inline-flex";
@@ -450,58 +553,6 @@ class! {
         flex-shrink: "0";
     }
 
-    pub c_euv_feature_grid {
-        display: "grid";
-        grid-template-columns: "repeat(auto-fit, minmax(220px, 1fr))";
-        gap: var!(space-md);
-        width: "100%";
-        @media ((max-width: 767px)) {
-            grid-template-columns: "1fr";
-        }
-    }
-
-    pub c_euv_feature_card {
-        display: "flex";
-        flex-direction: "column";
-        gap: var!(space-sm);
-        padding: var!(space-lg);
-        overflow: "hidden";
-        box-sizing: "border-box";
-        border: format!("1px dashed {}", var!(border));
-    }
-
-    pub c_euv_feature_header {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-    }
-
-    pub c_euv_feature_icon {
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        font-size: var!(font-2xl);
-        line-height: "1";
-        color: var!(foreground);
-        flex-shrink: "0";
-    }
-
-    pub c_euv_feature_name {
-        font-size: var!(font-lg);
-        font-weight: "600";
-        color: var!(foreground);
-        margin: "0px";
-        overflow: "hidden";
-        text-overflow: "ellipsis";
-        white-space: "nowrap";
-    }
-
-    pub c_euv_feature_desc {
-        font-size: var!(font-sm);
-        color: var!(foreground);
-        margin: "0px";
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Modal
     // ═══════════════════════════════════════════════════════════════════════════
@@ -563,13 +614,6 @@ class! {
     pub(crate) c_modal_body {
         padding: format!("0px {} {} {}", var!(space-xl), var!(space-md), var!(space-xl));
         color: "inherit";
-    }
-
-    pub c_modal_actions {
-        display: "flex";
-        flex-wrap: "wrap";
-        gap: var!(space-md);
-        margin: format!("{} 0px", var!(space-md));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -964,49 +1008,6 @@ class! {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // File Upload
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub c_file_upload_input_hidden {
-        position: "absolute";
-        width: "1px";
-        height: "1px";
-        padding: "0px";
-        // The visually hidden recipe: a 1px box pulled 1px out of the flow,
-        // so it clips at the edge of its parent instead of taking a slot.
-        margin: "-1px";
-        overflow: "hidden";
-        clip: "rect(0, 0, 0, 0)";
-        white-space: "nowrap";
-        border: "0px";
-    }
-
-    pub c_file_upload_options {
-        margin: format!("{} 0px", var!(gap-component));
-    }
-
-    pub c_file_upload_item {
-        display: "flex";
-        align-items: "center";
-        gap: format!("{}", var!(space-md));
-        margin: format!("{} 0px", var!(space-sm));
-        font-size: var!(font-base);
-        color: "inherit";
-    }
-
-    pub c_file_upload_item_index {
-        font-size: var!(font-sm);
-        font-weight: "600";
-        color: var!(accent);
-        min-width: "24px";
-    }
-
-    pub c_file_upload_item_name {
-        color: "inherit";
-        word-break: "break-all";
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
     // euv_drawer
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1274,4 +1275,245 @@ class! {
         padding: format!("{} {}", var!(space-sm), var!(space-md));
         border-top: format!("1px dashed {}", var!(border));
     }
+}
+
+#[cfg(feature = "custom-styles")]
+class! {
+    pub c_euv_feature_grid {}
+
+    pub c_euv_feature_card {}
+
+    pub c_euv_feature_header {}
+
+    pub c_euv_feature_icon {}
+
+    pub c_euv_feature_name {}
+
+    pub c_euv_feature_desc {}
+
+    pub c_modal_actions {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // File Upload
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_file_upload_input_hidden {}
+
+    pub c_file_upload_options {}
+
+    pub c_file_upload_item {}
+
+    pub c_file_upload_item_index {}
+
+    pub c_file_upload_item_name {}
+
+    pub(crate) c_euv_tooltip {}
+
+    pub(crate) c_euv_tooltip_bubble {}
+
+    pub(crate) c_euv_tooltip_bubble_top {}
+
+    pub(crate) c_euv_tooltip_bubble_bottom {}
+
+    pub(crate) c_euv_tooltip_bubble_left {}
+
+    pub(crate) c_euv_tooltip_bubble_right {}
+
+    pub(crate) c_euv_popover {}
+
+    pub(crate) c_euv_popover_body {}
+
+    pub(crate) c_euv_popover_body_open {}
+
+    pub(crate) c_euv_popover_body_closed {}
+
+    pub(crate) c_euv_popover_header {}
+
+    pub(crate) c_euv_popover_title {}
+
+    pub(crate) c_euv_calendar {}
+
+    pub(crate) c_euv_calendar_header {}
+
+    pub(crate) c_euv_calendar_title {}
+
+    pub(crate) c_euv_calendar_nav {}
+
+    pub(crate) c_euv_calendar_weekdays {}
+
+    pub(crate) c_euv_calendar_weekday {}
+
+    pub(crate) c_euv_calendar_grid {}
+
+    pub(crate) c_euv_calendar_day {}
+
+    pub(crate) c_euv_calendar_day_muted {}
+
+    pub(crate) c_euv_calendar_day_today {}
+
+    pub(crate) c_euv_calendar_day_selected {}
+
+    pub(crate) c_euv_upload {}
+
+    pub(crate) c_euv_upload_input {}
+
+    pub(crate) c_euv_upload_drop_active {}
+
+    pub(crate) c_euv_upload_list {}
+
+    pub(crate) c_euv_upload_file {}
+
+    pub(crate) c_euv_upload_file_name {}
+
+    pub(crate) c_euv_upload_file_size {}
+
+    pub(crate) c_euv_upload_file_status_pending {}
+
+    pub(crate) c_euv_upload_file_status_uploading {}
+
+    pub(crate) c_euv_upload_file_status_done {}
+
+    pub(crate) c_euv_upload_file_status_failed {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Modal
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_modal_overlay {}
+
+    pub(crate) c_modal_content {}
+
+    pub(crate) c_modal_header {}
+
+    pub(crate) c_modal_title {}
+
+    pub(crate) c_modal_body {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // VConsole Panel
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_vconsole_badge {}
+
+    pub(crate) c_vconsole_overlay {}
+
+    pub(crate) c_vconsole_overlay_hidden {}
+
+    pub(crate) c_vconsole_panel {}
+
+    pub(crate) c_vconsole_panel_closed {}
+
+    pub(crate) c_vconsole_fab {}
+
+    pub(crate) c_vconsole_header {}
+
+    pub(crate) c_vconsole_title {}
+
+    pub(crate) c_vconsole_title_dot {}
+
+    pub(crate) c_vconsole_header_actions {}
+
+    pub(crate) c_vconsole_clear_button {}
+
+    pub(crate) c_vconsole_close_button {}
+
+    pub(crate) c_vconsole_body {}
+
+    pub(crate) c_vconsole_log_item {}
+
+    pub(crate) c_vconsole_empty {}
+
+    pub(crate) c_vconsole_empty_hidden {}
+
+    pub(crate) c_vconsole_log_list {}
+
+    pub(crate) c_vconsole_log_list_hidden {}
+
+    pub(crate) c_vconsole_count {}
+
+    pub(crate) c_vconsole_filter_bar {}
+
+    pub(crate) c_vconsole_filter_badge {}
+
+    pub(crate) c_vconsole_filter_badge_outline {}
+
+    pub(crate) c_vconsole_level_badge {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_dropdown
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_dropdown {}
+
+    pub(crate) c_euv_dropdown_menu {}
+
+    pub(crate) c_euv_dropdown_menu_open {}
+
+    pub(crate) c_euv_dropdown_menu_closed {}
+
+    pub(crate) c_euv_dropdown_item {}
+
+    pub(crate) c_euv_dropdown_item_active {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // euv_drawer
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_drawer_overlay {}
+
+    pub(crate) c_euv_drawer_overlay_open {}
+
+    pub(crate) c_euv_drawer_overlay_closed {}
+
+    pub(crate) c_euv_drawer {}
+
+    pub(crate) c_euv_drawer_open {}
+
+    pub(crate) c_euv_drawer_closed {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Message (toast)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_message_stack {}
+
+    pub(crate) c_euv_message {}
+
+    pub(crate) c_euv_message_text {}
+
+    pub(crate) c_euv_message_action {}
+
+    pub(crate) c_euv_message_close {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Notification
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_notification_stack {}
+
+    pub(crate) c_euv_notification {}
+
+    pub(crate) c_euv_notification_body {}
+
+    pub(crate) c_euv_notification_title {}
+
+    pub(crate) c_euv_notification_text {}
+
+    pub(crate) c_euv_notification_close {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Pop Confirm
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_popconfirm {}
+
+    pub(crate) c_euv_popconfirm_body {}
+
+    pub(crate) c_euv_popconfirm_body_open {}
+
+    pub(crate) c_euv_popconfirm_body_closed {}
+
+    pub(crate) c_euv_popconfirm_text {}
+
+    pub(crate) c_euv_popconfirm_actions {}
 }
