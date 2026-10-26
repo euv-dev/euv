@@ -72,6 +72,10 @@ fn the_overlay_flag_does_not_change_the_element_shape() {
 #[test]
 fn the_spinner_draws_three_quarters_of_the_ring_not_one() {
     let style: String = c_spinner().get_style().to_string();
+    if !cfg!(not(feature = "custom-styles")) {
+        assert!(style.is_empty());
+        return;
+    }
     for side in ["border-top:", "border-right:", "border-bottom:"] {
         assert!(
             style.contains(side),
@@ -89,6 +93,10 @@ fn the_spinner_draws_three_quarters_of_the_ring_not_one() {
 fn the_sidebar_guide_aligns_with_the_parent_label_text_at_every_depth() {
     let children: String = c_euv_sidebar_children().get_style().to_string();
     let parent: String = c_euv_sidebar_group_title().get_style().to_string();
+    if !cfg!(not(feature = "custom-styles")) {
+        assert!(children.is_empty() && parent.is_empty());
+        return;
+    }
     let guide_margin: String = token_of(&children, "margin-left");
     let parent_padding: String = shorthand_token(&parent, "padding");
     assert_eq!(
@@ -109,6 +117,10 @@ fn the_sidebar_guide_aligns_with_the_parent_label_text_at_every_depth() {
 fn the_sidebar_active_row_keeps_its_pull_back_off_the_container_margin() {
     let children: String = c_euv_sidebar_children().get_style().to_string();
     let active: String = c_euv_sidebar_link_active_flush().get_style().to_string();
+    if !cfg!(not(feature = "custom-styles")) {
+        assert!(children.is_empty() && active.is_empty());
+        return;
+    }
     assert!(
         !active.contains("margin-left: var("),
         "the active fill's own negative margin is the guide distance, not the \

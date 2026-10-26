@@ -4,6 +4,7 @@ class! {
     c_test_red {
         color: "red";
     }
+
     c_test_blue {
         color: "blue";
         background: "white";

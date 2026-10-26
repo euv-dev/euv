@@ -1,6 +1,18 @@
 use super::*;
 
+#[cfg(not(feature = "custom-styles"))]
 class! {
+    // Restores selectable text inside an otherwise non-selectable shell.
+    //
+    // The sidebar and TOC set `user-select: none` so dragging them does not
+    // highlight chrome; the prose column opts back in so a reader can select
+    // and copy an article. Previously an inline `style: "user-select: text"`
+    // on the main column.
+    pub c_euv_user_select_text {
+        user-select: "text";
+        -webkit-user-select: "text";
+    }
+
     pub(crate) c_euv_avatar {
         display: "flex";
         align-items: "center";
@@ -252,15 +264,69 @@ class! {
         color: var!(foreground);
         margin: "0px";
     }
+}
 
+#[cfg(feature = "custom-styles")]
+class! {
     // Restores selectable text inside an otherwise non-selectable shell.
     //
     // The sidebar and TOC set `user-select: none` so dragging them does not
     // highlight chrome; the prose column opts back in so a reader can select
     // and copy an article. Previously an inline `style: "user-select: text"`
     // on the main column.
-    pub c_euv_user_select_text {
-        user-select: "text";
-        -webkit-user-select: "text";
-    }
+    pub c_euv_user_select_text {}
+
+    pub(crate) c_euv_avatar {}
+
+    pub(crate) c_euv_avatar_small {}
+
+    pub(crate) c_euv_avatar_medium {}
+
+    pub(crate) c_euv_avatar_large {}
+
+    pub(crate) c_euv_avatar_square {}
+
+    pub(crate) c_euv_icon {}
+
+    pub(crate) c_euv_icon_label {}
+
+    pub(crate) c_euv_space {}
+
+    pub(crate) c_euv_panel {}
+
+    pub(crate) c_euv_panel_plain {}
+
+    pub(crate) c_euv_panel_bordered {}
+
+    pub(crate) c_euv_panel_dashed {}
+
+    pub(crate) c_euv_panel_header {}
+
+    pub(crate) c_euv_panel_title {}
+
+    pub(crate) c_euv_panel_subtitle {}
+
+    pub(crate) c_euv_panel_body {}
+
+    pub(crate) c_euv_rating {}
+
+    pub(crate) c_euv_rating_star {}
+
+    pub(crate) c_euv_rating_fill {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Global Utilities
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Dev-only readouts produced by `euv_debug`. The base wrapper
+    // establishes the inline-flex layout so the label and the value
+    // share a baseline; the `code` / `pre` value elements apply
+    // monospace font and wrap behaviour for the two modes
+    // (`expanded: false` = single-line `code`, `expanded: true` =
+    // multi-line `pre`).
+    pub(crate) c_debug {}
+
+    pub(crate) c_debug_label {}
+
+    pub(crate) c_debug_value {}
 }

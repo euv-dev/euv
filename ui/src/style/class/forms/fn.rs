@@ -1,36 +1,7 @@
 use super::*;
 
+#[cfg(not(feature = "custom-styles"))]
 class! {
-    pub(crate) c_form_switch {
-        display: "inline-flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        cursor: "pointer";
-        touch-action: "manipulation";
-        user-select: "none";
-        -webkit-user-select: "none";
-    }
-
-    pub(crate) c_form_switch_row {
-        display: "flex";
-        align-items: "center";
-        justify-content: "space-between";
-        gap: var!(gap-component);
-        min-height: var!(min-height-base);
-        padding: format!("{} 0px", var!(space-sm));
-        border-bottom: format!("1px dashed {}", var!(border));
-    }
-
-    pub(crate) c_form_switch_on {
-        display: "inline-flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        cursor: "pointer";
-        touch-action: "manipulation";
-        user-select: "none";
-        -webkit-user-select: "none";
-    }
-
     pub c_form_switch_off {
         display: "inline-flex";
         align-items: "center";
@@ -39,183 +10,6 @@ class! {
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
-    }
-
-    pub(crate) c_form_switch_track {
-        position: "relative";
-        width: "44px";
-        height: "24px";
-        flex-shrink: "0";
-        box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
-        background: var!(background);
-        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
-    }
-
-    pub(crate) c_form_switch_thumb {
-        position: "absolute";
-        top: "3px";
-        left: "3px";
-        width: "16px";
-        height: "16px";
-        box-sizing: "border-box";
-        border-radius: "50%";
-        background: var!(foreground);
-        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
-    }
-
-    pub(crate) c_form_switch_label {
-        font-size: var!(font-base);
-        font-weight: "500";
-        color: var!(foreground);
-    }
-
-    pub(crate) c_euv_slider_input {
-        flex: "1";
-        width: "100%";
-        height: "24px";
-        padding: "0px";
-        background: "transparent";
-        cursor: "pointer";
-        touch-action: "manipulation";
-        -webkit-appearance: "none";
-        appearance: "none";
-        border: "none";
-        outline: "none";
-        ::-webkit-slider-runnable-track {
-            height: "6px";
-            background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
-            border: format!("1px solid {}", var!(border));
-            border-radius: "0px";
-        }
-        ::-webkit-slider-thumb {
-            width: "16px";
-            height: "16px";
-            background: var!(background);
-            border: format!("2px solid {}", var!(accent));
-            border-radius: "50%";
-            cursor: "pointer";
-            -webkit-appearance: "none";
-            // The thumb is taller than the track it rides on, so the margin
-            // pulls it up until it sits centred on the track.
-            margin-top: "-6px";
-        }
-        : active::-webkit-slider-thumb {
-            transform: "scale(0.92)";
-        }
-        ::-moz-range-track {
-            height: "6px";
-            background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
-            border: format!("1px solid {}", var!(border));
-            border-radius: "0px";
-        }
-        ::-moz-range-thumb {
-            width: "16px";
-            height: "16px";
-            background: var!(background);
-            border: format!("2px solid {}", var!(accent));
-            border-radius: "50%";
-            cursor: "pointer";
-        }
-        :focus {
-            outline: "none";
-        }
-    }
-
-    pub(crate) c_euv_slider_row {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-md);
-        margin-bottom: var!(space-sm);
-    }
-
-    pub(crate) c_euv_slider_header {
-        display: "flex";
-        align-items: "baseline";
-        justify-content: "space-between";
-        gap: var!(space-sm);
-        margin-bottom: var!(space-xs);
-    }
-
-    pub(crate) c_euv_radio_group {
-        display: "flex";
-        flex-direction: "column";
-        gap: var!(space-sm);
-        border: "none";
-        margin: "0px";
-        padding: "0px";
-    }
-
-    pub(crate) c_euv_radio_item {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        min-height: var!(min-height-base);
-        padding: format!("{} 0px", var!(space-xs));
-        cursor: "pointer";
-        touch-action: "manipulation";
-        user-select: "none";
-        -webkit-user-select: "none";
-        font-size: var!(font-base);
-        color: var!(foreground);
-        :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
-        }
-    }
-
-    pub(crate) c_euv_radio_item_checked {
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        width: "16px";
-        height: "16px";
-        flex-shrink: "0";
-        box-sizing: "border-box";
-        border: format!("2px solid {}", var!(accent));
-        border-radius: "0px";
-        background: var!(accent);
-        color: var!(text-on-accent);
-        font-size: var!(font-xs);
-        font-weight: "700";
-        line-height: "1";
-    }
-
-    pub(crate) c_euv_radio_item_unchecked {
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        width: "16px";
-        height: "16px";
-        flex-shrink: "0";
-        box-sizing: "border-box";
-        border: format!("1px dashed {}", var!(border));
-        border-radius: "0px";
-        background: var!(background);
-        color: var!(muted-foreground);
-        font-size: var!(font-xs);
-        font-weight: "700";
-        line-height: "1";
-    }
-
-    pub(crate) c_euv_radio_input {
-        position: "absolute";
-        width: "1px";
-        height: "1px";
-        opacity: "0";
-        pointer-events: "none";
-        margin: "0px";
-        padding: "0px";
-        border: "none";
-        outline: "none";
-    }
-
-    pub(crate) c_progress_bar_fill {
-        height: "100%";
-        width: "0%";
-        background: var!(accent);
-        transition: format!("width {} {}", var!(duration-normal), var!(ease-out));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -414,6 +208,213 @@ class! {
         font-size: var!(font-base);
         margin-top: var!(space-xs);
         margin-bottom: var!(space-sm);
+    }
+
+    pub(crate) c_form_switch {
+        display: "inline-flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        cursor: "pointer";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+    }
+
+    pub(crate) c_form_switch_row {
+        display: "flex";
+        align-items: "center";
+        justify-content: "space-between";
+        gap: var!(gap-component);
+        min-height: var!(min-height-base);
+        padding: format!("{} 0px", var!(space-sm));
+        border-bottom: format!("1px dashed {}", var!(border));
+    }
+
+    pub(crate) c_form_switch_on {
+        display: "inline-flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        cursor: "pointer";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+    }
+
+    pub(crate) c_form_switch_track {
+        position: "relative";
+        width: "44px";
+        height: "24px";
+        flex-shrink: "0";
+        box-sizing: "border-box";
+        border: format!("1px solid {}", var!(border));
+        border-radius: "0px";
+        background: var!(background);
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+    }
+
+    pub(crate) c_form_switch_thumb {
+        position: "absolute";
+        top: "3px";
+        left: "3px";
+        width: "16px";
+        height: "16px";
+        box-sizing: "border-box";
+        border-radius: "50%";
+        background: var!(foreground);
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+    }
+
+    pub(crate) c_form_switch_label {
+        font-size: var!(font-base);
+        font-weight: "500";
+        color: var!(foreground);
+    }
+
+    pub(crate) c_euv_slider_input {
+        flex: "1";
+        width: "100%";
+        height: "24px";
+        padding: "0px";
+        background: "transparent";
+        cursor: "pointer";
+        touch-action: "manipulation";
+        -webkit-appearance: "none";
+        appearance: "none";
+        border: "none";
+        outline: "none";
+        ::-webkit-slider-runnable-track {
+            height: "6px";
+            background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
+            border: format!("1px solid {}", var!(border));
+            border-radius: "0px";
+        }
+        ::-webkit-slider-thumb {
+            width: "16px";
+            height: "16px";
+            background: var!(background);
+            border: format!("2px solid {}", var!(accent));
+            border-radius: "50%";
+            cursor: "pointer";
+            -webkit-appearance: "none";
+            // The thumb is taller than the track it rides on, so the margin
+            // pulls it up until it sits centred on the track.
+            margin-top: "-6px";
+        }
+        : active::-webkit-slider-thumb {
+            transform: "scale(0.92)";
+        }
+        ::-moz-range-track {
+            height: "6px";
+            background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
+            border: format!("1px solid {}", var!(border));
+            border-radius: "0px";
+        }
+        ::-moz-range-thumb {
+            width: "16px";
+            height: "16px";
+            background: var!(background);
+            border: format!("2px solid {}", var!(accent));
+            border-radius: "50%";
+            cursor: "pointer";
+        }
+        :focus {
+            outline: "none";
+        }
+    }
+
+    pub(crate) c_euv_slider_row {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-md);
+        margin-bottom: var!(space-sm);
+    }
+
+    pub(crate) c_euv_slider_header {
+        display: "flex";
+        align-items: "baseline";
+        justify-content: "space-between";
+        gap: var!(space-sm);
+        margin-bottom: var!(space-xs);
+    }
+
+    pub(crate) c_euv_radio_group {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-sm);
+        border: "none";
+        margin: "0px";
+        padding: "0px";
+    }
+
+    pub(crate) c_euv_radio_item {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        min-height: var!(min-height-base);
+        padding: format!("{} 0px", var!(space-xs));
+        cursor: "pointer";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        font-size: var!(font-base);
+        color: var!(foreground);
+        :hover {
+            background: var!(accent-muted);
+            color: var!(accent);
+        }
+    }
+
+    pub(crate) c_euv_radio_item_checked {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        width: "16px";
+        height: "16px";
+        flex-shrink: "0";
+        box-sizing: "border-box";
+        border: format!("2px solid {}", var!(accent));
+        border-radius: "0px";
+        background: var!(accent);
+        color: var!(text-on-accent);
+        font-size: var!(font-xs);
+        font-weight: "700";
+        line-height: "1";
+    }
+
+    pub(crate) c_euv_radio_item_unchecked {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        width: "16px";
+        height: "16px";
+        flex-shrink: "0";
+        box-sizing: "border-box";
+        border: format!("1px dashed {}", var!(border));
+        border-radius: "0px";
+        background: var!(background);
+        color: var!(muted-foreground);
+        font-size: var!(font-xs);
+        font-weight: "700";
+        line-height: "1";
+    }
+
+    pub(crate) c_euv_radio_input {
+        position: "absolute";
+        width: "1px";
+        height: "1px";
+        opacity: "0";
+        pointer-events: "none";
+        margin: "0px";
+        padding: "0px";
+        border: "none";
+        outline: "none";
+    }
+
+    pub(crate) c_progress_bar_fill {
+        height: "100%";
+        width: "0%";
+        background: var!(accent);
+        transition: format!("width {} {}", var!(duration-normal), var!(ease-out));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1789,4 +1790,320 @@ class! {
             color: var!(accent);
         }
     }
+}
+
+#[cfg(feature = "custom-styles")]
+class! {
+    pub c_form_switch_off {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Form Elements
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_euv_input_wrapper {}
+
+    pub c_form_label {}
+
+    pub c_inline_input_row {}
+
+    pub c_euv_input {}
+
+    pub c_euv_input_no_transition {}
+
+    pub c_euv_input_error {}
+
+    pub c_form_checkbox {}
+
+    pub c_form_checkbox_label {}
+
+    pub c_form_checkbox_row {}
+
+    pub c_select_input {}
+
+    pub c_textarea_input {}
+
+    pub c_textarea_input_error {}
+
+    pub c_textarea_counter {}
+
+    pub c_textarea_counter_text {}
+
+    pub c_field_error_text {}
+
+    pub(crate) c_form_switch {}
+
+    pub(crate) c_form_switch_row {}
+
+    pub(crate) c_form_switch_on {}
+
+    pub(crate) c_form_switch_track {}
+
+    pub(crate) c_form_switch_thumb {}
+
+    pub(crate) c_form_switch_label {}
+
+    pub(crate) c_euv_slider_input {}
+
+    pub(crate) c_euv_slider_row {}
+
+    pub(crate) c_euv_slider_header {}
+
+    pub(crate) c_euv_radio_group {}
+
+    pub(crate) c_euv_radio_item {}
+
+    pub(crate) c_euv_radio_item_checked {}
+
+    pub(crate) c_euv_radio_item_unchecked {}
+
+    pub(crate) c_euv_radio_input {}
+
+    pub(crate) c_progress_bar_fill {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Select
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_select {}
+
+    pub(crate) c_euv_select_trigger {}
+
+    pub(crate) c_euv_select_value {}
+
+    pub(crate) c_euv_select_placeholder {}
+
+    pub(crate) c_euv_select_caret {}
+
+    pub(crate) c_euv_select_panel {}
+
+    pub(crate) c_euv_select_panel_open {}
+
+    pub(crate) c_euv_select_panel_closed {}
+
+    pub(crate) c_euv_select_option {}
+
+    pub(crate) c_euv_select_option_active {}
+
+    pub(crate) c_euv_select_option_disabled {}
+
+    pub(crate) c_euv_select_group {}
+
+    pub(crate) c_euv_select_empty {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Checkbox Group
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_checkbox_group {}
+
+    pub(crate) c_euv_checkbox_group_label {}
+
+    pub(crate) c_euv_checkbox_group_item {}
+
+    pub(crate) c_euv_checkbox_group_box {}
+
+    pub(crate) c_euv_checkbox_group_box_checked {}
+
+    pub(crate) c_euv_checkbox_group_box_unchecked {}
+
+    pub(crate) c_euv_checkbox_group_input {}
+
+    pub(crate) c_euv_checkbox_group_text {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Segmented
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_segmented {}
+
+    pub(crate) c_euv_segmented_item {}
+
+    pub(crate) c_euv_segmented_item_active {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Number Input
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_number_input {}
+
+    pub(crate) c_euv_number_input_field {}
+
+    pub(crate) c_euv_number_input_stepper {}
+
+    pub(crate) c_euv_number_input_stepper_disabled {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Auto Complete
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_auto_complete {}
+
+    pub(crate) c_euv_auto_complete_input {}
+
+    pub(crate) c_euv_auto_complete_panel {}
+
+    pub(crate) c_euv_auto_complete_panel_open {}
+
+    pub(crate) c_euv_auto_complete_panel_closed {}
+
+    pub(crate) c_euv_auto_complete_option {}
+
+    pub(crate) c_euv_auto_complete_option_active {}
+
+    pub(crate) c_euv_auto_complete_empty {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Form
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_form {}
+
+    pub(crate) c_euv_form_actions {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Date Picker
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_date_picker {}
+
+    pub(crate) c_euv_date_picker_trigger {}
+
+    pub(crate) c_euv_date_picker_value {}
+
+    pub(crate) c_euv_date_picker_placeholder {}
+
+    pub(crate) c_euv_date_picker_caret {}
+
+    pub(crate) c_euv_date_picker_panel {}
+
+    pub(crate) c_euv_date_picker_panel_open {}
+
+    pub(crate) c_euv_date_picker_panel_closed {}
+
+    pub(crate) c_euv_date_picker_footer {}
+
+    // The month-step buttons of the picker's own header.
+    //
+    // They are square boxes like the calendar's day cells, but they are
+    // not day cells: reusing the day class here would dress a month
+    // step up as a date and would make the days impossible to count.
+    pub(crate) c_euv_date_picker_nav {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Time Picker
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_time_picker {}
+
+    pub(crate) c_euv_time_picker_trigger {}
+
+    pub(crate) c_euv_time_picker_value {}
+
+    pub(crate) c_euv_time_picker_placeholder {}
+
+    pub(crate) c_euv_time_picker_caret {}
+
+    pub(crate) c_euv_time_picker_panel {}
+
+    pub(crate) c_euv_time_picker_panel_open {}
+
+    pub(crate) c_euv_time_picker_panel_closed {}
+
+    pub(crate) c_euv_time_picker_grid {}
+
+    pub(crate) c_euv_time_picker_column {}
+
+    pub(crate) c_euv_time_picker_cell {}
+
+    pub(crate) c_euv_time_picker_cell_active {}
+
+    pub(crate) c_euv_time_picker_footer {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Transfer
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_transfer {}
+
+    pub(crate) c_euv_transfer_panel {}
+
+    pub(crate) c_euv_transfer_header {}
+
+    pub(crate) c_euv_transfer_list {}
+
+    pub(crate) c_euv_transfer_item {}
+
+    pub(crate) c_euv_transfer_item_active {}
+
+    pub(crate) c_euv_transfer_box {}
+
+    pub(crate) c_euv_transfer_box_active {}
+
+    pub(crate) c_euv_transfer_actions {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Cascader
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_cascader {}
+
+    pub(crate) c_euv_cascader_trigger {}
+
+    pub(crate) c_euv_cascader_value {}
+
+    pub(crate) c_euv_cascader_placeholder {}
+
+    pub(crate) c_euv_cascader_caret {}
+
+    pub(crate) c_euv_cascader_panel {}
+
+    pub(crate) c_euv_cascader_panel_open {}
+
+    pub(crate) c_euv_cascader_panel_closed {}
+
+    pub(crate) c_euv_cascader_columns {}
+
+    pub(crate) c_euv_cascader_column {}
+
+    pub(crate) c_euv_cascader_option {}
+
+    pub(crate) c_euv_cascader_option_active {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Tree Select
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_tree_select {}
+
+    pub(crate) c_euv_tree_select_trigger {}
+
+    pub(crate) c_euv_tree_select_value {}
+
+    pub(crate) c_euv_tree_select_placeholder {}
+
+    pub(crate) c_euv_tree_select_caret {}
+
+    pub(crate) c_euv_tree_select_panel {}
+
+    pub(crate) c_euv_tree_select_panel_open {}
+
+    pub(crate) c_euv_tree_select_panel_closed {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Mentions
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_mentions {}
+
+    pub(crate) c_euv_mentions_input {}
+
+    pub(crate) c_euv_mentions_panel {}
+
+    pub(crate) c_euv_mentions_panel_open {}
+
+    pub(crate) c_euv_mentions_panel_closed {}
+
+    pub(crate) c_euv_mentions_option {}
+
+    pub(crate) c_euv_mentions_option_active {}
 }

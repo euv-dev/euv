@@ -357,6 +357,52 @@ fn the_ring_token_is_not_an_orphan() {
          every form control."
     );
 }
+fn registry_grouping_is_valid(source: &str) -> bool {
+    let styled: &str = "#[cfg(not(feature = \"custom-styles\"))]\nclass! {";
+    let disabled: &str = "#[cfg(feature = \"custom-styles\")]\nclass! {";
+    source
+        .lines()
+        .filter(|line: &&str| line.starts_with("class!"))
+        .count()
+        == 2
+        && source
+            .lines()
+            .filter(|line: &&str| line.trim_start().starts_with("#[cfg"))
+            .count()
+            == 2
+        && source.matches(styled).count() == 1
+        && source.matches(disabled).count() == 1
+}
+
+#[test]
+fn each_registry_groups_its_feature_gated_classes() {
+    let root: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("style")
+        .join("class");
+    for group in [
+        "data", "display", "forms", "identity", "overlay", "page", "shell",
+    ] {
+        let path: PathBuf = root.join(group).join("fn.rs");
+        let source: String = fs::read_to_string(&path).expect("a UI class registry");
+        assert!(
+            registry_grouping_is_valid(&source),
+            "{} must have one styled and one empty class block",
+            path.display()
+        );
+    }
+}
+
+#[test]
+fn registry_grouping_rejects_individually_guarded_classes() {
+    let grouped: &str = "#[cfg(not(feature = \"custom-styles\"))]\nclass! {\n}\n#[cfg(feature = \"custom-styles\")]\nclass! {\n}\n";
+    assert!(registry_grouping_is_valid(grouped));
+    let split: String =
+        format!("#[cfg(not(feature = \"custom-styles\"))]\nclass! {{\n}}\n{grouped}");
+    assert!(!registry_grouping_is_valid(&split));
+    assert!(!registry_grouping_is_valid(""));
+}
+
 #[test]
 fn the_cards_are_separated_by_the_block_gap() {
     let card: Option<Rule> = rules()
