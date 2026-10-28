@@ -25,6 +25,14 @@ compare_version = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 console_error_panic_hook = { workspace = true }
 
+[features]
+default = []
+theme-antdesign = ["euv-ui/theme-antdesign"]
+theme-material = ["euv-ui/theme-material"]
+theme-bootstrap = ["euv-ui/theme-bootstrap"]
+theme-cupertino = ["euv-ui/theme-cupertino"]
+theme-fluent = ["euv-ui/theme-fluent"]
+
 [build-dependencies]
 chrono = { workspace = true }
 

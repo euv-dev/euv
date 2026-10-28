@@ -32,6 +32,7 @@ mod safe_area_contract;
 mod sidebar_css;
 mod sidebar_first_page;
 mod suspense;
+mod theme;
 mod throttled_value;
 mod toggle;
 mod touch_extract;

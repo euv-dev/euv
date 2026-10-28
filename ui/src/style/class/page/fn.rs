@@ -55,7 +55,7 @@ class! {
 
     pub c_camera_error_box {
         margin: format!("{} 0px", var!(gap-component));
-        color: var!(foreground);
+        color: var!(error);
         font-size: var!(font-base);
         word-break: "break-all";
         overflow-wrap: "break-word";
@@ -193,7 +193,7 @@ class! {
         ::-webkit-slider-runnable-track {
             height: "6px";
             background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
-            border-radius: "3px";
+            border-radius: var!(radius-xs);
             border: "none";
         }
         ::-webkit-slider-thumb {
@@ -201,7 +201,7 @@ class! {
             height: "20px";
             background: var!(background);
             border: format!("2px solid {}", var!(accent));
-            border-radius: "50%";
+            border-radius: var!(radius-full);
             cursor: "pointer";
             -webkit-appearance: "none";
             // The thumb is taller than the track it rides on, so the margin
@@ -211,7 +211,7 @@ class! {
         ::-moz-range-track {
             height: "6px";
             background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
-            border-radius: "3px";
+            border-radius: var!(radius-xs);
             border: "none";
         }
         ::-moz-range-thumb {
@@ -219,7 +219,7 @@ class! {
             height: "20px";
             background: var!(background);
             border: format!("2px solid {}", var!(accent));
-            border-radius: "50%";
+            border-radius: var!(radius-full);
             cursor: "pointer";
         }
     }
@@ -419,7 +419,7 @@ class! {
         font-size: var!(font-base);
         font-weight: "600";
         color: var!(accent);
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
         flex: "1";
     }
 
@@ -571,7 +571,7 @@ class! {
         font-size: var!(font-sm);
         color: "inherit";
         opacity: "1";
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
         word-break: "break-all";
         width: "100%";
     }
@@ -592,7 +592,7 @@ class! {
         font-weight: "700";
         color: var!(accent);
         letter-spacing: "0.04em";
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
     }
 
     pub c_timer_controls {
@@ -675,7 +675,7 @@ class! {
         font-size: var!(font-base);
         color: "inherit";
         word-break: "break-all";
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -816,7 +816,7 @@ class! {
     }
 
     pub c_binding_color_hex {
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
         font-size: var!(font-xl);
         font-weight: "700";
         color: var!(text-on-accent);
@@ -848,7 +848,7 @@ class! {
         ::-webkit-slider-runnable-track {
             height: "6px";
             background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
-            border-radius: "3px";
+            border-radius: var!(radius-xs);
             border: "none";
         }
         ::-webkit-slider-thumb {
@@ -856,7 +856,7 @@ class! {
             height: "20px";
             background: var!(background);
             border: format!("2px solid {}", var!(accent));
-            border-radius: "50%";
+            border-radius: var!(radius-full);
             cursor: "pointer";
             -webkit-appearance: "none";
             // The thumb is taller than the track it rides on, so the margin
@@ -869,7 +869,7 @@ class! {
         ::-moz-range-track {
             height: "6px";
             background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
-            border-radius: "3px";
+            border-radius: var!(radius-xs);
             border: "none";
         }
         ::-moz-range-thumb {
@@ -877,7 +877,7 @@ class! {
             height: "20px";
             background: var!(background);
             border: format!("2px solid {}", var!(accent));
-            border-radius: "50%";
+            border-radius: var!(radius-full);
             cursor: "pointer";
         }
         : active::-moz-range-thumb {
@@ -891,11 +891,11 @@ class! {
         color: "inherit";
         min-width: "32px";
         text-align: "right";
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
     }
 
     pub c_binding_typed_prop_value {
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
         font-size: var!(font-base);
         font-weight: "600";
         color: var!(accent);
@@ -911,7 +911,8 @@ class! {
     pub c_binding_typed_warning {
         font-size: var!(font-base);
         font-weight: "500";
-        color: var!(foreground);
+        color: var!(warning);
+        background: var!(warning-container);
         margin-bottom: "0px";
     }
 
@@ -955,6 +956,7 @@ class! {
             color: var!(text-on-accent);
             border-color: var!(accent);
         }
+        border-radius: var!(radius-sm);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1040,6 +1042,7 @@ class! {
         box-sizing: "border-box";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         color: var!(accent);
+        background: var!(primary-container);
         font-size: var!(font-xs);
         font-weight: "600";
         letter-spacing: "0.05em";
@@ -1113,6 +1116,7 @@ class! {
             color: var!(text-on-accent);
             border-color: "1.5px solid transparent";
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_home_btn_secondary {
@@ -1144,6 +1148,7 @@ class! {
             color: var!(accent);
             border-color: var!(accent);
         }
+        border-radius: var!(radius-sm);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1167,6 +1172,7 @@ class! {
         align-items: "center";
         justify-content: "center";
         gap: var!(space-xs);
+        border-radius: var!(radius-md);
     }
 
     pub c_home_stat_icon {
@@ -1225,6 +1231,7 @@ class! {
         gap: var!(space-sm);
         padding: "0px";
         overflow: "hidden";
+        border-radius: var!(radius-md);
     }
 
     pub c_feature_header {
@@ -1280,7 +1287,7 @@ class! {
         font-size: var!(font-base);
         font-weight: "600";
         color: var!(foreground);
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
         flex: "1";
     }
 
@@ -1289,7 +1296,7 @@ class! {
         font-size: var!(font-base);
         font-weight: "600";
         color: var!(accent);
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
         flex: "1";
         text-decoration: "none";
         transition: format!("opacity {} {}", var!(duration-fast), var!(ease-out));
@@ -1305,7 +1312,7 @@ class! {
         border-top: format!("4px solid {}", var!(accent));
         border-right: format!("4px solid {}", var!(accent));
         border-bottom: format!("4px solid {}", var!(accent));
-        border-radius: "50%";
+        border-radius: var!(radius-full);
         flex-shrink: "0";
         animation: "euv-spin 0.8s linear infinite";
     }
@@ -1332,6 +1339,7 @@ class! {
         gap: var!(gap-element);
         margin-top: var!(gap-component);
         box-sizing: "border-box";
+        border-radius: var!(radius-md);
     }
 
     pub c_error_icon {
@@ -1341,19 +1349,20 @@ class! {
         align-items: "center";
         justify-content: "center";
         flex-shrink: "0";
-        color: var!(foreground);
+        color: var!(error);
         font-size: var!(font-sm);
         font-weight: "700";
     }
 
     pub c_error_text {
-        color: var!(foreground);
+        color: var!(error);
         font-size: var!(font-base);
     }
 
     pub c_data_box {
         margin: format!("{} 0px", var!(gap-component));
         box-sizing: "border-box";
+        border-radius: var!(radius-sm);
     }
 
     pub c_data_pre {
@@ -1362,7 +1371,7 @@ class! {
         margin: "0px";
         white-space: "pre-wrap";
         word-break: "break-all";
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
     }
 
     pub c_fetch_hint {
@@ -1377,7 +1386,7 @@ class! {
     // ═══════════════════════════════════════════════════════════════════════════
 
     pub c_log_container {
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
         font-size: var!(font-base);
         margin-top: "0px";
         color: var!(foreground);
@@ -1387,6 +1396,7 @@ class! {
         padding: format!("{} 0px", var!(space-sm));
         font-size: var!(font-base);
         color: var!(foreground);
+        border-radius: var!(radius-sm);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -58,6 +58,7 @@ class! {
             border-color: var!(accent);
             background: var!(accent-muted);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_euv_input_no_transition {
@@ -74,18 +75,19 @@ class! {
         -webkit-appearance: "none";
         -moz-appearance: "none";
         vertical-align: "middle";
+        border-radius: var!(radius-sm);
     }
 
     pub c_euv_input_error {
         width: "100%";
         min-height: var!(min-height-base);
         padding: format!("0px {}", var!(space-lg));
-        border: format!("1px solid {}", var!(foreground));
+        border: format!("1px solid {}", var!(error));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
         outline: "none";
-        color: var!(foreground);
+        color: var!(error);
         appearance: "none";
         -webkit-appearance: "none";
         -moz-appearance: "none";
@@ -94,12 +96,14 @@ class! {
             outline: "none";
             border-color: var!(foreground);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_form_checkbox {
         cursor: "pointer";
         width: var!(space-lg);
         height: var!(space-lg);
+        border-radius: var!(radius-xs);
     }
 
     pub c_form_checkbox_label {
@@ -138,6 +142,7 @@ class! {
             border-color: var!(accent);
             background: var!(accent-muted);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_textarea_input {
@@ -166,13 +171,14 @@ class! {
             border-color: var!(accent);
             background: var!(accent-muted);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_textarea_input_error {
         width: "100%";
         max-width: "100%";
         padding: format!("{} {}", var!(space-md), var!(space-lg));
-        border: format!("1px solid {}", var!(foreground));
+        border: format!("1px solid {}", var!(error));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -181,7 +187,7 @@ class! {
         overflow-x: "hidden";
         word-wrap: "break-word";
         font-family: "inherit";
-        color: var!(foreground);
+        color: var!(error);
         appearance: "none";
         -webkit-appearance: "none";
         -moz-appearance: "none";
@@ -189,6 +195,7 @@ class! {
             outline: "none";
             border-color: var!(foreground);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_textarea_counter {
@@ -204,7 +211,7 @@ class! {
     }
 
     pub c_field_error_text {
-        color: var!(foreground);
+        color: var!(error);
         font-size: var!(font-base);
         margin-top: var!(space-xs);
         margin-bottom: var!(space-sm);
@@ -247,7 +254,7 @@ class! {
         flex-shrink: "0";
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-full);
         background: var!(background);
         transition: format!("{} {}", var!(duration-fast), var!(ease-out));
     }
@@ -259,7 +266,7 @@ class! {
         width: "16px";
         height: "16px";
         box-sizing: "border-box";
-        border-radius: "50%";
+        border-radius: var!(radius-full);
         background: var!(foreground);
         transition: format!("{} {}", var!(duration-fast), var!(ease-out));
     }
@@ -286,14 +293,14 @@ class! {
             height: "6px";
             background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
             border: format!("1px solid {}", var!(border));
-            border-radius: "0px";
+            border-radius: var!(radius-full);
         }
         ::-webkit-slider-thumb {
             width: "16px";
             height: "16px";
             background: var!(background);
             border: format!("2px solid {}", var!(accent));
-            border-radius: "50%";
+            border-radius: var!(radius-full);
             cursor: "pointer";
             -webkit-appearance: "none";
             // The thumb is taller than the track it rides on, so the margin
@@ -307,14 +314,14 @@ class! {
             height: "6px";
             background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
             border: format!("1px solid {}", var!(border));
-            border-radius: "0px";
+            border-radius: var!(radius-full);
         }
         ::-moz-range-thumb {
             width: "16px";
             height: "16px";
             background: var!(background);
             border: format!("2px solid {}", var!(accent));
-            border-radius: "50%";
+            border-radius: var!(radius-full);
             cursor: "pointer";
         }
         :focus {
@@ -373,7 +380,7 @@ class! {
         flex-shrink: "0";
         box-sizing: "border-box";
         border: format!("2px solid {}", var!(accent));
-        border-radius: "0px";
+        border-radius: var!(radius-full);
         background: var!(accent);
         color: var!(text-on-accent);
         font-size: var!(font-xs);
@@ -390,7 +397,7 @@ class! {
         flex-shrink: "0";
         box-sizing: "border-box";
         border: format!("1px dashed {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-full);
         background: var!(background);
         color: var!(muted-foreground);
         font-size: var!(font-xs);
@@ -454,6 +461,7 @@ class! {
             outline: "none";
             border-color: var!(accent);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub(crate) c_euv_select_value {
@@ -485,9 +493,10 @@ class! {
         max-height: "240px";
         overflow-y: "auto";
         border: format!("1px solid {}", var!(border));
-        background: var!(background);
+        background: var!(surface-elevated);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
+        border-radius: var!(radius-md);
     }
 
     pub(crate) c_euv_select_panel_open {
@@ -647,7 +656,7 @@ class! {
         flex-shrink: "0";
         box-sizing: "border-box";
         border: format!("1px dashed {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-xs);
         background: var!(background);
         color: var!(text-on-accent);
         font-size: var!(font-xs);
@@ -664,7 +673,7 @@ class! {
         flex-shrink: "0";
         box-sizing: "border-box";
         border: format!("2px solid {}", var!(accent));
-        border-radius: "0px";
+        border-radius: var!(radius-xs);
         background: var!(accent);
         color: var!(text-on-accent);
         font-size: var!(font-xs);
@@ -681,7 +690,7 @@ class! {
         flex-shrink: "0";
         box-sizing: "border-box";
         border: format!("1px dashed {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-xs);
         background: var!(background);
         color: var!(muted-foreground);
         font-size: var!(font-xs);
@@ -1125,7 +1134,7 @@ class! {
         color: var!(foreground);
         background: var!(background);
         border: "1px solid transparent";
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
@@ -1382,7 +1391,7 @@ class! {
         flex-shrink: "0";
         box-sizing: "border-box";
         border: format!("1px dashed {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         background: var!(background);
         color: var!(text-on-accent);
         font-size: var!(font-xs);
@@ -1399,7 +1408,7 @@ class! {
         flex-shrink: "0";
         box-sizing: "border-box";
         border: format!("2px solid {}", var!(accent));
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         background: var!(accent);
         color: var!(text-on-accent);
         font-size: var!(font-xs);

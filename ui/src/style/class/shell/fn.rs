@@ -10,7 +10,7 @@ class! {
         display: "flex";
         height: "100%";
         padding-bottom: var!(safe-area-inset-bottom);
-        font-family: "system-ui, -apple-system, sans-serif";
+        font-family: var!(font-family);
         background: var!(background);
         color: var!(foreground);
         user-select: "none";
@@ -22,7 +22,7 @@ class! {
         ::-webkit-scrollbar-thumb {
             background: var!(scrollbar-thumb);
             border: "none";
-            border-radius: "0px";
+            border-radius: var!(radius-full);
         }
         ::-webkit-scrollbar-thumb:hover {
             background: var!(scrollbar-thumb-hover);
@@ -88,7 +88,7 @@ class! {
             appearance: "none";
             -webkit-appearance: "none";
             -moz-appearance: "none";
-            border-radius: "0px";
+            border-radius: var!(radius-sm);
         }
         input[type="search"]::-webkit-search-cancel-button, input[type="search"]::-webkit-search-decoration {
             -webkit-appearance: "none";
@@ -108,13 +108,14 @@ class! {
             -moz-appearance: "none";
             resize: "vertical";
             font-family: "inherit";
+            border-radius: var!(radius-sm);
         }
         select {
             appearance: "none";
             -webkit-appearance: "none";
             -moz-appearance: "none";
             background-image: "none";
-            border-radius: "0px";
+            border-radius: var!(radius-sm);
         }
         img, svg, video, canvas, audio, iframe, embed, object {
             display: "block";
@@ -145,7 +146,7 @@ class! {
             font-style: "italic";
         }
         code, pre, kbd, samp {
-            font-family: "ui-monospace, monospace";
+            font-family: var!(font-family-mono);
         }
         @media ((max-width: 767px)) {
             input, select, textarea {
@@ -253,7 +254,7 @@ class! {
         ::-webkit-scrollbar-thumb {
             background: var!(scrollbar-thumb);
             border: "none";
-            border-radius: "0px";
+            border-radius: var!(radius-full);
         }
         ::-webkit-scrollbar-thumb:hover {
             background: var!(scrollbar-thumb-hover);
@@ -318,6 +319,7 @@ class! {
         :active {
             border-color: var!(foreground);
         }
+        border-radius: var!(radius-sm);
     }
 
     // Open state of the locale switcher: the same solid treatment the sidebar
@@ -370,6 +372,7 @@ class! {
             background: "transparent";
             border-color: var!(border);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_theme_icon_sun {
@@ -482,7 +485,7 @@ class! {
         flex: "1";
         height: "100%";
         overflow: "auto";
-        padding: format!("{} {} 0 {}", var!(padding-main-top), var!(edge-gutter), var!(edge-gutter));
+        padding: format!("{} {} 0 {}", var!(padding-main-top), var!(padding-main-horizontal), var!(edge-gutter));
         scrollbar-color: format!("{} {}", var!(scrollbar-thumb), var!(scrollbar-track));
         ::-webkit-scrollbar {
             width: "6px";
@@ -490,7 +493,7 @@ class! {
         ::-webkit-scrollbar-thumb {
             background: var!(scrollbar-thumb);
             border: "none";
-            border-radius: "0px";
+            border-radius: var!(radius-full);
         }
         ::-webkit-scrollbar-thumb:hover {
             background: var!(scrollbar-thumb-hover);
@@ -499,7 +502,7 @@ class! {
             background: var!(scrollbar-thumb-active);
         }
         @media ((max-width: 767px)) {
-            padding: format!("{} {} 0 {}", var!(padding-main-top-mobile), var!(edge-gutter-mobile), var!(edge-gutter-mobile));
+            padding: format!("{} {} 0 {}", var!(padding-main-top-mobile), var!(padding-main-horizontal-mobile), var!(edge-gutter-mobile));
             scrollbar-width: "none";
             ::-webkit-scrollbar {
                 width: "0px";
@@ -568,6 +571,7 @@ class! {
             background: "transparent";
             color: var!(foreground);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_mobile_theme_button {
@@ -582,6 +586,7 @@ class! {
         :active {
             background: "transparent";
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_mobile_menu_button_active {
@@ -621,6 +626,7 @@ class! {
         :active {
             color: var!(muted-foreground);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_mobile_overlay {
@@ -657,6 +663,7 @@ class! {
         will-change: "transform";
         transition: format!("transform {} {}", var!(duration-overlay), var!(ease-out));
         overflow: "hidden";
+        box-shadow: var!(shadow-drawer);
     }
 
     pub c_mobile_nav_drawer_closed {
@@ -701,6 +708,7 @@ class! {
         :hover {
             background: var!(accent-muted);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_euv_sidebar_group_title {
@@ -840,6 +848,7 @@ class! {
         :hover {
             box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_euv_sidebar_link_active {
@@ -861,6 +870,7 @@ class! {
         :hover {
             box-shadow: "none";
         }
+        border-radius: var!(radius-sm);
     }
 
     // An active child needs the accent fill to read as one continuous block
@@ -933,6 +943,7 @@ class! {
         :hover {
             color: var!(accent);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_euv_toc_link_active {
@@ -942,6 +953,7 @@ class! {
         :hover {
             font-weight: "700";
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_euv_toc_link_nested {
@@ -963,7 +975,7 @@ class! {
         flex-direction: "column";
         width: "100%";
         height: "100%";
-        font-family: "system-ui, -apple-system, sans-serif";
+        font-family: var!(font-family);
         background: var!(background);
         color: var!(foreground);
         padding: format!("0px {} {} {}", var!(safe-area-inset-right), var!(padding-shell-bottom), var!(safe-area-inset-left));
@@ -971,7 +983,7 @@ class! {
         ::-webkit-scrollbar-thumb {
             background: var!(scrollbar-thumb);
             border: "none";
-            border-radius: "0px";
+            border-radius: var!(radius-full);
         }
         ::-webkit-scrollbar-thumb:hover {
             background: var!(scrollbar-thumb-hover);
@@ -1009,6 +1021,8 @@ class! {
             width: "44px";
             height: "44px";
         }
+        border-radius: var!(radius-full);
+        box-shadow: var!(shadow-console-button);
     }
 
     pub(crate) c_nav_item_active {
@@ -1029,6 +1043,7 @@ class! {
         color: var!(text-on-accent);
         font-weight: "600";
         background: var!(accent);
+        border-radius: var!(radius-sm);
     }
 
     pub(crate) c_nav_item_inactive {
@@ -1048,6 +1063,7 @@ class! {
             color: var!(accent);
             box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
         }
+        border-radius: var!(radius-sm);
     }
 
     pub(crate) c_nav_item_icon {

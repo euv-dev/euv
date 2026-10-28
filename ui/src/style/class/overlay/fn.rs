@@ -116,7 +116,7 @@ class! {
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-md);
         background: var!(accent);
         color: var!(text-on-accent);
         font-size: var!(font-xs);
@@ -135,7 +135,7 @@ class! {
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-md);
         background: var!(accent);
         color: var!(text-on-accent);
         font-size: var!(font-xs);
@@ -157,7 +157,7 @@ class! {
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-md);
         background: var!(accent);
         color: var!(text-on-accent);
         font-size: var!(font-xs);
@@ -179,7 +179,7 @@ class! {
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-md);
         background: var!(accent);
         color: var!(text-on-accent);
         font-size: var!(font-xs);
@@ -201,7 +201,7 @@ class! {
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-md);
         background: var!(accent);
         color: var!(text-on-accent);
         font-size: var!(font-xs);
@@ -228,7 +228,7 @@ class! {
         z-index: "150";
         min-width: "200px";
         box-sizing: "border-box";
-        border-radius: "0px";
+        border-radius: var!(radius-md);
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-base);
@@ -242,7 +242,7 @@ class! {
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
         box-shadow: var!(shadow-sm);
-        border-radius: "0px";
+        border-radius: var!(radius-md);
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-base);
@@ -258,7 +258,7 @@ class! {
         min-width: "200px";
         box-sizing: "border-box";
         border: format!("1px dashed {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-md);
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-base);
@@ -351,7 +351,7 @@ class! {
         color: var!(foreground);
         background: var!(background);
         border: "1px solid transparent";
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
@@ -373,7 +373,7 @@ class! {
         color: var!(muted-foreground);
         background: var!(background);
         border: "1px dashed transparent";
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
@@ -391,7 +391,7 @@ class! {
         color: var!(foreground);
         background: var!(background);
         border: format!("2px solid {}", var!(accent));
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
@@ -413,7 +413,7 @@ class! {
         color: var!(text-on-accent);
         background: var!(accent);
         border: format!("2px solid {}", var!(accent));
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
@@ -495,7 +495,7 @@ class! {
     pub(crate) c_euv_upload_file_size {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
         white-space: "nowrap";
         flex-shrink: "0";
     }
@@ -577,7 +577,7 @@ class! {
     }
 
     pub(crate) c_modal_content {
-        background: var!(background);
+        background: var!(surface-elevated);
         padding: "0px";
         max-width: "480px";
         width: "90%";
@@ -585,6 +585,8 @@ class! {
         overflow: "hidden";
         color: var!(foreground);
         box-sizing: "border-box";
+        border-radius: var!(radius-lg);
+        box-shadow: var!(shadow-modal);
         @media ((max-width: 767px)) {
             max-width: "100%";
             width: "calc(100% - 32px)";
@@ -675,6 +677,7 @@ class! {
         will-change: "transform";
         transition: format!("transform {} {}", var!(duration-overlay), var!(ease-out));
         overflow: "hidden";
+        box-shadow: var!(shadow-console-panel);
         padding: format!("{} {}", var!(padding-main-top), var!(edge-gutter));
         @media ((max-width: 767px)) {
             padding: format!("{} {}", var!(space-md), var!(edge-gutter-mobile));
@@ -785,7 +788,7 @@ class! {
         overflow-y: "auto";
         contain: "content";
         padding-bottom: var!(space-md);
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
         font-size: var!(font-xs);
     }
 
@@ -905,11 +908,12 @@ class! {
         // button) leaves a large empty gap on the left of the menu, since
         // `right: 0` anchors only the right edge to the container.
         width: "100%";
-        background: var!(background);
+        background: var!(surface-elevated);
         border: format!("1px solid {}", var!(border));
         box-shadow: var!(shadow-accent-lg);
         flex-direction: "column";
         z-index: "101";
+        border-radius: var!(radius-md);
     }
 
     pub(crate) c_euv_dropdown_menu_open {

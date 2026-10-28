@@ -30,7 +30,8 @@ impl ThemeState {
         };
         let root_class: Signal<String> = App::use_signal(|| {
             format!(
-                "{initial_root} {theme_class}",
+                "{initial_root} {scheme_class} {theme_class}",
+                scheme_class = scheme_class_name(),
                 theme_class = Self::theme_class_name(&initial_theme)
             )
         });
@@ -41,7 +42,8 @@ impl ThemeState {
                 c_app_root().get_name()
             };
             root_class.set(format!(
-                "{root} {theme_class}",
+                "{root} {scheme_class} {theme_class}",
+                scheme_class = scheme_class_name(),
                 theme_class = Self::theme_class_name(&theme_value)
             ));
         });

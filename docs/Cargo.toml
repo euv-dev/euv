@@ -18,6 +18,14 @@ euv-ui = { workspace = true }
 
 lombok-macros = { workspace = true }
 
+[features]
+default = []
+theme-antdesign = ["euv-ui/theme-antdesign"]
+theme-material = ["euv-ui/theme-material"]
+theme-bootstrap = ["euv-ui/theme-bootstrap"]
+theme-cupertino = ["euv-ui/theme-cupertino"]
+theme-fluent = ["euv-ui/theme-fluent"]
+
 [build-dependencies]
 serde_yaml = { workspace = true }
 http-constant = { workspace = true }

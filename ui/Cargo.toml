@@ -18,6 +18,11 @@ crate-type = ["rlib"]
 [features]
 default = []
 custom-styles = []
+theme-antdesign = []
+theme-material = []
+theme-bootstrap = []
+theme-cupertino = []
+theme-fluent = []
 
 [dependencies]
 euv = { workspace = true }

@@ -51,7 +51,7 @@ class! {
             opacity: "1";
         }
         :hover {
-            background: var!(accent);
+            background: var!(primary-hover);
         }
         :active {
             background: var!(accent);
@@ -63,6 +63,7 @@ class! {
             padding: format!("{} {}", var!(space-lg), var!(space-xl));
             font-size: var!(font-md);
         }
+        border-radius: var!(radius-sm);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -104,6 +105,7 @@ class! {
             cursor: "not-allowed";
             opacity: "1";
         }
+        border-radius: var!(radius-sm);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -112,16 +114,16 @@ class! {
 
     pub c_error_box {
         margin: format!("{} 0px", var!(gap-component));
-        background: var!(accent-muted);
-        color: var!(foreground);
+        background: var!(error-container);
+        color: var!(on-error);
         font-size: var!(font-base);
         box-sizing: "border-box";
     }
 
     pub c_success_box {
         margin: format!("{} 0px", var!(gap-component));
-        background: var!(accent-muted);
-        color: var!(foreground);
+        background: var!(success-container);
+        color: var!(success);
         font-size: var!(font-base);
         box-sizing: "border-box";
     }
@@ -209,6 +211,7 @@ class! {
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
+        border-radius: var!(radius-sm);
     }
 
     pub c_tab_item_inactive {
@@ -226,6 +229,7 @@ class! {
             background: var!(accent-muted);
             color: var!(accent);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_tab_content {
@@ -278,6 +282,7 @@ class! {
             border-color: var!(accent);
             background: var!(accent-muted);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_list_input_error {
@@ -285,7 +290,7 @@ class! {
         flex: "1";
         height: "42px";
         padding: format!("0px {}", var!(space-lg));
-        border: format!("1px solid {}", var!(foreground));
+        border: format!("1px solid {}", var!(error));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -299,10 +304,11 @@ class! {
             outline: "none";
             border-color: var!(foreground);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_list_error_text {
-        color: var!(foreground);
+        color: var!(error);
         font-size: var!(font-base);
         margin: format!("{} 0px", var!(gap-element));
     }
@@ -325,6 +331,7 @@ class! {
         gap: var!(gap-component);
         min-height: var!(min-height-base);
         margin: format!("{} 0px", var!(gap-element));
+        border-radius: var!(radius-sm);
     }
 
     pub c_list_item_text {
@@ -340,6 +347,7 @@ class! {
     pub c_list_item_button {
         max-width: "120px";
         flex-shrink: "0";
+        border-radius: var!(radius-sm);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -412,18 +420,21 @@ class! {
         height: "12px";
         margin: format!("{} 0px", var!(space-lg));
         overflow: "hidden";
+        border-radius: var!(radius-full);
     }
 
     pub c_progress_bar_running {
         height: "100%";
         background: var!(accent);
         animation: format!("euv-progress 1.6s {} forwards", var!(ease-in-out));
+        border-radius: var!(radius-full);
     }
 
     pub c_progress_bar_stopped {
         height: "100%";
         background: var!(accent);
         width: "0%";
+        border-radius: var!(radius-full);
     }
 
     pub c_anim_scale_box {
@@ -515,6 +526,7 @@ class! {
         :hover {
             border-color: var!(accent);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_euv_footer {
@@ -791,6 +803,7 @@ class! {
             background: var!(accent-muted);
             color: var!(accent);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub(crate) c_euv_tab_item_active {
@@ -805,6 +818,7 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         white-space: "nowrap";
+        border-radius: var!(radius-sm);
     }
 
     pub(crate) c_euv_tabs_panel {
@@ -979,6 +993,7 @@ class! {
         @media ((max-width: 767px)) {
             margin-top: var!(page-block-gap-mobile);
         }
+        border-radius: var!(radius-md);
     }
 
     pub(crate) c_modal_close_button {
@@ -1033,6 +1048,7 @@ class! {
             cursor: "not-allowed";
             opacity: "1";
         }
+        border-radius: var!(radius-sm);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1064,6 +1080,7 @@ class! {
             padding: format!("{} {}", var!(space-2xs), var!(space-xs));
             font-size: var!(font-xs);
         }
+        border-radius: var!(radius-full);
     }
 
     pub(crate) c_badge_outline {
@@ -1082,6 +1099,7 @@ class! {
             padding: format!("{} {}", var!(space-2xs), var!(space-xs));
             font-size: var!(font-xs);
         }
+        border-radius: var!(radius-full);
     }
 
     pub(crate) c_euv_tag_solid_black {
@@ -1097,6 +1115,7 @@ class! {
         background: var!(accent);
         border: format!("1px solid {}", var!(accent));
         box-sizing: "border-box";
+        border-radius: var!(radius-sm);
     }
 
     pub(crate) c_euv_tag_solid_white {
@@ -1111,6 +1130,7 @@ class! {
         cursor: "pointer";
         border: format!("1.5px solid {}", var!(accent));
         box-sizing: "border-box";
+        border-radius: var!(radius-sm);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1129,6 +1149,7 @@ class! {
         cursor: "pointer";
         border: format!("1.5px solid {}", var!(accent));
         box-sizing: "border-box";
+        border-radius: var!(radius-sm);
     }
 
     pub(crate) c_euv_tag_outline_white {
@@ -1143,6 +1164,7 @@ class! {
         cursor: "pointer";
         border: format!("1.5px solid {}", var!(border));
         box-sizing: "border-box";
+        border-radius: var!(radius-sm);
     }
 
     pub(crate) c_euv_pagination_label {
@@ -1332,7 +1354,7 @@ class! {
         margin: "0px";
         color: var!(foreground);
         font-size: var!(font-sm);
-        font-family: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+        font-family: var!(font-family-mono);
         line-height: "1.5";
     }
 
@@ -1459,7 +1481,7 @@ class! {
         height: var!(space-sm);
         padding: "0px";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-full);
         background: var!(background);
         cursor: "pointer";
         touch-action: "manipulation";
@@ -1473,7 +1495,7 @@ class! {
         height: var!(space-sm);
         padding: "0px";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-full);
         background: var!(accent);
         cursor: "pointer";
         touch-action: "manipulation";

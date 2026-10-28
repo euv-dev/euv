@@ -304,7 +304,10 @@ fn a_bordered_inline_box_is_never_an_atomic_inline_flex() {
         let bordered: bool = declarations.iter().any(|entry: &(String, String)| {
             let property: &str = entry.0.as_str();
             let value: &str = entry.1.trim_matches('"');
-            property.starts_with("border") && !value.is_empty() && value != "none"
+            property.starts_with("border")
+                && property != "border-radius"
+                && !value.is_empty()
+                && value != "none"
         });
         if !bordered {
             continue;

@@ -1,6 +1,19 @@
 use super::*;
 
 class! {
+    // The active UI scheme, named next to the theme toggle. The scheme is a
+    // compile-time choice, so the label is the one thing that tells a reader
+    // which design language the build carries.
+    pub(crate) c_nav_scheme_label {
+        font-size: var!(font-xs);
+        color: var!(muted-foreground);
+        text-transform: "uppercase";
+        letter-spacing: "0.08em";
+        white-space: "nowrap";
+        flex-grow: "1";
+        text-align: "left";
+    }
+
     // The gesture demo's touch surface: tall enough to drag in, with the
     // browser's own touch and text gestures suppressed so a drag reads as a
     // drag rather than a scroll or a selection.

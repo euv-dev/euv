@@ -45,6 +45,10 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
                 }
                 div {
                     class: c_nav_theme_toggle()
+                    span {
+                        class: c_nav_scheme_label()
+                        scheme_name()
+                    }
                     button {
                         class: c_nav_theme_button()
                         onclick: ThemeState::toggle(theme_signal)
@@ -194,6 +198,10 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                 build_mobile_nav_items {
                     route_signal: route_signal
                     drawer_open: drawer_open
+                }
+                span {
+                    class: c_nav_scheme_label()
+                    scheme_name()
                 }
             }
         }

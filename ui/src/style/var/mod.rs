@@ -1,5 +1,6 @@
-mod r#fn;
+mod scheme;
+mod theme;
 
-pub use r#fn::*;
+pub use {scheme::*, theme::*};
 
 use super::*;

@@ -51,7 +51,8 @@ pub(crate) const APP_SCROLLBAR_CSS_TRACK: &str =
     "::-webkit-scrollbar-track { background: transparent; } ";
 
 /// Scrollbar stylesheet: square WebKit scrollbar thumb.
-pub(crate) const APP_SCROLLBAR_CSS_THUMB: &str = r#"::-webkit-scrollbar-thumb{border-radius:0}"#;
+pub(crate) const APP_SCROLLBAR_CSS_THUMB: &str =
+    r#"::-webkit-scrollbar-thumb{border-radius:var(--radius-full)}"#;
 
 /// Scrollbar stylesheet: hidden WebKit scrollbar buttons.
 pub(crate) const APP_SCROLLBAR_CSS_BUTTON: &str =

@@ -30,7 +30,7 @@ class! {
     pub c_virtual_list_status_value {
         font-weight: "700";
         color: var!(accent);
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
     }
 
     pub c_virtual_list_card {
@@ -42,6 +42,7 @@ class! {
         @media ((max-width: 767px)) {
             padding: var!(space-lg);
         }
+        border-radius: var!(radius-md);
     }
 
     pub c_virtual_list_row {
@@ -57,7 +58,7 @@ class! {
         font-size: var!(font-sm);
         font-weight: "600";
         color: var!(accent);
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
         flex-shrink: "0";
         display: "flex";
         align-items: "center";
@@ -158,6 +159,7 @@ class! {
             border-color: var!(accent);
             background: var!(accent-muted);
         }
+        border-radius: var!(radius-sm);
     }
 
     pub c_ws_message_time {
@@ -179,6 +181,7 @@ class! {
         @media ((max-width: 767px)) {
             overflow-x: "auto";
         }
+        border-radius: var!(radius-sm);
     }
 
     pub(crate) c_euv_table_head {
@@ -248,6 +251,7 @@ class! {
         gap: var!(space-2xs);
         padding: var!(space-lg);
         border: format!("1px dashed {}", var!(border));
+        border-radius: var!(radius-md);
     }
 
     pub(crate) c_euv_stat_icon {
@@ -265,7 +269,7 @@ class! {
         font-weight: "700";
         color: var!(accent);
         line-height: "1.1";
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
     }
 
     pub(crate) c_euv_stat_label {
@@ -340,7 +344,7 @@ class! {
         height: "24px";
         flex-shrink: "0";
         box-sizing: "border-box";
-        border-radius: "50%";
+        border-radius: var!(radius-full);
         border: format!("1px dashed {}", var!(border));
         background: var!(background);
         color: var!(muted-foreground);
@@ -400,7 +404,7 @@ class! {
         width: "10px";
         height: "10px";
         box-sizing: "border-box";
-        border-radius: "50%";
+        border-radius: var!(radius-full);
         border: format!("1px solid {}", var!(accent));
         background: var!(background);
     }
@@ -429,7 +433,7 @@ class! {
     pub(crate) c_euv_timeline_time {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
-        font-family: "ui-monospace, monospace";
+        font-family: var!(font-family-mono);
     }
 
     pub(crate) c_euv_timeline_line {
@@ -446,7 +450,7 @@ class! {
         display: "block";
         width: "100%";
         height: "16px";
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         border: format!("1px dashed {}", var!(border));
         background: var!(accent-muted);
         animation: format!("euv-pulse 1.5s {} infinite", var!(ease-in-out));
@@ -456,7 +460,7 @@ class! {
         display: "block";
         width: "100%";
         height: "12px";
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         border: format!("1px dashed {}", var!(border));
         background: var!(accent-muted);
         animation: format!("euv-pulse 1.5s {} infinite", var!(ease-in-out));
@@ -492,6 +496,7 @@ class! {
         padding: format!("{} 0px", var!(space-sm));
         border-bottom: format!("1px dashed {}", var!(border));
         box-sizing: "border-box";
+        border-radius: var!(radius-sm);
     }
 
     pub(crate) c_euv_list_item_body {

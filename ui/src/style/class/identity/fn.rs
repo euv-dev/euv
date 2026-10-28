@@ -22,7 +22,7 @@ class! {
         height: "40px";
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         background: var!(accent-muted);
         color: var!(foreground);
         font-size: var!(font-sm);
@@ -43,7 +43,7 @@ class! {
         height: "24px";
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         background: var!(accent-muted);
         color: var!(foreground);
         font-size: var!(font-xs);
@@ -64,7 +64,7 @@ class! {
         height: "32px";
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         background: var!(accent-muted);
         color: var!(foreground);
         font-size: var!(font-sm);
@@ -85,7 +85,7 @@ class! {
         height: "40px";
         box-sizing: "border-box";
         border: format!("1px solid {}", var!(border));
-        border-radius: "0px";
+        border-radius: var!(radius-sm);
         background: var!(accent-muted);
         color: var!(foreground);
         font-size: var!(font-lg);
@@ -98,7 +98,7 @@ class! {
     }
 
     pub(crate) c_euv_avatar_square {
-        border-radius: "50%";
+        border-radius: var!(radius-full);
     }
 
     pub(crate) c_euv_icon {
@@ -110,6 +110,7 @@ class! {
         flex-shrink: "0";
         user-select: "none";
         -webkit-user-select: "none";
+        border-radius: var!(radius-sm);
     }
 
     pub(crate) c_euv_icon_label {
@@ -247,7 +248,7 @@ class! {
         border: format!("1px dashed {}", var!(accent-muted));
         border-radius: var!(radius-sm);
         background: var!(surface-muted);
-        font-family: "ui-monospace, SFMono-Regular, monospace";
+        font-family: var!(font-family-mono);
         font-size: var!(font-sm);
         color: var!(foreground);
         margin: format!("{} 0px", var!(space-xs));
@@ -260,7 +261,7 @@ class! {
     }
 
     pub(crate) c_debug_value {
-        font-family: "ui-monospace, SFMono-Regular, monospace";
+        font-family: var!(font-family-mono);
         color: var!(foreground);
         margin: "0px";
     }
