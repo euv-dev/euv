@@ -167,11 +167,11 @@ fn every_scheme_defines_the_same_tokens() {
         );
         let missing: Vec<&String> = reference
             .iter()
-            .filter(|name: &String| !names.contains(name))
+            .filter(|name: &&String| !names.contains(name))
             .collect();
         let extra: Vec<&String> = names
             .iter()
-            .filter(|name: &String| !reference.contains(name))
+            .filter(|name: &&String| !reference.contains(name))
             .collect();
         assert!(
             missing.is_empty() && extra.is_empty(),
@@ -187,7 +187,7 @@ fn the_mode_and_the_scheme_never_own_the_same_token() {
         let names: Vec<String> = token_names(&scheme_file(scheme));
         let overlap: Vec<&String> = mode
             .iter()
-            .filter(|name: &String| names.contains(name))
+            .filter(|name: &&String| names.contains(name))
             .collect();
         assert!(
             overlap.is_empty(),
