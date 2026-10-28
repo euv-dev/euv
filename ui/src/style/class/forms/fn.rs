@@ -512,7 +512,7 @@ class! {
         overflow-y: "auto";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "flex";
         flex-direction: "column";
@@ -529,7 +529,7 @@ class! {
         overflow-y: "auto";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "none";
     }
@@ -914,7 +914,7 @@ class! {
         overflow-y: "auto";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
     }
 
@@ -929,7 +929,7 @@ class! {
         overflow-y: "auto";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "flex";
         flex-direction: "column";
@@ -946,7 +946,7 @@ class! {
         overflow-y: "auto";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "none";
     }
@@ -1077,7 +1077,7 @@ class! {
         width: "280px";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
     }
 
@@ -1090,7 +1090,7 @@ class! {
         width: "280px";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "flex";
         flex-direction: "column";
@@ -1105,7 +1105,7 @@ class! {
         width: "280px";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "none";
     }
@@ -1212,7 +1212,7 @@ class! {
         width: "220px";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
     }
 
@@ -1225,7 +1225,7 @@ class! {
         width: "220px";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "flex";
         flex-direction: "column";
@@ -1240,7 +1240,7 @@ class! {
         width: "220px";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "none";
     }
@@ -1492,7 +1492,7 @@ class! {
         min-width: "240px";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
     }
 
@@ -1505,7 +1505,7 @@ class! {
         min-width: "240px";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "flex";
         flex-direction: "row";
@@ -1520,7 +1520,7 @@ class! {
         min-width: "240px";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "none";
     }
@@ -1646,7 +1646,7 @@ class! {
         padding: var!(space-sm);
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
     }
 
@@ -1662,7 +1662,7 @@ class! {
         padding: var!(space-sm);
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "block";
     }
@@ -1679,7 +1679,7 @@ class! {
         padding: var!(space-sm);
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "none";
     }
@@ -1729,7 +1729,7 @@ class! {
         overflow-y: "auto";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
     }
 
@@ -1744,7 +1744,7 @@ class! {
         overflow-y: "auto";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "flex";
         flex-direction: "column";
@@ -1761,7 +1761,7 @@ class! {
         overflow-y: "auto";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "none";
     }

@@ -989,7 +989,7 @@ class! {
     pub(crate) c_card {
         color: var!(card-foreground);
         background: var!(card);
-        border: format!("{} solid {}", var!(border-width), var!(border));
+        border: format!("{} solid {}", var!(surface-border-width), var!(border));
         box-shadow: var!(shadow-sm);
         padding: var!(space-2xl);
         box-sizing: "border-box";

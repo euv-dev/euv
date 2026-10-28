@@ -34,7 +34,7 @@ vars! {
         // ═══════════════════════════════════════════════════════════════════════
 
         shadow-xs: "inset 0 0 0 1px #0009321f, inset 0 1.5px 2px 0 #00005506, inset 0 1.5px 2px 0 rgba(0, 0, 0, 0.1)";
-        shadow-sm: "0 0 0 1px #0000330f, 0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 1px 1px 0 #00005506, 0 2px 1px -1px rgba(0, 0, 0, 0.05), 0 1px 3px 0 rgba(0, 0, 0, 0.05)";
+        shadow-sm: "none";
         shadow-md: "0 0 0 1px #0000330f, 0 2px 3px -2px #0000330f, 0 3px 12px -4px rgba(0, 0, 0, 0.1), 0 4px 16px -8px rgba(0, 0, 0, 0.1)";
         shadow-lg: "0 0 0 1px #0000330f, 0 8px 40px rgba(0, 0, 0, 0.05), 0 12px 32px -16px #0000330f";
         shadow-xl: "0 0 0 1px #0000330f, 0 12px 60px rgba(0, 0, 0, 0.15), 0 16px 64px #00005506, 0 16px 36px -20px #00062e32";
@@ -45,6 +45,7 @@ vars! {
         // ═══════════════════════════════════════════════════════════════════════
 
         border-width: "1px";
+        surface-border-width: "1px";
         ring-width: "2px";
         ring-offset: "2px";
 

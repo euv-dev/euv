@@ -45,6 +45,7 @@ vars! {
         // ═══════════════════════════════════════════════════════════════════════
 
         border-width: "1px";
+        surface-border-width: "1px";
         ring-width: "2px";
         ring-offset: "2px";
 

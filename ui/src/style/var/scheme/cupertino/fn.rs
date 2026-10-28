@@ -36,6 +36,7 @@ vars! {
         // ═══════════════════════════════════════════════════════════════════════
 
         border-width: "1px";
+        surface-border-width: "1px";
         ring-width: "3px";
         ring-offset: "0px";
 

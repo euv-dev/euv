@@ -243,7 +243,7 @@ class! {
         min-width: "200px";
         box-sizing: "border-box";
         border: format!("{} solid {}", var!(border-width), var!(border));
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         border-radius: var!(radius-md);
         background: var!(background);
         color: var!(foreground);
@@ -1232,7 +1232,7 @@ class! {
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-sm);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
     }
 
     pub(crate) c_euv_popconfirm_body_open {
@@ -1247,7 +1247,7 @@ class! {
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-sm);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         display: "flex";
         flex-direction: "column";
     }
@@ -1264,7 +1264,7 @@ class! {
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-sm);
-        box-shadow: var!(shadow-sm);
+        box-shadow: var!(shadow-md);
         display: "none";
     }
 
