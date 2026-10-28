@@ -140,7 +140,7 @@ class! {
             font-size: "inherit";
         }
         strong, b {
-            font-weight: "700";
+            font-weight: var!(font-weight-bold);
         }
         em, i {
             font-style: "italic";
@@ -166,6 +166,7 @@ class! {
         // stop wrapping at the historic fixed 248px.
         width: var!(nav-width);
         background: var!(background);
+        border-right: format!("{} solid {}", var!(border-width), var!(border));
         display: "flex";
         flex-direction: "column";
         // Pin the sidebar to the viewport while the main column scrolls.
@@ -198,9 +199,9 @@ class! {
         width: "100%";
         box-sizing: "border-box";
         font-size: var!(font-xl);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         color: var!(foreground);
-        letter-spacing: "-0.02em";
+        letter-spacing: var!(letter-spacing-tight);
         display: "flex";
         align-items: "center";
         gap: format!("{}", var!(space-md));
@@ -227,9 +228,9 @@ class! {
 
     pub c_nav_brand_title {
         font-size: var!(font-xl);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         color: var!(foreground);
-        letter-spacing: "-0.02em";
+        letter-spacing: var!(letter-spacing-tight);
     }
 
     pub c_nav_section_label {
@@ -239,10 +240,10 @@ class! {
         }
         margin: "0px";
         font-size: var!(font-xs);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         color: var!(foreground);
-        text-transform: "uppercase";
-        letter-spacing: "0.10em";
+        text-transform: var!(text-transform-uppercase);
+        letter-spacing: var!(letter-spacing-wide);
         flex-shrink: "0";
     }
 
@@ -295,7 +296,7 @@ class! {
         padding: "0px";
         cursor: "pointer";
         outline: "none";
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: "transparent";
         color: var!(foreground);
         display: "flex";
@@ -319,7 +320,7 @@ class! {
         :active {
             border-color: var!(foreground);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     // Open state of the locale switcher: the same solid treatment the sidebar
@@ -331,27 +332,27 @@ class! {
         padding: "0px";
         cursor: "pointer";
         outline: "none";
-        border: format!("1px solid {}", var!(accent));
+        border: format!("{} solid {}", var!(border-width), var!(primary));
         display: "flex";
         align-items: "center";
         justify-content: "center";
         // Background and text colour are a matched pair: the fill is the
         // accent, so the label must be the colour that reads on top of it.
         // Setting one without the other is what produces invisible text.
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         :hover {
-            background: var!(accent);
-            color: var!(text-on-accent);
-            border-color: var!(accent);
+            background: var!(primary);
+            color: var!(primary-foreground);
+            border-color: var!(primary);
         }
         :focus-visible {
             outline: "none";
         }
         :active {
-            background: var!(accent);
-            color: var!(text-on-accent);
-            border-color: var!(accent);
+            background: var!(primary);
+            color: var!(primary-foreground);
+            border-color: var!(primary);
         }
     }
 
@@ -361,7 +362,7 @@ class! {
         padding: "0px";
         cursor: "pointer";
         outline: "none";
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -372,7 +373,7 @@ class! {
             background: "transparent";
             border-color: var!(border);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_theme_icon_sun {
@@ -468,13 +469,13 @@ class! {
     }
 
     pub c_nav_footer_text {
-        font-weight: "400";
-        letter-spacing: "0.02em";
+        font-weight: var!(font-weight-normal);
+        letter-spacing: var!(letter-spacing-normal);
     }
 
     pub c_nav_footer_brand {
-        font-weight: "700";
-        color: var!(accent);
+        font-weight: var!(font-weight-bold);
+        color: var!(primary);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -538,7 +539,7 @@ class! {
         z-index: "100";
         contain: "content";
         background: var!(background);
-        border-bottom: format!("1px solid {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub c_mobile_header_left {
@@ -561,7 +562,7 @@ class! {
         border: "none";
         cursor: "pointer";
         font-size: "22px";
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -571,7 +572,7 @@ class! {
             background: "transparent";
             color: var!(foreground);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_mobile_theme_button {
@@ -586,7 +587,7 @@ class! {
         :active {
             background: "transparent";
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_mobile_menu_button_active {
@@ -595,15 +596,15 @@ class! {
         border: "none";
         cursor: "pointer";
         font-size: "22px";
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         display: "flex";
         align-items: "center";
         justify-content: "center";
-        color: var!(accent);
+        color: var!(primary);
         padding: "0px";
         :active {
             background: var!(background);
-            color: var!(accent);
+            color: var!(primary);
         }
     }
 
@@ -613,7 +614,7 @@ class! {
         border: "none";
         cursor: "pointer";
         font-size: "18px";
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -626,7 +627,7 @@ class! {
         :active {
             color: var!(muted-foreground);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_mobile_overlay {
@@ -663,7 +664,7 @@ class! {
         will-change: "transform";
         transition: format!("transform {} {}", var!(duration-overlay), var!(ease-out));
         overflow: "hidden";
-        box-shadow: var!(shadow-drawer);
+        box-shadow: var!(shadow-lg);
     }
 
     pub c_mobile_nav_drawer_closed {
@@ -702,13 +703,13 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "center";
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         cursor: "pointer";
         font-size: var!(font-base);
         :hover {
-            background: var!(accent-muted);
+            background: var!(muted);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_euv_sidebar_group_title {
@@ -732,7 +733,7 @@ class! {
         // row class uses this value, so the rhythm stays even across the tree.
         padding: format!("{} {}", var!(control-row-pad), var!(space-md));
         font-size: var!(font-base);
-        font-weight: "400";
+        font-weight: var!(font-weight-normal);
         cursor: "pointer";
         text-align: "left";
         // Hover: inset 3px shadow bar between the dashed tree guide and the
@@ -763,7 +764,7 @@ class! {
         width: "100%";
         padding: format!("{} {}", var!(control-row-pad), var!(space-md));
         font-size: var!(font-base);
-        font-weight: "400";
+        font-weight: var!(font-weight-normal);
         cursor: "pointer";
         text-align: "left";
         :hover {
@@ -773,20 +774,20 @@ class! {
 
     pub c_euv_sidebar_group_title_root_active {
         c_euv_sidebar_group_title_root();
-        background: var!(accent);
-        color: var!(text-on-accent);
-        font-weight: "600";
+        background: var!(primary);
+        color: var!(primary-foreground);
+        font-weight: var!(font-weight-semibold);
         :hover {
             box-shadow: "none";
-            background: var!(accent);
+            background: var!(primary);
         }
     }
 
     pub c_euv_sidebar_group_title_active {
         c_euv_sidebar_group_title();
-        background: var!(accent);
-        color: var!(text-on-accent);
-        font-weight: "600";
+        background: var!(primary);
+        color: var!(primary-foreground);
+        font-weight: var!(font-weight-semibold);
         // Same flush fill as `c_euv_sidebar_link_active_flush`: a nested
         // active group title should read as one block with the sidebar, not
         // as a chip sitting in from the edge. The negative margin below pulls
@@ -822,7 +823,7 @@ class! {
         // marker and the text together.
         margin-left: var!(space-md);
         padding-left: var!(space-sm);
-        border-left: format!("1px dashed {}", var!(border));
+        border-left: format!("{} solid {}", var!(border-width), var!(border));
         animation: format!("euv-fade-in {} {}", var!(duration-normal), var!(ease-out));
     }
 
@@ -834,7 +835,7 @@ class! {
         padding: format!("{} {}", var!(control-row-pad), var!(space-md));
         font-size: var!(font-base);
         color: var!(foreground);
-        font-weight: "400";
+        font-weight: var!(font-weight-normal);
         cursor: "pointer";
         // Hover: paint a 3px solid bar *between* the dashed tree guide and
         // the link's text. We use `inset box-shadow` rather than a real
@@ -848,7 +849,7 @@ class! {
         :hover {
             box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_euv_sidebar_link_active {
@@ -857,9 +858,9 @@ class! {
         // the accent fill has to be exactly as tall as the row it replaces.
         padding: format!("{} {}", var!(control-row-pad), var!(space-md));
         font-size: var!(font-base);
-        background: var!(accent);
-        color: var!(text-on-accent);
-        font-weight: "600";
+        background: var!(primary);
+        color: var!(primary-foreground);
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
         // Active link: when the cursor is over it, the accent background
         // must dominate. Drop the inset bar entirely so the accent fill
@@ -870,7 +871,7 @@ class! {
         :hover {
             box-shadow: "none";
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     // An active child needs the accent fill to read as one continuous block
@@ -905,9 +906,9 @@ class! {
         margin-left: format!("calc(-1 * {})", var!(side-indent));
         width: format!("calc(100% + {})", var!(side-indent));
         font-size: var!(font-base);
-        background: var!(accent);
-        color: var!(text-on-accent);
-        font-weight: "600";
+        background: var!(primary);
+        color: var!(primary-foreground);
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
         :hover {
             box-shadow: "none";
@@ -927,7 +928,7 @@ class! {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-xs);
-        border-left: format!("1px solid {}", var!(border));
+        border-left: format!("{} solid {}", var!(border-width), var!(border));
         padding-left: var!(space-lg);
     }
 
@@ -939,19 +940,19 @@ class! {
         // Regular weight by default: only the *active* entry carries weight,
         // so hovering an inactive entry must not bold it or the weight would
         // read as a false "you are here" cue on mouse-over alone.
-        font-weight: "400";
+        font-weight: var!(font-weight-normal);
         :hover {
-            color: var!(accent);
+            color: var!(primary);
         }
         border-radius: var!(radius-sm);
     }
 
     pub c_euv_toc_link_active {
         c_euv_toc_link();
-        color: var!(accent);
-        font-weight: "700";
+        color: var!(primary);
+        font-weight: var!(font-weight-bold);
         :hover {
-            font-weight: "700";
+            font-weight: var!(font-weight-bold);
         }
         border-radius: var!(radius-sm);
     }
@@ -963,10 +964,10 @@ class! {
 
     pub c_euv_toc_link_nested_active {
         c_euv_toc_link_nested();
-        color: var!(accent);
-        font-weight: "700";
+        color: var!(primary);
+        font-weight: var!(font-weight-bold);
         :hover {
-            font-weight: "700";
+            font-weight: var!(font-weight-bold);
         }
     }
 
@@ -995,11 +996,11 @@ class! {
 
     pub(crate) c_euv_logo {
         display: "flex";
-        background: var!(accent);
+        background: var!(primary);
         align-items: "center";
         justify-content: "center";
-        color: var!(text-on-accent);
-        font-weight: "700";
+        color: var!(primary-foreground);
+        font-weight: var!(font-weight-bold);
         border: "none";
         cursor: "pointer";
         padding: "0px";
@@ -1022,13 +1023,15 @@ class! {
             height: "44px";
         }
         border-radius: var!(radius-full);
-        box-shadow: var!(shadow-console-button);
+        box-shadow: var!(shadow-md);
     }
 
     pub(crate) c_nav_item_active {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
+        background: var!(accent);
+        color: var!(accent-foreground);
         // `control-row-pad` vertically, same as `c_nav_item_inactive` below and
         // same reason the sidebar rows use it: two 12px paddings used to meet
         // to leave 24px of blank between labels while the row stayed 48px tall,
@@ -1040,10 +1043,10 @@ class! {
         }
         text-decoration: "none";
         font-size: var!(font-base);
-        color: var!(text-on-accent);
-        font-weight: "600";
-        background: var!(accent);
-        border-radius: var!(radius-sm);
+        color: var!(primary-foreground);
+        font-weight: var!(font-weight-semibold);
+        background: var!(primary);
+        border-radius: var!(radius-md);
     }
 
     pub(crate) c_nav_item_inactive {
@@ -1057,13 +1060,13 @@ class! {
         text-decoration: "none";
         font-size: var!(font-base);
         color: var!(foreground);
-        font-weight: "400";
+        font-weight: var!(font-weight-normal);
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
             box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub(crate) c_nav_item_icon {
@@ -1094,7 +1097,7 @@ class! {
         align-items: "center";
         gap: var!(gap-element);
         padding: format!("0px {}", var!(edge-gutter));
-        border-bottom: format!("1px solid {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         z-index: "100";
         @media ((max-width: 767px)) {
@@ -1107,8 +1110,8 @@ class! {
         align-items: "center";
         gap: var!(gap-element);
         font-size: var!(font-lg);
-        font-weight: "700";
-        letter-spacing: "-0.02em";
+        font-weight: var!(font-weight-bold);
+        letter-spacing: var!(letter-spacing-tight);
         color: var!(foreground);
         cursor: "pointer";
         flex-shrink: "0";
@@ -1120,8 +1123,8 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "center";
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-lg);
         flex-shrink: "0";
     }
@@ -1138,22 +1141,22 @@ class! {
 
     pub(crate) c_euv_navbar_link {
         font-size: var!(font-sm);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: var!(foreground);
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border-bottom: "2px solid transparent";
         cursor: "pointer";
         :hover {
-            color: var!(accent);
+            color: var!(primary);
         }
     }
 
     pub(crate) c_euv_navbar_link_active {
         font-size: var!(font-sm);
-        font-weight: "600";
-        color: var!(accent);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        border-bottom: format!("2px solid {}", var!(accent));
+        border-bottom: format!("2px solid {}", var!(primary));
         cursor: "pointer";
     }
 
@@ -1189,7 +1192,7 @@ class! {
         justify-content: "center";
         font-size: var!(font-xl);
         cursor: "pointer";
-        background: var!(accent-muted);
+        background: var!(muted);
         transition: format!("background {} {}", var!(duration-fast), var!(ease-out));
         @media ((max-width: 767px)) {
             display: "flex";
@@ -1303,12 +1306,12 @@ class! {
         cursor: "pointer";
         user-select: "none";
         flex-shrink: "0";
-        color: var!(text-on-accent);
+        color: var!(primary-foreground);
         // An active row sits on the accent fill; the hover colour must stay
         // the on-accent ink or hovering the arrow flips it to the muted
         // foreground and it vanishes against the highlight.
         :hover {
-            color: var!(text-on-accent);
+            color: var!(primary-foreground);
         }
     }
 
@@ -1336,18 +1339,18 @@ class! {
         cursor: "pointer";
         user-select: "none";
         flex-shrink: "0";
-        color: var!(text-on-accent);
+        color: var!(primary-foreground);
         transform: "rotate(90deg)";
         :hover {
-            color: var!(text-on-accent);
+            color: var!(primary-foreground);
         }
     }
 
     pub(crate) c_euv_toc_title {
         font-size: var!(font-xs);
-        font-weight: "700";
-        text-transform: "uppercase";
-        letter-spacing: "0.08em";
+        font-weight: var!(font-weight-bold);
+        text-transform: var!(text-transform-uppercase);
+        letter-spacing: var!(letter-spacing-wide);
         color: var!(muted-foreground);
         margin-bottom: var!(space-xs);
     }

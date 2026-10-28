@@ -28,8 +28,8 @@ class! {
     }
 
     pub c_virtual_list_status_value {
-        font-weight: "700";
-        color: var!(accent);
+        font-weight: var!(font-weight-bold);
+        color: var!(primary);
         font-family: var!(font-family-mono);
     }
 
@@ -42,7 +42,7 @@ class! {
         @media ((max-width: 767px)) {
             padding: var!(space-lg);
         }
-        border-radius: var!(radius-md);
+        border-radius: var!(radius-xl);
     }
 
     pub c_virtual_list_row {
@@ -56,8 +56,8 @@ class! {
     pub c_virtual_list_row_index {
         min-width: "36px";
         font-size: var!(font-sm);
-        font-weight: "600";
-        color: var!(accent);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
         font-family: var!(font-family-mono);
         flex-shrink: "0";
         display: "flex";
@@ -66,7 +66,7 @@ class! {
 
     pub c_virtual_list_row_label {
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: "inherit";
         min-width: "120px";
         flex-shrink: "0";
@@ -115,9 +115,9 @@ class! {
     }
 
     pub c_net_message_index {
-        color: var!(accent);
+        color: var!(primary);
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         white-space: "nowrap";
         flex-shrink: "0";
     }
@@ -141,7 +141,7 @@ class! {
         height: "42px";
         padding: format!("0px {}", var!(space-lg));
         color: var!(foreground);
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -151,15 +151,15 @@ class! {
         -moz-appearance: "none";
         vertical-align: "middle";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(primary);
+            background: var!(muted);
         }
         :focus {
             outline: "none";
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(primary);
+            background: var!(muted);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_ws_message_time {
@@ -186,9 +186,9 @@ class! {
 
     pub(crate) c_euv_table_head {
         font-size: var!(font-xs);
-        font-weight: "600";
-        letter-spacing: "0.04em";
-        text-transform: "uppercase";
+        font-weight: var!(font-weight-semibold);
+        letter-spacing: var!(letter-spacing-wide);
+        text-transform: var!(text-transform-uppercase);
     }
 
     pub(crate) c_euv_table_body {
@@ -196,12 +196,12 @@ class! {
     }
 
     pub(crate) c_euv_table_row {
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub(crate) c_euv_table_row_zebra {
-        border-bottom: format!("1px dashed {}", var!(border));
-        background: var!(accent-muted);
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
+        background: var!(muted);
     }
 
     pub(crate) c_euv_table_cell {
@@ -231,10 +231,10 @@ class! {
         vertical-align: "middle";
         white-space: "nowrap";
         font-size: var!(font-xs);
-        font-weight: "600";
-        letter-spacing: "0.04em";
-        text-transform: "uppercase";
-        border-bottom: format!("1px solid {}", var!(border));
+        font-weight: var!(font-weight-semibold);
+        letter-spacing: var!(letter-spacing-wide);
+        text-transform: var!(text-transform-uppercase);
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub(crate) c_euv_table_caption {
@@ -250,8 +250,8 @@ class! {
         flex-direction: "column";
         gap: var!(space-2xs);
         padding: var!(space-lg);
-        border: format!("1px dashed {}", var!(border));
-        border-radius: var!(radius-md);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-lg);
     }
 
     pub(crate) c_euv_stat_icon {
@@ -266,8 +266,8 @@ class! {
 
     pub(crate) c_euv_stat_value {
         font-size: var!(font-2xl);
-        font-weight: "700";
-        color: var!(accent);
+        font-weight: var!(font-weight-bold);
+        color: var!(primary);
         line-height: "1.1";
         font-family: var!(font-family-mono);
     }
@@ -345,17 +345,17 @@ class! {
         flex-shrink: "0";
         box-sizing: "border-box";
         border-radius: var!(radius-full);
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(muted-foreground);
         font-size: var!(font-xs);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         line-height: "1";
     }
 
     pub(crate) c_euv_step_title {
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: var!(foreground);
         margin: "0px";
     }
@@ -371,7 +371,7 @@ class! {
         height: "0px";
         align-self: "center";
         border: "none";
-        border-top: format!("1px dashed {}", var!(border));
+        border-top: format!("{} solid {}", var!(border-width), var!(border));
         min-width: var!(space-lg);
         @media ((max-width: 767px)) {
             display: "none";
@@ -405,7 +405,7 @@ class! {
         height: "10px";
         box-sizing: "border-box";
         border-radius: var!(radius-full);
-        border: format!("1px solid {}", var!(accent));
+        border: format!("{} solid {}", var!(border-width), var!(primary));
         background: var!(background);
     }
 
@@ -419,7 +419,7 @@ class! {
 
     pub(crate) c_euv_timeline_title {
         font-size: var!(font-base);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
         margin: "0px";
     }
@@ -443,7 +443,7 @@ class! {
         bottom: format!("-{}", var!(space-lg));
         width: "0px";
         border: "none";
-        border-left: format!("1px solid {}", var!(border));
+        border-left: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub(crate) c_euv_skeleton {
@@ -451,8 +451,8 @@ class! {
         width: "100%";
         height: "16px";
         border-radius: var!(radius-sm);
-        border: format!("1px dashed {}", var!(border));
-        background: var!(accent-muted);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        background: var!(muted);
         animation: format!("euv-pulse 1.5s {} infinite", var!(ease-in-out));
     }
 
@@ -461,8 +461,8 @@ class! {
         width: "100%";
         height: "12px";
         border-radius: var!(radius-sm);
-        border: format!("1px dashed {}", var!(border));
-        background: var!(accent-muted);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        background: var!(muted);
         animation: format!("euv-pulse 1.5s {} infinite", var!(ease-in-out));
     }
 
@@ -494,7 +494,7 @@ class! {
         gap: var!(gap-element);
         width: "100%";
         padding: format!("{} 0px", var!(space-sm));
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
         box-sizing: "border-box";
         border-radius: var!(radius-sm);
     }
@@ -509,7 +509,7 @@ class! {
 
     pub(crate) c_euv_list_item_title {
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: var!(foreground);
     }
 
@@ -541,8 +541,8 @@ class! {
         display: "grid";
         grid-template-columns: "repeat(var(--descriptions-columns, 1), minmax(0, 1fr))";
         width: "100%";
-        border-top: format!("1px dashed {}", var!(border));
-        border-left: format!("1px dashed {}", var!(border));
+        border-top: format!("{} solid {}", var!(border-width), var!(border));
+        border-left: format!("{} solid {}", var!(border-width), var!(border));
         box-sizing: "border-box";
     }
 
@@ -551,8 +551,8 @@ class! {
         flex-direction: "column";
         gap: var!(space-2xs);
         padding: var!(space-sm);
-        border-right: format!("1px dashed {}", var!(border));
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-right: format!("{} solid {}", var!(border-width), var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
         box-sizing: "border-box";
         min-width: "0px";
     }
@@ -589,7 +589,7 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} 0px", var!(space-xs));
         cursor: "pointer";
         touch-action: "manipulation";
@@ -597,8 +597,8 @@ class! {
         -webkit-user-select: "none";
         box-sizing: "border-box";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -606,19 +606,19 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} 0px", var!(space-xs));
-        background: var!(accent-muted);
-        color: var!(accent);
-        font-weight: "600";
+        background: var!(muted);
+        color: var!(primary);
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
         box-sizing: "border-box";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -663,7 +663,7 @@ class! {
         display: "flex";
         flex-direction: "column";
         padding-left: var!(space-lg);
-        border-left: format!("1px dashed {}", var!(border));
+        border-left: format!("{} solid {}", var!(border-width), var!(border));
         margin-left: format!("calc({} - 1px)", var!(space-md));
     }
 
@@ -671,7 +671,7 @@ class! {
         display: "flex";
         flex-direction: "column";
         padding-left: var!(space-lg);
-        border-left: format!("1px dashed {}", var!(border));
+        border-left: format!("{} solid {}", var!(border-width), var!(border));
         margin-left: format!("calc({} - 1px)", var!(space-md));
     }
 

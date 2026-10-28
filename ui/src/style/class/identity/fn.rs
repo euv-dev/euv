@@ -21,12 +21,12 @@ class! {
         width: "40px";
         height: "40px";
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-sm);
-        background: var!(accent-muted);
+        background: var!(muted);
         color: var!(foreground);
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         line-height: "1";
         text-align: "center";
         overflow: "hidden";
@@ -42,12 +42,12 @@ class! {
         width: "24px";
         height: "24px";
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-sm);
-        background: var!(accent-muted);
+        background: var!(muted);
         color: var!(foreground);
         font-size: var!(font-xs);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         line-height: "1";
         text-align: "center";
         overflow: "hidden";
@@ -63,12 +63,12 @@ class! {
         width: "32px";
         height: "32px";
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-sm);
-        background: var!(accent-muted);
+        background: var!(muted);
         color: var!(foreground);
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         line-height: "1";
         text-align: "center";
         overflow: "hidden";
@@ -84,12 +84,12 @@ class! {
         width: "40px";
         height: "40px";
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-sm);
-        background: var!(accent-muted);
+        background: var!(muted);
         color: var!(foreground);
         font-size: var!(font-lg);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         line-height: "1";
         text-align: "center";
         overflow: "hidden";
@@ -119,7 +119,7 @@ class! {
         justify-content: "center";
         color: "inherit";
         font-size: var!(font-sm);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         line-height: "1";
         flex-shrink: "0";
     }
@@ -153,7 +153,7 @@ class! {
         width: "100%";
         box-sizing: "border-box";
         padding: var!(space-lg);
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
     }
 
@@ -164,7 +164,7 @@ class! {
         width: "100%";
         box-sizing: "border-box";
         padding: var!(space-lg);
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
     }
 
@@ -178,7 +178,7 @@ class! {
 
     pub(crate) c_euv_panel_title {
         font-size: var!(font-lg);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
         margin: "0px";
     }
@@ -225,7 +225,7 @@ class! {
         white-space: "nowrap";
         font-size: var!(font-lg);
         line-height: "1";
-        color: var!(accent);
+        color: var!(primary);
         pointer-events: "none";
     }
 
@@ -245,9 +245,9 @@ class! {
         align-items: "baseline";
         gap: var!(space-sm);
         padding: var!(space-xs);
-        border: format!("1px dashed {}", var!(accent-muted));
+        border: format!("{} solid {}", var!(border-width), var!(muted));
         border-radius: var!(radius-sm);
-        background: var!(surface-muted);
+        background: var!(muted);
         font-family: var!(font-family-mono);
         font-size: var!(font-sm);
         color: var!(foreground);
@@ -255,8 +255,8 @@ class! {
     }
 
     pub(crate) c_debug_label {
-        font-weight: "600";
-        color: var!(accent);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
         flex-shrink: "0";
     }
 

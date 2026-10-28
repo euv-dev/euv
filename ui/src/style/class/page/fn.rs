@@ -15,7 +15,7 @@ class! {
         background: var!(surface-media);
         aspect-ratio: "16 / 9";
         object-fit: "cover";
-        border: format!("2px solid {}", var!(accent));
+        border: format!("2px solid {}", var!(primary));
         box-sizing: "border-box";
     }
 
@@ -55,7 +55,7 @@ class! {
 
     pub c_camera_error_box {
         margin: format!("{} 0px", var!(gap-component));
-        color: var!(error);
+        color: var!(destructive);
         font-size: var!(font-base);
         word-break: "break-all";
         overflow-wrap: "break-word";
@@ -69,7 +69,7 @@ class! {
 
     pub c_camera_scan_result_label {
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
         margin-bottom: var!(space-xs);
     }
@@ -170,7 +170,7 @@ class! {
     pub c_canvas_color_input_fullscreen {
         width: "100%";
         height: "42px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         cursor: "pointer";
         padding: format!("{}", var!(space-xs));
     }
@@ -200,7 +200,7 @@ class! {
             width: "20px";
             height: "20px";
             background: var!(background);
-            border: format!("2px solid {}", var!(accent));
+            border: format!("2px solid {}", var!(primary));
             border-radius: var!(radius-full);
             cursor: "pointer";
             -webkit-appearance: "none";
@@ -218,7 +218,7 @@ class! {
             width: "20px";
             height: "20px";
             background: var!(background);
-            border: format!("2px solid {}", var!(accent));
+            border: format!("2px solid {}", var!(primary));
             border-radius: var!(radius-full);
             cursor: "pointer";
         }
@@ -338,7 +338,7 @@ class! {
 
     pub c_toggle_title {
         margin-top: "0px";
-        color: var!(accent);
+        color: var!(primary);
         font-size: var!(font-md);
     }
 
@@ -385,8 +385,8 @@ class! {
     }
 
     pub c_event_highlight {
-        font-weight: "600";
-        color: var!(accent);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
     }
 
     pub c_event_info_grid {
@@ -409,7 +409,7 @@ class! {
 
     pub c_event_info_label {
         font-size: var!(font-base);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
         flex-shrink: "0";
     }
@@ -417,8 +417,8 @@ class! {
     pub c_event_info_value {
         c_text_ellipsis();
         font-size: var!(font-base);
-        font-weight: "600";
-        color: var!(accent);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
         font-family: var!(font-family-mono);
         flex: "1";
     }
@@ -454,10 +454,10 @@ class! {
     pub c_event_drag_item {
         display: "inline-block";
         padding: format!("{} {}", var!(space-sm), var!(space-xl));
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         cursor: "grab";
         margin: var!(space-sm);
     }
@@ -470,11 +470,11 @@ class! {
     }
 
     pub c_event_drop_zone_active {
-        border: format!("2px dashed {}", var!(accent));
+        border: format!("2px dashed {}", var!(primary));
         padding: format!("{} {}", var!(space-4xl), var!(space-xl));
         text-align: "center";
         cursor: "pointer";
-        background: var!(accent-muted);
+        background: var!(muted);
     }
 
     pub c_event_drop_icon {
@@ -485,7 +485,7 @@ class! {
 
     pub c_event_drop_text {
         font-size: var!(font-lg);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: "inherit";
         padding-bottom: var!(space-md);
     }
@@ -513,11 +513,11 @@ class! {
     pub c_event_touch_zone {
         min-height: "120px";
         padding: format!("{} 0px", var!(space-xl));
-        border: format!("2px dashed {}", var!(accent));
+        border: format!("2px dashed {}", var!(primary));
         text-align: "center";
         touch-action: "none";
         user-select: "none";
-        color: var!(accent);
+        color: var!(primary);
     }
 
     pub c_event_form_area {
@@ -589,9 +589,9 @@ class! {
 
     pub c_timer_value {
         font-size: var!(font-base);
-        font-weight: "700";
-        color: var!(accent);
-        letter-spacing: "0.04em";
+        font-weight: var!(font-weight-bold);
+        color: var!(primary);
+        letter-spacing: var!(letter-spacing-wide);
         font-family: var!(font-family-mono);
     }
 
@@ -605,7 +605,7 @@ class! {
         text-align: "center";
         margin-top: var!(gap-component);
         font-size: var!(font-lg);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
     }
 
@@ -638,8 +638,8 @@ class! {
     }
 
     pub c_browser_result_label {
-        font-weight: "600";
-        color: var!(accent);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
     }
 
     pub c_browser_result_value {
@@ -664,11 +664,11 @@ class! {
 
     pub c_browser_info_label {
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: "inherit";
         opacity: "1";
-        text-transform: "uppercase";
-        letter-spacing: "0.05em";
+        text-transform: var!(text-transform-uppercase);
+        letter-spacing: var!(letter-spacing-wide);
     }
 
     pub c_browser_info_value {
@@ -684,7 +684,7 @@ class! {
 
     pub c_keep_alive_tab_bar {
         display: "flex";
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
         margin-bottom: var!(gap-component);
         gap: var!(gap-element);
     }
@@ -695,7 +695,7 @@ class! {
 
     pub c_keep_alive_panel_title {
         margin-top: "0px";
-        color: var!(accent);
+        color: var!(primary);
         font-size: var!(font-md);
         margin-bottom: var!(gap-element);
     }
@@ -715,9 +715,9 @@ class! {
 
     pub c_keep_alive_counter_value {
         font-size: var!(font-base);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         font-variant-numeric: "tabular-nums";
-        color: var!(accent);
+        color: var!(primary);
         text-align: "center";
     }
 
@@ -733,13 +733,13 @@ class! {
 
     pub c_keep_alive_form_preview {
         margin-top: var!(gap-component);
-        background: var!(accent-muted);
+        background: var!(muted);
     }
 
     pub c_keep_alive_preview_label {
         font-size: var!(font-base);
-        font-weight: "600";
-        color: var!(accent);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
         margin: format!("0px 0px {} 0px", var!(space-xs));
     }
 
@@ -756,10 +756,10 @@ class! {
 
     pub c_binding_child_label {
         font-size: var!(font-base);
-        font-weight: "600";
-        color: var!(accent);
-        text-transform: "uppercase";
-        letter-spacing: "0.05em";
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
+        text-transform: var!(text-transform-uppercase);
+        letter-spacing: var!(letter-spacing-wide);
     }
 
     pub c_binding_parent_box {
@@ -772,9 +772,9 @@ class! {
     pub c_binding_section_title {
         margin-top: var!(gap-component);
         margin-bottom: var!(gap-element);
-        color: var!(accent);
+        color: var!(primary);
         font-size: var!(font-md);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
     }
 
     pub c_binding_temp_converter {
@@ -792,8 +792,8 @@ class! {
 
     pub c_binding_temp_arrow {
         font-size: var!(font-xl);
-        font-weight: "700";
-        color: var!(accent);
+        font-weight: var!(font-weight-bold);
+        color: var!(primary);
         // The row is `align-items: flex-end`, so the glyph would sit on the
         // bottom edge of the input. The padding lifts it by half the
         // difference between the input box and the line box of the glyph —
@@ -818,9 +818,9 @@ class! {
     pub c_binding_color_hex {
         font-family: var!(font-family-mono);
         font-size: var!(font-xl);
-        font-weight: "700";
-        color: var!(text-on-accent);
-        letter-spacing: "0.02em";
+        font-weight: var!(font-weight-bold);
+        color: var!(primary-foreground);
+        letter-spacing: var!(letter-spacing-normal);
     }
 
     pub c_binding_slider_row {
@@ -832,7 +832,7 @@ class! {
 
     pub c_binding_slider_label {
         font-size: var!(font-base);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         min-width: var!(font-sm);
     }
 
@@ -855,7 +855,7 @@ class! {
             width: "20px";
             height: "20px";
             background: var!(background);
-            border: format!("2px solid {}", var!(accent));
+            border: format!("2px solid {}", var!(primary));
             border-radius: var!(radius-full);
             cursor: "pointer";
             -webkit-appearance: "none";
@@ -876,7 +876,7 @@ class! {
             width: "20px";
             height: "20px";
             background: var!(background);
-            border: format!("2px solid {}", var!(accent));
+            border: format!("2px solid {}", var!(primary));
             border-radius: var!(radius-full);
             cursor: "pointer";
         }
@@ -887,7 +887,7 @@ class! {
 
     pub c_binding_slider_value {
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: "inherit";
         min-width: "32px";
         text-align: "right";
@@ -897,8 +897,8 @@ class! {
     pub c_binding_typed_prop_value {
         font-family: var!(font-family-mono);
         font-size: var!(font-base);
-        font-weight: "600";
-        color: var!(accent);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
         padding: format!("1px {}", var!(space-sm));
     }
 
@@ -910,16 +910,17 @@ class! {
 
     pub c_binding_typed_warning {
         font-size: var!(font-base);
-        font-weight: "500";
-        color: var!(warning);
-        background: var!(warning-container);
+        font-weight: var!(font-weight-medium);
+        color: var!(warning-foreground);
+        background: var!(warning);
         margin-bottom: "0px";
+        border-radius: var!(radius-sm);
     }
 
     pub c_binding_form_label {
         display: "block";
         color: "inherit";
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         font-size: var!(font-base);
     }
 
@@ -934,29 +935,29 @@ class! {
         align-items: "center";
         height: "42px";
         padding: format!("0px {}", var!(space-md));
-        background: var!(accent);
-        color: var!(text-on-accent);
-        border: format!("1px solid {}", var!(accent));
+        background: var!(primary);
+        color: var!(primary-foreground);
+        border: format!("{} solid {}", var!(border-width), var!(primary));
         cursor: "pointer";
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         outline: "none";
         white-space: "nowrap";
         user-select: "none";
         -webkit-user-select: "none";
         box-sizing: "border-box";
         :hover {
-            background: var!(accent);
+            background: var!(primary);
         }
         :focus-visible {
             outline: "none";
         }
         :active {
-            background: var!(accent);
-            color: var!(text-on-accent);
-            border-color: var!(accent);
+            background: var!(primary);
+            color: var!(primary-foreground);
+            border-color: var!(primary);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -989,7 +990,7 @@ class! {
 
     pub c_dynamic_component_panel {
         display: "block";
-        min-height: var!(min-height-sm);
+        min-height: var!(control-height-sm);
         margin-top: var!(gap-component);
     }
 
@@ -1041,18 +1042,18 @@ class! {
         line-height: "1";
         box-sizing: "border-box";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        color: var!(accent);
-        background: var!(primary-container);
+        color: var!(primary);
+        background: var!(accent);
         font-size: var!(font-xs);
-        font-weight: "600";
-        letter-spacing: "0.05em";
-        border: format!("1px solid {}", var!(accent));
+        font-weight: var!(font-weight-semibold);
+        letter-spacing: var!(letter-spacing-wide);
+        border: format!("{} solid {}", var!(border-width), var!(primary));
     }
 
     pub c_home_title {
         font-size: var!(font-5xl);
-        font-weight: "800";
-        letter-spacing: "-0.03em";
+        font-weight: var!(font-weight-bold);
+        letter-spacing: var!(letter-spacing-tight);
         margin: "0px";
         color: var!(foreground);
         margin-bottom: var!(space-xs);
@@ -1094,16 +1095,16 @@ class! {
         // A button is a nowrap element (§7).
         white-space: "nowrap";
         padding: format!("{} {}", var!(space-sm), var!(space-2xl));
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-base);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         text-decoration: "none";
         border: "1.5px solid transparent";
         cursor: "pointer";
-        letter-spacing: "0.01em";
+        letter-spacing: var!(letter-spacing-normal);
         vertical-align: "middle";
-        min-height: var!(min-height-sm);
+        min-height: var!(control-height-sm);
         @media ((max-width: 767px)) {
             flex: "1 1 0px";
             min-width: "0px";
@@ -1112,8 +1113,8 @@ class! {
             outline: "none";
         }
         :active {
-            background: var!(accent);
-            color: var!(text-on-accent);
+            background: var!(primary);
+            color: var!(primary-foreground);
             border-color: "1.5px solid transparent";
         }
         border-radius: var!(radius-sm);
@@ -1127,15 +1128,15 @@ class! {
         // A button is a nowrap element (§7).
         white-space: "nowrap";
         padding: format!("{} {}", var!(space-sm), var!(space-2xl));
-        color: var!(accent);
+        color: var!(primary);
         font-size: var!(font-base);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         text-decoration: "none";
-        border: format!("1.5px solid {}", var!(accent));
+        border: format!("1.5px solid {}", var!(primary));
         cursor: "pointer";
-        letter-spacing: "0.01em";
+        letter-spacing: var!(letter-spacing-normal);
         vertical-align: "middle";
-        min-height: var!(min-height-sm);
+        min-height: var!(control-height-sm);
         @media ((max-width: 767px)) {
             flex: "1 1 0px";
             min-width: "0px";
@@ -1145,8 +1146,8 @@ class! {
         }
         :active {
             background: "transparent";
-            color: var!(accent);
-            border-color: var!(accent);
+            color: var!(primary);
+            border-color: var!(primary);
         }
         border-radius: var!(radius-sm);
     }
@@ -1172,7 +1173,7 @@ class! {
         align-items: "center";
         justify-content: "center";
         gap: var!(space-xs);
-        border-radius: var!(radius-md);
+        border-radius: var!(radius-xl);
     }
 
     pub c_home_stat_icon {
@@ -1181,15 +1182,15 @@ class! {
 
     pub c_home_stat_value {
         font-size: var!(font-xl);
-        font-weight: "800";
+        font-weight: var!(font-weight-bold);
         color: var!(foreground);
-        letter-spacing: "-0.01em";
+        letter-spacing: var!(letter-spacing-normal);
     }
 
     pub c_home_stat_label {
         font-size: var!(font-sm);
         color: var!(muted-foreground);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1198,11 +1199,11 @@ class! {
 
     pub c_home_section_title {
         font-size: var!(font-2xl);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         color: var!(foreground);
         margin: "0px";
         margin: format!("{} 0px", var!(gap-component));
-        letter-spacing: "-0.02em";
+        letter-spacing: var!(letter-spacing-tight);
     }
 
     pub c_home_section_desc {
@@ -1231,7 +1232,7 @@ class! {
         gap: var!(space-sm);
         padding: "0px";
         overflow: "hidden";
-        border-radius: var!(radius-md);
+        border-radius: var!(radius-xl);
     }
 
     pub c_feature_header {
@@ -1251,7 +1252,7 @@ class! {
 
     pub c_feature_name {
         font-size: var!(font-lg);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
         margin: "0px";
         overflow: "hidden";
@@ -1275,17 +1276,17 @@ class! {
 
     pub c_info_label {
         font-size: var!(font-sm);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: var!(muted-foreground);
         min-width: "72px";
         flex-shrink: "0";
-        letter-spacing: "0.02em";
+        letter-spacing: var!(letter-spacing-normal);
     }
 
     pub c_info_value {
         c_text_ellipsis();
         font-size: var!(font-base);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
         font-family: var!(font-family-mono);
         flex: "1";
@@ -1294,8 +1295,8 @@ class! {
     pub c_info_link {
         c_text_ellipsis();
         font-size: var!(font-base);
-        font-weight: "600";
-        color: var!(accent);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
         font-family: var!(font-family-mono);
         flex: "1";
         text-decoration: "none";
@@ -1308,10 +1309,10 @@ class! {
     pub c_spinner {
         width: "40px";
         height: "40px";
-        border: format!("4px solid {}", var!(accent-muted));
-        border-top: format!("4px solid {}", var!(accent));
-        border-right: format!("4px solid {}", var!(accent));
-        border-bottom: format!("4px solid {}", var!(accent));
+        border: format!("4px solid {}", var!(muted));
+        border-top: format!("4px solid {}", var!(primary));
+        border-right: format!("4px solid {}", var!(primary));
+        border-bottom: format!("4px solid {}", var!(primary));
         border-radius: var!(radius-full);
         flex-shrink: "0";
         animation: "euv-spin 0.8s linear infinite";
@@ -1339,7 +1340,7 @@ class! {
         gap: var!(gap-element);
         margin-top: var!(gap-component);
         box-sizing: "border-box";
-        border-radius: var!(radius-md);
+        border-radius: var!(radius-lg);
     }
 
     pub c_error_icon {
@@ -1349,13 +1350,13 @@ class! {
         align-items: "center";
         justify-content: "center";
         flex-shrink: "0";
-        color: var!(error);
+        color: var!(destructive);
         font-size: var!(font-sm);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
     }
 
     pub c_error_text {
-        color: var!(error);
+        color: var!(destructive);
         font-size: var!(font-base);
     }
 
@@ -1435,8 +1436,8 @@ class! {
 
     pub(crate) c_page_title {
         font-size: var!(font-4xl);
-        font-weight: "800";
-        letter-spacing: "-0.03em";
+        font-weight: var!(font-weight-bold);
+        letter-spacing: var!(letter-spacing-tight);
         margin: "0px";
         color: var!(foreground);
         margin-bottom: var!(space-sm);
@@ -1489,7 +1490,7 @@ class! {
     pub(crate) c_loading_title {
         color: var!(foreground);
         font-size: var!(font-md);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
     }
 
     pub(crate) c_loading_subtitle {

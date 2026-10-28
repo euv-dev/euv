@@ -1,23 +1,32 @@
 use super::*;
 
-const SCHEME_DIRECTORIES: [&str; 6] = [
-    "builtin",
+const SCHEME_NAMES: [&str; 13] = [
+    "shadcn",
+    "monochrome",
     "antdesign",
     "material",
     "bootstrap",
     "cupertino",
     "fluent",
+    "radix",
+    "mantine",
+    "daisyui",
+    "heroui",
+    "park",
+    "geist",
 ];
 
-const RESERVED_TOKENS: [&str; 8] = [
+const RESERVED_TOKENS: [&str; 10] = [
     "duration-slower",
     "ease-in",
     "gap-page-header",
     "gap-page-title",
     "gap-section-mobile",
-    "nav-width-max",
     "nav-width-min",
-    "shadow-accent-sm",
+    "side-indent-num",
+    "success-container",
+    "text-transform-none",
+    "warning-container",
 ];
 
 const HOST_VARIABLES: [&str; 5] = [
@@ -66,7 +75,7 @@ fn scheme_file(scheme: &str) -> PathBuf {
         .join("fn.rs")
 }
 
-fn mode_file() -> PathBuf {
+fn theme_file() -> PathBuf {
     repo_root()
         .join("ui")
         .join("src")
@@ -106,7 +115,7 @@ fn collect_tokens(directory: &Path, names: &mut Vec<String>) {
             continue;
         }
         let text: String = fs::read_to_string(&path).expect("a source file");
-        for line in text.lines() {
+        for line in text.lines().map(strip_comments) {
             let mut rest: &str = line;
             while let Some(start) = rest.find("var!(") {
                 rest = &rest[start + 5..];
@@ -135,6 +144,17 @@ fn collect_tokens(directory: &Path, names: &mut Vec<String>) {
     }
 }
 
+fn strip_comments(line: &str) -> &str {
+    let trimmed: &str = line.trim_start();
+    if trimmed.starts_with("//") {
+        return "";
+    }
+    match line.find("//") {
+        Some(position) => &line[..position],
+        None => line,
+    }
+}
+
 fn is_token_name(name: &str) -> bool {
     if name.len() < 2 || name == "token" || name == "value" || name == "x" {
         return false;
@@ -150,17 +170,17 @@ fn is_token_name(name: &str) -> bool {
 
 #[test]
 fn every_scheme_defines_the_same_tokens() {
-    let reference: Vec<String> = token_names(&scheme_file("builtin"));
+    let reference: Vec<String> = token_names(&scheme_file("shadcn"));
     assert!(
-        !reference.is_empty(),
-        "the built-in scheme defines the token contract every other scheme follows"
+        reference.len() > 50,
+        "the shadcn scheme defines the token contract every other scheme follows"
     );
-    for scheme in SCHEME_DIRECTORIES {
+    for scheme in SCHEME_NAMES {
         let names: Vec<String> = token_names(&scheme_file(scheme));
         assert_eq!(
             names.len(),
             reference.len(),
-            "{scheme} defines {} tokens, the built-in scheme defines {} — a scheme that adds or \
+            "{scheme} defines {} tokens, the shadcn scheme defines {} — a scheme that adds or \
              drops a token leaves a role undefined in that design language",
             names.len(),
             reference.len()
@@ -175,23 +195,23 @@ fn every_scheme_defines_the_same_tokens() {
             .collect();
         assert!(
             missing.is_empty() && extra.is_empty(),
-            "{scheme} does not match the built-in token contract — missing {missing:?}, extra {extra:?}"
+            "{scheme} does not match the shadcn token contract — missing {missing:?}, extra {extra:?}"
         );
     }
 }
 
 #[test]
-fn the_mode_and_the_scheme_never_own_the_same_token() {
-    let mode: Vec<String> = token_names(&mode_file());
-    for scheme in SCHEME_DIRECTORIES {
+fn the_theme_and_a_scheme_never_own_the_same_token() {
+    let theme: Vec<String> = token_names(&theme_file());
+    for scheme in SCHEME_NAMES {
         let names: Vec<String> = token_names(&scheme_file(scheme));
-        let overlap: Vec<&String> = mode
+        let overlap: Vec<&String> = theme
             .iter()
             .filter(|name: &&String| names.contains(name))
             .collect();
         assert!(
             overlap.is_empty(),
-            "{scheme} and the mode class both define {overlap:?} — the two classes sit on the same \
+            "{scheme} and the theme class both define {overlap:?} — the two classes sit on the same \
              root element, so the browser would resolve that token from whichever stylesheet came \
              last"
         );
@@ -200,8 +220,8 @@ fn the_mode_and_the_scheme_never_own_the_same_token() {
 
 #[test]
 fn every_token_the_ui_reads_is_defined() {
-    let mut defined: Vec<String> = token_names(&mode_file());
-    defined.extend(token_names(&scheme_file("builtin")));
+    let mut defined: Vec<String> = token_names(&theme_file());
+    defined.extend(token_names(&scheme_file("shadcn")));
     let read: Vec<String> = read_tokens();
     let mut missing: Vec<String> = Vec::new();
     for name in read {
@@ -222,8 +242,8 @@ fn every_token_the_ui_reads_is_defined() {
 
 #[test]
 fn no_token_is_orphaned() {
-    let mut defined: Vec<String> = token_names(&mode_file());
-    defined.extend(token_names(&scheme_file("builtin")));
+    let mut defined: Vec<String> = token_names(&theme_file());
+    defined.extend(token_names(&scheme_file("shadcn")));
     let read: Vec<String> = read_tokens();
     let mut orphaned: Vec<String> = Vec::new();
     for name in defined {
@@ -243,7 +263,11 @@ fn no_token_is_orphaned() {
 
 #[test]
 fn the_compiled_scheme_names_itself() {
-    let expected: &str = if cfg!(feature = "theme-antdesign") {
+    let expected: &str = if cfg!(feature = "theme-shadcn") {
+        "shadcn"
+    } else if cfg!(feature = "theme-monochrome") {
+        "monochrome"
+    } else if cfg!(feature = "theme-antdesign") {
         "antdesign"
     } else if cfg!(feature = "theme-material") {
         "material"
@@ -253,8 +277,20 @@ fn the_compiled_scheme_names_itself() {
         "cupertino"
     } else if cfg!(feature = "theme-fluent") {
         "fluent"
+    } else if cfg!(feature = "theme-radix") {
+        "radix"
+    } else if cfg!(feature = "theme-mantine") {
+        "mantine"
+    } else if cfg!(feature = "theme-daisyui") {
+        "daisyui"
+    } else if cfg!(feature = "theme-heroui") {
+        "heroui"
+    } else if cfg!(feature = "theme-park") {
+        "park"
+    } else if cfg!(feature = "theme-geist") {
+        "geist"
     } else {
-        "builtin"
+        "shadcn"
     };
     assert_eq!(
         scheme_name(),

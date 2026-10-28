@@ -1,24 +1,48 @@
 use super::*;
 
-// The Microsoft Fluent 2 scheme.
+// The Fluent 2 scheme.
 //
-// Office-grade neutrals under a single communicating blue: 4px control
-// corners, 14px body type, a 32px control height and the eight-step Fluent
-// shadow ramp. Every role below has a counterpart in the other schemes, so
-// the registry never reads an undefined token.
+// Microsoft Fluent 2: `colorBrandBackground #0f6cbd` over the neutral
+// background ramp, Segoe UI Variable, a 4px control radius and a 32px control
+// height. The dark half is Fluent's own dark theme, where the neutral ramp
+// steps down through `#292929`, `#1f1f1f` and `#141414` and the brand lifts to
+// `#479ef5`.
 vars! {
     pub c_scheme_fluent {
         // ═══════════════════════════════════════════════════════════════════════
-        // Shape — Fluent 2 keeps the sharpest corners of the six, 4px on controls.
+        // Shape — Fluent's small-corner ladder, from a 2px atom to an 8px card.
         // ═══════════════════════════════════════════════════════════════════════
+
         radius-xs: "2px";
         radius-sm: "4px";
-        radius-md: "6px";
-        radius-lg: "8px";
+        radius-md: "4px";
+        radius-lg: "6px";
+        radius-xl: "8px";
         radius-full: "50%";
+
         // ═══════════════════════════════════════════════════════════════════════
-        // Typography
+        // Elevation — the two-part Fluent shadow, a blurred key light over a
+        // tight ambient one.
         // ═══════════════════════════════════════════════════════════════════════
+
+        shadow-xs: "0 1px 2px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
+        shadow-sm: "0 2px 4px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
+        shadow-md: "0 4px 8px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
+        shadow-lg: "0 8px 16px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
+        shadow-xl: "0 14px 28px rgba(0, 0, 0, 0.24), 0 0 8px rgba(0, 0, 0, 0.20)";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Lines and Focus
+        // ═══════════════════════════════════════════════════════════════════════
+
+        border-width: "1px";
+        ring-width: "3px";
+        ring-offset: "0px";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Typography — Segoe UI Variable over Fluent's size ramp.
+        // ═══════════════════════════════════════════════════════════════════════
+
         font-family: "'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif";
         font-family-mono: "Consolas, 'Cascadia Code', 'Courier New', monospace";
         font-xs: "10px";
@@ -32,90 +56,142 @@ vars! {
         font-4xl: "32px";
         font-5xl: "40px";
         font-6xl: "48px";
+        font-weight-normal: "400";
+        font-weight-medium: "600";
+        font-weight-semibold: "600";
+        font-weight-bold: "700";
+        letter-spacing-tight: "-0.01em";
+        letter-spacing-normal: "0em";
+        letter-spacing-wide: "0.04em";
+        text-transform-none: "none";
+        text-transform-uppercase: "uppercase";
+
         // ═══════════════════════════════════════════════════════════════════════
-        // Control Metrics — 9px of vertical padding puts `space-sm` content in
-        // the 36px box the CTA buttons already occupy: 9 + 24 line + 9 = 42.
-        // Spelled as a name so the three families cannot drift apart again.
+        // Control Metrics — Fluent's default control is a 32px box, the small
+        // one 24px.
         // ═══════════════════════════════════════════════════════════════════════
-        min-height-base: "32px";
-        min-height-sm: "24px";
+
+        control-height: "32px";
+        control-height-sm: "24px";
         control-row-pad: "6px";
-        side-indent: "16px";
-        side-indent-num: "16";
+
         // ═══════════════════════════════════════════════════════════════════════
         // Media Surfaces — a camera feed and the letterbox around a fullscreen
         // canvas are black, a drawing preview is white. They are pictures, not
         // chrome, so they do not follow the theme.
         // ═══════════════════════════════════════════════════════════════════════
+
         surface-media: "#000000";
         surface-drawing: "#ffffff";
+
         // ═══════════════════════════════════════════════════════════════════════
-        // Colour Roles — one ink fills every role in the light half, and its
-        // inverse fills every role in the dark half. The scheme is monochrome
-        // by construction, so "error" is the same ink as "primary".
+        // Surfaces — the light half.
         // ═══════════════════════════════════════════════════════════════════════
-        role-surface-light: "#ffffff";
-        role-surface-dark: "#292929";
-        role-surface-container-light: "#f5f5f5";
-        role-surface-container-dark: "#1f1f1f";
-        role-surface-container-high-light: "#fafafa";
-        role-surface-container-high-dark: "#323232";
-        role-on-surface-light: "#242424";
-        role-on-surface-dark: "#ffffff";
-        role-on-surface-variant-light: "#424242";
-        role-on-surface-variant-dark: "#d6d6d6";
-        role-outline-light: "#d1d1d1";
-        role-outline-dark: "#404040";
+
+        role-background-light: "#ffffff";
+        role-foreground-light: "#242424";
+        role-card-light: "#fafafa";
+        role-card-foreground-light: "#242424";
+        role-popover-light: "#ffffff";
+        role-popover-foreground-light: "#242424";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Brand and Neutrals — the light half.
+        // ═══════════════════════════════════════════════════════════════════════
+
         role-primary-light: "#0f6cbd";
-        role-primary-dark: "#479ef5";
+        role-primary-foreground-light: "#ffffff";
         role-primary-hover-light: "#115ea3";
-        role-primary-hover-dark: "#62abf5";
-        role-on-primary-light: "#ffffff";
-        role-on-primary-dark: "#000000";
-        role-primary-container-light: "#ebf3fc";
-        role-primary-container-dark: "rgba(71, 158, 245, 0.20)";
-        role-fill-subtle-light: "#f5f5f5";
-        role-fill-subtle-dark: "#323232";
-        role-scrim-light: "rgba(0, 0, 0, 0.40)";
-        role-scrim-dark: "rgba(0, 0, 0, 0.60)";
-        role-focus-light: "#0f6cbd";
-        role-focus-dark: "#479ef5";
-        role-error-light: "#c50f1f";
-        role-error-dark: "#ff99a4";
-        role-on-error-light: "#ffffff";
-        role-on-error-dark: "#000000";
-        role-error-container-light: "#fde7e9";
-        role-error-container-dark: "#3a0a08";
+        role-secondary-light: "#f5f5f5";
+        role-secondary-foreground-light: "#242424";
+        role-muted-light: "#f5f5f5";
+        role-muted-foreground-light: "#424242";
+        role-accent-light: "#f5f5f5";
+        role-accent-foreground-light: "#242424";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Status — the light half.
+        // ═══════════════════════════════════════════════════════════════════════
+
+        role-destructive-light: "#c50f1f";
+        role-destructive-foreground-light: "#ffffff";
         role-success-light: "#107c10";
-        role-success-dark: "#54b054";
+        role-success-foreground-light: "#ffffff";
         role-success-container-light: "#dff6dd";
-        role-success-container-dark: "#0a2f14";
         role-warning-light: "#f7630c";
-        role-warning-dark: "#f79e1b";
+        role-warning-foreground-light: "#ffffff";
         role-warning-container-light: "#fff4e4";
+        role-error-container-light: "#fde7e9";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Lines and Focus — the light half.
+        // ═══════════════════════════════════════════════════════════════════════
+
+        role-border-light: "#d1d1d1";
+        role-input-light: "#d1d1d1";
+        role-ring-light: "#0f6cbd";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Scrollbar — the light half.
+        // ═══════════════════════════════════════════════════════════════════════
+
+        role-scrollbar-thumb-light: "rgba(0, 0, 0, 0.14)";
+        role-scrollbar-thumb-hover-light: "rgba(0, 0, 0, 0.24)";
+        role-scrollbar-thumb-active-light: "rgba(0, 0, 0, 0.36)";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Surfaces — the dark half.
+        // ═══════════════════════════════════════════════════════════════════════
+
+        role-background-dark: "#292929";
+        role-foreground-dark: "#ffffff";
+        role-card-dark: "#1f1f1f";
+        role-card-foreground-dark: "#ffffff";
+        role-popover-dark: "#323232";
+        role-popover-foreground-dark: "#ffffff";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Brand and Neutrals — the dark half.
+        // ═══════════════════════════════════════════════════════════════════════
+
+        role-primary-dark: "#479ef5";
+        role-primary-foreground-dark: "#000000";
+        role-primary-hover-dark: "#62abf5";
+        role-secondary-dark: "#323232";
+        role-secondary-foreground-dark: "#ffffff";
+        role-muted-dark: "#1f1f1f";
+        role-muted-foreground-dark: "#d6d6d6";
+        role-accent-dark: "#323232";
+        role-accent-foreground-dark: "#ffffff";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Status — the dark half.
+        // ═══════════════════════════════════════════════════════════════════════
+
+        role-destructive-dark: "#ff99a4";
+        role-destructive-foreground-dark: "#000000";
+        role-success-dark: "#54b054";
+        role-success-foreground-dark: "#000000";
+        role-success-container-dark: "#0a2f14";
+        role-warning-dark: "#f79e1b";
+        role-warning-foreground-dark: "#000000";
         role-warning-container-dark: "#3a2500";
-        role-stroke-neutral-light: "rgba(0, 0, 0, 0.14)";
-        role-stroke-neutral-strong-light: "rgba(0, 0, 0, 0.24)";
-        role-stroke-neutral-strongest-light: "rgba(0, 0, 0, 0.36)";
-        role-stroke-neutral-dark: "rgba(255, 255, 255, 0.20)";
-        role-stroke-neutral-strong-dark: "rgba(255, 255, 255, 0.30)";
-        role-stroke-neutral-strongest-dark: "rgba(255, 255, 255, 0.42)";
+        role-error-container-dark: "#3a0a08";
+
         // ═══════════════════════════════════════════════════════════════════════
-        // Shadows — black alpha in light, white alpha in dark. Each role keeps
-        // its own shape so the directional drawer and console shadows survive
-        // the swap to another scheme.
+        // Lines and Focus — the dark half.
         // ═══════════════════════════════════════════════════════════════════════
-        role-shadow-control-light: "0 1px 2px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
-        role-shadow-control-dark: "0 1px 2px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
-        role-shadow-raised-light: "0 2px 4px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
-        role-shadow-raised-dark: "0 2px 4px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
-        role-shadow-modal-light: "0 14px 28px rgba(0, 0, 0, 0.24), 0 0 8px rgba(0, 0, 0, 0.20)";
-        role-shadow-modal-dark: "0 14px 28px rgba(0, 0, 0, 0.24), 0 0 8px rgba(0, 0, 0, 0.20)";
-        role-shadow-drawer-light: "0 8px 16px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
-        role-shadow-drawer-dark: "0 8px 16px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
-        role-shadow-console-button-light: "0 8px 16px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
-        role-shadow-console-button-dark: "0 8px 16px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
-        role-shadow-console-panel-light: "0 4px 8px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
-        role-shadow-console-panel-dark: "0 4px 8px rgba(0, 0, 0, 0.14), 0 0 2px rgba(0, 0, 0, 0.12)";
+
+        role-border-dark: "#404040";
+        role-input-dark: "#404040";
+        role-ring-dark: "#479ef5";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Scrollbar — the dark half.
+        // ═══════════════════════════════════════════════════════════════════════
+
+        role-scrollbar-thumb-dark: "rgba(255, 255, 255, 0.20)";
+        role-scrollbar-thumb-hover-dark: "rgba(255, 255, 255, 0.30)";
+        role-scrollbar-thumb-active-dark: "rgba(255, 255, 255, 0.42)";
     }
 }

@@ -133,9 +133,9 @@ fn the_sidebar_active_row_keeps_its_pull_back_off_the_container_margin() {
          {active:?}"
     );
     assert!(
-        children.contains("border-left: 1px dashed")
+        children.contains("border-left: var(--border-width) solid")
             && children.contains("padding-left: var(--space-sm);"),
-        "the guide the active row pulls back to is the container's dashed \
+        "the guide the active row pulls back to is the container's hairline \
          border, offset from its rows by the unchanged `space-sm`, got \
          {children:?}"
     );

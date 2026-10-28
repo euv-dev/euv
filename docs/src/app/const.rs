@@ -90,25 +90,25 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
                          .c_euv_sidebar_link:hover::before, .c_euv_sidebar_group_title:hover::before { background: currentColor !important; } \
                          .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #000) !important; border: 0 !important; box-shadow: none !important; } \
              .c_euv_sidebar_link:not(.c_euv_sidebar_link_active):not(.c_euv_sidebar_link_active_flush):hover::before, .c_euv_sidebar_group_title:not(.c_euv_sidebar_group_title_active):not(.c_euv_sidebar_group_title_root):not(.c_euv_sidebar_group_title_root_active):hover::before { background: currentColor !important; } \
-                         .c_euv_sidebar_link_active, .c_euv_sidebar_group_title_active { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
-                         .c_euv_sidebar_link_active::before, .c_euv_sidebar_group_title_active::before { background: var(--accent, #000) !important; content: '' !important; position: absolute !important; width: 5px !important; top: 0 !important; bottom: 0 !important; pointer-events: none !important; left: 0 !important; } \
+                         .c_euv_sidebar_link_active, .c_euv_sidebar_group_title_active { background: var(--primary) !important; color: var(--primary-foreground) !important; box-shadow: none !important; } \
+                         .c_euv_sidebar_link_active::before, .c_euv_sidebar_group_title_active::before { background: var(--primary, #000) !important; content: '' !important; position: absolute !important; width: 5px !important; top: 0 !important; bottom: 0 !important; pointer-events: none !important; left: 0 !important; } \
                          .c_euv_sidebar_group_title_active::before { left: 0 !important; } \
-                         .c_euv_sidebar_link_active:hover, .c_euv_sidebar_group_title_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
+                         .c_euv_sidebar_link_active:hover, .c_euv_sidebar_group_title_active:hover { background: var(--primary) !important; color: var(--primary-foreground) !important; box-shadow: none !important; } \
                          .c_theme_dark .c_euv_sidebar_link:hover, .c_theme_dark .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #fff) !important; box-shadow: none !important; } \
-                         .c_theme_dark .c_euv_sidebar_link_active, .c_theme_dark .c_euv_sidebar_group_title_active { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
-                         .c_theme_dark .c_euv_sidebar_link_active::before, .c_theme_dark .c_euv_sidebar_group_title_active::before { background: var(--accent, #fff) !important; } \
-                         .c_theme_dark .c_euv_sidebar_link_active:hover, .c_theme_dark .c_euv_sidebar_group_title_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; box-shadow: none !important; } \
+                         .c_theme_dark .c_euv_sidebar_link_active, .c_theme_dark .c_euv_sidebar_group_title_active { background: var(--primary) !important; color: var(--primary-foreground) !important; box-shadow: none !important; } \
+                         .c_theme_dark .c_euv_sidebar_link_active::before, .c_theme_dark .c_euv_sidebar_group_title_active::before { background: var(--primary, #fff) !important; } \
+                         .c_theme_dark .c_euv_sidebar_link_active:hover, .c_theme_dark .c_euv_sidebar_group_title_active:hover { background: var(--primary) !important; color: var(--primary-foreground) !important; box-shadow: none !important; } \
                          .c_euv_sidebar_group_title_root, .c_euv_sidebar_group_title_root_active { position: relative !important; } \
                          .c_euv_sidebar_group_title_root::before { content: '' !important; position: absolute !important; top: 0 !important; bottom: 0 !important; left: 0 !important; width: 5px !important; background: transparent !important; pointer-events: none !important; } \
                          .c_euv_sidebar_group_title_root:hover::before { background: var(--foreground, #000) !important; } \
                          .c_theme_dark .c_euv_sidebar_group_title_root:hover::before { background: var(--foreground, #fff) !important; } \
-                         .c_euv_sidebar_group_title_root_active::before { background: var(--text-on-accent, #fff) !important; } \
+                         .c_euv_sidebar_group_title_root_active::before { background: var(--primary-foreground, #fff) !important; } \
                          .c_euv_sidebar_group_title_root:hover { background: transparent !important; color: var(--foreground, #000) !important; } \
-                         .c_euv_sidebar_group_title_root_active, .c_euv_sidebar_group_title_root_active:hover { background: var(--accent) !important; color: var(--text-on-accent) !important; } \
+                         .c_euv_sidebar_group_title_root_active, .c_euv_sidebar_group_title_root_active:hover { background: var(--primary) !important; color: var(--primary-foreground) !important; } \
                          .c_theme_dark .c_euv_sidebar_group_title_root:hover { background: transparent !important; color: var(--foreground, #fff) !important; } \
                          .c_euv_sidebar_link_active_flush, .c_euv_sidebar_group_title_active { position: relative !important; margin-left: -9px !important; width: calc(100% + 9px) !important; padding-left: calc(12px + 9px) !important; } \
                          .c_euv_sidebar_link_active_flush::before, .c_euv_sidebar_group_title_active::before { left: 0 !important; } \
-                         .c_euv_sidebar_link_active_flush:hover::before { background: var(--accent, #000) !important; } \
+                         .c_euv_sidebar_link_active_flush:hover::before { background: var(--primary, #000) !important; } \
              \
              .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; width: 100% !important; flex-shrink: 0 !important; } \
              /* `min-height: 100%` fills the visible area of `c_app_main` so the tail can be pushed to the bottom; a viewport unit overshoots by the header. `space-between` puts the tail at the bottom when the article is short and lets it follow the article when the article is long. Not sticky, not fixed: the tail scrolls with the page. */ \
@@ -119,11 +119,11 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
                          .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; position: sticky !important; top: var(--padding-main-top, 24px) !important; align-self: flex-start !important; max-height: 100% !important; overflow-y: auto !important; } \
                          .c_euv_toc_link_nested { padding-left: 0.75rem !important; font-size: var(--font-sm, 0.875rem) !important; color: var(--muted-foreground, #555) !important; line-height: 1.5 !important; } \
                          .c_euv_toc_link, .c_euv_toc_link_nested { font-weight: 400 !important; } \
-                         .c_euv_toc_link:hover, .c_euv_toc_link_nested:hover { color: var(--accent, #000) !important; font-weight: 400 !important; } \
-                         .c_euv_toc_link_active, .c_euv_toc_link_nested_active { color: var(--accent, #000) !important; font-weight: 700 !important; } \
-                         .c_euv_toc_link_active:hover, .c_euv_toc_link_nested_active:hover { color: var(--accent, #000) !important; font-weight: 700 !important; } \
-                         .c_theme_dark .c_euv_toc_link:hover, .c_theme_dark .c_euv_toc_link_nested:hover { color: var(--accent, #fff) !important; font-weight: 400 !important; } \
-                         .c_theme_dark .c_euv_toc_link_active, .c_theme_dark .c_euv_toc_link_nested_active, .c_theme_dark .c_euv_toc_link_active:hover, .c_theme_dark .c_euv_toc_link_nested_active:hover { color: var(--accent, #fff) !important; font-weight: 700 !important; } \
+                         .c_euv_toc_link:hover, .c_euv_toc_link_nested:hover { color: var(--primary, #000) !important; font-weight: 400 !important; } \
+                         .c_euv_toc_link_active, .c_euv_toc_link_nested_active { color: var(--primary, #000) !important; font-weight: 700 !important; } \
+                         .c_euv_toc_link_active:hover, .c_euv_toc_link_nested_active:hover { color: var(--primary, #000) !important; font-weight: 700 !important; } \
+                         .c_theme_dark .c_euv_toc_link:hover, .c_theme_dark .c_euv_toc_link_nested:hover { color: var(--primary, #fff) !important; font-weight: 400 !important; } \
+                         .c_theme_dark .c_euv_toc_link_active, .c_theme_dark .c_euv_toc_link_nested_active, .c_theme_dark .c_euv_toc_link_active:hover, .c_theme_dark .c_euv_toc_link_nested_active:hover { color: var(--primary, #fff) !important; font-weight: 700 !important; } \
              \
              .c_euv_pagination { padding-bottom: var(--space-xl, 1.25rem) !important; gap: var(--gap-component, 1rem) !important; flex-wrap: nowrap !important; align-items: stretch !important; width: 100% !important; } \
              .c_euv_pagination_link { padding: var(--space-md, 0.75rem) !important; gap: var(--space-2xs, 0.25rem) !important; min-width: 0 !important; max-width: none !important; } \
@@ -144,15 +144,15 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
              .c_docs_feature_grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; } \
              @media (max-width: 767px) { .c_docs_feature_grid { grid-template-columns: minmax(0, 1fr); } } \
              .c_docs_feature_card { display: flex; flex-direction: column; gap: 0.4rem; padding: 1rem; border: 1px dashed var(--foreground, #000); border-radius: 0; background: transparent; text-decoration: none; color: inherit; transition: background 0.15s ease-out, border-color 0.15s ease-out; min-width: 0; } \
-             .c_docs_feature_card:hover { background: var(--accent-muted, rgba(0,0,0,0.06)); border-color: var(--foreground, #000); } \
-             .c_theme_dark .c_docs_feature_card:hover { background: var(--accent-muted, rgba(255,255,255,0.08)); } \
+             .c_docs_feature_card:hover { background: var(--muted, rgba(0,0,0,0.06)); border-color: var(--foreground, #000); } \
+             .c_theme_dark .c_docs_feature_card:hover { background: var(--muted, rgba(255,255,255,0.08)); } \
              .c_docs_feature_card_inner { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; } \
              .c_docs_feature_card_icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; } \
              .c_docs_feature_card_title { font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; } \
              .c_docs_feature_card_details { font-size: 0.875rem; color: var(--muted-foreground, #555); overflow-wrap: anywhere; } \
              \
-             .docs-container-tip, .docs-container-note, .docs-container-important, .docs-container-info { border: 1px dashed var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--accent-muted, rgba(0,0,0,0.04)); } \
-             .docs-container-warning, .docs-container-caution { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--accent-muted, rgba(0,0,0,0.04)); } \
+             .docs-container-tip, .docs-container-note, .docs-container-important, .docs-container-info { border: 1px dashed var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--muted, rgba(0,0,0,0.04)); } \
+             .docs-container-warning, .docs-container-caution { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--muted, rgba(0,0,0,0.04)); } \
              .docs-container-danger { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: rgba(0,0,0,0.06); } \
              .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
              .docs-container-title:empty { display: none; } \

@@ -19,7 +19,7 @@ class! {
         padding: var!(space-lg);
         overflow: "hidden";
         box-sizing: "border-box";
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub c_euv_feature_header {
@@ -40,7 +40,7 @@ class! {
 
     pub c_euv_feature_name {
         font-size: var!(font-lg);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
         margin: "0px";
         overflow: "hidden";
@@ -94,8 +94,8 @@ class! {
 
     pub c_file_upload_item_index {
         font-size: var!(font-sm);
-        font-weight: "600";
-        color: var!(accent);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
         min-width: "24px";
     }
 
@@ -115,12 +115,12 @@ class! {
         z-index: "140";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-md);
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-xs);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         line-height: "1.3";
         white-space: "nowrap";
         opacity: "0";
@@ -134,12 +134,12 @@ class! {
         z-index: "140";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-md);
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-xs);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         line-height: "1.3";
         white-space: "nowrap";
         opacity: "0";
@@ -156,12 +156,12 @@ class! {
         z-index: "140";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-md);
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-xs);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         line-height: "1.3";
         white-space: "nowrap";
         opacity: "0";
@@ -178,12 +178,12 @@ class! {
         z-index: "140";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-md);
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-xs);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         line-height: "1.3";
         white-space: "nowrap";
         opacity: "0";
@@ -200,12 +200,12 @@ class! {
         z-index: "140";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-md);
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-xs);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         line-height: "1.3";
         white-space: "nowrap";
         opacity: "0";
@@ -229,8 +229,10 @@ class! {
         min-width: "200px";
         box-sizing: "border-box";
         border-radius: var!(radius-md);
-        background: var!(background);
-        color: var!(foreground);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        background: var!(popover);
+        color: var!(popover-foreground);
+        box-shadow: var!(shadow-md);
         font-size: var!(font-base);
         transition: format!("opacity {} {}, visibility {} {}", var!(duration-overlay), var!(ease-out), var!(duration-overlay), var!(ease-out));
     }
@@ -240,7 +242,7 @@ class! {
         z-index: "150";
         min-width: "200px";
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         box-shadow: var!(shadow-sm);
         border-radius: var!(radius-md);
         background: var!(background);
@@ -257,7 +259,7 @@ class! {
         z-index: "150";
         min-width: "200px";
         box-sizing: "border-box";
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-md);
         background: var!(background);
         color: var!(foreground);
@@ -274,12 +276,12 @@ class! {
         justify-content: "space-between";
         gap: var!(space-sm);
         padding: format!("{} {}", var!(space-sm), var!(space-md));
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub(crate) c_euv_popover_title {
         font-size: var!(font-base);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
         margin: "0px";
     }
@@ -291,7 +293,7 @@ class! {
         width: "100%";
         box-sizing: "border-box";
         padding: var!(space-md);
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
     }
 
@@ -304,7 +306,7 @@ class! {
 
     pub(crate) c_euv_calendar_title {
         font-size: var!(font-base);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
         margin: "0px";
     }
@@ -328,9 +330,9 @@ class! {
         justify-content: "center";
         min-height: "24px";
         font-size: var!(font-xs);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(muted-foreground);
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub(crate) c_euv_calendar_grid {
@@ -347,18 +349,18 @@ class! {
         min-height: "36px";
         box-sizing: "border-box";
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: var!(foreground);
         background: var!(background);
-        border: "1px solid transparent";
-        border-radius: var!(radius-sm);
+        border: format!("{} solid transparent", var!(border-width));
+        border-radius: var!(radius-md);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -369,11 +371,11 @@ class! {
         min-height: "36px";
         box-sizing: "border-box";
         font-size: var!(font-base);
-        font-weight: "400";
+        font-weight: var!(font-weight-normal);
         color: var!(muted-foreground);
         background: var!(background);
-        border: "1px dashed transparent";
-        border-radius: var!(radius-sm);
+        border: format!("{} solid transparent", var!(border-width));
+        border-radius: var!(radius-md);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
@@ -387,18 +389,18 @@ class! {
         min-height: "36px";
         box-sizing: "border-box";
         font-size: var!(font-base);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         color: var!(foreground);
         background: var!(background);
-        border: format!("2px solid {}", var!(accent));
-        border-radius: var!(radius-sm);
+        border: format!("2px solid {}", var!(primary));
+        border-radius: var!(radius-md);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -409,11 +411,11 @@ class! {
         min-height: "36px";
         box-sizing: "border-box";
         font-size: var!(font-base);
-        font-weight: "600";
-        color: var!(text-on-accent);
-        background: var!(accent);
-        border: format!("2px solid {}", var!(accent));
-        border-radius: var!(radius-sm);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary-foreground);
+        background: var!(primary);
+        border: format!("2px solid {}", var!(primary));
+        border-radius: var!(radius-md);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
@@ -449,9 +451,9 @@ class! {
         min-height: var!(space-7xl);
         box-sizing: "border-box";
         padding: var!(space-2xl);
-        border: format!("2px solid {}", var!(accent));
-        background: var!(accent-muted);
-        color: var!(accent);
+        border: format!("2px solid {}", var!(primary));
+        background: var!(muted);
+        color: var!(primary);
         font-size: var!(font-base);
         text-align: "center";
         cursor: "pointer";
@@ -476,15 +478,15 @@ class! {
         justify-content: "space-between";
         gap: var!(space-sm);
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         box-sizing: "border-box";
         padding: format!("{} {}", var!(space-sm), var!(space-md));
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub(crate) c_euv_upload_file_name {
         font-size: var!(font-sm);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: var!(foreground);
         overflow: "hidden";
         text-overflow: "ellipsis";
@@ -505,9 +507,9 @@ class! {
         align-items: "center";
         gap: var!(space-xs);
         font-size: var!(font-xs);
-        font-weight: "400";
+        font-weight: var!(font-weight-normal);
         color: var!(muted-foreground);
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         padding: "0px";
         white-space: "nowrap";
         flex-shrink: "0";
@@ -518,9 +520,9 @@ class! {
         align-items: "center";
         gap: var!(space-xs);
         font-size: var!(font-xs);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: var!(foreground);
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         padding: "0px";
         white-space: "nowrap";
         flex-shrink: "0";
@@ -531,9 +533,9 @@ class! {
         align-items: "center";
         gap: var!(space-xs);
         font-size: var!(font-xs);
-        font-weight: "600";
-        color: var!(accent);
-        border: format!("2px solid {}", var!(accent));
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
+        border: format!("2px solid {}", var!(primary));
         padding: "0px";
         white-space: "nowrap";
         flex-shrink: "0";
@@ -544,9 +546,9 @@ class! {
         align-items: "center";
         gap: var!(space-xs);
         font-size: var!(font-xs);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         color: var!(muted-foreground);
-        border: format!("1px dashed {}", var!(foreground));
+        border: format!("{} solid {}", var!(border-width), var!(foreground));
         padding: "0px";
         text-decoration: "line-through";
         white-space: "nowrap";
@@ -577,7 +579,8 @@ class! {
     }
 
     pub(crate) c_modal_content {
-        background: var!(surface-elevated);
+        background: var!(popover);
+        color: var!(popover-foreground);
         padding: "0px";
         max-width: "480px";
         width: "90%";
@@ -585,8 +588,8 @@ class! {
         overflow: "hidden";
         color: var!(foreground);
         box-sizing: "border-box";
-        border-radius: var!(radius-lg);
-        box-shadow: var!(shadow-modal);
+        border-radius: var!(radius-xl);
+        box-shadow: var!(shadow-xl);
         @media ((max-width: 767px)) {
             max-width: "100%";
             width: "calc(100% - 32px)";
@@ -609,7 +612,7 @@ class! {
     pub(crate) c_modal_title {
         margin: "0px";
         font-size: var!(font-xl);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: "inherit";
     }
 
@@ -631,12 +634,12 @@ class! {
         background: var!(background);
         color: var!(foreground);
         font-size: "10px";
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         display: "flex";
         align-items: "center";
         justify-content: "center";
         padding: format!("0px {}", var!(space-xs));
-        border: format!("1px solid {}", var!(accent));
+        border: format!("{} solid {}", var!(border-width), var!(primary));
         pointer-events: "none";
         transition: format!("transform {} {}, opacity {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
     }
@@ -677,7 +680,7 @@ class! {
         will-change: "transform";
         transition: format!("transform {} {}", var!(duration-overlay), var!(ease-out));
         overflow: "hidden";
-        box-shadow: var!(shadow-console-panel);
+        box-shadow: var!(shadow-lg);
         padding: format!("{} {}", var!(padding-main-top), var!(edge-gutter));
         @media ((max-width: 767px)) {
             padding: format!("{} {}", var!(space-md), var!(edge-gutter-mobile));
@@ -710,9 +713,9 @@ class! {
     pub(crate) c_vconsole_title {
         color: var!(foreground);
         font-size: var!(font-md);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         margin: "0px";
-        letter-spacing: "0.03em";
+        letter-spacing: var!(letter-spacing-normal);
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
@@ -721,7 +724,7 @@ class! {
     pub(crate) c_vconsole_title_dot {
         width: "8px";
         height: "8px";
-        background: var!(accent);
+        background: var!(primary);
         display: "inline-block";
         animation: "euv-pulse 2s ease-in-out infinite";
     }
@@ -739,7 +742,7 @@ class! {
         color: var!(foreground);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         font-size: var!(font-xs);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
         text-align: "center";
         // A button is a nowrap element (§7): the label never wraps, so the
@@ -760,7 +763,7 @@ class! {
         padding: format!("{} {}", var!(space-xs), var!(space-md));
         cursor: "pointer";
         font-size: var!(font-sm);
-        font-weight: "400";
+        font-weight: var!(font-weight-normal);
         text-align: "center";
         white-space: "nowrap";
         user-select: "none";
@@ -796,7 +799,7 @@ class! {
         display: "flex";
         align-items: "center";
         padding: format!("{} 0px", var!(space-sm));
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
         color: var!(foreground);
         font-size: var!(font-xs);
         word-break: "break-all";
@@ -828,14 +831,14 @@ class! {
     pub(crate) c_vconsole_count {
         color: var!(muted-foreground);
         font-size: var!(font-sm);
-        font-weight: "400";
+        font-weight: var!(font-weight-normal);
     }
 
     pub(crate) c_vconsole_filter_bar {
         display: "flex";
         gap: var!(space-sm);
         padding: format!("{} 0px", var!(space-sm));
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
         flex-shrink: "0";
         align-items: "center";
     }
@@ -848,13 +851,13 @@ class! {
         text-align: "center";
         line-height: "1";
         box-sizing: "border-box";
-        color: var!(text-on-accent);
+        color: var!(primary-foreground);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
-        border: format!("1px solid {}", var!(accent));
+        border: format!("{} solid {}", var!(border-width), var!(primary));
         font-size: var!(font-xs);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
-        background: var!(accent);
+        background: var!(primary);
         :focus-visible {
             outline: "none";
         }
@@ -869,7 +872,7 @@ class! {
         color: var!(foreground);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         font-size: var!(font-xs);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
         border: format!("1.5px solid {}", var!(border));
     }
@@ -878,9 +881,9 @@ class! {
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         font-size: var!(font-xs);
         margin-right: var!(space-sm);
-        letter-spacing: "0.05em";
+        letter-spacing: var!(letter-spacing-wide);
         color: var!(foreground);
-        border: "1px solid currentColor";
+        border: format!("{} solid currentColor", var!(border-width));
         wrap: "nowrap";
         flex-shrink: "0";
     }
@@ -908,9 +911,10 @@ class! {
         // button) leaves a large empty gap on the left of the menu, since
         // `right: 0` anchors only the right edge to the container.
         width: "100%";
-        background: var!(surface-elevated);
-        border: format!("1px solid {}", var!(border));
-        box-shadow: var!(shadow-accent-lg);
+        background: var!(popover);
+        color: var!(popover-foreground);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        box-shadow: var!(shadow-md);
         flex-direction: "column";
         z-index: "101";
         border-radius: var!(radius-md);
@@ -987,7 +991,7 @@ class! {
         font-size: var!(font-sm);
         text-align: "left";
         cursor: "pointer";
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         // The same pinned line height as `c_euv_dropdown_item`, for the same
         // reason: a hovered row's bar has to match this fill to the pixel.
         line-height: "24px";
@@ -1002,11 +1006,11 @@ class! {
         // uses. The inset bar is dropped: the full-width fill already carries
         // the current-page signal, and a bar in the same monochrome accent
         // would be invisible against it.
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         :hover {
-            background: var!(accent);
-            color: var!(text-on-accent);
+            background: var!(primary);
+            color: var!(primary-foreground);
             box-shadow: "none";
         }
     }
@@ -1043,7 +1047,7 @@ class! {
         bottom: "0px";
         width: "260px";
         background: var!(background);
-        border-right: format!("1px solid {}", var!(border));
+        border-right: format!("{} solid {}", var!(border-width), var!(border));
         z-index: "201";
         overflow-y: "auto";
         padding: var!(space-xl);
@@ -1084,10 +1088,10 @@ class! {
         min-width: "240px";
         max-width: "420px";
         padding: format!("{} {}", var!(space-sm), var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(foreground);
-        box-shadow: var!(shadow-accent-lg);
+        box-shadow: var!(shadow-md);
         font-size: var!(font-sm);
         box-sizing: "border-box";
         pointer-events: "auto";
@@ -1106,7 +1110,7 @@ class! {
         background: "transparent";
         color: var!(foreground);
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         text-decoration: "underline";
         cursor: "pointer";
         touch-action: "manipulation";
@@ -1157,10 +1161,10 @@ class! {
         width: "320px";
         max-width: "100%";
         padding: var!(space-md);
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(foreground);
-        box-shadow: var!(shadow-accent-lg);
+        box-shadow: var!(shadow-md);
         font-size: var!(font-sm);
         box-sizing: "border-box";
         pointer-events: "auto";
@@ -1179,7 +1183,7 @@ class! {
 
     pub(crate) c_euv_notification_title {
         font-size: var!(font-base);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
     }
 
@@ -1224,7 +1228,7 @@ class! {
         margin-top: var!(space-2xs);
         min-width: "220px";
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-sm);
@@ -1239,7 +1243,7 @@ class! {
         margin-top: var!(space-2xs);
         min-width: "220px";
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-sm);
@@ -1256,7 +1260,7 @@ class! {
         margin-top: var!(space-2xs);
         min-width: "220px";
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-sm);
@@ -1277,7 +1281,7 @@ class! {
         justify-content: "flex-end";
         gap: var!(space-sm);
         padding: format!("{} {}", var!(space-sm), var!(space-md));
-        border-top: format!("1px dashed {}", var!(border));
+        border-top: format!("{} solid {}", var!(border-width), var!(border));
     }
 }
 

@@ -20,11 +20,19 @@ lombok-macros = { workspace = true }
 
 [features]
 default = []
+theme-shadcn = ["euv-ui/theme-shadcn"]
+theme-monochrome = ["euv-ui/theme-monochrome"]
 theme-antdesign = ["euv-ui/theme-antdesign"]
 theme-material = ["euv-ui/theme-material"]
 theme-bootstrap = ["euv-ui/theme-bootstrap"]
 theme-cupertino = ["euv-ui/theme-cupertino"]
 theme-fluent = ["euv-ui/theme-fluent"]
+theme-radix = ["euv-ui/theme-radix"]
+theme-mantine = ["euv-ui/theme-mantine"]
+theme-daisyui = ["euv-ui/theme-daisyui"]
+theme-heroui = ["euv-ui/theme-heroui"]
+theme-park = ["euv-ui/theme-park"]
+theme-geist = ["euv-ui/theme-geist"]
 
 [build-dependencies]
 serde_yaml = { workspace = true }

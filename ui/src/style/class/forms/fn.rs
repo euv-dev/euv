@@ -25,7 +25,7 @@ class! {
         display: "block";
         margin-bottom: var!(space-sm);
         color: "inherit";
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         font-size: var!(font-base);
     }
 
@@ -37,9 +37,9 @@ class! {
 
     pub c_euv_input {
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("0px {}", var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -50,22 +50,22 @@ class! {
         -moz-appearance: "none";
         vertical-align: "middle";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
         :focus {
             outline: "none";
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_euv_input_no_transition {
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("0px {}", var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -75,19 +75,20 @@ class! {
         -webkit-appearance: "none";
         -moz-appearance: "none";
         vertical-align: "middle";
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_euv_input_error {
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("0px {}", var!(space-lg));
-        border: format!("1px solid {}", var!(error));
+        border: format!("{} solid {}", var!(border-width), var!(destructive));
+        background: var!(error-container);
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
         outline: "none";
-        color: var!(error);
+        color: var!(destructive);
         appearance: "none";
         -webkit-appearance: "none";
         -moz-appearance: "none";
@@ -96,7 +97,7 @@ class! {
             outline: "none";
             border-color: var!(foreground);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_form_checkbox {
@@ -121,9 +122,9 @@ class! {
 
     pub c_select_input {
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("0px {}", var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -139,17 +140,17 @@ class! {
         background-position: "right 14px center";
         :focus {
             outline: "none";
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_textarea_input {
         width: "100%";
         max-width: "100%";
         padding: format!("{} {}", var!(space-md), var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -163,22 +164,22 @@ class! {
         -webkit-appearance: "none";
         -moz-appearance: "none";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
         :focus {
             outline: "none";
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_textarea_input_error {
         width: "100%";
         max-width: "100%";
         padding: format!("{} {}", var!(space-md), var!(space-lg));
-        border: format!("1px solid {}", var!(error));
+        border: format!("{} solid {}", var!(border-width), var!(destructive));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -187,7 +188,7 @@ class! {
         overflow-x: "hidden";
         word-wrap: "break-word";
         font-family: "inherit";
-        color: var!(error);
+        color: var!(destructive);
         appearance: "none";
         -webkit-appearance: "none";
         -moz-appearance: "none";
@@ -195,7 +196,7 @@ class! {
             outline: "none";
             border-color: var!(foreground);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_textarea_counter {
@@ -211,7 +212,7 @@ class! {
     }
 
     pub c_field_error_text {
-        color: var!(error);
+        color: var!(destructive);
         font-size: var!(font-base);
         margin-top: var!(space-xs);
         margin-bottom: var!(space-sm);
@@ -232,9 +233,9 @@ class! {
         align-items: "center";
         justify-content: "space-between";
         gap: var!(gap-component);
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} 0px", var!(space-sm));
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub(crate) c_form_switch_on {
@@ -253,7 +254,7 @@ class! {
         height: "24px";
         flex-shrink: "0";
         box-sizing: "border-box";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         border-radius: var!(radius-full);
         background: var!(background);
         transition: format!("{} {}", var!(duration-fast), var!(ease-out));
@@ -273,7 +274,7 @@ class! {
 
     pub(crate) c_form_switch_label {
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: var!(foreground);
     }
 
@@ -292,14 +293,14 @@ class! {
         ::-webkit-slider-runnable-track {
             height: "6px";
             background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
-            border: format!("1px solid {}", var!(border));
+            border: format!("{} solid {}", var!(border-width), var!(input));
             border-radius: var!(radius-full);
         }
         ::-webkit-slider-thumb {
             width: "16px";
             height: "16px";
             background: var!(background);
-            border: format!("2px solid {}", var!(accent));
+            border: format!("2px solid {}", var!(primary));
             border-radius: var!(radius-full);
             cursor: "pointer";
             -webkit-appearance: "none";
@@ -313,14 +314,14 @@ class! {
         ::-moz-range-track {
             height: "6px";
             background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
-            border: format!("1px solid {}", var!(border));
+            border: format!("{} solid {}", var!(border-width), var!(input));
             border-radius: var!(radius-full);
         }
         ::-moz-range-thumb {
             width: "16px";
             height: "16px";
             background: var!(background);
-            border: format!("2px solid {}", var!(accent));
+            border: format!("2px solid {}", var!(primary));
             border-radius: var!(radius-full);
             cursor: "pointer";
         }
@@ -357,7 +358,7 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} 0px", var!(space-xs));
         cursor: "pointer";
         touch-action: "manipulation";
@@ -366,8 +367,8 @@ class! {
         font-size: var!(font-base);
         color: var!(foreground);
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -379,12 +380,12 @@ class! {
         height: "16px";
         flex-shrink: "0";
         box-sizing: "border-box";
-        border: format!("2px solid {}", var!(accent));
+        border: format!("2px solid {}", var!(primary));
         border-radius: var!(radius-full);
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-xs);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         line-height: "1";
     }
 
@@ -396,12 +397,12 @@ class! {
         height: "16px";
         flex-shrink: "0";
         box-sizing: "border-box";
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         border-radius: var!(radius-full);
         background: var!(background);
         color: var!(muted-foreground);
         font-size: var!(font-xs);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         line-height: "1";
     }
 
@@ -420,7 +421,7 @@ class! {
     pub(crate) c_progress_bar_fill {
         height: "100%";
         width: "0%";
-        background: var!(accent);
+        background: var!(primary);
         transition: format!("width {} {}", var!(duration-normal), var!(ease-out));
     }
 
@@ -441,9 +442,9 @@ class! {
         justify-content: "space-between";
         gap: var!(space-sm);
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-base);
@@ -454,14 +455,14 @@ class! {
         -webkit-appearance: "none";
         touch-action: "manipulation";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
         :focus {
             outline: "none";
-            border-color: var!(accent);
+            border-color: var!(ring);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub(crate) c_euv_select_value {
@@ -492,9 +493,10 @@ class! {
         margin-top: var!(space-2xs);
         max-height: "240px";
         overflow-y: "auto";
-        border: format!("1px solid {}", var!(border));
-        background: var!(surface-elevated);
-        box-shadow: var!(shadow-sm);
+        border: format!("{} solid {}", var!(border-width), var!(input));
+        background: var!(popover);
+        color: var!(popover-foreground);
+        box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         border-radius: var!(radius-md);
     }
@@ -508,7 +510,7 @@ class! {
         margin-top: var!(space-2xs);
         max-height: "240px";
         overflow-y: "auto";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -525,7 +527,7 @@ class! {
         margin-top: var!(space-2xs);
         max-height: "240px";
         overflow-y: "auto";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -548,8 +550,8 @@ class! {
         box-sizing: "border-box";
         touch-action: "manipulation";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -561,17 +563,17 @@ class! {
         width: "100%";
         padding: format!("{} {}", var!(space-sm), var!(space-lg));
         border: "none";
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-base);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         text-align: "left";
         cursor: "pointer";
         box-sizing: "border-box";
         touch-action: "manipulation";
         :hover {
-            background: var!(accent);
-            color: var!(text-on-accent);
+            background: var!(primary);
+            color: var!(primary-foreground);
         }
     }
 
@@ -596,8 +598,8 @@ class! {
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
         color: var!(muted-foreground);
         font-size: var!(font-xs);
-        letter-spacing: "0.08em";
-        text-transform: "uppercase";
+        letter-spacing: var!(letter-spacing-wide);
+        text-transform: var!(text-transform-uppercase);
         cursor: "default";
     }
 
@@ -625,7 +627,7 @@ class! {
         display: "block";
         margin-bottom: var!(space-sm);
         color: "inherit";
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         font-size: var!(font-base);
     }
 
@@ -633,7 +635,7 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} 0px", var!(space-xs));
         cursor: "pointer";
         touch-action: "manipulation";
@@ -642,8 +644,8 @@ class! {
         font-size: var!(font-base);
         color: var!(foreground);
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -655,12 +657,12 @@ class! {
         height: "16px";
         flex-shrink: "0";
         box-sizing: "border-box";
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         border-radius: var!(radius-xs);
         background: var!(background);
-        color: var!(text-on-accent);
+        color: var!(primary-foreground);
         font-size: var!(font-xs);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         line-height: "1";
     }
 
@@ -672,12 +674,12 @@ class! {
         height: "16px";
         flex-shrink: "0";
         box-sizing: "border-box";
-        border: format!("2px solid {}", var!(accent));
+        border: format!("2px solid {}", var!(primary));
         border-radius: var!(radius-xs);
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-xs);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         line-height: "1";
     }
 
@@ -689,12 +691,12 @@ class! {
         height: "16px";
         flex-shrink: "0";
         box-sizing: "border-box";
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         border-radius: var!(radius-xs);
         background: var!(background);
         color: var!(muted-foreground);
         font-size: var!(font-xs);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         line-height: "1";
     }
 
@@ -725,7 +727,7 @@ class! {
         // A row of segments, not a text atom (§7): the labels stay on one
         // line and the row scrolls sideways instead of wrapping.
         white-space: "nowrap";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         box-sizing: "border-box";
         max-width: "100%";
         overflow-x: "auto";
@@ -734,10 +736,10 @@ class! {
     pub(crate) c_euv_segmented_item {
         flex: "1 1 auto";
         min-width: "0px";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
         border: "none";
-        border-right: format!("1px solid {}", var!(border));
+        border-right: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-sm);
@@ -748,22 +750,22 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
     pub(crate) c_euv_segmented_item_active {
         flex: "1 1 auto";
         min-width: "0px";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
         border: "none";
-        border-right: format!("1px solid {}", var!(border));
-        background: var!(accent);
-        color: var!(text-on-accent);
+        border-right: format!("{} solid {}", var!(border-width), var!(border));
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         text-align: "center";
         white-space: "nowrap";
         cursor: "pointer";
@@ -771,8 +773,8 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent);
-            color: var!(text-on-accent);
+            background: var!(primary);
+            color: var!(primary-foreground);
         }
     }
 
@@ -784,13 +786,13 @@ class! {
         display: "flex";
         align-items: "stretch";
         width: "100%";
-        min-height: var!(min-height-base);
-        border: format!("1px solid {}", var!(border));
+        min-height: var!(control-height);
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-sizing: "border-box";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
         // The box is the wrapper, so the focus ring belongs to the wrapper:
         // the field inside carries no border of its own.
@@ -802,7 +804,7 @@ class! {
     pub(crate) c_euv_number_input_field {
         flex: "1";
         min-width: "0px";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("0px {}", var!(space-lg));
         border: "none";
         background: "transparent";
@@ -828,10 +830,10 @@ class! {
         justify-content: "center";
         width: var!(space-2xl);
         flex-shrink: "0";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: "0px";
         border: "none";
-        border-left: format!("1px solid {}", var!(border));
+        border-left: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-sm);
@@ -841,8 +843,8 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -852,10 +854,10 @@ class! {
         justify-content: "center";
         width: var!(space-2xl);
         flex-shrink: "0";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: "0px";
         border: "none";
-        border-left: format!("1px solid {}", var!(border));
+        border-left: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(muted-foreground);
         font-size: var!(font-sm);
@@ -880,9 +882,9 @@ class! {
 
     pub(crate) c_euv_auto_complete_input {
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("0px {}", var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -892,12 +894,12 @@ class! {
         -webkit-appearance: "none";
         -moz-appearance: "none";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
         :focus {
             outline: "none";
-            border-color: var!(accent);
+            border-color: var!(ring);
         }
     }
 
@@ -910,7 +912,7 @@ class! {
         margin-top: var!(space-2xs);
         max-height: "240px";
         overflow-y: "auto";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -925,7 +927,7 @@ class! {
         margin-top: var!(space-2xs);
         max-height: "240px";
         overflow-y: "auto";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -942,7 +944,7 @@ class! {
         margin-top: var!(space-2xs);
         max-height: "240px";
         overflow-y: "auto";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -962,8 +964,8 @@ class! {
         box-sizing: "border-box";
         touch-action: "manipulation";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -972,17 +974,17 @@ class! {
         width: "100%";
         padding: format!("{} {}", var!(space-sm), var!(space-lg));
         border: "none";
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-base);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         text-align: "left";
         cursor: "pointer";
         box-sizing: "border-box";
         touch-action: "manipulation";
         :hover {
-            background: var!(accent);
-            color: var!(text-on-accent);
+            background: var!(primary);
+            color: var!(primary-foreground);
         }
     }
 
@@ -1027,9 +1029,9 @@ class! {
         justify-content: "space-between";
         gap: var!(space-sm);
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-base);
@@ -1038,12 +1040,12 @@ class! {
         box-sizing: "border-box";
         touch-action: "manipulation";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
         :focus {
             outline: "none";
-            border-color: var!(accent);
+            border-color: var!(ring);
         }
     }
 
@@ -1073,7 +1075,7 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         width: "280px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1086,7 +1088,7 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         width: "280px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1101,7 +1103,7 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         width: "280px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1114,7 +1116,7 @@ class! {
         justify-content: "space-between";
         gap: var!(space-sm);
         padding: var!(space-sm);
-        border-top: format!("1px dashed {}", var!(border));
+        border-top: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     // The month-step buttons of the picker's own header.
@@ -1130,18 +1132,18 @@ class! {
         min-width: "36px";
         box-sizing: "border-box";
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: var!(foreground);
         background: var!(background);
-        border: "1px solid transparent";
-        border-radius: var!(radius-sm);
+        border: format!("{} solid transparent", var!(border-width));
+        border-radius: var!(radius-md);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -1162,9 +1164,9 @@ class! {
         justify-content: "space-between";
         gap: var!(space-sm);
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-base);
@@ -1173,12 +1175,12 @@ class! {
         box-sizing: "border-box";
         touch-action: "manipulation";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
         :focus {
             outline: "none";
-            border-color: var!(accent);
+            border-color: var!(ring);
         }
     }
 
@@ -1208,7 +1210,7 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         width: "220px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1221,7 +1223,7 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         width: "220px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1236,7 +1238,7 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         width: "220px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1272,8 +1274,8 @@ class! {
         box-sizing: "border-box";
         touch-action: "manipulation";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -1282,17 +1284,17 @@ class! {
         width: "100%";
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         border: "none";
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         text-align: "center";
         cursor: "pointer";
         box-sizing: "border-box";
         touch-action: "manipulation";
         :hover {
-            background: var!(accent);
-            color: var!(text-on-accent);
+            background: var!(primary);
+            color: var!(primary-foreground);
         }
     }
 
@@ -1302,7 +1304,7 @@ class! {
         justify-content: "space-between";
         gap: var!(space-sm);
         padding: var!(space-sm);
-        border-top: format!("1px dashed {}", var!(border));
+        border-top: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1321,7 +1323,7 @@ class! {
         flex-direction: "column";
         flex: "1";
         min-width: "0px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-sizing: "border-box";
     }
@@ -1332,7 +1334,7 @@ class! {
         justify-content: "space-between";
         gap: var!(space-sm);
         padding: var!(space-sm);
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
         font-size: var!(font-sm);
     }
 
@@ -1358,8 +1360,8 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -1369,16 +1371,16 @@ class! {
         gap: var!(space-sm);
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
-        background: var!(accent-muted);
+        background: var!(muted);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -1390,12 +1392,12 @@ class! {
         height: "14px";
         flex-shrink: "0";
         box-sizing: "border-box";
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         border-radius: var!(radius-sm);
         background: var!(background);
-        color: var!(text-on-accent);
+        color: var!(primary-foreground);
         font-size: var!(font-xs);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         line-height: "1";
     }
 
@@ -1407,12 +1409,12 @@ class! {
         height: "14px";
         flex-shrink: "0";
         box-sizing: "border-box";
-        border: format!("2px solid {}", var!(accent));
+        border: format!("2px solid {}", var!(primary));
         border-radius: var!(radius-sm);
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-size: var!(font-xs);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         line-height: "1";
     }
 
@@ -1442,9 +1444,9 @@ class! {
         justify-content: "space-between";
         gap: var!(space-sm);
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-base);
@@ -1453,12 +1455,12 @@ class! {
         box-sizing: "border-box";
         touch-action: "manipulation";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
         :focus {
             outline: "none";
-            border-color: var!(accent);
+            border-color: var!(ring);
         }
     }
 
@@ -1488,7 +1490,7 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         min-width: "240px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1501,7 +1503,7 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         min-width: "240px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1516,7 +1518,7 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         min-width: "240px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1535,7 +1537,7 @@ class! {
         max-height: "240px";
         overflow-y: "auto";
         padding: var!(space-2xs);
-        border-right: format!("1px dashed {}", var!(border));
+        border-right: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub(crate) c_euv_cascader_option {
@@ -1551,8 +1553,8 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -1563,16 +1565,16 @@ class! {
         gap: var!(space-sm);
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
-        background: var!(accent-muted);
+        background: var!(muted);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -1593,9 +1595,9 @@ class! {
         justify-content: "space-between";
         gap: var!(space-sm);
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-base);
@@ -1604,12 +1606,12 @@ class! {
         box-sizing: "border-box";
         touch-action: "manipulation";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
         :focus {
             outline: "none";
-            border-color: var!(accent);
+            border-color: var!(ring);
         }
     }
 
@@ -1642,7 +1644,7 @@ class! {
         max-height: "280px";
         overflow-y: "auto";
         padding: var!(space-sm);
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1658,7 +1660,7 @@ class! {
         max-height: "280px";
         overflow-y: "auto";
         padding: var!(space-sm);
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1675,7 +1677,7 @@ class! {
         max-height: "280px";
         overflow-y: "auto";
         padding: var!(space-sm);
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1695,9 +1697,9 @@ class! {
 
     pub(crate) c_euv_mentions_input {
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -1707,12 +1709,12 @@ class! {
         -webkit-appearance: "none";
         -moz-appearance: "none";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
         :focus {
             outline: "none";
-            border-color: var!(accent);
+            border-color: var!(ring);
         }
     }
 
@@ -1725,7 +1727,7 @@ class! {
         min-width: "180px";
         max-height: "220px";
         overflow-y: "auto";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1740,7 +1742,7 @@ class! {
         min-width: "180px";
         max-height: "220px";
         overflow-y: "auto";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1757,7 +1759,7 @@ class! {
         min-width: "180px";
         max-height: "220px";
         overflow-y: "auto";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-sm);
         box-sizing: "border-box";
@@ -1776,8 +1778,8 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -1787,16 +1789,16 @@ class! {
         gap: var!(space-sm);
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
-        background: var!(accent-muted);
+        background: var!(muted);
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 }

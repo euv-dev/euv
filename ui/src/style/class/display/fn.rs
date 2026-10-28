@@ -3,13 +3,11 @@ use super::*;
 #[cfg(not(feature = "custom-styles"))]
 class! {
     pub c_card_title {
-        margin: format!("{} 0px", var!(gap-component));
-        color: var!(foreground);
+        margin: format!("{} 0px", var!(space-lg));
+        color: var!(card-foreground);
         font-size: var!(font-lg);
-        font-weight: "600";
-        padding-bottom: var!(gap-component);
-        border-bottom: format!("1px dashed {}", var!(border));
-        letter-spacing: "-0.01em";
+        font-weight: var!(font-weight-semibold);
+        letter-spacing: var!(letter-spacing-tight);
         @media ((max-width: 767px)) {
             font-size: var!(font-md);
         }
@@ -25,15 +23,15 @@ class! {
         align-items: "center";
         gap: var!(space-sm);
         width: "100%";
-        height: "42px";
-        background: var!(accent);
-        color: var!(text-on-accent);
-        border: "1px solid transparent";
+        height: var!(control-height);
+        background: var!(primary);
+        color: var!(primary-foreground);
+        border: format!("{} solid transparent", var!(border-width));
         padding: format!("0px {}", var!(space-2xl));
         cursor: "pointer";
         font-size: var!(font-base);
-        font-weight: "500";
-        letter-spacing: "0.02em";
+        font-weight: var!(font-weight-medium);
+        letter-spacing: var!(letter-spacing-normal);
         text-align: "center";
         outline: "none";
         box-sizing: "border-box";
@@ -54,8 +52,8 @@ class! {
             background: var!(primary-hover);
         }
         :active {
-            background: var!(accent);
-            color: var!(text-on-accent);
+            background: var!(primary);
+            color: var!(primary-foreground);
             border-color: "transparent";
         }
         @media ((max-width: 767px)) {
@@ -63,7 +61,7 @@ class! {
             padding: format!("{} {}", var!(space-lg), var!(space-xl));
             font-size: var!(font-md);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -88,13 +86,13 @@ class! {
         align-items: "center";
         gap: var!(space-sm);
         flex: "1 1 120px";
-        height: "42px";
+        height: var!(control-height);
         padding: format!("0px {}", var!(space-xl));
-        background: var!(accent);
-        color: var!(text-on-accent);
+        background: var!(primary);
+        color: var!(primary-foreground);
         cursor: "pointer";
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         outline: "none";
         white-space: "nowrap";
         user-select: "none";
@@ -105,7 +103,7 @@ class! {
             cursor: "not-allowed";
             opacity: "1";
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -114,17 +112,23 @@ class! {
 
     pub c_error_box {
         margin: format!("{} 0px", var!(gap-component));
-        background: var!(error-container);
-        color: var!(on-error);
+        background: var!(destructive);
+        color: var!(destructive-foreground);
         font-size: var!(font-base);
+        font-weight: var!(font-weight-medium);
+        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+        border-radius: var!(radius-sm);
         box-sizing: "border-box";
     }
 
     pub c_success_box {
         margin: format!("{} 0px", var!(gap-component));
-        background: var!(success-container);
-        color: var!(success);
+        background: var!(success);
+        color: var!(success-foreground);
         font-size: var!(font-base);
+        font-weight: var!(font-weight-medium);
+        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+        border-radius: var!(radius-sm);
         box-sizing: "border-box";
     }
 
@@ -149,8 +153,8 @@ class! {
     }
 
     pub c_counter_value {
-        font-weight: "700";
-        color: var!(accent);
+        font-weight: var!(font-weight-bold);
+        color: var!(primary);
         font-size: var!(font-base);
     }
 
@@ -160,7 +164,7 @@ class! {
         overflow-wrap: "anywhere";
         font-size: var!(font-base);
         color: "inherit";
-        font-weight: "400";
+        font-weight: var!(font-weight-normal);
     }
 
     pub c_badge_row {
@@ -183,7 +187,7 @@ class! {
 
     pub c_tab_bar {
         display: "flex";
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
         margin-bottom: var!(gap-component);
         gap: var!(gap-element);
         @media ((max-width: 767px)) {
@@ -194,11 +198,11 @@ class! {
     pub c_tab_item_active {
         padding: format!("{} {}", var!(space-md), var!(space-xl));
         cursor: "pointer";
-        border-bottom: format!("2px solid {}", var!(accent));
-        color: var!(text-on-accent);
-        background: var!(accent);
+        border-bottom: format!("2px solid {}", var!(primary));
+        color: var!(primary-foreground);
+        background: var!(primary);
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         // iOS WebKit: tap on a non-button element inside a scrollable
         // container can be silently dropped because iOS interprets the
         // touch as the start of a scroll gesture and never dispatches the
@@ -211,7 +215,7 @@ class! {
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_tab_item_inactive {
@@ -220,16 +224,16 @@ class! {
         border-bottom: "2px solid transparent";
         color: "inherit";
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         // iOS WebKit fix — see c_tab_item_active above for the rationale.
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_tab_content {
@@ -263,7 +267,7 @@ class! {
         flex: "1";
         height: "42px";
         padding: format!("0px {}", var!(space-lg));
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -274,15 +278,15 @@ class! {
         -moz-appearance: "none";
         vertical-align: "middle";
         :hover {
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
         :focus {
             outline: "none";
-            border-color: var!(accent);
-            background: var!(accent-muted);
+            border-color: var!(ring);
+            background: var!(muted);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_list_input_error {
@@ -290,7 +294,7 @@ class! {
         flex: "1";
         height: "42px";
         padding: format!("0px {}", var!(space-lg));
-        border: format!("1px solid {}", var!(error));
+        border: format!("{} solid {}", var!(border-width), var!(destructive));
         font-size: var!(font-base);
         line-height: "normal";
         box-sizing: "border-box";
@@ -304,11 +308,11 @@ class! {
             outline: "none";
             border-color: var!(foreground);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_list_error_text {
-        color: var!(error);
+        color: var!(destructive);
         font-size: var!(font-base);
         margin: format!("{} 0px", var!(gap-element));
     }
@@ -329,7 +333,7 @@ class! {
         justify-content: "space-between";
         align-items: "center";
         gap: var!(gap-component);
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         margin: format!("{} 0px", var!(gap-element));
         border-radius: var!(radius-sm);
     }
@@ -425,14 +429,14 @@ class! {
 
     pub c_progress_bar_running {
         height: "100%";
-        background: var!(accent);
+        background: var!(primary);
         animation: format!("euv-progress 1.6s {} forwards", var!(ease-in-out));
         border-radius: var!(radius-full);
     }
 
     pub c_progress_bar_stopped {
         height: "100%";
-        background: var!(accent);
+        background: var!(primary);
         width: "0%";
         border-radius: var!(radius-full);
     }
@@ -440,7 +444,7 @@ class! {
     pub c_anim_scale_box {
         margin: format!("{} 0px", var!(gap-component));
         padding: var!(space-xl);
-        background: var!(accent);
+        background: var!(primary);
         cursor: "pointer";
         transition: format!("transform {} {}", var!(duration-normal), var!(ease-out));
     }
@@ -516,7 +520,7 @@ class! {
         // layout. `overflow: hidden` is required to actually apply ellipsis
         // when content is wider than the link.
         min-width: "0px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         padding: var!(space-lg);
         cursor: "pointer";
         display: "flex";
@@ -524,9 +528,9 @@ class! {
         gap: var!(space-2xs);
         overflow: "hidden";
         :hover {
-            border-color: var!(accent);
+            border-color: var!(ring);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub c_euv_footer {
@@ -547,7 +551,7 @@ class! {
         // `display: flex` so the row is centred in the band the padding
         // defines rather than riding its top edge.
         padding: format!("{} 0px", var!(space-md));
-        border-top: format!("1px dashed {}", var!(border));
+        border-top: format!("{} solid {}", var!(border-width), var!(border));
         display: "flex";
         // One row: the text and the notices sit side by side and never
         // wrap. `align-items: center` keeps the badge on the text's
@@ -587,7 +591,7 @@ class! {
         color: "inherit";
         text-decoration: "none";
         :hover {
-            color: var!(accent);
+            color: var!(primary);
         }
     }
 
@@ -779,9 +783,11 @@ class! {
 
     pub(crate) c_euv_tabs_bar {
         display: "flex";
-        border-bottom: format!("1px dashed {}", var!(border));
+        background: var!(muted);
+        border-radius: var!(radius-lg);
+        padding: var!(space-xs);
         margin-bottom: var!(gap-component);
-        gap: var!(gap-element);
+        gap: var!(space-xs);
         @media ((max-width: 767px)) {
             flex-wrap: "wrap";
         }
@@ -791,7 +797,7 @@ class! {
         padding: format!("{} {}", var!(space-md), var!(space-xl));
         cursor: "pointer";
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         border-bottom: "2px solid transparent";
         color: "inherit";
         background: "transparent";
@@ -800,25 +806,25 @@ class! {
         -webkit-user-select: "none";
         white-space: "nowrap";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub(crate) c_euv_tab_item_active {
         padding: format!("{} {}", var!(space-md), var!(space-xl));
         cursor: "pointer";
         font-size: var!(font-base);
-        font-weight: "500";
-        border-bottom: format!("2px solid {}", var!(accent));
-        color: var!(text-on-accent);
-        background: var!(accent);
+        font-weight: var!(font-weight-medium);
+        border-bottom: format!("2px solid {}", var!(primary));
+        color: var!(primary-foreground);
+        background: var!(primary);
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
         white-space: "nowrap";
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     pub(crate) c_euv_tabs_panel {
@@ -826,7 +832,7 @@ class! {
     }
 
     pub(crate) c_euv_collapse_item {
-        border-bottom: format!("1px dashed {}", var!(border));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub(crate) c_euv_collapse_header {
@@ -834,12 +840,12 @@ class! {
         align-items: "center";
         gap: var!(space-sm);
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} 0px", var!(space-sm));
         cursor: "pointer";
         text-align: "left";
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: var!(foreground);
         background: "transparent";
         border: "none";
@@ -848,8 +854,8 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -858,14 +864,14 @@ class! {
         align-items: "center";
         gap: var!(space-sm);
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: format!("{} 0px", var!(space-sm));
         cursor: "pointer";
         text-align: "left";
         font-size: var!(font-base);
-        font-weight: "600";
-        color: var!(accent);
-        background: var!(accent-muted);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
+        background: var!(muted);
         border: "none";
         outline: "none";
         touch-action: "manipulation";
@@ -916,8 +922,8 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
     }
 
@@ -930,7 +936,7 @@ class! {
 
     pub(crate) c_euv_breadcrumb_current {
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
         cursor: "default";
     }
@@ -945,7 +951,7 @@ class! {
         width: "100%";
         height: "0px";
         border: "none";
-        border-top: format!("1px solid {}", var!(border));
+        border-top: format!("{} solid {}", var!(border-width), var!(border));
         margin: format!("{} 0px", var!(space-lg));
     }
 
@@ -955,7 +961,7 @@ class! {
         height: "auto";
         align-self: "center";
         border: "none";
-        border-left: format!("1px solid {}", var!(border));
+        border-left: format!("{} solid {}", var!(border-width), var!(border));
         margin: format!("0px {}", var!(space-sm));
     }
 
@@ -969,7 +975,7 @@ class! {
 
     pub(crate) c_euv_divider_label_text {
         font-size: var!(font-xs);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         color: var!(muted-foreground);
         white-space: "nowrap";
         user-select: "none";
@@ -981,7 +987,11 @@ class! {
     // ═══════════════════════════════════════════════════════════════════════════
 
     pub(crate) c_card {
-        color: var!(foreground);
+        color: var!(card-foreground);
+        background: var!(card);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        box-shadow: var!(shadow-sm);
+        padding: var!(space-2xl);
         box-sizing: "border-box";
         // The card title carries a `gap-component` margin, and that margin
         // collapses out of the card — the card has no padding and no border
@@ -993,7 +1003,7 @@ class! {
         @media ((max-width: 767px)) {
             margin-top: var!(page-block-gap-mobile);
         }
-        border-radius: var!(radius-md);
+        border-radius: var!(radius-xl);
     }
 
     pub(crate) c_modal_close_button {
@@ -1005,7 +1015,7 @@ class! {
         padding: format!("{} {}", var!(space-sm), var!(space-md));
         cursor: "pointer";
         font-size: "20px";
-        font-weight: "400";
+        font-weight: var!(font-weight-normal);
         vertical-align: "middle";
         outline: "none";
         opacity: "1";
@@ -1023,6 +1033,7 @@ class! {
     }
 
     pub(crate) c_euv_button_outline_md {
+        box-shadow: var!(shadow-xs);
         display: "flex";
         justify-content: "center";
         align-items: "center";
@@ -1031,15 +1042,20 @@ class! {
         height: "42px";
         padding: format!("0px {}", var!(space-xl));
         color: var!(foreground);
-        border: format!("1px solid {}", var!(border));
+        background: var!(background);
+        border: format!("{} solid {}", var!(border-width), var!(border));
         cursor: "pointer";
         font-size: var!(font-base);
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         outline: "none";
         white-space: "nowrap";
         user-select: "none";
         -webkit-user-select: "none";
         box-sizing: "border-box";
+        :hover {
+            background: var!(secondary);
+            color: var!(secondary-foreground);
+        }
         :focus-visible {
             outline: "none";
         }
@@ -1048,7 +1064,7 @@ class! {
             cursor: "not-allowed";
             opacity: "1";
         }
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-md);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1066,13 +1082,13 @@ class! {
         text-align: "center";
         line-height: "1";
         box-sizing: "border-box";
-        color: var!(text-on-accent);
+        color: var!(primary-foreground);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
-        border: format!("1px solid {}", var!(accent));
+        border: format!("{} solid {}", var!(border-width), var!(primary));
         font-size: var!(font-xs);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
-        background: var!(accent);
+        background: var!(primary);
         :focus-visible {
             outline: "none";
         }
@@ -1092,7 +1108,7 @@ class! {
         color: var!(foreground);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         font-size: var!(font-xs);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
         border: format!("1.5px solid {}", var!(border));
         @media ((max-width: 767px)) {
@@ -1107,13 +1123,13 @@ class! {
         vertical-align: "middle";
         text-align: "center";
         line-height: "1";
-        color: var!(text-on-accent);
+        color: var!(primary-foreground);
         padding: format!("{} {}", var!(space-xs), var!(space-md));
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
-        background: var!(accent);
-        border: format!("1px solid {}", var!(accent));
+        background: var!(primary);
+        border: format!("{} solid {}", var!(border-width), var!(primary));
         box-sizing: "border-box";
         border-radius: var!(radius-sm);
     }
@@ -1126,9 +1142,9 @@ class! {
         color: var!(foreground);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         font-size: var!(font-xs);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
-        border: format!("1.5px solid {}", var!(accent));
+        border: format!("1.5px solid {}", var!(primary));
         box-sizing: "border-box";
         border-radius: var!(radius-sm);
     }
@@ -1142,12 +1158,12 @@ class! {
         vertical-align: "middle";
         text-align: "center";
         line-height: "1";
-        color: var!(accent);
+        color: var!(primary);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         font-size: var!(font-xs);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
-        border: format!("1.5px solid {}", var!(accent));
+        border: format!("1.5px solid {}", var!(primary));
         box-sizing: "border-box";
         border-radius: var!(radius-sm);
     }
@@ -1160,7 +1176,7 @@ class! {
         color: var!(foreground);
         padding: format!("{} {}", var!(space-xs), var!(space-md));
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         cursor: "pointer";
         border: format!("1.5px solid {}", var!(border));
         box-sizing: "border-box";
@@ -1170,14 +1186,14 @@ class! {
     pub(crate) c_euv_pagination_label {
         font-size: var!(font-xs);
         color: var!(muted-foreground);
-        text-transform: "uppercase";
-        letter-spacing: "0.08em";
+        text-transform: var!(text-transform-uppercase);
+        letter-spacing: var!(letter-spacing-wide);
     }
 
     pub(crate) c_euv_pagination_text {
         font-size: var!(font-base);
-        font-weight: "600";
-        color: var!(accent);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
         // Ellipsize when the link is too narrow for the page title. The
         // outer `.c_euv_pagination_link` already sets `overflow: hidden`
         // and `min-width: 0`, so a single `text-overflow: ellipsis` here
@@ -1241,14 +1257,14 @@ class! {
 
     pub(crate) c_euv_result_code {
         font-size: var!(font-6xl);
-        font-weight: "700";
+        font-weight: var!(font-weight-bold);
         line-height: "1";
-        letter-spacing: "-0.02em";
+        letter-spacing: var!(letter-spacing-tight);
     }
 
     pub(crate) c_euv_result_title {
         font-size: var!(font-2xl);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         margin: "0px";
     }
 
@@ -1287,7 +1303,7 @@ class! {
 
     pub(crate) c_euv_empty_text {
         font-size: var!(font-lg);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
     }
 
@@ -1316,7 +1332,7 @@ class! {
         margin: "0px";
         color: var!(foreground);
         font-size: var!(font-xl);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         line-height: "1.4";
     }
 
@@ -1324,7 +1340,7 @@ class! {
         margin: "0px";
         color: var!(foreground);
         font-size: var!(font-2xl);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         line-height: "1.35";
     }
 
@@ -1332,7 +1348,7 @@ class! {
         margin: "0px";
         color: var!(foreground);
         font-size: var!(font-lg);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         line-height: "1.4";
     }
 
@@ -1417,9 +1433,9 @@ class! {
         align-items: "center";
         justify-content: "center";
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: var!(space-md);
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(muted-foreground);
         font-size: var!(font-sm);
@@ -1432,9 +1448,9 @@ class! {
         align-items: "center";
         justify-content: "center";
         width: "100%";
-        min-height: var!(min-height-base);
+        min-height: var!(control-height);
         padding: var!(space-md);
-        border: format!("1px dashed {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(muted-foreground);
         font-size: var!(font-sm);
@@ -1480,13 +1496,13 @@ class! {
         width: var!(space-sm);
         height: var!(space-sm);
         padding: "0px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-full);
         background: var!(background);
         cursor: "pointer";
         touch-action: "manipulation";
         :hover {
-            background: var!(accent-muted);
+            background: var!(muted);
         }
     }
 
@@ -1494,13 +1510,13 @@ class! {
         width: var!(space-sm);
         height: var!(space-sm);
         padding: "0px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-full);
-        background: var!(accent);
+        background: var!(primary);
         cursor: "pointer";
         touch-action: "manipulation";
         :hover {
-            background: var!(accent);
+            background: var!(primary);
         }
     }
 
@@ -1517,7 +1533,7 @@ class! {
 
     pub(crate) c_euv_anchor_title {
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         color: var!(foreground);
         margin-bottom: var!(space-xs);
     }
@@ -1540,7 +1556,7 @@ class! {
         padding: format!("{} 0px", var!(space-2xs));
         color: var!(foreground);
         font-size: var!(font-sm);
-        font-weight: "600";
+        font-weight: var!(font-weight-semibold);
         text-decoration: "none";
         cursor: "pointer";
         touch-action: "manipulation";
@@ -1576,8 +1592,8 @@ class! {
     pub(crate) c_euv_watermark_text {
         color: var!(muted-foreground);
         font-size: var!(font-2xl);
-        font-weight: "700";
-        letter-spacing: "0.1em";
+        font-weight: var!(font-weight-bold);
+        letter-spacing: var!(letter-spacing-wide);
         opacity: "0.12";
         transform: "rotate(-22deg)";
         user-select: "none";
@@ -1601,7 +1617,7 @@ class! {
         width: "40px";
         height: "40px";
         padding: "0px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-sm);
@@ -1610,8 +1626,8 @@ class! {
         box-shadow: var!(shadow-sm);
         touch-action: "manipulation";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
         @media ((max-width: 767px)) {
             right: var!(space-lg);
@@ -1630,7 +1646,7 @@ class! {
         width: "40px";
         height: "40px";
         padding: "0px";
-        border: format!("1px solid {}", var!(border));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-sm);
@@ -1639,8 +1655,8 @@ class! {
         box-shadow: var!(shadow-sm);
         touch-action: "manipulation";
         :hover {
-            background: var!(accent-muted);
-            color: var!(accent);
+            background: var!(muted);
+            color: var!(primary);
         }
         @media ((max-width: 767px)) {
             right: var!(space-lg);
@@ -1676,7 +1692,7 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         :hover {
-            background: var!(accent);
+            background: var!(primary);
         }
     }
 
