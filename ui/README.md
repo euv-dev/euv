@@ -52,7 +52,7 @@ selected.
 
 ```toml
 [dependencies]
-euv-ui = { version = "0.32", features = ["theme-antdesign"] }
+euv-ui = { version = "0.33", features = ["theme-antdesign"] }
 ```
 
 Enable at most one scheme feature. The light and dark modes stay a runtime
