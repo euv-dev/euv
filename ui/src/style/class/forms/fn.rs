@@ -1,6 +1,6 @@
 use super::*;
 
-#[cfg(not(feature = "custom-styles"))]
+#[cfg(not(feature = "theme-custom"))]
 class! {
     pub c_form_switch_off {
         display: "inline-flex";
@@ -1803,7 +1803,7 @@ class! {
     }
 }
 
-#[cfg(feature = "custom-styles")]
+#[cfg(feature = "theme-custom")]
 class! {
     pub c_form_switch_off {}
 

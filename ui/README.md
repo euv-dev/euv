@@ -48,6 +48,7 @@ selected.
 | `theme-heroui` | HeroUI — gradient accents, a dark-first palette |
 | `theme-park` | Park UI — a zinc ramp and a soft, low-contrast surface |
 | `theme-geist` | Geist UI — the Vercel scale, near-black neutrals |
+| `theme-custom` | Bring your own styles — the built-in class registry ships empty, so the app is yours to paint |
 
 ```toml
 [dependencies]

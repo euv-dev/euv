@@ -1,6 +1,6 @@
 use super::*;
 
-#[cfg(not(feature = "custom-styles"))]
+#[cfg(not(feature = "theme-custom"))]
 class! {
     // Restores selectable text inside an otherwise non-selectable shell.
     //
@@ -267,7 +267,7 @@ class! {
     }
 }
 
-#[cfg(feature = "custom-styles")]
+#[cfg(feature = "theme-custom")]
 class! {
     // Restores selectable text inside an otherwise non-selectable shell.
     //

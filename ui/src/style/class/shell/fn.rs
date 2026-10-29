@@ -1,6 +1,6 @@
 use super::*;
 
-#[cfg(not(feature = "custom-styles"))]
+#[cfg(not(feature = "theme-custom"))]
 class! {
     // ═══════════════════════════════════════════════════════════════════════════
     // Layout Shell
@@ -1356,7 +1356,7 @@ class! {
     }
 }
 
-#[cfg(feature = "custom-styles")]
+#[cfg(feature = "theme-custom")]
 class! {
     // ═══════════════════════════════════════════════════════════════════════════
     // Layout Shell

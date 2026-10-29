@@ -1,6 +1,6 @@
 use super::*;
 
-#[cfg(not(feature = "custom-styles"))]
+#[cfg(not(feature = "theme-custom"))]
 class! {
     pub c_euv_feature_grid {
         display: "grid";
@@ -1285,7 +1285,7 @@ class! {
     }
 }
 
-#[cfg(feature = "custom-styles")]
+#[cfg(feature = "theme-custom")]
 class! {
     pub c_euv_feature_grid {}
 

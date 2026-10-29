@@ -1,6 +1,6 @@
 use super::*;
 
-#[cfg(not(feature = "custom-styles"))]
+#[cfg(not(feature = "theme-custom"))]
 class! {
     // ═══════════════════════════════════════════════════════════════════════════
     // Camera Page
@@ -1499,7 +1499,7 @@ class! {
     }
 }
 
-#[cfg(feature = "custom-styles")]
+#[cfg(feature = "theme-custom")]
 class! {
     // ═══════════════════════════════════════════════════════════════════════════
     // Camera Page

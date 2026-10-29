@@ -21,8 +21,8 @@ name = "euv-performance"
 path = "src/main.rs"
 
 [features]
-default = ["allocation-tracking"]
 allocation-tracking = []
+default = ["allocation-tracking"]
 
 [dependencies]
 euv = { workspace = true }

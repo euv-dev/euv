@@ -361,8 +361,8 @@ fn the_ring_token_is_not_an_orphan() {
     );
 }
 fn registry_grouping_is_valid(source: &str) -> bool {
-    let styled: &str = "#[cfg(not(feature = \"custom-styles\"))]\nclass! {";
-    let disabled: &str = "#[cfg(feature = \"custom-styles\")]\nclass! {";
+    let styled: &str = "#[cfg(not(feature = \"theme-custom\"))]\nclass! {";
+    let disabled: &str = "#[cfg(feature = \"theme-custom\")]\nclass! {";
     source
         .lines()
         .filter(|line: &&str| line.starts_with("class!"))
@@ -398,10 +398,10 @@ fn each_registry_groups_its_feature_gated_classes() {
 
 #[test]
 fn registry_grouping_rejects_individually_guarded_classes() {
-    let grouped: &str = "#[cfg(not(feature = \"custom-styles\"))]\nclass! {\n}\n#[cfg(feature = \"custom-styles\")]\nclass! {\n}\n";
+    let grouped: &str = "#[cfg(not(feature = \"theme-custom\"))]\nclass! {\n}\n#[cfg(feature = \"theme-custom\")]\nclass! {\n}\n";
     assert!(registry_grouping_is_valid(grouped));
     let split: String =
-        format!("#[cfg(not(feature = \"custom-styles\"))]\nclass! {{\n}}\n{grouped}");
+        format!("#[cfg(not(feature = \"theme-custom\"))]\nclass! {{\n}}\n{grouped}");
     assert!(!registry_grouping_is_valid(&split));
     assert!(!registry_grouping_is_valid(""));
 }

@@ -13,7 +13,7 @@ fn registry_classes() -> [&'static Css; 7] {
 }
 
 fn assert_style_mode(class: &Css) {
-    if cfg!(feature = "custom-styles") {
+    if cfg!(feature = "theme-custom") {
         assert!(class.get_style().is_empty(), "{}", class.get_name());
         assert!(class.get_pseudo_rules().is_empty(), "{}", class.get_name());
         assert!(class.get_media_rules().is_empty(), "{}", class.get_name());

@@ -91,7 +91,7 @@ jobs:
         run: |
           cargo test -p euv-ui
           cargo test -p euv-ui --no-default-features
-          cargo test -p euv-ui --no-default-features --features custom-styles
+          cargo test -p euv-ui --no-default-features --features theme-custom
           cargo test --all-features --workspace -- --nocapture
           cargo test --manifest-path performance/Cargo.toml --all-targets --no-default-features
       - name: Install wasm-pack
@@ -100,7 +100,7 @@ jobs:
         run: |
           cd ui
           wasm-pack test --node
-          wasm-pack test --node --features custom-styles
+          wasm-pack test --node --features theme-custom
 
   clippy:
     needs: setup
