@@ -29,4 +29,4 @@ proc-macro2 = { workspace = true }
 lombok-macros = { workspace = true }
 
 [dev-dependencies]
-euv = { workspace = true }
+euv = { path = ".." }
