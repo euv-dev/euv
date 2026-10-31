@@ -103,7 +103,13 @@ pub(crate) const APP_A11Y_CSS_FOCUS_VISIBLE: &str = r#":focus-visible{outline:no
 pub(crate) const APP_A11Y_CSS_FOCUS_RING: &str = "input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a[href]:focus-visible{box-shadow:0 0 0 calc(var(--ring-width) + var(--ring-offset)) var(--ring)}";
 
 /// Accessibility: disable animations for users who ask for reduced motion.
-pub(crate) const APP_A11Y_CSS_REDUCED_MOTION: &str = r#"@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-iteration-count:1!important;scroll-behavior:auto!important}}"#;
+///
+/// Collapsing the durations is what makes the request effective: the
+/// animations and transitions this app ships — entrance fades, hover lifts,
+/// press scales — are all short enough that they are gone rather than
+/// merely calmed down, while an element that depends on an animation
+/// ending (`animation-fill-mode`) still reaches its final state.
+pub(crate) const APP_A11Y_CSS_REDUCED_MOTION: &str = r#"@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-iteration-count:1!important;scroll-behavior:auto!important;animation-duration:0.01ms!important;transition-duration:0.01ms!important}}"#;
 
 /// Accessibility: suppress hover transforms on touch-primary devices.
 pub(crate) const APP_A11Y_CSS_COARSE_POINTER: &str = r#"@media(hover:none)and (pointer:coarse){*{-webkit-tap-highlight-color:transparent}.c_card:hover,.c_home_stat_card:hover,.c_home_btn_primary:hover,.c_home_btn_secondary:hover{transform:none!important}}"#;

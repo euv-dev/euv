@@ -1,19 +1,23 @@
 use super::*;
 
-const SCHEME_NAMES: [&str; 13] = [
-    "shadcn",
-    "monochrome",
+const SCHEME_NAMES: [&str; 17] = [
     "antdesign",
-    "material",
     "bootstrap",
     "cupertino",
-    "fluent",
-    "radix",
-    "mantine",
     "daisyui",
-    "heroui",
-    "park",
+    "fluent",
     "geist",
+    "heroui",
+    "linear",
+    "mantine",
+    "material",
+    "monochrome",
+    "notion",
+    "park",
+    "radix",
+    "shadcn",
+    "stripe",
+    "supabase",
 ];
 
 const RESERVED_TOKENS: [&str; 10] = [
@@ -289,6 +293,14 @@ fn the_compiled_scheme_names_itself() {
         "park"
     } else if cfg!(feature = "theme-geist") {
         "geist"
+    } else if cfg!(feature = "theme-linear") {
+        "linear"
+    } else if cfg!(feature = "theme-stripe") {
+        "stripe"
+    } else if cfg!(feature = "theme-notion") {
+        "notion"
+    } else if cfg!(feature = "theme-supabase") {
+        "supabase"
     } else {
         "shadcn"
     };

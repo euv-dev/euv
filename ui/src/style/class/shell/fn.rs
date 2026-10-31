@@ -824,7 +824,9 @@ class! {
         margin-left: var!(space-md);
         padding-left: var!(space-sm);
         border-left: format!("{} solid {}", var!(border-width), var!(border));
-        animation: format!("euv-fade-in {} {}", var!(duration-normal), var!(ease-out));
+        // A group of links expands into view, so it decelerates into place
+        // rather than sliding in at a constant rate.
+        animation: format!("euv-fade-in {} {}", var!(duration-normal), var!(ease-emphasized));
     }
 
     pub c_euv_sidebar_link {

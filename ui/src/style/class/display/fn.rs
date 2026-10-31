@@ -98,6 +98,24 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         box-sizing: "border-box";
+        // The colour follows the standard curve, the press the shortest one
+        // in the system: a press has to land while the finger is still down.
+        transition: format!(
+            "background-color {} {}, transform {} {}",
+            var!(duration-fast),
+            var!(ease-out),
+            var!(duration-press),
+            var!(ease-accelerate)
+        );
+        :hover {
+            background: var!(primary-hover);
+        }
+        // The scale is what makes the press read as the button taking the
+        // weight of the finger instead of a colour swap.
+        :active {
+            background: var!(primary-hover);
+            transform: format!("scale({})", var!(press-scale));
+        }
         :disabled {
             background: var!(muted-foreground);
             cursor: "not-allowed";
@@ -138,7 +156,7 @@ class! {
 
     pub c_counter_row {
         display: "grid";
-        grid-template-columns: "1fr 1fr";
+        grid-template-columns: "minmax(0px, 1fr) minmax(0px, 1fr)";
         align-items: "center";
         gap: var!(gap-component);
         @media ((max-width: 767px)) {
@@ -499,7 +517,7 @@ class! {
         // mobile breakpoint stacks the grid to a single column so each
         // link sizes to its content.
         display: "grid";
-        grid-template-columns: "1fr 1fr";
+        grid-template-columns: "minmax(0px, 1fr) minmax(0px, 1fr)";
         gap: var!(gap-component);
         // ~`space-2xl` (1.5rem) above the pagination — comfortable
         // breathing room without a huge gap before prev/next. The original
@@ -1039,7 +1057,9 @@ class! {
         align-items: "center";
         gap: var!(space-sm);
         flex: "1 1 120px";
-        height: "42px";
+        // Both button variants read the control-height token, so a primary
+        // and an outline button standing side by side are the same height.
+        height: var!(control-height);
         padding: format!("0px {}", var!(space-xl));
         color: var!(foreground);
         background: var!(background);
@@ -1052,9 +1072,24 @@ class! {
         user-select: "none";
         -webkit-user-select: "none";
         box-sizing: "border-box";
+        // Same vocabulary as the primary button: the standard curve for the
+        // colour, the press curve for the scale.
+        transition: format!(
+            "border-color {} {}, background-color {} {}, transform {} {}",
+            var!(duration-fast),
+            var!(ease-out),
+            var!(duration-fast),
+            var!(ease-out),
+            var!(duration-press),
+            var!(ease-accelerate)
+        );
         :hover {
             background: var!(secondary);
             color: var!(secondary-foreground);
+            border-color: var!(input);
+        }
+        :active {
+            transform: format!("scale({})", var!(press-scale));
         }
         :focus-visible {
             outline: "none";

@@ -319,7 +319,7 @@ class! {
 
     pub(crate) c_euv_calendar_weekdays {
         display: "grid";
-        grid-template-columns: "repeat(7, 1fr)";
+        grid-template-columns: "repeat(7, minmax(0px, 1fr))";
         gap: "0px";
         width: "100%";
     }
@@ -337,7 +337,7 @@ class! {
 
     pub(crate) c_euv_calendar_grid {
         display: "grid";
-        grid-template-columns: "repeat(7, 1fr)";
+        grid-template-columns: "repeat(7, minmax(0px, 1fr))";
         gap: "0px";
         width: "100%";
     }

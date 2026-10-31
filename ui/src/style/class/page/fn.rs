@@ -391,7 +391,7 @@ class! {
 
     pub c_event_info_grid {
         display: "grid";
-        grid-template-columns: "1fr 1fr";
+        grid-template-columns: "minmax(0px, 1fr) minmax(0px, 1fr)";
         gap: var!(gap-element);
         margin-top: var!(gap-component);
         @media ((max-width: 767px)) {
@@ -615,7 +615,7 @@ class! {
 
     pub c_browser_api_row {
         display: "grid";
-        grid-template-columns: "1fr 1fr";
+        grid-template-columns: "minmax(0px, 1fr) minmax(0px, 1fr)";
         gap: var!(gap-component);
         margin-bottom: var!(gap-component);
         @media ((max-width: 767px)) {
@@ -1042,11 +1042,15 @@ class! {
         line-height: "1";
         box-sizing: "border-box";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        color: var!(primary);
+        // Text on a coloured surface takes that surface's own foreground role:
+        // `primary` is a brand colour, not a readable one, and several schemes
+        // (linear, stripe) sit below 4.5:1 against `accent`.
+        color: var!(accent-foreground);
         background: var!(accent);
         font-size: var!(font-xs);
         font-weight: var!(font-weight-semibold);
         letter-spacing: var!(letter-spacing-wide);
+        // The border keeps the brand colour — it is a 1px line, so 3:1 applies.
         border: format!("{} solid {}", var!(border-width), var!(primary));
     }
 
@@ -1105,9 +1109,27 @@ class! {
         letter-spacing: var!(letter-spacing-normal);
         vertical-align: "middle";
         min-height: var!(control-height-sm);
+        // The home page's own buttons answer exactly the way the library
+        // buttons do: a lift on hover, a settle on press, both driven by
+        // the shared motion tokens rather than their own numbers.
+        transition: format!(
+            "background-color {} {}, border-color {} {}, transform {} {}",
+            var!(duration-fast),
+            var!(ease-out),
+            var!(duration-fast),
+            var!(ease-out),
+            var!(duration-fast),
+            var!(ease-out)
+        );
         @media ((max-width: 767px)) {
             flex: "1 1 0px";
             min-width: "0px";
+        }
+        :hover {
+            background: var!(primary-hover);
+            color: var!(primary-foreground);
+            border-color: "1.5px solid transparent";
+            transform: format!("translateY({})", var!(lift-hover));
         }
         :focus-visible {
             outline: "none";
@@ -1116,6 +1138,9 @@ class! {
             background: var!(primary);
             color: var!(primary-foreground);
             border-color: "1.5px solid transparent";
+            // The press drops the lift back down and settles into the
+            // surface in one movement.
+            transform: format!("translateY(0px) scale({})", var!(press-scale));
         }
         border-radius: var!(radius-sm);
     }
@@ -1137,9 +1162,26 @@ class! {
         letter-spacing: var!(letter-spacing-normal);
         vertical-align: "middle";
         min-height: var!(control-height-sm);
+        // Same hover/press vocabulary as the primary home button and the
+        // library buttons, so the three of them feel like one system.
+        transition: format!(
+            "background-color {} {}, border-color {} {}, transform {} {}",
+            var!(duration-fast),
+            var!(ease-out),
+            var!(duration-fast),
+            var!(ease-out),
+            var!(duration-fast),
+            var!(ease-out)
+        );
         @media ((max-width: 767px)) {
             flex: "1 1 0px";
             min-width: "0px";
+        }
+        :hover {
+            background: var!(secondary);
+            color: var!(secondary-foreground);
+            border-color: var!(input);
+            transform: format!("translateY({})", var!(lift-hover));
         }
         :focus-visible {
             outline: "none";
@@ -1148,6 +1190,7 @@ class! {
             background: "transparent";
             color: var!(primary);
             border-color: var!(primary);
+            transform: format!("translateY(0px) scale({})", var!(press-scale));
         }
         border-radius: var!(radius-sm);
     }
@@ -1158,7 +1201,7 @@ class! {
 
     pub c_home_stats {
         display: "grid";
-        grid-template-columns: "repeat(4, 1fr)";
+        grid-template-columns: "repeat(4, minmax(0px, 1fr))";
         gap: var!(space-md);
         margin-bottom: var!(space-xl);
         @media ((max-width: 767px)) {
@@ -1215,7 +1258,7 @@ class! {
 
     pub c_home_feature_grid {
         display: "grid";
-        grid-template-columns: "repeat(2, 1fr)";
+        grid-template-columns: "repeat(2, minmax(0px, 1fr))";
         // The cards carry the block gap between them, so the grid only has
         // to separate the columns: a row gap on top of that would count the
         // same space twice and the rows would drift apart.

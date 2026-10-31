@@ -49,6 +49,15 @@ class! {
         -webkit-appearance: "none";
         -moz-appearance: "none";
         vertical-align: "middle";
+        // Hover and focus only swap the border and the fill, so they ease
+        // between the two states instead of snapping.
+        transition: format!(
+            "border-color {} {}, background-color {} {}",
+            var!(duration-fast),
+            var!(ease-out),
+            var!(duration-fast),
+            var!(ease-out)
+        );
         :hover {
             border-color: var!(ring);
             background: var!(muted);
@@ -163,6 +172,15 @@ class! {
         appearance: "none";
         -webkit-appearance: "none";
         -moz-appearance: "none";
+        // Hover and focus only swap the border and the fill, so they ease
+        // between the two states instead of snapping.
+        transition: format!(
+            "border-color {} {}, background-color {} {}",
+            var!(duration-fast),
+            var!(ease-out),
+            var!(duration-fast),
+            var!(ease-out)
+        );
         :hover {
             border-color: var!(ring);
             background: var!(muted);
@@ -454,6 +472,15 @@ class! {
         appearance: "none";
         -webkit-appearance: "none";
         touch-action: "manipulation";
+        // Hover and focus only swap the border and the fill, so they ease
+        // between the two states instead of snapping.
+        transition: format!(
+            "border-color {} {}, background-color {} {}",
+            var!(duration-fast),
+            var!(ease-out),
+            var!(duration-fast),
+            var!(ease-out)
+        );
         :hover {
             border-color: var!(ring);
             background: var!(muted);

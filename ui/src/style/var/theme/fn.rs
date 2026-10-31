@@ -121,6 +121,9 @@ vars! {
         duration-overlay: "0.2s";
         duration-modal-overlay: "0.15s";
         duration-modal-content: "0.3s";
+        // A press has to land before the finger leaves the surface, so the
+        // press is the one transition that runs faster than `duration-fast`.
+        duration-press: "0.1s";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Easing Functions
@@ -130,6 +133,21 @@ vars! {
         ease-in: "cubic-bezier(0.4, 0, 1, 1)";
         ease-in-out: "cubic-bezier(0.4, 0, 0.2, 1)";
         ease-bounce: "cubic-bezier(0.34, 1.56, 0.64, 1)";
+        // A surface that enters decelerates into its resting place and one
+        // that leaves accelerates away from it; a single `ease-out` makes
+        // both directions read as sliding in from nowhere.
+        ease-emphasized: "cubic-bezier(0.05, 0.7, 0.1, 1)";
+        ease-accelerate: "cubic-bezier(0.3, 0, 0.8, 0.15)";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Interaction
+        // ═══════════════════════════════════════════════════════════════════════
+
+        // How far a hover lifts a surface and how deep a press settles. Every
+        // interactive class reads these, so the whole UI presses at the same
+        // depth instead of each rule inventing its own number.
+        lift-hover: "-2px";
+        press-scale: "0.97";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Layout
@@ -280,6 +298,9 @@ vars! {
         duration-overlay: "0.2s";
         duration-modal-overlay: "0.15s";
         duration-modal-content: "0.3s";
+        // A press has to land before the finger leaves the surface, so the
+        // press is the one transition that runs faster than `duration-fast`.
+        duration-press: "0.1s";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Easing Functions (same as light)
@@ -289,6 +310,21 @@ vars! {
         ease-in: "cubic-bezier(0.4, 0, 1, 1)";
         ease-in-out: "cubic-bezier(0.4, 0, 0.2, 1)";
         ease-bounce: "cubic-bezier(0.34, 1.56, 0.64, 1)";
+        // A surface that enters decelerates into its resting place and one
+        // that leaves accelerates away from it; a single `ease-out` makes
+        // both directions read as sliding in from nowhere.
+        ease-emphasized: "cubic-bezier(0.05, 0.7, 0.1, 1)";
+        ease-accelerate: "cubic-bezier(0.3, 0, 0.8, 0.15)";
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Interaction
+        // ═══════════════════════════════════════════════════════════════════════
+
+        // How far a hover lifts a surface and how deep a press settles. Every
+        // interactive class reads these, so the whole UI presses at the same
+        // depth instead of each rule inventing its own number.
+        lift-hover: "-2px";
+        press-scale: "0.97";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Layout (same as light)
@@ -453,7 +489,47 @@ fn selected_scheme_class() -> &'static str {
 ///
 /// - `&'static str` - The class name that carries the scheme's tokens.
 #[rustfmt::skip]
-#[cfg(not(any(feature = "theme-shadcn", feature = "theme-monochrome", feature = "theme-antdesign", feature = "theme-material", feature = "theme-bootstrap", feature = "theme-cupertino", feature = "theme-fluent", feature = "theme-radix", feature = "theme-mantine", feature = "theme-daisyui", feature = "theme-heroui", feature = "theme-park", feature = "theme-geist")))]
+#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-monochrome"), not(feature = "theme-antdesign"), not(feature = "theme-material"), not(feature = "theme-bootstrap"), not(feature = "theme-cupertino"), not(feature = "theme-fluent"), not(feature = "theme-radix"), not(feature = "theme-mantine"), not(feature = "theme-daisyui"), not(feature = "theme-heroui"), not(feature = "theme-park"), not(feature = "theme-geist"), feature = "theme-linear"))]
+fn selected_scheme_class() -> &'static str {
+    c_scheme_linear().get_name()
+}
+/// Returns the CSS class name of the scheme this build selects.
+///
+/// # Returns
+///
+/// - `&'static str` - The class name that carries the scheme's tokens.
+#[rustfmt::skip]
+#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-monochrome"), not(feature = "theme-antdesign"), not(feature = "theme-material"), not(feature = "theme-bootstrap"), not(feature = "theme-cupertino"), not(feature = "theme-fluent"), not(feature = "theme-radix"), not(feature = "theme-mantine"), not(feature = "theme-daisyui"), not(feature = "theme-heroui"), not(feature = "theme-park"), not(feature = "theme-geist"), not(feature = "theme-linear"), feature = "theme-stripe"))]
+fn selected_scheme_class() -> &'static str {
+    c_scheme_stripe().get_name()
+}
+/// Returns the CSS class name of the scheme this build selects.
+///
+/// # Returns
+///
+/// - `&'static str` - The class name that carries the scheme's tokens.
+#[rustfmt::skip]
+#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-monochrome"), not(feature = "theme-antdesign"), not(feature = "theme-material"), not(feature = "theme-bootstrap"), not(feature = "theme-cupertino"), not(feature = "theme-fluent"), not(feature = "theme-radix"), not(feature = "theme-mantine"), not(feature = "theme-daisyui"), not(feature = "theme-heroui"), not(feature = "theme-park"), not(feature = "theme-geist"), not(feature = "theme-linear"), not(feature = "theme-stripe"), feature = "theme-notion"))]
+fn selected_scheme_class() -> &'static str {
+    c_scheme_notion().get_name()
+}
+/// Returns the CSS class name of the scheme this build selects.
+///
+/// # Returns
+///
+/// - `&'static str` - The class name that carries the scheme's tokens.
+#[rustfmt::skip]
+#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-monochrome"), not(feature = "theme-antdesign"), not(feature = "theme-material"), not(feature = "theme-bootstrap"), not(feature = "theme-cupertino"), not(feature = "theme-fluent"), not(feature = "theme-radix"), not(feature = "theme-mantine"), not(feature = "theme-daisyui"), not(feature = "theme-heroui"), not(feature = "theme-park"), not(feature = "theme-geist"), not(feature = "theme-linear"), not(feature = "theme-stripe"), not(feature = "theme-notion"), feature = "theme-supabase"))]
+fn selected_scheme_class() -> &'static str {
+    c_scheme_supabase().get_name()
+}
+/// Returns the CSS class name of the scheme this build selects.
+///
+/// # Returns
+///
+/// - `&'static str` - The class name that carries the scheme's tokens.
+#[rustfmt::skip]
+#[cfg(not(any(feature = "theme-shadcn", feature = "theme-monochrome", feature = "theme-antdesign", feature = "theme-material", feature = "theme-bootstrap", feature = "theme-cupertino", feature = "theme-fluent", feature = "theme-radix", feature = "theme-mantine", feature = "theme-daisyui", feature = "theme-heroui", feature = "theme-park", feature = "theme-geist", feature = "theme-linear", feature = "theme-stripe", feature = "theme-notion", feature = "theme-supabase")))]
 fn selected_scheme_class() -> &'static str {
     c_scheme_shadcn().get_name()
 }
