@@ -1113,13 +1113,13 @@ class! {
         // buttons do: a lift on hover, a settle on press, both driven by
         // the shared motion tokens rather than their own numbers.
         transition: format!(
-            "background-color {} {}, border-color {} {}, transform {} {}",
-            var!(duration-fast),
-            var!(ease-out),
-            var!(duration-fast),
-            var!(ease-out),
-            var!(duration-fast),
-            var!(ease-out)
+        "background-color {} {}, border-color {} {}, transform {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out)
         );
         @media ((max-width: 767px)) {
             flex: "1 1 0px";
@@ -1165,13 +1165,13 @@ class! {
         // Same hover/press vocabulary as the primary home button and the
         // library buttons, so the three of them feel like one system.
         transition: format!(
-            "background-color {} {}, border-color {} {}, transform {} {}",
-            var!(duration-fast),
-            var!(ease-out),
-            var!(duration-fast),
-            var!(ease-out),
-            var!(duration-fast),
-            var!(ease-out)
+        "background-color {} {}, border-color {} {}, transform {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out)
         );
         @media ((max-width: 767px)) {
             flex: "1 1 0px";

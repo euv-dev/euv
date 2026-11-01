@@ -75,6 +75,8 @@ mod webgpu_init;
 mod webgpu_lifecycle;
 mod webgpu_pass;
 mod webgpu_pipelines;
+#[cfg(target_arch = "wasm32")]
+mod webgpu_regressions;
 mod webgpu_resources;
 mod webgpu_transfer;
 

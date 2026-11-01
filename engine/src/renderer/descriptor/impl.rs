@@ -111,15 +111,19 @@ impl TextureViewDescriptor {
 impl TextureWriteDescriptor {
     /// Convenience constructor for the common 2D upload case.
     ///
-    /// - `data` - packed pixel bytes (format-dependent).
-    /// - `bytes_per_row` - row stride of `data`, must be a multiple of 256.
-    /// - `texture` - the destination `GpuTexture` handle.
+    /// The base mip extent comes from the destination `GPUTexture`.
+    /// The row stride is measured in bytes and need not be 256-byte aligned.
+    /// `rows_per_image` remains zero so the optional field is omitted.
     ///
     /// # Arguments
     ///
-    /// - `Vec<u8>` - A `Vec<u8>` parameter.
-    /// - `u32` - A 32-bit unsigned integer (`u32`).
-    /// - `JsValue` - A `JsValue` parameter.
+    /// - `Vec<u8>` - The source pixel bytes in the destination texture format.
+    /// - `u32` - The byte stride between source rows, including padding.
+    /// - `JsValue` - The destination `GPUTexture` handle.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - A base-mip upload descriptor with the origin at zero.
     pub fn for_2d(data: Vec<u8>, bytes_per_row: u32, texture: JsValue) -> Self {
         Self {
             data,

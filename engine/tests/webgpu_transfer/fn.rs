@@ -142,7 +142,30 @@ fn a_texture_readback_needs_an_open_encoder_and_is_skipped_without_one() {
 fn a_texture_upload_goes_to_the_queue_off_the_device() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-    let texture: Object = node("texture");
+    let texture: Object = Object::new();
+    for (name, value) in [
+        ("width", 2),
+        ("height", 1),
+        ("depthOrArrayLayers", 1),
+        ("mipLevelCount", 1),
+    ] {
+        assert!(
+            Reflect::set(
+                &texture,
+                &JsValue::from_str(name),
+                &JsValue::from_f64(f64::from(value)),
+            )
+            .expect("a numeric texture property")
+        );
+    }
+    assert!(
+        Reflect::set(
+            &texture,
+            &JsValue::from_str("dimension"),
+            &JsValue::from_str("2d"),
+        )
+        .expect("the texture dimension")
+    );
 
     subject.write_texture(&write_request(texture.clone()));
 
@@ -166,7 +189,13 @@ fn a_texture_upload_goes_to_the_queue_off_the_device() {
     assert_eq!(
         field(&args.get(2), &["bytesPerRow"]).as_f64(),
         Some(256.0),
-        "the 256-byte row alignment travels in the data layout, not in the destination"
+        "the source byte stride travels in the data layout, not in the texel extent"
+    );
+    assert_eq!(field(&args.get(3), &["width"]).as_f64(), Some(2.0));
+    assert_eq!(field(&args.get(3), &["height"]).as_f64(), Some(1.0));
+    assert_eq!(
+        field(&args.get(3), &["depthOrArrayLayers"]).as_f64(),
+        Some(1.0)
     );
     assert_eq!(
         field(&args.get(2), &["offset"]).as_f64(),

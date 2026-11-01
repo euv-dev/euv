@@ -167,16 +167,21 @@ pub struct TextureViewDescriptor {
 /// WebGPU's `writeTexture` lets you upload CPU-side pixel data directly to a
 /// texture without staging through a buffer. Use it for: ImGui font atlases,
 /// procedural noise textures, sprite sheets, `ImageBitmap` pixels, etc.
+/// The copy covers the remaining logical mip extent from `origin`; dimensions
+/// are read from the destination texture, independently of source byte strides.
 #[derive(Clone, Debug, Getter, New)]
 pub struct TextureWriteDescriptor {
     /// The pixel data to upload. Bytes are laid out according to
     /// `bytes_per_row` / `rows_per_image`.
     #[get(type(clone))]
     pub data: Vec<u8>,
-    /// Bytes per row of the source data. Must be a multiple of 256.
+    /// Bytes between source block rows, including padding. No 256-byte
+    /// alignment is required by `queue.writeTexture`. `0` omits the stride,
+    /// which is valid only when WebGPU can infer it for a single block row.
     #[get(type(copy))]
     pub bytes_per_row: u32,
-    /// Number of rows per image. `0` for 2D textures without mip chains.
+    /// Source block rows between images, including padding. `0` omits this
+    /// optional field; a positive stride is required for multiple images.
     #[get(type(copy))]
     pub rows_per_image: u32,
     /// Destination mip level to write into.
@@ -189,9 +194,8 @@ pub struct TextureWriteDescriptor {
     #[get(type(clone))]
     #[new(value = "None")]
     pub origin: Option<JsValue>,
-    /// Whether to flip the source data vertically before writing.
-    /// `true` is essential when uploading from `<img>` / `<canvas>` whose
-    /// rows are top-to-bottom but WebGPU textures are bottom-to-top.
+    /// Retained for compatibility. Raw-byte `write_texture` uploads do not
+    /// transform source rows; callers must flip their bytes when necessary.
     #[get(type(copy))]
     #[new(value = "false")]
     pub flip_y: bool,

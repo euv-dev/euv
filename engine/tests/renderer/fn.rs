@@ -49,6 +49,37 @@ fn texture_write_descriptor_for_2d_leaves_the_three_dimensional_fields_unset() {
 }
 
 #[test]
+fn texture_write_descriptor_preserves_non_aligned_byte_strides() {
+    let descriptor: TextureWriteDescriptor =
+        TextureWriteDescriptor::for_2d(vec![42; 2096 * 384], 2096, JsValue::NULL);
+    assert_eq!(descriptor.get_bytes_per_row(), 2096);
+    assert_eq!(descriptor.get_data().len(), 2096 * 384);
+    assert_eq!(descriptor.get_rows_per_image(), 0);
+    assert_eq!(descriptor.get_mip_level(), 0);
+    assert!(descriptor.get_origin().is_none());
+    assert!(!descriptor.get_flip_y());
+}
+
+#[test]
+fn texture_write_descriptor_struct_literals_keep_all_legacy_fields() {
+    let descriptor: TextureWriteDescriptor = TextureWriteDescriptor {
+        data: vec![1, 2, 3, 4],
+        bytes_per_row: 32,
+        rows_per_image: 7,
+        mip_level: 2,
+        texture: JsValue::NULL,
+        origin: None,
+        flip_y: true,
+    };
+    assert_eq!(descriptor.get_data(), vec![1, 2, 3, 4]);
+    assert_eq!(descriptor.get_bytes_per_row(), 32);
+    assert_eq!(descriptor.get_rows_per_image(), 7);
+    assert_eq!(descriptor.get_mip_level(), 2);
+    assert!(descriptor.get_origin().is_none());
+    assert!(descriptor.get_flip_y());
+}
+
+#[test]
 fn bind_group_entry_binding_reads_the_slot_number_of_every_variant() {
     let buffer: BindGroupEntry = BindGroupEntry::Buffer {
         binding: 0,

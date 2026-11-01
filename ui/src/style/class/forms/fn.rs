@@ -52,11 +52,11 @@ class! {
         // Hover and focus only swap the border and the fill, so they ease
         // between the two states instead of snapping.
         transition: format!(
-            "border-color {} {}, background-color {} {}",
-            var!(duration-fast),
-            var!(ease-out),
-            var!(duration-fast),
-            var!(ease-out)
+        "border-color {} {}, background-color {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out)
         );
         :hover {
             border-color: var!(ring);
@@ -175,11 +175,11 @@ class! {
         // Hover and focus only swap the border and the fill, so they ease
         // between the two states instead of snapping.
         transition: format!(
-            "border-color {} {}, background-color {} {}",
-            var!(duration-fast),
-            var!(ease-out),
-            var!(duration-fast),
-            var!(ease-out)
+        "border-color {} {}, background-color {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out)
         );
         :hover {
             border-color: var!(ring);
@@ -475,11 +475,11 @@ class! {
         // Hover and focus only swap the border and the fill, so they ease
         // between the two states instead of snapping.
         transition: format!(
-            "border-color {} {}, background-color {} {}",
-            var!(duration-fast),
-            var!(ease-out),
-            var!(duration-fast),
-            var!(ease-out)
+        "border-color {} {}, background-color {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out)
         );
         :hover {
             border-color: var!(ring);
