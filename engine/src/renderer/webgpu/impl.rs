@@ -2763,103 +2763,7 @@ impl WebGpuRenderer {
         let layout: JsValue = layout_fn
             .call1(pipeline, &JsValue::from_f64(f64::from(index)))
             .unwrap_or(JsValue::UNDEFINED);
-        let entries_array: Array = Array::new();
-        for entry in entries {
-            let entry_obj: Object = Object::new();
-            let _: Result<bool, JsValue> = Reflect::set(
-                &entry_obj,
-                &JsValue::from_str(WEBGPU_PROPERTY_BINDING),
-                &JsValue::from_f64(f64::from(entry.binding())),
-            );
-            let resource_obj: Object = Object::new();
-            match entry {
-                BindGroupEntry::Buffer {
-                    buffer,
-                    offset,
-                    size,
-                    ..
-                } => {
-                    let _: Result<bool, JsValue> = Reflect::set(
-                        &resource_obj,
-                        &JsValue::from_str(WEBGPU_PROPERTY_BUFFER),
-                        buffer,
-                    );
-                    let _: Result<bool, JsValue> = Reflect::set(
-                        &resource_obj,
-                        &JsValue::from_str(WEBGPU_PROPERTY_OFFSET),
-                        &JsValue::from_f64(*offset as f64),
-                    );
-                    if let Some(s) = size {
-                        let _: Result<bool, JsValue> = Reflect::set(
-                            &resource_obj,
-                            &JsValue::from_str(WEBGPU_PROPERTY_SIZE),
-                            &JsValue::from_f64(*s as f64),
-                        );
-                    }
-                }
-                BindGroupEntry::StorageTexture { view, .. } => {
-                    // Read-write storage-texture binding. The layout must
-                    // include a `storageTexture` entry with matching
-                    // `format` + `access`; the resource object is the
-                    // same shape as a sampled texture (`{ texture: view }`)
-                    // but the underlying `GpuTexture` must have been
-                    // created with `STORAGE_BINDING` in its `usage` flag.
-                    let _: Result<bool, JsValue> = Reflect::set(
-                        &resource_obj,
-                        &JsValue::from_str(WEBGPU_PROPERTY_TEXTURE_VIEW),
-                        view,
-                    );
-                }
-                BindGroupEntry::Texture { view, .. } => {
-                    let _: Result<bool, JsValue> = Reflect::set(
-                        &resource_obj,
-                        &JsValue::from_str(WEBGPU_PROPERTY_TEXTURE_VIEW),
-                        view,
-                    );
-                }
-                BindGroupEntry::Sampler { sampler, .. } => {
-                    let _: Result<bool, JsValue> = Reflect::set(
-                        &resource_obj,
-                        &JsValue::from_str(WEBGPU_PROPERTY_SAMPLER),
-                        sampler,
-                    );
-                }
-            }
-            let _: Result<bool, JsValue> = Reflect::set(
-                &entry_obj,
-                &JsValue::from_str(WEBGPU_PROPERTY_RESOURCE),
-                &resource_obj,
-            );
-            entries_array.push(&entry_obj);
-        }
-        let descriptor: Object = Object::new();
-        let _: Result<bool, JsValue> = Reflect::set(
-            &descriptor,
-            &JsValue::from_str(WEBGPU_PROPERTY_LAYOUT),
-            &layout,
-        );
-        let _: Result<bool, JsValue> = Reflect::set(
-            &descriptor,
-            &JsValue::from_str(WEBGPU_PROPERTY_ENTRIES),
-            &entries_array,
-        );
-        self.push_error_scope(GpuErrorFilter::Validation);
-        let create_fn: Function = Reflect::get(
-            self.get_device(),
-            &JsValue::from_str(WEBGPU_METHOD_CREATE_BIND_GROUP),
-        )
-        .unwrap_or(JsValue::UNDEFINED)
-        .unchecked_into();
-        let result: JsValue = create_fn
-            .call1(self.get_device(), &descriptor)
-            .unwrap_or(JsValue::UNDEFINED);
-        // Fire-and-forget pop: if validation fails the error shows up
-        // in the next popErrorScope() call. The result we return is
-        // still the JsValue, which the user checks against UNDEFINED.
-        if let Some(error) = self.pop_error_sync() {
-            console::error_1(&error);
-        }
-        result
+        self.create_bind_group_for_layout(&layout, entries)
     }
 
     /// Binds a bind group at the given index on a render pass encoder.
@@ -3003,14 +2907,14 @@ impl WebGpuRenderer {
                 &JsValue::from_str(WEBGPU_PROPERTY_BINDING),
                 &JsValue::from_f64(f64::from(entry.binding())),
             );
-            let resource_obj: Object = Object::new();
-            match entry {
+            let resource: JsValue = match entry {
                 BindGroupEntry::Buffer {
                     buffer,
                     offset,
                     size,
                     ..
                 } => {
+                    let resource_obj: Object = Object::new();
                     let _: Result<bool, JsValue> = Reflect::set(
                         &resource_obj,
                         &JsValue::from_str(WEBGPU_PROPERTY_BUFFER),
@@ -3028,27 +2932,16 @@ impl WebGpuRenderer {
                             &JsValue::from_f64(*s as f64),
                         );
                     }
+                    resource_obj.into()
                 }
                 BindGroupEntry::StorageTexture { view, .. }
-                | BindGroupEntry::Texture { view, .. } => {
-                    let _: Result<bool, JsValue> = Reflect::set(
-                        &resource_obj,
-                        &JsValue::from_str(WEBGPU_PROPERTY_TEXTURE_VIEW),
-                        view,
-                    );
-                }
-                BindGroupEntry::Sampler { sampler, .. } => {
-                    let _: Result<bool, JsValue> = Reflect::set(
-                        &resource_obj,
-                        &JsValue::from_str(WEBGPU_PROPERTY_SAMPLER),
-                        sampler,
-                    );
-                }
-            }
+                | BindGroupEntry::Texture { view, .. } => view.clone(),
+                BindGroupEntry::Sampler { sampler, .. } => sampler.clone(),
+            };
             let _: Result<bool, JsValue> = Reflect::set(
                 &entry_obj,
                 &JsValue::from_str(WEBGPU_PROPERTY_RESOURCE),
-                &resource_obj,
+                &resource,
             );
             entries_array.push(&entry_obj);
         }
@@ -3868,13 +3761,26 @@ impl WebGpuRenderer {
     /// handle, so this is the preferred path for textures that are written
     /// once and sampled many times.
     ///
-    /// `bytes_per_row` must be a multiple of 256. The `data` layout must
-    /// match the texture's `format`; the engine does not perform swizzling.
+    /// Copies the remaining logical extent of the selected mip, beginning at
+    /// `origin`. Dimensions come from the destination `GPUTexture`, never from
+    /// byte strides or payload length. Spatial dimensions shrink with mip levels;
+    /// 2D array-layer counts do not. Invalid texture dimensions, mip levels, or
+    /// origins are ignored without submitting a write.
+    ///
+    /// `bytes_per_row` is a byte stride, not a texel width, and need not be a
+    /// multiple of 256 for this queue operation. Zero row/image strides are
+    /// omitted; uploads spanning multiple images require `rows_per_image`.
+    /// The data layout must match the texture format. Bytes are uploaded
+    /// unchanged, with no swizzling or `flip_y` transformation.
     ///
     /// # Arguments
     ///
     /// - `&TextureWriteDescriptor` - The write descriptor.
     pub fn write_texture(&self, descriptor: &TextureWriteDescriptor) {
+        let extent: [u32; 3] = match texture_write_extent(descriptor) {
+            Some(value) => value,
+            None => return,
+        };
         let queue: JsValue =
             match Reflect::get(self.get_device(), &JsValue::from_str(WEBGPU_PROPERTY_QUEUE))
                 .ok()
@@ -3884,16 +3790,20 @@ impl WebGpuRenderer {
                 None => return,
             };
         let layout_dict: Object = Object::new();
-        let _: Result<bool, JsValue> = Reflect::set(
-            &layout_dict,
-            &JsValue::from_str(WEBGPU_PROPERTY_BYTES_PER_ROW),
-            &JsValue::from_f64(descriptor.get_bytes_per_row() as f64),
-        );
-        let _: Result<bool, JsValue> = Reflect::set(
-            &layout_dict,
-            &JsValue::from_str(WEBGPU_PROPERTY_ROWS_PER_IMAGE),
-            &JsValue::from_f64(descriptor.get_rows_per_image() as f64),
-        );
+        if descriptor.get_bytes_per_row() != 0 {
+            let _: Result<bool, JsValue> = Reflect::set(
+                &layout_dict,
+                &JsValue::from_str(WEBGPU_PROPERTY_BYTES_PER_ROW),
+                &JsValue::from_f64(f64::from(descriptor.get_bytes_per_row())),
+            );
+        }
+        if descriptor.get_rows_per_image() != 0 {
+            let _: Result<bool, JsValue> = Reflect::set(
+                &layout_dict,
+                &JsValue::from_str(WEBGPU_PROPERTY_ROWS_PER_IMAGE),
+                &JsValue::from_f64(f64::from(descriptor.get_rows_per_image())),
+            );
+        }
         let _: Result<bool, JsValue> = Reflect::set(
             &layout_dict,
             &JsValue::from_str(WEBGPU_PROPERTY_IMAGE_DATA_OFFSET),
@@ -3932,33 +3842,22 @@ impl WebGpuRenderer {
         // it the raw Vec<u8> and let JS interop copy it. This is the same
         // path wasm-bindgen takes for &[u8] → Uint8Array.
         let data_js: JsValue = Uint8Array::from(descriptor.get_data().as_slice()).into();
-        // For the size extent, we read bytes_per_row's texel width from the
-        // destination. Without a format converter we default to a square
-        // shape based on the data size. The caller is expected to construct
-        // a TextureWriteDescriptor that matches their texture exactly;
-        // this method does not auto-derive size.
         let size_value: JsValue = {
-            let bpr: u32 = descriptor.get_bytes_per_row();
-            let rows: u32 = if descriptor.get_rows_per_image() == 0 {
-                (descriptor.get_data().len() as u32) / bpr.max(1)
-            } else {
-                descriptor.get_rows_per_image()
-            };
             let size_dict: Object = Object::new();
             let _: Result<bool, JsValue> = Reflect::set(
                 &size_dict,
                 &JsValue::from_str(WEBGPU_PROPERTY_WIDTH),
-                &JsValue::from_f64(bpr as f64),
+                &JsValue::from_f64(f64::from(extent[0])),
             );
             let _: Result<bool, JsValue> = Reflect::set(
                 &size_dict,
                 &JsValue::from_str(WEBGPU_PROPERTY_HEIGHT),
-                &JsValue::from_f64(rows as f64),
+                &JsValue::from_f64(f64::from(extent[1])),
             );
             let _: Result<bool, JsValue> = Reflect::set(
                 &size_dict,
                 &JsValue::from_str(WEBGPU_PROPERTY_DEPTH_OR_1),
-                &JsValue::from_f64(1.0),
+                &JsValue::from_f64(f64::from(extent[2])),
             );
             size_dict.unchecked_into::<JsValue>()
         };

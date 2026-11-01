@@ -115,6 +115,21 @@ pub(crate) const WEBGPU_PROPERTY_STORAGE_TEXTURE: &str = "storageTexture";
 
 pub(crate) const WEBGPU_TEXTURE_DIMENSION_2D: &str = "2d";
 
+/// The one-dimensional `GPUTexture.dimension` value.
+pub(crate) const WEBGPU_TEXTURE_DIMENSION_1D: &str = "1d";
+
+/// The three-dimensional `GPUTexture.dimension` value.
+pub(crate) const WEBGPU_TEXTURE_DIMENSION_3D: &str = "3d";
+
+/// The horizontal coordinate in a `GPUOrigin3D` dictionary.
+pub(crate) const WEBGPU_PROPERTY_X: &str = "x";
+
+/// The vertical coordinate in a `GPUOrigin3D` dictionary.
+pub(crate) const WEBGPU_PROPERTY_Y: &str = "y";
+
+/// The depth or array-layer coordinate in a `GPUOrigin3D` dictionary.
+pub(crate) const WEBGPU_PROPERTY_Z: &str = "z";
+
 /// `mipLevel` property key inside a texture binding entry / `writeTexture` dest.
 pub(crate) const WEBGPU_PROPERTY_MIP_LEVEL: &str = "mipLevel";
 
@@ -219,9 +234,6 @@ pub(crate) const WEBGPU_PROPERTY_B: &str = "b";
 pub(crate) const WEBGPU_PROPERTY_DST_FACTOR: &str = "dstFactor";
 
 pub(crate) const WEBGPU_PROPERTY_CULL_MODE: &str = "cullMode";
-
-/// `textureView` property key inside `GpuTextureBinding`.
-pub(crate) const WEBGPU_PROPERTY_TEXTURE_VIEW: &str = "textureView";
 
 /// The JavaScript method name `createBindGroup` on `GpuDevice`.
 pub(crate) const WEBGPU_METHOD_CREATE_BIND_GROUP: &str = "createBindGroup";

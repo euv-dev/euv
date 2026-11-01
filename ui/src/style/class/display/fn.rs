@@ -101,11 +101,11 @@ class! {
         // The colour follows the standard curve, the press the shortest one
         // in the system: a press has to land while the finger is still down.
         transition: format!(
-            "background-color {} {}, transform {} {}",
-            var!(duration-fast),
-            var!(ease-out),
-            var!(duration-press),
-            var!(ease-accelerate)
+        "background-color {} {}, transform {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-press),
+        var!(ease-accelerate)
         );
         :hover {
             background: var!(primary-hover);
@@ -1075,13 +1075,13 @@ class! {
         // Same vocabulary as the primary button: the standard curve for the
         // colour, the press curve for the scale.
         transition: format!(
-            "border-color {} {}, background-color {} {}, transform {} {}",
-            var!(duration-fast),
-            var!(ease-out),
-            var!(duration-fast),
-            var!(ease-out),
-            var!(duration-press),
-            var!(ease-accelerate)
+        "border-color {} {}, background-color {} {}, transform {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-press),
+        var!(ease-accelerate)
         );
         :hover {
             background: var!(secondary);

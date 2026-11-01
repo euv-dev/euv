@@ -1,5 +1,102 @@
 use super::*;
 
+/// Reads a nonnegative integral texture coordinate without truncation.
+///
+/// # Arguments
+///
+/// - `&JsValue` - The JavaScript size or coordinate value.
+///
+/// # Returns
+///
+/// - `Option<u32>` - The exact coordinate, or `None` for an invalid value.
+fn texture_write_u32(value: &JsValue) -> Option<u32> {
+    value
+        .as_f64()
+        .filter(|number: &f64| {
+            number.is_finite()
+                && *number >= 0.0
+                && *number <= f64::from(u32::MAX)
+                && number.fract() == 0.0
+        })
+        .map(|number: f64| number as u32)
+}
+
+/// Resolves the remaining logical mip extent from a destination texture.
+///
+/// # Arguments
+///
+/// - `&TextureWriteDescriptor` - The destination texture, mip, and origin.
+///
+/// # Returns
+///
+/// - `Option<[u32; 3]>` - The nonempty texel extent, or `None` for invalid bounds.
+pub(crate) fn texture_write_extent(descriptor: &TextureWriteDescriptor) -> Option<[u32; 3]> {
+    let texture: JsValue = descriptor.get_texture();
+    let mip_level: u32 = descriptor.get_mip_level();
+    let mip_level_count: u32 = texture_write_u32(
+        &Reflect::get(
+            &texture,
+            &JsValue::from_str(WEBGPU_PROPERTY_MIP_LEVEL_COUNT),
+        )
+        .ok()?,
+    )?;
+    if mip_level >= mip_level_count {
+        return None;
+    }
+    let dimension: String = Reflect::get(&texture, &JsValue::from_str(WEBGPU_PROPERTY_DIMENSION))
+        .ok()?
+        .as_string()?;
+    if ![
+        WEBGPU_TEXTURE_DIMENSION_1D,
+        WEBGPU_TEXTURE_DIMENSION_2D,
+        WEBGPU_TEXTURE_DIMENSION_3D,
+    ]
+    .contains(&dimension.as_str())
+    {
+        return None;
+    }
+    let origin: JsValue = descriptor.get_origin().unwrap_or(JsValue::UNDEFINED);
+    let mut extent: [u32; 3] = [0; 3];
+    for (axis, (size_key, origin_key)) in [
+        (WEBGPU_PROPERTY_WIDTH, WEBGPU_PROPERTY_X),
+        (WEBGPU_PROPERTY_HEIGHT, WEBGPU_PROPERTY_Y),
+        (WEBGPU_PROPERTY_DEPTH_OR_1, WEBGPU_PROPERTY_Z),
+    ]
+    .iter()
+    .enumerate()
+    {
+        let size: u32 =
+            texture_write_u32(&Reflect::get(&texture, &JsValue::from_str(size_key)).ok()?)?;
+        if size == 0 {
+            return None;
+        }
+        let mip_size: u32 = if dimension == WEBGPU_TEXTURE_DIMENSION_1D && axis != 0 {
+            1
+        } else if axis == 2 && dimension != WEBGPU_TEXTURE_DIMENSION_3D {
+            size
+        } else {
+            size.checked_shr(mip_level).unwrap_or(0).max(1)
+        };
+        let coordinate: JsValue = if origin.is_undefined() || origin.is_null() {
+            JsValue::UNDEFINED
+        } else if Array::is_array(&origin) {
+            Reflect::get(&origin, &JsValue::from_f64(axis as f64)).ok()?
+        } else {
+            Reflect::get(&origin, &JsValue::from_str(origin_key)).ok()?
+        };
+        let offset: u32 = if coordinate.is_undefined() {
+            0
+        } else {
+            texture_write_u32(&coordinate)?
+        };
+        extent[axis] = mip_size.checked_sub(offset)?;
+        if extent[axis] == 0 {
+            return None;
+        }
+    }
+    Some(extent)
+}
+
 /// Renders the JS-side error into a `String` when present, otherwise `"<none>"`.
 ///
 /// # Arguments
