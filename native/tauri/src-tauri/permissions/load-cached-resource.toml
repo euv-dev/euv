@@ -1,0 +1,5 @@
+
+[[permission]]
+identifier = "allow-load-cached-resource"
+description = "Enables the load_cached_resource command to serve cached web resources"
+commands.allow = ["load_cached_resource"]

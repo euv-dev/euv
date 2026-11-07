@@ -1,0 +1,85 @@
+name: Build APK
+
+# Every code change on master rebuilds the APK and publishes it to the
+# rolling `latest` GitHub Release. PRs and merge-queue batches build too,
+# but only direct pushes to master publish. Manual runs via workflow_dispatch
+# also publish.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: native/tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The runner image's preinstalled rustup fails `rustup target add`
+      # with a silent exit 3 — install a fresh stable toolchain with the
+      # Android targets instead (build.sh's own rustup add then no-ops).
+      - name: Install Rust with Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi, i686-linux-android, x86_64-linux-android
+
+      # build.sh self-bootstraps everything else: rustup Android targets,
+      # npm ci, JDK + Android SDK/NDK into sdk/ (via scripts/setup-sdk.sh),
+      # and the page prefetch (Tauri beforeBuildCommand).
+      - name: Cache JDK + Android SDK/NDK
+        uses: actions/cache@v4
+        with:
+          path: native/tauri/sdk
+          key: sdk-${{ runner.os }}-${{ hashFiles('native/tauri/scripts/setup-sdk.sh') }}
+
+      - name: Cache cargo registry + rust target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            native/tauri/src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('native/tauri/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build APK
+        run: ./build.sh android release
+
+      # Publish only on master pushes / manual runs — never on PRs.
+      - name: Move rolling `latest` tag to this commit
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f latest
+          git push -f origin latest
+
+      - name: Upload APK to GitHub Release
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE="Latest APK (build ${{ github.run_number }})"
+          NOTES="Automatic build from commit ${{ github.sha }} ($(date -u '+%Y-%m-%d %H:%M') UTC)."
+          gh release create latest --title "$TITLE" --notes "$NOTES" --prerelease 2>/dev/null \
+            || gh release edit latest --title "$TITLE" --notes "$NOTES" --prerelease
+          gh release upload latest euv.apk --clobber
+          echo "APK published: $(gh release view latest --json url -q .url)"

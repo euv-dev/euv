@@ -1,0 +1,5 @@
+
+[[permission]]
+identifier = "allow-update-cache"
+description = "Enables the update_cache command to fetch the latest remote resources and prepare them for the next launch"
+commands.allow = ["update_cache"]

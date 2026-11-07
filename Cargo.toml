@@ -12,7 +12,7 @@ categories = ["network-programming", "web-programming"]
 exclude.workspace = true
 
 [workspace.package]
-version = "0.34.2"
+version = "0.34.3"
 readme = "README.md"
 edition = "2024"
 authors = ["root@devhub.vip"]
@@ -33,9 +33,11 @@ exclude = [
     "**/.DS_Store",
     "www",
     "dist",
+    "native",
 ]
 
 [workspace]
+exclude = ["native/tauri/src-tauri"]
 members = [
     "core",
     "macros",

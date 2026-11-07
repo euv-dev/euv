@@ -24,6 +24,17 @@ To use this crate, you can run cmd:
 cargo add euv
 ```
 
+## Native clients
+
+Native clients live under `native/`, with each implementation in its own subdirectory.
+The [Tauri client](native/tauri/README.md) is located at `native/tauri/`.
+
+```shell
+cd native/tauri
+npm install
+npm run build:android
+```
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
