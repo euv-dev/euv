@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-wait-for-cached-resource"
+description = "Enables waiting for the startup cache without polling"
+commands.allow = ["wait_for_cached_resource"]

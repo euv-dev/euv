@@ -1,0 +1,5 @@
+
+[[permission]]
+identifier = "allow-resolve-bridge-group-permissions"
+description = "Enables the resolve_bridge_group_permissions command to query Android permission groups"
+commands.allow = ["resolve_bridge_group_permissions"]

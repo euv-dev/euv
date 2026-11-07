@@ -1,0 +1,50 @@
+*.log
+*.pid
+/data
+target
+/.vscode
+node_modules
+.DS_Store
+bundled-cache
+sdk
+
+# Build artifacts
+gen/android/build/
+gen/android/.gradle/
+gen/android/app/build/
+gen/android/app/src/main/assets/
+src-tauritarget/
+src-tauri/gen/apple/build/
+*.apk
+*.aab
+*.ipa
+*.app.zip
+
+# Local patches (machine-specific)
+local-deps/
+
+# Secrets
+keystore.jks
+keystore.properties
+local.properties
+
+# Debug artifacts
+screenshot_*.png
+
+# Generated schemas
+src-tauri/gen/schemas/
+
+# Required client inputs inside the parent repository.
+!/dist/
+/dist/*
+!/dist/index.html
+!/src-tauri/Cargo.lock
+
+# Preserve files already tracked by the original client repository.
+!/keystore.jks
+!/src-tauri/gen/schemas/
+/src-tauri/gen/schemas/*
+!/src-tauri/gen/schemas/acl-manifests.json
+!/src-tauri/gen/schemas/android-schema.json
+!/src-tauri/gen/schemas/capabilities.json
+!/src-tauri/gen/schemas/mobile-schema.json
