@@ -34,3 +34,51 @@ pub struct EuvDropdownProps {
     #[debug(skip)]
     pub on_select: Option<Rc<dyn Fn(&'static str)>>,
 }
+
+/// Props of the [`euv_dropdown_menu_item`] component.
+///
+/// A menu item is the leaf of a menu: it carries the label the reader
+/// sees, the key hint shown at its trailing edge, and the value handed
+/// back when it is chosen.
+#[derive(Clone, CustomDebug, Data, Default, New)]
+pub struct EuvDropdownMenuItemProps {
+    /// The label shown inside the item.
+    #[get(type(copy))]
+    pub label: &'static str,
+    /// The key hint shown at the trailing edge of the item.
+    #[get(type(copy))]
+    pub shortcut: &'static str,
+    /// The opaque value handed to the select callback.
+    #[get(type(copy))]
+    pub value: &'static str,
+    /// Whether the item is disabled.
+    #[get(type(copy))]
+    pub disabled: bool,
+    /// Optional select callback receiving the chosen value.
+    #[debug(skip)]
+    pub on_select: Option<Rc<dyn Fn(&'static str)>>,
+}
+
+/// Props of the [`euv_dropdown_menu_label`] component.
+#[derive(Clone, Copy, CustomDebug, Data, Default, New)]
+pub struct EuvDropdownMenuLabelProps {
+    /// The text of the group heading.
+    #[get(type(copy))]
+    pub text: &'static str,
+}
+
+/// Props of the [`euv_dropdown_menu_separator`] component.
+#[derive(Clone, Copy, CustomDebug, Data, Default, New)]
+pub struct EuvDropdownMenuSeparatorProps {
+    /// The label reported to assistive technology, if any.
+    #[get(type(copy))]
+    pub label: &'static str,
+}
+
+/// Props of the [`euv_dropdown_menu_shortcut`] component.
+#[derive(Clone, Copy, CustomDebug, Data, Default, New)]
+pub struct EuvDropdownMenuShortcutProps {
+    /// The key hint text.
+    #[get(type(copy))]
+    pub text: &'static str,
+}

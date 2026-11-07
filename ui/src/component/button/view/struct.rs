@@ -7,6 +7,8 @@ use super::*;
 pub struct EuvButtonProps {
     /// The visual variant determining colour scheme.
     pub variant: EuvButtonVariant,
+    /// The size of the control.
+    pub size: EuvButtonSize,
     /// The button label text, used as fallback when no children are provided.
     pub label: &'static str,
     /// Optional click event handler.

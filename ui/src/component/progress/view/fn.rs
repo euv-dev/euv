@@ -27,9 +27,14 @@ pub fn euv_progress(node: VirtualNode<EuvProgressProps>) -> VirtualNode {
     let fill_style: String = format!("width: {clamped}%;");
     let fill_style_ref: &str = fill_style.as_str();
     let readout: String = format!("{clamped:.0}%");
+    let value_now: String = format!("{clamped:.0}");
     html! {
         div {
             div {
+                role: "progressbar"
+                aria-valuenow: value_now
+                aria-valuemin: "0"
+                aria-valuemax: "100"
                 class: c_progress_container()
                 div {
                     class: c_progress_bar_fill()

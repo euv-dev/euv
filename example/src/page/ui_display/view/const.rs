@@ -6,7 +6,6 @@ pub(crate) const DISPLAY_HEADER_SUBTITLE: &str = "Typography, links, images, anc
 
 /// The section heading for the typography card.
 pub(crate) const DISPLAY_TYPOGRAPHY_CARD_TITLE: &str = "Typography";
-
 /// The body text rendered in the paragraph role.
 pub(crate) const DISPLAY_PARAGRAPH_TEXT: &str = "Running text is set in the body role, which is the default. Weight and size carry the hierarchy, never colour.";
 
@@ -21,6 +20,39 @@ pub(crate) const DISPLAY_SECONDARY_TEXT: &str = "Supporting text in the muted st
 
 /// The identifier rendered in the monospace role.
 pub(crate) const DISPLAY_MONO_TEXT: &str = "euv_ui::euv_button";
+
+/// The section heading for the button card.
+pub(crate) const DISPLAY_BUTTON_CARD_TITLE: &str = "Buttons";
+
+/// The label of the primary button in the variant row.
+pub(crate) const DISPLAY_BUTTON_PRIMARY_LABEL: &str = "Primary";
+
+/// The label of the secondary button in the variant row.
+pub(crate) const DISPLAY_BUTTON_SECONDARY_LABEL: &str = "Secondary";
+
+/// The label of the destructive button in the variant row.
+pub(crate) const DISPLAY_BUTTON_DESTRUCTIVE_LABEL: &str = "Destructive";
+
+/// The label of the outline button in the variant row.
+pub(crate) const DISPLAY_BUTTON_OUTLINE_LABEL: &str = "Outline";
+
+/// The label of the ghost button in the variant row.
+pub(crate) const DISPLAY_BUTTON_GHOST_LABEL: &str = "Ghost";
+
+/// The label of the link button in the variant row.
+pub(crate) const DISPLAY_BUTTON_LINK_LABEL: &str = "Link";
+
+/// The label of the small button in the size row.
+pub(crate) const DISPLAY_BUTTON_SMALL_LABEL: &str = "Small";
+
+/// The label of the default button in the size row.
+pub(crate) const DISPLAY_BUTTON_DEFAULT_LABEL: &str = "Default";
+
+/// The label of the large button in the size row.
+pub(crate) const DISPLAY_BUTTON_LARGE_LABEL: &str = "Large";
+
+/// The label of the icon button in the size row.
+pub(crate) const DISPLAY_BUTTON_ICON_LABEL: &str = "★";
 
 /// The section heading for the link and image card.
 pub(crate) const DISPLAY_LINK_CARD_TITLE: &str = "Links & Images";
@@ -131,3 +163,58 @@ pub(crate) const DISPLAY_BACK_TOP_THRESHOLD: f64 = 200.0;
 pub(crate) const DISPLAY_LINK_LOG: &str = "link opened";
 pub(crate) const DISPLAY_CAROUSEL_LOG: &str = "slide {index} is on screen";
 pub(crate) const DISPLAY_EMPTY_LOG: &str = "empty state action asked for";
+
+/// The section heading for the item card.
+pub(crate) const DISPLAY_ITEM_CARD_TITLE: &str = "Items";
+
+/// The title of the first item.
+pub(crate) const DISPLAY_ITEM_FIRST_TITLE: &str = "Release notes";
+
+/// The description of the first item.
+pub(crate) const DISPLAY_ITEM_FIRST_DESC: &str = "What changed in the last build.";
+
+/// The title of the second item.
+pub(crate) const DISPLAY_ITEM_SECOND_TITLE: &str = "Keyboard shortcuts";
+
+/// The description of the second item.
+pub(crate) const DISPLAY_ITEM_SECOND_DESC: &str = "The keys that save the most time.";
+
+/// The title of the third item.
+pub(crate) const DISPLAY_ITEM_THIRD_TITLE: &str = "Team";
+
+/// The description of the third item.
+pub(crate) const DISPLAY_ITEM_THIRD_DESC: &str = "The people who work on the library.";
+
+/// The glyph shown in the icon tile of the first item.
+pub(crate) const DISPLAY_ITEM_FIRST_ICON: &str = "R";
+
+/// The glyph shown in the icon tile of the second item.
+pub(crate) const DISPLAY_ITEM_SECOND_ICON: &str = "K";
+
+/// The glyph shown in the icon tile of the third item.
+pub(crate) const DISPLAY_ITEM_THIRD_ICON: &str = "T";
+
+/// The label of the action of the first item.
+pub(crate) const DISPLAY_ITEM_FIRST_ACTION: &str = "Read";
+
+/// The label of the action of the second item.
+pub(crate) const DISPLAY_ITEM_SECOND_ACTION: &str = "Open";
+
+/// The section heading for the media card.
+pub(crate) const DISPLAY_MEDIA_CARD_TITLE: &str = "Media";
+
+/// The label of the spinner.
+pub(crate) const DISPLAY_SPINNER_LABEL: &str = "Loading";
+
+/// The caption shown next to the spinner.
+pub(crate) const DISPLAY_SPINNER_CAPTION: &str = "Fetching the latest release";
+
+/// The title shown inside the aspect-ratio box.
+pub(crate) const DISPLAY_ASPECT_RATIO_TITLE: &str = "16 : 9";
+
+/// The body shown inside the aspect-ratio box.
+pub(crate) const DISPLAY_ASPECT_RATIO_BODY: &str =
+    "The box keeps its shape as the column changes width.";
+
+/// The ratio the demo box keeps.
+pub(crate) const DISPLAY_ASPECT_RATIO_VALUE: f32 = 1.7777778;

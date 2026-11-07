@@ -85,6 +85,12 @@ pub fn euv_select(node: VirtualNode<EuvSelectProps>) -> VirtualNode {
             }
             button {
                 type: "button"
+                role: "combobox"
+                aria-expanded: if { open.get() } {
+                    "true"
+                } else {
+                    "false"
+                }
                 class: c_euv_select_trigger()
                 disabled: boolean_attr(disabled)
                 onclick: select_toggle(open, disabled)
@@ -102,6 +108,7 @@ pub fn euv_select(node: VirtualNode<EuvSelectProps>) -> VirtualNode {
                 }
             }
             div {
+                role: "listbox"
                 class: c_euv_select_panel()
                 class: if { open } {
                     c_euv_select_panel_open()
@@ -195,6 +202,11 @@ fn select_option_row(
     on_change: Option<Rc<dyn Fn(&'static str)>>,
 ) -> VirtualNode {
     let disabled: bool = option.disabled;
+    let selected_attr: &str = if is_selected {
+        SELECT_ATTRIBUTE_ON
+    } else {
+        SELECT_ATTRIBUTE_OFF
+    };
     let handler: Option<Rc<dyn Fn(Event)>> = if disabled {
         None
     } else {
@@ -203,6 +215,8 @@ fn select_option_row(
     html! {
         button {
             type: "button"
+            role: "option"
+            aria-selected: selected_attr
             class: if disabled {
                 c_euv_select_option_disabled()
             } else if is_selected {
@@ -282,5 +296,9 @@ fn select_option(
 ///
 /// - `&'static str` - The attribute value for the flag.
 fn boolean_attr(flag: bool) -> &'static str {
-    if flag { "true" } else { "" }
+    if flag {
+        SELECT_ATTRIBUTE_ON
+    } else {
+        SELECT_ATTRIBUTE_EMPTY
+    }
 }

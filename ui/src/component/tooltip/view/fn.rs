@@ -34,6 +34,7 @@ pub fn euv_tooltip(node: VirtualNode<EuvTooltipProps>) -> VirtualNode {
             class: c_euv_tooltip()
             children
             div {
+                role: "tooltip"
                 class: c_euv_tooltip_bubble()
                 class: bubble_class()
                 {

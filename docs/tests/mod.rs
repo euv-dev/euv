@@ -1,4 +1,7 @@
 mod anchor;
+mod code_block;
+mod description;
+mod highlight;
 mod locale;
 mod route;
 mod scroll;

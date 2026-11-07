@@ -9,6 +9,7 @@ fn badge_node(outline: bool, text: &'static str) -> VirtualNode<EuvBadgeProps> {
         props: Some(Box::new(EuvBadgeProps {
             text,
             outline,
+            variant: EuvBadgeVariant::Default,
             on_click: None,
         })),
     }

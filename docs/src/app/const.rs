@@ -29,18 +29,19 @@ pub(crate) const NOT_FOUND_HOME_LABEL: &str = "首页";
 /// `c_mobile_main` in *both* shells and several `c_euv_*` primitives
 /// owned by the `euv-ui` crate, so there is no single view module that
 /// owns it.
-pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; overflow: hidden !important; } \
-         #app { height: 100% !important; } \
-         .md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 { padding-left: 0 !important; } \
-         .md-body .header-anchor, .md-body h1:hover .header-anchor, .md-body h2:hover .header-anchor, .md-body h3:hover .header-anchor, .md-body h4:hover .header-anchor, .md-body h5:hover .header-anchor, .md-body h6:hover .header-anchor { display: none !important; } \
-             .md-body img { display: inline-block; width: auto !important; max-width: 100% !important; height: auto; vertical-align: baseline; } \
-             .md-body a > img { display: inline-block; } \
-             .md-body img[src$='.svg'], .md-body img[src*='shields.io'], .md-body img[src*='github.com'] { max-height: 20px; max-width: 100%; } \
-             .md-body table img { max-height: 1.4em; } \
+pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100%; overflow: hidden; } \
+         #app { height: 100%; } \
+         #app .c_app_main { padding-top: var(--padding-main-top, 24px); padding-bottom: var(--docs-site-footer-height, 56px); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overflow-x: hidden; } \
+         #app .c_mobile_main { padding-bottom: var(--docs-site-footer-height, 56px); } \
+         #app .c_app_nav { padding-bottom: var(--docs-site-footer-height, 56px); } \
+         #app .md-body h1, #app .md-body h2, #app .md-body h3, #app .md-body h4, #app .md-body h5, #app .md-body h6 { padding-left: 0; } \
+         #app .md-body .header-anchor, #app .md-body h1:hover .header-anchor, #app .md-body h2:hover .header-anchor, #app .md-body h3:hover .header-anchor, #app .md-body h4:hover .header-anchor, #app .md-body h5:hover .header-anchor, #app .md-body h6:hover .header-anchor { display: none; } \
+             #app .md-body img { display: inline-block; width: auto; max-width: 100%; height: auto; vertical-align: baseline; } \
+             #app .md-body a > img { display: inline-block; } \
+             #app .md-body img[src$='.svg'], #app .md-body img[src*='shields.io'], #app .md-body img[src*='github.com'] { max-height: 20px; max-width: 100%; } \
+             #app .md-body table img { max-height: 1.4em; } \
              \
-             .c_app_main { padding-top: var(--padding-main-top, 24px) !important; display: flex !important; flex-direction: column !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; } \
-             \
-             .c_nav_footer_divider { left: 0.75rem !important; right: 0.75rem !important; } \
+             #app .c_nav_footer_divider { left: 0.75rem; right: 0.75rem; } \
              /* The header is the reference documentation site's one full-width \
                 sticky row: brand, top-level links, search field, theme toggle. \
                 Its metrics follow the reference — a 56px row, 24px inline \
@@ -48,30 +49,30 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
                 field. It spans the viewport, so the shell stacks the header \
                 above the sidebar-and-content row instead of letting the two \
                 columns sit beside it. */ \
-             .c_docs_header { position: sticky !important; top: 0 !important; z-index: 100 !important; height: 56px !important; display: flex !important; align-items: center !important; gap: 16px !important; padding: 0 24px !important; background: var(--background) !important; border-bottom: 1px solid var(--border) !important; flex-shrink: 0 !important; } \
-             .c_docs_header_brand { display: inline-flex !important; align-items: center !important; gap: 8px !important; font-size: 16px !important; font-weight: 500 !important; color: var(--foreground) !important; text-decoration: none !important; } \
-             .c_docs_header_brand_title { white-space: nowrap !important; } \
-             .c_docs_header_links { display: flex !important; align-items: center !important; gap: 2px !important; } \
-             .c_docs_header_link, .c_docs_header_link_active { display: inline-flex !important; align-items: center !important; height: 32px !important; padding: 0 10px !important; border-radius: 8px !important; font-size: 14px !important; font-weight: 500 !important; color: var(--foreground) !important; text-decoration: none !important; transition: background 150ms ease, color 150ms ease !important; } \
-             .c_docs_header_link:hover { background: var(--accent) !important; color: var(--accent-foreground) !important; } \
-             .c_docs_header_actions { margin-left: auto !important; display: flex !important; align-items: center !important; gap: 8px !important; } \
-             .c_docs_header_search { display: flex !important; align-items: center !important; height: 32px !important; width: 256px !important; padding: 0 12px !important; border-radius: 10px !important; background: var(--muted) !important; border: 1px solid transparent !important; } \
-             .c_docs_header_search:focus-within { border-color: var(--ring) !important; } \
-             .c_docs_header_search_input { width: 100% !important; border: none !important; background: transparent !important; color: var(--foreground) !important; font-size: 14px !important; font-family: inherit !important; outline: none !important; } \
-             .c_docs_header_search_input::placeholder { color: var(--muted-foreground) !important; } \
-             .c_docs_header_separator { width: 1px !important; height: 16px !important; background: var(--border) !important; } \
-             .c_docs_header_icon_button { display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 32px !important; height: 32px !important; border-radius: 8px !important; color: var(--foreground) !important; cursor: pointer !important; } \
-             .c_docs_header_icon_button:hover { background: var(--accent) !important; color: var(--accent-foreground) !important; } \
-             .c_docs_shell { flex-direction: column !important; } \
-             .c_docs_body { display: flex !important; flex: 1 !important; min-height: 0 !important; width: 100% !important; } \
-             .c_nav_section_label { padding-left: 0.75rem !important; } \
-             .c_nav_footer { padding-left: 0.75rem !important; } \
+             #app .c_docs_header { position: sticky; top: 0; z-index: 100; height: 56px; display: flex; align-items: center; gap: 16px; padding: 0 24px; background: var(--background); border-bottom: 1px solid var(--border); flex-shrink: 0; } \
+             #app .c_docs_header_brand { display: inline-flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500; color: var(--foreground); text-decoration: none; } \
+             #app .c_docs_header_brand_title { white-space: nowrap; } \
+             #app .c_docs_header_links { display: flex; align-items: center; gap: 2px; } \
+             #app .c_docs_header_link, #app .c_docs_header_link_active { display: inline-flex; align-items: center; height: 32px; padding: 0 10px; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--foreground); text-decoration: none; transition: background 150ms ease, color 150ms ease; } \
+             #app .c_docs_header_link:hover { background: var(--accent); color: var(--accent-foreground); } \
+             #app .c_docs_header_actions { margin-left: auto; display: flex; align-items: center; gap: 8px; } \
+             #app .c_docs_header_search { display: flex; align-items: center; height: 32px; width: 256px; padding: 0 12px; border-radius: 10px; background: var(--muted); border: 1px solid transparent; } \
+             #app .c_docs_header_search:focus-within { border-color: var(--ring); } \
+             #app .c_docs_header_search_input { width: 100%; border: none; background: transparent; color: var(--foreground); font-size: 14px; font-family: inherit; outline: none; } \
+             #app .c_docs_header_search_input::placeholder { color: var(--muted-foreground); } \
+             #app .c_docs_header_separator { width: 1px; height: 16px; background: var(--border); } \
+             #app .c_docs_header_icon_button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; color: var(--foreground); cursor: pointer; } \
+             #app .c_docs_header_icon_button:hover { background: var(--accent); color: var(--accent-foreground); } \
+             #app .c_docs_shell { flex-direction: column; } \
+             #app .c_docs_body { display: flex; flex: 1; min-height: 0; width: 100%; } \
+             #app .c_nav_section_label { padding-left: 0.75rem; } \
+             #app .c_nav_footer { padding-left: 0.75rem; } \
              /* The guide has to land on the text x of the parent title above \
                 it, so `margin-left` takes the same `space-md` the parent \
                 row's own left padding uses. `padding-left` stays `space-sm`: \
                 it is the guide-to-child gap and half of the active row's \
                 pull-back, which must still meet the guide. */ \
-             .c_euv_sidebar_children { margin-left: var(--space-md, 12px) !important; padding-left: var(--space-sm, 8px) !important; } \
+             #app .c_euv_sidebar_children { margin-left: var(--space-md, 12px); padding-left: var(--space-sm, 8px); } \
              /* The dashed tree guide is the children's left edge, and the \
                 hover marker should *replace* it on the hovered row, not sit \
                 beside it. The row's padding box starts 1px (border) + 8px \
@@ -84,7 +85,7 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
                 Matched by descendant, not child: the renderer wraps \
                 each row, so the row is never a direct child of \
                 `c_euv_sidebar_children`. */ \
-             .c_euv_sidebar_children .c_euv_sidebar_link::before, .c_euv_sidebar_children .c_euv_sidebar_group_title::before { left: -9px !important; } \
+             #app .c_euv_sidebar_children .c_euv_sidebar_link::before, #app .c_euv_sidebar_children .c_euv_sidebar_group_title::before { left: -9px; } \
              /* An active row is pulled back to the guide by its own \
                 `margin-left: -9px`, so its padding box *is* the guide and its \
                 marker belongs at `left: 0` — on the accent fill, where it is \
@@ -96,95 +97,95 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
                 rail, which is exactly what the active leaf does not show. \
                 Keep the two active rows in one rule, at the specificity that \
                 actually wins. */ \
-             .c_euv_sidebar_children .c_euv_sidebar_link_active::before { left: -8px !important; } \
-             .c_euv_sidebar_children .c_euv_sidebar_link_active_flush::before, .c_euv_sidebar_children .c_euv_sidebar_group_title_active::before { left: 0 !important; } \
+             #app .c_euv_sidebar_children .c_euv_sidebar_link_active::before { left: -8px; } \
+             #app .c_euv_sidebar_children .c_euv_sidebar_link_active_flush::before, #app .c_euv_sidebar_children .c_euv_sidebar_group_title_active::before { left: 0; } \
              \
-             /* Every row class whose ::before marker is absolutely positioned
-                must itself be positioned, or the marker resolves against the
-                nearest positioned ancestor (the sticky `c_app_nav`) and paints
-                a 5px bar down the *full height* of the sidebar instead of the
-                row. `c_euv_sidebar_link_active` (a top-level active leaf) was
-                missing here: measured live, its ::before spanned 295px of the
+             /* Every row class whose ::before marker is absolutely positioned \
+                must itself be positioned, or the marker resolves against the \
+                nearest positioned ancestor (the sticky `c_app_nav`) and paints \
+                a 5px bar down the *full height* of the sidebar instead of the \
+                row. `c_euv_sidebar_link_active` (a top-level active leaf) was \
+                missing here: measured live, its ::before spanned 295px of the \
                 nav column while the row itself is 42px. */ \
-             .c_euv_sidebar_link, .c_euv_sidebar_group_title, .c_euv_sidebar_link_active { position: relative !important; } \
-                         .c_euv_sidebar_link::before, .c_euv_sidebar_group_title::before { content: '' !important; position: absolute !important; top: 0 !important; bottom: 0 !important; width: 5px !important; background: transparent !important; pointer-events: none !important; } \
-                         .c_euv_sidebar_group_title::before { left: 0 !important; } \
-                                    .c_euv_sidebar_link::before { left: 0 !important; } \
-                         .c_euv_sidebar_link:hover::before, .c_euv_sidebar_group_title:hover::before { background: currentColor !important; } \
-                         .c_euv_sidebar_link:hover, .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #000) !important; border: 0 !important; box-shadow: none !important; } \
-             .c_euv_sidebar_link:not(.c_euv_sidebar_link_active):not(.c_euv_sidebar_link_active_flush):hover::before, .c_euv_sidebar_group_title:not(.c_euv_sidebar_group_title_active):not(.c_euv_sidebar_group_title_root):not(.c_euv_sidebar_group_title_root_active):hover::before { background: currentColor !important; } \
-                         .c_euv_sidebar_link_active, .c_euv_sidebar_group_title_active { background: var(--primary) !important; color: var(--primary-foreground) !important; box-shadow: none !important; } \
-                         .c_euv_sidebar_link_active::before, .c_euv_sidebar_group_title_active::before { background: var(--primary, #000) !important; content: '' !important; position: absolute !important; width: 5px !important; top: 0 !important; bottom: 0 !important; pointer-events: none !important; left: 0 !important; } \
-                         .c_euv_sidebar_group_title_active::before { left: 0 !important; } \
-                         .c_euv_sidebar_link_active:hover, .c_euv_sidebar_group_title_active:hover { background: var(--primary) !important; color: var(--primary-foreground) !important; box-shadow: none !important; } \
-                         .c_theme_dark .c_euv_sidebar_link:hover, .c_theme_dark .c_euv_sidebar_group_title:hover { background: transparent !important; color: var(--foreground, #fff) !important; box-shadow: none !important; } \
-                         .c_theme_dark .c_euv_sidebar_link_active, .c_theme_dark .c_euv_sidebar_group_title_active { background: var(--primary) !important; color: var(--primary-foreground) !important; box-shadow: none !important; } \
-                         .c_theme_dark .c_euv_sidebar_link_active::before, .c_theme_dark .c_euv_sidebar_group_title_active::before { background: var(--primary, #fff) !important; } \
-                         .c_theme_dark .c_euv_sidebar_link_active:hover, .c_theme_dark .c_euv_sidebar_group_title_active:hover { background: var(--primary) !important; color: var(--primary-foreground) !important; box-shadow: none !important; } \
-                         .c_euv_sidebar_group_title_root, .c_euv_sidebar_group_title_root_active { position: relative !important; } \
-                         .c_euv_sidebar_group_title_root::before { content: '' !important; position: absolute !important; top: 0 !important; bottom: 0 !important; left: 0 !important; width: 5px !important; background: transparent !important; pointer-events: none !important; } \
-                         .c_euv_sidebar_group_title_root:hover::before { background: var(--foreground, #000) !important; } \
-                         .c_theme_dark .c_euv_sidebar_group_title_root:hover::before { background: var(--foreground, #fff) !important; } \
-                         .c_euv_sidebar_group_title_root_active::before { background: var(--primary-foreground, #fff) !important; } \
-                         .c_euv_sidebar_group_title_root:hover { background: transparent !important; color: var(--foreground, #000) !important; } \
-                         .c_euv_sidebar_group_title_root_active, .c_euv_sidebar_group_title_root_active:hover { background: var(--primary) !important; color: var(--primary-foreground) !important; } \
-                         .c_theme_dark .c_euv_sidebar_group_title_root:hover { background: transparent !important; color: var(--foreground, #fff) !important; } \
-                         .c_euv_sidebar_link_active_flush, .c_euv_sidebar_group_title_active { position: relative !important; margin-left: -9px !important; width: calc(100% + 9px) !important; padding-left: calc(12px + 9px) !important; } \
-                         .c_euv_sidebar_link_active_flush::before, .c_euv_sidebar_group_title_active::before { left: 0 !important; } \
-                         .c_euv_sidebar_link_active_flush:hover::before { background: var(--primary, #000) !important; } \
+             #app .c_euv_sidebar_link, #app .c_euv_sidebar_group_title, #app .c_euv_sidebar_link_active { position: relative; } \
+                         #app .c_euv_sidebar_link::before, #app .c_euv_sidebar_group_title::before { content: ''; position: absolute; top: 0; bottom: 0; width: 5px; background: transparent; pointer-events: none; } \
+                         #app .c_euv_sidebar_group_title::before { left: 0; } \
+                                    #app .c_euv_sidebar_link::before { left: 0; } \
+                         #app .c_euv_sidebar_link:hover::before, #app .c_euv_sidebar_group_title:hover::before { background: currentColor; } \
+                         #app .c_euv_sidebar_link:hover, #app .c_euv_sidebar_group_title:hover { background: transparent; color: var(--foreground); border: 0; box-shadow: none; } \
+             #app .c_euv_sidebar_link:not(.c_euv_sidebar_link_active):not(.c_euv_sidebar_link_active_flush):hover::before, #app .c_euv_sidebar_group_title:not(.c_euv_sidebar_group_title_active):not(.c_euv_sidebar_group_title_root):not(.c_euv_sidebar_group_title_root_active):hover::before { background: currentColor; } \
+                         #app .c_euv_sidebar_link_active, #app .c_euv_sidebar_group_title_active { background: var(--primary); color: var(--primary-foreground); box-shadow: none; } \
+                         #app .c_euv_sidebar_link_active::before, #app .c_euv_sidebar_group_title_active::before { background: var(--primary); content: ''; position: absolute; width: 5px; top: 0; bottom: 0; pointer-events: none; left: 0; } \
+                         #app .c_euv_sidebar_group_title_active::before { left: 0; } \
+                         #app .c_euv_sidebar_link_active:hover, #app .c_euv_sidebar_group_title_active:hover { background: var(--primary); color: var(--primary-foreground); box-shadow: none; } \
+                         #app .c_euv_sidebar_group_title_root, #app .c_euv_sidebar_group_title_root_active { position: relative; } \
+                         #app .c_euv_sidebar_group_title_root::before { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 5px; background: transparent; pointer-events: none; } \
+                         #app .c_euv_sidebar_group_title_root:hover::before { background: var(--foreground); } \
+                         #app .c_euv_sidebar_group_title_root_active::before { background: var(--primary-foreground); } \
+                         #app .c_euv_sidebar_group_title_root:hover { background: transparent; color: var(--foreground); } \
+                         #app .c_euv_sidebar_group_title_root_active, #app .c_euv_sidebar_group_title_root_active:hover { background: var(--primary); color: var(--primary-foreground); } \
+                         #app .c_euv_sidebar_link_active_flush, #app .c_euv_sidebar_group_title_active { position: relative; margin-left: -9px; width: calc(100% + 9px); padding-left: calc(12px + 9px); } \
+                         #app .c_euv_sidebar_link_active_flush::before, #app .c_euv_sidebar_group_title_active::before { left: 0; } \
+                         #app .c_euv_sidebar_link_active_flush:hover { background: var(--primary); } \
              \
-             .c_euv_doc_layout { max-width: 1160px !important; display: flex !important; flex-direction: row !important; width: 100% !important; flex-shrink: 0 !important; } \
+             #app .c_euv_doc_layout { max-width: 1160px; display: flex; flex-direction: row; width: 100%; flex-shrink: 0; } \
              /* `min-height: 100%` fills the visible area of `c_app_main` so the tail can be pushed to the bottom; a viewport unit overshoots by the header. `space-between` puts the tail at the bottom when the article is short and lets it follow the article when the article is long. Not sticky, not fixed: the tail scrolls with the page. */ \
-             .c_euv_doc_content { display: flex !important; flex-direction: column !important; flex: 1 !important; justify-content: space-between !important; } \
-             .c_euv_doc_content article.md-body { display: block !important; flex: 0 0 auto !important; min-height: 0 !important; overflow: visible !important; } \
-             .c_euv_doc_content article.md-body > div { display: block !important; min-height: 0 !important; } \
-             .c_euv_doc_tail { display: block !important; flex: 0 0 auto !important; } \
-                         .c_euv_doc_toc { width: 280px !important; flex-shrink: 0 !important; position: sticky !important; top: var(--padding-main-top, 24px) !important; align-self: flex-start !important; max-height: 100% !important; overflow-y: auto !important; } \
-                         .c_euv_toc_link_nested { padding-left: 0.75rem !important; font-size: var(--font-sm, 0.875rem) !important; color: var(--muted-foreground, #555) !important; line-height: 1.5 !important; } \
-                         .c_euv_toc_link, .c_euv_toc_link_nested { font-weight: 400 !important; } \
-                         .c_euv_toc_link:hover, .c_euv_toc_link_nested:hover { color: var(--primary, #000) !important; font-weight: 400 !important; } \
-                         .c_euv_toc_link_active, .c_euv_toc_link_nested_active { color: var(--primary, #000) !important; font-weight: 700 !important; } \
-                         .c_euv_toc_link_active:hover, .c_euv_toc_link_nested_active:hover { color: var(--primary, #000) !important; font-weight: 700 !important; } \
-                         .c_theme_dark .c_euv_toc_link:hover, .c_theme_dark .c_euv_toc_link_nested:hover { color: var(--primary, #fff) !important; font-weight: 400 !important; } \
-                         .c_theme_dark .c_euv_toc_link_active, .c_theme_dark .c_euv_toc_link_nested_active, .c_theme_dark .c_euv_toc_link_active:hover, .c_theme_dark .c_euv_toc_link_nested_active:hover { color: var(--primary, #fff) !important; font-weight: 700 !important; } \
+             #app .c_euv_doc_content { display: flex; flex-direction: column; flex: 1; justify-content: space-between; } \
+             #app .c_euv_doc_content article.md-body { display: block; flex: 0 0 auto; min-height: 0; overflow: visible; } \
+             #app .c_euv_doc_content article.md-body > div { display: block; min-height: 0; } \
+             #app .c_euv_doc_tail { display: block; flex: 0 0 auto; } \
+                         #app .c_euv_doc_toc { width: 280px; flex-shrink: 0; position: sticky; top: var(--padding-main-top, 24px); align-self: flex-start; max-height: 100%; overflow-y: auto; } \
+                         #app .c_euv_toc_link_nested { padding-left: 0.75rem; font-size: var(--font-sm, 0.875rem); color: var(--muted-foreground); line-height: 1.5; } \
+                         #app .c_euv_toc_link, #app .c_euv_toc_link_nested { font-weight: 400; } \
+                         #app .c_euv_toc_link:hover, #app .c_euv_toc_link_nested:hover { color: var(--primary); font-weight: 400; } \
+                         #app .c_euv_toc_link_active, #app .c_euv_toc_link_nested_active { color: var(--primary); font-weight: 700; } \
+                         #app .c_euv_toc_link_active:hover, #app .c_euv_toc_link_nested_active:hover { color: var(--primary); font-weight: 700; } \
              \
-             .c_euv_pagination { padding-bottom: var(--space-xl, 1.25rem) !important; gap: var(--gap-component, 1rem) !important; flex-wrap: nowrap !important; align-items: stretch !important; width: 100% !important; } \
-             .c_euv_pagination_link { padding: var(--space-md, 0.75rem) !important; gap: var(--space-2xs, 0.25rem) !important; min-width: 0 !important; max-width: none !important; } \
-             .c_euv_footer { padding: var(--space-md, 0.75rem) 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; flex: 0 0 auto !important; } \
+             #app .c_euv_pagination { padding-bottom: var(--space-xl, 1.25rem); gap: var(--gap-component, 1rem); flex-wrap: nowrap; align-items: stretch; width: 100%; } \
+             #app .c_euv_pagination_link { padding: var(--space-md, 0.75rem); gap: var(--space-2xs, 0.25rem); min-width: 0; max-width: none; } \
              \
-             .c_docs_page_title { font-size: 1.875rem; font-weight: 600; letter-spacing: -0.025em; margin: 0 0 var(--space-lg, 1rem) 0; padding-top: 0; color: var(--foreground, #000); } \
-             .md-body > :first-child { margin-top: 0 !important; } \
-             .md-body h1:first-of-type, .md-body h2:first-of-type, .md-body h3:first-of-type, .md-body h4:first-of-type, .md-body h5:first-of-type, .md-body h6:first-of-type { margin-top: 0 !important; } \
-             .md-body > div:first-child > :first-child { margin-top: 0 !important; } \
-             .md-body > div:first-child > :first-child > * { margin-top: 0 !important; } \
+             /* The page head carries the title and the muted description \
+                line under it. The head owns the gap to the body, so a page \
+                without a description keeps the same rhythm as before. */ \
+             #app .c_docs_page_head { margin: 0 0 var(--space-lg, 1rem) 0; } \
+             #app .c_docs_page_title { font-size: 1.875rem; font-weight: 600; letter-spacing: -0.025em; margin: 0; padding-top: 0; color: var(--foreground); } \
+             #app .c_docs_page_description { margin: var(--space-xs, 0.25rem) 0 0 0; font-size: var(--font-base, 1rem); line-height: 1.6; color: var(--muted-foreground); } \
+             #app .md-body > :first-child { margin-top: 0; } \
+             #app .md-body h1:first-of-type, #app .md-body h2:first-of-type, #app .md-body h3:first-of-type, #app .md-body h4:first-of-type, #app .md-body h5:first-of-type, #app .md-body h6:first-of-type { margin-top: 0; } \
+             #app .md-body > div:first-child > :first-child { margin-top: 0; } \
+             #app .md-body > div:first-child > :first-child > * { margin-top: 0; } \
              \
-             .c_feature_card { border: 1px dashed var(--foreground, #000) !important; border-radius: 0 !important; padding: 1rem !important; background: transparent !important; } \
-             .c_home_btn_secondary { background: transparent !important; color: #000 !important; border: 1.5px solid #000 !important; } \
-             .c_home_btn_secondary:hover { background: rgba(0,0,0,0.06) !important; } \
-             .c_theme_dark .c_home_btn_secondary { background: transparent !important; color: #fff !important; border-color: #fff !important; } \
-             .c_theme_dark .c_home_btn_secondary:hover { background: rgba(255,255,255,0.10) !important; } \
+             #app .c_feature_card { border: 1px dashed var(--foreground); border-radius: 0; padding: 1rem; background: transparent; } \
+             #app .c_home_btn_secondary { background: transparent; color: var(--foreground); border: 1px solid var(--border); } \
+             #app .c_home_btn_secondary:hover { background: var(--accent); color: var(--accent-foreground); } \
              \
-             .c_docs_feature_grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; } \
-             @media (max-width: 767px) { .c_docs_feature_grid { grid-template-columns: minmax(0, 1fr); } } \
-             .c_docs_feature_card { display: flex; flex-direction: column; gap: 0.4rem; padding: 1rem; border: 1px dashed var(--foreground, #000); border-radius: 0; background: transparent; text-decoration: none; color: inherit; transition: background 0.15s ease-out, border-color 0.15s ease-out; min-width: 0; } \
-             .c_docs_feature_card:hover { background: var(--muted, rgba(0,0,0,0.06)); border-color: var(--foreground, #000); } \
-             .c_theme_dark .c_docs_feature_card:hover { background: var(--muted, rgba(255,255,255,0.08)); } \
-             .c_docs_feature_card_inner { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; } \
-             .c_docs_feature_card_icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; } \
-             .c_docs_feature_card_title { font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; } \
-             .c_docs_feature_card_details { font-size: 0.875rem; color: var(--muted-foreground, #555); overflow-wrap: anywhere; } \
+             #app .c_docs_feature_grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0; } \
+             @media (max-width: 767px) { #app .c_docs_feature_grid { grid-template-columns: minmax(0, 1fr); } } \
+             #app .c_docs_feature_card { display: flex; flex-direction: column; gap: 0.4rem; padding: 1rem; border: 1px dashed var(--foreground); border-radius: 0; background: transparent; text-decoration: none; color: inherit; transition: background 0.15s ease-out, border-color 0.15s ease-out; min-width: 0; } \
+             #app .c_docs_feature_card:hover { background: var(--muted); border-color: var(--foreground); } \
+             #app .c_docs_feature_card_inner { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; } \
+             #app .c_docs_feature_card_icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; } \
+             #app .c_docs_feature_card_title { font-size: 1.125rem; font-weight: 600; overflow-wrap: anywhere; } \
+             #app .c_docs_feature_card_details { font-size: 0.875rem; color: var(--muted-foreground); overflow-wrap: anywhere; } \
              \
-             .docs-container-tip, .docs-container-note, .docs-container-important, .docs-container-info { border: 1px dashed var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--muted, rgba(0,0,0,0.04)); } \
-             .docs-container-warning, .docs-container-caution { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--muted, rgba(0,0,0,0.04)); } \
-             .docs-container-danger { border: 1px solid var(--foreground, #000); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: rgba(0,0,0,0.06); } \
-             .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
-             .docs-container-title:empty { display: none; } \
+             #app .docs-container-tip, #app .docs-container-note, #app .docs-container-important, #app .docs-container-info { border: 1px dashed var(--foreground); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--muted); } \
+             #app .docs-container-warning, #app .docs-container-caution { border: 1px solid var(--foreground); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--muted); } \
+             #app .docs-container-danger { border: 1px solid var(--foreground); border-left-width: 4px; padding: 0.75rem 1rem; margin: 1rem 0; background: var(--muted); } \
+             #app .docs-container-title { font-weight: 600; margin: 0 0 0.25rem 0; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; } \
+             #app .docs-container-title:empty { display: none; } \
              \
-             .md-body img:not([data-loaded]) { height: 0px !important; margin: 0px !important; visibility: hidden; } \
-             .md-body img[data-loaded] { transition: opacity 0.2s ease-out; }";
+             #app .md-body img:not([data-loaded]) { height: 0px; margin: 0px; visibility: hidden; } \
+             #app .md-body img[data-loaded] { transition: opacity 0.2s ease-out; }";
 
 /// The `class` of a documentation page's `<h1>` title.
 pub(crate) const CLASS_DOCS_PAGE_TITLE: &str = "c_docs_page_title";
+
+/// The `class` of the block holding a documentation page's title and
+/// its description line.
+pub(crate) const CLASS_DOCS_PAGE_HEAD: &str = "c_docs_page_head";
+
+/// The `class` of a documentation page's muted description line.
+pub(crate) const CLASS_DOCS_PAGE_DESCRIPTION: &str = "c_docs_page_description";
 
 /// The `class` of the site header row.
 pub(crate) const CLASS_DOCS_HEADER: &str = "c_docs_header";

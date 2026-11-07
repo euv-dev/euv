@@ -15,6 +15,7 @@ pub(crate) fn use_display_demo_state() -> DisplayDemoState {
     let anchor_active: Signal<String> = App::use_signal(|| String::from(DISPLAY_ANCHOR_FIRST));
     let split_size: Signal<f64> = App::use_signal(|| DISPLAY_SPLIT_DEFAULT_SIZE);
     let back_top_visible: Signal<bool> = App::use_signal(|| false);
+    let spinner_caption: Signal<bool> = App::use_signal(|| false);
     watch!(scroll.get_y(), |offset: f64| {
         back_top_visible.set(offset > DISPLAY_BACK_TOP_THRESHOLD);
     });
@@ -23,6 +24,7 @@ pub(crate) fn use_display_demo_state() -> DisplayDemoState {
         anchor_active,
         split_size,
         back_top_visible,
+        spinner_caption,
     }
 }
 

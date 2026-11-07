@@ -65,9 +65,10 @@ pub(crate) fn docs_main(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     }
 }
 
-/// Renders one documentation page out of euv-ui components: `euv_markdown`
-/// for the body, `euv_pagination` for prev/next links, the footer and the
-/// right `euv_toc` anchor column.
+/// Renders one documentation page out of euv-ui components: the docs'
+/// own markdown body (the shared renderer plus the docs' code blocks),
+/// `euv_pagination` for prev/next links, and the right `euv_toc` anchor
+/// column.
 ///
 /// # Arguments
 ///
@@ -86,18 +87,13 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     use_toc_scroll_spy(toc_active);
     let (path, _anchor) = parse_route(&route_signal.get());
     let locale: &DocsLocale = locale_of(&path);
-    let site: &DocsSite = &crate::generated::SITE;
     let Some(page) = find_page(&path) else {
         return html! {
             ""
         };
     };
     let (prev, next) = prev_next(locale, page.route);
-    let footer_text: &str = if page.footer.is_empty() {
-        locale.footer
-    } else {
-        page.footer
-    };
+    let description: Option<&'static str> = description_for_route(page.route);
     html! {
         euv_doc_layout {
             toc_title: locale.toc_label
@@ -107,19 +103,27 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             next_label: locale.next_label
             prev: prev
             next: next
-            footer: footer_text
-            footer_link: site.footer_link
-            footer_items: site.footer_items
-            if { !page.title.is_empty() } {
-                h1 {
-                    class: CLASS_DOCS_PAGE_TITLE
-                    {
-                        page.title
+            div {
+                class: CLASS_DOCS_PAGE_HEAD
+                if { !page.title.is_empty() } {
+                    h1 {
+                        class: CLASS_DOCS_PAGE_TITLE
+                        {
+                            page.title
+                        }
+                    }
+                }
+                if { description.is_some() } {
+                    p {
+                        class: CLASS_DOCS_PAGE_DESCRIPTION
+                        {
+                            description.unwrap_or_default()
+                        }
                     }
                 }
             }
-            euv_markdown {
-                blocks: page.blocks
+            {
+                docs_markdown(page.blocks)
             }
         }
     }

@@ -38,7 +38,7 @@ fn css_rules() -> Vec<(String, String)> {
             continue;
         };
         let selector: &str = selector.trim();
-        if !selector.starts_with('.') {
+        if !selector.starts_with('.') && !selector.starts_with("#app .") {
             continue;
         }
         rules.push((selector.to_string(), body.to_string()));

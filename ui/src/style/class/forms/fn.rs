@@ -806,6 +806,84 @@ class! {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // Toggle
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_toggle {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        border-radius: var!(radius-md);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+        white-space: "nowrap";
+        background: "transparent";
+        color: var!(foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        cursor: "pointer";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :hover {
+            background: var!(muted);
+            color: var!(muted-foreground);
+        }
+        :disabled {
+            opacity: "0.5";
+            pointer-events: "none";
+        }
+    }
+
+    pub(crate) c_euv_toggle_outline {
+        border-color: var!(input);
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub(crate) c_euv_toggle_size_default {
+        height: "40px";
+        min-width: "40px";
+        padding-inline: var!(space-md);
+    }
+
+    pub(crate) c_euv_toggle_size_small {
+        height: var!(control-height);
+        min-width: var!(control-height);
+        padding-inline: "10px";
+    }
+
+    pub(crate) c_euv_toggle_size_large {
+        // The reference large control is 44px: one step above the 40px
+        // default, and the only control height outside the four-pixel
+        // spacing scale.
+        height: "44px";
+        min-width: "44px";
+        padding-inline: "20px";
+    }
+
+    pub(crate) c_euv_toggle_pressed {
+        background: var!(accent);
+        color: var!(accent-foreground);
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub(crate) c_euv_toggle_group {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-2xs);
+        flex-wrap: "wrap";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // Number Input
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1828,6 +1906,466 @@ class! {
             color: var!(primary);
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Label
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_label {
+        display: "block";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+        user-select: "none";
+        -webkit-user-select: "none";
+    }
+
+    pub(crate) c_euv_label_disabled {
+        display: "block";
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+        opacity: "0.7";
+        cursor: "not-allowed";
+        user-select: "none";
+        -webkit-user-select: "none";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Textarea
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_textarea {
+        display: "block";
+        width: "100%";
+        min-height: "80px";
+        padding: format!("{} {}", var!(space-sm), var!(space-md));
+        border: format!("{} solid {}", var!(border-width), var!(input));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        box-sizing: "border-box";
+        resize: "vertical";
+        outline: "none";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :focus-visible {
+            border-color: var!(ring);
+        }
+        :disabled {
+            opacity: "0.5";
+            cursor: "not-allowed";
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Button Group
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_button_group_horizontal {
+        display: "inline-flex";
+        align-items: "stretch";
+        width: "fit-content";
+        flex-direction: "row";
+        border-radius: var!(radius-md);
+        overflow: "hidden";
+    }
+
+    pub(crate) c_euv_button_group_vertical {
+        display: "inline-flex";
+        align-items: "stretch";
+        width: "fit-content";
+        flex-direction: "column";
+        border-radius: var!(radius-md);
+        overflow: "hidden";
+    }
+
+    pub(crate) c_euv_button_group_text {
+        display: "inline-flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-sm), var!(space-md));
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(muted);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        white-space: "nowrap";
+    }
+
+    pub(crate) c_euv_button_group_separator_vertical {
+        width: "1px";
+        align-self: "stretch";
+        margin: format!("{} 0px", var!(space-xs));
+        background: var!(border);
+    }
+
+    pub(crate) c_euv_button_group_separator_horizontal {
+        height: "1px";
+        align-self: "stretch";
+        margin: format!("0px {}", var!(space-xs));
+        background: var!(border);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Input Group
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_input_group {
+        display: "flex";
+        align-items: "center";
+        width: "100%";
+        gap: var!(space-2xs);
+        padding: var!(space-2xs);
+        border: format!("{} solid {}", var!(border-width), var!(input));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        box-sizing: "border-box";
+    }
+
+    pub(crate) c_euv_input_group_disabled {
+        display: "flex";
+        align-items: "center";
+        width: "100%";
+        gap: var!(space-2xs);
+        padding: var!(space-2xs);
+        border: format!("{} solid {}", var!(border-width), var!(input));
+        border-radius: var!(radius-md);
+        background: var!(muted);
+        color: var!(muted-foreground);
+        box-sizing: "border-box";
+        opacity: "0.5";
+    }
+
+    pub(crate) c_euv_input_group_addon_inline_start {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        order: "-1";
+        padding-inline-start: var!(space-sm);
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        white-space: "nowrap";
+    }
+
+    pub(crate) c_euv_input_group_addon_inline_end {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        order: "1";
+        padding-inline-end: var!(space-sm);
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        white-space: "nowrap";
+    }
+
+    pub(crate) c_euv_input_group_addon_block_start {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "flex-start";
+        gap: var!(space-sm);
+        order: "-1";
+        width: "100%";
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        white-space: "nowrap";
+    }
+
+    pub(crate) c_euv_input_group_addon_block_end {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "flex-start";
+        gap: var!(space-sm);
+        order: "1";
+        width: "100%";
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        white-space: "nowrap";
+    }
+
+    pub(crate) c_euv_input_group_button_xs {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-2xs);
+        height: "24px";
+        padding-inline: var!(space-xs);
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-xs);
+        white-space: "nowrap";
+        cursor: "pointer";
+        :hover {
+            background: var!(muted);
+        }
+    }
+
+    pub(crate) c_euv_input_group_button_sm {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-xs);
+        height: "32px";
+        padding-inline: var!(space-sm);
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        white-space: "nowrap";
+        cursor: "pointer";
+        :hover {
+            background: var!(muted);
+        }
+    }
+
+    pub(crate) c_euv_input_group_button_icon_xs {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        width: "24px";
+        height: "24px";
+        padding: "0px";
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        cursor: "pointer";
+        :hover {
+            background: var!(muted);
+        }
+    }
+
+    pub(crate) c_euv_input_group_button_icon_sm {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        width: "32px";
+        height: "32px";
+        padding: "0px";
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        cursor: "pointer";
+        :hover {
+            background: var!(muted);
+        }
+    }
+
+    pub(crate) c_euv_input_group_text {
+        display: "inline-flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        white-space: "nowrap";
+    }
+
+    pub(crate) c_euv_input_group_input {
+        flex: "1";
+        min-width: "0px";
+        height: var!(control-height);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        box-sizing: "border-box";
+        outline: "none";
+    }
+
+    pub(crate) c_euv_input_group_textarea {
+        flex: "1";
+        min-width: "0px";
+        min-height: "80px";
+        padding: var!(space-sm);
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        box-sizing: "border-box";
+        resize: "none";
+        outline: "none";
+    }
+    pub c_euv_radio_group_root {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-xs);
+    }
+
+    pub c_euv_radio_group_item {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: var!(space-xs) var!(space-sm);
+        border: var!(border-width) solid var!(border);
+        border-radius: var!(radius-sm);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        text-align: "left";
+        cursor: "pointer";
+    }
+
+    pub c_euv_radio_group_item_checked {
+        border-color: var!(primary);
+        background: var!(primary);
+        color: var!(primary-foreground);
+    }
+
+    pub c_euv_toast {
+        position: "relative";
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-xs);
+        width: "100%";
+        padding: var!(space-md);
+        border: var!(border-width) solid var!(border);
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        box-shadow: var!(shadow-md);
+    }
+
+    pub c_euv_toast_destructive {
+        border-color: var!(destructive);
+        background: var!(destructive);
+        color: var!(destructive-foreground);
+    }
+
+    pub c_euv_toast_title {
+        font-size: var!(font-sm);
+        font-weight: "500";
+        line-height: "1.5";
+    }
+
+    pub c_euv_toast_description {
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        line-height: "1.5";
+    }
+
+    pub c_euv_toast_action {
+        display: "inline-flex";
+        align-items: "center";
+        align-self: "flex-start";
+        padding: var!(space-2xs) var!(space-sm);
+        border: var!(border-width) solid var!(border);
+        border-radius: var!(radius-sm);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        white-space: "nowrap";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub c_euv_toast_close {
+        position: "absolute";
+        top: var!(space-sm);
+        right: var!(space-sm);
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        padding: "0px";
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(muted-foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+    pub c_euv_input_otp {
+        position: "relative";
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-xs);
+    }
+
+    pub c_euv_input_otp_input {
+        position: "absolute";
+        inset: "0px";
+        width: "100%";
+        height: "100%";
+        padding: "0px";
+        border: "none";
+        background: "transparent";
+        color: "transparent";
+        caret-color: "transparent";
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        outline: "none";
+    }
+
+    pub c_euv_input_otp_group {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-xs);
+    }
+
+    pub c_euv_input_otp_slot {
+        position: "relative";
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        width: var!(space-4xl);
+        height: var!(space-4xl);
+        border: var!(border-width) solid var!(input);
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        line-height: "1";
+    }
+
+    pub c_euv_input_otp_slot_active {
+        border-color: var!(ring);
+        box-shadow: format!("0 0 0 2px {}", var!(ring));
+    }
+
+    pub c_euv_input_otp_slot_idle {}
+
+    pub c_euv_input_otp_separator {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        line-height: "1";
+    }
 }
 
 #[cfg(feature = "theme-custom")]
@@ -1961,6 +2499,20 @@ class! {
     // ═══════════════════════════════════════════════════════════════════════════
     // Number Input
     // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_toggle {}
+
+    pub(crate) c_euv_toggle_outline {}
+
+    pub(crate) c_euv_toggle_size_default {}
+
+    pub(crate) c_euv_toggle_size_small {}
+
+    pub(crate) c_euv_toggle_size_large {}
+
+    pub(crate) c_euv_toggle_pressed {}
+
+    pub(crate) c_euv_toggle_group {}
 
     pub(crate) c_euv_number_input {}
 
@@ -2144,4 +2696,92 @@ class! {
     pub(crate) c_euv_mentions_option {}
 
     pub(crate) c_euv_mentions_option_active {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Label
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_label {}
+
+    pub(crate) c_euv_label_disabled {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Textarea
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_textarea {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Button Group
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_button_group_horizontal {}
+
+    pub(crate) c_euv_button_group_vertical {}
+
+    pub(crate) c_euv_button_group_text {}
+
+    pub(crate) c_euv_button_group_separator_vertical {}
+
+    pub(crate) c_euv_button_group_separator_horizontal {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Input Group
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_input_group {}
+
+    pub(crate) c_euv_input_group_disabled {}
+
+    pub(crate) c_euv_input_group_addon_inline_start {}
+
+    pub(crate) c_euv_input_group_addon_inline_end {}
+
+    pub(crate) c_euv_input_group_addon_block_start {}
+
+    pub(crate) c_euv_input_group_addon_block_end {}
+
+    pub(crate) c_euv_input_group_button_xs {}
+
+    pub(crate) c_euv_input_group_button_sm {}
+
+    pub(crate) c_euv_input_group_button_icon_xs {}
+
+    pub(crate) c_euv_input_group_button_icon_sm {}
+
+    pub(crate) c_euv_input_group_text {}
+
+    pub(crate) c_euv_input_group_input {}
+
+    pub(crate) c_euv_input_group_textarea {}
+    pub c_euv_radio_group_root {}
+
+    pub c_euv_radio_group_item {}
+
+    pub c_euv_radio_group_item_checked {}
+
+    pub c_euv_toast {}
+
+    pub c_euv_toast_destructive {}
+
+    pub c_euv_toast_title {}
+
+    pub c_euv_toast_description {}
+
+    pub c_euv_toast_action {}
+
+    pub c_euv_toast_close {}
+    pub c_euv_input_otp {}
+
+    pub c_euv_input_otp_input {}
+
+    pub c_euv_input_otp_group {}
+
+    pub c_euv_input_otp_slot {}
+
+    pub c_euv_input_otp_slot_active {}
+
+    pub c_euv_input_otp_slot_idle {}
+
+    pub c_euv_input_otp_separator {}
 }

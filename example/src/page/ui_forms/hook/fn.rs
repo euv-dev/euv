@@ -13,7 +13,56 @@ pub(crate) fn use_form_demo_state() -> FormDemoState {
         number_value: App::use_signal(|| FORM_DEFAULT_QUANTITY),
         query: App::use_signal(String::new),
         date_value: App::use_signal(String::new),
+        toggle_values: App::use_signal(|| vec![String::from(FORM_TOGGLE_FIRST_VALUE)]),
+        toggle_pressed: App::use_signal(|| false),
+        accordion_open: App::use_signal(Vec::new),
+        notes: App::use_signal(String::new),
+        group_query: App::use_signal(String::new),
+        field_disabled: App::use_signal(|| false),
+        radio_first: App::use_signal(|| true),
+        radio_second: App::use_signal(|| false),
+        menubar_open: App::use_signal(|| false),
+        command_query: App::use_signal(String::new),
+        combobox_open: App::use_signal(|| false),
+        combobox_value: App::use_signal(|| String::from(FORM_COMBOBOX_FIRST_VALUE)),
+        sheet_open: App::use_signal(|| false),
+        alert_open: App::use_signal(|| false),
+        hover_open: App::use_signal(|| false),
+        context_open: App::use_signal(|| false),
+        otp_value: App::use_signal(String::new),
     }
+}
+
+/// Builds the handler that moves the radio selection.
+///
+/// # Arguments
+///
+/// - `FormDemoState` - The signals the page drives.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(&'static str)>>` - The select handler of the radio group.
+pub(crate) fn ui_forms_on_radio_select(state: FormDemoState) -> Option<Rc<dyn Fn(&'static str)>> {
+    Some(Rc::new(move |value: &'static str| {
+        state.radio_first.set(value == FORM_RADIO_FIRST_VALUE);
+        state.radio_second.set(value == FORM_RADIO_SECOND_VALUE);
+    }))
+}
+
+/// Builds the handler that closes the menubar after a row is chosen.
+///
+/// # Arguments
+///
+/// - `FormDemoState` - The signals the page drives.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(&'static str)>>` - The select handler of the menubar.
+pub(crate) fn ui_forms_on_menubar_select(state: FormDemoState) -> Option<Rc<dyn Fn(&'static str)>> {
+    Some(Rc::new(move |value: &'static str| {
+        state.menubar_open.set(false);
+        Console::log(format!("{FORM_MENUBAR_LOG} {value}"));
+    }))
 }
 
 /// Builds the handler that reports the form's current state.
@@ -62,5 +111,16 @@ pub(crate) fn ui_forms_on_select() -> Option<Rc<dyn Fn(&'static str)>> {
 pub(crate) fn ui_forms_on_segmented() -> Option<Rc<dyn Fn(&'static str)>> {
     Some(Rc::new(move |picked: &'static str| {
         Console::log(FORM_SEGMENTED_LOG.replace(FORM_LOG_VALUE_PLACEHOLDER, picked));
+    }))
+}
+
+/// Builds the handler that reports the open accordion sections.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Vec<String>)>>` - The change handler of the accordion.
+pub(crate) fn ui_forms_on_accordion_change() -> Option<Rc<dyn Fn(Vec<String>)>> {
+    Some(Rc::new(move |values: Vec<String>| {
+        Console::log(FORM_ACCORDION_LOG.replace(FORM_LOG_VALUE_PLACEHOLDER, &values.join(", ")));
     }))
 }

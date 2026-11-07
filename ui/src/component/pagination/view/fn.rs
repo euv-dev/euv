@@ -24,6 +24,8 @@ pub fn euv_pagination(node: VirtualNode<EuvPaginationProps>) -> VirtualNode {
     let next_node: VirtualNode = pagination_side(next, next_label, true);
     html! {
         div {
+            role: "navigation"
+            aria-label: "pagination"
             class: c_euv_pagination()
             prev_node
             next_node

@@ -137,6 +137,9 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
                     }
                 }
             }
+            docs_site_footer {
+                route_signal
+            }
         }
     }
 }
@@ -236,6 +239,9 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                         on_navigate: drawer_navigate()
                     }
                 }
+            }
+            docs_site_footer {
+                route_signal
             }
         }
     }

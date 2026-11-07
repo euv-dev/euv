@@ -31,6 +31,8 @@ pub fn euv_message(node: VirtualNode<EuvMessageProps>) -> VirtualNode {
         .collect();
     html! {
         div {
+            role: "status"
+            aria-live: "polite"
             class: c_euv_message_stack()
             messages
         }
@@ -69,6 +71,7 @@ fn euv_message_item(index: usize, item: EuvMessageItem) -> VirtualNode {
             }
             if has_action {
                 button {
+                    type: "button"
                     class: c_euv_message_action()
                     onclick: action_handler
                     action_label
@@ -76,6 +79,7 @@ fn euv_message_item(index: usize, item: EuvMessageItem) -> VirtualNode {
             }
             if is_dismissible {
                 button {
+                    type: "button"
                     class: c_euv_message_close()
                     onclick: close_handler
                     "×"

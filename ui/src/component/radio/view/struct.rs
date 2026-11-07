@@ -34,3 +34,32 @@ pub struct EuvRadioGroupProps {
     #[get(type(copy))]
     pub label: &'static str,
 }
+
+/// Props of the [`euv_radio_group`] component.
+///
+/// The group is the container of a set of radio rows. It owns no state:
+/// the selection lives in the caller's signal, and each row reports the
+/// value it stands for.
+#[derive(Clone, Copy, CustomDebug, Data, Default, New)]
+pub struct EuvRadioGroupRootProps {
+    /// The accessible name of the group.
+    #[get(type(copy))]
+    pub label: &'static str,
+}
+
+/// Props of the [`euv_radio_group_item`] component.
+#[derive(Clone, CustomDebug, Data, Default, New)]
+pub struct EuvRadioGroupItemProps {
+    /// The label shown inside the row.
+    #[get(type(copy))]
+    pub label: &'static str,
+    /// The value the row stands for.
+    #[get(type(copy))]
+    pub value: &'static str,
+    /// The signal holding the checked state of the row.
+    #[get(type(copy))]
+    pub checked: Signal<bool>,
+    /// Optional callback receiving the chosen value.
+    #[debug(skip)]
+    pub on_select: Option<Rc<dyn Fn(&'static str)>>,
+}

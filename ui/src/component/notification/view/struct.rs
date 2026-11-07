@@ -31,3 +31,61 @@ pub struct EuvNotificationProps {
     /// The notifications rendered in the stack, top to bottom.
     pub items: Vec<EuvNotificationItem>,
 }
+
+/// Props of the [`euv_toast`] component.
+///
+/// A toast is a short-lived card: it carries a title, a description, an
+/// optional action and an optional close button. The component is
+/// presentational — it renders what it is given and reports the clicks,
+/// so the caller keeps ownership of the queue and of the dismissal.
+#[derive(Clone, CustomDebug, Data, Default, New)]
+pub struct EuvToastProps {
+    /// The visual variant of the toast.
+    #[get(type(copy))]
+    pub variant: EuvToastVariant,
+    /// The headline of the toast.
+    #[get(type(copy))]
+    pub title: &'static str,
+    /// The body line of the toast.
+    #[get(type(copy))]
+    pub description: &'static str,
+    /// The label of the action button.
+    #[get(type(copy))]
+    pub action_label: &'static str,
+    /// Whether the toast renders a close button.
+    #[get(type(copy))]
+    pub dismissible: bool,
+    /// The callback fired when the action button is clicked.
+    #[debug(skip)]
+    pub on_action: Option<Rc<dyn Fn()>>,
+    /// The callback fired when the close button is clicked.
+    #[debug(skip)]
+    pub on_close: Option<Rc<dyn Fn()>>,
+}
+
+/// Props of the [`euv_toast_title`] component.
+#[derive(Clone, Copy, CustomDebug, Data, Default, New)]
+pub struct EuvToastTitleProps {
+    /// The headline text.
+    #[get(type(copy))]
+    pub text: &'static str,
+}
+
+/// Props of the [`euv_toast_description`] component.
+#[derive(Clone, Copy, CustomDebug, Data, Default, New)]
+pub struct EuvToastDescriptionProps {
+    /// The body text.
+    #[get(type(copy))]
+    pub text: &'static str,
+}
+
+/// Props of the [`euv_toast_action`] component.
+#[derive(Clone, CustomDebug, Data, Default, New)]
+pub struct EuvToastActionProps {
+    /// The label of the button.
+    #[get(type(copy))]
+    pub label: &'static str,
+    /// The callback fired when the button is clicked.
+    #[debug(skip)]
+    pub on_click: Option<Rc<dyn Fn()>>,
+}

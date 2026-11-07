@@ -69,6 +69,7 @@ pub fn euv_popover(node: VirtualNode<EuvPopoverProps>) -> VirtualNode {
         div {
             class: c_euv_popover()
             div {
+                role: "dialog"
                 class: c_euv_popover_body()
                 class: if { open } {
                     c_euv_popover_body_open()

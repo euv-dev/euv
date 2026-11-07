@@ -43,3 +43,55 @@ pub struct EuvNavbarLinkProps {
     /// The navbar item to render.
     pub item: EuvNavbarItem,
 }
+
+/// Props of the [`euv_menubar`] component.
+///
+/// The bar holds the menus; the open state of each menu belongs to the
+/// caller, so a menu can be closed from the outside.
+#[derive(Clone, CustomDebug, Data, Default, New)]
+pub struct EuvMenubarProps {
+    /// The accessible name of the bar.
+    #[get(type(copy))]
+    pub label: &'static str,
+}
+
+/// Props of the [`euv_menubar_menu`] component.
+#[derive(Clone, CustomDebug, Data, Default, New)]
+pub struct EuvMenubarMenuProps {
+    /// The open state of this menu.
+    #[get(type(copy))]
+    pub open: Signal<bool>,
+}
+
+/// Props of the [`euv_menubar_trigger`] component.
+#[derive(Clone, CustomDebug, Data, Default, New)]
+pub struct EuvMenubarTriggerProps {
+    /// The label shown inside the trigger.
+    #[get(type(copy))]
+    pub label: &'static str,
+    /// The open state of the menu this trigger belongs to.
+    #[get(type(copy))]
+    pub open: Signal<bool>,
+}
+
+/// Props of the [`euv_menubar_content`] component.
+#[derive(Clone, CustomDebug, Data, Default, New)]
+pub struct EuvMenubarContentProps {
+    /// The open state of this menu.
+    #[get(type(copy))]
+    pub open: Signal<bool>,
+}
+
+/// Props of the [`euv_menubar_item`] component.
+#[derive(Clone, CustomDebug, Data, Default, New)]
+pub struct EuvMenubarItemProps {
+    /// The label shown inside the row.
+    #[get(type(copy))]
+    pub label: &'static str,
+    /// The value handed to the select callback.
+    #[get(type(copy))]
+    pub value: &'static str,
+    /// Optional select callback receiving the chosen value.
+    #[debug(skip)]
+    pub on_select: Option<Rc<dyn Fn(&'static str)>>,
+}
