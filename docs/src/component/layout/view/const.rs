@@ -30,3 +30,6 @@ pub(crate) const LOCALE_DROPDOWN_SELECTOR: &str = ".c_euv_dropdown";
 /// menu. Capturing the press is what makes "click away to dismiss" feel
 /// immediate rather than lagging a frame or two behind the finger.
 pub(crate) const DOCUMENT_OUTSIDE_POINTER_EVENT: &str = "pointerdown";
+
+/// The placeholder of the header's search field.
+pub(crate) const HEADER_SEARCH_PLACEHOLDER: &str = "Search documentation...";

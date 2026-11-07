@@ -38,9 +38,32 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
              .md-body img[src$='.svg'], .md-body img[src*='shields.io'], .md-body img[src*='github.com'] { max-height: 20px; max-width: 100%; } \
              .md-body table img { max-height: 1.4em; } \
              \
-             .c_app_main { padding-top: 4.75rem !important; display: flex !important; flex-direction: column !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; } \
+             .c_app_main { padding-top: var(--padding-main-top, 24px) !important; display: flex !important; flex-direction: column !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; } \
              \
              .c_nav_footer_divider { left: 0.75rem !important; right: 0.75rem !important; } \
+             /* The header is the reference documentation site's one full-width \
+                sticky row: brand, top-level links, search field, theme toggle. \
+                Its metrics follow the reference — a 56px row, 24px inline \
+                padding, 32px controls with an 8px corner, and a 10px search \
+                field. It spans the viewport, so the shell stacks the header \
+                above the sidebar-and-content row instead of letting the two \
+                columns sit beside it. */ \
+             .c_docs_header { position: sticky !important; top: 0 !important; z-index: 100 !important; height: 56px !important; display: flex !important; align-items: center !important; gap: 16px !important; padding: 0 24px !important; background: var(--background) !important; border-bottom: 1px solid var(--border) !important; flex-shrink: 0 !important; } \
+             .c_docs_header_brand { display: inline-flex !important; align-items: center !important; gap: 8px !important; font-size: 16px !important; font-weight: 500 !important; color: var(--foreground) !important; text-decoration: none !important; } \
+             .c_docs_header_brand_title { white-space: nowrap !important; } \
+             .c_docs_header_links { display: flex !important; align-items: center !important; gap: 2px !important; } \
+             .c_docs_header_link, .c_docs_header_link_active { display: inline-flex !important; align-items: center !important; height: 32px !important; padding: 0 10px !important; border-radius: 8px !important; font-size: 14px !important; font-weight: 500 !important; color: var(--foreground) !important; text-decoration: none !important; transition: background 150ms ease, color 150ms ease !important; } \
+             .c_docs_header_link:hover { background: var(--accent) !important; color: var(--accent-foreground) !important; } \
+             .c_docs_header_actions { margin-left: auto !important; display: flex !important; align-items: center !important; gap: 8px !important; } \
+             .c_docs_header_search { display: flex !important; align-items: center !important; height: 32px !important; width: 256px !important; padding: 0 12px !important; border-radius: 10px !important; background: var(--muted) !important; border: 1px solid transparent !important; } \
+             .c_docs_header_search:focus-within { border-color: var(--ring) !important; } \
+             .c_docs_header_search_input { width: 100% !important; border: none !important; background: transparent !important; color: var(--foreground) !important; font-size: 14px !important; font-family: inherit !important; outline: none !important; } \
+             .c_docs_header_search_input::placeholder { color: var(--muted-foreground) !important; } \
+             .c_docs_header_separator { width: 1px !important; height: 16px !important; background: var(--border) !important; } \
+             .c_docs_header_icon_button { display: inline-flex !important; align-items: center !important; justify-content: center !important; width: 32px !important; height: 32px !important; border-radius: 8px !important; color: var(--foreground) !important; cursor: pointer !important; } \
+             .c_docs_header_icon_button:hover { background: var(--accent) !important; color: var(--accent-foreground) !important; } \
+             .c_docs_shell { flex-direction: column !important; } \
+             .c_docs_body { display: flex !important; flex: 1 !important; min-height: 0 !important; width: 100% !important; } \
              .c_nav_section_label { padding-left: 0.75rem !important; } \
              .c_nav_footer { padding-left: 0.75rem !important; } \
              /* The guide has to land on the text x of the parent title above \
@@ -129,7 +152,7 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
              .c_euv_pagination_link { padding: var(--space-md, 0.75rem) !important; gap: var(--space-2xs, 0.25rem) !important; min-width: 0 !important; max-width: none !important; } \
              .c_euv_footer { padding: var(--space-md, 0.75rem) 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; flex: 0 0 auto !important; } \
              \
-             .c_docs_page_title { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 var(--space-lg, 1rem) 0; padding-top: 0; color: var(--foreground, #000); } \
+             .c_docs_page_title { font-size: 1.875rem; font-weight: 600; letter-spacing: -0.025em; margin: 0 0 var(--space-lg, 1rem) 0; padding-top: 0; color: var(--foreground, #000); } \
              .md-body > :first-child { margin-top: 0 !important; } \
              .md-body h1:first-of-type, .md-body h2:first-of-type, .md-body h3:first-of-type, .md-body h4:first-of-type, .md-body h5:first-of-type, .md-body h6:first-of-type { margin-top: 0 !important; } \
              .md-body > div:first-child > :first-child { margin-top: 0 !important; } \
@@ -162,6 +185,45 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100% !important; o
 
 /// The `class` of a documentation page's `<h1>` title.
 pub(crate) const CLASS_DOCS_PAGE_TITLE: &str = "c_docs_page_title";
+
+/// The `class` of the site header row.
+pub(crate) const CLASS_DOCS_HEADER: &str = "c_docs_header";
+
+/// The `class` of the header's brand block (logo plus site title).
+pub(crate) const CLASS_DOCS_HEADER_BRAND: &str = "c_docs_header_brand";
+
+/// The `class` of the brand block's title line.
+pub(crate) const CLASS_DOCS_HEADER_BRAND_TITLE: &str = "c_docs_header_brand_title";
+
+/// The `class` of the header's top-level navigation list.
+pub(crate) const CLASS_DOCS_HEADER_LINKS: &str = "c_docs_header_links";
+
+/// The `class` of one top-level navigation link.
+pub(crate) const CLASS_DOCS_HEADER_LINK: &str = "c_docs_header_link";
+
+/// The `class` of the top-level navigation link of the current section.
+pub(crate) const CLASS_DOCS_HEADER_LINK_ACTIVE: &str = "c_docs_header_link_active";
+
+/// The `class` of the header's trailing action row.
+pub(crate) const CLASS_DOCS_HEADER_ACTIONS: &str = "c_docs_header_actions";
+
+/// The `class` of the header's search field.
+pub(crate) const CLASS_DOCS_HEADER_SEARCH: &str = "c_docs_header_search";
+
+/// The `class` of the search field's input element.
+pub(crate) const CLASS_DOCS_HEADER_SEARCH_INPUT: &str = "c_docs_header_search_input";
+
+/// The `class` of the vertical rule between the header's action groups.
+pub(crate) const CLASS_DOCS_HEADER_SEPARATOR: &str = "c_docs_header_separator";
+
+/// The `class` of the header's icon button (the theme toggle).
+pub(crate) const CLASS_DOCS_HEADER_ICON_BUTTON: &str = "c_docs_header_icon_button";
+
+/// The `class` of the shell that stacks the header above the content row.
+pub(crate) const CLASS_DOCS_SHELL: &str = "c_docs_shell";
+
+/// The `class` of the row holding the sidebar and the content column.
+pub(crate) const CLASS_DOCS_BODY: &str = "c_docs_body";
 
 /// The `class` of the home-page feature-card grid.
 pub(crate) const CLASS_FEATURE_GRID: &str = "c_docs_feature_grid";

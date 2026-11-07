@@ -28,6 +28,7 @@ mod profiler;
 mod router;
 mod router_select;
 mod safe_area_contract;
+mod shadcn_spec;
 #[cfg(not(feature = "theme-custom"))]
 mod sidebar_css;
 mod sidebar_first_page;
