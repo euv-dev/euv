@@ -1,9 +1,5 @@
 name: Build APK
 
-# Every code change on master rebuilds the APK and publishes it to the
-# rolling `latest` GitHub Release. PRs and merge-queue batches build too,
-# but only direct pushes to master publish. Manual runs via workflow_dispatch
-# also publish.
 on:
   push:
     branches: [master]
@@ -23,63 +19,91 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    defaults:
-      run:
-        working-directory: native/tauri
+    env:
+      EUV_WEB_DIST: ${{ github.workspace }}/example/www
+      CARGO_TARGET_DIR: ${{ github.workspace }}/native/tauri/src-tauri/target
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm
+          cache-dependency-path: native/tauri/package-lock.json
 
-      # The runner image's preinstalled rustup fails `rustup target add`
-      # with a silent exit 3 — install a fresh stable toolchain with the
-      # Android targets instead (build.sh's own rustup add then no-ops).
-      - name: Install Rust with Android targets
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK and NDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.0.13004108' 'platform-tools'
+
+      - name: Install Rust targets
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android, armv7-linux-androideabi, i686-linux-android, x86_64-linux-android
+          targets: wasm32-unknown-unknown, aarch64-linux-android
 
-      # build.sh self-bootstraps everything else: rustup Android targets,
-      # npm ci, JDK + Android SDK/NDK into sdk/ (via scripts/setup-sdk.sh),
-      # and the page prefetch (Tauri beforeBuildCommand).
-      - name: Cache JDK + Android SDK/NDK
-        uses: actions/cache@v4
-        with:
-          path: native/tauri/sdk
-          key: sdk-${{ runner.os }}-${{ hashFiles('native/tauri/scripts/setup-sdk.sh') }}
-
-      - name: Cache cargo registry + rust target
+      - name: Cache Rust dependencies and build output
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            ~/.cache/.wasm-pack
+            target
             native/tauri/src-tauri/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('native/tauri/src-tauri/Cargo.lock') }}
-          restore-keys: cargo-${{ runner.os }}-
+          key: apk-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
+          restore-keys: apk-${{ runner.os }}-
 
-      - name: Build APK
+      - name: Install client dependencies and run tests
+        working-directory: native/tauri
+        run: |
+          npm ci
+          npm test
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Build local example pages
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo run -p euv-cli -- build --release --crate-path ./example -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
+
+      - name: Build signed APK with local example pages
+        working-directory: native/tauri
         run: ./build.sh android release
 
-      # Publish only on master pushes / manual runs — never on PRs.
-      - name: Move rolling `latest` tag to this commit
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f latest
-          git push -f origin latest
+      - name: Verify local pages inside the APK
+        working-directory: native/tauri
+        run: node scripts/verify-apk.js euv.apk
 
-      - name: Upload APK to GitHub Release
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+      - name: Upload APK and local page provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: euv-android-apk
+          path: |
+            native/tauri/euv.apk
+            native/tauri/src-tauri/bundled-cache/__euv_local_bundle__.json
+          if-no-files-found: error
+
+      - name: Publish rolling APK release
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master'
+        working-directory: native/tauri
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -f latest
+          git push -f origin latest
           TITLE="Latest APK (build ${{ github.run_number }})"
-          NOTES="Automatic build from commit ${{ github.sha }} ($(date -u '+%Y-%m-%d %H:%M') UTC)."
-          gh release create latest --title "$TITLE" --notes "$NOTES" --prerelease 2>/dev/null \
-            || gh release edit latest --title "$TITLE" --notes "$NOTES" --prerelease
+          NOTES="Local example pages built from commit ${{ github.sha }}."
+          if gh release view latest >/dev/null 2>&1; then
+            gh release edit latest --title "$TITLE" --notes "$NOTES" --prerelease
+          else
+            gh release create latest --title "$TITLE" --notes "$NOTES" --prerelease
+          fi
           gh release upload latest euv.apk --clobber
-          echo "APK published: $(gh release view latest --json url -q .url)"

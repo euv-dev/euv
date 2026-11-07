@@ -3,6 +3,8 @@
   "version": "0.1.2",
   "scripts": {
     "config": "node scripts/apply-config.js",
+    "bundle:example": "node scripts/bundle-example.js",
+    "verify:apk": "node scripts/verify-apk.js",
     "prefetch": "node scripts/prefetch-cache.js",
     "icons": "python3 scripts/gen-icons.py",
     "test": "node --test scripts/tests/*.test.js",

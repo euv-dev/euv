@@ -1,259 +1,122 @@
 #!/usr/bin/env bash
-
 set -euo pipefail
 
 PLATFORM="${1:-android}"
 MODE="${2:-release}"
-
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
-error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
-step()  { echo -e "${BLUE}[STEP]${NC} $*"; }
+case "$PLATFORM" in
+    release|debug) MODE="$PLATFORM"; PLATFORM=android ;;
+    -h|--help|help) printf 'Usage: %s [android] [release|debug]\nBuild example/www first. EUV_WEB_DIST can override its location.\n' "$0"; exit 0 ;;
+    android) ;;
+    *) printf '[ERROR] Unsupported platform: %s\n' "$PLATFORM" >&2; exit 1 ;;
+esac
+case "$MODE" in
+    release|debug) ;;
+    *) printf '[ERROR] Unsupported mode: %s\n' "$MODE" >&2; exit 1 ;;
+esac
 
 cd "$(dirname "$0")"
 PROJECT_ROOT="$(pwd)"
-
-CONFIG_FILE="app.config.json"
-if [ ! -f "$CONFIG_FILE" ]; then
-    error "Config file not found: $CONFIG_FILE"
-fi
-
-APP_NAME=$(node -e "console.log(require('./$CONFIG_FILE').app.name)")
-APP_VERSION=$(node -e "console.log(require('./$CONFIG_FILE').app.version)")
-APP_ID=$(node -e "console.log(require('./$CONFIG_FILE').app.identifier)")
-
-info "App: $APP_NAME v$APP_VERSION ($APP_ID)"
-
-case "$PLATFORM" in
-    android)
-        ;;
-    release|debug)
-        MODE="$PLATFORM"
-        PLATFORM="android"
-        ;;
-    -h|--help|help)
-        echo "Usage: $0 [platform] [mode]"
-        echo ""
-        echo "Platform:"
-        echo "  android     Build Android APK (default)"
-        echo ""
-        echo "Mode:"
-        echo "  release     Signed release package (default)"
-        echo "  debug       Debug package"
-        exit 0
-        ;;
-    *)
-        error "Unknown platform: $PLATFORM (only android)"
-        ;;
-esac
-
-case "$MODE" in
-    release|debug)
-        ;;
-    *)
-        error "Unknown mode: $MODE (only release or debug)"
-        ;;
-esac
-
-command -v cargo >/dev/null 2>&1 || error "cargo not found, please install Rust toolchain"
-
-# Fresh-clone bootstrap: `tauri android build` compiles libeuv_lib.so per
-# ABI, but rustup only installs the host target by default. Add the Android
-# targets here — `rustup target add` is idempotent and skips installed ones.
-if command -v rustup >/dev/null 2>&1; then
-    ANDROID_RUST_TARGETS=(aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android)
-    INSTALLED_TARGETS=$(rustup target list --installed)
-    MISSING_TARGETS=()
-    for TARGET in "${ANDROID_RUST_TARGETS[@]}"; do
-        if ! grep -qx "$TARGET" <<< "$INSTALLED_TARGETS"; then
-            MISSING_TARGETS+=("$TARGET")
-        fi
-    done
-    if [ "${#MISSING_TARGETS[@]}" -gt 0 ]; then
-        step "Installing missing Rust Android targets: ${MISSING_TARGETS[*]}"
-        rustup target add "${MISSING_TARGETS[@]}"
-    fi
-fi
-
-# Best-effort nvm: images like GitHub-hosted runners ship nvm with NO
-# installed node versions, where `nvm use` exits 3 and (with --silent)
-# kills the script with no message. Never let nvm abort the build — the
-# real gate is the npx check below (setup-node/PATH-provided node is fine).
-if [ -f "$HOME/.nvm/nvm.sh" ]; then
-    source "$HOME/.nvm/nvm.sh"
-    nvm use 20 --silent 2>/dev/null || nvm use node --silent 2>/dev/null || true
-fi
-command -v npx >/dev/null 2>&1 || error "npx not found, please install Node.js"
-
-# Fresh-clone bootstrap: install npm dependencies once. Without
-# node_modules, `npx @tauri-apps/cli` re-downloads the CLI on every build
-# and may silently resolve a different version.
-if [ ! -d "$PROJECT_ROOT/node_modules" ]; then
-    step "node_modules not found, installing npm dependencies..."
-    if [ -f "$PROJECT_ROOT/package-lock.json" ]; then
-        # `npm ci` is deterministic, but older lockfiles miss the CLI's
-        # platform-specific optional deps and abort with EUSAGE — fall
-        # back to a regular install in that case.
-        npm ci || npm install
-    else
-        npm install
-    fi
-fi
-
-step "Applying config to platform files..."
-node scripts/apply-config.js
-
-info "Starting Android $MODE build..."
-
-case "$(uname -s)" in
-    Darwin*)  HOST_OS="mac" ;;
-    Linux*)   HOST_OS="linux" ;;
-    MINGW*|MSYS*|CYGWIN*) HOST_OS="win" ;;
-    *)        HOST_OS="unknown" ;;
-esac
-
-export JAVA_HOME="$PROJECT_ROOT/sdk/jdk"
-if [ ! -x "$JAVA_HOME/bin/java" ] && [ ! -x "$JAVA_HOME/bin/java.exe" ]; then
-    info "JDK not found in sdk/jdk/, auto-downloading..."
-    bash "$PROJECT_ROOT/scripts/setup-sdk.sh" jdk
-fi
-if [ ! -x "$JAVA_HOME/bin/java" ] && [ ! -x "$JAVA_HOME/bin/java.exe" ]; then
-    error "JDK auto-download failed. Run ./scripts/setup-sdk.sh jdk manually."
-fi
-info "Using JDK: sdk/jdk/"
-export PATH="$JAVA_HOME/bin:$PATH"
-JAVA_HOME_WIN=$(cygpath -w "$JAVA_HOME" 2>/dev/null || echo "$JAVA_HOME")
-
-export ANDROID_HOME="$PROJECT_ROOT/sdk/android"
-if [ ! -d "$ANDROID_HOME/platforms" ]; then
-    info "Android SDK not found in sdk/android/, auto-downloading..."
-    bash "$PROJECT_ROOT/scripts/setup-sdk.sh" android
-fi
-if [ ! -d "$ANDROID_HOME/platforms" ]; then
-    error "Android SDK auto-download failed. Run ./scripts/setup-sdk.sh android manually."
-fi
-info "Using Android SDK: sdk/android/"
-
-if [ -z "${NDK_HOME:-}" ] && [ -d "$ANDROID_HOME/ndk" ]; then
-    NDK_VER=$(ls "$ANDROID_HOME/ndk" 2>/dev/null | sort -V | tail -1)
-    if [ -n "$NDK_VER" ]; then
-        export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VER"
-    fi
-fi
-[ -n "${NDK_HOME:-}" ] || error "Android NDK not found, install via sdkmanager"
-
-ANDROID_HOME_WIN=$(cygpath -w "$ANDROID_HOME" 2>/dev/null || echo "$ANDROID_HOME")
-echo "sdk.dir=${ANDROID_HOME_WIN//\\/\\\\}" > src-tauri/gen/android/local.properties
-info "JAVA_HOME: $JAVA_HOME"
-info "ANDROID_HOME: $ANDROID_HOME"
-info "NDK_HOME: $NDK_HOME"
-
-info "Node: $(node --version), Java: $(java -version 2>&1 | head -1)"
-
-BUILD_START=$(date +%s)
-
-GENERATED_DIR="src-tauri/gen/android/app/src/main/java/com/euv/generated"
-BACKUP_FILE="/tmp/euv_RustWebViewClient_backup.kt"
-BACKUP_FILE_WV="/tmp/euv_RustWebView_backup.kt"
-# These two files carry local customizations and are committed to git, but
-# Tauri regenerates `generated/` on every build — back them up so we can
-# restore them afterwards. Guards keep a fresh clone (where the files exist
-# in git) and any legacy checkout (where they may not) both working.
-if [ -f "$GENERATED_DIR/RustWebViewClient.kt" ]; then
-    cp "$GENERATED_DIR/RustWebViewClient.kt" "$BACKUP_FILE"
-fi
-if [ -f "$GENERATED_DIR/RustWebView.kt" ]; then
-    cp "$GENERATED_DIR/RustWebView.kt" "$BACKUP_FILE_WV"
-fi
-
-if [ "$MODE" = "release" ]; then
-    npx @tauri-apps/cli android build --apk 2>&1 || true
-else
-    npx @tauri-apps/cli android build --apk --debug 2>&1 || true
-fi
-
-if [ -f "$BACKUP_FILE" ]; then
-    cp "$BACKUP_FILE" "$GENERATED_DIR/RustWebViewClient.kt"
-fi
-if [ -f "$BACKUP_FILE_WV" ]; then
-    cp "$BACKUP_FILE_WV" "$GENERATED_DIR/RustWebView.kt"
-fi
-info "Restored custom RustWebViewClient.kt and RustWebView.kt"
-
-LIB_NAME="libeuv_lib.so"
-JNI_BASE_DIR="src-tauri/gen/android/app/src/main/jniLibs"
-declare -A ARCH_MAP=(
-    ["arm64-v8a"]="aarch64-linux-android"
-    ["armeabi-v7a"]="armv7-linux-androideabi"
-    ["x86"]="i686-linux-android"
-    ["x86_64"]="x86_64-linux-android"
-)
-for ARCH in "${!ARCH_MAP[@]}"; do
-    RUST_TARGET="${ARCH_MAP[$ARCH]}"
-    JNI_DIR="$JNI_BASE_DIR/$ARCH"
-    TARGET_SO="$JNI_DIR/$LIB_NAME"
-    RUST_SO="src-tauri/target/$RUST_TARGET/$MODE/libeuv_lib.so"
-    rm -f "$TARGET_SO"
-    if [ -f "$RUST_SO" ]; then
-        cp "$RUST_SO" "$TARGET_SO"
-        info "Copied $ARCH $LIB_NAME from Rust target"
-    else
-        warn "$ARCH .so file not found at: $RUST_SO — APK will be missing native lib for $ARCH"
-    fi
+for TOOL in node npm cargo rustup python3; do
+    command -v "$TOOL" >/dev/null 2>&1 || { printf '[ERROR] Required tool missing: %s\n' "$TOOL" >&2; exit 1; }
 done
 
-info "Running Gradle build..."
-ANDROID_DIR="src-tauri/gen/android"
-if [ "$MODE" = "release" ]; then
-    "$ANDROID_DIR/gradlew" --project-dir "$ANDROID_DIR" -Dorg.gradle.java.home="$JAVA_HOME_WIN" assembleUniversalRelease
-else
-    "$ANDROID_DIR/gradlew" --project-dir "$ANDROID_DIR" -Dorg.gradle.java.home="$JAVA_HOME_WIN" assembleUniversalDebug
+# Fail before downloading toolchains if the local web build is absent.
+node scripts/bundle-example.js
+if [ ! -x node_modules/.bin/tauri ]; then
+    npm ci
 fi
+node scripts/apply-config.js
+rustup target add aarch64-linux-android
 
-BUILD_END=$(date +%s)
-BUILD_DURATION=$((BUILD_END - BUILD_START))
-
-APK_DIR="src-tauri/gen/android/app/build/outputs/apk"
-app_lower=$(printf '%s' "$APP_NAME" | tr '[:upper:]' '[:lower:]')
-if [ "$MODE" = "release" ]; then
-    APK_PATH="$APK_DIR/universal/release/app-universal-release.apk"
-    OUTPUT_NAME="${app_lower}.apk"
-else
-    APK_PATH="$APK_DIR/universal/debug/app-universal-debug.apk"
-    OUTPUT_NAME="${app_lower}-debug.apk"
+export JAVA_HOME="${JAVA_HOME:-$PROJECT_ROOT/sdk/jdk}"
+if [ ! -x "$JAVA_HOME/bin/java" ]; then
+    [ "$JAVA_HOME" = "$PROJECT_ROOT/sdk/jdk" ] || { printf '[ERROR] Invalid JAVA_HOME: %s\n' "$JAVA_HOME" >&2; exit 1; }
+    bash scripts/setup-sdk.sh jdk
 fi
+[ -x "$JAVA_HOME/bin/java" ] || { printf '[ERROR] JDK installation is incomplete\n' >&2; exit 1; }
+export PATH="$JAVA_HOME/bin:$PATH"
+export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$PROJECT_ROOT/sdk/android}}"
+if [ ! -d "$ANDROID_HOME/platforms/android-36" ]; then
+    [ "$ANDROID_HOME" = "$PROJECT_ROOT/sdk/android" ] || { printf '[ERROR] Android SDK platform 36 is missing from %s\n' "$ANDROID_HOME" >&2; exit 1; }
+    bash scripts/setup-sdk.sh android
+fi
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export NDK_HOME="${NDK_HOME:-$ANDROID_HOME/ndk/28.0.13004108}"
+[ -d "$NDK_HOME/toolchains/llvm/prebuilt" ] || { printf '[ERROR] Android NDK is missing: %s\n' "$NDK_HOME" >&2; exit 1; }
+case "$(uname -s)" in
+    Darwin*) NDK_HOST=darwin-x86_64 ;;
+    Linux*) NDK_HOST=linux-x86_64 ;;
+    *) printf '[ERROR] This build script supports macOS and Linux\n' >&2; exit 1 ;;
+esac
+NDK_BIN="$NDK_HOME/toolchains/llvm/prebuilt/$NDK_HOST/bin"
+export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$NDK_BIN/aarch64-linux-android24-clang"
+export CC_aarch64_linux_android="$CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER"
+export AR_aarch64_linux_android="$NDK_BIN/llvm-ar"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$PROJECT_ROOT/src-tauri/target}"
+CARGO_TARGET_DIR="$(python3 -c 'import os; print(os.path.abspath(os.environ["CARGO_TARGET_DIR"]))')"
+export CARGO_TARGET_DIR
+# Tauri invokes Gradle itself; disable persistent daemons for both passes.
+export GRADLE_OPTS="${GRADLE_OPTS:-} -Dorg.gradle.daemon=false"
 
-if [ -f "$APK_PATH" ]; then
-    cp "$APK_PATH" "$OUTPUT_NAME"
-    APK_SIZE=$(du -h "$OUTPUT_NAME" | cut -f1)
-    info "Android build complete! Duration: ${BUILD_DURATION}s"
-    info "Output: ./$OUTPUT_NAME"
-    info "Size: $APK_SIZE"
-
-    if command -v adb >/dev/null 2>&1; then
-        DEVICE_COUNT=$(adb devices | grep -c -w 'device' || true)
-        if [ "$DEVICE_COUNT" -gt 0 ]; then
-            info "Device detected, installing..."
-            adb install -r "$OUTPUT_NAME"
-            info "Install complete!"
-        else
-            warn "No connected device detected, skipping install"
+ANDROID_DIR="$PROJECT_ROOT/src-tauri/gen/android"
+GENERATED_DIR="$ANDROID_DIR/app/src/main/java/com/euv/generated"
+BACKUP_DIR="$(mktemp -d "${TMPDIR:-$PROJECT_ROOT/sdk}/euv-webview.XXXXXX")"
+restore_webviews() {
+    for FILE in RustWebView.kt RustWebViewClient.kt; do
+        if [ -f "$BACKUP_DIR/$FILE" ]; then
+            mkdir -p "$GENERATED_DIR"
+            cp "$BACKUP_DIR/$FILE" "$GENERATED_DIR/$FILE"
         fi
-    else
-        warn "adb not found, skipping auto-install"
-    fi
-else
-    warn "Build may have completed, but APK not found at expected path"
-    find "$APK_DIR" -name "*.apk" 2>/dev/null | while read -r apk; do
-        info "  Found: $apk"
     done
+}
+cleanup() {
+    RESULT=$?
+    trap - EXIT
+    restore_webviews
+    rm -rf "$BACKUP_DIR"
+    exit "$RESULT"
+}
+trap cleanup EXIT
+for FILE in RustWebView.kt RustWebViewClient.kt; do
+    [ ! -f "$GENERATED_DIR/$FILE" ] || cp "$GENERATED_DIR/$FILE" "$BACKUP_DIR/$FILE"
+done
+python3 - "$ANDROID_DIR/local.properties" <<'PY'
+import os, pathlib, sys
+sdk = os.environ['ANDROID_HOME'].replace('\\', '\\\\').replace(':', '\\:')
+pathlib.Path(sys.argv[1]).write_text('sdk.dir=' + sdk + '\n')
+PY
+APP_NAME="$(node -e 'console.log(require("./app.config.json").app.name.toLowerCase())')"
+if [ "$MODE" = release ]; then
+    OUTPUT_NAME="$APP_NAME.apk"
+    APK_PATH="$ANDROID_DIR/app/build/outputs/apk/universal/release/app-universal-release.apk"
+    TASK=assembleUniversalRelease
+    CARGO_PROFILE=release
+else
+    OUTPUT_NAME="$APP_NAME-debug.apk"
+    APK_PATH="$ANDROID_DIR/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
+    TASK=assembleUniversalDebug
+    CARGO_PROFILE=debug
 fi
-
-echo ""
-info "Build complete!"
+rm -f "$OUTPUT_NAME" "$APK_PATH"
+# Tauri must successfully compile the native library and generate Android glue.
+# Never continue after a failed native or initial Gradle build.
+if [ "$MODE" = release ]; then
+    ./node_modules/.bin/tauri android build --apk --target aarch64 --ci
+else
+    ./node_modules/.bin/tauri android build --apk --target aarch64 --ci --debug
+fi
+restore_webviews
+NATIVE_LIBRARY="$CARGO_TARGET_DIR/aarch64-linux-android/$CARGO_PROFILE/libeuv_lib.so"
+[ -s "$NATIVE_LIBRARY" ] || { printf '[ERROR] Native library is missing: %s\n' "$NATIVE_LIBRARY" >&2; exit 1; }
+mkdir -p "$ANDROID_DIR/app/src/main/jniLibs/arm64-v8a"
+rm -f "$ANDROID_DIR/app/src/main/jniLibs/arm64-v8a/libeuv_lib.so"
+cp "$NATIVE_LIBRARY" "$ANDROID_DIR/app/src/main/jniLibs/arm64-v8a/libeuv_lib.so"
+# Package the restored WebView customizations, not Tauri's generated defaults.
+"$ANDROID_DIR/gradlew" --no-daemon --project-dir "$ANDROID_DIR" \
+    -Dorg.gradle.java.home="$JAVA_HOME" \
+    -PabiList=arm64-v8a -ParchList=arm64 -PtargetList=aarch64 "$TASK"
+[ -s "$APK_PATH" ] || { printf '[ERROR] Expected APK is missing: %s\n' "$APK_PATH" >&2; exit 1; }
+cp "$APK_PATH" "$OUTPUT_NAME"
+node scripts/verify-apk.js "$OUTPUT_NAME"
+"$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$OUTPUT_NAME"
+printf '[OK] Android %s APK with local example pages: %s/%s\n' "$MODE" "$PROJECT_ROOT" "$OUTPUT_NAME"

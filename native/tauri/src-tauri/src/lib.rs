@@ -37,8 +37,8 @@ pub(crate) use {
     },
     swc_ecma_parser::{Syntax, parse_file_as_program},
     tauri::{
-        App, AppHandle, Builder, Emitter, Manager, RunEvent, State, UriSchemeContext,
-        UriSchemeResponder, Webview, Wry,
+        App, AppHandle, Builder, Manager, RunEvent, State, UriSchemeContext, UriSchemeResponder,
+        Webview, Wry,
         async_runtime::spawn,
         generate_context, generate_handler,
         webview::{PageLoadEvent, PageLoadPayload},
@@ -55,6 +55,9 @@ pub(crate) use {
         },
     },
 };
+
+#[cfg(debug_assertions)]
+pub(crate) use tauri::Emitter;
 
 #[macro_export]
 macro_rules! euv_log {

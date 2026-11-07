@@ -105,19 +105,18 @@ download_jdk() {
             cp -r "$tmp_dir/jdk-extract"/. "$JDK_DIR/"
         fi
     elif [ "$host_os" = "mac" ]; then
-        unzip -q "$tmp_dir/jdk.zip" -d "$tmp_dir/jdk-extract"
+        mkdir -p "$tmp_dir/jdk-extract"
+        tar xzf "$tmp_dir/jdk.zip" -C "$tmp_dir/jdk-extract"
         local jdk_inner
-        jdk_inner=$(ls -d "$tmp_dir/jdk-extract"/*.jdk/Contents/Home 2>/dev/null | head -1)
-        if [ -n "$jdk_inner" ]; then
-            cp -r "$jdk_inner"/. "$JDK_DIR/"
-        else
-            jdk_inner=$(ls -d "$tmp_dir/jdk-extract"/jdk-* 2>/dev/null | head -1)
-            if [ -n "$jdk_inner" ]; then
-                cp -r "$jdk_inner"/. "$JDK_DIR/"
-            else
-                cp -r "$tmp_dir/jdk-extract"/. "$JDK_DIR/"
+        jdk_inner=""
+        for candidate in "$tmp_dir/jdk-extract"/*/Contents/Home; do
+            if [ -x "$candidate/bin/java" ]; then
+                jdk_inner="$candidate"
+                break
             fi
-        fi
+        done
+        [ -n "$jdk_inner" ] || error "Downloaded macOS JDK has no Contents/Home/bin/java"
+        cp -r "$jdk_inner"/. "$JDK_DIR/"
     else
         tar xzf "$tmp_dir/jdk.zip" -C "$tmp_dir"
         local jdk_inner
@@ -144,7 +143,10 @@ download_jdk() {
 download_android_sdk() {
     info "Setting up Android SDK..."
 
-    if [ -d "$ANDROID_DIR" ] && [ -d "$ANDROID_DIR/platforms" ]; then
+    if [ -d "$ANDROID_DIR/platforms/android-36" ] && \
+       [ -d "$ANDROID_DIR/build-tools/36.0.0" ] && \
+       [ -d "$ANDROID_DIR/ndk/28.0.13004108" ] && \
+       [ -d "$ANDROID_DIR/platform-tools" ]; then
         info "Android SDK already installed at sdk/android/"
         return 0
     fi
@@ -159,6 +161,8 @@ download_android_sdk() {
         *) error "Unsupported OS: $host_os" ;;
     esac
 
+    if [ ! -f "$ANDROID_DIR/cmdline-tools/latest/bin/sdkmanager" ] && \
+       [ ! -f "$ANDROID_DIR/cmdline-tools/latest/bin/sdkmanager.bat" ]; then
     info "Downloading Android command-line tools..."
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -180,6 +184,7 @@ download_android_sdk() {
     unzip -q "$tmp_dir/cmdtools.zip" -d "$tmp_dir/cmdtools-extract"
     mv "$tmp_dir/cmdtools-extract/cmdline-tools" "$ANDROID_DIR/cmdline-tools/latest"
     rm -rf "$tmp_dir"
+    fi
 
     local sdkmanager
     if [ "$host_os" = "win" ]; then
@@ -194,7 +199,11 @@ download_android_sdk() {
     fi
 
     info "Accepting Android SDK licenses..."
-    yes | "$sdkmanager" --licenses >/dev/null 2>&1 || true
+    python3 - "$sdkmanager" <<'PY'
+import subprocess, sys
+subprocess.run([sys.argv[1], '--licenses'], input='y\n' * 200, text=True,
+               stdout=subprocess.DEVNULL, check=True)
+PY
 
     info "Installing required SDK components (this may take a while)..."
     "$sdkmanager" \

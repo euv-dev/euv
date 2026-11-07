@@ -49,7 +49,7 @@ function writeTauriConf(config) {
       frontendDist: '../dist',
       beforeDevCommand: '',
       beforeBuildCommand:
-        'node scripts/prefetch-cache.js && node scripts/apply-config.js',
+        'node scripts/bundle-example.js && node scripts/apply-config.js',
     },
     app: {
       withGlobalTauri: true,

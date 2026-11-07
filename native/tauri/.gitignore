@@ -4,6 +4,7 @@
 target
 /.vscode
 node_modules
+.kotlin/
 .DS_Store
 bundled-cache
 sdk
