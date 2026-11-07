@@ -67,14 +67,10 @@ jobs:
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
 
-      - name: Build local example pages
+      - name: Build web and signed APK through euv CLI
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: cargo run -p euv-cli -- build --release --crate-path ./example -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-
-      - name: Build signed APK with local example pages
-        working-directory: native/tauri
-        run: ./build.sh android release
+        run: cargo run -p euv-cli -- build --platforms android --release --crate-path ./example
 
       - name: Verify local pages inside the APK
         working-directory: native/tauri

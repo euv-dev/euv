@@ -6,7 +6,7 @@ object AppConfig {
     const val BACKGROUND_COLOR = "#ffffff"
     const val SPLASH_FADE_DURATION_MS = 300L
     const val SPLASH_MAX_WAIT_MS = 5000L
-    const val IMMERSIVE_MODE = false
+    const val IMMERSIVE_MODE = true
     const val TRANSPARENT_NAVIGATION_BAR = true
     const val ANTI_ALIASING = true
     const val MAX_FRAME_RATE_ENABLED = true

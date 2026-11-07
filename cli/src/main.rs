@@ -22,8 +22,8 @@ pub async fn main() -> Result<(), EuvError> {
         Mode::Run(mode_args) => {
             run_mode(mode_args.clone()).await?;
         }
-        Mode::Build(mode_args) => {
-            build_mode(mode_args.clone()).await?;
+        Mode::Build(build_args) => {
+            dispatch_build_mode(build_args.clone()).await?;
         }
         Mode::Fmt(fmt_args) => {
             fmt_mode(fmt_args.clone()).await?;

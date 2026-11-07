@@ -13,9 +13,15 @@ pub(crate) const RETRY_INTERVAL_MILLIS: u64 = 1000;
 /// The custom URI scheme name used for serving cached resources.
 pub(crate) const SCHEME_NAME: &str = "euv";
 
-/// Native window label configured for the mobile client.
-#[cfg(target_os = "ios")]
+/// Native window label configured for Apple clients.
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
+
+/// Response body returned before the local cache is available.
+pub(crate) const CACHE_NOT_READY_BODY: &[u8] = b"Cache not ready";
+
+/// Response body returned when a cached resource does not exist.
+pub(crate) const RESOURCE_NOT_FOUND_BODY: &[u8] = b"Not found";
 
 /// Maximum number of old version directories to keep.
 pub(crate) const MAX_KEPT_VERSIONS: usize = 2;

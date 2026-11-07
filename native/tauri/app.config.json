@@ -19,7 +19,7 @@
     "loadingSpinnerTrackColor": "#e0e0e0",
     "splashFadeDurationMs": 300,
     "splashMaxWaitMs": 5000,
-    "immersiveMode": false,
+    "immersiveMode": true,
     "transparentNavigationBar": true,
     "antiAliasing": true,
     "maxFrameRateEnabled": true,

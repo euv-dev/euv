@@ -30,6 +30,45 @@ A signed `euv.apk` is produced in `native/tauri/`.
 
 This client keeps an independent Cargo workspace so Android and desktop dependencies do not enter the web framework workspace.
 
+## One-command web and native builds
+
+After installing wasm-pack, Node dependencies, and the platform SDKs, run this
+from the repository root:
+
+```shell
+cargo run -p euv-cli -- build --all --release --crate-path ./example
+```
+
+An installed CLI accepts the same arguments as `euv build --all`. The web
+snapshot is compiled once and passed to every native builder as `EUV_WEB_DIST`.
+Builds are sequential, stream their actual compiler output, and stop with a
+nonzero exit status when any requested target fails. Native packaging uses
+release mode by default; `--dev` and `--profiling` remain web-only profiles.
+
+`--all` means all clients supported by the current **build host**, not
+cross-compilation of every desktop OS from one machine:
+
+| Host | Native output selection, in addition to web |
+| --- | --- |
+| macOS | macOS, iOS device, iOS simulator, Android |
+| Linux | Linux, Android |
+| Windows | Windows; the current Android helper requires macOS or Linux |
+
+Inspect a plan or select a smaller native subset:
+
+```shell
+cargo run -p euv-cli -- build --all --plan --crate-path ./example
+cargo run -p euv-cli -- build --platforms macos,android --release --crate-path ./example
+```
+
+`--native-path` selects a different native project directory and requires
+`--all` or `--platforms`. Explicitly requesting an incompatible platform fails
+before compilation instead of silently omitting it. Web output stays in the
+selected crate's serving directory; native output paths are listed below.
+All targets embed that newly built web output, including when a different
+`--crate-path` or `--www-dir` is used. iOS signing requirements do not change.
+Windows/Linux packaging remains outside the current runtime acceptance scope.
+
 ## Bundled pages and CI
 
 Run the commands above from the repository root. APK builds embed the complete
@@ -119,6 +158,35 @@ Counter and restart screenshots, and checks the deployed cache hashes. Its
 Use `--udid` only to borrow an existing simulator; borrowed devices are not
 deleted by the test. macOS package acceptance includes an actual installation
 into the user's Applications folder and native-window interaction.
+
+## Immersive presentation and refresh rate
+
+`ui.immersiveMode` and `ui.maxFrameRateEnabled` are enabled by default in
+`app.config.json`. Desktop windows are borderless but remain resizable and do
+not enter OS fullscreen unless `ui.window.fullscreen` is enabled separately.
+Android hides status/navigation bars while retaining transient swipe access.
+iOS asks Tao's own view controller to hide the status bar and auto-hide the
+home indicator; the native safe-area bridge still protects interactive content.
+
+Android selects the highest supported refresh mode at the current resolution
+and reapplies it as the active display changes. Apple clients derive their
+preference from the attached screen's `maximumFramesPerSecond`, use a native
+display link, and pause it while inactive. Moving a macOS window between screens
+updates the request. iPhone builds opt into ProMotion in their Info.plist.
+macOS versions before 14 use the native WebKit compositor cadence because a
+public display-link preference API is unavailable there. Windows/Linux WebViews
+retain compositor-driven vsync, without an application-imposed fixed FPS timer.
+
+These are maximum-refresh **requests**, not a guarantee of page FPS. OS power,
+thermal and accessibility policy can reduce the rate. WKWebView can also limit
+`requestAnimationFrame` independently of the physical display; no private
+WebKit preference or fabricated animation frame is used to bypass that limit.
+The injected `window.__EUV_NATIVE_DISPLAY__` reports the native maximum and
+request separately and explicitly sets `guaranteed: false`.
+Set `EUV_CLIENT_DIAGNOSTICS=1` when launching an Apple client to log a real
+120-frame `requestAnimationFrame` sample, separately from the native request.
+The simulator smoke test records these measurements and asserts immersive
+status-bar state; it does not claim physical ProMotion hardware validation.
 
 ## License
 

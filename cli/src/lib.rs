@@ -5,6 +5,7 @@
 //! wasm-pack integration.
 
 mod build;
+mod bundle;
 mod error;
 mod fmt;
 mod hmr;
@@ -30,10 +31,10 @@ pub use std::{
     string::FromUtf8Error,
 };
 
-pub use {build::*, error::*, fmt::*, hmr::*, logger::*, mode::*, server::*};
+pub use {build::*, bundle::*, error::*, fmt::*, hmr::*, logger::*, mode::*, server::*};
 
 use {
-    clap::Parser,
+    clap::{Parser, ValueEnum},
     color_output::*,
     hyperlane::*,
     ignore::gitignore::{Gitignore, GitignoreBuilder},
@@ -50,7 +51,7 @@ use {
         io,
         net::{IpAddr, Ipv4Addr},
         path::{Component, Path, PathBuf},
-        process::{Output, Stdio},
+        process::{ExitStatus, Output, Stdio},
         slice::Iter,
         sync::{Arc, OnceLock},
         time::Duration,

@@ -323,7 +323,7 @@ pub fn run() {
                     .level(::log::LevelFilter::Info)
                     .build(),
             )?;
-            #[cfg(target_os = "ios")]
+            #[cfg(any(target_os = "ios", target_os = "macos"))]
             {
                 let Some(main_window): Option<WebviewWindow> =
                     app.get_webview_window(MAIN_WINDOW_LABEL)
@@ -333,6 +333,19 @@ pub fn run() {
                 spawn(async move {
                     if let Err(error) = main_window.with_webview(|view: PlatformWebview| {
                         // SAFETY: Tauri supplies the live WebView on its UI thread.
+                        if unsafe {
+                            euv_configure_apple_display(
+                                view.inner(),
+                                i32::from(IMMERSIVE_MODE),
+                                i32::from(MAX_FRAME_RATE_ENABLED),
+                            )
+                        } != 1
+                        {
+                            eprintln!("Failed to configure the native display policy");
+                            exit(1);
+                        }
+                        #[cfg(target_os = "ios")]
+                        // SAFETY: The same Tauri-owned WebView is still live on its UI thread.
                         if unsafe { euv_configure_ios_webview(view.inner()) } != 1 {
                             eprintln!("Failed to configure the native mobile viewport");
                             exit(1);
@@ -1536,7 +1549,7 @@ pub(crate) async fn handle_euv_scheme(
             _ => {
                 return http::Response::builder()
                     .status(503)
-                    .body(Cow::Owned(b"Cache not ready".to_vec()))
+                    .body(Cow::Owned(CACHE_NOT_READY_BODY.to_vec()))
                     .unwrap_or_else(scheme_response_error);
             }
         };
@@ -1595,7 +1608,7 @@ pub(crate) async fn handle_euv_scheme(
         Err(_) => http::Response::builder()
             .status(404)
             .header(CONTENT_TYPE_HEADER, "text/plain")
-            .body(Cow::Owned(b"Not found".to_vec()))
+            .body(Cow::Owned(RESOURCE_NOT_FOUND_BODY.to_vec()))
             .unwrap_or_else(scheme_response_error),
     }
 }

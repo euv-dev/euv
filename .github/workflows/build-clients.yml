@@ -74,15 +74,10 @@ jobs:
           npm ci
           npm test
 
-      - name: Build local example pages
+      - name: Build web and ${{ matrix.platform }} client through euv CLI
         env:
-          # Keep the mobile/desktop target directory out of the example build.
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: cargo run -p euv-cli -- build --release --crate-path ./example -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-
-      - name: Build ${{ matrix.platform }} client
-        working-directory: native/tauri
-        run: node scripts/build-client.js ${{ matrix.platform }}
+        run: cargo run -p euv-cli -- build --platforms ${{ matrix.platform }} --release --crate-path ./example
 
       - name: Verify client artifacts
         working-directory: native/tauri
@@ -153,18 +148,12 @@ jobs:
           npm ci
           npm test
 
-      - name: Build local example pages
+      # The CLI builds web once and passes the same snapshot to both iOS builds.
+      # No signing credentials and no fake team IDs are used here.
+      - name: Build web, iOS device, and simulator through euv CLI
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: cargo run -p euv-cli -- build --release --crate-path ./example -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-
-      # The unsigned device IPA is produced by scripts/build-client.js ios.
-      # No signing credentials and no fake team IDs are used here.
-      - name: Build ios client
-        working-directory: native/tauri
-        run: |
-          node scripts/build-client.js ios
-          node scripts/build-client.js ios-simulator
+        run: cargo run -p euv-cli -- build --platforms ios,ios-simulator --release --crate-path ./example
 
       - name: Verify client artifacts
         working-directory: native/tauri

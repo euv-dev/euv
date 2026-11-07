@@ -59,11 +59,35 @@ pub(crate) use {
 #[cfg(debug_assertions)]
 pub(crate) use tauri::Emitter;
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 pub(crate) use std::ffi::c_void;
 
-#[cfg(target_os = "ios")]
+#[cfg(any(target_os = "ios", target_os = "macos"))]
 pub(crate) use tauri::{WebviewWindow, webview::PlatformWebview};
+
+#[cfg(any(target_os = "ios", target_os = "macos"))]
+unsafe extern "C" {
+    /// Configures immersive presentation and a hardware-derived refresh preference.
+    ///
+    /// # Arguments
+    ///
+    /// - `*mut c_void` - The live WKWebView supplied by Tauri.
+    /// - `i32` - Nonzero enables immersive presentation.
+    /// - `i32` - Nonzero requests the attached display's maximum refresh rate.
+    ///
+    /// # Returns
+    ///
+    /// - `i32` - One after accepting the native policy, or zero for an invalid view.
+    ///
+    /// # Safety
+    ///
+    /// Use a live Tauri-owned WKWebView pointer on its UI thread only.
+    pub(crate) fn euv_configure_apple_display(
+        pointer: *mut c_void,
+        immersive: i32,
+        maximum_refresh: i32,
+    ) -> i32;
+}
 
 #[cfg(target_os = "ios")]
 unsafe extern "C" {

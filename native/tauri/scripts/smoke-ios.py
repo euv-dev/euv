@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -27,10 +28,13 @@ final class EuvSmokeTests: XCTestCase {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: "com.euv")
+        app.launchEnvironment["EUV_CLIENT_DIAGNOSTICS"] = "1"
         app.launch()
         XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 45), app.debugDescription)
         let version = app.staticTexts["__EXPECTED_VERSION__"]
         XCTAssertTrue(version.waitForExistence(timeout: 45), app.debugDescription)
+        XCTAssertEqual(app.statusBars.count, 0, "Immersive mode must hide the status bar")
+        Thread.sleep(forTimeInterval: 3)
         attach(app, "01-local-startup")
         let menu = app.buttons["☰"]
         XCTAssertTrue(menu.waitForExistence(timeout: 10), app.debugDescription)
@@ -79,12 +83,24 @@ def main():
     args = parser.parse_args()
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
+    simulator_env = dict(os.environ)
+    # Host SDK helpers must not inject their libraries into Simulator migration.
+    for name in ['DYLD_LIBRARY_PATH', 'LD_LIBRARY_PATH', 'GEM_HOME', 'GEM_PATH', 'SDKROOT']:
+        simulator_env.pop(name, None)
 
     def run(command, **kwargs):
-        return subprocess.run(command, check=True, **kwargs)
+        return subprocess.run(command, check=True, env=simulator_env, **kwargs)
+
+    def cleanup(command):
+        try:
+            result = subprocess.run(command, capture_output=True, timeout=30, env=simulator_env)
+            if result.returncode:
+                print('Cleanup command returned nonzero:', command, result.stderr.decode(errors='replace').strip(), flush=True)
+        except subprocess.TimeoutExpired:
+            print('Cleanup command timed out:', command, flush=True)
 
     def capture(command):
-        return subprocess.check_output(command, text=True).strip()
+        return subprocess.check_output(command, text=True, env=simulator_env).strip()
 
     run(['node', str(ROOT / 'scripts/verify-output.js'), 'ios-simulator'], cwd=ROOT)
     archives = list((ROOT / 'artifacts/ios-simulator').glob('*.app.tar.gz'))
@@ -131,7 +147,7 @@ def main():
             raise SystemExit('Selected simulator is not available')
         if selected['state'] != 'Booted':
             run(['xcrun', 'simctl', 'boot', udid])
-        run(['xcrun', 'simctl', 'bootstatus', udid, '-b'])
+        run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], timeout=300)
         run(['xcrun', 'simctl', 'install', udid, str(applications[0])])
         project = output / 'test-project'
         project.mkdir(exist_ok=True)
@@ -172,18 +188,37 @@ def main():
         for entry in manifest['files']:
             content = (caches[0] / active / entry['path']).read_bytes()
             assert len(content) == entry['size'] and hashlib.sha256(content).hexdigest() == entry['sha256'], entry['path']
+        display_logs = json.loads(capture(['xcrun', 'simctl', 'spawn', udid, 'log', 'show', '--last', '10m',
+                                           '--style', 'json', '--predicate',
+                                           'eventMessage BEGINSWITH "[EUV] Frame-rate sample:"']))
+        samples = []
+        for entry in display_logs:
+            message = entry.get('eventMessage', '')
+            if message.startswith('[EUV] Frame-rate sample: '):
+                samples.append(json.loads(message.split('[EUV] Frame-rate sample: ', 1)[1]))
+        if not samples:
+            raise AssertionError('No real requestAnimationFrame sample from the production WebView')
+        for sample in samples:
+            policy = sample['native']
+            assert sample['frames'] == 120 and sample['framesPerSecond'] > 0
+            assert policy['immersive'] is True and policy['policy'] == 'maximum'
+            assert policy['maximumFramesPerSecond'] > 0
+            assert policy['requestedFramesPerSecond'] == policy['maximumFramesPerSecond']
+            assert policy['guaranteed'] is False
+        report['display_samples'] = samples
+        report['steps'].append('status bar hidden; native hardware maximum requested; real page FPS sampled separately')
         report['cache_version'] = active
         report['steps'].append('deployed simulator cache matches all local example SHA-256 values')
         report['passed'] = True
         print(json.dumps(report, indent=2))
     except BaseException:
-        subprocess.run(['xcrun', 'simctl', 'io', udid, 'screenshot', str(output / 'failure.png')], capture_output=True)
+        cleanup(['xcrun', 'simctl', 'io', udid, 'screenshot', str(output / 'failure.png')])
         raise
     finally:
-        subprocess.run(['xcrun', 'simctl', 'terminate', udid, 'com.euv'], capture_output=True)
+        cleanup(['xcrun', 'simctl', 'terminate', udid, 'com.euv'])
         if owned:
-            subprocess.run(['xcrun', 'simctl', 'shutdown', udid], capture_output=True)
-            subprocess.run(['xcrun', 'simctl', 'delete', udid], capture_output=True)
+            cleanup(['xcrun', 'simctl', 'shutdown', udid])
+            cleanup(['xcrun', 'simctl', 'delete', udid])
         (output / 'verification.json').write_text(json.dumps(report, indent=2))
 
 

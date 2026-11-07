@@ -53,6 +53,11 @@ def main():
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             tree = ui()
+            if any(n.get('resource-id') == 'com.android.systemui:id/immersive_cling_title' for n in tree.iter('node')):
+                # This is Android's first-use fullscreen tutorial, not a permission dialog.
+                tap(tree, 'Got it')
+                report['steps'].append('dismissed the system first-use immersive tutorial')
+                continue
             if re.search(pattern, text(tree)):
                 return tree
             time.sleep(1)

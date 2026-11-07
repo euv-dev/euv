@@ -38,9 +38,8 @@ function writeIfChanged(file, contents) {
   return true;
 }
 
-function writeTauriConf(config) {
-  const tauriConfPath = path.join(ROOT, 'src-tauri', 'tauri.conf.json');
-  const tauriConf = {
+function getTauriConfig(config) {
+  return {
     $schema: 'https://schema.tauri.app/config/2',
     productName: config.app.name,
     version: config.app.version,
@@ -60,6 +59,7 @@ function writeTauriConf(config) {
           height: config.ui.window.height,
           resizable: config.ui.window.resizable,
           fullscreen: config.ui.window.fullscreen,
+          decorations: !config.ui.immersiveMode,
           useHttpsScheme: true,
         },
       ],
@@ -84,6 +84,11 @@ function writeTauriConf(config) {
       },
     },
   };
+}
+
+function writeTauriConf(config) {
+  const tauriConfPath = path.join(ROOT, 'src-tauri', 'tauri.conf.json');
+  const tauriConf = getTauriConfig(config);
   writeIfChanged(tauriConfPath, JSON.stringify(tauriConf, null, 2) + '\n');
   console.log('[OK] tauri.conf.json updated');
 }
@@ -326,6 +331,6 @@ function main() {
   console.log('[apply-config] Done! All platform configs updated.');
 }
 
-module.exports = { getIndexHtml, writeIfChanged };
+module.exports = { getIndexHtml, getTauriConfig, writeIfChanged };
 
 if (require.main === module) main();
