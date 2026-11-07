@@ -46,6 +46,9 @@
       "text": "Running"
     }
   },
+  "ios": {
+    "minimumSystemVersion": "15.0"
+  },
   "icons": {
     "source": "src-tauri/icons/icon.png",
     "android": {
@@ -54,7 +57,7 @@
     }
   },
   "build": {
-    "targets": ["android"],
+    "targets": ["android", "windows", "macos", "linux", "ios"],
     "signing": {
       "android": {
         "keystorePath": "keystore.jks",

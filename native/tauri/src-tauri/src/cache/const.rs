@@ -13,6 +13,10 @@ pub(crate) const RETRY_INTERVAL_MILLIS: u64 = 1000;
 /// The custom URI scheme name used for serving cached resources.
 pub(crate) const SCHEME_NAME: &str = "euv";
 
+/// Native window label configured for the mobile client.
+#[cfg(target_os = "ios")]
+pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
+
 /// Maximum number of old version directories to keep.
 pub(crate) const MAX_KEPT_VERSIONS: usize = 2;
 

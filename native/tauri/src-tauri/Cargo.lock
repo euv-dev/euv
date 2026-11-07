@@ -1176,6 +1176,7 @@ dependencies = [
 name = "euv-app"
 version = "0.1.2"
 dependencies = [
+ "cc",
  "http",
  "log",
  "lombok-macros",

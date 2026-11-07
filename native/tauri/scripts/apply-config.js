@@ -76,6 +76,9 @@ function writeTauriConf(config) {
         'icons/128x128@2x.png',
         'icons/icon.ico',
       ],
+      iOS: {
+        minimumSystemVersion: config.ios?.minimumSystemVersion || '15.0',
+      },
       android: {
         debugApplicationIdSuffix: '.debug',
       },

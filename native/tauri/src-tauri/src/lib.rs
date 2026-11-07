@@ -59,6 +59,41 @@ pub(crate) use {
 #[cfg(debug_assertions)]
 pub(crate) use tauri::Emitter;
 
+#[cfg(target_os = "ios")]
+pub(crate) use std::ffi::c_void;
+
+#[cfg(target_os = "ios")]
+pub(crate) use tauri::{WebviewWindow, webview::PlatformWebview};
+
+#[cfg(target_os = "ios")]
+unsafe extern "C" {
+    /// Repairs the native scene configuration ownership before UIKit starts.
+    ///
+    /// # Returns
+    ///
+    /// - `i32` - One when the delegate method is available, or zero otherwise.
+    ///
+    /// # Safety
+    ///
+    /// Call on the main thread after the Tauri runtime is built and before it runs.
+    pub(crate) fn euv_install_scene_lifetime_fix() -> i32;
+
+    /// Configures the Tauri-owned WebView for the shared edge-to-edge viewport.
+    ///
+    /// # Arguments
+    ///
+    /// - `*mut c_void` - The native WKWebView pointer supplied by Tauri.
+    ///
+    /// # Returns
+    ///
+    /// - `i32` - One when a valid WebView was configured, or zero otherwise.
+    ///
+    /// # Safety
+    ///
+    /// The pointer must be a live WKWebView used only on the main thread.
+    pub(crate) fn euv_configure_ios_webview(pointer: *mut c_void) -> i32;
+}
+
 #[macro_export]
 macro_rules! euv_log {
     ($($arg:tt)*) => {{

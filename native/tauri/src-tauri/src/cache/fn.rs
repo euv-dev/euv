@@ -141,16 +141,20 @@ const IMMERSIVE_SAFE_AREA_SCRIPT: &str = r#"
   window.__EUV_IMMERSIVE__ = true;
 
   function ensureCover() {
-    var m = document.querySelector('meta[name="viewport"]');
-    if (!m) {
-      m = document.createElement('meta');
+    var metas = document.querySelectorAll('meta[name="viewport"]');
+    if (!metas.length) {
+      if (!document.head) { return; }
+      var m = document.createElement('meta');
       m.name = 'viewport';
       m.content = 'width=device-width, initial-scale=1.0';
-      (document.head || document.documentElement).appendChild(m);
+      document.head.appendChild(m);
+      metas = [m];
     }
-    if (!/viewport-fit\s*=\s*cover/.test(m.content)) {
-      m.content = m.content.replace(/\s*$/, '') + ', viewport-fit=cover';
-    }
+    Array.prototype.forEach.call(metas, function (m) {
+      if (!/viewport-fit\s*=\s*cover/.test(m.content)) {
+        m.content = m.content.replace(/\s*$/, '') + ', viewport-fit=cover';
+      }
+    });
   }
 
   function applyInset() {
@@ -162,7 +166,9 @@ const IMMERSIVE_SAFE_AREA_SCRIPT: &str = r#"
     s.pointerEvents = 'none';
     s.paddingTop = 'env(safe-area-inset-top, 0px)';
     (document.body || document.documentElement).appendChild(probe);
-    var top = getComputedStyle(probe).paddingTop;
+    var top = (typeof window.__EUV_NATIVE_SAFE_TOP__ === 'number')
+      ? (window.__EUV_NATIVE_SAFE_TOP__ + 'px')
+      : getComputedStyle(probe).paddingTop;
     probe.parentNode.removeChild(probe);
     document.documentElement.style.setProperty('--euv-mobile-safe-top', top);
   }
@@ -289,6 +295,7 @@ fn inject_page_scripts(webview: &Webview, payload: &PageLoadPayload<'_>) {
 /// # Errors
 ///
 /// Reports initialization failures to standard error without panicking.
+#[cfg_attr(target_os = "ios", tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "android")]
     {
@@ -299,6 +306,9 @@ pub fn run() {
         exit(1);
     }
     match Builder::default()
+        .append_invoke_initialization_script(format!(
+            ";{LINK_INTERCEPTOR_SCRIPT};{IMMERSIVE_SAFE_AREA_SCRIPT};"
+        ))
         .manage(CacheSession::default())
         // Registered once at the Builder level so it runs for EVERY webview the
         // app owns, including ones created dynamically at runtime. It injects a
@@ -313,6 +323,26 @@ pub fn run() {
                     .level(::log::LevelFilter::Info)
                     .build(),
             )?;
+            #[cfg(target_os = "ios")]
+            {
+                let Some(main_window): Option<WebviewWindow> =
+                    app.get_webview_window(MAIN_WINDOW_LABEL)
+                else {
+                    return Err(io::Error::other("The native mobile window was not created").into());
+                };
+                spawn(async move {
+                    if let Err(error) = main_window.with_webview(|view: PlatformWebview| {
+                        // SAFETY: Tauri supplies the live WebView on its UI thread.
+                        if unsafe { euv_configure_ios_webview(view.inner()) } != 1 {
+                            eprintln!("Failed to configure the native mobile viewport");
+                            exit(1);
+                        }
+                    }) {
+                        eprintln!("Failed to dispatch native viewport configuration: {error}");
+                        exit(1);
+                    }
+                });
+            }
             let handle: AppHandle = app.handle().clone();
             #[cfg(debug_assertions)]
             let _: Result<(), AppHandle> = APP_HANDLE.set(handle.clone());
@@ -342,7 +372,17 @@ pub fn run() {
         ])
         .build(generate_context!())
     {
-        Ok(app) => app.run(|_: &AppHandle, _: RunEvent| {}),
+        Ok(app) => {
+            #[cfg(target_os = "ios")]
+            {
+                // SAFETY: Building the runtime registers its delegate on the main thread.
+                if unsafe { euv_install_scene_lifetime_fix() } != 1 {
+                    eprintln!("Failed to install the iOS scene ownership repair");
+                    exit(1);
+                }
+            }
+            app.run(|_: &AppHandle, _: RunEvent| {});
+        }
         Err(error) => {
             eprintln!("Failed to initialize the application: {error}");
             exit(1);

@@ -12,6 +12,12 @@
     "benchmark:startup": "node scripts/benchmark-startup.js",
     "build:android": "./build.sh android release",
     "build:android:debug": "./build.sh android debug",
+    "build:windows": "node scripts/build-client.js windows",
+    "build:macos": "node scripts/build-client.js macos",
+    "build:linux": "node scripts/build-client.js linux",
+    "build:ios": "node scripts/build-client.js ios",
+    "build:ios:simulator": "node scripts/build-client.js ios-simulator",
+    "verify:native": "node scripts/verify-native.js",
     "tauri": "tauri"
   },
   "dependencies": {

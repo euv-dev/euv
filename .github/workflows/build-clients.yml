@@ -1,0 +1,256 @@
+name: Build Clients
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: clients-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-desktop:
+    name: Build ${{ matrix.platform }} client
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            os: macos-latest
+            rust-target: aarch64-apple-darwin
+    env:
+      # The client must embed the locally built example pages, never a deployed page.
+      EUV_WEB_DIST: ${{ github.workspace }}/example/www
+      CARGO_TARGET_DIR: ${{ github.workspace }}/native/tauri/src-tauri/target
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: native/tauri/package-lock.json
+
+      - name: Setup Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown, ${{ matrix.rust-target }}
+
+      - name: Cache Cargo and wasm-pack
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cache/.wasm-pack
+            target
+            native/tauri/src-tauri/target
+          key: clients-${{ runner.os }}-${{ matrix.platform }}-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
+          restore-keys: clients-${{ runner.os }}-${{ matrix.platform }}-
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Install client dependencies and run tests
+        working-directory: native/tauri
+        run: |
+          npm ci
+          npm test
+
+      - name: Build local example pages
+        env:
+          # Keep the mobile/desktop target directory out of the example build.
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo run -p euv-cli -- build --release --crate-path ./example -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
+
+      - name: Build ${{ matrix.platform }} client
+        working-directory: native/tauri
+        run: node scripts/build-client.js ${{ matrix.platform }}
+
+      - name: Verify client artifacts
+        working-directory: native/tauri
+        run: node scripts/verify-output.js ${{ matrix.platform }}
+
+      - name: Upload ${{ matrix.platform }} client artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: euv-client-${{ matrix.platform }}
+          path: native/tauri/artifacts/${{ matrix.platform }}/
+          if-no-files-found: error
+          retention-days: 14
+
+  build-ios:
+    name: Build ios client
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      EUV_WEB_DIST: ${{ github.workspace }}/example/www
+      CARGO_TARGET_DIR: ${{ github.workspace }}/native/tauri/src-tauri/target
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: native/tauri/package-lock.json
+
+      - name: Setup Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Select Xcode
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Install iOS project tools
+        run: brew install xcodegen libimobiledevice cocoapods
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown, aarch64-apple-ios, aarch64-apple-ios-sim
+
+      - name: Cache Cargo and wasm-pack
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cache/.wasm-pack
+            target
+            native/tauri/src-tauri/target
+          key: clients-${{ runner.os }}-ios-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
+          restore-keys: clients-${{ runner.os }}-ios-
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Install client dependencies and run tests
+        working-directory: native/tauri
+        run: |
+          npm ci
+          npm test
+
+      - name: Build local example pages
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo run -p euv-cli -- build --release --crate-path ./example -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
+
+      # The unsigned device IPA is produced by scripts/build-client.js ios.
+      # No signing credentials and no fake team IDs are used here.
+      - name: Build ios client
+        working-directory: native/tauri
+        run: |
+          node scripts/build-client.js ios
+          node scripts/build-client.js ios-simulator
+
+      - name: Verify client artifacts
+        working-directory: native/tauri
+        run: |
+          node scripts/verify-output.js ios
+          node scripts/verify-output.js ios-simulator
+
+      - name: Install and exercise the iOS Simulator app
+        working-directory: native/tauri
+        run: python3 scripts/smoke-ios.py
+
+      - name: Upload iOS acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: euv-ios-acceptance
+          path: |
+            native/tauri/artifacts/validation/ios/Smoke.xcresult/
+            native/tauri/artifacts/validation/ios/verification.json
+            native/tauri/artifacts/validation/ios/xcodebuild.log
+            native/tauri/artifacts/validation/ios/failure.png
+          if-no-files-found: warn
+
+      - name: Upload ios client artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: euv-client-ios
+          path: |
+            native/tauri/artifacts/ios/
+            native/tauri/artifacts/ios-simulator/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish clients to the rolling latest release
+    if: >-
+      !cancelled() &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/master' &&
+      needs.build-desktop.result == 'success' && needs.build-ios.result == 'success'
+    needs: [build-desktop, build-ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Download client artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: euv-client-*
+          path: download
+
+      - name: Publish assets to the rolling latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          TITLE="Latest clients (build ${{ github.run_number }})"
+          NOTES="Client packages built from commit ${{ github.sha }}."
+          # Reuse the rolling release created by the APK workflow; never move its tag.
+          if gh release view latest >/dev/null 2>&1; then
+            echo "[OK] Reusing the existing rolling latest release."
+          else
+            if ! gh release create latest --target "${{ github.sha }}" --title "$TITLE" --notes "$NOTES" --prerelease; then
+              echo "[WARN] Release creation failed, checking whether it already exists."
+              gh release view latest >/dev/null 2>&1 || { echo "[ERROR] Cannot create the rolling latest release"; exit 1; }
+            fi
+          fi
+          # Preserve platform-prefixed names so checksum report paths stay valid.
+          mkdir -p publish
+          while IFS= read -r -d '' DIR; do
+            ARTIFACT="$(basename "$DIR")"
+            PLATFORM="${ARTIFACT#euv-client-}"
+            mkdir -p "publish/$PLATFORM"
+            while IFS= read -r -d '' FILE; do
+              BASE="$(basename "$FILE")"
+              cp "$FILE" "publish/$PLATFORM/$BASE"
+            done < <(find "$DIR" -type f -print0)
+          done < <(find download -mindepth 1 -maxdepth 1 -type d -print0)
+          find publish -type f -print
+          COUNT="$(find publish -type f | wc -l | tr -d ' ')"
+          if [ "$COUNT" -lt 1 ]; then
+            echo "[ERROR] No client artifacts to publish"
+            exit 1
+          fi
+          find publish -type f -print0 | xargs -0 -r gh release upload latest --clobber
+          echo "[OK] Published $COUNT client assets to the rolling latest release."

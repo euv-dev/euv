@@ -5,6 +5,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use cc::Build;
+
 /// Keeps Cargo's cache-directory watch valid without bundling a resource.
 const BUNDLED_CACHE_PLACEHOLDER: &str = ".empty";
 
@@ -51,6 +53,16 @@ fn write_if_changed(destination: &Path, contents: &str) -> io::Result<()> {
 /// - `io::Result<()>` - Success after generating inputs, or an IO failure.
 fn main() -> io::Result<()> {
     tauri_build::build();
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios") {
+        let mut lifecycle: Build = Build::new();
+        lifecycle
+            .cpp(true)
+            .flag("-fobjc-arc")
+            .file("apple/lifecycle.mm")
+            .try_compile("euv_ios_lifecycle")
+            .map_err(io::Error::other)?;
+        println!("cargo:rerun-if-changed=apple/lifecycle.mm");
+    }
     let manifest_dir: PathBuf =
         PathBuf::from(env::var("CARGO_MANIFEST_DIR").map_err(io::Error::other)?);
     let out_dir: PathBuf = PathBuf::from(env::var("OUT_DIR").map_err(io::Error::other)?);
