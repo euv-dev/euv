@@ -30,9 +30,8 @@ Native clients live under `native/`, with each implementation in its own subdire
 The [Tauri client](native/tauri/README.md) is located at `native/tauri/`.
 
 ```shell
-cd native/tauri
-npm install
-npm run build:android
+npm ci --prefix native/tauri
+cargo run -p euv-cli -- build --all --release --crate-path ./example
 ```
 
 ## License

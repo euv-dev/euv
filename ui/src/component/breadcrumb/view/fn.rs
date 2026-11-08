@@ -99,7 +99,7 @@ fn current_crumb(item: EuvBreadcrumbItem) -> VirtualNode {
 ///
 /// - `VirtualNode` - The link crumb virtual DOM tree.
 fn link_crumb(item: EuvBreadcrumbItem) -> VirtualNode {
-    if item.href.starts_with("http") {
+    if item.href.starts_with(BREADCRUMB_LINK_SCHEME_HTTP_PREFIX) {
         return html! {
             a {
                 key: item.href

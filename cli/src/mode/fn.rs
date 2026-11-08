@@ -72,6 +72,7 @@ pub async fn fmt_mode(args: FmtArgs) -> Result<(), EuvError> {
 #[hyperlane(server: Server)]
 pub async fn run_mode(mut args: ModeArgs) -> Result<(), EuvError> {
     reconcile_args(&mut args);
+    reject_native_flags_in_run(&args)?;
     args.set_crate_path(
         sync_canonicalize(args.get_crate_path()).map_err(|error: io::Error| EuvError::IoPath {
             message: ERROR_INVALID_CRATE_PATH.to_string(),

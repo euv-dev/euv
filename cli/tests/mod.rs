@@ -1,6 +1,7 @@
 mod bootstrap;
 mod build;
 mod build_args;
+mod bundle;
 mod cli_api;
 mod fmt;
 mod hmr;

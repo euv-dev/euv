@@ -1,10 +1,13 @@
 package com.euv
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -12,11 +15,10 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import android.view.Display
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.graphics.Paint
-import android.view.SurfaceControl
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -38,6 +40,8 @@ class MainActivity : TauriActivity() {
     private var pendingPermissionResults: MutableMap<String, Boolean> = mutableMapOf()
     private var pendingPermissionsToRequest: Array<String> = emptyArray()
     private var lastDispatchedImeBottom: Int = -1
+    private var displayListener: DisplayManager.DisplayListener? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private val multiPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -95,6 +99,9 @@ class MainActivity : TauriActivity() {
             enableTransparentNavigationBar()
         }
         setMaxFrameRate()
+        if (AppConfig.MAX_FRAME_RATE_ENABLED) {
+            registerDisplayListener()
+        }
         if (AppConfig.KEEP_ALIVE_SERVICE) {
             startKeepAliveServiceSafely()
         }
@@ -167,11 +174,19 @@ class MainActivity : TauriActivity() {
     }
 
     private fun enableImmersiveMode() {
+        // Edge-to-edge: the app draws behind the status and navigation bars.
+        // WindowCompat routes to Window.setDecorFitsSystemWindows(false) on
+        // API 30+ and to the equivalent systemUiVisibility flags below.
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val controller = WindowInsetsControllerCompat(window, window.decorView)
+        // Hide both bars. BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE keeps them
+        // reachable with a swipe, and they auto-hide again afterwards.
         controller.hide(WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            // Pre-R the controller above is backed by systemUiVisibility; the
+            // sticky flags keep the bars hidden after transient swipe reveals.
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -217,59 +232,193 @@ class MainActivity : TauriActivity() {
             enableTransparentNavigationBar()
         }
         if (hasFocus) {
+            // Focus can be regained after a transient bar reveal, a notification
+            // shade pull, or a return from another app; re-assert the refresh
+            // request because the surface may have been reset meanwhile.
             setMaxFrameRate()
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Coming back from the background: re-hide the bars and re-assert the
+        // refresh rate, because the system resets the preferred display mode
+        // when the activity is no longer visible.
+        if (AppConfig.IMMERSIVE_MODE) {
+            enableImmersiveMode()
+        } else if (AppConfig.TRANSPARENT_NAVIGATION_BAR) {
+            enableTransparentNavigationBar()
+        }
+        setMaxFrameRate()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Rotation, fold/unfold and display moves can change the active
+        // display and its supported modes; re-apply the immersive window and
+        // the refresh request for the new display.
+        if (AppConfig.IMMERSIVE_MODE) {
+            enableImmersiveMode()
+        }
+        setMaxFrameRate()
+    }
+
+    override fun onDestroy() {
+        // Symmetric teardown: never leave a DisplayListener registered.
+        unregisterDisplayListener()
+        mainHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
+    }
+
+    /**
+     * Resolve the display the window is currently attached to.
+     *
+     * `Activity.getDisplay()` only exists from API 30, so the window's decor
+     * view is used as the fallback on older releases. Returns null when the
+     * activity is not attached to a window yet.
+     */
+    private fun currentDisplay(): Display? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return display
+        }
+        @Suppress("DEPRECATION")
+        return windowManager.defaultDisplay
+    }
+
+    /**
+     * Highest refresh rate the given display supports, derived from the
+     * display's own supported modes. No refresh rate is hardcoded: the value
+     * always reflects the hardware attached to the current display.
+     */
+    private fun highestRefreshRate(display: Display): Float {
+        val modes = display.supportedModes
+        if (modes.isNotEmpty()) {
+            // Only consider modes with the current physical resolution so a
+            // resolution change is never requested as a side effect.
+            val currentMode = display.mode
+            val sameSizeModes = modes.filter {
+                it.physicalWidth == currentMode.physicalWidth &&
+                    it.physicalHeight == currentMode.physicalHeight
+            }
+            return sameSizeModes.maxOfOrNull { it.refreshRate } ?: currentMode.refreshRate
+        }
+        // Fall back to the advertised refresh rates when modes are unavailable.
+        val rates = display.supportedRefreshRates
+        return rates.maxOrNull() ?: display.refreshRate
+    }
+
+    /**
+     * Ask the platform for the highest refresh rate available on the current
+     * display.
+     *
+     * Only public APIs are used:
+     *  - `WindowManager.LayoutParams.preferredRefreshRate` asks the platform
+     *    for a refresh rate without pinning a display mode, so the resolution
+     *    is never changed (unlike `preferredDisplayModeId`, which selects a
+     *    whole mode and can change the resolution).
+     *  - `View.setRequestedFrameRate` lets the view hierarchy vote for a
+     *    frame rate on Android 15+.
+     *
+     * The platform treats these as preferences: battery saver, thermal
+     * throttling and the display's own power policy can still lower the
+     * effective refresh rate.
+     */
     private fun setMaxFrameRate() {
         if (!AppConfig.MAX_FRAME_RATE_ENABLED) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val display = display ?: return
-            val supportedModes = display.supportedModes
-            val maxRefreshMode = supportedModes.maxByOrNull { it.refreshRate }
-            if (maxRefreshMode != null) {
-                val params: WindowManager.LayoutParams = window.attributes
-                params.preferredDisplayModeId = maxRefreshMode.modeId
-                window.attributes = params
-                Log.d("EUV_CACHE", "Set preferred display mode to ${maxRefreshMode.refreshRate}Hz (modeId=${maxRefreshMode.modeId})")
+        val display = currentDisplay()
+        if (display == null) {
+            Log.d("EUV_CACHE", "setMaxFrameRate: no display attached yet")
+            return
+        }
+        val refreshRate = highestRefreshRate(display)
+        if (refreshRate <= 0f) {
+            Log.d("EUV_CACHE", "setMaxFrameRate: display reports no usable refresh rate")
+            return
+        }
+        try {
+            val params: WindowManager.LayoutParams = window.attributes
+            // preferredRefreshRate keeps the current display mode (and hence the
+            // current resolution); preferredDisplayModeId is deliberately not
+            // used because it can select a mode with a different resolution.
+            params.preferredRefreshRate = refreshRate
+            params.preferredDisplayModeId = 0
+            window.attributes = params
+            Log.d(
+                "EUV_CACHE",
+                "Requested refresh rate ${refreshRate}Hz on display ${display.displayId} " +
+                    "(mode ${display.mode.modeId})"
+            )
+        } catch (e: Exception) {
+            Log.w("EUV_CACHE", "Failed to set preferredRefreshRate: ${e.message}")
+        }
+        applyViewFrameRateVote(refreshRate)
+    }
+
+    /**
+     * Vote for the highest refresh rate from the view hierarchy.
+     *
+     * `View.setRequestedFrameRate` is available from API 35 (Android 15). The
+     * vote is advisory: the framework combines it with votes from other views
+     * and the display decides the final rate.
+     */
+    private fun applyViewFrameRateVote(refreshRate: Float) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return
+        try {
+            val decorView = window.decorView
+            decorView.setRequestedFrameRate(refreshRate)
+            Log.d("EUV_CACHE", "View frame-rate vote set to ${refreshRate}Hz")
+        } catch (e: Exception) {
+            Log.w("EUV_CACHE", "Failed to set view frame rate vote: ${e.message}")
+        }
+    }
+
+    /**
+     * Register a DisplayManager listener so display changes (rotation, an
+     * external display being attached, or the activity being moved to another
+     * display on a foldable) re-apply the refresh request.
+     *
+     * Registration and unregistration are symmetric: the listener is only
+     * registered once and always removed in `onDestroy`.
+     */
+    private fun registerDisplayListener() {
+        if (displayListener != null) return
+        val displayManager =
+            getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager ?: return
+        val listener = object : DisplayManager.DisplayListener {
+            override fun onDisplayAdded(displayId: Int) {
+                Log.d("EUV_CACHE", "Display added: $displayId")
+                mainHandler.post { setMaxFrameRate() }
             }
-            try {
-                val surfaceControl = window.decorView.rootSurfaceControl
-                if (surfaceControl != null && maxRefreshMode != null) {
-                    val setFrameRateMethod = surfaceControl.javaClass.getMethod(
-                        "setFrameRate",
-                        Float::class.javaPrimitiveType,
-                        Int::class.javaPrimitiveType,
-                        Int::class.javaPrimitiveType
-                    )
-                    val frameRateCompatibilityFixedSource = SurfaceControl::class.java
-                        .getDeclaredField("FRAME_RATE_COMPATIBILITY_FIXED_SOURCE")
-                        .getInt(null)
-                    val changeFrameRateOnlyIfSeamless = SurfaceControl::class.java
-                        .getDeclaredField("CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS")
-                        .getInt(null)
-                    setFrameRateMethod.invoke(
-                        surfaceControl,
-                        maxRefreshMode.refreshRate,
-                        frameRateCompatibilityFixedSource,
-                        changeFrameRateOnlyIfSeamless
-                    )
-                    Log.d("EUV_CACHE", "Set frame rate to ${maxRefreshMode.refreshRate}fps via SurfaceControl")
-                }
-            } catch (e: Exception) {
-                Log.w("EUV_CACHE", "SurfaceControl.setFrameRate failed: ${e.message}")
+
+            override fun onDisplayChanged(displayId: Int) {
+                Log.d("EUV_CACHE", "Display changed: $displayId")
+                mainHandler.post { setMaxFrameRate() }
             }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            @Suppress("DEPRECATION")
-            val display = windowManager.defaultDisplay
-            val supportedModes = display.supportedModes
-            val maxRefreshMode = supportedModes.maxByOrNull { it.refreshRate }
-            if (maxRefreshMode != null) {
-                val params: WindowManager.LayoutParams = window.attributes
-                params.preferredDisplayModeId = maxRefreshMode.modeId
-                window.attributes = params
-                Log.d("EUV_CACHE", "Set preferred display mode to ${maxRefreshMode.refreshRate}Hz (modeId=${maxRefreshMode.modeId}, API <31)")
+
+            override fun onDisplayRemoved(displayId: Int) {
+                Log.d("EUV_CACHE", "Display removed: $displayId")
+                mainHandler.post { setMaxFrameRate() }
             }
+        }
+        try {
+            displayManager.registerDisplayListener(listener, mainHandler)
+            displayListener = listener
+            Log.d("EUV_CACHE", "DisplayManager listener registered")
+        } catch (e: Exception) {
+            Log.w("EUV_CACHE", "Failed to register DisplayManager listener: ${e.message}")
+        }
+    }
+
+    private fun unregisterDisplayListener() {
+        val listener = displayListener ?: return
+        displayListener = null
+        try {
+            val displayManager =
+                getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+            displayManager?.unregisterDisplayListener(listener)
+            Log.d("EUV_CACHE", "DisplayManager listener unregistered")
+        } catch (e: Exception) {
+            Log.w("EUV_CACHE", "Failed to unregister DisplayManager listener: ${e.message}")
         }
     }
 
@@ -427,23 +576,27 @@ class MainActivity : TauriActivity() {
             domStorageEnabled = true
             javaScriptEnabled = true
             @Suppress("DEPRECATION")
-            setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
-            @Suppress("DEPRECATION")
             layoutAlgorithm = android.webkit.WebSettings.LayoutAlgorithm.NORMAL
             blockNetworkImage = false
             loadsImagesAutomatically = true
             cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
         }
-        if (AppConfig.ANTI_ALIASING) {
-            val paint: Paint = Paint().apply {
-                isAntiAlias = true
-                isFilterBitmap = true
-                isDither = true
-                isSubpixelText = true
-            }
-            webView.setLayerType(View.LAYER_TYPE_HARDWARE, paint)
+        // The application/window enables GPU acceleration. NONE keeps the
+        // accelerated WebView compositor without an extra full-window texture.
+        webView.setLayerType(View.LAYER_TYPE_NONE, null)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true)
+        }
+        if (webView.isAttachedToWindow) {
+            Log.i("EUV_RENDERER", "hardwareAccelerated=${webView.isHardwareAccelerated} layerType=${webView.layerType}")
         } else {
-            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            webView.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(view: View) {
+                    Log.i("EUV_RENDERER", "hardwareAccelerated=${view.isHardwareAccelerated} layerType=${view.layerType}")
+                    view.removeOnAttachStateChangeListener(this)
+                }
+                override fun onViewDetachedFromWindow(view: View) = Unit
+            })
         }
         webView.setBackgroundColor(Color.parseColor(AppConfig.BACKGROUND_COLOR))
         // Edge-to-edge IME bridge. The activity opted into

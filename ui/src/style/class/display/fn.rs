@@ -77,49 +77,228 @@ class! {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Euv Button Variants
+    // Euv Button — the registry button
+    //
+    // The control is inline-flex so it hugs its label instead of filling
+    // the row, it carries the 14px control type scale, and it answers a
+    // keyboard focus with a ring drawn from the theme's own ink.
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_button_primary_md {
-        display: "flex";
-        justify-content: "center";
+    pub c_euv_button {
+        display: "inline-flex";
         align-items: "center";
+        justify-content: "center";
         gap: var!(space-sm);
-        flex: "1 1 120px";
-        height: var!(control-height);
-        padding: format!("0px {}", var!(space-xl));
-        background: var!(primary);
-        color: var!(primary-foreground);
-        cursor: "pointer";
-        font-size: var!(font-base);
-        font-weight: var!(font-weight-medium);
-        outline: "none";
         white-space: "nowrap";
+        border-radius: var!(radius-md);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+        box-sizing: "border-box";
+        cursor: "pointer";
         user-select: "none";
         -webkit-user-select: "none";
-        box-sizing: "border-box";
-        // The colour follows the standard curve, the press the shortest one
-        // in the system: a press has to land while the finger is still down.
         transition: format!(
-        "background-color {} {}, transform {} {}",
+        "background-color {} {}, border-color {} {}, color {} {}, box-shadow {} {}, transform {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
         var!(duration-fast),
         var!(ease-out),
         var!(duration-press),
         var!(ease-accelerate)
         );
-        :hover {
-            background: var!(primary-hover);
+        :focus-visible {
+            outline: "none";
+            box-shadow: format!("0 0 0 2px {}, 0 0 0 4px {}", var!(background), var!(ring));
         }
         // The scale is what makes the press read as the button taking the
         // weight of the finger instead of a colour swap.
         :active {
-            background: var!(primary-hover);
             transform: format!("scale({})", var!(press-scale));
         }
         :disabled {
-            background: var!(muted-foreground);
-            cursor: "not-allowed";
-            opacity: "1";
+            pointer-events: "none";
+            opacity: "0.5";
+        }
+    }
+
+    pub c_euv_button_primary {
+        background: var!(primary);
+        color: var!(primary-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: var!(primary-hover);
+        }
+    }
+
+    pub c_euv_button_default {
+        background: var!(primary);
+        color: var!(primary-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: var!(primary-hover);
+        }
+    }
+
+    pub c_euv_button_secondary {
+        background: var!(secondary);
+        color: var!(secondary-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: format!("color-mix(in srgb, {} 80%, transparent)", var!(secondary));
+        }
+    }
+
+    pub c_euv_button_destructive {
+        background: var!(destructive);
+        color: var!(destructive-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: format!("color-mix(in srgb, {} 90%, transparent)", var!(destructive));
+        }
+    }
+
+    pub c_euv_button_outline {
+        background: var!(background);
+        color: var!(foreground);
+        border: format!("{} solid {}", var!(border-width), var!(input));
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub c_euv_button_ghost {
+        background: "transparent";
+        color: var!(foreground);
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub c_euv_button_link {
+        background: "transparent";
+        color: var!(primary);
+        text-decoration: "none";
+        text-underline-offset: "4px";
+        :hover {
+            text-decoration: "underline";
+        }
+    }
+
+    pub c_euv_button_size_default {
+        height: "40px";
+        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+    }
+
+    pub c_euv_button_size_small {
+        height: "36px";
+        padding: format!("0px {}", var!(space-md));
+    }
+
+    pub c_euv_button_size_large {
+        height: "44px";
+        padding: format!("0px {}", var!(space-3xl));
+    }
+
+    pub c_euv_button_size_icon {
+        height: "40px";
+        width: "40px";
+        padding: "0px";
+    }
+
+    // The legacy single-class button kept for the pages that name it
+    // directly. It carries the registry look in one rule so a caller that
+    // cannot compose classes still gets the inline-flex control.
+    pub c_euv_button_primary_md {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        height: "40px";
+        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+        background: var!(primary);
+        color: var!(primary-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        cursor: "pointer";
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+        white-space: "nowrap";
+        user-select: "none";
+        -webkit-user-select: "none";
+        box-sizing: "border-box";
+        transition: format!(
+        "background-color {} {}, border-color {} {}, color {} {}, box-shadow {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out)
+        );
+        :hover {
+            background: var!(primary-hover);
+        }
+        :focus-visible {
+            outline: "none";
+            box-shadow: format!("0 0 0 2px {}, 0 0 0 4px {}", var!(background), var!(ring));
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
+        }
+        border-radius: var!(radius-md);
+    }
+
+    pub c_euv_button_outline_md {
+        box-shadow: var!(shadow-xs);
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        height: "40px";
+        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+        background: var!(background);
+        color: var!(foreground);
+        border: format!("{} solid {}", var!(border-width), var!(input));
+        cursor: "pointer";
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+        white-space: "nowrap";
+        user-select: "none";
+        -webkit-user-select: "none";
+        box-sizing: "border-box";
+        transition: format!(
+        "background-color {} {}, border-color {} {}, color {} {}, box-shadow {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out)
+        );
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :focus-visible {
+            outline: "none";
+            box-shadow: format!("0 0 0 2px {}, 0 0 0 4px {}", var!(background), var!(ring));
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
         }
         border-radius: var!(radius-md);
     }
@@ -148,6 +327,32 @@ class! {
         padding: format!("{} {}", var!(space-sm), var!(space-lg));
         border-radius: var!(radius-sm);
         box-sizing: "border-box";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Alerts — the registry's two variants
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_alert_default {
+        position: "relative";
+        width: "100%";
+        box-sizing: "border-box";
+        padding: var!(space-lg);
+        background: var!(background);
+        color: var!(foreground);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-lg);
+    }
+
+    pub(crate) c_euv_alert_destructive {
+        position: "relative";
+        width: "100%";
+        box-sizing: "border-box";
+        padding: var!(space-lg);
+        color: var!(destructive);
+        background: var!(background);
+        border: format!("{} solid {}", var!(border-width), var!(destructive));
+        border-radius: var!(radius-lg);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1050,63 +1255,15 @@ class! {
         }
     }
 
-    pub(crate) c_euv_button_outline_md {
-        box-shadow: var!(shadow-xs);
-        display: "flex";
-        justify-content: "center";
-        align-items: "center";
-        gap: var!(space-sm);
-        flex: "1 1 120px";
-        // Both button variants read the control-height token, so a primary
-        // and an outline button standing side by side are the same height.
-        height: var!(control-height);
-        padding: format!("0px {}", var!(space-xl));
-        color: var!(foreground);
-        background: var!(background);
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        cursor: "pointer";
-        font-size: var!(font-base);
-        font-weight: var!(font-weight-medium);
-        outline: "none";
-        white-space: "nowrap";
-        user-select: "none";
-        -webkit-user-select: "none";
-        box-sizing: "border-box";
-        // Same vocabulary as the primary button: the standard curve for the
-        // colour, the press curve for the scale.
-        transition: format!(
-        "border-color {} {}, background-color {} {}, transform {} {}",
-        var!(duration-fast),
-        var!(ease-out),
-        var!(duration-fast),
-        var!(ease-out),
-        var!(duration-press),
-        var!(ease-accelerate)
-        );
-        :hover {
-            background: var!(secondary);
-            color: var!(secondary-foreground);
-            border-color: var!(input);
-        }
-        :active {
-            transform: format!("scale({})", var!(press-scale));
-        }
-        :focus-visible {
-            outline: "none";
-        }
-        :disabled {
-            background: var!(muted-foreground);
-            cursor: "not-allowed";
-            opacity: "1";
-        }
-        border-radius: var!(radius-md);
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Badges
+    //
+    // The badge is the registry's badge: a small pill with four variants.
+    // The shared class carries the shape and the type scale, the variant
+    // classes carry the fill.
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub(crate) c_badge {
+    pub(crate) c_euv_badge {
         // The wrapping-atom recipe (§7): an inline flex box is atomic, so a
         // wrapped label left-aligns while the border stays at the parent
         // width — the right border reads as missing. The four `c_euv_tag_*`
@@ -1117,13 +1274,19 @@ class! {
         text-align: "center";
         line-height: "1";
         box-sizing: "border-box";
-        color: var!(primary-foreground);
         padding: format!("{} {}", var!(space-2xs), var!(space-sm));
-        border: format!("{} solid {}", var!(border-width), var!(primary));
         font-size: var!(font-xs);
         font-weight: var!(font-weight-semibold);
         cursor: "pointer";
-        background: var!(primary);
+        transition: format!(
+        "background-color {} {}, border-color {} {}, color {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out)
+        );
         :focus-visible {
             outline: "none";
         }
@@ -1134,23 +1297,28 @@ class! {
         border-radius: var!(radius-full);
     }
 
-    pub(crate) c_badge_outline {
-        display: "inline-block";
-        vertical-align: "middle";
-        text-align: "center";
-        line-height: "1";
-        box-sizing: "border-box";
+    pub(crate) c_euv_badge_default {
+        color: var!(primary-foreground);
+        background: var!(primary);
+        border: format!("{} solid transparent", var!(border-width));
+    }
+
+    pub(crate) c_euv_badge_secondary {
+        color: var!(secondary-foreground);
+        background: var!(secondary);
+        border: format!("{} solid transparent", var!(border-width));
+    }
+
+    pub(crate) c_euv_badge_destructive {
+        color: var!(destructive-foreground);
+        background: var!(destructive);
+        border: format!("{} solid transparent", var!(border-width));
+    }
+
+    pub(crate) c_euv_badge_outline {
         color: var!(foreground);
-        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
-        font-size: var!(font-xs);
-        font-weight: var!(font-weight-semibold);
-        cursor: "pointer";
-        border: format!("1.5px solid {}", var!(border));
-        @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(space-2xs), var!(space-xs));
-            font-size: var!(font-xs);
-        }
-        border-radius: var!(radius-full);
+        background: "transparent";
+        border: format!("{} solid {}", var!(border-width), var!(border));
     }
 
     pub(crate) c_euv_tag_solid_black {
@@ -1407,6 +1575,27 @@ class! {
         font-size: var!(font-sm);
         font-family: var!(font-family-mono);
         line-height: "1.5";
+    }
+
+    pub(crate) c_euv_kbd {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-2xs);
+        min-width: "20px";
+        height: "20px";
+        padding-inline: var!(space-2xs);
+        border-radius: var!(radius-sm);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        background: var!(muted);
+        color: var!(muted-foreground);
+        font-family: var!(font-family-mono);
+        font-size: var!(font-xs);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+        white-space: "nowrap";
+        user-select: "none";
+        -webkit-user-select: "none";
     }
 
     pub(crate) c_euv_text_deletion {
@@ -1825,6 +2014,308 @@ class! {
         width: "100%";
         box-sizing: "border-box";
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Accordion
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_accordion {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+    }
+
+    pub(crate) c_euv_accordion_item {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
+    }
+
+    pub(crate) c_euv_accordion_header {
+        display: "flex";
+        width: "100%";
+    }
+
+    pub(crate) c_euv_accordion_trigger {
+        display: "flex";
+        flex: "1";
+        align-items: "center";
+        justify-content: "space-between";
+        gap: var!(space-sm);
+        padding: format!("{} 0px", var!(space-lg));
+        border: "none";
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1.5";
+        text-align: "left";
+        cursor: "pointer";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :hover {
+            color: var!(muted-foreground);
+            text-decoration: "underline";
+        }
+        :disabled {
+            opacity: "0.5";
+            cursor: "not-allowed";
+        }
+    }
+
+    pub(crate) c_euv_accordion_trigger_open {
+        text-decoration: "underline";
+    }
+
+    pub(crate) c_euv_accordion_icon {
+        flex-shrink: "0";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        border-right: format!("{} solid {}", var!(border-width), var!(muted-foreground));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(muted-foreground));
+        transform: "rotate(45deg)";
+        transform-origin: "center";
+        transition: format!("{} {}", var!(duration-normal), var!(ease-out));
+    }
+
+    pub(crate) c_euv_accordion_icon_open {
+        transform: "rotate(225deg)";
+    }
+
+    pub(crate) c_euv_accordion_content {
+        overflow: "hidden";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        line-height: "1.5";
+    }
+
+    pub(crate) c_euv_accordion_content_open {
+        display: "block";
+    }
+
+    pub(crate) c_euv_accordion_content_closed {
+        display: "none";
+    }
+
+    pub(crate) c_euv_accordion_content_inner {
+        padding: format!("0px 0px {}", var!(space-lg));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Item
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_item_group {
+        display: "flex";
+        flex-direction: "column";
+    }
+
+    pub(crate) c_euv_item_default {
+        display: "flex";
+        flex-wrap: "wrap";
+        align-items: "center";
+        border: format!("{} solid transparent", var!(border-width));
+        border-radius: var!(radius-md);
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        outline: "none";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :focus-within {
+            border-color: var!(ring);
+        }
+    }
+
+    pub(crate) c_euv_item_outline {
+        display: "flex";
+        flex-wrap: "wrap";
+        align-items: "center";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        outline: "none";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :focus-within {
+            border-color: var!(ring);
+        }
+    }
+
+    pub(crate) c_euv_item_muted {
+        display: "flex";
+        flex-wrap: "wrap";
+        align-items: "center";
+        border: format!("{} solid transparent", var!(border-width));
+        border-radius: var!(radius-md);
+        background: var!(muted);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        outline: "none";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :focus-within {
+            border-color: var!(ring);
+        }
+    }
+
+    pub(crate) c_euv_item_size_default {
+        gap: var!(space-lg);
+        padding: var!(space-lg);
+    }
+
+    pub(crate) c_euv_item_size_sm {
+        gap: "10px";
+        padding: "12px 16px";
+    }
+
+    pub(crate) c_euv_item_media_default {
+        display: "flex";
+        flex-shrink: "0";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        background: "transparent";
+    }
+
+    pub(crate) c_euv_item_media_icon {
+        display: "flex";
+        flex-shrink: "0";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        width: "32px";
+        height: "32px";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-sm);
+        background: var!(muted);
+        color: var!(foreground);
+        font-size: var!(font-base);
+    }
+
+    pub(crate) c_euv_item_media_image {
+        display: "flex";
+        flex-shrink: "0";
+        align-items: "center";
+        justify-content: "center";
+        width: "40px";
+        height: "40px";
+        overflow: "hidden";
+        border-radius: var!(radius-sm);
+        background: var!(muted);
+    }
+
+    pub(crate) c_euv_item_content {
+        display: "flex";
+        flex: "1";
+        flex-direction: "column";
+        gap: var!(space-xs);
+        min-width: "0px";
+    }
+
+    pub(crate) c_euv_item_title {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1.25";
+    }
+
+    pub(crate) c_euv_item_description {
+        margin: "0px";
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-normal);
+        line-height: "1.5";
+    }
+
+    pub(crate) c_euv_item_actions {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+    }
+
+    pub(crate) c_euv_item_header {
+        display: "flex";
+        width: "100%";
+        align-items: "center";
+        justify-content: "space-between";
+        gap: var!(space-sm);
+    }
+
+    pub(crate) c_euv_item_footer {
+        display: "flex";
+        width: "100%";
+        align-items: "center";
+        justify-content: "space-between";
+        gap: var!(space-sm);
+    }
+
+    pub(crate) c_euv_item_separator {
+        width: "100%";
+        height: "1px";
+        margin: "0px";
+        background: var!(border);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Spinner
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_spinner_root {
+        display: "inline-flex";
+        align-items: "center";
+        gap: var!(space-sm);
+    }
+
+    pub(crate) c_euv_spinner {
+        display: "inline-block";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        border: format!("{} solid {}", var!(border-width), var!(muted));
+        border-top-color: var!(foreground);
+        border-radius: var!(radius-full);
+        box-sizing: "border-box";
+        vertical-align: "middle";
+        line-height: "1";
+        text-align: "center";
+        animation: "euv-spin 0.8s linear infinite";
+    }
+
+    pub(crate) c_euv_spinner_label {
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        white-space: "nowrap";
+    }
+
+    pub(crate) c_euv_spinner_label_hidden {
+        display: "none";
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Aspect Ratio
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_aspect_ratio {
+        position: "relative";
+        width: "100%";
+        overflow: "hidden";
+    }
+    pub c_euv_separator {
+        flex-shrink: "0";
+        background: var!(border);
+    }
+
+    pub c_euv_separator_horizontal {
+        height: "1px";
+        width: "100%";
+    }
+
+    pub c_euv_separator_vertical {
+        height: "100%";
+        width: "1px";
+    }
 }
 
 #[cfg(feature = "theme-custom")]
@@ -1844,10 +2335,36 @@ class! {
     pub c_button_controls {}
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Euv Button Variants
+    // Euv Button — the registry button
     // ═══════════════════════════════════════════════════════════════════════════
 
+    pub c_euv_button {}
+
+    pub c_euv_button_primary {}
+
+    pub c_euv_button_default {}
+
+    pub c_euv_button_secondary {}
+
+    pub c_euv_button_destructive {}
+
+    pub c_euv_button_outline {}
+
+    pub c_euv_button_ghost {}
+
+    pub c_euv_button_link {}
+
+    pub c_euv_button_size_default {}
+
+    pub c_euv_button_size_small {}
+
+    pub c_euv_button_size_large {}
+
+    pub c_euv_button_size_icon {}
+
     pub c_euv_button_primary_md {}
+
+    pub c_euv_button_outline_md {}
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Status Boxes
@@ -1856,6 +2373,14 @@ class! {
     pub c_error_box {}
 
     pub c_success_box {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Alerts — the registry's two variants
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_alert_default {}
+
+    pub(crate) c_euv_alert_destructive {}
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Counter / Signals Demo
@@ -2062,15 +2587,19 @@ class! {
 
     pub(crate) c_modal_close_button {}
 
-    pub(crate) c_euv_button_outline_md {}
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Badges
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub(crate) c_badge {}
+    pub(crate) c_euv_badge {}
 
-    pub(crate) c_badge_outline {}
+    pub(crate) c_euv_badge_default {}
+
+    pub(crate) c_euv_badge_secondary {}
+
+    pub(crate) c_euv_badge_destructive {}
+
+    pub(crate) c_euv_badge_outline {}
 
     pub(crate) c_euv_tag_solid_black {}
 
@@ -2153,6 +2682,8 @@ class! {
     pub(crate) c_euv_text_secondary {}
 
     pub(crate) c_euv_text_mono {}
+
+    pub(crate) c_euv_kbd {}
 
     pub(crate) c_euv_text_deletion {}
 
@@ -2274,4 +2805,89 @@ class! {
     // ═══════════════════════════════════════════════════════════════════════════
 
     pub(crate) c_euv_affix {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Accordion
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_accordion {}
+
+    pub(crate) c_euv_accordion_item {}
+
+    pub(crate) c_euv_accordion_header {}
+
+    pub(crate) c_euv_accordion_trigger {}
+
+    pub(crate) c_euv_accordion_trigger_open {}
+
+    pub(crate) c_euv_accordion_icon {}
+
+    pub(crate) c_euv_accordion_icon_open {}
+
+    pub(crate) c_euv_accordion_content {}
+
+    pub(crate) c_euv_accordion_content_open {}
+
+    pub(crate) c_euv_accordion_content_closed {}
+
+    pub(crate) c_euv_accordion_content_inner {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Item
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_item_group {}
+
+    pub(crate) c_euv_item_default {}
+
+    pub(crate) c_euv_item_outline {}
+
+    pub(crate) c_euv_item_muted {}
+
+    pub(crate) c_euv_item_size_default {}
+
+    pub(crate) c_euv_item_size_sm {}
+
+    pub(crate) c_euv_item_media_default {}
+
+    pub(crate) c_euv_item_media_icon {}
+
+    pub(crate) c_euv_item_media_image {}
+
+    pub(crate) c_euv_item_content {}
+
+    pub(crate) c_euv_item_title {}
+
+    pub(crate) c_euv_item_description {}
+
+    pub(crate) c_euv_item_actions {}
+
+    pub(crate) c_euv_item_header {}
+
+    pub(crate) c_euv_item_footer {}
+
+    pub(crate) c_euv_item_separator {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Spinner
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_spinner_root {}
+
+    pub(crate) c_euv_spinner {}
+
+    pub(crate) c_euv_spinner_label {}
+
+    pub(crate) c_euv_spinner_label_hidden {}
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Aspect Ratio
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub(crate) c_euv_aspect_ratio {}
+    pub c_euv_separator {}
+
+    pub c_euv_separator_horizontal {}
+
+    pub c_euv_separator_vertical {}
 }

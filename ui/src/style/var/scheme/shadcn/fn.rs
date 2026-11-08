@@ -90,19 +90,19 @@ vars! {
         // ═══════════════════════════════════════════════════════════════════════
 
         role-background-light: "#ffffff";
-        role-foreground-light: "#0a0a0a";
+        role-foreground-light: "#000000";
         role-card-light: "#ffffff";
-        role-card-foreground-light: "#0a0a0a";
+        role-card-foreground-light: "#000000";
         role-popover-light: "#ffffff";
-        role-popover-foreground-light: "#0a0a0a";
+        role-popover-foreground-light: "#000000";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Brand and Neutrals — the light half.
         // ═══════════════════════════════════════════════════════════════════════
 
-        role-primary-light: "#171717";
+        role-primary-light: "#000000";
         role-primary-foreground-light: "#fafafa";
-        role-primary-hover-light: "rgba(23, 23, 23, 0.90)";
+        role-primary-hover-light: "rgba(0, 0, 0, 0.80)";
         role-secondary-light: "#f5f5f5";
         role-secondary-foreground-light: "#171717";
         role-muted-light: "#f5f5f5";
@@ -114,8 +114,8 @@ vars! {
         // Status — the light half.
         // ═══════════════════════════════════════════════════════════════════════
 
-        role-destructive-light: "#dc2626";
-        role-destructive-foreground-light: "#ffffff";
+        role-destructive-light: "#e40014";
+        role-destructive-foreground-light: "#fcf3f3";
         role-success-light: "#16a34a";
         role-success-foreground-light: "#ffffff";
         role-success-container-light: "#dcfce7";
@@ -130,7 +130,7 @@ vars! {
 
         role-border-light: "#e5e5e5";
         role-input-light: "#e5e5e5";
-        role-ring-light: "#a3a3a3";
+        role-ring-light: "#a1a1a1";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Scrollbar — the light half.
@@ -157,20 +157,20 @@ vars! {
 
         role-primary-dark: "#e5e5e5";
         role-primary-foreground-dark: "#171717";
-        role-primary-hover-dark: "rgba(229, 229, 229, 0.90)";
+        role-primary-hover-dark: "rgba(229, 229, 229, 0.80)";
         role-secondary-dark: "#262626";
         role-secondary-foreground-dark: "#fafafa";
         role-muted-dark: "#262626";
-        role-muted-foreground-dark: "#a3a3a3";
-        role-accent-dark: "#262626";
+        role-muted-foreground-dark: "#a1a1a1";
+        role-accent-dark: "#404040";
         role-accent-foreground-dark: "#fafafa";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Status — the dark half.
         // ═══════════════════════════════════════════════════════════════════════
 
-        role-destructive-dark: "#ef4444";
-        role-destructive-foreground-dark: "#ffffff";
+        role-destructive-dark: "#ff6568";
+        role-destructive-foreground-dark: "#df2225";
         role-success-dark: "#22c55e";
         role-success-foreground-dark: "#052e16";
         role-success-container-dark: "#052e16";

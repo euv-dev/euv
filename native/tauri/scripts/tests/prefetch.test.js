@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Tests for scripts/prefetch-cache.js using a real local HTTP fixture server.
+ * Tests for scripts/cache/prefetch-cache.js using a real local HTTP fixture server.
  * Run: node --test scripts/tests/prefetch.test.js
  */
 const test = require('node:test');
@@ -20,7 +20,7 @@ const {
   deriveBaseUrl,
   extractJsDependencies,
   downloadUrl,
-} = require('../prefetch-cache');
+} = require('../cache/prefetch-cache');
 
 function tmpRoot(name) {
   return fs.mkdtempSync(path.join(os.tmpdir(), `prefetch-${name}-`));

@@ -12,7 +12,7 @@
     "allow-update-cache",
     "allow-resolve-bridge-group-permissions"
   ],
-  "platforms": ["android", "linux", "macOS", "windows"],
+  "platforms": ["android", "iOS", "linux", "macOS", "windows"],
   "remote": {
     "urls": ["http://*", "https://*"]
   }

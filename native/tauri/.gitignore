@@ -4,9 +4,11 @@
 target
 /.vscode
 node_modules
+.kotlin/
 .DS_Store
 bundled-cache
-sdk
+/.cache/
+/artifacts/
 
 # Build artifacts
 gen/android/build/
@@ -15,6 +17,7 @@ gen/android/app/build/
 gen/android/app/src/main/assets/
 src-tauritarget/
 src-tauri/gen/apple/build/
+src-tauri/gen/apple/
 *.apk
 *.aab
 *.ipa
@@ -24,7 +27,7 @@ src-tauri/gen/apple/build/
 local-deps/
 
 # Secrets
-keystore.jks
+resources/signing/keystore.jks
 keystore.properties
 local.properties
 
@@ -41,7 +44,7 @@ src-tauri/gen/schemas/
 !/src-tauri/Cargo.lock
 
 # Preserve files already tracked by the original client repository.
-!/keystore.jks
+!/resources/signing/keystore.jks
 !/src-tauri/gen/schemas/
 /src-tauri/gen/schemas/*
 !/src-tauri/gen/schemas/acl-manifests.json

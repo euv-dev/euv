@@ -1,256 +1,5 @@
 use super::*;
 
-/// JavaScript injected into **every** webview on each page load to intercept any
-/// attempt to open an external link and route it to the system's default
-/// browser instead of navigating in-app.
-///
-/// Because it is injected from [`Builder::on_page_load`] — an application-level
-/// hook that fires for every webview the app owns on every page load — it also
-/// covers webviews created dynamically at runtime, after the app has started.
-///
-/// The script is idempotent (guarded by `__euvLinkGuard`) and intercepts:
-/// - clicks on `<a href>` (including `target="_blank"`),
-/// - `window.open(...)` calls,
-/// - programmatic assignments to `window.location` / `location.href`.
-///
-/// Internal targets (the app's own `euv://` scheme, the Tauri/wry runtime
-/// origins on `*.localhost`, relative URLs, and `about:`/`data:`/`blob:`/
-/// `javascript:` URLs) are left untouched so in-app navigation keeps working.
-/// Any genuine external `http(s)`/`mailto:`/`tel:`/… target is handed to the
-/// `plugin:opener|open_url` command, which opens it in the system browser.
-const LINK_INTERCEPTOR_SCRIPT: &str = r#"
-(function () {
-  if (window.__euvLinkGuard) { return; }
-  window.__euvLinkGuard = true;
-  if (!window.bridge && window.__TAURI__) { window.bridge = window.__TAURI__; delete window.__TAURI__; }
-
-  function isInternal(href) {
-    if (!href) { return true; }
-    var s = String(href).trim();
-    if (s === '' || s.charAt(0) === '#') { return true; }
-    var lower = s.toLowerCase();
-    if (lower.indexOf('euv://') === 0) { return true; }
-    if (lower.indexOf('about:') === 0
-        || lower.indexOf('data:') === 0
-        || lower.indexOf('blob:') === 0
-        || lower.indexOf('javascript:') === 0) { return true; }
-    var u;
-    try { u = new URL(s, document.baseURI); } catch (e) { return true; }
-    var scheme = (u.protocol || '').replace(':', '').toLowerCase();
-    if (scheme === 'euv' || scheme === 'tauri' || scheme === 'asset'
-        || scheme === 'about' || scheme === 'data' || scheme === 'blob'
-        || scheme === 'javascript') { return true; }
-    if (scheme === 'http' || scheme === 'https') {
-      var host = (u.hostname || '').toLowerCase();
-      if (host === 'localhost' || host === 'tauri.localhost'
-          || host === '127.0.0.1' || host.indexOf('.localhost') !== -1
-          && host.lastIndexOf('.localhost') === host.length - '.localhost'.length) {
-        return true;
-      }
-      if (u.origin === window.location.origin) { return true; }
-      return false;
-    }
-    return false;
-  }
-
-  function openExternal(href) {
-    var url;
-    try { url = new URL(String(href), document.baseURI).href; }
-    catch (e) { url = String(href); }
-    try {
-      var core = window.bridge && window.bridge.core;
-      if (core && typeof core.invoke === 'function') {
-        core.invoke('plugin:opener|open_url', { url: url, with: null });
-        return true;
-      }
-      if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === 'function') {
-        window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', { url: url, with: null });
-        return true;
-      }
-    } catch (e) {}
-    return false;
-  }
-
-  // 1) Intercept link clicks (covers target="_blank" and normal anchors).
-  document.addEventListener('click', function (event) {
-    if (event.defaultPrevented || event.button !== 0
-        || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) { return; }
-    var node = event.target;
-    while (node && node.nodeName && node.nodeName.toLowerCase() !== 'a') {
-      node = node.parentNode;
-    }
-    if (!node || node.nodeName.toLowerCase() !== 'a') { return; }
-    var href = node.getAttribute('href') || node.href;
-    if (isInternal(href)) { return; }
-    if (openExternal(href)) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  }, true);
-
-  // 2) Intercept window.open for external URLs.
-  var nativeOpen = window.open;
-  window.open = function (url, name, features) {
-    if (url && !isInternal(url)) {
-      if (openExternal(url)) { return null; }
-    }
-    return nativeOpen ? nativeOpen.apply(window, arguments) : null;
-  };
-})();
-"#;
-
-/// JavaScript injected into **every** webview on each page load to reconcile the
-/// loaded euv page with the app's immersive (edge-to-edge) window.
-///
-/// The app intentionally keeps immersive mode on: the WebView is laid out under
-/// the system status bar, so the page must offset its top chrome by the real
-/// `env(safe-area-inset-top)` value. The script:
-///
-/// 1. Sets `window.__EUV_IMMERSIVE__ = true` so euv-ui (>= 0.18.12) applies the
-///    measured inset to `--euv-mobile-safe-top` itself at app init.
-/// 2. Ensures the document viewport meta contains `viewport-fit=cover`, which is
-///    required for `env(safe-area-inset-*)` to report real insets in the
-///    WebView (the public euv templates ship without it because letterboxed
-///    browsers must not consume the top inset).
-/// 3. Measures `env(safe-area-inset-top)` through a probe element and writes it
-///    to the `--euv-mobile-safe-top` CSS custom property on `<html>`, which
-///    `c_mobile_header` / `c_mobile_nav_drawer` consume for their top padding.
-/// 4. Measures the soft-keyboard inset through `visualViewport`: when the IME
-///    opens, `visualViewport.height` shrinks and the difference against a
-///    baseline window inner height is the keyboard height. The value is
-///    written to `--euv-keyboard-height` on `<html>` and exposed as
-///    `window.__EUV_KEYBOARD_HEIGHT__`. Both are kept in sync with the native
-///    Android IME inset dispatch (`euv:keyboard-height` CustomEvent) when the
-///    native side is available — native values always win because they
-///    include navigation-bar / gesture-area compensation the visualViewport
-///    derivation cannot.
-/// 5. Injects a small compat stylesheet so cached copies of the page built with
-///    euv-ui <= 0.18.11 (whose header does not consume the variable) still get
-///    the correct padding, plus a keyboard-bottom helper that pads any element
-///    marked `data-euv-keyboard-aware` so the focused input never sits behind
-///    the soft keyboard even on pages that do not consume
-///    `--euv-keyboard-height` themselves.
-///
-/// It re-runs on `DOMContentLoaded`, `load`, `resize`, `orientationchange`,
-/// `focusin`, `focusout`, and `visualViewport.resize` so viewport edits made
-/// by the page itself, device rotation, and IME state changes are handled.
-const IMMERSIVE_SAFE_AREA_SCRIPT: &str = r#"
-(function () {
-  if (window.__euvImmersiveGuard) { return; }
-  window.__euvImmersiveGuard = true;
-  window.__EUV_IMMERSIVE__ = true;
-
-  function ensureCover() {
-    var m = document.querySelector('meta[name="viewport"]');
-    if (!m) {
-      m = document.createElement('meta');
-      m.name = 'viewport';
-      m.content = 'width=device-width, initial-scale=1.0';
-      (document.head || document.documentElement).appendChild(m);
-    }
-    if (!/viewport-fit\s*=\s*cover/.test(m.content)) {
-      m.content = m.content.replace(/\s*$/, '') + ', viewport-fit=cover';
-    }
-  }
-
-  function applyInset() {
-    ensureCover();
-    var probe = document.createElement('div');
-    var s = probe.style;
-    s.position = 'absolute';
-    s.visibility = 'hidden';
-    s.pointerEvents = 'none';
-    s.paddingTop = 'env(safe-area-inset-top, 0px)';
-    (document.body || document.documentElement).appendChild(probe);
-    var top = getComputedStyle(probe).paddingTop;
-    probe.parentNode.removeChild(probe);
-    document.documentElement.style.setProperty('--euv-mobile-safe-top', top);
-  }
-
-  function injectCompat() {
-    if (document.getElementById('euv-immersive-compat')) { return; }
-    var st = document.createElement('style');
-    st.id = 'euv-immersive-compat';
-    st.textContent =
-      '.c_mobile_header{padding-top:var(--euv-mobile-safe-top,0px)!important;' +
-      'height:calc(var(--mobile-header-height,52px) + var(--euv-mobile-safe-top,0px))!important}' +
-      '.c_mobile_nav_drawer{padding-top:var(--euv-mobile-safe-top,0px)!important}' +
-      // Bottom-aware elements (modals, sticky toolbars, fixed bottom bars) opt
-      // in to the keyboard inset by carrying `data-euv-keyboard-aware`. They
-      // receive a transition-aware bottom padding that lifts them above the
-      // soft keyboard without any framework change.
-      '[data-euv-keyboard-aware]{padding-bottom:var(--euv-keyboard-height,0px)!important;' +
-      'transition:padding-bottom 0.18s ease-out}';
-    (document.head || document.documentElement).appendChild(st);
-  }
-
-  // Soft-keyboard inset bridge. Tracks visualViewport height against a
-  // baseline window inner height so the page can react to IME show / hide.
-  var baselineHeight = window.innerHeight;
-  function applyKeyboard(h) {
-    var px = (h > 0) ? (h + 'px') : '0px';
-    document.documentElement.style.setProperty('--euv-keyboard-height', px);
-    window.__EUV_KEYBOARD_HEIGHT__ = h;
-  }
-  applyKeyboard(0);
-
-  // Native Android IME dispatch (MainActivity OnApplyWindowInsetsListener) wins
-  // when it has reported anything; visualViewport is the fallback for iOS /
-  // desktop / older Android builds where the native bridge is absent.
-  window.addEventListener('euv:keyboard-height', function (e) {
-    var h = (e && e.detail && typeof e.detail.height === 'number')
-      ? e.detail.height : 0;
-    if (h > 0) {
-      baselineHeight = window.innerHeight;
-    }
-    applyKeyboard(h);
-  });
-
-  if (window.visualViewport) {
-    var vv = window.visualViewport;
-    function fromViewport() {
-      if (typeof window.__EUV_KEYBOARD_HEIGHT__ === 'number'
-          && window.__EUV_KEYBOARD_HEIGHT__ > 0) {
-        // Native has authoritative value; do not override.
-        baselineHeight = window.innerHeight;
-        return;
-      }
-      var kb = Math.max(0, baselineHeight - vv.height - vv.offsetTop);
-      applyKeyboard(Math.round(kb));
-    }
-    vv.addEventListener('resize', fromViewport);
-    window.addEventListener('focusin', function () {
-      baselineHeight = window.innerHeight;
-      setTimeout(fromViewport, 0);
-    });
-    window.addEventListener('focusout', function () {
-      if (typeof window.__EUV_KEYBOARD_HEIGHT__ !== 'number'
-          || window.__EUV_KEYBOARD_HEIGHT__ === 0) {
-        applyKeyboard(0);
-      }
-    });
-  }
-
-  // Honor any push from native that arrived before this script ran.
-  if (typeof window.__euvInitialKeyboardHeight === 'number') {
-    applyKeyboard(window.__euvInitialKeyboardHeight);
-  }
-
-  function boot() {
-    try {
-      applyInset();
-      injectCompat();
-    } catch (_) {}
-  }
-
-  document.addEventListener('DOMContentLoaded', boot);
-  window.addEventListener('load', boot);
-  window.addEventListener('resize', applyInset);
-  window.addEventListener('orientationchange', applyInset);
-  boot();
-})();
-"#;
-
 /// Injects page-level scripts into a webview as soon as a page starts loading.
 /// Registered via [`Builder::on_page_load`], so it runs for **every** webview,
 /// including dynamically created ones, on every navigation.
@@ -270,14 +19,10 @@ fn inject_page_scripts(webview: &Webview, payload: &PageLoadPayload<'_>) {
     if payload.event() != PageLoadEvent::Started {
         return;
     }
-    if let Err(error) = webview.eval(LINK_INTERCEPTOR_SCRIPT) {
-        euv_log!("[EUV] failed to inject link interceptor: {}", error);
-    }
-    if let Err(error) = webview.eval(IMMERSIVE_SAFE_AREA_SCRIPT) {
-        euv_log!(
-            "[EUV] failed to inject immersive safe-area script: {}",
-            error
-        );
+    let scripts: String =
+        format!(";{LINK_INTERCEPTOR_SCRIPT};{IMMERSIVE_SAFE_AREA_SCRIPT};{GPU_PROBE_SCRIPT};");
+    if let Err(error) = webview.eval(&scripts) {
+        euv_log!("[EUV] failed to inject native page scripts: {}", error);
     }
 }
 
@@ -289,6 +34,7 @@ fn inject_page_scripts(webview: &Webview, payload: &PageLoadPayload<'_>) {
 /// # Errors
 ///
 /// Reports initialization failures to standard error without panicking.
+#[cfg_attr(target_os = "ios", tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "android")]
     {
@@ -299,6 +45,9 @@ pub fn run() {
         exit(1);
     }
     match Builder::default()
+        .append_invoke_initialization_script(format!(
+            ";{LINK_INTERCEPTOR_SCRIPT};{IMMERSIVE_SAFE_AREA_SCRIPT};{GPU_PROBE_SCRIPT};"
+        ))
         .manage(CacheSession::default())
         // Registered once at the Builder level so it runs for EVERY webview the
         // app owns, including ones created dynamically at runtime. It injects a
@@ -313,6 +62,39 @@ pub fn run() {
                     .level(::log::LevelFilter::Info)
                     .build(),
             )?;
+            #[cfg(any(target_os = "ios", target_os = "macos"))]
+            {
+                let Some(main_window): Option<WebviewWindow> =
+                    app.get_webview_window(MAIN_WINDOW_LABEL)
+                else {
+                    return Err(io::Error::other("The native mobile window was not created").into());
+                };
+                spawn(async move {
+                    if let Err(error) = main_window.with_webview(|view: PlatformWebview| {
+                        // SAFETY: Tauri supplies the live WebView on its UI thread.
+                        if unsafe {
+                            euv_configure_apple_display(
+                                view.inner(),
+                                i32::from(IMMERSIVE_MODE),
+                                i32::from(MAX_FRAME_RATE_ENABLED),
+                            )
+                        } != 1
+                        {
+                            eprintln!("Failed to configure the native display policy");
+                            exit(1);
+                        }
+                        #[cfg(target_os = "ios")]
+                        // SAFETY: The same Tauri-owned WebView is still live on its UI thread.
+                        if unsafe { euv_configure_ios_webview(view.inner()) } != 1 {
+                            eprintln!("Failed to configure the native mobile viewport");
+                            exit(1);
+                        }
+                    }) {
+                        eprintln!("Failed to dispatch native viewport configuration: {error}");
+                        exit(1);
+                    }
+                });
+            }
             let handle: AppHandle = app.handle().clone();
             #[cfg(debug_assertions)]
             let _: Result<(), AppHandle> = APP_HANDLE.set(handle.clone());
@@ -342,7 +124,17 @@ pub fn run() {
         ])
         .build(generate_context!())
     {
-        Ok(app) => app.run(|_: &AppHandle, _: RunEvent| {}),
+        Ok(app) => {
+            #[cfg(target_os = "ios")]
+            {
+                // SAFETY: Building the runtime registers its delegate on the main thread.
+                if unsafe { euv_install_scene_lifetime_fix() } != 1 {
+                    eprintln!("Failed to install the iOS scene ownership repair");
+                    exit(1);
+                }
+            }
+            app.run(|_: &AppHandle, _: RunEvent| {});
+        }
         Err(error) => {
             eprintln!("Failed to initialize the application: {error}");
             exit(1);
@@ -1496,7 +1288,7 @@ pub(crate) async fn handle_euv_scheme(
             _ => {
                 return http::Response::builder()
                     .status(503)
-                    .body(Cow::Owned(b"Cache not ready".to_vec()))
+                    .body(Cow::Owned(CACHE_NOT_READY_BODY.to_vec()))
                     .unwrap_or_else(scheme_response_error);
             }
         };
@@ -1555,7 +1347,7 @@ pub(crate) async fn handle_euv_scheme(
         Err(_) => http::Response::builder()
             .status(404)
             .header(CONTENT_TYPE_HEADER, "text/plain")
-            .body(Cow::Owned(b"Not found".to_vec()))
+            .body(Cow::Owned(RESOURCE_NOT_FOUND_BODY.to_vec()))
             .unwrap_or_else(scheme_response_error),
     }
 }

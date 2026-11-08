@@ -4,7 +4,7 @@ const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
-const { getIndexHtml, writeIfChanged } = require('../apply-config');
+const { getIndexHtml, writeIfChanged } = require('../config/apply-config');
 
 const config = { app: { name: 'Test' }, ui: { backgroundColor: '#fff' } };
 const flushPromises = () => new Promise(setImmediate);
@@ -153,6 +153,18 @@ test('desktop bootstrap retains the custom-protocol URL', async () => {
   await flushPromises();
   assert.deepEqual(page.navigations, ['euv://localhost/index.html']);
 });
+
+for (const [platform, userAgent, expected] of [
+  ['Windows', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'https://euv.localhost/index.html'],
+  ['Linux', 'Mozilla/5.0 (X11; Linux x86_64)', 'euv://localhost/index.html'],
+  ['iOS', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 'euv://localhost/index.html'],
+]) {
+  test(`${platform} bootstrap uses the platform custom-protocol origin`, async () => {
+    const page = bootstrap({ userAgent, invoke: () => Promise.resolve({ from_cache: true }) });
+    await flushPromises();
+    assert.deepEqual(page.navigations, [expected]);
+  });
+}
 
 test('custom entry HTML is preserved verbatim', () => {
   assert.equal(getIndexHtml({ ui: { indexHtml: '<html>custom</html>' } }), '<html>custom</html>');

@@ -36,10 +36,12 @@ pub fn euv_tabs(node: VirtualNode<EuvTabsProps>) -> VirtualNode {
         div {
             class: c_euv_tabs()
             div {
+                role: "tablist"
                 class: c_euv_tabs_bar()
                 tab_buttons
             }
             div {
+                role: "tabpanel"
                 class: c_euv_tabs_panel()
                 children
             }
@@ -60,9 +62,14 @@ pub fn euv_tabs(node: VirtualNode<EuvTabsProps>) -> VirtualNode {
 /// - `VirtualNode` - The tab button virtual DOM tree.
 fn tab_button(active: Signal<String>, item: EuvTabItem) -> VirtualNode {
     let key: &'static str = item.key;
+    let selected: bool = active.get() == key;
+    let selected_attr: &str = if selected { "true" } else { "false" };
     html! {
         button {
             key: key
+            type: "button"
+            role: "tab"
+            aria-selected: selected_attr
             class: c_euv_tab_item()
             class: if { active.get() == key } {
                 c_euv_tab_item_active()

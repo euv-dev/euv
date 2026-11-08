@@ -103,3 +103,80 @@ pub fn on_radio_change(
         }
     }))
 }
+
+/// The container of a set of radio rows.
+///
+/// The container carries `role="radiogroup"`, which is what tells the
+/// screen reader that the rows inside it are one choice among several
+/// rather than a list of unrelated controls. The selection itself stays
+/// with the caller, so the group can take part in two-way binding with
+/// the rest of the page.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvRadioGroupRootProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv radio group virtual DOM tree.
+#[component]
+pub fn euv_radio_group(node: VirtualNode<EuvRadioGroupRootProps>) -> VirtualNode {
+    let EuvRadioGroupRootProps { label }: EuvRadioGroupRootProps =
+        node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            role: "radiogroup"
+            "aria-label": label
+            class: c_euv_radio_group_root()
+            children
+        }
+    }
+}
+
+/// One row of a radio group.
+///
+/// The row is a button carrying `role="radio"` and `aria-checked`, the
+/// pair the reference publishes for a radio row that is not a native
+/// input. The checked state is read from the caller's signal during the
+/// render, so the row follows the signal in both directions.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvRadioGroupItemProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv radio group item virtual DOM tree.
+#[component]
+pub fn euv_radio_group_item(node: VirtualNode<EuvRadioGroupItemProps>) -> VirtualNode {
+    let EuvRadioGroupItemProps {
+        label,
+        value,
+        checked,
+        on_select,
+    }: EuvRadioGroupItemProps = node.try_get_props().unwrap_or_default();
+    let is_checked: bool = checked.get();
+    let item_class: fn() -> &'static Css = if is_checked {
+        c_euv_radio_group_item_checked
+    } else {
+        c_euv_radio_group_item
+    };
+    let on_click: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |_: Event| {
+        if let Some(callback) = &on_select {
+            callback(value);
+        }
+    }));
+    html! {
+        button {
+            type: "button"
+            role: "radio"
+            "aria-checked": if is_checked { "true" } else { "false" }
+            class: item_class()
+            onclick: on_click
+            {
+                label
+            }
+        }
+    }
+}

@@ -88,6 +88,58 @@ pub(crate) fn page_ui_display(node: VirtualNode<PageUiDisplayProps>) -> VirtualN
                 }
             }
             euv_card {
+                title: DISPLAY_BUTTON_CARD_TITLE
+                div {
+                    class: c_button_controls()
+                    euv_button {
+                        variant: EuvButtonVariant::Primary
+                        label: DISPLAY_BUTTON_PRIMARY_LABEL
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Secondary
+                        label: DISPLAY_BUTTON_SECONDARY_LABEL
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Destructive
+                        label: DISPLAY_BUTTON_DESTRUCTIVE_LABEL
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Outline
+                        label: DISPLAY_BUTTON_OUTLINE_LABEL
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Ghost
+                        label: DISPLAY_BUTTON_GHOST_LABEL
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Link
+                        label: DISPLAY_BUTTON_LINK_LABEL
+                    }
+                }
+                div {
+                    class: c_button_controls()
+                    euv_button {
+                        variant: EuvButtonVariant::Primary
+                        size: EuvButtonSize::Small
+                        label: DISPLAY_BUTTON_SMALL_LABEL
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Primary
+                        label: DISPLAY_BUTTON_DEFAULT_LABEL
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Primary
+                        size: EuvButtonSize::Large
+                        label: DISPLAY_BUTTON_LARGE_LABEL
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Outline
+                        size: EuvButtonSize::Icon
+                        label: DISPLAY_BUTTON_ICON_LABEL
+                    }
+                }
+            }
+            euv_card {
                 title: DISPLAY_LINK_CARD_TITLE
                 div {
                     class: c_button_controls()
@@ -161,6 +213,95 @@ pub(crate) fn page_ui_display(node: VirtualNode<PageUiDisplayProps>) -> VirtualN
                     desc: DISPLAY_EMPTY_DESC
                     action_label: DISPLAY_EMPTY_ACTION
                     on_action: display_on_empty_action()
+                }
+            }
+            euv_card {
+                title: DISPLAY_ITEM_CARD_TITLE
+                euv_item_group {
+                    euv_item {
+                        variant: EuvItemVariant::Default
+                        size: EuvItemSize::Default
+                        euv_item_media {
+                            variant: EuvItemMediaVariant::Icon
+                            DISPLAY_ITEM_FIRST_ICON
+                        }
+                        euv_item_content {
+                            euv_item_title {
+                                text: DISPLAY_ITEM_FIRST_TITLE
+                            }
+                            euv_item_description {
+                                text: DISPLAY_ITEM_FIRST_DESC
+                            }
+                        }
+                        euv_item_actions {
+                            euv_button {
+                                variant: EuvButtonVariant::Outline
+                                label: DISPLAY_ITEM_FIRST_ACTION
+                            }
+                        }
+                    }
+                    euv_item_separator {}
+                    euv_item {
+                        variant: EuvItemVariant::Outline
+                        size: EuvItemSize::Sm
+                        euv_item_media {
+                            variant: EuvItemMediaVariant::Icon
+                            DISPLAY_ITEM_SECOND_ICON
+                        }
+                        euv_item_content {
+                            euv_item_title {
+                                text: DISPLAY_ITEM_SECOND_TITLE
+                            }
+                            euv_item_description {
+                                text: DISPLAY_ITEM_SECOND_DESC
+                            }
+                        }
+                        euv_item_actions {
+                            euv_button {
+                                variant: EuvButtonVariant::Outline
+                                label: DISPLAY_ITEM_SECOND_ACTION
+                            }
+                        }
+                    }
+                    euv_item_separator {}
+                    euv_item {
+                        variant: EuvItemVariant::Muted
+                        size: EuvItemSize::Sm
+                        euv_item_media {
+                            variant: EuvItemMediaVariant::Icon
+                            DISPLAY_ITEM_THIRD_ICON
+                        }
+                        euv_item_content {
+                            euv_item_title {
+                                text: DISPLAY_ITEM_THIRD_TITLE
+                            }
+                            euv_item_description {
+                                text: DISPLAY_ITEM_THIRD_DESC
+                            }
+                        }
+                    }
+                }
+            }
+            euv_card {
+                title: DISPLAY_MEDIA_CARD_TITLE
+                euv_spinner {
+                    label: DISPLAY_SPINNER_LABEL
+                    show_label: state.spinner_caption
+                }
+                p {
+                    class: c_badge_hint()
+                    DISPLAY_SPINNER_CAPTION
+                }
+                euv_aspect_ratio {
+                    ratio: DISPLAY_ASPECT_RATIO_VALUE
+                    div {
+                        class: c_badge_hint()
+                        DISPLAY_ASPECT_RATIO_TITLE
+                    }
+                    p {
+                        class: c_badge_hint()
+                        DISPLAY_ASPECT_RATIO_BODY
+                    }
                 }
             }
             euv_back_top {

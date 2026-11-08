@@ -15,4 +15,6 @@ pub(crate) struct DocsShellProps {
     pub(crate) locale_menu_open: Signal<bool>,
     /// Collapsed sidebar group keys.
     pub(crate) collapsed: Signal<Vec<String>>,
+    /// The header search field's query.
+    pub(crate) search_query: Signal<String>,
 }

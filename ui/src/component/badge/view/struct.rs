@@ -8,6 +8,9 @@ pub struct EuvBadgeProps {
     /// Whether to render in outline style instead of solid fill.
     #[get(type(copy))]
     pub outline: bool,
+    /// The visual variant of the badge.
+    #[get(type(copy))]
+    pub variant: EuvBadgeVariant,
     /// The badge text content.
     #[get(type(copy))]
     pub text: &'static str,

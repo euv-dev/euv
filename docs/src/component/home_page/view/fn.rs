@@ -39,11 +39,6 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     } else {
         page.hero_text
     };
-    let footer_text: &str = if page.footer.is_empty() {
-        locale.footer
-    } else {
-        page.footer
-    };
     html! {
         div {
             class: c_home_layout()
@@ -63,19 +58,7 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
                         features: page.features
                     }
                     if { !page.blocks.is_empty() } {
-                        euv_markdown {
-                            blocks: page.blocks
-                        }
-                    }
-                }
-                if { !footer_text.is_empty() || !site.footer_items.is_empty() } {
-                    div {
-                        class: c_home_tail()
-                        euv_footer {
-                            text: footer_text
-                            link: site.footer_link
-                            items: site.footer_items
-                        }
+                        docs_markdown(page.blocks)
                     }
                 }
             }

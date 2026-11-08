@@ -1,3 +1,4 @@
+mod content;
 mod data;
 mod display;
 mod forms;
@@ -6,6 +7,6 @@ mod overlay;
 mod page;
 mod shell;
 
-pub use {data::*, display::*, forms::*, identity::*, overlay::*, page::*, shell::*};
+pub use {content::*, data::*, display::*, forms::*, identity::*, overlay::*, page::*, shell::*};
 
 use super::*;

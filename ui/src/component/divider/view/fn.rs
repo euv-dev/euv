@@ -23,8 +23,14 @@ pub fn euv_divider(node: VirtualNode<EuvDividerProps>) -> VirtualNode {
         EuvDividerOrientation::Horizontal => c_euv_divider_horizontal,
         EuvDividerOrientation::Vertical => c_euv_divider_vertical,
     };
+    let orientation_attr: &str = match orientation {
+        EuvDividerOrientation::Horizontal => "horizontal",
+        EuvDividerOrientation::Vertical => "vertical",
+    };
     html! {
         div {
+            role: "separator"
+            aria-orientation: orientation_attr
             class: c_euv_divider()
             class: orientation_class()
             if !label.is_empty() {

@@ -369,6 +369,12 @@
           "markdownDescription": "Enables the update_cache command to fetch the latest remote resources and prepare them for the next launch"
         },
         {
+          "description": "Enables waiting for the startup cache without polling",
+          "type": "string",
+          "const": "allow-wait-for-cached-resource",
+          "markdownDescription": "Enables waiting for the startup cache without polling"
+        },
+        {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
           "type": "string",
           "const": "core:default",

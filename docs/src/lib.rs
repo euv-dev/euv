@@ -7,6 +7,8 @@
 mod app;
 mod component;
 mod data;
+mod description;
+mod highlight;
 mod locale;
 mod route;
 mod router;
@@ -25,6 +27,8 @@ pub(crate) use {
     app::*,
     component::*,
     data::*,
+    description::*,
+    highlight::*,
     js_sys::Promise,
     {Event, HtmlInputElement, KeyboardEvent, Location},
 };
@@ -51,5 +55,7 @@ pub fn main() {
     inject_app_global_css();
     Css::inject_css(euv_md_css());
     Css::inject_css(APP_GLOBAL_CSS);
+    Css::inject_css(SITE_FOOTER_CSS);
+    Css::inject_css(CODE_CSS);
     App::mount(APP_MOUNT_SELECTOR, app);
 }

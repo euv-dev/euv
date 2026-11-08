@@ -40,6 +40,7 @@ fn button_node(variant: EuvButtonVariant, disabled: bool) -> VirtualNode<EuvButt
         key: None,
         props: Some(Box::new(EuvButtonProps {
             variant,
+            size: EuvButtonSize::Default,
             label: "Press",
             onclick: None,
             disabled: Signal::create(disabled),

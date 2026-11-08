@@ -9,7 +9,11 @@ const BUDGET: &[(&str, &[&str], &str)] = &[
     ("loading overlay", &["c_loading_overlay"], "5"),
     ("affix", &["c_euv_affix"], "10"),
     ("app chrome", &["c_mobile_header", "c_euv_navbar"], "100"),
-    ("nav dropdown", &["c_euv_dropdown_menu"], "101"),
+    (
+        "nav dropdown",
+        &["c_euv_dropdown_menu", "c_euv_menubar_content"],
+        "101",
+    ),
     (
         "tooltip",
         &[
@@ -51,6 +55,9 @@ const BUDGET: &[(&str, &[&str], &str)] = &[
             "c_euv_tree_select_panel",
             "c_euv_tree_select_panel_open",
             "c_euv_tree_select_panel_closed",
+            "c_euv_combobox_content",
+            "c_euv_hover_card_content",
+            "c_euv_context_menu_content",
         ],
         "150",
     ),
@@ -59,13 +66,33 @@ const BUDGET: &[(&str, &[&str], &str)] = &[
         &["c_euv_drawer_overlay", "c_mobile_overlay"],
         "200",
     ),
-    ("drawer", &["c_euv_drawer", "c_mobile_nav_drawer"], "201"),
+    (
+        "drawer",
+        &[
+            "c_euv_drawer",
+            "c_euv_drawer_content",
+            "c_mobile_nav_drawer",
+        ],
+        "201",
+    ),
     (
         "back top",
         &["c_euv_back_top_hidden", "c_euv_back_top_visible"],
         "900",
     ),
-    ("modal", &["c_modal_overlay"], "1000"),
+    (
+        "modal",
+        &[
+            "c_modal_overlay",
+            "c_euv_dialog",
+            "c_euv_dialog_overlay",
+            "c_euv_sheet_content",
+            "c_euv_sheet_overlay",
+            "c_euv_alert_dialog_content",
+            "c_euv_alert_dialog_overlay",
+        ],
+        "1000",
+    ),
     ("message", &["c_euv_message_stack"], "1100"),
     ("notification", &["c_euv_notification_stack"], "1200"),
     ("vconsole fab", &["c_vconsole_fab"], "9999"),

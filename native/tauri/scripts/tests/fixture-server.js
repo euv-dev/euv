@@ -513,13 +513,14 @@ function startFixtureServer(options = {}) {
   });
 }
 
-/** Write an app.config.json pointing at the fixture server. */
+/** Write an config/app.config.json pointing at the fixture server. */
 function writeConfig(root, url) {
   const fs = require('fs');
   const path = require('path');
   fs.mkdirSync(root, { recursive: true });
+  fs.mkdirSync(path.join(root, 'config'), { recursive: true });
   fs.writeFileSync(
-    path.join(root, 'app.config.json'),
+    path.join(root, 'config/app.config.json'),
     JSON.stringify(
       { app: { version: '0.0.0-fixture' }, remote: { url } },
       null,

@@ -48,7 +48,7 @@ pub enum Mode {
     /// Build and start the server (with file watcher)
     Run(ModeArgs),
     /// Build only, do not start the server
-    Build(ModeArgs),
+    Build(BuildArgs),
     /// Format euv macro invocations in source files
     Fmt(FmtArgs),
 }

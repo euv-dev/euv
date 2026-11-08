@@ -1,0 +1,37 @@
+use super::*;
+
+/// Props for the [`euv_native_select`] component.
+///
+/// The select carries the size of the control and the state a form needs
+/// to read back. The options themselves are passed as children.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvNativeSelectProps {
+    /// The size of the control.
+    pub size: EuvNativeSelectSize,
+    /// The form name the control submits under.
+    pub name: &'static str,
+    /// Whether the control refuses input.
+    pub disabled: bool,
+}
+
+/// Props for the [`euv_native_select_option`] component.
+///
+/// The option carries the value the form submits and the label the
+/// reader sees.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvNativeSelectOptionProps {
+    /// The value the option submits under.
+    pub value: &'static str,
+    /// The label the reader sees.
+    pub label: &'static str,
+}
+
+/// Props for the [`euv_native_select_opt_group`] component.
+///
+/// The group carries the label that names the options it wraps. The
+/// options themselves are passed as children.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvNativeSelectOptGroupProps {
+    /// The label that names the group.
+    pub label: &'static str,
+}

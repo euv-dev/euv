@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../dist",
     "beforeDevCommand": "",
-    "beforeBuildCommand": "node scripts/prefetch-cache.js && node scripts/apply-config.js"
+    "beforeBuildCommand": "node scripts/build/bundle-example.js && node scripts/config/apply-config.js"
   },
   "app": {
     "withGlobalTauri": true,
@@ -17,6 +17,7 @@
         "height": 800,
         "resizable": true,
         "fullscreen": false,
+        "decorations": false,
         "useHttpsScheme": true
       }
     ],
@@ -33,6 +34,9 @@
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ],
+    "iOS": {
+      "minimumSystemVersion": "15.0"
+    },
     "android": {
       "debugApplicationIdSuffix": ".debug"
     }

@@ -17,6 +17,7 @@ pub(crate) fn app() -> VirtualNode {
         let drawer_open: Signal<bool> = App::use_signal(|| false);
         let locale_menu_open: Signal<bool> = App::use_signal(|| false);
         let collapsed: Signal<Vec<String>> = App::use_signal(all_sidebar_group_keys);
+        let search_query: Signal<String> = App::use_signal(String::new);
         let mobile_signal: Signal<bool> = UseEuvLayout::use_resize();
         UseEuvLayout::use_safe_area_fix();
         let theme_state: ThemeState = ThemeState::use_theme_state(mobile_signal);
@@ -39,6 +40,7 @@ pub(crate) fn app() -> VirtualNode {
                         drawer_open
                         locale_menu_open
                         collapsed
+                        search_query
                     }
                 } else {
                     docs_desktop_shell {
@@ -48,6 +50,7 @@ pub(crate) fn app() -> VirtualNode {
                         drawer_open
                         locale_menu_open
                         collapsed
+                        search_query
                     }
                 }
             }
@@ -96,6 +99,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
         drawer_open: _,
         locale_menu_open,
         collapsed,
+        search_query,
     }: DocsShellProps = node.try_get_props().unwrap_or_default();
     let (path, _anchor) = parse_route(&route_signal.get());
     let locale: &DocsLocale = locale_of(&path);
@@ -103,40 +107,38 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
         div {
             class: root_class_signal
             class: c_app_root()
-            nav {
-                class: c_app_nav()
-                brand_header(locale)
-                locale_row_node(route_signal, locale_menu_open)
-                p {
-                    class: c_nav_section_label()
-                    {
-                        section_label(locale)
+            class: CLASS_DOCS_SHELL
+            docs_header(locale, route_signal, theme_signal, search_query)
+            div {
+                class: CLASS_DOCS_BODY
+                nav {
+                    class: c_app_nav()
+                    locale_row_node(route_signal, locale_menu_open)
+                    p {
+                        class: c_nav_section_label()
+                        {
+                            section_label(locale)
+                        }
+                    }
+                    div {
+                        class: c_nav_items_scroll()
+                        euv_sidebar {
+                            route_signal
+                            collapsed
+                            items: locale.sidebar
+                        }
                     }
                 }
-                div {
-                    class: c_nav_items_scroll()
-                    euv_sidebar {
+                main {
+                    class: c_app_main()
+                    class: c_euv_user_select_text()
+                    docs_main {
                         route_signal
-                        collapsed
-                        items: locale.sidebar
-                    }
-                }
-                div {
-                    class: c_nav_theme_toggle()
-                    button {
-                        class: c_nav_theme_button()
-                        title: THEME_TOGGLE_TITLE
-                        onclick: ThemeState::toggle(theme_signal)
-                        theme_icon_node(theme_signal)
                     }
                 }
             }
-            main {
-                class: c_app_main()
-                class: c_euv_user_select_text()
-                docs_main {
-                    route_signal
-                }
+            docs_site_footer {
+                route_signal
             }
         }
     }
@@ -162,6 +164,7 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
         drawer_open,
         locale_menu_open,
         collapsed,
+        search_query: _,
     }: DocsShellProps = node.try_get_props().unwrap_or_default();
     let (path, _anchor) = parse_route(&route_signal.get());
     let locale: &DocsLocale = locale_of(&path);
@@ -237,39 +240,8 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                     }
                 }
             }
-        }
-    }
-}
-
-/// Renders the desktop nav-column brand header (logo + title, links home).
-///
-/// # Arguments
-///
-/// - `&'static DocsLocale` - The current locale.
-///
-/// # Returns
-///
-/// - `VirtualNode` - The brand header virtual DOM tree.
-fn brand_header(locale: &'static DocsLocale) -> VirtualNode {
-    let site: &DocsSite = &crate::generated::SITE;
-    let title: &str = if locale.title.is_empty() {
-        site.title
-    } else {
-        locale.title
-    };
-    html! {
-        a {
-            class: c_nav_header()
-            href: format!("#{}", locale.prefix)
-            onclick: Router::link_handler(locale.prefix)
-            euv_logo {
-                variant: LogoButtonVariant::Nav
-            }
-            span {
-                class: c_nav_brand_title()
-                {
-                    title
-                }
+            docs_site_footer {
+                route_signal
             }
         }
     }
@@ -319,7 +291,7 @@ fn brand_logo_row(locale: &'static DocsLocale) -> VirtualNode {
 /// # Returns
 ///
 /// - `VirtualNode` - The theme icon virtual DOM tree.
-fn theme_icon_node(theme_signal: Signal<String>) -> VirtualNode {
+pub(crate) fn theme_icon_node(theme_signal: Signal<String>) -> VirtualNode {
     html! {
         div {
             class: if { theme_signal.get() == THEME_DARK } {

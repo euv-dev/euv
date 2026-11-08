@@ -16,4 +16,6 @@ pub(crate) struct DisplayDemoState {
     pub(crate) split_size: Signal<f64>,
     /// Whether the back-to-top button is showing.
     pub(crate) back_top_visible: Signal<bool>,
+    /// Whether the spinner shows its caption next to the glyph.
+    pub(crate) spinner_caption: Signal<bool>,
 }

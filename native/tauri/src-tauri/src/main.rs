@@ -5,12 +5,5 @@
 /// # Returns
 /// - `()` - Completes after the application event loop exits.
 fn main() {
-    #[cfg(target_os = "windows")]
-    unsafe {
-        std::env::set_var(
-            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-            "--enable-features=WebGPU --enable-unsafe-webgpu --ignore-gpu-blocklist",
-        );
-    }
     euv_lib::run();
 }

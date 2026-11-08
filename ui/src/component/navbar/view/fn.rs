@@ -160,3 +160,158 @@ fn strip_hash_anchor(route: &str) -> &str {
         None => route,
     }
 }
+
+/// The bar that holds the menus of an application.
+///
+/// The bar carries `role="menubar"`, which is what tells the screen
+/// reader that the triggers inside it open menus rather than navigate.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvMenubarProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv menubar virtual DOM tree.
+#[component]
+pub fn euv_menubar(node: VirtualNode<EuvMenubarProps>) -> VirtualNode {
+    let EuvMenubarProps { label }: EuvMenubarProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            role: "menubar"
+            "aria-label": label
+            class: c_euv_menubar()
+            children
+        }
+    }
+}
+
+/// One menu of the bar: its trigger and its content.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvMenubarMenuProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv menubar menu virtual DOM tree.
+#[component]
+pub fn euv_menubar_menu(node: VirtualNode<EuvMenubarMenuProps>) -> VirtualNode {
+    let EuvMenubarMenuProps { open }: EuvMenubarMenuProps =
+        node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            class: c_euv_menubar_menu()
+            class: if { open } {
+                c_euv_menubar_menu_open()
+            } else {
+                c_euv_menubar_menu_closed()
+            }
+            children
+        }
+    }
+}
+
+/// The button that opens one menu of the bar.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvMenubarTriggerProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv menubar trigger virtual DOM tree.
+#[component]
+pub fn euv_menubar_trigger(node: VirtualNode<EuvMenubarTriggerProps>) -> VirtualNode {
+    let EuvMenubarTriggerProps { label, open }: EuvMenubarTriggerProps =
+        node.try_get_props().unwrap_or_default();
+    let trigger_class: fn() -> &'static Css = if open.get() {
+        c_euv_menubar_trigger_open
+    } else {
+        c_euv_menubar_trigger
+    };
+    let on_click: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |_: Event| {
+        open.set(!open.get());
+    }));
+    html! {
+        button {
+            type: "button"
+            role: "menuitem"
+            "aria-haspopup": "menu"
+            "aria-expanded": if open.get() {
+                "true"
+            } else {
+                "false"
+            }
+            class: trigger_class()
+            onclick: on_click
+            {
+                label
+            }
+        }
+    }
+}
+
+/// The panel that holds the rows of one menu.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvMenubarContentProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv menubar content virtual DOM tree.
+#[component]
+pub fn euv_menubar_content(node: VirtualNode<EuvMenubarContentProps>) -> VirtualNode {
+    let EuvMenubarContentProps { open }: EuvMenubarContentProps =
+        node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            role: "menu"
+            class: c_euv_menubar_content()
+            class: if { open } {
+                c_euv_menubar_content_open()
+            } else {
+                c_euv_menubar_content_closed()
+            }
+            children
+        }
+    }
+}
+
+/// One row of a menu panel.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvMenubarItemProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv menubar item virtual DOM tree.
+#[component]
+pub fn euv_menubar_item(node: VirtualNode<EuvMenubarItemProps>) -> VirtualNode {
+    let EuvMenubarItemProps {
+        label,
+        value,
+        on_select,
+    }: EuvMenubarItemProps = node.try_get_props().unwrap_or_default();
+    let on_click: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |_: Event| {
+        if let Some(callback) = &on_select {
+            callback(value);
+        }
+    }));
+    html! {
+        button {
+            type: "button"
+            role: "menuitem"
+            class: c_euv_menubar_item()
+            onclick: on_click
+            {
+                label
+            }
+        }
+    }
+}

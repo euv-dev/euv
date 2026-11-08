@@ -1,0 +1,68 @@
+{
+  "app": {
+    "name": "Euv",
+    "identifier": "com.euv",
+    "version": "0.1.2",
+    "description": "Euv App",
+    "author": "you"
+  },
+  "remote": {
+    "url": "https://ltpp.vip/euv"
+  },
+  "cache": {
+    "directory": "euv_web_cache",
+    "maxRedirects": 10
+  },
+  "ui": {
+    "backgroundColor": "#ffffff",
+    "loadingSpinnerColor": "#1677ff",
+    "loadingSpinnerTrackColor": "#e0e0e0",
+    "splashFadeDurationMs": 300,
+    "splashMaxWaitMs": 5000,
+    "immersiveMode": true,
+    "transparentNavigationBar": true,
+    "antiAliasing": true,
+    "maxFrameRateEnabled": true,
+    "loadingHtml": "",
+    "indexHtml": "",
+    "window": {
+      "title": "Euv",
+      "width": 1280,
+      "height": 800,
+      "resizable": true,
+      "fullscreen": false
+    }
+  },
+  "android": {
+    "namespace": "com.euv",
+    "minSdk": 24,
+    "targetSdk": 36,
+    "compileSdk": 36,
+    "keepAliveService": true,
+    "notification": {
+      "channelId": "euv_keep_alive",
+      "channelName": "Background Service",
+      "title": "EUV",
+      "text": "Running"
+    }
+  },
+  "ios": {
+    "minimumSystemVersion": "15.0"
+  },
+  "icons": {
+    "source": "src-tauri/icons/icon.png",
+    "android": {
+      "foreground": "src-tauri/gen/android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml",
+      "background": "src-tauri/gen/android/app/src/main/res/drawable/ic_launcher_background.xml"
+    }
+  },
+  "build": {
+    "targets": ["android", "windows", "macos", "linux", "ios"],
+    "signing": {
+      "android": {
+        "keystorePath": "resources/signing/keystore.jks",
+        "keystoreAlias": "euv"
+      }
+    }
+  }
+}
