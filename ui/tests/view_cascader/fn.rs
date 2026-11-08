@@ -145,9 +145,13 @@ fn has_classes(node: &VirtualNode, names: &[&str]) -> bool {
                 .iter()
                 .filter(|entry: &&AttributeEntry| entry.get_name() == "class")
                 .any(|entry: &AttributeEntry| carries_classes(entry, names));
-            own || children.iter().any(|child: &VirtualNode| has_classes(child, names))
+            own || children
+                .iter()
+                .any(|child: &VirtualNode| has_classes(child, names))
         }
-        VirtualNode::Fragment(children) => children.iter().any(|child: &VirtualNode| has_classes(child, names)),
+        VirtualNode::Fragment(children) => children
+            .iter()
+            .any(|child: &VirtualNode| has_classes(child, names)),
         _ => false,
     }
 }
@@ -332,8 +336,7 @@ fn the_trigger_opens_the_panel_on_the_chosen_path() {
     let value: Signal<Vec<String>> = Signal::create(vec![String::from("asia")]);
     let browsed: Signal<Vec<String>> = Signal::create(Vec::new());
     let open: Signal<bool> = Signal::create(false);
-    let handler: Rc<dyn Fn(())> =
-        cascader_trigger_handler(open, browsed, value).unwrap();
+    let handler: Rc<dyn Fn(())> = cascader_trigger_handler(open, browsed, value).unwrap();
     handler(());
     assert!(open.get(), "the trigger opens the panel");
     assert_eq!(

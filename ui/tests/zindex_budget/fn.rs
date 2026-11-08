@@ -66,7 +66,15 @@ const BUDGET: &[(&str, &[&str], &str)] = &[
         &["c_euv_drawer_overlay", "c_mobile_overlay"],
         "200",
     ),
-    ("drawer", &["c_euv_drawer", "c_mobile_nav_drawer"], "201"),
+    (
+        "drawer",
+        &[
+            "c_euv_drawer",
+            "c_euv_drawer_content",
+            "c_mobile_nav_drawer",
+        ],
+        "201",
+    ),
     (
         "back top",
         &["c_euv_back_top_hidden", "c_euv_back_top_visible"],

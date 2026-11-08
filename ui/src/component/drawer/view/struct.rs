@@ -7,3 +7,57 @@ pub struct EuvDrawerProps {
     /// overlay closes it.
     pub open: Signal<bool>,
 }
+
+/// Props for the [`euv_drawer_trigger`] component.
+///
+/// The trigger carries the state of the drawer so it can report the
+/// state to a reader and open the drawer when it is pressed.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvDrawerTriggerProps {
+    /// Whether the drawer is open.
+    pub open: Signal<bool>,
+}
+
+/// Props for the [`euv_drawer_content`] component.
+///
+/// The panel carries the state of the drawer so it can report the state
+/// to a reader and hide itself while the drawer is closed.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvDrawerContentProps {
+    /// Whether the drawer is open.
+    pub open: Signal<bool>,
+}
+
+/// Props for the [`euv_drawer_close`] component.
+///
+/// The close button carries the state of the drawer so it can close the
+/// drawer when it is pressed.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvDrawerCloseProps {
+    /// Whether the drawer is open.
+    pub open: Signal<bool>,
+}
+
+/// Props for the [`euv_drawer_header`] component.
+///
+/// The header takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvDrawerHeaderProps {}
+
+/// Props for the [`euv_drawer_footer`] component.
+///
+/// The footer takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvDrawerFooterProps {}
+
+/// Props for the [`euv_drawer_title`] component.
+///
+/// The title takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvDrawerTitleProps {}
+
+/// Props for the [`euv_drawer_description`] component.
+///
+/// The description takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvDrawerDescriptionProps {}

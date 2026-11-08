@@ -1064,6 +1064,85 @@ class! {
         visibility: "hidden";
     }
 
+    // The reference drawer is a sheet that rises from the bottom edge.
+    // The panel sits across the full width, keeps its own rounded top
+    // corners and carries the hairline that separates it from the page.
+    pub(crate) c_euv_drawer_content {
+        position: "fixed";
+        left: "0px";
+        right: "0px";
+        bottom: "0px";
+        display: "flex";
+        flex-direction: "column";
+        height: "auto";
+        margin-top: var!(space-3xl);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-lg);
+        background: var!(background);
+        color: var!(foreground);
+        z-index: "201";
+        transition: format!("transform {} {}, visibility {} {}", var!(duration-normal), var!(ease-out), var!(duration-normal), var!(ease-out));
+    }
+
+    pub(crate) c_euv_drawer_content_open {
+        transform: "translateY(0px)";
+        visibility: "visible";
+    }
+
+    pub(crate) c_euv_drawer_content_closed {
+        transform: "translateY(100%)";
+        visibility: "hidden";
+    }
+
+    // The handle is the small bar at the top of the sheet that says the
+    // panel can be dragged.
+    pub(crate) c_euv_drawer_handle {
+        width: "100px";
+        height: var!(space-xs);
+        margin: format!("{} auto 0px", var!(space-lg));
+        border-radius: var!(radius-full);
+        background: var!(muted);
+    }
+
+    pub(crate) c_euv_drawer_trigger {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+    }
+
+    pub(crate) c_euv_drawer_header {
+        display: "grid";
+        gap: var!(space-2xs);
+        padding: var!(space-lg);
+        text-align: "center";
+    }
+
+    pub(crate) c_euv_drawer_footer {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-sm);
+        margin-top: "auto";
+        padding: var!(space-lg);
+    }
+
+    pub(crate) c_euv_drawer_title {
+        font-size: var!(font-lg);
+        font-weight: var!(font-weight-semibold);
+        line-height: "1";
+        letter-spacing: var!(letter-spacing-tight);
+    }
+
+    pub(crate) c_euv_drawer_description {
+        font-size: var!(font-sm);
+        color: var!(muted-foreground);
+    }
+
+    pub(crate) c_euv_drawer_close {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // Message (toast)
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2210,6 +2289,26 @@ class! {
     pub(crate) c_euv_drawer_open {}
 
     pub(crate) c_euv_drawer_closed {}
+
+    pub(crate) c_euv_drawer_content {}
+
+    pub(crate) c_euv_drawer_content_open {}
+
+    pub(crate) c_euv_drawer_content_closed {}
+
+    pub(crate) c_euv_drawer_handle {}
+
+    pub(crate) c_euv_drawer_trigger {}
+
+    pub(crate) c_euv_drawer_header {}
+
+    pub(crate) c_euv_drawer_footer {}
+
+    pub(crate) c_euv_drawer_title {}
+
+    pub(crate) c_euv_drawer_description {}
+
+    pub(crate) c_euv_drawer_close {}
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Message (toast)

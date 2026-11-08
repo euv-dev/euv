@@ -104,7 +104,6 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
     let hover_open: Signal<bool> = state.hover_open;
     let context_open: Signal<bool> = state.context_open;
     let otp_value: Signal<String> = state.otp_value;
-
     let field_disabled: Signal<bool> = state.field_disabled;
     let notes: Signal<String> = state.notes;
     let group_query: Signal<String> = state.group_query;
@@ -146,6 +145,14 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
             disabled: false,
         },
     ];
+    let chart_config: Vec<(&'static str, &'static str)> = vec![
+        (FORM_CHART_FIRST_SERIES, FORM_CHART_FIRST_COLOR),
+        (FORM_CHART_SECOND_SERIES, FORM_CHART_SECOND_COLOR),
+    ];
+    let collapsible_open: Signal<bool> = App::use_signal(|| false);
+    let trace_open: Signal<bool> = App::use_signal(|| false);
+    let navigation_open: Signal<bool> = App::use_signal(|| false);
+    let resizable_size: Signal<f64> = App::use_signal(|| 50.0);
     html! {
         div {
             class: c_page_container()
@@ -555,6 +562,345 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                     euv_button {
                         variant: EuvButtonVariant::Outline
                         label: FORM_BUTTON_GROUP_SECOND_LABEL
+                    }
+                }
+            }
+            euv_card {
+                title: FORM_CONTENT_CARD_TITLE
+                euv_marker {
+                    variant: EuvMarkerVariant::Default
+                    euv_marker_content {
+                        FORM_MARKER_LABEL
+                    }
+                }
+                euv_marker {
+                    variant: EuvMarkerVariant::Separator
+                    euv_marker_content {
+                        FORM_MARKER_SEPARATOR_LABEL
+                    }
+                }
+                euv_marker {
+                    variant: EuvMarkerVariant::Border
+                    euv_marker_content {
+                        FORM_MARKER_BORDER_LABEL
+                    }
+                }
+                euv_native_select {
+                    size: EuvNativeSelectSize::Default
+                    name: FORM_SELECT_NAME
+                    disabled: false
+                    euv_native_select_option {
+                        value: FORM_SELECT_FIRST_VALUE
+                        label: FORM_SELECT_FIRST_LABEL
+                    }
+                    euv_native_select_option {
+                        value: FORM_SELECT_SECOND_VALUE
+                        label: FORM_SELECT_SECOND_LABEL
+                    }
+                    euv_native_select_option {
+                        value: FORM_SELECT_THIRD_VALUE
+                        label: FORM_SELECT_THIRD_LABEL
+                    }
+                }
+                euv_attachment_group {
+                    euv_attachment {
+                        state: EuvAttachmentState::Done
+                        size: EuvAttachmentSize::Default
+                        orientation: EuvAttachmentOrientation::Horizontal
+                        euv_attachment_media {
+                            variant: EuvAttachmentMediaVariant::Icon
+                            size: EuvAttachmentSize::Default
+                        }
+                        euv_attachment_content {
+                            euv_attachment_title {
+                                FORM_ATTACHMENT_DONE_TITLE
+                            }
+                            euv_attachment_description {
+                                FORM_ATTACHMENT_DONE_DESCRIPTION
+                            }
+                        }
+                    }
+                    euv_attachment {
+                        state: EuvAttachmentState::Uploading
+                        size: EuvAttachmentSize::Default
+                        orientation: EuvAttachmentOrientation::Horizontal
+                        euv_attachment_media {
+                            variant: EuvAttachmentMediaVariant::Icon
+                            size: EuvAttachmentSize::Default
+                        }
+                        euv_attachment_content {
+                            euv_attachment_title {
+                                FORM_ATTACHMENT_UPLOADING_TITLE
+                            }
+                            euv_attachment_description {
+                                FORM_ATTACHMENT_UPLOADING_DESCRIPTION
+                            }
+                        }
+                    }
+                    euv_attachment {
+                        state: EuvAttachmentState::Error
+                        size: EuvAttachmentSize::Default
+                        orientation: EuvAttachmentOrientation::Horizontal
+                        euv_attachment_media {
+                            variant: EuvAttachmentMediaVariant::Icon
+                            size: EuvAttachmentSize::Default
+                        }
+                        euv_attachment_content {
+                            euv_attachment_title {
+                                FORM_ATTACHMENT_ERROR_TITLE
+                            }
+                            euv_attachment_description {
+                                FORM_ATTACHMENT_ERROR_DESCRIPTION
+                            }
+                        }
+                    }
+                }
+                euv_chart {
+                    id: "chart-usage"
+                    config: chart_config
+                    euv_chart_tooltip {
+                        euv_chart_tooltip_label {
+                            FORM_CHART_TOOLTIP_LABEL
+                        }
+                        euv_chart_tooltip_item {
+                            name: FORM_CHART_FIRST_SERIES
+                            value: FORM_CHART_FIRST_VALUE
+                            color: FORM_CHART_FIRST_COLOR
+                        }
+                        euv_chart_tooltip_item {
+                            name: FORM_CHART_SECOND_SERIES
+                            value: FORM_CHART_SECOND_VALUE
+                            color: FORM_CHART_SECOND_COLOR
+                        }
+                    }
+                    euv_chart_legend {
+                        euv_chart_legend_item {
+                            label: FORM_CHART_FIRST_SERIES
+                            color: FORM_CHART_FIRST_COLOR
+                        }
+                        euv_chart_legend_item {
+                            label: FORM_CHART_SECOND_SERIES
+                            color: FORM_CHART_SECOND_COLOR
+                        }
+                    }
+                }
+            }
+            euv_card {
+                title: FORM_CHAT_CARD_TITLE
+                euv_collapsible {
+                    open: collapsible_open
+                    euv_collapsible_trigger {
+                        open: collapsible_open
+                        FORM_COLLAPSIBLE_TRIGGER
+                    }
+                    euv_collapsible_content {
+                        open: collapsible_open
+                        p {
+                            FORM_COLLAPSIBLE_LABEL
+                        }
+                        p {
+                            FORM_COLLAPSIBLE_BODY
+                        }
+                    }
+                }
+                euv_bubble_group {
+                    euv_bubble {
+                        variant: EuvBubbleVariant::Default
+                        align: EuvBubbleAlign::Start
+                        euv_bubble_content {
+                            FORM_BUBBLE_FIRST
+                        }
+                        euv_bubble_reactions {
+                            side: EuvBubbleSide::Bottom
+                            align: EuvBubbleAlign::Start
+                            FORM_BUBBLE_REACTION
+                        }
+                    }
+                    euv_bubble {
+                        variant: EuvBubbleVariant::Tinted
+                        align: EuvBubbleAlign::End
+                        euv_bubble_content {
+                            FORM_BUBBLE_SECOND
+                        }
+                    }
+                }
+                euv_message_scroller {
+                    euv_message_scroller_viewport {
+                        euv_message_scroller_content {
+                            euv_message_scroller_item {
+                                scroll_anchor: false
+                                p {
+                                    FORM_BUBBLE_FIRST
+                                }
+                            }
+                            euv_message_scroller_item {
+                                scroll_anchor: true
+                                p {
+                                    FORM_BUBBLE_SECOND
+                                }
+                            }
+                        }
+                    }
+                    euv_message_scroller_button {
+                        direction: EuvMessageScrollerDirection::End
+                    }
+                }
+                euv_trace {
+                    euv_trace_line {
+                        status: Some(EuvTraceStatus::Running)
+                        euv_trace_title {
+                            FORM_TRACE_TITLE
+                        }
+                        euv_trace_description {
+                            FORM_TRACE_FIRST_DETAIL
+                        }
+                    }
+                    euv_trace_line {
+                        status: Some(EuvTraceStatus::Error)
+                        euv_trace_title {
+                            FORM_TRACE_TITLE
+                        }
+                        euv_trace_description {
+                            FORM_TRACE_SECOND_DETAIL
+                        }
+                    }
+                    euv_trace_line {
+                        status: Some(EuvTraceStatus::Pending)
+                        euv_trace_title {
+                            FORM_TRACE_TITLE
+                        }
+                        euv_trace_description {
+                            FORM_TRACE_THIRD_DETAIL
+                        }
+                    }
+                    euv_trace_collapsible {
+                        open: trace_open
+                        euv_trace_collapsible_trigger {
+                            open: trace_open
+                            FORM_COLLAPSIBLE_TRIGGER
+                        }
+                        euv_trace_collapsible_content {
+                            open: trace_open
+                            p {
+                                FORM_COLLAPSIBLE_BODY
+                            }
+                        }
+                    }
+                }
+                euv_questionnaire {
+                    euv_questionnaire_progress {
+                        "1 / 3"
+                    }
+                    euv_questionnaire_item {
+                        euv_questionnaire_title {
+                            FORM_QUESTIONNAIRE_TITLE
+                        }
+                        euv_questionnaire_description {
+                            FORM_QUESTIONNAIRE_DESCRIPTION
+                        }
+                        euv_questionnaire_choices {
+                            choice_type: EuvQuestionnaireChoiceType::Checkbox
+                            euv_questionnaire_choice {
+                                choice_type: EuvQuestionnaireChoiceType::Checkbox
+                                checked: true
+                                disabled: false
+                                euv_questionnaire_choice_indicator {
+                                    choice_type: EuvQuestionnaireChoiceType::Checkbox
+                                    checked: true
+                                }
+                                euv_questionnaire_choice_label {
+                                    FORM_QUESTIONNAIRE_FIRST
+                                }
+                            }
+                            euv_questionnaire_choice {
+                                choice_type: EuvQuestionnaireChoiceType::Checkbox
+                                checked: false
+                                disabled: false
+                                euv_questionnaire_choice_indicator {
+                                    choice_type: EuvQuestionnaireChoiceType::Checkbox
+                                    checked: false
+                                }
+                                euv_questionnaire_choice_label {
+                                    FORM_QUESTIONNAIRE_SECOND
+                                }
+                            }
+                        }
+                    }
+                    euv_questionnaire_actions {
+                        euv_questionnaire_skip {
+                            FORM_QUESTIONNAIRE_SKIP
+                        }
+                        euv_questionnaire_next {
+                            FORM_QUESTIONNAIRE_NEXT
+                        }
+                    }
+                }
+                euv_code_block {
+                    variant: EuvCodeBlockVariant::Default
+                    size: EuvCodeBlockSize::Default
+                    euv_code_block_header {
+                        euv_code_block_title {
+                            FORM_CODE_BLOCK_TITLE
+                        }
+                        euv_code_block_actions {
+                            euv_code_block_copy_button {
+                                value: FORM_CODE_BLOCK_FIRST_LINE
+                            }
+                        }
+                    }
+                    euv_code_block_content {
+                        wrap: false
+                        line_numbers: true
+                        start_line: 1
+                        euv_code_block_line {
+                            variant: EuvCodeBlockLineVariant::Default
+                            FORM_CODE_BLOCK_FIRST_LINE
+                        }
+                        euv_code_block_line {
+                            variant: EuvCodeBlockLineVariant::Highlighted
+                            FORM_CODE_BLOCK_SECOND_LINE
+                        }
+                    }
+                }
+                euv_navigation_menu {
+                    open: navigation_open
+                    euv_navigation_menu_list {
+                        euv_navigation_menu_item {
+                            euv_navigation_menu_trigger {
+                                open: navigation_open
+                                FORM_NAVIGATION_LABEL
+                            }
+                            euv_navigation_menu_content {
+                                open: navigation_open
+                                euv_navigation_menu_link {
+                                    FORM_NAVIGATION_FIRST_LINK
+                                }
+                                euv_navigation_menu_link {
+                                    FORM_NAVIGATION_SECOND_LINK
+                                }
+                            }
+                        }
+                    }
+                }
+                euv_resizable_panel_group {
+                    direction: EuvResizableDirection::Horizontal
+                    euv_resizable_panel {
+                        size: resizable_size
+                        p {
+                            FORM_RESIZABLE_FIRST
+                        }
+                    }
+                    euv_resizable_handle {
+                        size: resizable_size
+                        min: 20.0
+                        max: 80.0
+                        direction: EuvResizableDirection::Horizontal
+                    }
+                    euv_resizable_panel {
+                        size: resizable_size
+                        p {
+                            FORM_RESIZABLE_SECOND
+                        }
                     }
                 }
             }

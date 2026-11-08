@@ -55,23 +55,6 @@ pub fn euv_toggle_group(node: VirtualNode<EuvToggleGroupProps>) -> VirtualNode {
     }
 }
 
-/// Renders one entry of the group.
-///
-/// # Arguments
-///
-/// - `EuvToggleGroupItem` - The entry this row renders.
-/// - `bool` - Whether the entry is pressed.
-/// - `Signal<Vec<String>>` - The selection signal owned by the caller.
-/// - `bool` - Whether more than one entry can be selected.
-/// - `bool` - Whether a single-selection group can be emptied.
-/// - `EuvToggleVariant` - The visual variant.
-/// - `EuvToggleSize` - The control size.
-/// - `Option<Rc<dyn Fn(Vec<String>)>>` - The change callback.
-///
-/// # Returns
-///
-/// - `VirtualNode` - The entry virtual DOM tree.
-
 /// Draws one entry of a toggle group.
 ///
 /// The entry carries everything the row needs, so the row is drawn by

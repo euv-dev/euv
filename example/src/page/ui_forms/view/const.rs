@@ -405,3 +405,150 @@ pub(crate) const FORM_CONTEXT_FIRST_VALUE: &str = "copy";
 
 /// The label of the one time code field.
 pub(crate) const FORM_OTP_LABEL: &str = "One time code";
+
+/// The title of the content and attachment card.
+pub(crate) const FORM_CONTENT_CARD_TITLE: &str = "Content and attachments";
+
+/// The text of the plain marker.
+pub(crate) const FORM_MARKER_LABEL: &str = "Deployment";
+
+/// The text of the separator marker.
+pub(crate) const FORM_MARKER_SEPARATOR_LABEL: &str = "or";
+
+/// The text of the border marker.
+pub(crate) const FORM_MARKER_BORDER_LABEL: &str = "Release notes";
+
+/// The name the native select submits under.
+pub(crate) const FORM_SELECT_NAME: &str = "environment";
+
+/// The label of the first native select option.
+pub(crate) const FORM_SELECT_FIRST_LABEL: &str = "Production";
+
+/// The value of the first native select option.
+pub(crate) const FORM_SELECT_FIRST_VALUE: &str = "production";
+
+/// The label of the second native select option.
+pub(crate) const FORM_SELECT_SECOND_LABEL: &str = "Staging";
+
+/// The value of the second native select option.
+pub(crate) const FORM_SELECT_SECOND_VALUE: &str = "staging";
+
+/// The label of the third native select option.
+pub(crate) const FORM_SELECT_THIRD_LABEL: &str = "Preview";
+
+/// The value of the third native select option.
+pub(crate) const FORM_SELECT_THIRD_VALUE: &str = "preview";
+
+/// The name of the finished attachment.
+pub(crate) const FORM_ATTACHMENT_DONE_TITLE: &str = "report.pdf";
+
+/// The description of the finished attachment.
+pub(crate) const FORM_ATTACHMENT_DONE_DESCRIPTION: &str = "1.2 MB";
+
+/// The name of the uploading attachment.
+pub(crate) const FORM_ATTACHMENT_UPLOADING_TITLE: &str = "draft.pdf";
+
+/// The description of the uploading attachment.
+pub(crate) const FORM_ATTACHMENT_UPLOADING_DESCRIPTION: &str = "Uploading";
+
+/// The name of the failed attachment.
+pub(crate) const FORM_ATTACHMENT_ERROR_TITLE: &str = "broken.png";
+
+/// The description of the failed attachment.
+pub(crate) const FORM_ATTACHMENT_ERROR_DESCRIPTION: &str = "Upload failed";
+
+/// The name of the first chart series.
+pub(crate) const FORM_CHART_FIRST_SERIES: &str = "Desktop";
+
+/// The value of the first chart series.
+pub(crate) const FORM_CHART_FIRST_VALUE: &str = "1,204";
+
+/// The name of the second chart series.
+pub(crate) const FORM_CHART_SECOND_SERIES: &str = "Mobile";
+
+/// The value of the second chart series.
+pub(crate) const FORM_CHART_SECOND_VALUE: &str = "640";
+
+/// The label of the chart tooltip.
+pub(crate) const FORM_CHART_TOOLTIP_LABEL: &str = "March";
+
+/// The colour of the first chart series.
+pub(crate) const FORM_CHART_FIRST_COLOR: &str = "var(--primary)";
+
+/// The colour of the second chart series.
+pub(crate) const FORM_CHART_SECOND_COLOR: &str = "var(--muted-foreground)";
+
+/// The title of the conversation and trace card.
+pub(crate) const FORM_CHAT_CARD_TITLE: &str = "Conversations, traces and forms";
+
+/// The text of the collapsible trigger.
+pub(crate) const FORM_COLLAPSIBLE_LABEL: &str = "What is a trace?";
+
+/// The body of the collapsible section.
+pub(crate) const FORM_COLLAPSIBLE_BODY: &str = "A trace is the list of steps a run went through.";
+
+/// The label of the collapsible trigger.
+pub(crate) const FORM_COLLAPSIBLE_TRIGGER: &str = "Show the details";
+
+/// The text of the first bubble.
+pub(crate) const FORM_BUBBLE_FIRST: &str = "The build finished in 42 seconds.";
+
+/// The text of the second bubble.
+pub(crate) const FORM_BUBBLE_SECOND: &str = "The deploy is waiting for a review.";
+
+/// The label of the reaction under the first bubble.
+pub(crate) const FORM_BUBBLE_REACTION: &str = "Ship it";
+
+/// The title of the trace section.
+pub(crate) const FORM_TRACE_TITLE: &str = "build";
+
+/// The detail of the first trace line.
+pub(crate) const FORM_TRACE_FIRST_DETAIL: &str = "128 ms";
+
+/// The detail of the second trace line.
+pub(crate) const FORM_TRACE_SECOND_DETAIL: &str = "412 ms";
+
+/// The detail of the third trace line.
+pub(crate) const FORM_TRACE_THIRD_DETAIL: &str = "9 ms";
+
+/// The question of the questionnaire.
+pub(crate) const FORM_QUESTIONNAIRE_TITLE: &str = "Which environments do you deploy to?";
+
+/// The line under the question.
+pub(crate) const FORM_QUESTIONNAIRE_DESCRIPTION: &str = "Pick every one that applies.";
+
+/// The first answer of the questionnaire.
+pub(crate) const FORM_QUESTIONNAIRE_FIRST: &str = "Production";
+
+/// The second answer of the questionnaire.
+pub(crate) const FORM_QUESTIONNAIRE_SECOND: &str = "Staging";
+
+/// The label of the questionnaire next button.
+pub(crate) const FORM_QUESTIONNAIRE_NEXT: &str = "Next";
+
+/// The label of the questionnaire skip button.
+pub(crate) const FORM_QUESTIONNAIRE_SKIP: &str = "Skip";
+
+/// The language label of the code block.
+pub(crate) const FORM_CODE_BLOCK_TITLE: &str = "config.toml";
+
+/// The first line of the code block.
+pub(crate) const FORM_CODE_BLOCK_FIRST_LINE: &str = "[server]";
+
+/// The second line of the code block.
+pub(crate) const FORM_CODE_BLOCK_SECOND_LINE: &str = "port = 8080";
+
+/// The label of the navigation menu trigger.
+pub(crate) const FORM_NAVIGATION_LABEL: &str = "Platform";
+
+/// The first link of the navigation menu.
+pub(crate) const FORM_NAVIGATION_FIRST_LINK: &str = "Overview";
+
+/// The second link of the navigation menu.
+pub(crate) const FORM_NAVIGATION_SECOND_LINK: &str = "Runs";
+
+/// The title of the resizable panel.
+pub(crate) const FORM_RESIZABLE_FIRST: &str = "Panel one";
+
+/// The title of the second resizable panel.
+pub(crate) const FORM_RESIZABLE_SECOND: &str = "Panel two";
