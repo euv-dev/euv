@@ -6,10 +6,10 @@ const path = require('node:path');
 const { test } = require('node:test');
 const os = require('node:os');
 const { spawnSync } = require('node:child_process');
-const { getTauriConfig } = require('../apply-config');
+const { getTauriConfig } = require('../config/apply-config');
 
 const root = path.resolve(__dirname, '../..');
-const config = JSON.parse(fs.readFileSync(path.join(root, 'app.config.json'), 'utf8'));
+const config = JSON.parse(fs.readFileSync(path.join(root, 'config/app.config.json'), 'utf8'));
 
 test('Apple accepts the production hardware-derived display-link range', { skip: process.platform !== 'darwin' }, (t) => {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'euv-native-display-'));
@@ -17,7 +17,7 @@ test('Apple accepts the production hardware-derived display-link range', { skip:
   const executable = path.join(temporary, 'display-probe');
   const compile = spawnSync('xcrun', ['clang', '-fobjc-arc', '-mmacosx-version-min=14.0',
     '-Wall', '-Wextra', '-Werror', '-framework', 'AppKit', '-framework', 'QuartzCore', '-framework', 'WebKit',
-    path.join(root, 'src-tauri/apple/display.m'), path.join(__dirname, 'display-probe.m'), '-o', executable],
+    path.join(root, 'src-tauri/apple/display.m'), path.join(__dirname, './display-probe.m'), '-o', executable],
     { encoding: 'utf8', timeout: 60000 });
   assert.equal(compile.status, 0, compile.error?.message || compile.stderr);
   const probe = spawnSync(executable, [], { encoding: 'utf8', timeout: 30000 });

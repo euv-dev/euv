@@ -12,19 +12,19 @@ import subprocess
 import time
 import xml.etree.ElementTree as ET
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--serial', required=True)
-    parser.add_argument('--apk', default=str(ROOT / 'euv.apk'))
+    parser.add_argument('--apk', default=str(ROOT / 'artifacts/android/euv.apk'))
     parser.add_argument('--fresh', action='store_true', help='Clear only this app data on the selected test emulator')
     parser.add_argument('--output', default=str(ROOT / 'artifacts/validation/android'))
     args = parser.parse_args()
     if not re.fullmatch(r'emulator-\d+', args.serial):
         raise SystemExit('This offline smoke test only accepts an emulator, never a physical device')
-    adb_path = shutil.which('adb') or str(ROOT / 'sdk/android/platform-tools/adb')
+    adb_path = shutil.which('adb') or str(ROOT / '.cache/sdk/android/platform-tools/adb')
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     manifest = json.loads((ROOT / 'src-tauri/bundled-cache/__euv_local_bundle__.json').read_text())

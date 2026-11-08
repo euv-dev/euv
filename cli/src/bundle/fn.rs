@@ -516,7 +516,7 @@ async fn run_android_build(
     web_dist: &Path,
     mode: &str,
 ) -> Result<(), EuvError> {
-    let script: PathBuf = native_project.join(ANDROID_BUILD_SCRIPT_NAME);
+    let script: PathBuf = native_project.join(ANDROID_BUILD_SCRIPT_PATH);
     if !script.is_file() {
         return Err(EuvError::Message(format!(
             "The Android build script '{}' does not exist.",
@@ -560,7 +560,7 @@ async fn run_client_build(
 ) -> Result<(), EuvError> {
     let script: PathBuf = native_project
         .join("scripts")
-        .join(BUILD_CLIENT_SCRIPT_NAME);
+        .join(BUILD_CLIENT_SCRIPT_PATH);
     if !script.is_file() {
         return Err(EuvError::Message(format!(
             "The native client builder '{}' does not exist.",

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
 # EUV SDK Setup Script
-# Downloads JDK and Android SDK into the project-local sdk/ directory.
+# Downloads JDK and Android SDK into the project-local .cache/sdk/ directory.
 # Usage:
-#   ./scripts/setup-sdk.sh           Install both JDK and Android SDK
-#   ./scripts/setup-sdk.sh jdk       Install JDK only
-#   ./scripts/setup-sdk.sh android   Install Android SDK only
+#   ./scripts/toolchain/setup-sdk.sh           Install both JDK and Android SDK
+#   ./scripts/toolchain/setup-sdk.sh jdk       Install JDK only
+#   ./scripts/toolchain/setup-sdk.sh android   Install Android SDK only
 
 set -euo pipefail
 
@@ -19,8 +19,8 @@ info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SDK_DIR="$PROJECT_ROOT/sdk"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+SDK_DIR="$PROJECT_ROOT/.cache/sdk"
 JDK_DIR="$SDK_DIR/jdk"
 ANDROID_DIR="$SDK_DIR/android"
 
@@ -50,7 +50,7 @@ download_jdk() {
     if [ -d "$JDK_DIR" ] && [ -x "$JDK_DIR/bin/java" ] || [ -x "$JDK_DIR/bin/java.exe" ]; then
         local ver
         ver=$("$JDK_DIR/bin/java" -version 2>&1 | head -1 || "$JDK_DIR/bin/java.exe" -version 2>&1 | head -1 || true)
-        info "JDK already installed at sdk/jdk/: $ver"
+        info "JDK already installed at .cache/sdk/jdk/: $ver"
         return 0
     fi
 
@@ -131,12 +131,12 @@ download_jdk() {
     rm -rf "$tmp_dir"
 
     if [ -x "$JDK_DIR/bin/java" ] || [ -x "$JDK_DIR/bin/java.exe" ]; then
-        info "JDK installed successfully at sdk/jdk/"
+        info "JDK installed successfully at .cache/sdk/jdk/"
         local ver
         ver=$("$JDK_DIR/bin/java" -version 2>&1 | head -1 || "$JDK_DIR/bin/java.exe" -version 2>&1 | head -1 || true)
         info "Version: $ver"
     else
-        error "JDK installation failed. Check sdk/jdk/ directory."
+        error "JDK installation failed. Check .cache/sdk/jdk/ directory."
     fi
 }
 
@@ -147,7 +147,7 @@ download_android_sdk() {
        [ -d "$ANDROID_DIR/build-tools/36.0.0" ] && \
        [ -d "$ANDROID_DIR/ndk/28.0.13004108" ] && \
        [ -d "$ANDROID_DIR/platform-tools" ]; then
-        info "Android SDK already installed at sdk/android/"
+        info "Android SDK already installed at .cache/sdk/android/"
         return 0
     fi
 
@@ -212,7 +212,7 @@ PY
         "ndk;28.0.13004108" \
         "platform-tools"
 
-    info "Android SDK installed successfully at sdk/android/"
+    info "Android SDK installed successfully at .cache/sdk/android/"
 }
 
 WHAT="${1:-all}"
@@ -236,6 +236,6 @@ esac
 
 echo ""
 info "Setup complete!"
-info "  JDK:       sdk/jdk/"
-info "  Android:   sdk/android/"
-info "Run ./build.sh to start building."
+info "  JDK:       .cache/sdk/jdk/"
+info "  Android:   .cache/sdk/android/"
+info "Run ./scripts/build/build.sh to start building."

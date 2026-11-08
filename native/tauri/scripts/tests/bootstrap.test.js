@@ -4,7 +4,7 @@ const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
-const { getIndexHtml, writeIfChanged } = require('../apply-config');
+const { getIndexHtml, writeIfChanged } = require('../config/apply-config');
 
 const config = { app: { name: 'Test' }, ui: { backgroundColor: '#fff' } };
 const flushPromises = () => new Promise(setImmediate);

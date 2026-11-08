@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../dist",
     "beforeDevCommand": "",
-    "beforeBuildCommand": "node scripts/bundle-example.js && node scripts/apply-config.js"
+    "beforeBuildCommand": "node scripts/build/bundle-example.js && node scripts/config/apply-config.js"
   },
   "app": {
     "withGlobalTauri": true,

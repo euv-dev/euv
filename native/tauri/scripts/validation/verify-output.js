@@ -5,10 +5,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
-const { verifyBundle } = require('./bundle-example');
+const { verifyBundle } = require('../build/bundle-example');
 const { pythonCommand, verifyNative, verifyNativeBytes, verifyIpa } = require('./verify-native');
 
-function verifyOutput(platform, directory = path.resolve(__dirname, '../artifacts', platform), options) {
+function verifyOutput(platform, directory = path.resolve(__dirname, '../../artifacts', platform), options) {
   const names = fs.readdirSync(directory).sort();
   const reports = names.filter((name) => name.endsWith('-build.json'));
   if (reports.length !== 1) throw new Error('Expected one client build report');

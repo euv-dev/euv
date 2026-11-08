@@ -7,10 +7,10 @@ const path = require('node:path');
 const { test } = require('node:test');
 const { spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
-const { bundleExample, readExample } = require('../bundle-example');
-const { buildPlan, packageIpa } = require('../build-client');
-const { verifyNativeBytes, verifyIpa } = require('../verify-native');
-const { verifyOutput } = require('../verify-output');
+const { bundleExample, readExample } = require('../build/bundle-example');
+const { buildPlan, packageIpa } = require('../build/build-client');
+const { verifyNativeBytes, verifyIpa } = require('../validation/verify-native');
+const { verifyOutput } = require('../validation/verify-output');
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'euv-platform-test-'));
@@ -104,7 +104,7 @@ test('unsigned IPA packaging preserves the actual app executable and local paylo
 test('client CLI fails before native build when local pages are absent', (t) => {
   const options = fixture(t);
   const platform = { darwin: 'macos', linux: 'linux', win32: 'windows' }[process.platform];
-  const result = spawnSync(process.execPath, [path.resolve(__dirname, '../build-client.js'), platform], {
+  const result = spawnSync(process.execPath, [path.resolve(__dirname, '../build/build-client.js'), platform], {
     env: { ...process.env, EUV_WEB_DIST: path.join(options.root, 'absent') }, encoding: 'utf8',
   });
   assert.equal(result.status, 1);

@@ -158,7 +158,7 @@ fn main() -> io::Result<()> {
     let config_path: PathBuf = manifest_dir
         .parent()
         .ok_or_else(|| io::Error::other("Manifest directory has no parent"))?
-        .join("app.config.json");
+        .join("config/app.config.json");
     println!("cargo:rerun-if-changed={}", config_path.display());
     let config_content: String = fs::read_to_string(&config_path)?;
     let config: serde_json::Value =

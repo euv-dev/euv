@@ -7,12 +7,12 @@
  * src-tauri/bundled-cache/ so they are embedded into the binary.
  * This ensures the app can start offline on first launch.
  *
- * Usage: node scripts/prefetch-cache.js
+ * Usage: node scripts/cache/prefetch-cache.js
  *
  * The module is importable (requiring it has no side effects) so the behaviour
  * can be exercised against a real local HTTP server:
  *
- *   const { runPrefetch } = require('./scripts/prefetch-cache');
+ *   const { runPrefetch } = require('../scripts/prefetch-cache');
  *   await runPrefetch({ root, outDir, concurrency: 6 });
  */
 
@@ -22,8 +22,8 @@ const https = require('https');
 const http = require('http');
 const zlib = require('zlib');
 
-const ROOT = path.resolve(__dirname, '..');
-const CONFIG_NAME = 'app.config.json';
+const ROOT = path.resolve(__dirname, '../..');
+const CONFIG_NAME = 'config/app.config.json';
 const BUNDLED_CACHE_SUBDIR = path.join('src-tauri', 'bundled-cache');
 
 /** Default number of parallel downloads. */
@@ -34,9 +34,9 @@ const DEFAULT_TIMEOUT_MS = Number(process.env.PREFETCH_TIMEOUT_MS || 30000);
 const MAX_REDIRECTS = 10;
 
 /**
- * Loads app.config.json from a project root.
+ * Loads config/app.config.json from a project root.
  *
- * @param {string} [root] - Project root that contains app.config.json.
+ * @param {string} [root] - Project root that contains config/app.config.json.
  * @returns {object} Parsed configuration.
  */
 function loadConfig(root = ROOT) {
@@ -709,9 +709,9 @@ function publish(stagingDir, outDir) {
  * therefore leaves the previously published cache untouched.
  *
  * @param {object} [options]
- * @param {string} [options.root] - Project root (used to find app.config.json).
+ * @param {string} [options.root] - Project root (used to find config/app.config.json).
  * @param {string} [options.outDir] - Destination cache directory.
- * @param {object|string} [options.config] - Config object or path to app.config.json.
+ * @param {object|string} [options.config] - Config object or path to config/app.config.json.
  * @param {number} [options.concurrency] - Parallel downloads (default 6).
  * @param {number} [options.timeoutMs] - Per-request timeout.
  * @param {(msg: string) => void} [options.logger]

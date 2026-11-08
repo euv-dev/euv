@@ -2,24 +2,24 @@
 /**
  * apply-config.js
  *
- * Reads app.config.json and injects configuration into platform-specific files:
+ * Reads config/app.config.json and injects configuration into platform-specific files:
  * - tauri.conf.json
  * - dist/index.html
  * - Android strings.xml
  * - Android AppConfig.kt
  *
- * Usage: node scripts/apply-config.js
+ * Usage: node scripts/config/apply-config.js
  */
 
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.resolve(__dirname, '..');
-const CONFIG_PATH = path.join(ROOT, 'app.config.json');
+const ROOT = path.resolve(__dirname, '../..');
+const CONFIG_PATH = path.join(ROOT, 'config/app.config.json');
 
 function loadConfig() {
   if (!fs.existsSync(CONFIG_PATH)) {
-    console.error('[ERROR] app.config.json not found at:', CONFIG_PATH);
+    console.error('[ERROR] config/app.config.json not found at:', CONFIG_PATH);
     process.exit(1);
   }
   return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
@@ -48,7 +48,7 @@ function getTauriConfig(config) {
       frontendDist: '../dist',
       beforeDevCommand: '',
       beforeBuildCommand:
-        'node scripts/bundle-example.js && node scripts/apply-config.js',
+        'node scripts/build/bundle-example.js && node scripts/config/apply-config.js',
     },
     app: {
       withGlobalTauri: true,
@@ -95,7 +95,7 @@ function writeTauriConf(config) {
 
 /**
  * Generate the default loading HTML (used as fallback when offline and no cache).
- * Can be overridden by setting ui.loadingHtml in app.config.json.
+ * Can be overridden by setting ui.loadingHtml in config/app.config.json.
  */
 function getLoadingHtml(config) {
   if (config.ui.loadingHtml) {
@@ -121,7 +121,7 @@ function getLoadingHtml(config) {
  * logo display, so we only need the JS that waits for cache readiness and then
  * navigates to the cached app served via the custom protocol.
  *
- * Can be overridden by setting ui.indexHtml in app.config.json.
+ * Can be overridden by setting ui.indexHtml in config/app.config.json.
  */
 function getIndexHtml(config) {
   if (config.ui.indexHtml) {
@@ -318,7 +318,7 @@ function writeAndroidBuildGradle(config) {
 }
 
 function main() {
-  console.log('[apply-config] Reading app.config.json...');
+  console.log('[apply-config] Reading config/app.config.json...');
   const config = loadConfig();
   console.log(`[apply-config] App: ${config.app.name} v${config.app.version}`);
 

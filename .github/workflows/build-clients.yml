@@ -81,7 +81,7 @@ jobs:
 
       - name: Verify client artifacts
         working-directory: native/tauri
-        run: node scripts/verify-output.js ${{ matrix.platform }}
+        run: node scripts/validation/verify-output.js ${{ matrix.platform }}
 
       - name: Upload ${{ matrix.platform }} client artifacts
         uses: actions/upload-artifact@v4
@@ -158,12 +158,12 @@ jobs:
       - name: Verify client artifacts
         working-directory: native/tauri
         run: |
-          node scripts/verify-output.js ios
-          node scripts/verify-output.js ios-simulator
+          node scripts/validation/verify-output.js ios
+          node scripts/validation/verify-output.js ios-simulator
 
       - name: Install and exercise the iOS Simulator app
         working-directory: native/tauri
-        run: python3 scripts/smoke-ios.py
+        run: python3 scripts/validation/smoke-ios.py
 
       - name: Upload iOS acceptance evidence
         if: always()

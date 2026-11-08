@@ -2,7 +2,7 @@
 # so its contents stay ignored — EXCEPT the two files that carry euv-app's
 # local customizations (the custom-protocol cache interceptor in
 # RustWebViewClient.kt and the matching RustWebView.kt). Those two are
-# committed so a fresh clone reproduces the same APK; build.sh backs them
+# committed so a fresh clone reproduces the same APK; scripts/build/build.sh backs them
 # up before the Tauri build and restores them afterwards.
 /src/main/**/generated/*
 !/src/main/**/generated/RustWebViewClient.kt

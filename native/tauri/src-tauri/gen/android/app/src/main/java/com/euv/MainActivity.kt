@@ -19,7 +19,6 @@ import android.view.Display
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
-import android.graphics.Paint
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -577,23 +576,27 @@ class MainActivity : TauriActivity() {
             domStorageEnabled = true
             javaScriptEnabled = true
             @Suppress("DEPRECATION")
-            setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
-            @Suppress("DEPRECATION")
             layoutAlgorithm = android.webkit.WebSettings.LayoutAlgorithm.NORMAL
             blockNetworkImage = false
             loadsImagesAutomatically = true
             cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
         }
-        if (AppConfig.ANTI_ALIASING) {
-            val paint: Paint = Paint().apply {
-                isAntiAlias = true
-                isFilterBitmap = true
-                isDither = true
-                isSubpixelText = true
-            }
-            webView.setLayerType(View.LAYER_TYPE_HARDWARE, paint)
+        // The application/window enables GPU acceleration. NONE keeps the
+        // accelerated WebView compositor without an extra full-window texture.
+        webView.setLayerType(View.LAYER_TYPE_NONE, null)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true)
+        }
+        if (webView.isAttachedToWindow) {
+            Log.i("EUV_RENDERER", "hardwareAccelerated=${webView.isHardwareAccelerated} layerType=${webView.layerType}")
         } else {
-            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            webView.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(view: View) {
+                    Log.i("EUV_RENDERER", "hardwareAccelerated=${view.isHardwareAccelerated} layerType=${view.layerType}")
+                    view.removeOnAttachStateChangeListener(this)
+                }
+                override fun onViewDetachedFromWindow(view: View) = Unit
+            })
         }
         webView.setBackgroundColor(Color.parseColor(AppConfig.BACKGROUND_COLOR))
         // Edge-to-edge IME bridge. The activity opted into

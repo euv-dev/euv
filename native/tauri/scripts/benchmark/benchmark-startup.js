@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const vm = require('node:vm');
-const { getIndexHtml } = require('./apply-config');
+const { getIndexHtml } = require('../config/apply-config');
 
 async function measure(html, cacheReadyMs) {
   let now = 0;
@@ -55,8 +55,8 @@ async function measure(html, cacheReadyMs) {
 }
 
 async function main() {
-  const root = path.resolve(__dirname, '..');
-  const baselineHtml = execFileSync('git', ['show', 'HEAD:dist/index.html'], { cwd: root, encoding: 'utf8' });
+  const root = path.resolve(__dirname, '../..');
+  const baselineHtml = execFileSync('git', ['show', 'HEAD:native/tauri/dist/index.html'], { cwd: root, encoding: 'utf8' });
   const optimizedHtml = getIndexHtml({ app: { name: 'Benchmark' }, ui: { backgroundColor: '#fff' } });
   const results = [];
   for (const cacheReadyMs of [0, 1500, 5000]) {

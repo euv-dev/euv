@@ -29,6 +29,8 @@ API_AVAILABLE(macos(14.0))
 @property(nonatomic) NSInteger requestedRate;
 @property(nonatomic) BOOL measuring;
 @property(nonatomic, copy) NSString *measuredURL;
+@property(nonatomic, copy) NSString *documentToken;
+@property(nonatomic, strong) NSData *publishedPolicy;
 - (void)refresh:(NSNotification *)notification;
 - (void)tick:(CADisplayLink *)link;
 @end
@@ -90,21 +92,30 @@ API_AVAILABLE(macos(14.0))
         @"guaranteed": @NO,
     };
     NSError *error = nil;
-    NSData *json = [NSJSONSerialization dataWithJSONObject:policy options:0 error:&error];
+    NSData *json = [NSJSONSerialization dataWithJSONObject:policy options:NSJSONWritingSortedKeys error:&error];
     if (json == nil) {
         NSLog(@"[EUV] Could not serialize native display policy: %@", error);
         return;
     }
+    if ([self.publishedPolicy isEqualToData:json]) return;
+    self.publishedPolicy = json;
+    __weak EuvDisplayPolicy *weakPolicy = self;
     NSString *value = [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
     NSString *script = [NSString stringWithFormat:@"window.__EUV_NATIVE_DISPLAY__=%@;window.dispatchEvent(new Event('euv:native-display'));", value];
     [web evaluateJavaScript:script completionHandler:^(__unused id result, NSError *evaluationError) {
-        if (evaluationError != nil) NSLog(@"[EUV] Native display policy publication failed: %@", evaluationError.localizedDescription);
+        if (evaluationError != nil) {
+            EuvDisplayPolicy *policy = weakPolicy;
+            if (policy.publishedPolicy == json) policy.publishedPolicy = nil;
+            NSLog(@"[EUV] Native display policy publication failed: %@", evaluationError.localizedDescription);
+        }
     }];
 }
 
 - (void)applyImmersive {
 #if TARGET_OS_OSX
-    self.web.window.movableByWindowBackground = self.immersive;
+    if (self.web.window.movableByWindowBackground != self.immersive) {
+        self.web.window.movableByWindowBackground = self.immersive;
+    }
 #else
     UIViewController *controller = self.web.window.rootViewController;
     if (controller == nil) return;
@@ -113,8 +124,12 @@ API_AVAILABLE(macos(14.0))
         NSLog(@"[EUV] Unsupported Tao controller: immersive preferences unavailable");
         return;
     }
-    [controller setPrefersStatusBarHidden:self.immersive];
-    [controller setPrefersHomeIndicatorAutoHidden:self.immersive];
+    if (controller.prefersStatusBarHidden != self.immersive) {
+        [controller setPrefersStatusBarHidden:self.immersive];
+    }
+    if (controller.prefersHomeIndicatorAutoHidden != self.immersive) {
+        [controller setPrefersHomeIndicatorAutoHidden:self.immersive];
+    }
 #endif
 }
 
@@ -149,7 +164,10 @@ API_AVAILABLE(macos(14.0))
     if (self.displayLink != nil && rate > 0) {
         // This is an OS preference, not measured WebView FPS. The compositor,
         // accessibility, power and thermal policies retain final authority.
-        self.displayLink.preferredFrameRateRange = CAFrameRateRangeMake((float)rate, (float)rate, (float)rate);
+        CAFrameRateRange current = self.displayLink.preferredFrameRateRange;
+        if (current.minimum != rate || current.maximum != rate || current.preferred != rate) {
+            self.displayLink.preferredFrameRateRange = CAFrameRateRangeMake((float)rate, (float)rate, (float)rate);
+        }
     }
     BOOL deactivating = NO;
 #if !TARGET_OS_OSX
@@ -176,7 +194,7 @@ API_AVAILABLE(macos(14.0))
         [self.measuredURL isEqualToString:web.URL.absoluteString] || ![self isActive]) return;
     self.measuring = YES;
     NSString *url = web.URL.absoluteString;
-    NSString *script = @"if(document.visibilityState!=='visible')throw new Error('Page is not visible');const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));const start=await frame();let end=start;for(let i=0;i<120;i++){end=await frame();if(document.visibilityState!=='visible')throw new Error('Page became hidden');}return {frames:120,elapsedMs:end-start,framesPerSecond:120000/(end-start),native:window.__EUV_NATIVE_DISPLAY__,url:location.href};";
+    NSString *script = @"if(document.visibilityState!=='visible')throw new Error('Page is not visible');const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));const start=await frame();let end=start;for(let i=0;i<120;i++){end=await frame();if(document.visibilityState!=='visible')throw new Error('Page became hidden');}return {frames:120,elapsedMs:end-start,framesPerSecond:120000/(end-start),native:window.__EUV_NATIVE_DISPLAY__,gpu:typeof window.__EUV_GPU_PROBE__==='function'?await window.__EUV_GPU_PROBE__():null,url:location.href};";
     __weak EuvDisplayPolicy *weakSelf = self;
     [web callAsyncJavaScript:script arguments:@{} inFrame:nil inContentWorld:WKContentWorld.pageWorld completionHandler:^(id result, NSError *error) {
         EuvDisplayPolicy *policy = weakSelf;
@@ -193,6 +211,13 @@ API_AVAILABLE(macos(14.0))
 
 - (void)userContentController:(__unused WKUserContentController *)controller didReceiveScriptMessage:(WKScriptMessage *)message {
     if (message.frameInfo.mainFrame) {
+        NSDictionary *body = [message.body isKindOfClass:NSDictionary.class] ? message.body : nil;
+        NSString *token = [body[@"documentToken"] isKindOfClass:NSString.class] ? body[@"documentToken"] : nil;
+        if (token != nil && ![token isEqualToString:self.documentToken]) {
+            self.documentToken = token;
+            self.publishedPolicy = nil;
+            self.measuredURL = nil;
+        }
         [self refresh:nil];
         [self measureFrameRate];
     }
@@ -211,7 +236,7 @@ int32_t euv_configure_apple_display(void *pointer, int32_t immersive, int32_t ma
                 policy.web = web;
                 [controller addScriptMessageHandler:policy name:@"euvNativeDisplay"];
                 objc_setAssociatedObject(controller, &displayPolicyKey, policy, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                NSString *script = @"(function(){if(window.__euvNativeDisplayBridge)return;window.__euvNativeDisplayBridge=true;function refresh(){window.webkit.messageHandlers.euvNativeDisplay.postMessage(null);}document.addEventListener('DOMContentLoaded',refresh);window.addEventListener('load',refresh);window.addEventListener('resize',refresh);document.addEventListener('visibilitychange',refresh);refresh();})();";
+                NSString *script = @"(function(){if(window.__euvNativeDisplayBridge)return;window.__euvNativeDisplayBridge=true;var pending=false;var documentToken=String(performance.timeOrigin);function refresh(){if(pending)return;pending=true;requestAnimationFrame(function(){pending=false;window.webkit.messageHandlers.euvNativeDisplay.postMessage({documentToken:documentToken});});}document.addEventListener('DOMContentLoaded',refresh);window.addEventListener('load',refresh);window.addEventListener('resize',refresh);document.addEventListener('visibilitychange',refresh);refresh();})();";
                 [controller addUserScript:[[WKUserScript alloc] initWithSource:script injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]];
                 [web evaluateJavaScript:script completionHandler:nil];
                 NSNotificationCenter *center = NSNotificationCenter.defaultCenter;

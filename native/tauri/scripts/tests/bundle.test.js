@@ -6,8 +6,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const { test } = require('node:test');
-const { MANIFEST_NAME, bundleExample, readExample, verifyBundle } = require('../bundle-example');
-const { verifyApk } = require('../verify-apk');
+const { MANIFEST_NAME, bundleExample, readExample, verifyBundle } = require('../build/bundle-example');
+const { verifyApk } = require('../validation/verify-apk');
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'euv-local-bundle-'));
@@ -106,7 +106,7 @@ test('bundling rejects symlinks, reserved filenames, and overlapping directories
 
 test('bundle CLI exits nonzero when local example output is absent', (t) => {
   const options = fixture(t);
-  const result = spawnSync(process.execPath, [path.resolve(__dirname, '../bundle-example.js')], {
+  const result = spawnSync(process.execPath, [path.resolve(__dirname, '../build/bundle-example.js')], {
     env: { ...process.env, EUV_WEB_DIST: path.join(options.root, 'missing') }, encoding: 'utf8',
   });
   assert.equal(result.status, 1);
@@ -137,9 +137,9 @@ test('APK verification rejects a bundle from a different example build', (t) => 
 });
 
 test('generated Tauri config uses local bundling instead of remote prefetch', () => {
-  const generator = fs.readFileSync(path.resolve(__dirname, '../apply-config.js'), 'utf8');
+  const generator = fs.readFileSync(path.resolve(__dirname, '../config/apply-config.js'), 'utf8');
   const config = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../src-tauri/tauri.conf.json'), 'utf8'));
-  assert.match(generator, /node scripts\/bundle-example.js && node scripts\/apply-config.js/);
+  assert.match(generator, /node scripts\/build\/bundle-example.js && node scripts\/config\/apply-config.js/);
   assert.doesNotMatch(generator, /node scripts\/prefetch-cache.js/);
-  assert.equal(config.build.beforeBuildCommand, 'node scripts/bundle-example.js && node scripts/apply-config.js');
+  assert.equal(config.build.beforeBuildCommand, 'node scripts/build/bundle-example.js && node scripts/config/apply-config.js');
 });

@@ -3,7 +3,7 @@
 
 const fs = require('node:fs');
 const { spawnSync, execFileSync } = require('node:child_process');
-const { readExample, verifyBundle, DEFAULT_DESTINATION, sourceDirectory } = require('./bundle-example');
+const { readExample, verifyBundle, DEFAULT_DESTINATION, sourceDirectory } = require('../build/bundle-example');
 
 function pythonCommand() {
   for (const command of ['python3', 'python']) {

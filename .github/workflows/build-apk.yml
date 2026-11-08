@@ -74,14 +74,14 @@ jobs:
 
       - name: Verify local pages inside the APK
         working-directory: native/tauri
-        run: node scripts/verify-apk.js euv.apk
+        run: node scripts/validation/verify-apk.js artifacts/android/euv.apk
 
       - name: Upload APK and local page provenance
         uses: actions/upload-artifact@v4
         with:
           name: euv-android-apk
           path: |
-            native/tauri/euv.apk
+            native/tauri/artifacts/android/euv.apk
             native/tauri/src-tauri/bundled-cache/__euv_local_bundle__.json
           if-no-files-found: error
 
@@ -102,4 +102,4 @@ jobs:
           else
             gh release create latest --title "$TITLE" --notes "$NOTES" --prerelease
           fi
-          gh release upload latest euv.apk --clobber
+          gh release upload latest artifacts/android/euv.apk --clobber

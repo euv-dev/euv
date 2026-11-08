@@ -64,7 +64,7 @@ extern "C" int32_t euv_configure_ios_webview(void *pointer) {
     WKWebView *web = (__bridge WKWebView *)pointer;
     if (web == nil || ![web isKindOfClass:[WKWebView class]]) return 0;
     WKUserContentController *controller = web.configuration.userContentController;
-    NSString *script = @"(function(){if(window.__euvNativeSafeAreaBridge)return;window.__euvNativeSafeAreaBridge=true;function refresh(){window.webkit.messageHandlers.euvNativeSafeArea.postMessage(null);}document.addEventListener('DOMContentLoaded',refresh);window.addEventListener('load',refresh);window.addEventListener('resize',refresh);if(window.visualViewport)window.visualViewport.addEventListener('resize',refresh);refresh();})();";
+    NSString *script = @"(function(){if(window.__euvNativeSafeAreaBridge)return;window.__euvNativeSafeAreaBridge=true;var pending=false;function refresh(){if(pending)return;pending=true;requestAnimationFrame(function(){pending=false;window.webkit.messageHandlers.euvNativeSafeArea.postMessage(null);});}document.addEventListener('DOMContentLoaded',refresh);window.addEventListener('load',refresh);window.addEventListener('resize',refresh);if(window.visualViewport)window.visualViewport.addEventListener('resize',refresh);refresh();})();";
     if (objc_getAssociatedObject(controller, &safeAreaHandlerKey) == nil) {
         EuvSafeAreaHandler *handler = [EuvSafeAreaHandler new];
         [controller addScriptMessageHandler:handler name:@"euvNativeSafeArea"];

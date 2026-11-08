@@ -60,7 +60,7 @@
     "targets": ["android", "windows", "macos", "linux", "ios"],
     "signing": {
       "android": {
-        "keystorePath": "keystore.jks",
+        "keystorePath": "resources/signing/keystore.jks",
         "keystoreAlias": "euv"
       }
     }

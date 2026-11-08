@@ -337,10 +337,10 @@ fn unsupported_hosts_are_not_treated_as_macos() {
 #[tokio::test]
 async fn a_native_builder_failure_stops_later_targets() {
     let root: PathBuf = temp_dir().join(format!("euv-native-failure-{}", process::id()));
-    fs::create_dir_all(root.join("scripts")).expect("create fake builder directory");
-    fs::write(root.join("build.sh"), "exit 17").expect("write failing test builder");
+    fs::create_dir_all(root.join("scripts/build")).expect("create fake builder directory");
+    fs::write(root.join("scripts/build/build.sh"), "exit 17").expect("write failing test builder");
     fs::write(
-        root.join("scripts/build-client.js"),
+        root.join("scripts/build/build-client.js"),
         r#"require('node:fs').writeFileSync('unexpected', 'ran')"#,
     )
     .expect("write later test builder");
@@ -361,9 +361,9 @@ async fn a_native_builder_failure_stops_later_targets() {
 #[tokio::test]
 async fn the_native_builder_receives_the_exact_web_snapshot_and_release_mode() {
     let root: PathBuf = temp_dir().join(format!("euv-native-snapshot-{}", process::id()));
-    fs::create_dir_all(&root).expect("create test builder directory");
+    fs::create_dir_all(root.join("scripts/build")).expect("create test builder directory");
     fs::write(
-        root.join("build.sh"),
+        root.join("scripts/build/build.sh"),
         r#"printf '%s\n' "$EUV_WEB_DIST" "$1" "$2" > received"#,
     )
     .expect("write snapshot test builder");

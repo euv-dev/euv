@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import tarfile
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 SWIFT_TEST = r'''
 import XCTest
@@ -102,7 +102,7 @@ def main():
     def capture(command):
         return subprocess.check_output(command, text=True, env=simulator_env).strip()
 
-    run(['node', str(ROOT / 'scripts/verify-output.js'), 'ios-simulator'], cwd=ROOT)
+    run(['node', str(ROOT / 'scripts/validation/verify-output.js'), 'ios-simulator'], cwd=ROOT)
     archives = list((ROOT / 'artifacts/ios-simulator').glob('*.app.tar.gz'))
     archive = Path(args.archive) if args.archive else archives[0] if len(archives) == 1 else None
     if archive is None:

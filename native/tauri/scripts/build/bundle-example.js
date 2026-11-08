@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(__dirname, '../..');
 const MANIFEST_NAME = '__euv_local_bundle__.json';
 const DEFAULT_DESTINATION = path.join(ROOT, 'src-tauri', 'bundled-cache');
 const WASM_HEADER = Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]);

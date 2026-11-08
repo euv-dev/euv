@@ -6,10 +6,10 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { bundleExample, verifyBundle, MANIFEST_NAME, DEFAULT_DESTINATION } = require('./bundle-example');
-const { pythonCommand, verifyNative, verifyIpa } = require('./verify-native');
-const { verifyOutput } = require('./verify-output');
+const { pythonCommand, verifyNative, verifyIpa } = require('../validation/verify-native');
+const { verifyOutput } = require('../validation/verify-output');
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(__dirname, '../..');
 const ARTIFACT_ROOT = path.join(ROOT, 'artifacts');
 
 function buildPlan(platform, host = process.platform, arch = process.arch) {
@@ -98,7 +98,7 @@ function prepareAppleProject(apple, env) {
   const specFile = path.join(apple, 'project.yml');
   const script = 'puts JSON.generate(YAML.load_file(ARGV[0]))';
   const spec = JSON.parse(run('/usr/bin/ruby', ['-ryaml', '-rjson', '-e', script, specFile], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
-  const minimum = JSON.parse(fs.readFileSync(path.join(ROOT, 'app.config.json'), 'utf8')).ios?.minimumSystemVersion || '15.0';
+  const minimum = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/app.config.json'), 'utf8')).ios?.minimumSystemVersion || '15.0';
   spec.options.deploymentTarget.iOS = minimum;
   const targets = Object.entries(spec.targets).filter(([, entry]) => entry.platform === 'iOS' && entry.type === 'application');
   if (targets.length !== 1) throw new Error('Expected one generated iOS application target');
@@ -106,10 +106,15 @@ function prepareAppleProject(apple, env) {
   targets[0][1].info.properties = { ...targets[0][1].info.properties, ...extraInfo };
   const phases = targets[0][1].preBuildScripts.filter((entry) => entry.name === 'Build Rust Code');
   if (phases.length !== 1) throw new Error('Expected one real Rust build phase');
-  if (!phases[0].script.includes('EUV_IOS_NATIVE_BUILD')) {
-    const original = phases[0].script;
-    phases[0].script = 'if [ "${EUV_IOS_NATIVE_BUILD:-}" = "1" ]; then\n  ' + JSON.stringify(process.execPath) + ' ' + JSON.stringify(path.join(__dirname, 'build-ios-native.js')) + '\nelse\n' + original + '\nfi\n';
+  const previous = phases[0].script;
+  let original = previous;
+  if (previous.includes('EUV_IOS_NATIVE_BUILD')) {
+    const start = previous.indexOf('\nelse\n');
+    const end = previous.lastIndexOf('\nfi');
+    if (start < 0 || end <= start) throw new Error('Cannot update the generated iOS build phase');
+    original = previous.slice(start + '\nelse\n'.length, end);
   }
+  phases[0].script = 'if [ "${EUV_IOS_NATIVE_BUILD:-}" = "1" ]; then\n  ' + JSON.stringify(process.execPath) + ' ' + JSON.stringify(path.join(__dirname, './build-ios-native.js')) + '\nelse\n' + original + '\nfi\n';
   // JSON is valid YAML; xcodegen writes the canonical OpenStep pbxproj format.
   fs.writeFileSync(specFile, `${JSON.stringify(spec, null, 2)}\n`);
   run('xcodegen', ['generate', '--spec', specFile, '--project', apple], { env });
@@ -119,7 +124,7 @@ function prepareAppleProject(apple, env) {
 function buildSimulator(apple, plan, env, scheme) {
   env.EUV_IOS_NATIVE_BUILD = '1';
   env.EUV_CARGO = run('which', ['cargo'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-  const minimum = JSON.parse(fs.readFileSync(path.join(ROOT, 'app.config.json'), 'utf8')).ios?.minimumSystemVersion || '15.0';
+  const minimum = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/app.config.json'), 'utf8')).ios?.minimumSystemVersion || '15.0';
   run('xcodebuild', ['build', '-project', path.join(apple, 'euv-app.xcodeproj'), '-scheme', scheme,
     '-sdk', 'iphonesimulator', '-configuration', 'release',
     '-destination', env.EUV_IOS_SIMULATOR_UDID ? `id=${env.EUV_IOS_SIMULATOR_UDID}` : 'generic/platform=iOS Simulator',
@@ -131,7 +136,7 @@ function buildSimulator(apple, plan, env, scheme) {
 function buildClient(platform) {
   const plan = buildPlan(platform);
   bundleExample();
-  run(process.execPath, ['scripts/apply-config.js']);
+  run(process.execPath, ['scripts/config/apply-config.js']);
   run('rustup', ['target', 'add', plan.target]);
   run('cargo', ['metadata', '--manifest-path', 'src-tauri/Cargo.toml', '--format-version', '1', '--filter-platform', plan.target], { stdio: ['ignore', 'ignore', 'inherit'] });
   const env = { ...process.env, CARGO_TARGET_DIR: path.resolve(process.env.CARGO_TARGET_DIR || path.join(ROOT, 'src-tauri/target')) };
@@ -150,7 +155,7 @@ function buildClient(platform) {
       env.EUV_REAL_SWIFT = run('xcrun', ['--find', 'swift'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
       swiftTools = fs.mkdtempSync(path.join(ARTIFACT_ROOT, '.ios-swift-'));
       env.EUV_IOS_SWIFT_TOOLS = swiftTools;
-      fs.copyFileSync(path.join(__dirname, 'swift-ios.sh'), path.join(swiftTools, 'swift'));
+      fs.copyFileSync(path.join(__dirname, '../toolchain/swift-ios.sh'), path.join(swiftTools, 'swift'));
       fs.chmodSync(path.join(swiftTools, 'swift'), 0o755);
       env.PATH = `${swiftTools}${path.delimiter}${env.PATH}`;
       const apple = path.join(ROOT, 'src-tauri/gen/apple');

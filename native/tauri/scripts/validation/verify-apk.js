@@ -3,7 +3,7 @@
 
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { MANIFEST_NAME, DEFAULT_DESTINATION, sourceDirectory, verifyBundle } = require('./bundle-example');
+const { MANIFEST_NAME, DEFAULT_DESTINATION, sourceDirectory, verifyBundle } = require('../build/bundle-example');
 
 // Read ZIP and ELF payloads directly instead of trusting an earlier build step.
 const CHECK_APK = String.raw`
@@ -32,7 +32,7 @@ print(json.dumps({'apk': str(apk), 'libraries': libraries, 'files': len(manifest
 `;
 
 function verifyApk(apk, { source = sourceDirectory(), destination = DEFAULT_DESTINATION } = {}) {
-  if (!apk) throw new Error('Usage: node scripts/verify-apk.js <apk>');
+  if (!apk) throw new Error('Usage: node scripts/validation/verify-apk.js <apk>');
   verifyBundle({ source, destination });
   const output = execFileSync('python3', ['-c', CHECK_APK, path.resolve(apk), destination, MANIFEST_NAME], {
     encoding: 'utf8',

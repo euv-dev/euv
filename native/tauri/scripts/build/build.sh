@@ -14,31 +14,31 @@ case "$MODE" in
     *) printf '[ERROR] Unsupported mode: %s\n' "$MODE" >&2; exit 1 ;;
 esac
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/../.."
 PROJECT_ROOT="$(pwd)"
 for TOOL in node npm cargo rustup python3; do
     command -v "$TOOL" >/dev/null 2>&1 || { printf '[ERROR] Required tool missing: %s\n' "$TOOL" >&2; exit 1; }
 done
 
 # Fail before downloading toolchains if the local web build is absent.
-node scripts/bundle-example.js
+node scripts/build/bundle-example.js
 if [ ! -x node_modules/.bin/tauri ]; then
     npm ci
 fi
-node scripts/apply-config.js
+node scripts/config/apply-config.js
 rustup target add aarch64-linux-android
 
-export JAVA_HOME="${JAVA_HOME:-$PROJECT_ROOT/sdk/jdk}"
+export JAVA_HOME="${JAVA_HOME:-$PROJECT_ROOT/.cache/sdk/jdk}"
 if [ ! -x "$JAVA_HOME/bin/java" ]; then
-    [ "$JAVA_HOME" = "$PROJECT_ROOT/sdk/jdk" ] || { printf '[ERROR] Invalid JAVA_HOME: %s\n' "$JAVA_HOME" >&2; exit 1; }
-    bash scripts/setup-sdk.sh jdk
+    [ "$JAVA_HOME" = "$PROJECT_ROOT/.cache/sdk/jdk" ] || { printf '[ERROR] Invalid JAVA_HOME: %s\n' "$JAVA_HOME" >&2; exit 1; }
+    bash scripts/toolchain/setup-sdk.sh jdk
 fi
 [ -x "$JAVA_HOME/bin/java" ] || { printf '[ERROR] JDK installation is incomplete\n' >&2; exit 1; }
 export PATH="$JAVA_HOME/bin:$PATH"
-export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$PROJECT_ROOT/sdk/android}}"
+export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$PROJECT_ROOT/.cache/sdk/android}}"
 if [ ! -d "$ANDROID_HOME/platforms/android-36" ]; then
-    [ "$ANDROID_HOME" = "$PROJECT_ROOT/sdk/android" ] || { printf '[ERROR] Android SDK platform 36 is missing from %s\n' "$ANDROID_HOME" >&2; exit 1; }
-    bash scripts/setup-sdk.sh android
+    [ "$ANDROID_HOME" = "$PROJECT_ROOT/.cache/sdk/android" ] || { printf '[ERROR] Android SDK platform 36 is missing from %s\n' "$ANDROID_HOME" >&2; exit 1; }
+    bash scripts/toolchain/setup-sdk.sh android
 fi
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export NDK_HOME="${NDK_HOME:-$ANDROID_HOME/ndk/28.0.13004108}"
@@ -60,7 +60,7 @@ export GRADLE_OPTS="${GRADLE_OPTS:-} -Dorg.gradle.daemon=false"
 
 ANDROID_DIR="$PROJECT_ROOT/src-tauri/gen/android"
 GENERATED_DIR="$ANDROID_DIR/app/src/main/java/com/euv/generated"
-BACKUP_DIR="$(mktemp -d "${TMPDIR:-$PROJECT_ROOT/sdk}/euv-webview.XXXXXX")"
+BACKUP_DIR="$(mktemp -d "${TMPDIR:-$PROJECT_ROOT/.cache/sdk}/euv-webview.XXXXXX")"
 restore_webviews() {
     for FILE in RustWebView.kt RustWebViewClient.kt; do
         if [ -f "$BACKUP_DIR/$FILE" ]; then
@@ -85,18 +85,19 @@ import os, pathlib, sys
 sdk = os.environ['ANDROID_HOME'].replace('\\', '\\\\').replace(':', '\\:')
 pathlib.Path(sys.argv[1]).write_text('sdk.dir=' + sdk + '\n')
 PY
-APP_NAME="$(node -e 'console.log(require("./app.config.json").app.name.toLowerCase())')"
+APP_NAME="$(node -e 'console.log(require("./config/app.config.json").app.name.toLowerCase())')"
 if [ "$MODE" = release ]; then
-    OUTPUT_NAME="$APP_NAME.apk"
+    OUTPUT_NAME="$PROJECT_ROOT/artifacts/android/$APP_NAME.apk"
     APK_PATH="$ANDROID_DIR/app/build/outputs/apk/universal/release/app-universal-release.apk"
     TASK=assembleUniversalRelease
     CARGO_PROFILE=release
 else
-    OUTPUT_NAME="$APP_NAME-debug.apk"
+    OUTPUT_NAME="$PROJECT_ROOT/artifacts/android/$APP_NAME-debug.apk"
     APK_PATH="$ANDROID_DIR/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
     TASK=assembleUniversalDebug
     CARGO_PROFILE=debug
 fi
+mkdir -p "$PROJECT_ROOT/artifacts/android"
 rm -f "$OUTPUT_NAME" "$APK_PATH"
 # Tauri must successfully compile the native library and generate Android glue.
 # Never continue after a failed native or initial Gradle build.
@@ -117,6 +118,6 @@ cp "$NATIVE_LIBRARY" "$ANDROID_DIR/app/src/main/jniLibs/arm64-v8a/libeuv_lib.so"
     -PabiList=arm64-v8a -ParchList=arm64 -PtargetList=aarch64 "$TASK"
 [ -s "$APK_PATH" ] || { printf '[ERROR] Expected APK is missing: %s\n' "$APK_PATH" >&2; exit 1; }
 cp "$APK_PATH" "$OUTPUT_NAME"
-node scripts/verify-apk.js "$OUTPUT_NAME"
+node scripts/validation/verify-apk.js "$OUTPUT_NAME"
 "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$OUTPUT_NAME"
-printf '[OK] Android %s APK with local example pages: %s/%s\n' "$MODE" "$PROJECT_ROOT" "$OUTPUT_NAME"
+printf '[OK] Android %s APK with local example pages: %s\n' "$MODE" "$OUTPUT_NAME"

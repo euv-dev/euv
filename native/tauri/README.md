@@ -13,6 +13,34 @@
 
 > Cross-platform client for the **euv** UI framework, with one shared Rust cache, startup-readiness bridge, and runtime update implementation.
 
+## Directory layout
+
+```text
+native/tauri/
+  config/                  # Authored application configuration
+  resources/
+    runtime/               # Embedded WebView runtime assets
+    signing/               # Existing signing inputs; never log their contents
+  scripts/
+    build/                 # Web snapshot and native package builders
+    config/                # Platform configuration and icon generation
+    toolchain/             # SDK installation and compiler compatibility helpers
+    validation/            # Artifact and real-device/simulator checks
+    benchmark/             # Reproducible measurements, not production startup
+    cache/                 # Explicit remote-cache maintenance tools
+    tests/                 # Script regression tests and fixtures
+  src-tauri/               # Independent Rust workspace and native platform glue
+  dist/                    # Tauri-required generated bootstrap frontend
+  artifacts/               # Packages and validation evidence, by platform
+  .cache/sdk/              # Ignored local SDK/JDK downloads
+```
+
+Do not add executable scripts to the client root or directly to `scripts/`.
+The npm manifest and the project CLI point directly at grouped implementations;
+old-path wrapper scripts are not retained. Tauri's required `src-tauri/gen/`
+platform projects and `dist/` input remain in their conventional locations.
+The directory policy is checked by `scripts/tests/layout.test.js` in `npm test`.
+
 ## Installation
 
 To build this app, you can run cmd:
@@ -26,7 +54,7 @@ npm install
 npm run build:android
 ```
 
-A signed `euv.apk` is produced in `native/tauri/`.
+A signed `euv.apk` is produced in `native/tauri/artifacts/android/`.
 
 This client keeps an independent Cargo workspace so Android and desktop dependencies do not enter the web framework workspace.
 
@@ -84,12 +112,12 @@ the artifact and never publish a release.
 
 ```shell
 npm run bundle:example
-npm run verify:apk -- euv.apk
+npm run verify:apk -- artifacts/android/euv.apk
 ```
 
 Verification compares the local output with its SHA-256 manifest and checks
 the actual native library inside the APK for every bundled file. The remote
-URL in `app.config.json` remains the runtime update source; it does not supply
+URL in `config/app.config.json` remains the runtime update source; it does not supply
 the APK's built-in pages.
 
 ## Windows, macOS, Linux, and iOS
@@ -111,7 +139,7 @@ types, file hashes, and embedded local pages pass verification. Each platform
 includes a pages manifest and a build report. Recheck a completed output with:
 
 ```shell
-node scripts/verify-output.js macos
+node scripts/validation/verify-output.js macos
 ```
 
 For iOS, install real `xcodegen`, `libimobiledevice`, and CocoaPods tools first,
@@ -144,10 +172,10 @@ CSS contract rather than combining automatic and manual top padding.
 
 ```shell
 # Use only a disposable, rootable Android emulator; --fresh clears Euv data.
-python3 scripts/smoke-android.py --serial emulator-5580 --fresh
+python3 scripts/validation/smoke-android.py --serial emulator-5580 --fresh
 
 # Creates, boots, installs into, exercises, and removes its own iPhone simulator.
-python3 scripts/smoke-ios.py
+python3 scripts/validation/smoke-ios.py
 ```
 
 The Android test disables emulator network access for startup and restart,
@@ -162,7 +190,7 @@ into the user's Applications folder and native-window interaction.
 ## Immersive presentation and refresh rate
 
 `ui.immersiveMode` and `ui.maxFrameRateEnabled` are enabled by default in
-`app.config.json`. Desktop windows are borderless but remain resizable and do
+`config/app.config.json`. Desktop windows are borderless but remain resizable and do
 not enter OS fullscreen unless `ui.window.fullscreen` is enabled separately.
 Android hides status/navigation bars while retaining transient swipe access.
 iOS asks Tao's own view controller to hide the status bar and auto-hide the

@@ -60,11 +60,11 @@ pub(crate) const NODE_COMMAND: &str = "node";
 /// The command that runs the Android build script.
 pub(crate) const BASH_COMMAND: &str = "bash";
 
-/// The file name of the Android build script.
-pub(crate) const ANDROID_BUILD_SCRIPT_NAME: &str = "build.sh";
+/// The project-relative path of the Android build script.
+pub(crate) const ANDROID_BUILD_SCRIPT_PATH: &str = "scripts/build/build.sh";
 
-/// The file name of the per-platform native client builder.
-pub(crate) const BUILD_CLIENT_SCRIPT_NAME: &str = "build-client.js";
+/// The scripts-relative path of the per-platform native client builder.
+pub(crate) const BUILD_CLIENT_SCRIPT_PATH: &str = "build/build-client.js";
 
 /// The Android platform name used by the native builders.
 pub(crate) const PLATFORM_ANDROID: &str = "android";

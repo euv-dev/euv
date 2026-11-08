@@ -7,7 +7,7 @@ node_modules
 .kotlin/
 .DS_Store
 bundled-cache
-sdk
+/.cache/
 /artifacts/
 
 # Build artifacts
@@ -27,7 +27,7 @@ src-tauri/gen/apple/
 local-deps/
 
 # Secrets
-keystore.jks
+resources/signing/keystore.jks
 keystore.properties
 local.properties
 
@@ -44,7 +44,7 @@ src-tauri/gen/schemas/
 !/src-tauri/Cargo.lock
 
 # Preserve files already tracked by the original client repository.
-!/keystore.jks
+!/resources/signing/keystore.jks
 !/src-tauri/gen/schemas/
 /src-tauri/gen/schemas/*
 !/src-tauri/gen/schemas/acl-manifests.json

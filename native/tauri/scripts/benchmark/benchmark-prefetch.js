@@ -3,7 +3,7 @@
 /**
  * benchmark-prefetch.js
  *
- * Compares the HEAD (baseline) version of scripts/prefetch-cache.js against the
+ * Compares the HEAD (baseline) version of scripts/cache/prefetch-cache.js against the
  * working-tree (modified) version, using the exact same local HTTP fixture
  * server and the exact same resource set.
  *
@@ -13,7 +13,7 @@
  *   - the sha256 of every produced cache file (hashes must match between the
  *     two variants, proving the optimization did not change the output)
  *
- * Usage: node scripts/benchmark-prefetch.js
+ * Usage: node scripts/benchmark/benchmark-prefetch.js
  */
 const fs = require('fs');
 const os = require('os');
@@ -21,16 +21,24 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn, execFileSync } = require('child_process');
 
-const { startFixtureServer, writeConfig } = require('./tests/fixture-server');
+const { startFixtureServer, writeConfig } = require('../tests/fixture-server');
 
-const REPO_ROOT = path.resolve(__dirname, '..');
-const SCRIPT_REL = 'scripts/prefetch-cache.js';
+const REPO_ROOT = path.resolve(__dirname, '../..');
+const SCRIPT_REL = 'scripts/cache/prefetch-cache.js';
 
 function gitShowHead(relPath) {
-  return execFileSync('git', ['-C', REPO_ROOT, 'show', `HEAD:${relPath}`], {
+  const prefix = execFileSync('git', ['-C', REPO_ROOT, 'rev-parse', '--show-prefix'], { encoding: 'utf8' }).trim();
+  let sourcePath = prefix + relPath;
+  try {
+    execFileSync('git', ['-C', REPO_ROOT, 'cat-file', '-e', `HEAD:${sourcePath}`], { stdio: 'ignore' });
+  } catch (_) {
+    sourcePath = prefix + 'scripts/prefetch-cache.js';
+  }
+  return execFileSync('git', ['-C', REPO_ROOT, 'show', `HEAD:${sourcePath}`], {
     encoding: 'utf-8',
     maxBuffer: 32 * 1024 * 1024,
-  });
+  }).replace("path.resolve(__dirname, '..')", "path.resolve(__dirname, '../..')")
+    .replace("const CONFIG_NAME = 'app.config.json'", "const CONFIG_NAME = 'config/app.config.json'");
 }
 
 function sha256File(file) {
@@ -56,8 +64,8 @@ function hashTree(dir) {
 
 /**
  * Run one variant in an isolated root:
- *   <root>/scripts/prefetch-cache.js
- *   <root>/app.config.json
+ *   <root>/scripts/cache/prefetch-cache.js
+ *   <root>/config/app.config.json
  */
 function runChild(cmd, args) {
   return new Promise((resolve) => {
@@ -74,11 +82,11 @@ function runChild(cmd, args) {
 
 async function runVariant({ label, source, url, delayMs }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `prefetch-bench-${label}-`));
-  fs.mkdirSync(path.join(root, 'scripts'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'scripts', 'prefetch-cache.js'), source);
+  fs.mkdirSync(path.join(root, 'scripts', 'cache'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'scripts', 'cache', 'prefetch-cache.js'), source);
   writeConfig(root, url);
 
-  const script = path.join(root, 'scripts', 'prefetch-cache.js');
+  const script = path.join(root, 'scripts', 'cache', 'prefetch-cache.js');
   const timeBin = '/usr/bin/time';
   const hasTime = fs.existsSync(timeBin);
 

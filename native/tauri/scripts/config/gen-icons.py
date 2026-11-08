@@ -7,7 +7,7 @@ import argparse
 
 
 def load_config():
-    config_path = os.path.join(os.path.dirname(__file__), "..", "app.config.json")
+    config_path = os.path.join(os.path.dirname(__file__), "..", "..", "config", "app.config.json")
     config_path = os.path.abspath(config_path)
     with open(config_path, "r") as f:
         return json.load(f)
@@ -16,12 +16,12 @@ def load_config():
 def main():
     parser = argparse.ArgumentParser(description="Generate app icons from source image")
     parser.add_argument(
-        "--source", "-s", help="Source icon image path (overrides app.config.json)"
+        "--source", "-s", help="Source icon image path (overrides config/app.config.json)"
     )
     args = parser.parse_args()
 
     config = load_config()
-    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
     # Determine source image
     source = args.source or os.path.join(root_dir, config["icons"]["source"])
