@@ -8,8 +8,84 @@ fn total(node: &VirtualNode) -> usize {
     }
 }
 
+#[cfg(feature = "theme-shadcn")]
+fn class_values(node: &VirtualNode) -> Vec<String> {
+    match node {
+        VirtualNode::Element {
+            attributes,
+            children,
+            ..
+        } => {
+            let mut values: Vec<String> = Vec::new();
+            for attribute in attributes.iter() {
+                if attribute.get_name() == "class" {
+                    values.extend(attribute.class_names());
+                }
+            }
+            for child in children.iter() {
+                values.extend(class_values(child));
+            }
+            values
+        }
+        VirtualNode::Fragment(children) => children.iter().flat_map(class_values).collect(),
+        _ => Vec::new(),
+    }
+}
+
 fn count_named(node: &VirtualNode, needle: &str) -> usize {
     format!("{node:?}").matches(needle).count()
+}
+
+fn elements(node: &VirtualNode) -> Vec<VirtualNode> {
+    match node {
+        VirtualNode::Element { children, .. } => {
+            let mut out: Vec<VirtualNode> = vec![node.clone()];
+            for child in children {
+                out.extend(elements(child));
+            }
+            out
+        }
+        VirtualNode::Fragment(children) => {
+            let mut out: Vec<VirtualNode> = Vec::new();
+            for child in children {
+                out.extend(elements(child));
+            }
+            out
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn slot_values(node: &VirtualNode) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for element in elements(node) {
+        if let VirtualNode::Element { attributes, .. } = &element {
+            for entry in attributes.iter() {
+                if entry.get_name() == "data-slot"
+                    && let Some(value) = entry.text_value()
+                {
+                    out.push(value);
+                }
+            }
+        }
+    }
+    out
+}
+
+fn values_for_attribute(node: &VirtualNode, name: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for element in elements(node) {
+        if let VirtualNode::Element { attributes, .. } = &element {
+            for attribute in attributes.iter() {
+                if attribute.get_name() == name
+                    && let Some(value) = attribute.text_value()
+                {
+                    out.push(value);
+                }
+            }
+        }
+    }
+    out
 }
 
 fn leaked(value: String) -> &'static str {
@@ -37,6 +113,42 @@ fn table_node(rows: usize, caption: &'static str) -> VirtualNode<EuvTableProps> 
             columns,
             rows: built,
             caption,
+            zebra: false,
+        })),
+    }
+}
+
+#[cfg(feature = "theme-shadcn")]
+fn aligned_table_node() -> VirtualNode<EuvTableProps> {
+    let columns: Vec<EuvTableColumn> = vec![
+        EuvTableColumn {
+            key: "left",
+            label: "Left",
+            align: EuvTableAlign::Left,
+        },
+        EuvTableColumn {
+            key: "center",
+            label: "Center",
+            align: EuvTableAlign::Center,
+        },
+        EuvTableColumn {
+            key: "right",
+            label: "Right",
+            align: EuvTableAlign::Right,
+        },
+    ];
+    VirtualNode::Element {
+        tag: Tag::Element(Cow::Borrowed("div")),
+        attributes: Vec::new(),
+        children: Vec::new(),
+        key: None,
+        props: Some(Box::new(EuvTableProps {
+            columns,
+            rows: vec![EuvTableRow {
+                cells: vec!["a", "b", "c"],
+                key: "aligned-row",
+            }],
+            caption: "Alignment",
             zebra: false,
         })),
     }
@@ -86,13 +198,49 @@ fn radio_node(options: usize) -> VirtualNode<EuvRadioGroupProps> {
 fn a_table_is_a_real_table_element_with_a_head() {
     let rendered: VirtualNode = euv_table(table_node(1, ""));
     let debugged: String = format!("{rendered:?}");
+    let slots: Vec<String> = slot_values(&rendered);
     assert!(
-        debugged.contains("Element(\"table\")"),
-        "a table must use a real table element so screen readers announce it, got {debugged}"
+        slots.iter().any(|slot: &String| slot == "table-container"),
+        "the scroll wrapper must carry the reference's table container slot, got {slots:?}"
     );
     assert!(
-        debugged.contains("Element(\"thead\")"),
-        "with a header section, got {debugged}"
+        debugged.contains("Element(\"table\")")
+            && slots.iter().any(|slot: &String| slot == "table-row"),
+        "table rows carry the reference's interactive and border slot, got {slots:?}"
+    );
+    assert!(
+        debugged.contains("Element(\"thead\")")
+            && slots.iter().any(|slot: &String| slot == "table-header"),
+        "with a header section, got {slots:?}"
+    );
+}
+
+#[cfg(feature = "theme-shadcn")]
+#[test]
+fn the_shadcn_table_uses_reference_type_alignment_and_caption_classes() {
+    let rendered: VirtualNode = euv_table(aligned_table_node());
+    let classes: Vec<String> = class_values(&rendered);
+    for class_name in [
+        "c_euv_table_shadcn",
+        "c_euv_table_body_shadcn",
+        "c_euv_table_header_cell_shadcn",
+        "c_euv_table_header_cell_center_shadcn",
+        "c_euv_table_header_cell_right_shadcn",
+        "c_euv_table_cell_shadcn",
+        "c_euv_table_cell_center_shadcn",
+        "c_euv_table_cell_right_shadcn",
+        "c_euv_table_caption_shadcn",
+    ] {
+        assert!(
+            classes.iter().any(|class: &String| class == class_name),
+            "the shadcn table must apply {class_name}, got {classes:?}"
+        );
+    }
+    let footer: VirtualNode = euv_table_footer(VirtualNode::Empty);
+    assert!(
+        class_values(&footer)
+            .iter()
+            .any(|class: &String| class == "c_euv_table_footer_shadcn")
     );
 }
 
@@ -233,4 +381,106 @@ fn a_radio_group_without_props_renders_without_panicking() {
         total(&rendered) > 0,
         "the group frame renders, got {rendered:?}"
     );
+}
+
+fn tree_node(default_expanded: bool) -> VirtualNode<EuvTreeProps> {
+    VirtualNode::Element {
+        tag: Tag::Element(Cow::Borrowed("div")),
+        attributes: Vec::new(),
+        children: Vec::new(),
+        key: None,
+        props: Some(Box::new(EuvTreeProps {
+            nodes: vec![EuvTreeNode {
+                label: "Parent",
+                value: "parent",
+                children: vec![EuvTreeNode {
+                    label: "Child",
+                    value: "child",
+                    children: Vec::new(),
+                }],
+            }],
+            selected: Signal::create(String::new()),
+            on_select: None,
+            default_expanded,
+        })),
+    }
+}
+
+#[test]
+fn a_tree_exposes_nested_roles_slots_and_a_single_roving_tab_stop() {
+    let tree: VirtualNode<EuvTreeProps> = tree_node(true);
+    let rendered: VirtualNode = euv_tree(tree);
+    let roles: Vec<String> = values_for_attribute(&rendered, "role");
+    let slots: Vec<String> = slot_values(&rendered);
+    let tabindex_values: Vec<String> = values_for_attribute(&rendered, "tabindex");
+    let levels: Vec<String> = values_for_attribute(&rendered, "aria-level");
+    let expanded_values: Vec<String> = values_for_attribute(&rendered, "aria-expanded");
+    let visible_values: Vec<String> = values_for_attribute(&rendered, "data-visible");
+
+    assert!(roles.contains(&"tree".to_string()));
+    assert!(roles.contains(&"group".to_string()));
+    assert_eq!(
+        roles
+            .iter()
+            .filter(|role: &&String| *role == "treeitem")
+            .count(),
+        2
+    );
+    for slot in [
+        "tree",
+        "tree-item",
+        "tree-item-row",
+        "tree-group",
+        "tree-toggle",
+    ] {
+        assert!(
+            slots.iter().any(|value: &String| value == slot),
+            "missing {slot}"
+        );
+    }
+    assert_eq!(
+        tabindex_values
+            .iter()
+            .filter(|value: &&String| *value == "0")
+            .count(),
+        1
+    );
+    assert_eq!(tabindex_values.len(), 2);
+    assert_eq!(levels, vec!["1".to_string(), "2".to_string()]);
+    assert_eq!(
+        expanded_values,
+        vec!["true".to_string(), "false".to_string()]
+    );
+    assert_eq!(visible_values, vec!["true".to_string(), "true".to_string()]);
+}
+
+#[test]
+fn a_collapsed_tree_excludes_children_from_the_roving_sequence() {
+    let rendered: VirtualNode = euv_tree(tree_node(false));
+    let tabindex_values: Vec<String> = values_for_attribute(&rendered, "tabindex");
+    let visible_values: Vec<String> = values_for_attribute(&rendered, "data-visible");
+    let expanded_values: Vec<String> = values_for_attribute(&rendered, "aria-expanded");
+
+    assert_eq!(tabindex_values, vec!["0".to_string(), "-1".to_string()]);
+    assert_eq!(
+        visible_values,
+        vec!["true".to_string(), "false".to_string()]
+    );
+    assert_eq!(
+        expanded_values,
+        vec!["false".to_string(), "false".to_string()]
+    );
+}
+
+#[test]
+fn tree_selection_and_expansion_helpers_update_state() {
+    let selected: Signal<String> = Signal::create(String::new());
+    select_tree_node(selected, None, "child");
+    assert_eq!(selected.get(), "child");
+
+    let mut expanded: Vec<String> = vec!["parent".to_string()];
+    toggle_expanded_value(&mut expanded, "parent");
+    assert!(expanded.is_empty());
+    toggle_expanded_value(&mut expanded, "parent");
+    assert_eq!(expanded, vec!["parent".to_string()]);
 }

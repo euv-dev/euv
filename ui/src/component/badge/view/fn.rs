@@ -2,10 +2,9 @@ use super::*;
 
 /// A badge component for displaying status indicators.
 ///
-/// The four variants are the ones the registry publishes: the filled
-/// default, the quiet secondary, the destructive fill and the bare
-/// outline. The historical `outline` flag still works: when it is set the
-/// badge renders the outline variant whatever the `variant` prop says.
+/// The six variants cover filled, outlined, ghost and link-styled badges. The
+/// historical `outline` flag still works: when it is set the badge renders the
+/// outline variant whatever the `variant` prop says.
 ///
 /// # Arguments
 ///
@@ -32,13 +31,55 @@ pub fn euv_badge(node: VirtualNode<EuvBadgeProps>) -> VirtualNode {
         EuvBadgeVariant::Secondary => c_euv_badge_secondary,
         EuvBadgeVariant::Destructive => c_euv_badge_destructive,
         EuvBadgeVariant::Outline => c_euv_badge_outline,
+        EuvBadgeVariant::Ghost => c_euv_badge_ghost,
+        EuvBadgeVariant::Link => c_euv_badge_link,
     };
-    html! {
-        span {
-            class: c_euv_badge()
-            class: variant_class()
-            onclick: on_click
-            text
-        }
+    let data_variant: &str = match effective {
+        EuvBadgeVariant::Default => BADGE_VARIANT_DEFAULT,
+        EuvBadgeVariant::Secondary => BADGE_VARIANT_SECONDARY,
+        EuvBadgeVariant::Destructive => BADGE_VARIANT_DESTRUCTIVE,
+        EuvBadgeVariant::Outline => BADGE_VARIANT_OUTLINE,
+        EuvBadgeVariant::Ghost => BADGE_VARIANT_GHOST,
+        EuvBadgeVariant::Link => BADGE_VARIANT_LINK,
+    };
+    let base_class: &Css = c_euv_badge();
+    let variant_style: &Css = variant_class();
+    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_badge_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
+    let destructive_shadcn_class: &Css =
+        if cfg!(feature = "theme-shadcn") && effective == EuvBadgeVariant::Destructive {
+            c_euv_badge_destructive_shadcn()
+        } else {
+            &EMPTY_CLASS
+        };
+    match on_click {
+        Some(click_handler) => html! {
+            button {
+                type: "button"
+                "data-slot": "badge"
+                "data-variant": data_variant
+                class: base_class
+                class: variant_style
+                class: shadcn_class
+                class: destructive_shadcn_class
+                class: c_euv_badge_clickable()
+                onclick: Some(click_handler)
+                text
+            }
+        },
+        None => html! {
+            span {
+                "data-slot": "badge"
+                "data-variant": data_variant
+                class: base_class
+                class: variant_style
+                class: shadcn_class
+                class: destructive_shadcn_class
+                text
+            }
+        },
     }
 }

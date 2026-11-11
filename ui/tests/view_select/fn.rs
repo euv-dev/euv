@@ -15,6 +15,7 @@ fn option(value: &'static str, label: &'static str, group: &'static str) -> EuvS
         value,
         label,
         group,
+        separator_before: false,
         disabled: false,
     }
 }
@@ -28,36 +29,34 @@ fn fruit_options() -> Vec<EuvSelectOption> {
 }
 
 fn select_with(value: &str, options: Vec<EuvSelectOption>) -> VirtualNode {
+    select_with_invalid(value, options, false)
+}
+
+fn select_with_invalid(value: &str, options: Vec<EuvSelectOption>, invalid: bool) -> VirtualNode {
     euv_select(props(EuvSelectProps {
         value: Signal::create(String::from(value)),
         options,
         placeholder: "Pick a fruit",
         label: "",
+        id: "",
+        name: "",
+        required: false,
+        invalid,
         disabled: false,
+        align_item_with_trigger: false,
         on_change: None,
     }))
 }
 
+fn carries_text(entry: &AttributeEntry, name: &str, value: &str) -> bool {
+    entry.get_name() == name && entry.text_value().as_deref() == Some(value)
+}
+
 fn carries_classes(entry: &AttributeEntry, names: &[&str]) -> bool {
-    if names.len() == 1 {
-        let single: AttributeEntry = AttributeEntry::new(
-            Cow::Borrowed("class"),
-            AttributeValue::Css(Css::new(
-                String::from(names[0]),
-                String::new(),
-                Vec::new(),
-                Vec::new(),
-            )),
-        );
-        if entry == &single {
-            return true;
-        }
-    }
-    let merged: AttributeEntry = AttributeEntry::new(
-        Cow::Borrowed("class"),
-        AttributeValue::Text(names.join(" ")),
-    );
-    entry == &merged
+    let classes: Vec<String> = entry.class_names();
+    names
+        .iter()
+        .all(|name: &&str| classes.iter().any(|class: &String| class == name))
 }
 
 fn classes_of_tag(node: &VirtualNode, tag: &str, into: &mut Vec<AttributeEntry>) {
@@ -175,6 +174,37 @@ fn collect_attribute_names(node: &VirtualNode, into: &mut Vec<String>) {
 }
 
 #[test]
+fn a_select_panel_contains_a_dedicated_scroll_viewport() {
+    let rendered: VirtualNode = select_with("", fruit_options());
+    let mut attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "div", &mut attributes);
+    assert!(
+        attributes.iter().any(|entries: &Vec<AttributeEntry>| {
+            entries
+                .iter()
+                .any(|entry: &AttributeEntry| carries_text(entry, "data-slot", "select-viewport"))
+        }),
+        "the option panel carries an internal select-viewport slot, got {rendered:?}"
+    );
+}
+
+#[test]
+fn a_short_select_list_has_no_scroll_indicators() {
+    let rendered: VirtualNode = select_with("", fruit_options());
+    let mut attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "div", &mut attributes);
+    assert!(
+        attributes.iter().all(|entries: &Vec<AttributeEntry>| {
+            !entries.iter().any(|entry: &AttributeEntry| {
+                carries_text(entry, "data-slot", "select-scroll-up-button")
+                    || carries_text(entry, "data-slot", "select-scroll-down-button")
+            })
+        }),
+        "a short list has no scroll affordances, got {rendered:?}"
+    );
+}
+
+#[test]
 fn a_select_with_no_options_renders_the_empty_row() {
     let rendered: VirtualNode = select_with("", Vec::new());
     let mut divs: Vec<AttributeEntry> = Vec::new();
@@ -215,6 +245,90 @@ fn a_select_without_a_selection_shows_the_placeholder() {
 }
 
 #[test]
+fn select_item_alignment_default_tracks_the_active_theme() {
+    assert_eq!(
+        EuvSelectProps::default().align_item_with_trigger,
+        cfg!(feature = "theme-shadcn")
+    );
+}
+
+#[test]
+fn an_invalid_select_marks_its_root_trigger_and_error_style() {
+    let rendered: VirtualNode = select_with_invalid("", fruit_options(), true);
+    let mut div_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "div", &mut div_attributes);
+    assert!(
+        div_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "data-invalid", "true"))
+            }),
+        "an invalid Select root reports data-invalid=true, got {div_attributes:?}"
+    );
+    let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "button", &mut button_attributes);
+    assert!(
+        button_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "aria-invalid", "true"))
+            }),
+        "an invalid Select trigger reports aria-invalid=true, got {button_attributes:?}"
+    );
+    assert!(
+        button_classes(&rendered)
+            .first()
+            .is_some_and(|entry: &AttributeEntry| carries_classes(
+                entry,
+                &["c_euv_select_trigger_invalid"]
+            )),
+        "an invalid Select trigger carries the destructive border class, got {rendered:?}"
+    );
+}
+
+#[test]
+fn a_valid_select_reports_no_invalid_state() {
+    let rendered: VirtualNode = select_with("", fruit_options());
+    let mut div_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "div", &mut div_attributes);
+    let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "button", &mut button_attributes);
+    assert!(
+        div_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "data-invalid", "false"))
+            }),
+        "a valid Select root reports data-invalid=false, got {div_attributes:?}"
+    );
+    assert!(
+        button_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "aria-invalid", "false"))
+            }),
+        "a valid Select trigger reports aria-invalid=false, got {button_attributes:?}"
+    );
+    assert!(
+        button_classes(&rendered)
+            .first()
+            .is_some_and(|entry: &AttributeEntry| !carries_classes(
+                entry,
+                &["c_euv_select_trigger_invalid"]
+            )),
+        "a valid Select trigger has no invalid style, got {rendered:?}"
+    );
+}
+
+#[test]
 fn a_select_with_a_selection_shows_the_option_label() {
     let rendered: VirtualNode = select_with("banana", fruit_options());
     let mut spans: Vec<AttributeEntry> = Vec::new();
@@ -230,6 +344,159 @@ fn a_select_with_a_selection_shows_the_option_label() {
             .iter()
             .any(|text: &String| text.contains("Banana")),
         "the selected option's label reaches the trigger, got {rendered:?}"
+    );
+}
+
+#[test]
+fn a_select_trigger_controls_its_listbox_by_id() {
+    let rendered: VirtualNode = select_with("", fruit_options());
+    let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "button", &mut button_attributes);
+    let trigger_attributes: &Vec<AttributeEntry> = button_attributes
+        .first()
+        .expect("the Select renders its trigger before options");
+    let controls_id: Option<String> = trigger_attributes
+        .iter()
+        .find(|entry: &&AttributeEntry| entry.get_name() == "aria-controls")
+        .and_then(|entry: &AttributeEntry| entry.text_value());
+    let trigger_role: bool = trigger_attributes
+        .iter()
+        .any(|entry: &AttributeEntry| carries_text(entry, "role", "combobox"));
+    let mut div_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "div", &mut div_attributes);
+    let listbox_attributes: Option<&Vec<AttributeEntry>> =
+        div_attributes
+            .iter()
+            .find(|attributes: &&Vec<AttributeEntry>| {
+                attributes.iter().any(|entry: &AttributeEntry| {
+                    carries_text(entry, "data-slot", "select-viewport")
+                })
+            });
+    let listbox_id: Option<String> =
+        listbox_attributes.and_then(|attributes: &Vec<AttributeEntry>| {
+            attributes
+                .iter()
+                .find(|entry: &&AttributeEntry| entry.get_name() == "id")
+                .and_then(|entry: &AttributeEntry| entry.text_value())
+        });
+    let listbox_role: bool = listbox_attributes.is_some_and(|attributes: &Vec<AttributeEntry>| {
+        attributes
+            .iter()
+            .any(|entry: &AttributeEntry| carries_text(entry, "role", "listbox"))
+    });
+    assert!(
+        trigger_role,
+        "the trigger reports the combobox role, got {trigger_attributes:?}"
+    );
+    assert!(
+        listbox_role,
+        "the viewport reports the listbox role, got {listbox_attributes:?}"
+    );
+    assert!(
+        controls_id.is_some(),
+        "the trigger references its listbox, got {trigger_attributes:?}"
+    );
+    assert_eq!(
+        controls_id, listbox_id,
+        "aria-controls resolves to the listbox id"
+    );
+}
+
+#[test]
+fn typeahead_matches_labels_case_insensitively_and_skips_disabled_options() {
+    let cherry: EuvSelectOption = option("cherry", "Cherry", "");
+    let banana: EuvSelectOption = option("banana", "Banana", "");
+    assert!(cherry.matches_typeahead("CH"));
+    assert!(banana.matches_typeahead("b"));
+    let mut disabled_banana: EuvSelectOption = option("disabled-banana", "Banana", "");
+    disabled_banana.disabled = true;
+    assert!(!disabled_banana.matches_typeahead("ba"));
+}
+
+#[test]
+fn a_named_required_select_renders_a_native_form_control() {
+    let rendered: VirtualNode = euv_select(props(EuvSelectProps {
+        value: Signal::create(String::from("banana")),
+        options: fruit_options(),
+        placeholder: "Pick a fruit",
+        label: "Fruit",
+        id: "fruit-select",
+        name: "fruit",
+        required: true,
+        invalid: false,
+        disabled: false,
+        align_item_with_trigger: false,
+        on_change: None,
+    }));
+    let mut input_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "input", &mut input_attributes);
+    let hidden_control_complete: bool =
+        input_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                let has_text_type: bool = attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "type", "text"));
+                let has_name: bool = attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "name", "fruit"));
+                let has_value: bool = attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "value", "banana"));
+                let is_required: bool = attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "required", "true"));
+                let is_hidden_from_accessibility: bool = attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "aria-hidden", "true"));
+                has_text_type
+                    && has_name
+                    && has_value
+                    && is_required
+                    && is_hidden_from_accessibility
+            });
+    assert!(
+        hidden_control_complete,
+        "a named required Select carries its native form value, got inputs {input_attributes:?} and tree {rendered:?}"
+    );
+    let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "button", &mut button_attributes);
+    assert!(
+        button_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "id", "fruit-select"))
+                    && attributes
+                        .iter()
+                        .any(|entry: &AttributeEntry| carries_text(entry, "aria-required", "true"))
+            }),
+        "the Select trigger carries its id and required state, got {button_attributes:?}"
+    );
+    let default_rendered: VirtualNode = select_with("apple", fruit_options());
+    let mut default_inputs: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&default_rendered, "input", &mut default_inputs);
+    assert!(
+        default_inputs.is_empty(),
+        "an unnamed optional Select renders no form input"
+    );
+}
+
+#[test]
+fn a_select_value_carries_its_part_slot() {
+    let rendered: VirtualNode = select_with("banana", fruit_options());
+    let mut span_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "span", &mut span_attributes);
+    assert!(
+        span_attributes
+            .iter()
+            .any(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "data-slot", "select-value"))
+            }),
+        "the displayed value exposes the select-value slot, got {span_attributes:?}"
     );
 }
 
@@ -290,7 +557,63 @@ fn grouped_options_render_a_caption_row_for_each_group() {
         .iter()
         .filter(|entry: &&AttributeEntry| carries_classes(entry, &["c_euv_select_group"]))
         .count();
-    assert_eq!(captions, 2, "one caption row per group, got {divs:?}");
+    assert_eq!(captions, 2, "one label row per group, got {divs:?}");
+    let mut div_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "div", &mut div_attributes);
+    let groups: Vec<&Vec<AttributeEntry>> = div_attributes
+        .iter()
+        .filter(|attributes: &&Vec<AttributeEntry>| {
+            attributes
+                .iter()
+                .any(|entry: &AttributeEntry| carries_text(entry, "data-slot", "select-group"))
+        })
+        .collect();
+    let labels: usize = div_attributes
+        .iter()
+        .filter(|attributes: &&Vec<AttributeEntry>| {
+            attributes
+                .iter()
+                .any(|entry: &AttributeEntry| carries_text(entry, "data-slot", "select-label"))
+        })
+        .count();
+    let label_ids: Vec<String> = div_attributes
+        .iter()
+        .filter_map(|attributes: &Vec<AttributeEntry>| {
+            let has_label_slot: bool = attributes
+                .iter()
+                .any(|entry: &AttributeEntry| carries_text(entry, "data-slot", "select-label"));
+            if has_label_slot {
+                attributes
+                    .iter()
+                    .find(|entry: &&AttributeEntry| entry.get_name() == "id")
+                    .and_then(|entry: &AttributeEntry| entry.text_value())
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(
+        groups.len(),
+        2,
+        "one semantic group per category, got {groups:?}"
+    );
+    assert_eq!(
+        labels, 2,
+        "each group has a SelectLabel slot, got {div_attributes:?}"
+    );
+    assert!(
+        groups.iter().all(|attributes: &&Vec<AttributeEntry>| {
+            let labelled_by: Option<String> = attributes
+                .iter()
+                .find(|entry: &&AttributeEntry| entry.get_name() == "aria-labelledby")
+                .and_then(|entry: &AttributeEntry| entry.text_value());
+            attributes
+                .iter()
+                .any(|entry: &AttributeEntry| carries_text(entry, "role", "group"))
+                && labelled_by.is_some_and(|id: String| label_ids.contains(&id))
+        }),
+        "each group references its own accessible label, got {groups:?}"
+    );
     let rendered_texts: Vec<String> = texts(&rendered);
     assert!(
         rendered_texts
@@ -304,6 +627,60 @@ fn grouped_options_render_a_caption_row_for_each_group() {
 }
 
 #[test]
+fn an_option_can_be_preceded_by_an_accessible_separator() {
+    let rendered: VirtualNode = select_with(
+        "",
+        vec![
+            option("apple", "Apple", ""),
+            EuvSelectOption {
+                value: "banana",
+                label: "Banana",
+                group: "",
+                separator_before: true,
+                disabled: false,
+            },
+        ],
+    );
+    let mut div_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "div", &mut div_attributes);
+    let separator_attributes: Option<&Vec<AttributeEntry>> =
+        div_attributes
+            .iter()
+            .find(|attributes: &&Vec<AttributeEntry>| {
+                attributes.iter().any(|attribute: &AttributeEntry| {
+                    *attribute
+                        == AttributeEntry::new(
+                            Cow::Borrowed("data-slot"),
+                            AttributeValue::Text(String::from("select-separator")),
+                        )
+                })
+            });
+    assert!(
+        separator_attributes.is_some_and(|attributes: &Vec<AttributeEntry>| {
+            attributes.iter().any(|attribute: &AttributeEntry| {
+                *attribute
+                    == AttributeEntry::new(
+                        Cow::Borrowed("role"),
+                        AttributeValue::Text(String::from("separator")),
+                    )
+            }) && attributes.iter().any(|attribute: &AttributeEntry| {
+                *attribute
+                    == AttributeEntry::new(
+                        Cow::Borrowed("class"),
+                        AttributeValue::Css(Css::new(
+                            String::from("c_euv_select_separator"),
+                            String::new(),
+                            Vec::new(),
+                            Vec::new(),
+                        )),
+                    )
+            })
+        }),
+        "the requested separator is rendered with its slot, role and class, got {rendered:?}"
+    );
+}
+
+#[test]
 fn a_disabled_option_carries_the_disabled_class_and_cannot_be_picked() {
     let options: Vec<EuvSelectOption> = vec![
         option("apple", "Apple", ""),
@@ -311,6 +688,7 @@ fn a_disabled_option_carries_the_disabled_class_and_cannot_be_picked() {
             value: "banana",
             label: "Banana",
             group: "",
+            separator_before: false,
             disabled: true,
         },
     ];

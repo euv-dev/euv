@@ -20,13 +20,21 @@ pub fn euv_command(node: VirtualNode<EuvCommandProps>) -> VirtualNode {
         label,
     }: EuvCommandProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
+    let base_class: &Css = c_euv_command();
+    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_command_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
     html! {
-        div {
-            role: "group"
-            "aria-label": label
-            class: c_euv_command()
-            children
-        }
+            div {
+                role: "group"
+                "aria-label": label
+                class: base_class
+                class: shadcn_class
+                "data-slot": "command"
+                children
+            }
     }
 }
 
@@ -49,21 +57,30 @@ pub fn euv_command_input(node: VirtualNode<EuvCommandInputProps>) -> VirtualNode
         placeholder,
         disabled,
     }: EuvCommandInputProps = node.try_get_props().unwrap_or_default();
+    let disabled_signal: Signal<bool> = Signal::create(disabled);
     let text: String = value.get();
+    let command_input_wrapper_shadcn: Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_command_input_wrapper_shadcn().clone()
+    } else {
+        Css::default()
+    };
     html! {
-        div {
-            class: c_euv_command_input_wrapper()
-            input {
-                type: "text"
-                role: "combobox"
-                "aria-expanded": "true"
-                value: text
-                placeholder: placeholder
-                disabled: disabled
-                class: c_euv_command_input()
-                oninput: on_command_input(value)
+            div {
+                class: c_euv_command_input_wrapper()
+                class: command_input_wrapper_shadcn
+                "data-slot": "command-input-wrapper"
+                input {
+                    type: "text"
+                    role: "combobox"
+                    "aria-expanded": "true"
+                    value: text
+                    placeholder: placeholder
+                    disabled: disabled_signal
+                    class: c_euv_command_input()
+                    "data-slot": "command-input"
+                    oninput: on_command_input(value)
+                }
             }
-        }
     }
 }
 
@@ -110,6 +127,7 @@ pub fn euv_command_list(node: VirtualNode<EuvCommandListProps>) -> VirtualNode {
             role: "listbox"
             "aria-label": label
             class: c_euv_command_list()
+            "data-slot": "command-list"
             children
         }
     }
@@ -131,6 +149,7 @@ pub fn euv_command_empty(node: VirtualNode<EuvCommandEmptyProps>) -> VirtualNode
     html! {
         div {
             class: c_euv_command_empty()
+            "data-slot": "command-empty"
             {
                 text
             }
@@ -156,6 +175,7 @@ pub fn euv_command_group(node: VirtualNode<EuvCommandGroupProps>) -> VirtualNode
         div {
             role: "group"
             class: c_euv_command_group()
+            "data-slot": "command-group"
             div {
                 class: c_euv_command_group_heading()
                 {
@@ -188,6 +208,7 @@ pub fn euv_command_item(node: VirtualNode<EuvCommandItemProps>) -> VirtualNode {
         disabled,
         on_select,
     }: EuvCommandItemProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
     let item_class: fn() -> &'static Css = if disabled {
         c_euv_command_item_disabled
     } else if selected {
@@ -209,11 +230,11 @@ pub fn euv_command_item(node: VirtualNode<EuvCommandItemProps>) -> VirtualNode {
             role: "option"
             "aria-selected": if selected { "true" } else { "false" }
             "aria-disabled": if disabled { "true" } else { "false" }
-            class: item_class()
+            class: command_item_class(item_class)
+            "data-slot": "command-item"
             onclick: on_click
-            {
-                label
-            }
+            { label }
+            children
         }
     }
 }
@@ -235,6 +256,7 @@ pub fn euv_command_separator(node: VirtualNode<EuvCommandSeparatorProps>) -> Vir
         div {
             role: "separator"
             class: c_euv_command_separator()
+            "data-slot": "command-separator"
             "aria-label": label
         }
     }
@@ -256,9 +278,42 @@ pub fn euv_command_shortcut(node: VirtualNode<EuvCommandShortcutProps>) -> Virtu
     html! {
         span {
             class: c_euv_command_shortcut()
+            "data-slot": "command-shortcut"
             {
                 text
             }
         }
     }
+}
+
+/// Builds the class list of a command row.
+///
+/// The base class is resolved first and the theme variant second, so the
+/// base's rule is injected before the variant's and the variant wins the
+/// cascade. A class injects its stylesheet on its first call, so the
+/// order the two are resolved in is the order their rules land in.
+///
+/// # Arguments
+///
+/// - `fn() -> &'static Css` - The state class of the row.
+///
+/// # Returns
+///
+/// - `String` - The class list.
+fn command_item_class(state_class: fn() -> &'static Css) -> String {
+    let base_class: &str = c_euv_command_item().get_name();
+    let shadcn_class: &str = if cfg!(feature = "theme-shadcn") {
+        c_euv_command_item_shadcn().get_name()
+    } else {
+        ""
+    };
+    let mut class_name: String = String::with_capacity(64);
+    class_name.push_str(base_class);
+    class_name.push(' ');
+    class_name.push_str(state_class().get_name());
+    if !shadcn_class.is_empty() {
+        class_name.push(' ');
+        class_name.push_str(shadcn_class);
+    }
+    class_name
 }

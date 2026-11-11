@@ -49,6 +49,17 @@ vars! {
 
         destructive: var!("role-destructive-light");
         destructive-foreground: var!("role-destructive-foreground-light");
+        button-primary-hover-bg: format!("color-mix(in srgb, {} 90%, transparent)", var!(primary));
+        button-secondary-hover-bg: format!("color-mix(in srgb, {} 80%, transparent)", var!(secondary));
+        button-destructive-bg: format!("color-mix(in srgb, {} 10%, transparent)", var!(destructive));
+        button-destructive-hover-bg: format!("color-mix(in srgb, {} 20%, transparent)", var!(destructive));
+        button-destructive-focus-border: format!("color-mix(in srgb, {} 40%, transparent)", var!(destructive));
+        button-destructive-focus-ring: format!("color-mix(in srgb, {} 20%, transparent)", var!(destructive));
+        button-outline-bg: var!(background);
+        button-outline-hover-bg: var!(accent);
+        button-outline-hover-fg: var!(accent-foreground);
+        button-ghost-hover-bg: var!(accent);
+        button-ghost-hover-fg: var!(accent-foreground);
         success: var!("role-success-light");
         success-foreground: var!("role-success-foreground-light");
         success-container: var!("role-success-container-light");
@@ -78,9 +89,15 @@ vars! {
         // Spacing Scale — four pixels, the base every mainstream system uses.
         // ═══════════════════════════════════════════════════════════════════════
 
+        control-pad-inline: "10px";
+        control-pad-icon: "32px";
+        tablist-inset: "3px";
+        switch-track-height: "18.4px";
         space-2xs: "2px";
         space-xs: "4px";
+        space-xs-sm: "6px";
         space-sm: "8px";
+        space-sm-md: "10px";
         space-md: "12px";
         space-lg: "16px";
         space-xl: "20px";
@@ -228,6 +245,17 @@ vars! {
 
         destructive: var!("role-destructive-dark");
         destructive-foreground: var!("role-destructive-foreground-dark");
+        button-primary-hover-bg: format!("color-mix(in srgb, {} 90%, transparent)", var!(primary));
+        button-secondary-hover-bg: format!("color-mix(in srgb, {} 80%, transparent)", var!(secondary));
+        button-destructive-bg: format!("color-mix(in srgb, {} 20%, transparent)", var!(destructive));
+        button-destructive-hover-bg: format!("color-mix(in srgb, {} 30%, transparent)", var!(destructive));
+        button-destructive-focus-border: format!("color-mix(in srgb, {} 40%, transparent)", var!(destructive));
+        button-destructive-focus-ring: format!("color-mix(in srgb, {} 40%, transparent)", var!(destructive));
+        button-outline-bg: format!("color-mix(in srgb, {} 30%, transparent)", var!(input));
+        button-outline-hover-bg: format!("color-mix(in srgb, {} 50%, transparent)", var!(input));
+        button-outline-hover-fg: var!(foreground);
+        button-ghost-hover-bg: format!("color-mix(in srgb, {} 50%, transparent)", var!(accent));
+        button-ghost-hover-fg: var!(accent-foreground);
         success: var!("role-success-dark");
         success-foreground: var!("role-success-foreground-dark");
         success-container: var!("role-success-container-dark");
@@ -257,9 +285,15 @@ vars! {
         // Spacing Scale (same as light)
         // ═══════════════════════════════════════════════════════════════════════
 
+        control-pad-inline: "10px";
+        control-pad-icon: "32px";
+        tablist-inset: "3px";
+        switch-track-height: "18.4px";
         space-2xs: "2px";
         space-xs: "4px";
+        space-xs-sm: "6px";
         space-sm: "8px";
+        space-sm-md: "10px";
         space-md: "12px";
         space-lg: "16px";
         space-xl: "20px";

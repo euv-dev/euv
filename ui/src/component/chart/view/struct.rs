@@ -67,3 +67,37 @@ pub struct EuvChartTooltipLabelProps {}
 /// its own.
 #[derive(Clone, CustomDebug, Default)]
 pub struct EuvChartLegendProps {}
+
+/// Props for the [`euv_chart_container`] component.
+///
+/// The container is the box the plot is drawn in. It carries the
+/// identifier that ties the plot to its colours and the configuration
+/// that names every series in it, and the colour of each series is
+/// written into a custom property the plot reads.
+///
+/// The plot itself is passed as children.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvChartContainerProps {
+    /// The identifier that ties the plot to its colours.
+    pub id: &'static str,
+    /// The colour of every series in the chart.
+    ///
+    /// Each entry pairs the name of a series with the colour it is
+    /// drawn in. The colour is a CSS value, so a theme token such as
+    /// `var(--primary)` follows the theme.
+    pub config: Vec<(&'static str, &'static str)>,
+}
+
+/// Props for the [`euv_chart_tooltip_content`] component.
+///
+/// The floating body of a tooltip holds the rows of the point and takes
+/// no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvChartTooltipContentProps {}
+
+/// Props for the [`euv_chart_legend_content`] component.
+///
+/// The body of the key holds one entry per series and takes no settings
+/// of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvChartLegendContentProps {}

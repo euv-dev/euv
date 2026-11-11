@@ -23,6 +23,7 @@ locales:
     navbar:
       - { text: Home, link: / }
       - { text: Guide, link: /guide/ }
+      - { text: Components, link: /components/ }
       - { text: GitHub, link: https://github.com/euv-dev/euv }
 ---
 

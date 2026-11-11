@@ -47,6 +47,57 @@ fn collect_tags(node: &VirtualNode, into: &mut Vec<String>) {
     }
 }
 
+fn root_attribute_value(node: &VirtualNode, name: &str) -> Option<String> {
+    match node {
+        VirtualNode::Element { attributes, .. } => attributes
+            .iter()
+            .find(|entry: &&AttributeEntry| entry.get_name() == name)
+            .and_then(AttributeEntry::text_value),
+        _ => None,
+    }
+}
+
+fn has_attribute_name(node: &VirtualNode, name: &str) -> bool {
+    match node {
+        VirtualNode::Element {
+            attributes,
+            children,
+            ..
+        } => {
+            attributes
+                .iter()
+                .any(|entry: &AttributeEntry| entry.get_name() == name)
+                || children
+                    .iter()
+                    .any(|child: &VirtualNode| has_attribute_name(child, name))
+        }
+        VirtualNode::Fragment(children) => children
+            .iter()
+            .any(|child: &VirtualNode| has_attribute_name(child, name)),
+        _ => false,
+    }
+}
+
+fn has_attribute_value(node: &VirtualNode, name: &str, value: &str) -> bool {
+    match node {
+        VirtualNode::Element {
+            attributes,
+            children,
+            ..
+        } => {
+            attributes.iter().any(|entry: &AttributeEntry| {
+                entry.get_name() == name && entry.text_value().as_deref() == Some(value)
+            }) || children
+                .iter()
+                .any(|child: &VirtualNode| has_attribute_value(child, name, value))
+        }
+        VirtualNode::Fragment(children) => children
+            .iter()
+            .any(|child: &VirtualNode| has_attribute_value(child, name, value)),
+        _ => false,
+    }
+}
+
 fn avatar_node(
     src: &'static str,
     initials: &'static str,
@@ -65,12 +116,26 @@ fn avatar_node(
 #[test]
 fn an_avatar_with_no_src_falls_back_to_its_initials() {
     let rendered: VirtualNode = euv_avatar(avatar_node("", "AB", EuvAvatarSize::Medium, false));
+    assert_eq!(
+        root_attribute_value(&rendered, "data-slot").as_deref(),
+        Some("avatar")
+    );
+    assert_eq!(
+        root_attribute_value(&rendered, "data-size").as_deref(),
+        Some("default")
+    );
+    assert!(has_attribute_value(
+        &rendered,
+        "data-slot",
+        "avatar-fallback"
+    ));
     let mut tags: Vec<String> = Vec::new();
     collect_tags(&rendered, &mut tags);
     assert_eq!(
         tags,
-        vec!["Element(\"span\")"],
-        "no src means no <img>, got {tags:?}"
+        vec!["Element(\"span\")", "Element(\"span\")"],
+        "no src means no <img>, and the initials sit in the fallback part, \
+         got {tags:?}"
     );
     assert!(
         format!("{rendered:?}").contains("AB"),
@@ -82,6 +147,16 @@ fn an_avatar_with_no_src_falls_back_to_its_initials() {
 fn an_avatar_with_a_src_renders_an_image_inside_its_span() {
     let rendered: VirtualNode =
         euv_avatar(avatar_node("/a.png", "AB", EuvAvatarSize::Medium, false));
+    assert_eq!(
+        root_attribute_value(&rendered, "data-slot").as_deref(),
+        Some("avatar")
+    );
+    assert_eq!(
+        root_attribute_value(&rendered, "data-size").as_deref(),
+        Some("default")
+    );
+    assert!(has_attribute_value(&rendered, "data-slot", "avatar-image"));
+    assert!(has_attribute_name(&rendered, "onerror"));
     let mut tags: Vec<String> = Vec::new();
     collect_tags(&rendered, &mut tags);
     assert_eq!(
@@ -100,6 +175,15 @@ fn every_avatar_size_renders_the_same_shape() {
         EuvAvatarSize::Large,
     ] {
         let rendered: VirtualNode = euv_avatar(avatar_node("", "X", size, false));
+        let expected_size: &str = match size {
+            EuvAvatarSize::Small => "sm",
+            EuvAvatarSize::Medium => "default",
+            EuvAvatarSize::Large => "lg",
+        };
+        assert_eq!(
+            root_attribute_value(&rendered, "data-size").as_deref(),
+            Some(expected_size)
+        );
         let mut tags: Vec<String> = Vec::new();
         collect_tags(&rendered, &mut tags);
         shapes.push(tags);
@@ -108,7 +192,10 @@ fn every_avatar_size_renders_the_same_shape() {
     assert_eq!(shapes[1], shapes[2]);
     assert_eq!(
         shapes[0],
-        vec!["Element(\"span\")".to_string()],
+        vec![
+            "Element(\"span\")".to_string(),
+            "Element(\"span\")".to_string()
+        ],
         "the size only changes a class, never the structure"
     );
 }
@@ -183,6 +270,7 @@ fn a_checkbox_renders_its_own_label() {
         name: "terms",
         autocomplete: "off",
         checked: Signal::create(false),
+        disabled: Signal::create(false),
         label: "Accept",
     });
     let rendered: VirtualNode = euv_checkbox(node);
@@ -262,6 +350,7 @@ fn an_input_always_carries_the_attributes_the_dom_needs() {
         "placeholder",
         "value",
         "oninput",
+        "data-slot",
         "class",
     ] {
         assert!(
@@ -310,6 +399,7 @@ fn a_checked_checkbox_has_the_same_shape_as_an_unchecked_one() {
         name: "t",
         autocomplete: "off",
         checked: Signal::create(false),
+        disabled: Signal::create(false),
         label: "L",
     });
     let on: VirtualNode<EuvCheckboxProps> = props(EuvCheckboxProps {
@@ -317,6 +407,7 @@ fn a_checked_checkbox_has_the_same_shape_as_an_unchecked_one() {
         name: "t",
         autocomplete: "off",
         checked: Signal::create(true),
+        disabled: Signal::create(false),
         label: "L",
     });
     let mut off_tags: Vec<String> = Vec::new();
@@ -346,6 +437,7 @@ fn a_checkbox_always_exposes_a_checked_attribute() {
         name: "terms",
         autocomplete: "off",
         checked: Signal::create(false),
+        disabled: Signal::create(false),
         label: "Accept",
     });
     let rendered: VirtualNode = euv_checkbox(node);
@@ -353,6 +445,10 @@ fn a_checkbox_always_exposes_a_checked_attribute() {
     assert!(
         text.contains("checked"),
         "an uncontrolled checkbox would never update, so the attribute must exist: {text}"
+    );
+    assert!(
+        text.contains("disabled"),
+        "a checkbox must expose its disabled state: {text}"
     );
     assert!(
         text.contains("onchange"),
@@ -855,6 +951,49 @@ fn a_dropdown_renders_one_node_per_item() {
 }
 
 #[test]
+fn a_dropdown_menu_exposes_state_and_roving_menu_item_semantics() {
+    let rendered: VirtualNode = euv_dropdown(props(EuvDropdownProps {
+        open: Signal::create(true),
+        items: vec![
+            EuvDropdownItem {
+                label: "One",
+                value: "1",
+                active: false,
+            },
+            EuvDropdownItem {
+                label: "Two",
+                value: "2",
+                active: false,
+            },
+        ],
+        on_select: None,
+    }));
+
+    assert!(has_attribute_value(&rendered, "role", "menu"));
+    assert!(has_attribute_value(
+        &rendered,
+        "aria-label",
+        "Dropdown menu"
+    ));
+    assert!(has_attribute_value(&rendered, "data-state", "open"));
+    assert!(has_attribute_value(&rendered, "role", "menuitem"));
+    assert!(has_attribute_value(&rendered, "tabindex", "-1"));
+    assert!(has_attribute_value(&rendered, "aria-disabled", "false"));
+    assert!(has_attribute_name(&rendered, "onkeydown"));
+}
+
+#[test]
+fn a_dropdown_trigger_exposes_open_state_and_keyboard_entry() {
+    let trigger: VirtualNode = euv_dropdown_trigger(props(EuvDropdownTriggerProps {
+        open: Signal::create(false),
+    }));
+
+    assert!(has_attribute_value(&trigger, "aria-haspopup", "menu"));
+    assert!(has_attribute_value(&trigger, "aria-expanded", "false"));
+    assert!(has_attribute_name(&trigger, "onkeydown"));
+}
+
+#[test]
 fn an_open_and_a_closed_dropdown_keep_the_same_frame() {
     let items: Vec<EuvDropdownItem> = vec![EuvDropdownItem {
         label: "One",
@@ -876,6 +1015,8 @@ fn an_open_and_a_closed_dropdown_keep_the_same_frame() {
         count_elements(&closed),
         "openness rides on a class, so both states must render the same nodes"
     );
+    assert!(has_attribute_value(&open, "data-state", "open"));
+    assert!(has_attribute_value(&closed, "data-state", "closed"));
 }
 
 #[test]

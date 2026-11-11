@@ -25,7 +25,7 @@ pub fn euv_chart(node: VirtualNode<EuvChartProps>) -> VirtualNode {
     // colour it is drawn in without the caller restating it.
     let mut style_text: String = String::new();
     for (key, color) in config.iter() {
-        style_text.push_str("--color-");
+        style_text.push_str(CHART_COLOR_VAR_PREFIX);
         style_text.push_str(key);
         style_text.push_str(": ");
         style_text.push_str(color);
@@ -39,6 +39,51 @@ pub fn euv_chart(node: VirtualNode<EuvChartProps>) -> VirtualNode {
             "data-chart": id
             style: style_ref
             class: c_euv_chart()
+            children
+        }
+    }
+}
+
+/// Renders the frame a chart is drawn in.
+///
+/// The reference builds the chart container on top of a charting library
+/// and hands it the colours of every series through a configuration. The
+/// container here plays the same part: it writes the colour of each
+/// series into a custom property named after the series, so the plot
+/// inside it can read the colour it is drawn in.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvChartContainerProps>` - The props node carrying the
+///   identifier and the colour configuration of the chart. The plot is
+///   passed as children.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv chart container virtual DOM tree.
+#[component]
+pub fn euv_chart_container(node: VirtualNode<EuvChartContainerProps>) -> VirtualNode {
+    let EuvChartContainerProps { id, config }: EuvChartContainerProps =
+        node.try_get_props().unwrap_or_default();
+    // Each series of the configuration becomes a custom property named
+    // after the series, so the plot inside the container can read the
+    // colour it is drawn in without the caller restating it.
+    let mut style_text: String = String::new();
+    for (key, color) in config.iter() {
+        style_text.push_str(CHART_COLOR_VAR_PREFIX);
+        style_text.push_str(key);
+        style_text.push_str(": ");
+        style_text.push_str(color);
+        style_text.push(';');
+    }
+    let style_ref: &str = style_text.as_str();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "chart"
+            "data-chart": id
+            style: style_ref
+            class: c_euv_chart_container()
             children
         }
     }
@@ -83,6 +128,33 @@ pub fn euv_chart_tooltip_label(node: VirtualNode<EuvChartTooltipLabelProps>) -> 
         div {
             "data-slot": "chart-tooltip-label"
             class: c_euv_chart_tooltip_label()
+            children
+        }
+    }
+}
+
+/// The floating body of a tooltip.
+///
+/// The reference separates the tooltip from the body it floats: the
+/// tooltip is the anchor the body hangs off, and the body holds the
+/// label of the point and one row per series.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvChartTooltipContentProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv chart tooltip content virtual DOM tree.
+#[component]
+pub fn euv_chart_tooltip_content(node: VirtualNode<EuvChartTooltipContentProps>) -> VirtualNode {
+    let EuvChartTooltipContentProps {}: EuvChartTooltipContentProps =
+        node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "chart-tooltip-content"
+            class: c_euv_chart_tooltip_content()
             children
         }
     }
@@ -182,6 +254,32 @@ pub fn euv_chart_legend_item(node: VirtualNode<EuvChartLegendItemProps>) -> Virt
                 "data-slot": "chart-legend-label"
                 label
             }
+        }
+    }
+}
+
+/// The body of the key that names the series of a chart.
+///
+/// The reference separates the legend from the body it holds: the legend
+/// is the anchor, and the body carries one entry per series.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvChartLegendContentProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv chart legend content virtual DOM tree.
+#[component]
+pub fn euv_chart_legend_content(node: VirtualNode<EuvChartLegendContentProps>) -> VirtualNode {
+    let EuvChartLegendContentProps {}: EuvChartLegendContentProps =
+        node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "chart-legend-content"
+            class: c_euv_chart_legend_content()
+            children
         }
     }
 }

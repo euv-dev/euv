@@ -35,16 +35,23 @@ pub fn euv_code_block(node: VirtualNode<EuvCodeBlockProps>) -> VirtualNode {
         EuvCodeBlockSize::Sm => c_euv_code_block_size_sm,
     };
     let children: VirtualNode = node.get_children().into();
+    let base_class: &Css = c_euv_code_block();
+    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_code_block_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
     html! {
-        div {
-            "data-slot": "code-block"
-            "data-variant": variant_attr
-            "data-size": size_attr
-            class: c_euv_code_block()
-            class: variant_class()
-            class: size_class()
-            children
-        }
+            div {
+                "data-slot": "code-block"
+                "data-variant": variant_attr
+                "data-size": size_attr
+                class: base_class
+                class: shadcn_class
+                class: variant_class()
+                class: size_class()
+                children
+            }
     }
 }
 
@@ -66,12 +73,19 @@ pub fn euv_code_block_header(node: VirtualNode<EuvCodeBlockHeaderProps>) -> Virt
     let EuvCodeBlockHeaderProps {}: EuvCodeBlockHeaderProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
+    let base_class: &Css = c_euv_code_block_header();
+    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_code_block_header_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
     html! {
-        div {
-            "data-slot": "code-block-header"
-            class: c_euv_code_block_header()
-            children
-        }
+            div {
+                "data-slot": "code-block-header"
+                class: base_class
+                class: shadcn_class
+                children
+            }
     }
 }
 
@@ -94,11 +108,11 @@ pub fn euv_code_block_title(node: VirtualNode<EuvCodeBlockTitleProps>) -> Virtua
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     html! {
-        div {
-            "data-slot": "code-block-title"
-            class: c_euv_code_block_title()
-            children
-        }
+            div {
+                "data-slot": "code-block-title"
+                class: c_euv_code_block_title()
+                children
+            }
     }
 }
 
@@ -119,12 +133,19 @@ pub fn euv_code_block_actions(node: VirtualNode<EuvCodeBlockActionsProps>) -> Vi
     let EuvCodeBlockActionsProps {}: EuvCodeBlockActionsProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
+    let base_class: &Css = c_euv_code_block_actions();
+    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_code_block_actions_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
     html! {
-        div {
-            "data-slot": "code-block-actions"
-            class: c_euv_code_block_actions()
-            children
-        }
+            div {
+                "data-slot": "code-block-actions"
+                class: base_class
+                class: shadcn_class
+                children
+            }
     }
 }
 
@@ -167,14 +188,14 @@ pub fn euv_code_block_copy_button(node: VirtualNode<EuvCodeBlockCopyButtonProps>
     }));
     let children: VirtualNode = node.get_children().into();
     html! {
-        button {
-            "data-slot": "code-block-copy-button"
-            "aria-label": "Copy"
-            type: "button"
-            class: c_euv_code_block_copy_button()
-            onclick: copy
-            children
-        }
+            button {
+                "data-slot": "code-block-copy-button"
+                "aria-label": "Copy"
+                type: "button"
+                class: c_euv_code_block_copy_button()
+                onclick: copy
+                children
+            }
     }
 }
 
@@ -289,7 +310,11 @@ pub fn euv_code_block_line(node: VirtualNode<EuvCodeBlockLineProps>) -> VirtualN
             "data-variant": variant_attr
             class: c_euv_code_block_line()
             class: variant_class()
-            children
+            span {
+                "data-slot": "code-block-line-content"
+                class: c_euv_code_block_line_content()
+                children
+            }
         }
     }
 }
@@ -309,10 +334,17 @@ pub fn euv_code_block_footer(node: VirtualNode<EuvCodeBlockFooterProps>) -> Virt
     let EuvCodeBlockFooterProps {}: EuvCodeBlockFooterProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
+    let base_class: &Css = c_euv_code_block_footer();
+    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_code_block_footer_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
     html! {
         div {
             "data-slot": "code-block-footer"
-            class: c_euv_code_block_footer()
+            class: base_class
+            class: shadcn_class
             children
         }
     }

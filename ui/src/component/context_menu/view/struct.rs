@@ -23,6 +23,49 @@ pub struct EuvContextMenuContentProps {
     pub open: Signal<bool>,
 }
 
+/// Props of the [`euv_context_menu_group`] component.
+///
+/// The group holds the rows that belong to one heading.
+#[derive(Clone, Copy, CustomDebug, Default)]
+pub struct EuvContextMenuGroupProps {
+    /// The accessible name of the group.
+    pub label: &'static str,
+}
+
+/// Props of the [`euv_context_menu_radio_group`] component.
+///
+/// The group holds the rows that share one radio selection.
+#[derive(Clone, Copy, CustomDebug, Default)]
+pub struct EuvContextMenuRadioGroupProps {
+    /// The accessible name of the group.
+    pub label: &'static str,
+}
+
+/// Props of the [`euv_context_menu_sub`] component.
+///
+/// The sub-menu holds the rows of a nested menu.
+#[derive(Clone, Copy, CustomDebug, Default)]
+pub struct EuvContextMenuSubProps {
+    /// Whether the sub-menu is open.
+    pub open: Signal<bool>,
+}
+
+/// Props of the [`euv_context_menu_sub_trigger`] component.
+#[derive(Clone, Copy, CustomDebug, Default)]
+pub struct EuvContextMenuSubTriggerProps {
+    /// The label shown inside the row.
+    pub label: &'static str,
+    /// Whether the sub-menu is open.
+    pub open: Signal<bool>,
+}
+
+/// Props of the [`euv_context_menu_sub_content`] component.
+#[derive(Clone, Copy, CustomDebug, Default)]
+pub struct EuvContextMenuSubContentProps {
+    /// Whether the sub-menu is open.
+    pub open: Signal<bool>,
+}
+
 /// Props of the [`euv_context_menu_item`] component.
 #[derive(Clone, CustomDebug, Default)]
 pub struct EuvContextMenuItemProps {

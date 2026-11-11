@@ -27,6 +27,13 @@ pub fn euv_accordion(node: VirtualNode<EuvAccordionProps>) -> VirtualNode {
         disabled,
         on_change,
     }: EuvAccordionProps = node.try_get_props().unwrap_or_default();
+    let default_focus_value: String = items
+        .iter()
+        .find(|item: &&EuvAccordionItem| !disabled && !item.disabled)
+        .map(|item: &EuvAccordionItem| item.value.to_string())
+        .unwrap_or_default();
+    let focus_value: Signal<String> =
+        HookContext::use_hook(move || Signal::create(default_focus_value));
     html! {
         div {
             class: c_euv_accordion()
@@ -44,6 +51,7 @@ pub fn euv_accordion(node: VirtualNode<EuvAccordionProps>) -> VirtualNode {
                 accordion_type,
                 collapsible,
                 disabled,
+                focus_value,
                 on_change.clone(),
                 )
             }
@@ -64,6 +72,7 @@ pub fn euv_accordion(node: VirtualNode<EuvAccordionProps>) -> VirtualNode {
 /// - `EuvAccordionType` - Whether one section or many may stay open.
 /// - `bool` - Whether the open section may be closed again.
 /// - `bool` - Whether every section is disabled.
+/// - `Signal<String>` - The value whose trigger currently owns the tab stop.
 /// - `Option<Rc<dyn Fn(Vec<String>)>>` - The change callback.
 ///
 /// # Returns
@@ -75,23 +84,57 @@ fn accordion_section(
     accordion_type: EuvAccordionType,
     collapsible: bool,
     disabled: bool,
+    focus_value: Signal<String>,
     on_change: Option<Rc<dyn Fn(Vec<String>)>>,
 ) -> VirtualNode {
     let value: &'static str = item.value;
     let is_disabled: bool = disabled || item.disabled;
+    let disabled_signal: Signal<bool> = Signal::create(is_disabled);
     let trigger_id: String = format!("euv-accordion-{value}-trigger");
     let trigger_id_ref: &str = trigger_id.as_str();
+    let content_id: String = format!("euv-accordion-{value}-content");
+    let content_id_ref: &str = content_id.as_str();
     let handler: Option<Rc<dyn Fn(Event)>> = if is_disabled {
         None
     } else {
-        accordion_toggle(open_values, accordion_type, collapsible, value, on_change)
+        accordion_toggle(
+            open_values,
+            accordion_type,
+            collapsible,
+            value,
+            focus_value,
+            on_change,
+        )
+    };
+    let focus_handler: Option<Rc<dyn Fn(Event)>> = if is_disabled {
+        None
+    } else {
+        accordion_focus(value, focus_value)
+    };
+    let keydown_handler: Option<Rc<dyn Fn(Event)>> = if is_disabled {
+        None
+    } else {
+        accordion_keyboard_navigation(value, focus_value)
+    };
+    let trigger_class: &Css = c_euv_accordion_trigger();
+    let trigger_open_class: &Css = c_euv_accordion_trigger_open();
+    let shadcn_trigger_class: Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_accordion_trigger_shadcn().clone()
+    } else {
+        Css::default()
+    };
+    let content_class: &Css = c_euv_accordion_content();
+    let content_open_class: &Css = c_euv_accordion_content_open();
+    let content_closed_class: &Css = c_euv_accordion_content_closed();
+    let shadcn_content_class: Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_accordion_content_shadcn().clone()
+    } else {
+        Css::default()
     };
     html! {
         div {
             key: value
             class: c_euv_accordion_item()
-            role: "region"
-            "aria-labelledby": trigger_id_ref
             "data-slot": "accordion-item"
             "data-state": if { open_values.get().iter().any(|entry: &String| entry == value) } {
                 "open"
@@ -106,12 +149,13 @@ fn accordion_section(
                 button {
                     type: "button"
                     id: trigger_id_ref
-                    class: c_euv_accordion_trigger()
+                    class: trigger_class
                     class: if { open_values.get().iter().any(|entry: &String| entry == value) } {
-                        c_euv_accordion_trigger_open()
+                        trigger_open_class
                     } else {
-                        c_euv_accordion_trigger()
+                        trigger_class
                     }
+                    class: shadcn_trigger_class
                     "data-slot": "accordion-trigger"
                     "aria-expanded": if {
                         open_values.get().iter().any(|entry: &String| entry == value)
@@ -120,9 +164,14 @@ fn accordion_section(
                     } else {
                         "false"
                     }
+                    "aria-controls": content_id_ref
                     "aria-disabled": if { item.disabled || disabled } { "true" } else { "false" }
-                    disabled: is_disabled
+                    disabled: disabled_signal
+                    tabindex: if { focus_value.get() == value } { "0" } else { "-1" }
+                    "data-value": value
                     onclick: handler
+                    onfocus: focus_handler
+                    onkeydown: keydown_handler
                     {
                         item.trigger
                     }
@@ -134,16 +183,21 @@ fn accordion_section(
                             c_euv_accordion_icon()
                         }
                         "aria-hidden": "true"
+                        "data-slot": "accordion-trigger-icon"
                     }
                 }
             }
             div {
-                class: c_euv_accordion_content()
+                id: content_id_ref
+                role: "region"
+                "aria-labelledby": trigger_id_ref
+                class: content_class
                 class: if { open_values.get().iter().any(|entry: &String| entry == value) } {
-                    c_euv_accordion_content_open()
+                    content_open_class
                 } else {
-                    c_euv_accordion_content_closed()
+                    content_closed_class
                 }
+                class: shadcn_content_class
                 "data-slot": "accordion-content"
                 "data-state": if { open_values.get().iter().any(|entry: &String| entry == value) } {
                     "open"
@@ -179,6 +233,7 @@ fn accordion_section(
 /// - `EuvAccordionType` - Whether one section or many may stay open.
 /// - `bool` - Whether the open section may be closed again.
 /// - `&'static str` - The clicked section value.
+/// - `Signal<String>` - The value whose trigger owns the tab stop.
 /// - `Option<Rc<dyn Fn(Vec<String>)>>` - The change callback.
 ///
 /// # Returns
@@ -189,6 +244,7 @@ fn accordion_toggle(
     accordion_type: EuvAccordionType,
     collapsible: bool,
     value: &'static str,
+    focus_value: Signal<String>,
     on_change: Option<Rc<dyn Fn(Vec<String>)>>,
 ) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
@@ -213,9 +269,92 @@ fn accordion_toggle(
                 }
             }
         }
+        focus_value.set(value.to_string());
         open_values.set(values.clone());
         if let Some(callback) = on_change.as_ref() {
             callback(values);
         }
+    }))
+}
+
+/// Updates the keyboard tab stop when an accordion trigger receives focus.
+///
+/// # Arguments
+///
+/// - `&'static str` - The value of the focused section.
+/// - `Signal<String>` - The value whose trigger owns the tab stop.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The focus handler.
+fn accordion_focus(value: &'static str, focus_value: Signal<String>) -> Option<Rc<dyn Fn(Event)>> {
+    Some(Rc::new(move |_: Event| {
+        focus_value.set(value.to_string());
+    }))
+}
+
+/// Moves keyboard focus among enabled accordion triggers.
+///
+/// # Arguments
+///
+/// - `&'static str` - The value of the trigger receiving the key.
+/// - `Signal<String>` - The value whose trigger owns the tab stop.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The keyboard navigation handler.
+fn accordion_keyboard_navigation(
+    value: &'static str,
+    focus_value: Signal<String>,
+) -> Option<Rc<dyn Fn(Event)>> {
+    Some(Rc::new(move |event: Event| {
+        let Ok(keyboard_event) = event.dyn_into::<KeyboardEvent>() else {
+            return;
+        };
+        let Some(target) = keyboard_event
+            .target()
+            .and_then(|target: EventTarget| target.dyn_into::<Element>().ok())
+        else {
+            return;
+        };
+        let Some(trigger) = target.closest(ACCORDION_TRIGGER_SELECTOR).ok().flatten() else {
+            return;
+        };
+        let Some(root) = trigger.closest(ACCORDION_ROOT_SELECTOR).ok().flatten() else {
+            return;
+        };
+        let Ok(nodes) = root.query_selector_all(ACCORDION_TRIGGER_SELECTOR) else {
+            return;
+        };
+        let mut triggers: Vec<HtmlElement> = Vec::new();
+        for index in 0..nodes.length() {
+            if let Some(button) = nodes
+                .item(index)
+                .and_then(|node: Node| node.dyn_into::<HtmlElement>().ok())
+            {
+                triggers.push(button);
+            }
+        }
+        let Some(current_index) = triggers.iter().position(|button: &HtmlElement| {
+            button.get_attribute(ACCORDION_VALUE_ATTRIBUTE).as_deref() == Some(value)
+        }) else {
+            return;
+        };
+        let next_index: usize = match keyboard_event.key().as_str() {
+            "ArrowDown" => (current_index + 1) % triggers.len(),
+            "ArrowUp" => (current_index + triggers.len() - 1) % triggers.len(),
+            "Home" => 0,
+            "End" => triggers.len() - 1,
+            _ => return,
+        };
+        let Some(next_trigger) = triggers.get(next_index) else {
+            return;
+        };
+        let Some(next_value) = next_trigger.get_attribute(ACCORDION_VALUE_ATTRIBUTE) else {
+            return;
+        };
+        keyboard_event.prevent_default();
+        focus_value.set(next_value);
+        let _: Result<(), JsValue> = next_trigger.focus();
     }))
 }

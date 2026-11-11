@@ -41,6 +41,7 @@ mod touch_gesture;
 mod transition;
 mod use_async;
 mod vconsole;
+mod view_accordion;
 mod view_alert;
 mod view_alert_dialog;
 mod view_aspect_ratio;
@@ -50,12 +51,17 @@ mod view_breadcrumb;
 mod view_bubble;
 mod view_button;
 mod view_button_group;
+mod view_calendar_parts;
+mod view_carousel;
+mod view_carousel_parts;
 mod view_cascader;
 mod view_chart;
+mod view_chart_parts;
 mod view_code_block;
 mod view_collapse;
 mod view_collapsible;
 mod view_combobox;
+mod view_combobox_parts;
 mod view_command;
 mod view_consts;
 mod view_context_menu;
@@ -63,21 +69,29 @@ mod view_controls;
 mod view_data;
 mod view_dialog;
 mod view_direction;
+mod view_direction_parts;
 mod view_display;
 mod view_drawer_parts;
+mod view_drawer_parts_overlay;
+mod view_empty_parts;
 mod view_factories;
 mod view_feature_grid;
+mod view_field_parts;
 mod view_hover_card;
 mod view_input_group;
 mod view_input_otp;
 mod view_inputs;
 mod view_item;
 mod view_kbd;
+mod view_kbd_parts;
 mod view_label;
 mod view_layout;
 mod view_marker;
 mod view_menu_parts;
+mod view_menubar_parts;
+mod view_message_parts;
 mod view_message_scroller;
+mod view_modal_parts;
 mod view_native_select;
 mod view_navigation_menu;
 mod view_overlay;
@@ -87,12 +101,16 @@ mod view_registry;
 mod view_remaining;
 mod view_resizable;
 mod view_scroll_area;
+mod view_select;
+mod view_select_parts;
 mod view_separator;
 mod view_sheet;
+mod view_sidebar_parts;
 mod view_spinner;
 mod view_tag;
 mod view_textarea;
 mod view_timeline;
+mod view_toast_parts;
 mod view_toc;
 mod view_toggle;
 mod view_toggle_group;
@@ -114,6 +132,7 @@ use std::{
     ffi::OsStr,
     fs,
     hint::black_box,
+    io::Error,
     panic::{AssertUnwindSafe, catch_unwind, panic_any},
     path::{Path, PathBuf},
     rc::Rc,

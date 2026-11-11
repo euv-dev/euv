@@ -21,6 +21,7 @@ pub fn euv_sheet(node: VirtualNode<EuvSheetProps>) -> VirtualNode {
     let children: VirtualNode = node.get_children().into();
     html! {
         div {
+            "data-slot": "sheet"
             class: c_euv_sheet()
             children
         }
@@ -43,20 +44,27 @@ pub fn euv_sheet_trigger(node: VirtualNode<EuvSheetTriggerProps>) -> VirtualNode
     let on_click: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |_: Event| {
         open.set(true);
     }));
+    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_sheet_trigger_shadcn().clone()
+    } else {
+        Css::default()
+    };
     html! {
-        button {
-            type: "button"
-            "aria-expanded": if { open.get() } {
-                "true"
-            } else {
-                "false"
+            button {
+                type: "button"
+                "data-slot": "sheet-trigger"
+                "aria-expanded": if { open.get() } {
+                    "true"
+                } else {
+                    "false"
+                }
+                class: c_euv_sheet_trigger()
+                class: shadcn_class
+                onclick: on_click
+                {
+                    label
+                }
             }
-            class: c_euv_sheet_trigger()
-            onclick: on_click
-            {
-                label
-            }
-        }
     }
 }
 
@@ -75,6 +83,7 @@ pub fn euv_sheet_overlay(node: VirtualNode<EuvSheetOverlayProps>) -> VirtualNode
         node.try_get_props().unwrap_or_default();
     html! {
         div {
+            "data-slot": "sheet-overlay"
             class: c_euv_sheet_overlay()
             class: if { open } {
                 c_euv_sheet_overlay_open()
@@ -112,6 +121,7 @@ pub fn euv_sheet_content(node: VirtualNode<EuvSheetContentProps>) -> VirtualNode
         div {
             role: "dialog"
             "aria-modal": "true"
+            "data-slot": "sheet-content"
             class: c_euv_sheet_content()
             class: side_class()
             class: if { open } {
@@ -141,6 +151,7 @@ pub fn euv_sheet_header(node: VirtualNode<EuvSheetHeaderProps>) -> VirtualNode {
     html! {
         div {
             "aria-label": label
+            "data-slot": "sheet-header"
             class: c_euv_sheet_header()
             children
         }
@@ -164,6 +175,7 @@ pub fn euv_sheet_footer(node: VirtualNode<EuvSheetFooterProps>) -> VirtualNode {
     html! {
         div {
             "aria-label": label
+            "data-slot": "sheet-footer"
             class: c_euv_sheet_footer()
             children
         }
@@ -184,6 +196,7 @@ pub fn euv_sheet_title(node: VirtualNode<EuvSheetTitleProps>) -> VirtualNode {
     let EuvSheetTitleProps { text }: EuvSheetTitleProps = node.try_get_props().unwrap_or_default();
     html! {
         h2 {
+            "data-slot": "sheet-title"
             class: c_euv_sheet_title()
             {
                 text
@@ -207,6 +220,7 @@ pub fn euv_sheet_description(node: VirtualNode<EuvSheetDescriptionProps>) -> Vir
         node.try_get_props().unwrap_or_default();
     html! {
         p {
+            "data-slot": "sheet-description"
             class: c_euv_sheet_description()
             {
                 text
@@ -231,6 +245,7 @@ pub fn euv_sheet_close(node: VirtualNode<EuvSheetCloseProps>) -> VirtualNode {
         button {
             type: "button"
             "aria-label": label
+            "data-slot": "sheet-close"
             class: c_euv_sheet_close()
         }
     }

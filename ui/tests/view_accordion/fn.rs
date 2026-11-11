@@ -38,11 +38,7 @@ fn accordion_node(
     }
 }
 
-fn render(
-    open: Vec<String>,
-    accordion_type: EuvAccordionType,
-    collapsible: bool,
-) -> VirtualNode {
+fn render(open: Vec<String>, accordion_type: EuvAccordionType, collapsible: bool) -> VirtualNode {
     euv_accordion(accordion_node(open, accordion_type, collapsible))
 }
 
@@ -86,6 +82,16 @@ fn attribute_names(node: &VirtualNode) -> Vec<String> {
     }
 }
 
+fn attribute_value(node: &VirtualNode, name: &str) -> Option<String> {
+    match node {
+        VirtualNode::Element { attributes, .. } => attributes
+            .iter()
+            .find(|entry: &&AttributeEntry| entry.get_name() == name)
+            .and_then(AttributeEntry::text_value),
+        _ => None,
+    }
+}
+
 fn class_names(node: &VirtualNode) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for element in elements(node) {
@@ -115,7 +121,9 @@ fn buttons(node: &VirtualNode) -> Vec<VirtualNode> {
 fn an_accordion_is_a_stack_of_sections() {
     let rendered: VirtualNode = render(Vec::new(), EuvAccordionType::Single, true);
     assert!(
-        attribute_names(&rendered).iter().any(|name: &String| name == "data-slot"),
+        attribute_names(&rendered)
+            .iter()
+            .any(|name: &String| name == "data-slot"),
         "the stack names its slot"
     );
     assert!(
@@ -139,7 +147,9 @@ fn a_header_button_never_submits_a_form() {
     let rendered: VirtualNode = render(Vec::new(), EuvAccordionType::Single, true);
     let first: Vec<VirtualNode> = buttons(&rendered);
     assert!(
-        attribute_names(&first[0]).iter().any(|name: &String| name == "type"),
+        attribute_names(&first[0])
+            .iter()
+            .any(|name: &String| name == "type"),
         "the header button carries its type so it never submits the form around it"
     );
 }
@@ -154,12 +164,72 @@ fn a_header_button_reports_its_state() {
             .any(|name: &String| name == "aria-expanded"),
         "the header button reports whether its section is open"
     );
+    assert!(
+        attribute_names(&first[0])
+            .iter()
+            .any(|name: &String| name == "tabindex"),
+        "the enabled trigger participates in the roving tab stop"
+    );
+    assert!(
+        attribute_names(&first[0])
+            .iter()
+            .any(|name: &String| name == "onkeydown"),
+        "the trigger carries its keyboard navigation handler"
+    );
+    if cfg!(feature = "theme-shadcn") {
+        assert!(has_class(&first[0], "c_euv_accordion_trigger_shadcn"));
+        assert!(has_class(&rendered, "c_euv_accordion_content_shadcn"));
+    }
+}
+
+#[test]
+fn each_trigger_controls_and_names_its_content_region() {
+    let rendered: VirtualNode = render(Vec::new(), EuvAccordionType::Multiple, true);
+    let all: Vec<VirtualNode> = elements(&rendered);
+    let triggers: Vec<VirtualNode> = all
+        .iter()
+        .filter(|node: &&VirtualNode| {
+            attribute_value(node, "data-slot").as_deref() == Some("accordion-trigger")
+        })
+        .cloned()
+        .collect();
+    let contents: Vec<VirtualNode> = all
+        .iter()
+        .filter(|node: &&VirtualNode| {
+            attribute_value(node, "data-slot").as_deref() == Some("accordion-content")
+        })
+        .cloned()
+        .collect();
+    assert_eq!(triggers.len(), 2);
+    assert_eq!(contents.len(), 2);
+    for (trigger, content) in triggers.iter().zip(contents.iter()) {
+        assert_eq!(
+            attribute_value(trigger, "aria-controls"),
+            attribute_value(content, "id")
+        );
+        assert_eq!(
+            attribute_value(content, "aria-labelledby"),
+            attribute_value(trigger, "id")
+        );
+        assert_eq!(attribute_value(content, "role").as_deref(), Some("region"));
+    }
+    let items: Vec<VirtualNode> = all
+        .iter()
+        .filter(|node: &&VirtualNode| {
+            attribute_value(node, "data-slot").as_deref() == Some("accordion-item")
+        })
+        .cloned()
+        .collect();
+    assert!(
+        items.iter().all(|node: &VirtualNode| {
+            attribute_value(node, "role").as_deref() != Some("region")
+        })
+    );
 }
 
 #[test]
 fn an_open_section_carries_the_open_class() {
-    let rendered: VirtualNode =
-        render(vec!["one".to_string()], EuvAccordionType::Single, true);
+    let rendered: VirtualNode = render(vec!["one".to_string()], EuvAccordionType::Single, true);
     assert!(
         has_class(&rendered, "c_euv_accordion_trigger_open"),
         "the header of an open section is marked as open"
@@ -200,7 +270,9 @@ fn the_accordion_carries_its_mode() {
     let single: VirtualNode = render(Vec::new(), EuvAccordionType::Single, true);
     let multiple: VirtualNode = render(Vec::new(), EuvAccordionType::Multiple, true);
     assert!(
-        attribute_names(&single).iter().any(|name: &String| name == "data-type"),
+        attribute_names(&single)
+            .iter()
+            .any(|name: &String| name == "data-type"),
         "the stack names the mode it was given"
     );
     assert!(

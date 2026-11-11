@@ -80,6 +80,9 @@ fn a_dialog_panel_is_a_modal_dialog() {
     assert!(has_class(&node, "c_euv_dialog_open"));
     assert!(has_attribute(&node, "role"));
     assert!(has_attribute(&node, "aria-modal"));
+    assert!(has_attribute(&node, "aria-label"));
+    assert!(has_attribute(&node, "onkeydown"));
+    assert!(has_attribute(&node, "onclick"));
 }
 
 #[test]
@@ -104,6 +107,10 @@ fn a_dialog_carries_a_header_a_title_a_description_and_a_footer() {
     assert!(has_class(&description, "c_euv_dialog_description"));
     let footer: VirtualNode = euv_dialog_footer(props_node(EuvDialogFooterProps { label: "Foot" }));
     assert!(has_class(&footer, "c_euv_dialog_footer"));
-    let close: VirtualNode = euv_dialog_close(props_node(EuvDialogCloseProps { label: "Close" }));
+    let close: VirtualNode = euv_dialog_close(props_node(EuvDialogCloseProps {
+        label: "Close",
+        onclick: None,
+    }));
     assert!(has_class(&close, "c_euv_dialog_close"));
+    assert!(has_attribute(&close, "data-slot"));
 }

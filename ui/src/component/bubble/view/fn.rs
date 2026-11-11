@@ -100,12 +100,19 @@ pub fn euv_bubble(node: VirtualNode<EuvBubbleProps>) -> VirtualNode {
 pub fn euv_bubble_content(node: VirtualNode<EuvBubbleContentProps>) -> VirtualNode {
     let EuvBubbleContentProps {}: EuvBubbleContentProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
+    let base_class: &Css = c_euv_bubble_content();
+    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_bubble_content_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
     html! {
-        div {
-            "data-slot": "bubble-content"
-            class: c_euv_bubble_content()
-            children
-        }
+            div {
+                "data-slot": "bubble-content"
+                class: base_class
+                class: shadcn_class
+                children
+            }
     }
 }
 
@@ -144,14 +151,14 @@ pub fn euv_bubble_reactions(node: VirtualNode<EuvBubbleReactionsProps>) -> Virtu
     };
     let children: VirtualNode = node.get_children().into();
     html! {
-        div {
-            "data-slot": "bubble-reactions"
-            "data-side": side_attr
-            "data-align": align_attr
-            class: c_euv_bubble_reactions()
-            class: side_class()
-            class: align_class()
-            children
-        }
+            div {
+                "data-slot": "bubble-reactions"
+                "data-side": side_attr
+                "data-align": align_attr
+                class: c_euv_bubble_reactions()
+                class: side_class()
+                class: align_class()
+                children
+            }
     }
 }

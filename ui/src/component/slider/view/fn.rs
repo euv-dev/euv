@@ -3,12 +3,21 @@ use super::*;
 /// A range slider component with two-way binding via a signal.
 ///
 /// Renders a header row holding the label and a live value readout, then
-/// an `<input type="range">` styled by `c_euv_slider_input`. The readout
-/// and the track fill share the current value: the value span carries
-/// `c_slider_value` so the track gradient stops at the right offset, and
-/// the header row carries `c_euv_slider_row` / `c_euv_slider_header`.
-/// A caller-supplied `oninput` takes precedence over the built-in
-/// clamping handler.
+/// the slider itself: a track, a range that fills it up to the current
+/// value, a thumb that rides on the fill, and the native `<input
+/// type="range">` that stays the accessible control.
+///
+/// The input sits over the painted parts rather than replacing them: the
+/// browser still owns the keyboard behaviour, the form value and the
+/// announced range, while the track, the range and the thumb carry the
+/// appearance. The painted slider and the real control therefore never
+/// disagree.
+///
+/// The readout and the range share the current value: the range's width is
+/// the percentage and the thumb's offset is the same percentage, while the
+/// value span carries `c_binding_slider_value` so the track gradient stops
+/// at the right offset. A caller-supplied `oninput` takes precedence over
+/// the built-in clamping handler.
 ///
 /// # Arguments
 ///
@@ -34,8 +43,12 @@ pub fn euv_slider(node: VirtualNode<EuvSliderProps>) -> VirtualNode {
     let percent: f64 = EuvSliderHelpers::percent(value.get(), min, max);
     let fill: String = format!("--value: {percent}%;");
     let readout: String = format!("{percent:.0}%");
+    let range_fill: String = format!("width: {percent}%;");
+    let thumb_offset: String = format!("inset-inline-start: {percent}%;");
     html! {
         div {
+            "data-slot": "slider"
+            "data-orientation": SLIDER_ORIENTATION_HORIZONTAL
             class: c_euv_slider_row()
             div {
                 class: c_euv_slider_header()
@@ -49,17 +62,35 @@ pub fn euv_slider(node: VirtualNode<EuvSliderProps>) -> VirtualNode {
                     readout
                 }
             }
-            input {
-                id: id
-                name: name
-                type: "range"
-                min: min.to_string()
-                max: max.to_string()
-                step: step.to_string()
-                value: value.get().to_string()
-                class: c_euv_slider_input()
-                style: fill
-                oninput: handler
+            div {
+                "data-slot": "slider-track"
+                "data-orientation": SLIDER_ORIENTATION_HORIZONTAL
+                class: c_euv_slider_track()
+                div {
+                    "data-slot": "slider-range"
+                    "data-orientation": SLIDER_ORIENTATION_HORIZONTAL
+                    class: c_euv_slider_range()
+                    style: range_fill
+                }
+                div {
+                    "data-slot": "slider-thumb"
+                    "data-orientation": SLIDER_ORIENTATION_HORIZONTAL
+                    style: thumb_offset
+                    class: c_euv_slider_thumb()
+                }
+                input {
+                    id: id
+                    name: name
+                    type: "range"
+                    "data-orientation": SLIDER_ORIENTATION_HORIZONTAL
+                    min: min.to_string()
+                    max: max.to_string()
+                    step: step.to_string()
+                    value: value.get().to_string()
+                    class: c_euv_slider_input()
+                    style: fill
+                    oninput: handler
+                }
             }
         }
     }

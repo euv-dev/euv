@@ -24,6 +24,8 @@ pub struct EuvNativeSelectOptionProps {
     pub value: &'static str,
     /// The label the reader sees.
     pub label: &'static str,
+    /// Whether the option is excluded from selection.
+    pub disabled: bool,
 }
 
 /// Props for the [`euv_native_select_opt_group`] component.
@@ -34,4 +36,6 @@ pub struct EuvNativeSelectOptionProps {
 pub struct EuvNativeSelectOptGroupProps {
     /// The label that names the group.
     pub label: &'static str,
+    /// Whether every option in the group is excluded from selection.
+    pub disabled: bool,
 }

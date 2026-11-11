@@ -1,0 +1,12 @@
+pub(crate) const ALERT_DIALOG_ROOT_SELECTOR: &str = "[data-slot=\"alert-dialog\"]";
+pub(crate) const ALERT_DIALOG_TRIGGER_SELECTOR: &str = "[data-slot=\"alert-dialog-trigger\"]";
+pub(crate) const ALERT_DIALOG_CONTENT_SELECTOR: &str = "[data-slot=\"alert-dialog-content\"]";
+pub(crate) const ALERT_DIALOG_ACTION_SELECTOR: &str = "[data-slot=\"alert-dialog-action\"]";
+pub(crate) const ALERT_DIALOG_CANCEL_SELECTOR: &str = "[data-slot=\"alert-dialog-cancel\"]";
+pub(crate) const ALERT_DIALOG_ACTION_SLOT: &str = "alert-dialog-action";
+pub(crate) const ALERT_DIALOG_CANCEL_SLOT: &str = "alert-dialog-cancel";
+pub(crate) const ALERT_DIALOG_FOCUSABLE_SELECTOR: &str = "button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex=\"-1\"])";
+pub(crate) const ALERT_DIALOG_HASPOPUP_DIALOG: &str = "dialog";
+pub(crate) const ALERT_DIALOG_DATA_SIZE_DEFAULT: &str = "default";
+pub(crate) const ALERT_DIALOG_KEY_ESCAPE: &str = "Escape";
+pub(crate) const ALERT_DIALOG_KEY_TAB: &str = "Tab";

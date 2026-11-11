@@ -15,6 +15,10 @@ class! {
         gap: var!(space-2xs);
     }
 
+    pub(crate) c_euv_collapsible_shadcn {
+        gap: var!(space-sm);
+    }
+
     pub c_euv_collapsible_trigger {
         display: "flex";
         align-items: "center";
@@ -24,6 +28,25 @@ class! {
         text-align: "left";
         font-weight: var!(font-weight-medium);
         cursor: "pointer";
+    }
+
+    pub(crate) c_euv_collapsible_trigger_shadcn {
+        gap: var!(space-xs);
+        border-color: var!(border);
+        border-bottom-right-radius: var!(radius-lg);
+        border-bottom-left-radius: var!(radius-lg);
+        border-top-right-radius: var!(radius-lg);
+        border-top-left-radius: var!(radius-lg);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        justify-content: "center";
+        white-space: "nowrap";
     }
 
     pub c_euv_collapsible_content {
@@ -72,6 +95,10 @@ class! {
         align-items: "center";
         gap: var!(space-sm);
     }
+    pub(crate) c_euv_marker_shadcn {
+        color: var!(muted-foreground);
+    }
+
 
     pub c_euv_marker_default {
         min-width: "0px";
@@ -134,6 +161,30 @@ class! {
             cursor: "not-allowed";
             opacity: "0.5";
         }
+    }
+
+
+    pub(crate) c_euv_native_select_shadcn {
+        min-height: var!(control-height-sm);
+        padding-block: var!(space-xs);
+        padding-inline: var!(control-pad-inline);
+        padding-right: var!(control-pad-icon);
+        border-radius: var!(radius-lg);
+        font-size: var!(font-sm);
+        line-height: "1.428571";
+        background-color: "transparent";
+    }
+
+    pub(crate) c_euv_native_select_size_default_shadcn {
+        height: var!(control-height-sm);
+        min-height: var!(control-height-sm);
+    }
+
+    pub(crate) c_euv_native_select_size_sm_shadcn {
+        height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
+        min-height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
+        padding-block: var!(space-2xs);
+        border-radius: var!(radius-md);
     }
 
     pub c_euv_native_select_size_default {
@@ -202,6 +253,11 @@ class! {
         font-size: var!(font-sm);
     }
 
+    pub(crate) c_euv_attachment_shadcn {
+        border-radius: var!(radius-xl);
+        gap: var!(space-xs-sm);
+    }
+
     pub c_euv_attachment_horizontal {
         flex-direction: "row";
     }
@@ -248,6 +304,10 @@ class! {
         background: var!(muted);
     }
 
+    pub(crate) c_euv_attachment_media_shadcn {
+        border-radius: var!(radius-lg);
+    }
+
     pub c_euv_attachment_media_size_default {
         width: var!(space-2xl);
         height: var!(space-2xl);
@@ -268,6 +328,13 @@ class! {
     pub c_euv_attachment_media_variant_image {
         background: var!(muted);
     }
+    pub(crate) c_euv_attachment_media_variant_image_shadcn {
+        border-bottom-right-radius: var!(radius-lg);
+        border-bottom-left-radius: var!(radius-lg);
+        border-top-right-radius: var!(radius-lg);
+        border-top-left-radius: var!(radius-lg);
+    }
+
 
     pub c_euv_attachment_content {
         max-width: "100%";
@@ -325,6 +392,11 @@ class! {
         overflow-x: "auto";
         overscroll-x: "contain";
         scroll-snap-type: "x mandatory";
+    }
+
+    pub(crate) c_euv_attachment_group_shadcn {
+        gap: var!(space-md);
+        padding-top: var!(space-xs);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -405,6 +477,10 @@ class! {
         min-width: "0px";
         flex-direction: "column";
     }
+    pub(crate) c_euv_bubble_group_shadcn {
+        gap: var!(space-sm);
+    }
+
 
     pub c_euv_bubble {
         position: "relative";
@@ -413,6 +489,10 @@ class! {
         min-width: "0px";
         flex-direction: "column";
     }
+    pub(crate) c_euv_bubble_shadcn {
+        gap: var!(space-xs);
+    }
+
 
     pub c_euv_bubble_align_start {
         align-self: "flex-start";
@@ -466,8 +546,28 @@ class! {
         min-width: "0px";
         overflow: "hidden";
         overflow-wrap: "break-word";
-        padding: var!(space-sm) var!(space-md);
+        padding: format!("{} {}", var!(space-sm), var!(space-md));
         border-radius: var!(radius-lg);
+    }
+
+    pub(crate) c_euv_bubble_content_shadcn {
+        padding-top: var!(space-sm-md);
+        padding-right: var!(space-md);
+        padding-bottom: var!(space-sm-md);
+        padding-left: var!(space-md);
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        border-bottom-right-radius: "24px";
+        border-bottom-left-radius: "24px";
+        border-top-right-radius: "24px";
+        border-top-left-radius: "24px";
     }
 
     // The reactions float beside the bubble.
@@ -478,6 +578,17 @@ class! {
         align-items: "center";
         justify-content: "center";
     }
+    pub(crate) c_euv_bubble_reactions_shadcn {
+        background-color: var!(muted);
+        border-bottom-right-radius: "9999px";
+        border-bottom-left-radius: "9999px";
+        border-top-right-radius: "9999px";
+        border-top-left-radius: "9999px";
+        gap: var!(space-xs);
+        padding-left: var!(space-xs-sm);
+        padding-top: var!(space-2xs);
+    }
+
 
     pub c_euv_bubble_reactions_top {
         bottom: "100%";
@@ -526,6 +637,10 @@ class! {
         min-height: "100%";
         flex-direction: "column";
     }
+    pub(crate) c_euv_message_scroller_content_shadcn {
+        gap: var!(space-3xl);
+    }
+
 
     // The item never shrinks, so a long message keeps its own height
     // instead of being squeezed into the row.
@@ -548,6 +663,14 @@ class! {
         white-space: "nowrap";
         transform: "translateX(-50%)";
     }
+    pub(crate) c_euv_message_scroller_button_shadcn {
+        border-bottom-right-radius: var!(radius-2xl);
+        border-bottom-left-radius: var!(radius-2xl);
+        border-top-right-radius: var!(radius-2xl);
+        border-top-left-radius: var!(radius-2xl);
+        font-weight: var!(font-weight-medium);
+    }
+
 
     pub c_euv_message_scroller_button_start {
         top: var!(space-lg);
@@ -569,6 +692,10 @@ class! {
         min-width: "0px";
         flex-direction: "column";
     }
+    pub(crate) c_euv_trace_shadcn {
+        gap: var!(space-sm);
+    }
+
 
     pub c_euv_trace_line {
         display: "flex";
@@ -577,6 +704,11 @@ class! {
         min-width: "0px";
         align-items: "center";
         gap: var!(space-xs);
+        color: var!(muted-foreground);
+    }
+
+    pub(crate) c_euv_trace_line_shadcn {
+        gap: var!(space-sm);
         color: var!(muted-foreground);
     }
 
@@ -639,6 +771,14 @@ class! {
         color: var!(muted-foreground);
         cursor: "pointer";
     }
+    pub(crate) c_euv_trace_collapsible_trigger_shadcn {
+        border-bottom-right-radius: var!(radius-lg);
+        border-bottom-left-radius: var!(radius-lg);
+        border-top-right-radius: var!(radius-lg);
+        border-top-left-radius: var!(radius-lg);
+        gap: var!(space-xs);
+    }
+
 
     pub c_euv_trace_collapsible_content {
         min-width: "0px";
@@ -681,6 +821,10 @@ class! {
         color: var!(foreground);
     }
 
+    pub(crate) c_euv_code_block_shadcn {
+        border-radius: var!(radius-lg);
+    }
+
     pub c_euv_code_block_default {
         background: var!(muted);
     }
@@ -706,8 +850,17 @@ class! {
         flex-shrink: "0";
         align-items: "center";
         gap: var!(space-sm);
-        padding: var!(space-sm) var!(space-md);
+        padding: format!("{} {}", var!(space-sm), var!(space-md));
         border-bottom: format!("{} solid {}", var!(border-width), var!(border));
+    }
+
+    pub(crate) c_euv_code_block_header_shadcn {
+        padding: var!(space-md);
+        color: var!(muted-foreground);
+    }
+
+    pub(crate) c_euv_code_block_title_shadcn {
+        color: var!(foreground);
     }
 
     pub c_euv_code_block_title {
@@ -727,6 +880,10 @@ class! {
         margin-left: "auto";
     }
 
+    pub(crate) c_euv_code_block_actions_shadcn {
+        gap: var!(space-xs);
+    }
+
     pub c_euv_code_block_copy_button {
         display: "inline-flex";
         align-items: "center";
@@ -738,6 +895,10 @@ class! {
         white-space: "nowrap";
         cursor: "pointer";
     }
+    pub(crate) c_euv_code_block_copy_button_shadcn {
+        font-weight: var!(font-weight-medium);
+    }
+
 
     // The code is read from the left even in a right to left page, so
     // the block is told to read from the left as well.
@@ -750,6 +911,11 @@ class! {
         font-size: var!(font-sm);
         outline: "none";
     }
+    pub(crate) c_euv_code_block_content_shadcn {
+        padding-left: var!(space-lg);
+        padding-top: var!(space-lg);
+    }
+
 
     pub c_euv_code_block_content_no_wrap {
         white-space: "pre";
@@ -768,6 +934,16 @@ class! {
     pub c_euv_code_block_line {
         position: "relative";
         display: "block";
+    }
+    pub(crate) c_euv_code_block_line_shadcn {
+        padding-left: var!(space-lg);
+    }
+
+
+    // The text of one line. It carries the line number, so it has to be
+    // able to shrink when the line is longer than the block is wide.
+    pub c_euv_code_block_line_content {
+        min-width: "0px";
     }
 
     pub c_euv_code_block_line_default {
@@ -795,8 +971,12 @@ class! {
         flex-shrink: "0";
         align-items: "center";
         gap: var!(space-sm);
-        padding: var!(space-sm) var!(space-md);
+        padding: format!("{} {}", var!(space-sm), var!(space-md));
         border-top: format!("{} solid {}", var!(border-width), var!(border));
+    }
+
+    pub(crate) c_euv_code_block_footer_shadcn {
+        padding: var!(space-lg);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -812,6 +992,10 @@ class! {
         width: "100%";
         justify-content: "center";
     }
+    pub(crate) c_euv_navigation_menu_shadcn {
+        align-items: "center";
+    }
+
 
     pub c_euv_navigation_menu_list {
         display: "flex";
@@ -822,6 +1006,12 @@ class! {
         padding: "0px";
         list-style: "none";
     }
+    pub(crate) c_euv_navigation_menu_list_shadcn {
+        align-items: "center";
+        gap: 0px;
+        justify-content: "center";
+    }
+
 
     pub c_euv_navigation_menu_item {
         position: "relative";
@@ -831,7 +1021,7 @@ class! {
         display: "inline-flex";
         align-items: "center";
         gap: var!(space-xs);
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border: "none";
         background: "transparent";
         color: var!(foreground);
@@ -840,6 +1030,16 @@ class! {
         white-space: "nowrap";
         cursor: "pointer";
     }
+    pub(crate) c_euv_navigation_menu_trigger_shadcn {
+        border-bottom-right-radius: var!(radius-lg);
+        border-bottom-left-radius: var!(radius-lg);
+        border-top-right-radius: var!(radius-lg);
+        border-top-left-radius: var!(radius-lg);
+        justify-content: "center";
+        padding-left: var!(control-pad-inline);
+        padding-top: var!(space-xs-sm);
+    }
+
 
     pub c_euv_navigation_menu_trigger_open {
         background: var!(accent);
@@ -875,11 +1075,16 @@ class! {
 
     pub c_euv_navigation_menu_link {
         display: "block";
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border-radius: var!(radius-sm);
         color: var!(foreground);
         font-size: var!(font-sm);
         text-decoration: "none";
+    }
+
+    pub(crate) c_euv_navigation_menu_link_shadcn {
+        padding: var!(space-sm);
+        border-radius: var!(radius-lg);
     }
 
     // The viewport is the frame the open panel is drawn in, so the panel
@@ -931,6 +1136,7 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "center";
+        flex-shrink: "0";
         background: var!(border);
         cursor: "col-resize";
     }
@@ -959,6 +1165,10 @@ class! {
         gap: var!(space-md);
     }
 
+    pub(crate) c_euv_questionnaire_shadcn {
+        gap: var!(space-lg);
+    }
+
     // The progress is a number, so it is set in figures that line up in
     // a column while the count changes.
     pub c_euv_questionnaire_progress {
@@ -976,11 +1186,20 @@ class! {
         border: "none";
         outline: "none";
     }
+    pub(crate) c_euv_questionnaire_item_shadcn {
+        gap: var!(space-lg);
+    }
+
 
     pub c_euv_questionnaire_title {
         font-size: var!(font-lg);
         font-weight: var!(font-weight-semibold);
         line-height: "1.2";
+    }
+
+    pub(crate) c_euv_questionnaire_title_shadcn {
+        font-size: var!(font-base);
+        font-weight: var!(font-weight-medium);
     }
 
     pub c_euv_questionnaire_description {
@@ -1001,7 +1220,7 @@ class! {
         min-height: var!(control-height);
         align-items: "flex-start";
         gap: var!(space-sm);
-        padding: var!(space-sm) var!(space-md);
+        padding: format!("{} {}", var!(space-sm), var!(space-md));
         border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-md);
         background: var!(background);
@@ -1009,15 +1228,64 @@ class! {
         cursor: "pointer";
     }
 
+    pub(crate) c_euv_questionnaire_choice_shadcn {
+        padding-top: var!(space-sm-md);
+        padding-right: var!(space-md);
+        padding-bottom: var!(space-sm-md);
+        padding-left: var!(space-md);
+        border-radius: var!(radius-lg);
+        background-color: "transparent";
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        gap: var!(space-sm-md);
+    }
+
     pub c_euv_questionnaire_choice_enabled {
         cursor: "pointer";
     }
+    pub(crate) c_euv_questionnaire_choice_enabled_shadcn {
+        background-color: "transparent";
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        gap: var!(space-sm-md);
+        padding-top: var!(space-sm-md);
+    }
+
 
     pub c_euv_questionnaire_choice_disabled {
         pointer-events: "none";
         cursor: "not-allowed";
         opacity: "0.5";
     }
+    pub(crate) c_euv_questionnaire_choice_disabled_shadcn {
+        background-color: "transparent";
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        gap: var!(space-sm-md);
+        padding-top: var!(space-sm-md);
+    }
+
 
     pub c_euv_questionnaire_choice_label {
         display: "flex";
@@ -1026,6 +1294,10 @@ class! {
         flex-direction: "column";
         line-height: "1.3";
     }
+    pub(crate) c_euv_questionnaire_choice_label_shadcn {
+        gap: var!(space-2xs);
+    }
+
 
     pub c_euv_questionnaire_choice_description {
         font-size: var!(font-sm);
@@ -1044,6 +1316,18 @@ class! {
         border-radius: var!(radius-sm);
         background: var!(background);
     }
+    pub(crate) c_euv_questionnaire_choice_indicator_shadcn {
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+    }
+
 
     // The answer that takes one answer out of a list is marked with a
     // round mark, the one that can be ticked on its own with a square.
@@ -1078,6 +1362,12 @@ class! {
         outline: "none";
     }
 
+    pub(crate) c_euv_questionnaire_input_shadcn {
+        height: var!(control-height-sm);
+        border-radius: var!(radius-lg);
+        font-size: var!(font-base);
+    }
+
     pub c_euv_questionnaire_error {
         font-size: var!(font-sm);
         color: var!(destructive);
@@ -1105,6 +1395,11 @@ class! {
         cursor: "pointer";
     }
 
+    pub(crate) c_euv_questionnaire_previous_shadcn {
+        height: var!(control-height-sm);
+        border-radius: var!(radius-lg);
+    }
+
     pub c_euv_questionnaire_skip {
         display: "inline-flex";
         align-items: "center";
@@ -1117,6 +1412,27 @@ class! {
         font-size: var!(font-sm);
         white-space: "nowrap";
         cursor: "pointer";
+    }
+
+    pub(crate) c_euv_questionnaire_skip_shadcn {
+        height: var!(control-height-sm);
+        gap: var!(space-xs-sm);
+        border-bottom-right-radius: var!(radius-lg);
+        border-bottom-left-radius: var!(radius-lg);
+        border-top-right-radius: var!(radius-lg);
+        border-top-left-radius: var!(radius-lg);
+        background-color: var!(background);
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        font-weight: var!(font-weight-medium);
+        padding-left: var!(control-pad-inline);
     }
 
     pub c_euv_questionnaire_next {
@@ -1135,6 +1451,14 @@ class! {
         cursor: "pointer";
     }
 
+    pub(crate) c_euv_questionnaire_next_shadcn {
+        height: var!(control-height-sm);
+        gap: var!(space-xs-sm);
+        border-radius: var!(radius-lg);
+        font-weight: var!(font-weight-medium);
+        padding-left: var!(control-pad-inline);
+    }
+
     pub c_euv_questionnaire_submit {
         display: "inline-flex";
         align-items: "center";
@@ -1150,6 +1474,11 @@ class! {
         white-space: "nowrap";
         cursor: "pointer";
     }
+
+    pub(crate) c_euv_questionnaire_submit_shadcn {
+        height: var!(control-height-sm);
+        border-radius: var!(radius-lg);
+    }
 }
 
 #[cfg(feature = "theme-custom")]
@@ -1162,7 +1491,11 @@ class! {
 
     pub c_euv_collapsible {}
 
+    pub c_euv_collapsible_shadcn {}
+
     pub c_euv_collapsible_trigger {}
+
+    pub c_euv_collapsible_trigger_shadcn {}
 
     pub c_euv_collapsible_content {}
 
@@ -1186,9 +1519,15 @@ class! {
 
     pub c_euv_native_select {}
 
+    pub(crate) c_euv_native_select_shadcn {}
+
     pub c_euv_native_select_size_default {}
 
+    pub(crate) c_euv_native_select_size_default_shadcn {}
+
     pub c_euv_native_select_size_sm {}
+
+    pub(crate) c_euv_native_select_size_sm_shadcn {}
 
     pub c_euv_native_select_icon {}
 
@@ -1199,6 +1538,8 @@ class! {
     pub c_euv_native_select_optgroup {}
 
     pub c_euv_attachment {}
+
+    pub c_euv_attachment_shadcn {}
 
     pub c_euv_attachment_horizontal {}
 
@@ -1215,6 +1556,8 @@ class! {
     pub c_euv_attachment_state_done {}
 
     pub c_euv_attachment_media {}
+
+    pub c_euv_attachment_media_shadcn {}
 
     pub c_euv_attachment_media_size_default {}
 
@@ -1237,6 +1580,8 @@ class! {
     pub c_euv_attachment_trigger {}
 
     pub c_euv_attachment_group {}
+
+    pub c_euv_attachment_group_shadcn {}
 
     pub c_euv_chart {}
 
@@ -1264,6 +1609,8 @@ class! {
     pub c_euv_bubble_ghost {}
     pub c_euv_bubble_destructive {}
     pub c_euv_bubble_content {}
+
+    pub c_euv_bubble_content_shadcn {}
     pub c_euv_bubble_reactions {}
     pub c_euv_bubble_reactions_top {}
     pub c_euv_bubble_reactions_bottom {}
@@ -1278,6 +1625,8 @@ class! {
     pub c_euv_message_scroller_button_end {}
     pub c_euv_trace {}
     pub c_euv_trace_line {}
+
+    pub c_euv_trace_line_shadcn {}
     pub c_euv_trace_line_running {}
     pub c_euv_trace_line_error {}
     pub c_euv_trace_line_pending {}
@@ -1293,24 +1642,35 @@ class! {
     pub c_euv_trace_collapsible_content_inner {}
 
     pub c_euv_code_block {}
+
+    pub c_euv_code_block_shadcn {}
     pub c_euv_code_block_default {}
     pub c_euv_code_block_destructive {}
     pub c_euv_code_block_size_default {}
     pub c_euv_code_block_size_sm {}
     pub c_euv_code_block_header {}
+
+    pub c_euv_code_block_header_shadcn {}
     pub c_euv_code_block_title {}
+
+    pub(crate) c_euv_code_block_title_shadcn {}
     pub c_euv_code_block_actions {}
+
+    pub c_euv_code_block_actions_shadcn {}
     pub c_euv_code_block_copy_button {}
     pub c_euv_code_block_content {}
     pub c_euv_code_block_content_no_wrap {}
     pub c_euv_code_block_content_wrap {}
     pub c_euv_code_block_code {}
     pub c_euv_code_block_line {}
+    pub c_euv_code_block_line_content {}
     pub c_euv_code_block_line_default {}
     pub c_euv_code_block_line_added {}
     pub c_euv_code_block_line_removed {}
     pub c_euv_code_block_line_highlighted {}
     pub c_euv_code_block_footer {}
+
+    pub c_euv_code_block_footer_shadcn {}
     pub c_euv_navigation_menu {}
     pub c_euv_navigation_menu_list {}
     pub c_euv_navigation_menu_item {}
@@ -1321,6 +1681,8 @@ class! {
     pub c_euv_navigation_menu_content_open {}
     pub c_euv_navigation_menu_content_closed {}
     pub c_euv_navigation_menu_link {}
+
+    pub c_euv_navigation_menu_link_shadcn {}
     pub c_euv_navigation_menu_viewport {}
     pub c_euv_navigation_menu_indicator {}
     pub c_euv_resizable_group {}
@@ -1332,12 +1694,18 @@ class! {
     pub c_euv_resizable_handle_vertical {}
 
     pub c_euv_questionnaire {}
+
+    pub c_euv_questionnaire_shadcn {}
     pub c_euv_questionnaire_progress {}
     pub c_euv_questionnaire_item {}
     pub c_euv_questionnaire_title {}
+
+    pub c_euv_questionnaire_title_shadcn {}
     pub c_euv_questionnaire_description {}
     pub c_euv_questionnaire_choices {}
     pub c_euv_questionnaire_choice {}
+
+    pub c_euv_questionnaire_choice_shadcn {}
     pub c_euv_questionnaire_choice_enabled {}
     pub c_euv_questionnaire_choice_disabled {}
     pub c_euv_questionnaire_choice_label {}
@@ -1349,10 +1717,40 @@ class! {
     pub c_euv_questionnaire_choice_indicator_radio {}
     pub c_euv_questionnaire_choice_indicator_checkbox {}
     pub c_euv_questionnaire_input {}
+
+    pub c_euv_questionnaire_input_shadcn {}
     pub c_euv_questionnaire_error {}
     pub c_euv_questionnaire_actions {}
     pub c_euv_questionnaire_previous {}
+
+    pub c_euv_questionnaire_previous_shadcn {}
     pub c_euv_questionnaire_skip {}
+
+    pub c_euv_questionnaire_skip_shadcn {}
     pub c_euv_questionnaire_next {}
+
+    pub c_euv_questionnaire_next_shadcn {}
     pub c_euv_questionnaire_submit {}
+
+    pub c_euv_questionnaire_submit_shadcn {}
+    pub(crate) c_euv_attachment_media_variant_image_shadcn {}
+    pub(crate) c_euv_bubble_group_shadcn {}
+    pub(crate) c_euv_bubble_reactions_shadcn {}
+    pub(crate) c_euv_bubble_shadcn {}
+    pub(crate) c_euv_code_block_content_shadcn {}
+    pub(crate) c_euv_code_block_copy_button_shadcn {}
+    pub(crate) c_euv_code_block_line_shadcn {}
+    pub(crate) c_euv_marker_shadcn {}
+    pub(crate) c_euv_message_scroller_button_shadcn {}
+    pub(crate) c_euv_message_scroller_content_shadcn {}
+    pub(crate) c_euv_navigation_menu_list_shadcn {}
+    pub(crate) c_euv_navigation_menu_shadcn {}
+    pub(crate) c_euv_navigation_menu_trigger_shadcn {}
+    pub(crate) c_euv_questionnaire_choice_disabled_shadcn {}
+    pub(crate) c_euv_questionnaire_choice_enabled_shadcn {}
+    pub(crate) c_euv_questionnaire_choice_indicator_shadcn {}
+    pub(crate) c_euv_questionnaire_choice_label_shadcn {}
+    pub(crate) c_euv_questionnaire_item_shadcn {}
+    pub(crate) c_euv_trace_collapsible_trigger_shadcn {}
+    pub(crate) c_euv_trace_shadcn {}
 }

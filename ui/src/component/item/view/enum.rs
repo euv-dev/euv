@@ -17,7 +17,7 @@ pub enum EuvItemVariant {
 
 /// The density of an item.
 ///
-/// The reference publishes two: the roomy row and the compact one.
+/// The reference publishes three: the roomy, compact and extra-compact rows.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum EuvItemSize {
     /// The roomy row.
@@ -25,6 +25,8 @@ pub enum EuvItemSize {
     Default,
     /// The compact row.
     Sm,
+    /// The extra-compact row.
+    Xs,
 }
 
 /// The kind of media shown beside an item.

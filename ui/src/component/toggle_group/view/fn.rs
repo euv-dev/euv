@@ -29,6 +29,19 @@ pub fn euv_toggle_group(node: VirtualNode<EuvToggleGroupProps>) -> VirtualNode {
         size,
         on_change,
     }: EuvToggleGroupProps = node.try_get_props().unwrap_or_default();
+    let default_focus_value: String = items
+        .iter()
+        .find(|item: &&EuvToggleGroupItem| !item.disabled)
+        .map(|item: &EuvToggleGroupItem| item.value.to_string())
+        .unwrap_or_default();
+    let focus_value: Signal<String> =
+        HookContext::use_hook(move || Signal::create(default_focus_value));
+    let group_class: &Css = c_euv_toggle_group();
+    let shadcn_group_class: Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_toggle_group_shadcn().clone()
+    } else {
+        Css::default()
+    };
     let selected: Vec<String> = values.get();
     let entries: Vec<VirtualNode> = items
         .into_iter()
@@ -42,13 +55,16 @@ pub fn euv_toggle_group(node: VirtualNode<EuvToggleGroupProps>) -> VirtualNode {
                 collapsible,
                 variant,
                 size,
+                focus_value,
                 on_change: on_change.clone(),
             })
         })
         .collect();
     html! {
         div {
-            class: c_euv_toggle_group()
+            "data-slot": "toggle-group"
+            class: group_class
+            class: shadcn_group_class
             role: "group"
             entries
         }
@@ -76,6 +92,7 @@ fn toggle_group_entry(entry: ToggleGroupEntry) -> VirtualNode {
         collapsible,
         variant,
         size,
+        focus_value,
         on_change,
     }: ToggleGroupEntry = entry;
     let disabled: bool = item.disabled;
@@ -92,14 +109,40 @@ fn toggle_group_entry(entry: ToggleGroupEntry) -> VirtualNode {
     let handler: Option<Rc<dyn Fn(Event)>> = if disabled {
         None
     } else {
-        toggle_group_pick(item.value, values, multiple, collapsible, on_change)
+        toggle_group_pick(
+            item.value,
+            values,
+            multiple,
+            collapsible,
+            focus_value,
+            on_change,
+        )
+    };
+    let focus_handler: Option<Rc<dyn Fn(Event)>> = if disabled {
+        None
+    } else {
+        toggle_group_focus(item.value, focus_value)
+    };
+    let keydown_handler: Option<Rc<dyn Fn(Event)>> = if disabled {
+        None
+    } else {
+        toggle_group_keyboard_navigation(item.value, focus_value)
     };
     html! {
         button {
             type: "button"
+            "data-slot": "toggle-group-item"
+            "data-value": item.value
             class: toggle_class(variant, size, is_pressed)
             aria-pressed: pressed_attr
             disabled: disabled_attr
+            tabindex: if { focus_value.get() == item.value } {
+                "0"
+            } else {
+                "-1"
+            }
+            onfocus: focus_handler
+            onkeydown: keydown_handler
             onclick: handler
             item.label
         }
@@ -119,6 +162,7 @@ fn toggle_group_entry(entry: ToggleGroupEntry) -> VirtualNode {
 /// - `Signal<Vec<String>>` - The selection signal owned by the caller.
 /// - `bool` - Whether more than one entry can be selected.
 /// - `bool` - Whether a single-selection group can be emptied.
+/// - `Signal<String>` - The value whose entry owns the roving tab stop.
 /// - `Option<Rc<dyn Fn(Vec<String>)>>` - The change callback.
 ///
 /// # Returns
@@ -129,6 +173,7 @@ fn toggle_group_pick(
     values: Signal<Vec<String>>,
     multiple: bool,
     collapsible: bool,
+    focus_value: Signal<String>,
     on_change: Option<Rc<dyn Fn(Vec<String>)>>,
 ) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
@@ -150,9 +195,98 @@ fn toggle_group_pick(
         } else {
             vec![String::from(value)]
         };
+        focus_value.set(value.to_string());
         values.set(next.clone());
         if let Some(callback) = on_change.as_ref() {
             callback(next);
         }
+    }))
+}
+
+/// Moves the tab stop to an entry when it receives focus.
+///
+/// # Arguments
+///
+/// - `&'static str` - The value of the focused entry.
+/// - `Signal<String>` - The roving tab stop value.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The entry focus handler.
+fn toggle_group_focus(
+    value: &'static str,
+    focus_value: Signal<String>,
+) -> Option<Rc<dyn Fn(Event)>> {
+    Some(Rc::new(move |_: Event| {
+        focus_value.set(value.to_string());
+    }))
+}
+
+/// Moves keyboard focus through enabled entries in a toggle group.
+///
+/// # Arguments
+///
+/// - `&'static str` - The value of the trigger receiving keyboard input.
+/// - `Signal<String>` - The roving tab stop value.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The keyboard navigation handler.
+fn toggle_group_keyboard_navigation(
+    value: &'static str,
+    focus_value: Signal<String>,
+) -> Option<Rc<dyn Fn(Event)>> {
+    Some(Rc::new(move |event: Event| {
+        let Ok(keyboard_event) = event.dyn_into::<KeyboardEvent>() else {
+            return;
+        };
+        let Some(target) = keyboard_event
+            .target()
+            .and_then(|target: EventTarget| target.dyn_into::<Element>().ok())
+        else {
+            return;
+        };
+        let Some(trigger) = target.closest(TOGGLE_GROUP_TRIGGER_SELECTOR).ok().flatten() else {
+            return;
+        };
+        let Some(root) = trigger.closest(TOGGLE_GROUP_ROOT_SELECTOR).ok().flatten() else {
+            return;
+        };
+        let Ok(nodes) = root.query_selector_all(TOGGLE_GROUP_TRIGGER_SELECTOR) else {
+            return;
+        };
+        let mut triggers: Vec<HtmlElement> = Vec::new();
+        for index in 0..nodes.length() {
+            if let Some(button) = nodes
+                .item(index)
+                .and_then(|node: Node| node.dyn_into::<HtmlElement>().ok())
+            {
+                triggers.push(button);
+            }
+        }
+        let Some(current_index) = triggers.iter().position(|button: &HtmlElement| {
+            button
+                .get_attribute(TOGGLE_GROUP_VALUE_ATTRIBUTE)
+                .as_deref()
+                == Some(value)
+        }) else {
+            return;
+        };
+        let next_index: usize = match keyboard_event.key().as_str() {
+            "ArrowRight" | "ArrowDown" => (current_index + 1) % triggers.len(),
+            "ArrowLeft" | "ArrowUp" => (current_index + triggers.len() - 1) % triggers.len(),
+            "Home" => 0,
+            "End" => triggers.len() - 1,
+            _ => return,
+        };
+        let Some(next_trigger) = triggers.get(next_index) else {
+            return;
+        };
+        let Some(next_value) = next_trigger.get_attribute(TOGGLE_GROUP_VALUE_ATTRIBUTE) else {
+            return;
+        };
+        keyboard_event.prevent_default();
+        focus_value.set(next_value);
+        let _: Result<(), JsValue> = next_trigger.focus();
     }))
 }

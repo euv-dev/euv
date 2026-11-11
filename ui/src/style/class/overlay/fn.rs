@@ -336,10 +336,28 @@ class! {
     }
 
     pub(crate) c_euv_calendar_grid {
+        display: "flex";
+        flex-direction: "column";
+        gap: "0px";
+        width: "100%";
+    }
+
+    pub(crate) c_euv_calendar_grid_row {
         display: "grid";
         grid-template-columns: "repeat(7, minmax(0px, 1fr))";
         gap: "0px";
         width: "100%";
+    }
+
+    pub(crate) c_euv_calendar_grid_cell {
+        display: "flex";
+        min-width: "0px";
+        width: "100%";
+    }
+
+    pub(crate) c_euv_calendar_grid_cell_button {
+        width: "100%";
+        min-width: "0px";
     }
 
     pub(crate) c_euv_calendar_day {
@@ -1373,12 +1391,30 @@ class! {
         color: var!(popover-foreground);
     }
 
+    pub(crate) c_euv_command_shadcn {
+        border-radius: var!(radius-lg);
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        padding: var!(space-xs);
+    }
+
     pub c_euv_command_input_wrapper {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
         padding: format!("0px {}", var!(space-md));
         border-bottom: format!("{} solid {}", var!(border-width), var!(border));
+    }
+
+    pub(crate) c_euv_command_input_wrapper_shadcn {
+        padding: var!(space-xs);
     }
 
     pub c_euv_command_input {
@@ -1416,7 +1452,7 @@ class! {
     }
 
     pub c_euv_command_group_heading {
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         color: var!(muted-foreground);
         font-size: var!(font-xs);
         font-weight: "500";
@@ -1427,11 +1463,20 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border-radius: var!(radius-sm);
         font-size: var!(font-sm);
         cursor: "default";
         user-select: "none";
+    }
+
+    pub(crate) c_euv_command_item_shadcn {
+        padding: var!(space-sm);
+        border-bottom-right-radius: var!(radius-sm);
+        border-bottom-left-radius: var!(radius-sm);
+        border-top-right-radius: var!(radius-sm);
+        border-top-left-radius: var!(radius-sm);
+        padding-top: var!(space-xs-sm);
     }
 
     pub c_euv_command_item_selected {
@@ -1481,11 +1526,21 @@ class! {
         cursor: "pointer";
     }
 
+    pub(crate) c_euv_combobox_trigger_shadcn {
+        height: var!(control-height-sm);
+        min-height: var!(control-height-sm);
+        padding: format!("{} {}", var!(space-sm), var!(control-pad-inline));
+        border-radius: var!(radius-lg);
+        font-size: var!(font-sm);
+        line-height: "1.428571";
+        gap: var!(space-xs-sm);
+    }
+
     pub c_euv_combobox_input {
         display: "flex";
         width: "100%";
         height: var!(space-2xl);
-        padding: var!(space-sm) var!(space-md);
+        padding: format!("{} {}", var!(space-sm), var!(space-md));
         border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-md);
         background: var!(background);
@@ -1494,6 +1549,15 @@ class! {
         font-size: var!(font-sm);
         line-height: "1.5";
         outline: "none";
+    }
+
+    pub(crate) c_euv_combobox_input_shadcn {
+        height: var!(control-height-sm);
+        min-height: var!(control-height-sm);
+        padding: format!("{} {}", var!(space-xs), var!(control-pad-inline));
+        border-radius: var!(radius-lg);
+        font-size: var!(font-sm);
+        line-height: "1.428571";
     }
 
     pub c_euv_combobox_content {
@@ -1509,6 +1573,10 @@ class! {
         background: var!(popover);
         color: var!(popover-foreground);
         box-shadow: var!(shadow-md);
+    }
+
+    pub(crate) c_euv_combobox_content_shadcn {
+        border-radius: var!(radius-lg);
     }
 
     pub c_euv_combobox_content_open {
@@ -1528,12 +1596,24 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border-radius: var!(radius-sm);
         font-size: var!(font-sm);
         line-height: "1.5";
         cursor: "pointer";
         user-select: "none";
+    }
+
+    pub(crate) c_euv_combobox_item_shadcn {
+        padding: format!("{} calc({} + {})", var!(space-xs), var!(space-xs), var!(space-2xs));
+        border-radius: var!(radius-md);
+        font-size: var!(font-sm);
+        line-height: "1.428571";
+        :focus {
+            outline: "none";
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
     }
 
     pub c_euv_combobox_item_selected {
@@ -1552,7 +1632,7 @@ class! {
     }
 
     pub c_euv_combobox_label {
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         color: var!(muted-foreground);
         font-size: var!(font-xs);
     }
@@ -1611,6 +1691,14 @@ class! {
         line-height: "1.5";
         white-space: "nowrap";
         cursor: "pointer";
+    }
+
+    pub(crate) c_euv_sheet_trigger_shadcn {
+        height: var!(control-height-sm);
+        gap: var!(space-xs-sm);
+        border-radius: var!(radius-lg);
+        font-weight: var!(font-weight-medium);
+        padding-left: var!(control-pad-inline);
     }
 
     pub c_euv_sheet_overlay {
@@ -1751,6 +1839,14 @@ class! {
         cursor: "pointer";
     }
 
+    pub(crate) c_euv_alert_dialog_trigger_shadcn {
+        height: var!(control-height-sm);
+        gap: var!(space-xs-sm);
+        border-radius: var!(radius-lg);
+        font-weight: var!(font-weight-medium);
+        padding-left: var!(control-pad-inline);
+    }
+
     pub c_euv_alert_dialog_overlay {
         position: "fixed";
         inset: "0px";
@@ -1774,14 +1870,18 @@ class! {
         display: "grid";
         gap: var!(space-lg);
         width: "100%";
-        max-width: "512px";
-        padding: var!(space-2xl);
+        max-width: "384px";
+        padding: var!(space-lg);
         transform: "translate(-50%, -50%)";
         border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-lg);
-        background: var!(background);
-        color: var!(foreground);
+        border-radius: var!(radius-xl);
+        background: var!(popover);
+        color: var!(popover-foreground);
         box-shadow: var!(shadow-lg);
+        overflow: "hidden";
+        @media ((max-width: 767px)) {
+            max-width: "320px";
+        }
     }
 
     pub c_euv_alert_dialog_content_open {
@@ -1796,19 +1896,45 @@ class! {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-sm);
-        text-align: "center";
+        text-align: "left";
+        @media ((max-width: 767px)) {
+            text-align: "center";
+        }
     }
 
     pub c_euv_alert_dialog_footer {
         display: "flex";
-        flex-direction: "column-reverse";
+        flex-direction: "row";
+        justify-content: "flex-end";
         gap: var!(space-sm);
+        margin: format!(
+        "0 calc(0px - {}) calc(0px - {})",
+        var!(space-lg),
+        var!(space-lg)
+        );
+        padding: var!(space-lg);
+        border-top: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: format!("0 0 {} {}", var!(radius-xl), var!(radius-xl));
+        background: format!("color-mix(in srgb, {} 50%, transparent)", var!(muted));
+        @media ((max-width: 767px)) {
+            flex-direction: "column-reverse";
+        }
     }
 
     pub c_euv_alert_dialog_title {
         font-size: var!(font-lg);
         font-weight: "600";
         line-height: "1";
+    }
+
+    pub c_euv_alert_dialog_media {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        width: var!(space-3xl);
+        height: var!(space-3xl);
+        flex-shrink: "0";
+        color: var!(foreground);
     }
 
     pub c_euv_alert_dialog_description {
@@ -1866,6 +1992,15 @@ class! {
         text-underline-offset: "4px";
         cursor: "pointer";
     }
+    pub(crate) c_euv_hover_card_trigger_shadcn {
+        border-bottom-right-radius: var!(radius-md);
+        border-bottom-left-radius: var!(radius-md);
+        border-top-right-radius: var!(radius-md);
+        border-top-left-radius: var!(radius-md);
+        gap: var!(space-xs);
+        justify-content: "center";
+    }
+
 
     pub c_euv_hover_card_content {
         position: "absolute";
@@ -1874,7 +2009,7 @@ class! {
         z-index: 150;
         width: "256px";
         padding: var!(space-lg);
-        border: var!(border-width) solid var!(border);
+        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
         border-radius: var!(radius-md);
         background: var!(popover);
         color: var!(popover-foreground);
@@ -1898,8 +2033,8 @@ class! {
     pub c_euv_context_menu_trigger {
         display: "inline-flex";
         align-items: "center";
-        padding: var!(space-xs) var!(space-sm);
-        border: var!(border-width) solid var!(border);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
         border-radius: var!(radius-md);
         background: var!(background);
         color: var!(foreground);
@@ -1908,6 +2043,20 @@ class! {
         line-height: "1.5";
         white-space: "nowrap";
         cursor: "pointer";
+    }
+
+    pub(crate) c_euv_context_menu_trigger_shadcn {
+        border-radius: var!(radius-xl);
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        justify-content: "center";
     }
 
     pub c_euv_context_menu_content {
@@ -1937,7 +2086,7 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border-radius: var!(radius-sm);
         font-size: var!(font-sm);
         line-height: "1.5";
@@ -1958,7 +2107,7 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border-radius: var!(radius-sm);
         font-size: var!(font-sm);
         line-height: "1.5";
@@ -1974,7 +2123,7 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border-radius: var!(radius-sm);
         font-size: var!(font-sm);
         line-height: "1.5";
@@ -1987,7 +2136,7 @@ class! {
     }
 
     pub c_euv_context_menu_label {
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         color: var!(muted-foreground);
         font-size: var!(font-xs);
     }
@@ -1996,6 +2145,55 @@ class! {
         height: "1px";
         margin: format!("{} 0px", var!(space-xs));
         background: var!(border);
+    }
+
+    pub c_euv_context_menu_group {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xs);
+    }
+
+    pub c_euv_context_menu_radio_group {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xs);
+    }
+
+    pub c_euv_context_menu_sub {
+        position: "relative";
+        display: "flex";
+        flex-direction: "column";
+    }
+
+    pub c_euv_context_menu_sub_trigger {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        width: "100%";
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: "none";
+        background: "transparent";
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        text-align: "left";
+        cursor: "pointer";
+    }
+
+    pub c_euv_context_menu_sub_content {
+        position: "absolute";
+        top: "0px";
+        left: "100%";
+        z-index: "150";
+        display: "flex";
+        flex-direction: "column";
+        min-width: "160px";
+        padding: var!(space-xs);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-lg);
+        background: var!(popover);
+        color: var!(popover-foreground);
+        box-shadow: var!(shadow-md);
     }
 
     pub c_euv_context_menu_shortcut {
@@ -2094,6 +2292,75 @@ class! {
             color: var!(accent-foreground);
         }
     }
+
+    // The panel of a dialog. It is the only thing the reader can act on
+    // while the dialog is open.
+    pub c_euv_dialog_content {
+        position: "fixed";
+        top: "50%";
+        left: "50%";
+        z-index: 1000;
+        display: "grid";
+        gap: var!(space-lg);
+        width: "100%";
+        max-width: "512px";
+        padding: var!(space-2xl);
+        transform: "translate(-50%, -50%)";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-lg);
+        background: var!(background);
+        color: var!(foreground);
+    }
+
+    pub c_euv_dialog_content_open {
+        display: "grid";
+    }
+
+    pub c_euv_dialog_content_closed {
+        display: "none";
+    }
+
+
+    // The two indicators sit over the list edges, leaving scrolling to the native viewport.
+    pub c_euv_select_scroll_up_button {
+        position: "absolute";
+        top: "0px";
+        left: "0px";
+        right: "0px";
+        display: "flex";
+        cursor: "default";
+        align-items: "center";
+        justify-content: "center";
+        padding-top: var!(space-xs);
+        padding-bottom: var!(space-xs);
+        background: var!(background);
+        color: var!(muted-foreground);
+    }
+
+    pub c_euv_select_scroll_down_button {
+        position: "absolute";
+        right: "0px";
+        bottom: "0px";
+        left: "0px";
+        display: "flex";
+        cursor: "default";
+        align-items: "center";
+        justify-content: "center";
+        padding-top: var!(space-xs);
+        padding-bottom: var!(space-xs);
+        background: var!(background);
+        color: var!(muted-foreground);
+    }
+
+    pub c_euv_select_scroll_icon {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        font-size: var!(font-sm);
+        line-height: var!(space-lg);
+    }
 }
 
 #[cfg(feature = "theme-custom")]
@@ -2163,6 +2430,12 @@ class! {
     pub(crate) c_euv_calendar_weekday {}
 
     pub(crate) c_euv_calendar_grid {}
+
+    pub(crate) c_euv_calendar_grid_row {}
+
+    pub(crate) c_euv_calendar_grid_cell {}
+
+    pub(crate) c_euv_calendar_grid_cell_button {}
 
     pub(crate) c_euv_calendar_day {}
 
@@ -2357,7 +2630,11 @@ class! {
     pub(crate) c_euv_popconfirm_actions {}
     pub c_euv_command {}
 
+    pub c_euv_command_shadcn {}
+
     pub c_euv_command_input_wrapper {}
+
+    pub c_euv_command_input_wrapper_shadcn {}
 
     pub c_euv_command_input {}
 
@@ -2371,6 +2648,8 @@ class! {
 
     pub c_euv_command_item {}
 
+    pub c_euv_command_item_shadcn {}
+
     pub c_euv_command_item_selected {}
 
     pub c_euv_command_item_disabled {}
@@ -2383,9 +2662,15 @@ class! {
 
     pub c_euv_combobox_trigger {}
 
+    pub(crate) c_euv_combobox_trigger_shadcn {}
+
     pub c_euv_combobox_input {}
 
+    pub(crate) c_euv_combobox_input_shadcn {}
+
     pub c_euv_combobox_content {}
+
+    pub(crate) c_euv_combobox_content_shadcn {}
 
     pub c_euv_combobox_content_open {}
 
@@ -2394,6 +2679,8 @@ class! {
     pub c_euv_combobox_list {}
 
     pub c_euv_combobox_item {}
+
+    pub(crate) c_euv_combobox_item_shadcn {}
 
     pub c_euv_combobox_item_selected {}
 
@@ -2412,6 +2699,8 @@ class! {
     pub c_euv_sheet {}
 
     pub c_euv_sheet_trigger {}
+
+    pub c_euv_sheet_trigger_shadcn {}
 
     pub c_euv_sheet_overlay {}
 
@@ -2447,6 +2736,8 @@ class! {
 
     pub c_euv_alert_dialog_trigger {}
 
+    pub c_euv_alert_dialog_trigger_shadcn {}
+
     pub c_euv_alert_dialog_overlay {}
 
     pub c_euv_alert_dialog_overlay_open {}
@@ -2464,6 +2755,8 @@ class! {
     pub c_euv_alert_dialog_footer {}
 
     pub c_euv_alert_dialog_title {}
+
+    pub c_euv_alert_dialog_media {}
 
     pub c_euv_alert_dialog_description {}
 
@@ -2485,6 +2778,8 @@ class! {
 
     pub c_euv_context_menu_trigger {}
 
+    pub c_euv_context_menu_trigger_shadcn {}
+
     pub c_euv_context_menu_content {}
 
     pub c_euv_context_menu_content_open {}
@@ -2503,6 +2798,16 @@ class! {
 
     pub c_euv_context_menu_separator {}
 
+    pub c_euv_context_menu_group {}
+
+    pub c_euv_context_menu_radio_group {}
+
+    pub c_euv_context_menu_sub {}
+
+    pub c_euv_context_menu_sub_trigger {}
+
+    pub c_euv_context_menu_sub_content {}
+
     pub c_euv_context_menu_shortcut {}
 
     pub c_euv_dialog_overlay {}
@@ -2510,6 +2815,12 @@ class! {
     pub c_euv_dialog_overlay_open {}
 
     pub c_euv_dialog_overlay_closed {}
+    pub c_euv_dialog_content {}
+    pub c_euv_dialog_content_open {}
+    pub c_euv_dialog_content_closed {}
+    pub c_euv_select_scroll_up_button {}
+    pub c_euv_select_scroll_down_button {}
+    pub c_euv_select_scroll_icon {}
 
     pub c_euv_dialog {}
 
@@ -2526,4 +2837,5 @@ class! {
     pub c_euv_dialog_footer {}
 
     pub c_euv_dialog_close {}
+    pub(crate) c_euv_hover_card_trigger_shadcn {}
 }

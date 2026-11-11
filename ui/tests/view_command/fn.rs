@@ -10,6 +10,19 @@ fn props_node<T: Clone + 'static>(props: T) -> VirtualNode<T> {
     }
 }
 
+fn props_node_with_children<T: Clone + 'static>(
+    props: T,
+    children: Vec<VirtualNode>,
+) -> VirtualNode<T> {
+    VirtualNode::Element {
+        tag: Tag::Element(Cow::Borrowed("div")),
+        attributes: Vec::new(),
+        children,
+        key: None,
+        props: Some(Box::new(props)),
+    }
+}
+
 fn elements(node: &VirtualNode) -> Vec<VirtualNode> {
     let mut out: Vec<VirtualNode> = Vec::new();
     collect(node, &mut out);
@@ -92,6 +105,16 @@ fn the_command_field_is_a_combobox_that_reports_its_text() {
 }
 
 #[test]
+fn a_disabled_command_input_disables_the_native_control() {
+    let node: VirtualNode = euv_command_input(props_node(EuvCommandInputProps {
+        value: Signal::create(String::new()),
+        placeholder: "Type a command",
+        disabled: true,
+    }));
+    assert!(has_attribute(&node, "disabled"));
+}
+
+#[test]
 fn the_command_rows_live_in_a_listbox() {
     let node: VirtualNode = euv_command_list(props_node(EuvCommandListProps { label: "Results" }));
     assert!(has_class(&node, "c_euv_command_list"));
@@ -110,6 +133,31 @@ fn a_command_row_is_an_option_that_reports_its_state() {
     assert!(has_class(&node, "c_euv_command_item_selected"));
     assert!(has_attribute(&node, "role"));
     assert!(has_attribute(&node, "aria-selected"));
+}
+
+#[test]
+fn a_command_row_renders_its_nested_shortcut() {
+    let shortcut: VirtualNode =
+        euv_command_shortcut(props_node(EuvCommandShortcutProps { text: "Ctrl+N" }));
+    let node: VirtualNode = euv_command_item(props_node_with_children(
+        EuvCommandItemProps {
+            value: "open",
+            label: "Open",
+            selected: false,
+            disabled: false,
+            on_select: None,
+        },
+        vec![shortcut],
+    ));
+    assert!(
+        class_names(&node)
+            .iter()
+            .any(|class_name: &String| class_name == "c_euv_command_shortcut")
+    );
+    match &node {
+        VirtualNode::Element { children, .. } => assert_eq!(children.len(), 2),
+        _ => panic!("expected a command item element"),
+    }
 }
 
 #[test]

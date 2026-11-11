@@ -17,6 +17,9 @@ pub struct EuvCheckboxProps {
     /// The boolean signal bound to the checkbox checked state.
     #[get(type(copy))]
     pub checked: Signal<bool>,
+    /// Whether the checkbox is disabled.
+    #[get(type(copy))]
+    pub disabled: Signal<bool>,
     /// The label text displayed next to the checkbox.
     #[get(type(copy))]
     pub label: &'static str,

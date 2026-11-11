@@ -79,6 +79,10 @@ fn a_native_select_carries_the_wrapper_and_the_control() {
     assert!(has_class(&node, "c_euv_native_select_wrapper"));
     assert!(has_class(&node, "c_euv_native_select"));
     assert!(has_class(&node, "c_euv_native_select_size_default"));
+    if cfg!(feature = "theme-shadcn") {
+        assert!(has_class(&node, "c_euv_native_select_shadcn"));
+        assert!(has_class(&node, "c_euv_native_select_size_default_shadcn"));
+    }
     assert!(has_attribute(&node, "data-slot"));
     assert!(has_attribute(&node, "name"));
 }
@@ -99,15 +103,37 @@ fn a_native_select_option_carries_its_value() {
     let node: VirtualNode = euv_native_select_option(props_node(EuvNativeSelectOptionProps {
         value: "apple",
         label: "Apple",
+        disabled: false,
     }));
     assert!(has_class(&node, "c_euv_native_select_option"));
     assert!(has_attribute(&node, "value"));
 }
 
 #[test]
+fn a_disabled_native_select_option_is_excluded() {
+    let node: VirtualNode = euv_native_select_option(props_node(EuvNativeSelectOptionProps {
+        value: "maintenance",
+        label: "Maintenance window",
+        disabled: true,
+    }));
+    assert!(has_attribute(&node, "disabled"));
+}
+
+#[test]
 fn a_native_select_group_carries_its_label() {
-    let node: VirtualNode =
-        euv_native_select_opt_group(props_node(EuvNativeSelectOptGroupProps { label: "Fruit" }));
+    let node: VirtualNode = euv_native_select_opt_group(props_node(EuvNativeSelectOptGroupProps {
+        label: "Fruit",
+        disabled: false,
+    }));
     assert!(has_class(&node, "c_euv_native_select_optgroup"));
     assert!(has_attribute(&node, "label"));
+}
+
+#[test]
+fn a_disabled_native_select_group_disables_its_options() {
+    let node: VirtualNode = euv_native_select_opt_group(props_node(EuvNativeSelectOptGroupProps {
+        label: "Provisioned",
+        disabled: true,
+    }));
+    assert!(has_attribute(&node, "disabled"));
 }

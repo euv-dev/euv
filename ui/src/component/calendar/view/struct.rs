@@ -21,6 +21,23 @@ pub struct EuvCalendarDay {
     pub today: bool,
 }
 
+/// Props of the [`euv_calendar_day_button`] component.
+///
+/// The day button is the clickable cell of the grid. It reports whether
+/// the day is the chosen one and whether it can be picked at all.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvCalendarDayButtonProps {
+    /// The day-of-month number shown inside the cell.
+    pub day: u32,
+    /// Whether the day is the chosen one.
+    pub selected: bool,
+    /// Whether the day refuses to be picked.
+    pub disabled: bool,
+    /// Optional callback fired when the cell is clicked.
+    #[debug(skip)]
+    pub on_select: Option<Rc<dyn Fn(u32)>>,
+}
+
 /// Props for the [`euv_calendar`] component.
 ///
 /// The component renders only what it is given: `weekdays` drives the header

@@ -121,6 +121,10 @@ fn a_radio_group_is_a_radiogroup_of_radio_rows() {
     }));
     assert!(has_class(&item, "c_euv_radio_group_item_checked"));
     assert!(has_attribute(&item, "aria-checked"));
+    assert!(has_attribute(&item, "data-value"));
+    assert!(has_attribute(&item, "tabindex"));
+    assert!(has_attribute(&item, "onkeydown"));
+    assert!(has_class(&item, "c_euv_radio_group_indicator_dot"));
 }
 
 #[test]
@@ -133,6 +137,7 @@ fn an_unchecked_radio_row_carries_the_unchecked_class() {
     }));
     assert!(has_class(&item, "c_euv_radio_group_item"));
     assert!(!has_class(&item, "c_euv_radio_group_item_checked"));
+    assert!(!has_class(&item, "c_euv_radio_group_indicator_dot"));
 }
 
 #[test]
@@ -188,6 +193,10 @@ fn a_menubar_is_a_bar_of_menus() {
     let bar: VirtualNode = euv_menubar(props_node(EuvMenubarProps { label: "Main" }));
     assert!(has_class(&bar, "c_euv_menubar"));
     assert!(has_attribute(&bar, "role"));
+    if cfg!(feature = "theme-shadcn") {
+        assert!(has_class(&bar, "c_euv_menubar_shadcn"));
+        assert!(has_attribute(&bar, "onfocusin"));
+    }
 }
 
 #[test]
@@ -195,24 +204,37 @@ fn a_menubar_trigger_reports_the_state_of_its_menu() {
     let trigger: VirtualNode = euv_menubar_trigger(props_node(EuvMenubarTriggerProps {
         label: "File",
         open: Signal::create(true),
+        id: "file",
+        index: 0,
+        disabled: false,
     }));
     assert!(has_class(&trigger, "c_euv_menubar_trigger_open"));
     assert!(has_attribute(&trigger, "aria-haspopup"));
     assert!(has_attribute(&trigger, "aria-expanded"));
+    assert!(has_attribute(&trigger, "aria-controls"));
+    assert!(has_attribute(&trigger, "data-state"));
+    assert!(has_attribute(&trigger, "onkeydown"));
 }
 
 #[test]
 fn a_menubar_content_holds_menu_rows() {
     let content: VirtualNode = euv_menubar_content(props_node(EuvMenubarContentProps {
         open: Signal::create(false),
+        trigger_id: "file",
+        label: "File",
     }));
     assert!(has_class(&content, "c_euv_menubar_content_closed"));
     assert!(has_attribute(&content, "role"));
+    assert!(has_attribute(&content, "aria-labelledby"));
+    assert!(has_attribute(&content, "data-state"));
+    assert!(has_attribute(&content, "onkeydown"));
     let item: VirtualNode = euv_menubar_item(props_node(EuvMenubarItemProps {
         label: "New",
         value: "new",
+        disabled: false,
         on_select: None,
     }));
     assert!(has_class(&item, "c_euv_menubar_item"));
     assert!(has_attribute(&item, "role"));
+    assert!(format!("{item:?}").contains("Element(\"button\")"));
 }

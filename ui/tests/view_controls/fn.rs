@@ -42,6 +42,7 @@ fn button_node(variant: EuvButtonVariant, disabled: bool) -> VirtualNode<EuvButt
             variant,
             size: EuvButtonSize::Default,
             label: "Press",
+            data_slot: None,
             onclick: None,
             disabled: Signal::create(disabled),
         })),

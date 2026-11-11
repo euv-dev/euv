@@ -44,3 +44,48 @@ pub struct EuvTableProps {
     /// Whether every other row gets the `c_euv_table_row_zebra` fill.
     pub zebra: bool,
 }
+
+/// Props for the [`euv_table_header`] component.
+///
+/// The header takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvTableHeaderProps {}
+
+/// Props for the [`euv_table_body`] component.
+///
+/// The body takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvTableBodyProps {}
+
+/// Props for the [`euv_table_footer`] component.
+///
+/// The footer takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvTableFooterProps {}
+
+/// Props for the [`euv_table_caption`] component.
+///
+/// The caption carries the text that names what the table shows.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvTableCaptionProps {
+    /// The text of the caption.
+    pub text: &'static str,
+}
+
+/// Props for the [`euv_table_row`] component.
+///
+/// The row takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvTableRowProps {}
+
+/// Props for the [`euv_table_head`] component.
+///
+/// The heading takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvTableHeadProps {}
+
+/// Props for the [`euv_table_cell`] component.
+///
+/// The cell takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvTableCellProps {}

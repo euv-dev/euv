@@ -44,6 +44,8 @@ pub fn inject_app_global_css() {
     Css::inject_css(APP_A11Y_CSS_FOCUS_RING);
     Css::inject_css(APP_A11Y_CSS_REDUCED_MOTION);
     Css::inject_css(APP_A11Y_CSS_COARSE_POINTER);
+    #[cfg(feature = "theme-shadcn")]
+    Css::inject_css(APP_SCHEME_SHADCN_CSS);
 }
 
 /// Injects the markdown stylesheet content. Callers pass the result to

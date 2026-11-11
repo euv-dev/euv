@@ -69,6 +69,16 @@ fn has_attribute(node: &VirtualNode, name: &str) -> bool {
         .any(|entry: &String| entry == name)
 }
 
+fn root_attribute_text(node: &VirtualNode, name: &str) -> Option<String> {
+    match node {
+        VirtualNode::Element { attributes, .. } => attributes
+            .iter()
+            .find(|entry: &&AttributeEntry| entry.get_name() == name)
+            .and_then(AttributeEntry::text_value),
+        _ => None,
+    }
+}
+
 fn badge_node(variant: EuvBadgeVariant) -> VirtualNode<EuvBadgeProps> {
     element_node(EuvBadgeProps {
         text: "New",
@@ -133,11 +143,17 @@ fn select_node() -> VirtualNode<EuvSelectProps> {
             value: "one",
             label: "One",
             group: "",
+            separator_before: false,
             disabled: false,
         }],
         placeholder: "Pick",
         label: "",
+        id: "",
+        name: "",
+        required: false,
+        invalid: false,
         disabled: false,
+        align_item_with_trigger: false,
         on_change: None,
     })
 }
@@ -176,11 +192,13 @@ fn pagination_node() -> VirtualNode<EuvPaginationProps> {
 
 #[test]
 fn every_badge_variant_reaches_the_class_list() {
-    let cases: [(EuvBadgeVariant, &str); 4] = [
+    let cases: [(EuvBadgeVariant, &str); 6] = [
         (EuvBadgeVariant::Default, "c_euv_badge_default"),
         (EuvBadgeVariant::Secondary, "c_euv_badge_secondary"),
         (EuvBadgeVariant::Destructive, "c_euv_badge_destructive"),
         (EuvBadgeVariant::Outline, "c_euv_badge_outline"),
+        (EuvBadgeVariant::Ghost, "c_euv_badge_ghost"),
+        (EuvBadgeVariant::Link, "c_euv_badge_link"),
     ];
     for (variant, class_name) in cases {
         let rendered: VirtualNode = euv_badge(badge_node(variant));
@@ -189,6 +207,24 @@ fn every_badge_variant_reaches_the_class_list() {
             "the {variant:?} badge carries {class_name}, got {:?}",
             class_names(&rendered)
         );
+        let expected_data_variant: &str = match variant {
+            EuvBadgeVariant::Default => BADGE_VARIANT_DEFAULT,
+            EuvBadgeVariant::Secondary => BADGE_VARIANT_SECONDARY,
+            EuvBadgeVariant::Destructive => BADGE_VARIANT_DESTRUCTIVE,
+            EuvBadgeVariant::Outline => BADGE_VARIANT_OUTLINE,
+            EuvBadgeVariant::Ghost => BADGE_VARIANT_GHOST,
+            EuvBadgeVariant::Link => BADGE_VARIANT_LINK,
+        };
+        assert_eq!(
+            root_attribute_text(&rendered, "data-variant").as_deref(),
+            Some(expected_data_variant)
+        );
+        if cfg!(feature = "theme-shadcn") {
+            assert!(has_class(&rendered, "c_euv_badge_shadcn"));
+            if variant == EuvBadgeVariant::Destructive {
+                assert!(has_class(&rendered, "c_euv_badge_destructive_shadcn"));
+            }
+        }
     }
 }
 
@@ -201,11 +237,34 @@ fn a_badge_keeps_its_historical_outline_flag() {
         on_click: None,
     });
     let rendered: VirtualNode = euv_badge(node);
+    let root_tag: String = match &rendered {
+        VirtualNode::Element { tag, .. } => format!("{tag:?}"),
+        other => format!("{other:?}"),
+    };
+    assert_eq!(root_tag, "Element(\"span\")");
     assert!(
         has_class(&rendered, "c_euv_badge_outline"),
         "the outline flag still selects the outline variant, got {:?}",
         class_names(&rendered)
     );
+}
+
+#[test]
+fn a_clickable_badge_is_a_native_button() {
+    let node: VirtualNode<EuvBadgeProps> = element_node(EuvBadgeProps {
+        text: "New",
+        outline: false,
+        variant: EuvBadgeVariant::Default,
+        on_click: Some(Rc::new(|_: Event| {})),
+    });
+    let rendered: VirtualNode = euv_badge(node);
+    let root_tag: String = match &rendered {
+        VirtualNode::Element { tag, .. } => format!("{tag:?}"),
+        other => format!("{other:?}"),
+    };
+    assert_eq!(root_tag, "Element(\"button\")");
+    assert!(has_attribute(&rendered, "type"));
+    assert!(has_class(&rendered, "c_euv_badge_clickable"));
 }
 
 #[test]
@@ -222,6 +281,10 @@ fn every_alert_variant_reaches_the_class_list() {
         "the default alert carries its own class, got {:?}",
         class_names(&default)
     );
+    if cfg!(feature = "theme-shadcn") {
+        assert!(has_class(&destructive, "c_euv_alert_destructive_shadcn"));
+        assert!(has_class(&default, "c_euv_alert_default_shadcn"));
+    }
 }
 
 #[test]
@@ -260,6 +323,50 @@ fn a_tooltip_bubble_is_a_tooltip() {
 }
 
 #[test]
+fn a_switch_carries_the_reference_switch_slot_on_its_control() {
+    let rendered: VirtualNode = euv_switch(element_node(EuvSwitchProps {
+        id: "switch",
+        name: "mode",
+        checked: Signal::create(false),
+        label: "Mode",
+        disabled: Signal::create(false),
+    }));
+    let VirtualNode::Element { children, .. } = &rendered else {
+        panic!("the switch row is the root");
+    };
+    let switch_control: &VirtualNode = &children[0];
+    assert_eq!(
+        root_attribute_text(switch_control, "data-slot").as_deref(),
+        Some("switch")
+    );
+    assert_eq!(
+        root_attribute_text(switch_control, "data-size").as_deref(),
+        Some("default")
+    );
+    assert!(has_attribute(switch_control, "aria-checked"));
+    assert_eq!(
+        root_attribute_text(switch_control, "data-unchecked").as_deref(),
+        Some("")
+    );
+    assert_eq!(root_attribute_text(switch_control, "data-checked"), None);
+    let checked: VirtualNode = euv_switch(element_node(EuvSwitchProps {
+        id: "switch-checked",
+        name: "mode-checked",
+        checked: Signal::create(true),
+        label: "Mode checked",
+        disabled: Signal::create(false),
+    }));
+    let VirtualNode::Element { children, .. } = &checked else {
+        panic!("the checked switch row is the root");
+    };
+    assert_eq!(
+        root_attribute_text(&children[0], "data-checked").as_deref(),
+        Some("")
+    );
+    assert_eq!(root_attribute_text(&children[0], "data-unchecked"), None);
+}
+
+#[test]
 fn a_progress_bar_reports_its_value() {
     let rendered: VirtualNode = euv_progress(progress_node());
     assert!(
@@ -270,6 +377,11 @@ fn a_progress_bar_reports_its_value() {
     assert!(
         has_attribute(&rendered, "aria-valuenow"),
         "the bar reports its value, got {:?}",
+        attribute_names(&rendered)
+    );
+    assert!(
+        has_attribute(&rendered, "aria-label"),
+        "the bar is named by its visible label, got {:?}",
         attribute_names(&rendered)
     );
 }
@@ -312,6 +424,14 @@ fn a_select_is_a_listbox() {
         "the select trigger reports its open state, got {:?}",
         attribute_names(&rendered)
     );
+    assert!(has_attribute(&rendered, "aria-haspopup"));
+    assert!(has_attribute(&rendered, "onkeydown"));
+    if cfg!(feature = "theme-shadcn") {
+        assert!(has_class(&rendered, "c_euv_select_trigger_shadcn"));
+        assert!(has_class(&rendered, "c_euv_select_panel_shadcn"));
+        assert!(has_class(&rendered, "c_euv_select_option_shadcn"));
+        assert!(has_class(&rendered, "c_euv_select_option_active_shadcn"));
+    }
 }
 
 #[test]

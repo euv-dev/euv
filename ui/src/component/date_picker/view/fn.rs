@@ -718,16 +718,20 @@ pub fn euv_date_picker(node: VirtualNode<EuvDatePickerProps>) -> VirtualNode {
                     class: c_euv_calendar_nav()
                     button {
                         type: "button"
+                        "aria-label": DATE_PICKER_PREVIOUS_MONTH_LABEL
                         class: c_euv_date_picker_nav()
                         onclick: on_shift_month(month, selected, -1)
                         PREVIOUS_MONTH_GLYPH
                     }
                     span {
                         class: c_euv_calendar_title()
+                        "aria-live": DATE_PICKER_CAPTION_LIVE
+                        "aria-atomic": DATE_PICKER_CAPTION_ATOMIC
                         caption
                     }
                     button {
                         type: "button"
+                        "aria-label": DATE_PICKER_NEXT_MONTH_LABEL
                         class: c_euv_date_picker_nav()
                         onclick: on_shift_month(month, selected, 1)
                         NEXT_MONTH_GLYPH

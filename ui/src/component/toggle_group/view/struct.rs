@@ -60,8 +60,10 @@ pub(crate) struct ToggleGroupEntry {
     pub(crate) collapsible: bool,
     /// The visual variant of the row.
     pub(crate) variant: EuvToggleVariant,
-    /// The size of the row.
+    /// The control size of the row.
     pub(crate) size: EuvToggleSize,
+    /// The value whose entry currently owns the roving tab stop.
+    pub(crate) focus_value: Signal<String>,
     /// The callback fired when the selection changes.
     pub(crate) on_change: Option<Rc<dyn Fn(Vec<String>)>>,
 }

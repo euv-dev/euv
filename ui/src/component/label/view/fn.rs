@@ -32,6 +32,7 @@ pub fn euv_label(node: VirtualNode<EuvLabelProps>) -> VirtualNode {
     html! {
         label {
             for: html_for
+            "data-slot": "label"
             class: if { disabled.get() } {
                 c_euv_label_disabled()
             } else {

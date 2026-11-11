@@ -68,10 +68,25 @@ pub(crate) const ADVANCED_TRANSFER_TARGET_TITLE: &str = "Chosen";
 pub(crate) const ADVANCED_AFFIX_CARD_TITLE: &str = "Sticky Block";
 
 /// The hint text explaining the affix.
-pub(crate) const ADVANCED_AFFIX_HINT: &str = "This block sticks to the top of its scroll container. Scroll the page to see it hold its place.";
+pub(crate) const ADVANCED_AFFIX_HINT: &str =
+    "Scroll inside the panel; the marker holds 64 pixels from its top.";
 
 /// The text of the sticky block.
 pub(crate) const ADVANCED_AFFIX_TEXT: &str = "Sticky at 64px";
+
+/// The rows that make the affix demo scrollable.
+pub(crate) const ADVANCED_AFFIX_ROWS: [&str; 10] = [
+    "Earlier content stays in the panel.",
+    "The marker begins below these rows.",
+    "Scroll this panel to move the list.",
+    "The marker holds its offset while rows move.",
+    "This content continues below the marker.",
+    "The page itself does not need to scroll.",
+    "The marker remains inside its container.",
+    "Later content keeps the scroll range open.",
+    "The panel owns the scrolling viewport.",
+    "End of the affix example.",
+];
 
 /// The offset the sticky block holds, in pixels.
 pub(crate) const ADVANCED_AFFIX_OFFSET: u32 = 64;

@@ -9,3 +9,39 @@ pub struct EuvAlertProps {
     #[get(type(copy))]
     pub variant: AlertVariant,
 }
+
+/// Props of the [`euv_alert_icon`] component.
+///
+/// The icon is the glyph the alert leads with.
+#[derive(Clone, Copy, CustomDebug, Default)]
+pub struct EuvAlertIconProps {
+    /// The glyph shown inside the icon.
+    pub glyph: &'static str,
+}
+
+/// Props for the `euv_alert_title` component.
+///
+/// The title names the alert; the text is the fallback used when the
+/// title is given no children.
+#[derive(Clone, CustomDebug, Data, Default, New)]
+pub struct EuvAlertTitleProps {
+    /// The title text.
+    pub text: &'static str,
+}
+
+/// Props for the `euv_alert_description` component.
+///
+/// The description explains the alert; the text is the fallback used when
+/// the description is given no children.
+#[derive(Clone, CustomDebug, Data, Default, New)]
+pub struct EuvAlertDescriptionProps {
+    /// The description text.
+    pub text: &'static str,
+}
+
+/// Props for the `euv_alert_action` component.
+///
+/// The action holds the control that acts on the alert, so it takes no
+/// settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvAlertActionProps {}

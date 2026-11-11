@@ -52,17 +52,24 @@ pub fn euv_attachment(node: VirtualNode<EuvAttachmentProps>) -> VirtualNode {
         EuvAttachmentOrientation::Vertical => c_euv_attachment_vertical,
     };
     let children: VirtualNode = node.get_children().into();
+    let base_class: &Css = c_euv_attachment();
+    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_attachment_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
     html! {
-        div {
-            "data-slot": "attachment"
-            "data-state": state_attr
-            "data-size": size_attr
-            "data-orientation": orientation_attr
-            class: c_euv_attachment()
-            class: orientation_class()
-            class: state_class()
-            children
-        }
+            div {
+                "data-slot": "attachment"
+                "data-state": state_attr
+                "data-size": size_attr
+                "data-orientation": orientation_attr
+                class: base_class
+                class: shadcn_class
+                class: orientation_class()
+                class: state_class()
+                children
+            }
     }
 }
 
@@ -89,6 +96,7 @@ pub fn euv_attachment_media(node: VirtualNode<EuvAttachmentMediaProps>) -> Virtu
         EuvAttachmentMediaVariant::Icon => "icon",
         EuvAttachmentMediaVariant::Image => "image",
     };
+    let base_class: &Css = c_euv_attachment_media();
     let variant_class: fn() -> &'static Css = match variant {
         EuvAttachmentMediaVariant::Icon => c_euv_attachment_media,
         EuvAttachmentMediaVariant::Image => c_euv_attachment_media_variant_image,
@@ -99,11 +107,18 @@ pub fn euv_attachment_media(node: VirtualNode<EuvAttachmentMediaProps>) -> Virtu
         EuvAttachmentSize::Xs => c_euv_attachment_media_size_xs,
     };
     let children: VirtualNode = node.get_children().into();
+    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_attachment_media_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
     html! {
         div {
             "data-slot": "attachment-media"
             "data-variant": variant_attr
+            class: base_class
             class: variant_class()
+            class: shadcn_class
             class: size_class()
             children
         }
@@ -271,11 +286,17 @@ pub fn euv_attachment_trigger(node: VirtualNode<EuvAttachmentTriggerProps>) -> V
 #[component]
 pub fn euv_attachment_group(node: VirtualNode<EuvAttachmentGroupProps>) -> VirtualNode {
     let children: VirtualNode = node.get_children().into();
+    let attachment_group_shadcn: Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_attachment_group_shadcn().clone()
+    } else {
+        Css::default()
+    };
     html! {
-        div {
-            "data-slot": "attachment-group"
-            class: c_euv_attachment_group()
-            children
-        }
+            div {
+                "data-slot": "attachment-group"
+                class: c_euv_attachment_group()
+                class: attachment_group_shadcn
+                children
+            }
     }
 }

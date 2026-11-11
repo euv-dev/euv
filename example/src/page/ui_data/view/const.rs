@@ -2,7 +2,7 @@
 pub(crate) const DATA_HEADER_TITLE: &str = "Data & Feedback";
 
 /// The subtitle text for the header on the data demo page.
-pub(crate) const DATA_HEADER_SUBTITLE: &str = "Lists, description grids, trees, toasts, notifications and confirmation bubbles — the data-reading and feedback half of the component library.";
+pub(crate) const DATA_HEADER_SUBTITLE: &str = "Tables, pagination, lists, description grids, trees, toasts, notifications and confirmation bubbles — the data-reading and feedback half of the component library.";
 
 /// The section heading for the list card.
 pub(crate) const DATA_LIST_CARD_TITLE: &str = "List";
@@ -55,7 +55,7 @@ pub(crate) const DATA_DESCRIPTION_FIRST_VALUE: &str = "euv-ui";
 pub(crate) const DATA_DESCRIPTION_SECOND_LABEL: &str = "Version";
 
 /// The value of the second description pair.
-pub(crate) const DATA_DESCRIPTION_SECOND_VALUE: &str = "0.32.0";
+pub(crate) const DATA_DESCRIPTION_SECOND_VALUE: &str = env!("CARGO_PKG_VERSION");
 
 /// The label of the third description pair.
 pub(crate) const DATA_DESCRIPTION_THIRD_LABEL: &str = "Target";
@@ -104,6 +104,67 @@ pub(crate) const DATA_TREE_LEAF_THIRD_LABEL: &str = "component";
 
 /// The value of the third tree leaf.
 pub(crate) const DATA_TREE_LEAF_THIRD_VALUE: &str = "component";
+
+/// The section heading for the table card.
+pub(crate) const DATA_TABLE_CARD_TITLE: &str = "Table";
+
+/// The hint text explaining the table's responsive column alignment.
+pub(crate) const DATA_TABLE_HINT: &str =
+    "Rows stay semantic and scroll within their own container; numeric columns align right.";
+
+/// The caption naming the displayed package table.
+pub(crate) const DATA_TABLE_CAPTION: &str = "Workspace packages";
+
+pub(crate) const DATA_TABLE_NAME_COLUMN: &str = "Package";
+pub(crate) const DATA_TABLE_VERSION_COLUMN: &str = "Version";
+pub(crate) const DATA_TABLE_TARGET_COLUMN: &str = "Target";
+pub(crate) const DATA_TABLE_STATE_COLUMN: &str = "State";
+pub(crate) const DATA_TABLE_FIRST_ROW_KEY: &str = "euv";
+pub(crate) const DATA_TABLE_SECOND_ROW_KEY: &str = "euv-ui";
+pub(crate) const DATA_TABLE_THIRD_ROW_KEY: &str = "euv-core";
+
+pub(crate) const DATA_TABLE_FIRST_NAME: &str = "euv";
+pub(crate) const DATA_TABLE_FIRST_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub(crate) const DATA_TABLE_FIRST_TARGET: &str = "WASM";
+pub(crate) const DATA_TABLE_FIRST_STATE: &str = "Stable";
+
+pub(crate) const DATA_TABLE_SECOND_NAME: &str = "euv-ui";
+pub(crate) const DATA_TABLE_SECOND_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub(crate) const DATA_TABLE_SECOND_TARGET: &str = "WASM";
+pub(crate) const DATA_TABLE_SECOND_STATE: &str = "Stable";
+
+pub(crate) const DATA_TABLE_THIRD_NAME: &str = "euv-core";
+pub(crate) const DATA_TABLE_THIRD_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub(crate) const DATA_TABLE_THIRD_TARGET: &str = "Native";
+pub(crate) const DATA_TABLE_THIRD_STATE: &str = "Stable";
+
+/// The section heading for the pagination card.
+pub(crate) const DATA_PAGINATION_CARD_TITLE: &str = "Pagination";
+/// The helper text for the previous and next page links.
+pub(crate) const DATA_PAGINATION_HINT: &str =
+    "A compact row of previous, numbered, and next links.";
+pub(crate) const DATA_PAGINATION_PREV_LABEL: &str = "Previous";
+pub(crate) const DATA_PAGINATION_PREV_TEXT: &str = "Display components";
+pub(crate) const DATA_PAGINATION_PREV_LINK: &str = "/ui-display";
+pub(crate) const DATA_PAGINATION_NEXT_LABEL: &str = "Next";
+pub(crate) const DATA_PAGINATION_NEXT_TEXT: &str = "Advanced components";
+pub(crate) const DATA_PAGINATION_NEXT_LINK: &str = "/ui-advanced";
+/// The first page number shown in the pagination row.
+pub(crate) const DATA_PAGINATION_PAGE_ONE: &str = "1";
+/// The currently selected page destination.
+pub(crate) const DATA_PAGINATION_PAGE_ONE_LINK: &str = "/ui-data";
+/// The second page number shown in the pagination row.
+pub(crate) const DATA_PAGINATION_PAGE_TWO: &str = "2";
+/// The demo destination of the second page number.
+pub(crate) const DATA_PAGINATION_PAGE_TWO_LINK: &str = "/ui-display";
+/// The third page number shown in the pagination row.
+pub(crate) const DATA_PAGINATION_PAGE_THREE: &str = "3";
+/// The demo destination of the third page number.
+pub(crate) const DATA_PAGINATION_PAGE_THREE_LINK: &str = "/ui-forms";
+/// The final page number shown after the ellipsis.
+pub(crate) const DATA_PAGINATION_PAGE_LAST: &str = "8";
+/// The demo destination of the final page number.
+pub(crate) const DATA_PAGINATION_PAGE_LAST_LINK: &str = "/ui-advanced";
 
 /// The section heading for the feedback card.
 pub(crate) const DATA_FEEDBACK_CARD_TITLE: &str = "Feedback";

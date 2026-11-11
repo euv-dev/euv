@@ -67,3 +67,67 @@ pub fn euv_form(node: VirtualNode<EuvFormProps>) -> VirtualNode {
         }
     }
 }
+
+/// Wraps one control of a form.
+///
+/// The field names the control it holds and reports whether that control is
+/// in the invalid state. The parts inside the field read those two facts
+/// from the element the field renders, so a label, a description and a
+/// message all point at the same control.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvFormFieldProps>` - The props node carrying the name of
+///   the control and its invalid state.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The field element wrapping the caller's control.
+#[component]
+pub fn euv_form_field(node: VirtualNode<EuvFormFieldProps>) -> VirtualNode {
+    let EuvFormFieldProps { name, id, invalid }: EuvFormFieldProps =
+        node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "form-field"
+            "data-name": name
+            "data-invalid": if invalid {
+                "true"
+            } else {
+                "false"
+            }
+            id: id
+            class: c_euv_form_field()
+            children
+        }
+    }
+}
+
+/// Holds one field of a form.
+///
+/// The item is the box around a single field. It owns the id that the label,
+/// the description and the message of that field point at, so the caller
+/// names the field once and every part inside it finds the same id.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvFormItemProps>` - The props node carrying the id the
+///   parts of the field point at.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The item element holding the caller's field.
+#[component]
+pub fn euv_form_item(node: VirtualNode<EuvFormItemProps>) -> VirtualNode {
+    let EuvFormItemProps { id }: EuvFormItemProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "form-item"
+            id: id
+            class: c_euv_form_item()
+            children
+        }
+    }
+}

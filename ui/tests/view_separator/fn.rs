@@ -77,6 +77,11 @@ fn a_decorative_separator_carries_no_role() {
     }));
     assert!(has_class(&node, "c_euv_separator"));
     assert!(has_class(&node, "c_euv_separator_horizontal"));
+    assert!(has_attribute(&node, "data-slot"));
+    assert!(has_attribute(&node, "data-orientation"));
+    if cfg!(feature = "theme-shadcn") {
+        assert!(has_class(&node, "c_euv_separator_shadcn"));
+    }
 }
 
 #[test]
@@ -88,4 +93,6 @@ fn a_meaningful_separator_carries_the_separator_role() {
     assert!(has_class(&node, "c_euv_separator_vertical"));
     assert!(has_attribute(&node, "role"));
     assert!(has_attribute(&node, "aria-orientation"));
+    assert!(has_attribute(&node, "data-slot"));
+    assert!(has_attribute(&node, "data-orientation"));
 }

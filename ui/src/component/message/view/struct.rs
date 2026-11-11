@@ -36,3 +36,39 @@ pub struct EuvMessageProps {
     /// The messages rendered in the stack, top to bottom.
     pub items: Vec<EuvMessageItem>,
 }
+
+/// Props for the [`euv_message_group`] component.
+///
+/// The group takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvMessageGroupProps {}
+
+/// Props for the [`euv_message_header`] component.
+///
+/// The header takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvMessageHeaderProps {}
+
+/// Props for the [`euv_message_avatar`] component.
+///
+/// The avatar takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvMessageAvatarProps {}
+
+/// Props for the [`euv_message_content`] component.
+///
+/// The content takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvMessageContentProps {}
+
+/// Props for the [`euv_message_bubble`] component.
+///
+/// The bubble takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvMessageBubbleProps {}
+
+/// Props for the [`euv_message_footer`] component.
+///
+/// The footer takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvMessageFooterProps {}

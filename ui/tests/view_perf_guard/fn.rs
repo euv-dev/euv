@@ -90,6 +90,7 @@ fn a_select_builds_one_element_per_option() {
                 value: "v",
                 label: "l",
                 group: "",
+                separator_before: false,
                 disabled: false,
             })
             .collect();
@@ -98,7 +99,12 @@ fn a_select_builds_one_element_per_option() {
             options,
             placeholder: "pick",
             label: "",
+            id: "",
+            name: "",
+            required: false,
+            invalid: false,
             disabled: false,
+            align_item_with_trigger: false,
             on_change: None,
         }))
     };

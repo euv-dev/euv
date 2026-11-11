@@ -30,16 +30,25 @@ pub fn euv_textarea(node: VirtualNode<EuvTextareaProps>) -> VirtualNode {
         oninput,
     }: EuvTextareaProps = node.try_get_props().unwrap_or_default();
     let effective_name: &'static str = if name.is_empty() { id } else { name };
-    let effective_rows: i32 = if rows > 0 { rows } else { 3 };
+    let default_rows: i32 = if cfg!(feature = "theme-shadcn") { 2 } else { 3 };
+    let effective_rows: i32 = if rows > 0 { rows } else { default_rows };
     let is_disabled: bool = disabled.get();
+    let base_class: &Css = c_euv_textarea();
+    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_textarea_shadcn().clone()
+    } else {
+        Css::default()
+    };
     html! {
         textarea {
             id: id
             name: effective_name
+            "data-slot": "textarea"
             rows: effective_rows
             placeholder: placeholder
             value: value
-            class: c_euv_textarea()
+            class: base_class
+            class: shadcn_class
             disabled: is_disabled
             oninput: oninput
         }

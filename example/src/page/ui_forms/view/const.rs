@@ -13,6 +13,90 @@ pub(crate) const FORM_SELECT_LABEL: &str = "Fruit";
 /// The placeholder shown when no fruit is chosen.
 pub(crate) const FORM_SELECT_PLACEHOLDER: &str = "Pick a fruit";
 
+/// The id connecting the fruit Select label to its trigger.
+pub(crate) const FORM_CONTROL_SELECT_ID: &str = "fruit-select";
+
+/// The form name submitted for the fruit Select.
+pub(crate) const FORM_CONTROL_SELECT_NAME: &str = "fruit";
+
+/// The title of the invalid-control demo card.
+pub(crate) const FORM_INVALID_CARD_TITLE: &str = "Validation";
+
+/// The id and name of the invalid Select demo field.
+pub(crate) const FORM_INVALID_SELECT_ID: &str = "invalid-fruit";
+
+/// The message shown beneath the invalid Select demo.
+pub(crate) const FORM_INVALID_SELECT_ERROR: &str = "Please select a fruit.";
+
+/// The title of the long-list Select demo.
+pub(crate) const FORM_SCROLLABLE_SELECT_CARD_TITLE: &str = "Scrollable";
+
+/// The label above the long timezone list.
+pub(crate) const FORM_SELECT_TIMEZONE_LABEL: &str = "Timezone";
+
+/// The placeholder shown before a timezone is selected.
+pub(crate) const FORM_SELECT_TIMEZONE_PLACEHOLDER: &str = "Select a timezone";
+
+/// Group, value and label rows for the long Select scroll demo.
+pub(crate) const FORM_SELECT_TIMEZONE_ROWS: [(&str, &str, &str); 24] = [
+    ("North America", "America/New_York", "Eastern Standard Time"),
+    ("North America", "America/Chicago", "Central Standard Time"),
+    ("North America", "America/Denver", "Mountain Standard Time"),
+    (
+        "North America",
+        "America/Los_Angeles",
+        "Pacific Standard Time",
+    ),
+    ("North America", "America/Anchorage", "Alaska Standard Time"),
+    ("North America", "Pacific/Honolulu", "Hawaii Standard Time"),
+    ("Europe & Africa", "Europe/London", "Greenwich Mean Time"),
+    ("Europe & Africa", "Europe/Paris", "Central European Time"),
+    ("Europe & Africa", "Europe/Athens", "Eastern European Time"),
+    (
+        "Europe & Africa",
+        "Africa/Abidjan",
+        "Greenwich Mean Time — Abidjan",
+    ),
+    ("Europe & Africa", "Africa/Lagos", "West Africa Time"),
+    (
+        "Europe & Africa",
+        "Africa/Johannesburg",
+        "South Africa Standard Time",
+    ),
+    ("Asia", "Asia/Dubai", "Arabian Standard Time"),
+    ("Asia", "Asia/Kolkata", "India Standard Time"),
+    ("Asia", "Asia/Bangkok", "Indochina Time"),
+    ("Asia", "Asia/Singapore", "Singapore Standard Time"),
+    ("Asia", "Asia/Shanghai", "China Standard Time"),
+    ("Asia", "Asia/Tokyo", "Japan Standard Time"),
+    (
+        "Australia & Pacific",
+        "Australia/Perth",
+        "Australian Western Standard Time",
+    ),
+    (
+        "Australia & Pacific",
+        "Australia/Adelaide",
+        "Australian Central Standard Time",
+    ),
+    (
+        "Australia & Pacific",
+        "Australia/Sydney",
+        "Australian Eastern Standard Time",
+    ),
+    (
+        "Australia & Pacific",
+        "Australia/Melbourne",
+        "Australian Eastern Daylight Time",
+    ),
+    (
+        "Australia & Pacific",
+        "Pacific/Auckland",
+        "New Zealand Standard Time",
+    ),
+    ("Australia & Pacific", "Pacific/Fiji", "Fiji Time"),
+];
+
 /// The value the select starts on.
 pub(crate) const FORM_DEFAULT_FRUIT: &str = "apple";
 
@@ -292,14 +376,28 @@ pub(crate) const FORM_MENU_SECOND_LABEL: &str = "Archive";
 /// The shortcut of the second menu row.
 pub(crate) const FORM_MENU_SECOND_SHORTCUT: &str = "Ctrl+A";
 
+/// The accessible name of the form demo menubar.
+pub(crate) const FORM_MENUBAR_LABEL: &str = "Application";
+
 /// The label of the menubar trigger.
 pub(crate) const FORM_MENUBAR_TRIGGER_LABEL: &str = "File";
+/// Stable ID linking the menubar trigger to its content.
+pub(crate) const FORM_MENUBAR_TRIGGER_ID: &str = "forms-menubar-file";
 
 /// The label of the menubar row.
 pub(crate) const FORM_MENUBAR_ITEM_LABEL: &str = "New document";
 
 /// The value of the menubar row.
 pub(crate) const FORM_MENUBAR_ITEM_VALUE: &str = "new";
+
+/// The second menu trigger label.
+pub(crate) const FORM_MENUBAR_EDIT_TRIGGER_LABEL: &str = "Edit";
+/// Stable ID linking the second trigger to its content.
+pub(crate) const FORM_MENUBAR_EDIT_TRIGGER_ID: &str = "forms-menubar-edit";
+/// The label of the edit menu's first command.
+pub(crate) const FORM_MENUBAR_EDIT_ITEM_LABEL: &str = "Copy";
+/// The value of the edit menu's first command.
+pub(crate) const FORM_MENUBAR_EDIT_ITEM_VALUE: &str = "copy";
 
 /// The headline of the demo toast.
 pub(crate) const FORM_TOAST_TITLE: &str = "Deployment finished";
@@ -379,7 +477,14 @@ pub(crate) const FORM_ALERT_TITLE: &str = "Delete this file?";
 /// The description of the alert dialog.
 pub(crate) const FORM_ALERT_DESCRIPTION: &str = "This action cannot be undone.";
 
-/// The label of the alert dialog action.
+/// The title id used by the alert dialog example.
+pub(crate) const FORM_ALERT_TITLE_ID: &str = "forms-alert-title";
+/// The content id controlled by the alert dialog example trigger.
+pub(crate) const FORM_ALERT_CONTENT_ID: &str = "forms-alert-content";
+/// The description id used by the alert dialog example.
+pub(crate) const FORM_ALERT_DESCRIPTION_ID: &str = "forms-alert-description";
+
+/// The action label of the alert dialog example.
 pub(crate) const FORM_ALERT_ACTION_LABEL: &str = "Delete";
 
 /// The label of the alert dialog cancel button.
@@ -438,6 +543,21 @@ pub(crate) const FORM_SELECT_THIRD_LABEL: &str = "Preview";
 
 /// The value of the third native select option.
 pub(crate) const FORM_SELECT_THIRD_VALUE: &str = "preview";
+
+/// The label of the disabled native select option.
+pub(crate) const FORM_SELECT_DISABLED_OPTION_LABEL: &str = "Maintenance window";
+
+/// The value of the disabled native select option.
+pub(crate) const FORM_SELECT_DISABLED_OPTION_VALUE: &str = "maintenance";
+
+/// The label of the disabled native select group.
+pub(crate) const FORM_SELECT_DISABLED_GROUP_LABEL: &str = "Provisioned";
+
+/// The label of the option inside the disabled native select group.
+pub(crate) const FORM_SELECT_DISABLED_GROUP_OPTION_LABEL: &str = "Managed cluster";
+
+/// The value of the option inside the disabled native select group.
+pub(crate) const FORM_SELECT_DISABLED_GROUP_OPTION_VALUE: &str = "managed";
 
 /// The name of the finished attachment.
 pub(crate) const FORM_ATTACHMENT_DONE_TITLE: &str = "report.pdf";
@@ -552,3 +672,100 @@ pub(crate) const FORM_RESIZABLE_FIRST: &str = "Panel one";
 
 /// The title of the second resizable panel.
 pub(crate) const FORM_RESIZABLE_SECOND: &str = "Panel two";
+
+/// The title of the card that shows the composable parts.
+pub(crate) const FORM_PARTS_CARD_TITLE: &str = "Composable parts";
+
+/// The legend of the field set.
+pub(crate) const FORM_PARTS_FIELD_LEGEND: &str = "Delivery address";
+
+/// The title of the field.
+pub(crate) const FORM_PARTS_FIELD_TITLE: &str = "Street";
+
+/// The description of the field.
+pub(crate) const FORM_PARTS_FIELD_DESCRIPTION: &str = "The street the parcel is taken to.";
+
+/// The error of the field.
+pub(crate) const FORM_PARTS_FIELD_ERROR: &str = "The street is required.";
+
+/// The text on the separator inside the field group.
+pub(crate) const FORM_PARTS_FIELD_SEPARATOR: &str = "Or";
+
+/// The title of the empty state.
+pub(crate) const FORM_PARTS_EMPTY_TITLE: &str = "No parcels yet";
+
+/// The description of the empty state.
+pub(crate) const FORM_PARTS_EMPTY_DESCRIPTION: &str = "Nothing is on its way to the door.";
+
+/// The action of the empty state.
+pub(crate) const FORM_PARTS_EMPTY_ACTION: &str = "Add a parcel";
+
+/// The body of the message.
+pub(crate) const FORM_PARTS_MESSAGE_BODY: &str = "The parcel left the depot.";
+
+/// The keys shown inside the key group.
+pub(crate) const FORM_PARTS_KBD: &str = "Ctrl K";
+
+/// The label of the menubar entry.
+pub(crate) const FORM_PARTS_MENUBAR_LABEL: &str = "File";
+/// Stable ID linking the menu-parts trigger to its content.
+pub(crate) const FORM_PARTS_MENUBAR_TRIGGER_ID: &str = "forms-parts-menubar-file";
+
+/// The label of the group inside the menubar.
+pub(crate) const FORM_PARTS_MENUBAR_GROUP: &str = "Recent";
+
+/// The text of the item inside the menubar.
+pub(crate) const FORM_PARTS_MENUBAR_ITEM: &str = "Open";
+
+/// The keys shown beside the menubar item.
+pub(crate) const FORM_PARTS_MENUBAR_SHORTCUT: &str = "Ctrl O";
+
+/// The text of the slide inside the carousel.
+pub(crate) const FORM_PARTS_CAROUSEL_ITEM: &str = "One parcel, two stops";
+
+/// The description of the first delivery slide.
+pub(crate) const FORM_PARTS_CAROUSEL_FIRST_DESC: &str =
+    "Tracking continues through each delivery stop.";
+
+/// The title of the second delivery slide.
+pub(crate) const FORM_PARTS_CAROUSEL_SECOND_TITLE: &str = "Signed at the door";
+
+/// The description of the second delivery slide.
+pub(crate) const FORM_PARTS_CAROUSEL_SECOND_DESC: &str = "The recipient confirms arrival.";
+
+/// The title of the third delivery slide.
+pub(crate) const FORM_PARTS_CAROUSEL_THIRD_TITLE: &str = "Return route";
+
+/// The description of the third delivery slide.
+pub(crate) const FORM_PARTS_CAROUSEL_THIRD_DESC: &str = "A parcel can return to its sender.";
+
+/// The id of the field that shows the composable parts.
+pub(crate) const FORM_PARTS_FIELD_ID: &str = "form-parts-field";
+
+/// The label of the chip inside the combobox chip row.
+pub(crate) const FORM_PARTS_CHIP_LABEL: &str = "Parcel";
+
+/// The placeholder of the input inside the combobox chip row.
+pub(crate) const FORM_PARTS_CHIP_INPUT: &str = "Add a parcel";
+
+pub(crate) const FORM_PARTS_FIELD_LABEL: &str = "Address";
+
+pub(crate) const FORM_PARTS_SIDEBAR_HEADER: &str = "Shipments";
+
+pub(crate) const FORM_PARTS_SIDEBAR_GROUP: &str = "Recent";
+
+pub(crate) const FORM_PARTS_SIDEBAR_ITEM: &str = "Dashboard";
+
+pub(crate) const FORM_PARTS_TOAST_TITLE: &str = "Parcel delivered";
+
+pub(crate) const FORM_PARTS_TOAST_DESCRIPTION: &str = "The parcel reached the door.";
+
+pub(crate) const FORM_PARTS_TOAST_CLOSE: &str = "Close";
+
+pub(crate) const FORM_PARTS_CHART_ID: &str = "chart-parcel";
+
+pub(crate) const FORM_PARTS_DIRECTION: &str = "Left to right";
+
+pub(crate) const FORM_PARTS_SIDEBAR_SECOND_ITEM: &str = "Shipments";
+
+pub(crate) const FORM_PARTS_SIDEBAR_THIRD_ITEM: &str = "Parcels";

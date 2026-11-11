@@ -486,7 +486,13 @@ class! {
         flex: "1";
         height: "100%";
         overflow: "auto";
-        padding: format!("{} {} 0 {}", var!(padding-main-top), var!(padding-main-horizontal), var!(edge-gutter));
+        padding: format!(
+        "{} {} {} {}",
+        var!(padding-main-top),
+        var!(padding-main-horizontal),
+        var!(edge-gutter-bottom),
+        var!(edge-gutter)
+        );
         scrollbar-color: format!("{} {}", var!(scrollbar-thumb), var!(scrollbar-track));
         ::-webkit-scrollbar {
             width: "6px";
@@ -503,7 +509,13 @@ class! {
             background: var!(scrollbar-thumb-active);
         }
         @media ((max-width: 767px)) {
-            padding: format!("{} {} 0 {}", var!(padding-main-top-mobile), var!(padding-main-horizontal-mobile), var!(edge-gutter-mobile));
+            padding: format!(
+            "{} {} {} {}",
+            var!(padding-main-top-mobile),
+            var!(padding-main-horizontal-mobile),
+            var!(edge-gutter-bottom),
+            var!(edge-gutter-mobile)
+            );
             scrollbar-width: "none";
             ::-webkit-scrollbar {
                 width: "0px";
@@ -1362,7 +1374,7 @@ class! {
         justify-content: "space-between";
         gap: var!(space-sm);
         width: "100%";
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border: "none";
         border-radius: var!(radius-sm);
         background: "transparent";
@@ -1392,7 +1404,7 @@ class! {
     }
 
     pub c_euv_dropdown_menu_label {
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         color: var!(muted-foreground);
         font-size: var!(font-xs);
         line-height: "1.5";
@@ -1400,8 +1412,75 @@ class! {
 
     pub c_euv_dropdown_menu_separator {
         height: "1px";
-        margin: var!(space-xs) 0px;
+        margin: format!("{} {}", var!(space-xs), "0px");
         background: var!(border);
+    }
+
+    pub c_euv_dropdown_menu_group {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xs);
+    }
+
+    pub c_euv_dropdown_menu_checkbox_item {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        font-size: var!(font-sm);
+        cursor: "pointer";
+    }
+
+    pub c_euv_dropdown_menu_radio_group {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xs);
+    }
+
+    pub c_euv_dropdown_menu_radio_item {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        font-size: var!(font-sm);
+        cursor: "pointer";
+    }
+
+    pub c_euv_dropdown_menu_sub {
+        position: "relative";
+        display: "flex";
+        flex-direction: "column";
+    }
+
+    pub c_euv_dropdown_menu_sub_trigger {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        width: "100%";
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: "none";
+        background: "transparent";
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        text-align: "left";
+        cursor: "pointer";
+    }
+
+    pub c_euv_dropdown_menu_sub_content {
+        position: "absolute";
+        top: "0px";
+        left: "100%";
+        z-index: "150";
+        display: "flex";
+        flex-direction: "column";
+        min-width: "160px";
+        padding: var!(space-xs);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-lg);
+        background: var!(popover);
+        color: var!(popover-foreground);
+        box-shadow: var!(shadow-md);
     }
 
     pub c_euv_dropdown_menu_shortcut {
@@ -1415,6 +1494,18 @@ class! {
         align-items: "center";
         gap: var!(space-xs);
     }
+    pub(crate) c_euv_menubar_shadcn {
+        height: var!(control-height);
+        width: "fit-content";
+        align-self: "flex-start";
+        padding: var!(space-xs);
+        gap: var!(space-xs);
+        background: var!(background);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        box-shadow: var!(shadow-xs);
+    }
+
 
     pub c_euv_menubar_menu {
         position: "relative";
@@ -1430,7 +1521,7 @@ class! {
         display: "inline-flex";
         align-items: "center";
         gap: var!(space-xs);
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border: "none";
         border-radius: var!(radius-sm);
         background: "transparent";
@@ -1445,11 +1536,25 @@ class! {
             color: var!(accent-foreground);
         }
     }
+    pub(crate) c_euv_menubar_trigger_shadcn {
+        font-weight: var!(font-weight-medium);
+        border-radius: var!(radius-sm);
+        :focus-visible {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
 
     pub c_euv_menubar_trigger_open {
         background: var!(accent);
         color: var!(accent-foreground);
     }
+    pub(crate) c_euv_menubar_trigger_open_shadcn {
+        font-weight: var!(font-weight-medium);
+        border-radius: var!(radius-sm);
+    }
+
 
     pub c_euv_menubar_content {
         position: "absolute";
@@ -1460,7 +1565,7 @@ class! {
         flex-direction: "column";
         min-width: "180px";
         padding: var!(space-xs);
-        border: var!(border-width) solid var!(border);
+        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
         border-radius: var!(radius-md);
         background: var!(popover);
         color: var!(popover-foreground);
@@ -1475,12 +1580,21 @@ class! {
         display: "none";
     }
 
+    pub(crate) c_euv_menubar_content_shadcn {
+        min-width: "12rem";
+        padding: var!(space-xs);
+        border-radius: var!(radius-md);
+        background: var!(popover);
+        color: var!(popover-foreground);
+        box-shadow: var!(shadow-md);
+    }
+
     pub c_euv_menubar_item {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
         width: "100%";
-        padding: var!(space-xs) var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border: "none";
         border-radius: var!(radius-sm);
         background: "transparent";
@@ -1496,13 +1610,28 @@ class! {
             color: var!(accent-foreground);
         }
     }
+
+    pub(crate) c_euv_menubar_item_shadcn {
+        padding: format!("calc({} + {}) {}", var!(space-xs), var!(space-2xs), var!(space-sm));
+        border-radius: var!(radius-sm);
+        cursor: "default";
+        :focus-visible {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
+        }
+    }
+
     pub c_euv_menu_panel {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-2xs);
         min-width: "180px";
         padding: var!(space-xs);
-        border: var!(border-width) solid var!(border);
+        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
         border-radius: var!(radius-md);
         background: var!(popover);
         color: var!(popover-foreground);
@@ -1529,7 +1658,7 @@ class! {
         width: "10px";
         height: "100%";
         padding: var!(space-2xs);
-        border-left: var!(border-width) solid transparent;
+        border-left: format!("{} {} {}", var!(border-width), "solid", "transparent");
         touch-action: "none";
         user-select: "none";
     }
@@ -1772,6 +1901,20 @@ class! {
 
     pub c_euv_dropdown_menu_separator {}
 
+    pub c_euv_dropdown_menu_group {}
+
+    pub c_euv_dropdown_menu_checkbox_item {}
+
+    pub c_euv_dropdown_menu_radio_group {}
+
+    pub c_euv_dropdown_menu_radio_item {}
+
+    pub c_euv_dropdown_menu_sub {}
+
+    pub c_euv_dropdown_menu_sub_trigger {}
+
+    pub c_euv_dropdown_menu_sub_content {}
+
     pub c_euv_dropdown_menu_shortcut {}
 
     pub c_euv_menubar {}
@@ -1802,4 +1945,13 @@ class! {
     pub c_euv_scroll_bar {}
 
     pub c_euv_scroll_bar_thumb {}
+    pub(crate) c_euv_menubar_shadcn {}
+
+    pub(crate) c_euv_menubar_trigger_open_shadcn {}
+
+    pub(crate) c_euv_menubar_trigger_shadcn {}
+
+    pub(crate) c_euv_menubar_content_shadcn {}
+
+    pub(crate) c_euv_menubar_item_shadcn {}
 }

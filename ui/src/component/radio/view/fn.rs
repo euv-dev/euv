@@ -40,11 +40,6 @@ pub fn euv_radio(node: VirtualNode<EuvRadioGroupProps>) -> VirtualNode {
             html! {
                 label {
                     class: c_euv_radio_item()
-                    class: if is_checked {
-                        c_euv_radio_item_checked()
-                    } else {
-                        c_euv_radio_item_unchecked()
-                    }
                     input {
                         name: name
                         type: "radio"
@@ -127,6 +122,7 @@ pub fn euv_radio_group(node: VirtualNode<EuvRadioGroupRootProps>) -> VirtualNode
     html! {
         div {
             role: "radiogroup"
+            "data-slot": "radio-group"
             "aria-label": label
             class: c_euv_radio_group_root()
             children
@@ -157,26 +153,148 @@ pub fn euv_radio_group_item(node: VirtualNode<EuvRadioGroupItemProps>) -> Virtua
         on_select,
     }: EuvRadioGroupItemProps = node.try_get_props().unwrap_or_default();
     let is_checked: bool = checked.get();
-    let item_class: fn() -> &'static Css = if is_checked {
-        c_euv_radio_group_item_checked
+    let item_class: fn() -> &'static Css = c_euv_radio_group_item;
+    let theme_class: &Css = if cfg!(feature = "theme-shadcn") {
+        if is_checked {
+            c_euv_radio_group_item_checked_shadcn()
+        } else {
+            c_euv_radio_group_item_shadcn()
+        }
     } else {
-        c_euv_radio_group_item
+        &EMPTY_CLASS
     };
+    let checked_class: &Css = if is_checked {
+        c_euv_radio_group_item_checked()
+    } else {
+        &EMPTY_CLASS
+    };
+    let indicator_shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_radio_group_indicator_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
+    let indicator_checked_class: &Css = if is_checked {
+        if cfg!(feature = "theme-shadcn") {
+            c_euv_radio_group_indicator_checked_shadcn()
+        } else {
+            c_euv_radio_group_indicator_checked()
+        }
+    } else {
+        &EMPTY_CLASS
+    };
+    let indicator_dot_shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_radio_group_indicator_dot_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
+    let tabindex: &str = if is_checked { "0" } else { "-1" };
+    let click_callback: Option<Rc<dyn Fn(&'static str)>> = on_select.clone();
     let on_click: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |_: Event| {
-        if let Some(callback) = &on_select {
+        if let Some(callback) = &click_callback {
             callback(value);
         }
     }));
+    let on_keydown: Option<Rc<dyn Fn(Event)>> = radio_group_item_keydown(value);
     html! {
         button {
             type: "button"
             role: "radio"
-            "aria-checked": if is_checked { "true" } else { "false" }
+            "data-slot": "radio-group-item"
+            "data-value": value
+            "data-state": if is_checked {
+                "checked"
+            } else {
+                "unchecked"
+            }
+            "aria-checked": if is_checked {
+                "true"
+            } else {
+                "false"
+            }
+            tabindex: tabindex
             class: item_class()
+            class: checked_class
+            class: theme_class
             onclick: on_click
+            onkeydown: on_keydown
+            span {
+                "data-slot": "radio-group-indicator"
+                class: c_euv_radio_group_indicator()
+                class: indicator_shadcn_class
+                class: indicator_checked_class
+                if is_checked {
+                    span {
+                        class: c_euv_radio_group_indicator_dot()
+                        class: indicator_dot_shadcn_class
+                    }
+                }
+            }
             {
                 label
             }
         }
     }
+}
+
+/// Builds the arrow-key handler that focuses and selects the adjacent radio.
+///
+/// # Arguments
+///
+/// - `&'static str` - The current radio's value, used to locate its row.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The radio-group keyboard handler.
+fn radio_group_item_keydown(value: &'static str) -> Option<Rc<dyn Fn(Event)>> {
+    Some(Rc::new(move |event: Event| {
+        let Ok(keyboard_event) = event.dyn_into::<KeyboardEvent>() else {
+            return;
+        };
+        let key: String = keyboard_event.key();
+        let move_next: bool =
+            if key == RADIO_GROUP_KEY_ARROW_DOWN || key == RADIO_GROUP_KEY_ARROW_RIGHT {
+                true
+            } else if key == RADIO_GROUP_KEY_ARROW_UP || key == RADIO_GROUP_KEY_ARROW_LEFT {
+                false
+            } else {
+                return;
+            };
+        let Some(target) = keyboard_event
+            .target()
+            .and_then(|target: EventTarget| target.dyn_into::<Element>().ok())
+        else {
+            return;
+        };
+        let Ok(Some(root)) = target.closest("[role='radiogroup']") else {
+            return;
+        };
+        let Ok(items) = root.query_selector_all("[role='radio']") else {
+            return;
+        };
+        let radios: Vec<HtmlElement> = (0..items.length())
+            .filter_map(|index: u32| {
+                items
+                    .item(index)
+                    .and_then(|item: Node| item.dyn_into::<HtmlElement>().ok())
+            })
+            .collect();
+        if radios.is_empty() {
+            return;
+        }
+        let Some(index) = radios.iter().position(|item: &HtmlElement| {
+            item.get_attribute("data-value").as_deref() == Some(value)
+        }) else {
+            return;
+        };
+        let next_index: usize = if move_next {
+            (index + 1) % radios.len()
+        } else {
+            (index + radios.len() - 1) % radios.len()
+        };
+        keyboard_event.prevent_default();
+        if let Some(next) = radios.get(next_index) {
+            let _: Result<(), JsValue> = next.focus();
+            next.click();
+        }
+    }))
 }

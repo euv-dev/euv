@@ -27,29 +27,81 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
     }: EuvSwitchProps = node.try_get_props().unwrap_or_default();
     let state: EuvSwitchState = use_euv_switch_state(checked);
     let handler: Option<Rc<dyn Fn(Event)>> = state.on_toggle(disabled);
+    let is_checked: bool = checked.get();
+    let base_track_class: &Css = c_form_switch_track();
+    let base_thumb_class: &Css = c_form_switch_thumb();
+    let shadcn_track_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_form_switch_track_shadcn()
+    } else {
+        c_form_switch_track()
+    };
+    let shadcn_track_state_class: &Css = if cfg!(feature = "theme-shadcn") {
+        if is_checked {
+            c_form_switch_track_checked_shadcn()
+        } else {
+            c_form_switch_track_shadcn()
+        }
+    } else {
+        c_form_switch_track()
+    };
+    let shadcn_thumb_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_form_switch_thumb_shadcn()
+    } else {
+        c_form_switch_thumb()
+    };
+    let shadcn_thumb_state_class: &Css = if cfg!(feature = "theme-shadcn") {
+        if is_checked {
+            c_form_switch_thumb_checked_shadcn()
+        } else {
+            c_form_switch_thumb_shadcn()
+        }
+    } else {
+        c_form_switch_thumb()
+    };
+    let mut switch_button: VirtualNode = html! {
+        button {
+            id: id
+            name: name
+            type: "button"
+            role: "switch"
+            "data-slot": "switch"
+            "data-size": "default"
+            aria-checked: checked
+            disabled: disabled
+            class: if { checked } {
+                c_form_switch_on()
+            } else {
+                c_form_switch()
+            }
+            onclick: handler
+            span {
+                class: base_track_class
+                class: shadcn_track_class
+                class: shadcn_track_state_class
+                span {
+                    "data-slot": "switch-thumb"
+                    class: base_thumb_class
+                    class: shadcn_thumb_class
+                    class: shadcn_thumb_state_class
+                }
+            }
+        }
+    };
+    if let VirtualNode::Element { attributes, .. } = &mut switch_button {
+        let state_attribute: &'static str = if is_checked {
+            "data-checked"
+        } else {
+            "data-unchecked"
+        };
+        attributes.push(AttributeEntry::new(
+            Cow::Borrowed(state_attribute),
+            AttributeValue::StaticText(""),
+        ));
+    }
     html! {
         div {
             class: c_form_switch_row()
-            button {
-                id: id
-                name: name
-                type: "button"
-                role: "switch"
-                aria-checked: checked
-                disabled: disabled
-                class: if { checked } {
-                    c_form_switch_on()
-                } else {
-                    c_form_switch()
-                }
-                onclick: handler
-                span {
-                    class: c_form_switch_track()
-                    span {
-                        class: c_form_switch_thumb()
-                    }
-                }
-            }
+            switch_button
             label {
                 for: id
                 class: c_form_switch_label()

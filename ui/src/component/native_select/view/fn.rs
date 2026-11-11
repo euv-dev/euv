@@ -28,9 +28,23 @@ pub fn euv_native_select(node: VirtualNode<EuvNativeSelectProps>) -> VirtualNode
         EuvNativeSelectSize::Default => "default",
         EuvNativeSelectSize::Sm => "sm",
     };
-    let size_class: fn() -> &'static Css = match size {
-        EuvNativeSelectSize::Default => c_euv_native_select_size_default,
-        EuvNativeSelectSize::Sm => c_euv_native_select_size_sm,
+    let base_class: &Css = c_euv_native_select();
+    let size_class: &Css = match size {
+        EuvNativeSelectSize::Default => c_euv_native_select_size_default(),
+        EuvNativeSelectSize::Sm => c_euv_native_select_size_sm(),
+    };
+    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_native_select_shadcn().clone()
+    } else {
+        Css::default()
+    };
+    let shadcn_size_class: Css = if cfg!(feature = "theme-shadcn") {
+        match size {
+            EuvNativeSelectSize::Default => c_euv_native_select_size_default_shadcn().clone(),
+            EuvNativeSelectSize::Sm => c_euv_native_select_size_sm_shadcn().clone(),
+        }
+    } else {
+        Css::default()
     };
     let icon_class: fn() -> &'static Css = match size {
         EuvNativeSelectSize::Default => c_euv_native_select_icon,
@@ -47,8 +61,10 @@ pub fn euv_native_select(node: VirtualNode<EuvNativeSelectProps>) -> VirtualNode
                 "data-size": size_attr
                 name: name
                 disabled: disabled
-                class: c_euv_native_select()
-                class: size_class()
+                class: base_class
+                class: size_class
+                class: shadcn_class
+                class: shadcn_size_class
                 children
             }
             span {
@@ -76,12 +92,16 @@ pub fn euv_native_select(node: VirtualNode<EuvNativeSelectProps>) -> VirtualNode
 /// - `VirtualNode` - The euv native select option virtual DOM tree.
 #[component]
 pub fn euv_native_select_option(node: VirtualNode<EuvNativeSelectOptionProps>) -> VirtualNode {
-    let EuvNativeSelectOptionProps { value, label }: EuvNativeSelectOptionProps =
-        node.try_get_props().unwrap_or_default();
+    let EuvNativeSelectOptionProps {
+        value,
+        label,
+        disabled,
+    }: EuvNativeSelectOptionProps = node.try_get_props().unwrap_or_default();
     html! {
         option {
             "data-slot": "native-select-option"
             value: value
+            disabled: disabled
             class: c_euv_native_select_option()
             label
         }
@@ -102,13 +122,14 @@ pub fn euv_native_select_option(node: VirtualNode<EuvNativeSelectOptionProps>) -
 /// - `VirtualNode` - The euv native select option group virtual DOM tree.
 #[component]
 pub fn euv_native_select_opt_group(node: VirtualNode<EuvNativeSelectOptGroupProps>) -> VirtualNode {
-    let EuvNativeSelectOptGroupProps { label }: EuvNativeSelectOptGroupProps =
+    let EuvNativeSelectOptGroupProps { label, disabled }: EuvNativeSelectOptGroupProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     html! {
         optgroup {
             "data-slot": "native-select-optgroup"
             label: label
+            disabled: disabled
             class: c_euv_native_select_optgroup()
             children
         }

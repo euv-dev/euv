@@ -18,14 +18,10 @@ class! {
         align-items: "center";
         justify-content: "center";
         flex-shrink: "0";
-        width: "40px";
-        height: "40px";
         box-sizing: "border-box";
         border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-sm);
         background: var!(muted);
         color: var!(foreground);
-        font-size: var!(font-sm);
         font-weight: var!(font-weight-semibold);
         line-height: "1";
         text-align: "center";
@@ -43,7 +39,7 @@ class! {
         height: "24px";
         box-sizing: "border-box";
         border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-full);
         background: var!(muted);
         color: var!(foreground);
         font-size: var!(font-xs);
@@ -64,7 +60,7 @@ class! {
         height: "32px";
         box-sizing: "border-box";
         border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-full);
         background: var!(muted);
         color: var!(foreground);
         font-size: var!(font-sm);
@@ -85,7 +81,7 @@ class! {
         height: "40px";
         box-sizing: "border-box";
         border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-sm);
+        border-radius: var!(radius-full);
         background: var!(muted);
         color: var!(foreground);
         font-size: var!(font-lg);
@@ -98,7 +94,70 @@ class! {
     }
 
     pub(crate) c_euv_avatar_square {
+        border-radius: var!(radius-sm);
+    }
+
+    pub(crate) c_euv_avatar_fallback {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        width: "100%";
+        height: "100%";
+        color: var!(foreground);
+        font-size: "inherit";
+        font-weight: "inherit";
+        line-height: "1";
+    }
+    pub(crate) c_euv_avatar_image {
+        display: "block";
+        width: "100%";
+        height: "100%";
+        object-fit: "cover";
+        border-radius: "inherit";
+    }
+
+    pub(crate) c_euv_avatar_fallback_shadcn {
+        background-color: var!(muted);
+        border-radius: "inherit";
+        color: var!(muted-foreground);
+    }
+
+
+    pub(crate) c_euv_avatar_badge {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        box-sizing: "border-box";
+        padding: format!("0px {}", var!(space-xs));
+        border: format!("{} solid {}", var!(border-width), var!(background));
         border-radius: var!(radius-full);
+        background: var!(primary);
+        color: var!(primary-foreground);
+        font-size: var!(font-xs);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+    }
+
+    pub(crate) c_euv_avatar_group {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+    }
+
+    pub(crate) c_euv_avatar_group_count {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        box-sizing: "border-box";
+        width: "32px";
+        height: "32px";
+        border: format!("{} solid {}", var!(border-width), var!(background));
+        border-radius: var!(radius-full);
+        background: var!(muted);
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
     }
 
     pub(crate) c_euv_icon {
@@ -287,6 +346,17 @@ class! {
 
     pub(crate) c_euv_avatar_square {}
 
+    pub(crate) c_euv_avatar_fallback {}
+
+    pub(crate) c_euv_avatar_image {}
+
+    pub(crate) c_euv_avatar_badge {}
+
+    pub(crate) c_euv_avatar_group {}
+
+    pub(crate) c_euv_avatar_group_count {}
+
+
     pub(crate) c_euv_icon {}
 
     pub(crate) c_euv_icon_label {}
@@ -330,4 +400,5 @@ class! {
     pub(crate) c_debug_label {}
 
     pub(crate) c_debug_value {}
+    pub(crate) c_euv_avatar_fallback_shadcn {}
 }

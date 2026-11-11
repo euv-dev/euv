@@ -19,6 +19,7 @@ vars! {
         radius-md: "8px";
         radius-lg: "10px";
         radius-xl: "14px";
+        radius-2xl: "16px";
         radius-full: "50%";
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -114,7 +115,7 @@ vars! {
         // Status — the light half.
         // ═══════════════════════════════════════════════════════════════════════
 
-        role-destructive-light: "#e40014";
+        role-destructive-light: "#e7000b";
         role-destructive-foreground-light: "#fcf3f3";
         role-success-light: "#16a34a";
         role-success-foreground-light: "#ffffff";
@@ -169,7 +170,7 @@ vars! {
         // Status — the dark half.
         // ═══════════════════════════════════════════════════════════════════════
 
-        role-destructive-dark: "#ff6568";
+        role-destructive-dark: "#ff6467";
         role-destructive-foreground-dark: "#df2225";
         role-success-dark: "#22c55e";
         role-success-foreground-dark: "#052e16";

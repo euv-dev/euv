@@ -20,6 +20,10 @@ class! {
         width: "100%";
         margin: format!("{} 0px", var!(gap-element));
     }
+    pub(crate) c_euv_input_wrapper_shadcn {
+        gap: var!(space-sm);
+    }
+
 
     pub c_form_label {
         display: "block";
@@ -37,10 +41,10 @@ class! {
 
     pub c_euv_input {
         width: "100%";
-        min-height: var!(control-height);
-        padding: format!("0px {}", var!(space-lg));
+        min-height: var!(control-height-sm);
+        padding: format!("0px {}", var!(control-pad-inline));
         border: format!("{} solid {}", var!(border-width), var!(input));
-        font-size: var!(font-base);
+        font-size: var!(font-sm);
         line-height: "normal";
         box-sizing: "border-box";
         outline: "none";
@@ -60,14 +64,23 @@ class! {
         );
         :hover {
             border-color: var!(ring);
-            background: var!(muted);
         }
-        :focus {
+        :focus-visible {
             outline: "none";
             border-color: var!(ring);
-            background: var!(muted);
         }
-        border-radius: var!(radius-md);
+        border-radius: var!(radius-lg);
+    }
+
+    pub(crate) c_euv_input_shadcn {
+        min-height: var!(control-height-sm);
+        padding: format!("{} {}", var!(space-xs), var!(control-pad-inline));
+        font-size: var!(font-sm);
+        border-radius: var!(radius-lg);
+        background-color: "transparent";
+        :not([type="checkbox"]) {
+            border-radius: var!(radius-lg);
+        }
     }
 
     pub c_euv_input_no_transition {
@@ -86,6 +99,10 @@ class! {
         vertical-align: "middle";
         border-radius: var!(radius-md);
     }
+    pub(crate) c_euv_input_no_transition_shadcn {
+        background-color: "transparent";
+    }
+
 
     pub c_euv_input_error {
         width: "100%";
@@ -108,12 +125,58 @@ class! {
         }
         border-radius: var!(radius-md);
     }
+    pub(crate) c_euv_input_error_shadcn {
+        background-color: "transparent";
+    }
+
 
     pub c_form_checkbox {
         cursor: "pointer";
         width: var!(space-lg);
         height: var!(space-lg);
         border-radius: var!(radius-xs);
+    }
+
+    pub(crate) c_form_checkbox_shadcn {
+        position: "relative";
+        display: "grid";
+        place-items: "center";
+        appearance: "none";
+        -webkit-appearance: "none";
+        background: var!(background);
+        border: format!("{} solid {}", var!(border-width), var!(input));
+        border-radius: format!("calc({} - {})", var!(radius-sm), var!(space-2xs));
+        box-sizing: "border-box";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :checked {
+            background: var!(primary);
+            border-color: var!(primary);
+        }
+        :disabled {
+            cursor: "not-allowed";
+            opacity: "0.5";
+        }
+    }
+
+    pub(crate) c_form_checkbox_row_shadcn {
+        position: "relative";
+    }
+
+    pub(crate) c_form_checkbox_indicator_shadcn {
+        position: "absolute";
+        top: "50%";
+        left: format!("calc(({} - {}) / 2)", var!(space-lg), var!(space-xs));
+        width: var!(space-xs);
+        height: var!(space-sm);
+        border-right: format!("{} solid {}", var!(space-2xs), var!(primary-foreground));
+        border-bottom: format!("{} solid {}", var!(space-2xs), var!(primary-foreground));
+        transform: "translateY(-50%) rotate(45deg)";
+        opacity: "0";
+        pointer-events: "none";
+    }
+
+    pub(crate) c_form_checkbox_indicator_checked_shadcn {
+        opacity: "1";
     }
 
     pub c_form_checkbox_label {
@@ -290,62 +353,101 @@ class! {
         transition: format!("{} {}", var!(duration-fast), var!(ease-out));
     }
 
+    pub(crate) c_form_switch_track_shadcn {
+        display: "flex";
+        align-items: "center";
+        width: var!(control-height-sm);
+        height: var!(switch-track-height);
+        padding: var!(border-width);
+        border: "none";
+        border-radius: var!(radius-full);
+        background: var!(input);
+        box-sizing: "border-box";
+    }
+
+    pub(crate) c_form_switch_track_checked_shadcn {
+        background: var!(primary);
+    }
+
+    pub(crate) c_form_switch_thumb_shadcn {
+        position: "relative";
+        top: "auto";
+        left: "auto";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        flex-shrink: "0";
+        background: var!(background);
+        box-shadow: var!(shadow-xs);
+    }
+
+    pub(crate) c_form_switch_thumb_checked_shadcn {
+        transform: format!(
+        "translateX(calc({} - {} - {}))",
+        var!(control-height-sm),
+        var!(space-lg),
+        var!(space-2xs)
+        );
+    }
+
     pub(crate) c_form_switch_label {
         font-size: var!(font-base);
         font-weight: var!(font-weight-medium);
         color: var!(foreground);
     }
 
-    pub(crate) c_euv_slider_input {
-        flex: "1";
+    pub(crate) c_euv_slider_track {
+        position: "relative";
+        display: "flex";
+        align-items: "center";
         width: "100%";
-        height: "24px";
+        height: var!(space-xs);
+        overflow: "visible";
+        background: var!(muted);
+        border-radius: var!(radius-full);
+        user-select: "none";
+        :focus-within {
+            box-shadow: format!("0 0 0 3px color-mix(in srgb, {} 50%, transparent)", var!(ring));
+        }
+    }
+
+    pub(crate) c_euv_slider_range {
+        position: "relative";
+        display: "block";
+        height: "100%";
+        background: var!(primary);
+        border-radius: var!(radius-full);
+        pointer-events: "none";
+    }
+
+    pub(crate) c_euv_slider_thumb {
+        position: "absolute";
+        top: "50%";
+        display: "block";
+        width: "12px";
+        height: "12px";
+        flex-shrink: "0";
+        transform: "translate(-50%, -50%)";
+        background: var!(background);
+        border: format!("{} solid {}", var!(border-width), var!(ring));
+        border-radius: var!(radius-full);
+        box-shadow: format!("0 0 0 2px color-mix(in srgb, {} 50%, transparent)", var!(ring));
+        pointer-events: "none";
+    }
+
+    pub(crate) c_euv_slider_input {
+        position: "absolute";
+        top: format!("-{}", var!(space-xl));
+        left: "0px";
+        width: "100%";
+        height: format!("calc(100% + {} + {})", var!(space-xl), var!(space-xl));
         padding: "0px";
-        background: "transparent";
+        opacity: "0";
         cursor: "pointer";
         touch-action: "manipulation";
         -webkit-appearance: "none";
         appearance: "none";
         border: "none";
         outline: "none";
-        ::-webkit-slider-runnable-track {
-            height: "6px";
-            background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
-            border: format!("{} solid {}", var!(border-width), var!(input));
-            border-radius: var!(radius-full);
-        }
-        ::-webkit-slider-thumb {
-            width: "16px";
-            height: "16px";
-            background: var!(background);
-            border: format!("2px solid {}", var!(primary));
-            border-radius: var!(radius-full);
-            cursor: "pointer";
-            -webkit-appearance: "none";
-            // The thumb is taller than the track it rides on, so the margin
-            // pulls it up until it sits centred on the track.
-            margin-top: "-6px";
-        }
-        : active::-webkit-slider-thumb {
-            transform: "scale(0.92)";
-        }
-        ::-moz-range-track {
-            height: "6px";
-            background: format!("linear-gradient(to right, {} 0%, {} var(--value,50%), {} var(--value,50%), {} 100%)", var!(foreground), var!(foreground), var!(border), var!(border));
-            border: format!("{} solid {}", var!(border-width), var!(input));
-            border-radius: var!(radius-full);
-        }
-        ::-moz-range-thumb {
-            width: "16px";
-            height: "16px";
-            background: var!(background);
-            border: format!("2px solid {}", var!(primary));
-            border-radius: var!(radius-full);
-            cursor: "pointer";
-        }
-        :focus {
-            outline: "none";
-        }
     }
 
     pub(crate) c_euv_slider_row {
@@ -378,6 +480,7 @@ class! {
         gap: var!(space-sm);
         min-height: var!(control-height);
         padding: format!("{} 0px", var!(space-xs));
+        border: format!("{} solid transparent", var!(border-width));
         cursor: "pointer";
         touch-action: "manipulation";
         user-select: "none";
@@ -389,39 +492,9 @@ class! {
             color: var!(primary);
         }
     }
-
     pub(crate) c_euv_radio_item_checked {
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        width: "16px";
-        height: "16px";
-        flex-shrink: "0";
-        box-sizing: "border-box";
-        border: format!("2px solid {}", var!(primary));
-        border-radius: var!(radius-full);
-        background: var!(primary);
-        color: var!(primary-foreground);
-        font-size: var!(font-xs);
-        font-weight: var!(font-weight-bold);
-        line-height: "1";
-    }
-
-    pub(crate) c_euv_radio_item_unchecked {
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        width: "16px";
-        height: "16px";
-        flex-shrink: "0";
-        box-sizing: "border-box";
-        border: format!("{} solid {}", var!(border-width), var!(input));
-        border-radius: var!(radius-full);
-        background: var!(background);
-        color: var!(muted-foreground);
-        font-size: var!(font-xs);
-        font-weight: var!(font-weight-bold);
-        line-height: "1";
+        background: var!(muted);
+        color: var!(primary);
     }
 
     pub(crate) c_euv_radio_input {
@@ -452,6 +525,18 @@ class! {
         display: "flex";
         flex-direction: "column";
         width: "100%";
+    }
+
+    pub(crate) c_euv_select_form_input {
+        position: "absolute";
+        width: var!(space-2xs);
+        height: var!(space-2xs);
+        padding: "0";
+        margin: "0";
+        overflow: "hidden";
+        clip-path: "inset(50%)";
+        white-space: "nowrap";
+        border: "0";
     }
 
     pub(crate) c_euv_select_trigger {
@@ -492,6 +577,70 @@ class! {
         border-radius: var!(radius-md);
     }
 
+    pub(crate) c_euv_select_trigger_shadcn {
+        height: var!(control-height-sm);
+        gap: var!(space-xs-sm);
+        min-height: var!(control-height-sm);
+        padding: format!("{} {}", var!(space-sm), var!(control-pad-inline));
+        border-radius: var!(radius-lg);
+        background: "transparent";
+        font-size: var!(font-sm);
+        line-height: "1.428571";
+        background-color: "transparent";
+        padding-left: var!(control-pad-inline);
+        white-space: "nowrap";
+    }
+
+    pub(crate) c_euv_select_trigger_invalid {
+        border-color: var!(destructive);
+        :hover {
+            border-color: var!(destructive);
+        }
+        :focus {
+            border-color: var!(destructive);
+        }
+    }
+
+    pub(crate) c_euv_select_panel_shadcn {
+        margin-top: var!(space-xs);
+        border-radius: var!(radius-lg);
+    }
+
+    pub(crate) c_euv_select_option_shadcn {
+        padding: format!(
+        "{} {} {} calc({} + {})",
+        var!(space-xs),
+        var!(control-pad-icon),
+        var!(space-xs),
+        var!(space-xs),
+        var!(space-2xs)
+        );
+        border-radius: var!(radius-md);
+        font-size: var!(font-sm);
+        line-height: "1.428571";
+        :focus {
+            outline: "none";
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub(crate) c_euv_select_option_active_shadcn {
+        background: "transparent";
+        color: var!(foreground);
+    }
+
+    pub(crate) c_euv_select_option_indicator_shadcn {
+        display: "inline-flex";
+        flex-shrink: "0";
+        align-items: "center";
+        justify-content: "center";
+        width: var!(space-lg);
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+        line-height: "1";
+    }
+
     pub(crate) c_euv_select_value {
         flex: "1";
         min-width: "0px";
@@ -519,7 +668,7 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         max-height: "240px";
-        overflow-y: "auto";
+        overflow: "hidden";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(popover);
         color: var!(popover-foreground);
@@ -536,7 +685,7 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         max-height: "240px";
-        overflow-y: "auto";
+        overflow: "hidden";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-md);
@@ -553,12 +702,22 @@ class! {
         z-index: "150";
         margin-top: var!(space-2xs);
         max-height: "240px";
-        overflow-y: "auto";
+        overflow: "hidden";
         border: format!("{} solid {}", var!(border-width), var!(input));
         background: var!(background);
         box-shadow: var!(shadow-md);
         box-sizing: "border-box";
         display: "none";
+    }
+
+    pub(crate) c_euv_select_viewport {
+        max-height: "240px";
+        min-height: "0px";
+        overflow-y: "auto";
+    }
+
+    pub(crate) c_euv_select_panel_aligned(offset: &str) {
+        transform: format!("translateY({})", offset);
     }
 
     pub(crate) c_euv_select_option {
@@ -628,6 +787,13 @@ class! {
         letter-spacing: var!(letter-spacing-wide);
         text-transform: var!(text-transform-uppercase);
         cursor: "default";
+    }
+
+    pub(crate) c_euv_select_separator {
+        height: var!(border-width);
+        margin: format!("{} calc(0px - {})", var!(space-xs), var!(space-xs));
+        flex-shrink: "0";
+        background: var!(border);
     }
 
     pub(crate) c_euv_select_empty {
@@ -837,6 +1003,17 @@ class! {
         }
     }
 
+    pub(crate) c_euv_toggle_shadcn {
+        width: "fit-content";
+        gap: var!(space-xs);
+        border-radius: var!(radius-lg);
+        background-color: "transparent";
+        :hover {
+            background: var!(muted);
+            color: var!(foreground);
+        }
+    }
+
     pub(crate) c_euv_toggle_outline {
         border-color: var!(input);
         :hover {
@@ -844,6 +1021,11 @@ class! {
             color: var!(accent-foreground);
         }
     }
+    pub(crate) c_euv_toggle_outline_shadcn {
+        background-color: "transparent";
+        border-color: var!(border);
+    }
+
 
     pub(crate) c_euv_toggle_size_default {
         height: "40px";
@@ -866,6 +1048,28 @@ class! {
         padding-inline: "20px";
     }
 
+    pub(crate) c_euv_toggle_size_default_shadcn {
+        height: var!(control-height-sm);
+        min-width: var!(control-height-sm);
+        padding-inline: var!(control-pad-inline);
+        background-color: "transparent";
+    }
+
+    pub(crate) c_euv_toggle_size_small_shadcn {
+        height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
+        min-width: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
+        padding-inline: var!(control-pad-inline);
+        font-size: "0.8rem";
+        background-color: "transparent";
+    }
+
+    pub(crate) c_euv_toggle_size_large_shadcn {
+        height: format!("calc({} + {})", var!(control-height-sm), var!(space-xs));
+        min-width: format!("calc({} + {})", var!(control-height-sm), var!(space-xs));
+        padding-inline: var!(control-pad-inline);
+        background-color: "transparent";
+    }
+
     pub(crate) c_euv_toggle_pressed {
         background: var!(accent);
         color: var!(accent-foreground);
@@ -875,12 +1079,29 @@ class! {
         }
     }
 
+    pub(crate) c_euv_toggle_pressed_shadcn {
+        background: var!(muted);
+        color: var!(foreground);
+        background-color: "transparent";
+        :hover {
+            background: var!(muted);
+            color: var!(foreground);
+        }
+    }
+
     pub(crate) c_euv_toggle_group {
         display: "inline-flex";
         align-items: "center";
         justify-content: "center";
         gap: var!(space-2xs);
         flex-wrap: "wrap";
+    }
+
+    pub(crate) c_euv_toggle_group_shadcn {
+        width: "fit-content";
+        gap: var!(space-sm);
+        border-radius: var!(radius-lg);
+        background-color: "transparent";
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1961,6 +2182,18 @@ class! {
         }
     }
 
+    pub(crate) c_euv_textarea_shadcn {
+        min-height: format!(
+        "calc({} + {} - {})",
+        var!(control-height),
+        var!(control-height),
+        var!(space-sm)
+        );
+        padding: format!("{} {}", var!(space-sm), var!(control-pad-inline));
+        border-radius: var!(radius-lg);
+        line-height: "1.428571";
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // Button Group
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2027,6 +2260,10 @@ class! {
         box-sizing: "border-box";
     }
 
+    pub(crate) c_euv_input_group_shadcn {
+        border-radius: var!(radius-lg);
+    }
+
     pub(crate) c_euv_input_group_disabled {
         display: "flex";
         align-items: "center";
@@ -2053,6 +2290,10 @@ class! {
         font-weight: var!(font-weight-medium);
         white-space: "nowrap";
     }
+    pub(crate) c_euv_input_group_addon_inline_start_shadcn {
+        padding-top: var!(space-xs-sm);
+    }
+
 
     pub(crate) c_euv_input_group_addon_inline_end {
         display: "inline-flex";
@@ -2066,6 +2307,10 @@ class! {
         font-weight: var!(font-weight-medium);
         white-space: "nowrap";
     }
+    pub(crate) c_euv_input_group_addon_inline_end_shadcn {
+        padding-top: var!(space-xs-sm);
+    }
+
 
     pub(crate) c_euv_input_group_addon_block_start {
         display: "inline-flex";
@@ -2080,6 +2325,10 @@ class! {
         font-weight: var!(font-weight-medium);
         white-space: "nowrap";
     }
+    pub(crate) c_euv_input_group_addon_block_start_shadcn {
+        padding-top: var!(space-xs-sm);
+    }
+
 
     pub(crate) c_euv_input_group_addon_block_end {
         display: "inline-flex";
@@ -2094,6 +2343,10 @@ class! {
         font-weight: var!(font-weight-medium);
         white-space: "nowrap";
     }
+    pub(crate) c_euv_input_group_addon_block_end_shadcn {
+        padding-top: var!(space-xs-sm);
+    }
+
 
     pub(crate) c_euv_input_group_button_xs {
         display: "inline-flex";
@@ -2113,6 +2366,22 @@ class! {
             background: var!(muted);
         }
     }
+    pub(crate) c_euv_input_group_button_xs_shadcn {
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        font-weight: var!(font-weight-medium);
+        gap: var!(space-sm);
+        padding-left: 0px;
+        padding-right: 0px;
+    }
+
 
     pub(crate) c_euv_input_group_button_sm {
         display: "inline-flex";
@@ -2132,6 +2401,20 @@ class! {
             background: var!(muted);
         }
     }
+    pub(crate) c_euv_input_group_button_sm_shadcn {
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        font-weight: var!(font-weight-medium);
+        gap: var!(space-sm);
+    }
+
 
     pub(crate) c_euv_input_group_button_icon_xs {
         display: "inline-flex";
@@ -2149,6 +2432,20 @@ class! {
             background: var!(muted);
         }
     }
+    pub(crate) c_euv_input_group_button_icon_xs_shadcn {
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        font-weight: var!(font-weight-medium);
+        gap: var!(space-sm);
+    }
+
 
     pub(crate) c_euv_input_group_button_icon_sm {
         display: "inline-flex";
@@ -2166,6 +2463,20 @@ class! {
             background: var!(muted);
         }
     }
+    pub(crate) c_euv_input_group_button_icon_sm_shadcn {
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        font-weight: var!(font-weight-medium);
+        gap: var!(space-sm);
+    }
+
 
     pub(crate) c_euv_input_group_text {
         display: "inline-flex";
@@ -2210,13 +2521,17 @@ class! {
         flex-direction: "column";
         gap: var!(space-xs);
     }
+    pub(crate) c_euv_radio_group_root_shadcn {
+        gap: var!(space-sm);
+    }
+
 
     pub c_euv_radio_group_item {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        padding: var!(space-xs) var!(space-sm);
-        border: var!(border-width) solid var!(border);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
         border-radius: var!(radius-sm);
         background: var!(background);
         color: var!(foreground);
@@ -2226,12 +2541,71 @@ class! {
         text-align: "left";
         cursor: "pointer";
     }
+    pub(crate) c_euv_radio_group_item_shadcn {
+        display: "flex";
+        width: "fit-content";
+        padding: "0px";
+        border: "none";
+        background: "transparent";
+    }
+
+
+    pub(crate) c_euv_radio_group_indicator {
+        display: "inline-block";
+        vertical-align: "middle";
+        line-height: "1";
+        text-align: "center";
+        box-sizing: "border-box";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-full);
+        background: var!(background);
+        color: var!(primary-foreground);
+    }
+    pub(crate) c_euv_radio_group_indicator_shadcn {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        width: var!(space-lg);
+        height: var!(space-lg);
+    }
+
+
+    pub(crate) c_euv_radio_group_indicator_checked {
+        border-color: var!(primary);
+        background: var!(primary);
+    }
+    pub(crate) c_euv_radio_group_indicator_checked_shadcn {
+        border-color: var!(primary);
+        background: var!(background);
+    }
+
+    pub(crate) c_euv_radio_group_indicator_dot {
+        display: "block";
+        width: var!(space-sm);
+        height: var!(space-sm);
+        border-radius: var!(radius-full);
+        background: var!(primary-foreground);
+    }
+
+    pub(crate) c_euv_radio_group_indicator_dot_shadcn {
+        background: var!(primary);
+    }
 
     pub c_euv_radio_group_item_checked {
         border-color: var!(primary);
         background: var!(primary);
         color: var!(primary-foreground);
     }
+    pub(crate) c_euv_radio_group_item_checked_shadcn {
+        width: "fit-content";
+        padding: "0px";
+        border: "none";
+        background: "transparent";
+        color: var!(foreground);
+    }
+
 
     pub c_euv_toast {
         position: "relative";
@@ -2240,7 +2614,7 @@ class! {
         gap: var!(space-xs);
         width: "100%";
         padding: var!(space-md);
-        border: var!(border-width) solid var!(border);
+        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
         border-radius: var!(radius-md);
         background: var!(background);
         color: var!(foreground);
@@ -2269,8 +2643,8 @@ class! {
         display: "inline-flex";
         align-items: "center";
         align-self: "flex-start";
-        padding: var!(space-2xs) var!(space-sm);
-        border: var!(border-width) solid var!(border);
+        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
+        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
         border-radius: var!(radius-sm);
         background: var!(background);
         color: var!(foreground);
@@ -2343,13 +2717,25 @@ class! {
         justify-content: "center";
         width: var!(space-4xl);
         height: var!(space-4xl);
-        border: var!(border-width) solid var!(input);
+        border: format!("{} {} {}", var!(border-width), "solid", var!(input));
         border-radius: var!(radius-md);
         background: var!(background);
         color: var!(foreground);
         font-size: var!(font-sm);
         line-height: "1";
     }
+    pub(crate) c_euv_input_otp_slot_shadcn {
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+    }
+
 
     pub c_euv_input_otp_slot_active {
         border-color: var!(ring);
@@ -2384,11 +2770,21 @@ class! {
 
     pub c_euv_input {}
 
+    pub(crate) c_euv_input_shadcn {}
+
     pub c_euv_input_no_transition {}
 
     pub c_euv_input_error {}
 
     pub c_form_checkbox {}
+
+    pub(crate) c_form_checkbox_shadcn {}
+
+    pub(crate) c_form_checkbox_row_shadcn {}
+
+    pub(crate) c_form_checkbox_indicator_shadcn {}
+
+    pub(crate) c_form_checkbox_indicator_checked_shadcn {}
 
     pub c_form_checkbox_label {}
 
@@ -2414,11 +2810,25 @@ class! {
 
     pub(crate) c_form_switch_track {}
 
+    pub(crate) c_form_switch_track_shadcn {}
+
+    pub(crate) c_form_switch_track_checked_shadcn {}
+
     pub(crate) c_form_switch_thumb {}
+
+    pub(crate) c_form_switch_thumb_shadcn {}
+
+    pub(crate) c_form_switch_thumb_checked_shadcn {}
 
     pub(crate) c_form_switch_label {}
 
     pub(crate) c_euv_slider_input {}
+
+    pub(crate) c_euv_slider_track {}
+
+    pub(crate) c_euv_slider_range {}
+
+    pub(crate) c_euv_slider_thumb {}
 
     pub(crate) c_euv_slider_row {}
 
@@ -2442,7 +2852,13 @@ class! {
 
     pub(crate) c_euv_select {}
 
+    pub(crate) c_euv_select_form_input {}
+
     pub(crate) c_euv_select_trigger {}
+
+    pub(crate) c_euv_select_trigger_shadcn {}
+
+    pub(crate) c_euv_select_trigger_invalid {}
 
     pub(crate) c_euv_select_value {}
 
@@ -2452,17 +2868,31 @@ class! {
 
     pub(crate) c_euv_select_panel {}
 
+    pub(crate) c_euv_select_panel_shadcn {}
+
     pub(crate) c_euv_select_panel_open {}
 
     pub(crate) c_euv_select_panel_closed {}
 
+    pub(crate) c_euv_select_viewport {}
+
+    pub(crate) c_euv_select_panel_aligned(offset: &str) {}
+
     pub(crate) c_euv_select_option {}
 
+    pub(crate) c_euv_select_option_shadcn {}
+
     pub(crate) c_euv_select_option_active {}
+
+    pub(crate) c_euv_select_option_active_shadcn {}
+
+    pub(crate) c_euv_select_option_indicator_shadcn {}
 
     pub(crate) c_euv_select_option_disabled {}
 
     pub(crate) c_euv_select_group {}
+
+    pub(crate) c_euv_select_separator {}
 
     pub(crate) c_euv_select_empty {}
 
@@ -2502,6 +2932,8 @@ class! {
 
     pub(crate) c_euv_toggle {}
 
+    pub(crate) c_euv_toggle_shadcn {}
+
     pub(crate) c_euv_toggle_outline {}
 
     pub(crate) c_euv_toggle_size_default {}
@@ -2510,9 +2942,19 @@ class! {
 
     pub(crate) c_euv_toggle_size_large {}
 
+    pub(crate) c_euv_toggle_size_default_shadcn {}
+
+    pub(crate) c_euv_toggle_size_small_shadcn {}
+
+    pub(crate) c_euv_toggle_size_large_shadcn {}
+
     pub(crate) c_euv_toggle_pressed {}
 
+    pub(crate) c_euv_toggle_pressed_shadcn {}
+
     pub(crate) c_euv_toggle_group {}
+
+    pub(crate) c_euv_toggle_group_shadcn {}
 
     pub(crate) c_euv_number_input {}
 
@@ -2711,6 +3153,8 @@ class! {
 
     pub(crate) c_euv_textarea {}
 
+    pub(crate) c_euv_textarea_shadcn {}
+
     // ═══════════════════════════════════════════════════════════════════════════
     // Button Group
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2730,6 +3174,8 @@ class! {
     // ═══════════════════════════════════════════════════════════════════════════
 
     pub(crate) c_euv_input_group {}
+
+    pub(crate) c_euv_input_group_shadcn {}
 
     pub(crate) c_euv_input_group_disabled {}
 
@@ -2758,6 +3204,12 @@ class! {
 
     pub c_euv_radio_group_item {}
 
+    pub(crate) c_euv_radio_group_indicator {}
+
+    pub(crate) c_euv_radio_group_indicator_checked {}
+    pub(crate) c_euv_radio_group_indicator_dot {}
+    pub(crate) c_euv_radio_group_indicator_dot_shadcn {}
+
     pub c_euv_radio_group_item_checked {}
 
     pub c_euv_toast {}
@@ -2784,4 +3236,22 @@ class! {
     pub c_euv_input_otp_slot_idle {}
 
     pub c_euv_input_otp_separator {}
+    pub(crate) c_euv_input_error_shadcn {}
+    pub(crate) c_euv_input_group_addon_block_end_shadcn {}
+    pub(crate) c_euv_input_group_addon_block_start_shadcn {}
+    pub(crate) c_euv_input_group_addon_inline_end_shadcn {}
+    pub(crate) c_euv_input_group_addon_inline_start_shadcn {}
+    pub(crate) c_euv_input_group_button_icon_sm_shadcn {}
+    pub(crate) c_euv_input_group_button_icon_xs_shadcn {}
+    pub(crate) c_euv_input_group_button_sm_shadcn {}
+    pub(crate) c_euv_input_group_button_xs_shadcn {}
+    pub(crate) c_euv_input_no_transition_shadcn {}
+    pub(crate) c_euv_input_otp_slot_shadcn {}
+    pub(crate) c_euv_input_wrapper_shadcn {}
+    pub(crate) c_euv_radio_group_indicator_shadcn {}
+    pub(crate) c_euv_radio_group_indicator_checked_shadcn {}
+    pub(crate) c_euv_radio_group_item_checked_shadcn {}
+    pub(crate) c_euv_radio_group_item_shadcn {}
+    pub(crate) c_euv_radio_group_root_shadcn {}
+    pub(crate) c_euv_toggle_outline_shadcn {}
 }

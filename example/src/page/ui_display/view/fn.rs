@@ -93,7 +93,7 @@ pub(crate) fn page_ui_display(node: VirtualNode<PageUiDisplayProps>) -> VirtualN
                     class: c_button_controls()
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: DISPLAY_BUTTON_PRIMARY_LABEL
+                        label: DISPLAY_BUTTON_DEFAULT_LABEL
                     }
                     euv_button {
                         variant: EuvButtonVariant::Secondary
@@ -125,7 +125,7 @@ pub(crate) fn page_ui_display(node: VirtualNode<PageUiDisplayProps>) -> VirtualN
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
-                        label: DISPLAY_BUTTON_DEFAULT_LABEL
+                        label: DISPLAY_BUTTON_SIZE_DEFAULT_LABEL
                     }
                     euv_button {
                         variant: EuvButtonVariant::Primary
@@ -136,6 +136,73 @@ pub(crate) fn page_ui_display(node: VirtualNode<PageUiDisplayProps>) -> VirtualN
                         variant: EuvButtonVariant::Outline
                         size: EuvButtonSize::Icon
                         label: DISPLAY_BUTTON_ICON_LABEL
+                        span {
+                            "aria-hidden": "true"
+                            DISPLAY_BUTTON_ICON_GLYPH
+                        }
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Primary
+                        size: EuvButtonSize::ExtraSmall
+                        label: DISPLAY_BUTTON_XS_LABEL
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Outline
+                        size: EuvButtonSize::IconExtraSmall
+                        label: DISPLAY_BUTTON_ICON_XS_LABEL
+                        span {
+                            "aria-hidden": "true"
+                            DISPLAY_BUTTON_ICON_GLYPH
+                        }
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Outline
+                        size: EuvButtonSize::IconSmall
+                        label: DISPLAY_BUTTON_ICON_SM_LABEL
+                        span {
+                            "aria-hidden": "true"
+                            DISPLAY_BUTTON_ICON_GLYPH
+                        }
+                    }
+                    euv_button {
+                        variant: EuvButtonVariant::Outline
+                        size: EuvButtonSize::IconLarge
+                        label: DISPLAY_BUTTON_ICON_LG_LABEL
+                        span {
+                            "aria-hidden": "true"
+                            DISPLAY_BUTTON_ICON_GLYPH
+                        }
+                    }
+                }
+                div {
+                    class: c_button_controls()
+                    euv_badge {
+                        variant: EuvBadgeVariant::Default
+                        text: DISPLAY_BADGE_DEFAULT_LABEL
+                    }
+                    euv_badge {
+                        variant: EuvBadgeVariant::Secondary
+                        text: DISPLAY_BADGE_SECONDARY_LABEL
+                    }
+                    euv_badge {
+                        variant: EuvBadgeVariant::Destructive
+                        text: DISPLAY_BADGE_DESTRUCTIVE_LABEL
+                    }
+                    euv_badge {
+                        variant: EuvBadgeVariant::Outline
+                        text: DISPLAY_BADGE_OUTLINE_LABEL
+                    }
+                    euv_badge {
+                        variant: EuvBadgeVariant::Ghost
+                        text: DISPLAY_BADGE_GHOST_LABEL
+                    }
+                    euv_badge {
+                        variant: EuvBadgeVariant::Link
+                        text: DISPLAY_BADGE_LINK_LABEL
+                    }
+                    euv_badge {
+                        text: DISPLAY_BADGE_CLICKABLE_LABEL
+                        on_click: display_on_empty_action()
                     }
                 }
             }
@@ -266,7 +333,7 @@ pub(crate) fn page_ui_display(node: VirtualNode<PageUiDisplayProps>) -> VirtualN
                     euv_item_separator {}
                     euv_item {
                         variant: EuvItemVariant::Muted
-                        size: EuvItemSize::Sm
+                        size: EuvItemSize::Xs
                         euv_item_media {
                             variant: EuvItemMediaVariant::Icon
                             DISPLAY_ITEM_THIRD_ICON
@@ -301,6 +368,105 @@ pub(crate) fn page_ui_display(node: VirtualNode<PageUiDisplayProps>) -> VirtualN
                     p {
                         class: c_badge_hint()
                         DISPLAY_ASPECT_RATIO_BODY
+                    }
+                }
+            }
+            euv_card {
+                title: DISPLAY_REFERENCE_TITLE
+                euv_tabs {
+                    items: vec![
+                    EuvTabItem {
+                        key: DISPLAY_REFERENCE_ACCOUNT, label: DISPLAY_REFERENCE_ACCOUNT_LABEL
+                    },
+                    EuvTabItem {
+                        key: DISPLAY_REFERENCE_PASSWORD, label: DISPLAY_REFERENCE_PASSWORD_LABEL
+                    },
+                    ]
+                    active: state.reference_tab
+                    p {
+                        {
+                            state.reference_tab.get()
+                        }
+                    }
+                }
+                euv_slider {
+                    id: DISPLAY_REFERENCE_VOLUME_ID
+                    name: DISPLAY_REFERENCE_VOLUME_ID
+                    label: DISPLAY_REFERENCE_VOLUME
+                    min: 0.0
+                    max: 100.0
+                    step: 1.0
+                    value: state.reference_value
+                }
+                euv_progress {
+                    label: DISPLAY_REFERENCE_PROGRESS
+                    percent: state.reference_value
+                }
+                div {
+                    class: c_button_controls()
+                    euv_switch {
+                        id: DISPLAY_REFERENCE_SWITCH_ID
+                        label: DISPLAY_REFERENCE_SWITCH
+                        checked: state.reference_checked
+                    }
+                    euv_switch {
+                        id: DISPLAY_REFERENCE_DISABLED_ID
+                        label: DISPLAY_REFERENCE_DISABLED
+                        disabled: state.reference_disabled
+                    }
+                    euv_tooltip {
+                        text: DISPLAY_REFERENCE_TOOLTIP
+                        euv_button {
+                            variant: EuvButtonVariant::Outline
+                            label: DISPLAY_REFERENCE_TRIGGER
+                        }
+                    }
+                    euv_avatar_group {
+                        euv_avatar {
+                            src: DISPLAY_REFERENCE_AVATAR_SRC
+                            initials: DISPLAY_REFERENCE_INITIALS
+                            alt: DISPLAY_REFERENCE_AVATAR
+                        }
+                        euv_avatar {
+                            initials: DISPLAY_REFERENCE_INITIALS
+                            alt: DISPLAY_REFERENCE_AVATAR
+                        }
+                    }
+                }
+                euv_skeleton {
+                    lines: 2
+                    width: DISPLAY_REFERENCE_WIDTH
+                    height: DISPLAY_REFERENCE_HEIGHT
+                }
+                euv_resizable_panel_group {
+                    euv_resizable_panel {
+                        size: state.split_size
+                        DISPLAY_REFERENCE_FIRST
+                    }
+                    euv_resizable_handle {
+                        size: state.split_size
+                        min: 20.0
+                        max: 80.0
+                    }
+                    euv_resizable_panel {
+                        size: state.split_size_secondary
+                        DISPLAY_REFERENCE_SECOND
+                    }
+                }
+                div {
+                    class: c_button_controls()
+                    euv_button {
+                        variant: EuvButtonVariant::Primary
+                        label: DISPLAY_REFERENCE_DIALOG_TRIGGER
+                        onclick: display_on_dialog_open(state.reference_dialog_open)
+                    }
+                }
+                euv_dialog {
+                    open: state.reference_dialog_open
+                    title: DISPLAY_REFERENCE_DIALOG_TITLE
+                    description: DISPLAY_REFERENCE_DIALOG_DESCRIPTION
+                    p {
+                        DISPLAY_REFERENCE_DIALOG_DESCRIPTION
                     }
                 }
             }

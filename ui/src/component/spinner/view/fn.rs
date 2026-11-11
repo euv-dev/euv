@@ -25,6 +25,7 @@ pub fn euv_spinner(node: VirtualNode<EuvSpinnerProps>) -> VirtualNode {
         span {
             class: c_euv_spinner_root()
             span {
+                "data-slot": "spinner"
                 class: c_euv_spinner()
                 role: "status"
                 "aria-label": label_text

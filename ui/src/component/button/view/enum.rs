@@ -28,10 +28,8 @@ pub enum EuvButtonVariant {
     Link,
 }
 
-/// The size of the `euv_button` component.
-///
-/// The four sizes are the ones the registry publishes: the default box, a
-/// smaller one, a larger one and a square icon box.
+/// The sizes mirror the registry: extra-small, small, default and large
+/// controls, plus square icons in extra-small, small, default and large sizes.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum EuvButtonSize {
     /// The default control size.
@@ -41,6 +39,14 @@ pub enum EuvButtonSize {
     Small,
     /// The large control size.
     Large,
-    /// The square icon size.
+    /// The square default icon size.
     Icon,
+    /// The extra-small control size.
+    ExtraSmall,
+    /// The extra-small square icon size.
+    IconExtraSmall,
+    /// The small square icon size.
+    IconSmall,
+    /// The large square icon size.
+    IconLarge,
 }

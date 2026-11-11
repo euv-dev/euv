@@ -37,6 +37,46 @@ pub fn euv_button_group(node: VirtualNode<EuvButtonGroupProps>) -> VirtualNode {
     }
 }
 
+/// A button that belongs to a button group.
+///
+/// The reference composes a group out of buttons, so the button inside a
+/// group is a part of the group: the group owns the joined frame and the
+/// button carries the control.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvButtonGroupButtonProps>` - The props node carrying the
+///   variant, the size and the label of the button.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The grouped button virtual DOM tree.
+#[component]
+pub fn euv_button_group_button(node: VirtualNode<EuvButtonGroupButtonProps>) -> VirtualNode {
+    let EuvButtonGroupButtonProps {
+        variant,
+        size,
+        label,
+        onclick: click_handler,
+        disabled,
+    }: EuvButtonGroupButtonProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    let content: VirtualNode = match children {
+        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(label.to_string()), None)),
+        other => other,
+    };
+    html! {
+        button {
+            type: "button"
+            class: crate::component::button::button_class(variant, size)
+            "data-slot": "button"
+            disabled: disabled
+            onclick: click_handler
+            content
+        }
+    }
+}
+
 /// A caption that sits inside a button group.
 ///
 /// The caption takes the muted surface so the eye reads it as a label

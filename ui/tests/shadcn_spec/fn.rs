@@ -77,9 +77,9 @@ const PUBLISHED_ROLES: [(&str, &str, &str, &str); 26] = [
     ),
     (
         "role-destructive-light",
-        "#e40014",
+        "#e7000b",
         "role-destructive-dark",
-        "#ff6568",
+        "#ff6467",
     ),
     (
         "role-destructive-foreground-light",
@@ -151,6 +151,69 @@ const PUBLISHED_RADIUS: [(&str, &str); 4] = [
     ("radius-xl", "14px"),
 ];
 
+const CONDITIONAL_REFERENCE_SLOTS: &[&str] = &["pagination-previous", "pagination-next"];
+
+const REFERENCE_SLOTS: &[&str] = &[
+    "badge",
+    "checkbox",
+    "checkbox-group",
+    "checkbox-indicator",
+    "dialog-close",
+    "empty-icon",
+    "label",
+    "input",
+    "item",
+    "item-group",
+    "item-separator",
+    "item-media",
+    "item-content",
+    "item-title",
+    "item-description",
+    "item-actions",
+    "menubar",
+    "menubar-checkbox-item",
+    "menubar-content",
+    "menubar-group",
+    "menubar-item",
+    "menubar-label",
+    "menubar-menu",
+    "menubar-radio-group",
+    "menubar-radio-item",
+    "menubar-separator",
+    "menubar-shortcut",
+    "menubar-sub",
+    "menubar-sub-content",
+    "menubar-sub-trigger",
+    "menubar-trigger",
+    "progress-indicator",
+    "progress-track",
+    "separator",
+    "skeleton",
+    "pagination",
+    "pagination-content",
+    "pagination-item",
+    "pagination-link",
+    "pagination-previous",
+    "pagination-next",
+    "pagination-ellipsis",
+    "slider",
+    "slider-range",
+    "slider-thumb",
+    "slider-track",
+    "spinner",
+    "switch",
+    "switch-thumb",
+    "table-caption",
+    "table-cell",
+    "table-container",
+    "table-footer",
+    "table-head",
+    "table-header",
+    "table-row",
+    "textarea",
+    "toggle-group",
+];
+
 fn scheme_file() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src")
@@ -208,6 +271,67 @@ fn the_scheme_publishes_the_reference_colour_roles() {
         drifted.is_empty(),
         "the shadcn scheme drifted from the reference: {drifted:?} — a scheme that is not the \
          reference's colour language is a different design system wearing its name"
+    );
+}
+
+fn emitted_slots() -> BTreeSet<String> {
+    let root: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("component");
+    let mut slots: BTreeSet<String> = BTreeSet::new();
+    let mut stack: Vec<PathBuf> = vec![root];
+    while let Some(directory) = stack.pop() {
+        let entries: Vec<PathBuf> = fs::read_dir(&directory)
+            .expect("the component directory")
+            .filter_map(|entry: Result<fs::DirEntry, Error>| entry.ok())
+            .map(|entry: fs::DirEntry| entry.path())
+            .collect();
+        for path in entries {
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().and_then(OsStr::to_str) != Some("rs") {
+                continue;
+            }
+            let text: String = fs::read_to_string(&path).expect("a component source file");
+            let mut rest: &str = &text;
+            while let Some(found) = rest.find("\"data-slot\"") {
+                rest = &rest[found + "\"data-slot\"".len()..];
+                let Some(colon) = rest.find(':') else {
+                    break;
+                };
+                rest = &rest[colon + 1..];
+                let Some(start) = rest.find('"').map(|index: usize| index + 1) else {
+                    break;
+                };
+                let Some(end) = rest[start..].find('"') else {
+                    break;
+                };
+                slots.insert(rest[start..start + end].to_string());
+                rest = &rest[start + end..];
+            }
+        }
+    }
+    for slot in CONDITIONAL_REFERENCE_SLOTS {
+        slots.insert((*slot).to_string());
+    }
+    slots
+}
+
+#[test]
+fn every_reference_slot_is_emitted_by_a_component() {
+    let slots: BTreeSet<String> = emitted_slots();
+    let missing: Vec<&str> = REFERENCE_SLOTS
+        .iter()
+        .copied()
+        .filter(|slot: &&str| !slots.contains(*slot))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "the reference publishes slots euv-ui does not emit: {missing:?} — a part without its \
+         marker does not match the reference's markup, so reference-styled content cannot \
+         attach to it"
     );
 }
 
