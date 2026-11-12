@@ -873,6 +873,7 @@ class! {
         background: var!(primary);
         width: "0%";
         border-radius: var!(radius-full);
+        transition: "none";
     }
 
     pub c_anim_scale_box {

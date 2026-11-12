@@ -86,8 +86,8 @@ pub(crate) const DISPLAY_IMAGE_ALT: &str = "A placeholder image";
 /// The source of the demo image.
 pub(crate) const DISPLAY_IMAGE_SRC: &str = "https://example.invalid/placeholder.png";
 
-/// The text shown while the demo image loads.
-pub(crate) const DISPLAY_IMAGE_PLACEHOLDER: &str = "Loading the image…";
+/// The fallback text shown for the unavailable demo image.
+pub(crate) const DISPLAY_IMAGE_PLACEHOLDER: &str = "Image preview unavailable";
 
 /// The section heading for the anchor and carousel card.
 pub(crate) const DISPLAY_NAVIGATION_CARD_TITLE: &str = "Navigation";

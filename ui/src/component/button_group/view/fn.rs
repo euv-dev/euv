@@ -61,10 +61,7 @@ pub fn euv_button_group_button(node: VirtualNode<EuvButtonGroupButtonProps>) -> 
         disabled,
     }: EuvButtonGroupButtonProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(label.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         button {
             type: "button"
@@ -72,7 +69,11 @@ pub fn euv_button_group_button(node: VirtualNode<EuvButtonGroupButtonProps>) -> 
             "data-slot": "button"
             disabled: disabled
             onclick: click_handler
-            content
+            if has_children {
+                children
+            } else {
+                label
+            }
         }
     }
 }
@@ -95,15 +96,16 @@ pub fn euv_button_group_text(node: VirtualNode<EuvButtonGroupTextProps>) -> Virt
     let EuvButtonGroupTextProps { text }: EuvButtonGroupTextProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         div {
             class: c_euv_button_group_text()
             "data-slot": "button-group-text"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }

@@ -201,6 +201,7 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                 }
                 span {
                     class: c_nav_scheme_label()
+                    class: c_mobile_nav_scheme_label()
                     scheme_name()
                 }
             }

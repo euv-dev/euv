@@ -416,7 +416,6 @@ fn a_tree_exposes_nested_roles_slots_and_a_single_roving_tab_stop() {
     let levels: Vec<String> = values_for_attribute(&rendered, "aria-level");
     let expanded_values: Vec<String> = values_for_attribute(&rendered, "aria-expanded");
     let visible_values: Vec<String> = values_for_attribute(&rendered, "data-visible");
-
     assert!(roles.contains(&"tree".to_string()));
     assert!(roles.contains(&"group".to_string()));
     assert_eq!(
@@ -460,7 +459,6 @@ fn a_collapsed_tree_excludes_children_from_the_roving_sequence() {
     let tabindex_values: Vec<String> = values_for_attribute(&rendered, "tabindex");
     let visible_values: Vec<String> = values_for_attribute(&rendered, "data-visible");
     let expanded_values: Vec<String> = values_for_attribute(&rendered, "aria-expanded");
-
     assert_eq!(tabindex_values, vec!["0".to_string(), "-1".to_string()]);
     assert_eq!(
         visible_values,
@@ -477,7 +475,6 @@ fn tree_selection_and_expansion_helpers_update_state() {
     let selected: Signal<String> = Signal::create(String::new());
     select_tree_node(selected, None, "child");
     assert_eq!(selected.get(), "child");
-
     let mut expanded: Vec<String> = vec!["parent".to_string()];
     toggle_expanded_value(&mut expanded, "parent");
     assert!(expanded.is_empty());

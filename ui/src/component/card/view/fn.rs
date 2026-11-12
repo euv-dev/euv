@@ -78,10 +78,7 @@ pub fn euv_card_header(node: VirtualNode<EuvCardHeaderProps>) -> VirtualNode {
 pub fn euv_card_title(node: VirtualNode<EuvCardTitleProps>) -> VirtualNode {
     let EuvCardTitleProps { text }: EuvCardTitleProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     #[cfg(feature = "theme-shadcn")]
     let title_class: String = format!(
         "{} {}",
@@ -94,7 +91,11 @@ pub fn euv_card_title(node: VirtualNode<EuvCardTitleProps>) -> VirtualNode {
         h3 {
             class: title_class
             "data-slot": "card-title"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }
@@ -117,15 +118,16 @@ pub fn euv_card_description(node: VirtualNode<EuvCardDescriptionProps>) -> Virtu
     let EuvCardDescriptionProps { text }: EuvCardDescriptionProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         div {
             class: c_euv_card_description()
             "data-slot": "card-description"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }

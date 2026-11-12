@@ -57,8 +57,9 @@ pub(crate) fn page_timer(node: VirtualNode<PageTimerProps>) -> VirtualNode {
                 }
                 div {
                     class: c_timer_controls()
-                    button {
-                        class: c_euv_button_primary_md()
+                    euv_button {
+                        variant: EuvButtonVariant::Primary
+                        label: "Toggle stopwatch"
                         onclick: stopwatch_on_start(stopwatch)
                         if { !stopwatch.get_running().get() } {
                             "Start"
@@ -106,8 +107,9 @@ pub(crate) fn page_timer(node: VirtualNode<PageTimerProps>) -> VirtualNode {
                 }
                 div {
                     class: c_timer_controls()
-                    button {
-                        class: c_euv_button_primary_md()
+                    euv_button {
+                        variant: EuvButtonVariant::Primary
+                        label: "Toggle countdown"
                         onclick: countdown_on_start(countdown)
                         if { !countdown.get_running().get() } {
                             "Start"

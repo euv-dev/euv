@@ -77,6 +77,10 @@ pub(crate) const APP_KEYFRAMES_FADE_IN: &str = r#"@keyframes euv-fade-in{0%{opac
 pub(crate) const APP_KEYFRAMES_PULSE: &str =
     "@keyframes euv-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } } ";
 
+/// Keyframes: opacity pulse used by skeleton placeholders.
+pub(crate) const APP_KEYFRAMES_SKELETON_PULSE: &str =
+    "@keyframes euv-skeleton-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } } ";
+
 /// Keyframes: bar width sweep used by progress indicators.
 pub(crate) const APP_KEYFRAMES_PROGRESS: &str =
     "@keyframes euv-progress { from { width: 0%; } to { width: 100%; } } ";

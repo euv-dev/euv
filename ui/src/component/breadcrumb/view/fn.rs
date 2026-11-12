@@ -241,10 +241,7 @@ fn breadcrumb_link_node(
     href: &'static str,
     children: VirtualNode,
 ) -> VirtualNode {
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(label.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     if href.starts_with(BREADCRUMB_LINK_SCHEME_HTTP_PREFIX) {
         return html! {
             a {
@@ -254,7 +251,11 @@ fn breadcrumb_link_node(
                 target: "_blank"
                 onclick: Router::external_link_handler(href)
                 "data-slot": "breadcrumb-link"
-                content
+                if has_children {
+                    children
+                } else {
+                    label
+                }
             }
         };
     }
@@ -272,7 +273,11 @@ fn breadcrumb_link_node(
             }
             onclick: Router::link_handler(href)
             "data-slot": "breadcrumb-link"
-            content
+            if has_children {
+                children
+            } else {
+                label
+            }
         }
     }
 }
@@ -315,15 +320,16 @@ fn breadcrumb_page_node(label: &'static str) -> VirtualNode {
 ///
 /// - `VirtualNode` - The breadcrumb page virtual DOM tree.
 fn breadcrumb_page_node_with(label: &'static str, children: VirtualNode) -> VirtualNode {
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(label.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         span {
             class: c_euv_breadcrumb_current()
             "data-slot": "breadcrumb-page"
-            content
+            if has_children {
+                children
+            } else {
+                label
+            }
         }
     }
 }
@@ -352,19 +358,18 @@ fn breadcrumb_separator_node(separator: &'static str) -> VirtualNode {
 ///
 /// - `VirtualNode` - The breadcrumb separator virtual DOM tree.
 fn breadcrumb_separator_node_with(separator: &'static str, children: VirtualNode) -> VirtualNode {
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => {
-            VirtualNode::Text(TextNode::new(Cow::Owned(separator.to_string()), None))
-        }
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         li {
             class: c_euv_breadcrumb_sep()
             role: "presentation"
             "aria-hidden": "true"
             "data-slot": "breadcrumb-separator"
-            content
+            if has_children {
+                children
+            } else {
+                separator
+            }
         }
     }
 }

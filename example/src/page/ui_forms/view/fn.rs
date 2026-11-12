@@ -1025,220 +1025,220 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                     }
                 }
             }
-        }
 
-        euv_card {
-            title: FORM_PARTS_CARD_TITLE
-            div {
-                class: c_euv_form_parts_group()
-                euv_field_set {
-                    euv_field_legend {
-                        variant: EuvFieldLegendVariant::Legend
-                        FORM_PARTS_FIELD_LEGEND
-                    }
-                    euv_field_group {
-                        orientation: EuvFieldOrientation::Vertical
-                        euv_field_content {
-                            euv_field_label {
-                                html_for: FORM_PARTS_FIELD_ID
-                                FORM_PARTS_FIELD_LABEL
-                            }
-                            euv_field_title {
-                                FORM_PARTS_FIELD_TITLE
-                            }
-                            euv_field_description {
-                                FORM_PARTS_FIELD_DESCRIPTION
-                            }
-                        }
-                        euv_field_error {
-                            message: FORM_PARTS_FIELD_ERROR
-                        }
-                        euv_field_separator {
-                            FORM_PARTS_FIELD_SEPARATOR
-                        }
-                    }
-                }
-            }
-            div {
-                class: c_euv_form_parts_group()
-                euv_empty_header {
-                    euv_empty_media {
-                        variant: EuvEmptyMediaVariant::Icon
-                    }
-                    euv_empty_title {
-                        FORM_PARTS_EMPTY_TITLE
-                    }
-                }
-                euv_empty_description {
-                    FORM_PARTS_EMPTY_DESCRIPTION
-                }
-                euv_empty_content {
-                    euv_button {
-                        variant: EuvButtonVariant::Outline
-                        label: FORM_PARTS_EMPTY_ACTION
-                    }
-                }
-            }
-            div {
-                class: c_euv_form_parts_group()
-                euv_message_group {
-                    euv_message_header {
-                        euv_message_avatar {}
-                    }
-                    euv_message_content {
-                        FORM_PARTS_MESSAGE_BODY
-                    }
-                }
-                euv_message_footer {}
-            }
-            div {
-                class: c_euv_form_parts_group()
-                euv_kbd_group {
-                    FORM_PARTS_KBD
-                }
-            }
-            div {
-                class: c_euv_form_parts_group()
-                euv_combobox_chips {
-                    euv_combobox_chip_list {
-                        euv_combobox_chip {
-                            label: FORM_PARTS_CHIP_LABEL
-                            value: FORM_PARTS_CHIP_LABEL
-                        }
-                    }
-                    euv_combobox_chips_input {
-                        placeholder: FORM_PARTS_CHIP_INPUT
-                    }
-                }
-                euv_combobox_value {}
-            }
-            div {
-                class: c_euv_form_parts_group()
-                euv_menubar {
-                    label: FORM_PARTS_MENUBAR_LABEL
-                    euv_menubar_menu {
-                        open: menubar_parts_open
-                        euv_menubar_trigger {
-                            label: FORM_PARTS_MENUBAR_LABEL
-                            open: menubar_parts_open
-                            id: FORM_PARTS_MENUBAR_TRIGGER_ID
-                            index: 0
-                        }
-                        euv_menubar_content {
-                            open: menubar_parts_open
-                            trigger_id: FORM_PARTS_MENUBAR_TRIGGER_ID
-                            label: FORM_PARTS_MENUBAR_LABEL
-                            euv_menubar_group {
-                                label: FORM_PARTS_MENUBAR_GROUP
-                                euv_menubar_label {
-                                    text: FORM_PARTS_MENUBAR_GROUP
-                                }
-                                euv_menubar_item {
-                                    label: FORM_PARTS_MENUBAR_ITEM
-                                    value: FORM_PARTS_MENUBAR_ITEM
-                                    on_select: on_menubar_parts_select.clone()
-                                }
-                                euv_menubar_separator {}
-                                euv_menubar_shortcut {
-                                    text: FORM_PARTS_MENUBAR_SHORTCUT
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            div {
-                class: c_euv_form_parts_group()
-                euv_carousel {
-                    slides: carousel_slides
-                    active: carousel_active
-                    on_change: None
-                }
-            }
-            div {
-                class: c_euv_form_parts_group()
+            euv_card {
+                title: FORM_PARTS_CARD_TITLE
                 div {
-                    class: c_euv_form_parts_sidebar()
-                    euv_sidebar_header {
-                        FORM_PARTS_SIDEBAR_HEADER
-                    }
-                    euv_sidebar_content {
-                        euv_sidebar_group {
-                            euv_sidebar_group_label {
-                                FORM_PARTS_SIDEBAR_GROUP
+                    class: c_euv_form_parts_group()
+                    euv_field_set {
+                        euv_field_legend {
+                            variant: EuvFieldLegendVariant::Legend
+                            FORM_PARTS_FIELD_LEGEND
+                        }
+                        euv_field_group {
+                            orientation: EuvFieldOrientation::Vertical
+                            euv_field_content {
+                                euv_field_label {
+                                    html_for: FORM_PARTS_FIELD_ID
+                                    FORM_PARTS_FIELD_LABEL
+                                }
+                                euv_field_title {
+                                    FORM_PARTS_FIELD_TITLE
+                                }
+                                euv_field_description {
+                                    FORM_PARTS_FIELD_DESCRIPTION
+                                }
                             }
-                            euv_sidebar_group_content {
-                                euv_sidebar_menu {
-                                    euv_sidebar_menu_item {
-                                        euv_sidebar_menu_button {
-                                            FORM_PARTS_SIDEBAR_ITEM
-                                        }
+                            euv_field_error {
+                                message: FORM_PARTS_FIELD_ERROR
+                            }
+                            euv_field_separator {
+                                FORM_PARTS_FIELD_SEPARATOR
+                            }
+                        }
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_empty_header {
+                        euv_empty_media {
+                            variant: EuvEmptyMediaVariant::Icon
+                        }
+                        euv_empty_title {
+                            FORM_PARTS_EMPTY_TITLE
+                        }
+                    }
+                    euv_empty_description {
+                        FORM_PARTS_EMPTY_DESCRIPTION
+                    }
+                    euv_empty_content {
+                        euv_button {
+                            variant: EuvButtonVariant::Outline
+                            label: FORM_PARTS_EMPTY_ACTION
+                        }
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_message_group {
+                        euv_message_header {
+                            euv_message_avatar {}
+                        }
+                        euv_message_content {
+                            FORM_PARTS_MESSAGE_BODY
+                        }
+                    }
+                    euv_message_footer {}
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_kbd_group {
+                        FORM_PARTS_KBD
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_combobox_chips {
+                        euv_combobox_chip_list {
+                            euv_combobox_chip {
+                                label: FORM_PARTS_CHIP_LABEL
+                                value: FORM_PARTS_CHIP_LABEL
+                            }
+                        }
+                        euv_combobox_chips_input {
+                            placeholder: FORM_PARTS_CHIP_INPUT
+                        }
+                    }
+                    euv_combobox_value {}
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_menubar {
+                        label: FORM_PARTS_MENUBAR_LABEL
+                        euv_menubar_menu {
+                            open: menubar_parts_open
+                            euv_menubar_trigger {
+                                label: FORM_PARTS_MENUBAR_LABEL
+                                open: menubar_parts_open
+                                id: FORM_PARTS_MENUBAR_TRIGGER_ID
+                                index: 0
+                            }
+                            euv_menubar_content {
+                                open: menubar_parts_open
+                                trigger_id: FORM_PARTS_MENUBAR_TRIGGER_ID
+                                label: FORM_PARTS_MENUBAR_LABEL
+                                euv_menubar_group {
+                                    label: FORM_PARTS_MENUBAR_GROUP
+                                    euv_menubar_label {
+                                        text: FORM_PARTS_MENUBAR_GROUP
                                     }
-                                    euv_sidebar_menu_item {
-                                        euv_sidebar_menu_button {
-                                            FORM_PARTS_SIDEBAR_SECOND_ITEM
-                                        }
+                                    euv_menubar_item {
+                                        label: FORM_PARTS_MENUBAR_ITEM
+                                        value: FORM_PARTS_MENUBAR_ITEM
+                                        on_select: on_menubar_parts_select.clone()
                                     }
-                                    euv_sidebar_menu_item {
-                                        euv_sidebar_menu_button {
-                                            FORM_PARTS_SIDEBAR_THIRD_ITEM
-                                        }
+                                    euv_menubar_separator {}
+                                    euv_menubar_shortcut {
+                                        text: FORM_PARTS_MENUBAR_SHORTCUT
                                     }
                                 }
                             }
                         }
                     }
-                    euv_sidebar_footer {}
-                    euv_sidebar_rail {}
-                    euv_sidebar_trigger {}
                 }
-            }
-            div {
-                class: c_euv_form_parts_group()
-                euv_toast_card {
-                    euv_toast_title {
-                        text: FORM_PARTS_TOAST_TITLE
-                    }
-                    euv_toast_description {
-                        text: FORM_PARTS_TOAST_DESCRIPTION
-                    }
-                    euv_toast_close {
-                        FORM_PARTS_TOAST_CLOSE
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_carousel {
+                        slides: carousel_slides
+                        active: carousel_active
+                        on_change: None
                     }
                 }
-                euv_toast_provider {
-                    euv_toast_viewport {}
+                div {
+                    class: c_euv_form_parts_group()
+                    div {
+                        class: c_euv_form_parts_sidebar()
+                        euv_sidebar_header {
+                            FORM_PARTS_SIDEBAR_HEADER
+                        }
+                        euv_sidebar_content {
+                            euv_sidebar_group {
+                                euv_sidebar_group_label {
+                                    FORM_PARTS_SIDEBAR_GROUP
+                                }
+                                euv_sidebar_group_content {
+                                    euv_sidebar_menu {
+                                        euv_sidebar_menu_item {
+                                            euv_sidebar_menu_button {
+                                                FORM_PARTS_SIDEBAR_ITEM
+                                            }
+                                        }
+                                        euv_sidebar_menu_item {
+                                            euv_sidebar_menu_button {
+                                                FORM_PARTS_SIDEBAR_SECOND_ITEM
+                                            }
+                                        }
+                                        euv_sidebar_menu_item {
+                                            euv_sidebar_menu_button {
+                                                FORM_PARTS_SIDEBAR_THIRD_ITEM
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        euv_sidebar_footer {}
+                        euv_sidebar_rail {}
+                        euv_sidebar_trigger {}
+                    }
                 }
-            }
-            div {
-                class: c_euv_form_parts_group()
-                euv_chart_container {
-                    id: FORM_PARTS_CHART_ID
-                    config: chart_config.clone()
-                    euv_chart_tooltip {
-                        euv_chart_tooltip_content {
-                            euv_chart_tooltip_item {
-                                name: FORM_CHART_FIRST_SERIES
-                                value: FORM_CHART_FIRST_VALUE
-                                color: FORM_CHART_FIRST_COLOR
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_toast_card {
+                        euv_toast_title {
+                            text: FORM_PARTS_TOAST_TITLE
+                        }
+                        euv_toast_description {
+                            text: FORM_PARTS_TOAST_DESCRIPTION
+                        }
+                        euv_toast_close {
+                            FORM_PARTS_TOAST_CLOSE
+                        }
+                    }
+                    euv_toast_provider {
+                        euv_toast_viewport {}
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_chart_container {
+                        id: FORM_PARTS_CHART_ID
+                        config: chart_config.clone()
+                        euv_chart_tooltip {
+                            euv_chart_tooltip_content {
+                                euv_chart_tooltip_item {
+                                    name: FORM_CHART_FIRST_SERIES
+                                    value: FORM_CHART_FIRST_VALUE
+                                    color: FORM_CHART_FIRST_COLOR
+                                }
+                            }
+                        }
+                        euv_chart_legend {
+                            euv_chart_legend_content {
+                                euv_chart_legend_item {
+                                    label: FORM_CHART_FIRST_SERIES
+                                    color: FORM_CHART_FIRST_COLOR
+                                }
                             }
                         }
                     }
-                    euv_chart_legend {
-                        euv_chart_legend_content {
-                            euv_chart_legend_item {
-                                label: FORM_CHART_FIRST_SERIES
-                                color: FORM_CHART_FIRST_COLOR
-                            }
-                        }
-                    }
                 }
-            }
-            div {
-                class: c_euv_form_parts_group()
-                euv_direction_provider {
-                    direction: Some(EuvDirection::Ltr)
-                    FORM_PARTS_DIRECTION
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_direction_provider {
+                        direction: Some(EuvDirection::Ltr)
+                        FORM_PARTS_DIRECTION
+                    }
                 }
             }
         }

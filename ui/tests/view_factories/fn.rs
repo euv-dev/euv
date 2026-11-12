@@ -968,7 +968,6 @@ fn a_dropdown_menu_exposes_state_and_roving_menu_item_semantics() {
         ],
         on_select: None,
     }));
-
     assert!(has_attribute_value(&rendered, "role", "menu"));
     assert!(has_attribute_value(
         &rendered,
@@ -987,7 +986,6 @@ fn a_dropdown_trigger_exposes_open_state_and_keyboard_entry() {
     let trigger: VirtualNode = euv_dropdown_trigger(props(EuvDropdownTriggerProps {
         open: Signal::create(false),
     }));
-
     assert!(has_attribute_value(&trigger, "aria-haspopup", "menu"));
     assert!(has_attribute_value(&trigger, "aria-expanded", "false"));
     assert!(has_attribute_name(&trigger, "onkeydown"));

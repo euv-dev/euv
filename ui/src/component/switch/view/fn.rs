@@ -58,7 +58,7 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
     } else {
         c_form_switch_thumb()
     };
-    let mut switch_button: VirtualNode = html! {
+    let switch_button: VirtualNode = html! {
         button {
             id: id
             name: name
@@ -66,6 +66,14 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
             role: "switch"
             "data-slot": "switch"
             "data-size": "default"
+            {
+                if is_checked {
+                    "data-checked"
+                } else {
+                    "data-unchecked"
+                }
+            }
+            : ""
             aria-checked: checked
             disabled: disabled
             class: if { checked } {
@@ -87,17 +95,6 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
             }
         }
     };
-    if let VirtualNode::Element { attributes, .. } = &mut switch_button {
-        let state_attribute: &'static str = if is_checked {
-            "data-checked"
-        } else {
-            "data-unchecked"
-        };
-        attributes.push(AttributeEntry::new(
-            Cow::Borrowed(state_attribute),
-            AttributeValue::StaticText(""),
-        ));
-    }
     html! {
         div {
             class: c_form_switch_row()

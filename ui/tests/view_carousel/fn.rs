@@ -216,7 +216,6 @@ fn exactly_one_dot_is_active() {
 #[test]
 fn a_carousel_exposes_labeled_slides_and_navigation_controls() {
     let rendered: VirtualNode = carousel_with(0);
-
     assert_eq!(attribute_value_count(&rendered, "role", "region"), 1);
     assert_eq!(
         attribute_value_count(&rendered, "aria-roledescription", "carousel"),
@@ -268,7 +267,6 @@ fn a_carousel_exposes_labeled_slides_and_navigation_controls() {
 #[test]
 fn carousel_navigation_and_slide_visibility_follow_the_active_index() {
     let rendered: VirtualNode = carousel_with(1);
-
     assert_eq!(
         slot_attribute_value_count(&rendered, "carousel-item", "aria-hidden", "false"),
         1

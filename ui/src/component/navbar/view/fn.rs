@@ -853,31 +853,6 @@ fn focus_menubar_trigger_after_render(trigger_id: String) {
     });
 }
 
-/// Adds a presence-only state attribute when the state is active.
-///
-/// # Arguments
-///
-/// - `VirtualNode` - A `VirtualNode` parameter.
-/// - `&'static str` - Shared reference to a `'static str`.
-/// - `bool` - A boolean (`bool`).
-///
-/// # Returns
-///
-/// - `VirtualNode` - A `VirtualNode` value.
-fn with_presence_attribute(
-    mut node: VirtualNode,
-    name: &'static str,
-    present: bool,
-) -> VirtualNode {
-    if present && let VirtualNode::Element { attributes, .. } = &mut node {
-        attributes.push(AttributeEntry::new(
-            Cow::Borrowed(name),
-            AttributeValue::StaticText(""),
-        ));
-    }
-    node
-}
-
 /// One row of a menu panel.
 ///
 /// # Arguments
@@ -904,29 +879,46 @@ pub fn euv_menubar_item(node: VirtualNode<EuvMenubarItemProps>) -> VirtualNode {
             }
         }))
     };
-    let rendered: VirtualNode = html! {
-        button {
-            type: "button"
-            role: "menuitem"
-            "data-slot": "menubar-item"
-            "aria-disabled": if disabled {
-                MENUBAR_TRUE_VALUE
-            } else {
-                MENUBAR_FALSE_VALUE
+    if disabled {
+        html! {
+            button {
+                type: "button"
+                role: "menuitem"
+                "data-slot": "menubar-item"
+                { MENUBAR_DATA_DISABLED_ATTRIBUTE.to_string() }: ""
+                "aria-disabled": MENUBAR_TRUE_VALUE
+                tabindex: "-1"
+                disabled: true
+                class: c_euv_menubar_item()
+                class: if { cfg!(feature = "theme-shadcn") } {
+                    c_euv_menubar_item_shadcn()
+                } else {
+                    &EMPTY_CLASS
+                }
+                onclick: on_click
+                label
             }
-            tabindex: "-1"
-            disabled: disabled
-            class: c_euv_menubar_item()
-            class: if { cfg!(feature = "theme-shadcn") } {
-                c_euv_menubar_item_shadcn()
-            } else {
-                &EMPTY_CLASS
-            }
-            onclick: on_click
-            label
         }
-    };
-    with_presence_attribute(rendered, MENUBAR_DATA_DISABLED_ATTRIBUTE, disabled)
+    } else {
+        html! {
+            button {
+                type: "button"
+                role: "menuitem"
+                "data-slot": "menubar-item"
+                "aria-disabled": MENUBAR_FALSE_VALUE
+                tabindex: "-1"
+                disabled: false
+                class: c_euv_menubar_item()
+                class: if { cfg!(feature = "theme-shadcn") } {
+                    c_euv_menubar_item_shadcn()
+                } else {
+                    &EMPTY_CLASS
+                }
+                onclick: on_click
+                label
+            }
+        }
+    }
 }
 
 /// A set of rows that belong together.
@@ -1075,45 +1067,70 @@ pub fn euv_menubar_checkbox_item(node: VirtualNode<EuvMenubarCheckboxItemProps>)
             }
         }))
     };
-    let rendered: VirtualNode = html! {
-        button {
-            type: "button"
-            role: "menuitemcheckbox"
-            "data-slot": "menubar-checkbox-item"
-            "aria-checked": if is_checked {
-                MENUBAR_TRUE_VALUE
-            } else {
-                MENUBAR_FALSE_VALUE
-            }
-            "aria-disabled": if disabled {
-                MENUBAR_TRUE_VALUE
-            } else {
-                MENUBAR_FALSE_VALUE
-            }
-            "data-state": if is_checked {
-                "checked"
-            } else {
-                "unchecked"
-            }
-            tabindex: "-1"
-            disabled: disabled
-            class: c_euv_menubar_checkbox_item()
-            class: if { cfg!(feature = "theme-shadcn") } {
-                c_euv_menubar_checkbox_item_shadcn()
-            } else {
-                &EMPTY_CLASS
-            }
-            onclick: on_click
-            span {
-                class: c_euv_menubar_checkbox_item_indicator()
-                if is_checked {
-                    "✓"
+    if disabled {
+        html! {
+            button {
+                type: "button"
+                role: "menuitemcheckbox"
+                "data-slot": "menubar-checkbox-item"
+                { MENUBAR_DATA_DISABLED_ATTRIBUTE.to_string() }: ""
+                "aria-checked": if is_checked {
+                    MENUBAR_TRUE_VALUE
+                } else {
+                    MENUBAR_FALSE_VALUE
                 }
+                "aria-disabled": MENUBAR_TRUE_VALUE
+                "data-state": if is_checked { "checked" } else { "unchecked" }
+                tabindex: "-1"
+                disabled: true
+                class: c_euv_menubar_checkbox_item()
+                class: if { cfg!(feature = "theme-shadcn") } {
+                    c_euv_menubar_checkbox_item_shadcn()
+                } else {
+                    &EMPTY_CLASS
+                }
+                onclick: on_click
+                span {
+                    class: c_euv_menubar_checkbox_item_indicator()
+                    if is_checked {
+                        "✓"
+                    }
+                }
+                label
             }
-            label
         }
-    };
-    with_presence_attribute(rendered, MENUBAR_DATA_DISABLED_ATTRIBUTE, disabled)
+    } else {
+        html! {
+            button {
+                type: "button"
+                role: "menuitemcheckbox"
+                "data-slot": "menubar-checkbox-item"
+                "aria-checked": if is_checked {
+                    MENUBAR_TRUE_VALUE
+                } else {
+                    MENUBAR_FALSE_VALUE
+                }
+                "aria-disabled": MENUBAR_FALSE_VALUE
+                "data-state": if is_checked { "checked" } else { "unchecked" }
+                tabindex: "-1"
+                disabled: false
+                class: c_euv_menubar_checkbox_item()
+                class: if { cfg!(feature = "theme-shadcn") } {
+                    c_euv_menubar_checkbox_item_shadcn()
+                } else {
+                    &EMPTY_CLASS
+                }
+                onclick: on_click
+                span {
+                    class: c_euv_menubar_checkbox_item_indicator()
+                    if is_checked {
+                        "✓"
+                    }
+                }
+                label
+            }
+        }
+    }
 }
 
 /// A row that carries a dot the reader moves.
@@ -1147,47 +1164,74 @@ pub fn euv_menubar_radio_item(node: VirtualNode<EuvMenubarRadioItemProps>) -> Vi
             }
         }))
     };
-    let rendered: VirtualNode = html! {
-        button {
-            type: "button"
-            role: "menuitemradio"
-            "data-slot": "menubar-radio-item"
-            "aria-checked": if is_checked {
-                MENUBAR_TRUE_VALUE
-            } else {
-                MENUBAR_FALSE_VALUE
-            }
-            "aria-disabled": if disabled {
-                MENUBAR_TRUE_VALUE
-            } else {
-                MENUBAR_FALSE_VALUE
-            }
-            "data-state": if is_checked {
-                "checked"
-            } else {
-                "unchecked"
-            }
-            tabindex: "-1"
-            disabled: disabled
-            class: c_euv_menubar_radio_item()
-            class: if { cfg!(feature = "theme-shadcn") } {
-                c_euv_menubar_radio_item_shadcn()
-            } else {
-                &EMPTY_CLASS
-            }
-            onclick: on_click
-            span {
-                class: c_euv_menubar_radio_item_indicator()
-                if is_checked {
-                    span {
-                        class: c_euv_menubar_radio_item_indicator_dot()
+    if disabled {
+        html! {
+            button {
+                type: "button"
+                role: "menuitemradio"
+                "data-slot": "menubar-radio-item"
+                { MENUBAR_DATA_DISABLED_ATTRIBUTE.to_string() }: ""
+                "aria-checked": if is_checked {
+                    MENUBAR_TRUE_VALUE
+                } else {
+                    MENUBAR_FALSE_VALUE
+                }
+                "aria-disabled": MENUBAR_TRUE_VALUE
+                "data-state": if is_checked { "checked" } else { "unchecked" }
+                tabindex: "-1"
+                disabled: true
+                class: c_euv_menubar_radio_item()
+                class: if { cfg!(feature = "theme-shadcn") } {
+                    c_euv_menubar_radio_item_shadcn()
+                } else {
+                    &EMPTY_CLASS
+                }
+                onclick: on_click
+                span {
+                    class: c_euv_menubar_radio_item_indicator()
+                    if is_checked {
+                        span {
+                            class: c_euv_menubar_radio_item_indicator_dot()
+                        }
                     }
                 }
+                label
             }
-            label
         }
-    };
-    with_presence_attribute(rendered, MENUBAR_DATA_DISABLED_ATTRIBUTE, disabled)
+    } else {
+        html! {
+            button {
+                type: "button"
+                role: "menuitemradio"
+                "data-slot": "menubar-radio-item"
+                "aria-checked": if is_checked {
+                    MENUBAR_TRUE_VALUE
+                } else {
+                    MENUBAR_FALSE_VALUE
+                }
+                "aria-disabled": MENUBAR_FALSE_VALUE
+                "data-state": if is_checked { "checked" } else { "unchecked" }
+                tabindex: "-1"
+                disabled: false
+                class: c_euv_menubar_radio_item()
+                class: if { cfg!(feature = "theme-shadcn") } {
+                    c_euv_menubar_radio_item_shadcn()
+                } else {
+                    &EMPTY_CLASS
+                }
+                onclick: on_click
+                span {
+                    class: c_euv_menubar_radio_item_indicator()
+                    if is_checked {
+                        span {
+                            class: c_euv_menubar_radio_item_indicator_dot()
+                        }
+                    }
+                }
+                label
+            }
+        }
+    }
 }
 
 /// The set of radio rows that share one choice.
@@ -1288,13 +1332,33 @@ pub fn euv_menubar_sub_trigger(node: VirtualNode<EuvMenubarSubTriggerProps>) -> 
             "data-slot": "menubar-sub-trigger"
             "aria-controls": content_id
             "aria-haspopup": "menu"
-            "aria-expanded": if { open } { MENUBAR_TRUE_VALUE } else { MENUBAR_FALSE_VALUE }
-            "data-state": if { open } { MENUBAR_STATE_OPEN } else { MENUBAR_STATE_CLOSED }
-            "aria-disabled": if disabled { MENUBAR_TRUE_VALUE } else { MENUBAR_FALSE_VALUE }
+            "aria-expanded": if { open } {
+                MENUBAR_TRUE_VALUE
+            } else {
+                MENUBAR_FALSE_VALUE
+            }
+            "data-state": if { open } {
+                MENUBAR_STATE_OPEN
+            } else {
+                MENUBAR_STATE_CLOSED
+            }
+            "aria-disabled": if disabled {
+                MENUBAR_TRUE_VALUE
+            } else {
+                MENUBAR_FALSE_VALUE
+            }
             disabled: disabled
             class: trigger_class()
-            class: if { open } { c_euv_menubar_sub_trigger_open() } else { &EMPTY_CLASS }
-            class: if { cfg!(feature = "theme-shadcn") } { c_euv_menubar_sub_trigger_shadcn() } else { &EMPTY_CLASS }
+            class: if { open } {
+                c_euv_menubar_sub_trigger_open()
+            } else {
+                &EMPTY_CLASS
+            }
+            class: if { cfg!(feature = "theme-shadcn") } {
+                c_euv_menubar_sub_trigger_shadcn()
+            } else {
+                &EMPTY_CLASS
+            }
             onclick: on_click
             onkeydown: Some(menubar_sub_trigger_keydown(open))
             label
@@ -1330,11 +1394,19 @@ pub fn euv_menubar_sub_content(node: VirtualNode<EuvMenubarSubContentProps>) -> 
             id: content_id
             role: "menu"
             "data-slot": "menubar-sub-content"
-            "data-state": if { open } { MENUBAR_STATE_OPEN } else { MENUBAR_STATE_CLOSED }
+            "data-state": if { open } {
+                MENUBAR_STATE_OPEN
+            } else {
+                MENUBAR_STATE_CLOSED
+            }
             "aria-labelledby": trigger_id
             "aria-label": label
             class: c_euv_menubar_sub_content()
-            class: if { cfg!(feature = "theme-shadcn") } { c_euv_menubar_sub_content_shadcn() } else { &EMPTY_CLASS }
+            class: if { cfg!(feature = "theme-shadcn") } {
+                c_euv_menubar_sub_content_shadcn()
+            } else {
+                &EMPTY_CLASS
+            }
             class: if { open } {
                 c_euv_menubar_sub_content_open()
             } else {

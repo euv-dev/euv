@@ -27,10 +27,7 @@ pub fn euv_button(node: VirtualNode<EuvButtonProps>) -> VirtualNode {
         disabled,
     }: EuvButtonProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(label.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     let size_attr: &str = match size {
         EuvButtonSize::Default => BUTTON_SIZE_DEFAULT,
         EuvButtonSize::Small => BUTTON_SIZE_SMALL,
@@ -60,7 +57,11 @@ pub fn euv_button(node: VirtualNode<EuvButtonProps>) -> VirtualNode {
             "aria-label": label
             disabled: disabled
             onclick: click_handler
-            content
+            if has_children {
+                children
+            } else {
+                label
+            }
         }
     }
 }
@@ -90,10 +91,7 @@ pub fn euv_button_grouped(node: VirtualNode<EuvButtonGroupedProps>) -> VirtualNo
         disabled,
     }: EuvButtonGroupedProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(label.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     let size_attr: &str = match size {
         EuvButtonSize::Default => BUTTON_SIZE_DEFAULT,
         EuvButtonSize::Small => BUTTON_SIZE_SMALL,
@@ -124,7 +122,11 @@ pub fn euv_button_grouped(node: VirtualNode<EuvButtonGroupedProps>) -> VirtualNo
                 "aria-label": label
                 disabled: disabled
                 onclick: click_handler
-                content
+                if has_children {
+                    children
+                } else {
+                    label
+                }
             }
         }
     }

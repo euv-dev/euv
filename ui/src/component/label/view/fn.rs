@@ -25,10 +25,7 @@ pub fn euv_label(node: VirtualNode<EuvLabelProps>) -> VirtualNode {
         disabled,
     }: EuvLabelProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         label {
             for: html_for
@@ -38,7 +35,11 @@ pub fn euv_label(node: VirtualNode<EuvLabelProps>) -> VirtualNode {
             } else {
                 c_euv_label()
             }
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }

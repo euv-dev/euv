@@ -89,15 +89,16 @@ pub fn euv_alert_icon(node: VirtualNode<EuvAlertIconProps>) -> VirtualNode {
 pub fn euv_alert_title(node: VirtualNode<EuvAlertTitleProps>) -> VirtualNode {
     let EuvAlertTitleProps { text }: EuvAlertTitleProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         div {
             class: c_euv_alert_title()
             "data-slot": "alert-title"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }
@@ -120,15 +121,16 @@ pub fn euv_alert_description(node: VirtualNode<EuvAlertDescriptionProps>) -> Vir
     let EuvAlertDescriptionProps { text }: EuvAlertDescriptionProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         div {
             class: c_euv_alert_description()
             "data-slot": "alert-description"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }

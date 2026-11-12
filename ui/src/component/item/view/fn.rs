@@ -171,15 +171,16 @@ pub fn euv_item_content(node: VirtualNode<EuvItemProps>) -> VirtualNode {
 pub fn euv_item_title(node: VirtualNode<EuvItemTitleProps>) -> VirtualNode {
     let EuvItemTitleProps { text }: EuvItemTitleProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         div {
             class: c_euv_item_title()
             "data-slot": "item-title"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }
@@ -198,15 +199,16 @@ pub fn euv_item_description(node: VirtualNode<EuvItemDescriptionProps>) -> Virtu
     let EuvItemDescriptionProps { text }: EuvItemDescriptionProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         p {
             class: c_euv_item_description()
             "data-slot": "item-description"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }

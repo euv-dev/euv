@@ -307,6 +307,10 @@ class! {
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
+        :disabled {
+            cursor: "not-allowed";
+            opacity: "0.5";
+        }
     }
 
     pub(crate) c_form_switch_row {
@@ -327,6 +331,10 @@ class! {
         touch-action: "manipulation";
         user-select: "none";
         -webkit-user-select: "none";
+        :disabled {
+            cursor: "not-allowed";
+            opacity: "0.5";
+        }
     }
 
     pub(crate) c_form_switch_track {
@@ -452,8 +460,9 @@ class! {
 
     pub(crate) c_euv_slider_row {
         display: "flex";
-        align-items: "center";
-        gap: var!(space-md);
+        flex-direction: "column";
+        align-items: "stretch";
+        gap: "0px";
         margin-bottom: var!(space-sm);
     }
 

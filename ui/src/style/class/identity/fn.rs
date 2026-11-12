@@ -141,7 +141,15 @@ class! {
     pub(crate) c_euv_avatar_group {
         display: "flex";
         align-items: "center";
-        gap: var!(space-sm);
+        gap: "0px";
+        padding-left: var!(space-sm);
+    }
+
+    pub(crate) c_euv_avatar_group_item {
+        display: "flex";
+        align-items: "center";
+        flex-shrink: "0";
+        margin-left: format!("calc(-1 * {})", var!(space-sm));
     }
 
     pub(crate) c_euv_avatar_group_count {
@@ -353,6 +361,8 @@ class! {
     pub(crate) c_euv_avatar_badge {}
 
     pub(crate) c_euv_avatar_group {}
+
+    pub(crate) c_euv_avatar_group_item {}
 
     pub(crate) c_euv_avatar_group_count {}
 

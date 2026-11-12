@@ -104,10 +104,7 @@ pub fn euv_input_group_button(node: VirtualNode<EuvInputGroupButtonProps>) -> Vi
         onclick,
     }: EuvInputGroupButtonProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(label.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         button {
             type: "button"
@@ -125,7 +122,11 @@ pub fn euv_input_group_button(node: VirtualNode<EuvInputGroupButtonProps>) -> Vi
                 EuvInputGroupButtonSize::IconSm => "icon-sm",
             }
             onclick: onclick
-            content
+            if has_children {
+                children
+            } else {
+                label
+            }
         }
     }
 }
@@ -145,15 +146,16 @@ pub fn euv_input_group_text(node: VirtualNode<EuvInputGroupTextProps>) -> Virtua
     let EuvInputGroupTextProps { text }: EuvInputGroupTextProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         span {
             class: c_euv_input_group_text()
             "data-slot": "input-group-text"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }

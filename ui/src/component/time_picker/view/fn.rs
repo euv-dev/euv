@@ -382,8 +382,7 @@ pub fn time_picker_clear_handler<E: 'static>(
 /// top of the base `c_euv_time_picker_cell` class, the way the calendar
 /// stacks its `_today` and `_selected` modifiers on a day cell.
 ///
-/// The label is written as a borrowed text node, so a cell costs no
-/// allocation for its own text.
+/// The static label is rendered directly as a text child by `html!`.
 ///
 /// # Arguments
 ///
@@ -399,7 +398,6 @@ fn time_picker_cell(
     is_active: bool,
     handler: Option<Rc<dyn Fn(Event)>>,
 ) -> VirtualNode {
-    let cell_text: VirtualNode = VirtualNode::Text(TextNode::new(Cow::Borrowed(label), None));
     html! {
         button {
             type: "button"
@@ -410,7 +408,7 @@ fn time_picker_cell(
                 c_euv_time_picker_cell()
             }
             onclick: handler
-            cell_text
+            label
         }
     }
 }

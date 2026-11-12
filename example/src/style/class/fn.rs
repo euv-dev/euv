@@ -14,6 +14,26 @@ class! {
         text-align: "left";
     }
 
+    pub(crate) c_mobile_nav_scheme_label {
+        flex: "0 0 auto";
+    }
+
+    pub(crate) c_ui_display_resizable_preview {
+        height: var!(space-7xl);
+        overflow: "hidden";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+    }
+
+    pub(crate) c_ui_display_resizable_panel {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        height: "100%";
+        padding: var!(space-sm);
+        background: var!(muted);
+    }
+
     pub(crate) c_advanced_grid_cell {
         display: "flex";
         align-items: "center";

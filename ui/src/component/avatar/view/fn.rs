@@ -101,10 +101,7 @@ pub fn euv_avatar_fallback(node: VirtualNode<EuvAvatarFallbackProps>) -> Virtual
     let EuvAvatarFallbackProps { text }: EuvAvatarFallbackProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
         c_euv_avatar_fallback_shadcn()
     } else {
@@ -115,7 +112,11 @@ pub fn euv_avatar_fallback(node: VirtualNode<EuvAvatarFallbackProps>) -> Virtual
             class: c_euv_avatar_fallback()
             class: shadcn_class
             "data-slot": "avatar-fallback"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }
@@ -139,15 +140,16 @@ pub fn euv_avatar_badge(node: VirtualNode<EuvAvatarBadgeProps>) -> VirtualNode {
     let EuvAvatarBadgeProps { text }: EuvAvatarBadgeProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         span {
             class: c_euv_avatar_badge()
             "data-slot": "avatar-badge"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }
@@ -168,12 +170,17 @@ pub fn euv_avatar_badge(node: VirtualNode<EuvAvatarBadgeProps>) -> VirtualNode {
 #[component]
 pub fn euv_avatar_group(node: VirtualNode<EuvAvatarGroupProps>) -> VirtualNode {
     let EuvAvatarGroupProps {}: EuvAvatarGroupProps = node.try_get_props().unwrap_or_default();
-    let children: VirtualNode = node.get_children().into();
+    let children: Vec<VirtualNode> = node.get_children().to_vec();
     html! {
         div {
             class: c_euv_avatar_group()
             "data-slot": "avatar-group"
-            children
+            for child in children {
+                div {
+                    class: c_euv_avatar_group_item()
+                    child
+                }
+            }
         }
     }
 }
@@ -196,15 +203,16 @@ pub fn euv_avatar_group_count(node: VirtualNode<EuvAvatarGroupCountProps>) -> Vi
     let EuvAvatarGroupCountProps { text }: EuvAvatarGroupCountProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         div {
             class: c_euv_avatar_group_count()
             "data-slot": "avatar-group-count"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }

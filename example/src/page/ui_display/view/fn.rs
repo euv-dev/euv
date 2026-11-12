@@ -438,19 +438,28 @@ pub(crate) fn page_ui_display(node: VirtualNode<PageUiDisplayProps>) -> VirtualN
                     width: DISPLAY_REFERENCE_WIDTH
                     height: DISPLAY_REFERENCE_HEIGHT
                 }
-                euv_resizable_panel_group {
-                    euv_resizable_panel {
-                        size: state.split_size
-                        DISPLAY_REFERENCE_FIRST
-                    }
-                    euv_resizable_handle {
-                        size: state.split_size
-                        min: 20.0
-                        max: 80.0
-                    }
-                    euv_resizable_panel {
-                        size: state.split_size_secondary
-                        DISPLAY_REFERENCE_SECOND
+                div {
+                    class: c_ui_display_resizable_preview()
+                    euv_resizable_panel_group {
+                        euv_resizable_panel {
+                            size: state.split_size
+                            div {
+                                class: c_ui_display_resizable_panel()
+                                DISPLAY_REFERENCE_FIRST
+                            }
+                        }
+                        euv_resizable_handle {
+                            size: state.split_size
+                            min: 20.0
+                            max: 80.0
+                        }
+                        euv_resizable_panel {
+                            size: state.split_size_secondary
+                            div {
+                                class: c_ui_display_resizable_panel()
+                                DISPLAY_REFERENCE_SECOND
+                            }
+                        }
                     }
                 }
                 div {

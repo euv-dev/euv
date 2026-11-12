@@ -175,7 +175,6 @@ fn a_date_picker_announces_month_changes_and_names_navigation_controls() {
             on_change: None,
         }))
     });
-
     assert_eq!(attribute_value_count(&rendered, "aria-live", "polite"), 1);
     assert_eq!(attribute_value_count(&rendered, "aria-atomic", "true"), 1);
     assert_eq!(

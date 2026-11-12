@@ -536,13 +536,10 @@ class! {
     }
 
     pub(crate) c_euv_skeleton {
-        display: "block";
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-xs);
         width: "100%";
-        height: "16px";
-        border-radius: var!(radius-sm);
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        background: var!(muted);
-        animation: format!("euv-pulse 1.5s {} infinite", var!(ease-in-out));
     }
 
     pub(crate) c_euv_skeleton_shadcn {
@@ -557,7 +554,7 @@ class! {
         border-radius: var!(radius-sm);
         border: format!("{} solid {}", var!(border-width), var!(border));
         background: var!(muted);
-        animation: format!("euv-pulse 1.5s {} infinite", var!(ease-in-out));
+        animation: format!("euv-skeleton-pulse 1.5s {} infinite", var!(ease-in-out));
     }
 
     pub(crate) c_euv_skeleton_line_shadcn {
