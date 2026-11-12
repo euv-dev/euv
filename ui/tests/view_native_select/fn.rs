@@ -75,6 +75,8 @@ fn a_native_select_carries_the_wrapper_and_the_control() {
         size: EuvNativeSelectSize::Default,
         name: "fruit",
         disabled: false,
+        value: Signal::create(String::new()),
+        onchange: None,
     }));
     assert!(has_class(&node, "c_euv_native_select_wrapper"));
     assert!(has_class(&node, "c_euv_native_select"));
@@ -93,6 +95,8 @@ fn a_small_native_select_carries_the_small_size() {
         size: EuvNativeSelectSize::Sm,
         name: "fruit",
         disabled: false,
+        value: Signal::create(String::new()),
+        onchange: None,
     }));
     assert!(has_class(&node, "c_euv_native_select_size_sm"));
     assert!(has_class(&node, "c_euv_native_select_icon_sm"));
@@ -136,4 +140,28 @@ fn a_disabled_native_select_group_disables_its_options() {
         disabled: true,
     }));
     assert!(has_attribute(&node, "disabled"));
+}
+
+#[test]
+fn a_native_select_carries_the_value_it_shows() {
+    let node: VirtualNode = euv_native_select(props_node(EuvNativeSelectProps {
+        size: EuvNativeSelectSize::Default,
+        name: "language",
+        disabled: false,
+        value: Signal::create("zh-CN".to_string()),
+        onchange: None,
+    }));
+    assert!(has_attribute(&node, "value"));
+}
+
+#[test]
+fn a_native_select_carries_the_chevron_that_marks_it_as_a_picker() {
+    let node: VirtualNode = euv_native_select(props_node(EuvNativeSelectProps {
+        size: EuvNativeSelectSize::Default,
+        name: "language",
+        disabled: false,
+        value: Signal::create(String::new()),
+        onchange: None,
+    }));
+    assert!(has_class(&node, "c_euv_native_select_icon"));
 }

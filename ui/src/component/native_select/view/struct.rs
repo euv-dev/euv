@@ -12,6 +12,18 @@ pub struct EuvNativeSelectProps {
     pub name: &'static str,
     /// Whether the control refuses input.
     pub disabled: bool,
+    /// The value the control currently shows.
+    ///
+    /// An empty value leaves the control to the choice of the browser, and
+    /// the first option is the one it shows. A value the options do not
+    /// carry leaves the control as it is.
+    pub value: Signal<String>,
+    /// The callback that receives the value the reader chose.
+    ///
+    /// The control is the native one, so the change arrives as an event on
+    /// the control itself and the value is read from it.
+    #[debug(skip)]
+    pub onchange: Option<Rc<dyn Fn(Event)>>,
 }
 
 /// Props for the [`euv_native_select_option`] component.

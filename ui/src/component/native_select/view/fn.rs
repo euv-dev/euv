@@ -23,6 +23,8 @@ pub fn euv_native_select(node: VirtualNode<EuvNativeSelectProps>) -> VirtualNode
         size,
         name,
         disabled,
+        value,
+        onchange,
     }: EuvNativeSelectProps = node.try_get_props().unwrap_or_default();
     let size_attr: &str = match size {
         EuvNativeSelectSize::Default => "default",
@@ -61,6 +63,8 @@ pub fn euv_native_select(node: VirtualNode<EuvNativeSelectProps>) -> VirtualNode
                 "data-size": size_attr
                 name: name
                 disabled: disabled
+                value: value.get()
+                onchange: onchange
                 class: base_class
                 class: size_class
                 class: shadcn_class
