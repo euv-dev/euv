@@ -18,6 +18,7 @@ vars! {
         radius-md: "4px";
         radius-lg: "6px";
         radius-xl: "8px";
+        radius-2xl: "10px";
         radius-full: "50%";
 
         // ═══════════════════════════════════════════════════════════════════════

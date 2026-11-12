@@ -659,20 +659,15 @@ pub fn euv_date_picker(node: VirtualNode<EuvDatePickerProps>) -> VirtualNode {
     let days: Vec<EuvCalendarDay> = month_grid(year, month_number, today);
     let day_click: Rc<dyn Fn(u32, bool)> =
         on_day_click(month, selected, value, open, on_change.clone(), min, max);
-    let calendar_node: VirtualNode<EuvCalendarProps> = VirtualNode::Element {
-        tag: Tag::Element(Cow::Borrowed("div")),
-        attributes: Vec::new(),
-        children: Vec::new(),
-        key: None,
-        props: Some(Box::new(EuvCalendarProps {
-            title: "",
-            weekdays: calendar_weekdays(),
-            days,
-            selected,
-            on_day_click: Some(day_click),
-        })),
+    let calendar: VirtualNode = html! {
+        euv_calendar {
+            title: ""
+            weekdays: calendar_weekdays()
+            days: days
+            selected: selected
+            on_day_click: Some(day_click)
+        }
     };
-    let calendar: VirtualNode = euv_calendar(calendar_node);
     html! {
         div {
             class: c_euv_date_picker()
@@ -718,16 +713,20 @@ pub fn euv_date_picker(node: VirtualNode<EuvDatePickerProps>) -> VirtualNode {
                     class: c_euv_calendar_nav()
                     button {
                         type: "button"
+                        "aria-label": DATE_PICKER_PREVIOUS_MONTH_LABEL
                         class: c_euv_date_picker_nav()
                         onclick: on_shift_month(month, selected, -1)
                         PREVIOUS_MONTH_GLYPH
                     }
                     span {
                         class: c_euv_calendar_title()
+                        "aria-live": DATE_PICKER_CAPTION_LIVE
+                        "aria-atomic": DATE_PICKER_CAPTION_ATOMIC
                         caption
                     }
                     button {
                         type: "button"
+                        "aria-label": DATE_PICKER_NEXT_MONTH_LABEL
                         class: c_euv_date_picker_nav()
                         onclick: on_shift_month(month, selected, 1)
                         NEXT_MONTH_GLYPH

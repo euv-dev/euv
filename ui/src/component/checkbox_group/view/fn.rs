@@ -43,6 +43,9 @@ pub fn euv_checkbox_group(node: VirtualNode<EuvCheckboxGroupProps>) -> VirtualNo
         .collect();
     html! {
         div {
+            "data-slot": "checkbox-group"
+            role: "group"
+            "aria-label": label_text
             class: c_euv_checkbox_group()
             if !label_text.is_empty() {
                 div {
@@ -91,10 +94,12 @@ fn checkbox_item(
                 value: option.value
                 checked: boolean_attr(is_checked)
                 disabled: boolean_attr(disabled)
+                "data-slot": "checkbox"
                 class: c_euv_checkbox_group_input()
                 onchange: handler
             }
             span {
+                "data-slot": "checkbox-indicator"
                 class: c_euv_checkbox_group_box()
                 class: if is_checked {
                     c_euv_checkbox_group_box_checked()

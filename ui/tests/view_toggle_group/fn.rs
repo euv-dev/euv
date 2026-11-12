@@ -107,6 +107,25 @@ fn a_group_renders_one_button_per_entry() {
             .any(|name: &String| name == "role"),
         "the group carries the group role"
     );
+    assert!(
+        attribute_names(&rendered)
+            .iter()
+            .any(|name: &String| name == "tabindex"),
+        "the triggers participate in the roving tab stop"
+    );
+    assert!(
+        attribute_names(&rendered)
+            .iter()
+            .any(|name: &String| name == "onkeydown"),
+        "the triggers carry their keyboard navigation handler"
+    );
+    if cfg!(feature = "theme-shadcn") {
+        assert!(
+            class_names(&rendered)
+                .iter()
+                .any(|class: &String| class == "c_euv_toggle_group_shadcn")
+        );
+    }
 }
 
 #[test]

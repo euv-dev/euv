@@ -86,6 +86,7 @@ fn a_resizable_panel_carries_its_slot() {
     }));
     assert!(has_class(&node, "c_euv_resizable_panel"));
     assert!(has_attribute(&node, "data-slot"));
+    assert!(has_attribute(&node, "style"));
 }
 
 #[test]
@@ -99,4 +100,9 @@ fn the_resizable_handle_is_a_separator() {
     assert!(has_class(&node, "c_euv_resizable_handle_horizontal"));
     assert!(has_attribute(&node, "role"));
     assert!(has_attribute(&node, "aria-orientation"));
+    assert!(has_attribute(&node, "aria-label"));
+    assert!(has_attribute(&node, "aria-valuenow"));
+    assert!(has_attribute(&node, "aria-valuemin"));
+    assert!(has_attribute(&node, "aria-valuemax"));
+    assert!(has_attribute(&node, "onkeydown"));
 }

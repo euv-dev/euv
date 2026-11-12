@@ -14,3 +14,13 @@ pub struct EuvPopoverProps {
     /// The side of the trigger the panel is anchored to.
     pub placement: EuvTooltipPlacement,
 }
+
+/// Props for the [`euv_popover_trigger`] component.
+///
+/// The trigger carries the open state of the panel it opens, so it can
+/// report that state to a reader.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvPopoverTriggerProps {
+    /// The open state signal driving the panel's reactive class.
+    pub open: Signal<bool>,
+}

@@ -95,6 +95,8 @@ pub(crate) fn page_ui_advanced(node: VirtualNode<PageUiAdvancedProps>) -> Virtua
             label: "Alan",
         },
     ];
+    let affix_rows_before: Vec<&'static str> = ADVANCED_AFFIX_ROWS[..3].to_vec();
+    let affix_rows_after: Vec<&'static str> = ADVANCED_AFFIX_ROWS[3..].to_vec();
     html! {
         div {
             class: c_page_container()
@@ -113,18 +115,21 @@ pub(crate) fn page_ui_advanced(node: VirtualNode<PageUiAdvancedProps>) -> Virtua
                     cols: grid_cols
                     gutter: true
                     div {
+                        class: c_advanced_grid_cell()
                         euv_text {
                             variant: EuvTextVariant::Secondary
                             text: ADVANCED_GRID_FIRST
                         }
                     }
                     div {
+                        class: c_advanced_grid_cell()
                         euv_text {
                             variant: EuvTextVariant::Secondary
                             text: ADVANCED_GRID_SECOND
                         }
                     }
                     div {
+                        class: c_advanced_grid_cell()
                         euv_text {
                             variant: EuvTextVariant::Secondary
                             text: ADVANCED_GRID_THIRD
@@ -187,12 +192,25 @@ pub(crate) fn page_ui_advanced(node: VirtualNode<PageUiAdvancedProps>) -> Virtua
                     class: c_badge_hint()
                     ADVANCED_AFFIX_HINT
                 }
-                euv_affix {
-                    offset: ADVANCED_AFFIX_OFFSET
-                    div {
-                        euv_text {
-                            variant: EuvTextVariant::Secondary
-                            text: ADVANCED_AFFIX_TEXT
+                div {
+                    class: c_advanced_affix_viewport()
+                    for row in affix_rows_before.iter().copied() {
+                        div {
+                            class: c_advanced_affix_row()
+                            row
+                        }
+                    }
+                    euv_affix {
+                        offset: ADVANCED_AFFIX_OFFSET
+                        div {
+                            class: c_advanced_affix_marker()
+                            ADVANCED_AFFIX_TEXT
+                        }
+                    }
+                    for row in affix_rows_after.iter().copied() {
+                        div {
+                            class: c_advanced_affix_row()
+                            row
                         }
                     }
                 }

@@ -89,3 +89,37 @@ pub struct EuvToastActionProps {
     #[debug(skip)]
     pub on_click: Option<Rc<dyn Fn()>>,
 }
+
+/// Props of the [`euv_toast_card`] component.
+///
+/// The card is the shell a toast is built from: the headline, the body
+/// line, the action and the close button are its children, so it takes no
+/// setting of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvToastCardProps {}
+
+/// Props of the [`euv_toast_provider`] component.
+///
+/// The provider owns the queue of the toasts and the timing of their
+/// dismissal, so it adds no setting of its own: the toasts it holds are
+/// its children.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvToastProviderProps {}
+
+/// Props of the [`euv_toast_viewport]` component.
+///
+/// The viewport is the fixed box the toasts stack inside, and it takes no
+/// setting of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvToastViewportProps {}
+
+/// Props of the [`euv_toast_close`] component.
+///
+/// The button that dismisses one toast reports the click to the caller,
+/// which owns the queue and decides what dismissing means.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvToastCloseProps {
+    /// The callback fired when the button is clicked.
+    #[debug(skip)]
+    pub on_click: Option<Rc<dyn Fn()>>,
+}

@@ -14,10 +14,17 @@ use super::*;
 /// - `VirtualNode` - The group virtual DOM tree.
 #[component]
 pub fn euv_item_group(node: VirtualNode<EuvItemProps>) -> VirtualNode {
+    let base_class: &Css = c_euv_item_group();
+    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_item_group_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
     let children: VirtualNode = node.get_children().into();
     html! {
         div {
-            class: c_euv_item_group()
+            class: base_class
+            class: shadcn_class
             role: "list"
             "data-slot": "item-group"
             children
@@ -41,18 +48,41 @@ pub fn euv_item_group(node: VirtualNode<EuvItemProps>) -> VirtualNode {
 #[component]
 pub fn euv_item(node: VirtualNode<EuvItemProps>) -> VirtualNode {
     let EuvItemProps { variant, size }: EuvItemProps = node.try_get_props().unwrap_or_default();
+    let base_variant_class: &Css = match variant {
+        EuvItemVariant::Default => c_euv_item_default(),
+        EuvItemVariant::Outline => c_euv_item_outline(),
+        EuvItemVariant::Muted => c_euv_item_muted(),
+    };
+    let shadcn_variant_class: &Css = if cfg!(feature = "theme-shadcn") {
+        match variant {
+            EuvItemVariant::Default => c_euv_item_default_shadcn(),
+            EuvItemVariant::Outline => c_euv_item_outline_shadcn(),
+            EuvItemVariant::Muted => c_euv_item_muted_shadcn(),
+        }
+    } else {
+        &EMPTY_CLASS
+    };
+    let base_size_class: &Css = match size {
+        EuvItemSize::Default => c_euv_item_size_default(),
+        EuvItemSize::Sm => c_euv_item_size_sm(),
+        EuvItemSize::Xs => c_euv_item_size_xs(),
+    };
+    let shadcn_size_class: &Css = if cfg!(feature = "theme-shadcn") {
+        match size {
+            EuvItemSize::Default => c_euv_item_size_default_shadcn(),
+            EuvItemSize::Sm => c_euv_item_size_sm_shadcn(),
+            EuvItemSize::Xs => c_euv_item_size_xs_shadcn(),
+        }
+    } else {
+        &EMPTY_CLASS
+    };
     let children: VirtualNode = node.get_children().into();
     html! {
         div {
-            class: match variant {
-                EuvItemVariant::Default => c_euv_item_default(),
-                EuvItemVariant::Outline => c_euv_item_outline(),
-                EuvItemVariant::Muted => c_euv_item_muted(),
-            }
-            class: match size {
-                EuvItemSize::Default => c_euv_item_size_default(),
-                EuvItemSize::Sm => c_euv_item_size_sm(),
-            }
+            class: base_variant_class
+            class: shadcn_variant_class
+            class: base_size_class
+            class: shadcn_size_class
             "data-slot": "item"
             "data-variant": match variant {
                 EuvItemVariant::Default => "default",
@@ -60,8 +90,9 @@ pub fn euv_item(node: VirtualNode<EuvItemProps>) -> VirtualNode {
                 EuvItemVariant::Muted => "muted",
             }
             "data-size": match size {
-                EuvItemSize::Default => "default",
-                EuvItemSize::Sm => "sm",
+                EuvItemSize::Default => ITEM_SIZE_DEFAULT,
+                EuvItemSize::Sm => ITEM_SIZE_SM,
+                EuvItemSize::Xs => ITEM_SIZE_XS,
             }
             children
         }
@@ -140,15 +171,16 @@ pub fn euv_item_content(node: VirtualNode<EuvItemProps>) -> VirtualNode {
 pub fn euv_item_title(node: VirtualNode<EuvItemTitleProps>) -> VirtualNode {
     let EuvItemTitleProps { text }: EuvItemTitleProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         div {
             class: c_euv_item_title()
             "data-slot": "item-title"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }
@@ -167,15 +199,16 @@ pub fn euv_item_description(node: VirtualNode<EuvItemDescriptionProps>) -> Virtu
     let EuvItemDescriptionProps { text }: EuvItemDescriptionProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let content: VirtualNode = match children {
-        VirtualNode::Empty => VirtualNode::Text(TextNode::new(Cow::Owned(text.to_string()), None)),
-        other => other,
-    };
+    let has_children: bool = !matches!(&children, VirtualNode::Empty);
     html! {
         p {
             class: c_euv_item_description()
             "data-slot": "item-description"
-            content
+            if has_children {
+                children
+            } else {
+                text
+            }
         }
     }
 }

@@ -36,6 +36,19 @@ fn nav_children(node: &VirtualNode) -> Vec<VirtualNode> {
     }
 }
 
+fn crumb_children(node: &VirtualNode) -> Vec<VirtualNode> {
+    let list: Option<VirtualNode> = nav_children(node).into_iter().next();
+    match list {
+        Some(VirtualNode::Element { children, .. }) => match children.first() {
+            Some(VirtualNode::Fragment(inner)) => inner.clone(),
+            Some(other) => vec![other.clone()],
+            None => Vec::new(),
+        },
+        Some(other) => vec![other],
+        None => Vec::new(),
+    }
+}
+
 fn count_named(node: &VirtualNode, needle: &str) -> usize {
     format!("{node:?}").matches(needle).count()
 }
@@ -61,7 +74,7 @@ fn a_one_item_breadcrumb_renders_exactly_one_crumb() {
         "a breadcrumb is a nav"
     );
     assert_eq!(
-        nav_children(&rendered).len(),
+        crumb_children(&rendered).len(),
         1,
         "one item means one crumb and no separator"
     );
@@ -73,7 +86,7 @@ fn a_breadcrumb_interleaves_separators_between_crumbs() {
         breadcrumb_node(vec![crumb("Home", "/"), crumb("Docs", "/docs")], "/");
     let rendered: VirtualNode = euv_breadcrumb(node);
     assert_eq!(
-        nav_children(&rendered).len(),
+        crumb_children(&rendered).len(),
         3,
         "two crumbs plus the single separator between them"
     );
@@ -92,7 +105,7 @@ fn a_four_item_breadcrumb_produces_seven_nodes() {
     );
     let rendered: VirtualNode = euv_breadcrumb(node);
     assert_eq!(
-        nav_children(&rendered).len(),
+        crumb_children(&rendered).len(),
         7,
         "four crumbs plus three separators"
     );
@@ -105,7 +118,7 @@ fn the_node_count_grows_as_two_per_item_minus_one() {
         let node: VirtualNode<EuvBreadcrumbProps> = breadcrumb_node(items, "/");
         let rendered: VirtualNode = euv_breadcrumb(node);
         assert_eq!(
-            nav_children(&rendered).len(),
+            crumb_children(&rendered).len(),
             count * 2 - 1,
             "{count} items should interleave into 2n-1 nodes"
         );

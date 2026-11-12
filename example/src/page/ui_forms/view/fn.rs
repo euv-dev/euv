@@ -25,21 +25,37 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
             value: FORM_FRUIT_FIRST_VALUE,
             label: FORM_FRUIT_FIRST_LABEL,
             group: "",
+            separator_before: false,
             disabled: false,
         },
         EuvSelectOption {
             value: FORM_FRUIT_SECOND_VALUE,
             label: FORM_FRUIT_SECOND_LABEL,
             group: "",
+            separator_before: false,
             disabled: false,
         },
         EuvSelectOption {
             value: FORM_FRUIT_THIRD_VALUE,
             label: FORM_FRUIT_THIRD_LABEL,
             group: "",
+            separator_before: true,
             disabled: false,
         },
     ];
+    let timezone_options: Vec<EuvSelectOption> = FORM_SELECT_TIMEZONE_ROWS
+        .iter()
+        .copied()
+        .map(
+            |(group, value, label): (&'static str, &'static str, &'static str)| EuvSelectOption {
+                value,
+                label,
+                group,
+                separator_before: false,
+                disabled: false,
+            },
+        )
+        .collect();
     let topping_options: Vec<EuvCheckboxGroupOption> = vec![
         EuvCheckboxGroupOption {
             value: FORM_TOPPING_FIRST_VALUE,
@@ -93,9 +109,17 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
     let radio_first: Signal<bool> = state.radio_first;
     let radio_second: Signal<bool> = state.radio_second;
     let menubar_open: Signal<bool> = state.menubar_open;
+    let menubar_edit_open: Signal<bool> = state.menubar_edit_open;
+    let menubar_parts_open: Signal<bool> = state.menubar_parts_open;
     let on_radio_select: Option<Rc<dyn Fn(&'static str)>> = ui_forms_on_radio_select(state.clone());
     let on_menubar_select: Option<Rc<dyn Fn(&'static str)>> =
         ui_forms_on_menubar_select(state.clone());
+    let on_menubar_edit_select: Option<Rc<dyn Fn(&'static str)>> =
+        ui_forms_on_menubar_edit_select(state.clone());
+    let on_menubar_parts_select: Option<Rc<dyn Fn(&'static str)>> =
+        ui_forms_on_menubar_parts_select(state.clone());
+    let on_combobox_select: Option<Rc<dyn Fn(&'static str)>> =
+        ui_forms_on_combobox_select(state.clone());
     let command_query: Signal<String> = state.command_query;
     let combobox_open: Signal<bool> = state.combobox_open;
     let combobox_value: Signal<String> = state.combobox_value;
@@ -104,6 +128,7 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
     let hover_open: Signal<bool> = state.hover_open;
     let context_open: Signal<bool> = state.context_open;
     let otp_value: Signal<String> = state.otp_value;
+    let carousel_active: Signal<u32> = state.carousel_active;
     let field_disabled: Signal<bool> = state.field_disabled;
     let notes: Signal<String> = state.notes;
     let group_query: Signal<String> = state.group_query;
@@ -149,6 +174,20 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
         (FORM_CHART_FIRST_SERIES, FORM_CHART_FIRST_COLOR),
         (FORM_CHART_SECOND_SERIES, FORM_CHART_SECOND_COLOR),
     ];
+    let carousel_slides: Vec<EuvCarouselSlide> = vec![
+        EuvCarouselSlide {
+            title: FORM_PARTS_CAROUSEL_ITEM,
+            desc: FORM_PARTS_CAROUSEL_FIRST_DESC,
+        },
+        EuvCarouselSlide {
+            title: FORM_PARTS_CAROUSEL_SECOND_TITLE,
+            desc: FORM_PARTS_CAROUSEL_SECOND_DESC,
+        },
+        EuvCarouselSlide {
+            title: FORM_PARTS_CAROUSEL_THIRD_TITLE,
+            desc: FORM_PARTS_CAROUSEL_THIRD_DESC,
+        },
+    ];
     let collapsible_open: Signal<bool> = App::use_signal(|| false);
     let trace_open: Signal<bool> = App::use_signal(|| false);
     let navigation_open: Signal<bool> = App::use_signal(|| false);
@@ -168,9 +207,12 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                     title: FORM_CHOICE_CARD_TITLE
                     euv_select {
                         value: state.select_value
-                        options: fruit_options
+                        options: fruit_options.clone()
                         placeholder: FORM_SELECT_PLACEHOLDER
                         label: FORM_SELECT_LABEL
+                        id: FORM_CONTROL_SELECT_ID
+                        name: FORM_CONTROL_SELECT_NAME
+                        required: true
                         on_change: ui_forms_on_select()
                     }
                     euv_checkbox_group {
@@ -207,6 +249,34 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                 }
             }
             euv_card {
+                title: FORM_INVALID_CARD_TITLE
+                euv_form_field {
+                    name: FORM_SELECT_LABEL
+                    id: FORM_INVALID_SELECT_ID
+                    invalid: true
+                    euv_select {
+                        value: Signal::create(String::new())
+                        options: fruit_options
+                        placeholder: FORM_SELECT_PLACEHOLDER
+                        label: FORM_SELECT_LABEL
+                        invalid: true
+                        align_item_with_trigger: false
+                    }
+                    euv_field_error {
+                        message: FORM_INVALID_SELECT_ERROR
+                    }
+                }
+            }
+            euv_card {
+                title: FORM_SCROLLABLE_SELECT_CARD_TITLE
+                euv_select {
+                    value: Signal::create(String::new())
+                    options: timezone_options
+                    placeholder: FORM_SELECT_TIMEZONE_PLACEHOLDER
+                    label: FORM_SELECT_TIMEZONE_LABEL
+                }
+            }
+            euv_card {
                 title: FORM_OVERLAY_CARD_TITLE
                 euv_command {
                     value: command_query
@@ -218,24 +288,24 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                     }
                     euv_command_list {
                         label: FORM_COMMAND_LIST_LABEL
-                        euv_command_group {
-                            heading: FORM_COMMAND_GROUP_HEADING
-                            euv_command_item {
-                                value: FORM_COMMAND_FIRST_VALUE
-                                label: FORM_COMMAND_FIRST_LABEL
-                                selected: false
-                                disabled: false
-                                on_select: on_menubar_select.clone()
+                        if FORM_COMMAND_FIRST_LABEL.to_lowercase().contains(&command_query.get().to_lowercase()) {
+                            euv_command_group {
+                                heading: FORM_COMMAND_GROUP_HEADING
+                                euv_command_item {
+                                    value: FORM_COMMAND_FIRST_VALUE
+                                    label: FORM_COMMAND_FIRST_LABEL
+                                    selected: false
+                                    disabled: false
+                                    on_select: on_menubar_select.clone()
+                                    euv_command_shortcut {
+                                        text: FORM_COMMAND_FIRST_SHORTCUT
+                                    }
+                                }
                             }
-                            euv_command_shortcut {
-                                text: FORM_COMMAND_FIRST_SHORTCUT
+                        } else {
+                            euv_command_empty {
+                                text: FORM_COMMAND_EMPTY_TEXT
                             }
-                        }
-                        euv_command_separator {
-                            label: ""
-                        }
-                        euv_command_empty {
-                            text: FORM_COMMAND_EMPTY_TEXT
                         }
                     }
                 }
@@ -249,6 +319,7 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                         disabled: false
                     }
                     euv_combobox_input {
+                        open: combobox_open
                         value: combobox_value
                         placeholder: FORM_COMBOBOX_PLACEHOLDER
                         disabled: false
@@ -258,18 +329,20 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                         euv_combobox_list {
                             label: FORM_COMBOBOX_LIST_LABEL
                             euv_combobox_item {
+                                open: combobox_open
                                 value: FORM_COMBOBOX_FIRST_VALUE
                                 label: FORM_COMBOBOX_FIRST_LABEL
-                                selected: true
+                                selected: combobox_value.get() == FORM_COMBOBOX_FIRST_VALUE
                                 disabled: false
-                                on_select: on_menubar_select.clone()
+                                on_select: on_combobox_select.clone()
                             }
                             euv_combobox_item {
+                                open: combobox_open
                                 value: FORM_COMBOBOX_SECOND_VALUE
                                 label: FORM_COMBOBOX_SECOND_LABEL
-                                selected: false
+                                selected: combobox_value.get() == FORM_COMBOBOX_SECOND_VALUE
                                 disabled: false
-                                on_select: on_menubar_select.clone()
+                                on_select: on_combobox_select.clone()
                             }
                         }
                     }
@@ -308,6 +381,7 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                     open: alert_open
                     euv_alert_dialog_trigger {
                         open: alert_open
+                        content_id: FORM_ALERT_CONTENT_ID
                         label: FORM_ALERT_TRIGGER_LABEL
                     }
                     euv_alert_dialog_overlay {
@@ -315,12 +389,17 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                     }
                     euv_alert_dialog_content {
                         open: alert_open
+                        id: FORM_ALERT_CONTENT_ID
+                        title_id: FORM_ALERT_TITLE_ID
+                        description_id: FORM_ALERT_DESCRIPTION_ID
                         euv_alert_dialog_header {
                             label: FORM_ALERT_TITLE
                             euv_alert_dialog_title {
+                                id: FORM_ALERT_TITLE_ID
                                 text: FORM_ALERT_TITLE
                             }
                             euv_alert_dialog_description {
+                                id: FORM_ALERT_DESCRIPTION_ID
                                 text: FORM_ALERT_DESCRIPTION
                             }
                         }
@@ -328,9 +407,14 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                             label: FORM_ALERT_TITLE
                             euv_alert_dialog_cancel {
                                 label: FORM_ALERT_CANCEL_LABEL
+                                open: alert_open
+                                onclick: None
                             }
                             euv_alert_dialog_action {
                                 label: FORM_ALERT_ACTION_LABEL
+                                variant: Some(EuvButtonVariant::Destructive)
+                                open: alert_open
+                                onclick: None
                             }
                         }
                     }
@@ -430,19 +514,43 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                     }
                 }
                 euv_menubar {
-                    label: FORM_MENUBAR_TRIGGER_LABEL
+                    label: FORM_MENUBAR_LABEL
                     euv_menubar_menu {
                         open: menubar_open
                         euv_menubar_trigger {
                             label: FORM_MENUBAR_TRIGGER_LABEL
                             open: menubar_open
+                            id: FORM_MENUBAR_TRIGGER_ID
+                            index: 0
                         }
                         euv_menubar_content {
                             open: menubar_open
+                            trigger_id: FORM_MENUBAR_TRIGGER_ID
+                            label: FORM_MENUBAR_TRIGGER_LABEL
                             euv_menubar_item {
                                 label: FORM_MENUBAR_ITEM_LABEL
                                 value: FORM_MENUBAR_ITEM_VALUE
+                                disabled: false
                                 on_select: on_menubar_select.clone()
+                            }
+                        }
+                    }
+                    euv_menubar_menu {
+                        open: menubar_edit_open
+                        euv_menubar_trigger {
+                            label: FORM_MENUBAR_EDIT_TRIGGER_LABEL
+                            open: menubar_edit_open
+                            id: FORM_MENUBAR_EDIT_TRIGGER_ID
+                            index: 1
+                        }
+                        euv_menubar_content {
+                            open: menubar_edit_open
+                            trigger_id: FORM_MENUBAR_EDIT_TRIGGER_ID
+                            label: FORM_MENUBAR_EDIT_TRIGGER_LABEL
+                            euv_menubar_item {
+                                label: FORM_MENUBAR_EDIT_ITEM_LABEL
+                                value: FORM_MENUBAR_EDIT_ITEM_VALUE
+                                on_select: on_menubar_edit_select.clone()
                             }
                         }
                     }
@@ -601,6 +709,19 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                         value: FORM_SELECT_THIRD_VALUE
                         label: FORM_SELECT_THIRD_LABEL
                     }
+                    euv_native_select_option {
+                        value: FORM_SELECT_DISABLED_OPTION_VALUE
+                        label: FORM_SELECT_DISABLED_OPTION_LABEL
+                        disabled: true
+                    }
+                    euv_native_select_opt_group {
+                        label: FORM_SELECT_DISABLED_GROUP_LABEL
+                        disabled: true
+                        euv_native_select_option {
+                            value: FORM_SELECT_DISABLED_GROUP_OPTION_VALUE
+                            label: FORM_SELECT_DISABLED_GROUP_OPTION_LABEL
+                        }
+                    }
                 }
                 euv_attachment_group {
                     euv_attachment {
@@ -657,7 +778,7 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                 }
                 euv_chart {
                     id: "chart-usage"
-                    config: chart_config
+                    config: chart_config.clone()
                     euv_chart_tooltip {
                         euv_chart_tooltip_label {
                             FORM_CHART_TOOLTIP_LABEL
@@ -901,6 +1022,222 @@ pub(crate) fn page_ui_forms(node: VirtualNode<PageUiFormsProps>) -> VirtualNode 
                         p {
                             FORM_RESIZABLE_SECOND
                         }
+                    }
+                }
+            }
+
+            euv_card {
+                title: FORM_PARTS_CARD_TITLE
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_field_set {
+                        euv_field_legend {
+                            variant: EuvFieldLegendVariant::Legend
+                            FORM_PARTS_FIELD_LEGEND
+                        }
+                        euv_field_group {
+                            orientation: EuvFieldOrientation::Vertical
+                            euv_field_content {
+                                euv_field_label {
+                                    html_for: FORM_PARTS_FIELD_ID
+                                    FORM_PARTS_FIELD_LABEL
+                                }
+                                euv_field_title {
+                                    FORM_PARTS_FIELD_TITLE
+                                }
+                                euv_field_description {
+                                    FORM_PARTS_FIELD_DESCRIPTION
+                                }
+                            }
+                            euv_field_error {
+                                message: FORM_PARTS_FIELD_ERROR
+                            }
+                            euv_field_separator {
+                                FORM_PARTS_FIELD_SEPARATOR
+                            }
+                        }
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_empty_header {
+                        euv_empty_media {
+                            variant: EuvEmptyMediaVariant::Icon
+                        }
+                        euv_empty_title {
+                            FORM_PARTS_EMPTY_TITLE
+                        }
+                    }
+                    euv_empty_description {
+                        FORM_PARTS_EMPTY_DESCRIPTION
+                    }
+                    euv_empty_content {
+                        euv_button {
+                            variant: EuvButtonVariant::Outline
+                            label: FORM_PARTS_EMPTY_ACTION
+                        }
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_message_group {
+                        euv_message_header {
+                            euv_message_avatar {}
+                        }
+                        euv_message_content {
+                            FORM_PARTS_MESSAGE_BODY
+                        }
+                    }
+                    euv_message_footer {}
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_kbd_group {
+                        FORM_PARTS_KBD
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_combobox_chips {
+                        euv_combobox_chip_list {
+                            euv_combobox_chip {
+                                label: FORM_PARTS_CHIP_LABEL
+                                value: FORM_PARTS_CHIP_LABEL
+                            }
+                        }
+                        euv_combobox_chips_input {
+                            placeholder: FORM_PARTS_CHIP_INPUT
+                        }
+                    }
+                    euv_combobox_value {}
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_menubar {
+                        label: FORM_PARTS_MENUBAR_LABEL
+                        euv_menubar_menu {
+                            open: menubar_parts_open
+                            euv_menubar_trigger {
+                                label: FORM_PARTS_MENUBAR_LABEL
+                                open: menubar_parts_open
+                                id: FORM_PARTS_MENUBAR_TRIGGER_ID
+                                index: 0
+                            }
+                            euv_menubar_content {
+                                open: menubar_parts_open
+                                trigger_id: FORM_PARTS_MENUBAR_TRIGGER_ID
+                                label: FORM_PARTS_MENUBAR_LABEL
+                                euv_menubar_group {
+                                    label: FORM_PARTS_MENUBAR_GROUP
+                                    euv_menubar_label {
+                                        text: FORM_PARTS_MENUBAR_GROUP
+                                    }
+                                    euv_menubar_item {
+                                        label: FORM_PARTS_MENUBAR_ITEM
+                                        value: FORM_PARTS_MENUBAR_ITEM
+                                        on_select: on_menubar_parts_select.clone()
+                                    }
+                                    euv_menubar_separator {}
+                                    euv_menubar_shortcut {
+                                        text: FORM_PARTS_MENUBAR_SHORTCUT
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_carousel {
+                        slides: carousel_slides
+                        active: carousel_active
+                        on_change: None
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    div {
+                        class: c_euv_form_parts_sidebar()
+                        euv_sidebar_header {
+                            FORM_PARTS_SIDEBAR_HEADER
+                        }
+                        euv_sidebar_content {
+                            euv_sidebar_group {
+                                euv_sidebar_group_label {
+                                    FORM_PARTS_SIDEBAR_GROUP
+                                }
+                                euv_sidebar_group_content {
+                                    euv_sidebar_menu {
+                                        euv_sidebar_menu_item {
+                                            euv_sidebar_menu_button {
+                                                FORM_PARTS_SIDEBAR_ITEM
+                                            }
+                                        }
+                                        euv_sidebar_menu_item {
+                                            euv_sidebar_menu_button {
+                                                FORM_PARTS_SIDEBAR_SECOND_ITEM
+                                            }
+                                        }
+                                        euv_sidebar_menu_item {
+                                            euv_sidebar_menu_button {
+                                                FORM_PARTS_SIDEBAR_THIRD_ITEM
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        euv_sidebar_footer {}
+                        euv_sidebar_rail {}
+                        euv_sidebar_trigger {}
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_toast_card {
+                        euv_toast_title {
+                            text: FORM_PARTS_TOAST_TITLE
+                        }
+                        euv_toast_description {
+                            text: FORM_PARTS_TOAST_DESCRIPTION
+                        }
+                        euv_toast_close {
+                            FORM_PARTS_TOAST_CLOSE
+                        }
+                    }
+                    euv_toast_provider {
+                        euv_toast_viewport {}
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_chart_container {
+                        id: FORM_PARTS_CHART_ID
+                        config: chart_config.clone()
+                        euv_chart_tooltip {
+                            euv_chart_tooltip_content {
+                                euv_chart_tooltip_item {
+                                    name: FORM_CHART_FIRST_SERIES
+                                    value: FORM_CHART_FIRST_VALUE
+                                    color: FORM_CHART_FIRST_COLOR
+                                }
+                            }
+                        }
+                        euv_chart_legend {
+                            euv_chart_legend_content {
+                                euv_chart_legend_item {
+                                    label: FORM_CHART_FIRST_SERIES
+                                    color: FORM_CHART_FIRST_COLOR
+                                }
+                            }
+                        }
+                    }
+                }
+                div {
+                    class: c_euv_form_parts_group()
+                    euv_direction_provider {
+                        direction: Some(EuvDirection::Ltr)
+                        FORM_PARTS_DIRECTION
                     }
                 }
             }

@@ -34,8 +34,8 @@ fn an_error_alert_renders_a_div_shell() {
     );
     assert_eq!(
         class_attribute_count(&rendered),
-        2,
-        "and it carries the class and the alert role"
+        3,
+        "and it carries the class, the alert role and its slot"
     );
 }
 

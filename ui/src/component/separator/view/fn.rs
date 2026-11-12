@@ -19,22 +19,35 @@ pub fn euv_separator(node: VirtualNode<EuvSeparatorProps>) -> VirtualNode {
         orientation,
         decorative,
     }: EuvSeparatorProps = node.try_get_props().unwrap_or_default();
-    let orientation_class: fn() -> &'static Css = match orientation {
-        EuvSeparatorOrientation::Horizontal => c_euv_separator_horizontal,
-        EuvSeparatorOrientation::Vertical => c_euv_separator_vertical,
+    let orientation_class: &Css = match orientation {
+        EuvSeparatorOrientation::Horizontal => c_euv_separator_horizontal(),
+        EuvSeparatorOrientation::Vertical => c_euv_separator_vertical(),
     };
     let orientation_attr: &str = match orientation {
-        EuvSeparatorOrientation::Horizontal => "horizontal",
-        EuvSeparatorOrientation::Vertical => "vertical",
+        EuvSeparatorOrientation::Horizontal => SEPARATOR_ORIENTATION_HORIZONTAL,
+        EuvSeparatorOrientation::Vertical => SEPARATOR_ORIENTATION_VERTICAL,
     };
-    let role: &str = if decorative { "none" } else { "separator" };
+    let role: &str = if decorative {
+        SEPARATOR_ROLE_DECORATIVE
+    } else {
+        SEPARATOR_ROLE_SEPARATOR
+    };
     let children: VirtualNode = node.get_children().into();
+    let base_class: &Css = c_euv_separator();
+    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_separator_shadcn()
+    } else {
+        &EMPTY_CLASS
+    };
     html! {
         div {
+            "data-slot": "separator"
             role: role
             "aria-orientation": orientation_attr
-            class: c_euv_separator()
-            class: orientation_class()
+            "data-orientation": orientation_attr
+            class: base_class
+            class: orientation_class
+            class: shadcn_class
             children
         }
     }

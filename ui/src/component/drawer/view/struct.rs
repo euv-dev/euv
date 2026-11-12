@@ -61,3 +61,13 @@ pub struct EuvDrawerTitleProps {}
 /// The description takes no settings of its own.
 #[derive(Clone, CustomDebug, Default)]
 pub struct EuvDrawerDescriptionProps {}
+
+/// Props for the [`euv_drawer_overlay`] component.
+///
+/// The overlay dims the page behind the drawer. It carries the open state,
+/// so it can fade away together with the panel.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvDrawerOverlayProps {
+    /// Whether the drawer is open.
+    pub open: Signal<bool>,
+}

@@ -38,12 +38,15 @@ pub fn inject_app_global_css() {
     Css::inject_css(APP_KEYFRAMES_SPIN);
     Css::inject_css(APP_KEYFRAMES_FADE_IN);
     Css::inject_css(APP_KEYFRAMES_PULSE);
+    Css::inject_css(APP_KEYFRAMES_SKELETON_PULSE);
     Css::inject_css(APP_KEYFRAMES_PROGRESS);
     Css::inject_css(APP_KEYFRAMES_SCALE_IN_MODAL);
     Css::inject_css(APP_A11Y_CSS_FOCUS_VISIBLE);
     Css::inject_css(APP_A11Y_CSS_FOCUS_RING);
     Css::inject_css(APP_A11Y_CSS_REDUCED_MOTION);
     Css::inject_css(APP_A11Y_CSS_COARSE_POINTER);
+    #[cfg(feature = "theme-shadcn")]
+    Css::inject_css(APP_SCHEME_SHADCN_CSS);
 }
 
 /// Injects the markdown stylesheet content. Callers pass the result to

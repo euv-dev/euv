@@ -20,6 +20,7 @@ vars! {
         radius-md: "8px";
         radius-lg: "16px";
         radius-xl: "32px";
+        radius-2xl: "38px";
         radius-full: "1000px";
 
         // ═══════════════════════════════════════════════════════════════════════

@@ -13,6 +13,57 @@ pub struct EuvCarouselSlide {
     pub desc: &'static str,
 }
 
+/// Props of the [`euv_carousel_content`] component.
+///
+/// The content is the viewport: it clips the track and lays the slides
+/// out along the orientation.
+#[derive(Clone, Copy, CustomDebug, Default)]
+pub struct EuvCarouselContentProps {
+    /// The direction the slides travel in.
+    pub orientation: EuvCarouselOrientation,
+}
+
+/// Props of the [`euv_carousel_item`] component.
+///
+/// The item is one slide of the track.
+#[derive(Clone, Copy, CustomDebug, Default)]
+pub struct EuvCarouselItemProps {
+    /// The direction the slides travel in.
+    pub orientation: EuvCarouselOrientation,
+}
+
+/// Props of the [`euv_carousel_next`] component.
+///
+/// The button steps the track forward.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvCarouselNextProps {
+    /// The direction the slides travel in.
+    pub orientation: EuvCarouselOrientation,
+    /// The accessible name of the button.
+    pub label: &'static str,
+    /// Whether the button refuses to be pressed.
+    pub disabled: bool,
+    /// Optional callback fired when the button is pressed.
+    #[debug(skip)]
+    pub on_press: Option<Rc<dyn Fn()>>,
+}
+
+/// Props of the [`euv_carousel_previous`] component.
+///
+/// The button steps the track back.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvCarouselPreviousProps {
+    /// The direction the slides travel in.
+    pub orientation: EuvCarouselOrientation,
+    /// The accessible name of the button.
+    pub label: &'static str,
+    /// Whether the button refuses to be pressed.
+    pub disabled: bool,
+    /// Optional callback fired when the button is pressed.
+    #[debug(skip)]
+    pub on_press: Option<Rc<dyn Fn()>>,
+}
+
 /// Props for the [`euv_carousel`] component.
 ///
 /// Defines the strongly-typed interface for a slideshow: the slides it

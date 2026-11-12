@@ -37,7 +37,11 @@ pub(crate) struct FormDemoState {
     pub(crate) radio_second: Signal<bool>,
     /// Whether the menubar menu is open.
     pub(crate) menubar_open: Signal<bool>,
-    /// The query the command palette is showing.
+    /// Whether the second menubar menu is open.
+    pub(crate) menubar_edit_open: Signal<bool>,
+    /// Whether the menubar menu in the component-parts showcase is open.
+    pub(crate) menubar_parts_open: Signal<bool>,
+    /// Whether the command palette is open.
     pub(crate) command_query: Signal<String>,
     /// Whether the combobox is open.
     pub(crate) combobox_open: Signal<bool>,
@@ -53,4 +57,6 @@ pub(crate) struct FormDemoState {
     pub(crate) context_open: Signal<bool>,
     /// The text the one time code field is showing.
     pub(crate) otp_value: Signal<String>,
+    /// The index of the active carousel slide.
+    pub(crate) carousel_active: Signal<u32>,
 }

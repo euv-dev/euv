@@ -115,6 +115,9 @@ fn a_textarea_uses_the_control_type_scale() {
         has_class(&rendered, "c_euv_textarea"),
         "the field is drawn with the textarea class"
     );
+    if cfg!(feature = "theme-shadcn") {
+        assert!(has_class(&rendered, "c_euv_textarea_shadcn"));
+    }
 }
 
 #[test]

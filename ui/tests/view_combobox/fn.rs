@@ -77,8 +77,27 @@ fn a_combobox_trigger_reports_whether_the_list_is_open() {
         disabled: false,
     }));
     assert!(has_class(&node, "c_euv_combobox_trigger"));
+    if cfg!(feature = "theme-shadcn") {
+        assert!(has_class(&node, "c_euv_combobox_trigger_shadcn"));
+    }
     assert!(has_attribute(&node, "aria-haspopup"));
     assert!(has_attribute(&node, "aria-expanded"));
+}
+
+#[test]
+fn a_combobox_input_reports_its_open_state_and_geometry() {
+    let node: VirtualNode = euv_combobox_input(props_node(EuvComboboxInputProps {
+        open: Signal::create(false),
+        value: Signal::create(String::new()),
+        placeholder: "Type to search",
+        disabled: false,
+    }));
+    assert!(has_class(&node, "c_euv_combobox_input"));
+    assert!(has_attribute(&node, "aria-expanded"));
+    assert!(has_attribute(&node, "onkeydown"));
+    if cfg!(feature = "theme-shadcn") {
+        assert!(has_class(&node, "c_euv_combobox_input_shadcn"));
+    }
 }
 
 #[test]
@@ -97,6 +116,7 @@ fn the_combobox_rows_live_in_a_listbox() {
     assert!(has_class(&list, "c_euv_combobox_list"));
     assert!(has_attribute(&list, "role"));
     let item: VirtualNode = euv_combobox_item(props_node(EuvComboboxItemProps {
+        open: Signal::create(true),
         value: "one",
         label: "One",
         selected: true,
@@ -105,6 +125,9 @@ fn the_combobox_rows_live_in_a_listbox() {
     }));
     assert!(has_class(&item, "c_euv_combobox_item_selected"));
     assert!(has_attribute(&item, "aria-selected"));
+    assert!(has_attribute(&item, "data-value"));
+    assert!(has_attribute(&item, "tabindex"));
+    assert!(has_attribute(&item, "onkeydown"));
 }
 
 #[test]

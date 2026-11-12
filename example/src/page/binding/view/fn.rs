@@ -110,8 +110,9 @@ pub(crate) fn child_input(text_signal: Signal<String>, count_signal: Signal<i32>
                     count_value
                 }
             }
-            button {
-                class: c_binding_compact_button()
+            euv_button {
+                variant: EuvButtonVariant::Primary
+                label: "Decrement"
                 onclick: two_way_on_decrement(count_signal)
                 "-"
             }
@@ -420,8 +421,9 @@ pub(crate) fn page_component_binding(node: VirtualNode<PageComponentBindingProps
                             two_way_state.get_shared_count()
                         }
                     }
-                    button {
-                        class: c_binding_compact_button()
+                    euv_button {
+                        variant: EuvButtonVariant::Primary
+                        label: "Increment"
                         onclick: two_way_on_increment(two_way_state.get_shared_count())
                         "+"
                     }

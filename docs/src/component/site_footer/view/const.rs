@@ -1,14 +1,14 @@
 use super::*;
 
 class! {
-    // The site-wide footer bar: pinned to the bottom of the viewport,
+    // The site-wide footer bar: fixed above the viewport's bottom gutter,
     // spanning the full width, with the license line on the left and
     // the site's own notices on the right.
     pub c_docs_site_footer {
         position: "fixed";
         left: "0px";
         right: "0px";
-        bottom: "0px";
+        bottom: var!(edge-gutter-bottom);
         z-index: "90";
         display: "flex";
         align-items: "center";
@@ -50,9 +50,9 @@ class! {
 
 /// The stylesheet that publishes the footer bar's height.
 ///
-/// The reference site pins a 56px bar to the bottom of the viewport and
-/// reserves the same height at the end of the scrolling column, so the
-/// last line of a page is never hidden behind the bar. The height is
-/// published as a custom property, so the bar and the column that
-/// reserves the room read one number.
+/// The reference site keeps the bar inset from the viewport edge by the
+/// bottom gutter. The scrolling column reserves room for the bar and a
+/// separate content gutter, so its last line clears the bar as well.
+/// The bar height is published as a custom property so both regions share
+/// one measurement.
 pub(crate) const SITE_FOOTER_CSS: &str = ":root { --docs-site-footer-height: 56px; }";

@@ -8,6 +8,9 @@ use super::*;
 /// typed. The slot the caret sits in is marked, which is the same
 /// affordance the reference gives the reader.
 ///
+/// The field is the `input-otp` part of the reference: it owns the input
+/// the reader types into, and it is the element the code belongs to.
+///
 /// # Arguments
 ///
 /// - `VirtualNode<EuvInputOtpProps>` - The props node carrying the component settings.
@@ -33,6 +36,7 @@ pub fn euv_input_otp(node: VirtualNode<EuvInputOtpProps>) -> VirtualNode {
     }
     html! {
         div {
+            "data-slot": "input-otp"
             class: c_euv_input_otp()
             "aria-label": label
             input {
@@ -66,6 +70,7 @@ fn otp_slot(character: String, active: bool) -> VirtualNode {
     let character: &'static str = Box::leak(character.into_boxed_str());
     html! {
         div {
+            "data-slot": "input-otp-slot"
             class: c_euv_input_otp_slot()
             class: if active {
                 c_euv_input_otp_slot_active()
@@ -102,8 +107,9 @@ fn on_otp_input(value: Signal<String>) -> Option<Rc<dyn Fn(Event)>> {
 
 /// A row of slots.
 ///
-/// The group is the row the slots sit in; it draws nothing itself, so a
-/// caller can use it to lay a code out in one line.
+/// The group is the `input-otp-group` part of the reference: it is the
+/// row the slots sit in, so it draws nothing itself and a caller can use
+/// it to lay a code out in one line.
 ///
 /// # Arguments
 ///
@@ -119,6 +125,7 @@ pub fn euv_input_otp_group(node: VirtualNode<EuvInputOtpGroupProps>) -> VirtualN
     let children: VirtualNode = node.get_children().into();
     html! {
         div {
+            "data-slot": "input-otp-group"
             "aria-label": label
             class: c_euv_input_otp_group()
             children
@@ -146,6 +153,7 @@ pub fn euv_input_otp_slot(node: VirtualNode<EuvInputOtpSlotProps>) -> VirtualNod
     }: EuvInputOtpSlotProps = node.try_get_props().unwrap_or_default();
     html! {
         div {
+            "data-slot": "input-otp-slot"
             class: c_euv_input_otp_slot()
             class: if active {
                 c_euv_input_otp_slot_active()
@@ -161,6 +169,9 @@ pub fn euv_input_otp_slot(node: VirtualNode<EuvInputOtpSlotProps>) -> VirtualNod
 
 /// The rule that divides two groups of slots.
 ///
+/// The separator is the `input-otp-separator` part of the reference: it
+/// tells the reader that the code continues in another group.
+///
 /// # Arguments
 ///
 /// - `VirtualNode<EuvInputOtpGroupProps>` - The props node carrying the component settings.
@@ -174,6 +185,7 @@ pub fn euv_input_otp_separator(node: VirtualNode<EuvInputOtpGroupProps>) -> Virt
     html! {
         div {
             role: "separator"
+            "data-slot": "input-otp-separator"
             class: c_euv_input_otp_separator()
             children
         }

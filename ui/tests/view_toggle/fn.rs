@@ -190,6 +190,24 @@ fn every_size_reaches_the_class_list() {
         has_class(&large, "c_euv_toggle_size_large"),
         "the large size has its own class"
     );
+    if cfg!(feature = "theme-shadcn") {
+        assert!(has_class(&default, "c_euv_toggle_size_default_shadcn"));
+        assert!(has_class(&small, "c_euv_toggle_size_small_shadcn"));
+        assert!(has_class(&large, "c_euv_toggle_size_large_shadcn"));
+    }
+}
+
+#[cfg(feature = "theme-shadcn")]
+#[test]
+fn shadcn_toggle_uses_its_radius_and_pressed_surface() {
+    let rendered: VirtualNode = render(
+        true,
+        EuvToggleVariant::Default,
+        EuvToggleSize::Default,
+        false,
+    );
+    assert!(has_class(&rendered, "c_euv_toggle_shadcn"));
+    assert!(has_class(&rendered, "c_euv_toggle_pressed_shadcn"));
 }
 
 #[test]

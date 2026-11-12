@@ -19,6 +19,7 @@ pub fn euv_hover_card(node: VirtualNode<EuvHoverCardProps>) -> VirtualNode {
     let children: VirtualNode = node.get_children().into();
     html! {
         div {
+            "data-slot": "hover-card"
             class: c_euv_hover_card()
             children
         }
@@ -43,6 +44,7 @@ pub fn euv_hover_card_trigger(node: VirtualNode<EuvHoverCardTriggerProps>) -> Vi
     }));
     html! {
         span {
+            "data-slot": "hover-card-trigger"
             class: c_euv_hover_card_trigger()
             onclick: on_click
             {
@@ -72,6 +74,7 @@ pub fn euv_hover_card_content(node: VirtualNode<EuvHoverCardContentProps>) -> Vi
     html! {
         div {
             role: "dialog"
+            "data-slot": "hover-card-content"
             class: c_euv_hover_card_content()
             class: if { open } {
                 c_euv_hover_card_content_open()

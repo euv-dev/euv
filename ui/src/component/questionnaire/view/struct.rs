@@ -118,3 +118,13 @@ pub struct EuvQuestionnaireNextProps {}
 /// The button takes no settings of its own.
 #[derive(Clone, CustomDebug, Default)]
 pub struct EuvQuestionnaireSubmitProps {}
+
+/// Props for the [`euv_questionnaire_choice_shortcut`] component.
+///
+/// The shortcut tells the reader which keys answer the question without
+/// taking the room of the label.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvQuestionnaireChoiceShortcutProps {
+    /// The keys the shortcut shows.
+    pub keys: &'static str,
+}

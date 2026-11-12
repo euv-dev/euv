@@ -35,6 +35,26 @@ fn group_with(values: Vec<&str>, options: Vec<EuvCheckboxGroupOption>) -> Virtua
     }))
 }
 
+#[test]
+fn a_checkbox_group_is_a_named_group_for_assistive_technology() {
+    let rendered: VirtualNode = euv_checkbox_group(props(EuvCheckboxGroupProps {
+        options: topping_options(),
+        values: Signal::create(vec![String::from("cheese")]),
+        label: "Toppings",
+        on_change: None,
+    }));
+    let VirtualNode::Element { attributes, .. } = rendered else {
+        panic!("the checkbox group root is an element");
+    };
+    let names: Vec<String> = attributes
+        .iter()
+        .map(|attribute: &AttributeEntry| attribute.get_name().to_string())
+        .collect();
+    assert!(names.iter().any(|name: &String| name == "role"));
+    assert!(names.iter().any(|name: &String| name == "aria-label"));
+    assert!(names.iter().any(|name: &String| name == "data-slot"));
+}
+
 fn carries_classes(entry: &AttributeEntry, names: &[&str]) -> bool {
     if names.len() == 1 {
         let single: AttributeEntry = AttributeEntry::new(

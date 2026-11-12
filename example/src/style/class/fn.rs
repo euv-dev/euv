@@ -14,6 +14,67 @@ class! {
         text-align: "left";
     }
 
+    pub(crate) c_mobile_nav_scheme_label {
+        flex: "0 0 auto";
+    }
+
+    pub(crate) c_ui_display_resizable_preview {
+        height: var!(space-7xl);
+        overflow: "hidden";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+    }
+
+    pub(crate) c_ui_display_resizable_panel {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        height: "100%";
+        padding: var!(space-sm);
+        background: var!(muted);
+    }
+
+    pub(crate) c_advanced_grid_cell {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        min-height: var!(control-height);
+        padding: var!(space-md);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(muted);
+        text-align: "center";
+    }
+
+    pub(crate) c_advanced_affix_viewport {
+        max-height: "30vh";
+        overflow-y: "auto";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-lg);
+        background: var!(background);
+    }
+
+    pub(crate) c_advanced_affix_row {
+        display: "flex";
+        align-items: "center";
+        min-height: var!(control-height);
+        padding: format!("0px {}", var!(space-md));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
+        color: var!(muted-foreground);
+    }
+
+    pub(crate) c_advanced_affix_marker {
+        display: "flex";
+        align-items: "center";
+        min-height: var!(control-height);
+        padding: format!("0px {}", var!(space-md));
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(card);
+        color: var!(foreground);
+        font-weight: var!(font-weight-medium);
+    }
+
     // The gesture demo's touch surface: tall enough to drag in, with the
     // browser's own touch and text gestures suppressed so a drag reads as a
     // drag rather than a scroll or a selection.
@@ -207,5 +268,25 @@ class! {
 
     pub(crate) c_anim_scale_normal {
         transform: "scale(1)";
+    }
+
+    // The box that holds one group of the composable parts on the form
+    // demo page. It gives each group its own space, so the parts read as
+    // separate examples rather than one long column.
+    pub(crate) c_euv_form_parts_sidebar {
+        display: "flex";
+        flex-direction: "column";
+        width: "256px";
+        max-width: "100%";
+        height: "192px";
+    }
+
+    pub(crate) c_euv_form_parts_group {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-sm);
+        padding: var!(space-sm);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
     }
 }

@@ -57,7 +57,7 @@ pub fn euv_resizable_panel(node: VirtualNode<EuvResizablePanelProps>) -> Virtual
     let EuvResizablePanelProps { size }: EuvResizablePanelProps =
         node.try_get_props().unwrap_or_default();
     let current: f64 = size.get();
-    let panel_style: String = format!("flex: 0 0 {current}%;");
+    let panel_style: String = format!("flex: 0 1 {current}%;");
     let panel_ref: &str = panel_style.as_str();
     let children: VirtualNode = node.get_children().into();
     html! {
@@ -103,18 +103,28 @@ pub fn euv_resizable_handle(node: VirtualNode<EuvResizableHandleProps>) -> Virtu
         EuvResizableDirection::Horizontal => c_euv_resizable_handle_horizontal,
         EuvResizableDirection::Vertical => c_euv_resizable_handle_vertical,
     };
+    let current_size: f64 = size.get();
+    let aria_value_now: String = current_size.to_string();
+    let aria_value_min: String = min.to_string();
+    let aria_value_max: String = max.to_string();
     let session: Rc<RefCell<Option<ResizableDragSession>>> =
         HookContext::use_hook(|| Rc::new(RefCell::new(None)));
+    let on_keydown: Option<Rc<dyn Fn(Event)>> = on_resizable_keydown(size, min, max, direction);
     let children: VirtualNode = node.get_children().into();
     html! {
         div {
             "data-slot": "resizable-handle"
             role: "separator"
             tabindex: "0"
+            "aria-label": RESIZABLE_SEPARATOR_LABEL
             "aria-orientation": direction_attr
+            "aria-valuenow": aria_value_now
+            "aria-valuemin": aria_value_min
+            "aria-valuemax": aria_value_max
             class: c_euv_resizable_handle()
             class: direction_class()
             onmousedown: on_resizable_drag(size, min, max, direction, session.clone())
+            onkeydown: on_keydown
             children
         }
     }
@@ -235,4 +245,59 @@ fn on_resizable_drag(
             (size, min, max, direction, session);
         None
     }
+}
+
+/// Builds the keyboard handler that adjusts a resizable separator.
+///
+/// Arrow keys move the separator in its orientation; Home and End move to
+/// the declared bounds. Holding Shift uses the larger adjustment step.
+///
+/// # Arguments
+///
+/// - `Signal<f64>` - The panel share the separator updates.
+/// - `f64` - The smallest share the panel may take.
+/// - `f64` - The largest share the panel may take.
+/// - `EuvResizableDirection` - The separator orientation.
+///
+/// # Returns
+///
+/// - `Option<Rc<dyn Fn(Event)>>` - The keyboard adjustment handler.
+fn on_resizable_keydown(
+    size: Signal<f64>,
+    min: f64,
+    max: f64,
+    direction: EuvResizableDirection,
+) -> Option<Rc<dyn Fn(Event)>> {
+    Some(Rc::new(move |event: Event| {
+        let Ok(keyboard_event) = event.dyn_into::<KeyboardEvent>() else {
+            return;
+        };
+        let key: String = keyboard_event.key();
+        let movement: f64 = match direction {
+            EuvResizableDirection::Horizontal if key == RESIZABLE_KEY_ARROW_LEFT => -1.0,
+            EuvResizableDirection::Horizontal if key == RESIZABLE_KEY_ARROW_RIGHT => 1.0,
+            EuvResizableDirection::Vertical if key == RESIZABLE_KEY_ARROW_UP => -1.0,
+            EuvResizableDirection::Vertical if key == RESIZABLE_KEY_ARROW_DOWN => 1.0,
+            _ => 0.0,
+        };
+        let recognized: bool =
+            movement != 0.0 || key == RESIZABLE_KEY_HOME || key == RESIZABLE_KEY_END;
+        if !recognized {
+            return;
+        }
+        keyboard_event.prevent_default();
+        let next: f64 = if key == RESIZABLE_KEY_HOME {
+            min
+        } else if key == RESIZABLE_KEY_END {
+            max
+        } else {
+            let step: f64 = if keyboard_event.shift_key() {
+                RESIZABLE_KEY_MODIFIED_STEP
+            } else {
+                RESIZABLE_KEY_STEP
+            };
+            size.get() + (movement * step)
+        };
+        size.set(next.clamp(min, max));
+    }))
 }

@@ -19,3 +19,37 @@ pub struct EuvEmptyProps {
     #[debug(skip)]
     pub on_action: Option<Rc<dyn Fn(Event)>>,
 }
+
+/// Props for the [`euv_empty_header`] component.
+///
+/// The header takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvEmptyHeaderProps {}
+
+/// Props for the [`euv_empty_media`] component.
+///
+/// The media carries the picture that marks the emptiness and the size
+/// the picture is drawn at.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvEmptyMediaProps {
+    /// The size the picture is drawn at.
+    pub variant: EuvEmptyMediaVariant,
+}
+
+/// Props for the [`euv_empty_title`] component.
+///
+/// The title takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvEmptyTitleProps {}
+
+/// Props for the [`euv_empty_description`] component.
+///
+/// The description takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvEmptyDescriptionProps {}
+
+/// Props for the [`euv_empty_content`] component.
+///
+/// The content takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvEmptyContentProps {}

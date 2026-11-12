@@ -31,9 +31,9 @@ pub(crate) const NOT_FOUND_HOME_LABEL: &str = "首页";
 /// owns it.
 pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100%; overflow: hidden; } \
          #app { height: 100%; } \
-         #app .c_app_main { padding-top: var(--padding-main-top, 24px); padding-bottom: var(--docs-site-footer-height, 56px); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overflow-x: hidden; } \
-         #app .c_mobile_main { padding-bottom: var(--docs-site-footer-height, 56px); } \
-         #app .c_app_nav { padding-bottom: var(--docs-site-footer-height, 56px); } \
+         #app .c_app_main { padding-top: var(--padding-main-top, 24px); padding-bottom: calc(var(--docs-site-footer-height, 56px) + var(--edge-gutter-bottom, 20px) + var(--edge-gutter-bottom, 20px)); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overflow-x: hidden; } \
+         #app .c_mobile_main { padding-bottom: calc(var(--docs-site-footer-height, 56px) + var(--edge-gutter-bottom, 20px) + var(--edge-gutter-bottom, 20px)); } \
+         #app .c_app_nav { padding-bottom: calc(var(--docs-site-footer-height, 56px) + var(--edge-gutter-bottom, 20px)); } \
          #app .md-body h1, #app .md-body h2, #app .md-body h3, #app .md-body h4, #app .md-body h5, #app .md-body h6 { padding-left: 0; } \
          #app .md-body .header-anchor, #app .md-body h1:hover .header-anchor, #app .md-body h2:hover .header-anchor, #app .md-body h3:hover .header-anchor, #app .md-body h4:hover .header-anchor, #app .md-body h5:hover .header-anchor, #app .md-body h6:hover .header-anchor { display: none; } \
              #app .md-body img { display: inline-block; width: auto; max-width: 100%; height: auto; vertical-align: baseline; } \
@@ -134,9 +134,10 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100%; overflow: hi
              #app .c_euv_doc_content article.md-body { display: block; flex: 0 0 auto; min-height: 0; overflow: visible; } \
              #app .c_euv_doc_content article.md-body > div { display: block; min-height: 0; } \
              #app .c_euv_doc_tail { display: block; flex: 0 0 auto; } \
-                         #app .c_euv_doc_toc { width: 280px; flex-shrink: 0; position: sticky; top: var(--padding-main-top, 24px); align-self: flex-start; max-height: 100%; overflow-y: auto; } \
+                         #app .c_euv_doc_toc { width: 280px; min-width: 0; box-sizing: border-box; flex-shrink: 0; position: sticky; top: var(--padding-main-top, 24px); align-self: flex-start; max-height: 100%; overflow-y: auto; overflow-x: hidden; } \
+                         #app .c_euv_doc_toc .c_euv_toc { width: 100%; min-width: 0; box-sizing: border-box; } \
                          #app .c_euv_toc_link_nested { padding-left: 0.75rem; font-size: var(--font-sm, 0.875rem); color: var(--muted-foreground); line-height: 1.5; } \
-                         #app .c_euv_toc_link, #app .c_euv_toc_link_nested { font-weight: 400; } \
+                         #app .c_euv_doc_toc .c_euv_toc_link, #app .c_euv_doc_toc .c_euv_toc_link_active, #app .c_euv_doc_toc .c_euv_toc_link_nested, #app .c_euv_doc_toc .c_euv_toc_link_nested_active { display: block; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } \
                          #app .c_euv_toc_link:hover, #app .c_euv_toc_link_nested:hover { color: var(--primary); font-weight: 400; } \
                          #app .c_euv_toc_link_active, #app .c_euv_toc_link_nested_active { color: var(--primary); font-weight: 700; } \
                          #app .c_euv_toc_link_active:hover, #app .c_euv_toc_link_nested_active:hover { color: var(--primary); font-weight: 700; } \

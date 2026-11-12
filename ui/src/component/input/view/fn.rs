@@ -39,6 +39,11 @@ pub fn euv_input(node: VirtualNode<EuvInputProps>) -> VirtualNode {
     } else {
         class
     };
+    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
+        c_euv_input_shadcn().clone()
+    } else {
+        Css::default()
+    };
     html! {
         div {
             class: c_euv_input_wrapper()
@@ -50,6 +55,7 @@ pub fn euv_input(node: VirtualNode<EuvInputProps>) -> VirtualNode {
                 }
             }
             input {
+                "data-slot": "input"
                 id: id
                 name: effective_name
                 type: effective_type
@@ -57,6 +63,7 @@ pub fn euv_input(node: VirtualNode<EuvInputProps>) -> VirtualNode {
                 value: value
                 autocomplete: autocomplete
                 class: effective_class
+                class: shadcn_class
                 oninput: oninput
                 onfocus: UseEuvInput::on_focus_scroll_into_view()
                 onblur: UseEuvInput::on_blur_restore_height()

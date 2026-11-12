@@ -2,8 +2,7 @@ use super::*;
 
 /// Renders the site-wide footer bar.
 ///
-/// The bar is pinned to the bottom of the viewport and spans the full
-/// width, the way the reference site carries its own footer. It holds
+/// The bar sits above a bottom gutter and spans the full width. It holds
 /// the license line — the locale's footer text, or the page's own
 /// override — and the notices the site declares, each a link of its
 /// own.

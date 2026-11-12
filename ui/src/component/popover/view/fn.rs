@@ -67,9 +67,11 @@ pub fn euv_popover(node: VirtualNode<EuvPopoverProps>) -> VirtualNode {
     let body_style_ref: &str = body_style.as_str();
     html! {
         div {
+            "data-slot": "popover"
             class: c_euv_popover()
             div {
                 role: "dialog"
+                "data-slot": "popover-content"
                 class: c_euv_popover_body()
                 class: if { open } {
                     c_euv_popover_body_open()
@@ -86,6 +88,41 @@ pub fn euv_popover(node: VirtualNode<EuvPopoverProps>) -> VirtualNode {
                 }
                 children
             }
+        }
+    }
+}
+
+/// The button that opens the panel.
+///
+/// The trigger is the `popover-trigger` part of the reference: it is the
+/// element the reader presses to open the panel, so it carries the open
+/// state of the panel it opens.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvPopoverTriggerProps>` - The props node carrying the
+///   component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv popover trigger virtual DOM tree.
+#[component]
+pub fn euv_popover_trigger(node: VirtualNode<EuvPopoverTriggerProps>) -> VirtualNode {
+    let EuvPopoverTriggerProps { open }: EuvPopoverTriggerProps =
+        node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        button {
+            type: "button"
+            "data-slot": "popover-trigger"
+            "aria-haspopup": "dialog"
+            "aria-expanded": if { open.get() } {
+                "true"
+            } else {
+                "false"
+            }
+            onclick: on_popover_toggle(open)
+            children
         }
     }
 }

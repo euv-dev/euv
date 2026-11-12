@@ -141,6 +141,7 @@ pub fn euv_toast(node: VirtualNode<EuvToastProps>) -> VirtualNode {
     if !title.is_empty() {
         children.push(html! {
             div {
+                "data-slot": "toast-title"
                 class: c_euv_toast_title()
                 {
                     title
@@ -151,6 +152,7 @@ pub fn euv_toast(node: VirtualNode<EuvToastProps>) -> VirtualNode {
     if !description.is_empty() {
         children.push(html! {
             div {
+                "data-slot": "toast-description"
                 class: c_euv_toast_description()
                 {
                     description
@@ -167,6 +169,7 @@ pub fn euv_toast(node: VirtualNode<EuvToastProps>) -> VirtualNode {
         children.push(html! {
             button {
                 type: "button"
+                "data-slot": "toast-action"
                 class: c_euv_toast_action()
                 onclick: on_click
                 {
@@ -184,6 +187,7 @@ pub fn euv_toast(node: VirtualNode<EuvToastProps>) -> VirtualNode {
         children.push(html! {
             button {
                 type: "button"
+                "data-slot": "toast-close"
                 class: c_euv_toast_close()
                 "aria-label": "Dismiss"
                 onclick: on_click
@@ -194,7 +198,37 @@ pub fn euv_toast(node: VirtualNode<EuvToastProps>) -> VirtualNode {
         div {
             role: "status"
             "aria-live": "polite"
+            "data-slot": "toast"
             class: toast_class()
+            children
+        }
+    }
+}
+
+/// The shell a toast is built from.
+///
+/// The reference lets the caller compose a toast out of a headline, a
+/// body line, an action and a close button. This component is the box
+/// those parts live in: it carries the `toast` slot and the card
+/// styling, and it keeps whatever the caller puts inside it.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvToastCardProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv toast card virtual DOM tree.
+#[component]
+pub fn euv_toast_card(node: VirtualNode<EuvToastCardProps>) -> VirtualNode {
+    let EuvToastCardProps {}: EuvToastCardProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            role: "status"
+            "aria-live": "polite"
+            "data-slot": "toast"
+            class: c_euv_toast()
             children
         }
     }
@@ -214,6 +248,7 @@ pub fn euv_toast_title(node: VirtualNode<EuvToastTitleProps>) -> VirtualNode {
     let EuvToastTitleProps { text }: EuvToastTitleProps = node.try_get_props().unwrap_or_default();
     html! {
         div {
+            "data-slot": "toast-title"
             class: c_euv_toast_title()
             {
                 text
@@ -237,6 +272,7 @@ pub fn euv_toast_description(node: VirtualNode<EuvToastDescriptionProps>) -> Vir
         node.try_get_props().unwrap_or_default();
     html! {
         div {
+            "data-slot": "toast-description"
             class: c_euv_toast_description()
             {
                 text
@@ -266,11 +302,98 @@ pub fn euv_toast_action(node: VirtualNode<EuvToastActionProps>) -> VirtualNode {
     html! {
         button {
             type: "button"
+            "data-slot": "toast-action"
             class: c_euv_toast_action()
             onclick: handler
             {
                 label
             }
+        }
+    }
+}
+
+/// The provider that owns the queue of the toasts.
+///
+/// The reference hands the queue to a provider that sits above the
+/// viewport and hands every toast to it. euv has no context, so the
+/// provider renders a wrapper that keeps its children in the flow of the
+/// page and leaves the queue to the caller.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvToastProviderProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv toast provider virtual DOM tree.
+#[component]
+pub fn euv_toast_provider(node: VirtualNode<EuvToastProviderProps>) -> VirtualNode {
+    let EuvToastProviderProps {}: EuvToastProviderProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "toast-provider"
+            class: c_euv_toast_provider()
+            children
+        }
+    }
+}
+
+/// The fixed box the toasts stack inside.
+///
+/// The viewport is the anchor the toasts are placed in: it is pinned to
+/// the edge of the viewport and the toasts inside it stack downwards.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvToastViewportProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv toast viewport virtual DOM tree.
+#[component]
+pub fn euv_toast_viewport(node: VirtualNode<EuvToastViewportProps>) -> VirtualNode {
+    let EuvToastViewportProps {}: EuvToastViewportProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "toast-viewport"
+            class: c_euv_toast_viewport()
+            children
+        }
+    }
+}
+
+/// The button that dismisses one toast.
+///
+/// The close button reports the click to the caller, which owns the
+/// queue and decides what dismissing a toast means.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvToastCloseProps>` - The props node carrying the component settings.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv toast close virtual DOM tree.
+#[component]
+pub fn euv_toast_close(node: VirtualNode<EuvToastCloseProps>) -> VirtualNode {
+    let EuvToastCloseProps { on_click }: EuvToastCloseProps =
+        node.try_get_props().unwrap_or_default();
+    let handler: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |_: Event| {
+        if let Some(callback) = &on_click {
+            callback();
+        }
+    }));
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        button {
+            type: "button"
+            "data-slot": "toast-close"
+            "aria-label": "Dismiss"
+            class: c_euv_toast_close()
+            onclick: handler
+            children
         }
     }
 }

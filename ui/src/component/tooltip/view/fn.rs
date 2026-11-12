@@ -31,10 +31,13 @@ pub fn euv_tooltip(node: VirtualNode<EuvTooltipProps>) -> VirtualNode {
     };
     html! {
         span {
+            "data-slot": "tooltip-trigger"
+            "data-slot": "tooltip"
             class: c_euv_tooltip()
             children
             div {
                 role: "tooltip"
+                "data-slot": "tooltip-content"
                 class: c_euv_tooltip_bubble()
                 class: bubble_class()
                 {

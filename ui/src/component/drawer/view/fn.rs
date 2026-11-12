@@ -31,6 +31,7 @@ pub fn euv_drawer(node: VirtualNode<EuvDrawerProps>) -> VirtualNode {
             onclick: close_drawer(open)
         }
         div {
+            "data-slot": "drawer"
             class: c_euv_drawer()
             class: if { open } {
                 c_euv_drawer_open()
@@ -284,4 +285,39 @@ fn on_drawer_open(open: Signal<bool>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_: Event| {
         open.set(true);
     }))
+}
+
+/// Dims the page behind the drawer.
+///
+/// The overlay covers the page and takes the click, so a click outside the
+/// panel of the drawer does not reach the page behind it.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvDrawerOverlayProps>` - The props node carrying whether
+///   the drawer is open.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The overlay element.
+#[component]
+pub fn euv_drawer_overlay(node: VirtualNode<EuvDrawerOverlayProps>) -> VirtualNode {
+    let EuvDrawerOverlayProps { open }: EuvDrawerOverlayProps =
+        node.try_get_props().unwrap_or_default();
+    html! {
+        div {
+            "data-slot": "drawer-overlay"
+            "data-state": if { open.get() } {
+                "open"
+            } else {
+                "closed"
+            }
+            class: c_euv_drawer_overlay()
+            class: if { open.get() } {
+                c_euv_drawer_overlay_open()
+            } else {
+                c_euv_drawer_overlay_closed()
+            }
+        }
+    }
 }

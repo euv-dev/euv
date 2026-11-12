@@ -32,28 +32,47 @@ pub fn euv_progress(node: VirtualNode<EuvProgressProps>) -> VirtualNode {
         div {
             div {
                 role: "progressbar"
+                "aria-label": label_text
                 aria-valuenow: value_now
                 aria-valuemin: "0"
                 aria-valuemax: "100"
+                "data-slot": "progress"
                 class: c_progress_container()
+                class: if { cfg!(feature = "theme-shadcn") } {
+                    c_progress_container_shadcn()
+                } else {
+                    c_progress_container()
+                }
                 div {
-                    class: c_progress_bar_fill()
-                    class: if { active } {
-                        c_progress_bar_running()
+                    "data-slot": "progress-track"
+                    class: c_progress_bar_track()
+                    class: if { cfg!(feature = "theme-shadcn") } {
+                        c_progress_bar_track_shadcn()
                     } else {
-                        c_progress_bar_stopped()
+                        c_progress_bar_track()
                     }
-                    style: fill_style_ref
+                    div {
+                        "data-slot": "progress-indicator"
+                        class: c_progress_bar_fill()
+                        class: if { active } {
+                            c_progress_bar_running()
+                        } else {
+                            c_progress_bar_stopped()
+                        }
+                        style: fill_style_ref
+                    }
                 }
             }
             div {
                 class: c_euv_slider_header()
                 span {
-                    class: c_form_label()
+                    "data-slot": "progress-label"
+                    class: c_euv_progress_label()
                     label_text
                 }
                 span {
-                    class: c_binding_slider_value()
+                    "data-slot": "progress-value"
+                    class: c_euv_progress_value()
                     readout
                 }
             }

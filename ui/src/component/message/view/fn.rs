@@ -33,6 +33,7 @@ pub fn euv_message(node: VirtualNode<EuvMessageProps>) -> VirtualNode {
         div {
             role: "status"
             aria-live: "polite"
+            "data-slot": "message"
             class: c_euv_message_stack()
             messages
         }
@@ -110,4 +111,164 @@ pub fn message_callback_handler<E: 'static>(
             handler();
         })
     })
+}
+
+/// Holds a cluster of messages.
+///
+/// The group stacks the messages one under the other and keeps them
+/// from spilling out of the row they sit in.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvMessageGroupProps>` - The props node carrying the
+///   settings of the group.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv message group virtual DOM tree.
+#[component]
+pub fn euv_message_group(node: VirtualNode<EuvMessageGroupProps>) -> VirtualNode {
+    let EuvMessageGroupProps {}: EuvMessageGroupProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "message-group"
+            class: c_euv_message_group()
+            children
+        }
+    }
+}
+
+/// Holds the head of one message.
+///
+/// The header holds the picture of the sender and the name beside it.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvMessageHeaderProps>` - The props node carrying the
+///   settings of the header.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv message header virtual DOM tree.
+#[component]
+pub fn euv_message_header(node: VirtualNode<EuvMessageHeaderProps>) -> VirtualNode {
+    let EuvMessageHeaderProps {}: EuvMessageHeaderProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "message-header"
+            class: c_euv_message_header()
+            children
+        }
+    }
+}
+
+/// Holds the picture of the sender of one message.
+///
+/// The avatar is a round frame the picture is cut to, so the messages
+/// of one conversation line up with one another.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvMessageAvatarProps>` - The props node carrying the
+///   settings of the avatar.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv message avatar virtual DOM tree.
+#[component]
+pub fn euv_message_avatar(node: VirtualNode<EuvMessageAvatarProps>) -> VirtualNode {
+    let EuvMessageAvatarProps {}: EuvMessageAvatarProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "message-avatar"
+            class: c_euv_message_avatar()
+            children
+        }
+    }
+}
+
+/// Holds the body of one message.
+///
+/// The content holds the words of the message and takes the width the
+/// row gives it, so a long message wraps instead of pushing the row
+/// wider. The words sit in the bubble, which is the surface the
+/// reference draws them on.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvMessageContentProps>` - The props node carrying the
+///   settings of the content.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv message content virtual DOM tree.
+#[component]
+pub fn euv_message_content(node: VirtualNode<EuvMessageContentProps>) -> VirtualNode {
+    let EuvMessageContentProps {}: EuvMessageContentProps =
+        node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "message-content"
+            class: c_euv_message_content()
+            euv_message_bubble {
+                children
+            }
+        }
+    }
+}
+
+/// The surface the words of one message sit on.
+///
+/// The bubble is the `bubble` part of the reference: it wraps the words
+/// of the message so they read as one block of speech.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvMessageBubbleProps>` - The props node carrying the
+///   settings of the bubble.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv message bubble virtual DOM tree.
+#[component]
+pub fn euv_message_bubble(node: VirtualNode<EuvMessageBubbleProps>) -> VirtualNode {
+    let EuvMessageBubbleProps {}: EuvMessageBubbleProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "bubble"
+            class: c_euv_message_bubble()
+            children
+        }
+    }
+}
+
+/// Holds the trailing actions of one message.
+///
+/// The footer holds what the reader can do with the message, so the
+/// actions sit below the words they belong to.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvMessageFooterProps>` - The props node carrying the
+///   settings of the footer.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The euv message footer virtual DOM tree.
+#[component]
+pub fn euv_message_footer(node: VirtualNode<EuvMessageFooterProps>) -> VirtualNode {
+    let EuvMessageFooterProps {}: EuvMessageFooterProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    html! {
+        div {
+            "data-slot": "message-footer"
+            class: c_euv_message_footer()
+            children
+        }
+    }
 }

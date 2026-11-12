@@ -3,7 +3,12 @@ use super::*;
 const BUDGET: &[(&str, &[&str], &str)] = &[
     (
         "page content",
-        &["c_page_content", "c_home_content", "c_euv_watermark_layer"],
+        &[
+            "c_page_content",
+            "c_home_content",
+            "c_euv_watermark_layer",
+            "c_euv_questionnaire_choice_input",
+        ],
         "1",
     ),
     ("loading overlay", &["c_loading_overlay"], "5"),
@@ -11,7 +16,11 @@ const BUDGET: &[(&str, &[&str], &str)] = &[
     ("app chrome", &["c_mobile_header", "c_euv_navbar"], "100"),
     (
         "nav dropdown",
-        &["c_euv_dropdown_menu", "c_euv_menubar_content"],
+        &[
+            "c_euv_dropdown_menu",
+            "c_euv_menubar_content",
+            "c_euv_menubar_sub_content_shadcn",
+        ],
         "101",
     ),
     (
@@ -58,6 +67,8 @@ const BUDGET: &[(&str, &[&str], &str)] = &[
             "c_euv_combobox_content",
             "c_euv_hover_card_content",
             "c_euv_context_menu_content",
+            "c_euv_context_menu_sub_content",
+            "c_euv_dropdown_menu_sub_content",
         ],
         "150",
     ),
@@ -86,6 +97,7 @@ const BUDGET: &[(&str, &[&str], &str)] = &[
             "c_modal_overlay",
             "c_euv_dialog",
             "c_euv_dialog_overlay",
+            "c_euv_dialog_content",
             "c_euv_sheet_content",
             "c_euv_sheet_overlay",
             "c_euv_alert_dialog_content",

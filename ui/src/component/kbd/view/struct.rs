@@ -7,3 +7,9 @@ pub struct EuvKbdProps {
     #[get(type(copy))]
     pub text: &'static str,
 }
+
+/// Props for the [`euv_kbd_group`] component.
+///
+/// The group takes no settings of its own.
+#[derive(Clone, CustomDebug, Default)]
+pub struct EuvKbdGroupProps {}

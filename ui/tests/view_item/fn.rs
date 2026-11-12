@@ -73,6 +73,16 @@ fn attribute_names(node: &VirtualNode) -> Vec<String> {
     }
 }
 
+fn attribute_value(node: &VirtualNode, name: &str) -> Option<String> {
+    match node {
+        VirtualNode::Element { attributes, .. } => attributes
+            .iter()
+            .find(|entry: &&AttributeEntry| entry.get_name() == name)
+            .and_then(AttributeEntry::text_value),
+        _ => None,
+    }
+}
+
 fn class_names(node: &VirtualNode) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for element in elements(node) {
@@ -105,6 +115,9 @@ fn an_item_group_is_a_list() {
         has_class(&rendered, "c_euv_item_group"),
         "the group carries the item-group class"
     );
+    if cfg!(feature = "theme-shadcn") {
+        assert!(has_class(&rendered, "c_euv_item_group_shadcn"));
+    }
 }
 
 #[test]
@@ -130,14 +143,30 @@ fn every_item_variant_reaches_the_class_list() {
 fn every_item_size_reaches_the_class_list() {
     let default: VirtualNode = euv_item(item_node(EuvItemVariant::Default, EuvItemSize::Default));
     let small: VirtualNode = euv_item(item_node(EuvItemVariant::Default, EuvItemSize::Sm));
-    assert!(
-        has_class(&default, "c_euv_item_size_default"),
-        "the roomy row has its own class"
-    );
-    assert!(
-        has_class(&small, "c_euv_item_size_sm"),
-        "the compact row has its own class"
-    );
+    let extra_small: VirtualNode = euv_item(item_node(EuvItemVariant::Default, EuvItemSize::Xs));
+    for (node, class_name, data_size) in [
+        (&default, "c_euv_item_size_default", ITEM_SIZE_DEFAULT),
+        (&small, "c_euv_item_size_sm", ITEM_SIZE_SM),
+        (&extra_small, "c_euv_item_size_xs", ITEM_SIZE_XS),
+    ] {
+        assert!(
+            has_class(node, class_name),
+            "the {data_size} row has its own class"
+        );
+        assert_eq!(
+            attribute_value(node, "data-size").as_deref(),
+            Some(data_size)
+        );
+    }
+    if cfg!(feature = "theme-shadcn") {
+        for (node, class_name) in [
+            (&default, "c_euv_item_size_default_shadcn"),
+            (&small, "c_euv_item_size_sm_shadcn"),
+            (&extra_small, "c_euv_item_size_xs_shadcn"),
+        ] {
+            assert!(has_class(node, class_name));
+        }
+    }
 }
 
 #[test]

@@ -14,6 +14,39 @@ fn count_named(node: &VirtualNode, needle: &str) -> usize {
     format!("{node:?}").matches(needle).count()
 }
 
+fn collect_slots(node: &VirtualNode, slots: &mut Vec<String>) {
+    match node {
+        VirtualNode::Element {
+            attributes,
+            children,
+            ..
+        } => {
+            for attribute in attributes.iter() {
+                if attribute.get_name() == "data-slot"
+                    && let Some(value) = attribute.text_value()
+                {
+                    slots.push(value);
+                }
+            }
+            for child in children.iter() {
+                collect_slots(child, slots);
+            }
+        }
+        VirtualNode::Fragment(children) => {
+            for child in children.iter() {
+                collect_slots(child, slots);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn slot_names(node: &VirtualNode) -> Vec<String> {
+    let mut slots: Vec<String> = Vec::new();
+    collect_slots(node, &mut slots);
+    slots
+}
+
 fn slider_node(id: &'static str) -> VirtualNode<EuvSliderProps> {
     VirtualNode::Element {
         tag: Tag::Element(Cow::Borrowed("div")),
@@ -83,6 +116,23 @@ fn a_slider_renders_a_native_range_input() {
     assert!(
         debugged.contains("Element(\"input\")"),
         "a range control must be a real input element, got {debugged}"
+    );
+}
+
+#[test]
+fn a_slider_renders_the_reference_slots_around_the_native_input() {
+    let rendered: VirtualNode = euv_slider(slider_node("volume"));
+    let debugged: String = format!("{rendered:?}");
+    let slots: Vec<String> = slot_names(&rendered);
+    for slot in ["slider", "slider-track", "slider-range", "slider-thumb"] {
+        assert!(
+            slots.iter().any(|value: &String| value == slot),
+            "the slider exposes reference slot {slot}, got {slots:?}"
+        );
+    }
+    assert!(
+        debugged.contains("Element(\"input\")"),
+        "the painted slider keeps its native range input for keyboard and forms"
     );
 }
 

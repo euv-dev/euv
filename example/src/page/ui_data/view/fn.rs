@@ -54,6 +54,57 @@ pub(crate) fn page_ui_data(node: VirtualNode<PageUiDataProps>) -> VirtualNode {
             value: DATA_DESCRIPTION_FOURTH_VALUE,
         },
     ];
+    let table_columns: Vec<EuvTableColumn> = vec![
+        EuvTableColumn {
+            key: DATA_TABLE_FIRST_ROW_KEY,
+            label: DATA_TABLE_NAME_COLUMN,
+            align: EuvTableAlign::Left,
+        },
+        EuvTableColumn {
+            key: DATA_TABLE_SECOND_ROW_KEY,
+            label: DATA_TABLE_VERSION_COLUMN,
+            align: EuvTableAlign::Right,
+        },
+        EuvTableColumn {
+            key: DATA_TABLE_THIRD_ROW_KEY,
+            label: DATA_TABLE_TARGET_COLUMN,
+            align: EuvTableAlign::Center,
+        },
+        EuvTableColumn {
+            key: DATA_TABLE_STATE_COLUMN,
+            label: DATA_TABLE_STATE_COLUMN,
+            align: EuvTableAlign::Right,
+        },
+    ];
+    let table_rows: Vec<EuvTableRow> = vec![
+        EuvTableRow {
+            key: DATA_TABLE_FIRST_ROW_KEY,
+            cells: vec![
+                DATA_TABLE_FIRST_NAME,
+                DATA_TABLE_FIRST_VERSION,
+                DATA_TABLE_FIRST_TARGET,
+                DATA_TABLE_FIRST_STATE,
+            ],
+        },
+        EuvTableRow {
+            key: DATA_TABLE_SECOND_ROW_KEY,
+            cells: vec![
+                DATA_TABLE_SECOND_NAME,
+                DATA_TABLE_SECOND_VERSION,
+                DATA_TABLE_SECOND_TARGET,
+                DATA_TABLE_SECOND_STATE,
+            ],
+        },
+        EuvTableRow {
+            key: DATA_TABLE_THIRD_ROW_KEY,
+            cells: vec![
+                DATA_TABLE_THIRD_NAME,
+                DATA_TABLE_THIRD_VERSION,
+                DATA_TABLE_THIRD_TARGET,
+                DATA_TABLE_THIRD_STATE,
+            ],
+        },
+    ];
     let message_items: Vec<EuvMessageItem> = (0..state.message_count.get())
         .map(|_| EuvMessageItem {
             text: DATA_MESSAGE_TEXT,
@@ -129,6 +180,60 @@ pub(crate) fn page_ui_data(node: VirtualNode<PageUiDataProps>) -> VirtualNode {
                 }
             }
             euv_card {
+                title: DATA_TABLE_CARD_TITLE
+                p {
+                    class: c_badge_hint()
+                    DATA_TABLE_HINT
+                }
+                euv_table {
+                    columns: table_columns
+                    rows: table_rows
+                    caption: DATA_TABLE_CAPTION
+                    zebra: true
+                }
+            }
+            euv_card {
+                title: DATA_PAGINATION_CARD_TITLE
+                p {
+                    class: c_badge_hint()
+                    DATA_PAGINATION_HINT
+                }
+                euv_pagination {
+                    euv_pagination_content {
+                        euv_pagination_item {
+                            label: DATA_PAGINATION_PREV_LABEL
+                            text: DATA_PAGINATION_PREV_TEXT
+                            link: DATA_PAGINATION_PREV_LINK
+                            next: false
+                        }
+                        euv_pagination_link {
+                            label: DATA_PAGINATION_PAGE_ONE
+                            link: DATA_PAGINATION_PAGE_ONE_LINK
+                            active: true
+                        }
+                        euv_pagination_link {
+                            label: DATA_PAGINATION_PAGE_TWO
+                            link: DATA_PAGINATION_PAGE_TWO_LINK
+                        }
+                        euv_pagination_link {
+                            label: DATA_PAGINATION_PAGE_THREE
+                            link: DATA_PAGINATION_PAGE_THREE_LINK
+                        }
+                        euv_pagination_ellipsis {}
+                        euv_pagination_link {
+                            label: DATA_PAGINATION_PAGE_LAST
+                            link: DATA_PAGINATION_PAGE_LAST_LINK
+                        }
+                        euv_pagination_item {
+                            label: DATA_PAGINATION_NEXT_LABEL
+                            text: DATA_PAGINATION_NEXT_TEXT
+                            link: DATA_PAGINATION_NEXT_LINK
+                            next: true
+                        }
+                    }
+                }
+            }
+            euv_card {
                 title: DATA_TREE_CARD_TITLE
                 p {
                     class: c_badge_hint()
@@ -169,16 +274,16 @@ pub(crate) fn page_ui_data(node: VirtualNode<PageUiDataProps>) -> VirtualNode {
                         label: DATA_NOTIFICATION_POP_LABEL
                         onclick: data_pop_notification(state.notification_count)
                     }
-                }
-                euv_popconfirm {
-                    title: DATA_POPCONFIRM_TITLE
-                    ok_label: DATA_POPCONFIRM_OK_LABEL
-                    cancel_label: DATA_POPCONFIRM_CANCEL_LABEL
-                    on_ok: data_on_popconfirm_ok()
-                    on_cancel: data_on_popconfirm_cancel()
-                    euv_button {
-                        variant: EuvButtonVariant::Outline
-                        label: DATA_POPCONFIRM_TRIGGER_LABEL
+                    euv_popconfirm {
+                        title: DATA_POPCONFIRM_TITLE
+                        ok_label: DATA_POPCONFIRM_OK_LABEL
+                        cancel_label: DATA_POPCONFIRM_CANCEL_LABEL
+                        on_ok: data_on_popconfirm_ok()
+                        on_cancel: data_on_popconfirm_cancel()
+                        euv_button {
+                            variant: EuvButtonVariant::Destructive
+                            label: DATA_POPCONFIRM_TRIGGER_LABEL
+                        }
                     }
                 }
             }

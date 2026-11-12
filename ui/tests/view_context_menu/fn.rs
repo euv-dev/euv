@@ -70,6 +70,19 @@ fn has_attribute(node: &VirtualNode, name: &str) -> bool {
 }
 
 #[test]
+fn a_context_menu_trigger_opens_from_mouse_and_keyboard_context_menu_events() {
+    let node: VirtualNode = euv_context_menu_trigger(props_node(EuvContextMenuTriggerProps {
+        open: Signal::create(false),
+        label: "Actions",
+    }));
+    assert!(has_class(&node, "c_euv_context_menu_trigger"));
+    assert!(has_attribute(&node, "oncontextmenu"));
+    assert!(has_attribute(&node, "onkeydown"));
+    assert!(has_attribute(&node, "tabindex"));
+    assert!(!has_attribute(&node, "onclick"));
+}
+
+#[test]
 fn the_context_menu_panel_is_a_menu() {
     let node: VirtualNode = euv_context_menu_content(props_node(EuvContextMenuContentProps {
         open: Signal::create(true),

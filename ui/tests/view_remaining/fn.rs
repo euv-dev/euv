@@ -8,6 +8,51 @@ fn total(node: &VirtualNode) -> usize {
     }
 }
 
+fn slot_names(node: &VirtualNode) -> Vec<String> {
+    match node {
+        VirtualNode::Element {
+            attributes,
+            children,
+            ..
+        } => {
+            let mut names: Vec<String> = attributes
+                .iter()
+                .filter(|attribute: &&AttributeEntry| attribute.get_name() == "data-slot")
+                .filter_map(AttributeEntry::text_value)
+                .collect();
+            for child in children.iter() {
+                names.extend(slot_names(child));
+            }
+            names
+        }
+        VirtualNode::Fragment(children) => children.iter().flat_map(slot_names).collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn class_names(node: &VirtualNode) -> Vec<String> {
+    match node {
+        VirtualNode::Element {
+            attributes,
+            children,
+            ..
+        } => {
+            let mut names: Vec<String> = Vec::new();
+            for attribute in attributes.iter() {
+                if attribute.get_name() == "class" {
+                    names.extend(attribute.class_names());
+                }
+            }
+            for child in children.iter() {
+                names.extend(class_names(child));
+            }
+            names
+        }
+        VirtualNode::Fragment(children) => children.iter().flat_map(class_names).collect(),
+        _ => Vec::new(),
+    }
+}
+
 fn modal_node(title: &'static str) -> VirtualNode<EuvModalProps> {
     VirtualNode::Element {
         tag: Tag::Element(Cow::Borrowed("div")),
@@ -119,6 +164,19 @@ fn a_skeleton_draws_one_placeholder_per_line() {
         4,
         "three lines are the wrapper plus three placeholders"
     );
+    assert_eq!(
+        slot_names(&three)
+            .iter()
+            .filter(|slot: &&String| slot.as_str() == "skeleton")
+            .count(),
+        4
+    );
+    if cfg!(feature = "theme-shadcn") {
+        let classes: Vec<String> = class_names(&three);
+        for class_name in ["c_euv_skeleton_shadcn", "c_euv_skeleton_line_shadcn"] {
+            assert!(classes.iter().any(|class: &String| class == class_name));
+        }
+    }
 }
 
 #[test]
