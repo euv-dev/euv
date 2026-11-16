@@ -1,6 +1,14 @@
 /// Scheme prefix marking a navbar link that opens outside the app.
 pub(crate) const NAVBAR_LINK_SCHEME_HTTP_PREFIX: &str = "http";
 
+/// The DOM-owned roving entry retained across reactive renders.
+pub(crate) const MENUBAR_TAB_STOP_ATTRIBUTE: &str = "data-menubar-tab-stop";
+/// The computed writing-direction property.
+pub(crate) const MENUBAR_DIRECTION_PROPERTY: &str = "direction";
+/// The right-to-left computed direction.
+pub(crate) const MENUBAR_RTL_VALUE: &str = "rtl";
+/// The native tab-order attribute.
+pub(crate) const MENUBAR_TAB_INDEX_ATTRIBUTE: &str = "tabindex";
 pub(crate) const MENUBAR_TRIGGER_SELECTOR: &str = "[data-slot=menubar-trigger]";
 pub(crate) const MENUBAR_CONTENT_ID_SUFFIX: &str = "-content";
 pub(crate) const MENUBAR_CONTENT_SELECTOR: &str = "[data-slot=menubar-content]";
@@ -29,6 +37,10 @@ pub(crate) const MENUBAR_KEY_ARROW_RIGHT: &str = "ArrowRight";
 pub(crate) const MENUBAR_KEY_ARROW_LEFT: &str = "ArrowLeft";
 /// The down-arrow keyboard key name.
 pub(crate) const MENUBAR_KEY_ARROW_DOWN: &str = "ArrowDown";
+/// The Enter keyboard activation key.
+pub(crate) const MENUBAR_KEY_ENTER: &str = "Enter";
+/// The Space keyboard activation key.
+pub(crate) const MENUBAR_KEY_SPACE: &str = " ";
 /// The up-arrow keyboard key name.
 pub(crate) const MENUBAR_KEY_ARROW_UP: &str = "ArrowUp";
 /// The Home keyboard key name.

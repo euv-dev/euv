@@ -27,15 +27,14 @@ pub fn euv_table(node: VirtualNode<EuvTableProps>) -> VirtualNode {
         rows,
         caption,
         zebra,
+        class: custom_class,
     }: EuvTableProps = node.try_get_props().unwrap_or_default();
+    let children: VirtualNode = node.get_children().into();
+    let has_custom_content: bool = !matches!(&children, VirtualNode::Empty);
     let header_row: VirtualNode = table_header_row(columns.as_slice());
     let body_rows: Vec<VirtualNode> = table_body_rows(columns.as_slice(), rows, zebra);
     let base_class: &Css = c_euv_table();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_table_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         div {
             "data-slot": "table-container"
@@ -43,17 +42,22 @@ pub fn euv_table(node: VirtualNode<EuvTableProps>) -> VirtualNode {
             table {
                 "data-slot": "table"
                 class: base_class
-                class: shadcn_class
-                if !caption.is_empty() {
-                    euv_table_caption {
-                        text: caption
+
+                class: custom_class
+                if has_custom_content {
+                    children
+                } else {
+                    if !caption.is_empty() {
+                        euv_table_caption {
+                            text: caption
+                        }
                     }
-                }
-                euv_table_header {
-                    header_row
-                }
-                euv_table_body {
-                    body_rows
+                    euv_table_header {
+                        header_row
+                    }
+                    euv_table_body {
+                        body_rows
+                    }
                 }
             }
         }
@@ -78,30 +82,28 @@ fn table_header_row(columns: &[EuvTableColumn]) -> VirtualNode {
         .iter()
         .map(|column: &EuvTableColumn| {
             let base_class: &Css = c_euv_table_header_cell();
-            let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-                c_euv_table_header_cell_shadcn()
-            } else {
-                &EMPTY_CLASS
-            };
+
             let align_class: &'static str = table_cell_align_class(column.align);
-            let align_shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+            let align_shadcn_class: &Css = {
                 match column.align {
                     EuvTableAlign::Left => &EMPTY_CLASS,
-                    EuvTableAlign::Center => c_euv_table_header_cell_center_shadcn(),
-                    EuvTableAlign::Right => c_euv_table_header_cell_right_shadcn(),
+                    EuvTableAlign::Center => c_euv_table_header_cell_center(),
+                    EuvTableAlign::Right => c_euv_table_header_cell_right(),
                 }
-            } else {
-                &EMPTY_CLASS
             };
+            // The tree may be written again, so the label is copied out of
+            // the column rather than borrowed from it.
+            let column_key: String = column.key.to_string();
+            let column_label: ::euv::CowText = column.label.clone();
             html! {
                 th {
-                    key: column.key
+                    key: column_key.clone()
                     "data-slot": "table-head"
                     class: base_class
-                    class: shadcn_class
+
                     class: align_class
                     class: align_shadcn_class
-                    column.label
+                    {column_label.clone()}
                 }
             }
         })
@@ -135,13 +137,9 @@ fn table_row(columns: &[EuvTableColumn], row: EuvTableRow, zebra: bool) -> Virtu
     } else {
         c_euv_table_row()
     };
-    let row_shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_table_row_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
-    let zebra_shadcn_class: &Css = if zebra && cfg!(feature = "theme-shadcn") {
-        c_euv_table_row_zebra_shadcn()
+    let row_shadcn_class: &Css = { c_euv_table_row() };
+    let zebra_shadcn_class: &Css = if zebra {
+        c_euv_table_row_zebra()
     } else {
         &EMPTY_CLASS
     };
@@ -150,37 +148,35 @@ fn table_row(columns: &[EuvTableColumn], row: EuvTableRow, zebra: bool) -> Virtu
         .enumerate()
         .map(|(index, column): (usize, &EuvTableColumn)| {
             let base_class: &Css = c_euv_table_cell();
-            let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-                c_euv_table_cell_shadcn()
-            } else {
-                &EMPTY_CLASS
-            };
+
             let align_class: &'static str = table_cell_align_class(column.align);
-            let align_shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+            let align_shadcn_class: &Css = {
                 match column.align {
                     EuvTableAlign::Left => &EMPTY_CLASS,
-                    EuvTableAlign::Center => c_euv_table_cell_center_shadcn(),
-                    EuvTableAlign::Right => c_euv_table_cell_right_shadcn(),
+                    EuvTableAlign::Center => c_euv_table_cell_center(),
+                    EuvTableAlign::Right => c_euv_table_cell_right(),
                 }
-            } else {
-                &EMPTY_CLASS
             };
-            let text: &'static str = row.cells.get(index).copied().unwrap_or_default();
+            let text: ::euv::CowText = row
+                .cells
+                .get(index)
+                .cloned()
+                .unwrap_or_else(|| ::euv::CowText::from_text(""));
             html! {
                 td {
                     "data-slot": "table-cell"
                     class: base_class
-                    class: shadcn_class
+
                     class: align_class
                     class: align_shadcn_class
-                    text
+                    {text.clone()}
                 }
             }
         })
         .collect();
     html! {
         tr {
-            key: row.key
+            key: row.key.clone().as_str()
             "data-slot": "table-row"
             class: row_base_class
             class: row_shadcn_class
@@ -255,16 +251,12 @@ pub fn euv_table_header(node: VirtualNode<EuvTableHeaderProps>) -> VirtualNode {
     let EuvTableHeaderProps {}: EuvTableHeaderProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_table_head();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_table_head_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         thead {
             "data-slot": "table-header"
             class: base_class
-            class: shadcn_class
+
             children
         }
     }
@@ -288,16 +280,12 @@ pub fn euv_table_body(node: VirtualNode<EuvTableBodyProps>) -> VirtualNode {
     let EuvTableBodyProps {}: EuvTableBodyProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_table_body();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_table_body_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         tbody {
             "data-slot": "table-body"
             class: base_class
-            class: shadcn_class
+
             children
         }
     }
@@ -322,16 +310,12 @@ pub fn euv_table_footer(node: VirtualNode<EuvTableFooterProps>) -> VirtualNode {
     let EuvTableFooterProps {}: EuvTableFooterProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_table_footer();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_table_footer_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         tfoot {
             "data-slot": "table-footer"
             class: base_class
-            class: shadcn_class
+
             children
         }
     }
@@ -355,16 +339,12 @@ pub fn euv_table_caption(node: VirtualNode<EuvTableCaptionProps>) -> VirtualNode
     let EuvTableCaptionProps { text }: EuvTableCaptionProps =
         node.try_get_props().unwrap_or_default();
     let base_class: &Css = c_euv_table_caption();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_table_caption_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         caption {
             "data-slot": "table-caption"
             class: base_class
-            class: shadcn_class
+
             text
         }
     }
@@ -414,16 +394,12 @@ pub fn euv_table_head(node: VirtualNode<EuvTableHeadProps>) -> VirtualNode {
     let EuvTableHeadProps {}: EuvTableHeadProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_table_header_cell();
-    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_table_header_cell_shadcn().clone()
-    } else {
-        Css::default()
-    };
+
     html! {
         th {
             "data-slot": "table-head"
             class: base_class
-            class: shadcn_class
+
             children
         }
     }
@@ -447,16 +423,12 @@ pub fn euv_table_cell(node: VirtualNode<EuvTableCellProps>) -> VirtualNode {
     let EuvTableCellProps {}: EuvTableCellProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_table_cell();
-    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_table_cell_shadcn().clone()
-    } else {
-        Css::default()
-    };
+
     html! {
         td {
             "data-slot": "table-cell"
             class: base_class
-            class: shadcn_class
+
             children
         }
     }

@@ -1,5 +1,16 @@
 use super::*;
 
+/// Shared ownership restores a document only after its final open sheet releases it.
+#[cfg(any(target_arch = "wasm32", test))]
+#[derive(Data)]
+pub(crate) struct SheetScrollLease {
+    /// Exact property restoration, consumed once by the final strong owner.
+    #[get(skip)]
+    #[get_mut(pub(crate))]
+    #[set(skip)]
+    pub(crate) cleanup: Option<Box<dyn FnOnce()>>,
+}
+
 /// Props of the [`euv_sheet`] component.
 ///
 /// The sheet holds the open state, so the trigger and the panel always
@@ -10,6 +21,9 @@ pub struct EuvSheetProps {
     pub open: Signal<bool>,
     /// The edge the sheet slides in from.
     pub side: EuvSheetSide,
+    /// Immediate owning sheet state; closing it resets this sheet and its descendants.
+    /// Keep each nested sheet's `open` signal distinct from its parent's signal.
+    pub parent_open: Option<Signal<bool>>,
 }
 
 /// Props of the [`euv_sheet_trigger`] component.
@@ -66,8 +80,10 @@ pub struct EuvSheetDescriptionProps {
 }
 
 /// Props of the [`euv_sheet_close`] component.
-#[derive(Clone, Copy, CustomDebug, Default)]
+#[derive(Clone, CustomDebug, Default)]
 pub struct EuvSheetCloseProps {
+    /// The same caller-owned open state supplied to the root and content.
+    pub open: Signal<bool>,
     /// The accessible name of the button.
     pub label: &'static str,
 }

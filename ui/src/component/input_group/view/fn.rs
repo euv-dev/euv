@@ -20,11 +20,6 @@ pub fn euv_input_group(node: VirtualNode<EuvInputGroupProps>) -> VirtualNode {
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_input_group();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_input_group_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
     html! {
         div {
             class: if { disabled.get() } {
@@ -32,7 +27,6 @@ pub fn euv_input_group(node: VirtualNode<EuvInputGroupProps>) -> VirtualNode {
             } else {
                 base_class
             }
-            class: shadcn_class
             role: "group"
             "data-slot": "input-group"
             "data-disabled": if { disabled.get() } {

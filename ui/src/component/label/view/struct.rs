@@ -16,4 +16,6 @@ pub struct EuvLabelProps {
     /// Whether the labelled control is disabled.
     #[get(type(copy))]
     pub disabled: Signal<bool>,
+    /// An optional application class composed with the label classes.
+    pub class: Css,
 }

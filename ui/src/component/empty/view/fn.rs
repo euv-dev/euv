@@ -29,31 +29,27 @@ pub fn euv_empty(node: VirtualNode<EuvEmptyProps>) -> VirtualNode {
     }: EuvEmptyProps = node.try_get_props().unwrap_or_default();
     let has_action: bool = !action_label.is_empty();
     let base_class: &Css = c_euv_empty();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_empty_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
             div {
                 "data-slot": "empty"
                 class: base_class
-                class: shadcn_class
+
                 if !icon.is_empty() {
                     div {
                         "data-slot": "empty-icon"
                         class: c_euv_empty_icon()
-                        icon
+                        icon.clone()
                     }
                 }
                 div {
                     class: c_euv_empty_text()
-                    title
+                    title.clone()
                 }
                 if !desc.is_empty() {
                     div {
                         class: c_euv_empty_desc()
-                        desc
+                        desc.clone()
                     }
                 }
                 if has_action {
@@ -61,8 +57,10 @@ pub fn euv_empty(node: VirtualNode<EuvEmptyProps>) -> VirtualNode {
                         class: c_euv_empty_action()
                         euv_button {
                             variant: EuvButtonVariant::Primary
-                            label: action_label
                             onclick: on_action
+                            {
+                                action_label.clone()
+                            }
                         }
                     }
                 }

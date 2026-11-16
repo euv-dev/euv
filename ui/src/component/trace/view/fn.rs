@@ -59,17 +59,13 @@ pub fn euv_trace_line(node: VirtualNode<EuvTraceLineProps>) -> VirtualNode {
     };
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_trace_line();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_trace_line_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         span {
             "data-slot": "trace-line"
             "data-status": status_attr
             class: base_class
-            class: shadcn_class
+
             class: status_class()
             children
         }

@@ -34,11 +34,7 @@ pub fn euv_separator(node: VirtualNode<EuvSeparatorProps>) -> VirtualNode {
     };
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_separator();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_separator_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         div {
             "data-slot": "separator"
@@ -47,7 +43,7 @@ pub fn euv_separator(node: VirtualNode<EuvSeparatorProps>) -> VirtualNode {
             "data-orientation": orientation_attr
             class: base_class
             class: orientation_class
-            class: shadcn_class
+
             children
         }
     }

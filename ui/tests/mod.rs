@@ -1,9 +1,12 @@
+mod browser_reset;
 mod class_registry;
 mod console_entry;
 mod counter;
 mod debounced_value;
 mod divider_view;
 mod error_boundary;
+mod feature_class_architecture;
+mod feature_class_metadata;
 mod form;
 mod gesture;
 mod headless;
@@ -16,10 +19,15 @@ mod hook_timing2;
 mod hook_traits;
 mod hook_types;
 mod hook_units;
+mod hover_geometry;
 mod i18n;
 mod i18n_interpolate;
+mod layout_shell;
 mod lazy;
+mod markdown_inline_code;
 mod md_css;
+#[cfg(not(feature = "theme-custom"))]
+mod menu_hover_css;
 mod month_caption;
 mod no_dom_fallback;
 mod previous;
@@ -29,15 +37,19 @@ mod router;
 mod router_select;
 mod safe_area_contract;
 mod shadcn_spec;
-#[cfg(not(feature = "theme-custom"))]
+#[cfg(all(not(feature = "theme-custom"), not(feature = "theme-shadcn")))]
 mod sidebar_css;
 mod sidebar_first_page;
+mod sidebar_shadcn;
 mod suspense;
+mod tabs_relationships;
 mod theme;
 mod throttled_value;
+mod toc_frame;
 mod toggle;
 mod touch_extract;
 mod touch_gesture;
+mod track_geometry;
 mod transition;
 mod use_async;
 mod vconsole;
@@ -46,6 +58,7 @@ mod view_alert;
 mod view_alert_dialog;
 mod view_aspect_ratio;
 mod view_attachment;
+mod view_auto_complete;
 mod view_basic;
 mod view_breadcrumb;
 mod view_bubble;
@@ -135,6 +148,7 @@ use std::{
     io::Error,
     panic::{AssertUnwindSafe, catch_unwind, panic_any},
     path::{Path, PathBuf},
+    process::{Command, Output},
     rc::Rc,
     sync::{Mutex, MutexGuard, PoisonError},
 };

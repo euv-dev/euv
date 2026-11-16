@@ -9,9 +9,9 @@ use super::*;
 #[derive(Clone, CustomDebug, Default)]
 pub struct EuvPanelProps {
     /// The panel title rendered in the header.
-    pub title: &'static str,
+    pub title: ::euv::CowText,
     /// The optional subtitle rendered under the title. Skipped when empty.
-    pub subtitle: &'static str,
+    pub subtitle: ::euv::CowText,
     /// The border treatment of the panel.
     pub variant: EuvPanelVariant,
 }

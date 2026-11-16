@@ -80,7 +80,7 @@ fn a_decorative_separator_carries_no_role() {
     assert!(has_attribute(&node, "data-slot"));
     assert!(has_attribute(&node, "data-orientation"));
     if cfg!(feature = "theme-shadcn") {
-        assert!(has_class(&node, "c_euv_separator_shadcn"));
+        assert!(has_class(&node, "c_euv_separator"));
     }
 }
 

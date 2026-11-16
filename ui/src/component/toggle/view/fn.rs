@@ -96,21 +96,7 @@ pub(crate) fn toggle_class(
         class_name.push(' ');
         class_name.push_str(c_euv_toggle_pressed().get_name());
     }
-    if cfg!(feature = "theme-shadcn") {
-        class_name.push(' ');
-        class_name.push_str(c_euv_toggle_shadcn().get_name());
-        let shadcn_size_class: &str = match size {
-            EuvToggleSize::Default => c_euv_toggle_size_default_shadcn().get_name(),
-            EuvToggleSize::Small => c_euv_toggle_size_small_shadcn().get_name(),
-            EuvToggleSize::Large => c_euv_toggle_size_large_shadcn().get_name(),
-        };
-        class_name.push(' ');
-        class_name.push_str(shadcn_size_class);
-        if is_pressed {
-            class_name.push(' ');
-            class_name.push_str(c_euv_toggle_pressed_shadcn().get_name());
-        }
-    }
+
     class_name
 }
 

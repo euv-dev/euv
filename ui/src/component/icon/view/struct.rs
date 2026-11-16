@@ -13,4 +13,10 @@ pub struct EuvIconProps {
     pub label: &'static str,
     /// The size of the glyph.
     pub size: EuvIconSize,
+    /// The markup of a glyph drawn as a vector.
+    ///
+    /// The markup is the body of an `svg` element. When it is set the icon
+    /// is drawn as a vector and the `name` is not rendered: a drawing and a
+    /// character cannot share one glyph.
+    pub svg: Option<EuvSvgMarkup>,
 }

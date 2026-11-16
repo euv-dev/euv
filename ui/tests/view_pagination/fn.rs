@@ -1,5 +1,250 @@
 use super::*;
 
+fn pagination_style(class: &Css, property: &str) -> Option<String> {
+    class
+        .get_style()
+        .split(';')
+        .filter_map(|part: &str| part.split_once(':'))
+        .filter(|(name, _): &(&str, &str)| name.trim() == property)
+        .map(|(_, value): (&str, &str)| value.trim().to_string())
+        .next_back()
+}
+
+#[cfg(not(feature = "theme-custom"))]
+fn assert_pagination_auto_rule(class: &Css, properties: &[(&str, &str)]) {
+    let selector: String = format!(":is(.c_euv_pagination_auto_content .{})", class.get_name());
+    let expected: PseudoRule = PseudoRule::new(
+        selector.clone(),
+        format!("{} ", Css::style_string(properties)),
+    );
+    assert!(
+        class.get_pseudo_rules().contains(&expected),
+        "expected generated .{}{selector} rule {expected:?}; got {:?}",
+        class.get_name(),
+        class.get_pseudo_rules()
+    );
+}
+
+#[test]
+#[cfg(not(feature = "theme-custom"))]
+fn auto_footer_uses_two_equal_stretch_tracks_without_a_mobile_collapse() {
+    let auto: &Css = c_euv_pagination_auto_content();
+    for (property, expected) in [
+        ("display", "grid"),
+        ("grid-template-columns", "minmax(0px, 1fr) minmax(0px, 1fr)"),
+        ("align-items", "stretch"),
+        ("width", "100%"),
+        ("box-sizing", "border-box"),
+        ("padding", "0px"),
+        ("list-style", "none"),
+    ] {
+        assert_eq!(pagination_style(auto, property).as_deref(), Some(expected));
+    }
+    assert!(auto.get_media_rules().is_empty());
+    assert_pagination_auto_rule(
+        c_euv_pagination_item(),
+        &[
+            ("display", "flex"),
+            ("min-width", "0px"),
+            ("align-items", "stretch"),
+        ],
+    );
+    let mut link_properties: Vec<(&str, &str)> = vec![
+        ("display", "grid"),
+        ("grid-template-columns", "auto minmax(0px, 1fr) auto"),
+        ("grid-template-rows", "auto auto"),
+        ("align-content", "center"),
+        ("align-items", "center"),
+    ];
+    if cfg!(feature = "theme-shadcn") {
+        link_properties.push(("justify-content", "normal"));
+    }
+    link_properties.extend([
+        ("justify-items", "stretch"),
+        ("flex", "1"),
+        ("width", "100%"),
+        ("height", "auto"),
+        (
+            "min-height",
+            "calc(var(--control-height) + var(--space-lg))",
+        ),
+        ("box-sizing", "border-box"),
+        ("padding", "var(--space-lg)"),
+        ("column-gap", "var(--space-sm)"),
+        ("row-gap", "var(--space-2xs)"),
+        ("white-space", "normal"),
+        ("text-decoration", "none"),
+    ]);
+    assert_pagination_auto_rule(c_euv_pagination_link(), &link_properties);
+}
+
+#[test]
+#[cfg(not(feature = "theme-custom"))]
+fn auto_footer_restores_two_visible_bounded_text_rows_with_qualified_selectors() {
+    assert_pagination_auto_rule(
+        c_euv_pagination_label(),
+        &[
+            ("display", "block"),
+            ("grid-column", "2"),
+            ("grid-row", "1"),
+            ("min-width", "0px"),
+            ("overflow", "hidden"),
+            ("white-space", "nowrap"),
+            ("text-overflow", "ellipsis"),
+            ("font-size", "var(--font-xs)"),
+            ("line-height", "1.5"),
+            ("color", "var(--muted-foreground)"),
+        ],
+    );
+    let mut title_properties: Vec<(&str, &str)> = vec![
+        ("display", "block"),
+        ("grid-column", "2"),
+        ("grid-row", "2"),
+        ("min-width", "0px"),
+        ("overflow", "hidden"),
+        ("white-space", "nowrap"),
+        ("text-overflow", "ellipsis"),
+        ("font-size", "var(--font-sm)"),
+    ];
+    if cfg!(feature = "theme-shadcn") {
+        title_properties.push(("font-weight", "var(--font-weight-semibold)"));
+    }
+    title_properties.extend([("line-height", "1.5"), ("color", "var(--foreground)")]);
+    assert_pagination_auto_rule(c_euv_pagination_text(), &title_properties);
+    assert_pagination_auto_rule(
+        c_euv_pagination_previous(),
+        &[("padding", "var(--space-lg)"), ("text-align", "left")],
+    );
+    assert_pagination_auto_rule(
+        c_euv_pagination_next(),
+        &[("padding", "var(--space-lg)"), ("text-align", "right")],
+    );
+    for (direction, column) in [("previous", "1"), ("next", "3")] {
+        let expected: PseudoRule = PseudoRule::new(
+            format!(
+                ":is(.c_euv_pagination_auto_content .c_euv_pagination_{direction} .c_euv_pagination_icon)"
+            ),
+            format!("{} ", Css::style_string(&[("grid-column", column)])),
+        );
+        assert!(
+            c_euv_pagination_icon()
+                .get_pseudo_rules()
+                .contains(&expected)
+        );
+    }
+}
+
+#[test]
+fn auto_footer_geometry_does_not_change_manual_numbered_or_custom_pagination() {
+    let classes: [&Css; 9] = [
+        c_euv_pagination_auto_content(),
+        c_euv_pagination_item(),
+        c_euv_pagination_link(),
+        c_euv_pagination_label(),
+        c_euv_pagination_text(),
+        c_euv_pagination_icon(),
+        c_euv_pagination_previous(),
+        c_euv_pagination_next(),
+        c_euv_pagination_content(),
+    ];
+    if cfg!(feature = "theme-custom") {
+        for class in classes {
+            assert!(class.get_style().is_empty(), "{}", class.get_name());
+            assert!(class.get_pseudo_rules().is_empty(), "{}", class.get_name());
+            assert!(class.get_media_rules().is_empty(), "{}", class.get_name());
+        }
+        return;
+    }
+    assert_eq!(
+        pagination_style(c_euv_pagination_content(), "display").as_deref(),
+        Some("flex")
+    );
+    assert_eq!(
+        pagination_style(c_euv_pagination_content(), "grid-template-columns"),
+        None
+    );
+    assert_eq!(pagination_style(c_euv_pagination_item(), "display"), None);
+    assert_eq!(
+        pagination_style(c_euv_pagination_page(), "display").as_deref(),
+        Some("inline-flex")
+    );
+    assert!(c_euv_pagination_content().get_pseudo_rules().is_empty());
+    assert!(c_euv_pagination_page().get_pseudo_rules().is_empty());
+    if cfg!(feature = "theme-shadcn") {
+        assert_eq!(
+            pagination_style(c_euv_pagination_link(), "display").as_deref(),
+            Some("inline-flex")
+        );
+        assert_eq!(
+            pagination_style(c_euv_pagination_text(), "display").as_deref(),
+            Some("none")
+        );
+    }
+    let hover: String = format!("{:?}", c_euv_pagination_link().get_pseudo_rules());
+    assert!(hover.contains(":hover"));
+    assert!(!hover.contains("transform"));
+}
+
+#[test]
+fn pagination_keeps_one_root_content_structure_and_both_title_props_in_every_build() {
+    let rendered: VirtualNode = euv_pagination(node(
+        Some(item("A previous title", "/previous")),
+        Some(item("A next title", "/next")),
+    ));
+    let VirtualNode::Element {
+        tag,
+        attributes,
+        children,
+        ..
+    } = &rendered
+    else {
+        panic!("expected the navigation landmark");
+    };
+    assert_eq!(format!("{tag:?}"), "Element(\"nav\")");
+    let root_classes: Vec<String> = attributes
+        .iter()
+        .filter(|attribute: &&AttributeEntry| attribute.get_name() == "class")
+        .flat_map(AttributeEntry::class_names)
+        .collect();
+    assert_eq!(root_classes, vec![String::from("c_euv_pagination")]);
+    assert_eq!(children.len(), 1);
+    let VirtualNode::Element {
+        tag, attributes, ..
+    } = &children[0]
+    else {
+        panic!("expected the pagination list");
+    };
+    assert_eq!(format!("{tag:?}"), "Element(\"ul\")");
+    let content_classes: Vec<String> = attributes
+        .iter()
+        .filter(|attribute: &&AttributeEntry| attribute.get_name() == "class")
+        .flat_map(AttributeEntry::class_names)
+        .collect();
+    assert_eq!(
+        content_classes,
+        vec![String::from("c_euv_pagination_auto_content")]
+    );
+    assert_eq!(slot_values(&children[0])[0], "pagination-content");
+    let debugged: String = format!("{rendered:?}");
+    for text in ["Previous", "Next", "A previous title", "A next title"] {
+        assert!(debugged.contains(text), "missing {text}");
+    }
+    let classes: Vec<String> = class_values(&rendered);
+    for name in [
+        "c_euv_pagination_label",
+        "c_euv_pagination_text",
+        "c_euv_pagination_icon",
+    ] {
+        assert_eq!(
+            classes
+                .iter()
+                .filter(|value: &&String| value.as_str() == name)
+                .count(),
+            2
+        );
+    }
+}
+
 fn item(text: &'static str, link: &'static str) -> EuvPaginationItem {
     EuvPaginationItem { text, link }
 }
@@ -183,17 +428,27 @@ fn pagination_composition_renders_numbered_links_and_an_ellipsis() {
         );
     }
     let class_names: Vec<String> = class_values(&rendered);
+    assert!(
+        class_names
+            .iter()
+            .any(|name: &String| name == "c_euv_pagination_content")
+    );
+    assert!(
+        !class_names
+            .iter()
+            .any(|name: &String| name == "c_euv_pagination_auto_content")
+    );
     if cfg!(feature = "theme-shadcn") {
         for class_name in [
-            "c_euv_pagination_shadcn",
-            "c_euv_pagination_content_shadcn",
-            "c_euv_pagination_page_shadcn",
-            "c_euv_pagination_page_active_shadcn",
-            "c_euv_pagination_link_shadcn",
-            "c_euv_pagination_previous_shadcn",
-            "c_euv_pagination_next_shadcn",
+            "c_euv_pagination",
+            "c_euv_pagination_content",
+            "c_euv_pagination_page",
+            "c_euv_pagination_page_active",
+            "c_euv_pagination_link",
+            "c_euv_pagination_previous",
+            "c_euv_pagination_next",
             "c_euv_pagination_icon",
-            "c_euv_pagination_ellipsis_shadcn",
+            "c_euv_pagination_ellipsis",
         ] {
             assert!(
                 class_names.iter().any(|value: &String| value == class_name),

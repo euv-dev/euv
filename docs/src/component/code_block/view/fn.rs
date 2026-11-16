@@ -80,7 +80,9 @@ pub(crate) fn docs_code_block(node: VirtualNode<DocsCodeBlockProps>) -> VirtualN
                 }
             }
             pre {
+                class: c_docs_code_pre()
                 code {
+                    class: c_docs_code_content()
                     inner_html: html
                 }
             }

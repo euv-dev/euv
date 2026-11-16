@@ -53,9 +53,9 @@ pub(crate) fn page_raytrace(node: VirtualNode<PageRaytraceProps>) -> VirtualNode
             }
             euv_card {
                 title: match { tab.get() } {
-                    RayTraceTab::Canvas2D => RAYTRACE_TAB_TITLE_CANVAS_2D,
-                    RayTraceTab::WebGl => RAYTRACE_TAB_TITLE_WEBGL,
-                    RayTraceTab::WebGpu => RAYTRACE_TAB_TITLE_WEBGPU,
+                    RayTraceTab::Canvas2D => RAYTRACE_TAB_TITLE_CANVAS_2D.into(),
+                    RayTraceTab::WebGl => RAYTRACE_TAB_TITLE_WEBGL.into(),
+                    RayTraceTab::WebGpu => RAYTRACE_TAB_TITLE_WEBGPU.into(),
                 }
                 div {
                     class: c_tab_bar()

@@ -1,0 +1,2 @@
+/// Keyframes used only by the functional animation demonstrations.
+pub(crate) const ANIMATION_DEMO_KEYFRAMES: &str = "@keyframes example-animation-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes example-animation-pulse{from{transform:scale(1)}50%{transform:scale(1.25)}to{transform:scale(1)}}@keyframes example-animation-progress{from{transform:scaleX(0)}to{transform:scaleX(1)}}@keyframes example-animation-progress-replay{from{transform:scaleX(0)}to{transform:scaleX(1)}}";

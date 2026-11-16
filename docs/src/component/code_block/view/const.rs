@@ -1,37 +1,50 @@
 use super::*;
 
 class! {
-    // The code block frame: one rounded box holding the header and the
-    // code, so the header reads as the block's own toolbar.
+    // The figure owns the only frame; its children remain unframed.
     pub c_docs_code {
-        margin: "16px 0px";
-        border: format!("1px solid {}", var!(border));
+        margin: format!("{} 0", var!(space-lg));
+        border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-lg);
         background: var!(muted);
         overflow: "hidden";
-        pre {
-            margin: "0px";
-            padding: "16px";
+        min-width: "0";
+    }
+
+    // Class-local tag qualification outranks markdown's pre/code selectors.
+    pub c_docs_code_pre {
+        :is(pre.c_docs_code_pre) {
+            margin: "0";
+            padding: var!(space-lg);
             border: "none";
-            border-radius: "0px";
+            border-radius: "0";
+            box-shadow: "none";
             background: "transparent";
             color: var!(foreground);
             font-family: var!(font-family-mono);
             font-size: var!(font-xs);
             line-height: "1.6";
+            white-space: "pre";
+            overflow-wrap: "normal";
             overflow-x: "auto";
-            code {
-                display: "block";
-                margin: "0px";
-                padding: "0px";
-                border: "none";
-                background: "transparent";
-                color: "inherit";
-                font-family: "inherit";
-                font-size: "inherit";
-                line-height: "inherit";
-                white-space: "pre";
-            }
+        }
+    }
+
+    pub c_docs_code_content {
+        :is(code.c_docs_code_content) {
+            display: "block";
+            margin: "0";
+            padding: "0";
+            border: "none";
+            border-radius: "0";
+            box-shadow: "none";
+            background: "transparent";
+            color: "inherit";
+            font-family: "inherit";
+            font-size: "inherit";
+            line-height: "inherit";
+            white-space: "pre";
+            overflow-wrap: "normal";
         }
     }
 
@@ -41,9 +54,9 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        gap: "8px";
-        padding: "4px 8px";
-        border-bottom: format!("1px solid {}", var!(border));
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: "none";
         background: var!(muted);
         color: var!(muted-foreground);
         font-family: var!(font-family-mono);
@@ -53,7 +66,7 @@ class! {
 
     // The language label of the toolbar.
     pub c_docs_code_lang {
-        font-weight: "500";
+        font-weight: var!(font-weight-medium);
         overflow: "hidden";
         text-overflow: "ellipsis";
         white-space: "nowrap";
@@ -64,17 +77,17 @@ class! {
         display: "inline-flex";
         align-items: "center";
         flex-shrink: "0";
-        gap: "4px";
-        padding: "2px 8px";
-        border: format!("1px solid {}", var!(border));
+        gap: var!(space-xs);
+        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
+        border: "none";
         border-radius: var!(radius-sm);
-        background: var!(background);
+        background: "transparent";
         color: var!(foreground);
         font-family: "inherit";
         font-size: var!(font-xs);
         line-height: "1.5";
         cursor: "pointer";
-        transition: format!("background {} {}, color {} {}", var!(duration-fast), var!(ease-out), var!(duration-fast), var!(ease-out));
+
         :hover {
             background: var!(accent);
             color: var!(accent-foreground);

@@ -18,7 +18,6 @@ mod linear;
 mod mantine;
 #[cfg(feature = "theme-material")]
 mod material;
-#[cfg(feature = "theme-monochrome")]
 mod monochrome;
 #[cfg(feature = "theme-notion")]
 mod notion;
@@ -52,7 +51,6 @@ pub use linear::c_scheme_linear;
 pub use mantine::c_scheme_mantine;
 #[cfg(feature = "theme-material")]
 pub use material::c_scheme_material;
-#[cfg(feature = "theme-monochrome")]
 pub use monochrome::c_scheme_monochrome;
 #[cfg(feature = "theme-notion")]
 pub use notion::c_scheme_notion;

@@ -5,7 +5,7 @@ use super::*;
 /// A textarea is the multi-line sibling of the single-line input: the
 /// value lives in a caller-owned signal so the surrounding form can read
 /// the whole field state back.
-#[derive(Clone, CustomDebug, Data, Default, New)]
+#[derive(Clone, CustomDebug, Data, Default)]
 pub struct EuvTextareaProps {
     /// The unique identifier of the textarea element.
     #[get(type(copy))]
@@ -27,4 +27,11 @@ pub struct EuvTextareaProps {
     /// Optional input event handler.
     #[debug(skip)]
     pub oninput: Option<Rc<dyn Fn(Event)>>,
+    /// The accessible name when no visible label is present.
+    pub aria_label: &'static str,
+    /// Optional keyboard handler for editor shortcuts.
+    #[debug(skip)]
+    pub onkeydown: Option<Rc<dyn Fn(Event)>>,
+    /// An optional application class composed with the design-system textarea class.
+    pub class: Css,
 }

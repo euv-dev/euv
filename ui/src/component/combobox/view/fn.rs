@@ -15,14 +15,27 @@ use super::*;
 #[component]
 pub fn euv_combobox(node: VirtualNode<EuvComboboxProps>) -> VirtualNode {
     let EuvComboboxProps {
-        open: _open,
+        open,
         value: _value,
         label,
     }: EuvComboboxProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
+    let outside: UseClickOutside = use_click_outside();
+    let outside_target: NodeRef<Element> = outside.get_target().clone();
+    let outside_triggered: Signal<bool> = outside.get_triggered();
+    watch!(outside_triggered, |triggered: bool| {
+        if triggered {
+            if open.get() {
+                open.set(false);
+            }
+            outside_triggered.set(false);
+        }
+    });
     html! {
         div {
             "data-slot": "combobox"
+            ref: outside_target
+            role: "group"
             class: c_euv_combobox()
             "aria-label": label
             children
@@ -47,18 +60,14 @@ pub fn euv_combobox_chips(node: VirtualNode<EuvComboboxChipsProps>) -> VirtualNo
     let EuvComboboxChipsProps { label }: EuvComboboxChipsProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let combobox_chips_shadcn: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_combobox_chips_shadcn().clone()
-    } else {
-        Css::default()
-    };
+
     html! {
             div {
                 role: "group"
                 "data-slot": "combobox-chips"
                 "aria-label": label
                 class: c_euv_combobox_chips()
-                class: combobox_chips_shadcn
+
                 children
             }
     }
@@ -121,11 +130,7 @@ pub fn euv_combobox_chip(node: VirtualNode<EuvComboboxChipProps>) -> VirtualNode
             }
         }))
     };
-    let combobox_chip_shadcn: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_combobox_chip_shadcn().clone()
-    } else {
-        Css::default()
-    };
+    let combobox_chip_shadcn: Css = { c_euv_combobox_chip().clone() };
     html! {
             div {
                 role: "listitem"
@@ -236,15 +241,10 @@ pub fn euv_combobox_trigger(node: VirtualNode<EuvComboboxTriggerProps>) -> Virtu
     }));
     let onkeydown: Option<Rc<dyn Fn(Event)>> = combobox_open_on_keydown(open);
     let base_class: &Css = c_euv_combobox_trigger();
-    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_combobox_trigger_shadcn().clone()
-    } else {
-        Css::default()
-    };
+
     html! {
         button {
             type: "button"
-            role: "combobox"
             "aria-haspopup": "listbox"
             "aria-expanded": if { open.get() } {
                 "true"
@@ -254,7 +254,7 @@ pub fn euv_combobox_trigger(node: VirtualNode<EuvComboboxTriggerProps>) -> Virtu
             disabled: disabled
             "data-slot": "combobox-trigger"
             class: base_class
-            class: shadcn_class
+
             onclick: on_click
             onkeydown: onkeydown
             {
@@ -280,19 +280,21 @@ pub fn euv_combobox_input(node: VirtualNode<EuvComboboxInputProps>) -> VirtualNo
         value,
         placeholder,
         disabled,
+        aria_label,
+        aria_controls,
     }: EuvComboboxInputProps = node.try_get_props().unwrap_or_default();
     let text: String = value.get();
     let base_class: &Css = c_euv_combobox_input();
-    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_combobox_input_shadcn().clone()
-    } else {
-        Css::default()
-    };
+
     let onkeydown: Option<Rc<dyn Fn(Event)>> = combobox_open_on_keydown(open);
     html! {
         input {
             type: "text"
             role: "combobox"
+            "aria-autocomplete": "list"
+            "aria-haspopup": "listbox"
+            "aria-label": aria_label
+            "aria-controls": aria_controls
             "aria-expanded": if { open.get() } {
                 "true"
             } else {
@@ -303,7 +305,7 @@ pub fn euv_combobox_input(node: VirtualNode<EuvComboboxInputProps>) -> VirtualNo
             disabled: disabled
             "data-slot": "combobox-input"
             class: base_class
-            class: shadcn_class
+
             oninput: on_combobox_input(value)
             onkeydown: onkeydown
         }
@@ -516,11 +518,7 @@ pub fn euv_combobox_content(node: VirtualNode<EuvComboboxContentProps>) -> Virtu
     let base_class: &Css = c_euv_combobox_content();
     let open_class: &Css = c_euv_combobox_content_open();
     let closed_class: &Css = c_euv_combobox_content_closed();
-    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_combobox_content_shadcn().clone()
-    } else {
-        Css::default()
-    };
+
     html! {
         div {
             "data-slot": "combobox-content"
@@ -530,7 +528,7 @@ pub fn euv_combobox_content(node: VirtualNode<EuvComboboxContentProps>) -> Virtu
             } else {
                 closed_class
             }
-            class: shadcn_class
+
             children
         }
     }
@@ -547,12 +545,13 @@ pub fn euv_combobox_content(node: VirtualNode<EuvComboboxContentProps>) -> Virtu
 /// - `VirtualNode` - The euv combobox list virtual DOM tree.
 #[component]
 pub fn euv_combobox_list(node: VirtualNode<EuvComboboxListProps>) -> VirtualNode {
-    let EuvComboboxListProps { label }: EuvComboboxListProps =
+    let EuvComboboxListProps { id, label }: EuvComboboxListProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     html! {
         div {
             role: "listbox"
+            id: id
             "aria-label": label
             "data-slot": "combobox-list"
             class: c_euv_combobox_list()
@@ -588,11 +587,7 @@ pub fn euv_combobox_item(node: VirtualNode<EuvComboboxItemProps>) -> VirtualNode
         c_euv_combobox_item
     };
     let base_class: &Css = item_class();
-    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_combobox_item_shadcn().clone()
-    } else {
-        Css::default()
-    };
+    let shadcn_class: Css = { c_euv_combobox_item().clone() };
     let on_click: Option<Rc<dyn Fn(Event)>> = if disabled {
         None
     } else {

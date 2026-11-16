@@ -35,14 +35,54 @@ fn select_with(value: &str, options: Vec<EuvSelectOption>) -> VirtualNode {
 fn select_with_invalid(value: &str, options: Vec<EuvSelectOption>, invalid: bool) -> VirtualNode {
     euv_select(props(EuvSelectProps {
         value: Signal::create(String::from(value)),
+        multiple: false,
+        values: Signal::create(Vec::new()),
+        on_change_values: None,
+        size: EuvSelectSize::Default,
         options,
         placeholder: "Pick a fruit",
         label: "",
+        aria_label: String::new(),
+        aria_describedby: "",
         id: "",
         name: "",
+        form: "",
+        auto_complete: "",
         required: false,
         invalid,
         disabled: false,
+        read_only: false,
+        open: None,
+        default_open: false,
+        on_open_change: None,
+        align_item_with_trigger: false,
+        on_change: None,
+    }))
+}
+
+fn multiple_select_with(values: Vec<String>, name: &'static str, required: bool) -> VirtualNode {
+    euv_select(props(EuvSelectProps {
+        value: Signal::create(String::new()),
+        multiple: true,
+        values: Signal::create(values),
+        on_change_values: None,
+        size: EuvSelectSize::Default,
+        options: fruit_options(),
+        placeholder: "Pick a fruit",
+        label: "Fruit",
+        aria_label: String::new(),
+        aria_describedby: "",
+        id: "multiple-fruit-select",
+        name,
+        form: "",
+        auto_complete: "",
+        required,
+        invalid: false,
+        disabled: false,
+        read_only: false,
+        open: None,
+        default_open: false,
+        on_open_change: None,
         align_item_with_trigger: false,
         on_change: None,
     }))
@@ -245,10 +285,119 @@ fn a_select_without_a_selection_shows_the_placeholder() {
 }
 
 #[test]
-fn select_item_alignment_default_tracks_the_active_theme() {
+fn select_item_alignment_default_tracks_the_selected_panel_class() {
+    let expected: bool =
+        class_property(c_euv_select_panel(), "--euv-select-align-item").as_deref() == Some("1");
+    assert_eq!(EuvSelectProps::default().align_item_with_trigger, expected);
     assert_eq!(
-        EuvSelectProps::default().align_item_with_trigger,
-        cfg!(feature = "theme-shadcn")
+        expected,
+        cfg!(all(feature = "theme-shadcn", not(feature = "theme-custom")))
+    );
+}
+
+#[test]
+fn select_item_alignment_preserves_explicit_boolean_choices() {
+    for align_item_with_trigger in [false, true] {
+        let mut props: EuvSelectProps = EuvSelectProps {
+            align_item_with_trigger,
+            ..EuvSelectProps::default()
+        };
+        assert_eq!(props.align_item_with_trigger, align_item_with_trigger);
+        props.align_item_with_trigger = !align_item_with_trigger;
+        assert_eq!(props.align_item_with_trigger, !align_item_with_trigger);
+        props.align_item_with_trigger = align_item_with_trigger;
+        assert_eq!(props.align_item_with_trigger, align_item_with_trigger);
+    }
+}
+
+#[test]
+fn select_option_indicator_is_always_mounted_and_visibility_is_class_owned() {
+    let rendered: VirtualNode = select_with("apple", fruit_options());
+    let mut spans: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "span", &mut spans);
+    let indicators: Vec<&Vec<AttributeEntry>> = spans
+        .iter()
+        .filter(|entries: &&Vec<AttributeEntry>| {
+            entries.iter().any(|entry: &AttributeEntry| {
+                carries_text(entry, "data-slot", "select-item-indicator")
+            })
+        })
+        .collect();
+    assert_eq!(indicators.len(), fruit_options().len());
+    assert!(
+        indicators.iter().all(|entries: &&Vec<AttributeEntry>| {
+            entries.iter().any(|entry: &AttributeEntry| {
+                carries_classes(entry, &["c_euv_select_option_indicator"])
+            }) && entries
+                .iter()
+                .any(|entry: &AttributeEntry| carries_text(entry, "aria-hidden", "true"))
+                && entries
+                    .iter()
+                    .any(|entry: &AttributeEntry| entry.get_name() == "inner_html")
+        }),
+        "indicator attributes: {indicators:?}"
+    );
+    let display: Option<String> = class_property(c_euv_select_option_indicator(), "display");
+    if cfg!(feature = "theme-custom") {
+        assert_eq!(display, None);
+    } else if cfg!(feature = "theme-shadcn") {
+        assert_eq!(display.as_deref(), Some("inline-flex"));
+    } else {
+        assert_eq!(display.as_deref(), Some("none"));
+    }
+}
+
+#[test]
+fn select_read_only_defaults_to_false() {
+    let defaults: EuvSelectProps = EuvSelectProps::default();
+    assert!(!defaults.read_only);
+    assert!(!defaults.multiple);
+    assert!(defaults.values.get().is_empty());
+    assert!(defaults.open.is_none());
+    assert!(!defaults.default_open);
+}
+
+#[test]
+fn a_default_open_select_starts_with_its_panel_expanded() {
+    let select_props: EuvSelectProps = EuvSelectProps {
+        default_open: true,
+        id: "default-open-select",
+        ..EuvSelectProps::default()
+    };
+    let rendered: VirtualNode = euv_select(props(select_props));
+    let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "button", &mut button_attributes);
+    assert!(
+        button_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "aria-expanded", "true"))
+            }),
+        "default_open renders an initially expanded trigger, got {button_attributes:?}"
+    );
+}
+
+#[test]
+fn a_controlled_open_signal_drives_the_trigger_state() {
+    let select_props: EuvSelectProps = EuvSelectProps {
+        open: Some(Signal::create(true)),
+        id: "controlled-open-select",
+        ..EuvSelectProps::default()
+    };
+    let rendered: VirtualNode = euv_select(props(select_props));
+    let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "button", &mut button_attributes);
+    assert!(
+        button_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "aria-expanded", "true"))
+            }),
+        "the caller-owned open signal drives aria-expanded, got {button_attributes:?}"
     );
 }
 
@@ -417,14 +566,26 @@ fn typeahead_matches_labels_case_insensitively_and_skips_disabled_options() {
 fn a_named_required_select_renders_a_native_form_control() {
     let rendered: VirtualNode = euv_select(props(EuvSelectProps {
         value: Signal::create(String::from("banana")),
+        multiple: false,
+        values: Signal::create(Vec::new()),
+        on_change_values: None,
+        size: EuvSelectSize::Default,
         options: fruit_options(),
         placeholder: "Pick a fruit",
         label: "Fruit",
+        aria_label: String::new(),
+        aria_describedby: "",
         id: "fruit-select",
         name: "fruit",
+        form: "",
+        auto_complete: "",
         required: true,
         invalid: false,
         disabled: false,
+        read_only: false,
+        open: None,
+        default_open: false,
+        on_open_change: None,
         align_item_with_trigger: false,
         on_change: None,
     }));
@@ -459,6 +620,21 @@ fn a_named_required_select_renders_a_native_form_control() {
         hidden_control_complete,
         "a named required Select carries its native form value, got inputs {input_attributes:?} and tree {rendered:?}"
     );
+    let ancestor_form_and_default_autocomplete: bool =
+        input_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                !attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| entry.get_name() == "form")
+                    && attributes
+                        .iter()
+                        .any(|entry: &AttributeEntry| carries_text(entry, "autocomplete", "on"))
+            });
+    assert!(
+        ancestor_form_and_default_autocomplete,
+        "an empty form id preserves ancestor association and default autocomplete, got {input_attributes:?}"
+    );
     let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
     attributes_of_tag(&rendered, "button", &mut button_attributes);
     assert!(
@@ -474,6 +650,18 @@ fn a_named_required_select_renders_a_native_form_control() {
             }),
         "the Select trigger carries its id and required state, got {button_attributes:?}"
     );
+    let default_size: bool =
+        button_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "data-size", "default"))
+            });
+    assert!(
+        default_size,
+        "the default Select trigger exposes its size, got {button_attributes:?}"
+    );
     let default_rendered: VirtualNode = select_with("apple", fruit_options());
     let mut default_inputs: Vec<Vec<AttributeEntry>> = Vec::new();
     attributes_of_tag(&default_rendered, "input", &mut default_inputs);
@@ -481,6 +669,101 @@ fn a_named_required_select_renders_a_native_form_control() {
         default_inputs.is_empty(),
         "an unnamed optional Select renders no form input"
     );
+}
+
+#[test]
+fn a_single_select_can_associate_with_an_external_form() {
+    let select_props: EuvSelectProps = EuvSelectProps {
+        value: Signal::create(String::from("banana")),
+        options: fruit_options(),
+        name: "external_fruit",
+        form: "external-form",
+        auto_complete: "off",
+        required: true,
+        ..EuvSelectProps::default()
+    };
+    let rendered: VirtualNode = euv_select(props(select_props));
+    let mut input_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "input", &mut input_attributes);
+    let field_association_complete: bool =
+        input_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "form", "external-form"))
+                    && attributes
+                        .iter()
+                        .any(|entry: &AttributeEntry| carries_text(entry, "name", "external_fruit"))
+                    && attributes
+                        .iter()
+                        .any(|entry: &AttributeEntry| carries_text(entry, "autocomplete", "off"))
+            });
+    assert!(
+        field_association_complete,
+        "the single-value input carries its external form and autocomplete props, got {input_attributes:?}"
+    );
+}
+
+#[test]
+fn an_unlabeled_select_can_provide_an_accessible_name() {
+    let select_props: EuvSelectProps = EuvSelectProps {
+        aria_label: String::from("Inventory selection"),
+        aria_describedby: "field-hint field-error",
+        options: fruit_options(),
+        ..EuvSelectProps::default()
+    };
+    let rendered: VirtualNode = euv_select(props(select_props));
+    let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "button", &mut button_attributes);
+    assert!(
+        button_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes.iter().any(|entry: &AttributeEntry| {
+                    carries_text(entry, "aria-label", "Inventory selection")
+                }) && attributes.iter().any(|entry: &AttributeEntry| {
+                    carries_text(entry, "aria-describedby", "field-hint field-error")
+                })
+            }),
+        "an unlabeled Select trigger exposes the caller's accessible name"
+    );
+}
+
+#[test]
+fn multiple_select_form_inputs_all_associate_with_the_external_form() {
+    let select_props: EuvSelectProps = EuvSelectProps {
+        multiple: true,
+        values: Signal::create(vec![String::from("apple"), String::from("cherry")]),
+        options: fruit_options(),
+        name: "external_fruits",
+        form: "external-multiple-form",
+        required: true,
+        ..EuvSelectProps::default()
+    };
+    let rendered: VirtualNode = euv_select(props(select_props));
+    let mut input_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "input", &mut input_attributes);
+    let all_associated: bool = input_attributes
+        .iter()
+        .all(|attributes: &Vec<AttributeEntry>| {
+            attributes
+                .iter()
+                .any(|entry: &AttributeEntry| carries_text(entry, "form", "external-multiple-form"))
+        });
+    let hidden_value_count: usize = input_attributes
+        .iter()
+        .filter(|attributes: &&Vec<AttributeEntry>| {
+            attributes
+                .iter()
+                .any(|entry: &AttributeEntry| carries_text(entry, "type", "hidden"))
+        })
+        .count();
+    assert!(
+        all_associated,
+        "all multi-select native inputs use the form id"
+    );
+    assert_eq!(hidden_value_count, 2, "both selected values are submitted");
 }
 
 #[test]
@@ -750,5 +1033,259 @@ fn a_select_without_props_falls_back_to_defaults() {
     assert!(
         matches!(rendered, VirtualNode::Element { .. }),
         "defaults still render a select"
+    );
+}
+
+#[test]
+fn a_small_select_trigger_exposes_its_compact_size() {
+    let rendered: VirtualNode = euv_select(props(EuvSelectProps {
+        value: Signal::create(String::from("apple")),
+        multiple: false,
+        values: Signal::create(Vec::new()),
+        on_change_values: None,
+        size: EuvSelectSize::Sm,
+        options: fruit_options(),
+        placeholder: "Pick a fruit",
+        label: "",
+        aria_label: String::new(),
+        aria_describedby: "",
+        id: "",
+        name: "",
+        form: "",
+        auto_complete: "",
+        required: false,
+        invalid: false,
+        disabled: false,
+        read_only: false,
+        open: None,
+        default_open: false,
+        on_open_change: None,
+        align_item_with_trigger: false,
+        on_change: None,
+    }));
+    let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "button", &mut button_attributes);
+    let has_small_size: bool =
+        button_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "data-size", "sm"))
+            });
+    assert!(
+        has_small_size,
+        "the small Select trigger exposes its size, got {button_attributes:?}"
+    );
+    let has_small_class: bool =
+        button_classes(&rendered)
+            .first()
+            .is_some_and(|entry: &AttributeEntry| {
+                carries_classes(entry, &["c_euv_select_trigger_size_sm"])
+            });
+    assert!(
+        has_small_class,
+        "the small Select trigger carries its size class, got {rendered:?}"
+    );
+}
+
+#[test]
+fn a_disabled_select_trigger_exposes_native_disabled_state() {
+    let rendered: VirtualNode = euv_select(props(EuvSelectProps {
+        value: Signal::create(String::from("apple")),
+        size: EuvSelectSize::Default,
+        options: fruit_options(),
+        placeholder: "Pick a fruit",
+        label: "Fruit",
+        aria_label: String::new(),
+        aria_describedby: "",
+        id: "disabled-fruit-select",
+        multiple: false,
+        values: Signal::create(Vec::new()),
+        on_change_values: None,
+        name: "fruit",
+        form: "",
+        auto_complete: "",
+        required: false,
+        invalid: false,
+        disabled: true,
+        read_only: false,
+        open: None,
+        default_open: false,
+        on_open_change: None,
+        align_item_with_trigger: false,
+        on_change: None,
+    }));
+    let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "button", &mut button_attributes);
+    let trigger_is_disabled: bool =
+        button_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "disabled", "true"))
+            });
+    assert!(
+        trigger_is_disabled,
+        "a disabled Select exposes native disabled state, got {button_attributes:?}"
+    );
+}
+
+#[test]
+fn a_read_only_select_exposes_aria_readonly_without_disabling_the_trigger() {
+    let rendered: VirtualNode = euv_select(props(EuvSelectProps {
+        value: Signal::create(String::from("apple")),
+        size: EuvSelectSize::Default,
+        options: fruit_options(),
+        placeholder: "Pick a fruit",
+        label: "Read-only fruit",
+        aria_label: String::new(),
+        aria_describedby: "",
+        id: "readonly-fruit-select",
+        multiple: false,
+        values: Signal::create(Vec::new()),
+        on_change_values: None,
+        name: "",
+        form: "",
+        auto_complete: "",
+        required: false,
+        invalid: false,
+        disabled: false,
+        read_only: true,
+        open: None,
+        default_open: false,
+        on_open_change: None,
+        align_item_with_trigger: false,
+        on_change: None,
+    }));
+    let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "button", &mut button_attributes);
+    let read_only_and_enabled: bool =
+        button_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "aria-readonly", "true"))
+                    && !attributes
+                        .iter()
+                        .any(|entry: &AttributeEntry| carries_text(entry, "disabled", "true"))
+            });
+    assert!(
+        read_only_and_enabled,
+        "read-only Select stays operable while exposing aria-readonly, got {button_attributes:?}"
+    );
+    let mut root_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "div", &mut root_attributes);
+    assert!(
+        root_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "data-readonly", "true"))
+            }),
+        "read-only Select exposes data-readonly on its root, got {root_attributes:?}"
+    );
+}
+
+#[test]
+fn a_multiple_select_marks_all_selected_options_and_submits_each_value() {
+    let rendered: VirtualNode = multiple_select_with(
+        vec![String::from("apple"), String::from("cherry")],
+        "fruits",
+        false,
+    );
+    assert!(
+        texts(&rendered)
+            .iter()
+            .any(|text: &String| text.contains("Apple, Cherry")),
+        "the trigger formats all selected labels, got {rendered:?}"
+    );
+    let mut div_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "div", &mut div_attributes);
+    assert!(
+        div_attributes
+            .iter()
+            .any(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "role", "listbox"))
+                    && attributes.iter().any(|entry: &AttributeEntry| {
+                        carries_text(entry, "aria-multiselectable", "true")
+                    })
+            }),
+        "the listbox advertises multiple selection, got {div_attributes:?}"
+    );
+    let mut button_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "button", &mut button_attributes);
+    let selected_count: usize = button_attributes
+        .iter()
+        .filter(|attributes: &&Vec<AttributeEntry>| {
+            attributes
+                .iter()
+                .any(|entry: &AttributeEntry| carries_text(entry, "role", "option"))
+                && attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "aria-selected", "true"))
+        })
+        .count();
+    assert_eq!(selected_count, 2, "both selected options are exposed");
+    let mut input_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "input", &mut input_attributes);
+    assert_eq!(
+        input_attributes.len(),
+        2,
+        "one form entry per selected value"
+    );
+    let submitted_values: Vec<String> = input_attributes
+        .iter()
+        .map(|attributes: &Vec<AttributeEntry>| {
+            attributes
+                .iter()
+                .find(|entry: &&AttributeEntry| entry.get_name() == "value")
+                .and_then(AttributeEntry::text_value)
+                .expect("the submitted value")
+        })
+        .collect();
+    assert_eq!(
+        submitted_values,
+        vec![String::from("apple"), String::from("cherry")]
+    );
+    assert!(
+        input_attributes
+            .iter()
+            .all(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "name", "fruits"))
+                    && attributes
+                        .iter()
+                        .any(|entry: &AttributeEntry| carries_text(entry, "type", "hidden"))
+            })
+    );
+}
+
+#[test]
+fn a_required_empty_multiple_select_keeps_native_required_validation() {
+    let rendered: VirtualNode = multiple_select_with(Vec::new(), "fruits", true);
+    let mut input_attributes: Vec<Vec<AttributeEntry>> = Vec::new();
+    attributes_of_tag(&rendered, "input", &mut input_attributes);
+    assert!(
+        input_attributes
+            .first()
+            .is_some_and(|attributes: &Vec<AttributeEntry>| {
+                attributes
+                    .iter()
+                    .any(|entry: &AttributeEntry| carries_text(entry, "type", "text"))
+                    && attributes
+                        .iter()
+                        .any(|entry: &AttributeEntry| carries_text(entry, "required", "true"))
+                    && !attributes
+                        .iter()
+                        .any(|entry: &AttributeEntry| entry.get_name() == "name")
+            }),
+        "an empty required multi-select has a validation-only control, got {input_attributes:?}"
     );
 }

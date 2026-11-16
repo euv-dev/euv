@@ -1,5 +1,24 @@
 use super::*;
 
+/// Reads the last root declaration of a compiled class, excluding pseudo/media rules.
+///
+/// # Arguments
+///
+/// - `&Css` - The class whose root declarations carry the property.
+/// - `&str` - The exact CSS property name.
+///
+/// # Returns
+///
+/// - `Option<String>` - The trimmed value of the last matching declaration.
+pub(crate) fn class_property(css: &Css, property: &str) -> Option<String> {
+    css.get_style()
+        .split(';')
+        .filter_map(|declaration: &str| declaration.split_once(':'))
+        .filter(|(key, _): &(&str, &str)| key.trim() == property)
+        .map(|(_, value): (&str, &str)| value.trim().to_owned())
+        .next_back()
+}
+
 /// Injects application-level global CSS into the DOM.
 ///
 /// Registers the global reset styles and built-in animation keyframes.
@@ -17,36 +36,18 @@ use super::*;
 /// `document()` yields nothing, so calling this from a non-browser host is
 /// safe rather than fatal.
 pub fn inject_app_global_css() {
-    Css::inject_css(format!(
-        "{APP_GLOBAL_CSS_HEAD}{}{APP_GLOBAL_CSS_BACKGROUND_CLOSE}",
-        var!(background)
-    ));
     Css::inject_css(APP_GLOBAL_CSS_RESET);
     Css::inject_css(APP_GLOBAL_CSS_ROOT);
     Css::inject_css(APP_GLOBAL_CSS_LIST);
     Css::inject_css(APP_GLOBAL_CSS_MEDIA);
     Css::inject_css(APP_GLOBAL_CSS_FORM);
-    Css::inject_css(APP_GLOBAL_CSS_BUTTON);
-    Css::inject_css(APP_GLOBAL_CSS_LINK);
-    Css::inject_css(APP_SCROLLBAR_CSS_THIN);
-    Css::inject_css(APP_SCROLLBAR_CSS_WEBKIT);
-    Css::inject_css(APP_SCROLLBAR_CSS_TRACK);
-    Css::inject_css(APP_SCROLLBAR_CSS_THUMB);
-    Css::inject_css(APP_SCROLLBAR_CSS_BUTTON);
-    Css::inject_css(APP_SCROLLBAR_CSS_CORNER);
-    Css::inject_css(APP_SCROLLBAR_CSS_MOBILE);
     Css::inject_css(APP_KEYFRAMES_SPIN);
     Css::inject_css(APP_KEYFRAMES_FADE_IN);
     Css::inject_css(APP_KEYFRAMES_PULSE);
     Css::inject_css(APP_KEYFRAMES_SKELETON_PULSE);
     Css::inject_css(APP_KEYFRAMES_PROGRESS);
     Css::inject_css(APP_KEYFRAMES_SCALE_IN_MODAL);
-    Css::inject_css(APP_A11Y_CSS_FOCUS_VISIBLE);
-    Css::inject_css(APP_A11Y_CSS_FOCUS_RING);
     Css::inject_css(APP_A11Y_CSS_REDUCED_MOTION);
-    Css::inject_css(APP_A11Y_CSS_COARSE_POINTER);
-    #[cfg(feature = "theme-shadcn")]
-    Css::inject_css(APP_SCHEME_SHADCN_CSS);
 }
 
 /// Injects the markdown stylesheet content. Callers pass the result to

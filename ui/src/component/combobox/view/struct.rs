@@ -33,6 +33,10 @@ pub struct EuvComboboxInputProps {
     pub placeholder: &'static str,
     /// Whether the field is disabled.
     pub disabled: bool,
+    /// The accessible name of the input.
+    pub aria_label: &'static str,
+    /// The id of the listbox controlled by the input.
+    pub aria_controls: &'static str,
 }
 
 /// Props of the [`euv_combobox_content`] component.
@@ -45,6 +49,8 @@ pub struct EuvComboboxContentProps {
 /// Props of the [`euv_combobox_list`] component.
 #[derive(Clone, Copy, CustomDebug, Default)]
 pub struct EuvComboboxListProps {
+    /// The listbox id referenced by the combobox input.
+    pub id: &'static str,
     /// The accessible name of the list.
     pub label: &'static str,
 }

@@ -37,7 +37,7 @@ pub fn euv_avatar(node: VirtualNode<EuvAvatarProps>) -> VirtualNode {
         EuvAvatarSize::Medium => AVATAR_DATA_SIZE_DEFAULT,
         EuvAvatarSize::Large => AVATAR_DATA_SIZE_LARGE,
     };
-    let square_class: &str = c_euv_avatar_square().get_name();
+
     let failed_source: Signal<String> = HookContext::use_hook(|| Signal::create(String::new()));
     let failed_source_value: String = failed_source.get();
     let show_fallback: bool = src.is_empty() || failed_source_value == src;
@@ -49,9 +49,7 @@ pub fn euv_avatar(node: VirtualNode<EuvAvatarProps>) -> VirtualNode {
             failed_source.set(source.clone());
         }))
     };
-    let mut class_name: String = String::with_capacity(
-        c_euv_avatar().get_name().len() + 1 + size_class.len() + 1 + square_class.len(),
-    );
+    let mut class_name: String = String::with_capacity(96);
     class_name.push_str(c_euv_avatar().get_name());
     class_name.push(' ');
     class_name.push_str(size_class);
@@ -102,15 +100,11 @@ pub fn euv_avatar_fallback(node: VirtualNode<EuvAvatarFallbackProps>) -> Virtual
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let has_children: bool = !matches!(&children, VirtualNode::Empty);
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_avatar_fallback_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         span {
             class: c_euv_avatar_fallback()
-            class: shadcn_class
+
             "data-slot": "avatar-fallback"
             if has_children {
                 children

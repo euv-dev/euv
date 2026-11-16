@@ -2170,7 +2170,21 @@ pub(crate) fn prop_field_token(
 ) -> proc_macro2::TokenStream {
     match value {
         HtmlAttrValue::Expr(expr) => {
-            quote! { #field_ident: #expr }
+            // A prop that holds text takes a borrowed literal or an owned
+            // string, so the value the caller wrote is converted into it.
+            let cow: bool = props_field_types
+                .and_then(|types: &HashMap<String, String>| types.get(key_string))
+                .is_some_and(|field_type: &String| field_type == TYPE_COW_TEXT);
+            if cow {
+                // The value the caller wrote may already be the text the prop
+                // holds, so the conversion accepts either shape.
+                // Clone text props so repeatable render closures retain ownership.
+                quote! {
+                    #field_ident: ::euv::CowText::from_text((#expr).clone())
+                }
+            } else {
+                quote! { #field_ident: #expr }
+            }
         }
         HtmlAttrValue::If(html_attr_if) => {
             let else_default: proc_macro2::TokenStream = match props_field_types

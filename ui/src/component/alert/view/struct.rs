@@ -13,10 +13,10 @@ pub struct EuvAlertProps {
 /// Props of the [`euv_alert_icon`] component.
 ///
 /// The icon is the glyph the alert leads with.
-#[derive(Clone, Copy, CustomDebug, Default)]
+#[derive(Clone, CustomDebug, Default)]
 pub struct EuvAlertIconProps {
     /// The glyph shown inside the icon.
-    pub glyph: &'static str,
+    pub glyph: ::euv::CowText,
 }
 
 /// Props for the `euv_alert_title` component.
@@ -26,7 +26,7 @@ pub struct EuvAlertIconProps {
 #[derive(Clone, CustomDebug, Data, Default, New)]
 pub struct EuvAlertTitleProps {
     /// The title text.
-    pub text: &'static str,
+    pub text: ::euv::CowText,
 }
 
 /// Props for the `euv_alert_description` component.
@@ -36,7 +36,7 @@ pub struct EuvAlertTitleProps {
 #[derive(Clone, CustomDebug, Data, Default, New)]
 pub struct EuvAlertDescriptionProps {
     /// The description text.
-    pub text: &'static str,
+    pub text: ::euv::CowText,
 }
 
 /// Props for the `euv_alert_action` component.

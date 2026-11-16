@@ -1109,9 +1109,7 @@ class! {
         letter-spacing: var!(letter-spacing-normal);
         vertical-align: "middle";
         min-height: var!(control-height-sm);
-        // The home page's own buttons answer exactly the way the library
-        // buttons do: a lift on hover, a settle on press, both driven by
-        // the shared motion tokens rather than their own numbers.
+        // Hover changes paint only; the press keeps its separate feedback.
         transition: format!(
         "background-color {} {}, border-color {} {}, transform {} {}",
         var!(duration-fast),
@@ -1128,8 +1126,7 @@ class! {
         :hover {
             background: var!(primary-hover);
             color: var!(primary-foreground);
-            border-color: "1.5px solid transparent";
-            transform: format!("translateY({})", var!(lift-hover));
+            border-color: "transparent";
         }
         :focus-visible {
             outline: "none";
@@ -1137,9 +1134,7 @@ class! {
         :active {
             background: var!(primary);
             color: var!(primary-foreground);
-            border-color: "1.5px solid transparent";
-            // The press drops the lift back down and settles into the
-            // surface in one movement.
+            border-color: "transparent";
             transform: format!("translateY(0px) scale({})", var!(press-scale));
         }
         border-radius: var!(radius-sm);
@@ -1162,8 +1157,7 @@ class! {
         letter-spacing: var!(letter-spacing-normal);
         vertical-align: "middle";
         min-height: var!(control-height-sm);
-        // Same hover/press vocabulary as the primary home button and the
-        // library buttons, so the three of them feel like one system.
+        // Hover keeps geometry fixed while press feedback remains independent.
         transition: format!(
         "background-color {} {}, border-color {} {}, transform {} {}",
         var!(duration-fast),
@@ -1181,7 +1175,6 @@ class! {
             background: var!(secondary);
             color: var!(secondary-foreground);
             border-color: var!(input);
-            transform: format!("translateY({})", var!(lift-hover));
         }
         :focus-visible {
             outline: "none";

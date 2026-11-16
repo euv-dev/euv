@@ -173,6 +173,22 @@ pub fn euv_number_input(node: VirtualNode<EuvNumberInputProps>) -> VirtualNode {
         disabled,
         on_change,
     }: EuvNumberInputProps = node.try_get_props().unwrap_or_default();
+    let input_id: UseId = use_id("number-input");
+    let input_id_value: String = input_id.get_value().get();
+    let initial_value: i64 = value.get();
+    let reset_value_signal: Signal<i64> = value;
+    let reset_input_id: String = input_id_value.clone();
+    let reset_callback: Rc<dyn Fn()> = Rc::new(move || {
+        reset_value_signal.set(initial_value);
+        let input: Option<HtmlInputElement> = window()
+            .and_then(|window: Window| window.document())
+            .and_then(|document: Document| document.get_element_by_id(&reset_input_id))
+            .and_then(|element: Element| element.dyn_into::<HtmlInputElement>().ok());
+        if let Some(input) = input {
+            input.set_value(&initial_value.to_string());
+        }
+    });
+    use_form_reset(input_id_value.clone(), "", reset_callback);
     let step_size: i64 = if step == 0 { FALLBACK_STEP } else { step };
     let increment: i64 = step_size;
     let decrement: i64 = -step_size;
@@ -181,6 +197,7 @@ pub fn euv_number_input(node: VirtualNode<EuvNumberInputProps>) -> VirtualNode {
             class: c_euv_input_wrapper()
             if !label_text.is_empty() {
                 label {
+                    r#for: input_id_value.clone()
                     class: c_form_label()
                     label_text
                 }
@@ -188,6 +205,7 @@ pub fn euv_number_input(node: VirtualNode<EuvNumberInputProps>) -> VirtualNode {
             div {
                 class: c_euv_number_input()
                 input {
+                    id: input_id_value
                     type: "number"
                     value: value.get().to_string()
                     disabled: disabled

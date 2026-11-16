@@ -25,11 +25,7 @@ pub fn euv_pagination(node: VirtualNode<EuvPaginationProps>) -> VirtualNode {
     }: EuvPaginationProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     if !matches!(&children, VirtualNode::Empty) {
-        let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-            c_euv_pagination_shadcn()
-        } else {
-            &EMPTY_CLASS
-        };
+        let shadcn_class: &Css = { c_euv_pagination() };
         return html! {
             nav {
                 role: "navigation"
@@ -42,34 +38,15 @@ pub fn euv_pagination(node: VirtualNode<EuvPaginationProps>) -> VirtualNode {
     }
     let prev_node: VirtualNode = pagination_side(prev, prev_label, false);
     let next_node: VirtualNode = pagination_side(next, next_label, true);
-    if cfg!(feature = "theme-shadcn") {
-        let root_class: &Css = c_euv_pagination_shadcn();
-        let base_content_class: &Css = c_euv_pagination_content();
-        let shadcn_content_class: &Css = c_euv_pagination_content_shadcn();
-        return html! {
-            nav {
-                role: "navigation"
-                aria-label: "pagination"
-                "data-slot": "pagination"
-                class: root_class
-                ul {
-                    "data-slot": "pagination-content"
-                    class: base_content_class
-                    class: shadcn_content_class
-                    prev_node
-                    next_node
-                }
-            }
-        };
-    }
     html! {
         nav {
             role: "navigation"
             aria-label: "pagination"
             "data-slot": "pagination"
+            class: c_euv_pagination()
             ul {
                 "data-slot": "pagination-content"
-                class: c_euv_pagination()
+                class: c_euv_pagination_auto_content()
                 prev_node
                 next_node
             }
@@ -142,19 +119,13 @@ pub fn euv_pagination_item(node: VirtualNode<EuvPaginationItemProps>) -> Virtual
     } else {
         c_euv_pagination_no_next()
     };
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_pagination_link_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
-    let direction_shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
+
+    let direction_shadcn_class: &Css = {
         if next {
-            c_euv_pagination_next_shadcn()
+            c_euv_pagination_next()
         } else {
-            c_euv_pagination_previous_shadcn()
+            c_euv_pagination_previous()
         }
-    } else {
-        &EMPTY_CLASS
     };
     html! {
         li {
@@ -175,34 +146,30 @@ pub fn euv_pagination_item(node: VirtualNode<EuvPaginationItemProps>) -> Virtual
                 tabindex: "0"
                 class: base_class
                 class: direction_class
-                class: shadcn_class
+
                 class: direction_shadcn_class
                 href: href_ref
                 onclick: Router::link_handler(link)
-                if cfg!(feature = "theme-shadcn") {
-                    if next {
-                        label
-                        span {
-                            "aria-hidden": "true"
-                            class: c_euv_pagination_icon()
-                            PAGINATION_NEXT_ICON
-                        }
-                    } else {
-                        span {
-                            "aria-hidden": "true"
-                            class: c_euv_pagination_icon()
-                            PAGINATION_PREVIOUS_ICON
-                        }
-                        label
-                    }
-                } else {
+                if !next {
                     span {
-                        class: c_euv_pagination_label()
-                        label
+                        "aria-hidden": "true"
+                        class: c_euv_pagination_icon()
+                        PAGINATION_PREVIOUS_ICON
                     }
+                }
+                span {
+                    class: c_euv_pagination_label()
+                    label
+                }
+                span {
+                    class: c_euv_pagination_text()
+                    text
+                }
+                if next {
                     span {
-                        class: c_euv_pagination_text()
-                        text
+                        "aria-hidden": "true"
+                        class: c_euv_pagination_icon()
+                        PAGINATION_NEXT_ICON
                     }
                 }
             }
@@ -229,16 +196,12 @@ pub fn euv_pagination_content(node: VirtualNode<EuvPaginationContentProps>) -> V
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_pagination_content();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_pagination_content_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         ul {
             "data-slot": "pagination-content"
             class: base_class
-            class: shadcn_class
+
             children
         }
     }
@@ -262,11 +225,7 @@ pub fn euv_pagination_content(node: VirtualNode<EuvPaginationContentProps>) -> V
 pub fn euv_pagination_ellipsis(node: VirtualNode<EuvPaginationEllipsisProps>) -> VirtualNode {
     let EuvPaginationEllipsisProps {}: EuvPaginationEllipsisProps =
         node.try_get_props().unwrap_or_default();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_pagination_ellipsis_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         li {
             "data-slot": "pagination-item"
@@ -276,7 +235,7 @@ pub fn euv_pagination_ellipsis(node: VirtualNode<EuvPaginationEllipsisProps>) ->
                 role: "img"
                 "aria-label": PAGINATION_ELLIPSIS_ARIA_LABEL
                 class: c_euv_pagination_ellipsis()
-                class: shadcn_class
+
                 PAGINATION_ELLIPSIS_GLYPH
             }
         }
@@ -329,13 +288,9 @@ pub fn euv_pagination_link(node: VirtualNode<EuvPaginationLinkProps>) -> Virtual
     } else {
         c_euv_pagination_page_inactive()
     };
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_pagination_page_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
-    let active_shadcn_class: &Css = if cfg!(feature = "theme-shadcn") && active {
-        c_euv_pagination_page_active_shadcn()
+
+    let active_shadcn_class: &Css = if active {
+        c_euv_pagination_page_active()
     } else {
         &EMPTY_CLASS
     };
@@ -351,7 +306,7 @@ pub fn euv_pagination_link(node: VirtualNode<EuvPaginationLinkProps>) -> Virtual
                 aria-current: if active { "page" } else { "false" }
                 class: base_class
                 class: active_class
-                class: shadcn_class
+
                 class: active_shadcn_class
                 href: href_ref
                 onclick: Router::link_handler(link)

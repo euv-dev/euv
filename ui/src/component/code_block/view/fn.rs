@@ -36,18 +36,14 @@ pub fn euv_code_block(node: VirtualNode<EuvCodeBlockProps>) -> VirtualNode {
     };
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_code_block();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_code_block_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
             div {
                 "data-slot": "code-block"
                 "data-variant": variant_attr
                 "data-size": size_attr
                 class: base_class
-                class: shadcn_class
+
                 class: variant_class()
                 class: size_class()
                 children
@@ -74,16 +70,12 @@ pub fn euv_code_block_header(node: VirtualNode<EuvCodeBlockHeaderProps>) -> Virt
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_code_block_header();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_code_block_header_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
             div {
                 "data-slot": "code-block-header"
                 class: base_class
-                class: shadcn_class
+
                 children
             }
     }
@@ -134,16 +126,12 @@ pub fn euv_code_block_actions(node: VirtualNode<EuvCodeBlockActionsProps>) -> Vi
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_code_block_actions();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_code_block_actions_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
             div {
                 "data-slot": "code-block-actions"
                 class: base_class
-                class: shadcn_class
+
                 children
             }
     }
@@ -335,16 +323,12 @@ pub fn euv_code_block_footer(node: VirtualNode<EuvCodeBlockFooterProps>) -> Virt
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_code_block_footer();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_code_block_footer_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         div {
             "data-slot": "code-block-footer"
             class: base_class
-            class: shadcn_class
+
             children
         }
     }

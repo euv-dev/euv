@@ -25,4 +25,8 @@ pub struct EuvTabsProps {
     pub items: Vec<EuvTabItem>,
     /// The key of the selected tab (drives the `_active` tab class).
     pub active: Signal<String>,
+    /// The accessible name of the tab list.
+    pub aria_label: &'static str,
+    /// Keyboard activation policy; defaults to automatic selection.
+    pub activation_mode: EuvTabsActivationMode,
 }

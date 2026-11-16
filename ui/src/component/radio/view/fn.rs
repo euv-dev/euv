@@ -32,6 +32,29 @@ pub fn euv_radio(node: VirtualNode<EuvRadioGroupProps>) -> VirtualNode {
         value,
         label: label_text,
     }: EuvRadioGroupProps = node.try_get_props().unwrap_or_default();
+    let group_id: UseId = use_id("radio-group");
+    let group_id_value: String = group_id.get_value().get();
+    let initial_value: String = value.get();
+    let reset_value_signal: Signal<String> = value;
+    let reset_group_id: String = group_id_value.clone();
+    let reset_callback: Rc<dyn Fn()> = Rc::new(move || {
+        reset_value_signal.set(initial_value.clone());
+        let inputs: Option<HtmlCollection> = window()
+            .and_then(|window: Window| window.document())
+            .and_then(|document: Document| document.get_element_by_id(&reset_group_id))
+            .map(|group: Element| group.get_elements_by_tag_name("input"));
+        if let Some(inputs) = inputs {
+            for index in 0..inputs.length() {
+                let input: Option<HtmlInputElement> = inputs
+                    .item(index)
+                    .and_then(|element: Element| element.dyn_into::<HtmlInputElement>().ok());
+                if let Some(input) = input {
+                    input.set_checked(input.value() == initial_value);
+                }
+            }
+        }
+    });
+    use_form_reset(group_id_value.clone(), "", reset_callback);
     let selected: String = value.get();
     let items: Vec<VirtualNode> = options
         .into_iter()
@@ -57,6 +80,7 @@ pub fn euv_radio(node: VirtualNode<EuvRadioGroupProps>) -> VirtualNode {
         .collect();
     html! {
         div {
+            id: group_id_value
             class: c_euv_radio_group()
             div {
                 class: c_form_label()
@@ -154,39 +178,18 @@ pub fn euv_radio_group_item(node: VirtualNode<EuvRadioGroupItemProps>) -> Virtua
     }: EuvRadioGroupItemProps = node.try_get_props().unwrap_or_default();
     let is_checked: bool = checked.get();
     let item_class: fn() -> &'static Css = c_euv_radio_group_item;
-    let theme_class: &Css = if cfg!(feature = "theme-shadcn") {
-        if is_checked {
-            c_euv_radio_group_item_checked_shadcn()
-        } else {
-            c_euv_radio_group_item_shadcn()
-        }
-    } else {
-        &EMPTY_CLASS
-    };
     let checked_class: &Css = if is_checked {
         c_euv_radio_group_item_checked()
     } else {
         &EMPTY_CLASS
     };
-    let indicator_shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_radio_group_indicator_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     let indicator_checked_class: &Css = if is_checked {
-        if cfg!(feature = "theme-shadcn") {
-            c_euv_radio_group_indicator_checked_shadcn()
-        } else {
-            c_euv_radio_group_indicator_checked()
-        }
+        c_euv_radio_group_indicator_checked()
     } else {
         &EMPTY_CLASS
     };
-    let indicator_dot_shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_radio_group_indicator_dot_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     let tabindex: &str = if is_checked { "0" } else { "-1" };
     let click_callback: Option<Rc<dyn Fn(&'static str)>> = on_select.clone();
     let on_click: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |_: Event| {
@@ -214,18 +217,16 @@ pub fn euv_radio_group_item(node: VirtualNode<EuvRadioGroupItemProps>) -> Virtua
             tabindex: tabindex
             class: item_class()
             class: checked_class
-            class: theme_class
             onclick: on_click
             onkeydown: on_keydown
             span {
                 "data-slot": "radio-group-indicator"
                 class: c_euv_radio_group_indicator()
-                class: indicator_shadcn_class
+
                 class: indicator_checked_class
                 if is_checked {
                     span {
                         class: c_euv_radio_group_indicator_dot()
-                        class: indicator_dot_shadcn_class
                     }
                 }
             }

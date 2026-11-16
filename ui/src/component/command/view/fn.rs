@@ -21,17 +21,13 @@ pub fn euv_command(node: VirtualNode<EuvCommandProps>) -> VirtualNode {
     }: EuvCommandProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_command();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_command_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
             div {
                 role: "group"
                 "aria-label": label
                 class: base_class
-                class: shadcn_class
+
                 "data-slot": "command"
                 children
             }
@@ -59,15 +55,11 @@ pub fn euv_command_input(node: VirtualNode<EuvCommandInputProps>) -> VirtualNode
     }: EuvCommandInputProps = node.try_get_props().unwrap_or_default();
     let disabled_signal: Signal<bool> = Signal::create(disabled);
     let text: String = value.get();
-    let command_input_wrapper_shadcn: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_command_input_wrapper_shadcn().clone()
-    } else {
-        Css::default()
-    };
+
     html! {
             div {
                 class: c_euv_command_input_wrapper()
-                class: command_input_wrapper_shadcn
+
                 "data-slot": "command-input-wrapper"
                 input {
                     type: "text"
@@ -302,18 +294,11 @@ pub fn euv_command_shortcut(node: VirtualNode<EuvCommandShortcutProps>) -> Virtu
 /// - `String` - The class list.
 fn command_item_class(state_class: fn() -> &'static Css) -> String {
     let base_class: &str = c_euv_command_item().get_name();
-    let shadcn_class: &str = if cfg!(feature = "theme-shadcn") {
-        c_euv_command_item_shadcn().get_name()
-    } else {
-        ""
-    };
+
     let mut class_name: String = String::with_capacity(64);
     class_name.push_str(base_class);
     class_name.push(' ');
     class_name.push_str(state_class().get_name());
-    if !shadcn_class.is_empty() {
-        class_name.push(' ');
-        class_name.push_str(shadcn_class);
-    }
+
     class_name
 }

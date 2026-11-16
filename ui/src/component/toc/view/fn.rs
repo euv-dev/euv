@@ -54,10 +54,15 @@ pub fn euv_toc(node: VirtualNode<EuvTocProps>) -> VirtualNode {
                     title
                 }
             }
-            for (item, entry_class) in items.iter().zip(entry_classes.iter()) {
+            for (index, (item, entry_class)) in items.iter().zip(entry_classes.iter()).enumerate() {
                 a {
                     key: item.href
                     class: entry_class()
+                    class: if index + 1 < items.len() {
+                        c_euv_toc_link_separator().clone()
+                    } else {
+                        Css::default()
+                    }
                     href: item.href
                     {
                         item.text

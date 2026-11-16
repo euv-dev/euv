@@ -61,6 +61,12 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
                         docs_markdown(page.blocks)
                     }
                 }
+                div {
+                    class: c_home_tail()
+                    docs_site_footer {
+                        route: path.clone()
+                    }
+                }
             }
         }
     }

@@ -5,12 +5,12 @@ use super::*;
 /// `key` is the stable identity used for the column's own diffing key; it
 /// is not rendered, so a caller can pass a short slug (`"qty"`) while
 /// `label` carries the visible uppercase heading.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct EuvTableColumn {
     /// The stable column identity, used as the diffing key only.
     pub key: &'static str,
     /// The visible column heading text.
-    pub label: &'static str,
+    pub label: ::euv::CowText,
     /// The horizontal alignment applied to this column's cells.
     pub align: EuvTableAlign,
 }
@@ -24,9 +24,9 @@ pub struct EuvTableColumn {
 #[derive(Clone, Debug, Default)]
 pub struct EuvTableRow {
     /// The cell texts, positionally matched to [`EuvTableProps::columns`].
-    pub cells: Vec<&'static str>,
+    pub cells: Vec<::euv::CowText>,
     /// The stable row identity, used as the diffing key only.
-    pub key: &'static str,
+    pub key: ::euv::CowText,
 }
 
 /// Props for the [`euv_table`] component.
@@ -43,6 +43,8 @@ pub struct EuvTableProps {
     pub caption: &'static str,
     /// Whether every other row gets the `c_euv_table_row_zebra` fill.
     pub zebra: bool,
+    /// An optional application class composed with the design-system table classes.
+    pub class: Css,
 }
 
 /// Props for the [`euv_table_header`] component.

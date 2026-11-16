@@ -29,6 +29,21 @@ pub fn euv_field(node: VirtualNode<EuvFieldProps>) -> VirtualNode {
         error,
         oninput: custom_oninput,
     }: EuvFieldProps = node.try_get_props().unwrap_or_default();
+    let initial_value: String = value.get();
+    let reset_value_signal: Signal<String> = value;
+    let reset_input_id: String = String::from(id);
+    let reset_callback: Rc<dyn Fn()> = Rc::new(move || {
+        let reset_value: String = initial_value.clone();
+        reset_value_signal.set(reset_value.clone());
+        let input: Option<HtmlInputElement> = window()
+            .and_then(|window: Window| window.document())
+            .and_then(|document: Document| document.get_element_by_id(&reset_input_id))
+            .and_then(|element: Element| element.dyn_into::<HtmlInputElement>().ok());
+        if let Some(input) = input {
+            input.set_value(&reset_value);
+        }
+    });
+    use_form_reset(String::from(id), "", reset_callback);
     let handler: Option<Rc<dyn Fn(Event)>> =
         custom_oninput.or_else(|| UseEuvInput::on_input_value(value));
     let error_state: Signal<String> = error
@@ -40,11 +55,7 @@ pub fn euv_field(node: VirtualNode<EuvFieldProps>) -> VirtualNode {
     } else {
         c_euv_input_error()
     };
-    let shadcn_input_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_input_shadcn().clone()
-    } else {
-        Css::default()
-    };
+    let shadcn_input_class: Css = { c_euv_input().clone() };
     html! {
         div {
             "data-slot": "field"
@@ -286,11 +297,12 @@ pub fn euv_field_title(node: VirtualNode<EuvFieldTitleProps>) -> VirtualNode {
 /// - `VirtualNode` - The euv field description virtual DOM tree.
 #[component]
 pub fn euv_field_description(node: VirtualNode<EuvFieldDescriptionProps>) -> VirtualNode {
-    let EuvFieldDescriptionProps {}: EuvFieldDescriptionProps =
+    let EuvFieldDescriptionProps { id }: EuvFieldDescriptionProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     html! {
         p {
+            id: id
             "data-slot": "field-description"
             class: c_euv_field_description()
             children
@@ -313,11 +325,12 @@ pub fn euv_field_description(node: VirtualNode<EuvFieldDescriptionProps>) -> Vir
 /// - `VirtualNode` - The euv field error virtual DOM tree.
 #[component]
 pub fn euv_field_error(node: VirtualNode<EuvFieldErrorProps>) -> VirtualNode {
-    let EuvFieldErrorProps { message }: EuvFieldErrorProps =
+    let EuvFieldErrorProps { message, id }: EuvFieldErrorProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     html! {
         div {
+            id: id
             role: "alert"
             "data-slot": "field-error"
             "data-invalid": "true"

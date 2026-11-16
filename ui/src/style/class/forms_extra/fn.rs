@@ -9,14 +9,8 @@ class! {
     // The set of fields that belong together. The reference stacks the
     // fields one under the other and gives the set a 24px gap, which is
     // the breathing room the reference gives a field group.
-    pub c_euv_field_set {
-        display: "flex";
-        flex-direction: "column";
-        gap: var!(space-2xl);
-    }
-    pub(crate) c_euv_field_set_shadcn {
-        gap: var!(space-lg);
-    }
+
+
 
 
     // The legend of a set of fields.
@@ -37,15 +31,8 @@ class! {
 
     // The group of fields. The reference stacks the rows of a group one
     // under the other and gives them a 28px gap.
-    pub c_euv_field_group {
-        display: "flex";
-        width: "100%";
-        flex-direction: "column";
-        gap: "28px";
-    }
-    pub(crate) c_euv_field_group_shadcn {
-        gap: var!(space-xl);
-    }
+
+
 
 
     // A group whose rows are stacked one under the other.
@@ -70,45 +57,18 @@ class! {
     }
 
     // The body of one field, below its label.
-    pub c_euv_field_content {
-        display: "flex";
-        flex: "1 1 0%";
-        flex-direction: "column";
-        // The reference sets a 6px gap between the description and the
-        // control; 6px sits between the 4px and 8px steps of the scale.
-        gap: "6px";
-        line-height: "1.375";
-    }
-    pub(crate) c_euv_field_content_shadcn {
-        gap: var!(space-2xs);
-    }
+
+
 
 
     // The caption of the control of one field.
-    pub c_euv_field_label {
-        display: "flex";
-        width: "fit-content";
-        gap: var!(space-sm);
-        line-height: "1.375";
-    }
-    pub(crate) c_euv_field_label_shadcn {
-        align-items: "center";
-    }
+
+
 
 
     // The caption of a field that carries a row of its own.
-    pub c_euv_field_title {
-        display: "flex";
-        width: "fit-content";
-        align-items: "center";
-        gap: var!(space-sm);
-        font-size: var!(font-sm);
-        font-weight: var!(font-weight-medium);
-        line-height: "1.375";
-    }
-    pub(crate) c_euv_field_title_shadcn {
-        align-items: "center";
-    }
+
+
 
 
     // The explanation of one field.
@@ -214,50 +174,22 @@ class! {
     }
 
     // The actions of an empty state.
-    pub c_euv_empty_content {
-        display: "flex";
-        width: "100%";
-        min-width: "0px";
-        max-width: "384px";
-        flex-direction: "column";
-        align-items: "center";
-        gap: var!(space-lg);
-        text-align: "center";
-        font-size: var!(font-sm);
-    }
 
-    pub(crate) c_euv_empty_content_shadcn {
-        gap: var!(space-sm);
-        justify-content: "center";
-    }
+
+
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Message — the parts of one message.
     // ═══════════════════════════════════════════════════════════════════════════
 
     // The cluster of messages.
-    pub c_euv_message_group {
-        display: "flex";
-        min-width: "0px";
-        flex-direction: "column";
-    }
-    pub(crate) c_euv_message_group_shadcn {
-        gap: var!(space-sm);
-    }
+
+
 
 
     // The head of one message.
-    pub c_euv_message_header {
-        display: "flex";
-        max-width: "100%";
-        min-width: "0px";
-        align-items: "center";
-    }
-    pub(crate) c_euv_message_header_shadcn {
-        color: var!(muted-foreground);
-        font-weight: var!(font-weight-medium);
-        padding-left: var!(space-md);
-    }
+
+
 
 
     // The picture of the sender of one message.
@@ -274,30 +206,13 @@ class! {
     }
 
     // The body of one message.
-    pub c_euv_message_content {
-        display: "flex";
-        width: "100%";
-        min-width: "0px";
-        flex-direction: "column";
-        overflow-wrap: "break-word";
-    }
-    pub(crate) c_euv_message_content_shadcn {
-        gap: var!(space-sm-md);
-    }
+
+
 
 
     // The trailing actions of one message.
-    pub c_euv_message_footer {
-        display: "flex";
-        max-width: "100%";
-        min-width: "0px";
-        align-items: "center";
-    }
-    pub(crate) c_euv_message_footer_shadcn {
-        color: var!(muted-foreground);
-        font-weight: var!(font-weight-medium);
-        padding-left: var!(space-md);
-    }
+
+
 
 
     // The surface the words of one message sit on.
@@ -369,8 +284,6 @@ class! {
 
     pub c_euv_empty_content {}
 
-    pub c_euv_empty_content_shadcn {}
-
     pub c_euv_message_group {}
 
     pub c_euv_message_header {}
@@ -384,13 +297,195 @@ class! {
     pub c_euv_message_bubble {}
 
     pub c_euv_kbd_group {}
-    pub(crate) c_euv_field_content_shadcn {}
-    pub(crate) c_euv_field_group_shadcn {}
-    pub(crate) c_euv_field_label_shadcn {}
-    pub(crate) c_euv_field_set_shadcn {}
-    pub(crate) c_euv_field_title_shadcn {}
-    pub(crate) c_euv_message_content_shadcn {}
-    pub(crate) c_euv_message_footer_shadcn {}
-    pub(crate) c_euv_message_group_shadcn {}
-    pub(crate) c_euv_message_header_shadcn {}
+}
+
+#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+class! {
+    pub c_euv_field_set {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xl);
+    }
+
+    pub c_euv_field_group {
+        display: "flex";
+        width: "100%";
+        flex-direction: "column";
+        gap: "28px";
+    }
+
+    pub c_euv_field_content {
+        display: "flex";
+        flex: "1 1 0%";
+        flex-direction: "column";
+        // The reference sets a 6px gap between the description and the
+        // control; 6px sits between the 4px and 8px steps of the scale.
+        gap: "6px";
+        line-height: "1.375";
+    }
+
+    pub c_euv_field_label {
+        display: "flex";
+        width: "fit-content";
+        gap: var!(space-sm);
+        line-height: "1.375";
+    }
+
+    pub c_euv_field_title {
+        display: "flex";
+        width: "fit-content";
+        align-items: "center";
+        gap: var!(space-sm);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1.375";
+    }
+
+    pub c_euv_empty_content {
+        display: "flex";
+        width: "100%";
+        min-width: "0px";
+        max-width: "384px";
+        flex-direction: "column";
+        align-items: "center";
+        gap: var!(space-lg);
+        text-align: "center";
+        font-size: var!(font-sm);
+    }
+
+    pub c_euv_message_group {
+        display: "flex";
+        min-width: "0px";
+        flex-direction: "column";
+    }
+
+    pub c_euv_message_header {
+        display: "flex";
+        max-width: "100%";
+        min-width: "0px";
+        align-items: "center";
+    }
+
+    pub c_euv_message_content {
+        display: "flex";
+        width: "100%";
+        min-width: "0px";
+        flex-direction: "column";
+        overflow-wrap: "break-word";
+    }
+
+    pub c_euv_message_footer {
+        display: "flex";
+        max-width: "100%";
+        min-width: "0px";
+        align-items: "center";
+    }
+}
+
+#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+class! {
+    pub c_euv_field_set {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xl);
+
+        gap: var!(space-lg);
+    }
+
+    pub c_euv_field_group {
+        display: "flex";
+        width: "100%";
+        flex-direction: "column";
+        gap: "28px";
+
+        gap: var!(space-xl);
+    }
+
+    pub c_euv_field_content {
+        display: "flex";
+        flex: "1 1 0%";
+        flex-direction: "column";
+        // The reference sets a 6px gap between the description and the
+        // control; 6px sits between the 4px and 8px steps of the scale.
+        gap: "6px";
+        line-height: "1.375";
+
+        gap: var!(space-2xs);
+    }
+
+    pub c_euv_field_label {
+        display: "flex";
+        width: "fit-content";
+        gap: var!(space-sm);
+        line-height: "1.375";
+
+        align-items: "center";
+    }
+
+    pub c_euv_field_title {
+        display: "flex";
+        width: "fit-content";
+        align-items: "center";
+        gap: var!(space-sm);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1.375";
+
+        align-items: "center";
+    }
+
+    pub c_euv_empty_content {
+        display: "flex";
+        width: "100%";
+        min-width: "0px";
+        max-width: "384px";
+        flex-direction: "column";
+        align-items: "center";
+        gap: var!(space-lg);
+        text-align: "center";
+        font-size: var!(font-sm);
+
+        gap: var!(space-sm);
+        justify-content: "center";
+    }
+
+    pub c_euv_message_group {
+        display: "flex";
+        min-width: "0px";
+        flex-direction: "column";
+
+        gap: var!(space-sm);
+    }
+
+    pub c_euv_message_header {
+        display: "flex";
+        max-width: "100%";
+        min-width: "0px";
+        align-items: "center";
+
+        color: var!(muted-foreground);
+        font-weight: var!(font-weight-medium);
+        padding-left: var!(space-md);
+    }
+
+    pub c_euv_message_content {
+        display: "flex";
+        width: "100%";
+        min-width: "0px";
+        flex-direction: "column";
+        overflow-wrap: "break-word";
+
+        gap: var!(space-sm-md);
+    }
+
+    pub c_euv_message_footer {
+        display: "flex";
+        max-width: "100%";
+        min-width: "0px";
+        align-items: "center";
+
+        color: var!(muted-foreground);
+        font-weight: var!(font-weight-medium);
+        padding-left: var!(space-md);
+    }
 }

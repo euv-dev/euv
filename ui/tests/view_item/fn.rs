@@ -116,7 +116,7 @@ fn an_item_group_is_a_list() {
         "the group carries the item-group class"
     );
     if cfg!(feature = "theme-shadcn") {
-        assert!(has_class(&rendered, "c_euv_item_group_shadcn"));
+        assert!(has_class(&rendered, "c_euv_item_group"));
     }
 }
 
@@ -160,9 +160,9 @@ fn every_item_size_reaches_the_class_list() {
     }
     if cfg!(feature = "theme-shadcn") {
         for (node, class_name) in [
-            (&default, "c_euv_item_size_default_shadcn"),
-            (&small, "c_euv_item_size_sm_shadcn"),
-            (&extra_small, "c_euv_item_size_xs_shadcn"),
+            (&default, "c_euv_item_size_default"),
+            (&small, "c_euv_item_size_sm"),
+            (&extra_small, "c_euv_item_size_xs"),
         ] {
             assert!(has_class(node, class_name));
         }

@@ -19,16 +19,12 @@ pub fn euv_questionnaire(node: VirtualNode<EuvQuestionnaireProps>) -> VirtualNod
     let EuvQuestionnaireProps {}: EuvQuestionnaireProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_questionnaire_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
             div {
                 "data-slot": "questionnaire"
                 class: base_class
-                class: shadcn_class
+
                 children
             }
     }
@@ -101,16 +97,12 @@ pub fn euv_questionnaire_title(node: VirtualNode<EuvQuestionnaireTitleProps>) ->
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_title();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_questionnaire_title_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
             div {
                 "data-slot": "questionnaire-title"
                 class: base_class
-                class: shadcn_class
+
                 children
             }
     }
@@ -201,11 +193,7 @@ pub fn euv_questionnaire_choice(node: VirtualNode<EuvQuestionnaireChoiceProps>) 
     };
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_choice();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_questionnaire_choice_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
             div {
                 "data-slot": "questionnaire-choice"
@@ -221,7 +209,7 @@ pub fn euv_questionnaire_choice(node: VirtualNode<EuvQuestionnaireChoiceProps>) 
                     "false"
                 }
                 class: base_class
-                class: shadcn_class
+
                 class: if disabled {
                     c_euv_questionnaire_choice_disabled()
                 } else {
@@ -370,11 +358,7 @@ pub fn euv_questionnaire_input(node: VirtualNode<EuvQuestionnaireInputProps>) ->
     let EuvQuestionnaireInputProps {}: EuvQuestionnaireInputProps =
         node.try_get_props().unwrap_or_default();
     let base_class: &Css = c_euv_questionnaire_input();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_questionnaire_input_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         div {
             "data-slot": "questionnaire-input-wrapper"
@@ -383,7 +367,7 @@ pub fn euv_questionnaire_input(node: VirtualNode<EuvQuestionnaireInputProps>) ->
                 "data-slot": "questionnaire-input"
                 type: "text"
                 class: base_class
-            class: shadcn_class
+
             }
         }
     }
@@ -457,17 +441,13 @@ pub fn euv_questionnaire_previous(node: VirtualNode<EuvQuestionnairePreviousProp
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_previous();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_questionnaire_previous_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         button {
             "data-slot": "questionnaire-previous"
             type: "button"
             class: base_class
-            class: shadcn_class
+
             children
         }
     }
@@ -489,17 +469,13 @@ pub fn euv_questionnaire_skip(node: VirtualNode<EuvQuestionnaireSkipProps>) -> V
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_skip();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_questionnaire_skip_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         button {
             "data-slot": "questionnaire-skip"
             type: "button"
             class: base_class
-            class: shadcn_class
+
             children
         }
     }
@@ -521,17 +497,13 @@ pub fn euv_questionnaire_next(node: VirtualNode<EuvQuestionnaireNextProps>) -> V
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_next();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_questionnaire_next_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         button {
             "data-slot": "questionnaire-next"
             type: "button"
             class: base_class
-            class: shadcn_class
+
             children
         }
     }
@@ -553,17 +525,13 @@ pub fn euv_questionnaire_submit(node: VirtualNode<EuvQuestionnaireSubmitProps>) 
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_submit();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_questionnaire_submit_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         button {
             "data-slot": "questionnaire-submit"
             type: "button"
             class: base_class
-            class: shadcn_class
+
             children
         }
     }

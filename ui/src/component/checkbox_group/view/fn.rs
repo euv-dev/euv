@@ -31,6 +31,33 @@ pub fn euv_checkbox_group(node: VirtualNode<EuvCheckboxGroupProps>) -> VirtualNo
         label: label_text,
         on_change,
     }: EuvCheckboxGroupProps = node.try_get_props().unwrap_or_default();
+    let group_id: UseId = use_id("checkbox-group");
+    let group_id_value: String = group_id.get_value().get();
+    let initial_values: Vec<String> = values.get();
+    let reset_values_signal: Signal<Vec<String>> = values;
+    let reset_group_id: String = group_id_value.clone();
+    let reset_callback: Rc<dyn Fn()> = Rc::new(move || {
+        let reset_values: Vec<String> = initial_values.clone();
+        reset_values_signal.set(reset_values.clone());
+        let inputs: Option<HtmlCollection> = window()
+            .and_then(|window: Window| window.document())
+            .and_then(|document: Document| document.get_element_by_id(&reset_group_id))
+            .map(|group: Element| group.get_elements_by_tag_name("input"));
+        if let Some(inputs) = inputs {
+            for index in 0..inputs.length() {
+                let input: Option<HtmlInputElement> = inputs
+                    .item(index)
+                    .and_then(|element: Element| element.dyn_into::<HtmlInputElement>().ok());
+                if let Some(input) = input {
+                    let is_checked: bool = reset_values
+                        .iter()
+                        .any(|value: &String| value.as_str() == input.value());
+                    input.set_checked(is_checked);
+                }
+            }
+        }
+    });
+    use_form_reset(group_id_value.clone(), "", reset_callback);
     let checked_values: Vec<String> = values.get();
     let items: Vec<VirtualNode> = options
         .into_iter()
@@ -43,6 +70,7 @@ pub fn euv_checkbox_group(node: VirtualNode<EuvCheckboxGroupProps>) -> VirtualNo
         .collect();
     html! {
         div {
+            id: group_id_value
             "data-slot": "checkbox-group"
             role: "group"
             "aria-label": label_text

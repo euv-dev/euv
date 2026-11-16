@@ -4,10 +4,10 @@ mod r#fn;
 mod r#impl;
 mod r#struct;
 
-pub use {r#fn::*, r#struct::*};
+pub use {r#enum::EuvSelectSize, r#fn::*, r#struct::*};
 
 pub(crate) use r#const::*;
 
-pub(crate) use r#enum::*;
+pub(crate) use r#enum::SelectPanelEntry;
 
 use super::*;

@@ -12,8 +12,7 @@ pub struct EuvTagProps {
     #[get(type(copy))]
     pub variant: EuvTagVariant,
     /// The tag text content.
-    #[get(type(copy))]
-    pub text: &'static str,
+    pub text: ::euv::CowText,
     /// Optional click event handler.
     #[debug(skip)]
     pub on_click: Option<Rc<dyn Fn(Event)>>,

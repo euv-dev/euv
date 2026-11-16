@@ -54,6 +54,19 @@ fn has_attribute(node: &VirtualNode, name: &str) -> bool {
     false
 }
 
+fn has_attribute_value(node: &VirtualNode, name: &str, value: &str) -> bool {
+    elements(node)
+        .iter()
+        .any(|element: &VirtualNode| match element {
+            VirtualNode::Element { attributes, .. } => {
+                attributes.iter().any(|entry: &AttributeEntry| {
+                    entry.get_name() == name && entry.text_value().as_deref() == Some(value)
+                })
+            }
+            _ => false,
+        })
+}
+
 fn has_slot(node: &VirtualNode, slot: &str) -> bool {
     for element in elements(node) {
         if let VirtualNode::Element { attributes, .. } = &element {
@@ -124,11 +137,33 @@ fn a_field_description_carries_its_class_and_slot() {
 }
 
 #[test]
+fn a_field_description_exposes_an_id_for_aria_describedby() {
+    let node: VirtualNode = html! {
+        euv_field_description {
+            id: "field-description"
+            "Helpful text"
+        }
+    };
+    assert!(has_attribute_value(&node, "id", "field-description"));
+}
+
+#[test]
 fn a_field_error_carries_its_class_and_slot() {
     let node: VirtualNode = euv_field_error(VirtualNode::Empty);
     assert!(has_class(&node, "c_euv_field_error"));
     assert!(has_attribute(&node, "data-slot"));
     assert!(has_slot(&node, "field-error"));
+}
+
+#[test]
+fn a_field_error_exposes_an_id_for_aria_describedby() {
+    let node: VirtualNode = html! {
+        euv_field_error {
+            id: "field-error"
+            message: "Required"
+        }
+    };
+    assert!(has_attribute_value(&node, "id", "field-error"));
 }
 
 #[test]

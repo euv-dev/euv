@@ -84,9 +84,12 @@ pub struct EuvFieldTitleProps {}
 
 /// Props for the [`euv_field_description`] component.
 ///
-/// The description takes no settings of its own.
+/// The description carries the id a control can reference with `aria-describedby`.
 #[derive(Clone, CustomDebug, Default)]
-pub struct EuvFieldDescriptionProps {}
+pub struct EuvFieldDescriptionProps {
+    /// The id that names this description.
+    pub id: &'static str,
+}
 
 /// Props for the [`euv_field_error`] component.
 ///
@@ -95,6 +98,8 @@ pub struct EuvFieldDescriptionProps {}
 pub struct EuvFieldErrorProps {
     /// The message that tells the reader what is wrong.
     pub message: &'static str,
+    /// The id a control can reference with `aria-describedby`.
+    pub id: &'static str,
 }
 
 /// Props for the [`euv_field_separator`] component.

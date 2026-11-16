@@ -105,6 +105,8 @@ fn tabs_node(items: Vec<EuvTabItem>, active: &str) -> VirtualNode<EuvTabsProps> 
         props: Some(Box::new(EuvTabsProps {
             items,
             active: Signal::create(String::from(active)),
+            aria_label: "",
+            activation_mode: EuvTabsActivationMode::Automatic,
         })),
     }
 }

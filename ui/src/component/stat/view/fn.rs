@@ -30,27 +30,27 @@ pub fn euv_stat(node: VirtualNode<EuvStatProps>) -> VirtualNode {
                 span {
                     class: c_euv_stat_icon()
                     {
-                        icon
+                        icon.clone()
                     }
                 }
             }
             span {
                 class: c_euv_stat_value()
                 {
-                    value
+                    value.clone()
                 }
             }
             span {
                 class: c_euv_stat_label()
                 {
-                    label
+                    label.clone()
                 }
             }
             if !hint.is_empty() {
                 span {
                     class: c_euv_stat_hint()
                     {
-                        hint
+                        hint.clone()
                     }
                 }
             }

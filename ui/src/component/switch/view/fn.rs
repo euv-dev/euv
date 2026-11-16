@@ -30,33 +30,21 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
     let is_checked: bool = checked.get();
     let base_track_class: &Css = c_form_switch_track();
     let base_thumb_class: &Css = c_form_switch_thumb();
-    let shadcn_track_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_form_switch_track_shadcn()
-    } else {
-        c_form_switch_track()
-    };
-    let shadcn_track_state_class: &Css = if cfg!(feature = "theme-shadcn") {
+
+    let shadcn_track_state_class: &Css = {
         if is_checked {
-            c_form_switch_track_checked_shadcn()
+            c_form_switch_track_checked()
         } else {
-            c_form_switch_track_shadcn()
+            c_form_switch_track()
         }
-    } else {
-        c_form_switch_track()
     };
-    let shadcn_thumb_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_form_switch_thumb_shadcn()
-    } else {
-        c_form_switch_thumb()
-    };
-    let shadcn_thumb_state_class: &Css = if cfg!(feature = "theme-shadcn") {
+
+    let shadcn_thumb_state_class: &Css = {
         if is_checked {
-            c_form_switch_thumb_checked_shadcn()
+            c_form_switch_thumb_checked()
         } else {
-            c_form_switch_thumb_shadcn()
+            c_form_switch_thumb()
         }
-    } else {
-        c_form_switch_thumb()
     };
     let switch_button: VirtualNode = html! {
         button {
@@ -84,12 +72,12 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
             onclick: handler
             span {
                 class: base_track_class
-                class: shadcn_track_class
+
                 class: shadcn_track_state_class
                 span {
                     "data-slot": "switch-thumb"
                     class: base_thumb_class
-                    class: shadcn_thumb_class
+
                     class: shadcn_thumb_state_class
                 }
             }

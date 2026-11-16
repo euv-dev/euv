@@ -6,8 +6,14 @@ use super::*;
 #[derive(Clone, Data, Debug, Default, New)]
 pub struct EuvCardProps {
     /// The card title displayed in the header.
+    pub title: ::euv::CowText,
+    /// The heading level the title is rendered at.
+    ///
+    /// The level is a setting of the component because the library cannot
+    /// know the outline of the page the card sits in: the same card is the
+    /// section of one page and the whole panel of another.
     #[get(type(copy))]
-    pub title: &'static str,
+    pub level: Option<EuvHeadingLevel>,
 }
 
 /// Props for the `euv_card_header` component.
@@ -24,7 +30,14 @@ pub struct EuvCardHeaderProps {}
 #[derive(Clone, CustomDebug, Data, Default, New)]
 pub struct EuvCardTitleProps {
     /// The title text.
-    pub text: &'static str,
+    pub text: ::euv::CowText,
+    /// The heading level the title is rendered at.
+    ///
+    /// The level is a setting of the component because the library cannot
+    /// know the outline of the page the card sits in: the same card is the
+    /// section of one page and the whole panel of another.
+    #[get(type(copy))]
+    pub level: Option<EuvHeadingLevel>,
 }
 
 /// Props for the `euv_card_description` component.
@@ -34,7 +47,7 @@ pub struct EuvCardTitleProps {
 #[derive(Clone, CustomDebug, Data, Default, New)]
 pub struct EuvCardDescriptionProps {
     /// The description text.
-    pub text: &'static str,
+    pub text: ::euv::CowText,
 }
 
 /// Props for the `euv_card_content` component.

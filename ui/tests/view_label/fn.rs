@@ -14,6 +14,7 @@ fn label_node(
             html_for,
             text,
             disabled: Signal::create(disabled),
+            class: Css::default(),
         })),
     }
 }
@@ -78,6 +79,28 @@ fn class_names(node: &VirtualNode) -> Vec<String> {
 
 fn has_class(node: &VirtualNode, name: &str) -> bool {
     class_names(node).iter().any(|entry: &String| entry == name)
+}
+
+#[test]
+fn a_label_composes_an_application_class_with_its_design_system_class() {
+    let node: VirtualNode<EuvLabelProps> = VirtualNode::Element {
+        tag: Tag::Element(Cow::Borrowed("div")),
+        attributes: Vec::new(),
+        children: Vec::new(),
+        key: None,
+        props: Some(Box::new(EuvLabelProps {
+            html_for: "email",
+            text: "Email",
+            disabled: Signal::create(false),
+            class: Css {
+                name: String::from("commerce-field-label"),
+                ..Css::default()
+            },
+        })),
+    };
+    let rendered: VirtualNode = euv_label(node);
+    assert!(has_class(&rendered, "commerce-field-label"));
+    assert!(has_class(&rendered, "c_euv_label"));
 }
 
 #[test]

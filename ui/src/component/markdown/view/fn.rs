@@ -318,6 +318,7 @@ fn render_md_inline(inline: &'static EuvMdInline) -> VirtualNode {
         }
         EuvMdInline::Code(code) => html! {
             code {
+                class: c_euv_markdown_inline_code()
                 { *code }
             }
         },

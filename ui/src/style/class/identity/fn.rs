@@ -97,17 +97,6 @@ class! {
         border-radius: var!(radius-sm);
     }
 
-    pub(crate) c_euv_avatar_fallback {
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        width: "100%";
-        height: "100%";
-        color: var!(foreground);
-        font-size: "inherit";
-        font-weight: "inherit";
-        line-height: "1";
-    }
     pub(crate) c_euv_avatar_image {
         display: "block";
         width: "100%";
@@ -115,13 +104,6 @@ class! {
         object-fit: "cover";
         border-radius: "inherit";
     }
-
-    pub(crate) c_euv_avatar_fallback_shadcn {
-        background-color: var!(muted);
-        border-radius: "inherit";
-        color: var!(muted-foreground);
-    }
-
 
     pub(crate) c_euv_avatar_badge {
         display: "flex";
@@ -366,7 +348,6 @@ class! {
 
     pub(crate) c_euv_avatar_group_count {}
 
-
     pub(crate) c_euv_icon {}
 
     pub(crate) c_euv_icon_label {}
@@ -410,5 +391,40 @@ class! {
     pub(crate) c_debug_label {}
 
     pub(crate) c_debug_value {}
-    pub(crate) c_euv_avatar_fallback_shadcn {}
+}
+
+#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+class! {
+    pub(crate) c_euv_avatar_fallback {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        width: "100%";
+        height: "100%";
+        color: var!(foreground);
+        font-size: "inherit";
+        font-weight: "inherit";
+        line-height: "1";
+    }
+}
+
+#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+class! {
+    pub(crate) c_euv_avatar_fallback {
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        width: "100%";
+        height: "100%";
+        color: var!(foreground);
+        font-size: "inherit";
+        font-weight: "inherit";
+        line-height: "1";
+
+        background-color: var!(muted);
+        border-radius: "inherit";
+        color: var!(muted-foreground);
+
+        border-radius: var!(radius-full);
+    }
 }

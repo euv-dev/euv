@@ -25,6 +25,7 @@ pub use std::{
     iter::Iterator,
     marker::PhantomData,
     mem::{swap, take, zeroed},
+    ops::Deref,
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{LazyLock, OnceLock, RwLock, RwLockReadGuard},
     thread::LocalKey,

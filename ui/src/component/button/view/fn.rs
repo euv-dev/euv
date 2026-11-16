@@ -25,6 +25,10 @@ pub fn euv_button(node: VirtualNode<EuvButtonProps>) -> VirtualNode {
         data_slot,
         onclick: click_handler,
         disabled,
+        submit,
+        aria_label,
+        busy,
+        data_testid,
     }: EuvButtonProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let has_children: bool = !matches!(&children, VirtualNode::Empty);
@@ -41,9 +45,14 @@ pub fn euv_button(node: VirtualNode<EuvButtonProps>) -> VirtualNode {
     let data_slot: &str = data_slot.unwrap_or(BUTTON_SLOT);
     html! {
         button {
-            type: "button"
+            type: if submit {
+                "submit"
+            } else {
+                "button"
+            }
             class: button_class(variant, size)
             "data-slot": data_slot
+            "data-testid": data_testid
             "data-variant": match variant {
                 EuvButtonVariant::Primary => BUTTON_VARIANT_DEFAULT,
                 EuvButtonVariant::Default => BUTTON_VARIANT_DEFAULT,
@@ -54,7 +63,8 @@ pub fn euv_button(node: VirtualNode<EuvButtonProps>) -> VirtualNode {
                 EuvButtonVariant::Link => BUTTON_VARIANT_LINK,
             }
             "data-size": size_attr
-            "aria-label": label
+            "aria-label": aria_label.unwrap_or_else(|| label.to_string()).as_str()
+            "aria-busy": busy.get().to_string()
             disabled: disabled
             onclick: click_handler
             if has_children {
@@ -148,11 +158,7 @@ pub fn euv_button_grouped(node: VirtualNode<EuvButtonGroupedProps>) -> VirtualNo
 /// - `String` - The class list.
 pub(crate) fn button_class(variant: EuvButtonVariant, size: EuvButtonSize) -> String {
     let base_class: &str = c_euv_button().get_name();
-    let shadcn_class: &str = if cfg!(feature = "theme-shadcn") {
-        c_euv_button_shadcn().get_name()
-    } else {
-        ""
-    };
+
     let variant_class: &str = match variant {
         EuvButtonVariant::Primary => c_euv_button_primary().get_name(),
         EuvButtonVariant::Default => c_euv_button_default().get_name(),
@@ -162,20 +168,7 @@ pub(crate) fn button_class(variant: EuvButtonVariant, size: EuvButtonSize) -> St
         EuvButtonVariant::Ghost => c_euv_button_ghost().get_name(),
         EuvButtonVariant::Link => c_euv_button_link().get_name(),
     };
-    let shadcn_variant_class: &str = if cfg!(feature = "theme-shadcn") {
-        match variant {
-            EuvButtonVariant::Primary | EuvButtonVariant::Default => {
-                c_euv_button_default_shadcn().get_name()
-            }
-            EuvButtonVariant::Secondary => c_euv_button_secondary_shadcn().get_name(),
-            EuvButtonVariant::Destructive => c_euv_button_destructive_shadcn().get_name(),
-            EuvButtonVariant::Outline => c_euv_button_outline_shadcn().get_name(),
-            EuvButtonVariant::Ghost => c_euv_button_ghost_shadcn().get_name(),
-            EuvButtonVariant::Link => "",
-        }
-    } else {
-        ""
-    };
+
     let size_class: &str = match size {
         EuvButtonSize::Default => c_euv_button_size_default().get_name(),
         EuvButtonSize::Small => c_euv_button_size_small().get_name(),
@@ -186,35 +179,96 @@ pub(crate) fn button_class(variant: EuvButtonVariant, size: EuvButtonSize) -> St
         EuvButtonSize::IconSmall => c_euv_button_size_icon_sm().get_name(),
         EuvButtonSize::IconLarge => c_euv_button_size_icon_lg().get_name(),
     };
-    let shadcn_size_class: &str = if cfg!(feature = "theme-shadcn") {
-        match size {
-            EuvButtonSize::Default => c_euv_button_size_default_shadcn().get_name(),
-            EuvButtonSize::Small => c_euv_button_size_small_shadcn().get_name(),
-            EuvButtonSize::Large => c_euv_button_size_large_shadcn().get_name(),
-            EuvButtonSize::Icon => c_euv_button_size_icon_shadcn().get_name(),
-            EuvButtonSize::ExtraSmall => c_euv_button_size_xs_shadcn().get_name(),
-            EuvButtonSize::IconExtraSmall => c_euv_button_size_icon_xs_shadcn().get_name(),
-            EuvButtonSize::IconSmall => c_euv_button_size_icon_sm_shadcn().get_name(),
-            EuvButtonSize::IconLarge => c_euv_button_size_icon_lg_shadcn().get_name(),
-        }
-    } else {
-        ""
-    };
+
     let mut class_name: String = String::with_capacity(160);
     class_name.push_str(base_class);
     class_name.push(' ');
     class_name.push_str(variant_class);
     class_name.push(' ');
     class_name.push_str(size_class);
-    if !shadcn_class.is_empty() {
-        class_name.push(' ');
-        class_name.push_str(shadcn_class);
-        if !shadcn_variant_class.is_empty() {
-            class_name.push(' ');
-            class_name.push_str(shadcn_variant_class);
-        }
-        class_name.push(' ');
-        class_name.push_str(shadcn_size_class);
-    }
+
     class_name
+}
+
+/// A link that wears the appearance of a button.
+///
+/// A destination the reader follows is not an action the reader performs, so
+/// the anchor keeps the meaning of a link while it wears the shape of a
+/// button: the reader sees the affordance of a control and the semantics of
+/// a navigation.
+///
+/// # Arguments
+///
+/// - `VirtualNode<EuvButtonLinkProps>` - The props node containing variant,
+///   size, label and destination.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The link virtual DOM tree.
+#[component]
+pub fn euv_button_link(node: VirtualNode<EuvButtonLinkProps>) -> VirtualNode {
+    let EuvButtonLinkProps {
+        variant,
+        size,
+        label,
+        href,
+        new_tab,
+        aria_label,
+    }: EuvButtonLinkProps = node.try_get_props().unwrap_or_default();
+    let class: String = button_class(variant, size);
+    let size_attr: &str = match size {
+        EuvButtonSize::Default => BUTTON_SIZE_DEFAULT,
+        EuvButtonSize::Small => BUTTON_SIZE_SMALL,
+        EuvButtonSize::Large => BUTTON_SIZE_LARGE,
+        EuvButtonSize::Icon => BUTTON_SIZE_ICON,
+        EuvButtonSize::ExtraSmall => BUTTON_SIZE_XS,
+        EuvButtonSize::IconExtraSmall => BUTTON_SIZE_ICON_XS,
+        EuvButtonSize::IconSmall => BUTTON_SIZE_ICON_SM,
+        EuvButtonSize::IconLarge => BUTTON_SIZE_ICON_LG,
+    };
+    let variant_attr: &str = match variant {
+        EuvButtonVariant::Primary => BUTTON_VARIANT_DEFAULT,
+        EuvButtonVariant::Default => BUTTON_VARIANT_DEFAULT,
+        EuvButtonVariant::Secondary => BUTTON_VARIANT_SECONDARY,
+        EuvButtonVariant::Destructive => BUTTON_VARIANT_DESTRUCTIVE,
+        EuvButtonVariant::Outline => BUTTON_VARIANT_OUTLINE,
+        EuvButtonVariant::Ghost => BUTTON_VARIANT_GHOST,
+        EuvButtonVariant::Link => BUTTON_VARIANT_LINK,
+    };
+    if new_tab {
+        html! {
+            a {
+                class: class
+                "data-slot": "button-link"
+                "data-variant": variant_attr
+                "data-size": size_attr
+                href: href.clone().as_str()
+                target: "_blank"
+                rel: "noopener noreferrer"
+                "aria-label": aria_label
+                .clone()
+                .unwrap_or_else(|| label.clone())
+                .as_str()
+                {
+                    label.clone()
+                }
+            }
+        }
+    } else {
+        html! {
+            a {
+                class: class
+                "data-slot": "button-link"
+                "data-variant": variant_attr
+                "data-size": size_attr
+                href: href.clone().as_str()
+                "aria-label": aria_label
+                .unwrap_or_else(|| label.clone())
+                .as_str()
+                {
+                    label.clone()
+                }
+            }
+        }
+    }
 }

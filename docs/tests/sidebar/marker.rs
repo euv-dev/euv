@@ -1,13 +1,5 @@
 use super::*;
 
-fn app_css_source() -> String {
-    let path: PathBuf = [env!("CARGO_MANIFEST_DIR"), "src", "app", "const.rs"]
-        .iter()
-        .collect();
-    fs::read_to_string(&path)
-        .unwrap_or_else(|error: io::Error| panic!("cannot read {}: {error}", path.display()))
-}
-
 fn strip_css_comments(css: &str) -> String {
     let mut kept: String = String::with_capacity(css.len());
     let mut rest: &str = css;
@@ -27,8 +19,7 @@ fn strip_css_comments(css: &str) -> String {
 }
 
 fn app_css() -> String {
-    let source: String = app_css_source().replace("\\\n", " ");
-    strip_css_comments(&source)
+    strip_css_comments(APP_SIDEBAR_CSS)
 }
 
 fn css_rules() -> Vec<(String, String)> {
@@ -74,6 +65,12 @@ fn the_active_group_title_marker_is_not_dragged_off_its_own_fill() {
 
 #[test]
 fn the_active_rows_keep_their_marker_at_the_fill_edge() {
+    if cfg!(all(feature = "theme-shadcn", not(feature = "theme-custom"))) {
+        assert!(APP_SIDEBAR_CSS.is_empty());
+        assert!(!APP_GLOBAL_CSS.contains("c_euv_sidebar_"));
+        assert!(css_rules().is_empty());
+        return;
+    }
     let mut negative: Vec<String> = Vec::new();
     let mut pinned: Vec<String> = Vec::new();
     for (selector, body) in css_rules() {

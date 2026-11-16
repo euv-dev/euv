@@ -118,19 +118,11 @@ fn accordion_section(
     };
     let trigger_class: &Css = c_euv_accordion_trigger();
     let trigger_open_class: &Css = c_euv_accordion_trigger_open();
-    let shadcn_trigger_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_accordion_trigger_shadcn().clone()
-    } else {
-        Css::default()
-    };
+
     let content_class: &Css = c_euv_accordion_content();
     let content_open_class: &Css = c_euv_accordion_content_open();
     let content_closed_class: &Css = c_euv_accordion_content_closed();
-    let shadcn_content_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_accordion_content_shadcn().clone()
-    } else {
-        Css::default()
-    };
+
     html! {
         div {
             key: value
@@ -155,7 +147,7 @@ fn accordion_section(
                     } else {
                         trigger_class
                     }
-                    class: shadcn_trigger_class
+
                     "data-slot": "accordion-trigger"
                     "aria-expanded": if {
                         open_values.get().iter().any(|entry: &String| entry == value)
@@ -197,7 +189,7 @@ fn accordion_section(
                 } else {
                     content_closed_class
                 }
-                class: shadcn_content_class
+
                 "data-slot": "accordion-content"
                 "data-state": if { open_values.get().iter().any(|entry: &String| entry == value) } {
                     "open"

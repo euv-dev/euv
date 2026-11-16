@@ -17,10 +17,13 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
         root_class_signal,
         panel_open,
     }: DesktopLayoutProps = node.try_get_props().unwrap_or_default();
+    let theme_feature_signal: Signal<String> =
+        App::use_signal(|| current_theme_feature().to_string());
     html! {
         div {
             class: root_class_signal
             class: c_example_theme()
+            class: c_example_motion_policy()
             nav {
                 class: c_app_nav()
                 a {
@@ -43,6 +46,9 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
                 build_desktop_nav_items {
                     route_signal: route_signal
                 }
+                theme_feature_selector {
+                    value: theme_feature_signal
+                }
                 div {
                     class: c_nav_theme_toggle()
                     span {
@@ -51,8 +57,10 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
                     }
                     button {
                         class: c_nav_theme_button()
+                        "aria-label": APP_THEME_TOGGLE_LABEL
                         onclick: ThemeState::toggle(theme_signal)
                         div {
+                            "aria-hidden": "true"
                             class: if { theme_signal.get() == THEME_DARK } {
                                 c_theme_icon_sun()
                             } else {
@@ -93,6 +101,19 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
         panel_open,
         drawer_open,
     }: MobileLayoutProps = node.try_get_props().unwrap_or_default();
+    let theme_feature_signal: Signal<String> =
+        App::use_signal(|| current_theme_feature().to_string());
+    let feature_signal_for_change: Signal<String> = theme_feature_signal;
+    let on_theme_feature_change: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |event: Event| {
+        let selected_feature: Option<String> = event
+            .target()
+            .and_then(|target: EventTarget| target.dyn_into::<HtmlSelectElement>().ok())
+            .map(|select: HtmlSelectElement| select.value());
+        if let Some(feature) = selected_feature {
+            feature_signal_for_change.set(feature.clone());
+            navigate_to_theme_feature(&feature);
+        }
+    }));
     let on_overlay_click: Box<dyn FnMut(Event)> = Box::new(move |_: Event| {
         Router::overlay_stack_close();
         drawer_open.set(false);
@@ -105,12 +126,13 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
         div {
             class: root_class_signal
             class: c_example_theme()
+            class: c_example_motion_policy()
             header {
-                class: c_mobile_header()
+                class: c_example_mobile_header()
                 div {
-                    class: c_mobile_header_left()
+                    class: c_example_mobile_header_left()
                     button {
-                        class: if { drawer_open } {
+                        class: if { drawer_open.get() } {
                             c_mobile_menu_button_active()
                         } else {
                             c_mobile_menu_button()
@@ -132,14 +154,105 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                         }
                     }
                 }
-                button {
-                    class: c_mobile_theme_button()
-                    onclick: ThemeState::toggle(theme_signal)
+                div {
+                    class: c_mobile_header_actions()
                     div {
-                        class: if { theme_signal.get() == THEME_DARK } {
-                            c_theme_icon_sun()
-                        } else {
-                            c_theme_icon_moon()
+                        class: c_mobile_theme_feature_selector()
+                        euv_native_select {
+                            size: EuvNativeSelectSize::Sm
+                            id: THEME_FEATURE_SELECTOR_ID
+                            aria_label: THEME_FEATURE_SELECTOR_LABEL.to_string()
+                            value: theme_feature_signal
+                            onchange: on_theme_feature_change
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[0].0
+                                label: THEME_FEATURE_OPTIONS[0].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[1].0
+                                label: THEME_FEATURE_OPTIONS[1].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[2].0
+                                label: THEME_FEATURE_OPTIONS[2].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[3].0
+                                label: THEME_FEATURE_OPTIONS[3].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[4].0
+                                label: THEME_FEATURE_OPTIONS[4].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[5].0
+                                label: THEME_FEATURE_OPTIONS[5].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[6].0
+                                label: THEME_FEATURE_OPTIONS[6].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[7].0
+                                label: THEME_FEATURE_OPTIONS[7].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[8].0
+                                label: THEME_FEATURE_OPTIONS[8].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[9].0
+                                label: THEME_FEATURE_OPTIONS[9].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[10].0
+                                label: THEME_FEATURE_OPTIONS[10].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[11].0
+                                label: THEME_FEATURE_OPTIONS[11].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[12].0
+                                label: THEME_FEATURE_OPTIONS[12].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[13].0
+                                label: THEME_FEATURE_OPTIONS[13].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[14].0
+                                label: THEME_FEATURE_OPTIONS[14].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[15].0
+                                label: THEME_FEATURE_OPTIONS[15].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[16].0
+                                label: THEME_FEATURE_OPTIONS[16].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[17].0
+                                label: THEME_FEATURE_OPTIONS[17].0.trim_start_matches("theme-")
+                            }
+                            euv_native_select_option {
+                                value: THEME_FEATURE_OPTIONS[18].0
+                                label: THEME_FEATURE_OPTIONS[18].0.trim_start_matches("theme-")
+                            }
+                        }
+                    }
+                    button {
+                        class: c_mobile_theme_button()
+                        "aria-label": APP_THEME_TOGGLE_LABEL
+                        onclick: ThemeState::toggle(theme_signal)
+                        div {
+                            "aria-hidden": "true"
+                            class: if { theme_signal.get() == THEME_DARK } {
+                                c_theme_icon_sun()
+                            } else {
+                                c_theme_icon_moon()
+                            }
                         }
                     }
                 }
@@ -154,7 +267,7 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                 panel_open
             }
             div {
-                class: if { drawer_open } {
+                class: if { drawer_open.get() } {
                     c_mobile_overlay().to_string()
                 } else {
                     format!("{} {}", c_mobile_overlay().get_name(), c_mobile_overlay_hidden().get_name())
@@ -162,7 +275,7 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                 onclick: on_overlay_click
             }
             nav {
-                class: if { drawer_open } {
+                class: if { drawer_open.get() } {
                     c_mobile_nav_drawer().to_string()
                 } else {
                     format!("{} {}", c_mobile_nav_drawer().get_name(), c_mobile_nav_drawer_closed().get_name())
@@ -199,13 +312,134 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                     route_signal: route_signal
                     drawer_open: drawer_open
                 }
-                span {
-                    class: c_nav_scheme_label()
-                    class: c_mobile_nav_scheme_label()
-                    scheme_name()
-                }
             }
         }
+    }
+}
+
+/// Renders the sidebar selector for every independently compiled theme variant.
+///
+/// # Arguments
+///
+/// - `VirtualNode<ThemeFeatureSelectorProps>` - The current build's feature value.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The labelled selector that reloads into the selected build.
+#[component]
+pub(crate) fn theme_feature_selector(node: VirtualNode<ThemeFeatureSelectorProps>) -> VirtualNode {
+    let ThemeFeatureSelectorProps { value }: ThemeFeatureSelectorProps =
+        node.try_get_props().unwrap_or_default();
+    let options: Vec<EuvSelectOption> = THEME_FEATURE_OPTIONS
+        .iter()
+        .copied()
+        .map(
+            |(value, label): (&'static str, &'static str)| EuvSelectOption {
+                value,
+                label,
+                group: "",
+                separator_before: false,
+                disabled: false,
+            },
+        )
+        .collect();
+    let on_change: Option<Rc<dyn Fn(&'static str)>> = Some(Rc::new(|feature: &'static str| {
+        navigate_to_theme_feature(feature)
+    }));
+    html! {
+        div {
+            class: c_nav_theme_feature_selector()
+            euv_select {
+                value: value
+                options: options
+                size: EuvSelectSize::Sm
+                label: THEME_FEATURE_SELECTOR_LABEL
+                aria_label: THEME_FEATURE_SELECTOR_LABEL.to_string()
+                id: THEME_FEATURE_SELECTOR_ID
+                on_change: on_change
+            }
+        }
+    }
+}
+
+/// Navigates to the separately built page for a selected theme feature.
+///
+/// # Arguments
+///
+/// - `&str` - The `default` selector value or a declared `theme-*` feature.
+///
+/// # Returns
+///
+/// - `()` - No value; attempts navigation and reports browser errors.
+fn navigate_to_theme_feature(feature: &str) {
+    let Some(window_value): Option<Window> = window() else {
+        Console::error("Cannot switch theme feature without a browser window.");
+        return;
+    };
+    let location: Location = window_value.location();
+    let pathname: String = match location.pathname() {
+        Ok(value) => value,
+        Err(error) => {
+            Console::error(format!(
+                "Cannot read the current path while switching theme feature: {}",
+                error.as_string().unwrap_or(ERROR_NULL_TEXT.to_string())
+            ));
+            return;
+        }
+    };
+    let base_path: String = theme_feature_base_path(&pathname);
+    let hash: String = location.hash().unwrap_or_default();
+    let target_url: String = format!(
+        "{base_path}/{THEME_FEATURES_DIRECTORY}/{feature}/{THEME_FEATURE_INDEX_FILE}{hash}"
+    );
+    if let Err(error) = location.set_href(&target_url) {
+        Console::error(format!(
+            "Failed to switch to theme feature {feature}: {}",
+            error.as_string().unwrap_or(ERROR_NULL_TEXT.to_string())
+        ));
+    }
+}
+
+/// Returns the feature that was enabled for the current example build.
+///
+/// # Returns
+///
+/// - `&'static str` - The current `theme-*` feature, or `default` when none is enabled.
+fn current_theme_feature() -> &'static str {
+    if cfg!(feature = "theme-custom") {
+        return THEME_FEATURE_CUSTOM;
+    }
+    let selected_scheme: &str = scheme_name();
+    let feature: &str = THEME_FEATURE_OPTIONS
+        .iter()
+        .find_map(|(feature, _): &(&'static str, &'static str)| {
+            (feature.strip_prefix(THEME_FEATURE_PREFIX) == Some(selected_scheme))
+                .then_some(*feature)
+        })
+        .unwrap_or(THEME_FEATURE_DEFAULT);
+    if feature == THEME_FEATURE_MONOCHROME && !cfg!(feature = "theme-monochrome") {
+        return THEME_FEATURE_DEFAULT;
+    }
+    feature
+}
+
+/// Finds the site root shared by the root page and all variant build pages.
+///
+/// # Arguments
+///
+/// - `&str` - The current page path from `window.location.pathname`.
+///
+/// # Returns
+///
+/// - `String` - The path prefix preceding the variant directory or entry file.
+fn theme_feature_base_path(pathname: &str) -> String {
+    let variant_root: Option<(&str, &str)> = pathname.split_once(THEME_FEATURES_PATH_SEPARATOR);
+    if let Some((root_path, _variant_path)) = variant_root {
+        return root_path.to_string();
+    }
+    match pathname.rsplit_once('/') {
+        Some((root_path, _entry_file)) => root_path.to_string(),
+        None => String::new(),
     }
 }
 

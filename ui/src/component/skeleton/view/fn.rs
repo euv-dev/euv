@@ -47,16 +47,12 @@ pub fn euv_skeleton(node: VirtualNode<EuvSkeletonProps>) -> VirtualNode {
         block.push(skeleton_line(index, width, height, rounded));
     }
     let base_class: &Css = c_euv_skeleton();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_skeleton_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         div {
             "data-slot": "skeleton"
             class: base_class
-            class: shadcn_class
+
             block
         }
     }
@@ -103,17 +99,13 @@ fn skeleton_line(
     }
     let style_ref: &str = style.as_str();
     let base_class: &Css = c_euv_skeleton_line();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_skeleton_line_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
+
     html! {
         div {
             key: index.to_string()
             "data-slot": "skeleton"
             class: base_class
-            class: shadcn_class
+
             style: style_ref
         }
     }

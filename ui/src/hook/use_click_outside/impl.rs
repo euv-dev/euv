@@ -49,9 +49,10 @@ impl UseClickOutside {
                     }
                 }));
             if document
-                .add_event_listener_with_callback(
+                .add_event_listener_with_callback_and_bool(
                     EVENT_MOUSEDOWN,
                     on_press.as_ref().unchecked_ref(),
+                    USE_CLICK_OUTSIDE_CAPTURE,
                 )
                 .is_err()
             {
@@ -65,22 +66,30 @@ impl UseClickOutside {
                     }
                 }));
             if document
-                .add_event_listener_with_callback(
+                .add_event_listener_with_callback_and_bool(
                     EVENT_TOUCHSTART,
                     on_touch.as_ref().unchecked_ref(),
+                    USE_CLICK_OUTSIDE_CAPTURE,
                 )
                 .is_err()
             {
+                let _: Result<(), JsValue> = document.remove_event_listener_with_callback_and_bool(
+                    EVENT_MOUSEDOWN,
+                    on_press.as_ref().unchecked_ref(),
+                    USE_CLICK_OUTSIDE_CAPTURE,
+                );
                 return;
             }
             *self.get_teardown().borrow_mut() = Some(Box::new(move || {
-                let _: Result<(), JsValue> = document.remove_event_listener_with_callback(
+                let _: Result<(), JsValue> = document.remove_event_listener_with_callback_and_bool(
                     EVENT_MOUSEDOWN,
                     on_press.as_ref().unchecked_ref(),
+                    USE_CLICK_OUTSIDE_CAPTURE,
                 );
-                let _: Result<(), JsValue> = document.remove_event_listener_with_callback(
+                let _: Result<(), JsValue> = document.remove_event_listener_with_callback_and_bool(
                     EVENT_TOUCHSTART,
                     on_touch.as_ref().unchecked_ref(),
+                    USE_CLICK_OUTSIDE_CAPTURE,
                 );
             }));
         }

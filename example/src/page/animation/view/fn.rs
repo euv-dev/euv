@@ -44,11 +44,19 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                         onclick: UseEuvInput::use_toggle(box_visible)
                     }
                 }
-                if { box_visible } {
-                    div {
-                        class: c_anim_fade_in()
-                        ANIMATION_FADE_DEMO_TEXT
+                div {
+                    class: c_animation_fade()
+                    class: if { box_visible } {
+                        c_animation_fade()
+                    } else {
+                        c_animation_fade_hidden()
                     }
+                    "aria-hidden": if { box_visible } {
+                        "false"
+                    } else {
+                        "true"
+                    }
+                    ANIMATION_FADE_DEMO_TEXT
                 }
             }
             euv_card {
@@ -70,12 +78,13 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                     }
                 }
                 div {
-                    class: c_anim_spin_container()
+                    class: c_animation_stage()
                     div {
+                        class: c_animation_symbol()
                         class: if { spin_active } {
-                            c_anim_spin()
+                            c_animation_spin()
                         } else {
-                            c_anim_spin_stopped()
+                            c_animation_symbol()
                         }
                         "⟳"
                     }
@@ -100,12 +109,13 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                     }
                 }
                 div {
-                    class: c_anim_pulse_container()
+                    class: c_animation_stage()
                     div {
+                        class: c_animation_symbol()
                         class: if { pulse_active } {
-                            c_anim_pulse()
+                            c_animation_pulse()
                         } else {
-                            c_anim_pulse_stopped()
+                            c_animation_symbol()
                         }
                         "♥"
                     }
@@ -127,12 +137,19 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                     }
                 }
                 div {
-                    class: c_progress_container()
+                    class: c_animation_progress_track()
+                    role: "img"
+                    "aria-label": ANIMATION_PROGRESS_CARD_TITLE
                     div {
+                        class: c_animation_progress_fill()
                         class: if { progress.get_running().get() } {
-                            c_progress_bar_running()
+                            if progress.get_generation().get().is_multiple_of(2) {
+                                c_animation_progress_running()
+                            } else {
+                                c_animation_progress_replay()
+                            }
                         } else {
-                            c_progress_bar_stopped()
+                            c_animation_progress_fill()
                         }
                     }
                 }
@@ -156,11 +173,11 @@ pub(crate) fn page_animation(node: VirtualNode<PageAnimationProps>) -> VirtualNo
                     }
                 }
                 div {
-                    class: c_anim_scale_box()
+                    class: c_animation_scale()
                     class: if { scale_active } {
-                        c_anim_scale_shrink()
+                        c_animation_scale_shrink()
                     } else {
-                        c_anim_scale_normal()
+                        c_animation_scale()
                     }
                 }
             }

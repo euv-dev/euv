@@ -77,6 +77,7 @@ fn a_dropdown_menu_item_is_a_menu_item_command() {
         value: "copy",
         disabled: false,
         on_select: None,
+        ..EuvDropdownMenuItemProps::default()
     }));
     assert!(has_attribute(&node, "role"));
     assert!(has_class(&node, "c_euv_dropdown_menu_item"));
@@ -92,6 +93,7 @@ fn a_disabled_dropdown_menu_item_is_marked_inert() {
         value: "copy",
         disabled: true,
         on_select: None,
+        ..EuvDropdownMenuItemProps::default()
     }));
     assert!(has_class(&node, "c_euv_dropdown_menu_item_disabled"));
     assert!(!has_class(&node, "c_euv_dropdown_menu_shortcut"));
@@ -194,7 +196,7 @@ fn a_menubar_is_a_bar_of_menus() {
     assert!(has_class(&bar, "c_euv_menubar"));
     assert!(has_attribute(&bar, "role"));
     if cfg!(feature = "theme-shadcn") {
-        assert!(has_class(&bar, "c_euv_menubar_shadcn"));
+        assert!(has_class(&bar, "c_euv_menubar"));
         assert!(has_attribute(&bar, "onfocusin"));
     }
 }

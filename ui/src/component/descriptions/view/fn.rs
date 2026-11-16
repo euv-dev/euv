@@ -45,17 +45,22 @@ pub fn euv_descriptions(node: VirtualNode<EuvDescriptionsProps>) -> VirtualNode 
 ///
 /// - `VirtualNode` - The grid cell virtual DOM tree.
 fn descriptions_item(item: EuvDescriptionsItem) -> VirtualNode {
+    let label: String = item.label.clone().as_str().to_string();
     html! {
         div {
-            key: item.label
+            key: label.clone()
             class: c_euv_descriptions_item()
             div {
                 class: c_euv_descriptions_label()
-                item.label
+                {
+                    item.label.clone()
+                }
             }
             div {
                 class: c_euv_descriptions_value()
-                item.value
+                {
+                    item.value.clone()
+                }
             }
         }
     }

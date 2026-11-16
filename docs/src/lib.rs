@@ -55,7 +55,9 @@ pub fn main() {
     inject_app_global_css();
     Css::inject_css(euv_md_css());
     Css::inject_css(APP_GLOBAL_CSS);
-    Css::inject_css(SITE_FOOTER_CSS);
+    Css::inject_css(APP_SIDEBAR_CSS);
     Css::inject_css(CODE_CSS);
+    #[cfg(feature = "theme-custom")]
+    Css::inject_css(APP_CUSTOM_LAYOUT_CSS);
     App::mount(APP_MOUNT_SELECTOR, app);
 }
