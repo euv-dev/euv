@@ -36,7 +36,6 @@ pub fn euv_code_block(node: VirtualNode<EuvCodeBlockProps>) -> VirtualNode {
     };
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_code_block();
-
     html! {
             div {
                 "data-slot": "code-block"
@@ -70,7 +69,6 @@ pub fn euv_code_block_header(node: VirtualNode<EuvCodeBlockHeaderProps>) -> Virt
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_code_block_header();
-
     html! {
             div {
                 "data-slot": "code-block-header"
@@ -126,7 +124,6 @@ pub fn euv_code_block_actions(node: VirtualNode<EuvCodeBlockActionsProps>) -> Vi
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_code_block_actions();
-
     html! {
             div {
                 "data-slot": "code-block-actions"
@@ -323,7 +320,6 @@ pub fn euv_code_block_footer(node: VirtualNode<EuvCodeBlockFooterProps>) -> Virt
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_code_block_footer();
-
     html! {
         div {
             "data-slot": "code-block-footer"

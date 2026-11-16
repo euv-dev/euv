@@ -158,7 +158,6 @@ pub fn euv_button_grouped(node: VirtualNode<EuvButtonGroupedProps>) -> VirtualNo
 /// - `String` - The class list.
 pub(crate) fn button_class(variant: EuvButtonVariant, size: EuvButtonSize) -> String {
     let base_class: &str = c_euv_button().get_name();
-
     let variant_class: &str = match variant {
         EuvButtonVariant::Primary => c_euv_button_primary().get_name(),
         EuvButtonVariant::Default => c_euv_button_default().get_name(),
@@ -168,7 +167,6 @@ pub(crate) fn button_class(variant: EuvButtonVariant, size: EuvButtonSize) -> St
         EuvButtonVariant::Ghost => c_euv_button_ghost().get_name(),
         EuvButtonVariant::Link => c_euv_button_link().get_name(),
     };
-
     let size_class: &str = match size {
         EuvButtonSize::Default => c_euv_button_size_default().get_name(),
         EuvButtonSize::Small => c_euv_button_size_small().get_name(),
@@ -179,14 +177,12 @@ pub(crate) fn button_class(variant: EuvButtonVariant, size: EuvButtonSize) -> St
         EuvButtonSize::IconSmall => c_euv_button_size_icon_sm().get_name(),
         EuvButtonSize::IconLarge => c_euv_button_size_icon_lg().get_name(),
     };
-
     let mut class_name: String = String::with_capacity(160);
     class_name.push_str(base_class);
     class_name.push(' ');
     class_name.push_str(variant_class);
     class_name.push(' ');
     class_name.push_str(size_class);
-
     class_name
 }
 

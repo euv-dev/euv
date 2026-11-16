@@ -47,7 +47,6 @@ pub fn euv_skeleton(node: VirtualNode<EuvSkeletonProps>) -> VirtualNode {
         block.push(skeleton_line(index, width, height, rounded));
     }
     let base_class: &Css = c_euv_skeleton();
-
     html! {
         div {
             "data-slot": "skeleton"

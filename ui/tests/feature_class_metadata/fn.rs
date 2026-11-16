@@ -33,7 +33,7 @@ fn selected_select_rules_keep_attribute_conditions_and_real_descendant_selectors
     ] {
         assert_eq!(
             css.get_pseudo_rules(),
-            &Css::parse_pseudo_rules(expected.replace('{', " { ")),
+            &Css::parse_pseudo_rules(expected.replace(CSS_BLOCK_OPEN, " { ")),
             "{}: full ordered native selector and declaration syntax",
             css.get_name()
         );
@@ -66,7 +66,7 @@ fn mounted_tabs_and_checkbox_states_keep_ordered_state_paint_above_the_base() {
         ":is(.c_euv_tab_item_active):hover{background: var(--background); color: var(--foreground); }",
         ":is(.c_theme_dark .c_euv_tab_item_active){background: color-mix(in srgb, var(--input) 30%, transparent); border-color: var(--input); color: var(--foreground); }",
         ":is(.c_theme_dark .c_euv_tab_item_active):hover{background: color-mix(in srgb, var(--input) 30%, transparent); color: var(--foreground); }",
-    ).replace('{', " { "));
+    ).replace(CSS_BLOCK_OPEN, " { "));
     assert_eq!(c_euv_tab_item_active().get_pseudo_rules(), &expected);
     assert_eq!(
         class_property(c_form_checkbox_indicator(), "opacity").as_deref(),

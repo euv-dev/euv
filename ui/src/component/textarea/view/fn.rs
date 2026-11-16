@@ -40,7 +40,6 @@ pub fn euv_textarea(node: VirtualNode<EuvTextareaProps>) -> VirtualNode {
     let effective_rows: i32 = if rows > 0 { rows } else { default_rows };
     let is_disabled: bool = disabled.get();
     let base_class: &Css = c_euv_textarea();
-
     html! {
         textarea {
             id: id

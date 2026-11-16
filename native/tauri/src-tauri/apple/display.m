@@ -148,11 +148,15 @@ API_AVAILABLE(macos(14.0))
 #if TARGET_OS_OSX
         self.displayLink = [web.window displayLinkWithTarget:target selector:@selector(tick:)];
 #else
+#if defined(__IPHONE_27_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_27_0
         if (@available(iOS 27.0, *)) {
             self.displayLink = [web.window.windowScene displayLinkWithTarget:target selector:@selector(tick:)];
         } else {
             self.displayLink = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
         }
+#else
+        self.displayLink = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
+#endif
 #endif
         [self.displayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
     }

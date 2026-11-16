@@ -54,7 +54,6 @@ pub fn euv_alert_dialog_trigger(node: VirtualNode<EuvAlertDialogTriggerProps>) -
             alert_dialog_schedule_focus(root, false);
         }
     }));
-
     html! {
             button {
                 type: "button"

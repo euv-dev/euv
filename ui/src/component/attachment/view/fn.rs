@@ -53,7 +53,6 @@ pub fn euv_attachment(node: VirtualNode<EuvAttachmentProps>) -> VirtualNode {
     };
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_attachment();
-
     html! {
             div {
                 "data-slot": "attachment"
@@ -103,7 +102,6 @@ pub fn euv_attachment_media(node: VirtualNode<EuvAttachmentMediaProps>) -> Virtu
         EuvAttachmentSize::Xs => c_euv_attachment_media_size_xs,
     };
     let children: VirtualNode = node.get_children().into();
-
     html! {
         div {
             "data-slot": "attachment-media"
@@ -278,7 +276,6 @@ pub fn euv_attachment_trigger(node: VirtualNode<EuvAttachmentTriggerProps>) -> V
 #[component]
 pub fn euv_attachment_group(node: VirtualNode<EuvAttachmentGroupProps>) -> VirtualNode {
     let children: VirtualNode = node.get_children().into();
-
     html! {
             div {
                 "data-slot": "attachment-group"

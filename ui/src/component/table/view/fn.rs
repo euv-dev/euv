@@ -34,7 +34,6 @@ pub fn euv_table(node: VirtualNode<EuvTableProps>) -> VirtualNode {
     let header_row: VirtualNode = table_header_row(columns.as_slice());
     let body_rows: Vec<VirtualNode> = table_body_rows(columns.as_slice(), rows, zebra);
     let base_class: &Css = c_euv_table();
-
     html! {
         div {
             "data-slot": "table-container"
@@ -251,7 +250,6 @@ pub fn euv_table_header(node: VirtualNode<EuvTableHeaderProps>) -> VirtualNode {
     let EuvTableHeaderProps {}: EuvTableHeaderProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_table_head();
-
     html! {
         thead {
             "data-slot": "table-header"
@@ -280,7 +278,6 @@ pub fn euv_table_body(node: VirtualNode<EuvTableBodyProps>) -> VirtualNode {
     let EuvTableBodyProps {}: EuvTableBodyProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_table_body();
-
     html! {
         tbody {
             "data-slot": "table-body"
@@ -310,7 +307,6 @@ pub fn euv_table_footer(node: VirtualNode<EuvTableFooterProps>) -> VirtualNode {
     let EuvTableFooterProps {}: EuvTableFooterProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_table_footer();
-
     html! {
         tfoot {
             "data-slot": "table-footer"
@@ -339,7 +335,6 @@ pub fn euv_table_caption(node: VirtualNode<EuvTableCaptionProps>) -> VirtualNode
     let EuvTableCaptionProps { text }: EuvTableCaptionProps =
         node.try_get_props().unwrap_or_default();
     let base_class: &Css = c_euv_table_caption();
-
     html! {
         caption {
             "data-slot": "table-caption"
@@ -394,7 +389,6 @@ pub fn euv_table_head(node: VirtualNode<EuvTableHeadProps>) -> VirtualNode {
     let EuvTableHeadProps {}: EuvTableHeadProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_table_header_cell();
-
     html! {
         th {
             "data-slot": "table-head"
@@ -423,7 +417,6 @@ pub fn euv_table_cell(node: VirtualNode<EuvTableCellProps>) -> VirtualNode {
     let EuvTableCellProps {}: EuvTableCellProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_table_cell();
-
     html! {
         td {
             "data-slot": "table-cell"

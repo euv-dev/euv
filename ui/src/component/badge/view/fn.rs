@@ -45,7 +45,6 @@ pub fn euv_badge(node: VirtualNode<EuvBadgeProps>) -> VirtualNode {
     };
     let base_class: &Css = c_euv_badge();
     let variant_style: &Css = variant_class();
-
     match on_click {
         Some(click_handler) => html! {
             button {

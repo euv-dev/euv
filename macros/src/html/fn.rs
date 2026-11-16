@@ -394,13 +394,13 @@ fn try_save_cache(
     }
 }
 
-/// Collects the `src/` directories of local path dependencies from `Cargo.toml`.
+/// Collects dependency source directories from the consuming Cargo manifest.
 ///
-/// Parses the `Cargo.toml` at the given manifest directory and extracts
-/// all dependency entries that specify a `path` field pointing to a local
-/// directory, or reference a workspace dependency. Returns the `src/` subdirectory
-/// of each such dependency so that the component registry scanner can also
-/// discover `#[component]` functions defined in local dependency crates.
+/// Reads normal and development dependencies, including target-specific groups.
+/// Workspace declarations are a lookup table for inherited entries, not additional
+/// dependencies. Relative inherited paths use the workspace root, including when
+/// the consumer is the root package itself. Registry dependencies retain the
+/// extracted-source lookup used for ordinary dependencies.
 ///
 /// # Arguments
 ///
@@ -408,7 +408,7 @@ fn try_save_cache(
 ///
 /// # Returns
 ///
-/// - `Vec<PathBuf>` - A list of `src/` directory paths for local path dependencies.
+/// - `Vec<PathBuf>` - Sorted, deduplicated dependency source directories.
 fn collect_local_dep_src_dirs(manifest_dir: &str) -> Vec<PathBuf> {
     let cargo_toml_path: PathBuf = PathBuf::from(manifest_dir).join(CARGO_TOML);
     let Ok(content) = read_to_string(&cargo_toml_path) else {
@@ -421,69 +421,72 @@ fn collect_local_dep_src_dirs(manifest_dir: &str) -> Vec<PathBuf> {
     let mut registry_dep_names: Vec<String> = Vec::new();
     let manifest_dir_path: PathBuf = PathBuf::from(manifest_dir);
     let workspace_root: PathBuf = find_workspace_root(manifest_dir);
-    let workspace_toml: Option<toml::Value> = if workspace_root != manifest_dir_path {
-        read_to_string(workspace_root.join(CARGO_TOML))
-            .ok()
-            .and_then(|toml_content: String| toml::from_str::<toml::Value>(&toml_content).ok())
-    } else {
-        None
-    };
-    for section_key in [DEPENDENCIES, WORKSPACE_DEPENDENCIES] {
-        let Some(deps) = manifest
-            .get(section_key)
-            .and_then(|table_value: &toml::Value| table_value.as_table())
-        else {
-            continue;
-        };
-        for (name, value) in deps {
-            // Workspace-inherited entries resolve `path` against the
-            // workspace root manifest; direct entries resolve it against
-            // the crate's own manifest directory (cargo semantics).
-            let path_lookup: Option<(&str, &PathBuf)> = if let Some(table) = value.as_table() {
-                if table
-                    .get(WORKSPACE_KEY)
-                    .and_then(|workspace_flag: &toml::Value| workspace_flag.as_bool())
-                    == Some(true)
-                {
-                    workspace_toml
-                        .as_ref()
-                        .and_then(|workspace_manifest: &toml::Value| {
-                            workspace_manifest.get(WORKSPACE_KEY)
-                        })
-                        .and_then(|workspace_table: &toml::Value| workspace_table.get(DEPENDENCIES))
-                        .and_then(|deps_table: &toml::Value| deps_table.get(name))
-                        .and_then(|dep_entry: &toml::Value| dep_entry.as_table())
-                        .and_then(|dep_table: &toml::Table| dep_table.get(PATH_KEY))
-                        .and_then(|path_value: &toml::Value| path_value.as_str())
-                        .map(|path_str: &str| (path_str, &workspace_root))
-                } else {
-                    table
-                        .get(PATH_KEY)
-                        .and_then(|path_value: &toml::Value| path_value.as_str())
-                        .map(|path_str: &str| (path_str, &manifest_dir_path))
-                }
-            } else {
-                None
+    let workspace_toml: Option<toml::Value> = read_to_string(workspace_root.join(CARGO_TOML))
+        .ok()
+        .and_then(|toml_content: String| toml::from_str::<toml::Value>(&toml_content).ok());
+    let mut dependency_groups: Vec<&toml::Value> = vec![&manifest];
+    if let Some(targets) = manifest.get(TARGET_KEY).and_then(toml::Value::as_table) {
+        dependency_groups.extend(targets.values());
+    }
+    for group in dependency_groups {
+        for section_key in [DEPENDENCIES, DEV_DEPENDENCIES] {
+            let Some(deps) = group.get(section_key).and_then(toml::Value::as_table) else {
+                continue;
             };
-            if let Some((path_str, base_dir)) = path_lookup {
-                let path: PathBuf = PathBuf::from(path_str);
-                let dep_dir: PathBuf = if path.is_absolute() {
-                    path.join(SRC_DIR)
+            for (name, value) in deps {
+                // Workspace-inherited entries resolve `path` against the
+                // workspace root manifest; direct entries resolve it against
+                // the crate's own manifest directory (cargo semantics).
+                let path_lookup: Option<(&str, &PathBuf)> = if let Some(table) = value.as_table() {
+                    if table
+                        .get(WORKSPACE_KEY)
+                        .and_then(|workspace_flag: &toml::Value| workspace_flag.as_bool())
+                        == Some(true)
+                    {
+                        workspace_toml
+                            .as_ref()
+                            .and_then(|workspace_manifest: &toml::Value| {
+                                workspace_manifest.get(WORKSPACE_KEY)
+                            })
+                            .and_then(|workspace_table: &toml::Value| {
+                                workspace_table.get(DEPENDENCIES)
+                            })
+                            .and_then(|deps_table: &toml::Value| deps_table.get(name))
+                            .and_then(|dep_entry: &toml::Value| dep_entry.as_table())
+                            .and_then(|dep_table: &toml::Table| dep_table.get(PATH_KEY))
+                            .and_then(|path_value: &toml::Value| path_value.as_str())
+                            .map(|path_str: &str| (path_str, &workspace_root))
+                    } else {
+                        table
+                            .get(PATH_KEY)
+                            .and_then(|path_value: &toml::Value| path_value.as_str())
+                            .map(|path_str: &str| (path_str, &manifest_dir_path))
+                    }
                 } else {
-                    base_dir.join(path_str).join(SRC_DIR)
+                    None
                 };
-                if dep_dir.is_dir() {
-                    dep_dirs.push(dep_dir);
+                if let Some((path_str, base_dir)) = path_lookup {
+                    let path: PathBuf = PathBuf::from(path_str);
+                    let dep_dir: PathBuf = if path.is_absolute() {
+                        path.join(SRC_DIR)
+                    } else {
+                        base_dir.join(path_str).join(SRC_DIR)
+                    };
+                    if dep_dir.is_dir() {
+                        dep_dirs.push(dep_dir);
+                    }
+                } else {
+                    // Registry (`crates.io`) dependencies are resolved into
+                    // `$CARGO_HOME/registry/src/<registry-hash>/<name>-<version>/`;
+                    // remember the name so their sources can be located below.
+                    registry_dep_names.push(name.clone());
                 }
-            } else {
-                // Registry (`crates.io`) dependencies are resolved into
-                // `$CARGO_HOME/registry/src/<registry-hash>/<name>-<version>/`;
-                // remember the name so their sources can be located below.
-                registry_dep_names.push(name.clone());
             }
         }
     }
     dep_dirs.extend(collect_registry_dep_src_dirs(&registry_dep_names));
+    dep_dirs.sort();
+    dep_dirs.dedup();
     dep_dirs
 }
 
@@ -560,7 +563,10 @@ fn find_workspace_root(manifest_dir: &str) -> PathBuf {
     loop {
         let cargo_toml: PathBuf = current.join(CARGO_TOML);
         if let Ok(content) = read_to_string(&cargo_toml)
-            && content.contains(WORKSPACE_SECTION)
+            && let Ok(manifest) = toml::from_str::<toml::Value>(&content)
+            && manifest
+                .get(WORKSPACE_KEY)
+                .is_some_and(toml::Value::is_table)
         {
             return current;
         }

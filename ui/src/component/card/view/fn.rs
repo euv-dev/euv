@@ -77,7 +77,6 @@ pub fn euv_card_title(node: VirtualNode<EuvCardTitleProps>) -> VirtualNode {
     let EuvCardTitleProps { text, level }: EuvCardTitleProps =
         node.try_get_props().unwrap_or_default();
     let level: EuvHeadingLevel = level.unwrap_or(EuvHeadingLevel::H3);
-
     let children: VirtualNode = node.get_children().into();
     let has_children: bool = !matches!(&children, VirtualNode::Empty);
     let title_class: String = c_card_title().get_name().to_string();

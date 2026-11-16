@@ -37,7 +37,6 @@ pub fn euv_toggle_group(node: VirtualNode<EuvToggleGroupProps>) -> VirtualNode {
     let focus_value: Signal<String> =
         HookContext::use_hook(move || Signal::create(default_focus_value));
     let group_class: &Css = c_euv_toggle_group();
-
     let selected: Vec<String> = values.get();
     let entries: Vec<VirtualNode> = items
         .into_iter()

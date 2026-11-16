@@ -119,7 +119,6 @@ pub fn euv_pagination_item(node: VirtualNode<EuvPaginationItemProps>) -> Virtual
     } else {
         c_euv_pagination_no_next()
     };
-
     let direction_shadcn_class: &Css = {
         if next {
             c_euv_pagination_next()
@@ -196,7 +195,6 @@ pub fn euv_pagination_content(node: VirtualNode<EuvPaginationContentProps>) -> V
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_pagination_content();
-
     html! {
         ul {
             "data-slot": "pagination-content"
@@ -225,7 +223,6 @@ pub fn euv_pagination_content(node: VirtualNode<EuvPaginationContentProps>) -> V
 pub fn euv_pagination_ellipsis(node: VirtualNode<EuvPaginationEllipsisProps>) -> VirtualNode {
     let EuvPaginationEllipsisProps {}: EuvPaginationEllipsisProps =
         node.try_get_props().unwrap_or_default();
-
     html! {
         li {
             "data-slot": "pagination-item"
@@ -288,7 +285,6 @@ pub fn euv_pagination_link(node: VirtualNode<EuvPaginationLinkProps>) -> Virtual
     } else {
         c_euv_pagination_page_inactive()
     };
-
     let active_shadcn_class: &Css = if active {
         c_euv_pagination_page_active()
     } else {

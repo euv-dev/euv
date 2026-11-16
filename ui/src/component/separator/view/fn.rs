@@ -34,7 +34,6 @@ pub fn euv_separator(node: VirtualNode<EuvSeparatorProps>) -> VirtualNode {
     };
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_separator();
-
     html! {
         div {
             "data-slot": "separator"

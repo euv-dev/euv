@@ -19,7 +19,6 @@ pub fn euv_questionnaire(node: VirtualNode<EuvQuestionnaireProps>) -> VirtualNod
     let EuvQuestionnaireProps {}: EuvQuestionnaireProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire();
-
     html! {
             div {
                 "data-slot": "questionnaire"
@@ -97,7 +96,6 @@ pub fn euv_questionnaire_title(node: VirtualNode<EuvQuestionnaireTitleProps>) ->
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_title();
-
     html! {
             div {
                 "data-slot": "questionnaire-title"
@@ -193,7 +191,6 @@ pub fn euv_questionnaire_choice(node: VirtualNode<EuvQuestionnaireChoiceProps>) 
     };
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_choice();
-
     html! {
             div {
                 "data-slot": "questionnaire-choice"
@@ -358,7 +355,6 @@ pub fn euv_questionnaire_input(node: VirtualNode<EuvQuestionnaireInputProps>) ->
     let EuvQuestionnaireInputProps {}: EuvQuestionnaireInputProps =
         node.try_get_props().unwrap_or_default();
     let base_class: &Css = c_euv_questionnaire_input();
-
     html! {
         div {
             "data-slot": "questionnaire-input-wrapper"
@@ -441,7 +437,6 @@ pub fn euv_questionnaire_previous(node: VirtualNode<EuvQuestionnairePreviousProp
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_previous();
-
     html! {
         button {
             "data-slot": "questionnaire-previous"
@@ -469,7 +464,6 @@ pub fn euv_questionnaire_skip(node: VirtualNode<EuvQuestionnaireSkipProps>) -> V
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_skip();
-
     html! {
         button {
             "data-slot": "questionnaire-skip"
@@ -497,7 +491,6 @@ pub fn euv_questionnaire_next(node: VirtualNode<EuvQuestionnaireNextProps>) -> V
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_next();
-
     html! {
         button {
             "data-slot": "questionnaire-next"
@@ -525,7 +518,6 @@ pub fn euv_questionnaire_submit(node: VirtualNode<EuvQuestionnaireSubmitProps>) 
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_questionnaire_submit();
-
     html! {
         button {
             "data-slot": "questionnaire-submit"

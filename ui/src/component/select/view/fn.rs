@@ -242,7 +242,6 @@ pub fn euv_select(node: VirtualNode<EuvSelectProps>) -> VirtualNode {
     let scroll_handler: Option<Rc<dyn Fn(Event)>> =
         select_panel_scroll_handler(scroll_up_visible, scroll_down_visible);
     let trigger_class: &Css = c_euv_select_trigger();
-
     let invalid_trigger_class: Css = if invalid {
         c_euv_select_trigger_invalid().clone()
     } else {
@@ -259,7 +258,6 @@ pub fn euv_select(node: VirtualNode<EuvSelectProps>) -> VirtualNode {
     let panel_class: &Css = c_euv_select_panel();
     let panel_open_class: &Css = c_euv_select_panel_open();
     let panel_closed_class: &Css = c_euv_select_panel_closed();
-
     let align_offset_value: String = align_offset.get();
     let aligned_panel_class: Css = if align_item_with_trigger && !align_offset_value.is_empty() {
         c_euv_select_panel_aligned(&align_offset_value)

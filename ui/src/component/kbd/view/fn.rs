@@ -16,7 +16,6 @@ use super::*;
 pub fn euv_kbd(node: VirtualNode<EuvKbdProps>) -> VirtualNode {
     let EuvKbdProps { text }: EuvKbdProps = node.try_get_props().unwrap_or_default();
     let base_class: &Css = c_euv_kbd();
-
     html! {
             kbd {
                 "data-slot": "kbd"

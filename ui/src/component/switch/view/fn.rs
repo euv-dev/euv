@@ -30,7 +30,6 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
     let is_checked: bool = checked.get();
     let base_track_class: &Css = c_form_switch_track();
     let base_thumb_class: &Css = c_form_switch_thumb();
-
     let shadcn_track_state_class: &Css = {
         if is_checked {
             c_form_switch_track_checked()
@@ -38,7 +37,6 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
             c_form_switch_track()
         }
     };
-
     let shadcn_thumb_state_class: &Css = {
         if is_checked {
             c_form_switch_thumb_checked()

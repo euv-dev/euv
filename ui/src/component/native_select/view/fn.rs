@@ -77,7 +77,6 @@ pub fn euv_native_select(node: VirtualNode<EuvNativeSelectProps>) -> VirtualNode
         EuvNativeSelectSize::Default => c_euv_native_select_size_default(),
         EuvNativeSelectSize::Sm => c_euv_native_select_size_sm(),
     };
-
     let children: VirtualNode = node.get_children().into();
     html! {
         div {

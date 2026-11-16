@@ -37,7 +37,6 @@ pub fn euv_avatar(node: VirtualNode<EuvAvatarProps>) -> VirtualNode {
         EuvAvatarSize::Medium => AVATAR_DATA_SIZE_DEFAULT,
         EuvAvatarSize::Large => AVATAR_DATA_SIZE_LARGE,
     };
-
     let failed_source: Signal<String> = HookContext::use_hook(|| Signal::create(String::new()));
     let failed_source_value: String = failed_source.get();
     let show_fallback: bool = src.is_empty() || failed_source_value == src;
@@ -100,7 +99,6 @@ pub fn euv_avatar_fallback(node: VirtualNode<EuvAvatarFallbackProps>) -> Virtual
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let has_children: bool = !matches!(&children, VirtualNode::Empty);
-
     html! {
         span {
             class: c_euv_avatar_fallback()

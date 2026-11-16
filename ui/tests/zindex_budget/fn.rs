@@ -215,7 +215,7 @@ fn declared_z_indexes() -> BTreeMap<String, String> {
 #[cfg(not(feature = "theme-custom"))]
 #[test]
 fn overlay_factories_emit_their_budgeted_z_indexes() {
-    let cases: [(&str, fn() -> &'static Css, &str); 10] = [
+    let cases: [ZIndexCase; 10] = [
         ("c_euv_combobox_content", c_euv_combobox_content, "150"),
         ("c_euv_sheet_overlay", c_euv_sheet_overlay, "1000"),
         ("c_euv_sheet_content", c_euv_sheet_content, "1000"),

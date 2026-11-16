@@ -92,14 +92,14 @@ pub(crate) const STR_EMPTY: &str = "";
 /// Cargo manifest file name.
 pub(crate) const CARGO_TOML: &str = "Cargo.toml";
 
-/// Workspace section header in Cargo.toml.
-pub(crate) const WORKSPACE_SECTION: &str = "[workspace]";
-
 /// Dependencies section key in Cargo.toml.
 pub(crate) const DEPENDENCIES: &str = "dependencies";
 
-/// Workspace dependencies section key in Cargo.toml.
-pub(crate) const WORKSPACE_DEPENDENCIES: &str = "workspace.dependencies";
+/// Development dependencies section key in Cargo.toml.
+pub(crate) const DEV_DEPENDENCIES: &str = "dev-dependencies";
+
+/// Target-specific dependency groups key in Cargo.toml.
+pub(crate) const TARGET_KEY: &str = "target";
 
 /// Path field key in dependency table.
 pub(crate) const PATH_KEY: &str = "path";

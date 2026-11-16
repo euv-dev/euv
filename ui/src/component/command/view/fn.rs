@@ -21,7 +21,6 @@ pub fn euv_command(node: VirtualNode<EuvCommandProps>) -> VirtualNode {
     }: EuvCommandProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_command();
-
     html! {
             div {
                 role: "group"
@@ -55,7 +54,6 @@ pub fn euv_command_input(node: VirtualNode<EuvCommandInputProps>) -> VirtualNode
     }: EuvCommandInputProps = node.try_get_props().unwrap_or_default();
     let disabled_signal: Signal<bool> = Signal::create(disabled);
     let text: String = value.get();
-
     html! {
             div {
                 class: c_euv_command_input_wrapper()
@@ -294,11 +292,9 @@ pub fn euv_command_shortcut(node: VirtualNode<EuvCommandShortcutProps>) -> Virtu
 /// - `String` - The class list.
 fn command_item_class(state_class: fn() -> &'static Css) -> String {
     let base_class: &str = c_euv_command_item().get_name();
-
     let mut class_name: String = String::with_capacity(64);
     class_name.push_str(base_class);
     class_name.push(' ');
     class_name.push_str(state_class().get_name());
-
     class_name
 }

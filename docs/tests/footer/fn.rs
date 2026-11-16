@@ -89,7 +89,6 @@ fn document_footer_slot_is_inside_the_middle_content_tail() {
         class_node(&layout, c_euv_doc_content()).expect("middle content column");
     let tail: &VirtualNode =
         class_node(content, c_euv_doc_tail()).expect("tail inside middle content");
-
     assert_eq!(
         children(tail)
             .iter()
@@ -113,7 +112,6 @@ fn document_footer_slot_is_inside_the_middle_content_tail() {
     assert!(tail_source.contains("text: footer"));
     assert!(tail_source.contains("link: footer_link"));
     assert!(tail_source.contains("items: footer_items"));
-
     let source: &str = include_str!("../../src/component/doc_page/view/fn.rs");
     assert!(source.contains("docs_footer_props(locale, Some(page), &crate::generated::SITE)"));
     for forwarding in [
@@ -272,7 +270,6 @@ fn notices_links_and_icons_are_forwarded_without_loss() {
     ] {
         assert!(wrapper.contains(forwarding));
     }
-
     let shared: &str = include_str!("../../../ui/src/component/footer/view/fn.rs");
     for retained in [
         "href: link",

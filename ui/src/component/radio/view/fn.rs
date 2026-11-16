@@ -183,13 +183,11 @@ pub fn euv_radio_group_item(node: VirtualNode<EuvRadioGroupItemProps>) -> Virtua
     } else {
         &EMPTY_CLASS
     };
-
     let indicator_checked_class: &Css = if is_checked {
         c_euv_radio_group_indicator_checked()
     } else {
         &EMPTY_CLASS
     };
-
     let tabindex: &str = if is_checked { "0" } else { "-1" };
     let click_callback: Option<Rc<dyn Fn(&'static str)>> = on_select.clone();
     let on_click: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |_: Event| {

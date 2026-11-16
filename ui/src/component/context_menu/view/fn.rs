@@ -725,7 +725,6 @@ pub fn euv_context_menu_trigger(node: VirtualNode<EuvContextMenuTriggerProps>) -
             }
         }
     }));
-
     html! {
             div {
                 role: "button"

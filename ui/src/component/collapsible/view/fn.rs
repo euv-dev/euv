@@ -21,7 +21,6 @@ pub fn euv_collapsible(node: VirtualNode<EuvCollapsibleProps>) -> VirtualNode {
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_collapsible();
-
     html! {
         div {
             "data-slot": "collapsible"
@@ -57,7 +56,6 @@ pub fn euv_collapsible_trigger(node: VirtualNode<EuvCollapsibleTriggerProps>) ->
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_collapsible_trigger();
-
     html! {
         button {
             "data-slot": "collapsible-trigger"

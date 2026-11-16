@@ -29,7 +29,6 @@ pub fn euv_empty(node: VirtualNode<EuvEmptyProps>) -> VirtualNode {
     }: EuvEmptyProps = node.try_get_props().unwrap_or_default();
     let has_action: bool = !action_label.is_empty();
     let base_class: &Css = c_euv_empty();
-
     html! {
             div {
                 "data-slot": "empty"

@@ -44,9 +44,7 @@ pub fn euv_checkbox(node: VirtualNode<EuvCheckboxProps>) -> VirtualNode {
     });
     use_form_reset(checkbox_id_value.clone(), "", reset_callback);
     let base_row_class: &Css = c_form_checkbox_row();
-
     let base_checkbox_class: &Css = c_form_checkbox();
-
     html! {
         div {
             class: base_row_class

@@ -60,7 +60,6 @@ pub fn euv_sheet_trigger(node: VirtualNode<EuvSheetTriggerProps>) -> VirtualNode
     let children: VirtualNode = node.get_children().into();
     let trigger_id: String = sheet_part_id(open, SHEET_TRIGGER_PART);
     let content_id: String = sheet_part_id(open, SHEET_CONTENT_PART);
-
     html! {
             button {
                 type: "button"

@@ -15,7 +15,6 @@ use super::*;
 #[component]
 pub fn euv_item_group(node: VirtualNode<EuvItemProps>) -> VirtualNode {
     let base_class: &Css = c_euv_item_group();
-
     let children: VirtualNode = node.get_children().into();
     html! {
         div {
@@ -49,13 +48,11 @@ pub fn euv_item(node: VirtualNode<EuvItemProps>) -> VirtualNode {
         EuvItemVariant::Outline => c_euv_item_outline(),
         EuvItemVariant::Muted => c_euv_item_muted(),
     };
-
     let base_size_class: &Css = match size {
         EuvItemSize::Default => c_euv_item_size_default(),
         EuvItemSize::Sm => c_euv_item_size_sm(),
         EuvItemSize::Xs => c_euv_item_size_xs(),
     };
-
     let children: VirtualNode = node.get_children().into();
     html! {
         div {

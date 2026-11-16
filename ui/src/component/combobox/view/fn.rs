@@ -60,7 +60,6 @@ pub fn euv_combobox_chips(node: VirtualNode<EuvComboboxChipsProps>) -> VirtualNo
     let EuvComboboxChipsProps { label }: EuvComboboxChipsProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-
     html! {
             div {
                 role: "group"
@@ -241,7 +240,6 @@ pub fn euv_combobox_trigger(node: VirtualNode<EuvComboboxTriggerProps>) -> Virtu
     }));
     let onkeydown: Option<Rc<dyn Fn(Event)>> = combobox_open_on_keydown(open);
     let base_class: &Css = c_euv_combobox_trigger();
-
     html! {
         button {
             type: "button"
@@ -285,7 +283,6 @@ pub fn euv_combobox_input(node: VirtualNode<EuvComboboxInputProps>) -> VirtualNo
     }: EuvComboboxInputProps = node.try_get_props().unwrap_or_default();
     let text: String = value.get();
     let base_class: &Css = c_euv_combobox_input();
-
     let onkeydown: Option<Rc<dyn Fn(Event)>> = combobox_open_on_keydown(open);
     html! {
         input {
@@ -518,7 +515,6 @@ pub fn euv_combobox_content(node: VirtualNode<EuvComboboxContentProps>) -> Virtu
     let base_class: &Css = c_euv_combobox_content();
     let open_class: &Css = c_euv_combobox_content_open();
     let closed_class: &Css = c_euv_combobox_content_closed();
-
     html! {
         div {
             "data-slot": "combobox-content"

@@ -59,7 +59,6 @@ pub fn euv_trace_line(node: VirtualNode<EuvTraceLineProps>) -> VirtualNode {
     };
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_trace_line();
-
     html! {
         span {
             "data-slot": "trace-line"

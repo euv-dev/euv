@@ -101,7 +101,6 @@ pub fn euv_bubble_content(node: VirtualNode<EuvBubbleContentProps>) -> VirtualNo
     let EuvBubbleContentProps {}: EuvBubbleContentProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_bubble_content();
-
     html! {
             div {
                 "data-slot": "bubble-content"
