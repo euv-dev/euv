@@ -105,3 +105,5 @@ jobs:
             gh release create latest --title "$TITLE" --notes "$NOTES" --prerelease
           fi
           gh release upload latest artifacts/android/euv.apk --clobber
+          RELEASE_URL="$(gh release view latest --json url --jq '.url')"
+          printf '## App release\n\n[Download Android app](%s)\n' "$RELEASE_URL" >> "$GITHUB_STEP_SUMMARY"

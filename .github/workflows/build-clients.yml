@@ -243,3 +243,5 @@ jobs:
           fi
           find publish -type f -print0 | xargs -0 -r gh release upload latest --clobber
           echo "[OK] Published $COUNT client assets to the rolling latest release."
+          RELEASE_URL="$(gh release view latest --json url --jq '.url')"
+          printf '## App release\n\n[Download macOS and iOS apps](%s)\n' "$RELEASE_URL" >> "$GITHUB_STEP_SUMMARY"

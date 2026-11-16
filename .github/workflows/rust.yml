@@ -410,6 +410,8 @@ jobs:
               printf '| `%s` | [crates.io](https://crates.io/crates/%s/%s) | [docs.rs](https://docs.rs/%s/%s) |\n' \
                 "$pkg" "$pkg" "$VERSION" "$pkg" "$VERSION"
             done
+            printf '\n## App builds\n\n[App Release and downloads](%s/%s/releases/tag/latest)\n' \
+              "${{ github.server_url }}" "${{ github.repository }}"
             printf '\nCommit History: https://github.com/%s/commits/%s\n' \
               "${{ github.repository }}" "$TAG"
           } > "$NOTES_FILE"
