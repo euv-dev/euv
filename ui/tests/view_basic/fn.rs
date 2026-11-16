@@ -7,10 +7,11 @@ fn badge_node(outline: bool, text: &'static str) -> VirtualNode<EuvBadgeProps> {
         children: Vec::new(),
         key: None,
         props: Some(Box::new(EuvBadgeProps {
-            text,
+            text: text.into(),
             outline,
             variant: EuvBadgeVariant::Default,
             on_click: None,
+            class: Css::default(),
         })),
     }
 }

@@ -29,6 +29,9 @@ pub(crate) fn docs_not_found(node: VirtualNode<DocsPageProps>) -> VirtualNode {
                     }
                 }
             }
+            docs_site_footer {
+                route: path.clone()
+            }
         }
     }
 }

@@ -173,7 +173,7 @@ fn a_skeleton_draws_one_placeholder_per_line() {
     );
     if cfg!(feature = "theme-shadcn") {
         let classes: Vec<String> = class_names(&three);
-        for class_name in ["c_euv_skeleton_shadcn", "c_euv_skeleton_line_shadcn"] {
+        for class_name in ["c_euv_skeleton", "c_euv_skeleton_line"] {
             assert!(classes.iter().any(|class: &String| class == class_name));
         }
     }

@@ -1,7 +1,11 @@
 use super::*;
 
 fn item(title: &'static str, desc: &'static str, meta: &'static str) -> EuvListItem {
-    EuvListItem { title, desc, meta }
+    EuvListItem {
+        title: title.into(),
+        desc: desc.into(),
+        meta: meta.into(),
+    }
 }
 
 fn list_node(items: Vec<EuvListItem>, empty_text: &'static str) -> VirtualNode<EuvListProps> {

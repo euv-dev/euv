@@ -13,6 +13,10 @@ fn button_node(variant: EuvButtonVariant, size: EuvButtonSize) -> VirtualNode<Eu
             data_slot: None,
             onclick: None,
             disabled: Signal::create(false),
+            submit: false,
+            aria_label: None,
+            busy: Signal::create(false),
+            data_testid: "",
         })),
     }
 }
@@ -118,6 +122,10 @@ fn a_composed_button_can_publish_its_semantic_slot() {
             data_slot: Some("alert-dialog-action"),
             onclick: None,
             disabled: Signal::create(false),
+            submit: false,
+            aria_label: None,
+            busy: Signal::create(false),
+            data_testid: "",
         })),
     };
     let rendered: VirtualNode = euv_button(node);
@@ -133,32 +141,32 @@ fn every_registry_variant_reaches_the_class_list() {
         (
             EuvButtonVariant::Primary,
             "c_euv_button_primary",
-            "c_euv_button_default_shadcn",
+            "c_euv_button_primary",
         ),
         (
             EuvButtonVariant::Default,
             "c_euv_button_default",
-            "c_euv_button_default_shadcn",
+            "c_euv_button_default",
         ),
         (
             EuvButtonVariant::Secondary,
             "c_euv_button_secondary",
-            "c_euv_button_secondary_shadcn",
+            "c_euv_button_secondary",
         ),
         (
             EuvButtonVariant::Destructive,
             "c_euv_button_destructive",
-            "c_euv_button_destructive_shadcn",
+            "c_euv_button_destructive",
         ),
         (
             EuvButtonVariant::Outline,
             "c_euv_button_outline",
-            "c_euv_button_outline_shadcn",
+            "c_euv_button_outline",
         ),
         (
             EuvButtonVariant::Ghost,
             "c_euv_button_ghost",
-            "c_euv_button_ghost_shadcn",
+            "c_euv_button_ghost",
         ),
         (EuvButtonVariant::Link, "c_euv_button_link", ""),
     ];
@@ -179,6 +187,30 @@ fn every_registry_variant_reaches_the_class_list() {
 }
 
 #[test]
+fn a_button_keeps_exactly_its_base_variant_and_size_classes() {
+    for (variant, expected) in [
+        (EuvButtonVariant::Primary, "c_euv_button_primary"),
+        (EuvButtonVariant::Default, "c_euv_button_default"),
+        (EuvButtonVariant::Secondary, "c_euv_button_secondary"),
+        (EuvButtonVariant::Destructive, "c_euv_button_destructive"),
+        (EuvButtonVariant::Outline, "c_euv_button_outline"),
+        (EuvButtonVariant::Ghost, "c_euv_button_ghost"),
+        (EuvButtonVariant::Link, "c_euv_button_link"),
+    ] {
+        let rendered: VirtualNode = render(variant, EuvButtonSize::Default);
+        let names: Vec<String> = class_names(&rendered);
+        assert_eq!(
+            names,
+            vec![
+                String::from("c_euv_button"),
+                String::from(expected),
+                String::from("c_euv_button_size_default")
+            ]
+        );
+    }
+}
+
+#[test]
 fn the_historical_primary_variant_still_works() {
     let rendered: VirtualNode = render(EuvButtonVariant::Primary, EuvButtonSize::Default);
     assert!(
@@ -194,49 +226,49 @@ fn every_registry_size_reaches_the_class_list() {
         (
             EuvButtonSize::Default,
             "c_euv_button_size_default",
-            "c_euv_button_size_default_shadcn",
+            "c_euv_button_size_default",
             "default",
         ),
         (
             EuvButtonSize::Small,
             "c_euv_button_size_small",
-            "c_euv_button_size_small_shadcn",
+            "c_euv_button_size_small",
             "sm",
         ),
         (
             EuvButtonSize::Large,
             "c_euv_button_size_large",
-            "c_euv_button_size_large_shadcn",
+            "c_euv_button_size_large",
             "lg",
         ),
         (
             EuvButtonSize::Icon,
             "c_euv_button_size_icon",
-            "c_euv_button_size_icon_shadcn",
+            "c_euv_button_size_icon",
             "icon",
         ),
         (
             EuvButtonSize::ExtraSmall,
             "c_euv_button_size_xs",
-            "c_euv_button_size_xs_shadcn",
+            "c_euv_button_size_xs",
             "xs",
         ),
         (
             EuvButtonSize::IconExtraSmall,
             "c_euv_button_size_icon_xs",
-            "c_euv_button_size_icon_xs_shadcn",
+            "c_euv_button_size_icon_xs",
             "icon-xs",
         ),
         (
             EuvButtonSize::IconSmall,
             "c_euv_button_size_icon_sm",
-            "c_euv_button_size_icon_sm_shadcn",
+            "c_euv_button_size_icon_sm",
             "icon-sm",
         ),
         (
             EuvButtonSize::IconLarge,
             "c_euv_button_size_icon_lg",
-            "c_euv_button_size_icon_lg_shadcn",
+            "c_euv_button_size_icon_lg",
             "icon-lg",
         ),
     ];
@@ -272,7 +304,7 @@ fn every_button_carries_the_shared_control_class() {
 fn a_shadcn_button_carries_its_radius_modifier() {
     let rendered: VirtualNode = render(EuvButtonVariant::Primary, EuvButtonSize::Default);
     assert!(
-        has_class(&rendered, "c_euv_button_shadcn"),
+        has_class(&rendered, "c_euv_button"),
         "the shadcn scheme applies its button radius, got {:?}",
         class_names(&rendered)
     );
@@ -292,6 +324,10 @@ fn a_disabled_button_says_so() {
             data_slot: None,
             onclick: None,
             disabled: Signal::create(true),
+            submit: false,
+            aria_label: None,
+            busy: Signal::create(false),
+            data_testid: "",
         })),
     };
     let rendered: VirtualNode = euv_button(node);

@@ -20,6 +20,7 @@ pub fn euv_badge(node: VirtualNode<EuvBadgeProps>) -> VirtualNode {
         outline,
         variant,
         on_click,
+        class: custom_class,
     }: EuvBadgeProps = node.try_get_props().unwrap_or_default();
     let effective: EuvBadgeVariant = if outline {
         EuvBadgeVariant::Outline
@@ -44,17 +45,6 @@ pub fn euv_badge(node: VirtualNode<EuvBadgeProps>) -> VirtualNode {
     };
     let base_class: &Css = c_euv_badge();
     let variant_style: &Css = variant_class();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_badge_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
-    let destructive_shadcn_class: &Css =
-        if cfg!(feature = "theme-shadcn") && effective == EuvBadgeVariant::Destructive {
-            c_euv_badge_destructive_shadcn()
-        } else {
-            &EMPTY_CLASS
-        };
     match on_click {
         Some(click_handler) => html! {
             button {
@@ -63,11 +53,11 @@ pub fn euv_badge(node: VirtualNode<EuvBadgeProps>) -> VirtualNode {
                 "data-variant": data_variant
                 class: base_class
                 class: variant_style
-                class: shadcn_class
-                class: destructive_shadcn_class
+
                 class: c_euv_badge_clickable()
+                class: custom_class
                 onclick: Some(click_handler)
-                text
+                text.clone()
             }
         },
         None => html! {
@@ -76,9 +66,9 @@ pub fn euv_badge(node: VirtualNode<EuvBadgeProps>) -> VirtualNode {
                 "data-variant": data_variant
                 class: base_class
                 class: variant_style
-                class: shadcn_class
-                class: destructive_shadcn_class
-                text
+
+                class: custom_class
+                text.clone()
             }
         },
     }

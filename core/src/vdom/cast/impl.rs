@@ -153,6 +153,34 @@ impl From<&str> for VirtualNode {
     }
 }
 
+/// Converts a `Cow` of text into a text virtual node.
+///
+/// A component that names a control with text it holds at run time keeps
+/// the text in a cow, so a borrowed literal and an owned string both reach
+/// the tree the same way.
+///
+/// # Returns
+///
+/// - `VirtualNode` - A text virtual node.
+///
+/// # Arguments
+///
+/// - `Cow<'static, str>` - Input value to convert from.
+impl From<Cow<'static, str>> for VirtualNode {
+    /// Converts this cow into a text virtual node.
+    ///
+    /// # Returns
+    ///
+    /// - `VirtualNode` - A text virtual node.
+    ///
+    /// # Arguments
+    ///
+    /// - `Cow<'static, str>` - Input value to convert from.
+    fn from(text: Cow<'static, str>) -> Self {
+        VirtualNode::Text(TextNode::new(text, None))
+    }
+}
+
 /// Converts an `i32` into a text virtual node.
 impl From<i32> for VirtualNode {
     /// Converts this integer into a text virtual node.

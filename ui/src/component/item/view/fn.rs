@@ -15,16 +15,11 @@ use super::*;
 #[component]
 pub fn euv_item_group(node: VirtualNode<EuvItemProps>) -> VirtualNode {
     let base_class: &Css = c_euv_item_group();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_item_group_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
     let children: VirtualNode = node.get_children().into();
     html! {
         div {
             class: base_class
-            class: shadcn_class
+
             role: "list"
             "data-slot": "item-group"
             children
@@ -53,36 +48,18 @@ pub fn euv_item(node: VirtualNode<EuvItemProps>) -> VirtualNode {
         EuvItemVariant::Outline => c_euv_item_outline(),
         EuvItemVariant::Muted => c_euv_item_muted(),
     };
-    let shadcn_variant_class: &Css = if cfg!(feature = "theme-shadcn") {
-        match variant {
-            EuvItemVariant::Default => c_euv_item_default_shadcn(),
-            EuvItemVariant::Outline => c_euv_item_outline_shadcn(),
-            EuvItemVariant::Muted => c_euv_item_muted_shadcn(),
-        }
-    } else {
-        &EMPTY_CLASS
-    };
     let base_size_class: &Css = match size {
         EuvItemSize::Default => c_euv_item_size_default(),
         EuvItemSize::Sm => c_euv_item_size_sm(),
         EuvItemSize::Xs => c_euv_item_size_xs(),
     };
-    let shadcn_size_class: &Css = if cfg!(feature = "theme-shadcn") {
-        match size {
-            EuvItemSize::Default => c_euv_item_size_default_shadcn(),
-            EuvItemSize::Sm => c_euv_item_size_sm_shadcn(),
-            EuvItemSize::Xs => c_euv_item_size_xs_shadcn(),
-        }
-    } else {
-        &EMPTY_CLASS
-    };
     let children: VirtualNode = node.get_children().into();
     html! {
         div {
             class: base_variant_class
-            class: shadcn_variant_class
+
             class: base_size_class
-            class: shadcn_size_class
+
             "data-slot": "item"
             "data-variant": match variant {
                 EuvItemVariant::Default => "default",

@@ -47,3 +47,56 @@ pub(crate) const VIEW_UPDATE_RETRY_COUNT: u32 = 8;
 pub(crate) const VIEW_UPDATE_RETRY_DELAY_MS: u32 = 1000;
 
 pub(crate) const THEME_DARK: &str = "dark";
+
+/// The selector value for the build with no `theme-*` feature enabled.
+pub(crate) const THEME_FEATURE_DEFAULT: &str = "default";
+
+/// Prefix shared by the separately compiled theme features.
+pub(crate) const THEME_FEATURE_PREFIX: &str = "theme-";
+
+/// The caller-styled build, which takes precedence over built-in component styles.
+pub(crate) const THEME_FEATURE_CUSTOM: &str = "theme-custom";
+
+/// The explicit monochrome feature, distinct from the no-feature build.
+pub(crate) const THEME_FEATURE_MONOCHROME: &str = "theme-monochrome";
+
+/// The visible label for the build with no `theme-*` feature enabled.
+pub(crate) const THEME_FEATURE_DEFAULT_LABEL: &str = "default (no theme-*)";
+
+/// The accessible and visible label for the sidebar theme feature selector.
+pub(crate) const THEME_FEATURE_SELECTOR_LABEL: &str = "Theme feature";
+
+/// The stable id assigned to the sidebar theme feature selector.
+pub(crate) const THEME_FEATURE_SELECTOR_ID: &str = "theme-feature-selector";
+
+/// The directory containing the independently built theme variants.
+pub(crate) const THEME_FEATURES_DIRECTORY: &str = "themes";
+
+/// The path separator identifying a theme variant directory in a URL.
+pub(crate) const THEME_FEATURES_PATH_SEPARATOR: &str = "/themes/";
+
+/// The entry HTML filename written for every independently built variant.
+pub(crate) const THEME_FEATURE_INDEX_FILE: &str = "index.html";
+
+/// Every selectable example theme build, including the no-feature build.
+pub(crate) const THEME_FEATURE_OPTIONS: [(&str, &str); 19] = [
+    (THEME_FEATURE_DEFAULT, THEME_FEATURE_DEFAULT_LABEL),
+    ("theme-antdesign", "theme-antdesign"),
+    ("theme-bootstrap", "theme-bootstrap"),
+    ("theme-cupertino", "theme-cupertino"),
+    ("theme-custom", "theme-custom"),
+    ("theme-daisyui", "theme-daisyui"),
+    ("theme-fluent", "theme-fluent"),
+    ("theme-geist", "theme-geist"),
+    ("theme-heroui", "theme-heroui"),
+    ("theme-linear", "theme-linear"),
+    ("theme-mantine", "theme-mantine"),
+    ("theme-material", "theme-material"),
+    ("theme-monochrome", "theme-monochrome"),
+    ("theme-notion", "theme-notion"),
+    ("theme-park", "theme-park"),
+    ("theme-radix", "theme-radix"),
+    ("theme-shadcn", "theme-shadcn"),
+    ("theme-stripe", "theme-stripe"),
+    ("theme-supabase", "theme-supabase"),
+];

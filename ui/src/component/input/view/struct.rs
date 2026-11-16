@@ -24,4 +24,20 @@ pub struct EuvInputProps {
     pub oninput: Option<Rc<dyn Fn(Event)>>,
     /// Optional custom CSS class. Defaults to `c_euv_input()` if empty.
     pub class: Css,
+    /// The accessible name when the visible label is omitted.
+    pub aria_label: &'static str,
+    /// Whether the value may be edited.
+    pub readonly: bool,
+    /// Whether the control is disabled.
+    pub disabled: Signal<bool>,
+    /// Optional class applied to the input wrapper.
+    pub wrapper_class: Css,
+    /// Whether the control is required.
+    pub required: bool,
+    /// Maximum number of characters accepted; zero leaves it unspecified.
+    pub max_length: usize,
+    /// The browser step for numeric/date controls; empty leaves the default.
+    pub step: &'static str,
+    /// An IDREF naming the field's hint or description.
+    pub aria_describedby: &'static str,
 }

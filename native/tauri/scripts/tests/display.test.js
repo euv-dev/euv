@@ -24,6 +24,41 @@ test('Apple accepts the production hardware-derived display-link range', { skip:
   assert.equal(probe.status, 0, probe.error?.message || probe.stderr);
 });
 
+test('iOS display policy gates the scene display-link API by SDK availability', { skip: process.platform !== 'darwin' }, (t) => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'euv-ios-display-'));
+  t.after(() => fs.rmSync(temporary, { recursive: true, force: true }));
+  const legacyHeader = path.join(temporary, 'legacy-sdk.h');
+  fs.writeFileSync(legacyHeader, [
+    '#import <UIKit/UIKit.h>',
+    '#undef __IPHONE_OS_VERSION_MAX_ALLOWED',
+    '#define __IPHONE_OS_VERSION_MAX_ALLOWED __IPHONE_26_0',
+
+    '',
+  ].join('\n'));
+  for (const [sdk, target] of [
+    ['iphoneos', 'arm64-apple-ios15.0'],
+    ['iphonesimulator', 'arm64-apple-ios15.0-simulator'],
+  ]) {
+    const sdkPath = spawnSync('xcrun', ['--sdk', sdk, '--show-sdk-path'], { encoding: 'utf8', timeout: 30000 });
+    assert.equal(sdkPath.status, 0, sdkPath.error?.message || sdkPath.stderr);
+    for (const legacy of [false, true]) {
+      const compileArgs = ['clang', '-fsyntax-only', '-fobjc-arc', '-Wall', '-Wextra', '-Werror',
+        '-target', target, '-isysroot', sdkPath.stdout.trim()];
+      if (legacy) compileArgs.push('-include', legacyHeader);
+      compileArgs.push(path.join(root, 'src-tauri/apple/display.m'));
+      const compile = spawnSync('xcrun', compileArgs, { encoding: 'utf8', timeout: 60000 });
+      assert.equal(compile.status, 0, `${sdk} legacy=${legacy}: ${compile.error?.message || compile.stderr}`);
+      if (legacy) {
+        const preprocess = spawnSync('xcrun', compileArgs.map((arg) => arg === '-fsyntax-only' ? '-E' : arg),
+          { encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024 });
+        assert.equal(preprocess.status, 0, preprocess.error?.message || preprocess.stderr);
+        assert.ok(!/\[web\.window\.windowScene\s+displayLinkWithTarget:/.test(preprocess.stdout),
+          `${sdk}: legacy SDK must not compile the iOS 27 scene selector`);
+      }
+    }
+  }
+});
+
 test('native defaults enable immersive presentation and maximum hardware refresh', () => {
   assert.equal(config.ui.immersiveMode, true);
   assert.equal(config.ui.maxFrameRateEnabled, true);

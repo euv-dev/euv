@@ -45,6 +45,10 @@ fn button_node(variant: EuvButtonVariant, disabled: bool) -> VirtualNode<EuvButt
             data_slot: None,
             onclick: None,
             disabled: Signal::create(disabled),
+            submit: false,
+            aria_label: None,
+            busy: Signal::create(false),
+            data_testid: "",
         })),
     }
 }
@@ -127,6 +131,22 @@ fn the_two_logo_variants_render_differently() {
         nav, fab,
         "the sidebar logo and the floating action logo must not look alike"
     );
+}
+
+#[test]
+fn floating_log_logo_is_square_at_every_viewport() {
+    let css: &Css = c_euv_logo_fab();
+    let style: String = css.get_style().replace(' ', "");
+    if cfg!(feature = "theme-custom") {
+        assert!(style.is_empty());
+        let reset: &str = include_str!("../../src/style/css/const.rs");
+        assert!(reset.contains("border-radius: 0;"));
+    } else {
+        assert!(style.contains("border-radius:0px"));
+        assert!(style.contains("width:36px"));
+        assert!(style.contains("height:36px"));
+    }
+    assert!(!format!("{:?}", css.get_media_rules()).contains("border-radius"));
 }
 
 #[test]

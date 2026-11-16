@@ -12,22 +12,24 @@ use super::*;
 ///
 /// - `VirtualNode` - The root virtual DOM tree.
 pub(crate) fn app() -> VirtualNode {
+    let route_signal: Signal<String> = App::use_signal(Router::current_route);
+    let drawer_open: Signal<bool> = App::use_signal(|| false);
+    let locale_menu_open: Signal<bool> = App::use_signal(|| false);
+    let collapsed: Signal<Vec<String>> = App::use_signal(all_sidebar_group_keys);
+    let search_query: Signal<String> = App::use_signal(String::new);
+    let mobile_signal: Signal<bool> = UseEuvLayout::use_resize();
+    UseEuvLayout::use_safe_area_fix();
+    let theme_state: ThemeState = ThemeState::use_theme_state(mobile_signal);
+    let theme_signal: Signal<String> = theme_state.get_theme();
+    let root_class_signal: Signal<String> = theme_state.get_root_class();
+    Router::use_hash_change(route_signal);
+    Router::use_overlay_history(drawer_open, mobile_signal);
+    use_anchor_scroll(route_signal);
+    use_sidebar_reveal(route_signal, collapsed, drawer_open);
+    use_locale_dropdown_dismiss(locale_menu_open);
+    // Keep app hooks outside the reactive shell: their initialization reads
+    // theme/mobile state and must not make the shell rebuild its bindings.
     VirtualNode::create_dynamic(move |_hook_context: &mut euv::HookContext| {
-        let route_signal: Signal<String> = App::use_signal(Router::current_route);
-        let drawer_open: Signal<bool> = App::use_signal(|| false);
-        let locale_menu_open: Signal<bool> = App::use_signal(|| false);
-        let collapsed: Signal<Vec<String>> = App::use_signal(all_sidebar_group_keys);
-        let search_query: Signal<String> = App::use_signal(String::new);
-        let mobile_signal: Signal<bool> = UseEuvLayout::use_resize();
-        UseEuvLayout::use_safe_area_fix();
-        let theme_state: ThemeState = ThemeState::use_theme_state(mobile_signal);
-        let theme_signal: Signal<String> = theme_state.get_theme();
-        let root_class_signal: Signal<String> = theme_state.get_root_class();
-        Router::use_hash_change(route_signal);
-        Router::use_overlay_history(drawer_open, mobile_signal);
-        use_anchor_scroll(route_signal);
-        use_sidebar_reveal(route_signal, collapsed, drawer_open);
-        use_locale_dropdown_dismiss(locale_menu_open);
         html! {
             div {
                 key: locale_of(&parse_route(&route_signal.get()).0).prefix
@@ -137,9 +139,6 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
                     }
                 }
             }
-            docs_site_footer {
-                route_signal
-            }
         }
     }
 }
@@ -170,7 +169,10 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
     let locale: &DocsLocale = locale_of(&path);
     html! {
         div {
-            class: root_class_signal
+            // Both shells use tracked class snapshots: the responsive diff
+            // reuses this div, so switching from desktop text to a direct
+            // signal would not install a new mount-time DOM subscription.
+            class: root_class_signal.get()
             header {
                 class: c_mobile_header()
                 div {
@@ -239,9 +241,6 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                         on_navigate: drawer_navigate()
                     }
                 }
-            }
-            docs_site_footer {
-                route_signal
             }
         }
     }
@@ -336,6 +335,7 @@ fn locale_row_node(route_signal: Signal<String>, locale_menu_open: Signal<bool>)
         .map(|target: &DocsLanguageLink| EuvDropdownItem {
             label: target.label,
             value: target.dir,
+            disabled: false,
             active: target.dir == crate::generated::SITE_LOCALE_DIR,
         })
         .collect();

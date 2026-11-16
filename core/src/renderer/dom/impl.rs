@@ -8,8 +8,8 @@ impl ElementExt for Element {
     /// Removes an attribute or property from the element.
     ///
     /// Handles special cases for form element properties (`value`, `checked`, `disabled`,
-    /// `selected`, `readonly`, `multiple`) by setting them to their default values
-    /// rather than removing the attribute.
+    /// `required`, `selected`, `readonly`, `multiple`) by setting them to their default
+    /// values rather than removing the attribute.
     ///
     /// # Arguments
     ///
@@ -51,8 +51,30 @@ impl ElementExt for Element {
                 select.set_disabled(false);
                 return;
             }
+            if let Some(option) = element.dyn_ref::<HtmlOptionElement>() {
+                option.set_disabled(false);
+                return;
+            }
+            if let Some(optgroup) = element.dyn_ref::<HtmlOptGroupElement>() {
+                optgroup.set_disabled(false);
+                return;
+            }
             if let Some(textarea) = element.dyn_ref::<HtmlTextAreaElement>() {
                 textarea.set_disabled(false);
+                return;
+            }
+        }
+        if name == ATTR_REQUIRED {
+            if let Some(input) = element.dyn_ref::<HtmlInputElement>() {
+                input.set_required(false);
+                return;
+            }
+            if let Some(select) = element.dyn_ref::<HtmlSelectElement>() {
+                select.set_required(false);
+                return;
+            }
+            if let Some(textarea) = element.dyn_ref::<HtmlTextAreaElement>() {
+                textarea.set_required(false);
                 return;
             }
         }
@@ -88,8 +110,8 @@ impl ElementExt for Element {
     /// Sets an attribute or property on the element.
     ///
     /// Handles special cases for form element properties (`value`, `checked`, `disabled`,
-    /// `selected`, `readonly`, `multiple`) by setting the corresponding DOM property
-    /// rather than the HTML attribute, ensuring proper two-way binding behavior.
+    /// `required`, `selected`, `readonly`, `multiple`) by setting the corresponding DOM
+    /// property rather than the HTML attribute, ensuring proper form behavior.
     ///
     /// # Arguments
     ///
@@ -128,8 +150,30 @@ impl ElementExt for Element {
                 select.set_disabled(value == BOOL_TRUE);
                 return;
             }
+            if let Some(option) = self.dyn_ref::<HtmlOptionElement>() {
+                option.set_disabled(value == BOOL_TRUE);
+                return;
+            }
+            if let Some(optgroup) = self.dyn_ref::<HtmlOptGroupElement>() {
+                optgroup.set_disabled(value == BOOL_TRUE);
+                return;
+            }
             if let Some(textarea) = self.dyn_ref::<HtmlTextAreaElement>() {
                 textarea.set_disabled(value == BOOL_TRUE);
+                return;
+            }
+        }
+        if name == ATTR_REQUIRED {
+            if let Some(input) = self.dyn_ref::<HtmlInputElement>() {
+                input.set_required(value == BOOL_TRUE);
+                return;
+            }
+            if let Some(select) = self.dyn_ref::<HtmlSelectElement>() {
+                select.set_required(value == BOOL_TRUE);
+                return;
+            }
+            if let Some(textarea) = self.dyn_ref::<HtmlTextAreaElement>() {
+                textarea.set_required(value == BOOL_TRUE);
                 return;
             }
         }

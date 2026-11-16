@@ -40,14 +40,14 @@ pub fn euv_panel(node: VirtualNode<EuvPanelProps>) -> VirtualNode {
                 h3 {
                     class: c_euv_panel_title()
                     {
-                        title
+                        title.clone()
                     }
                 }
                 if !subtitle.is_empty() {
                     p {
                         class: c_euv_panel_subtitle()
                         {
-                            subtitle
+                            subtitle.clone()
                         }
                     }
                 }

@@ -35,4 +35,19 @@ pub struct EuvUploadProps {
     /// Optional callback receiving a display string for the picked files.
     #[debug(skip)]
     pub on_files: Option<Rc<dyn Fn(&'static str)>>,
+    /// The native input identifier for external picker controls.
+    pub id: &'static str,
+    /// The localized picker label, or the default prompt when empty.
+    pub label: &'static str,
+    /// Whether file selection is disabled.
+    pub disabled: Signal<bool>,
+    /// Native input type (normally `file`).
+    pub input_type: &'static str,
+    /// Accessible name for a visually hidden picker.
+    pub aria_label: &'static str,
+    /// Text of an associated visible picker label.
+    pub picker_label: &'static str,
+    /// Native change event handler.
+    #[debug(skip)]
+    pub onchange: Option<Rc<dyn Fn(Event)>>,
 }

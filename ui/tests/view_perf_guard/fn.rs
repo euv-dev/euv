@@ -96,16 +96,28 @@ fn a_select_builds_one_element_per_option() {
             .collect();
         euv_select(props(EuvSelectProps {
             value: Signal::create(String::new()),
+            multiple: false,
+            values: Signal::create(Vec::new()),
+            on_change_values: None,
+            size: EuvSelectSize::Default,
             options,
             placeholder: "pick",
             label: "",
+            aria_label: String::new(),
+            aria_describedby: "",
             id: "",
             name: "",
+            form: "",
+            auto_complete: "",
             required: false,
             invalid: false,
             disabled: false,
+            read_only: false,
+            open: None,
+            default_open: false,
             align_item_with_trigger: false,
             on_change: None,
+            on_open_change: None,
         }))
     };
     assert_grows_by_one_per_item(&render(50), &render(150), 50, 150, 1, "option");
@@ -172,9 +184,9 @@ fn a_list_builds_three_elements_per_row() {
     let render: fn(usize) -> VirtualNode = |count: usize| -> VirtualNode {
         let items: Vec<EuvListItem> = (0..count)
             .map(|_| EuvListItem {
-                title: "t",
-                desc: "",
-                meta: "",
+                title: "t".into(),
+                desc: "".into(),
+                meta: "".into(),
             })
             .collect();
         euv_list(props(EuvListProps {
@@ -322,6 +334,16 @@ fn an_auto_complete_builds_one_element_per_suggestion() {
             value: Signal::create(String::new()),
             placeholder: "type",
             label: "",
+            id: "",
+            name: "",
+            form: "",
+            autocomplete: "",
+            required: false,
+            invalid: false,
+            disabled: false,
+            read_only: false,
+            aria_label: "",
+            aria_describedby: "",
             on_change: None,
             on_select: None,
         }))

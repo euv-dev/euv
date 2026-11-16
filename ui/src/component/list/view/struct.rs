@@ -5,19 +5,16 @@ use super::*;
 /// A row is a title, an optional description line, and optional trailing
 /// meta text. The two optional fields are skipped at render time, so a
 /// terse one-line row leaves no empty gap in the row body.
-#[derive(Clone, Copy, CustomDebug, Data, Default, New)]
+#[derive(Clone, CustomDebug, Data, Default, New)]
 pub struct EuvListItem {
     /// The row headline rendered in `c_euv_list_item_title`.
-    #[get(type(copy))]
-    pub title: &'static str,
+    pub title: ::euv::CowText,
     /// The optional row description rendered in `c_euv_list_item_desc`
     /// (skipped when empty).
-    #[get(type(copy))]
-    pub desc: &'static str,
+    pub desc: ::euv::CowText,
     /// The optional trailing meta text rendered in `c_euv_list_item_meta`
     /// (skipped when empty).
-    #[get(type(copy))]
-    pub meta: &'static str,
+    pub meta: ::euv::CowText,
 }
 
 /// Props for the [`euv_list`] component.

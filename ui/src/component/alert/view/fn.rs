@@ -27,14 +27,12 @@ pub fn euv_alert(node: VirtualNode<EuvAlertProps>) -> VirtualNode {
         AlertVariant::Default => c_euv_alert_default(),
         AlertVariant::Destructive => c_euv_alert_destructive(),
     };
-    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
+    let shadcn_class: Css = {
         match variant {
-            AlertVariant::Default => c_euv_alert_default_shadcn().clone(),
-            AlertVariant::Destructive => c_euv_alert_destructive_shadcn().clone(),
+            AlertVariant::Default => c_euv_alert_default().clone(),
+            AlertVariant::Destructive => c_euv_alert_destructive().clone(),
             AlertVariant::Error | AlertVariant::Success => Css::default(),
         }
-    } else {
-        Css::default()
     };
     html! {
         div {
@@ -66,7 +64,7 @@ pub fn euv_alert_icon(node: VirtualNode<EuvAlertIconProps>) -> VirtualNode {
             "aria-hidden": "true"
             class: c_euv_alert_icon()
             {
-                glyph
+                glyph.clone()
             }
         }
     }
@@ -97,7 +95,7 @@ pub fn euv_alert_title(node: VirtualNode<EuvAlertTitleProps>) -> VirtualNode {
             if has_children {
                 children
             } else {
-                text
+                text.clone()
             }
         }
     }
@@ -129,7 +127,7 @@ pub fn euv_alert_description(node: VirtualNode<EuvAlertDescriptionProps>) -> Vir
             if has_children {
                 children
             } else {
-                text
+                text.clone()
             }
         }
     }

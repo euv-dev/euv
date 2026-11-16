@@ -26,16 +26,33 @@ impl Default for EuvSelectProps {
     fn default() -> Self {
         Self {
             value: Signal::create(String::new()),
+            multiple: false,
+            values: Signal::create(Vec::new()),
+            size: EuvSelectSize::Default,
             options: Vec::new(),
             placeholder: "",
             label: "",
+            aria_label: String::new(),
+            aria_describedby: "",
             id: "",
             name: "",
+            form: "",
+            auto_complete: "",
             required: false,
             invalid: false,
             disabled: false,
-            align_item_with_trigger: cfg!(feature = "theme-shadcn"),
+            read_only: false,
+            open: None,
+            default_open: false,
+            align_item_with_trigger: class_property(
+                c_euv_select_panel(),
+                "--euv-select-align-item",
+            )
+            .as_deref()
+                == Some("1"),
             on_change: None,
+            on_change_values: None,
+            on_open_change: None,
         }
     }
 }

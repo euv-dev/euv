@@ -40,10 +40,12 @@ theme-monochrome = []
 euv = { workspace = true }
 
 js-sys = { workspace = true }
-web-sys = { workspace = true }
 wasm-bindgen = { workspace = true }
 lombok-macros = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
+web-sys = { workspace = true, features = ["FocusOptions"] }
 
 [dev-dependencies]
+syn = { workspace = true }
+proc-macro2 = { workspace = true }
 wasm-bindgen-test = { workspace = true }

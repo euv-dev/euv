@@ -207,7 +207,7 @@ fn global_this() -> Option<JsValue> {
 
 /// Returns `true` when the named attribute requires the form-property
 /// dispatch path (i.e. setting `.value` / `.checked` / `.disabled` /
-/// `.selected` / `.readonly` / `.multiple` on the DOM element instead
+/// `.required` / `.selected` / `.readonly` / `.multiple` on the DOM element instead
 /// of calling `setAttribute`). For these attributes the renderer must
 /// keep the per-element direct call to preserve the previous semantics
 /// — batched `setAttribute` would silently break input/textarea/etc.
@@ -224,6 +224,7 @@ pub(crate) fn is_property_attr(name: &str) -> bool {
     name == ATTR_VALUE
         || name == ATTR_CHECKED
         || name == ATTR_DISABLED
+        || name == ATTR_REQUIRED
         || name == ATTR_SELECTED
         || name == ATTR_READONLY
         || name == ATTR_MULTIPLE

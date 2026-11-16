@@ -14,6 +14,8 @@ mod tests;
 
 pub use {component::*, hook::*, style::*};
 
+pub(crate) use hook::use_form_reset;
+
 use dom::*;
 
 use euv::*;
@@ -26,7 +28,7 @@ use std::{
     hash::Hash,
     ops::Deref,
     panic::{AssertUnwindSafe, UnwindSafe, catch_unwind},
-    ptr::{addr_of_mut, eq},
+    ptr::addr_of_mut,
     rc::Rc,
     sync::{
         LazyLock, OnceLock, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard,
@@ -43,3 +45,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::rc::Weak;
 
 use wasm_bindgen_futures::*;
+
+#[cfg(test)]
+use proc_macro2::{Delimiter, TokenStream, TokenTree};
+#[cfg(test)]
+use syn::LitStr;

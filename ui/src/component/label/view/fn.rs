@@ -23,6 +23,7 @@ pub fn euv_label(node: VirtualNode<EuvLabelProps>) -> VirtualNode {
         html_for,
         text,
         disabled,
+        class: custom_class,
     }: EuvLabelProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let has_children: bool = !matches!(&children, VirtualNode::Empty);
@@ -35,6 +36,7 @@ pub fn euv_label(node: VirtualNode<EuvLabelProps>) -> VirtualNode {
             } else {
                 c_euv_label()
             }
+            class: custom_class
             if has_children {
                 children
             } else {

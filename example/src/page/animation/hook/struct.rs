@@ -8,4 +8,9 @@ pub(crate) struct UseProgress {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) running: Signal<bool>,
+    /// The fill generation used to alternate animation names and replay the fill.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) generation: Signal<u64>,
 }

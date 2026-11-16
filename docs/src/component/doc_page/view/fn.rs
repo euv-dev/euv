@@ -84,8 +84,8 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     // feeds is per-page state: a new page means a new entry list, and
     // the spy re-marks the first heading against that list on mount.
     let toc_active: Signal<String> = App::use_signal(String::new);
-    use_toc_scroll_spy(toc_active);
     let (path, _anchor) = parse_route(&route_signal.get());
+    use_toc_scroll_spy(toc_active, path.clone());
     let locale: &DocsLocale = locale_of(&path);
     let Some(page) = find_page(&path) else {
         return html! {
@@ -94,6 +94,7 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
     };
     let (prev, next) = prev_next(locale, page.route);
     let description: Option<&'static str> = description_for_route(page.route);
+    let footer: EuvFooterProps = docs_footer_props(locale, Some(page), &crate::generated::SITE);
     html! {
         euv_doc_layout {
             toc_title: locale.toc_label
@@ -103,6 +104,9 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             next_label: locale.next_label
             prev: prev
             next: next
+            footer: footer.text
+            footer_link: footer.link
+            footer_items: footer.items
             div {
                 class: CLASS_DOCS_PAGE_HEAD
                 if { !page.title.is_empty() } {
@@ -168,7 +172,8 @@ pub(crate) fn docs_doc_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
 /// # Arguments
 ///
 /// - `Signal<String>` - The active TOC entry href, written by the spy.
-fn use_toc_scroll_spy(active: Signal<String>) {
+/// - `String` - The page path owning this mounted spy.
+fn use_toc_scroll_spy(active: Signal<String>, path: String) {
     // The hash the spy last saw (or wrote itself) and the scroll position
     // at that moment. A hash that differs from `seen_hash` arrived from
     // outside (click, back/forward, paste); while the scroll position has
@@ -183,13 +188,20 @@ fn use_toc_scroll_spy(active: Signal<String>) {
         let Some(window) = window() else {
             return;
         };
+        let Ok(hash) = window.location().hash() else {
+            return;
+        };
+        // The URL changes before the old page and its interval unmount.
+        // Never let that interval turn navigation back into its old TOC.
+        if !route_page_matches(&path, &hash) {
+            return;
+        }
         let Some(document) = window.document() else {
             return;
         };
         let Ok(Some(container)) = document.query_selector(TOC_SPY_CONTAINER_SELECTOR) else {
             return;
         };
-        let hash: String = window.location().hash().unwrap_or_default();
         let scroll_top: i32 = container.scroll_top();
         // Compared through [`same_route_anchor`], never as raw strings:
         // `seen_hash` holds the raw slug this spy wrote, while
@@ -216,13 +228,16 @@ fn use_toc_scroll_spy(active: Signal<String>) {
         else {
             return;
         };
+        if !route_page_matches(&path, &next) {
+            return;
+        }
         if next != active.get() {
             active.set(next.clone());
         }
         if !same_route_anchor(&hash, &next) {
             // Scroll-driven half of the sync: replaceState fires no
             // hashchange, so this write cannot re-enter the anchor scroll.
-            sync_hash(&window, &next);
+            sync_hash(&window, &path, &next);
             seen_hash.set(next);
             scroll_at_hash.set(scroll_top);
         }
@@ -273,8 +288,16 @@ fn toc_entry_hrefs(document: &Document) -> Option<Vec<String>> {
 /// # Arguments
 ///
 /// - `&Window` - The window whose history is rewritten.
+/// - `&str` - The page path owning the callback.
 /// - `&str` - The entry href (`#<route>#<slug>`) to place in the URL.
-fn sync_hash(window: &Window, href: &str) {
+fn sync_hash(window: &Window, path: &str, href: &str) {
+    let Ok(hash) = window.location().hash() else {
+        return;
+    };
+    // Re-read after publishing the active signal: subscribers can navigate.
+    if !route_page_matches(path, &hash) || !route_page_matches(path, href) {
+        return;
+    }
     let Ok(history) = window.history() else {
         return;
     };

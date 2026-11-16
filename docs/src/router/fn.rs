@@ -127,6 +127,22 @@ pub fn same_route_anchor(left: &str, right: &str) -> bool {
     left_path == right_path && left_anchor == right_anchor
 }
 
+/// Checks whether a browser hash still names the owning page.
+///
+/// # Arguments
+///
+/// - `&str` - The owning page path without the outer URL hash.
+/// - `&str` - A browser hash or link carrying one outer hash delimiter.
+///
+/// # Returns
+///
+/// - `bool` - Whether the page is unchanged, regardless of its heading.
+pub(crate) fn route_page_matches(path: &str, hash: &str) -> bool {
+    let (current_path, _anchor): (String, Option<String>) =
+        parse_route(hash.strip_prefix('#').unwrap_or(hash));
+    current_path == path
+}
+
 /// Finds the locale owning a route (longest prefix match).
 ///
 /// # Arguments

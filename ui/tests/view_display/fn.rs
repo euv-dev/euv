@@ -22,10 +22,10 @@ fn stat_node(hint: &'static str, icon: &'static str) -> VirtualNode<EuvStatProps
         children: Vec::new(),
         key: None,
         props: Some(Box::new(EuvStatProps {
-            label: "Label",
-            value: "42",
-            hint,
-            icon,
+            label: "Label".into(),
+            value: "42".into(),
+            hint: hint.into(),
+            icon: icon.into(),
         })),
     }
 }
@@ -90,6 +90,7 @@ fn the_spinner_draws_three_quarters_of_the_ring_not_one() {
 }
 
 #[test]
+#[cfg(any(not(feature = "theme-shadcn"), feature = "theme-custom"))]
 fn the_sidebar_guide_aligns_with_the_parent_label_text_at_every_depth() {
     let children: String = c_euv_sidebar_children().get_style().to_string();
     let parent: String = c_euv_sidebar_group_title().get_style().to_string();
@@ -114,6 +115,7 @@ fn the_sidebar_guide_aligns_with_the_parent_label_text_at_every_depth() {
 }
 
 #[test]
+#[cfg(any(not(feature = "theme-shadcn"), feature = "theme-custom"))]
 fn the_sidebar_active_row_keeps_its_pull_back_off_the_container_margin() {
     let children: String = c_euv_sidebar_children().get_style().to_string();
     let active: String = c_euv_sidebar_link_active_flush().get_style().to_string();
@@ -229,10 +231,10 @@ fn a_stat_without_props_renders_the_same_shape_as_default_props() {
         children: Vec::new(),
         key: None,
         props: Some(Box::new(EuvStatProps {
-            label: "",
-            value: "",
-            hint: "",
-            icon: "",
+            label: "".into(),
+            value: "".into(),
+            hint: "".into(),
+            icon: "".into(),
         })),
     });
     assert_eq!(
@@ -257,6 +259,7 @@ fn element_count(node: &VirtualNode, needle: &str) -> usize {
     format!("{node:?}").matches(needle).count()
 }
 
+#[cfg(any(not(feature = "theme-shadcn"), feature = "theme-custom"))]
 fn token_of(style: &str, property: &str) -> String {
     declaration(style, property)
         .split("var(--")
@@ -265,6 +268,7 @@ fn token_of(style: &str, property: &str) -> String {
         .unwrap_or_default()
 }
 
+#[cfg(any(not(feature = "theme-shadcn"), feature = "theme-custom"))]
 fn shorthand_token(style: &str, property: &str) -> String {
     let horizontal: &str = declaration(style, property)
         .rsplit(' ')
@@ -273,6 +277,7 @@ fn shorthand_token(style: &str, property: &str) -> String {
     token_of(&format!("padding-left: {horizontal};"), "padding-left")
 }
 
+#[cfg(any(not(feature = "theme-shadcn"), feature = "theme-custom"))]
 fn declaration<'a>(style: &'a str, property: &str) -> &'a str {
     let found: String = format!("{property}: ");
     let start: usize = style.find(&found).expect("the property is declared");

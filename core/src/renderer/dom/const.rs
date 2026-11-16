@@ -7,6 +7,9 @@ pub(crate) const ATTR_CHECKED: &str = "checked";
 /// The DOM attribute name for the `disabled` property on form elements.
 pub(crate) const ATTR_DISABLED: &str = "disabled";
 
+/// The DOM attribute name for the `required` property on form elements.
+pub(crate) const ATTR_REQUIRED: &str = "required";
+
 /// The DOM attribute name for the `selected` property on option elements.
 pub(crate) const ATTR_SELECTED: &str = "selected";
 

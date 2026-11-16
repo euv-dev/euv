@@ -32,6 +32,13 @@ pub(crate) struct MobileLayoutProps {
     pub(crate) drawer_open: Signal<bool>,
 }
 
+/// Props for the sidebar selector that navigates between compiled theme builds.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ThemeFeatureSelectorProps {
+    /// The signal holding the feature enabled in the current compiled page.
+    pub(crate) value: Signal<String>,
+}
+
 /// The JSON response from docs.rs crate status endpoint.
 ///
 /// Example JSON: `{"doc_status": true, "version": "0.6.23"}`

@@ -57,25 +57,25 @@ pub fn euv_list(node: VirtualNode<EuvListProps>) -> VirtualNode {
 fn list_item(item: EuvListItem) -> VirtualNode {
     html! {
         div {
-            key: item.title
+            key: item.title.to_string_owned()
             class: c_euv_list_item()
             div {
                 class: c_euv_list_item_body()
                 div {
                     class: c_euv_list_item_title()
-                    item.title
+                    item.title.clone()
                 }
                 if !item.desc.is_empty() {
                     div {
                         class: c_euv_list_item_desc()
-                        item.desc
+                        item.desc.clone()
                     }
                 }
             }
             if !item.meta.is_empty() {
                 div {
                     class: c_euv_list_item_meta()
-                    item.meta
+                    item.meta.clone()
                 }
             }
         }

@@ -6,6 +6,7 @@ mod i18n;
 mod lazy;
 mod previous;
 mod profiler;
+mod reset;
 mod suspense;
 mod throttled_value;
 mod toggle;
@@ -36,5 +37,7 @@ pub use {
     use_online_status::*, use_reduced_motion::*, use_resize_observer::*, use_scroll::*,
     use_storage::*, use_timer::*, use_window_size::*,
 };
+
+pub(crate) use reset::use_form_reset;
 
 use super::*;

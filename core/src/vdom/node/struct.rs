@@ -13,6 +13,13 @@ pub(crate) struct RenderFnInner {
     pub(crate) render_fn: Box<dyn FnMut(&mut HookContext) -> VirtualNode>,
 }
 
+/// Text a component carries when the value may be borrowed or owned.
+///
+/// Static labels remain borrowed, while runtime strings retain their
+/// ownership as they cross into a component property.
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct CowText(pub(crate) Cow<'static, str>);
+
 /// Represents a text node in the virtual DOM.
 ///
 /// Text nodes may optionally be bound to a reactive signal for automatic updates.

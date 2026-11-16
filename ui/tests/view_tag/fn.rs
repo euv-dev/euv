@@ -9,7 +9,7 @@ fn tag_node(variant: EuvTagVariant, color: EuvTagColor) -> VirtualNode<EuvTagPro
         props: Some(Box::new(EuvTagProps {
             color,
             variant,
-            text: "Label",
+            text: "Label".into(),
             on_click: None,
         })),
     }
@@ -120,7 +120,7 @@ fn a_tag_without_props_falls_back_to_defaults() {
         props: Some(Box::new(EuvTagProps {
             color: EuvTagColor::default(),
             variant: EuvTagVariant::default(),
-            text: "",
+            text: "".into(),
             on_click: None,
         })),
     });

@@ -140,59 +140,65 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
     let onkeydown: Option<Rc<dyn Fn(Event)>> = onkeydown_handler(submit.clone());
     html! {
         div {
-            class: c_pw_gate_wrapper()
+            class: c_page_container()
             div {
-                class: c_pw_gate_card()
-                h2 {
-                    class: c_pw_gate_title()
-                    {
-                        title
-                    }
-                }
-                p {
-                    class: c_pw_gate_hint()
-                    {
-                        locale_text(route, PW_GATE_KEY_HINT)
-                    }
-                }
-                input {
-                    id: input_id.clone()
-                    type: INPUT_TYPE_PASSWORD
-                    aria-label: locale_text(route, PW_GATE_KEY_LABEL)
-                    placeholder: locale_text(route, PW_GATE_KEY_PLACEHOLDER)
-                    autocomplete: INPUT_AUTOCOMPLETE_OFF
-                    class: if { !error_signal.get().is_empty() } {
-                        c_euv_input_error()
-                    } else {
-                        c_euv_input()
-                    }
-                    value: input_signal.get()
-                    oninput: oninput
-                    onkeydown: onkeydown
-                }
-                if { !error_signal.get().is_empty() } {
-                    p {
-                        class: c_pw_gate_error()
-                        error_signal.get()
-                    }
-                }
+                class: c_pw_gate_wrapper()
                 div {
-                    class: c_pw_gate_actions()
-                    button {
-                        class: c_euv_button_primary_md()
-                        disabled: busy_signal.get()
-                        onclick: submit
-                        if { busy_signal.get() } {
-                            {
-                                locale_text(route, PW_GATE_KEY_BUSY)
-                            }
+                    class: c_pw_gate_card()
+                    h2 {
+                        class: c_pw_gate_title()
+                        {
+                            title
+                        }
+                    }
+                    p {
+                        class: c_pw_gate_hint()
+                        {
+                            locale_text(route, PW_GATE_KEY_HINT)
+                        }
+                    }
+                    input {
+                        id: input_id.clone()
+                        type: INPUT_TYPE_PASSWORD
+                        aria-label: locale_text(route, PW_GATE_KEY_LABEL)
+                        placeholder: locale_text(route, PW_GATE_KEY_PLACEHOLDER)
+                        autocomplete: INPUT_AUTOCOMPLETE_OFF
+                        class: if { !error_signal.get().is_empty() } {
+                            c_euv_input_error()
                         } else {
-                            {
-                                locale_text(route, PW_GATE_KEY_IDLE)
+                            c_euv_input()
+                        }
+                        value: input_signal.get()
+                        oninput: oninput
+                        onkeydown: onkeydown
+                    }
+                    if { !error_signal.get().is_empty() } {
+                        p {
+                            class: c_pw_gate_error()
+                            error_signal.get()
+                        }
+                    }
+                    div {
+                        class: c_pw_gate_actions()
+                        button {
+                            class: c_euv_button_primary_md()
+                            disabled: busy_signal.get()
+                            onclick: submit
+                            if { busy_signal.get() } {
+                                {
+                                    locale_text(route, PW_GATE_KEY_BUSY)
+                                }
+                            } else {
+                                {
+                                    locale_text(route, PW_GATE_KEY_IDLE)
+                                }
                             }
                         }
                     }
                 }
+            }
+            docs_site_footer {
+                route: route.to_string()
             }
         }
     }

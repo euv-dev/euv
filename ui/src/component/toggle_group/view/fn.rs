@@ -37,11 +37,6 @@ pub fn euv_toggle_group(node: VirtualNode<EuvToggleGroupProps>) -> VirtualNode {
     let focus_value: Signal<String> =
         HookContext::use_hook(move || Signal::create(default_focus_value));
     let group_class: &Css = c_euv_toggle_group();
-    let shadcn_group_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_toggle_group_shadcn().clone()
-    } else {
-        Css::default()
-    };
     let selected: Vec<String> = values.get();
     let entries: Vec<VirtualNode> = items
         .into_iter()
@@ -64,7 +59,7 @@ pub fn euv_toggle_group(node: VirtualNode<EuvToggleGroupProps>) -> VirtualNode {
         div {
             "data-slot": "toggle-group"
             class: group_class
-            class: shadcn_group_class
+
             role: "group"
             entries
         }

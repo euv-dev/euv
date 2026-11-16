@@ -78,10 +78,11 @@ fn a_combobox_trigger_reports_whether_the_list_is_open() {
     }));
     assert!(has_class(&node, "c_euv_combobox_trigger"));
     if cfg!(feature = "theme-shadcn") {
-        assert!(has_class(&node, "c_euv_combobox_trigger_shadcn"));
+        assert!(has_class(&node, "c_euv_combobox_trigger"));
     }
     assert!(has_attribute(&node, "aria-haspopup"));
     assert!(has_attribute(&node, "aria-expanded"));
+    assert!(!has_attribute(&node, "role"));
 }
 
 #[test]
@@ -91,12 +92,17 @@ fn a_combobox_input_reports_its_open_state_and_geometry() {
         value: Signal::create(String::new()),
         placeholder: "Type to search",
         disabled: false,
+        aria_label: "Search framework",
+        aria_controls: "framework-options",
     }));
     assert!(has_class(&node, "c_euv_combobox_input"));
     assert!(has_attribute(&node, "aria-expanded"));
+    assert!(has_attribute(&node, "aria-label"));
+    assert!(has_attribute(&node, "aria-controls"));
+    assert!(has_attribute(&node, "aria-autocomplete"));
     assert!(has_attribute(&node, "onkeydown"));
     if cfg!(feature = "theme-shadcn") {
-        assert!(has_class(&node, "c_euv_combobox_input_shadcn"));
+        assert!(has_class(&node, "c_euv_combobox_input"));
     }
 }
 
@@ -111,8 +117,10 @@ fn the_combobox_panel_is_hidden_while_the_list_is_closed() {
 
 #[test]
 fn the_combobox_rows_live_in_a_listbox() {
-    let list: VirtualNode =
-        euv_combobox_list(props_node(EuvComboboxListProps { label: "Options" }));
+    let list: VirtualNode = euv_combobox_list(props_node(EuvComboboxListProps {
+        id: "framework-options",
+        label: "Options",
+    }));
     assert!(has_class(&list, "c_euv_combobox_list"));
     assert!(has_attribute(&list, "role"));
     let item: VirtualNode = euv_combobox_item(props_node(EuvComboboxItemProps {

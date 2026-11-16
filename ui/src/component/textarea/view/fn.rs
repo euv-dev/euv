@@ -28,17 +28,18 @@ pub fn euv_textarea(node: VirtualNode<EuvTextareaProps>) -> VirtualNode {
         rows,
         disabled,
         oninput,
+        aria_label,
+        onkeydown,
+        class: custom_class,
     }: EuvTextareaProps = node.try_get_props().unwrap_or_default();
     let effective_name: &'static str = if name.is_empty() { id } else { name };
-    let default_rows: i32 = if cfg!(feature = "theme-shadcn") { 2 } else { 3 };
+    let default_rows: i32 = class_property(c_euv_textarea(), "--euv-textarea-rows")
+        .and_then(|value: String| value.parse::<i32>().ok())
+        .filter(|value: &i32| *value > 0)
+        .unwrap_or(3);
     let effective_rows: i32 = if rows > 0 { rows } else { default_rows };
     let is_disabled: bool = disabled.get();
     let base_class: &Css = c_euv_textarea();
-    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_textarea_shadcn().clone()
-    } else {
-        Css::default()
-    };
     html! {
         textarea {
             id: id
@@ -48,9 +49,12 @@ pub fn euv_textarea(node: VirtualNode<EuvTextareaProps>) -> VirtualNode {
             placeholder: placeholder
             value: value
             class: base_class
-            class: shadcn_class
+
+            class: custom_class
             disabled: is_disabled
             oninput: oninput
+            "aria-label": aria_label
+            onkeydown: onkeydown
         }
     }
 }

@@ -53,11 +53,6 @@ pub fn euv_attachment(node: VirtualNode<EuvAttachmentProps>) -> VirtualNode {
     };
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_attachment();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_attachment_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
     html! {
             div {
                 "data-slot": "attachment"
@@ -65,7 +60,7 @@ pub fn euv_attachment(node: VirtualNode<EuvAttachmentProps>) -> VirtualNode {
                 "data-size": size_attr
                 "data-orientation": orientation_attr
                 class: base_class
-                class: shadcn_class
+
                 class: orientation_class()
                 class: state_class()
                 children
@@ -107,18 +102,13 @@ pub fn euv_attachment_media(node: VirtualNode<EuvAttachmentMediaProps>) -> Virtu
         EuvAttachmentSize::Xs => c_euv_attachment_media_size_xs,
     };
     let children: VirtualNode = node.get_children().into();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_attachment_media_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
     html! {
         div {
             "data-slot": "attachment-media"
             "data-variant": variant_attr
             class: base_class
             class: variant_class()
-            class: shadcn_class
+
             class: size_class()
             children
         }
@@ -286,16 +276,11 @@ pub fn euv_attachment_trigger(node: VirtualNode<EuvAttachmentTriggerProps>) -> V
 #[component]
 pub fn euv_attachment_group(node: VirtualNode<EuvAttachmentGroupProps>) -> VirtualNode {
     let children: VirtualNode = node.get_children().into();
-    let attachment_group_shadcn: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_attachment_group_shadcn().clone()
-    } else {
-        Css::default()
-    };
     html! {
             div {
                 "data-slot": "attachment-group"
                 class: c_euv_attachment_group()
-                class: attachment_group_shadcn
+
                 children
             }
     }

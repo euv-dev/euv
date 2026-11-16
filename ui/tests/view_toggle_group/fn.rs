@@ -123,7 +123,7 @@ fn a_group_renders_one_button_per_entry() {
         assert!(
             class_names(&rendered)
                 .iter()
-                .any(|class: &String| class == "c_euv_toggle_group_shadcn")
+                .any(|class: &String| class == "c_euv_toggle_group")
         );
     }
 }

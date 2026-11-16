@@ -55,5 +55,7 @@ use {
 pub fn main() {
     console_error_panic_hook::set_once();
     inject_app_global_css();
+    #[cfg(feature = "theme-custom")]
+    Css::inject_css(APP_CUSTOM_LAYOUT_CSS);
     App::mount(APP_MOUNT_SELECTOR, app);
 }

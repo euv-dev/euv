@@ -21,11 +21,6 @@ pub fn euv_collapsible(node: VirtualNode<EuvCollapsibleProps>) -> VirtualNode {
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_collapsible();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_collapsible_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
     html! {
         div {
             "data-slot": "collapsible"
@@ -35,7 +30,7 @@ pub fn euv_collapsible(node: VirtualNode<EuvCollapsibleProps>) -> VirtualNode {
                 "closed"
             }
             class: base_class
-            class: shadcn_class
+
             children
         }
     }
@@ -61,11 +56,6 @@ pub fn euv_collapsible_trigger(node: VirtualNode<EuvCollapsibleTriggerProps>) ->
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_collapsible_trigger();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_collapsible_trigger_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
     html! {
         button {
             "data-slot": "collapsible-trigger"
@@ -75,7 +65,7 @@ pub fn euv_collapsible_trigger(node: VirtualNode<EuvCollapsibleTriggerProps>) ->
                 "false"
             }
             class: base_class
-            class: shadcn_class
+
             onclick: on_collapsible_toggle(open)
             children
         }

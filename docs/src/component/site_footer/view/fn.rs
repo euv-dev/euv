@@ -1,71 +1,54 @@
 use super::*;
 
-/// Renders the site-wide footer bar.
-///
-/// The bar sits above a bottom gutter and spans the full width. It holds
-/// the license line — the locale's footer text, or the page's own
-/// override — and the notices the site declares, each a link of its
-/// own.
-///
-/// The content is resolved from the route, so the bar follows the
-/// locale and the page without the shell having to thread the
-/// resolved values into it.
+/// Resolves localized footer props without rendering any document content.
 ///
 /// # Arguments
 ///
-/// - `VirtualNode<DocsSiteFooterProps>` - The props node carrying the
-///   route signal.
+/// - `&DocsLocale` - The current locale.
+/// - `Option<&DocsPage>` - The matched page, if any.
+/// - `&DocsSite` - The site carrying the footer link and notices.
 ///
 /// # Returns
 ///
-/// - `VirtualNode` - The footer bar virtual DOM tree.
+/// - `EuvFooterProps` - The page override or locale fallback plus site notices.
+pub(crate) fn docs_footer_props(
+    locale: &DocsLocale,
+    page: Option<&DocsPage>,
+    site: &DocsSite,
+) -> EuvFooterProps {
+    let text: &'static str = page
+        .map(|page: &DocsPage| page.footer)
+        .filter(|footer: &&str| !footer.is_empty())
+        .unwrap_or(locale.footer);
+    EuvFooterProps {
+        text,
+        link: site.footer_link,
+        items: site.footer_items,
+    }
+}
+
+/// Renders a localized footer in the consuming page's normal content flow.
+///
+/// # Arguments
+///
+/// - `VirtualNode<DocsSiteFooterProps>` - The props carrying the current route.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The shared footer with the site's notices and links.
 #[component]
 pub(crate) fn docs_site_footer(node: VirtualNode<DocsSiteFooterProps>) -> VirtualNode {
-    let DocsSiteFooterProps { route_signal }: DocsSiteFooterProps =
+    let DocsSiteFooterProps { route }: DocsSiteFooterProps =
         node.try_get_props().unwrap_or_default();
-    let (path, _anchor) = parse_route(&route_signal.get());
+    let (path, _anchor) = parse_route(&route);
     let locale: &DocsLocale = locale_of(&path);
     let site: &DocsSite = &crate::generated::SITE;
-    let page_footer: &str = find_page(&path)
-        .map(|page: &DocsPage| page.footer)
-        .unwrap_or("");
-    let text: &str = if page_footer.is_empty() {
-        locale.footer
-    } else {
-        page_footer
-    };
+    let footer: EuvFooterProps = docs_footer_props(locale, find_page(&path), site);
     html! {
-        footer {
-            class: c_docs_site_footer()
-            if { !text.is_empty() } {
-                a {
-                    class: c_docs_site_footer_link()
-                    href: site.footer_link
-                    target: LINK_TARGET_BLANK
-                    rel: LINK_REL_NOOPENER
-                    {
-                        text
-                    }
-                }
-            }
-            for item in site.footer_items.iter() {
-                a {
-                    class: c_docs_site_footer_link()
-                    href: item.link
-                    target: LINK_TARGET_BLANK
-                    rel: LINK_REL_NOOPENER
-                    if { !item.icon.is_empty() } {
-                        img {
-                            class: c_docs_site_footer_icon()
-                            src: item.icon
-                            alt: item.alt
-                        }
-                    }
-                    {
-                        item.text
-                    }
-                }
-            }
+        euv_footer {
+            text: footer.text
+            link: footer.link
+            items: footer.items
         }
     }
 }

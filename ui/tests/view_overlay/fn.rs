@@ -43,8 +43,8 @@ fn panel_node(subtitle: &'static str) -> VirtualNode<EuvPanelProps> {
         children: Vec::new(),
         key: None,
         props: Some(Box::new(EuvPanelProps {
-            title: "Title",
-            subtitle,
+            title: "Title".into(),
+            subtitle: subtitle.into(),
             variant: EuvPanelVariant::default(),
         })),
     }

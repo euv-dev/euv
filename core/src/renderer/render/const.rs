@@ -8,9 +8,8 @@ pub(crate) const DATA_EUV_DYNAMIC_ID: &str = "data-euv-dynamic-id";
 
 /// The DOM attribute name used to mark an element as a portal placeholder.
 ///
-/// The marker carries the original selector in this attribute so future patch
-/// passes can detect "this child is a portal" by querying the attribute. See
-/// `is_portal_marker` in the renderer.
+/// The marker carries the original selector so the renderer can resolve its
+/// content wrapper during patching and cleanup.
 pub(crate) const DATA_EUV_PORTAL: &str = "data-euv-portal";
 
 /// The inline style value that hides the portal marker element.
@@ -62,3 +61,18 @@ thread_local! {
     pub(crate) static DOCUMENT_CACHE: UnsafeCell<Option<Document>> =
         const { UnsafeCell::new(None) };
 }
+
+/// Stable identifier attribute stored on a portal marker.
+pub(crate) const DATA_EUV_PORTAL_ID: &str = "data-euv-portal-id";
+
+/// Stable identifier attribute stored on the matching portal content wrapper.
+pub(crate) const DATA_EUV_PORTAL_CONTENT_ID: &str = "data-euv-portal-content-id";
+
+/// Marks portal content waiting for its target to enter the mounted document.
+pub(crate) const DATA_EUV_PORTAL_PENDING: &str = "data-euv-portal-pending";
+
+/// The attribute value used while a portal waits for its target.
+pub(crate) const PORTAL_PENDING_VALUE: &str = "true";
+
+/// Keeps the portal bookkeeping wrapper out of layout while retaining its DOM subtree.
+pub(crate) const PORTAL_CONTENT_STYLE: &str = "display:contents";

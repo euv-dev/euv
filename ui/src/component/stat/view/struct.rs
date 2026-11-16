@@ -8,11 +8,11 @@ use super::*;
 #[derive(Clone, CustomDebug, Default)]
 pub struct EuvStatProps {
     /// The metric name rendered under the value in muted styling.
-    pub label: &'static str,
+    pub label: ::euv::CowText,
     /// The metric value rendered in the large accented style.
-    pub value: &'static str,
+    pub value: ::euv::CowText,
     /// The optional secondary note under the label (skipped when empty).
-    pub hint: &'static str,
+    pub hint: ::euv::CowText,
     /// The optional leading glyph or icon (skipped when empty).
-    pub icon: &'static str,
+    pub icon: ::euv::CowText,
 }

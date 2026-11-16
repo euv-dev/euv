@@ -1,5 +1,6 @@
 mod hook;
+mod view;
 
-pub use hook::*;
+pub use {hook::*, view::*};
 
 use super::*;

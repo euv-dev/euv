@@ -87,6 +87,8 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
       - name: Run tests
         run: |
           cargo test -p euv-ui
@@ -94,8 +96,6 @@ jobs:
           cargo test -p euv-ui --no-default-features --features theme-custom
           cargo test --all-features --workspace -- --nocapture
           cargo test --manifest-path performance/Cargo.toml --all-targets --no-default-features
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked
       - name: Run wasm tests
         run: |
           cd ui
@@ -162,7 +162,10 @@ jobs:
           targets: wasm32-unknown-unknown
       - name: Install matching WASM bridge generator
         run: |
-          version=$(python3 -c 'import pathlib,tomllib; value=tomllib.loads(pathlib.Path("Cargo.toml").read_text())["workspace"]["dependencies"]["wasm-bindgen"]; print(value if isinstance(value,str) else value["version"])')
+          version=$(
+            cargo metadata --format-version 1 --filter-platform wasm32-unknown-unknown |
+            python3 -c 'import json,sys; versions={package["version"] for package in json.load(sys.stdin)["packages"] if package["name"]=="wasm-bindgen"}; assert len(versions)==1, versions; print(versions.pop())'
+          )
           cargo install wasm-bindgen-cli --version "$version" --locked
       - name: Prepare Chrome and matching driver
         run: |
@@ -407,6 +410,8 @@ jobs:
               printf '| `%s` | [crates.io](https://crates.io/crates/%s/%s) | [docs.rs](https://docs.rs/%s/%s) |\n' \
                 "$pkg" "$pkg" "$VERSION" "$pkg" "$VERSION"
             done
+            printf '\n## App builds\n\n[App Release and downloads](%s/%s/releases/tag/latest)\n' \
+              "${{ github.server_url }}" "${{ github.repository }}"
             printf '\nCommit History: https://github.com/%s/commits/%s\n' \
               "${{ github.repository }}" "$TAG"
           } > "$NOTES_FILE"

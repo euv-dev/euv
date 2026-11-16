@@ -23,6 +23,7 @@ fn icon_node(size: EuvIconSize, label: &'static str) -> VirtualNode<EuvIconProps
             name: "star",
             label,
             size,
+            svg: None,
         })),
     }
 }
@@ -47,9 +48,10 @@ fn result_node(code: &'static str) -> VirtualNode<EuvResultProps> {
         children: Vec::new(),
         key: None,
         props: Some(Box::new(EuvResultProps {
-            code,
-            title: "Title",
-            description: "Description",
+            code: code.into(),
+            title: "Title".into(),
+            description: "Description".into(),
+            level: None,
         })),
     }
 }
@@ -109,6 +111,7 @@ fn an_icon_without_props_renders_the_default_size() {
             name: "",
             label: "",
             size: EuvIconSize::default(),
+            svg: None,
         })),
     });
     assert_eq!(

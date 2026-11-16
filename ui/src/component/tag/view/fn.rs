@@ -25,14 +25,14 @@ pub fn euv_tag(node: VirtualNode<EuvTagProps>) -> VirtualNode {
                 span {
                     class: c_euv_tag_solid_black()
                     onclick: on_click
-                    text
+                    text.clone()
                 }
             },
             EuvTagColor::White => html! {
                 span {
                     class: c_euv_tag_solid_white()
                     onclick: on_click
-                    text
+                    text.clone()
                 }
             },
         },
@@ -41,14 +41,14 @@ pub fn euv_tag(node: VirtualNode<EuvTagProps>) -> VirtualNode {
                 span {
                     class: c_euv_tag_outline_black()
                     onclick: on_click
-                    text
+                    text.clone()
                 }
             },
             EuvTagColor::White => html! {
                 span {
                     class: c_euv_tag_outline_white()
                     onclick: on_click
-                    text
+                    text.clone()
                 }
             },
         },

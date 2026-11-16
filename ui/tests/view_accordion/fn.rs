@@ -177,8 +177,8 @@ fn a_header_button_reports_its_state() {
         "the trigger carries its keyboard navigation handler"
     );
     if cfg!(feature = "theme-shadcn") {
-        assert!(has_class(&first[0], "c_euv_accordion_trigger_shadcn"));
-        assert!(has_class(&rendered, "c_euv_accordion_content_shadcn"));
+        assert!(has_class(&first[0], "c_euv_accordion_trigger"));
+        assert!(has_class(&rendered, "c_euv_accordion_content"));
     }
 }
 

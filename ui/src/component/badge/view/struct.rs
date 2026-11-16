@@ -12,9 +12,10 @@ pub struct EuvBadgeProps {
     #[get(type(copy))]
     pub variant: EuvBadgeVariant,
     /// The badge text content.
-    #[get(type(copy))]
-    pub text: &'static str,
+    pub text: ::euv::CowText,
     /// Optional click event handler.
     #[debug(skip)]
     pub on_click: Option<Rc<dyn Fn(Event)>>,
+    /// An optional application class composed with the design-system badge classes.
+    pub class: Css,
 }

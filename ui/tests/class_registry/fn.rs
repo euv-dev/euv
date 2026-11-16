@@ -1,5 +1,70 @@
 use super::*;
 
+#[test]
+fn all_production_sources_reject_legacy_class_text_and_scheme_component_overrides() {
+    let legacy: Vec<&str> = include_str!("../feature_class_architecture/mapping.json")
+        .lines()
+        .filter_map(|line: &str| line.split('"').nth(1))
+        .collect();
+    assert_eq!(legacy.len(), 208);
+    let root: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files: Vec<PathBuf> = Vec::new();
+    collect(&root, &mut files);
+    assert!(!files.is_empty());
+    for path in files {
+        let source: String = fs::read_to_string(&path).expect("a production Rust source");
+        for token in
+            source.split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+        {
+            assert!(
+                !legacy.contains(&token),
+                "{} contains legacy class text {token}",
+                path.display()
+            );
+        }
+        for forbidden in ["APP_SCHEME_SHADCN_CSS", ".c_scheme_shadcn"] {
+            assert!(
+                !source.contains(forbidden),
+                "{} contains a scheme-scoped component stylesheet: {forbidden}",
+                path.display()
+            );
+        }
+    }
+}
+
+#[test]
+fn form_normalization_is_global_and_preserves_component_cascade_priority() {
+    let reset: &str = crate::APP_GLOBAL_CSS_FORM;
+    assert!(
+        reset
+            .contains(":where(input,button,textarea,select,optgroup,option,output,meter,progress)")
+    );
+    assert!(reset.find("font: inherit;").unwrap() < reset.find("line-height: inherit;").unwrap());
+    assert!(reset.contains("appearance: none;"));
+    assert!(!reset.contains("!important"));
+}
+
+#[cfg(not(feature = "theme-custom"))]
+#[test]
+fn desktop_shell_does_not_lazily_inject_global_form_normalization() {
+    let rules: String = format!("{:?}", c_app_root().get_pseudo_rules());
+    assert!(!rules.contains("input, textarea, select, button"));
+}
+
+#[cfg(not(feature = "theme-custom"))]
+#[test]
+fn attachment_groups_emit_the_supported_horizontal_overscroll_property() {
+    assert!(
+        c_euv_attachment_group()
+            .get_style()
+            .split(';')
+            .filter_map(|part: &str| part.split_once(':'))
+            .any(|(name, value): (&str, &str)| {
+                name.trim() == "overscroll-behavior-x" && value.trim() == "contain"
+            })
+    );
+}
+
 const SCALE: &[f32] = &[
     0.0, 2.0, 4.0, 8.0, 9.0, 10.0, 12.0, 16.0, 20.0, 24.0, 28.0, 32.0, 40.0, 80.0,
 ];
@@ -286,6 +351,51 @@ fn value_of(declarations: &[(String, String)], property: &str) -> Option<String>
         .find(|entry: &&(String, String)| entry.0 == property)
         .map(|entry: &(String, String)| entry.1.trim_matches('"').to_string())
 }
+fn has_border_declaration(declarations: &[(String, String)]) -> bool {
+    declarations.iter().any(|entry: &(String, String)| {
+        let property: &str = entry.0.as_str();
+        let value: &str = entry.1.trim_matches('"');
+        property.starts_with("border")
+            && !property.ends_with("-radius")
+            && !value.is_empty()
+            && value != "none"
+    })
+}
+#[test]
+fn corner_radii_do_not_count_as_border_declarations() {
+    for property in [
+        "border-radius",
+        "border-top-left-radius",
+        "border-top-right-radius",
+        "border-bottom-left-radius",
+        "border-bottom-right-radius",
+        "border-start-start-radius",
+        "border-start-end-radius",
+        "border-end-start-radius",
+        "border-end-end-radius",
+    ] {
+        let declarations: Vec<(String, String)> =
+            vec![(property.to_string(), "var(--radius-sm)".to_string())];
+        assert!(!has_border_declaration(&declarations), "{property}");
+    }
+}
+#[test]
+fn border_shorthand_and_edge_declarations_remain_detected() {
+    for property in [
+        "border",
+        "border-width",
+        "border-left",
+        "border-block-start",
+    ] {
+        let declarations: Vec<(String, String)> =
+            vec![(property.to_string(), "1px solid currentColor".to_string())];
+        assert!(has_border_declaration(&declarations), "{property}");
+        for value in ["", "none"] {
+            let absent: Vec<(String, String)> = vec![(property.to_string(), value.to_string())];
+            assert!(!has_border_declaration(&absent), "{property}: {value}");
+        }
+    }
+}
 #[test]
 fn a_bordered_inline_box_is_never_an_atomic_inline_flex() {
     let mut offenders: Vec<String> = Vec::new();
@@ -301,14 +411,7 @@ fn a_bordered_inline_box_is_never_an_atomic_inline_flex() {
         ) {
             continue;
         }
-        let bordered: bool = declarations.iter().any(|entry: &(String, String)| {
-            let property: &str = entry.0.as_str();
-            let value: &str = entry.1.trim_matches('"');
-            property.starts_with("border")
-                && property != "border-radius"
-                && !value.is_empty()
-                && value != "none"
-        });
+        let bordered: bool = has_border_declaration(&declarations);
         if !bordered {
             continue;
         }
@@ -361,20 +464,22 @@ fn the_ring_token_is_not_an_orphan() {
     );
 }
 fn registry_grouping_is_valid(source: &str) -> bool {
-    let styled: &str = "#[cfg(not(feature = \"theme-custom\"))]\nclass! {";
-    let disabled: &str = "#[cfg(feature = \"theme-custom\")]\nclass! {";
-    source
-        .lines()
-        .filter(|line: &&str| line.starts_with("class!"))
-        .count()
-        == 2
-        && source
-            .lines()
-            .filter(|line: &&str| line.trim_start().starts_with("#[cfg"))
-            .count()
-            == 2
-        && source.matches(styled).count() == 1
-        && source.matches(disabled).count() == 1
+    let compact: String = source.split_whitespace().collect();
+    let shared: &str = "#[cfg(not(feature=\"theme-custom\"))]class!{";
+    let custom: &str = "#[cfg(feature=\"theme-custom\")]class!{";
+    let default: &str =
+        "#[cfg(all(not(feature=\"theme-shadcn\"),not(feature=\"theme-custom\")))]class!{";
+    let shadcn: &str = "#[cfg(all(feature=\"theme-shadcn\",not(feature=\"theme-custom\")))]class!{";
+    let blocks: usize = compact.matches("class!{").count();
+    let selected: bool = match blocks {
+        2 => compact.matches(default).count() == 0 && compact.matches(shadcn).count() == 0,
+        4 => compact.matches(default).count() == 1 && compact.matches(shadcn).count() == 1,
+        _ => false,
+    };
+    selected
+        && compact.matches(shared).count() == 1
+        && compact.matches(custom).count() == 1
+        && compact.matches("#[cfg(").count() == blocks
 }
 
 #[test]

@@ -160,10 +160,7 @@ vars! {
         // Interaction
         // ═══════════════════════════════════════════════════════════════════════
 
-        // How far a hover lifts a surface and how deep a press settles. Every
-        // interactive class reads these, so the whole UI presses at the same
-        // depth instead of each rule inventing its own number.
-        lift-hover: "-2px";
+        // Shared press depth; hover feedback never changes geometry.
         press-scale: "0.97";
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -354,10 +351,7 @@ vars! {
         // Interaction
         // ═══════════════════════════════════════════════════════════════════════
 
-        // How far a hover lifts a surface and how deep a press settles. Every
-        // interactive class reads these, so the whole UI presses at the same
-        // depth instead of each rule inventing its own number.
-        lift-hover: "-2px";
+        // Shared press depth; hover feedback never changes geometry.
         press-scale: "0.97";
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -563,9 +557,19 @@ fn selected_scheme_class() -> &'static str {
 ///
 /// - `&'static str` - The class name that carries the scheme's tokens.
 #[rustfmt::skip]
-#[cfg(not(any(feature = "theme-shadcn", feature = "theme-monochrome", feature = "theme-antdesign", feature = "theme-material", feature = "theme-bootstrap", feature = "theme-cupertino", feature = "theme-fluent", feature = "theme-radix", feature = "theme-mantine", feature = "theme-daisyui", feature = "theme-heroui", feature = "theme-park", feature = "theme-geist", feature = "theme-linear", feature = "theme-stripe", feature = "theme-notion", feature = "theme-supabase")))]
+#[cfg(all(not(any(feature = "theme-shadcn", feature = "theme-monochrome", feature = "theme-antdesign", feature = "theme-material", feature = "theme-bootstrap", feature = "theme-cupertino", feature = "theme-fluent", feature = "theme-radix", feature = "theme-mantine", feature = "theme-daisyui", feature = "theme-heroui", feature = "theme-park", feature = "theme-geist", feature = "theme-linear", feature = "theme-stripe", feature = "theme-notion", feature = "theme-supabase")), feature = "theme-custom"))]
 fn selected_scheme_class() -> &'static str {
     c_scheme_shadcn().get_name()
+}
+/// Returns the CSS class name for the built-in monochrome default.
+///
+/// # Returns
+///
+/// - `&'static str` - The class name that carries the monochrome scheme tokens.
+#[rustfmt::skip]
+#[cfg(not(any(feature = "theme-shadcn", feature = "theme-monochrome", feature = "theme-antdesign", feature = "theme-material", feature = "theme-bootstrap", feature = "theme-cupertino", feature = "theme-fluent", feature = "theme-radix", feature = "theme-mantine", feature = "theme-daisyui", feature = "theme-heroui", feature = "theme-park", feature = "theme-geist", feature = "theme-linear", feature = "theme-stripe", feature = "theme-notion", feature = "theme-supabase", feature = "theme-custom")))]
+fn selected_scheme_class() -> &'static str {
+    c_scheme_monochrome().get_name()
 }
 
 /// Returns the CSS class name of the UI scheme compiled into this build.

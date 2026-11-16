@@ -69,21 +69,6 @@ class! {
                 padding: "0px";
             }
         }
-        input, textarea, select, button {
-            font: "inherit";
-            font-family: "inherit";
-            font-size: "inherit";
-            line-height: "normal";
-            margin: "0px";
-            padding: "0px";
-            border: "none";
-            outline: "none";
-            background: "transparent";
-            color: "inherit";
-            appearance: "none";
-            -webkit-appearance: "none";
-            -moz-appearance: "none";
-        }
         input[type="text"], input[type="number"], input[type="email"], input[type="password"], input[type="search"], input[type="tel"], input[type="url"] {
             appearance: "none";
             -webkit-appearance: "none";
@@ -724,102 +709,6 @@ class! {
         border-radius: var!(radius-md);
     }
 
-    pub c_euv_sidebar_group_title {
-        display: "flex";
-        align-items: "center";
-        justify-content: "space-between";
-        width: "100%";
-        // Symmetric horizontal padding so the text and the dashed border of
-        // any nested children line up on the left edge (see sidebar_children
-        // below). Left padding equals `border-left-width + padding-left` of
-        // the children container — that's the "text and the dashed border
-        // share the same x" requirement.
-        //
-        // Vertical padding is `control-row-pad`, not `space-md`. Two adjacent
-        // rows meet through the pair of their paddings, so 12px each left 24px
-        // of blank between labels while the row box stayed 48px tall — the left
-        // rail and the active fill then floated in twice the air the text
-        // occupied. 9px puts every row on the 42px box the CTA buttons
-        // (`c_home_btn_primary`) already use, so a sidebar row, a dropdown
-        // item and a button all read as the same size control. Every sidebar
-        // row class uses this value, so the rhythm stays even across the tree.
-        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
-        font-size: var!(font-base);
-        font-weight: var!(font-weight-normal);
-        cursor: "pointer";
-        text-align: "left";
-        // Hover: inset 3px shadow bar between the dashed tree guide and the
-        // title text. Using `box-shadow inset` instead of a real border
-        // avoids any layout change so the text x-position never moves on
-        // hover (see comment on `c_euv_sidebar_link:hover`).
-        :hover {
-            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
-        }
-    }
-
-    // A top-level group title has no `c_euv_sidebar_children` ancestor, so
-    // the base hover bar paints flush against the sidebar's own left edge
-    // and reads as part of the sidebar border rather than as an affordance.
-    // This variant insets the bar by the row's own left padding and doubles
-    // its weight, so a first-level row gets the same "you can click this"
-    // cue a nested row does, just with room around it. The offset lives on
-    // the shadow rather than on `padding`, so the text never moves.
-    //
-    // Vertical padding is `control-row-pad` like every other sidebar row —
-    // see `c_euv_sidebar_group_title`. A root title sits directly above a
-    // nested one, so a taller row here left the two ends of the same pair
-    // mismatched.
-    pub c_euv_sidebar_group_title_root {
-        display: "flex";
-        align-items: "center";
-        justify-content: "space-between";
-        width: "100%";
-        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
-        font-size: var!(font-base);
-        font-weight: var!(font-weight-normal);
-        cursor: "pointer";
-        text-align: "left";
-        :hover {
-            box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
-        }
-    }
-
-    pub c_euv_sidebar_group_title_root_active {
-        c_euv_sidebar_group_title_root();
-        background: var!(primary);
-        color: var!(primary-foreground);
-        font-weight: var!(font-weight-semibold);
-        :hover {
-            box-shadow: "none";
-            background: var!(primary);
-        }
-    }
-
-    pub c_euv_sidebar_group_title_active {
-        c_euv_sidebar_group_title();
-        background: var!(primary);
-        color: var!(primary-foreground);
-        font-weight: var!(font-weight-semibold);
-        // Same flush fill as `c_euv_sidebar_link_active_flush`: a nested
-        // active group title should read as one block with the sidebar, not
-        // as a chip sitting in from the edge. The negative margin below pulls
-        // the fill out to this level's dashed guide; the left padding pays it
-        // straight back so the label keeps the exact x it has while inactive.
-        //
-        // The arithmetic runs through `calc()` on the *length* token
-        // (`--side-indent`, which carries its own unit). Gluing a unit onto
-        // a `var()` — `var(--side-indent-num)px` — is not a length: the
-        // substitution leaves a number token next to an ident, the parser
-        // drops the whole declaration, and the fill never reaches the guide.
-        // A unitless token can only be used as a number inside `calc()`.
-        margin-left: format!("calc(-1 * {})", var!(side-indent));
-        width: format!("calc(100% + {})", var!(side-indent));
-        padding-left: format!("calc({} + {})", var!(space-md), var!(side-indent));
-        :hover {
-            box-shadow: "none";
-        }
-    }
-
     pub c_euv_sidebar_children {
         display: "flex";
         flex-direction: "column";
@@ -841,94 +730,6 @@ class! {
         animation: format!("euv-fade-in {} {}", var!(duration-normal), var!(ease-emphasized));
     }
 
-    pub c_euv_sidebar_link {
-        display: "block";
-        // `control-row-pad` vertically, matching `c_euv_sidebar_group_title`
-        // and the two `_active` classes — see the note there on why the row is
-        // 42px and not 48px.
-        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
-        font-size: var!(font-base);
-        color: var!(foreground);
-        font-weight: var!(font-weight-normal);
-        cursor: "pointer";
-        // Hover: paint a 3px solid bar *between* the dashed tree guide and
-        // the link's text. We use `inset box-shadow` rather than a real
-        // `border-left` because borders participate in the box's layout
-        // (they grow the border-edge and require compensating padding to
-        // keep the text x-position stable — and `calc(12px + 3px - 3px)`
-        // rounds inconsistently across browsers, causing sub-pixel text
-        // shifts on hover). An inset shadow is painted *inside* the
-        // existing padding box without changing layout, so the text never
-        // moves. The dashed parent border is also untouched.
-        :hover {
-            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
-        }
-        border-radius: var!(radius-md);
-    }
-
-    pub c_euv_sidebar_link_active {
-        display: "block";
-        // Same vertical padding as `c_euv_sidebar_link` (`control-row-pad`) —
-        // the accent fill has to be exactly as tall as the row it replaces.
-        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
-        font-size: var!(font-base);
-        background: var!(primary);
-        color: var!(primary-foreground);
-        font-weight: var!(font-weight-semibold);
-        cursor: "pointer";
-        // Active link: when the cursor is over it, the accent background
-        // must dominate. Drop the inset bar entirely so the accent fill
-        // carries the visual weight; on dark accent, an inset bar in the
-        // foreground color is invisible and only competes for the eye's
-        // focus. The accent fill + bold text already announce "you are
-        // here".
-        :hover {
-            box-shadow: "none";
-        }
-        border-radius: var!(radius-md);
-    }
-
-    // An active child needs the accent fill to read as one continuous block
-    // against the sidebar, not as a chip floating inside its parent's gutter.
-    // `c_euv_sidebar_children` offsets its rows from the dashed guide by its
-    // own `padding-left` plus the 1px border. The active row pulls its fill
-    // back out to the guide — `padding-left + border-left-width`, i.e.
-    // `side-indent` (9px) — so the fill starts exactly at the dashed rail.
-    // Compensating by the container's `margin-left` as well is wrong: it also
-    // cancels the row's own `padding-left`, pushing the fill past the guide.
-    // The negative margin is otherwise safe because the row is the full width
-    // of its container: the fill grows leftward into the parent's padding and
-    // nothing to its left moves.
-    pub c_euv_sidebar_link_active_flush {
-        display: "block";
-        // Text must not move between the inactive and active states, so the
-        // negative margin that pulls the fill out to the dashed guide is paid
-        // back here as extra left padding. The two cancel for the label while
-        // the background still reaches the guide. Only `padding-left` is
-        // touched — the shorthand would drop the other three sides.
-        //
-        // Vertical padding matches `c_euv_sidebar_link` (`control-row-pad`),
-        // see the note on that class for why the row is 42px and not 48px.
-        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
-        padding-left: format!("calc({} + {})", var!(space-md), var!(side-indent));
-        // The arithmetic runs through `calc()` on the *length* token
-        // (`--side-indent`, which carries its own unit). Gluing a unit onto
-        // a `var()` — `var(--side-indent-num)px` — is not a length: the
-        // substitution leaves a number token next to an ident, the parser
-        // drops the whole declaration, and the fill never reaches the guide.
-        // A unitless token can only be used as a number inside `calc()`.
-        margin-left: format!("calc(-1 * {})", var!(side-indent));
-        width: format!("calc(100% + {})", var!(side-indent));
-        font-size: var!(font-base);
-        background: var!(primary);
-        color: var!(primary-foreground);
-        font-weight: var!(font-weight-semibold);
-        cursor: "pointer";
-        :hover {
-            box-shadow: "none";
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
     // euv_toc
     // ═══════════════════════════════════════════════════════════════════════════
@@ -942,11 +743,12 @@ class! {
         display: "flex";
         flex-direction: "column";
         gap: var!(space-xs);
-        border-left: format!("{} solid {}", var!(border-width), var!(border));
-        padding-left: var!(space-lg);
+        border: "none";
     }
 
     pub c_euv_toc_link {
+        border: "none";
+        box-shadow: "none";
         font-size: var!(font-sm);
         color: var!(muted-foreground);
         cursor: "pointer";
@@ -958,17 +760,20 @@ class! {
         :hover {
             color: var!(primary);
         }
-        border-radius: var!(radius-sm);
+        border-radius: "0";
     }
 
     pub c_euv_toc_link_active {
         c_euv_toc_link();
         color: var!(primary);
         font-weight: var!(font-weight-bold);
-        :hover {
-            font-weight: var!(font-weight-bold);
+    }
+
+    pub(crate) c_euv_toc_link_separator {
+        :is(.c_euv_toc_link_separator) {
+            border-bottom: format!("{} solid {}", var!(border-width), var!(border));
+            padding-bottom: var!(space-xs);
         }
-        border-radius: var!(radius-sm);
     }
 
     pub c_euv_toc_link_nested {
@@ -980,9 +785,6 @@ class! {
         c_euv_toc_link_nested();
         color: var!(primary);
         font-weight: var!(font-weight-bold);
-        :hover {
-            font-weight: var!(font-weight-bold);
-        }
     }
 
     pub(crate) c_mobile_app_root {
@@ -1036,7 +838,7 @@ class! {
             width: "44px";
             height: "44px";
         }
-        border-radius: var!(radius-full);
+        border-radius: "0px";
         box-shadow: var!(shadow-md);
     }
 
@@ -1226,140 +1028,6 @@ class! {
         margin-bottom: "0px";
     }
 
-    // The glyph itself is a 6px `▸`, far too small a target: the clickable
-    // box wants to clear the ~24px that is comfortable to hit, without making
-    // the triangle *look* bigger. So the glyph keeps its font size and the
-    // extra area is built out of transparent padding plus negative margins
-    // that cancel the padding back out — the row keeps its 42px height and
-    // the glyph keeps its place at the right edge, but the invisible hit box
-    // grows to roughly 24x42.
-    //
-    // `euv_sidebar_group` applies exactly ONE arrow class (see the
-    // `(active, open)` match there), so these four variants do not stack and
-    // each one has to repeat the base declarations — the same duplication
-    // `c_euv_sidebar_group_title_root` already uses. Only the colour and the
-    // rotation differ between them.
-    //
-    // `cursor: pointer` and `user-select: none` are load-bearing now that the
-    // arrow is its own control: without them most of the enlarged area keeps
-    // the inherited `default` cursor, and a double-click can select the glyph
-    // as text instead of folding the group.
-    pub(crate) c_euv_sidebar_group_arrow {
-        font-size: var!(font-xs);
-        color: var!(muted-foreground);
-        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        // Invisible hit area: the 6px glyph plus 9px of padding on each side
-        // is ~24px wide, and vertically the negative margins carry it to the
-        // full row height. Written as a literal rather than through `var!`:
-        // `format!` around `var!(...)` yields `-var(--x)`, which is invalid CSS
-        // and the declaration is dropped silently — the row then stays 54px
-        // tall instead of 42px.
-        padding: "9px";
-        // Vertical padding would otherwise leak into layout and grow every row
-        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
-        // exactly the padding they accompany. The hit area is still the full
-        // row height — it just overlaps the row's own padding instead of
-        // pushing the row taller.
-        margin-top: "-9px";
-        margin-bottom: "-9px";
-        margin-right: "-9px";
-        margin-left: "-5px";
-        cursor: "pointer";
-        user-select: "none";
-        flex-shrink: "0";
-        :hover {
-            color: var!(foreground);
-        }
-    }
-
-    pub(crate) c_euv_sidebar_group_arrow_open {
-        font-size: var!(font-xs);
-        color: var!(muted-foreground);
-        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        padding: "9px";
-        // Vertical padding would otherwise leak into layout and grow every row
-        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
-        // exactly the padding they accompany. The hit area is still the full
-        // row height — it just overlaps the row's own padding instead of
-        // pushing the row taller.
-        margin-top: "-9px";
-        margin-bottom: "-9px";
-        margin-right: "-9px";
-        margin-left: "-5px";
-        cursor: "pointer";
-        user-select: "none";
-        flex-shrink: "0";
-        transform: "rotate(90deg)";
-        :hover {
-            color: var!(foreground);
-        }
-    }
-
-    pub(crate) c_euv_sidebar_group_arrow_active {
-        font-size: var!(font-xs);
-        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        padding: "9px";
-        // Vertical padding would otherwise leak into layout and grow every row
-        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
-        // exactly the padding they accompany. The hit area is still the full
-        // row height — it just overlaps the row's own padding instead of
-        // pushing the row taller.
-        margin-top: "-9px";
-        margin-bottom: "-9px";
-        margin-right: "-9px";
-        margin-left: "-5px";
-        cursor: "pointer";
-        user-select: "none";
-        flex-shrink: "0";
-        color: var!(primary-foreground);
-        // An active row sits on the accent fill; the hover colour must stay
-        // the on-accent ink or hovering the arrow flips it to the muted
-        // foreground and it vanishes against the highlight.
-        :hover {
-            color: var!(primary-foreground);
-        }
-    }
-
-    // The arrow's colour and its rotation are independent: `_active` only
-    // recolours the glyph so it reads on the accent fill, while `_open` only
-    // points it down. An active group can be open *or* collapsed, so it needs
-    // both at once — without this the active branch in `euv_sidebar_group`
-    // won the exclusive match and the arrow stopped following the toggle.
-    pub(crate) c_euv_sidebar_group_arrow_active_open {
-        font-size: var!(font-xs);
-        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
-        display: "flex";
-        align-items: "center";
-        justify-content: "center";
-        padding: "9px";
-        // Vertical padding would otherwise leak into layout and grow every row
-        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
-        // exactly the padding they accompany. The hit area is still the full
-        // row height — it just overlaps the row's own padding instead of
-        // pushing the row taller.
-        margin-top: "-9px";
-        margin-bottom: "-9px";
-        margin-right: "-9px";
-        margin-left: "-5px";
-        cursor: "pointer";
-        user-select: "none";
-        flex-shrink: "0";
-        color: var!(primary-foreground);
-        transform: "rotate(90deg)";
-        :hover {
-            color: var!(primary-foreground);
-        }
-    }
-
     pub(crate) c_euv_toc_title {
         font-size: var!(font-xs);
         font-weight: var!(font-weight-bold);
@@ -1370,6 +1038,8 @@ class! {
     }
     pub c_euv_dropdown_menu_item {
         display: "flex";
+        flex-shrink: "0";
+        box-sizing: "border-box";
         align-items: "center";
         justify-content: "space-between";
         gap: var!(space-sm);
@@ -1388,6 +1058,14 @@ class! {
         :hover {
             background: var!(accent);
             color: var!(accent-foreground);
+        }
+        :focus-visible {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
         }
     }
 
@@ -1418,17 +1096,22 @@ class! {
 
     pub c_euv_dropdown_menu_group {
         display: "flex";
+        flex-shrink: "0";
         flex-direction: "column";
         gap: var!(space-2xs);
     }
 
     pub c_euv_dropdown_menu_checkbox_item {
-        display: "flex";
+        c_euv_dropdown_menu_item();
+        justify-content: "flex-start";
+    }
+
+    pub c_euv_dropdown_menu_checkbox_indicator {
+        display: "inline-flex";
         align-items: "center";
-        gap: var!(space-sm);
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        font-size: var!(font-sm);
-        cursor: "pointer";
+        justify-content: "center";
+        flex-shrink: "0";
+        width: var!(space-md);
     }
 
     pub c_euv_dropdown_menu_radio_group {
@@ -1438,12 +1121,8 @@ class! {
     }
 
     pub c_euv_dropdown_menu_radio_item {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        font-size: var!(font-sm);
-        cursor: "pointer";
+        c_euv_dropdown_menu_item();
+        justify-content: "flex-start";
     }
 
     pub c_euv_dropdown_menu_sub {
@@ -1453,18 +1132,19 @@ class! {
     }
 
     pub c_euv_dropdown_menu_sub_trigger {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        width: "100%";
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        border: "none";
-        background: "transparent";
-        color: var!(foreground);
-        font-family: "inherit";
-        font-size: var!(font-sm);
-        text-align: "left";
-        cursor: "pointer";
+        c_euv_dropdown_menu_item();
+        justify-content: "flex-start";
+    }
+
+    pub(crate) c_euv_dropdown_menu_sub_caret {
+        display: "inline-flex";
+        flex-shrink: "0";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        margin-inline-start: "auto";
+        :dir(rtl) {
+            transform: "rotate(180deg)";
+        }
     }
 
     pub c_euv_dropdown_menu_sub_content {
@@ -1489,24 +1169,6 @@ class! {
         letter-spacing: var!(letter-spacing-wide);
     }
 
-    pub c_euv_menubar {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-xs);
-    }
-    pub(crate) c_euv_menubar_shadcn {
-        height: var!(control-height);
-        width: "fit-content";
-        align-self: "flex-start";
-        padding: var!(space-xs);
-        gap: var!(space-xs);
-        background: var!(background);
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-md);
-        box-shadow: var!(shadow-xs);
-    }
-
-
     pub c_euv_menubar_menu {
         position: "relative";
         display: "flex";
@@ -1517,112 +1179,12 @@ class! {
 
     pub c_euv_menubar_menu_closed {}
 
-    pub c_euv_menubar_trigger {
-        display: "inline-flex";
-        align-items: "center";
-        gap: var!(space-xs);
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        border: "none";
-        border-radius: var!(radius-sm);
-        background: "transparent";
-        color: var!(foreground);
-        font-family: "inherit";
-        font-size: var!(font-sm);
-        line-height: "1.5";
-        white-space: "nowrap";
-        cursor: "pointer";
-        :hover {
-            background: var!(accent);
-            color: var!(accent-foreground);
-        }
-    }
-    pub(crate) c_euv_menubar_trigger_shadcn {
-        font-weight: var!(font-weight-medium);
-        border-radius: var!(radius-sm);
-        :focus-visible {
-            background: var!(accent);
-            color: var!(accent-foreground);
-        }
-    }
-
-
-    pub c_euv_menubar_trigger_open {
-        background: var!(accent);
-        color: var!(accent-foreground);
-    }
-    pub(crate) c_euv_menubar_trigger_open_shadcn {
-        font-weight: var!(font-weight-medium);
-        border-radius: var!(radius-sm);
-    }
-
-
-    pub c_euv_menubar_content {
-        position: "absolute";
-        top: "100%";
-        left: "0px";
-        z-index: "101";
-        display: "flex";
-        flex-direction: "column";
-        min-width: "180px";
-        padding: var!(space-xs);
-        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
-        border-radius: var!(radius-md);
-        background: var!(popover);
-        color: var!(popover-foreground);
-        box-shadow: var!(shadow-md);
-    }
-
     pub c_euv_menubar_content_open {
         display: "flex";
     }
 
     pub c_euv_menubar_content_closed {
         display: "none";
-    }
-
-    pub(crate) c_euv_menubar_content_shadcn {
-        min-width: "12rem";
-        padding: var!(space-xs);
-        border-radius: var!(radius-md);
-        background: var!(popover);
-        color: var!(popover-foreground);
-        box-shadow: var!(shadow-md);
-    }
-
-    pub c_euv_menubar_item {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        width: "100%";
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        border: "none";
-        border-radius: var!(radius-sm);
-        background: "transparent";
-        color: var!(foreground);
-        font-family: "inherit";
-        font-size: var!(font-sm);
-        line-height: "1.5";
-        text-align: "left";
-        white-space: "nowrap";
-        cursor: "pointer";
-        :hover {
-            background: var!(accent);
-            color: var!(accent-foreground);
-        }
-    }
-
-    pub(crate) c_euv_menubar_item_shadcn {
-        padding: format!("calc({} + {}) {}", var!(space-xs), var!(space-2xs), var!(space-sm));
-        border-radius: var!(radius-sm);
-        cursor: "default";
-        :focus-visible {
-            background: var!(accent);
-            color: var!(accent-foreground);
-        }
-        :disabled {
-            pointer-events: "none";
-            opacity: "0.5";
-        }
     }
 
     pub c_euv_menu_panel {
@@ -1641,33 +1203,6 @@ class! {
     pub c_euv_scroll_area {
         position: "relative";
         overflow: "hidden";
-    }
-
-    pub c_euv_scroll_area_viewport {
-        width: "100%";
-        height: "100%";
-        overflow: "auto";
-        border-radius: var!(radius-md);
-    }
-
-    pub c_euv_scroll_bar {
-        position: "absolute";
-        top: "0px";
-        right: "0px";
-        display: "flex";
-        width: "10px";
-        height: "100%";
-        padding: var!(space-2xs);
-        border-left: format!("{} {} {}", var!(border-width), "solid", "transparent");
-        touch-action: "none";
-        user-select: "none";
-    }
-
-    pub c_euv_scroll_bar_thumb {
-        position: "relative";
-        flex: "1 1 auto";
-        border-radius: "9999px";
-        background: var!(border);
     }
 }
 
@@ -1815,6 +1350,8 @@ class! {
 
     pub c_euv_toc_link_nested_active {}
 
+    pub(crate) c_euv_toc_link_separator {}
+
     pub(crate) c_mobile_app_root {}
 
     pub(crate) c_euv_logo {}
@@ -1905,6 +1442,8 @@ class! {
 
     pub c_euv_dropdown_menu_checkbox_item {}
 
+    pub c_euv_dropdown_menu_checkbox_indicator {}
+
     pub c_euv_dropdown_menu_radio_group {}
 
     pub c_euv_dropdown_menu_radio_item {}
@@ -1912,6 +1451,8 @@ class! {
     pub c_euv_dropdown_menu_sub {}
 
     pub c_euv_dropdown_menu_sub_trigger {}
+
+    pub(crate) c_euv_dropdown_menu_sub_caret {}
 
     pub c_euv_dropdown_menu_sub_content {}
 
@@ -1945,13 +1486,662 @@ class! {
     pub c_euv_scroll_bar {}
 
     pub c_euv_scroll_bar_thumb {}
-    pub(crate) c_euv_menubar_shadcn {}
+}
 
-    pub(crate) c_euv_menubar_trigger_open_shadcn {}
+#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+class! {
+    pub c_euv_sidebar_group_title {
+        display: "flex";
+        align-items: "center";
+        justify-content: "space-between";
+        width: "100%";
+        // Symmetric horizontal padding so the text and the dashed border of
+        // any nested children line up on the left edge (see sidebar_children
+        // below). Left padding equals `border-left-width + padding-left` of
+        // the children container — that's the "text and the dashed border
+        // share the same x" requirement.
+        //
+        // Vertical padding is `control-row-pad`, not `space-md`. Two adjacent
+        // rows meet through the pair of their paddings, so 12px each left 24px
+        // of blank between labels while the row box stayed 48px tall — the left
+        // rail and the active fill then floated in twice the air the text
+        // occupied. 9px puts every row on the 42px box the CTA buttons
+        // (`c_home_btn_primary`) already use, so a sidebar row, a dropdown
+        // item and a button all read as the same size control. Every sidebar
+        // row class uses this value, so the rhythm stays even across the tree.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
+        font-size: var!(font-base);
+        font-weight: var!(font-weight-normal);
+        cursor: "pointer";
+        text-align: "left";
+        // Hover: inset 3px shadow bar between the dashed tree guide and the
+        // title text. Using `box-shadow inset` instead of a real border
+        // avoids any layout change so the text x-position never moves on
+        // hover (see comment on `c_euv_sidebar_link:hover`).
+        :hover {
+            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
+        }
+    }
 
-    pub(crate) c_euv_menubar_trigger_shadcn {}
+    // A top-level group title has no `c_euv_sidebar_children` ancestor, so
+    // the base hover bar paints flush against the sidebar's own left edge
+    // and reads as part of the sidebar border rather than as an affordance.
+    // This variant insets the bar by the row's own left padding and doubles
+    // its weight, so a first-level row gets the same "you can click this"
+    // cue a nested row does, just with room around it. The offset lives on
+    // the shadow rather than on `padding`, so the text never moves.
+    //
+    // Vertical padding is `control-row-pad` like every other sidebar row —
+    // see `c_euv_sidebar_group_title`. A root title sits directly above a
+    // nested one, so a taller row here left the two ends of the same pair
+    // mismatched.
+    pub c_euv_sidebar_group_title_root {
+        display: "flex";
+        align-items: "center";
+        justify-content: "space-between";
+        width: "100%";
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
+        font-size: var!(font-base);
+        font-weight: var!(font-weight-normal);
+        cursor: "pointer";
+        text-align: "left";
+        :hover {
+            box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
+        }
+    }
 
-    pub(crate) c_euv_menubar_content_shadcn {}
+    pub c_euv_sidebar_group_title_root_active {
+        c_euv_sidebar_group_title_root();
+        background: var!(primary);
+        color: var!(primary-foreground);
+        font-weight: var!(font-weight-semibold);
+        :hover {
+            box-shadow: "none";
+            background: var!(primary);
+        }
+    }
 
-    pub(crate) c_euv_menubar_item_shadcn {}
+    pub c_euv_sidebar_group_title_active {
+        c_euv_sidebar_group_title();
+        background: var!(primary);
+        color: var!(primary-foreground);
+        font-weight: var!(font-weight-semibold);
+        // Same flush fill as `c_euv_sidebar_link_active_flush`: a nested
+        // active group title should read as one block with the sidebar, not
+        // as a chip sitting in from the edge. The negative margin below pulls
+        // the fill out to this level's dashed guide; the left padding pays it
+        // straight back so the label keeps the exact x it has while inactive.
+        //
+        // The arithmetic runs through `calc()` on the *length* token
+        // (`--side-indent`, which carries its own unit). Gluing a unit onto
+        // a `var()` — `var(--side-indent-num)px` — is not a length: the
+        // substitution leaves a number token next to an ident, the parser
+        // drops the whole declaration, and the fill never reaches the guide.
+        // A unitless token can only be used as a number inside `calc()`.
+        margin-left: format!("calc(-1 * {})", var!(side-indent));
+        width: format!("calc(100% + {})", var!(side-indent));
+        padding-left: format!("calc({} + {})", var!(space-md), var!(side-indent));
+        :hover {
+            box-shadow: "none";
+        }
+    }
+
+    pub c_euv_sidebar_link {
+        display: "block";
+        // `control-row-pad` vertically, matching `c_euv_sidebar_group_title`
+        // and the two `_active` classes — see the note there on why the row is
+        // 42px and not 48px.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
+        font-size: var!(font-base);
+        color: var!(foreground);
+        font-weight: var!(font-weight-normal);
+        cursor: "pointer";
+        // Hover: paint a 3px solid bar *between* the dashed tree guide and
+        // the link's text. We use `inset box-shadow` rather than a real
+        // `border-left` because borders participate in the box's layout
+        // (they grow the border-edge and require compensating padding to
+        // keep the text x-position stable — and `calc(12px + 3px - 3px)`
+        // rounds inconsistently across browsers, causing sub-pixel text
+        // shifts on hover). An inset shadow is painted *inside* the
+        // existing padding box without changing layout, so the text never
+        // moves. The dashed parent border is also untouched.
+        :hover {
+            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
+        }
+        border-radius: var!(radius-md);
+    }
+
+    pub c_euv_sidebar_link_active {
+        display: "block";
+        // Same vertical padding as `c_euv_sidebar_link` (`control-row-pad`) —
+        // the accent fill has to be exactly as tall as the row it replaces.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
+        font-size: var!(font-base);
+        background: var!(primary);
+        color: var!(primary-foreground);
+        font-weight: var!(font-weight-semibold);
+        cursor: "pointer";
+        // Active link: when the cursor is over it, the accent background
+        // must dominate. Drop the inset bar entirely so the accent fill
+        // carries the visual weight; on dark accent, an inset bar in the
+        // foreground color is invisible and only competes for the eye's
+        // focus. The accent fill + bold text already announce "you are
+        // here".
+        :hover {
+            box-shadow: "none";
+        }
+        border-radius: var!(radius-md);
+    }
+
+    // An active child needs the accent fill to read as one continuous block
+    // against the sidebar, not as a chip floating inside its parent's gutter.
+    // `c_euv_sidebar_children` offsets its rows from the dashed guide by its
+    // own `padding-left` plus the 1px border. The active row pulls its fill
+    // back out to the guide — `padding-left + border-left-width`, i.e.
+    // `side-indent` (9px) — so the fill starts exactly at the dashed rail.
+    // Compensating by the container's `margin-left` as well is wrong: it also
+    // cancels the row's own `padding-left`, pushing the fill past the guide.
+    // The negative margin is otherwise safe because the row is the full width
+    // of its container: the fill grows leftward into the parent's padding and
+    // nothing to its left moves.
+    pub c_euv_sidebar_link_active_flush {
+        display: "block";
+        // Text must not move between the inactive and active states, so the
+        // negative margin that pulls the fill out to the dashed guide is paid
+        // back here as extra left padding. The two cancel for the label while
+        // the background still reaches the guide. Only `padding-left` is
+        // touched — the shorthand would drop the other three sides.
+        //
+        // Vertical padding matches `c_euv_sidebar_link` (`control-row-pad`),
+        // see the note on that class for why the row is 42px and not 48px.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-md));
+        padding-left: format!("calc({} + {})", var!(space-md), var!(side-indent));
+        // The arithmetic runs through `calc()` on the *length* token
+        // (`--side-indent`, which carries its own unit). Gluing a unit onto
+        // a `var()` — `var(--side-indent-num)px` — is not a length: the
+        // substitution leaves a number token next to an ident, the parser
+        // drops the whole declaration, and the fill never reaches the guide.
+        // A unitless token can only be used as a number inside `calc()`.
+        margin-left: format!("calc(-1 * {})", var!(side-indent));
+        width: format!("calc(100% + {})", var!(side-indent));
+        font-size: var!(font-base);
+        background: var!(primary);
+        color: var!(primary-foreground);
+        font-weight: var!(font-weight-semibold);
+        cursor: "pointer";
+        :hover {
+            box-shadow: "none";
+        }
+    }
+
+    // The glyph itself is a 6px `▸`, far too small a target: the clickable
+    // box wants to clear the ~24px that is comfortable to hit, without making
+    // the triangle *look* bigger. So the glyph keeps its font size and the
+    // extra area is built out of transparent padding plus negative margins
+    // that cancel the padding back out — the row keeps its 42px height and
+    // the glyph keeps its place at the right edge, but the invisible hit box
+    // grows to roughly 24x42.
+    //
+    // `euv_sidebar_group` applies exactly ONE arrow class (see the
+    // `(active, open)` match there), so these four variants do not stack and
+    // each one has to repeat the base declarations — the same duplication
+    // `c_euv_sidebar_group_title_root` already uses. Only the colour and the
+    // rotation differ between them.
+    //
+    // `cursor: pointer` and `user-select: none` are load-bearing now that the
+    // arrow is its own control: without them most of the enlarged area keeps
+    // the inherited `default` cursor, and a double-click can select the glyph
+    // as text instead of folding the group.
+    pub(crate) c_euv_sidebar_group_arrow {
+        font-size: var!(font-xs);
+        color: var!(muted-foreground);
+        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        // Invisible hit area: the 6px glyph plus 9px of padding on each side
+        // is ~24px wide, and vertically the negative margins carry it to the
+        // full row height. Written as a literal rather than through `var!`:
+        // `format!` around `var!(...)` yields `-var(--x)`, which is invalid CSS
+        // and the declaration is dropped silently — the row then stays 54px
+        // tall instead of 42px.
+        padding: "9px";
+        // Vertical padding would otherwise leak into layout and grow every row
+        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
+        // exactly the padding they accompany. The hit area is still the full
+        // row height — it just overlaps the row's own padding instead of
+        // pushing the row taller.
+        margin-top: "-9px";
+        margin-bottom: "-9px";
+        margin-right: "-9px";
+        margin-left: "-5px";
+        cursor: "pointer";
+        user-select: "none";
+        flex-shrink: "0";
+        :hover {
+            color: var!(foreground);
+        }
+    }
+
+    pub(crate) c_euv_sidebar_group_arrow_open {
+        font-size: var!(font-xs);
+        color: var!(muted-foreground);
+        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        padding: "9px";
+        // Vertical padding would otherwise leak into layout and grow every row
+        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
+        // exactly the padding they accompany. The hit area is still the full
+        // row height — it just overlaps the row's own padding instead of
+        // pushing the row taller.
+        margin-top: "-9px";
+        margin-bottom: "-9px";
+        margin-right: "-9px";
+        margin-left: "-5px";
+        cursor: "pointer";
+        user-select: "none";
+        flex-shrink: "0";
+        transform: "rotate(90deg)";
+        :hover {
+            color: var!(foreground);
+        }
+    }
+
+    pub(crate) c_euv_sidebar_group_arrow_active {
+        font-size: var!(font-xs);
+        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        padding: "9px";
+        // Vertical padding would otherwise leak into layout and grow every row
+        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
+        // exactly the padding they accompany. The hit area is still the full
+        // row height — it just overlaps the row's own padding instead of
+        // pushing the row taller.
+        margin-top: "-9px";
+        margin-bottom: "-9px";
+        margin-right: "-9px";
+        margin-left: "-5px";
+        cursor: "pointer";
+        user-select: "none";
+        flex-shrink: "0";
+        color: var!(primary-foreground);
+        // An active row sits on the accent fill; the hover colour must stay
+        // the on-accent ink or hovering the arrow flips it to the muted
+        // foreground and it vanishes against the highlight.
+        :hover {
+            color: var!(primary-foreground);
+        }
+    }
+
+    // The arrow's colour and its rotation are independent: `_active` only
+    // recolours the glyph so it reads on the accent fill, while `_open` only
+    // points it down. An active group can be open *or* collapsed, so it needs
+    // both at once — without this the active branch in `euv_sidebar_group`
+    // won the exclusive match and the arrow stopped following the toggle.
+    pub(crate) c_euv_sidebar_group_arrow_active_open {
+        font-size: var!(font-xs);
+        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+        display: "flex";
+        align-items: "center";
+        justify-content: "center";
+        padding: "9px";
+        // Vertical padding would otherwise leak into layout and grow every row
+        // by 18px (42px -> 54px), so the negative top/bottom margins cancel
+        // exactly the padding they accompany. The hit area is still the full
+        // row height — it just overlaps the row's own padding instead of
+        // pushing the row taller.
+        margin-top: "-9px";
+        margin-bottom: "-9px";
+        margin-right: "-9px";
+        margin-left: "-5px";
+        cursor: "pointer";
+        user-select: "none";
+        flex-shrink: "0";
+        color: var!(primary-foreground);
+        transform: "rotate(90deg)";
+        :hover {
+            color: var!(primary-foreground);
+        }
+    }
+
+    pub c_euv_menubar {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-xs);
+    }
+
+    pub c_euv_menubar_trigger {
+        display: "inline-flex";
+        align-items: "center";
+        gap: var!(space-xs);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        white-space: "nowrap";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub c_euv_menubar_trigger_open {
+        background: var!(accent);
+        color: var!(accent-foreground);
+    }
+
+    pub c_euv_menubar_content {
+        position: "absolute";
+        top: "100%";
+        left: "0px";
+        z-index: "101";
+        display: "flex";
+        flex-direction: "column";
+        min-width: "180px";
+        padding: var!(space-xs);
+        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
+        border-radius: var!(radius-md);
+        background: var!(popover);
+        color: var!(popover-foreground);
+        box-shadow: var!(shadow-md);
+    }
+
+    pub c_euv_menubar_item {
+        display: "flex";
+        box-sizing: "border-box";
+        align-items: "center";
+        gap: var!(space-sm);
+        width: "100%";
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        text-align: "left";
+        white-space: "nowrap";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :focus-visible {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
+        }
+    }
+
+    pub c_euv_scroll_area_viewport {
+        width: "100%";
+        height: "100%";
+        overflow: "auto";
+        border-radius: var!(radius-md);
+        scrollbar-width: "none";
+        ::-webkit-scrollbar {
+            display: "none";
+        }
+    }
+
+    pub c_euv_scroll_bar {
+        position: "absolute";
+        top: "0px";
+        inset-inline-end: "0px";
+        display: "flex";
+        box-sizing: "border-box";
+        width: "10px";
+        height: "100%";
+        // Shadcn's p-px leaves a seven-pixel thumb inside its ten-pixel bordered track.
+        padding: var!(space-2xs);
+        border-inline-start: format!("{} {} {}", var!(border-width), "solid", "transparent");
+        touch-action: "none";
+        user-select: "none";
+    }
+
+    pub c_euv_scroll_bar_thumb {
+        position: "relative";
+        flex: "0 0 auto";
+        width: "100%";
+        border-radius: "0px";
+        background: var!(border);
+    }
+}
+
+#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+class! {
+    pub c_euv_sidebar_group_title {
+        c_euv_sidebar_menu_button();
+        justify-content: "space-between";
+    }
+
+    pub c_euv_sidebar_group_title_root {
+        c_euv_sidebar_menu_button();
+        justify-content: "space-between";
+    }
+
+    pub c_euv_sidebar_group_title_root_active {
+        c_euv_sidebar_menu_button_active();
+        justify-content: "space-between";
+    }
+
+    pub c_euv_sidebar_group_title_active {
+        c_euv_sidebar_menu_button_active();
+        justify-content: "space-between";
+    }
+
+    pub c_euv_sidebar_link {
+        c_euv_sidebar_menu_button();
+    }
+
+    pub c_euv_sidebar_link_active {
+        c_euv_sidebar_menu_button_active();
+    }
+
+    pub c_euv_sidebar_link_active_flush {
+        c_euv_sidebar_menu_button_active();
+    }
+
+    pub(crate) c_euv_sidebar_group_arrow {
+        c_euv_sidebar_menu_action();
+        font-size: var!(font-xs);
+        user-select: "none";
+        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+    }
+
+    pub(crate) c_euv_sidebar_group_arrow_open {
+        c_euv_sidebar_menu_action();
+        font-size: var!(font-xs);
+        user-select: "none";
+        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+        transform: "rotate(90deg)";
+    }
+
+    pub(crate) c_euv_sidebar_group_arrow_active {
+        c_euv_sidebar_menu_action();
+        font-size: var!(font-xs);
+        user-select: "none";
+        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+        color: var!(accent-foreground);
+    }
+
+    pub(crate) c_euv_sidebar_group_arrow_active_open {
+        c_euv_sidebar_menu_action();
+        font-size: var!(font-xs);
+        user-select: "none";
+        transition: format!("transform {} {}", var!(duration-fast), var!(ease-out));
+        color: var!(accent-foreground);
+        transform: "rotate(90deg)";
+    }
+
+    pub c_euv_menubar {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-xs);
+
+        height: var!(control-height);
+        width: "fit-content";
+        align-self: "flex-start";
+        padding: var!(space-xs);
+        gap: var!(space-xs);
+        background: var!(background);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        box-shadow: var!(shadow-xs);
+
+        border-radius: var!(radius-lg);
+        gap: var!(space-2xs);
+    }
+
+    pub c_euv_menubar_trigger {
+        display: "inline-flex";
+        align-items: "center";
+        gap: var!(space-xs);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        white-space: "nowrap";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+
+        font-weight: var!(font-weight-medium);
+        border-radius: var!(radius-sm);
+        :focus-visible {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+
+        padding-left: var!(space-xs-sm);
+    }
+
+    pub c_euv_menubar_trigger_open {
+        background: var!(accent);
+        color: var!(accent-foreground);
+
+        font-weight: var!(font-weight-medium);
+        border-radius: var!(radius-sm);
+
+        padding-left: var!(space-xs-sm);
+    }
+
+    pub c_euv_menubar_content {
+        position: "absolute";
+        top: "100%";
+        left: "0px";
+        z-index: "101";
+        display: "flex";
+        flex-direction: "column";
+        min-width: "180px";
+        padding: var!(space-xs);
+        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
+        border-radius: var!(radius-md);
+        background: var!(popover);
+        color: var!(popover-foreground);
+        box-shadow: var!(shadow-md);
+
+        min-width: "12rem";
+        padding: var!(space-xs);
+        border-radius: var!(radius-md);
+        background: var!(popover);
+        color: var!(popover-foreground);
+        box-shadow: var!(shadow-md);
+    }
+
+    pub c_euv_menubar_item {
+        display: "flex";
+        box-sizing: "border-box";
+        align-items: "center";
+        gap: var!(space-sm);
+        width: "100%";
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        text-align: "left";
+        white-space: "nowrap";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :focus-visible {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
+        }
+
+        padding: format!("calc({} + {}) {}", var!(space-xs), var!(space-2xs), var!(space-sm));
+        border-radius: var!(radius-sm);
+        cursor: "default";
+        :focus-visible {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
+        }
+    }
+
+    pub c_euv_scroll_area_viewport {
+        width: "100%";
+        height: "100%";
+        overflow: "auto";
+        border-radius: "inherit";
+        scrollbar-width: "none";
+        ::-webkit-scrollbar {
+            display: "none";
+        }
+    }
+
+    pub c_euv_scroll_bar {
+        position: "absolute";
+        top: "0px";
+        inset-inline-end: "0px";
+        display: "flex";
+        box-sizing: "border-box";
+        width: "10px";
+        height: "100%";
+        // Shadcn's p-px leaves a seven-pixel thumb inside its ten-pixel bordered track.
+        padding: "1px";
+        border-inline-start: format!("{} {} {}", var!(border-width), "solid", "transparent");
+        touch-action: "none";
+        user-select: "none";
+    }
+
+    pub c_euv_scroll_bar_thumb {
+        position: "relative";
+        flex: "0 0 auto";
+        width: "100%";
+        border-radius: "9999px";
+        background: var!(border);
+    }
 }

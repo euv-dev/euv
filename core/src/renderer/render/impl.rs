@@ -80,6 +80,7 @@ impl Renderer {
             let _: Result<Node, JsValue> = self.get_root().append_child(&dom_node);
         }
         self.set_current_tree(Some(new_unwrapped));
+        Self::relocate_portal_contents(self.get_root());
     }
 
     /// Renders the given virtual DOM tree into the real DOM by fully replacing
@@ -101,6 +102,7 @@ impl Renderer {
         let dom_node: Node = self.create_dom_node(&new_unwrapped);
         let _: Result<Node, JsValue> = self.get_root().append_child(&dom_node);
         self.set_current_tree(Some(new_unwrapped));
+        Self::relocate_portal_contents(self.get_root());
     }
 
     /// Patches the root DOM tree by replacing the single child of `self.root`.
@@ -187,17 +189,18 @@ impl Renderer {
                     }
                     return dom_element.clone().into();
                 }
-                // Portal markers carry the original `data-euv-portal`
-                // attribute set at mount time. The actual children
-                // live in a separate DOM subtree (the resolved
-                // target), so neither the children nor the attributes
-                // contributed by the user should be re-applied to the
-                // marker. We deliberately skip both
-                // `patch_children` and `patch_attributes` here and
-                // rely on `render_full_replace` (the match-arm
-                // switcher) to remount portals when their
-                // declaration in the tree changes.
                 if matches!(old_tag, Tag::Portal(_)) {
+                    if let Some(wrapper) = Self::portal_wrapper(dom_element) {
+                        self.patch_children(&wrapper, old_children, new_children);
+                        return dom_element.clone().into();
+                    }
+                    let new_dom_node: Node = self.create_dom_node(new_node);
+                    Self::cleanup_subtree(dom_element);
+                    if let Some(parent) = dom_element.parent_node() {
+                        let _: Result<Node, JsValue> =
+                            parent.replace_child(&new_dom_node, dom_element);
+                        return new_dom_node;
+                    }
                     return dom_element.clone().into();
                 }
                 self.patch_children(dom_element, old_children, new_children);
@@ -1042,23 +1045,39 @@ impl Renderer {
                                 });
                         let _: Result<(), JsValue> =
                             marker.set_attribute(DATA_EUV_PORTAL, selector);
+                        let portal_id: usize = NEXT_EUV_DYNAMIC_ID.fetch_add(1, Ordering::Relaxed);
+                        let _: Result<(), JsValue> =
+                            marker.set_attribute(DATA_EUV_PORTAL_ID, &portal_id.to_string());
                         let _: Result<(), JsValue> =
                             marker.set_attribute(ATTR_STYLE, PORTAL_MARKER_STYLE);
-                        let target: Element = document
-                            .query_selector(selector)
-                            .ok()
-                            .flatten()
+                        let (portal_target, target_pending): (Option<Element>, bool) =
+                            match document.query_selector(selector) {
+                                Ok(Some(target)) => (Some(target), false),
+                                Ok(None) => (None, true),
+                                Err(_error) => (None, false),
+                            };
+                        if target_pending {
+                            let _: Result<(), JsValue> =
+                                marker.set_attribute(DATA_EUV_PORTAL_PENDING, PORTAL_PENDING_VALUE);
+                        }
+                        let target: Element = portal_target
                             .or_else(|| document.body().map(HtmlElement::into))
                             .unwrap_or_else(|| marker.clone());
-                        // OPT 13: batch portal-target appends via a single
-                        // DocumentFragment so the host element only sees
-                        // one DOM mutation per portal mount, regardless
-                        // of how many children the portal ships.
+                        let wrapper: Element = document
+                            .create_element("div")
+                            .unwrap_or_else(|_err: JsValue| marker.clone());
+                        let portal_id: String =
+                            marker.get_attribute(DATA_EUV_PORTAL_ID).unwrap_or_default();
+                        let _: Result<(), JsValue> =
+                            wrapper.set_attribute(DATA_EUV_PORTAL_CONTENT_ID, &portal_id);
+                        let _: Result<(), JsValue> =
+                            wrapper.set_attribute(ATTR_STYLE, PORTAL_CONTENT_STYLE);
                         let child_nodes: Vec<Node> = children
                             .iter()
                             .map(|child: &VirtualNode| self.create_dom_with_doc(child, document))
                             .collect();
-                        append_nodes(&target, child_nodes);
+                        append_nodes(&wrapper, child_nodes);
+                        let _: Result<Node, JsValue> = target.append_child(&wrapper);
                         return marker.into();
                     }
                 };
@@ -1483,6 +1502,80 @@ impl Renderer {
         dynamic_id
     }
 
+    /// Returns the content wrapper associated with a portal marker.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Element` - The portal marker element.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Element>` - The matching content wrapper, if mounted.
+    fn portal_wrapper(marker: &Element) -> Option<Element> {
+        let document: Document = marker.owner_document()?;
+        let portal_id: String = marker.get_attribute(DATA_EUV_PORTAL_ID)?;
+        let selector: String = format!("[{DATA_EUV_PORTAL_CONTENT_ID}=\"{portal_id}\"]");
+        document.query_selector(&selector).ok().flatten()
+    }
+
+    /// Moves pending portal content when its target becomes available.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Element` - The rendered subtree whose portal markers are checked.
+    fn relocate_portal_contents(root: &Element) {
+        if root.has_attribute(DATA_EUV_PORTAL_PENDING) {
+            Self::relocate_portal_marker(root);
+        }
+        if let Ok(markers) = root.query_selector_all(&format!("[{DATA_EUV_PORTAL_PENDING}]")) {
+            for index in 0..markers.length() {
+                if let Some(marker) = markers
+                    .item(index)
+                    .and_then(|node: Node| node.dyn_into::<Element>().ok())
+                {
+                    Self::relocate_portal_marker(&marker);
+                }
+            }
+        }
+    }
+
+    /// Relocates one pending portal marker to its declared target.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Element` - A portal marker with a pending target.
+    fn relocate_portal_marker(marker: &Element) {
+        let Some(document) = marker.owner_document() else {
+            return;
+        };
+        let Some(selector) = marker.get_attribute(DATA_EUV_PORTAL) else {
+            return;
+        };
+        let Some(target) = document.query_selector(&selector).ok().flatten() else {
+            return;
+        };
+        let Some(wrapper) = Self::portal_wrapper(marker) else {
+            return;
+        };
+        let _: Result<Node, JsValue> = target.append_child(&wrapper);
+        let _: Result<(), JsValue> = marker.remove_attribute(DATA_EUV_PORTAL_PENDING);
+        Self::relocate_portal_contents(&wrapper);
+    }
+
+    /// Recursively removes portal content mounted outside the supplied subtree.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Element` - A portal marker whose content wrapper should be removed.
+    fn cleanup_portal_content(marker: &Element) {
+        if let Some(wrapper) = Self::portal_wrapper(marker) {
+            Self::cleanup_subtree(&wrapper);
+            if let Some(parent) = wrapper.parent_node() {
+                let _: Result<Node, JsValue> = parent.remove_child(&wrapper);
+            }
+        }
+    }
+
     /// Recursively cleans up framework resources associated with a DOM subtree.
     ///
     /// Removes event handlers, dynamic node listeners, and signal listeners
@@ -1499,6 +1592,19 @@ impl Renderer {
     ///
     /// - `&Element` - The DOM element to clean up.
     fn cleanup_subtree(element: &Element) {
+        if element.has_attribute(DATA_EUV_PORTAL) {
+            Self::cleanup_portal_content(element);
+        }
+        if let Ok(markers) = element.query_selector_all(&format!("[{DATA_EUV_PORTAL}]")) {
+            for index in 0..markers.length() {
+                if let Some(marker) = markers
+                    .item(index)
+                    .and_then(|node: Node| node.dyn_into::<Element>().ok())
+                {
+                    Self::cleanup_portal_content(&marker);
+                }
+            }
+        }
         let raw: Float64Array = euv_collect_subtree_ids(element);
         let mut ids: Vec<f64> = vec![0.0; raw.length() as usize];
         raw.copy_to(&mut ids);

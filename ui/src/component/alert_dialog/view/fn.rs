@@ -54,11 +54,6 @@ pub fn euv_alert_dialog_trigger(node: VirtualNode<EuvAlertDialogTriggerProps>) -
             alert_dialog_schedule_focus(root, false);
         }
     }));
-    let shadcn_class: Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_alert_dialog_trigger_shadcn().clone()
-    } else {
-        Css::default()
-    };
     html! {
             button {
                 type: "button"
@@ -70,7 +65,7 @@ pub fn euv_alert_dialog_trigger(node: VirtualNode<EuvAlertDialogTriggerProps>) -
                 "aria-haspopup": ALERT_DIALOG_HASPOPUP_DIALOG
                 "aria-controls": content_id
                 class: c_euv_alert_dialog_trigger()
-                class: shadcn_class
+
                 "data-slot": "alert-dialog-trigger"
                 onclick: on_click
                 {

@@ -37,6 +37,8 @@ jobs:
           java-version: '21'
 
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install Android SDK and NDK
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.0.13004108' 'platform-tools'
@@ -103,3 +105,5 @@ jobs:
             gh release create latest --title "$TITLE" --notes "$NOTES" --prerelease
           fi
           gh release upload latest artifacts/android/euv.apk --clobber
+          RELEASE_URL="$(gh release view latest --json url --jq '.url')"
+          printf '## App release\n\n[Download Android app](%s)\n' "$RELEASE_URL" >> "$GITHUB_STEP_SUMMARY"

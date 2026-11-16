@@ -1,5 +1,7 @@
-mod r#fn;
+mod animation;
+mod application;
+mod motion;
 
-pub(crate) use r#fn::*;
+pub(crate) use {animation::*, application::*, motion::*};
 
 use super::*;

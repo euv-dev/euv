@@ -40,7 +40,7 @@ fn empty_with(icon: &'static str, desc: &'static str, action: &'static str) -> V
         icon,
         title: "Nothing here",
         desc,
-        action_label: action,
+        action_label: action.into(),
         on_action: None,
     }))
 }

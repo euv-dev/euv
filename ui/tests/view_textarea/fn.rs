@@ -1,5 +1,29 @@
 use super::*;
 
+#[test]
+fn textarea_rows_use_compiled_metadata_without_overriding_positive_caller_rows() {
+    let expected_default: i32 =
+        if cfg!(all(feature = "theme-shadcn", not(feature = "theme-custom"))) {
+            2
+        } else {
+            3
+        };
+    for rows in [-2, 0, 1, 7] {
+        let rendered: VirtualNode = render("Notes", rows, false);
+        let VirtualNode::Element { attributes, .. } = rendered else {
+            panic!("expected a native textarea");
+        };
+        let actual: Option<&AttributeEntry> = attributes
+            .iter()
+            .find(|attribute: &&AttributeEntry| attribute.get_name() == "rows");
+        let expected: AttributeEntry = AttributeEntry::new(
+            Cow::Borrowed("rows"),
+            AttributeValue::Dynamic(if rows > 0 { rows } else { expected_default }.to_string()),
+        );
+        assert_eq!(actual, Some(&expected));
+    }
+}
+
 fn textarea_node(
     placeholder: &'static str,
     rows: i32,
@@ -18,6 +42,9 @@ fn textarea_node(
             rows,
             disabled: Signal::create(disabled),
             oninput: None,
+            aria_label: "",
+            onkeydown: None,
+            class: Css::default(),
         })),
     }
 }
@@ -85,6 +112,26 @@ fn has_class(node: &VirtualNode, name: &str) -> bool {
 }
 
 #[test]
+fn a_textarea_composes_an_application_class_with_its_design_system_class() {
+    let node: VirtualNode<EuvTextareaProps> = VirtualNode::Element {
+        tag: Tag::Element(Cow::Borrowed("div")),
+        attributes: Vec::new(),
+        children: Vec::new(),
+        key: None,
+        props: Some(Box::new(EuvTextareaProps {
+            class: Css {
+                name: String::from("commerce-editor"),
+                ..Css::default()
+            },
+            ..EuvTextareaProps::default()
+        })),
+    };
+    let rendered: VirtualNode = euv_textarea(node);
+    assert!(has_class(&rendered, "commerce-editor"));
+    assert!(has_class(&rendered, "c_euv_textarea"));
+}
+
+#[test]
 fn a_textarea_renders_a_textarea_element() {
     let rendered: VirtualNode = render("Type here", 4, false);
     assert_eq!(
@@ -116,7 +163,7 @@ fn a_textarea_uses_the_control_type_scale() {
         "the field is drawn with the textarea class"
     );
     if cfg!(feature = "theme-shadcn") {
-        assert!(has_class(&rendered, "c_euv_textarea_shadcn"));
+        assert!(has_class(&rendered, "c_euv_textarea"));
     }
 }
 

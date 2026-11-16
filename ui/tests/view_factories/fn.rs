@@ -1,5 +1,96 @@
 use super::*;
 
+#[test]
+fn dropdown_root_optional_parent_defaults_to_independent() {
+    assert!(EuvDropdownMenuProps::default().parent_open.is_none());
+    let open: Signal<bool> = Signal::create(true);
+    let cleanup: Box<dyn FnOnce()> = dropdown_menu_parent_binding(open, None);
+    cleanup();
+    assert!(open.get());
+    let cleanup: Box<dyn FnOnce()> = dropdown_menu_parent_binding(open, Some(open));
+    cleanup();
+    assert!(open.get());
+}
+
+#[test]
+fn dropdown_surface_parent_closes_menu_descendants_but_menu_never_closes_surface() {
+    let surface: Signal<bool> = Signal::create(true);
+    let menu: Signal<bool> = Signal::create(true);
+    let sub: Signal<bool> = Signal::create(true);
+    let cleanup: Box<dyn FnOnce()> = dropdown_menu_parent_binding(menu, Some(surface));
+    use_dropdown_menu_sub_binding(menu, sub);
+    menu.set(false);
+    assert!(surface.get());
+    assert!(!sub.get());
+    menu.set(true);
+    sub.set(true);
+    surface.set(false);
+    assert!(!menu.get() && !sub.get());
+    menu.set(true);
+    sub.set(true);
+    assert!(!menu.get() && !sub.get());
+    surface.set(true);
+    assert!(!menu.get() && !sub.get());
+    cleanup();
+}
+
+#[test]
+fn dropdown_surface_parent_initially_closed_guards_orphan_open_and_unsubscribes() {
+    let surface: Signal<bool> = Signal::create(false);
+    let menu: Signal<bool> = Signal::create(true);
+    let cleanup: Box<dyn FnOnce()> = dropdown_menu_parent_binding(menu, Some(surface));
+    assert!(!menu.get());
+    menu.set(true);
+    assert!(!menu.get());
+    cleanup();
+    menu.set(true);
+    assert!(menu.get());
+    surface.set(true);
+    surface.set(false);
+    assert!(menu.get());
+}
+
+#[test]
+fn dropdown_surface_parent_hook_rebinds_and_cleans_up() {
+    let first: Signal<bool> = Signal::create(true);
+    let second: Signal<bool> = Signal::create(true);
+    let menu: Signal<bool> = Signal::create(true);
+    let mut context: HookContext = HookContext::default();
+    for parent in [first, first, second] {
+        context.reset_index();
+        HookContext::with(context.clone(), || {
+            use_dropdown_menu_parent_binding(menu, Some(parent))
+        });
+    }
+    menu.set(true);
+    first.set(false);
+    assert!(menu.get());
+    second.set(false);
+    assert!(!menu.get());
+    second.set(true);
+    menu.set(true);
+    context.switch_arm(usize::MAX);
+    assert!(!menu.get());
+    menu.set(true);
+    second.set(false);
+    assert!(menu.get());
+}
+
+#[test]
+fn dropdown_portal_selector_waits_for_original_trigger_and_excludes_outer_sheets() {
+    let menu: Signal<bool> = Signal::create(false);
+    let selector: String = dropdown_portal_target(menu);
+    let trigger: String = format!("#euv-dropdown-{}-trigger", menu.get_inner());
+    assert!(selector.starts_with("[data-slot=\"sheet-content\"]:has("));
+    assert!(selector.contains(&format!(
+        ":not(:has([data-slot=\"sheet-content\"] {trigger}))"
+    )));
+    assert!(selector.contains(&format!(".c_app_root:has({trigger})")));
+    let source: &str = include_str!("../../src/component/dropdown/view/fn.rs");
+    assert!(!source.contains("append_child"));
+    assert!(!source.contains("set_property(\"z-index\""));
+}
+
 fn props<T>(value: T) -> VirtualNode<T> {
     VirtualNode::Element {
         tag: Tag::Element(Cow::Borrowed("div")),
@@ -7,6 +98,29 @@ fn props<T>(value: T) -> VirtualNode<T> {
         children: Vec::new(),
         key: None,
         props: Some(Box::new(value)),
+    }
+}
+
+fn has_class_name(node: &VirtualNode, name: &str) -> bool {
+    match node {
+        VirtualNode::Element {
+            attributes,
+            children,
+            ..
+        } => {
+            attributes.iter().any(|entry: &AttributeEntry| {
+                entry
+                    .class_names()
+                    .iter()
+                    .any(|class: &String| class == name)
+            }) || children
+                .iter()
+                .any(|child: &VirtualNode| has_class_name(child, name))
+        }
+        VirtualNode::Fragment(children) => children
+            .iter()
+            .any(|child: &VirtualNode| has_class_name(child, name)),
+        _ => false,
     }
 }
 
@@ -308,6 +422,14 @@ fn an_input_wraps_its_input_in_a_container() {
         autocomplete: "email",
         oninput: None,
         class: Css::default(),
+        aria_label: "",
+        readonly: false,
+        disabled: Signal::create(false),
+        wrapper_class: Css::default(),
+        required: false,
+        max_length: 0,
+        step: "",
+        aria_describedby: "",
     });
     let rendered: VirtualNode = euv_input(node);
     let mut tags: Vec<String> = Vec::new();
@@ -331,6 +453,14 @@ fn an_input_always_carries_the_attributes_the_dom_needs() {
         autocomplete: "email",
         oninput: None,
         class: Css::default(),
+        aria_label: "",
+        readonly: false,
+        disabled: Signal::create(false),
+        wrapper_class: Css::default(),
+        required: false,
+        max_length: 0,
+        step: "",
+        aria_describedby: "",
     });
     let rendered: VirtualNode = euv_input(node);
     let mut names: Vec<String> = Vec::new();
@@ -424,9 +554,10 @@ fn a_checked_checkbox_has_the_same_shape_as_an_unchecked_one() {
         vec![
             "Element(\"div\")",
             "Element(\"input\")",
+            "Element(\"span\")",
             "Element(\"label\")",
         ],
-        "the input precedes its label in both states, got {off_tags:?}"
+        "the input and mounted indicator precede the label in both states, got {off_tags:?}"
     );
 }
 
@@ -924,11 +1055,13 @@ fn a_dropdown_renders_one_node_per_item() {
         EuvDropdownItem {
             label: "One",
             value: "1",
+            disabled: false,
             active: false,
         },
         EuvDropdownItem {
             label: "Two",
             value: "2",
+            disabled: false,
             active: true,
         },
     ];
@@ -951,6 +1084,32 @@ fn a_dropdown_renders_one_node_per_item() {
 }
 
 #[test]
+fn dropdown_shadcn_rows_do_not_reuse_the_monochrome_locale_style() {
+    let rendered: VirtualNode = euv_dropdown(props(EuvDropdownProps {
+        open: Signal::create(true),
+        items: vec![
+            EuvDropdownItem {
+                label: "One",
+                value: "one",
+                disabled: false,
+                active: false,
+            },
+            EuvDropdownItem {
+                label: "Two",
+                value: "two",
+                disabled: false,
+                active: true,
+            },
+        ],
+        on_select: None,
+    }));
+    assert!(has_class_name(&rendered, "c_euv_dropdown_menu"));
+    assert!(has_class_name(&rendered, "c_euv_dropdown_item_active"));
+    assert!(has_class_name(&rendered, "c_euv_dropdown_item"));
+    assert!(!has_class_name(&rendered, "c_euv_dropdown_menu_item"));
+}
+
+#[test]
 fn a_dropdown_menu_exposes_state_and_roving_menu_item_semantics() {
     let rendered: VirtualNode = euv_dropdown(props(EuvDropdownProps {
         open: Signal::create(true),
@@ -958,11 +1117,13 @@ fn a_dropdown_menu_exposes_state_and_roving_menu_item_semantics() {
             EuvDropdownItem {
                 label: "One",
                 value: "1",
+                disabled: false,
                 active: false,
             },
             EuvDropdownItem {
                 label: "Two",
                 value: "2",
+                disabled: false,
                 active: false,
             },
         ],
@@ -992,10 +1153,58 @@ fn a_dropdown_trigger_exposes_open_state_and_keyboard_entry() {
 }
 
 #[test]
+fn a_dropdown_root_binds_the_lifecycle_managed_capture_listener() {
+    let node: VirtualNode = euv_dropdown(props(EuvDropdownProps::default()));
+    assert!(has_attribute_name(&node, "ref"));
+    let view: &str = include_str!("../../src/component/dropdown/view/fn.rs");
+    assert!(view.contains("use_dropdown_outside(open, outside_target.clone())"));
+    assert!(view.contains("dropdown_content_for_root(&root, open)"));
+    assert!(view.contains("App::use_cleanup("));
+    assert!(view.contains("add_event_listener_with_callback_and_bool"));
+    assert!(view.contains("remove_event_listener_with_callback_and_bool"));
+    assert!(view.contains("if !open.get() || !root.is_connected()"));
+    assert!(view.contains("cancel_animation_frame"));
+    assert!(view.contains("open.unsubscribe(subscription)"));
+    assert!(view.contains("mounted.set(false)"));
+}
+
+#[test]
+fn dropdown_ids_associate_each_menu_with_its_plain_text_button() {
+    let open: Signal<bool> = Signal::create(false);
+    let menu: VirtualNode = euv_dropdown(props(EuvDropdownProps {
+        open,
+        ..EuvDropdownProps::default()
+    }));
+    let mut trigger_props: VirtualNode<EuvDropdownTriggerProps> =
+        props(EuvDropdownTriggerProps { open });
+    if let VirtualNode::Element { children, .. } = &mut trigger_props {
+        children.push(VirtualNode::Text(TextNode::new(
+            Cow::Borrowed("Open actions"),
+            None,
+        )));
+    }
+    let trigger: VirtualNode = euv_dropdown_trigger(trigger_props);
+    let trigger_id: String = root_attribute_value(&trigger, "id").unwrap();
+    let menu_id: String = root_attribute_value(&trigger, "aria-controls").unwrap();
+    assert!(has_attribute_value(&menu, "id", &menu_id));
+    assert!(has_attribute_value(&menu, "aria-labelledby", &trigger_id));
+    assert_eq!(count_elements(&trigger), 1);
+    assert!(root_tag(&trigger).contains("button"));
+    assert!(
+        root_attribute_value(&trigger, "class")
+            .unwrap()
+            .contains("c_euv_button")
+    );
+    let other: VirtualNode = euv_dropdown_trigger(props(EuvDropdownTriggerProps::default()));
+    assert_ne!(root_attribute_value(&other, "id"), Some(trigger_id));
+}
+
+#[test]
 fn an_open_and_a_closed_dropdown_keep_the_same_frame() {
     let items: Vec<EuvDropdownItem> = vec![EuvDropdownItem {
         label: "One",
         value: "1",
+        disabled: false,
         active: false,
     }];
     let open: VirtualNode = euv_dropdown(props(EuvDropdownProps {
@@ -1018,6 +1227,263 @@ fn an_open_and_a_closed_dropdown_keep_the_same_frame() {
 }
 
 #[test]
+fn dropdown_typeahead_cycles_buffers_and_leaves_missing_matches_untouched() {
+    let labels: Vec<String> = vec![
+        "Create document".into(),
+        "Duplicate document".into(),
+        "Archive document".into(),
+        "Archive copy".into(),
+    ];
+    assert_eq!(dropdown_next_index(&labels, Some(0), "a"), Some(2));
+    assert_eq!(dropdown_next_index(&labels, Some(2), "a"), Some(3));
+    assert_eq!(dropdown_next_index(&labels, Some(3), "a"), Some(2));
+    assert_eq!(dropdown_next_index(&labels, Some(2), "archive c"), Some(3));
+    assert_eq!(dropdown_next_index(&labels, Some(2), "ARCHIVE D"), Some(2));
+    assert_eq!(dropdown_next_index(&labels, Some(2), "missing"), None);
+    assert_eq!(dropdown_search_prefix("a", "A", 20.0), "a");
+    assert_eq!(dropdown_search_prefix("ar", "c", 499.0), "arc");
+    assert_eq!(dropdown_search_prefix("ar", "d", 500.0), "d");
+    assert_eq!(dropdown_search_prefix("", "D", 0.0), "d");
+}
+
+#[test]
+fn dropdown_navigation_wraps_and_handles_empty_enabled_rows() {
+    let labels: Vec<String> = vec!["One".into(), "Three".into()];
+    assert_eq!(dropdown_next_index(&labels, None, "ArrowDown"), Some(0));
+    assert_eq!(dropdown_next_index(&labels, None, "ArrowUp"), Some(1));
+    assert_eq!(dropdown_next_index(&labels, Some(0), "ArrowUp"), Some(1));
+    assert_eq!(dropdown_next_index(&labels, Some(1), "ArrowDown"), Some(0));
+    assert_eq!(dropdown_next_index(&labels, Some(0), "End"), Some(1));
+    assert_eq!(dropdown_next_index(&labels, Some(1), "Home"), Some(0));
+    for key in ["ArrowDown", "ArrowUp", "Home", "End", "a"] {
+        assert_eq!(dropdown_next_index(&[], None, key), None);
+    }
+}
+
+#[test]
+fn dropdown_disabled_rows_are_native_disabled_and_have_no_selection_handler() {
+    let item: EuvDropdownItem = EuvDropdownItem::new("Disabled", "disabled", false, true);
+    assert!(item.get_disabled());
+    let row: VirtualNode = euv_dropdown(props(EuvDropdownProps {
+        open: Signal::create(true),
+        items: vec![item],
+        on_select: None,
+    }));
+    assert!(has_attribute_name(&row, "disabled"));
+    assert!(has_attribute_value(&row, "disabled", "true"));
+    assert!(has_attribute_value(&row, "aria-disabled", "true"));
+    assert!(has_class_name(&row, "c_euv_dropdown_menu_item_disabled"));
+    let standalone: VirtualNode = euv_dropdown_menu_item(props(EuvDropdownMenuItemProps {
+        disabled: true,
+        ..EuvDropdownMenuItemProps::default()
+    }));
+    assert!(has_attribute_name(&standalone, "disabled"));
+    assert!(has_attribute_value(&standalone, "disabled", "true"));
+    assert!(has_attribute_value(&standalone, "aria-disabled", "true"));
+    assert!(has_class_name(&standalone, "c_euv_dropdown_menu_item"));
+    assert!(!EuvDropdownItem::default().get_disabled());
+}
+
+#[test]
+fn dropdown_composable_defaults_are_closed_and_actions_close_on_selection() {
+    assert!(!EuvDropdownMenuProps::default().open.get());
+    assert!(!EuvDropdownMenuContentProps::default().open.get());
+    let action: EuvDropdownMenuItemProps = EuvDropdownMenuItemProps::default();
+    assert!(action.close_on_click);
+    assert!(!action.open.get());
+    assert!(!action.disabled);
+    assert!(action.on_select.is_none());
+    assert!(!EuvDropdownMenuCheckboxItemProps::default().close_on_click);
+}
+
+#[test]
+fn dropdown_composable_content_shares_trigger_ids_and_retains_its_mixed_rows() {
+    let open: Signal<bool> = Signal::create(false);
+    let checked: Signal<bool> = Signal::create(false);
+    let trigger: VirtualNode = euv_dropdown_trigger(props(EuvDropdownTriggerProps { open }));
+    let trigger_id: String = root_attribute_value(&trigger, "id").unwrap();
+    let content_id: String = root_attribute_value(&trigger, "aria-controls").unwrap();
+    for is_open in [false, true] {
+        open.set(is_open);
+        let mut content_props: VirtualNode<EuvDropdownMenuContentProps> =
+            props(EuvDropdownMenuContentProps { open });
+        if let VirtualNode::Element { children, .. } = &mut content_props {
+            children.push(euv_dropdown_menu_checkbox_item(props(
+                EuvDropdownMenuCheckboxItemProps {
+                    open,
+                    checked,
+                    label: "Toolbar",
+                    on_checked_change: Some(Rc::new(|_: bool| panic!("render must not activate"))),
+                    ..EuvDropdownMenuCheckboxItemProps::default()
+                },
+            )));
+            children.push(euv_dropdown_menu_item(props(EuvDropdownMenuItemProps {
+                open,
+                label: "Apply",
+                shortcut: "Ctrl+A",
+                on_select: Some(Rc::new(|_: &'static str| panic!("render must not select"))),
+                ..EuvDropdownMenuItemProps::default()
+            })));
+        }
+        let content: VirtualNode = euv_dropdown_menu_content(content_props);
+        let VirtualNode::Element {
+            tag: Tag::Portal(target),
+            children,
+            ..
+        } = &content
+        else {
+            panic!("dropdown content must escape clipping ancestors through a portal");
+        };
+        assert_eq!(target.as_ref(), dropdown_portal_target(open));
+        let popup: &VirtualNode = children.first().unwrap();
+        assert_eq!(root_attribute_value(popup, "id"), Some(content_id.clone()));
+        assert_eq!(
+            root_attribute_value(popup, "aria-labelledby"),
+            Some(trigger_id.clone())
+        );
+        assert_eq!(root_attribute_value(popup, "role").as_deref(), Some("menu"));
+        assert_eq!(
+            root_attribute_value(popup, "data-state").as_deref(),
+            Some(if is_open { "open" } else { "closed" })
+        );
+        assert!(has_attribute_name(&content, "onkeydown"));
+        assert!(has_attribute_value(&content, "role", "menuitemcheckbox"));
+        assert!(has_attribute_value(&content, "role", "menuitem"));
+        assert!(has_attribute_value(&content, "data-label", "Toolbar"));
+        assert!(has_attribute_value(&content, "data-label", "Apply"));
+        assert!(has_class_name(&content, "c_euv_dropdown_menu"));
+        assert!(has_attribute_name(popup, "ref"));
+        assert_eq!(count_elements(&content), 7);
+        let mut root_props: VirtualNode<EuvDropdownMenuProps> = props(EuvDropdownMenuProps {
+            open,
+            ..EuvDropdownMenuProps::default()
+        });
+        if let VirtualNode::Element { children, .. } = &mut root_props {
+            children.push(trigger.clone());
+            children.push(content);
+        }
+        let root: VirtualNode = euv_dropdown_menu(root_props);
+        assert_eq!(
+            root_attribute_value(&root, "data-slot").as_deref(),
+            Some("dropdown-menu")
+        );
+        assert!(has_attribute_name(&root, "ref"));
+        assert!(has_attribute_value(&root, "id", &trigger_id));
+        assert!(has_attribute_value(&root, "id", &content_id));
+        assert_eq!(count_elements(&root), 9);
+        assert_eq!(open.get(), is_open);
+        assert!(!checked.get());
+    }
+    let sibling: VirtualNode =
+        euv_dropdown_menu_content(props(EuvDropdownMenuContentProps::default()));
+    assert!(!has_attribute_value(&sibling, "id", &content_id));
+}
+
+#[test]
+fn dropdown_popup_placement_preserves_gaps_flips_and_clamps_both_edges() {
+    for gap in [4.0, 8.0] {
+        let (_, top, available): (f64, f64, f64) = dropdown_popup_position(
+            (40.0, 140.0, 50.0, 86.0),
+            (128.0, 120.0),
+            (320.0, 568.0),
+            gap,
+        );
+        assert_eq!(top, 86.0 + gap);
+        assert_eq!(available, 560.0 - top);
+        let (_, top, available): (f64, f64, f64) = dropdown_popup_position(
+            (40.0, 140.0, 400.0, 436.0),
+            (128.0, 200.0),
+            (320.0, 568.0),
+            gap,
+        );
+        assert_eq!(top, 400.0 - gap - 200.0);
+        assert_eq!(available, 400.0 - gap - 8.0);
+    }
+    for anchor in [(-40.0, 10.0, 50.0, 86.0), (300.0, 350.0, 50.0, 86.0)] {
+        let (left, _, _): (f64, f64, f64) =
+            dropdown_popup_position(anchor, (128.0, 120.0), (320.0, 568.0), 4.0);
+        assert_eq!(left, if anchor.0 < 0.0 { 8.0 } else { 184.0 });
+    }
+}
+
+#[test]
+fn dropdown_popup_placement_scrolls_the_larger_side_without_shrinking_rows() {
+    let (_, top, available): (f64, f64, f64) = dropdown_popup_position(
+        (20.0, 120.0, 300.0, 336.0),
+        (128.0, 1000.0),
+        (320.0, 568.0),
+        8.0,
+    );
+    assert_eq!((top, available), (8.0, 284.0));
+    let (_, top, available): (f64, f64, f64) = dropdown_popup_position(
+        (20.0, 120.0, 150.0, 186.0),
+        (128.0, 1000.0),
+        (320.0, 568.0),
+        8.0,
+    );
+    assert_eq!((top, available), (194.0, 366.0));
+    for anchor in [(0.0, 20.0, -80.0, -44.0), (0.0, 20.0, 600.0, 636.0)] {
+        let (left, top, available): (f64, f64, f64) =
+            dropdown_popup_position(anchor, (304.0, 1000.0), (320.0, 568.0), 8.0);
+        assert_eq!(left, 8.0);
+        assert!(top >= 8.0 && top + available <= 560.0);
+    }
+}
+
+#[test]
+fn dropdown_both_public_apis_share_portal_and_managed_positioning() {
+    let legacy: VirtualNode = euv_dropdown(props(EuvDropdownProps::default()));
+    let mut tags: Vec<String> = Vec::new();
+    collect_tags(&legacy, &mut tags);
+    assert!(
+        tags.iter()
+            .any(|tag: &String| tag.contains("Portal") && tag.contains("c_app_root"))
+    );
+    let view: &str = include_str!("../../src/component/dropdown/view/fn.rs");
+    let styles: &str = include_str!("../../src/style/class/overlay/fn.rs");
+    assert!(view.contains("use_dropdown_position(open, panel_ref.clone())"));
+    let compact: String = view.split_whitespace().collect();
+    assert!(compact.contains("frame_mounted.get()&&open.get()"));
+    assert!(view.contains("options.set_prevent_scroll(true)"));
+    assert!(view.contains("content.set_scroll_top("));
+    assert!(styles.contains("overscroll-behavior: \"contain\""));
+}
+
+#[test]
+fn dropdown_mixed_rows_expose_clean_labels_and_are_outside_the_tab_sequence() {
+    let action: VirtualNode = euv_dropdown_menu_item(props(EuvDropdownMenuItemProps {
+        label: "Apply",
+        shortcut: "Ctrl+A",
+        ..EuvDropdownMenuItemProps::default()
+    }));
+    let checkbox: VirtualNode =
+        euv_dropdown_menu_checkbox_item(props(EuvDropdownMenuCheckboxItemProps {
+            label: "Toolbar",
+            checked: Signal::create(true),
+            ..EuvDropdownMenuCheckboxItemProps::default()
+        }));
+    let radio: VirtualNode = euv_dropdown_menu_radio_item(props(EuvDropdownMenuRadioItemProps {
+        label: "Grid",
+        value: "grid",
+        selection: use_dropdown_menu_radio_group(None, "grid", None),
+        ..EuvDropdownMenuRadioItemProps::default()
+    }));
+    for (row, label) in [(&action, "Apply"), (&checkbox, "Toolbar"), (&radio, "Grid")] {
+        assert_eq!(root_attribute_value(row, "tabindex").as_deref(), Some("-1"));
+        assert_eq!(
+            root_attribute_value(row, "data-label").as_deref(),
+            Some(label)
+        );
+    }
+    assert!(has_attribute_value(&checkbox, "aria-hidden", "true"));
+    assert!(has_class_name(
+        &checkbox,
+        "c_euv_dropdown_menu_checkbox_indicator"
+    ));
+    assert!(has_class_name(&action, "c_euv_dropdown_menu_shortcut"));
+}
+
+#[test]
 fn the_upload_handlers_are_all_present() {
     let drag: Signal<bool> = Signal::create(false);
     assert!(on_upload_files_change(None).is_some());
@@ -1036,6 +1502,13 @@ fn an_upload_renders_its_drop_zone() {
         files: Signal::create(Vec::new()),
         drag_active: Signal::create(false),
         on_files: None,
+        id: "",
+        label: "",
+        disabled: Signal::create(false),
+        input_type: "file",
+        aria_label: "Upload files",
+        picker_label: "Choose files",
+        onchange: None,
     }));
     assert_ne!(
         root_tag(&rendered),
@@ -1052,6 +1525,13 @@ fn upload_files_appear_as_the_signal_grows() {
         files: Signal::create(Vec::new()),
         drag_active: Signal::create(false),
         on_files: None,
+        id: "",
+        label: "",
+        disabled: Signal::create(false),
+        input_type: "file",
+        aria_label: "Upload files",
+        picker_label: "Choose files",
+        onchange: None,
     }));
     let with_file: VirtualNode = euv_upload(props(EuvUploadProps {
         accept: "",
@@ -1063,6 +1543,13 @@ fn upload_files_appear_as_the_signal_grows() {
         }]),
         drag_active: Signal::create(false),
         on_files: None,
+        id: "",
+        label: "",
+        disabled: Signal::create(false),
+        input_type: "file",
+        aria_label: "Upload files",
+        picker_label: "Choose files",
+        onchange: None,
     }));
     assert!(
         count_elements(&with_file) >= count_elements(&base),
@@ -1459,4 +1946,615 @@ fn a_virtual_list_config_holds_its_counts() {
     assert_eq!(config.total_count, 1000);
     assert_eq!(config.item_height, 48);
     assert_eq!(config.overscan_count, 4);
+}
+
+#[test]
+fn dropdown_checkbox_defaults_are_unchecked_enabled_and_keep_the_menu_open() {
+    let settings: EuvDropdownMenuCheckboxItemProps = EuvDropdownMenuCheckboxItemProps::default();
+    assert_eq!(settings.label, "");
+    assert!(!settings.checked.get());
+    assert!(!settings.disabled);
+    assert!(!settings.open.get());
+    assert!(!settings.close_on_click);
+    assert!(settings.on_checked_change.is_none());
+}
+
+#[test]
+fn dropdown_checkbox_is_a_native_button_with_checkbox_menu_semantics() {
+    let node: VirtualNode =
+        euv_dropdown_menu_checkbox_item(props(EuvDropdownMenuCheckboxItemProps {
+            label: "Show grid",
+            ..EuvDropdownMenuCheckboxItemProps::default()
+        }));
+    assert_eq!(root_tag(&node), "Element(\"button\")");
+    assert_eq!(
+        root_attribute_value(&node, "type").as_deref(),
+        Some("button")
+    );
+    assert_eq!(
+        root_attribute_value(&node, "role").as_deref(),
+        Some("menuitemcheckbox")
+    );
+    assert_eq!(
+        root_attribute_value(&node, "data-slot").as_deref(),
+        Some("dropdown-menu-checkbox-item")
+    );
+    assert_eq!(
+        root_attribute_value(&node, "aria-checked").as_deref(),
+        Some("false")
+    );
+    assert_eq!(
+        root_attribute_value(&node, "aria-disabled").as_deref(),
+        Some("false")
+    );
+    assert!(has_attribute_name(&node, "onclick"));
+    assert!(has_class_name(&node, "c_euv_dropdown_menu_checkbox_item"));
+    assert_eq!(root_attribute_value(&node, "onclick"), None);
+}
+
+#[test]
+fn dropdown_checkbox_disabled_rows_have_native_disabled_text_and_no_click_handler() {
+    for initial_checked in [false, true] {
+        for close_on_click in [false, true] {
+            let checked: Signal<bool> = Signal::create(initial_checked);
+            let open: Signal<bool> = Signal::create(true);
+            let node: VirtualNode =
+                euv_dropdown_menu_checkbox_item(props(EuvDropdownMenuCheckboxItemProps {
+                    label: "Locked grid",
+                    checked,
+                    open,
+                    disabled: true,
+                    close_on_click,
+                    on_checked_change: Some(Rc::new(|_: bool| panic!("disabled callback"))),
+                }));
+            assert_eq!(root_tag(&node), "Element(\"button\")");
+            assert_eq!(
+                root_attribute_value(&node, "disabled").as_deref(),
+                Some("true")
+            );
+            assert_eq!(
+                root_attribute_value(&node, "aria-disabled").as_deref(),
+                Some("true")
+            );
+            assert_eq!(root_attribute_value(&node, "onclick").as_deref(), Some(""));
+            assert_eq!(checked.get(), initial_checked);
+            assert!(open.get());
+        }
+    }
+}
+
+#[test]
+fn dropdown_checkbox_render_reads_the_shared_signal_without_mutation_or_callback() {
+    for close_on_click in [false, true] {
+        let checked: Signal<bool> = Signal::create(false);
+        let open: Signal<bool> = Signal::create(true);
+        let settings: EuvDropdownMenuCheckboxItemProps = EuvDropdownMenuCheckboxItemProps {
+            checked,
+            open,
+            close_on_click,
+            on_checked_change: Some(Rc::new(|_: bool| panic!("render callback"))),
+            ..EuvDropdownMenuCheckboxItemProps::default()
+        };
+        for value in [false, true, false] {
+            checked.set(value);
+            let node: VirtualNode = euv_dropdown_menu_checkbox_item(props(settings.clone()));
+            assert_eq!(
+                root_attribute_value(&node, "aria-checked").as_deref(),
+                Some(if value { "true" } else { "false" })
+            );
+            assert!(has_attribute_name(&node, "onclick"));
+            assert_eq!(checked.get(), value);
+            assert!(open.get());
+        }
+    }
+}
+
+fn dropdown_radio_attribute(
+    settings: &EuvDropdownMenuRadioItemProps,
+    name: &str,
+) -> Option<String> {
+    let node: VirtualNode = euv_dropdown_menu_radio_item(props(settings.clone()));
+    root_attribute_value(&node, name)
+}
+
+#[test]
+fn dropdown_disabled_radio_uses_the_shared_disabled_row_style() {
+    let node: VirtualNode = euv_dropdown_menu_radio_item(props(EuvDropdownMenuRadioItemProps {
+        disabled: true,
+        ..EuvDropdownMenuRadioItemProps::default()
+    }));
+    assert!(has_class_name(&node, "c_euv_dropdown_menu_item_disabled"));
+}
+
+#[test]
+fn dropdown_radio_group_excludes_siblings_preserves_other_groups_and_reports_changes_once() {
+    let changes: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorded: Rc<RefCell<Vec<String>>> = changes.clone();
+    let selection: EuvDropdownMenuRadioGroupState = use_dropdown_menu_radio_group(
+        None,
+        "grid",
+        Some(Rc::new(move |value: String| {
+            recorded.borrow_mut().push(value)
+        })),
+    );
+    let other: EuvDropdownMenuRadioGroupState = use_dropdown_menu_radio_group(None, "other", None);
+    let first: EuvDropdownMenuRadioItemProps = EuvDropdownMenuRadioItemProps {
+        value: "grid",
+        selection: selection.clone(),
+        open: Signal::create(true),
+        ..EuvDropdownMenuRadioItemProps::default()
+    };
+    let second: EuvDropdownMenuRadioItemProps = EuvDropdownMenuRadioItemProps {
+        value: "list",
+        ..first.clone()
+    };
+    assert_eq!(
+        dropdown_radio_attribute(&first, "aria-checked").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        dropdown_radio_attribute(&second, "aria-checked").as_deref(),
+        Some("false")
+    );
+    assert!(!activate_dropdown_menu_radio(&second));
+    assert!(!activate_dropdown_menu_radio(&second));
+    assert_eq!(selection.value.get(), "list");
+    assert_eq!(other.value.get(), "other");
+    assert_eq!(changes.borrow().as_slice(), &["list"]);
+    assert_eq!(
+        dropdown_radio_attribute(&first, "aria-checked").as_deref(),
+        Some("false")
+    );
+    assert_eq!(
+        dropdown_radio_attribute(&second, "aria-checked").as_deref(),
+        Some("true")
+    );
+    assert!(first.open.get());
+    first.open.set(false);
+    first.open.set(true);
+    assert_eq!(
+        dropdown_radio_attribute(&second, "aria-checked").as_deref(),
+        Some("true")
+    );
+}
+
+#[test]
+fn dropdown_radio_disabled_activation_neither_changes_value_nor_closes_the_menu() {
+    let props: EuvDropdownMenuRadioItemProps = EuvDropdownMenuRadioItemProps {
+        value: "disabled",
+        disabled: true,
+        close_on_click: true,
+        open: Signal::create(true),
+        selection: use_dropdown_menu_radio_group(
+            None,
+            "grid",
+            Some(Rc::new(|_: String| panic!("disabled callback"))),
+        ),
+        ..EuvDropdownMenuRadioItemProps::default()
+    };
+    assert!(!activate_dropdown_menu_radio(&props));
+    assert_eq!(props.selection.value.get(), "grid");
+    assert!(props.open.get());
+    assert_eq!(
+        dropdown_radio_attribute(&props, "aria-disabled").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        dropdown_radio_attribute(&props, "tabindex").as_deref(),
+        Some("-1")
+    );
+}
+
+#[test]
+fn dropdown_radio_opt_in_close_also_closes_an_already_selected_choice_without_callback() {
+    let props: EuvDropdownMenuRadioItemProps = EuvDropdownMenuRadioItemProps {
+        value: "grid",
+        close_on_click: true,
+        open: Signal::create(true),
+        selection: use_dropdown_menu_radio_group(
+            None,
+            "grid",
+            Some(Rc::new(|_: String| panic!("unchanged callback"))),
+        ),
+        ..EuvDropdownMenuRadioItemProps::default()
+    };
+    assert!(!EuvDropdownMenuRadioItemProps::default().close_on_click);
+    assert!(activate_dropdown_menu_radio(&props));
+    assert!(!props.open.get());
+    assert_eq!(props.selection.value.get(), "grid");
+}
+
+#[test]
+fn dropdown_controlled_radio_requests_changes_but_waits_for_the_owner_to_update_its_signal() {
+    let value: Signal<String> = Signal::create("grid".to_owned());
+    let changes: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let recorded: Rc<RefCell<Vec<String>>> = changes.clone();
+    let selection: EuvDropdownMenuRadioGroupState = use_dropdown_menu_radio_group(
+        Some(value),
+        "ignored",
+        Some(Rc::new(move |next: String| {
+            recorded.borrow_mut().push(next)
+        })),
+    );
+    let props: EuvDropdownMenuRadioItemProps = EuvDropdownMenuRadioItemProps {
+        value: "list",
+        selection,
+        ..EuvDropdownMenuRadioItemProps::default()
+    };
+    assert!(!activate_dropdown_menu_radio(&props));
+    assert_eq!(value.get(), "grid");
+    assert_eq!(changes.borrow().as_slice(), &["list"]);
+    value.set("list".to_owned());
+    assert_eq!(
+        dropdown_radio_attribute(&props, "aria-checked").as_deref(),
+        Some("true")
+    );
+    assert!(!activate_dropdown_menu_radio(&props));
+    assert_eq!(changes.borrow().len(), 1);
+}
+
+#[test]
+fn dropdown_radio_defaults_and_native_text_attributes_match_the_selection_model() {
+    let defaults: EuvDropdownMenuRadioGroupState = EuvDropdownMenuRadioGroupState::default();
+    assert!(defaults.value.get().is_empty());
+    assert!(!defaults.controlled);
+    assert!(defaults.on_value_change.is_none());
+    let default_item: EuvDropdownMenuRadioItemProps = EuvDropdownMenuRadioItemProps::default();
+    assert!(!default_item.disabled);
+    assert!(!default_item.close_on_click);
+    assert!(!default_item.open.get());
+    let selection: EuvDropdownMenuRadioGroupState =
+        use_dropdown_menu_radio_group(None, "grid", None);
+    let group: VirtualNode = euv_dropdown_menu_radio_group(props(EuvDropdownMenuRadioGroupProps {
+        label: "View",
+        selection: selection.clone(),
+    }));
+    assert_eq!(
+        root_attribute_value(&group, "role").as_deref(),
+        Some("group")
+    );
+    assert_eq!(
+        root_attribute_value(&group, "data-value").as_deref(),
+        Some("grid")
+    );
+    for disabled in [false, true] {
+        for value in ["grid", "list"] {
+            let row: VirtualNode =
+                euv_dropdown_menu_radio_item(props(EuvDropdownMenuRadioItemProps {
+                    label: "View",
+                    value,
+                    selection: selection.clone(),
+                    disabled,
+                    ..EuvDropdownMenuRadioItemProps::default()
+                }));
+            assert_eq!(root_tag(&row), "Element(\"button\")");
+            assert_eq!(
+                root_attribute_value(&row, "role").as_deref(),
+                Some("menuitemradio")
+            );
+            assert_eq!(
+                root_attribute_value(&row, "type").as_deref(),
+                Some("button")
+            );
+            assert_eq!(
+                root_attribute_value(&row, "disabled").as_deref(),
+                Some(if disabled { "true" } else { "false" })
+            );
+            assert_eq!(
+                root_attribute_value(&row, "aria-disabled").as_deref(),
+                Some(if disabled { "true" } else { "false" })
+            );
+            assert_eq!(
+                root_attribute_value(&row, "aria-checked").as_deref(),
+                Some(if value == "grid" { "true" } else { "false" })
+            );
+            assert!(has_class_name(&row, "c_euv_dropdown_menu_radio_item"));
+            assert!(has_class_name(
+                &row,
+                "c_euv_dropdown_menu_checkbox_indicator"
+            ));
+            assert!(has_attribute_value(&row, "aria-hidden", "true"));
+            if disabled {
+                assert_eq!(root_attribute_value(&row, "onclick").as_deref(), Some(""));
+            }
+            let source: &str = include_str!("../../src/component/dropdown/view/fn.rs");
+            assert!(source.contains("if selection.value.get() == value {"));
+            assert!(source.contains("circle {"));
+            assert!(source.contains(r#"fill: "currentColor""#));
+        }
+    }
+}
+
+#[test]
+fn dropdown_radio_activation_reads_fresh_signals_and_updates_before_callback() {
+    let value: Signal<String> = Signal::create("grid".to_owned());
+    let calls: Signal<u32> = Signal::create(0);
+    let settings: EuvDropdownMenuRadioItemProps = EuvDropdownMenuRadioItemProps {
+        value: "list",
+        selection: EuvDropdownMenuRadioGroupState {
+            value,
+            controlled: false,
+            on_value_change: Some(Rc::new(move |next: String| {
+                assert_eq!(value.get(), next);
+                calls.set(calls.get() + 1);
+            })),
+        },
+        ..EuvDropdownMenuRadioItemProps::default()
+    };
+    assert!(!activate_dropdown_menu_radio(&settings));
+    assert!(!activate_dropdown_menu_radio(&settings));
+    assert_eq!(calls.get(), 1);
+    value.set("grid".to_owned());
+    assert!(!activate_dropdown_menu_radio(&settings));
+    assert_eq!(calls.get(), 2);
+    assert_eq!(value.get(), "list");
+}
+
+#[test]
+fn dropdown_submenu_pairs_stable_ids_visibility_and_native_disabled_triggers() {
+    let open: Signal<bool> = Signal::create(false);
+    let trigger: VirtualNode =
+        euv_dropdown_menu_sub_trigger(props(EuvDropdownMenuSubTriggerProps {
+            label: "Share document",
+            open,
+            disabled: false,
+            ..EuvDropdownMenuSubTriggerProps::default()
+        }));
+    let trigger_id: String = root_attribute_value(&trigger, "id").unwrap();
+    let content_id: String = root_attribute_value(&trigger, "aria-controls").unwrap();
+    assert!(has_attribute_value(
+        &trigger,
+        "data-slot",
+        "dropdown-menu-sub-caret"
+    ));
+    assert!(has_attribute_value(&trigger, "aria-hidden", "true"));
+    assert!(crate::DROPDOWN_SUB_CARET_MARKUP.contains("xmlns=\"http://www.w3.org/2000/svg\""));
+    assert!(crate::DROPDOWN_SUB_CARET_MARKUP.contains("focusable=\"false\""));
+    assert_eq!(root_tag(&trigger), "Element(\"button\")");
+    assert!(has_attribute_value(
+        &trigger,
+        "data-label",
+        "Share document"
+    ));
+    assert!(has_attribute_value(&trigger, "tabindex", "-1"));
+    assert!(has_attribute_value(&trigger, "aria-expanded", "false"));
+    assert!(has_attribute_name(&trigger, "onkeydown"));
+    for is_open in [false, true] {
+        open.set(is_open);
+        let panel: VirtualNode =
+            euv_dropdown_menu_sub_content(props(EuvDropdownMenuSubContentProps { open }));
+        assert!(has_attribute_value(&panel, "id", &content_id));
+        assert!(has_attribute_value(&panel, "aria-labelledby", &trigger_id));
+        assert!(has_attribute_value(
+            &panel,
+            "data-slot",
+            "dropdown-menu-sub-content"
+        ));
+        assert!(has_attribute_value(&panel, "role", "menu"));
+        assert!(has_class_name(&panel, "c_euv_dropdown_sub_panel"));
+        assert!(has_class_name(
+            &panel,
+            if is_open {
+                "c_euv_dropdown_menu_open"
+            } else {
+                "c_euv_dropdown_menu_closed"
+            }
+        ));
+        assert!(has_attribute_name(&panel, "onkeydown"));
+    }
+    let disabled: VirtualNode =
+        euv_dropdown_menu_sub_trigger(props(EuvDropdownMenuSubTriggerProps {
+            label: "Unavailable",
+            disabled: true,
+            ..EuvDropdownMenuSubTriggerProps::default()
+        }));
+    assert!(has_attribute_value(&disabled, "disabled", "true"));
+    assert!(has_attribute_value(&disabled, "aria-disabled", "true"));
+    assert_eq!(
+        root_attribute_value(&disabled, "onclick").as_deref(),
+        Some("")
+    );
+    let other: VirtualNode =
+        euv_dropdown_menu_sub_trigger(props(EuvDropdownMenuSubTriggerProps::default()));
+    assert_ne!(root_attribute_value(&other, "id"), Some(trigger_id));
+}
+
+#[test]
+fn dropdown_submenu_parent_close_recursively_resets_only_its_branch() {
+    let root: Signal<bool> = Signal::create(true);
+    let first: Signal<bool> = Signal::create(false);
+    let second: Signal<bool> = Signal::create(false);
+    let sibling: Signal<bool> = Signal::create(false);
+    use_dropdown_menu_sub_binding(root, first);
+    use_dropdown_menu_sub_binding(first, second);
+    use_dropdown_menu_sub_binding(root, sibling);
+    first.set(true);
+    second.set(true);
+    sibling.set(true);
+    second.set(false);
+    assert!(first.get() && root.get() && sibling.get());
+    second.set(true);
+    first.set(false);
+    assert!(!second.get());
+    assert!(root.get() && sibling.get());
+    root.set(false);
+    assert!(!first.get() && !second.get() && !sibling.get());
+    second.set(true);
+    assert!(!second.get());
+    root.set(true);
+    assert!(!first.get() && !second.get() && !sibling.get());
+}
+
+#[test]
+fn dropdown_submenu_keys_follow_local_direction_not_collision_side() {
+    assert_eq!(dropdown_direction_keys(false), ("ArrowRight", "ArrowLeft"));
+    assert_eq!(dropdown_direction_keys(true), ("ArrowLeft", "ArrowRight"));
+    let labels: Vec<String> = vec![
+        "Email link".into(),
+        "Copy share link".into(),
+        "More destinations".into(),
+    ];
+    assert_eq!(dropdown_next_index(&labels, Some(0), "End"), Some(2));
+    assert_eq!(dropdown_next_index(&labels, Some(2), "Home"), Some(0));
+    assert_eq!(dropdown_next_index(&labels, Some(0), "c"), Some(1));
+}
+
+#[test]
+fn dropdown_submenu_position_flips_clamps_and_limits_tall_panels() {
+    assert_eq!(
+        dropdown_sub_position((100.0, 220.0, 40.0), (140.0, 120.0), (800.0, 600.0), false),
+        (220.0, 40.0, 552.0)
+    );
+    assert_eq!(
+        dropdown_sub_position((650.0, 780.0, 560.0), (140.0, 120.0), (800.0, 600.0), false),
+        (510.0, 472.0, 120.0)
+    );
+    assert_eq!(
+        dropdown_sub_position((220.0, 340.0, 40.0), (140.0, 120.0), (800.0, 600.0), true),
+        (80.0, 40.0, 552.0)
+    );
+    assert_eq!(
+        dropdown_sub_position((8.0, 120.0, 40.0), (140.0, 120.0), (800.0, 600.0), true),
+        (120.0, 40.0, 552.0)
+    );
+    assert_eq!(
+        dropdown_sub_position((100.0, 220.0, 400.0), (140.0, 900.0), (800.0, 600.0), false),
+        (220.0, 8.0, 584.0)
+    );
+    assert_eq!(
+        dropdown_sub_position((0.0, 10.0, -50.0), (140.0, 120.0), (20.0, 20.0), false),
+        (8.0, 8.0, 4.0)
+    );
+}
+
+#[test]
+fn dropdown_hover_defaults_and_configured_native_triggers_preserve_activation() {
+    let defaults: EuvDropdownMenuSubTriggerProps = EuvDropdownMenuSubTriggerProps::default();
+    assert!(defaults.open_on_hover);
+    assert!(!defaults.disabled);
+    assert_eq!((defaults.delay_ms, defaults.close_delay_ms), (100, 0));
+    for (enabled, disabled, delay, close_delay) in [
+        (false, false, 100, 0),
+        (true, false, 300, 150),
+        (true, true, 100, 0),
+    ] {
+        let trigger: VirtualNode =
+            euv_dropdown_menu_sub_trigger(props(EuvDropdownMenuSubTriggerProps {
+                open_on_hover: enabled,
+                disabled,
+                delay_ms: delay,
+                close_delay_ms: close_delay,
+                label: "Hover settings",
+                ..EuvDropdownMenuSubTriggerProps::default()
+            }));
+        assert!(has_attribute_value(
+            &trigger,
+            "data-label",
+            "Hover settings"
+        ));
+        assert!(has_attribute_name(&trigger, "onkeydown"));
+        assert!(has_attribute_name(&trigger, "onclick"));
+        assert!(has_attribute_value(&trigger, "aria-expanded", "false"));
+    }
+}
+
+#[test]
+fn dropdown_hover_eligibility_rejects_touch_disabled_hover_off_and_closed_parent() {
+    assert!(dropdown_hover_eligible("mouse", true, false, true, true));
+    assert!(dropdown_hover_eligible("pen", true, false, true, true));
+    for pointer in ["touch", "", "unknown"] {
+        assert!(!dropdown_hover_eligible(pointer, true, false, true, true));
+    }
+    for (hover, disabled, enabled, parent) in [
+        (false, false, true, true),
+        (true, true, true, true),
+        (true, false, false, true),
+        (true, false, true, false),
+    ] {
+        assert!(!dropdown_hover_eligible(
+            "mouse", hover, disabled, enabled, parent
+        ));
+    }
+}
+
+#[test]
+fn dropdown_hover_intents_cancel_early_entry_and_retain_descendants_and_bridges() {
+    assert_eq!(
+        dropdown_hover_intent(false, true, false, false, true),
+        Some(true)
+    );
+    assert_eq!(
+        dropdown_hover_intent(false, false, false, false, true),
+        None
+    );
+    assert_eq!(
+        dropdown_hover_intent(false, true, false, false, false),
+        None
+    );
+    assert_eq!(dropdown_hover_intent(true, true, false, false, true), None);
+    assert_eq!(dropdown_hover_intent(true, false, true, false, true), None);
+    assert_eq!(dropdown_hover_intent(true, false, false, true, true), None);
+    assert_eq!(
+        dropdown_hover_intent(true, false, false, false, true),
+        Some(false)
+    );
+    assert_eq!(
+        dropdown_hover_intent(true, false, false, false, false),
+        Some(false)
+    );
+}
+
+#[test]
+fn dropdown_hover_bridge_tracks_actual_side_flips_and_clamped_edges_without_leaking() {
+    let row: (f64, f64, f64, f64) = (100.0, 100.0, 200.0, 130.0);
+    for (panel, exit, inside, outside) in [
+        (
+            (208.0, 80.0, 350.0, 300.0),
+            (190.0, 115.0),
+            (204.0, 160.0),
+            (204.0, 10.0),
+        ),
+        (
+            (-50.0, 80.0, 92.0, 300.0),
+            (110.0, 115.0),
+            (96.0, 160.0),
+            (96.0, 10.0),
+        ),
+        (
+            (208.0, 8.0, 350.0, 108.0),
+            (190.0, 115.0),
+            (204.0, 90.0),
+            (204.0, 140.0),
+        ),
+    ] {
+        assert!(dropdown_hover_bridge(inside, exit, row, panel));
+        assert!(!dropdown_hover_bridge(outside, exit, row, panel));
+        assert!(!dropdown_hover_bridge((500.0, 150.0), exit, row, panel));
+        assert!(!dropdown_hover_bridge((0.0, 500.0), exit, row, panel));
+    }
+    assert!(!dropdown_hover_bridge(
+        (150.0, 115.0),
+        (150.0, 115.0),
+        row,
+        (200.0, 0.0, 200.0, 0.0)
+    ));
+}
+
+#[test]
+fn dropdown_hover_focused_subtrigger_exit_closes_only_its_own_open_branch() {
+    for rtl in [false, true] {
+        assert!(dropdown_sub_trigger_exit(true, "Escape", rtl));
+        assert!(!dropdown_sub_trigger_exit(false, "Escape", rtl));
+        assert!(dropdown_sub_trigger_exit(
+            true,
+            dropdown_direction_keys(rtl).1,
+            rtl
+        ));
+        assert!(!dropdown_sub_trigger_exit(
+            true,
+            dropdown_direction_keys(rtl).0,
+            rtl
+        ));
+        assert!(!dropdown_sub_trigger_exit(true, "Tab", rtl));
+    }
 }

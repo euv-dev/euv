@@ -122,7 +122,10 @@ fn a_card_renders_its_title_above_its_body() {
         attributes: Vec::new(),
         children: vec![VirtualNode::from(String::from("body"))],
         key: None,
-        props: Some(Box::new(EuvCardProps { title: "Hello" })),
+        props: Some(Box::new(EuvCardProps {
+            title: "Hello".into(),
+            level: None,
+        })),
     };
     let rendered: VirtualNode = euv_card(node);
     match &rendered {
@@ -140,7 +143,10 @@ fn a_card_always_renders_a_heading_even_when_childless() {
         attributes: Vec::new(),
         children: Vec::new(),
         key: None,
-        props: Some(Box::new(EuvCardProps { title: "Empty" })),
+        props: Some(Box::new(EuvCardProps {
+            title: "Empty".into(),
+            level: None,
+        })),
     };
     let rendered: VirtualNode = euv_card(node);
     match &rendered {
@@ -169,7 +175,10 @@ fn two_cards_differing_only_in_title_still_render_the_same_shell() {
             attributes: Vec::new(),
             children: Vec::new(),
             key: None,
-            props: Some(Box::new(EuvCardProps { title })),
+            props: Some(Box::new(EuvCardProps {
+                title: title.into(),
+                level: None,
+            })),
         })
     };
     let one: VirtualNode = make("One");

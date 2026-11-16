@@ -166,7 +166,31 @@ pub fn euv_upload(node: VirtualNode<EuvUploadProps>) -> VirtualNode {
         files,
         drag_active,
         on_files,
+        id,
+        label,
+        disabled,
+        input_type,
+        aria_label,
+        picker_label,
+        onchange,
     }: EuvUploadProps = node.try_get_props().unwrap_or_default();
+    let effective_label: &'static str = if picker_label.is_empty() {
+        label
+    } else {
+        picker_label
+    };
+    let effective_aria_label: &'static str = if aria_label.is_empty() {
+        effective_label
+    } else {
+        aria_label
+    };
+    let effective_type: &'static str = if input_type.is_empty() {
+        "file"
+    } else {
+        input_type
+    };
+    let change_handler: Option<Rc<dyn Fn(Event)>> =
+        onchange.or_else(|| on_upload_files_change(on_files));
     let file_rows: Vec<EuvUploadFile> = files.get();
     let row_nodes: Vec<VirtualNode> = file_rows
         .iter()
@@ -184,15 +208,18 @@ pub fn euv_upload(node: VirtualNode<EuvUploadProps>) -> VirtualNode {
                 ondragover: on_upload_drag_over(drag_active)
                 ondragleave: on_upload_drag_leave(drag_active)
                 input {
-                    type: "file"
+                    type: effective_type
+                    id: id
+                    "aria-label": effective_aria_label
+                    disabled: disabled
                     class: c_euv_upload_input()
                     accept: accept
                     multiple: multiple.get()
-                    onchange: on_upload_files_change(on_files)
+                    onchange: change_handler
                 }
                 span {
                     {
-                        "Drop files here or click to browse"
+                        effective_label
                     }
                 }
             }

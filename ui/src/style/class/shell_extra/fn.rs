@@ -21,17 +21,8 @@ class! {
     }
 
     // The scrollable middle of the sidebar: the menus live here.
-    pub c_euv_sidebar_content {
-        display: "flex";
-        min-height: "0px";
-        flex: "1";
-        flex-direction: "column";
-        gap: var!(space-sm);
-        overflow: "auto";
-    }
-    pub(crate) c_euv_sidebar_content_shadcn {
-        padding-left: var!(control-pad-inline);
-    }
+
+
 
 
     // The band that holds the footer of the sidebar.
@@ -58,22 +49,8 @@ class! {
     }
 
     // The caption that names a group of menu rows.
-    pub c_euv_sidebar_group_label {
-        display: "flex";
-        flex-shrink: "0";
-        align-items: "center";
-        gap: var!(space-sm);
-        padding: var!(space-sm);
-        font-size: var!(font-xs);
-        font-weight: var!(font-weight-medium);
-        color: var!(muted-foreground);
-    }
-    pub(crate) c_euv_sidebar_group_label_shadcn {
-        border-bottom-right-radius: var!(radius-md);
-        border-bottom-left-radius: var!(radius-md);
-        border-top-right-radius: var!(radius-md);
-        border-top-left-radius: var!(radius-md);
-    }
+
+
 
 
     // The control at the end of a group caption.
@@ -116,66 +93,13 @@ class! {
     }
 
     // The clickable row of a menu item.
-    pub c_euv_sidebar_menu_button {
-        display: "flex";
-        width: "100%";
-        min-width: "0px";
-        align-items: "center";
-        gap: var!(space-sm);
-        height: var!(control-height-sm);
-        padding: var!(space-sm);
-        border: "none";
-        border-radius: var!(radius-md);
-        background: "transparent";
-        color: var!(foreground);
-        font-family: "inherit";
-        font-size: var!(font-sm);
-        line-height: "1.5";
-        text-align: "left";
-        text-decoration: "none";
-        cursor: "pointer";
-        :hover {
-            background: var!(accent);
-            color: var!(accent-foreground);
-        }
-    }
-    pub(crate) c_euv_sidebar_menu_button_shadcn {
-        border-color: var!(border);
-        border-bottom-style: "solid";
-        border-left-style: "solid";
-        border-right-style: "solid";
-        border-top-style: "solid";
-        border-bottom-width: var!(border-width);
-        border-left-width: var!(border-width);
-        border-right-width: var!(border-width);
-        border-top-width: var!(border-width);
-        font-weight: var!(font-weight-medium);
-    }
+
+
 
 
     // The row of the menu item the reader is on.
-    pub c_euv_sidebar_menu_button_active {
-        c_euv_sidebar_menu_button();
-        background: var!(accent);
-        color: var!(accent-foreground);
-        font-weight: var!(font-weight-medium);
-    }
-    pub(crate) c_euv_sidebar_menu_button_active_shadcn {
-        border-color: var!(border);
-        border-bottom-right-radius: var!(radius-md);
-        border-bottom-left-radius: var!(radius-md);
-        border-top-right-radius: var!(radius-md);
-        border-top-left-radius: var!(radius-md);
-        border-bottom-style: "solid";
-        border-left-style: "solid";
-        border-right-style: "solid";
-        border-top-style: "solid";
-        border-bottom-width: var!(border-width);
-        border-left-width: var!(border-width);
-        border-right-width: var!(border-width);
-        border-top-width: var!(border-width);
-        font-weight: var!(font-weight-medium);
-    }
+
+
 
 
     // The control at the end of a menu row.
@@ -334,6 +258,7 @@ class! {
     pub c_euv_sidebar_rail {
         position: "absolute";
         top: "0px";
+        right: "0px";
         bottom: "0px";
         width: var!(space-lg);
         padding: "0px";
@@ -517,8 +442,166 @@ class! {
     pub c_euv_chart_legend_content {}
 
     pub c_euv_direction_provider {}
-    pub(crate) c_euv_sidebar_content_shadcn {}
-    pub(crate) c_euv_sidebar_group_label_shadcn {}
-    pub(crate) c_euv_sidebar_menu_button_active_shadcn {}
-    pub(crate) c_euv_sidebar_menu_button_shadcn {}
+}
+
+#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+class! {
+    pub c_euv_sidebar_content {
+        display: "flex";
+        min-height: "0px";
+        flex: "1";
+        flex-direction: "column";
+        gap: var!(space-sm);
+        overflow: "auto";
+    }
+
+    pub c_euv_sidebar_group_label {
+        display: "flex";
+        flex-shrink: "0";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: var!(space-sm);
+        font-size: var!(font-xs);
+        font-weight: var!(font-weight-medium);
+        color: var!(muted-foreground);
+    }
+
+    pub c_euv_sidebar_menu_button {
+        display: "flex";
+        width: "100%";
+        min-width: "0px";
+        align-items: "center";
+        gap: var!(space-sm);
+        height: var!(control-height-sm);
+        padding: var!(space-sm);
+        border: "none";
+        border-radius: var!(radius-md);
+        background: "transparent";
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        text-align: "left";
+        text-decoration: "none";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub c_euv_sidebar_menu_button_active {
+        c_euv_sidebar_menu_button();
+        background: var!(accent);
+        color: var!(accent-foreground);
+        font-weight: var!(font-weight-medium);
+    }
+}
+
+#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+class! {
+    pub c_euv_sidebar_content {
+        display: "flex";
+        min-height: "0px";
+        flex: "1";
+        flex-direction: "column";
+        gap: var!(space-sm);
+        overflow: "auto";
+
+        padding-left: var!(control-pad-inline);
+    }
+
+    pub c_euv_sidebar_group_label {
+        display: "flex";
+        flex-shrink: "0";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: var!(space-sm);
+        font-size: var!(font-xs);
+        font-weight: var!(font-weight-medium);
+        color: var!(muted-foreground);
+
+        border-bottom-right-radius: var!(radius-md);
+        border-bottom-left-radius: var!(radius-md);
+        border-top-right-radius: var!(radius-md);
+        border-top-left-radius: var!(radius-md);
+    }
+
+    pub c_euv_sidebar_menu_button {
+        display: "flex";
+        width: "100%";
+        min-width: "0px";
+        align-items: "center";
+        gap: var!(space-sm);
+        height: var!(control-height-sm);
+        padding: var!(space-sm);
+        border: "none";
+        border-radius: var!(radius-md);
+        background: "transparent";
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        text-align: "left";
+        text-decoration: "none";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        font-weight: var!(font-weight-medium);
+    }
+
+    pub c_euv_sidebar_menu_button_active {
+        display: "flex";
+        width: "100%";
+        min-width: "0px";
+        align-items: "center";
+        gap: var!(space-sm);
+        height: var!(control-height-sm);
+        padding: var!(space-sm);
+        border: "none";
+        border-radius: var!(radius-md);
+        background: "transparent";
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        text-align: "left";
+        text-decoration: "none";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+
+        background: var!(accent);
+        color: var!(accent-foreground);
+        font-weight: var!(font-weight-medium);
+
+        border-color: var!(border);
+        border-bottom-right-radius: var!(radius-md);
+        border-bottom-left-radius: var!(radius-md);
+        border-top-right-radius: var!(radius-md);
+        border-top-left-radius: var!(radius-md);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        font-weight: var!(font-weight-medium);
+    }
 }

@@ -74,6 +74,11 @@ pub(crate) const ERR_UNEXPECTED_TOKEN_IN_DYNAMIC_COMPONENT: &str =
 
 /// Type name for `VirtualNode`, used to determine the else default value in component props if-chains.
 pub(crate) const TYPE_VIRTUAL_NODE: &str = "VirtualNode";
+/// The type of a prop that holds text the caller owns.
+///
+/// A prop of this type takes a borrowed literal or an owned string, so the
+/// macro converts the value the caller wrote into it.
+pub(crate) const TYPE_COW_TEXT: &str = "CowText";
 
 /// Type name identifier for `VirtualNode`, used to detect `VirtualNode<T>` parameter types.
 pub(crate) const VIRTUAL_NODE_TYPE: &str = "VirtualNode";
@@ -87,14 +92,14 @@ pub(crate) const STR_EMPTY: &str = "";
 /// Cargo manifest file name.
 pub(crate) const CARGO_TOML: &str = "Cargo.toml";
 
-/// Workspace section header in Cargo.toml.
-pub(crate) const WORKSPACE_SECTION: &str = "[workspace]";
-
 /// Dependencies section key in Cargo.toml.
 pub(crate) const DEPENDENCIES: &str = "dependencies";
 
-/// Workspace dependencies section key in Cargo.toml.
-pub(crate) const WORKSPACE_DEPENDENCIES: &str = "workspace.dependencies";
+/// Development dependencies section key in Cargo.toml.
+pub(crate) const DEV_DEPENDENCIES: &str = "dev-dependencies";
+
+/// Target-specific dependency groups key in Cargo.toml.
+pub(crate) const TARGET_KEY: &str = "target";
 
 /// Path field key in dependency table.
 pub(crate) const PATH_KEY: &str = "path";

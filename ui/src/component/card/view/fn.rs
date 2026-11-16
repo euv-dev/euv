@@ -15,11 +15,8 @@ use super::*;
 /// - `VirtualNode` - A styled card element.
 #[component]
 pub fn euv_card(node: VirtualNode<EuvCardProps>) -> VirtualNode {
-    let EuvCardProps { title }: EuvCardProps = node.try_get_props().unwrap_or_default();
+    let EuvCardProps { title, level }: EuvCardProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    #[cfg(feature = "theme-shadcn")]
-    let card_class: String = format!("{} {}", c_card().get_name(), c_card_shadcn().get_name());
-    #[cfg(not(feature = "theme-shadcn"))]
     let card_class: String = c_card().get_name().to_string();
     html! {
         div {
@@ -27,7 +24,8 @@ pub fn euv_card(node: VirtualNode<EuvCardProps>) -> VirtualNode {
             "data-slot": "card"
             euv_card_header {
                 euv_card_title {
-                    text: title
+                    text: title.clone()
+                    level: level
                 }
             }
             children
@@ -76,25 +74,85 @@ pub fn euv_card_header(node: VirtualNode<EuvCardHeaderProps>) -> VirtualNode {
 /// - `VirtualNode` - The card title virtual DOM tree.
 #[component]
 pub fn euv_card_title(node: VirtualNode<EuvCardTitleProps>) -> VirtualNode {
-    let EuvCardTitleProps { text }: EuvCardTitleProps = node.try_get_props().unwrap_or_default();
+    let EuvCardTitleProps { text, level }: EuvCardTitleProps =
+        node.try_get_props().unwrap_or_default();
+    let level: EuvHeadingLevel = level.unwrap_or(EuvHeadingLevel::H3);
     let children: VirtualNode = node.get_children().into();
     let has_children: bool = !matches!(&children, VirtualNode::Empty);
-    #[cfg(feature = "theme-shadcn")]
-    let title_class: String = format!(
-        "{} {}",
-        c_card_title().get_name(),
-        c_card_title_shadcn().get_name()
-    );
-    #[cfg(not(feature = "theme-shadcn"))]
     let title_class: String = c_card_title().get_name().to_string();
-    html! {
-        h3 {
-            class: title_class
-            "data-slot": "card-title"
-            if has_children {
-                children
-            } else {
-                text
+    let body: VirtualNode = if has_children {
+        children
+    } else {
+        html! {
+        {
+            text.clone()
+        }
+        }
+    };
+    card_title_heading(level, title_class, body)
+}
+
+/// Builds the heading element a card title is written as.
+///
+/// The level is a setting of the component, so the element is chosen by a
+/// match over the levels rather than by a fixed tag: the library cannot know
+/// the outline of the page the card sits in.
+///
+/// # Arguments
+///
+/// - `EuvHeadingLevel` - The level the title is written at.
+/// - `String` - The class list of the title.
+/// - `VirtualNode` - The content of the title.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The heading element.
+fn card_title_heading(
+    level: EuvHeadingLevel,
+    title_class: String,
+    children: VirtualNode,
+) -> VirtualNode {
+    match level {
+        EuvHeadingLevel::H1 => {
+            html! {
+            h1 {
+                class: title_class "data-slot": "card-title" children
+            }
+            }
+        }
+        EuvHeadingLevel::H2 => {
+            html! {
+            h2 {
+                class: title_class "data-slot": "card-title" children
+            }
+            }
+        }
+        EuvHeadingLevel::H3 => {
+            html! {
+            h3 {
+                class: title_class "data-slot": "card-title" children
+            }
+            }
+        }
+        EuvHeadingLevel::H4 => {
+            html! {
+            h4 {
+                class: title_class "data-slot": "card-title" children
+            }
+            }
+        }
+        EuvHeadingLevel::H5 => {
+            html! {
+            h5 {
+                class: title_class "data-slot": "card-title" children
+            }
+            }
+        }
+        EuvHeadingLevel::H6 => {
+            html! {
+            h6 {
+                class: title_class "data-slot": "card-title" children
+            }
             }
         }
     }
@@ -126,7 +184,7 @@ pub fn euv_card_description(node: VirtualNode<EuvCardDescriptionProps>) -> Virtu
             if has_children {
                 children
             } else {
-                text
+                text.clone()
             }
         }
     }

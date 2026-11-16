@@ -392,3 +392,151 @@ impl VirtualNode<()> {
         Self::Dynamic(DynamicNode::new(inner, hook_context))
     }
 }
+
+/// Inherent implementation of [`CowText`].
+impl CowText {
+    /// Builds component text from an owned or borrowed value.
+    ///
+    /// # Arguments
+    ///
+    /// - `T` - The value convertible into a static cow.
+    ///
+    /// # Returns
+    ///
+    /// - `CowText` - The component text.
+    pub fn from_text<T>(text: T) -> Self
+    where
+        T: Into<Cow<'static, str>>,
+    {
+        Self(text.into())
+    }
+
+    /// Returns the text as a borrowed string slice.
+    ///
+    /// # Returns
+    ///
+    /// - `&str` - The text.
+    pub fn as_str(&self) -> &str {
+        self.0.as_ref()
+    }
+
+    /// Copies the text into a new owned string.
+    ///
+    /// # Returns
+    ///
+    /// - `String` - An owned copy of the text.
+    pub fn to_string_owned(&self) -> String {
+        self.0.to_string()
+    }
+}
+
+/// Formats component text as its contents.
+impl Display for CowText {
+    /// Writes the text to the formatter.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut Formatter<'_>` - The formatter receiving the text.
+    ///
+    /// # Returns
+    ///
+    /// - `fmt::Result` - Whether formatting succeeded.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, formatter)
+    }
+}
+
+/// Borrows component text as a string slice.
+impl Deref for CowText {
+    /// The borrowed string slice type.
+    type Target = str;
+
+    /// Returns the text contents.
+    ///
+    /// # Returns
+    ///
+    /// - `&Self::Target` - The text.
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
+}
+
+/// Converts an owned string into component text.
+impl From<String> for CowText {
+    /// Stores the string without copying it.
+    ///
+    /// # Arguments
+    ///
+    /// - `String` - The owned text.
+    ///
+    /// # Returns
+    ///
+    /// - `CowText` - The component text.
+    fn from(text: String) -> Self {
+        Self(Cow::Owned(text))
+    }
+}
+
+/// Converts a static string slice into component text.
+impl From<&'static str> for CowText {
+    /// Borrows the static text without allocating.
+    ///
+    /// # Arguments
+    ///
+    /// - `&'static str` - The static text.
+    ///
+    /// # Returns
+    ///
+    /// - `CowText` - The component text.
+    fn from(text: &'static str) -> Self {
+        Self(Cow::Borrowed(text))
+    }
+}
+
+/// Converts a static cow into component text.
+impl From<Cow<'static, str>> for CowText {
+    /// Stores the cow without copying it.
+    ///
+    /// # Arguments
+    ///
+    /// - `Cow<'static, str>` - The text.
+    ///
+    /// # Returns
+    ///
+    /// - `CowText` - The component text.
+    fn from(text: Cow<'static, str>) -> Self {
+        Self(text)
+    }
+}
+
+/// Extracts the cow stored in component text.
+impl From<CowText> for Cow<'static, str> {
+    /// Returns the owned or borrowed cow.
+    ///
+    /// # Arguments
+    ///
+    /// - `CowText` - The text wrapper.
+    ///
+    /// # Returns
+    ///
+    /// - `Cow<'static, str>` - The stored text.
+    fn from(text: CowText) -> Self {
+        text.0
+    }
+}
+
+/// Converts component text into a virtual text node.
+impl From<CowText> for VirtualNode {
+    /// Constructs a text node from the stored cow.
+    ///
+    /// # Arguments
+    ///
+    /// - `CowText` - The text wrapper.
+    ///
+    /// # Returns
+    ///
+    /// - `VirtualNode` - The text node.
+    fn from(text: CowText) -> Self {
+        VirtualNode::Text(TextNode::new(text.0, None))
+    }
+}

@@ -8,7 +8,6 @@ fn total(node: &VirtualNode) -> usize {
     }
 }
 
-#[cfg(feature = "theme-shadcn")]
 fn class_values(node: &VirtualNode) -> Vec<String> {
     match node {
         VirtualNode::Element {
@@ -95,13 +94,13 @@ fn leaked(value: String) -> &'static str {
 fn table_node(rows: usize, caption: &'static str) -> VirtualNode<EuvTableProps> {
     let columns: Vec<EuvTableColumn> = vec![EuvTableColumn {
         key: "a",
-        label: "A",
+        label: "A".into(),
         align: EuvTableAlign::default(),
     }];
     let built: Vec<EuvTableRow> = (0..rows)
         .map(|i: usize| EuvTableRow {
-            cells: vec!["x"],
-            key: leaked(format!("row-{i}")),
+            cells: vec!["x".into()],
+            key: leaked(format!("row-{i}")).into(),
         })
         .collect();
     VirtualNode::Element {
@@ -114,6 +113,7 @@ fn table_node(rows: usize, caption: &'static str) -> VirtualNode<EuvTableProps> 
             rows: built,
             caption,
             zebra: false,
+            class: Css::default(),
         })),
     }
 }
@@ -123,17 +123,17 @@ fn aligned_table_node() -> VirtualNode<EuvTableProps> {
     let columns: Vec<EuvTableColumn> = vec![
         EuvTableColumn {
             key: "left",
-            label: "Left",
+            label: "Left".into(),
             align: EuvTableAlign::Left,
         },
         EuvTableColumn {
             key: "center",
-            label: "Center",
+            label: "Center".into(),
             align: EuvTableAlign::Center,
         },
         EuvTableColumn {
             key: "right",
-            label: "Right",
+            label: "Right".into(),
             align: EuvTableAlign::Right,
         },
     ];
@@ -145,11 +145,12 @@ fn aligned_table_node() -> VirtualNode<EuvTableProps> {
         props: Some(Box::new(EuvTableProps {
             columns,
             rows: vec![EuvTableRow {
-                cells: vec!["a", "b", "c"],
-                key: "aligned-row",
+                cells: vec!["a".into(), "b".into(), "c".into()],
+                key: "aligned-row".into(),
             }],
             caption: "Alignment",
             zebra: false,
+            class: Css::default(),
         })),
     }
 }
@@ -195,6 +196,39 @@ fn radio_node(options: usize) -> VirtualNode<EuvRadioGroupProps> {
 }
 
 #[test]
+fn a_table_accepts_application_content_and_classes() {
+    let content: VirtualNode = VirtualNode::Element {
+        tag: Tag::Element(Cow::Borrowed("caption")),
+        attributes: Vec::new(),
+        children: vec![VirtualNode::from("Accessible account table")],
+        key: None,
+        props: None,
+    };
+    let node: VirtualNode<EuvTableProps> = VirtualNode::Element {
+        tag: Tag::Element(Cow::Borrowed("div")),
+        attributes: Vec::new(),
+        children: vec![content],
+        key: None,
+        props: Some(Box::new(EuvTableProps {
+            class: Css {
+                name: String::from("commerce-table"),
+                ..Css::default()
+            },
+            ..EuvTableProps::default()
+        })),
+    };
+    let rendered: VirtualNode = euv_table(node);
+    let classes: Vec<String> = class_values(&rendered);
+    let debugged: String = format!("{rendered:?}");
+    assert!(
+        classes
+            .iter()
+            .any(|class: &String| class == "commerce-table")
+    );
+    assert!(debugged.contains("Accessible account table"));
+}
+
+#[test]
 fn a_table_is_a_real_table_element_with_a_head() {
     let rendered: VirtualNode = euv_table(table_node(1, ""));
     let debugged: String = format!("{rendered:?}");
@@ -221,15 +255,15 @@ fn the_shadcn_table_uses_reference_type_alignment_and_caption_classes() {
     let rendered: VirtualNode = euv_table(aligned_table_node());
     let classes: Vec<String> = class_values(&rendered);
     for class_name in [
-        "c_euv_table_shadcn",
-        "c_euv_table_body_shadcn",
-        "c_euv_table_header_cell_shadcn",
-        "c_euv_table_header_cell_center_shadcn",
-        "c_euv_table_header_cell_right_shadcn",
-        "c_euv_table_cell_shadcn",
-        "c_euv_table_cell_center_shadcn",
-        "c_euv_table_cell_right_shadcn",
-        "c_euv_table_caption_shadcn",
+        "c_euv_table",
+        "c_euv_table_body",
+        "c_euv_table_header_cell",
+        "c_euv_table_header_cell_center",
+        "c_euv_table_header_cell_right",
+        "c_euv_table_cell",
+        "c_euv_table_cell_center",
+        "c_euv_table_cell_right",
+        "c_euv_table_caption",
     ] {
         assert!(
             classes.iter().any(|class: &String| class == class_name),
@@ -240,7 +274,7 @@ fn the_shadcn_table_uses_reference_type_alignment_and_caption_classes() {
     assert!(
         class_values(&footer)
             .iter()
-            .any(|class: &String| class == "c_euv_table_footer_shadcn")
+            .any(|class: &String| class == "c_euv_table_footer")
     );
 }
 

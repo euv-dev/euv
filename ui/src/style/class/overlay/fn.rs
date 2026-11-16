@@ -914,30 +914,6 @@ class! {
         position: "relative";
     }
 
-    pub(crate) c_euv_dropdown_menu {
-        position: "absolute";
-        // Sits flush under the trigger. The row is 36px tall and the container
-        // gives it no padding, so `top: 36px` is the trigger's bottom edge —
-        // any larger value opens a gap that reads as a break between the
-        // button and its menu. This was hardcoded to 44px, which is why the
-        // menu floated 8px below the button it belongs to.
-        top: "44px";
-        right: "0px";
-        // `width: 100%` so the menu matches the dropdown container (and
-        // therefore the trigger button) width exactly. With only `min-width`,
-        // a trigger wider than 140px (e.g. the nav-column locale switcher
-        // button) leaves a large empty gap on the left of the menu, since
-        // `right: 0` anchors only the right edge to the container.
-        width: "100%";
-        background: var!(popover);
-        color: var!(popover-foreground);
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        box-shadow: var!(shadow-md);
-        flex-direction: "column";
-        z-index: "101";
-        border-radius: var!(radius-md);
-    }
-
     pub(crate) c_euv_dropdown_menu_open {
         display: "flex";
     }
@@ -946,92 +922,9 @@ class! {
         display: "none";
     }
 
-    pub(crate) c_euv_dropdown_item {
-        // `control-row-pad` vertically, the same value the sidebar rows and the
-        // CTA buttons use: 9 + 24 line + 9 + 3 left border = 42. The row is
-        // only bordered on its left edge, so nothing stacks between neighbours
-        // and the stack reads as one continuous column.
-        //
-        // It was `space-sm` (8px) for as long as the row wore a 1px border on
-        // all four sides: 8 + 24 + 8 + 1 + 1 + 3 = 45 inside a 42px
-        // border-box, so the browser gave back a fraction of the padding on
-        // every row and the options came out with a hairline between them.
-        // Dropping the stacked borders makes 9px the right number again.
-        padding: format!("{} {}", var!(control-row-pad), var!(space-lg));
-        font-size: var!(font-sm);
-        text-align: "left";
-        cursor: "pointer";
-        // Rows must agree on height or the hover bar never lines up with the
-        // active fill. `line-height: normal` is at the mercy of the glyphs:
-        // English and Korean settle on a 35px row while Japanese takes 38px,
-        // and the language switcher lists all three at once. Pinning the line
-        // height is what makes the stack even, so the left bar can span a row
-        // that matches the active background exactly. 24px is the tallest
-        // of the three natural line heights *and* the body line height, so no
-        // script is clipped and the row matches the sidebar and the buttons.
-        line-height: "24px";
-        text-box-trim: "none";
-        text-box-edge: "none";
-        // Hover signals through the left edge only — no background wash. The
-        // menu sits over page content, so tinting the whole row made an
-        // unselected option read as a highlighted page link and washed out
-        // the label underneath it. The left border carries the affordance
-        // without painting behind the text or boxing the row.
-        //
-        // Only the LEFT edge is bordered — 3px, transparent until hover, so
-        // the hover bar needs no width change and the label never shifts.
-        //
-        // This used to be `border: 1px solid transparent` plus
-        // `border-left-width: 3px`, i.e. a box on all four sides. In a stack
-        // of rows every horizontal edge is shared between two neighbours, so
-        // the transparent top and bottom of one row sat against those of the
-        // next. Nothing is visible at rest, but each row then had to fit 8px +
-        // 24px line + 8px + 1px + 1px + 3px = 45px of content into a 42px
-        // border-box, and the browser reclaimed the overflow by trimming the
-        // padding — leaving a hairline between every pair of options. Only the
-        // left edge remains, so nothing stacks and 9 + 24 + 9 + 3 = 42 lands
-        // exactly.
-        border-left: "3px solid transparent";
-        :hover {
-            // Only the left edge reacts. The previous rule lit the whole
-            // perimeter, which framed the option as a card floating over the
-            // menu; the locale list is a plain vertical stack, so a box on
-            // every side read as a selection rather than a pointer position.
-            // The reserved left border carries the affordance on its own.
-            border-left-color: var!(foreground);
-        }
-    }
 
-    pub(crate) c_euv_dropdown_item_active {
-        // Same vertical padding as `c_euv_dropdown_item` (`control-row-pad`) —
-        // the accent fill has to be exactly as tall as the row it replaces.
-        padding: format!("{} {}", var!(control-row-pad), var!(space-lg));
-        font-size: var!(font-sm);
-        text-align: "left";
-        cursor: "pointer";
-        font-weight: var!(font-weight-semibold);
-        // The same pinned line height as `c_euv_dropdown_item`, for the same
-        // reason: a hovered row's bar has to match this fill to the pixel.
-        line-height: "24px";
-        // Only the left edge, for the same reason as `c_euv_dropdown_item`:
-        // a border on all four sides stacks between neighbouring rows. The
-        // accent fill spans the full box either way, and reserving the same
-        // 3px left edge keeps a hovered row's bar and an active row's fill
-        // aligned edge for edge and at the same width.
-        border-left: "3px solid transparent";
-        // The selected item wears the accent fill and the text colour that
-        // reads on top of it, the same pairing the sidebar's `_active` link
-        // uses. The inset bar is dropped: the full-width fill already carries
-        // the current-page signal, and a bar in the same monochrome accent
-        // would be invisible against it.
-        background: var!(primary);
-        color: var!(primary-foreground);
-        :hover {
-            background: var!(primary);
-            color: var!(primary-foreground);
-            box-shadow: "none";
-        }
-    }
+
+
 
     // ═══════════════════════════════════════════════════════════════════════════
     // euv_drawer
@@ -1380,42 +1273,6 @@ class! {
         padding: format!("{} {}", var!(space-sm), var!(space-md));
         border-top: format!("{} solid {}", var!(border-width), var!(border));
     }
-    pub c_euv_command {
-        display: "flex";
-        flex-direction: "column";
-        width: "100%";
-        height: "100%";
-        overflow: "hidden";
-        border-radius: var!(radius-md);
-        background: var!(popover);
-        color: var!(popover-foreground);
-    }
-
-    pub(crate) c_euv_command_shadcn {
-        border-radius: var!(radius-lg);
-        border-color: var!(border);
-        border-bottom-style: "solid";
-        border-left-style: "solid";
-        border-right-style: "solid";
-        border-top-style: "solid";
-        border-bottom-width: var!(border-width);
-        border-left-width: var!(border-width);
-        border-right-width: var!(border-width);
-        border-top-width: var!(border-width);
-        padding: var!(space-xs);
-    }
-
-    pub c_euv_command_input_wrapper {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        padding: format!("0px {}", var!(space-md));
-        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
-    }
-
-    pub(crate) c_euv_command_input_wrapper_shadcn {
-        padding: var!(space-xs);
-    }
 
     pub c_euv_command_input {
         display: "flex";
@@ -1458,27 +1315,6 @@ class! {
         font-weight: "500";
     }
 
-    pub c_euv_command_item {
-        position: "relative";
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        border-radius: var!(radius-sm);
-        font-size: var!(font-sm);
-        cursor: "default";
-        user-select: "none";
-    }
-
-    pub(crate) c_euv_command_item_shadcn {
-        padding: var!(space-sm);
-        border-bottom-right-radius: var!(radius-sm);
-        border-bottom-left-radius: var!(radius-sm);
-        border-top-right-radius: var!(radius-sm);
-        border-top-left-radius: var!(radius-sm);
-        padding-top: var!(space-xs-sm);
-    }
-
     pub c_euv_command_item_selected {
         background: var!(accent);
         color: var!(accent-foreground);
@@ -1508,77 +1344,6 @@ class! {
         flex-direction: "column";
     }
 
-    pub c_euv_combobox_trigger {
-        display: "inline-flex";
-        align-items: "center";
-        justify-content: "space-between";
-        gap: var!(space-sm);
-        height: var!(space-2xl);
-        padding: format!("0px {}", var!(space-lg));
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-md);
-        background: var!(background);
-        color: var!(foreground);
-        font-family: "inherit";
-        font-size: var!(font-sm);
-        line-height: "1.5";
-        white-space: "nowrap";
-        cursor: "pointer";
-    }
-
-    pub(crate) c_euv_combobox_trigger_shadcn {
-        height: var!(control-height-sm);
-        min-height: var!(control-height-sm);
-        padding: format!("{} {}", var!(space-sm), var!(control-pad-inline));
-        border-radius: var!(radius-lg);
-        font-size: var!(font-sm);
-        line-height: "1.428571";
-        gap: var!(space-xs-sm);
-    }
-
-    pub c_euv_combobox_input {
-        display: "flex";
-        width: "100%";
-        height: var!(space-2xl);
-        padding: format!("{} {}", var!(space-sm), var!(space-md));
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-md);
-        background: var!(background);
-        color: var!(foreground);
-        font-family: "inherit";
-        font-size: var!(font-sm);
-        line-height: "1.5";
-        outline: "none";
-    }
-
-    pub(crate) c_euv_combobox_input_shadcn {
-        height: var!(control-height-sm);
-        min-height: var!(control-height-sm);
-        padding: format!("{} {}", var!(space-xs), var!(control-pad-inline));
-        border-radius: var!(radius-lg);
-        font-size: var!(font-sm);
-        line-height: "1.428571";
-    }
-
-    pub c_euv_combobox_content {
-        position: "absolute";
-        top: "100%";
-        left: "0px";
-        z-index: 150;
-        min-width: "180px";
-        padding: var!(space-xs);
-        overflow: "hidden";
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-md);
-        background: var!(popover);
-        color: var!(popover-foreground);
-        box-shadow: var!(shadow-md);
-    }
-
-    pub(crate) c_euv_combobox_content_shadcn {
-        border-radius: var!(radius-lg);
-    }
-
     pub c_euv_combobox_content_open {
         display: "block";
     }
@@ -1590,30 +1355,6 @@ class! {
     pub c_euv_combobox_list {
         max-height: "300px";
         overflow-y: "auto";
-    }
-
-    pub c_euv_combobox_item {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        border-radius: var!(radius-sm);
-        font-size: var!(font-sm);
-        line-height: "1.5";
-        cursor: "pointer";
-        user-select: "none";
-    }
-
-    pub(crate) c_euv_combobox_item_shadcn {
-        padding: format!("{} calc({} + {})", var!(space-xs), var!(space-xs), var!(space-2xs));
-        border-radius: var!(radius-md);
-        font-size: var!(font-sm);
-        line-height: "1.428571";
-        :focus {
-            outline: "none";
-            background: var!(accent);
-            color: var!(accent-foreground);
-        }
     }
 
     pub c_euv_combobox_item_selected {
@@ -1675,36 +1416,10 @@ class! {
         position: "relative";
     }
 
-    pub c_euv_sheet_trigger {
-        display: "inline-flex";
-        align-items: "center";
-        justify-content: "center";
-        gap: var!(space-sm);
-        height: var!(space-2xl);
-        padding: format!("0px {}", var!(space-lg));
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-md);
-        background: var!(background);
-        color: var!(foreground);
-        font-family: "inherit";
-        font-size: var!(font-sm);
-        line-height: "1.5";
-        white-space: "nowrap";
-        cursor: "pointer";
-    }
-
-    pub(crate) c_euv_sheet_trigger_shadcn {
-        height: var!(control-height-sm);
-        gap: var!(space-xs-sm);
-        border-radius: var!(radius-lg);
-        font-weight: var!(font-weight-medium);
-        padding-left: var!(control-pad-inline);
-    }
-
     pub c_euv_sheet_overlay {
         position: "fixed";
         inset: "0px";
-        z-index: 1000;
+        z-index: "1000";
         background: var!(bg-overlay);
     }
 
@@ -1714,18 +1429,6 @@ class! {
 
     pub c_euv_sheet_overlay_closed {
         display: "none";
-    }
-
-    pub c_euv_sheet_content {
-        position: "fixed";
-        z-index: 1000;
-        display: "flex";
-        flex-direction: "column";
-        gap: var!(space-lg);
-        padding: var!(space-2xl);
-        background: var!(background);
-        color: var!(foreground);
-        box-shadow: var!(shadow-lg);
     }
 
     pub c_euv_sheet_content_top {
@@ -1742,24 +1445,6 @@ class! {
         border-top: format!("{} solid {}", var!(border-width), var!(border));
     }
 
-    pub c_euv_sheet_content_left {
-        top: "0px";
-        bottom: "0px";
-        left: "0px";
-        width: "75%";
-        max-width: "384px";
-        border-right: format!("{} solid {}", var!(border-width), var!(border));
-    }
-
-    pub c_euv_sheet_content_right {
-        top: "0px";
-        right: "0px";
-        bottom: "0px";
-        width: "75%";
-        max-width: "384px";
-        border-left: format!("{} solid {}", var!(border-width), var!(border));
-    }
-
     pub c_euv_sheet_content_open {
         display: "flex";
     }
@@ -1768,89 +1453,14 @@ class! {
         display: "none";
     }
 
-    pub c_euv_sheet_header {
-        display: "flex";
-        flex-direction: "column";
-        gap: var!(space-sm);
-        text-align: "center";
-    }
-
-    pub c_euv_sheet_footer {
-        display: "flex";
-        flex-direction: "column-reverse";
-        gap: var!(space-sm);
-    }
-
-    pub c_euv_sheet_title {
-        color: var!(foreground);
-        font-size: var!(font-lg);
-        font-weight: "600";
-        line-height: "1";
-    }
-
-    pub c_euv_sheet_description {
-        color: var!(muted-foreground);
-        font-size: var!(font-sm);
-    }
-
-    pub c_euv_sheet_close {
-        position: "absolute";
-        top: var!(space-lg);
-        right: var!(space-lg);
-        display: "inline-flex";
-        align-items: "center";
-        justify-content: "center";
-        width: var!(space-lg);
-        height: var!(space-lg);
-        padding: "0px";
-        border: "none";
-        border-radius: var!(radius-sm);
-        background: "transparent";
-        color: var!(muted-foreground);
-        font-family: "inherit";
-        font-size: var!(font-sm);
-        line-height: "1";
-        cursor: "pointer";
-        :hover {
-            background: var!(accent);
-            color: var!(accent-foreground);
-        }
-    }
-
     pub c_euv_alert_dialog {
         position: "relative";
-    }
-
-    pub c_euv_alert_dialog_trigger {
-        display: "inline-flex";
-        align-items: "center";
-        justify-content: "center";
-        gap: var!(space-sm);
-        height: var!(space-2xl);
-        padding: format!("0px {}", var!(space-lg));
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-md);
-        background: var!(background);
-        color: var!(foreground);
-        font-family: "inherit";
-        font-size: var!(font-sm);
-        line-height: "1.5";
-        white-space: "nowrap";
-        cursor: "pointer";
-    }
-
-    pub(crate) c_euv_alert_dialog_trigger_shadcn {
-        height: var!(control-height-sm);
-        gap: var!(space-xs-sm);
-        border-radius: var!(radius-lg);
-        font-weight: var!(font-weight-medium);
-        padding-left: var!(control-pad-inline);
     }
 
     pub c_euv_alert_dialog_overlay {
         position: "fixed";
         inset: "0px";
-        z-index: 1000;
+        z-index: "1000";
         background: var!(bg-overlay);
     }
 
@@ -1866,7 +1476,7 @@ class! {
         position: "fixed";
         top: "50%";
         left: "50%";
-        z-index: 1000;
+        z-index: "1000";
         display: "grid";
         gap: var!(space-lg);
         width: "100%";
@@ -1983,30 +1593,11 @@ class! {
         display: "inline-flex";
     }
 
-    pub c_euv_hover_card_trigger {
-        display: "inline-flex";
-        align-items: "center";
-        font-family: "inherit";
-        font-size: var!(font-sm);
-        text-decoration: "underline";
-        text-underline-offset: "4px";
-        cursor: "pointer";
-    }
-    pub(crate) c_euv_hover_card_trigger_shadcn {
-        border-bottom-right-radius: var!(radius-md);
-        border-bottom-left-radius: var!(radius-md);
-        border-top-right-radius: var!(radius-md);
-        border-top-left-radius: var!(radius-md);
-        gap: var!(space-xs);
-        justify-content: "center";
-    }
-
-
     pub c_euv_hover_card_content {
         position: "absolute";
         top: "100%";
         left: "0px";
-        z-index: 150;
+        z-index: "150";
         width: "256px";
         padding: var!(space-lg);
         border: format!("{} {} {}", var!(border-width), "solid", var!(border));
@@ -2030,47 +1621,28 @@ class! {
         display: "inline-flex";
     }
 
-    pub c_euv_context_menu_trigger {
-        display: "inline-flex";
-        align-items: "center";
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
-        border-radius: var!(radius-md);
-        background: var!(background);
-        color: var!(foreground);
-        font-family: "inherit";
-        font-size: var!(font-sm);
-        line-height: "1.5";
-        white-space: "nowrap";
-        cursor: "pointer";
-    }
-
-    pub(crate) c_euv_context_menu_trigger_shadcn {
-        border-radius: var!(radius-xl);
-        border-color: var!(border);
-        border-bottom-style: "solid";
-        border-left-style: "solid";
-        border-right-style: "solid";
-        border-top-style: "solid";
-        border-bottom-width: var!(border-width);
-        border-left-width: var!(border-width);
-        border-right-width: var!(border-width);
-        border-top-width: var!(border-width);
-        justify-content: "center";
-    }
-
     pub c_euv_context_menu_content {
-        position: "absolute";
-        top: "100%";
-        left: "0px";
-        z-index: 150;
+        position: "fixed";
+        top: format!("var({}, 0px)", CONTEXT_MENU_POSITION_Y_PROPERTY);
+        left: format!("var({}, 0px)", CONTEXT_MENU_POSITION_X_PROPERTY);
+        z-index: "150";
         min-width: "180px";
+        max-width: format!("calc(100vw - {})", var!(space-sm));
+        max-height: format!("calc(100vh - {})", var!(space-sm));
+        overflow-y: "auto";
         padding: var!(space-xs);
         border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-md);
         background: var!(popover);
         color: var!(popover-foreground);
         box-shadow: var!(shadow-md);
+        transform: format!(
+        "translate(min(0px, calc(100vw - var({}, 0px) - 100% - {})), min(0px, calc(100vh - var({}, 0px) - 100% - {})))",
+        CONTEXT_MENU_POSITION_X_PROPERTY,
+        var!(space-sm),
+        CONTEXT_MENU_POSITION_Y_PROPERTY,
+        var!(space-sm)
+        );
     }
 
     pub c_euv_context_menu_content_open {
@@ -2084,8 +1656,10 @@ class! {
 
     pub c_euv_context_menu_item {
         display: "flex";
+        box-sizing: "border-box";
         align-items: "center";
         gap: var!(space-sm);
+        width: "100%";
         padding: format!("{} {}", var!(space-xs), var!(space-sm));
         border-radius: var!(radius-sm);
         font-size: var!(font-sm);
@@ -2096,43 +1670,28 @@ class! {
             background: var!(accent);
             color: var!(accent-foreground);
         }
+        :focus-visible {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
+        }
     }
 
     pub c_euv_context_menu_item_disabled {
+        c_euv_context_menu_item();
         opacity: "0.5";
         pointer-events: "none";
     }
 
     pub c_euv_context_menu_checkbox_item {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        border-radius: var!(radius-sm);
-        font-size: var!(font-sm);
-        line-height: "1.5";
-        cursor: "pointer";
-        user-select: "none";
-        :hover {
-            background: var!(accent);
-            color: var!(accent-foreground);
-        }
+        c_euv_context_menu_item();
     }
 
     pub c_euv_context_menu_radio_item {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
-        border-radius: var!(radius-sm);
-        font-size: var!(font-sm);
-        line-height: "1.5";
-        cursor: "pointer";
-        user-select: "none";
-        :hover {
-            background: var!(accent);
-            color: var!(accent-foreground);
-        }
+        c_euv_context_menu_item();
     }
 
     pub c_euv_context_menu_label {
@@ -2166,24 +1725,18 @@ class! {
     }
 
     pub c_euv_context_menu_sub_trigger {
-        display: "flex";
-        align-items: "center";
-        gap: var!(space-sm);
-        width: "100%";
-        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        c_euv_context_menu_item();
         border: "none";
         background: "transparent";
         color: var!(foreground);
         font-family: "inherit";
-        font-size: var!(font-sm);
-        text-align: "left";
-        cursor: "pointer";
+        text-align: "start";
     }
 
     pub c_euv_context_menu_sub_content {
         position: "absolute";
         top: "0px";
-        left: "100%";
+        inset-inline-start: "100%";
         z-index: "150";
         display: "flex";
         flex-direction: "column";
@@ -2206,7 +1759,7 @@ class! {
     pub c_euv_dialog_overlay {
         position: "fixed";
         inset: "0px";
-        z-index: 1000;
+        z-index: "1000";
         background: var!(bg-overlay);
     }
 
@@ -2222,7 +1775,7 @@ class! {
         position: "fixed";
         top: "50%";
         left: "50%";
-        z-index: 1000;
+        z-index: "1000";
         display: "grid";
         gap: var!(space-lg);
         width: "100%";
@@ -2299,7 +1852,7 @@ class! {
         position: "fixed";
         top: "50%";
         left: "50%";
-        z-index: 1000;
+        z-index: "1000";
         display: "grid";
         gap: var!(space-lg);
         width: "100%";
@@ -2358,8 +1911,7 @@ class! {
         justify-content: "center";
         width: var!(space-lg);
         height: var!(space-lg);
-        font-size: var!(font-sm);
-        line-height: var!(space-lg);
+        pointer-events: "none";
     }
 }
 
@@ -2539,6 +2091,8 @@ class! {
 
     pub(crate) c_euv_dropdown_menu {}
 
+    pub(crate) c_euv_dropdown_sub_panel {}
+
     pub(crate) c_euv_dropdown_menu_open {}
 
     pub(crate) c_euv_dropdown_menu_closed {}
@@ -2630,11 +2184,7 @@ class! {
     pub(crate) c_euv_popconfirm_actions {}
     pub c_euv_command {}
 
-    pub c_euv_command_shadcn {}
-
     pub c_euv_command_input_wrapper {}
-
-    pub c_euv_command_input_wrapper_shadcn {}
 
     pub c_euv_command_input {}
 
@@ -2648,8 +2198,6 @@ class! {
 
     pub c_euv_command_item {}
 
-    pub c_euv_command_item_shadcn {}
-
     pub c_euv_command_item_selected {}
 
     pub c_euv_command_item_disabled {}
@@ -2662,15 +2210,9 @@ class! {
 
     pub c_euv_combobox_trigger {}
 
-    pub(crate) c_euv_combobox_trigger_shadcn {}
-
     pub c_euv_combobox_input {}
 
-    pub(crate) c_euv_combobox_input_shadcn {}
-
     pub c_euv_combobox_content {}
-
-    pub(crate) c_euv_combobox_content_shadcn {}
 
     pub c_euv_combobox_content_open {}
 
@@ -2679,8 +2221,6 @@ class! {
     pub c_euv_combobox_list {}
 
     pub c_euv_combobox_item {}
-
-    pub(crate) c_euv_combobox_item_shadcn {}
 
     pub c_euv_combobox_item_selected {}
 
@@ -2699,8 +2239,6 @@ class! {
     pub c_euv_sheet {}
 
     pub c_euv_sheet_trigger {}
-
-    pub c_euv_sheet_trigger_shadcn {}
 
     pub c_euv_sheet_overlay {}
 
@@ -2735,8 +2273,6 @@ class! {
     pub c_euv_alert_dialog {}
 
     pub c_euv_alert_dialog_trigger {}
-
-    pub c_euv_alert_dialog_trigger_shadcn {}
 
     pub c_euv_alert_dialog_overlay {}
 
@@ -2777,8 +2313,6 @@ class! {
     pub c_euv_context_menu {}
 
     pub c_euv_context_menu_trigger {}
-
-    pub c_euv_context_menu_trigger_shadcn {}
 
     pub c_euv_context_menu_content {}
 
@@ -2837,5 +2371,825 @@ class! {
     pub c_euv_dialog_footer {}
 
     pub c_euv_dialog_close {}
-    pub(crate) c_euv_hover_card_trigger_shadcn {}
+}
+
+#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+class! {
+    pub(crate) c_euv_dropdown_menu {
+        "--euv-dropdown-align": "end";
+        "--euv-dropdown-anchor": "root";
+        "--euv-dropdown-gap": "8";
+        "--euv-dropdown-width-mode": "anchor";
+        // The portaled popup receives measured viewport coordinates on open.
+        position: "fixed";
+        overflow-y: "auto";
+        box-sizing: "border-box";
+        overscroll-behavior: "contain";
+        background: var!(popover);
+        color: var!(popover-foreground);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        box-shadow: var!(shadow-md);
+        flex-direction: "column";
+        z-index: "101";
+        border-radius: var!(radius-md);
+    }
+
+    pub(crate) c_euv_dropdown_sub_panel {
+        c_euv_dropdown_menu();
+        width: "max-content";
+        z-index: "150";
+    }
+
+    pub(crate) c_euv_dropdown_item_active {
+        // Same vertical padding as `c_euv_dropdown_item` (`control-row-pad`) —
+        // the accent fill has to be exactly as tall as the row it replaces.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-lg));
+        font-size: var!(font-sm);
+        text-align: "left";
+        cursor: "pointer";
+        font-weight: var!(font-weight-semibold);
+        // The same pinned line height as `c_euv_dropdown_item`, for the same
+        // reason: a hovered row's bar has to match this fill to the pixel.
+        line-height: "24px";
+        // Only the left edge, for the same reason as `c_euv_dropdown_item`:
+        // a border on all four sides stacks between neighbouring rows. The
+        // accent fill spans the full box either way, and reserving the same
+        // 3px left edge keeps a hovered row's bar and an active row's fill
+        // aligned edge for edge and at the same width.
+        border-left: "3px solid transparent";
+        // The selected item wears the accent fill and the text colour that
+        // reads on top of it, the same pairing the sidebar's `_active` link
+        // uses. The inset bar is dropped: the full-width fill already carries
+        // the current-page signal, and a bar in the same monochrome accent
+        // would be invisible against it.
+        background: var!(primary);
+        color: var!(primary-foreground);
+        :hover {
+            background: var!(primary);
+            color: var!(primary-foreground);
+            box-shadow: "none";
+        }
+    }
+
+    pub c_euv_command {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+        height: "100%";
+        overflow: "hidden";
+        border-radius: var!(radius-md);
+        background: var!(popover);
+        color: var!(popover-foreground);
+    }
+
+    pub c_euv_command_input_wrapper {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: format!("0px {}", var!(space-md));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
+    }
+
+    pub c_euv_command_item {
+        position: "relative";
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border-radius: var!(radius-sm);
+        font-size: var!(font-sm);
+        cursor: "default";
+        user-select: "none";
+    }
+
+    pub c_euv_combobox_trigger {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "space-between";
+        gap: var!(space-sm);
+        height: var!(space-2xl);
+        padding: format!("0px {}", var!(space-lg));
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        white-space: "nowrap";
+        cursor: "pointer";
+    }
+
+    pub c_euv_combobox_input {
+        display: "flex";
+        width: "100%";
+        height: var!(space-2xl);
+        padding: format!("{} {}", var!(space-sm), var!(space-md));
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        outline: "none";
+    }
+
+    pub c_euv_combobox_content {
+        position: "absolute";
+        top: "100%";
+        left: "0px";
+        z-index: "150";
+        min-width: "180px";
+        padding: var!(space-xs);
+        overflow: "hidden";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(popover);
+        color: var!(popover-foreground);
+        box-shadow: var!(shadow-md);
+    }
+
+    pub c_euv_combobox_item {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border-radius: var!(radius-sm);
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        cursor: "pointer";
+        user-select: "none";
+    }
+
+    pub c_euv_sheet_trigger {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        height: var!(space-2xl);
+        padding: format!("0px {}", var!(space-lg));
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        white-space: "nowrap";
+        cursor: "pointer";
+    }
+
+    pub c_euv_sheet_content {
+        position: "fixed";
+        z-index: "1000";
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-lg);
+        padding: var!(space-2xl);
+        background: var!(background);
+        color: var!(foreground);
+        box-shadow: var!(shadow-lg);
+    }
+
+    pub c_euv_sheet_content_left {
+        top: "0px";
+        bottom: "0px";
+        left: "0px";
+        width: "75%";
+        max-width: "384px";
+        border-right: format!("{} solid {}", var!(border-width), var!(border));
+    }
+
+    pub c_euv_sheet_content_right {
+        top: "0px";
+        right: "0px";
+        bottom: "0px";
+        width: "75%";
+        max-width: "384px";
+        border-left: format!("{} solid {}", var!(border-width), var!(border));
+    }
+
+    pub c_euv_sheet_header {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-sm);
+        text-align: "center";
+    }
+
+    pub c_euv_sheet_footer {
+        display: "flex";
+        flex-direction: "column-reverse";
+        gap: var!(space-sm);
+    }
+
+    pub c_euv_sheet_title {
+        color: var!(foreground);
+        font-size: var!(font-lg);
+        font-weight: "600";
+        line-height: "1";
+    }
+
+    pub c_euv_sheet_description {
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+    }
+
+    pub c_euv_sheet_close {
+        position: "absolute";
+        top: var!(space-lg);
+        right: var!(space-lg);
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        padding: "0px";
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(muted-foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub c_euv_alert_dialog_trigger {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        height: var!(space-2xl);
+        padding: format!("0px {}", var!(space-lg));
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        white-space: "nowrap";
+        cursor: "pointer";
+    }
+
+    pub c_euv_hover_card_trigger {
+        display: "inline-flex";
+        align-items: "center";
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        text-decoration: "underline";
+        text-underline-offset: "4px";
+        cursor: "pointer";
+    }
+
+    pub c_euv_context_menu_trigger {
+        -webkit-touch-callout: "none";
+        display: "inline-flex";
+        align-items: "center";
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        white-space: "nowrap";
+        cursor: "pointer";
+    }
+
+    pub(crate) c_euv_dropdown_item {
+        flex-shrink: "0";
+        // `control-row-pad` vertically, the same value the sidebar rows and the
+        // CTA buttons use: 9 + 24 line + 9 + 3 left border = 42. The row is
+        // only bordered on its left edge, so nothing stacks between neighbours
+        // and the stack reads as one continuous column.
+        //
+        // It was `space-sm` (8px) for as long as the row wore a 1px border on
+        // all four sides: 8 + 24 + 8 + 1 + 1 + 3 = 45 inside a 42px
+        // border-box, so the browser gave back a fraction of the padding on
+        // every row and the options came out with a hairline between them.
+        // Dropping the stacked borders makes 9px the right number again.
+        padding: format!("{} {}", var!(control-row-pad), var!(space-lg));
+        font-size: var!(font-sm);
+        text-align: "left";
+        cursor: "pointer";
+        // Rows must agree on height or the hover bar never lines up with the
+        // active fill. `line-height: normal` is at the mercy of the glyphs:
+        // English and Korean settle on a 35px row while Japanese takes 38px,
+        // and the language switcher lists all three at once. Pinning the line
+        // height is what makes the stack even, so the left bar can span a row
+        // that matches the active background exactly. 24px is the tallest
+        // of the three natural line heights *and* the body line height, so no
+        // script is clipped and the row matches the sidebar and the buttons.
+        line-height: "24px";
+        text-box-trim: "none";
+        text-box-edge: "none";
+        // Hover signals through the left edge only — no background wash. The
+        // menu sits over page content, so tinting the whole row made an
+        // unselected option read as a highlighted page link and washed out
+        // the label underneath it. The left border carries the affordance
+        // without painting behind the text or boxing the row.
+        //
+        // Only the LEFT edge is bordered — 3px, transparent until hover, so
+        // the hover bar needs no width change and the label never shifts.
+        //
+        // This used to be `border: 1px solid transparent` plus
+        // `border-left-width: 3px`, i.e. a box on all four sides. In a stack
+        // of rows every horizontal edge is shared between two neighbours, so
+        // the transparent top and bottom of one row sat against those of the
+        // next. Nothing is visible at rest, but each row then had to fit 8px +
+        // 24px line + 8px + 1px + 1px + 3px = 45px of content into a 42px
+        // border-box, and the browser reclaimed the overflow by trimming the
+        // padding — leaving a hairline between every pair of options. Only the
+        // left edge remains, so nothing stacks and 9 + 24 + 9 + 3 = 42 lands
+        // exactly.
+        border-left: "3px solid transparent";
+        :hover {
+            // Only the left edge reacts. The previous rule lit the whole
+            // perimeter, which framed the option as a card floating over the
+            // menu; the locale list is a plain vertical stack, so a box on
+            // every side read as a selection rather than a pointer position.
+            // The reserved left border carries the affordance on its own.
+            border-left-color: var!(foreground);
+        }
+    }
+}
+
+#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+class! {
+    pub(crate) c_euv_dropdown_menu {
+        "--euv-dropdown-align": "start";
+        "--euv-dropdown-anchor": "trigger";
+        "--euv-dropdown-gap": "4";
+        "--euv-dropdown-width-mode": "content";
+        // The portaled popup receives measured viewport coordinates on open.
+        position: "fixed";
+        overflow-y: "auto";
+        box-sizing: "border-box";
+        overscroll-behavior: "contain";
+        background: var!(popover);
+        color: var!(popover-foreground);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        box-shadow: var!(shadow-md);
+        flex-direction: "column";
+        z-index: "101";
+        border-radius: var!(radius-md);
+
+        width: "max-content";
+        min-width: format!("calc(4 * {})", var!(space-3xl));
+        max-width: format!("calc(100vw - {})", var!(space-lg));
+        padding: var!(space-xs);
+    }
+
+    pub(crate) c_euv_dropdown_sub_panel {
+        // The portaled popup receives measured viewport coordinates on open.
+        position: "fixed";
+        overflow-y: "auto";
+        box-sizing: "border-box";
+        overscroll-behavior: "contain";
+        background: var!(popover);
+        color: var!(popover-foreground);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        box-shadow: var!(shadow-md);
+        flex-direction: "column";
+        z-index: "101";
+        border-radius: var!(radius-md);
+
+        width: "max-content";
+        min-width: format!("calc(4 * {})", var!(space-3xl));
+        max-width: format!("calc(100vw - {})", var!(space-lg));
+        padding: var!(space-xs);
+
+        z-index: "150";
+    }
+
+    pub(crate) c_euv_dropdown_item_active {
+        display: "flex";
+        flex-shrink: "0";
+        box-sizing: "border-box";
+        align-items: "center";
+        justify-content: "space-between";
+        gap: var!(space-sm);
+        width: "100%";
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        text-align: "left";
+        white-space: "nowrap";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :focus-visible {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
+        }
+
+        background: var!(accent);
+        color: var!(accent-foreground);
+    }
+
+    pub c_euv_command {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+        height: "100%";
+        overflow: "hidden";
+        border-radius: var!(radius-md);
+        background: var!(popover);
+        color: var!(popover-foreground);
+
+        border-radius: var!(radius-lg);
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        padding: var!(space-xs);
+    }
+
+    pub c_euv_command_input_wrapper {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: format!("0px {}", var!(space-md));
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
+
+        padding: var!(space-xs);
+    }
+
+    pub c_euv_command_item {
+        position: "relative";
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border-radius: var!(radius-sm);
+        font-size: var!(font-sm);
+        cursor: "default";
+        user-select: "none";
+
+        padding: var!(space-sm);
+        border-bottom-right-radius: var!(radius-sm);
+        border-bottom-left-radius: var!(radius-sm);
+        border-top-right-radius: var!(radius-sm);
+        border-top-left-radius: var!(radius-sm);
+        padding-top: var!(space-xs-sm);
+    }
+
+    pub c_euv_combobox_trigger {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "space-between";
+        gap: var!(space-sm);
+        height: var!(space-2xl);
+        padding: format!("0px {}", var!(space-lg));
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        white-space: "nowrap";
+        cursor: "pointer";
+
+        height: var!(control-height-sm);
+        min-height: var!(control-height-sm);
+        padding: format!("{} {}", var!(space-sm), var!(control-pad-inline));
+        border-radius: var!(radius-lg);
+        font-size: var!(font-sm);
+        line-height: "1.428571";
+        gap: var!(space-xs-sm);
+    }
+
+    pub c_euv_combobox_input {
+        display: "flex";
+        width: "100%";
+        height: var!(space-2xl);
+        padding: format!("{} {}", var!(space-sm), var!(space-md));
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        outline: "none";
+
+        height: var!(control-height-sm);
+        min-height: var!(control-height-sm);
+        padding: format!("{} {}", var!(space-xs), var!(control-pad-inline));
+        border-radius: var!(radius-lg);
+        font-size: var!(font-sm);
+        line-height: "1.428571";
+    }
+
+    pub c_euv_combobox_content {
+        position: "absolute";
+        top: "100%";
+        left: "0px";
+        z-index: "150";
+        min-width: "180px";
+        padding: var!(space-xs);
+        overflow: "hidden";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(popover);
+        color: var!(popover-foreground);
+        box-shadow: var!(shadow-md);
+
+        border-radius: var!(radius-lg);
+    }
+
+    pub c_euv_combobox_item {
+        display: "flex";
+        align-items: "center";
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border-radius: var!(radius-sm);
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        cursor: "pointer";
+        user-select: "none";
+
+        padding: format!("{} calc({} + {})", var!(space-xs), var!(space-xs), var!(space-2xs));
+        border-radius: var!(radius-md);
+        font-size: var!(font-sm);
+        line-height: "1.428571";
+        :focus {
+            outline: "none";
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub c_euv_sheet_trigger {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        height: var!(space-2xl);
+        padding: format!("0px {}", var!(space-lg));
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        white-space: "nowrap";
+        cursor: "pointer";
+
+        height: var!(control-height-sm);
+        gap: var!(space-xs-sm);
+        border-radius: var!(radius-lg);
+        font-weight: var!(font-weight-medium);
+        padding-left: var!(control-pad-inline);
+    }
+
+    pub c_euv_sheet_content {
+        position: "fixed";
+        z-index: "1000";
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-lg);
+        padding: var!(space-2xl);
+        background: var!(background);
+        color: var!(foreground);
+        box-shadow: var!(shadow-lg);
+
+        background: var!(popover);
+        color: var!(popover-foreground);
+        gap: var!(space-lg);
+        padding: "0px";
+        font-size: var!(font-sm);
+        line-height: var!(space-xl);
+    }
+
+    pub c_euv_sheet_content_left {
+        top: "0px";
+        bottom: "0px";
+        left: "0px";
+        width: "75%";
+        max-width: "384px";
+        border-right: format!("{} solid {}", var!(border-width), var!(border));
+
+        max-width: "none";
+        @media ((min-width: 640px)) {
+            max-width: "384px";
+        }
+    }
+
+    pub c_euv_sheet_content_right {
+        top: "0px";
+        right: "0px";
+        bottom: "0px";
+        width: "75%";
+        max-width: "384px";
+        border-left: format!("{} solid {}", var!(border-width), var!(border));
+
+        max-width: "none";
+        @media ((min-width: 640px)) {
+            max-width: "384px";
+        }
+    }
+
+    pub c_euv_sheet_header {
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-sm);
+        text-align: "center";
+
+        padding: var!(space-lg);
+        gap: var!(space-2xs);
+        text-align: "left";
+    }
+
+    pub c_euv_sheet_footer {
+        display: "flex";
+        flex-direction: "column-reverse";
+        gap: var!(space-sm);
+
+        padding: var!(space-lg);
+        gap: var!(space-sm);
+        flex-direction: "column";
+        margin-top: "auto";
+    }
+
+    pub c_euv_sheet_title {
+        color: var!(foreground);
+        font-size: var!(font-lg);
+        font-weight: "600";
+        line-height: "1";
+
+        font-size: var!(font-base);
+        font-weight: var!(font-weight-medium);
+        line-height: var!(space-2xl);
+    }
+
+    pub c_euv_sheet_description {
+        color: var!(muted-foreground);
+        font-size: var!(font-sm);
+
+        font-size: var!(font-sm);
+        line-height: var!(space-xl);
+    }
+
+    pub c_euv_sheet_close {
+        position: "absolute";
+        top: var!(space-lg);
+        right: var!(space-lg);
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        padding: "0px";
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(muted-foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+
+        top: var!(space-md);
+        right: var!(space-md);
+        width: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
+        height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
+        border-radius: format!("min({}, {})", var!(radius-md), var!(space-md));
+        color: var!(foreground);
+        :hover {
+            background: var!(muted);
+            color: var!(foreground);
+        }
+    }
+
+    pub c_euv_alert_dialog_trigger {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        height: var!(space-2xl);
+        padding: format!("0px {}", var!(space-lg));
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        white-space: "nowrap";
+        cursor: "pointer";
+
+        height: var!(control-height-sm);
+        gap: var!(space-xs-sm);
+        border-radius: var!(radius-lg);
+        font-weight: var!(font-weight-medium);
+        padding-left: var!(control-pad-inline);
+    }
+
+    pub c_euv_hover_card_trigger {
+        display: "inline-flex";
+        align-items: "center";
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        text-decoration: "underline";
+        text-underline-offset: "4px";
+        cursor: "pointer";
+
+        border-bottom-right-radius: var!(radius-md);
+        border-bottom-left-radius: var!(radius-md);
+        border-top-right-radius: var!(radius-md);
+        border-top-left-radius: var!(radius-md);
+        gap: var!(space-xs);
+        justify-content: "center";
+    }
+
+    pub c_euv_context_menu_trigger {
+        -webkit-touch-callout: "none";
+        display: "inline-flex";
+        align-items: "center";
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: format!("{} {} {}", var!(border-width), "solid", var!(border));
+        border-radius: var!(radius-md);
+        background: var!(background);
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        white-space: "nowrap";
+        cursor: "pointer";
+
+        border-radius: var!(radius-xl);
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        justify-content: "center";
+    }
+
+    pub(crate) c_euv_dropdown_item {
+        display: "flex";
+        flex-shrink: "0";
+        box-sizing: "border-box";
+        align-items: "center";
+        justify-content: "space-between";
+        gap: var!(space-sm);
+        width: "100%";
+        padding: format!("{} {}", var!(space-xs), var!(space-sm));
+        border: "none";
+        border-radius: var!(radius-sm);
+        background: "transparent";
+        color: var!(foreground);
+        font-family: "inherit";
+        font-size: var!(font-sm);
+        line-height: "1.5";
+        text-align: "left";
+        white-space: "nowrap";
+        cursor: "pointer";
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :focus-visible {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
+        }
+    }
 }

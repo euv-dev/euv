@@ -183,7 +183,7 @@ pub fn euv_menubar(node: VirtualNode<EuvMenubarProps>) -> VirtualNode {
             "data-slot": "menubar"
             "aria-label": label
             class: c_euv_menubar()
-            class: if { cfg!(feature = "theme-shadcn") } { c_euv_menubar_shadcn() } else { &EMPTY_CLASS }
+
             onclick: close_other_menubar_menus()
             onfocusin: update_menubar_tab_stop()
             children
@@ -248,11 +248,12 @@ pub fn euv_menubar_trigger(node: VirtualNode<EuvMenubarTriggerProps>) -> Virtual
     } else {
         c_euv_menubar_trigger
     };
-    let open_shadcn_class: &Css = if open.get() && cfg!(feature = "theme-shadcn") {
-        c_euv_menubar_trigger_open_shadcn()
+    let open_shadcn_class: &Css = if open.get() {
+        c_euv_menubar_trigger_open()
     } else {
         &EMPTY_CLASS
     };
+    reconcile_menubar_after_render(trigger_id.clone(), open, disabled);
     let on_click: Option<Rc<dyn Fn(Event)>> = if disabled {
         None
     } else {
@@ -263,7 +264,7 @@ pub fn euv_menubar_trigger(node: VirtualNode<EuvMenubarTriggerProps>) -> Virtual
     let on_keydown: Option<Rc<dyn Fn(Event)>> = if disabled {
         None
     } else {
-        Some(menubar_trigger_keydown(open, trigger_id.clone(), index))
+        Some(menubar_trigger_keydown(open, trigger_id.clone()))
     };
     html! {
         button {
@@ -289,17 +290,15 @@ pub fn euv_menubar_trigger(node: VirtualNode<EuvMenubarTriggerProps>) -> Virtual
             } else {
                 MENUBAR_FALSE_VALUE
             }
-            tabindex: if index == 0 {
-                "0"
+            tabindex: "-1"
+            disabled: if disabled {
+                MENUBAR_TRUE_VALUE
             } else {
-                "-1"
+                MENUBAR_FALSE_VALUE
             }
-            disabled: disabled
             class: trigger_class()
-            class: if cfg!(feature = "theme-shadcn") {
-                c_euv_menubar_trigger_shadcn()
-            } else {
-                &EMPTY_CLASS
+            class: {
+                c_euv_menubar_trigger()
             }
             class: open_shadcn_class
             onclick: on_click
@@ -340,11 +339,7 @@ pub fn euv_menubar_content(node: VirtualNode<EuvMenubarContentProps>) -> Virtual
             "aria-labelledby": trigger_id
             "aria-label": label
             class: c_euv_menubar_content()
-            class: if { cfg!(feature = "theme-shadcn") } {
-                c_euv_menubar_content_shadcn()
-            } else {
-                &EMPTY_CLASS
-            }
+
             class: if { open } {
                 c_euv_menubar_content_open()
             } else {
@@ -379,16 +374,10 @@ fn close_other_menubar_menus() -> Option<Rc<dyn Fn(Event)>> {
         let Some(root) = active_trigger.closest(MENUBAR_ROOT_SELECTOR).ok().flatten() else {
             return;
         };
-        let Ok(triggers) = root.query_selector_all(MENUBAR_TRIGGER_SELECTOR) else {
+        if menubar_element_disabled(&active_trigger) {
             return;
-        };
-        for index in 0..triggers.length() {
-            let Some(node) = triggers.item(index) else {
-                continue;
-            };
-            let Ok(trigger) = node.dyn_into::<Element>() else {
-                continue;
-            };
+        }
+        for trigger in menubar_root_triggers(&root) {
             if trigger.id() != active_trigger.id()
                 && trigger
                     .get_attribute(MENUBAR_ARIA_EXPANDED_ATTRIBUTE)
@@ -402,7 +391,123 @@ fn close_other_menubar_menus() -> Option<Rc<dyn Fn(Event)>> {
     }))
 }
 
-/// Keeps one menubar trigger in the tab order and the others in the roving set.
+/// Chooses one enabled DOM position, preserving the previous roving entry.
+///
+/// # Arguments
+///
+/// - `&[bool]` - Disabled states in DOM order, independent of caller indices.
+/// - `Option<usize>` - The preferred DOM position.
+///
+/// # Returns
+///
+/// - `Option<usize>` - One enabled position, or none for an all-disabled root.
+pub(crate) fn menubar_enabled_tab_stop(
+    disabled: &[bool],
+    preferred: Option<usize>,
+) -> Option<usize> {
+    preferred
+        .filter(|index: &usize| disabled.get(*index) == Some(&false))
+        .or_else(|| disabled.iter().position(|disabled: &bool| !disabled))
+}
+
+/// Reads both native and accessibility disabled states.
+///
+/// # Arguments
+///
+/// - `&Element` - The interactive element.
+///
+/// # Returns
+///
+/// - `bool` - Whether the element is unavailable.
+fn menubar_element_disabled(element: &Element) -> bool {
+    element.has_attribute(MENUBAR_DISABLED_ATTRIBUTE)
+        || element
+            .get_attribute(MENUBAR_ARIA_DISABLED_ATTRIBUTE)
+            .as_deref()
+            == Some(MENUBAR_TRUE_VALUE)
+}
+
+/// Collects only triggers owned by the nearest bar, excluding nested roots.
+///
+/// # Arguments
+///
+/// - `&Element` - The owning menubar.
+///
+/// # Returns
+///
+/// - `Vec<Element>` - Triggers in DOM order.
+fn menubar_root_triggers(root: &Element) -> Vec<Element> {
+    let Ok(nodes) = root.query_selector_all(MENUBAR_TRIGGER_SELECTOR) else {
+        return Vec::new();
+    };
+    (0..nodes.length())
+        .filter_map(|index: u32| {
+            let element: Element = nodes.item(index)?.dyn_into().ok()?;
+            let owner: Element = element.closest(MENUBAR_ROOT_SELECTOR).ok().flatten()?;
+            owner.is_same_node(Some(root)).then_some(element)
+        })
+        .collect()
+}
+
+/// Repairs one root's tab order without moving document focus.
+///
+/// # Arguments
+///
+/// - `&Element` - The owning bar.
+/// - `Option<&Element>` - An enabled trigger receiving actual focus.
+fn reconcile_menubar_tab_stop(root: &Element, focused: Option<&Element>) {
+    let triggers: Vec<Element> = menubar_root_triggers(root);
+    let remembered: Option<String> = root.get_attribute(MENUBAR_TAB_STOP_ATTRIBUTE);
+    let preferred: Option<usize> = triggers.iter().position(|trigger: &Element| {
+        focused
+            .map(|focused: &Element| trigger.is_same_node(Some(focused)))
+            .unwrap_or_else(|| remembered.as_deref() == Some(trigger.id().as_str()))
+    });
+    let disabled: Vec<bool> = triggers.iter().map(menubar_element_disabled).collect();
+    let selected: Option<usize> = menubar_enabled_tab_stop(&disabled, preferred);
+    for (index, trigger) in triggers.iter().enumerate() {
+        let _: Result<(), JsValue> = trigger.set_attribute(
+            MENUBAR_TAB_INDEX_ATTRIBUTE,
+            if selected == Some(index) { "0" } else { "-1" },
+        );
+    }
+    if let Some(index) = selected {
+        let _: Result<(), JsValue> =
+            root.set_attribute(MENUBAR_TAB_STOP_ATTRIBUTE, &triggers[index].id());
+    } else {
+        let _: Result<(), JsValue> = root.remove_attribute(MENUBAR_TAB_STOP_ATTRIBUTE);
+    }
+}
+
+/// Reconciles mounted triggers after native disabled properties have updated.
+///
+/// # Arguments
+///
+/// - `String` - The stable trigger ID.
+/// - `Signal<bool>` - The caller-owned open state.
+/// - `bool` - The current disabled state.
+fn reconcile_menubar_after_render(trigger_id: String, open: Signal<bool>, disabled: bool) {
+    after_mount(move || {
+        if disabled && open.get() {
+            open.set(false);
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let Some(trigger) = browser_document()
+                .and_then(|document: Document| document.get_element_by_id(&trigger_id))
+            else {
+                return;
+            };
+            if let Ok(Some(root)) = trigger.closest(MENUBAR_ROOT_SELECTOR) {
+                reconcile_menubar_tab_stop(&root, None);
+            }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        let _: String = trigger_id;
+    });
+}
+
+/// Keeps actual enabled focus as the root's persistent roving entry.
 ///
 /// # Returns
 ///
@@ -418,23 +523,53 @@ fn update_menubar_tab_stop() -> Option<Rc<dyn Fn(Event)>> {
         let Some(trigger) = target.closest(MENUBAR_TRIGGER_SELECTOR).ok().flatten() else {
             return;
         };
-        let Some(root) = trigger.closest(MENUBAR_ROOT_SELECTOR).ok().flatten() else {
+        if menubar_element_disabled(&trigger) {
             return;
-        };
-        let Ok(triggers) = root.query_selector_all(MENUBAR_TRIGGER_SELECTOR) else {
-            return;
-        };
-        for index in 0..triggers.length() {
-            let Some(node) = triggers.item(index) else {
-                continue;
-            };
-            let Ok(item) = node.dyn_into::<Element>() else {
-                continue;
-            };
-            let tab_index: &str = if item.id() == trigger.id() { "0" } else { "-1" };
-            let _: Result<(), JsValue> = item.set_attribute("tabindex", tab_index);
+        }
+        if let Ok(Some(root)) = trigger.closest(MENUBAR_ROOT_SELECTOR) {
+            reconcile_menubar_tab_stop(&root, Some(&trigger));
         }
     }))
+}
+
+/// Resolves logical horizontal navigation in DOM order without trusting caller indices.
+///
+/// # Arguments
+///
+/// - `&[bool]` - Disabled states in DOM order.
+/// - `usize` - The current DOM position.
+/// - `&str` - The navigation key.
+/// - `bool` - Whether the root has right-to-left direction.
+///
+/// # Returns
+///
+/// - `Option<usize>` - The next enabled position, or none.
+pub(crate) fn menubar_next_enabled_trigger(
+    disabled: &[bool],
+    current: usize,
+    key: &str,
+    rtl: bool,
+) -> Option<usize> {
+    let count: usize = disabled.len();
+    if count == 0 {
+        return None;
+    }
+    let backward: bool = (key == MENUBAR_KEY_ARROW_LEFT && !rtl)
+        || (key == MENUBAR_KEY_ARROW_RIGHT && rtl)
+        || key == MENUBAR_KEY_END;
+    let step: usize = if backward { count - 1 } else { 1 };
+    let mut candidate: usize = match key {
+        MENUBAR_KEY_HOME => 0,
+        MENUBAR_KEY_END => count - 1,
+        _ => (current.min(count - 1) + step) % count,
+    };
+    for _ in 0..count {
+        if !disabled[candidate] {
+            return Some(candidate);
+        }
+        candidate = (candidate + step) % count;
+    }
+    None
 }
 
 /// Implements horizontal menubar navigation and opens the active menu vertically.
@@ -443,16 +578,11 @@ fn update_menubar_tab_stop() -> Option<Rc<dyn Fn(Event)>> {
 ///
 /// - `Signal<bool>` - The open state of this menu.
 /// - `String` - The stable trigger ID paired with the content panel.
-/// - `usize` - The trigger position in the menubar.
 ///
 /// # Returns
 ///
 /// - `Rc<dyn Fn(Event)>` - The keyboard handler for the trigger.
-fn menubar_trigger_keydown(
-    open: Signal<bool>,
-    trigger_id: String,
-    index: usize,
-) -> Rc<dyn Fn(Event)> {
+fn menubar_trigger_keydown(open: Signal<bool>, trigger_id: String) -> Rc<dyn Fn(Event)> {
     Rc::new(move |event: Event| {
         let Ok(keyboard_event) = event.dyn_into::<KeyboardEvent>() else {
             return;
@@ -473,51 +603,29 @@ fn menubar_trigger_keydown(
             let Some(root) = target.closest(MENUBAR_ROOT_SELECTOR).ok().flatten() else {
                 return;
             };
-            let Ok(triggers) = root.query_selector_all(MENUBAR_TRIGGER_SELECTOR) else {
+            let triggers: Vec<Element> = menubar_root_triggers(&root);
+            let Some(current_index) = triggers
+                .iter()
+                .position(|trigger: &Element| trigger.id() == trigger_id)
+            else {
                 return;
             };
-            let count: usize = triggers.length() as usize;
-            if count == 0 {
+            if menubar_element_disabled(&triggers[current_index]) {
                 return;
             }
-            let current_index: usize = (0..count)
-                .find(|candidate_index: &usize| {
-                    triggers
-                        .item(*candidate_index as u32)
-                        .and_then(|node: Node| node.dyn_into::<Element>().ok())
-                        .map(|candidate: Element| candidate.id() == trigger_id)
-                        .unwrap_or(false)
+            let rtl: bool = web_sys::window()
+                .and_then(|window: Window| window.get_computed_style(&root).ok().flatten())
+                .and_then(|style: CssStyleDeclaration| {
+                    style.get_property_value(MENUBAR_DIRECTION_PROPERTY).ok()
                 })
-                .unwrap_or(index.min(count - 1));
-            let next_index: usize = match key.as_str() {
-                MENUBAR_KEY_HOME => 0,
-                MENUBAR_KEY_END => count - 1,
-                MENUBAR_KEY_ARROW_RIGHT => (current_index + 1) % count,
-                MENUBAR_KEY_ARROW_LEFT => (current_index + count - 1) % count,
-                _ => current_index,
+                .is_some_and(|direction: String| direction == MENUBAR_RTL_VALUE);
+            let disabled: Vec<bool> = triggers.iter().map(menubar_element_disabled).collect();
+            let Some(next_index) =
+                menubar_next_enabled_trigger(&disabled, current_index, &key, rtl)
+            else {
+                return;
             };
-            let direction: usize = if key == MENUBAR_KEY_ARROW_LEFT || key == MENUBAR_KEY_END {
-                count - 1
-            } else {
-                1
-            };
-            let mut candidate_index: usize = next_index;
-            let mut candidate: Option<HtmlElement> = None;
-            for _ in 0..count {
-                let Some(node) = triggers.item(candidate_index as u32) else {
-                    break;
-                };
-                if let Ok(element) = node.dyn_into::<Element>()
-                    && !element.has_attribute(MENUBAR_DISABLED_ATTRIBUTE)
-                {
-                    candidate = element.dyn_into::<HtmlElement>().ok();
-                    if candidate.is_some() {
-                        break;
-                    }
-                }
-                candidate_index = (candidate_index + direction) % count;
-            }
-            let Some(next_trigger) = candidate else {
+            let Ok(next_trigger) = triggers[next_index].clone().dyn_into::<HtmlElement>() else {
                 return;
             };
             let was_open: bool = open.get();
@@ -535,7 +643,11 @@ fn menubar_trigger_keydown(
             }
             return;
         }
-        if key == MENUBAR_KEY_ARROW_DOWN || key == MENUBAR_KEY_ARROW_UP {
+        if key == MENUBAR_KEY_ARROW_DOWN
+            || key == MENUBAR_KEY_ARROW_UP
+            || key == MENUBAR_KEY_ENTER
+            || key == MENUBAR_KEY_SPACE
+        {
             keyboard_event.prevent_default();
             if !open.get() {
                 open.set(true);
@@ -577,7 +689,10 @@ fn close_menubar_after_item(
             return;
         };
         let role: Option<String> = item.get_attribute("role");
-        if role.as_deref() == Some(MENUBAR_ROLE_MENU_ITEM) && !item.has_attribute("aria-haspopup") {
+        if role.as_deref() == Some(MENUBAR_ROLE_MENU_ITEM)
+            && !menubar_element_disabled(&item)
+            && !item.has_attribute("aria-haspopup")
+        {
             open.set(false);
             focus_menubar_trigger_after_render(trigger_id.to_string());
         }
@@ -888,13 +1003,9 @@ pub fn euv_menubar_item(node: VirtualNode<EuvMenubarItemProps>) -> VirtualNode {
                 { MENUBAR_DATA_DISABLED_ATTRIBUTE.to_string() }: ""
                 "aria-disabled": MENUBAR_TRUE_VALUE
                 tabindex: "-1"
-                disabled: true
+                disabled: MENUBAR_TRUE_VALUE
                 class: c_euv_menubar_item()
-                class: if { cfg!(feature = "theme-shadcn") } {
-                    c_euv_menubar_item_shadcn()
-                } else {
-                    &EMPTY_CLASS
-                }
+
                 onclick: on_click
                 label
             }
@@ -907,13 +1018,9 @@ pub fn euv_menubar_item(node: VirtualNode<EuvMenubarItemProps>) -> VirtualNode {
                 "data-slot": "menubar-item"
                 "aria-disabled": MENUBAR_FALSE_VALUE
                 tabindex: "-1"
-                disabled: false
+                disabled: MENUBAR_FALSE_VALUE
                 class: c_euv_menubar_item()
-                class: if { cfg!(feature = "theme-shadcn") } {
-                    c_euv_menubar_item_shadcn()
-                } else {
-                    &EMPTY_CLASS
-                }
+
                 onclick: on_click
                 label
             }
@@ -965,11 +1072,7 @@ pub fn euv_menubar_separator(node: VirtualNode<EuvMenubarSeparatorProps>) -> Vir
             "data-slot": "menubar-separator"
             "aria-label": label
             class: c_euv_menubar_separator()
-            class: if { cfg!(feature = "theme-shadcn") } {
-                c_euv_menubar_separator_shadcn()
-            } else {
-                &EMPTY_CLASS
-            }
+
         }
     }
 }
@@ -992,20 +1095,10 @@ pub fn euv_menubar_label(node: VirtualNode<EuvMenubarLabelProps>) -> VirtualNode
     } else {
         c_euv_menubar_label
     };
-    let shadcn_label_class: fn() -> &'static Css = if inset {
-        c_euv_menubar_label_inset_shadcn
-    } else {
-        c_euv_menubar_label_shadcn
-    };
     html! {
         div {
             "data-slot": "menubar-label"
             class: label_class()
-            class: if { cfg!(feature = "theme-shadcn") } {
-                shadcn_label_class()
-            } else {
-                &EMPTY_CLASS
-            }
             {
                 text
             }
@@ -1073,22 +1166,25 @@ pub fn euv_menubar_checkbox_item(node: VirtualNode<EuvMenubarCheckboxItemProps>)
                 type: "button"
                 role: "menuitemcheckbox"
                 "data-slot": "menubar-checkbox-item"
-                { MENUBAR_DATA_DISABLED_ATTRIBUTE.to_string() }: ""
+                {
+                    MENUBAR_DATA_DISABLED_ATTRIBUTE.to_string()
+                }
+                : ""
                 "aria-checked": if is_checked {
                     MENUBAR_TRUE_VALUE
                 } else {
                     MENUBAR_FALSE_VALUE
                 }
                 "aria-disabled": MENUBAR_TRUE_VALUE
-                "data-state": if is_checked { "checked" } else { "unchecked" }
-                tabindex: "-1"
-                disabled: true
-                class: c_euv_menubar_checkbox_item()
-                class: if { cfg!(feature = "theme-shadcn") } {
-                    c_euv_menubar_checkbox_item_shadcn()
+                "data-state": if is_checked {
+                    "checked"
                 } else {
-                    &EMPTY_CLASS
+                    "unchecked"
                 }
+                tabindex: "-1"
+                disabled: MENUBAR_TRUE_VALUE
+                class: c_euv_menubar_checkbox_item()
+
                 onclick: on_click
                 span {
                     class: c_euv_menubar_checkbox_item_indicator()
@@ -1111,15 +1207,15 @@ pub fn euv_menubar_checkbox_item(node: VirtualNode<EuvMenubarCheckboxItemProps>)
                     MENUBAR_FALSE_VALUE
                 }
                 "aria-disabled": MENUBAR_FALSE_VALUE
-                "data-state": if is_checked { "checked" } else { "unchecked" }
-                tabindex: "-1"
-                disabled: false
-                class: c_euv_menubar_checkbox_item()
-                class: if { cfg!(feature = "theme-shadcn") } {
-                    c_euv_menubar_checkbox_item_shadcn()
+                "data-state": if is_checked {
+                    "checked"
                 } else {
-                    &EMPTY_CLASS
+                    "unchecked"
                 }
+                tabindex: "-1"
+                disabled: MENUBAR_FALSE_VALUE
+                class: c_euv_menubar_checkbox_item()
+
                 onclick: on_click
                 span {
                     class: c_euv_menubar_checkbox_item_indicator()
@@ -1170,22 +1266,25 @@ pub fn euv_menubar_radio_item(node: VirtualNode<EuvMenubarRadioItemProps>) -> Vi
                 type: "button"
                 role: "menuitemradio"
                 "data-slot": "menubar-radio-item"
-                { MENUBAR_DATA_DISABLED_ATTRIBUTE.to_string() }: ""
+                {
+                    MENUBAR_DATA_DISABLED_ATTRIBUTE.to_string()
+                }
+                : ""
                 "aria-checked": if is_checked {
                     MENUBAR_TRUE_VALUE
                 } else {
                     MENUBAR_FALSE_VALUE
                 }
                 "aria-disabled": MENUBAR_TRUE_VALUE
-                "data-state": if is_checked { "checked" } else { "unchecked" }
-                tabindex: "-1"
-                disabled: true
-                class: c_euv_menubar_radio_item()
-                class: if { cfg!(feature = "theme-shadcn") } {
-                    c_euv_menubar_radio_item_shadcn()
+                "data-state": if is_checked {
+                    "checked"
                 } else {
-                    &EMPTY_CLASS
+                    "unchecked"
                 }
+                tabindex: "-1"
+                disabled: MENUBAR_TRUE_VALUE
+                class: c_euv_menubar_radio_item()
+
                 onclick: on_click
                 span {
                     class: c_euv_menubar_radio_item_indicator()
@@ -1210,15 +1309,15 @@ pub fn euv_menubar_radio_item(node: VirtualNode<EuvMenubarRadioItemProps>) -> Vi
                     MENUBAR_FALSE_VALUE
                 }
                 "aria-disabled": MENUBAR_FALSE_VALUE
-                "data-state": if is_checked { "checked" } else { "unchecked" }
-                tabindex: "-1"
-                disabled: false
-                class: c_euv_menubar_radio_item()
-                class: if { cfg!(feature = "theme-shadcn") } {
-                    c_euv_menubar_radio_item_shadcn()
+                "data-state": if is_checked {
+                    "checked"
                 } else {
-                    &EMPTY_CLASS
+                    "unchecked"
                 }
+                tabindex: "-1"
+                disabled: MENUBAR_FALSE_VALUE
+                class: c_euv_menubar_radio_item()
+
                 onclick: on_click
                 span {
                     class: c_euv_menubar_radio_item_indicator()
@@ -1319,6 +1418,11 @@ pub fn euv_menubar_sub_trigger(node: VirtualNode<EuvMenubarSubTriggerProps>) -> 
             open.set(!open.get());
         }))
     };
+    let on_keydown: Option<Rc<dyn Fn(Event)>> = if disabled {
+        None
+    } else {
+        Some(menubar_sub_trigger_keydown(open))
+    };
     let trigger_class: fn() -> &'static Css = if inset {
         c_euv_menubar_sub_trigger_inset
     } else {
@@ -1347,20 +1451,22 @@ pub fn euv_menubar_sub_trigger(node: VirtualNode<EuvMenubarSubTriggerProps>) -> 
             } else {
                 MENUBAR_FALSE_VALUE
             }
-            disabled: disabled
+            disabled: if disabled {
+                MENUBAR_TRUE_VALUE
+            } else {
+                MENUBAR_FALSE_VALUE
+            }
             class: trigger_class()
             class: if { open } {
                 c_euv_menubar_sub_trigger_open()
             } else {
                 &EMPTY_CLASS
             }
-            class: if { cfg!(feature = "theme-shadcn") } {
-                c_euv_menubar_sub_trigger_shadcn()
-            } else {
-                &EMPTY_CLASS
+            class: {
+                c_euv_menubar_sub_trigger()
             }
             onclick: on_click
-            onkeydown: Some(menubar_sub_trigger_keydown(open))
+            onkeydown: on_keydown
             label
             span {
                 "aria-hidden": MENUBAR_TRUE_VALUE
@@ -1402,11 +1508,7 @@ pub fn euv_menubar_sub_content(node: VirtualNode<EuvMenubarSubContentProps>) -> 
             "aria-labelledby": trigger_id
             "aria-label": label
             class: c_euv_menubar_sub_content()
-            class: if { cfg!(feature = "theme-shadcn") } {
-                c_euv_menubar_sub_content_shadcn()
-            } else {
-                &EMPTY_CLASS
-            }
+
             class: if { open } {
                 c_euv_menubar_sub_content_open()
             } else {

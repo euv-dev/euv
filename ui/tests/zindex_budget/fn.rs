@@ -19,7 +19,7 @@ const BUDGET: &[(&str, &[&str], &str)] = &[
         &[
             "c_euv_dropdown_menu",
             "c_euv_menubar_content",
-            "c_euv_menubar_sub_content_shadcn",
+            "c_euv_menubar_sub_content",
         ],
         "101",
     ),
@@ -69,6 +69,8 @@ const BUDGET: &[(&str, &[&str], &str)] = &[
             "c_euv_context_menu_content",
             "c_euv_context_menu_sub_content",
             "c_euv_dropdown_menu_sub_content",
+            "c_euv_dropdown_sub_panel",
+            "c_euv_dropdown_sub_panel",
         ],
         "150",
     ),
@@ -208,6 +210,51 @@ fn declared_z_indexes() -> BTreeMap<String, String> {
         }
     }
     found
+}
+
+#[cfg(not(feature = "theme-custom"))]
+#[test]
+fn overlay_factories_emit_their_budgeted_z_indexes() {
+    let cases: [ZIndexCase; 10] = [
+        ("c_euv_combobox_content", c_euv_combobox_content, "150"),
+        ("c_euv_sheet_overlay", c_euv_sheet_overlay, "1000"),
+        ("c_euv_sheet_content", c_euv_sheet_content, "1000"),
+        (
+            "c_euv_alert_dialog_overlay",
+            c_euv_alert_dialog_overlay,
+            "1000",
+        ),
+        (
+            "c_euv_alert_dialog_content",
+            c_euv_alert_dialog_content,
+            "1000",
+        ),
+        ("c_euv_hover_card_content", c_euv_hover_card_content, "150"),
+        (
+            "c_euv_context_menu_content",
+            c_euv_context_menu_content,
+            "150",
+        ),
+        ("c_euv_dialog_overlay", c_euv_dialog_overlay, "1000"),
+        ("c_euv_dialog", c_euv_dialog, "1000"),
+        ("c_euv_dialog_content", c_euv_dialog_content, "1000"),
+    ];
+    let mut offenders: Vec<String> = Vec::new();
+    for (name, factory, expected) in cases {
+        let style: String = factory().get_style().to_string();
+        let emitted: Option<&str> = style
+            .split(';')
+            .filter_map(|declaration: &str| declaration.split_once(':'))
+            .find_map(|(property, value): (&str, &str)| {
+                (property.trim() == "z-index").then(|| value.trim())
+            });
+        if emitted != Some(expected) {
+            offenders.push(format!(
+                "{name} emits z-index {emitted:?}, expected {expected}"
+            ));
+        }
+    }
+    assert!(offenders.is_empty(), "{}", offenders.join("\n"));
 }
 
 #[test]

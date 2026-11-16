@@ -8,13 +8,13 @@ use super::*;
 #[derive(Clone, CustomDebug, Default)]
 pub struct EuvEmptyProps {
     /// The optional glyph shown above the headline (skipped when empty).
-    pub icon: &'static str,
+    pub icon: ::euv::CowText,
     /// The headline naming what is missing.
-    pub title: &'static str,
+    pub title: ::euv::CowText,
     /// The optional explanation under the headline (skipped when empty).
-    pub desc: &'static str,
+    pub desc: ::euv::CowText,
     /// The optional action label (skipped when empty).
-    pub action_label: &'static str,
+    pub action_label: ::euv::CowText,
     /// The callback fired when the action is taken.
     #[debug(skip)]
     pub on_action: Option<Rc<dyn Fn(Event)>>,

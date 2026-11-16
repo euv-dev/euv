@@ -90,6 +90,22 @@ fn has_class(node: &VirtualNode, name: &str) -> bool {
 }
 
 #[test]
+fn a_pressed_outline_toggle_keeps_base_variant_size_and_state_classes() {
+    let rendered: VirtualNode =
+        render(true, EuvToggleVariant::Outline, EuvToggleSize::Small, false);
+    let names: Vec<String> = class_names(&rendered);
+    assert_eq!(
+        names,
+        vec![
+            String::from("c_euv_toggle"),
+            String::from("c_euv_toggle_outline"),
+            String::from("c_euv_toggle_size_small"),
+            String::from("c_euv_toggle_pressed")
+        ]
+    );
+}
+
+#[test]
 fn a_toggle_renders_a_button() {
     let rendered: VirtualNode = render(
         false,
@@ -191,9 +207,9 @@ fn every_size_reaches_the_class_list() {
         "the large size has its own class"
     );
     if cfg!(feature = "theme-shadcn") {
-        assert!(has_class(&default, "c_euv_toggle_size_default_shadcn"));
-        assert!(has_class(&small, "c_euv_toggle_size_small_shadcn"));
-        assert!(has_class(&large, "c_euv_toggle_size_large_shadcn"));
+        assert!(has_class(&default, "c_euv_toggle_size_default"));
+        assert!(has_class(&small, "c_euv_toggle_size_small"));
+        assert!(has_class(&large, "c_euv_toggle_size_large"));
     }
 }
 
@@ -206,8 +222,8 @@ fn shadcn_toggle_uses_its_radius_and_pressed_surface() {
         EuvToggleSize::Default,
         false,
     );
-    assert!(has_class(&rendered, "c_euv_toggle_shadcn"));
-    assert!(has_class(&rendered, "c_euv_toggle_pressed_shadcn"));
+    assert!(has_class(&rendered, "c_euv_toggle"));
+    assert!(has_class(&rendered, "c_euv_toggle_pressed"));
 }
 
 #[test]

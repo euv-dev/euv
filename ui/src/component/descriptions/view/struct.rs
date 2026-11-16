@@ -5,14 +5,12 @@ use super::*;
 /// A description is a label and the value it describes. The pair is
 /// rendered as a label line over a value line, so a grid cell reads the
 /// same way whether it sits alone or beside its neighbours.
-#[derive(Clone, Copy, CustomDebug, Data, Default, New)]
+#[derive(Clone, CustomDebug, Data, Default, New)]
 pub struct EuvDescriptionsItem {
     /// The field name rendered in `c_euv_descriptions_label`.
-    #[get(type(copy))]
-    pub label: &'static str,
+    pub label: ::euv::CowText,
     /// The field value rendered in `c_euv_descriptions_value`.
-    #[get(type(copy))]
-    pub value: &'static str,
+    pub value: ::euv::CowText,
 }
 
 /// Props for the [`euv_descriptions`] component.

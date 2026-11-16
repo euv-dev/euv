@@ -31,7 +31,7 @@ pub(crate) fn docs_header(
             nav {
                 class: CLASS_DOCS_HEADER_LINKS
                 for item in locale.navbar.iter() {
-                    docs_header_link(item, route_signal)
+                    docs_header_link(item, locale.prefix, route_signal)
                 }
             }
             div {
@@ -94,18 +94,23 @@ fn docs_header_brand(locale: &'static DocsLocale) -> VirtualNode {
 /// # Arguments
 ///
 /// - `&EuvNavbarItem` - The navigation item.
+/// - `&str` - The locale homepage route.
 /// - `Signal<String>` - The current route signal.
 ///
 /// # Returns
 ///
 /// - `VirtualNode` - The link virtual DOM tree.
-fn docs_header_link(item: &EuvNavbarItem, route_signal: Signal<String>) -> VirtualNode {
+fn docs_header_link(
+    item: &EuvNavbarItem,
+    locale_root: &str,
+    route_signal: Signal<String>,
+) -> VirtualNode {
     let text: &str = item.text;
     let link: &str = item.link;
     if link.starts_with(URL_SCHEME_HTTP_PREFIX) {
         return html! {
             a {
-                class: CLASS_DOCS_HEADER_LINK
+                class: c_docs_header_link()
                 href: link
                 target: LINK_TARGET_BLANK
                 rel: LINK_REL_NOOPENER
@@ -115,13 +120,13 @@ fn docs_header_link(item: &EuvNavbarItem, route_signal: Signal<String>) -> Virtu
             }
         };
     }
-    let active: bool = header_link_is_active(link, &route_signal.get());
+    let active: bool = header_link_is_active(link, locale_root, &route_signal.get());
     html! {
         a {
             class: if active {
-                CLASS_DOCS_HEADER_LINK_ACTIVE
+                c_docs_header_link_active().clone()
             } else {
-                CLASS_DOCS_HEADER_LINK
+                c_docs_header_link().clone()
             }
             href: format!("#{link}")
             onclick: Router::link_handler(link)
@@ -134,115 +139,62 @@ fn docs_header_link(item: &EuvNavbarItem, route_signal: Signal<String>) -> Virtu
 
 /// Reports whether a navigation link covers the route the reader is on.
 ///
-/// The home link owns the site root, so it is active only on the root
-/// itself; every other link owns its section, so it stays active for the
-/// routes underneath it.
+/// Site and locale home links match only their roots. Section links ignore
+/// trailing slashes and anchors, but require a slash boundary for descendants.
 ///
 /// # Arguments
 ///
 /// - `&str` - The navigation link.
+/// - `&str` - The locale homepage route.
 /// - `&str` - The current route.
 ///
 /// # Returns
 ///
 /// - `bool` - Whether the link covers the current route.
-fn header_link_is_active(link: &str, route: &str) -> bool {
-    let (path, _anchor) = parse_route(route);
+fn header_link_is_active(link: &str, locale_root: &str, route: &str) -> bool {
+    let (link_path, _link_anchor): (String, Option<String>) = parse_route(link);
+    let (route_path, _route_anchor): (String, Option<String>) = parse_route(route);
+    let link: &str = link_path.trim_end_matches('/');
+    let path: &str = route_path.trim_end_matches('/');
     if link == path {
         return true;
     }
-    if link.is_empty() || link == "/" {
-        return path == "/" || path.is_empty();
+    if link.is_empty() || link == locale_root.trim_end_matches('/') {
+        return false;
     }
-    path.starts_with(&format!("{link}/"))
+    path.strip_prefix(link)
+        .is_some_and(|suffix: &str| suffix.starts_with('/'))
 }
 
-/// Renders the search field.
-///
-/// The field filters the site's pages by title and route; pressing Enter
-/// opens the best match.
+/// Renders an independently scoped live-preview search.
 ///
 /// # Arguments
 ///
-/// - `Signal<String>` - The current route signal.
-/// - `Signal<String>` - The search query signal.
+/// - `Signal<String>` - Current route; changed only by explicit selection.
+/// - `Signal<String>` - Caller-owned search text.
 ///
 /// # Returns
 ///
-/// - `VirtualNode` - The search field virtual DOM tree.
+/// - `VirtualNode` - Hook-scoped search input and preview panel.
 fn docs_header_search(route_signal: Signal<String>, query: Signal<String>) -> VirtualNode {
-    html! {
-        div {
-            class: CLASS_DOCS_HEADER_SEARCH
-            input {
-                class: CLASS_DOCS_HEADER_SEARCH_INPUT
-                type: "search"
-                placeholder: HEADER_SEARCH_PLACEHOLDER
-                value: query
-                oninput: UseEuvInput::on_input_value(query)
-                onkeydown: header_search_keydown(route_signal, query)
+    VirtualNode::create_dynamic(move |_context: &mut HookContext| {
+        let state: Signal<HeaderSearchState> = App::use_signal(HeaderSearchState::default);
+        let id: UseId = use_id(HEADER_SEARCH_ID);
+        let input_id: String = id.get_value().get();
+        let outside: UseClickOutside = use_click_outside();
+        let outside_triggered: Signal<bool> = outside.get_triggered();
+        watch!(outside_triggered, |triggered: bool| {
+            if triggered {
+                state.set(HeaderSearchState::default());
+                outside_triggered.set(false);
             }
-        }
-    }
-}
-
-/// Opens the best match for the typed query when Enter is pressed.
-///
-/// A title match wins over a route match, and the first match wins over
-/// the rest, so the field always opens one page instead of a list.
-///
-/// # Arguments
-///
-/// - `Signal<String>` - The current route signal.
-/// - `Signal<String>` - The search query signal.
-///
-/// # Returns
-///
-/// - `Option<Rc<dyn Fn(Event)>>` - The key handler.
-fn header_search_keydown(
-    route_signal: Signal<String>,
-    query: Signal<String>,
-) -> Option<Rc<dyn Fn(Event)>> {
-    Some(Rc::new(move |event: Event| {
-        let Some(keyboard) = event.dyn_ref::<KeyboardEvent>() else {
-            return;
-        };
-        if keyboard.key() != KEY_ENTER {
-            return;
-        }
-        event.prevent_default();
-        let needle: String = query.get().trim().to_lowercase();
-        if needle.is_empty() {
-            return;
-        }
-        let Some(route) = find_page_route(&needle) else {
-            return;
-        };
-        route_signal.set(route.clone());
-        Router::navigate(route);
-    }))
-}
-
-/// Finds the page whose title or route contains the query.
-///
-/// # Arguments
-///
-/// - `&str` - The lowercased query.
-///
-/// # Returns
-///
-/// - `Option<String>` - The route of the best match.
-fn find_page_route(needle: &str) -> Option<String> {
-    let site: &DocsSite = &crate::generated::SITE;
-    for page in site.pages.iter() {
-        if page.title.to_lowercase().contains(needle) {
-            return Some(page.route.to_string());
-        }
-    }
-    for page in site.pages.iter() {
-        if page.route.to_lowercase().contains(needle) {
-            return Some(page.route.to_string());
-        }
-    }
-    None
+        });
+        header_search_preview(
+            route_signal,
+            query,
+            state,
+            input_id,
+            outside.get_target().clone(),
+        )
+    })
 }

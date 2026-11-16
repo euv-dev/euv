@@ -46,6 +46,10 @@ pub fn euv_image(node: VirtualNode<EuvImageProps>) -> VirtualNode {
                 }
             }
             img {
+                class: match current {
+                    EuvImageStatus::Loaded => Css::default(),
+                    EuvImageStatus::Failed | EuvImageStatus::Loading => c_euv_image_unavailable_picture().clone(),
+                }
                 src: src
                 alt: alt
                 loading: "lazy"

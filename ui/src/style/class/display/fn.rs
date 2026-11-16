@@ -2,17 +2,6 @@ use super::*;
 
 #[cfg(not(feature = "theme-custom"))]
 class! {
-    pub c_card_title {
-        margin: format!("{} 0px", var!(space-lg));
-        color: var!(card-foreground);
-        font-size: var!(font-lg);
-        font-weight: var!(font-weight-semibold);
-        letter-spacing: var!(letter-spacing-tight);
-        @media ((max-width: 767px)) {
-            font-size: var!(font-md);
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
     // Buttons
     // ═══════════════════════════════════════════════════════════════════════════
@@ -84,226 +73,37 @@ class! {
     // keyboard focus with a ring drawn from the theme's own ink.
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_button {
-        display: "inline-flex";
-        align-items: "center";
-        justify-content: "center";
-        gap: var!(space-sm);
-        white-space: "nowrap";
-        border-radius: var!(radius-lg);
-        font-size: var!(font-sm);
-        font-weight: var!(font-weight-medium);
-        line-height: "1";
-        box-sizing: "border-box";
-        cursor: "pointer";
-        user-select: "none";
-        -webkit-user-select: "none";
-        transition: format!(
-        "background-color {} {}, border-color {} {}, color {} {}, box-shadow {} {}, transform {} {}",
-        var!(duration-fast),
-        var!(ease-out),
-        var!(duration-fast),
-        var!(ease-out),
-        var!(duration-fast),
-        var!(ease-out),
-        var!(duration-fast),
-        var!(ease-out),
-        var!(duration-press),
-        var!(ease-accelerate)
-        );
-        :focus-visible {
-            outline: "none";
-            box-shadow: format!("0 0 0 2px {}, 0 0 0 4px {}", var!(background), var!(ring));
-        }
-        // The scale is what makes the press read as the button taking the
-        // weight of the finger instead of a colour swap.
-        :active {
-            transform: format!("scale({})", var!(press-scale));
-        }
-        :disabled {
-            pointer-events: "none";
-            opacity: "0.5";
-        }
-    }
 
-    pub(crate) c_euv_button_shadcn {
-        border-radius: var!(radius-lg);
-        font-size: var!(font-sm);
-        font-weight: var!(font-weight-medium);
-        line-height: "1.428571";
-        gap: var!(space-sm);
-        cursor: "default";
-        // The reference button uses a 3px focus ring and a 1px press translation.
-        :focus-visible {
-            border-color: var!(ring);
-            box-shadow: format!("0 0 0 3px color-mix(in srgb, {} 50%, transparent)", var!(ring));
-        }
-        :active {
-            transform: "translateY(1px)";
-        }
-    }
 
-    pub(crate) c_euv_button_default_shadcn {
-        :hover {
-            background: var!(button-primary-hover-bg);
-        }
-    }
 
-    pub(crate) c_euv_button_secondary_shadcn {
-        :hover {
-            background: var!(button-secondary-hover-bg);
-        }
-    }
 
-    pub(crate) c_euv_button_destructive_shadcn {
-        background: var!(button-destructive-bg);
-        color: var!(destructive);
-        :hover {
-            background: var!(button-destructive-hover-bg);
-        }
-        // The reference uses a destructive-tinted focus border and ring.
-        :focus-visible {
-            border-color: var!(button-destructive-focus-border);
-            box-shadow: format!("0 0 0 3px {}", var!(button-destructive-focus-ring));
-        }
-    }
 
-    pub(crate) c_euv_button_outline_shadcn {
-        background: var!(button-outline-bg);
-        box-shadow: var!(shadow-xs);
-        :hover {
-            background: var!(button-outline-hover-bg);
-            color: var!(button-outline-hover-fg);
-        }
-    }
 
-    pub(crate) c_euv_button_ghost_shadcn {
-        :hover {
-            background: var!(button-ghost-hover-bg);
-            color: var!(button-ghost-hover-fg);
-        }
-    }
 
-    pub(crate) c_euv_button_size_default_shadcn {
-        height: var!(control-height-sm);
-        min-height: var!(control-height-sm);
-        padding: format!("0px {}", var!(space-sm-md));
-        gap: format!("calc({} - {})", var!(space-sm), var!(space-2xs));
-        border-radius: var!(radius-lg);
-    }
 
-    pub(crate) c_euv_button_size_small_shadcn {
-        height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
-        min-height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
-        padding: format!("0px {}", var!(space-sm-md));
-        gap: var!(space-xs);
-        font-size: var!(font-xs);
-        border-radius: var!(radius-md);
-    }
 
-    pub(crate) c_euv_button_size_large_shadcn {
-        height: var!(control-height);
-        min-height: var!(control-height);
-        padding: format!("0px {}", var!(space-sm-md));
-        gap: format!("calc({} - {})", var!(space-sm), var!(space-2xs));
-        border-radius: var!(radius-lg);
-    }
 
-    pub(crate) c_euv_button_size_icon_shadcn {
-        width: var!(control-height-sm);
-        height: var!(control-height-sm);
-        min-height: var!(control-height-sm);
-        padding: "0px";
-        border-radius: var!(radius-md);
-    }
 
-    pub(crate) c_euv_button_size_xs_shadcn {
-        height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
-        min-height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
-        padding: format!("0px {}", var!(space-sm));
-        gap: var!(space-xs);
-        font-size: var!(font-xs);
-        border-radius: var!(radius-md);
-    }
 
-    pub(crate) c_euv_button_size_icon_xs_shadcn {
-        width: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
-        height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
-        min-height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
-        padding: "0px";
-        border-radius: var!(radius-md);
-    }
 
-    pub(crate) c_euv_button_size_icon_sm_shadcn {
-        width: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
-        height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
-        min-height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
-        padding: "0px";
-        border-radius: var!(radius-md);
-    }
 
-    pub(crate) c_euv_button_size_icon_lg_shadcn {
-        width: var!(control-height);
-        height: var!(control-height);
-        min-height: var!(control-height);
-        padding: "0px";
-        border-radius: var!(radius-lg);
-    }
 
-    pub c_euv_button_primary {
-        background: var!(primary);
-        color: var!(primary-foreground);
-        border: format!("{} solid transparent", var!(border-width));
-        :hover {
-            background: var!(primary-hover);
-        }
-    }
 
-    pub c_euv_button_default {
-        background: var!(primary);
-        color: var!(primary-foreground);
-        border: format!("{} solid transparent", var!(border-width));
-        :hover {
-            background: var!(primary-hover);
-        }
-    }
 
-    pub c_euv_button_secondary {
-        background: var!(secondary);
-        color: var!(secondary-foreground);
-        border: format!("{} solid transparent", var!(border-width));
-        :hover {
-            background: format!("color-mix(in srgb, {} 80%, transparent)", var!(secondary));
-        }
-    }
 
-    pub c_euv_button_destructive {
-        background: var!(destructive);
-        color: var!(destructive-foreground);
-        border: format!("{} solid transparent", var!(border-width));
-        :hover {
-            background: format!("color-mix(in srgb, {} 90%, transparent)", var!(destructive));
-        }
-    }
 
-    pub c_euv_button_outline {
-        background: var!(background);
-        color: var!(foreground);
-        border: format!("{} solid {}", var!(border-width), var!(input));
-        :hover {
-            background: var!(accent);
-            color: var!(accent-foreground);
-        }
-    }
 
-    pub c_euv_button_ghost {
-        background: "transparent";
-        color: var!(foreground);
-        :hover {
-            background: var!(accent);
-            color: var!(accent-foreground);
-        }
-    }
+
+
+
+
+
+
+
+
+
+
+
 
     pub c_euv_button_link {
         background: "transparent";
@@ -315,49 +115,21 @@ class! {
         }
     }
 
-    pub c_euv_button_size_default {
-        height: var!(control-height-sm);
-        padding: format!("0px {}", var!(control-pad-inline));
-    }
 
-    pub c_euv_button_size_small {
-        height: format!("calc({} - 4px)", var!(control-height-sm));
-        padding: format!("0px {}", var!(control-pad-inline));
-    }
 
-    pub c_euv_button_size_large {
-        height: var!(control-height);
-        padding: format!("0px {}", var!(control-pad-inline));
-    }
 
-    pub c_euv_button_size_icon {
-        height: var!(control-height-sm);
-        width: var!(control-height-sm);
-        padding: "0px";
-    }
 
-    pub c_euv_button_size_xs {
-        height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
-        padding: format!("0px {}", var!(control-pad-inline));
-    }
 
-    pub c_euv_button_size_icon_xs {
-        width: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
-        height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
-        padding: "0px";
-    }
 
-    pub c_euv_button_size_icon_sm {
-        width: var!(control-height-sm);
-        height: var!(control-height-sm);
-        padding: "0px";
-    }
 
-    pub c_euv_button_size_icon_lg {
-        width: format!("calc({} + {})", var!(control-height), var!(space-xs));
-        height: format!("calc({} + {})", var!(control-height), var!(space-xs));
-        padding: "0px";
-    }
+
+
+
+
+
+
+
+
 
     // The legacy single-class button kept for the pages that name it
     // directly. It carries the registry look in one rule so a caller that
@@ -480,39 +252,13 @@ class! {
     // Alerts — the registry's two variants
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub(crate) c_euv_alert_default {
-        position: "relative";
-        width: "100%";
-        box-sizing: "border-box";
-        padding: var!(space-lg);
-        background: var!(background);
-        color: var!(foreground);
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-lg);
-    }
 
-    pub(crate) c_euv_alert_default_shadcn {
-        padding: format!("{} {}", var!(space-sm), var!(control-pad-inline));
-        background: var!(card);
-    }
 
-    pub(crate) c_euv_alert_destructive {
-        position: "relative";
-        width: "100%";
-        box-sizing: "border-box";
-        padding: var!(space-lg);
-        color: var!(destructive);
-        background: var!(background);
-        border: format!("{} solid {}", var!(border-width), var!(destructive));
-        border-radius: var!(radius-lg);
-    }
 
-    pub(crate) c_euv_alert_destructive_shadcn {
-        padding: format!("{} {}", var!(space-sm), var!(control-pad-inline));
-        color: var!(destructive);
-        background: var!(card);
-        border-color: var!(border);
-    }
+
+
+
+
 
     pub(crate) c_euv_alert_title {
         color: "inherit";
@@ -824,31 +570,6 @@ class! {
         }
     }
 
-    pub c_progress_container {
-        width: "100%";
-        margin: format!("{} 0px", var!(space-lg));
-    }
-    pub(crate) c_progress_bar_track {
-        position: "relative";
-        display: "flex";
-        align-items: "center";
-        width: "100%";
-        height: "12px";
-        overflow: "hidden";
-        background: var!(muted);
-        border-radius: var!(radius-full);
-    }
-
-    pub(crate) c_progress_bar_track_shadcn {
-        height: var!(space-xs);
-    }
-
-    pub(crate) c_progress_container_shadcn {
-        flex-wrap: "wrap";
-        gap: var!(space-md);
-    }
-
-
     pub c_euv_progress_label {
         font-size: var!(font-sm);
         font-weight: var!(font-weight-medium);
@@ -927,98 +648,19 @@ class! {
     // euv_pagination
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub c_euv_pagination {
-        // CSS grid with two equal columns gives us perfect 50/50 widths
-        // regardless of the link content length, which flex with `1 1
-        // auto` cannot (each link starts at its own content size). The
-        // mobile breakpoint stacks the grid to a single column so each
-        // link sizes to its content.
-        display: "grid";
-        grid-template-columns: "minmax(0px, 1fr) minmax(0px, 1fr)";
-        gap: var!(gap-component);
-        // ~`space-2xl` (1.5rem) above the pagination — comfortable
-        // breathing room without a huge gap before prev/next. The original
-        // `space-4xl` (2.5rem) margin was doubled by a `padding-top` in the
-        // docs app override, leaving ~100px of empty space above the
-        // pagination boxes which made the page feel bottom-heavy.
-        margin-top: var!(space-2xl);
-        // `min-width: 0` lets prev/next text actually use ellipsis when the
-        // container is narrow — without it the grid track blows out the row.
-        min-width: "0px";
-        @media ((max-width: 767px)) {
-            grid-template-columns: "minmax(0, 1fr)";
-        }
-    }
 
-    pub(crate) c_euv_pagination_shadcn {
-        display: "flex";
-        justify-content: "center";
-        width: "100%";
-        min-width: "0px";
-        margin: "0px";
-    }
 
-    pub c_euv_pagination_link {
-        // `min-width: 0` lets long labels ellipsize on the desktop row
-        // layout. `overflow: hidden` is required to actually apply ellipsis
-        // when content is wider than the link.
-        min-width: "0px";
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        padding: var!(space-lg);
-        cursor: "pointer";
-        display: "flex";
-        flex-direction: "column";
-        gap: var!(space-2xs);
-        overflow: "hidden";
-        :hover {
-            border-color: var!(ring);
-        }
-        border-radius: var!(radius-md);
-    }
 
-    pub(crate) c_euv_pagination_link_shadcn {
-        display: "inline-flex";
-        flex-direction: "row";
-        align-items: "center";
-        justify-content: "center";
-        gap: format!("calc({} - {})", var!(space-sm), var!(space-2xs));
-        height: var!(control-height-sm);
-        min-height: var!(control-height-sm);
-        padding: "0px";
-        border-color: var!(card);
-        border-radius: var!(radius-lg);
-        text-align: "center";
-        white-space: "nowrap";
-    }
 
-    pub(crate) c_euv_pagination_previous_shadcn {
-        padding: format!(
-        "0px {} 0px calc({} - {})",
-        var!(space-sm-md),
-        var!(space-sm),
-        var!(space-2xs)
-        );
-    }
 
-    pub(crate) c_euv_pagination_next_shadcn {
-        padding: format!(
-        "0px calc({} - {}) 0px {}",
-        var!(space-sm),
-        var!(space-2xs),
-        var!(space-sm-md)
-        );
-    }
 
-    pub(crate) c_euv_pagination_icon {
-        display: "inline-flex";
-        align-items: "center";
-        justify-content: "center";
-        flex: "0 0 auto";
-        width: var!(space-lg);
-        height: var!(space-lg);
-        font-size: var!(font-sm);
-        line-height: "1";
-    }
+
+
+
+
+
+
+
 
     pub c_euv_footer {
         // Footer sits at the natural end of the article column. The user
@@ -1262,123 +904,6 @@ class! {
         flex-shrink: "0";
     }
 
-    pub(crate) c_euv_tabs {
-        display: "flex";
-        flex-direction: "column";
-        width: "100%";
-    }
-
-    pub(crate) c_euv_tabs_shadcn {
-        gap: var!(space-sm);
-    }
-
-    pub(crate) c_euv_tabs_bar {
-        display: "flex";
-        background: var!(muted);
-        border-radius: var!(radius-lg);
-        padding: var!(space-xs);
-        margin-bottom: var!(gap-component);
-        gap: var!(space-xs);
-        @media ((max-width: 767px)) {
-            flex-wrap: "wrap";
-        }
-    }
-
-    pub(crate) c_euv_tab_item {
-        padding: format!("{} {}", var!(space-md), var!(space-xl));
-        cursor: "pointer";
-        font-size: var!(font-base);
-        font-weight: var!(font-weight-medium);
-        border-bottom: "2px solid transparent";
-        color: "inherit";
-        background: "transparent";
-        touch-action: "manipulation";
-        user-select: "none";
-        -webkit-user-select: "none";
-        white-space: "nowrap";
-        :hover {
-            background: var!(muted);
-            color: var!(primary);
-        }
-        border-radius: var!(radius-md);
-    }
-
-    pub(crate) c_euv_tab_item_active {
-        padding: format!("{} {}", var!(space-md), var!(space-xl));
-        cursor: "pointer";
-        font-size: var!(font-base);
-        font-weight: var!(font-weight-medium);
-        border-bottom: format!("2px solid {}", var!(primary));
-        color: var!(primary-foreground);
-        background: var!(primary);
-        touch-action: "manipulation";
-        user-select: "none";
-        -webkit-user-select: "none";
-        white-space: "nowrap";
-        border-radius: var!(radius-md);
-    }
-
-    pub(crate) c_euv_tabs_panel {
-        padding: format!("{} 0px", var!(gap-element));
-    }
-
-    pub(crate) c_euv_tabs_bar_shadcn {
-        width: "fit-content";
-        height: var!(control-height-sm);
-        align-items: "center";
-        box-sizing: "border-box";
-        margin-bottom: "0px";
-        padding: var!(tablist-inset);
-        gap: "0px";
-        color: var!(muted-foreground);
-        justify-content: "center";
-    }
-
-    pub(crate) c_euv_tab_item_shadcn {
-        display: "inline-flex";
-        flex: "1";
-        height: "calc(100% - 1px)";
-        align-items: "center";
-        justify-content: "center";
-        gap: format!("calc({} - {})", var!(space-sm), var!(space-2xs));
-        padding: format!("{} calc({} + {})", var!(space-2xs), var!(space-xs), var!(space-2xs));
-        border: format!("{} solid transparent", var!(border-width));
-        border-bottom: "none";
-        border-radius: var!(radius-md);
-        background: "transparent";
-        color: var!(foreground);
-        font-size: var!(font-sm);
-        font-weight: var!(font-weight-medium);
-        white-space: "nowrap";
-        line-height: "1";
-        box-sizing: "border-box";
-        user-select: "none";
-        -webkit-user-select: "none";
-        border-color: var!(border);
-        border-bottom-style: "solid";
-        border-left-style: "solid";
-        border-right-style: "solid";
-        border-top-style: "solid";
-        border-bottom-width: var!(border-width);
-        border-left-width: var!(border-width);
-        border-right-width: var!(border-width);
-        border-top-width: var!(border-width);
-        :hover {
-            background: "transparent";
-            color: var!(foreground);
-        }
-    }
-
-    pub(crate) c_euv_tab_item_active_shadcn {
-        background: var!(background);
-        color: var!(foreground);
-        box-shadow: var!(shadow-xs);
-    }
-
-    pub(crate) c_euv_tabs_panel_shadcn {
-        padding: "0px";
-    }
-
     pub(crate) c_euv_collapse_item {
         border-bottom: format!("{} solid {}", var!(border-width), var!(border));
     }
@@ -1564,57 +1089,14 @@ class! {
     // Card Component
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub(crate) c_card {
-        color: var!(card-foreground);
-        background: var!(card);
-        border: format!("{} solid {}", var!(surface-border-width), var!(border));
-        box-shadow: var!(shadow-sm);
-        padding: var!(space-2xl);
-        box-sizing: "border-box";
-        // The card title carries a `gap-component` margin, and that margin
-        // collapses out of the card — the card has no padding and no border
-        // to stop it. The gap between two cards was therefore whatever the
-        // title's margin happened to be, not a value anybody chose. The
-        // block gap is the value the page template asks for, so it is named
-        // here instead of being left to a side effect.
-        margin-top: var!(page-block-gap);
-        @media ((max-width: 767px)) {
-            margin-top: var!(page-block-gap-mobile);
-        }
-        border-radius: var!(radius-xl);
-    }
 
-    pub(crate) c_card_shadcn {
-        display: "flex";
-        flex-direction: "column";
-        gap: var!(space-lg);
-        border: "none";
-        box-shadow: format!(
-        "0 0 0 1px color-mix(in srgb, {} 10%, transparent)",
-        var!(foreground)
-        );
-        padding: var!(space-lg);
-        overflow: "hidden";
-    }
 
-    pub(crate) c_card_title_shadcn {
-        margin: "0px";
-        font-size: var!(font-base);
-        font-weight: var!(font-weight-medium);
-        letter-spacing: var!(letter-spacing-normal);
-    }
 
-    pub(crate) c_euv_card_header {
-        display: "grid";
-        grid-template-columns: "1fr auto";
-        grid-template-rows: "auto auto";
-        grid-auto-rows: "min-content";
-        align-items: "start";
-        gap: var!(space-xs);
-    }
-    pub(crate) c_euv_card_header_shadcn {
-        align-items: "flex-start";
-    }
+
+
+
+
+
 
 
     pub(crate) c_euv_card_description {
@@ -1680,43 +1162,9 @@ class! {
     // classes carry the fill.
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub(crate) c_euv_badge {
-        // The wrapping-atom recipe (§7): an inline flex box is atomic, so a
-        // wrapped label left-aligns while the border stays at the parent
-        // width — the right border reads as missing. The four `c_euv_tag_*`
-        // variants already use this recipe; a badge is the same kind of
-        // element and must not mix the two.
-        display: "inline-block";
-        vertical-align: "middle";
-        text-align: "center";
-        line-height: "1";
-        height: "20px";
-        box-sizing: "border-box";
-        padding: format!("2px {}", var!(space-sm));
-        font-size: var!(font-xs);
-        font-weight: var!(font-weight-semibold);
-        transition: format!(
-        "background-color {} {}, border-color {} {}, color {} {}",
-        var!(duration-fast),
-        var!(ease-out),
-        var!(duration-fast),
-        var!(ease-out),
-        var!(duration-fast),
-        var!(ease-out)
-        );
-        :focus-visible {
-            outline: "none";
-        }
-        @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(space-2xs), var!(space-xs));
-            font-size: var!(font-xs);
-        }
-        border-radius: var!(radius-full);
-    }
 
-    pub(crate) c_euv_badge_shadcn {
-        font-weight: var!(font-weight-medium);
-    }
+
+
 
     pub(crate) c_euv_badge_clickable {
         cursor: "pointer";
@@ -1731,12 +1179,6 @@ class! {
     pub(crate) c_euv_badge_secondary {
         color: var!(secondary-foreground);
         background: var!(secondary);
-        border: format!("{} solid transparent", var!(border-width));
-    }
-
-    pub(crate) c_euv_badge_destructive {
-        color: var!(destructive);
-        background: format!("color-mix(in srgb, {} 10%, transparent)", var!(destructive));
         border: format!("{} solid transparent", var!(border-width));
     }
 
@@ -1765,21 +1207,6 @@ class! {
             text-decoration: "underline";
         }
     }
-
-    pub(crate) c_euv_badge_destructive_shadcn {
-        color: var!(destructive);
-        background: var!(button-destructive-bg);
-        border: format!("{} solid transparent", var!(border-width));
-        :hover {
-            background: var!(button-destructive-hover-bg);
-        }
-        :focus-visible {
-            border-color: var!(button-destructive-focus-border);
-            box-shadow: format!("0 0 0 3px {}", var!(button-destructive-focus-ring));
-        }
-    }
-
-
 
     pub(crate) c_euv_tag_solid_black {
         display: "inline-block";
@@ -1846,31 +1273,9 @@ class! {
         border-radius: var!(radius-sm);
     }
 
-    pub(crate) c_euv_pagination_label {
-        font-size: var!(font-xs);
-        color: var!(muted-foreground);
-        text-transform: var!(text-transform-uppercase);
-        letter-spacing: var!(letter-spacing-wide);
-    }
 
-    pub(crate) c_euv_pagination_text {
-        font-size: var!(font-base);
-        font-weight: var!(font-weight-semibold);
-        color: var!(primary);
-        // Ellipsize when the link is too narrow for the page title. The
-        // outer `.c_euv_pagination_link` already sets `overflow: hidden`
-        // and `min-width: 0`, so a single `text-overflow: ellipsis` here
-        // is enough — without `white-space: nowrap` the text wraps to
-        // multiple lines and the ellipsis never kicks in.
-        white-space: "nowrap";
-        overflow: "hidden";
-        text-overflow: "ellipsis";
-        min-width: "0px";
-    }
 
-    pub(crate) c_euv_pagination_next {
-        text-align: "right";
-    }
+
 
     pub(crate) c_euv_pagination_no_next {
         text-align: "left";
@@ -1950,26 +1355,9 @@ class! {
     // Empty
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub(crate) c_euv_empty {
-        display: "flex";
-        flex-direction: "column";
-        align-items: "center";
-        justify-content: "center";
-        gap: var!(space-sm);
-        width: "100%";
-        padding: var!(space-3xl);
-        box-sizing: "border-box";
-        text-align: "center";
-    }
 
-    pub(crate) c_euv_empty_shadcn {
-        gap: var!(space-lg);
-        padding: var!(space-2xl);
-        border-bottom-right-radius: var!(radius-xl);
-        border-bottom-left-radius: var!(radius-xl);
-        border-top-right-radius: var!(radius-xl);
-        border-top-left-radius: var!(radius-xl);
-    }
+
+
 
     pub(crate) c_euv_empty_icon {
         font-size: var!(font-3xl);
@@ -2060,32 +1448,6 @@ class! {
         line-height: "1.5";
     }
 
-    pub(crate) c_euv_kbd {
-        display: "inline-flex";
-        align-items: "center";
-        justify-content: "center";
-        gap: var!(space-2xs);
-        min-width: "20px";
-        height: "20px";
-        padding-inline: var!(space-2xs);
-        border-radius: var!(radius-sm);
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        background: var!(muted);
-        color: var!(muted-foreground);
-        font-family: var!(font-family-mono);
-        font-size: var!(font-xs);
-        font-weight: var!(font-weight-medium);
-        line-height: "1";
-        white-space: "nowrap";
-        user-select: "none";
-        -webkit-user-select: "none";
-    }
-
-    pub(crate) c_euv_kbd_shadcn {
-        gap: var!(space-xs);
-        padding-left: var!(space-xs);
-    }
-
     pub(crate) c_euv_text_deletion {
         margin: "0px";
         color: var!(muted-foreground);
@@ -2141,6 +1503,7 @@ class! {
     }
 
     pub(crate) c_euv_image_placeholder {
+        position: "relative";
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -2155,7 +1518,18 @@ class! {
         box-sizing: "border-box";
     }
 
+    // Keep native lazy loading active without exposing intrinsic broken-image layout.
+    pub(crate) c_euv_image_unavailable_picture {
+        position: "absolute";
+        inset: "0px";
+        width: "100%";
+        height: "100%";
+        opacity: "0";
+        pointer-events: "none";
+    }
+
     pub(crate) c_euv_image_failed {
+        position: "relative";
         display: "flex";
         align-items: "center";
         justify-content: "center";
@@ -2516,74 +1890,9 @@ class! {
         width: "100%";
     }
 
-    pub(crate) c_euv_accordion_item {
-        display: "flex";
-        flex-direction: "column";
-        width: "100%";
-        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
-        :last-child {
-            border-bottom: "none";
-        }
-    }
-    pub(crate) c_euv_accordion_item_shadcn {
-        padding-left: var!(space-lg);
-    }
-
-
     pub(crate) c_euv_accordion_header {
         display: "flex";
         width: "100%";
-    }
-
-    pub(crate) c_euv_accordion_trigger {
-        display: "flex";
-        flex: "1";
-        align-items: "center";
-        justify-content: "space-between";
-        gap: var!(space-sm);
-        padding: format!("{} 0px", var!(space-lg));
-        border: "none";
-        background: "transparent";
-        color: var!(foreground);
-        font-size: var!(font-sm);
-        font-weight: var!(font-weight-medium);
-        line-height: "1.5";
-        text-align: "left";
-        cursor: "pointer";
-        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
-        :hover {
-            color: var!(muted-foreground);
-            text-decoration: "underline";
-        }
-        :disabled {
-            opacity: "0.5";
-            cursor: "not-allowed";
-        }
-    }
-
-    pub(crate) c_euv_accordion_trigger_shadcn {
-        padding: format!("{} 0px", var!(control-pad-inline));
-        border: format!("{} solid transparent", var!(border-width));
-        border-radius: var!(radius-lg);
-        line-height: "1.428571";
-        align-items: "flex-start";
-        border-color: var!(border);
-        border-bottom-style: "solid";
-        border-left-style: "solid";
-        border-right-style: "solid";
-        border-top-style: "solid";
-        border-bottom-width: var!(border-width);
-        border-left-width: var!(border-width);
-        border-right-width: var!(border-width);
-        border-top-width: var!(border-width);
-        :hover {
-            color: var!(foreground);
-            text-decoration: "underline";
-        }
-        :focus-visible {
-            border-color: var!(ring);
-            box-shadow: format!("0 0 0 3px color-mix(in srgb, {} 50%, transparent)", var!(ring));
-        }
     }
 
     pub(crate) c_euv_accordion_trigger_open {
@@ -2605,13 +1914,6 @@ class! {
         transform: "rotate(225deg)";
     }
 
-    pub(crate) c_euv_accordion_content {
-        overflow: "hidden";
-        color: var!(foreground);
-        font-size: var!(font-sm);
-        line-height: "1.5";
-    }
-
     pub(crate) c_euv_accordion_content_open {
         display: "block";
     }
@@ -2624,129 +1926,37 @@ class! {
         padding: format!("0px 0px {}", var!(space-lg));
     }
 
-    pub(crate) c_euv_accordion_content_shadcn {
-        line-height: "1.428571";
-    }
+
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Item
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub(crate) c_euv_item_group {
-        display: "flex";
-        flex-direction: "column";
-    }
-    pub(crate) c_euv_item_group_shadcn {
-        gap: var!(space-lg);
-    }
 
 
-    pub(crate) c_euv_item_default {
-        display: "flex";
-        flex-wrap: "wrap";
-        align-items: "center";
-        border: format!("{} solid transparent", var!(border-width));
-        border-radius: var!(radius-md);
-        background: "transparent";
-        color: var!(foreground);
-        font-size: var!(font-sm);
-        outline: "none";
-        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
-        :focus-within {
-            border-color: var!(ring);
-        }
-    }
-    pub(crate) c_euv_item_default_shadcn {
-        border-color: var!(border);
-        border-bottom-right-radius: var!(radius-lg);
-        border-bottom-left-radius: var!(radius-lg);
-        border-top-right-radius: var!(radius-lg);
-        border-top-left-radius: var!(radius-lg);
-    }
 
 
-    pub(crate) c_euv_item_outline {
-        display: "flex";
-        flex-wrap: "wrap";
-        align-items: "center";
-        border: format!("{} solid {}", var!(border-width), var!(border));
-        border-radius: var!(radius-md);
-        background: "transparent";
-        color: var!(foreground);
-        font-size: var!(font-sm);
-        outline: "none";
-        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
-        :focus-within {
-            border-color: var!(ring);
-        }
-    }
-    pub(crate) c_euv_item_outline_shadcn {
-        border-color: var!(border);
-        border-bottom-right-radius: var!(radius-lg);
-        border-bottom-left-radius: var!(radius-lg);
-        border-top-right-radius: var!(radius-lg);
-        border-top-left-radius: var!(radius-lg);
-        border-bottom-style: "solid";
-        border-left-style: "solid";
-        border-right-style: "solid";
-        border-top-style: "solid";
-        border-bottom-width: var!(border-width);
-        border-left-width: var!(border-width);
-        border-right-width: var!(border-width);
-        border-top-width: var!(border-width);
-    }
 
 
-    pub(crate) c_euv_item_muted {
-        display: "flex";
-        flex-wrap: "wrap";
-        align-items: "center";
-        border: format!("{} solid transparent", var!(border-width));
-        border-radius: var!(radius-md);
-        background: var!(muted);
-        color: var!(foreground);
-        font-size: var!(font-sm);
-        outline: "none";
-        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
-        :focus-within {
-            border-color: var!(ring);
-        }
-    }
-    pub(crate) c_euv_item_muted_shadcn {
-        border-bottom-right-radius: var!(radius-lg);
-        border-bottom-left-radius: var!(radius-lg);
-        border-top-right-radius: var!(radius-lg);
-        border-top-left-radius: var!(radius-lg);
-    }
 
 
-    pub(crate) c_euv_item_size_default {
-        gap: var!(space-lg);
-        padding: var!(space-lg);
-    }
-    pub(crate) c_euv_item_size_default_shadcn {
-        gap: var!(space-sm-md);
-        padding: format!("{} {}", var!(space-sm-md), var!(space-md));
-    }
 
 
-    pub(crate) c_euv_item_size_sm {
-        gap: var!(space-sm-md);
-        padding: format!("{} {}", var!(space-md), var!(space-lg));
-    }
-    pub(crate) c_euv_item_size_sm_shadcn {
-        gap: var!(space-sm-md);
-        padding: format!("{} {}", var!(space-sm-md), var!(space-md));
-    }
 
-    pub(crate) c_euv_item_size_xs {
-        gap: var!(space-sm);
-        padding: format!("{} {}", var!(space-sm), var!(space-sm-md));
-    }
-    pub(crate) c_euv_item_size_xs_shadcn {
-        gap: var!(space-sm);
-        padding: format!("{} {}", var!(space-sm), var!(space-sm-md));
-    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     pub(crate) c_euv_item_media_default {
@@ -2878,28 +2088,12 @@ class! {
     // Aspect Ratio
     // ═══════════════════════════════════════════════════════════════════════════
 
-    pub(crate) c_euv_aspect_ratio {
-        position: "relative";
-        width: "100%";
-        overflow: "hidden";
-    }
-    pub(crate) c_euv_aspect_ratio_shadcn {
-        background-color: var!(muted);
-        border-bottom-right-radius: var!(radius-lg);
-        border-bottom-left-radius: var!(radius-lg);
-        border-top-right-radius: var!(radius-lg);
-        border-top-left-radius: var!(radius-lg);
-    }
 
-    pub c_euv_separator {
-        flex-shrink: "0";
-        background: var!(border);
-    }
 
-    pub(crate) c_euv_separator_shadcn {
-        flex-shrink: "0";
-        background: var!(border);
-    }
+
+
+
+
 
     pub c_euv_separator_horizontal {
         height: "1px";
@@ -2933,34 +2127,6 @@ class! {
     // ═══════════════════════════════════════════════════════════════════════════
 
     pub c_euv_button {}
-
-    pub(crate) c_euv_button_shadcn {}
-
-    pub(crate) c_euv_button_default_shadcn {}
-
-    pub(crate) c_euv_button_secondary_shadcn {}
-
-    pub(crate) c_euv_button_destructive_shadcn {}
-
-    pub(crate) c_euv_button_outline_shadcn {}
-
-    pub(crate) c_euv_button_ghost_shadcn {}
-
-    pub(crate) c_euv_button_size_default_shadcn {}
-
-    pub(crate) c_euv_button_size_small_shadcn {}
-
-    pub(crate) c_euv_button_size_large_shadcn {}
-
-    pub(crate) c_euv_button_size_icon_shadcn {}
-
-    pub(crate) c_euv_button_size_xs_shadcn {}
-
-    pub(crate) c_euv_button_size_icon_xs_shadcn {}
-
-    pub(crate) c_euv_button_size_icon_sm_shadcn {}
-
-    pub(crate) c_euv_button_size_icon_lg_shadcn {}
 
     pub c_euv_button_primary {}
 
@@ -3010,11 +2176,7 @@ class! {
 
     pub(crate) c_euv_alert_default {}
 
-    pub(crate) c_euv_alert_default_shadcn {}
-
     pub(crate) c_euv_alert_destructive {}
-
-    pub(crate) c_euv_alert_destructive_shadcn {}
 
     pub(crate) c_euv_alert_title {}
 
@@ -3128,15 +2290,9 @@ class! {
 
     pub c_euv_pagination {}
 
-    pub(crate) c_euv_pagination_shadcn {}
-
     pub c_euv_pagination_link {}
 
-    pub(crate) c_euv_pagination_link_shadcn {}
-
-    pub(crate) c_euv_pagination_previous_shadcn {}
-
-    pub(crate) c_euv_pagination_next_shadcn {}
+    pub(crate) c_euv_pagination_previous {}
 
     pub(crate) c_euv_pagination_icon {}
 
@@ -3195,23 +2351,13 @@ class! {
 
     pub(crate) c_euv_tabs {}
 
-    pub(crate) c_euv_tabs_shadcn {}
-
     pub(crate) c_euv_tabs_bar {}
-
-    pub(crate) c_euv_tabs_bar_shadcn {}
 
     pub(crate) c_euv_tab_item {}
 
-    pub(crate) c_euv_tab_item_shadcn {}
-
     pub(crate) c_euv_tab_item_active {}
 
-    pub(crate) c_euv_tab_item_active_shadcn {}
-
     pub(crate) c_euv_tabs_panel {}
-
-    pub(crate) c_euv_tabs_panel_shadcn {}
 
     pub(crate) c_euv_collapse_item {}
 
@@ -3255,10 +2401,6 @@ class! {
 
     pub(crate) c_card {}
 
-    pub(crate) c_card_shadcn {}
-
-    pub(crate) c_card_title_shadcn {}
-
     pub(crate) c_euv_card_header {}
 
     pub(crate) c_euv_card_description {}
@@ -3277,8 +2419,6 @@ class! {
 
     pub(crate) c_euv_badge {}
 
-    pub(crate) c_euv_badge_shadcn {}
-
     pub(crate) c_euv_badge_clickable {}
 
     pub(crate) c_euv_badge_default {}
@@ -3292,8 +2432,6 @@ class! {
     pub(crate) c_euv_badge_ghost {}
 
     pub(crate) c_euv_badge_link {}
-
-    pub(crate) c_euv_badge_destructive_shadcn {}
 
     pub(crate) c_euv_tag_solid_black {}
 
@@ -3352,8 +2490,6 @@ class! {
 
     pub(crate) c_euv_empty {}
 
-    pub(crate) c_euv_empty_shadcn {}
-
     pub(crate) c_euv_empty_icon {}
 
     pub(crate) c_euv_alert_icon {}
@@ -3384,8 +2520,6 @@ class! {
 
     pub(crate) c_euv_kbd {}
 
-    pub(crate) c_euv_kbd_shadcn {}
-
     pub(crate) c_euv_text_deletion {}
 
     pub(crate) c_euv_text_underline {}
@@ -3405,6 +2539,8 @@ class! {
     pub(crate) c_euv_image {}
 
     pub(crate) c_euv_image_placeholder {}
+
+    pub(crate) c_euv_image_unavailable_picture {}
 
     pub(crate) c_euv_image_failed {}
 
@@ -3519,8 +2655,6 @@ class! {
 
     pub(crate) c_euv_accordion_trigger {}
 
-    pub(crate) c_euv_accordion_trigger_shadcn {}
-
     pub(crate) c_euv_accordion_trigger_open {}
 
     pub(crate) c_euv_accordion_icon {}
@@ -3535,7 +2669,7 @@ class! {
 
     pub(crate) c_euv_accordion_content_inner {}
 
-    pub(crate) c_euv_accordion_content_shadcn {}
+
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Item
@@ -3594,24 +2728,1575 @@ class! {
     pub(crate) c_euv_aspect_ratio {}
     pub c_euv_separator {}
 
-    pub(crate) c_euv_separator_shadcn {}
-
     pub c_euv_separator_horizontal {}
 
     pub c_euv_separator_vertical {}
-    pub(crate) c_euv_accordion_item_shadcn {}
-    pub(crate) c_euv_aspect_ratio_shadcn {}
-    pub(crate) c_euv_card_header_shadcn {}
-    pub(crate) c_euv_item_default_shadcn {}
-    pub(crate) c_euv_item_group_shadcn {}
-    pub(crate) c_euv_item_muted_shadcn {}
-    pub(crate) c_euv_item_outline_shadcn {}
-    pub(crate) c_euv_item_size_default_shadcn {}
-    pub(crate) c_euv_item_size_sm_shadcn {}
-    pub(crate) c_euv_item_size_xs_shadcn {}
-    pub(crate) c_progress_container_shadcn {}
 
     pub(crate) c_progress_bar_track {}
+}
 
-    pub(crate) c_progress_bar_track_shadcn {}
+#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+class! {
+    pub c_card_title {
+        margin: format!("{} 0px", var!(space-lg));
+        color: var!(card-foreground);
+        font-size: var!(font-lg);
+        font-weight: var!(font-weight-semibold);
+        letter-spacing: var!(letter-spacing-tight);
+        @media ((max-width: 767px)) {
+            font-size: var!(font-md);
+        }
+    }
+
+    pub c_euv_button {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        white-space: "nowrap";
+        border-radius: var!(radius-lg);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+        box-sizing: "border-box";
+        cursor: "pointer";
+        // The control may be an anchor rather than a button, and an anchor
+        // carries an underline the control does not want.
+        text-decoration: "none";
+        user-select: "none";
+        -webkit-user-select: "none";
+        transition: format!(
+        "background-color {} {}, border-color {} {}, color {} {}, box-shadow {} {}, transform {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-press),
+        var!(ease-accelerate)
+        );
+        :focus-visible {
+            outline: "none";
+            box-shadow: format!("0 0 0 {} {}, 0 0 0 calc({} + {}) {}", var!(ring-offset), var!(background), var!(ring-offset), var!(ring-width), var!(ring));
+        }
+        // The scale is what makes the press read as the button taking the
+        // weight of the finger instead of a colour swap.
+        :active {
+            transform: format!("scale({})", var!(press-scale));
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
+        }
+    }
+
+    pub c_euv_button_default {
+        background: var!(primary);
+        color: var!(primary-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: var!(primary-hover);
+        }
+    }
+
+    pub c_euv_button_secondary {
+        background: var!(secondary);
+        color: var!(secondary-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: format!("color-mix(in srgb, {} 80%, transparent)", var!(secondary));
+        }
+    }
+
+    pub c_euv_button_destructive {
+        background: var!(destructive);
+        color: var!(destructive-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: format!("color-mix(in srgb, {} 90%, transparent)", var!(destructive));
+        }
+    }
+
+    pub c_euv_button_outline {
+        background: var!(background);
+        color: var!(foreground);
+        border: format!("{} solid {}", var!(border-width), var!(input));
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub c_euv_button_ghost {
+        background: "transparent";
+        color: var!(foreground);
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+    }
+
+    pub c_euv_button_size_default {
+        height: var!(control-height-sm);
+        padding: format!("0px {}", var!(control-pad-inline));
+    }
+
+    pub c_euv_button_size_small {
+        height: format!("calc({} - 4px)", var!(control-height-sm));
+        padding: format!("0px {}", var!(control-pad-inline));
+    }
+
+    pub c_euv_button_size_large {
+        height: var!(control-height);
+        padding: format!("0px {}", var!(control-pad-inline));
+    }
+
+    pub c_euv_button_size_icon {
+        height: var!(control-height-sm);
+        width: var!(control-height-sm);
+        padding: "0px";
+    }
+
+    pub c_euv_button_size_xs {
+        height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
+        padding: format!("0px {}", var!(control-pad-inline));
+    }
+
+    pub c_euv_button_size_icon_xs {
+        width: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
+        height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
+        padding: "0px";
+    }
+
+    pub c_euv_button_size_icon_sm {
+        width: var!(control-height-sm);
+        height: var!(control-height-sm);
+        padding: "0px";
+    }
+
+    pub c_euv_button_size_icon_lg {
+        width: format!("calc({} + {})", var!(control-height), var!(space-xs));
+        height: format!("calc({} + {})", var!(control-height), var!(space-xs));
+        padding: "0px";
+    }
+
+    pub(crate) c_euv_alert_default {
+        position: "relative";
+        width: "100%";
+        box-sizing: "border-box";
+        padding: var!(space-lg);
+        background: var!(background);
+        color: var!(foreground);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-lg);
+    }
+
+    pub(crate) c_euv_alert_destructive {
+        position: "relative";
+        width: "100%";
+        box-sizing: "border-box";
+        padding: var!(space-lg);
+        color: var!(destructive);
+        background: var!(background);
+        border: format!("{} solid {}", var!(border-width), var!(destructive));
+        border-radius: var!(radius-lg);
+    }
+
+    pub c_progress_container {
+        width: "100%";
+        margin: format!("{} 0px", var!(space-lg));
+    }
+
+    pub(crate) c_progress_bar_track {
+        position: "relative";
+        display: "flex";
+        align-items: "center";
+        width: "100%";
+        height: "12px";
+        overflow: "hidden";
+        background: var!(muted);
+        border-radius: var!(radius-sm);
+    }
+
+    pub c_euv_pagination {}
+
+    pub c_euv_pagination_link {
+        // `min-width: 0` lets long labels ellipsize on the desktop row
+        // layout. `overflow: hidden` is required to actually apply ellipsis
+        // when content is wider than the link.
+        min-width: "0px";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        padding: var!(space-lg);
+        cursor: "pointer";
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xs);
+        overflow: "hidden";
+        :hover {
+            border-color: var!(ring);
+        }
+        border-radius: var!(radius-md);
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_link") {
+            display: "grid";
+            grid-template-columns: "auto minmax(0px, 1fr) auto";
+            grid-template-rows: "auto auto";
+            align-content: "center";
+            align-items: "center";
+            justify-items: "stretch";
+            flex: "1";
+            width: "100%";
+            height: "auto";
+            min-height: format!("calc({} + {})", var!(control-height), var!(space-lg));
+            box-sizing: "border-box";
+            padding: var!(space-lg);
+            column-gap: var!(space-sm);
+            row-gap: var!(space-2xs);
+            white-space: "normal";
+            text-decoration: "none";
+        }
+    }
+
+    pub(crate) c_euv_tabs {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+    }
+
+    pub(crate) c_euv_tabs_bar {
+        display: "flex";
+        background: var!(muted);
+        border-radius: var!(radius-lg);
+        padding: var!(space-xs);
+        margin-bottom: var!(gap-component);
+        gap: var!(space-xs);
+        @media ((max-width: 767px)) {
+            flex-wrap: "wrap";
+        }
+    }
+
+    pub(crate) c_euv_tab_item {
+        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        cursor: "pointer";
+        font-size: var!(font-base);
+        font-weight: var!(font-weight-medium);
+        border-bottom: "2px solid transparent";
+        color: "inherit";
+        background: "transparent";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        white-space: "nowrap";
+        :hover {
+            background: var!(muted);
+            color: var!(primary);
+        }
+        border-radius: var!(radius-md);
+    }
+
+    pub(crate) c_euv_tab_item_active {
+        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        cursor: "pointer";
+        font-size: var!(font-base);
+        font-weight: var!(font-weight-medium);
+        border-bottom: format!("2px solid {}", var!(primary));
+        color: var!(primary-foreground);
+        background: var!(primary);
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        white-space: "nowrap";
+        border-radius: var!(radius-md);
+    }
+
+    pub(crate) c_euv_tabs_panel {
+        padding: format!("{} 0px", var!(gap-element));
+    }
+
+    pub(crate) c_card {
+        color: var!(card-foreground);
+        background: var!(card);
+        border: format!("{} solid {}", var!(surface-border-width), var!(border));
+        box-shadow: var!(shadow-sm);
+        padding: var!(space-2xl);
+        box-sizing: "border-box";
+        // The card title carries a `gap-component` margin, and that margin
+        // collapses out of the card — the card has no padding and no border
+        // to stop it. The gap between two cards was therefore whatever the
+        // title's margin happened to be, not a value anybody chose. The
+        // block gap is the value the page template asks for, so it is named
+        // here instead of being left to a side effect.
+        margin-top: var!(page-block-gap);
+        @media ((max-width: 767px)) {
+            margin-top: var!(page-block-gap-mobile);
+        }
+        border-radius: var!(radius-xl);
+    }
+
+    pub(crate) c_euv_card_header {
+        display: "grid";
+        grid-template-columns: "1fr auto";
+        grid-template-rows: "auto auto";
+        grid-auto-rows: "min-content";
+        align-items: "start";
+        gap: var!(space-xs);
+    }
+
+    pub(crate) c_euv_badge {
+        // The wrapping-atom recipe (§7): an inline flex box is atomic, so a
+        // wrapped label left-aligns while the border stays at the parent
+        // width — the right border reads as missing. The four `c_euv_tag_*`
+        // variants already use this recipe; a badge is the same kind of
+        // element and must not mix the two.
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        height: "20px";
+        box-sizing: "border-box";
+        padding: format!("2px {}", var!(space-sm));
+        font-size: var!(font-xs);
+        font-weight: var!(font-weight-semibold);
+        transition: format!(
+        "background-color {} {}, border-color {} {}, color {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out)
+        );
+        :focus-visible {
+            outline: "none";
+        }
+        @media ((max-width: 767px)) {
+            padding: format!("{} {}", var!(space-2xs), var!(space-xs));
+            font-size: var!(font-xs);
+        }
+        border-radius: var!(radius-full);
+    }
+
+    pub(crate) c_euv_badge_destructive {
+        color: var!(destructive);
+        background: format!("color-mix(in srgb, {} 10%, transparent)", var!(destructive));
+        border: format!("{} solid transparent", var!(border-width));
+    }
+
+    pub(crate) c_euv_pagination_next {
+        text-align: "right";
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_next") {
+            padding: var!(space-lg);
+            text-align: "right";
+        }
+    }
+
+    pub(crate) c_euv_empty {
+        display: "flex";
+        flex-direction: "column";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        width: "100%";
+        padding: var!(space-3xl);
+        box-sizing: "border-box";
+        text-align: "center";
+    }
+
+    pub(crate) c_euv_kbd {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-2xs);
+        min-width: "20px";
+        height: "20px";
+        padding-inline: var!(space-2xs);
+        border-radius: var!(radius-sm);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        background: var!(muted);
+        color: var!(muted-foreground);
+        font-family: var!(font-family-mono);
+        font-size: var!(font-xs);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+        white-space: "nowrap";
+        user-select: "none";
+        -webkit-user-select: "none";
+    }
+
+    pub(crate) c_euv_accordion_item {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
+        :last-child {
+            border-bottom: "none";
+        }
+    }
+
+    pub(crate) c_euv_accordion_trigger {
+        display: "flex";
+        flex: "1";
+        align-items: "center";
+        justify-content: "space-between";
+        gap: var!(space-sm);
+        padding: format!("{} 0px", var!(space-lg));
+        border: "none";
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1.5";
+        text-align: "left";
+        cursor: "pointer";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :hover {
+            color: var!(muted-foreground);
+            text-decoration: "underline";
+        }
+        :disabled {
+            opacity: "0.5";
+            cursor: "not-allowed";
+        }
+    }
+
+    pub(crate) c_euv_accordion_content {
+        overflow: "hidden";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        line-height: "1.5";
+    }
+
+    pub(crate) c_euv_item_group {
+        display: "flex";
+        flex-direction: "column";
+    }
+
+    pub(crate) c_euv_item_default {
+        display: "flex";
+        flex-wrap: "wrap";
+        align-items: "center";
+        border: format!("{} solid transparent", var!(border-width));
+        border-radius: var!(radius-md);
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        outline: "none";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :focus-within {
+            border-color: var!(ring);
+        }
+    }
+
+    pub(crate) c_euv_item_outline {
+        display: "flex";
+        flex-wrap: "wrap";
+        align-items: "center";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        outline: "none";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :focus-within {
+            border-color: var!(ring);
+        }
+    }
+
+    pub(crate) c_euv_item_muted {
+        display: "flex";
+        flex-wrap: "wrap";
+        align-items: "center";
+        border: format!("{} solid transparent", var!(border-width));
+        border-radius: var!(radius-md);
+        background: var!(muted);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        outline: "none";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :focus-within {
+            border-color: var!(ring);
+        }
+    }
+
+    pub(crate) c_euv_item_size_default {
+        gap: var!(space-lg);
+        padding: var!(space-lg);
+    }
+
+    pub(crate) c_euv_item_size_sm {
+        gap: var!(space-sm-md);
+        padding: format!("{} {}", var!(space-md), var!(space-lg));
+    }
+
+    pub(crate) c_euv_item_size_xs {
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-sm), var!(space-sm-md));
+    }
+
+    pub(crate) c_euv_aspect_ratio {
+        position: "relative";
+        width: "100%";
+        overflow: "hidden";
+    }
+
+    pub c_euv_separator {
+        flex-shrink: "0";
+        background: var!(border);
+    }
+
+    pub(crate) c_euv_pagination_previous {
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_previous") {
+            padding: var!(space-lg);
+            text-align: "left";
+        }
+    }
+
+    pub c_euv_button_primary {
+        background: var!(primary);
+        color: var!(primary-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: var!(primary-hover);
+        }
+    }
+
+    pub(crate) c_euv_pagination_label {
+        font-size: var!(font-xs);
+        color: var!(muted-foreground);
+        text-transform: var!(text-transform-uppercase);
+        letter-spacing: var!(letter-spacing-wide);
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_label") {
+            display: "block";
+            grid-column: "2";
+            grid-row: "1";
+            min-width: "0px";
+            overflow: "hidden";
+            white-space: "nowrap";
+            text-overflow: "ellipsis";
+            font-size: var!(font-xs);
+            line-height: "1.5";
+            color: var!(muted-foreground);
+        }
+    }
+
+    pub(crate) c_euv_pagination_text {
+        font-size: var!(font-base);
+        font-weight: var!(font-weight-semibold);
+        color: var!(primary);
+        // Ellipsize when the link is too narrow for the page title. The
+        // outer `.c_euv_pagination_link` already sets `overflow: hidden`
+        // and `min-width: 0`, so a single `text-overflow: ellipsis` here
+        // is enough — without `white-space: nowrap` the text wraps to
+        // multiple lines and the ellipsis never kicks in.
+        white-space: "nowrap";
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        min-width: "0px";
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_text") {
+            display: "block";
+            grid-column: "2";
+            grid-row: "2";
+            min-width: "0px";
+            overflow: "hidden";
+            white-space: "nowrap";
+            text-overflow: "ellipsis";
+            font-size: var!(font-sm);
+            line-height: "1.5";
+            color: var!(foreground);
+        }
+    }
+
+    pub(crate) c_euv_pagination_icon {
+        display: "none";
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_icon") {
+            display: "flex";
+            grid-row: "1 / 3";
+            align-items: "center";
+            justify-content: "center";
+            width: var!(space-lg);
+            color: var!(foreground);
+        }
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_previous .c_euv_pagination_icon") {
+            grid-column: "1";
+        }
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_next .c_euv_pagination_icon") {
+            grid-column: "3";
+        }
+    }
+}
+
+#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+class! {
+    pub c_card_title {
+        margin: format!("{} 0px", var!(space-lg));
+        color: var!(card-foreground);
+        font-size: var!(font-lg);
+        font-weight: var!(font-weight-semibold);
+        letter-spacing: var!(letter-spacing-tight);
+        @media ((max-width: 767px)) {
+            font-size: var!(font-md);
+        }
+
+        margin: "0px";
+        font-size: var!(font-base);
+        font-weight: var!(font-weight-medium);
+        letter-spacing: var!(letter-spacing-normal);
+    }
+
+    pub c_euv_button {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        white-space: "nowrap";
+        border-radius: var!(radius-lg);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+        box-sizing: "border-box";
+        cursor: "pointer";
+        // The control may be an anchor rather than a button, and an anchor
+        // carries an underline the control does not want.
+        text-decoration: "none";
+        user-select: "none";
+        -webkit-user-select: "none";
+        transition: format!(
+        "background-color {} {}, border-color {} {}, color {} {}, box-shadow {} {}, transform {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-press),
+        var!(ease-accelerate)
+        );
+        :focus-visible {
+            outline: "none";
+            box-shadow: format!("0 0 0 {} {}, 0 0 0 calc({} + {}) {}", var!(ring-offset), var!(background), var!(ring-offset), var!(ring-width), var!(ring));
+        }
+        // The scale is what makes the press read as the button taking the
+        // weight of the finger instead of a colour swap.
+        :active {
+            transform: format!("scale({})", var!(press-scale));
+        }
+        :disabled {
+            pointer-events: "none";
+            opacity: "0.5";
+        }
+
+        border-radius: var!(radius-lg);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1.428571";
+        gap: var!(space-sm);
+        cursor: "default";
+        // The reference button uses a 3px focus ring and a 1px press translation.
+        :focus-visible {
+            border-color: var!(ring);
+            box-shadow: format!("0 0 0 3px color-mix(in srgb, {} 50%, transparent)", var!(ring));
+        }
+        :active {
+            transform: "translateY(1px)";
+        }
+    }
+
+    pub c_euv_button_default {
+        background: var!(primary);
+        color: var!(primary-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: var!(primary-hover);
+        }
+
+        :hover {
+            background: var!(button-primary-hover-bg);
+        }
+    }
+
+    pub c_euv_button_secondary {
+        background: var!(secondary);
+        color: var!(secondary-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: format!("color-mix(in srgb, {} 80%, transparent)", var!(secondary));
+        }
+
+        :hover {
+            background: var!(button-secondary-hover-bg);
+        }
+    }
+
+    pub c_euv_button_destructive {
+        background: var!(destructive);
+        color: var!(destructive-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: format!("color-mix(in srgb, {} 90%, transparent)", var!(destructive));
+        }
+
+        background: var!(button-destructive-bg);
+        color: var!(destructive);
+        :hover {
+            background: var!(button-destructive-hover-bg);
+        }
+        // The reference uses a destructive-tinted focus border and ring.
+        :focus-visible {
+            border-color: var!(button-destructive-focus-border);
+            box-shadow: format!("0 0 0 3px {}", var!(button-destructive-focus-ring));
+        }
+    }
+
+    pub c_euv_button_outline {
+        background: var!(background);
+        color: var!(foreground);
+        border: format!("{} solid {}", var!(border-width), var!(input));
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+
+        background: var!(button-outline-bg);
+        box-shadow: var!(shadow-xs);
+        :hover {
+            background: var!(button-outline-hover-bg);
+            color: var!(button-outline-hover-fg);
+        }
+    }
+
+    pub c_euv_button_ghost {
+        background: "transparent";
+        color: var!(foreground);
+        :hover {
+            background: var!(accent);
+            color: var!(accent-foreground);
+        }
+
+        :hover {
+            background: var!(button-ghost-hover-bg);
+            color: var!(button-ghost-hover-fg);
+        }
+    }
+
+    pub c_euv_button_size_default {
+        height: var!(control-height-sm);
+        padding: format!("0px {}", var!(control-pad-inline));
+
+        height: var!(control-height-sm);
+        min-height: var!(control-height-sm);
+        padding: format!("0px {}", var!(space-sm-md));
+        gap: format!("calc({} - {})", var!(space-sm), var!(space-2xs));
+        border-radius: var!(radius-lg);
+    }
+
+    pub c_euv_button_size_small {
+        height: format!("calc({} - 4px)", var!(control-height-sm));
+        padding: format!("0px {}", var!(control-pad-inline));
+
+        height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
+        min-height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
+        padding: format!("0px {}", var!(space-sm-md));
+        gap: var!(space-xs);
+        font-size: var!(font-xs);
+        border-radius: var!(radius-md);
+    }
+
+    pub c_euv_button_size_large {
+        height: var!(control-height);
+        padding: format!("0px {}", var!(control-pad-inline));
+
+        height: var!(control-height);
+        min-height: var!(control-height);
+        padding: format!("0px {}", var!(space-sm-md));
+        gap: format!("calc({} - {})", var!(space-sm), var!(space-2xs));
+        border-radius: var!(radius-lg);
+    }
+
+    pub c_euv_button_size_icon {
+        height: var!(control-height-sm);
+        width: var!(control-height-sm);
+        padding: "0px";
+
+        width: var!(control-height-sm);
+        height: var!(control-height-sm);
+        min-height: var!(control-height-sm);
+        padding: "0px";
+        border-radius: var!(radius-md);
+    }
+
+    pub c_euv_button_size_xs {
+        height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
+        padding: format!("0px {}", var!(control-pad-inline));
+
+        height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
+        min-height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
+        padding: format!("0px {}", var!(space-sm));
+        gap: var!(space-xs);
+        font-size: var!(font-xs);
+        border-radius: var!(radius-md);
+    }
+
+    pub c_euv_button_size_icon_xs {
+        width: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
+        height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
+        padding: "0px";
+
+        width: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
+        height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
+        min-height: format!("calc({} - {})", var!(control-height-sm), var!(space-sm));
+        padding: "0px";
+        border-radius: var!(radius-md);
+    }
+
+    pub c_euv_button_size_icon_sm {
+        width: var!(control-height-sm);
+        height: var!(control-height-sm);
+        padding: "0px";
+
+        width: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
+        height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
+        min-height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
+        padding: "0px";
+        border-radius: var!(radius-md);
+    }
+
+    pub c_euv_button_size_icon_lg {
+        width: format!("calc({} + {})", var!(control-height), var!(space-xs));
+        height: format!("calc({} + {})", var!(control-height), var!(space-xs));
+        padding: "0px";
+
+        width: var!(control-height);
+        height: var!(control-height);
+        min-height: var!(control-height);
+        padding: "0px";
+        border-radius: var!(radius-lg);
+    }
+
+    pub(crate) c_euv_alert_default {
+        position: "relative";
+        width: "100%";
+        box-sizing: "border-box";
+        padding: var!(space-lg);
+        background: var!(background);
+        color: var!(foreground);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-lg);
+
+        padding: format!("{} {}", var!(space-sm), var!(control-pad-inline));
+        background: var!(card);
+    }
+
+    pub(crate) c_euv_alert_destructive {
+        position: "relative";
+        width: "100%";
+        box-sizing: "border-box";
+        padding: var!(space-lg);
+        color: var!(destructive);
+        background: var!(background);
+        border: format!("{} solid {}", var!(border-width), var!(destructive));
+        border-radius: var!(radius-lg);
+
+        padding: format!("{} {}", var!(space-sm), var!(control-pad-inline));
+        color: var!(destructive);
+        background: var!(card);
+        border-color: var!(border);
+    }
+
+    pub c_progress_container {
+        width: "100%";
+        margin: format!("{} 0px", var!(space-lg));
+
+        flex-wrap: "wrap";
+        gap: var!(space-md);
+    }
+
+    pub(crate) c_progress_bar_track {
+        position: "relative";
+        display: "flex";
+        align-items: "center";
+        width: "100%";
+        height: "12px";
+        overflow: "hidden";
+        background: var!(muted);
+        border-radius: var!(radius-sm);
+
+        height: var!(space-xs);
+    }
+
+    pub c_euv_pagination {
+        display: "flex";
+        justify-content: "center";
+        width: "100%";
+        min-width: "0px";
+        margin: "0px";
+    }
+
+    pub c_euv_pagination_link {
+        // `min-width: 0` lets long labels ellipsize on the desktop row
+        // layout. `overflow: hidden` is required to actually apply ellipsis
+        // when content is wider than the link.
+        min-width: "0px";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        padding: var!(space-lg);
+        cursor: "pointer";
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xs);
+        overflow: "hidden";
+        :hover {
+            border-color: var!(ring);
+        }
+        border-radius: var!(radius-md);
+
+        display: "inline-flex";
+        flex-direction: "row";
+        align-items: "center";
+        justify-content: "center";
+        gap: format!("calc({} - {})", var!(space-sm), var!(space-2xs));
+        height: var!(control-height-sm);
+        min-height: var!(control-height-sm);
+        padding: "0px";
+        border-color: var!(card);
+        border-radius: var!(radius-lg);
+        text-align: "center";
+        white-space: "nowrap";
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_link") {
+            display: "grid";
+            grid-template-columns: "auto minmax(0px, 1fr) auto";
+            grid-template-rows: "auto auto";
+            align-content: "center";
+            align-items: "center";
+            justify-content: "normal";
+            justify-items: "stretch";
+            flex: "1";
+            width: "100%";
+            height: "auto";
+            min-height: format!("calc({} + {})", var!(control-height), var!(space-lg));
+            box-sizing: "border-box";
+            padding: var!(space-lg);
+            column-gap: var!(space-sm);
+            row-gap: var!(space-2xs);
+            white-space: "normal";
+            text-decoration: "none";
+        }
+    }
+
+    pub(crate) c_euv_tabs {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+
+        gap: var!(space-sm);
+    }
+
+    pub(crate) c_euv_tabs_bar {
+        display: "flex";
+        background: var!(muted);
+        border-radius: var!(radius-lg);
+        padding: var!(space-xs);
+        margin-bottom: var!(gap-component);
+        gap: var!(space-xs);
+        @media ((max-width: 767px)) {
+            flex-wrap: "wrap";
+        }
+
+        width: "fit-content";
+        height: var!(control-height-sm);
+        align-items: "center";
+        box-sizing: "border-box";
+        margin-bottom: "0px";
+        padding: var!(tablist-inset);
+        gap: "0px";
+        color: var!(muted-foreground);
+        justify-content: "center";
+    }
+
+    pub(crate) c_euv_tab_item {
+        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        cursor: "pointer";
+        font-size: var!(font-base);
+        font-weight: var!(font-weight-medium);
+        border-bottom: "2px solid transparent";
+        color: "inherit";
+        background: "transparent";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        white-space: "nowrap";
+        :hover {
+            background: var!(muted);
+            color: var!(primary);
+        }
+        border-radius: var!(radius-md);
+
+        display: "inline-flex";
+        flex: "1";
+        height: "calc(100% - 1px)";
+        align-items: "center";
+        justify-content: "center";
+        gap: format!("calc({} - {})", var!(space-sm), var!(space-2xs));
+        padding: format!("{} calc({} + {})", var!(space-2xs), var!(space-xs), var!(space-2xs));
+        border: format!("{} solid transparent", var!(border-width));
+        border-bottom: "none";
+        border-radius: var!(radius-md);
+        background: "transparent";
+        color: format!("color-mix(in srgb, {} 60%, transparent)", var!(foreground));
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        white-space: "nowrap";
+        line-height: var!(space-xl);
+        box-sizing: "border-box";
+        user-select: "none";
+        -webkit-user-select: "none";
+        border-color: "transparent";
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        :hover {
+            background: "transparent";
+            color: var!(foreground);
+        }
+        :is(.c_theme_dark button) {
+            color: var!(muted-foreground);
+        }
+        : is(.c_theme_dark button):hover {
+            color: var!(foreground);
+        }
+    }
+
+    pub(crate) c_euv_tab_item_active {
+        padding: format!("{} {}", var!(space-md), var!(space-xl));
+        cursor: "pointer";
+        font-size: var!(font-base);
+        font-weight: var!(font-weight-medium);
+        border-bottom: "2px solid transparent";
+        color: "inherit";
+        background: "transparent";
+        touch-action: "manipulation";
+        user-select: "none";
+        -webkit-user-select: "none";
+        white-space: "nowrap";
+        :hover {
+            background: var!(muted);
+            color: var!(primary);
+        }
+        border-radius: var!(radius-md);
+
+        display: "inline-flex";
+        flex: "1";
+        height: "calc(100% - 1px)";
+        align-items: "center";
+        justify-content: "center";
+        gap: format!("calc({} - {})", var!(space-sm), var!(space-2xs));
+        padding: format!("{} calc({} + {})", var!(space-2xs), var!(space-xs), var!(space-2xs));
+        border: format!("{} solid transparent", var!(border-width));
+        border-bottom: "none";
+        border-radius: var!(radius-md);
+        background: "transparent";
+        color: format!("color-mix(in srgb, {} 60%, transparent)", var!(foreground));
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        white-space: "nowrap";
+        line-height: var!(space-xl);
+        box-sizing: "border-box";
+        user-select: "none";
+        -webkit-user-select: "none";
+        border-color: "transparent";
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        :hover {
+            background: "transparent";
+            color: var!(foreground);
+        }
+        :is(.c_theme_dark button) {
+            color: var!(muted-foreground);
+        }
+        : is(.c_theme_dark button):hover {
+            color: var!(foreground);
+        }
+
+        :hover {
+            background: var!(background);
+            color: var!(foreground);
+        }
+        background: var!(background);
+        color: var!(foreground);
+        box-shadow: var!(shadow-sm);
+        :is(.c_theme_dark button) {
+            background: format!("color-mix(in srgb, {} 30%, transparent)", var!(input));
+            border-color: var!(input);
+            color: var!(foreground);
+        }
+
+        // Both base and state classes stay mounted; state paint also wins on hover.
+        :is(.c_euv_tab_item_active) {
+            background: var!(background);
+            color: var!(foreground);
+        }
+        : is(.c_euv_tab_item_active):hover {
+            background: var!(background);
+            color: var!(foreground);
+        }
+        :is(".c_theme_dark .c_euv_tab_item_active") {
+            background: format!("color-mix(in srgb, {} 30%, transparent)", var!(input));
+            border-color: var!(input);
+            color: var!(foreground);
+        }
+        : is(".c_theme_dark .c_euv_tab_item_active"):hover {
+            background: format!("color-mix(in srgb, {} 30%, transparent)", var!(input));
+            color: var!(foreground);
+        }
+    }
+
+    pub(crate) c_euv_tabs_panel {
+        padding: format!("{} 0px", var!(gap-element));
+
+        padding: "0px";
+    }
+
+    pub(crate) c_card {
+        color: var!(card-foreground);
+        background: var!(card);
+        border: format!("{} solid {}", var!(surface-border-width), var!(border));
+        box-shadow: var!(shadow-sm);
+        padding: var!(space-2xl);
+        box-sizing: "border-box";
+        // The card title carries a `gap-component` margin, and that margin
+        // collapses out of the card — the card has no padding and no border
+        // to stop it. The gap between two cards was therefore whatever the
+        // title's margin happened to be, not a value anybody chose. The
+        // block gap is the value the page template asks for, so it is named
+        // here instead of being left to a side effect.
+        margin-top: var!(page-block-gap);
+        @media ((max-width: 767px)) {
+            margin-top: var!(page-block-gap-mobile);
+        }
+        border-radius: var!(radius-xl);
+
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-lg);
+        border: "none";
+        box-shadow: format!(
+        "0 0 0 1px color-mix(in srgb, {} 10%, transparent)",
+        var!(foreground)
+        );
+        padding: var!(space-lg);
+        overflow: "hidden";
+    }
+
+    pub(crate) c_euv_card_header {
+        display: "grid";
+        grid-template-columns: "1fr auto";
+        grid-template-rows: "auto auto";
+        grid-auto-rows: "min-content";
+        align-items: "start";
+        gap: var!(space-xs);
+
+        align-items: "flex-start";
+    }
+
+    pub(crate) c_euv_badge {
+        // The wrapping-atom recipe (§7): an inline flex box is atomic, so a
+        // wrapped label left-aligns while the border stays at the parent
+        // width — the right border reads as missing. The four `c_euv_tag_*`
+        // variants already use this recipe; a badge is the same kind of
+        // element and must not mix the two.
+        display: "inline-block";
+        vertical-align: "middle";
+        text-align: "center";
+        line-height: "1";
+        height: "20px";
+        box-sizing: "border-box";
+        padding: format!("2px {}", var!(space-sm));
+        font-size: var!(font-xs);
+        font-weight: var!(font-weight-semibold);
+        transition: format!(
+        "background-color {} {}, border-color {} {}, color {} {}",
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out),
+        var!(duration-fast),
+        var!(ease-out)
+        );
+        :focus-visible {
+            outline: "none";
+        }
+        @media ((max-width: 767px)) {
+            padding: format!("{} {}", var!(space-2xs), var!(space-xs));
+            font-size: var!(font-xs);
+        }
+        border-radius: var!(radius-full);
+
+        font-weight: var!(font-weight-medium);
+    }
+
+    pub(crate) c_euv_badge_destructive {
+        color: var!(destructive);
+        background: format!("color-mix(in srgb, {} 10%, transparent)", var!(destructive));
+        border: format!("{} solid transparent", var!(border-width));
+
+        color: var!(destructive);
+        background: var!(button-destructive-bg);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: var!(button-destructive-hover-bg);
+        }
+        :focus-visible {
+            border-color: var!(button-destructive-focus-border);
+            box-shadow: format!("0 0 0 3px {}", var!(button-destructive-focus-ring));
+        }
+    }
+
+    pub(crate) c_euv_pagination_next {
+        text-align: "right";
+
+        padding: format!(
+        "0px calc({} - {}) 0px {}",
+        var!(space-sm),
+        var!(space-2xs),
+        var!(space-sm-md)
+        );
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_next") {
+            padding: var!(space-lg);
+            text-align: "right";
+        }
+    }
+
+    pub(crate) c_euv_empty {
+        display: "flex";
+        flex-direction: "column";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-sm);
+        width: "100%";
+        padding: var!(space-3xl);
+        box-sizing: "border-box";
+        text-align: "center";
+
+        gap: var!(space-lg);
+        padding: var!(space-2xl);
+        border-bottom-right-radius: var!(radius-xl);
+        border-bottom-left-radius: var!(radius-xl);
+        border-top-right-radius: var!(radius-xl);
+        border-top-left-radius: var!(radius-xl);
+    }
+
+    pub(crate) c_euv_kbd {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        gap: var!(space-2xs);
+        min-width: "20px";
+        height: "20px";
+        padding-inline: var!(space-2xs);
+        border-radius: var!(radius-sm);
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        background: var!(muted);
+        color: var!(muted-foreground);
+        font-family: var!(font-family-mono);
+        font-size: var!(font-xs);
+        font-weight: var!(font-weight-medium);
+        line-height: "1";
+        white-space: "nowrap";
+        user-select: "none";
+        -webkit-user-select: "none";
+
+        gap: var!(space-xs);
+        padding-left: var!(space-xs);
+    }
+
+    pub(crate) c_euv_accordion_item {
+        display: "flex";
+        flex-direction: "column";
+        width: "100%";
+        border-bottom: format!("{} solid {}", var!(border-width), var!(border));
+        :last-child {
+            border-bottom: "none";
+        }
+
+        padding-left: var!(space-lg);
+    }
+
+    pub(crate) c_euv_accordion_trigger {
+        display: "flex";
+        flex: "1";
+        align-items: "center";
+        justify-content: "space-between";
+        gap: var!(space-sm);
+        padding: format!("{} 0px", var!(space-lg));
+        border: "none";
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        font-weight: var!(font-weight-medium);
+        line-height: "1.5";
+        text-align: "left";
+        cursor: "pointer";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :hover {
+            color: var!(muted-foreground);
+            text-decoration: "underline";
+        }
+        :disabled {
+            opacity: "0.5";
+            cursor: "not-allowed";
+        }
+
+        padding: format!("{} 0px", var!(control-pad-inline));
+        border: format!("{} solid transparent", var!(border-width));
+        border-radius: var!(radius-lg);
+        line-height: "1.428571";
+        align-items: "flex-start";
+        border-color: var!(border);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+        :hover {
+            color: var!(foreground);
+            text-decoration: "underline";
+        }
+        :focus-visible {
+            border-color: var!(ring);
+            box-shadow: format!("0 0 0 3px color-mix(in srgb, {} 50%, transparent)", var!(ring));
+        }
+    }
+
+    pub(crate) c_euv_accordion_content {
+        overflow: "hidden";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        line-height: "1.5";
+
+        line-height: "1.428571";
+    }
+
+    pub(crate) c_euv_item_group {
+        display: "flex";
+        flex-direction: "column";
+
+        gap: var!(space-lg);
+    }
+
+    pub(crate) c_euv_item_default {
+        display: "flex";
+        flex-wrap: "wrap";
+        align-items: "center";
+        border: format!("{} solid transparent", var!(border-width));
+        border-radius: var!(radius-md);
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        outline: "none";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :focus-within {
+            border-color: var!(ring);
+        }
+
+        border-color: var!(border);
+        border-bottom-right-radius: var!(radius-lg);
+        border-bottom-left-radius: var!(radius-lg);
+        border-top-right-radius: var!(radius-lg);
+        border-top-left-radius: var!(radius-lg);
+    }
+
+    pub(crate) c_euv_item_outline {
+        display: "flex";
+        flex-wrap: "wrap";
+        align-items: "center";
+        border: format!("{} solid {}", var!(border-width), var!(border));
+        border-radius: var!(radius-md);
+        background: "transparent";
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        outline: "none";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :focus-within {
+            border-color: var!(ring);
+        }
+
+        border-color: var!(border);
+        border-bottom-right-radius: var!(radius-lg);
+        border-bottom-left-radius: var!(radius-lg);
+        border-top-right-radius: var!(radius-lg);
+        border-top-left-radius: var!(radius-lg);
+        border-bottom-style: "solid";
+        border-left-style: "solid";
+        border-right-style: "solid";
+        border-top-style: "solid";
+        border-bottom-width: var!(border-width);
+        border-left-width: var!(border-width);
+        border-right-width: var!(border-width);
+        border-top-width: var!(border-width);
+    }
+
+    pub(crate) c_euv_item_muted {
+        display: "flex";
+        flex-wrap: "wrap";
+        align-items: "center";
+        border: format!("{} solid transparent", var!(border-width));
+        border-radius: var!(radius-md);
+        background: var!(muted);
+        color: var!(foreground);
+        font-size: var!(font-sm);
+        outline: "none";
+        transition: format!("{} {}", var!(duration-fast), var!(ease-out));
+        :focus-within {
+            border-color: var!(ring);
+        }
+
+        border-bottom-right-radius: var!(radius-lg);
+        border-bottom-left-radius: var!(radius-lg);
+        border-top-right-radius: var!(radius-lg);
+        border-top-left-radius: var!(radius-lg);
+    }
+
+    pub(crate) c_euv_item_size_default {
+        gap: var!(space-lg);
+        padding: var!(space-lg);
+
+        gap: var!(space-sm-md);
+        padding: format!("{} {}", var!(space-sm-md), var!(space-md));
+    }
+
+    pub(crate) c_euv_item_size_sm {
+        gap: var!(space-sm-md);
+        padding: format!("{} {}", var!(space-md), var!(space-lg));
+
+        gap: var!(space-sm-md);
+        padding: format!("{} {}", var!(space-sm-md), var!(space-md));
+    }
+
+    pub(crate) c_euv_item_size_xs {
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-sm), var!(space-sm-md));
+
+        gap: var!(space-sm);
+        padding: format!("{} {}", var!(space-sm), var!(space-sm-md));
+    }
+
+    pub(crate) c_euv_aspect_ratio {
+        position: "relative";
+        width: "100%";
+        overflow: "hidden";
+
+        background-color: var!(muted);
+        border-bottom-right-radius: var!(radius-lg);
+        border-bottom-left-radius: var!(radius-lg);
+        border-top-right-radius: var!(radius-lg);
+        border-top-left-radius: var!(radius-lg);
+    }
+
+    pub c_euv_separator {
+        flex-shrink: "0";
+        background: var!(border);
+
+        flex-shrink: "0";
+        background: var!(border);
+    }
+
+    pub(crate) c_euv_pagination_previous {
+        padding: format!(
+        "0px {} 0px calc({} - {})",
+        var!(space-sm-md),
+        var!(space-sm),
+        var!(space-2xs)
+        );
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_previous") {
+            padding: var!(space-lg);
+            text-align: "left";
+        }
+    }
+
+    pub c_euv_button_primary {
+        background: var!(primary);
+        color: var!(primary-foreground);
+        border: format!("{} solid transparent", var!(border-width));
+        :hover {
+            background: var!(primary-hover);
+        }
+
+        :hover {
+            background: var!(button-primary-hover-bg);
+        }
+    }
+
+    pub(crate) c_euv_pagination_label {
+        display: "inline";
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_label") {
+            display: "block";
+            grid-column: "2";
+            grid-row: "1";
+            min-width: "0px";
+            overflow: "hidden";
+            white-space: "nowrap";
+            text-overflow: "ellipsis";
+            font-size: var!(font-xs);
+            line-height: "1.5";
+            color: var!(muted-foreground);
+        }
+    }
+
+    pub(crate) c_euv_pagination_text {
+        display: "none";
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_text") {
+            display: "block";
+            grid-column: "2";
+            grid-row: "2";
+            min-width: "0px";
+            overflow: "hidden";
+            white-space: "nowrap";
+            text-overflow: "ellipsis";
+            font-size: var!(font-sm);
+            font-weight: var!(font-weight-semibold);
+            line-height: "1.5";
+            color: var!(foreground);
+        }
+    }
+
+    pub(crate) c_euv_pagination_icon {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
+        flex: "0 0 auto";
+        width: var!(space-lg);
+        height: var!(space-lg);
+        font-size: var!(font-sm);
+        line-height: "1";
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_icon") {
+            display: "flex";
+            grid-row: "1 / 3";
+            align-items: "center";
+            justify-content: "center";
+            color: var!(foreground);
+        }
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_previous .c_euv_pagination_icon") {
+            grid-column: "1";
+        }
+        :is(".c_euv_pagination_auto_content .c_euv_pagination_next .c_euv_pagination_icon") {
+            grid-column: "3";
+        }
+    }
 }

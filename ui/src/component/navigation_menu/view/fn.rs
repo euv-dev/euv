@@ -178,16 +178,11 @@ pub fn euv_navigation_menu_link(node: VirtualNode<EuvNavigationMenuLinkProps>) -
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let base_class: &Css = c_euv_navigation_menu_link();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_navigation_menu_link_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
     html! {
             a {
                 "data-slot": "navigation-menu-link"
                 class: base_class
-                class: shadcn_class
+
                 children
             }
     }

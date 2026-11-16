@@ -16,16 +16,11 @@ use super::*;
 pub fn euv_kbd(node: VirtualNode<EuvKbdProps>) -> VirtualNode {
     let EuvKbdProps { text }: EuvKbdProps = node.try_get_props().unwrap_or_default();
     let base_class: &Css = c_euv_kbd();
-    let shadcn_class: &Css = if cfg!(feature = "theme-shadcn") {
-        c_euv_kbd_shadcn()
-    } else {
-        &EMPTY_CLASS
-    };
     html! {
             kbd {
                 "data-slot": "kbd"
                 class: base_class
-                class: shadcn_class
+
                 text
             }
     }
