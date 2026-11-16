@@ -151,7 +151,8 @@ fn execute_suite(settings: Settings) -> AutomationResult<()> {
     let mut command: Command = Command::new(settings.get_driver());
     command
         .arg(format!("--port={driver_port}"))
-        .arg(DRIVER_LOCAL_ONLY);
+        .arg(DRIVER_LOCAL_ONLY)
+        .arg(DRIVER_VERBOSE);
     let mut driver: OwnedProcess = spawn_helper(
         &mut command,
         &settings.get_output().join(DRIVER_LOG),

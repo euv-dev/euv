@@ -60,7 +60,9 @@ export GRADLE_OPTS="${GRADLE_OPTS:-} -Dorg.gradle.daemon=false"
 
 ANDROID_DIR="$PROJECT_ROOT/src-tauri/gen/android"
 GENERATED_DIR="$ANDROID_DIR/app/src/main/java/com/euv/generated"
-BACKUP_DIR="$(mktemp -d "${TMPDIR:-$PROJECT_ROOT/.cache/sdk}/euv-webview.XXXXXX")"
+BACKUP_ROOT="${TMPDIR:-$PROJECT_ROOT/.cache/sdk}"
+mkdir -p "$BACKUP_ROOT"
+BACKUP_DIR="$(mktemp -d "$BACKUP_ROOT/euv-webview.XXXXXX")"
 restore_webviews() {
     for FILE in RustWebView.kt RustWebViewClient.kt; do
         if [ -f "$BACKUP_DIR/$FILE" ]; then

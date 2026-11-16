@@ -10,6 +10,9 @@ pub(crate) const TWO_TEXT: &str = "2";
 /// Prints available runner options without starting resources.
 pub(crate) const HELP_FLAG: &str = "--help";
 
+/// Retains browser startup diagnostics when session creation fails in CI.
+pub(crate) const DRIVER_VERBOSE: &str = "--verbose";
+
 /// Failure when the internal server mode receives an invalid argument shape.
 pub(crate) const ERROR_SERVER_ARGUMENTS: &str = "invalid internal server arguments";
 

@@ -52,6 +52,9 @@ pub(crate) const CDP_COMMAND: &str = "goog/cdp/execute";
 /// Creates a browser-driver session.
 pub(crate) const SESSION_PATH: &str = "/session";
 
+/// Allows bounded cold browser startup without extending ordinary command deadlines.
+pub(crate) const SESSION_REQUEST_TIMEOUT: &str = "60";
+
 /// Makes curl read request bytes from standard input.
 pub(crate) const STDIN_SOURCE: &str = "@-";
 

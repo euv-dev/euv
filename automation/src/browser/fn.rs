@@ -38,6 +38,11 @@ pub(crate) fn webdriver_request(
     method: &str,
     payload: Option<&Value>,
 ) -> AutomationResult<Value> {
+    let request_timeout: &str = if method == HTTP_POST && path == SESSION_PATH {
+        SESSION_REQUEST_TIMEOUT
+    } else {
+        REQUEST_TIMEOUT
+    };
     let mut command: Command = Command::new(CURL_PROGRAM);
     command.args([
         CURL_SILENT,
@@ -46,7 +51,7 @@ pub(crate) fn webdriver_request(
         CURL_NO_PROXY,
         PROXY_BYPASS,
         CURL_MAX_TIME,
-        REQUEST_TIMEOUT,
+        request_timeout,
         CURL_REQUEST,
         method,
         CURL_HEADER,
