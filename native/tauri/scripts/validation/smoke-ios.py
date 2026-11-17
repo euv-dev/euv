@@ -17,6 +17,29 @@ SWIFT_TEST = r'''
 import XCTest
 
 final class EuvSmokeTests: XCTestCase {
+    func assertCounter(_ app: XCUIApplication, equals expected: Int, file: StaticString = #filePath, line: UInt = #line) {
+        // WebKit exposes the paragraph as separate prefix, number and suffix texts.
+        // Require the number to be a direct sibling of the exact semantic prefix,
+        // not an unrelated 0/1 elsewhere in the page or an ancestor's heading value.
+        let predicate = NSPredicate { _, _ in
+            let paragraphs = app.otherElements
+                .containing(.staticText, identifier: "The current count is")
+                .allElementsBoundByIndex.filter {
+                    $0.children(matching: .staticText)
+                        .matching(identifier: "The current count is").count == 1
+                }
+            guard paragraphs.count == 1 else { return false }
+            let numbers = paragraphs[0].children(matching: .staticText)
+                .matching(NSPredicate(format: "label MATCHES %@", "^-?[0-9]+$"))
+            guard numbers.count == 1 else { return false }
+            return numbers.element(boundBy: 0).label == String(expected)
+        }
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: app)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 10), .completed,
+                       "Expected counter \(expected) in its paragraph\n\(app.debugDescription)",
+                       file: file, line: line)
+    }
+
     func attach(_ app: XCUIApplication, _ name: String) {
         let image = XCTAttachment(screenshot: app.screenshot())
         image.name = name
@@ -56,14 +79,12 @@ final class EuvSmokeTests: XCTestCase {
         counter.tap()
         let add = app.buttons["Add"]
         XCTAssertTrue(add.waitForExistence(timeout: 15), app.debugDescription)
-        let zero = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "The current count is 0")).firstMatch
-        XCTAssertTrue(zero.waitForExistence(timeout: 10), app.debugDescription)
+        assertCounter(app, equals: 0)
         add.tap()
-        let one = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "The current count is 1")).firstMatch
-        XCTAssertTrue(one.waitForExistence(timeout: 10), app.debugDescription)
+        assertCounter(app, equals: 1)
         attach(app, "02-counter-add")
         app.buttons["Reset"].tap()
-        XCTAssertTrue(zero.waitForExistence(timeout: 10), app.debugDescription)
+        assertCounter(app, equals: 0)
         attach(app, "03-counter-reset")
         app.terminate()
         app.launch()
