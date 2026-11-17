@@ -9,7 +9,7 @@ if [[ -n "${WASM_BINDGEN_BIN_DIR:-}" ]]; then
     export PATH
 fi
 
-for command_name in cargo python3 wasm-pack wasm-bindgen; do
+for command_name in cargo python3; do
     if ! command -v "$command_name" >/dev/null 2>&1; then
         printf 'Required command not found: %s\n' "$command_name" >&2
         exit 1
