@@ -67,6 +67,11 @@ while IFS= read -r feature; do
         --www-dir "$output_dir" \
         -- "${feature_args[@]}" >"$log_file" 2>&1; then
         printf 'Build failed for %s; see %s\n' "$feature" "$log_file" >&2
+        python3 - "$log_file" >&2 <<'PY'
+from pathlib import Path
+import sys
+print(Path(sys.argv[1]).read_text(), end="")
+PY
         exit 1
     fi
 

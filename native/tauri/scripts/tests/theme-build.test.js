@@ -33,6 +33,7 @@ test('theme build delegates to the CLI without global WASM tools and still requi
   }
   fs.writeFileSync(path.join(bin, 'cargo'), `#!${python}
 import json
+import os
 from pathlib import Path
 import sys
 root = Path.cwd()
@@ -40,6 +41,8 @@ args = sys.argv[1:]
 if args[0] == 'metadata':
     print(json.dumps({'packages': [{'name': 'euv-example', 'version': '0.0.36', 'features': {}, 'manifest_path': str(root / 'example/Cargo.toml')}]}))
 elif args == ['run', '-p', 'euv-cli', '--', 'build', '--crate-path', './example', '--release', '--www-dir', 'www/themes/default', '--', '--no-default-features']:
+    if os.environ.get('EUV_UNIT_FAIL_BUILD') == '1':
+        raise SystemExit('unit feature compiler diagnostic')
     (root / 'cli-invoked.json').write_text(json.dumps(args))
     output = root / 'example/www/themes/default'
     (output / 'pkg').mkdir(parents=True)
@@ -62,6 +65,13 @@ else:
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'example/www/euv-release.json'), 'utf8'));
   assert.equal(manifest.version, '0.0.36');
   assert.ok(manifest.files.some((file) => file.path === 'themes/default/pkg/euv_example_bg.wasm'));
+
+  fs.unlinkSync(path.join(root, 'native/tauri/.cache/themes/default.sha256'));
+  const failedBuild = spawnSync(path.join(bin, 'bash'), [script], {
+    env: { ...env, EUV_UNIT_FAIL_BUILD: '1' }, encoding: 'utf8', timeout: 10000,
+  });
+  assert.equal(failedBuild.status, 1);
+  assert.match(failedBuild.stderr, /unit feature compiler diagnostic/);
 
   fs.unlinkSync(path.join(bin, 'cargo'));
   fs.unlinkSync(path.join(root, 'cli-invoked.json'));

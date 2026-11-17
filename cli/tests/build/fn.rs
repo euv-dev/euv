@@ -21,6 +21,91 @@ fn owned(items: &[&str]) -> Vec<String> {
 }
 
 #[test]
+fn wasm_pack_generated_options_precede_ordered_cargo_passthrough() {
+    let args: ModeArgs = args_from(&[
+        WWW_DIR_ARG,
+        "dist",
+        DOUBLE_DASH,
+        RELEASE_FLAG,
+        "--no-default-features",
+        "--features",
+        "theme-antdesign",
+        "--features=additional-feature",
+    ]);
+    let command: Command = wasm_pack_build_command(&args);
+    let actual: Vec<String> = command
+        .as_std()
+        .get_args()
+        .map(|arg: &OsStr| arg.to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(
+        actual,
+        owned(&[
+            "build",
+            OUT_DIR_ARG,
+            "dist/pkg",
+            "--target",
+            "web",
+            RELEASE_FLAG,
+            "--no-default-features",
+            "--features",
+            "theme-antdesign",
+            "--features=additional-feature",
+        ])
+    );
+}
+
+#[test]
+fn wasm_pack_explicit_options_are_not_duplicated_or_reordered() {
+    for extra in [
+        vec![DEV_FLAG, OUT_DIR_ARG, "custom", "--target", "bundler"],
+        vec![PROFILING_FLAG, "--out-dir=custom", "--target=nodejs"],
+    ] {
+        let mut argv: Vec<&str> = vec![DOUBLE_DASH];
+        argv.extend_from_slice(&extra);
+        argv.extend_from_slice(&["--features", "theme-antdesign"]);
+        let args: ModeArgs = args_from(&argv);
+        let command: Command = wasm_pack_build_command(&args);
+        let actual: Vec<String> = command
+            .as_std()
+            .get_args()
+            .map(|arg: &OsStr| arg.to_string_lossy().into_owned())
+            .collect();
+        let mut expected: Vec<String> = owned(&["build"]);
+        expected.extend(owned(&argv[1..]));
+        assert_eq!(actual, expected);
+    }
+}
+
+#[test]
+fn wasm_pack_default_command_places_all_options_before_cargo_arguments() {
+    let args: ModeArgs = args_from(&[
+        WWW_DIR_ARG,
+        "dist",
+        DOUBLE_DASH,
+        "--features=theme-antdesign",
+    ]);
+    let command: Command = wasm_pack_build_command(&args);
+    let actual: Vec<String> = command
+        .as_std()
+        .get_args()
+        .map(|arg: &OsStr| arg.to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(
+        actual,
+        owned(&[
+            "build",
+            DEV_FLAG,
+            OUT_DIR_ARG,
+            "dist/pkg",
+            "--target",
+            "web",
+            "--features=theme-antdesign"
+        ])
+    );
+}
+
+#[test]
 fn a_build_mode_flag_is_detected_by_any_of_its_three_spellings() {
     assert!(has_build_mode_flag(&owned(&[DEV_FLAG])));
     assert!(has_build_mode_flag(&owned(&[RELEASE_FLAG])));
