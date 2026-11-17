@@ -101,10 +101,8 @@ fn args_after(context: &Object, op: &str, from: u32) -> Array {
 fn a_colour_only_framebuffer_allocates_one_texture_and_binds_it_as_the_colour_attachment() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(true);
     let before: u32 = ops(&log).len() as u32;
-
     let created: Option<GlFramebuffer> =
         GlFramebuffer::create(&context, 16, 8, GpuTextureFormat::Rgba8Unorm, None);
-
     assert!(created.is_some(), "the driver handed back a framebuffer");
     let framebuffer: &GlFramebuffer = created.as_ref().expect("created");
     assert_eq!(
@@ -135,7 +133,6 @@ fn a_colour_only_framebuffer_allocates_one_texture_and_binds_it_as_the_colour_at
 fn a_depth_format_allocates_a_renderbuffer_and_attaches_it_to_the_depth_point() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(true);
     let before: u32 = ops(&log).len() as u32;
-
     let created: Option<GlFramebuffer> = GlFramebuffer::create(
         &context,
         16,
@@ -143,7 +140,6 @@ fn a_depth_format_allocates_a_renderbuffer_and_attaches_it_to_the_depth_point() 
         GpuTextureFormat::Rgba8Unorm,
         Some(GpuTextureFormat::Depth24Plus),
     );
-
     assert!(created.is_some(), "the driver handed back a framebuffer");
     assert_eq!(
         count_of(&log, "createRenderbuffer"),
@@ -176,9 +172,7 @@ fn a_complete_framebuffer_binds_both_draw_and_read_targets_and_reports_complete(
         GlFramebuffer::create(&context, 16, 8, GpuTextureFormat::Rgba8Unorm, None)
             .expect("created");
     let before: usize = ops(&log).len();
-
     let status: GlFramebufferStatus = framebuffer.bind(&context);
-
     assert_eq!(
         status,
         GlFramebufferStatus::Complete,
@@ -208,9 +202,7 @@ fn an_incomplete_framebuffer_is_reported_as_incomplete_on_bind() {
     let framebuffer: GlFramebuffer =
         GlFramebuffer::create(&context, 16, 8, GpuTextureFormat::Rgba8Unorm, None)
             .expect("created");
-
     let status: GlFramebufferStatus = framebuffer.bind(&context);
-
     assert_eq!(
         status,
         GlFramebufferStatus::Incomplete,
@@ -230,7 +222,6 @@ fn an_unchanged_size_matches_so_a_resize_check_can_skip_reallocating() {
     let framebuffer: GlFramebuffer =
         GlFramebuffer::create(&context, 16, 8, GpuTextureFormat::Rgba8Unorm, None)
             .expect("created");
-
     assert!(
         framebuffer.matches(16, 8),
         "the size it was allocated at is the size it still has"
@@ -257,9 +248,7 @@ fn deleting_a_framebuffer_releases_both_attachments_and_zeroes_its_size() {
         Some(GpuTextureFormat::Depth24Plus),
     )
     .expect("created");
-
     framebuffer.delete(&context);
-
     assert_eq!(
         framebuffer.get_width(),
         0,

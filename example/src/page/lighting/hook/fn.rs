@@ -963,8 +963,8 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
         // because the DOM setter is fast while the GL-side realloc can
         // stall the main thread.
         let renderer_for_observer: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
-        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
-            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+        let observer_closure: Closure<dyn FnMut(Array, ResizeObserver)> =
+            Closure::wrap(Box::new(move |_entries: Array, _obs: ResizeObserver| {
                 let Some(window_value): Option<Window> = window() else {
                     return;
                 };
@@ -1004,8 +1004,7 @@ pub(crate) fn start_lighting_webgl_loop(state: UseLightingWebGl) {
                         renderer.resize(new_w, new_h);
                     }
                 }
-            }),
-        );
+            }));
         let observer_callback: Function = observer_closure
             .as_ref()
             .unchecked_ref::<Function>()
@@ -1303,8 +1302,8 @@ pub(crate) fn start_lighting_webgpu_loop(state: UseLightingWebGpu) {
         // fullscreen transition already has a correctly-sized backing
         // store (mirrors the 3D game page's WebGPU tab).
         let renderer_for_observer: Rc<RefCell<Option<WebGpuRenderer>>> = renderer_rc.clone();
-        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
-            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+        let observer_closure: Closure<dyn FnMut(Array, ResizeObserver)> =
+            Closure::wrap(Box::new(move |_entries: Array, _obs: ResizeObserver| {
                 let Some(window_value): Option<Window> = window() else {
                     return;
                 };
@@ -1344,8 +1343,7 @@ pub(crate) fn start_lighting_webgpu_loop(state: UseLightingWebGpu) {
                         renderer.resize(new_w, new_h);
                     }
                 }
-            }),
-        );
+            }));
         let observer_callback: Function = observer_closure
             .as_ref()
             .unchecked_ref::<Function>()

@@ -205,7 +205,6 @@ fn every_bind_group_entry_reports_the_slot_it_was_declared_at() {
         view: JsValue::NULL,
         read_only: true,
     };
-
     assert_eq!(buffer.binding(), 3, "a buffer binding keeps its slot");
     assert_eq!(texture.binding(), 4, "so does a texture binding");
     assert_eq!(sampler.binding(), 5, "and a sampler binding");

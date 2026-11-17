@@ -222,7 +222,6 @@ fn profiler_handle_measure_records_distinct_timestamps() {
 #[test]
 fn the_profiler_clock_is_a_wall_clock_in_milliseconds() {
     let first: f64 = now_ms();
-
     assert!(
         first > 0.0,
         "a profiler that starts at zero makes every duration it records meaningless, and the \
@@ -242,7 +241,6 @@ fn the_profiler_clock_advances_between_two_reads() {
     while now_ms() <= start && spins < 1_000_000 {
         spins += 1;
     }
-
     assert!(
         now_ms() > start,
         "a clock frozen at one value turns a phase breakdown into a single lump; the test          spins rather than sleeping so it costs nothing"

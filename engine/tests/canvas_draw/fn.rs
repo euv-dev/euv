@@ -94,9 +94,7 @@ fn renderer_with(camera: Camera2D) -> (CanvasRenderer, CanvasRenderingContext2d,
 fn the_camera_transform_moves_to_the_centre_scales_rotates_then_offsets_back() {
     let (subject, _context, log): (CanvasRenderer, CanvasRenderingContext2d, Object) =
         renderer_with(Camera2D::create(800.0, 600.0));
-
     subject.apply_camera();
-
     let recorded: Vec<String> = ops(&log);
     assert_eq!(
         recorded,
@@ -144,9 +142,7 @@ fn a_camera_with_a_nonzero_zoom_scales_by_that_factor() {
     camera.set_zoom(2.5);
     let (subject, _context, log): (CanvasRenderer, CanvasRenderingContext2d, Object) =
         renderer_with(camera);
-
     subject.apply_camera();
-
     let scaled: Array = nth_of(&log, "scale", 0);
     assert_eq!(
         scaled.get(0).as_f64(),
@@ -166,9 +162,7 @@ fn the_camera_offset_undoes_the_centre_translate() {
     camera.set_position(Vector2D::new(100.0, 50.0));
     let (subject, _context, log): (CanvasRenderer, CanvasRenderingContext2d, Object) =
         renderer_with(camera);
-
     subject.apply_camera();
-
     let undo: Array = nth_of(&log, "translate", 1);
     assert_eq!(
         undo.get(0).as_f64(),
@@ -191,12 +185,10 @@ fn the_camera_offset_undoes_the_centre_translate() {
 fn the_render_backend_trait_reaches_the_same_calls_as_the_inherent_methods() {
     let (subject, _context, log): (CanvasRenderer, CanvasRenderingContext2d, Object) =
         renderer_with(Camera2D::create(800.0, 600.0));
-
     let backend: &CanvasRenderer = &subject;
     backend.save();
     backend.set_fill_color("#123456");
     backend.restore();
-
     let recorded: Vec<String> = ops(&log);
     assert!(
         recorded.contains(&String::from("save")) && recorded.contains(&String::from("restore")),

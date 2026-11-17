@@ -93,7 +93,6 @@ impl UseVirtualList {
         if !PendingMeasureCell::get_mut_pending_measure().insert(container_id.to_string()) {
             return;
         }
-
         let id: String = container_id.to_string();
         let callback: Closure<dyn FnMut()> = Closure::wrap(Box::new(move || {
             PendingMeasureCell::get_mut_pending_measure().remove(&id);

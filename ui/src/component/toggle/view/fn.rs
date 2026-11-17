@@ -96,7 +96,6 @@ pub(crate) fn toggle_class(
         class_name.push(' ');
         class_name.push_str(c_euv_toggle_pressed().get_name());
     }
-
     class_name
 }
 

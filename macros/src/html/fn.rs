@@ -21,7 +21,7 @@ use super::*;
 pub(crate) fn parse_expr_until_brace(input: ParseStream) -> syn::Result<Expr> {
     let mut tokens: proc_macro2::TokenStream = proc_macro2::TokenStream::new();
     while !input.peek(Brace) {
-        let token_tree: proc_macro2::TokenTree = input.parse()?;
+        let token_tree: TokenTree = input.parse()?;
         tokens.extend([token_tree]);
     }
     syn::parse2(tokens)
@@ -414,17 +414,17 @@ fn collect_local_dep_src_dirs(manifest_dir: &str) -> Vec<PathBuf> {
     let Ok(content) = read_to_string(&cargo_toml_path) else {
         return Vec::new();
     };
-    let Ok(manifest) = toml::from_str::<toml::Value>(&content) else {
+    let Ok(manifest) = toml::from_str::<Value>(&content) else {
         return Vec::new();
     };
     let mut dep_dirs: Vec<PathBuf> = Vec::new();
     let mut registry_dep_names: Vec<String> = Vec::new();
     let manifest_dir_path: PathBuf = PathBuf::from(manifest_dir);
     let workspace_root: PathBuf = find_workspace_root(manifest_dir);
-    let workspace_toml: Option<toml::Value> = read_to_string(workspace_root.join(CARGO_TOML))
+    let workspace_toml: Option<Value> = read_to_string(workspace_root.join(CARGO_TOML))
         .ok()
-        .and_then(|toml_content: String| toml::from_str::<toml::Value>(&toml_content).ok());
-    let mut dependency_groups: Vec<&toml::Value> = vec![&manifest];
+        .and_then(|toml_content: String| toml::from_str::<Value>(&toml_content).ok());
+    let mut dependency_groups: Vec<&Value> = vec![&manifest];
     if let Some(targets) = manifest.get(TARGET_KEY).and_then(toml::Value::as_table) {
         dependency_groups.extend(targets.values());
     }
@@ -440,26 +440,24 @@ fn collect_local_dep_src_dirs(manifest_dir: &str) -> Vec<PathBuf> {
                 let path_lookup: Option<(&str, &PathBuf)> = if let Some(table) = value.as_table() {
                     if table
                         .get(WORKSPACE_KEY)
-                        .and_then(|workspace_flag: &toml::Value| workspace_flag.as_bool())
+                        .and_then(|workspace_flag: &Value| workspace_flag.as_bool())
                         == Some(true)
                     {
                         workspace_toml
                             .as_ref()
-                            .and_then(|workspace_manifest: &toml::Value| {
+                            .and_then(|workspace_manifest: &Value| {
                                 workspace_manifest.get(WORKSPACE_KEY)
                             })
-                            .and_then(|workspace_table: &toml::Value| {
-                                workspace_table.get(DEPENDENCIES)
-                            })
-                            .and_then(|deps_table: &toml::Value| deps_table.get(name))
-                            .and_then(|dep_entry: &toml::Value| dep_entry.as_table())
-                            .and_then(|dep_table: &toml::Table| dep_table.get(PATH_KEY))
-                            .and_then(|path_value: &toml::Value| path_value.as_str())
+                            .and_then(|workspace_table: &Value| workspace_table.get(DEPENDENCIES))
+                            .and_then(|deps_table: &Value| deps_table.get(name))
+                            .and_then(|dep_entry: &Value| dep_entry.as_table())
+                            .and_then(|dep_table: &Table| dep_table.get(PATH_KEY))
+                            .and_then(|path_value: &Value| path_value.as_str())
                             .map(|path_str: &str| (path_str, &workspace_root))
                     } else {
                         table
                             .get(PATH_KEY)
-                            .and_then(|path_value: &toml::Value| path_value.as_str())
+                            .and_then(|path_value: &Value| path_value.as_str())
                             .map(|path_str: &str| (path_str, &manifest_dir_path))
                     }
                 } else {
@@ -563,7 +561,7 @@ fn find_workspace_root(manifest_dir: &str) -> PathBuf {
     loop {
         let cargo_toml: PathBuf = current.join(CARGO_TOML);
         if let Ok(content) = read_to_string(&cargo_toml)
-            && let Ok(manifest) = toml::from_str::<toml::Value>(&content)
+            && let Ok(manifest) = toml::from_str::<Value>(&content)
             && manifest
                 .get(WORKSPACE_KEY)
                 .is_some_and(toml::Value::is_table)
@@ -777,13 +775,13 @@ fn extract_type_last_segment(param_type: &Type) -> String {
 ///
 /// # Arguments
 ///
-/// - `&syn::ItemFn` - The function item to extract from.
+/// - `&ItemFn` - The function item to extract from.
 ///
 /// # Returns
 ///
 /// - `String` - The Props type name, or empty string if not extractable.
-fn extract_props_type_from_fn(item_fn: &syn::ItemFn) -> String {
-    let inputs: &syn::punctuated::Punctuated<syn::FnArg, Token![,]> = &item_fn.sig.inputs;
+fn extract_props_type_from_fn(item_fn: &ItemFn) -> String {
+    let inputs: &Punctuated<FnArg, Token![,]> = &item_fn.sig.inputs;
     for input in inputs {
         if let syn::FnArg::Typed(pat_type) = input {
             let param_type: &Type = &pat_type.ty;
@@ -1456,7 +1454,7 @@ pub(crate) fn parse_attr_match(content: ParseStream) -> syn::Result<HtmlAttrMatc
     while !arms_content.is_empty() {
         let mut pattern_tokens: proc_macro2::TokenStream = proc_macro2::TokenStream::new();
         while !arms_content.peek(Token![=>]) {
-            let token_tree: proc_macro2::TokenTree = arms_content.parse()?;
+            let token_tree: TokenTree = arms_content.parse()?;
             pattern_tokens.extend([token_tree]);
         }
         arms_content.parse::<Token![=>]>()?;
@@ -1588,9 +1586,9 @@ fn reactive_body_tokens(body: &Expr) -> proc_macro2::TokenStream {
         ..
     }) = body
     {
-        let span: proc_macro2::Span = lit_str.span();
+        let span: Span = lit_str.span();
         let value: String = lit_str.value();
-        let lit: syn::LitStr = syn::LitStr::new(&value, span);
+        let lit: LitStr = LitStr::new(&value, span);
         return quote! { ::std::string::String::from(#lit) };
     }
     quote! { (#body).to_string() }
@@ -1762,7 +1760,7 @@ pub(crate) fn parse_attr_value(content: ParseStream, key_str: &str) -> syn::Resu
             let is_struct_literal: bool = inner.peek(Ident) && inner.peek2(Colon);
             if !is_struct_literal {
                 let ident: Ident = content.parse()?;
-                let expr_path: syn::ExprPath = syn::ExprPath {
+                let expr_path: ExprPath = ExprPath {
                     attrs: Vec::new(),
                     qself: None,
                     path: syn::Path::from(ident),
@@ -2231,12 +2229,12 @@ pub(crate) fn prop_field_token(
 ///
 /// # Arguments
 ///
-/// - `&syn::LitStr` - The text literal carried by the `Text` variant.
+/// - `&LitStr` - The text literal carried by the `Text` variant.
 /// - `&mut Formatter<'_>` - The formatter.
 ///
 /// # Returns
 ///
 /// - `fmt::Result` - The result of the formatting operation.
-pub(crate) fn fmt_lit_str(lit: &syn::LitStr, formatter: &mut Formatter<'_>) -> fmt::Result {
+pub(crate) fn fmt_lit_str(lit: &LitStr, formatter: &mut Formatter<'_>) -> fmt::Result {
     write!(formatter, "Text({:?})", lit.value())
 }

@@ -374,7 +374,6 @@ pub fn euv_select(node: VirtualNode<EuvSelectProps>) -> VirtualNode {
                     "false"
                 }
                 class: trigger_class
-
                 class: small_trigger_class
                 class: invalid_trigger_class
                 disabled: boolean_attr(disabled)
@@ -411,7 +410,6 @@ pub fn euv_select(node: VirtualNode<EuvSelectProps>) -> VirtualNode {
                     } else {
                         panel_closed_class
                     }
-
                     class: aligned_panel_class
                     if { scroll_up_visible.get() } {
                         euv_select_scroll_up_button {}
@@ -1068,7 +1066,6 @@ fn select_option_row(
     } else {
         c_euv_select_option()
     };
-
     html! {
         button {
             type: "button"
@@ -1079,7 +1076,6 @@ fn select_option_row(
             tabindex: tabindex
             class: default_option_class
             class: state_option_class
-
             disabled: boolean_attr(disabled)
             onclick: handler
             onkeydown: keydown_handler

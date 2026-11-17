@@ -42,7 +42,6 @@ pub fn euv_code_block(node: VirtualNode<EuvCodeBlockProps>) -> VirtualNode {
                 "data-variant": variant_attr
                 "data-size": size_attr
                 class: base_class
-
                 class: variant_class()
                 class: size_class()
                 children
@@ -73,7 +72,6 @@ pub fn euv_code_block_header(node: VirtualNode<EuvCodeBlockHeaderProps>) -> Virt
             div {
                 "data-slot": "code-block-header"
                 class: base_class
-
                 children
             }
     }
@@ -128,7 +126,6 @@ pub fn euv_code_block_actions(node: VirtualNode<EuvCodeBlockActionsProps>) -> Vi
             div {
                 "data-slot": "code-block-actions"
                 class: base_class
-
                 children
             }
     }
@@ -324,7 +321,6 @@ pub fn euv_code_block_footer(node: VirtualNode<EuvCodeBlockFooterProps>) -> Virt
         div {
             "data-slot": "code-block-footer"
             class: base_class
-
             children
         }
     }

@@ -54,7 +54,7 @@ use std::{
 use {
     euv_core::Signal,
     euv_engine::{Tween, TweenState},
-    js_sys::{Array, Float32Array, Function, Object, Uint8Array, Uint32Array},
+    js_sys::{Array, Float32Array, Function, Object, Promise, Uint8Array, Uint32Array},
     lombok_macros::Data,
     wasm_bindgen::{JsCast, JsValue},
     wasm_bindgen_futures::JsFuture,

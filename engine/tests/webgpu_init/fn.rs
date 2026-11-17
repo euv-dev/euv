@@ -140,7 +140,6 @@ fn the_variants_that_carry_a_js_value_hand_it_back_and_the_rest_return_none() {
             error.code()
         );
     }
-
     let bare: Vec<WebGpuInitError> = vec![
         WebGpuInitError::NavigatorGpuMissing,
         WebGpuInitError::AdapterUnavailable,
@@ -184,7 +183,6 @@ fn the_display_form_leads_with_the_code_and_keeps_the_driver_text() {
 )]
 fn webgpu_is_reported_unavailable_on_a_host_with_no_window() {
     let observed: bool = WebGpuRenderer::is_available();
-
     assert!(
         !observed,
         "there is no navigator on this host, so the capability probe must answer false rather \

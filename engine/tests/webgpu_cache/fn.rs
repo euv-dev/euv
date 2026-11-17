@@ -9,9 +9,7 @@ use super::*;
 fn submitting_command_buffers_reaches_the_queue_with_the_whole_array() {
     let before: u32 = mark();
     let subject: WebGpuRenderer = renderer(false);
-
     subject.submit(&[JsValue::from_str("buffer-a"), JsValue::from_str("buffer-b")]);
-
     assert_eq!(
         ops_from(before),
         vec![String::from("queue.submit")],
@@ -36,9 +34,7 @@ fn submitting_command_buffers_reaches_the_queue_with_the_whole_array() {
 fn a_single_command_buffer_still_goes_across_as_an_array() {
     let before: u32 = mark();
     let subject: WebGpuRenderer = renderer(false);
-
     subject.submit(&[JsValue::from_str("only")]);
-
     let args: Array = args_on("queue", "submit", before);
     let buffers: Array = args.get(0).unchecked_into();
     assert_eq!(
@@ -58,9 +54,7 @@ fn a_single_command_buffer_still_goes_across_as_an_array() {
 fn creating_a_vertex_buffer_allocates_then_fills_it_before_returning() {
     let before: u32 = mark();
     let subject: WebGpuRenderer = renderer(false);
-
     let created: JsValue = subject.create_vertex_buffer(&[7; 64]);
-
     assert!(
         !created.is_undefined(),
         "a driver that hands back a handle means the buffer was created"
@@ -90,7 +84,6 @@ fn creating_a_vertex_buffer_allocates_then_fills_it_before_returning() {
 )]
 fn the_internal_caches_start_empty_on_a_freshly_built_renderer() {
     let subject: WebGpuRenderer = renderer(false);
-
     assert!(
         subject.get_multisample_texture().is_none(),
         "no multisample texture until one is created, and a skipped field defaults to None"
@@ -113,7 +106,6 @@ fn the_internal_caches_start_empty_on_a_freshly_built_renderer() {
 )]
 fn a_fresh_renderer_keeps_the_constructor_arguments_it_was_built_with() {
     let subject: WebGpuRenderer = renderer(false);
-
     assert_eq!(subject.get_width(), 800, "the width it was built with");
     assert_eq!(subject.get_height(), 600, "and the height");
     assert_eq!(
@@ -132,7 +124,6 @@ fn a_fresh_renderer_keeps_the_constructor_arguments_it_was_built_with() {
 )]
 fn the_device_and_queue_the_renderer_holds_are_the_ones_it_was_given() {
     let subject: WebGpuRenderer = renderer(false);
-
     assert!(
         js_sys::Object::is(subject.get_device(), &device().into()),
         "a renderer built around a stand-in device still reports that same stand-in, so a caller \

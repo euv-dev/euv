@@ -370,7 +370,7 @@ pub fn resolve_clicked_date(
 fn current_date() -> (i64, u32, u32) {
     #[cfg(target_arch = "wasm32")]
     {
-        let now: js_sys::Date = js_sys::Date::new_0();
+        let now: Date = js_sys::Date::new_0();
         (
             now.get_full_year() as i64,
             now.get_month() + 1,

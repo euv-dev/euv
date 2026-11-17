@@ -138,7 +138,7 @@ pub struct WebGpuRenderer {
     #[get(type(clone))]
     #[set(pub(crate))]
     #[get_mut(pub(crate))]
-    pub device_lost_callback: Option<js_sys::Function>,
+    pub device_lost_callback: Option<Function>,
     /// Whether the device is currently in the `lost` state.
     ///
     /// Once flipped to `true`, every GPU operation returns

@@ -14,7 +14,6 @@ fn config() -> EngineConfig {
 fn creating_an_image_element_yields_nothing_where_there_is_no_document() {
     let created: Option<HtmlImageElement> =
         AssetLoader::create_image_element("https://example.invalid/atlas.png");
-
     assert!(
         created.is_none(),
         "there is no document to create an <img> in, and the documented failure signal is \
@@ -32,9 +31,7 @@ fn creating_an_image_element_yields_nothing_where_there_is_no_document() {
 )]
 fn a_load_that_cannot_make_an_element_leaves_the_loader_completely_untouched() {
     let mut subject: AssetLoader = AssetLoader::default();
-
     subject.load_image(String::from("https://example.invalid/atlas.png"));
-
     assert_eq!(
         subject.pending_count(),
         0,
@@ -64,10 +61,8 @@ fn a_load_that_cannot_make_an_element_leaves_the_loader_completely_untouched() {
 )]
 fn asking_for_a_webgl_backend_with_no_window_names_the_missing_canvas() {
     let wanted: String = config().get_render().get_canvas_selector().clone();
-
     let outcome: Result<WebGl2Backend, WebGl2InitError> =
         Engine::webgl_renderer(&config().get_render());
-
     match outcome {
         Err(WebGl2InitError::CanvasNotFound(selector)) => assert_eq!(
             selector, wanted,
@@ -84,7 +79,6 @@ fn asking_for_a_webgl_backend_with_no_window_names_the_missing_canvas() {
 async fn asking_for_a_webgpu_backend_with_no_window_reports_a_missing_navigator() {
     let outcome: Result<WebGpuRenderer, WebGpuInitError> =
         Engine::webgpu_renderer(&config().get_render()).await;
-
     match outcome {
         Ok(_) => panic!("a host with no navigator cannot hand back a GPU adapter"),
         Err(error) => assert_eq!(
@@ -101,9 +95,7 @@ async fn asking_for_a_webgpu_backend_with_no_window_reports_a_missing_navigator(
 #[wasm_bindgen_test::wasm_bindgen_test]
 async fn initialising_webgpu_on_a_handle_leaves_every_backend_slot_empty() {
     let mut handle: EngineHandle = Engine::new_handle(config());
-
     let outcome: Result<WebGpuRenderer, WebGpuInitError> = handle.init_webgpu().await;
-
     assert!(
         outcome.is_err(),
         "there is no GPU on this host, so initialization has to fail rather than half-succeed"

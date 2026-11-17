@@ -73,7 +73,6 @@ pub fn euv_sheet_trigger(node: VirtualNode<EuvSheetTriggerProps>) -> VirtualNode
                     "false"
                 }
                 class: c_euv_sheet_trigger()
-
                 onclick: on_click
                 {
                     label

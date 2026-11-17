@@ -64,7 +64,6 @@ pub fn euv_trace_line(node: VirtualNode<EuvTraceLineProps>) -> VirtualNode {
             "data-slot": "trace-line"
             "data-status": status_attr
             class: base_class
-
             class: status_class()
             children
         }

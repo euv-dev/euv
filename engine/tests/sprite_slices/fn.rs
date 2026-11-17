@@ -51,7 +51,6 @@ fn draw_calls(log: &Object) -> Vec<Array> {
 )]
 fn a_sprite_sheet_counts_columns_and_rows_from_the_image_and_the_frame_size() {
     let sheet: SpriteSheet = SpriteSheet::from_image(image(64.0, 32.0), 16.0, 16.0);
-
     assert_eq!(
         sheet.get_columns(),
         4,
@@ -72,7 +71,6 @@ fn a_sprite_sheet_counts_columns_and_rows_from_the_image_and_the_frame_size() {
 )]
 fn a_frame_size_larger_than_the_image_still_yields_one_column_and_one_row() {
     let sheet: SpriteSheet = SpriteSheet::from_image(image(8.0, 8.0), 16.0, 16.0);
-
     assert_eq!(
         sheet.get_columns(),
         1,
@@ -89,9 +87,7 @@ fn a_frame_size_larger_than_the_image_still_yields_one_column_and_one_row() {
 )]
 fn a_nine_slice_splits_its_source_into_nine_patches_in_reading_order() {
     let nine: NineSlice = NineSlice::from_image(image(30.0, 30.0), 10.0);
-
     let rects: NineSliceRects = nine.source_rects();
-
     assert_eq!(rects.to_vec().len(), 9, "three by three patches");
     let first: Rect = rects.to_vec()[0];
     assert_eq!(
@@ -116,7 +112,6 @@ fn a_nine_slice_splits_its_source_into_nine_patches_in_reading_order() {
 fn the_corners_and_edges_keep_their_border_size_while_the_middle_stretches() {
     let nine: NineSlice = NineSlice::from_image(image(30.0, 30.0), 10.0);
     let dest: Rect = Rect::new(0.0, 0.0, 100.0, 50.0);
-
     let rects: Vec<Rect> = nine.dest_rects(dest).to_vec();
     let top_left: Rect = rects[0];
     assert_eq!(
@@ -156,9 +151,7 @@ fn the_corners_and_edges_keep_their_border_size_while_the_middle_stretches() {
 fn drawing_a_nine_slice_issues_one_draw_per_patch() {
     let (context, log): (CanvasRenderingContext2d, Object) = recording_context();
     let nine: NineSlice = NineSlice::from_image(image(30.0, 30.0), 10.0);
-
     nine.draw_into(&context, Rect::new(0.0, 0.0, 60.0, 60.0));
-
     assert_eq!(
         draw_calls(&log).len(),
         9,
@@ -187,9 +180,7 @@ fn sized_image(width: f64, height: f64) -> HtmlImageElement {
 )]
 fn an_atlas_uv_is_expressed_in_fractions_of_the_image_rather_than_pixels() {
     let atlas: SpriteAtlas = SpriteAtlas::create(sized_image(128.0, 64.0));
-
     let uv: UvRect = atlas.uv(Rect::new(32.0, 16.0, 64.0, 32.0));
-
     assert_eq!(
         (uv.get_u0(), uv.get_v0()),
         (0.25, 0.25),
@@ -211,9 +202,7 @@ fn an_atlas_uv_is_expressed_in_fractions_of_the_image_rather_than_pixels() {
 )]
 fn an_atlas_whose_image_has_not_loaded_yields_an_all_zero_uv() {
     let atlas: SpriteAtlas = SpriteAtlas::create(sized_image(0.0, 0.0));
-
     let uv: UvRect = atlas.uv(Rect::new(0.0, 0.0, 32.0, 32.0));
-
     assert_eq!(
         (uv.get_u0(), uv.get_v0(), uv.get_u1(), uv.get_v1()),
         (0.0, 0.0, 0.0, 0.0),
@@ -231,9 +220,7 @@ fn an_atlas_whose_image_has_not_loaded_yields_an_all_zero_uv() {
 fn recording_a_nine_slice_queues_one_command_carrying_its_insets() {
     let nine: NineSlice = NineSlice::from_image(image(30.0, 30.0), 10.0);
     let mut list: DrawList = DrawList::create();
-
     nine.record(&mut list, Vector2D::new(5.0, 6.0), 40.0, 50.0);
-
     assert_eq!(list.len(), 1, "one nine-slice draw is one queued command");
     let recorded: &DrawCommand = list.get_commands().first().expect("just asserted one");
     assert!(
@@ -253,9 +240,7 @@ fn recording_a_named_region_from_an_atlas_queues_that_region() {
     let mut atlas: SpriteAtlas = SpriteAtlas::create(image(64.0, 64.0));
     atlas.insert("hero", Rect::new(0.0, 0.0, 16.0, 32.0));
     let mut list: DrawList = DrawList::create();
-
     atlas.record(&mut list, "hero", Vector2D::new(1.0, 2.0), 8.0, 16.0);
-
     assert_eq!(list.len(), 1, "a named region that exists is queued");
     let recorded: &DrawCommand = list.get_commands().first().expect("just asserted one");
     match recorded {
@@ -287,9 +272,7 @@ fn recording_a_name_the_atlas_does_not_have_queues_nothing() {
     let mut atlas: SpriteAtlas = SpriteAtlas::create(image(64.0, 64.0));
     atlas.insert("hero", Rect::new(0.0, 0.0, 16.0, 32.0));
     let mut list: DrawList = DrawList::create();
-
     atlas.record(&mut list, "villain", Vector2D::new(1.0, 2.0), 8.0, 16.0);
-
     assert_eq!(
         list.len(),
         0,

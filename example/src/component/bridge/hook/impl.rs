@@ -23,13 +23,11 @@ impl<'de> Deserialize<'de> for UpdateStatus {
     /// - `Result<Self, Reader::Error>` - `Ok(Self)` on success, or the reader's error.
     fn deserialize<Reader>(reader: Reader) -> Result<Self, Reader::Error>
     where
-        Reader: serde::Deserializer<'de>,
+        Reader: Deserializer<'de>,
     {
         struct TagVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for TagVisitor {
+        impl<'de> Visitor<'de> for TagVisitor {
             type Value = UpdateStatus;
-
             /// Writes the expected value description into the formatter.
             ///
             /// # Arguments
@@ -44,7 +42,6 @@ impl<'de> Deserialize<'de> for UpdateStatus {
                     "an `UpdateStatus` wire tag ({UPDATE_RESULT_SUCCESS:?} / {UPDATE_RESULT_FAILED:?})"
                 ))
             }
-
             /// Deserializes a borrowed string slice into `Self::Value`.
             ///
             /// # Arguments
@@ -56,7 +53,7 @@ impl<'de> Deserialize<'de> for UpdateStatus {
             /// - `Result<Self::Value, Error>` - `Result<Self::Value, Error>` from the deserialiser.
             fn visit_str<Error>(self, value: &str) -> Result<Self::Value, Error>
             where
-                Error: serde::de::Error,
+                Error: de::Error,
             {
                 if value == UPDATE_RESULT_SUCCESS {
                     Ok(UpdateStatus::Success)
@@ -70,7 +67,6 @@ impl<'de> Deserialize<'de> for UpdateStatus {
                 }
             }
         }
-
         reader.deserialize_str(TagVisitor)
     }
 }

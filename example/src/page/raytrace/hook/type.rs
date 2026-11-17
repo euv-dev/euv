@@ -11,7 +11,7 @@ pub(crate) type RayTracePendingTimer = (i32, Closure<dyn FnMut()>);
 pub(crate) type RayTracePendingTimerGuard<'a> = RefMut<'a, Vec<RayTracePendingTimer>>;
 
 /// The Rust callback a live `ResizeObserver` invokes.
-pub(crate) type RayTraceObserverCallback = Closure<dyn FnMut(js_sys::Array, ResizeObserver)>;
+pub(crate) type RayTraceObserverCallback = Closure<dyn FnMut(Array, ResizeObserver)>;
 
 /// The Rust callback a debounced window-resize listener invokes.
 pub(crate) type RayTraceDebounceCallback = Closure<dyn FnMut()>;
@@ -42,4 +42,4 @@ pub(crate) type RayTraceDebounceOwner = Rc<RefCell<Option<Closure<dyn FnMut()>>>
 /// returns, so the closure is parked here and dropped only once cleanup
 /// has disconnected the observer.
 pub(crate) type RayTraceObserverClosureOwner =
-    Rc<RefCell<Option<Closure<dyn FnMut(js_sys::Array, ResizeObserver)>>>>;
+    Rc<RefCell<Option<Closure<dyn FnMut(Array, ResizeObserver)>>>>;

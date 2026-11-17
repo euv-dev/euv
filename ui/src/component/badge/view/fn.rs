@@ -53,7 +53,6 @@ pub fn euv_badge(node: VirtualNode<EuvBadgeProps>) -> VirtualNode {
                 "data-variant": data_variant
                 class: base_class
                 class: variant_style
-
                 class: c_euv_badge_clickable()
                 class: custom_class
                 onclick: Some(click_handler)
@@ -66,7 +65,6 @@ pub fn euv_badge(node: VirtualNode<EuvBadgeProps>) -> VirtualNode {
                 "data-variant": data_variant
                 class: base_class
                 class: variant_style
-
                 class: custom_class
                 text.clone()
             }

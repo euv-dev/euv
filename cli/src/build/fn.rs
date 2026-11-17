@@ -745,8 +745,7 @@ fn notify_reload(reload_tx: Option<&broadcast::Sender<ReloadEvent>>, outcome: Re
         Ok(()) => ReloadEvent::Reload,
         Err(message) => ReloadEvent::Error(message),
     };
-    let _: Result<usize, tokio::sync::broadcast::error::SendError<ReloadEvent>> =
-        sender.send(event);
+    let _: Result<usize, broadcast::error::SendError<ReloadEvent>> = sender.send(event);
 }
 
 /// Watches source files and triggers WASM builds.
@@ -766,8 +765,7 @@ pub(crate) async fn watch_and_build(state: Arc<AppState>) -> Result<(), EuvError
     let mut watcher: RecommendedWatcher = RecommendedWatcher::new(
         move |result: Result<Event, notify::Error>| {
             if let Ok(event) = result {
-                let _: Result<(), tokio::sync::mpsc::error::SendError<Event>> =
-                    tx.blocking_send(event);
+                let _: Result<(), mpsc::error::SendError<Event>> = tx.blocking_send(event);
             }
         },
         Config::default(),

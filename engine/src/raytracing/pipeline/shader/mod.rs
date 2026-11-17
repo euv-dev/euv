@@ -1,7 +1,7 @@
-mod r#glsl;
-mod r#source;
-mod r#wgsl;
+mod glsl;
+mod source;
+mod wgsl;
 
-pub use r#source::*;
+pub use source::*;
 
-pub(crate) use {r#glsl::*, r#wgsl::*};
+pub(crate) use {glsl::*, wgsl::*};

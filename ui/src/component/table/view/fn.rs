@@ -41,7 +41,6 @@ pub fn euv_table(node: VirtualNode<EuvTableProps>) -> VirtualNode {
             table {
                 "data-slot": "table"
                 class: base_class
-
                 class: custom_class
                 if has_custom_content {
                     children
@@ -81,7 +80,6 @@ fn table_header_row(columns: &[EuvTableColumn]) -> VirtualNode {
         .iter()
         .map(|column: &EuvTableColumn| {
             let base_class: &Css = c_euv_table_header_cell();
-
             let align_class: &'static str = table_cell_align_class(column.align);
             let align_shadcn_class: &Css = {
                 match column.align {
@@ -99,7 +97,6 @@ fn table_header_row(columns: &[EuvTableColumn]) -> VirtualNode {
                     key: column_key.clone()
                     "data-slot": "table-head"
                     class: base_class
-
                     class: align_class
                     class: align_shadcn_class
                     {column_label.clone()}
@@ -147,7 +144,6 @@ fn table_row(columns: &[EuvTableColumn], row: EuvTableRow, zebra: bool) -> Virtu
         .enumerate()
         .map(|(index, column): (usize, &EuvTableColumn)| {
             let base_class: &Css = c_euv_table_cell();
-
             let align_class: &'static str = table_cell_align_class(column.align);
             let align_shadcn_class: &Css = {
                 match column.align {
@@ -165,7 +161,6 @@ fn table_row(columns: &[EuvTableColumn], row: EuvTableRow, zebra: bool) -> Virtu
                 td {
                     "data-slot": "table-cell"
                     class: base_class
-
                     class: align_class
                     class: align_shadcn_class
                     {text.clone()}
@@ -254,7 +249,6 @@ pub fn euv_table_header(node: VirtualNode<EuvTableHeaderProps>) -> VirtualNode {
         thead {
             "data-slot": "table-header"
             class: base_class
-
             children
         }
     }
@@ -282,7 +276,6 @@ pub fn euv_table_body(node: VirtualNode<EuvTableBodyProps>) -> VirtualNode {
         tbody {
             "data-slot": "table-body"
             class: base_class
-
             children
         }
     }
@@ -311,7 +304,6 @@ pub fn euv_table_footer(node: VirtualNode<EuvTableFooterProps>) -> VirtualNode {
         tfoot {
             "data-slot": "table-footer"
             class: base_class
-
             children
         }
     }
@@ -339,7 +331,6 @@ pub fn euv_table_caption(node: VirtualNode<EuvTableCaptionProps>) -> VirtualNode
         caption {
             "data-slot": "table-caption"
             class: base_class
-
             text
         }
     }
@@ -393,7 +384,6 @@ pub fn euv_table_head(node: VirtualNode<EuvTableHeadProps>) -> VirtualNode {
         th {
             "data-slot": "table-head"
             class: base_class
-
             children
         }
     }
@@ -421,7 +411,6 @@ pub fn euv_table_cell(node: VirtualNode<EuvTableCellProps>) -> VirtualNode {
         td {
             "data-slot": "table-cell"
             class: base_class
-
             children
         }
     }

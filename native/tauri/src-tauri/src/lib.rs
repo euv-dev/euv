@@ -39,20 +39,21 @@ pub(crate) use {
     tauri::{
         App, AppHandle, Builder, Manager, RunEvent, State, UriSchemeContext, UriSchemeResponder,
         Webview, Wry,
-        async_runtime::spawn,
+        async_runtime::{JoinHandle, spawn},
         generate_context, generate_handler,
         webview::{PageLoadEvent, PageLoadPayload},
     },
     tokio::{
         fs::{
-            File, create_dir_all, metadata, read, read_dir, read_to_string, remove_dir_all,
-            remove_file, rename, write,
+            File, ReadDir, create_dir_all, metadata, read, read_dir, read_to_string,
+            remove_dir_all, remove_file, rename, write,
         },
         io::AsyncWriteExt,
         sync::{
             Mutex, MutexGuard,
             watch::{self, Receiver, Sender, error::RecvError},
         },
+        task::JoinSet,
     },
 };
 

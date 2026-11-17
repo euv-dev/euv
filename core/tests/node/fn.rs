@@ -315,7 +315,6 @@ fn as_text_through_the_trait<T: AsReactiveText>(value: &T) -> VirtualNode {
 fn a_type_reachable_through_the_trait_produces_its_reactive_text_node() {
     let signal: Signal<String> = Signal::create(String::from("hello"));
     let built: VirtualNode = as_text_through_the_trait(&signal);
-
     assert!(
         matches!(built, VirtualNode::Text(_)),
         "the trait is what a generic renderer calls to turn any value into a node, so a \

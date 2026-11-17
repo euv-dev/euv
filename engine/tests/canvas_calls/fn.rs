@@ -266,9 +266,7 @@ fn stroking_a_circle_opens_a_path_arcs_it_and_strokes_in_that_order() {
 fn replaying_an_empty_list_touches_nothing() {
     let (subject, log): (CanvasRenderer, Object) = renderer();
     let list: DrawList = DrawList::create();
-
     subject.replay(&list);
-
     let drawn: Vec<String> = ops(&log)
         .into_iter()
         .filter(|op: &String| {

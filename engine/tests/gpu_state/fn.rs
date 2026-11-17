@@ -132,7 +132,6 @@ fn a_storage_texture_binding_records_its_format_and_read_only_flag() {
         "a writable storage texture must not be marked read-only, got: {rendered}"
     );
     assert!(rendered.contains("rgba8unorm"), "got: {rendered}");
-
     let read_only: BindGroupLayoutEntry =
         BindGroupLayoutEntry::storage_texture(1, ShaderStage::Compute, "r32float", true);
     assert!(format!("{read_only:?}").contains("read_only: true"));

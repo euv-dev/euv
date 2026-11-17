@@ -281,7 +281,6 @@ fn navigating_on_a_host_with_no_window_is_a_no_op_rather_than_a_panic() {
     Router::navigate("/home");
     Router::navigate("/home");
     Router::navigate("");
-
     assert_eq!(
         Router::current_route(),
         String::new(),
@@ -299,7 +298,6 @@ fn navigating_on_a_host_with_no_window_is_a_no_op_rather_than_a_panic() {
 )]
 fn a_route_target_carrying_an_anchor_still_reads_as_its_bare_path() {
     Router::navigate("/settings#profile");
-
     assert_eq!(
         Router::current_route(),
         String::new(),

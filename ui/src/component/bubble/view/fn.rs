@@ -105,7 +105,6 @@ pub fn euv_bubble_content(node: VirtualNode<EuvBubbleContentProps>) -> VirtualNo
             div {
                 "data-slot": "bubble-content"
                 class: base_class
-
                 children
             }
     }

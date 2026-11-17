@@ -37,7 +37,6 @@ fn clip() -> AudioClip {
 )]
 fn a_fresh_clip_starts_stopped_at_the_documented_defaults() {
     let subject: AudioClip = clip();
-
     assert_eq!(
         subject.get_state(),
         AudioPlayState::Stopped,
@@ -67,10 +66,8 @@ fn a_fresh_clip_starts_stopped_at_the_documented_defaults() {
 )]
 fn the_looping_flag_is_remembered_even_with_no_source_node_attached() {
     let mut subject: AudioClip = clip();
-
     subject.update_looping(true);
     assert!(subject.get_looping(), "the flag is set on the clip itself");
-
     subject.update_looping(false);
     assert!(
         !subject.get_looping(),
@@ -86,21 +83,18 @@ fn the_looping_flag_is_remembered_even_with_no_source_node_attached() {
 )]
 fn the_volume_is_clamped_into_the_unit_range() {
     let mut subject: AudioClip = clip();
-
     subject.update_volume(2.0);
     assert_eq!(
         subject.get_volume(),
         1.0,
         "an amplifier past unity would distort rather than get louder"
     );
-
     subject.update_volume(-1.0);
     assert_eq!(
         subject.get_volume(),
         0.0,
         "a negative gain inverts the phase rather than silencing"
     );
-
     subject.update_volume(0.25);
     assert_eq!(
         subject.get_volume(),
@@ -117,14 +111,12 @@ fn the_volume_is_clamped_into_the_unit_range() {
 )]
 fn the_playback_rate_is_stored_verbatim_rather_than_clamped() {
     let mut subject: AudioClip = clip();
-
     subject.update_playback_rate(2.5);
     assert_eq!(
         subject.get_playback_rate(),
         2.5,
         "slow motion and fast forward are both legitimate, so this is not clamped"
     );
-
     subject.update_playback_rate(0.5);
     assert_eq!(
         subject.get_playback_rate(),

@@ -201,7 +201,7 @@ pub fn time_with_minute(current: &str, minute: u32, fallback_hour: u32) -> Strin
 pub fn current_time() -> Option<(u32, u32)> {
     #[cfg(target_arch = "wasm32")]
     {
-        let now: js_sys::Date = js_sys::Date::new_0();
+        let now: Date = js_sys::Date::new_0();
         Some((now.get_hours(), now.get_minutes()))
     }
     #[cfg(not(target_arch = "wasm32"))]

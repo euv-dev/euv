@@ -95,9 +95,7 @@ fn active_touches_are_extracted_with_offsets_relative_to_the_target_rect() {
     let first: Object = touch_object(7, 15, 25);
     let second: Object = touch_object(8, 30, 45);
     let event: Event = touch_event(&[first, second], &[], 10.0, 20.0);
-
     let observed: Vec<NativeTouchPoint> = NativeTouchPoint::extract_all(&event);
-
     assert_eq!(
         observed.len(),
         2,
@@ -188,9 +186,7 @@ fn changed_touches_are_read_from_the_changed_list_and_not_the_active_one() {
     let lifted: Object = touch_object(2, 90, 95);
     let moved: Object = touch_object(3, 40, 45);
     let event: Event = touch_event(&[active], &[lifted, moved], 10.0, 20.0);
-
     let observed: Vec<NativeTouchPoint> = NativeTouchPoint::extract_changed(&event);
-
     assert_eq!(
         observed.len(),
         2,
@@ -226,9 +222,7 @@ fn changed_touches_are_read_from_the_changed_list_and_not_the_active_one() {
 fn offsets_are_computed_against_the_target_rect_rather_than_the_viewport() {
     let touch: Object = touch_object(4, 100, 100);
     let event: Event = touch_event(&[touch], &[], 64.0, 32.0);
-
     let observed: Vec<NativeTouchPoint> = NativeTouchPoint::extract_all(&event);
-
     let only: &NativeTouchPoint = &observed[0];
     assert_eq!(
         only.get_offset_x(),

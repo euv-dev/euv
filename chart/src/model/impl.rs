@@ -368,18 +368,15 @@ impl ChartLayout {
             legend_rect: None,
             plot_rect: BBox::from_min_size(0.0, 0.0, width, height),
         };
-
         // The title and the legend take space away from the plot area.
         let title_space: f64 = layout.measure_title(option, measurer);
         let legend_space: f64 = layout.measure_legend(option, measurer);
-
         layout.plot_rect = BBox::from_min_size(
             0.0,
             title_space,
             width,
             (height - title_space - legend_space).max(0.0),
         );
-
         layout.grids = layout.measure_grids(option, &layout.plot_rect, measurer);
         layout.series = layout.measure_series(option, &layout.grids);
         layout.geo = layout.measure_geo(option, maps);
@@ -484,7 +481,6 @@ impl ChartLayout {
     ) -> Vec<GridLayout> {
         let grid_option: GridOption = option.grid.clone().unwrap_or_default();
         let mut grids: Vec<GridLayout> = Vec::new();
-
         // A chart without an explicit grid still gets one: the cartesian
         // series need somewhere to live.
         let count: usize = 1;
@@ -492,7 +488,6 @@ impl ChartLayout {
             let rect: BBox = self.resolve_grid_rect(&grid_option, plot);
             let mut x_axes: Vec<AxisLayout> = Vec::new();
             let mut y_axes: Vec<AxisLayout> = Vec::new();
-
             for (axis_index, axis) in option.x_axis.iter().enumerate() {
                 if axis.grid_index.unwrap_or(0) != index {
                     continue;
@@ -505,7 +500,6 @@ impl ChartLayout {
                 }
                 y_axes.push(self.measure_y_axis(axis, axis_index, &rect, &option.series, measurer));
             }
-
             // Without an explicit axis, the chart falls back to a value
             // axis on the left and a category axis on the bottom.
             if x_axes.is_empty() {
@@ -514,7 +508,6 @@ impl ChartLayout {
             if y_axes.is_empty() {
                 y_axes.push(self.default_y_axis(&rect, &option.series));
             }
-
             grids.push(GridLayout {
                 index,
                 rect,
@@ -846,7 +839,6 @@ impl ChartLayout {
         };
         let space: f64 =
             (if vertical { widest } else { tallest }) + tick_length + DEFAULT_AXIS_LABEL_GAP;
-
         // The interval between two labels: the label has to fit in the
         // space one tick leaves.
         let label_extent: f64 = if vertical { tallest } else { widest };
@@ -889,7 +881,6 @@ impl ChartLayout {
         } else {
             (rect.max_y, rect.min_y)
         };
-
         let kind: ScaleKind = match axis.axis_type {
             AxisType::Category => ScaleKind::Category,
             AxisType::Value => ScaleKind::Linear,
@@ -897,7 +888,6 @@ impl ChartLayout {
             AxisType::Log => ScaleKind::Log,
         };
         let _: ScaleKind = default_kind;
-
         match kind {
             ScaleKind::Category => {
                 let categories: Vec<String> = if !axis.data.is_empty() {

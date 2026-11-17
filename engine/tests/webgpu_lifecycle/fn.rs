@@ -33,7 +33,6 @@ fn renderer_with(canvas: Object) -> WebGpuRenderer {
 )]
 fn the_pending_error_slot_starts_empty_and_taking_twice_is_not_an_error() {
     let subject: WebGpuRenderer = renderer(false);
-
     assert!(
         subject.take_last_error().is_none(),
         "nothing has pushed an error scope on a fresh renderer"
@@ -54,9 +53,7 @@ fn the_pending_error_slot_starts_empty_and_taking_twice_is_not_an_error() {
 fn a_device_whose_lost_is_not_a_promise_is_skipped_rather_than_panicking() {
     let mut subject: WebGpuRenderer = renderer(false);
     let callback: js_sys::Function = js_sys::Function::new_no_args("");
-
     subject.on_device_lost(callback);
-
     assert!(
         subject.get_device_lost_callback().is_none(),
         "there is no GPUDeviceLostInfo to hand on when lost is not a promise, so no handler is \
@@ -77,9 +74,7 @@ fn a_device_whose_lost_is_not_a_promise_is_skipped_rather_than_panicking() {
 fn disposing_releases_the_swap_chain_before_the_device() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.dispose();
-
     let order: Vec<String> = ops_from(before);
     let unconfigure_at: usize = order
         .iter()
@@ -111,9 +106,7 @@ fn disposing_releases_the_swap_chain_before_the_device() {
 fn a_hidden_canvas_whose_layout_box_has_collapsed_is_left_alone() {
     let mut subject: WebGpuRenderer = renderer_with(blank_canvas());
     let before: u32 = mark();
-
     let synced: bool = subject.sync_to_current_canvas();
-
     assert!(
         !synced,
         "a canvas with no backing store and no layout box has no size to sync to"
@@ -135,9 +128,7 @@ fn a_hidden_canvas_whose_layout_box_has_collapsed_is_left_alone() {
 fn syncing_a_sized_canvas_reconfigures_the_swap_chain_at_that_size() {
     let mut subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     let synced: bool = subject.sync_to_current_canvas();
-
     assert!(synced, "a canvas with a real layout box syncs");
     let configured: Array = args_on("context", "configure", before);
     assert_eq!(
@@ -165,9 +156,7 @@ fn syncing_a_sized_canvas_reconfigures_the_swap_chain_at_that_size() {
 fn a_timestamp_query_set_asks_for_the_timestamp_type_and_the_count_it_was_given() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     let created: JsValue = subject.create_timestamp_query_set(2);
-
     assert!(
         !created.is_undefined(),
         "the driver handed back a query set"
@@ -194,9 +183,7 @@ fn a_timestamp_query_set_asks_for_the_timestamp_type_and_the_count_it_was_given(
 fn a_timestamp_write_without_a_query_set_is_skipped() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.write_timestamp(&node("pass").into(), &JsValue::UNDEFINED, 0);
-
     assert_eq!(
         count_on("pass", "writeTimestamp", before),
         0,
@@ -215,7 +202,6 @@ fn resolving_a_timestamp_range_forwards_all_six_arguments_in_spec_order() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let encoder: Object = node("encoder");
-
     subject.resolve_timestamp(
         &encoder.clone().into(),
         &node("query-set").into(),
@@ -224,7 +210,6 @@ fn resolving_a_timestamp_range_forwards_all_six_arguments_in_spec_order() {
         &node("buffer").into(),
         0,
     );
-
     let args: Array = args_on("encoder", "resolveQuerySet", before);
     assert_eq!(
         args.length(),
@@ -249,7 +234,6 @@ fn resolving_a_timestamp_range_forwards_all_six_arguments_in_spec_order() {
 fn resolving_without_a_destination_buffer_is_skipped() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.resolve_timestamp(
         &node("encoder").into(),
         &node("query-set").into(),
@@ -258,7 +242,6 @@ fn resolving_without_a_destination_buffer_is_skipped() {
         &JsValue::UNDEFINED,
         0,
     );
-
     assert_eq!(
         count_on("encoder", "resolveQuerySet", before),
         0,

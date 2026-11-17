@@ -139,7 +139,6 @@ fn a_2d_collider_contains_a_point_inside_and_rejects_one_outside() {
     let rect: AabbCollider = AabbCollider::new(Rect::new(0.0, 0.0, 4.0, 2.0));
     assert!(rect.contains_point(Vector2D::new(1.0, 1.0)));
     assert!(!rect.contains_point(Vector2D::new(9.0, 1.0)));
-
     let circle: CircleCollider = CircleCollider::from_center(Vector2D::new(0.0, 0.0), 2.0);
     assert!(circle.contains_point(Vector2D::new(1.0, 0.0)));
     assert!(

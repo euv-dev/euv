@@ -182,7 +182,6 @@ pub fn euv_navigation_menu_link(node: VirtualNode<EuvNavigationMenuLinkProps>) -
             a {
                 "data-slot": "navigation-menu-link"
                 class: base_class
-
                 children
             }
     }

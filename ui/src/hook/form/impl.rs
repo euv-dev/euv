@@ -97,11 +97,9 @@ impl FormState {
         let mut current: HashMap<&'static str, String> = self.get_values().get();
         current.insert(name, value.to_string());
         self.get_values().set(current);
-
         let mut touched: HashSet<&'static str> = self.get_touched().get();
         touched.insert(name);
         self.get_touched().set(touched);
-
         let mut errors: HashMap<&'static str, String> = self.get_errors().get();
         errors.remove(name);
         self.get_errors().set(errors);

@@ -1,11 +1,11 @@
-mod r#canvas;
-mod r#data;
-mod r#state;
-mod r#webgl;
-mod r#webgpu;
+mod canvas;
+mod data;
+mod state;
+mod webgl;
+mod webgpu;
 
-pub use r#data::*;
+pub use data::*;
 
-pub(crate) use {r#canvas::*, r#state::*, r#webgl::*, r#webgpu::*};
+pub(crate) use {canvas::*, state::*, webgl::*, webgpu::*};
 
 use super::*;

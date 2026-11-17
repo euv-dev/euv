@@ -852,9 +852,7 @@ fn injecting_global_css_without_a_window_is_a_no_op_rather_than_a_panic() {
     let window_probe: Result<JsValue, JsValue> =
         Reflect::get(&global, &JsValue::from_str("window"));
     let has_window: bool = window_probe.is_ok_and(|found: JsValue| found.is_object());
-
     inject_app_global_css();
-
     assert!(
         !has_window,
         "this test only proves the no-window branch; under a real window it must not run"

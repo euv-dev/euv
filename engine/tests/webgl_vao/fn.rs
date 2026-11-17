@@ -88,9 +88,7 @@ fn layout_with(attribute: VertexAttribute) -> VertexBufferLayout {
 )]
 fn creating_an_array_object_binds_it_and_then_releases_it() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context();
-
     let vao: Option<GlVertexArray> = GlVertexArray::create(&context);
-
     assert!(vao.is_some(), "the driver handle came back");
     assert_eq!(
         count_of(&log, "createVertexArray"),
@@ -117,9 +115,7 @@ fn each_declared_attribute_is_enabled_pointed_and_given_a_divisor() {
         GlBuffer::create_for(&context, BufferUsage::Vertex, 64).expect("created");
     let layout: VertexBufferLayout =
         layout_with(VertexAttribute::new(2, 8, VertexAttributeFormat::Float32x4));
-
     vao.set_layout(&context, &buffer, &layout);
-
     assert_eq!(
         count_of(&log, "enableVertexAttribArray"),
         1,
@@ -175,9 +171,7 @@ fn an_instance_step_mode_records_divisor_one() {
         VertexStepMode::Instance,
         vec![VertexAttribute::new(1, 0, VertexAttributeFormat::Float32x4)],
     );
-
     vao.set_instance_layout(&context, &buffer, &layout);
-
     let divisor: Array = first_of(&log, "vertexAttribDivisor");
     assert_eq!(
         divisor.get(1).as_f64(),
@@ -194,9 +188,7 @@ fn an_instance_step_mode_records_divisor_one() {
 )]
 fn unbinding_passes_none_so_the_context_returns_to_its_default_state() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context();
-
     GlVertexArray::unbind(&context);
-
     let bound: Array = first_of(&log, "bindVertexArray");
     assert!(
         bound.get(0).is_undefined(),
@@ -216,9 +208,7 @@ fn a_layout_with_no_attributes_still_binds_the_array_and_the_buffer() {
     let buffer: GlBuffer =
         GlBuffer::create_for(&context, BufferUsage::Vertex, 64).expect("created");
     let before: usize = count_of(&log, "enableVertexAttribArray");
-
     vao.set_layout(&context, &buffer, &empty_layout());
-
     assert_eq!(
         count_of(&log, "enableVertexAttribArray"),
         before,
@@ -244,9 +234,7 @@ fn a_layout_with_no_attributes_still_binds_the_array_and_the_buffer() {
 fn setting_an_explicit_divisor_records_exactly_that_value() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context();
     let vao: GlVertexArray = GlVertexArray::create(&context).expect("created");
-
     vao.set_divisor(&context, 3, 1);
-
     let recorded: Array = first_of(&log, "vertexAttribDivisor");
     assert_eq!(
         recorded.get(0).as_f64(),
@@ -270,9 +258,7 @@ fn deleting_an_array_object_releases_the_handle() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context();
     let vao: GlVertexArray = GlVertexArray::create(&context).expect("created");
     let before: usize = count_of(&log, "deleteVertexArray");
-
     vao.delete(&context);
-
     assert_eq!(
         count_of(&log, "deleteVertexArray"),
         before + 1,

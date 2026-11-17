@@ -66,7 +66,6 @@ pub fn euv_combobox_chips(node: VirtualNode<EuvComboboxChipsProps>) -> VirtualNo
                 "data-slot": "combobox-chips"
                 "aria-label": label
                 class: c_euv_combobox_chips()
-
                 children
             }
     }
@@ -252,7 +251,6 @@ pub fn euv_combobox_trigger(node: VirtualNode<EuvComboboxTriggerProps>) -> Virtu
             disabled: disabled
             "data-slot": "combobox-trigger"
             class: base_class
-
             onclick: on_click
             onkeydown: onkeydown
             {
@@ -302,7 +300,6 @@ pub fn euv_combobox_input(node: VirtualNode<EuvComboboxInputProps>) -> VirtualNo
             disabled: disabled
             "data-slot": "combobox-input"
             class: base_class
-
             oninput: on_combobox_input(value)
             onkeydown: onkeydown
         }
@@ -524,7 +521,6 @@ pub fn euv_combobox_content(node: VirtualNode<EuvComboboxContentProps>) -> Virtu
             } else {
                 closed_class
             }
-
             children
         }
     }

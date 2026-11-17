@@ -241,7 +241,7 @@ pub(crate) struct ParamCssCacheArgs<'a> {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) fn_name_span: proc_macro2::Span,
+    pub(crate) fn_name_span: Span,
     /// The kebab-case class name the cache is keyed by.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
@@ -281,5 +281,5 @@ pub(crate) struct ParamCssCacheArgs<'a> {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) generics: &'a syn::Generics,
+    pub(crate) generics: &'a Generics,
 }

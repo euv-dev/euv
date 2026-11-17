@@ -691,7 +691,6 @@ fn the_mode_subcommands_dispatch_to_their_own_argument_type() {
         }
         other => panic!("expected Run, got {other:?}"),
     }
-
     let fmt: Mode = Mode::parse_from(["euv", "fmt", "--check"]);
     match &fmt {
         Mode::Fmt(args) => {

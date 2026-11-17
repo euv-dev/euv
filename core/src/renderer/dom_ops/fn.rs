@@ -250,8 +250,8 @@ pub(crate) fn apply_set_attr_batch(element: &Element, ops: &[(String, String)]) 
         }
         return;
     };
-    let names: js_sys::Array = js_sys::Array::new_with_length(ops.len() as u32);
-    let values: js_sys::Array = js_sys::Array::new_with_length(ops.len() as u32);
+    let names: Array = js_sys::Array::new_with_length(ops.len() as u32);
+    let values: Array = js_sys::Array::new_with_length(ops.len() as u32);
     for (index, (name, value)) in ops.iter().enumerate() {
         names.set(index as u32, JsValue::from_str(name));
         values.set(index as u32, JsValue::from_str(value));
@@ -290,7 +290,7 @@ pub(crate) fn apply_remove_attr_batch(element: &Element, ops: &[String]) {
         }
         return;
     };
-    let names: js_sys::Array = js_sys::Array::new_with_length(ops.len() as u32);
+    let names: Array = js_sys::Array::new_with_length(ops.len() as u32);
     for (index, name) in ops.iter().enumerate() {
         names.set(index as u32, JsValue::from_str(name));
     }
@@ -331,9 +331,9 @@ pub(crate) fn apply_child_ops_batch(parent: &Element, ops: &[ChildOp]) {
         }
         return;
     };
-    let ops_array: js_sys::Array = js_sys::Array::new_with_length(ops.len() as u32);
+    let ops_array: Array = js_sys::Array::new_with_length(ops.len() as u32);
     for (index, op) in ops.iter().enumerate() {
-        let tuple: js_sys::Array = js_sys::Array::new_with_length(3);
+        let tuple: Array = js_sys::Array::new_with_length(3);
         let kind: u32 = match op {
             ChildOp::InsertBefore { .. } => 0,
             ChildOp::AppendChild(_) => 1,

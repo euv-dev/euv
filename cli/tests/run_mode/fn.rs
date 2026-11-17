@@ -15,15 +15,12 @@ fn absent_crate_path(tag: &str) -> PathBuf {
 #[tokio::test]
 async fn a_crate_path_that_does_not_exist_fails_before_any_server_is_started() {
     let missing: PathBuf = absent_crate_path("absent-crate");
-
     let args: ModeArgs = ModeArgs::parse_from(vec![
         String::from("euv"),
         String::from("--crate-path"),
         missing.to_string_lossy().to_string(),
     ]);
-
     let outcome: Result<(), EuvError> = run_mode(args).await;
-
     match outcome {
         Err(EuvError::IoPath { path, .. }) => assert_eq!(
             path, missing,
@@ -38,15 +35,12 @@ async fn a_crate_path_that_does_not_exist_fails_before_any_server_is_started() {
 async fn a_missing_crate_path_is_rejected_without_reaching_the_build_pipeline() {
     let missing: PathBuf = absent_crate_path("absent-crate-nested");
     let nested: PathBuf = missing.join("does").join("not").join("exist");
-
     let args: ModeArgs = ModeArgs::parse_from(vec![
         String::from("euv"),
         String::from("--crate-path"),
         nested.to_string_lossy().to_string(),
     ]);
-
     let outcome: Result<(), EuvError> = run_mode(args).await;
-
     match outcome {
         Err(EuvError::IoPath { path, .. }) => assert_eq!(
             path, nested,
@@ -60,15 +54,12 @@ async fn a_missing_crate_path_is_rejected_without_reaching_the_build_pipeline() 
 #[tokio::test]
 async fn a_build_mode_crate_path_that_does_not_exist_fails_before_the_pipeline_starts() {
     let missing: PathBuf = absent_crate_path("absent-build-crate");
-
     let args: ModeArgs = ModeArgs::parse_from(vec![
         String::from("euv"),
         String::from("--crate-path"),
         missing.to_string_lossy().to_string(),
     ]);
-
     let outcome: Result<(), EuvError> = build_mode(args).await;
-
     match outcome {
         Err(EuvError::IoPath { path, .. }) => assert_eq!(
             path, missing,
@@ -85,15 +76,12 @@ async fn a_build_mode_crate_path_that_does_not_exist_fails_before_the_pipeline_s
 async fn a_build_mode_crate_path_nested_under_a_missing_directory_is_also_rejected() {
     let missing: PathBuf = absent_crate_path("absent-build-nested");
     let nested: PathBuf = missing.join("does").join("not").join("exist");
-
     let args: ModeArgs = ModeArgs::parse_from(vec![
         String::from("euv"),
         String::from("--crate-path"),
         nested.to_string_lossy().to_string(),
     ]);
-
     let outcome: Result<(), EuvError> = build_mode(args).await;
-
     assert!(
         outcome.is_err(),
         "a path whose parent does not exist cannot be canonicalized either, and it has to be \

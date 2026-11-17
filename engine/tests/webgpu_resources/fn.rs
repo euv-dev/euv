@@ -13,9 +13,7 @@ fn sized_2d() -> Texture2DDescriptor {
 fn a_two_d_texture_reaches_the_device_with_its_own_extent() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     let created: JsValue = subject.create_texture_2d(&sized_2d());
-
     assert!(
         !created.is_undefined(),
         "a driver handle means the texture was allocated"
@@ -63,13 +61,11 @@ fn a_two_d_texture_reaches_the_device_with_its_own_extent() {
 fn a_texture_with_no_width_never_reaches_the_driver() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     let created: JsValue = subject.create_texture_2d(&Texture2DDescriptor::new(
         0,
         32,
         GpuTextureFormat::Rgba8Unorm,
     ));
-
     assert!(
         created.is_undefined(),
         "a zero extent has no meaning to the driver, so the caller gets the failure marker"
@@ -94,9 +90,7 @@ fn a_general_texture_forwards_the_dimensionality_it_was_given() {
     let mut descriptor: TextureDescriptor =
         TextureDescriptor::new(8, 8, "3d", GpuTextureFormat::Rgba8Unorm, 0);
     descriptor.set_depth_or_layers(4);
-
     subject.create_texture(&descriptor);
-
     let args: Array = args_on("device", "createTexture", before);
     let wire: JsValue = args.get(0);
     assert_eq!(
@@ -124,9 +118,7 @@ fn a_sampler_carries_its_filter_mipmap_and_wrap_decisions_across() {
     descriptor.set_filter(FilterMode::Nearest);
     descriptor.set_mipmap_filter(MipmapFilter::Nearest);
     descriptor.set_address_mode_u(AddressMode::MirrorRepeat);
-
     subject.create_sampler(&descriptor);
-
     let args: Array = args_on("device", "createSampler", before);
     let wire: JsValue = args.get(0);
     assert_eq!(
@@ -165,9 +157,7 @@ fn a_sampler_carries_its_filter_mipmap_and_wrap_decisions_across() {
 fn an_index_buffer_is_allocated_at_the_payload_size_then_filled_from_zero() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     let created: JsValue = subject.create_index_buffer(&[1, 2, 3, 4, 5, 6]);
-
     assert!(!created.is_undefined(), "the driver handed back a handle");
     assert_eq!(
         ops_from(before),
@@ -206,9 +196,7 @@ fn an_index_buffer_is_allocated_at_the_payload_size_then_filled_from_zero() {
 fn writing_no_bytes_is_skipped_entirely_rather_than_uploading_an_empty_view() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.write_buffer(&node("buffer").into(), 0, &[]);
-
     assert_eq!(
         count_on("queue", "writeBuffer", before),
         0,
@@ -225,9 +213,7 @@ fn writing_no_bytes_is_skipped_entirely_rather_than_uploading_an_empty_view() {
 fn a_byte_upload_honours_the_offset_the_caller_named() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.write_buffer(&node("buffer").into(), 64, &[1, 2, 3, 4]);
-
     let written: Array = args_on("queue", "writeBuffer", before);
     assert_eq!(
         written.get(1).as_f64(),
@@ -251,9 +237,7 @@ fn a_uniform_bind_group_takes_group_zero_of_the_pipeline_it_was_given() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let pipeline: Object = node("pipeline");
-
     subject.create_uniform_bind_group(&pipeline.clone().into(), &node("buffer").into());
-
     let layout: Array = args_on("pipeline", "getBindGroupLayout", before);
     assert_eq!(
         layout.get(0).as_f64(),
@@ -290,7 +274,6 @@ fn a_uniform_bind_group_takes_group_zero_of_the_pipeline_it_was_given() {
 fn a_buffer_binding_with_no_size_omits_the_size_key() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.create_bind_group(
         &node("pipeline").into(),
         1,
@@ -301,7 +284,6 @@ fn a_buffer_binding_with_no_size_omits_the_size_key() {
             size: None,
         }],
     );
-
     let created: Array = args_on("device", "createBindGroup", before);
     let entries: Array = field(&created.get(0), &["entries"]).unchecked_into();
     assert_eq!(
@@ -330,9 +312,7 @@ fn a_buffer_binding_with_no_size_omits_the_size_key() {
 fn a_bind_group_is_created_inside_a_validation_error_scope() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.create_bind_group(&node("pipeline").into(), 0, &[]);
-
     let pushed: Array = args_on("device", "pushErrorScope", before);
     assert_eq!(
         pushed.get(0).as_string(),
@@ -368,12 +348,10 @@ fn a_bind_group_is_created_inside_a_validation_error_scope() {
 fn a_bind_group_layout_turns_each_entry_into_its_spec_slot() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.create_bind_group_layout(&[
         BindGroupLayoutEntry::uniform(0, ShaderStage::Vertex | ShaderStage::Fragment),
         BindGroupLayoutEntry::storage(1, ShaderStage::Compute, true),
     ]);
-
     let args: Array = args_on("device", "createBindGroupLayout", before);
     let entries: Array = field(&args.get(0), &["entries"]).unchecked_into();
     assert_eq!(entries.length(), 2, "one spec slot per layout entry");
@@ -408,9 +386,7 @@ fn a_bind_group_layout_turns_each_entry_into_its_spec_slot() {
 fn an_explicit_layout_skips_the_pipeline_derivation_entirely() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.create_bind_group_for_layout(&node("layout").into(), &[]);
-
     assert_eq!(
         count_on("pipeline", "getBindGroupLayout", before),
         0,
@@ -428,9 +404,7 @@ fn an_explicit_layout_skips_the_pipeline_derivation_entirely() {
 #[wasm_bindgen_test::wasm_bindgen_test]
 async fn reading_a_value_that_is_not_a_buffer_yields_nothing_rather_than_a_zero_length_read() {
     let subject: WebGpuRenderer = renderer(false);
-
     let bytes: Option<Vec<u8>> = subject.read_buffer(&JsValue::UNDEFINED, 0, 16).await;
-
     assert!(
         bytes.is_none(),
         "a value with no mapAsync is not a GPUBuffer; returning an empty Vec would read as \

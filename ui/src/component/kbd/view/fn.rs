@@ -20,7 +20,6 @@ pub fn euv_kbd(node: VirtualNode<EuvKbdProps>) -> VirtualNode {
             kbd {
                 "data-slot": "kbd"
                 class: base_class
-
                 text
             }
     }

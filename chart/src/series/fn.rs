@@ -525,7 +525,6 @@ pub(crate) fn draw_custom(
     let stroke: Stroke = series_stroke(series, color);
     let style: LineStyle = series_line_style(series, color);
     let axes: Option<(&AxisLayout, &AxisLayout)> = axes_of(layout, series, series_layout);
-
     for (index, point) in series_layout.points.iter().enumerate() {
         let Some(item) = series.data.get(index) else {
             continue;
@@ -716,7 +715,6 @@ pub(crate) fn draw_parallel(
         })
         .fold(0.0_f64, f64::max)
         .max(f64::EPSILON);
-
     let stroke: Stroke = series_stroke(series, color);
     let style: LineStyle = series_line_style(series, color);
     for value in &series.data {
@@ -736,7 +734,6 @@ pub(crate) fn draw_parallel(
         }
         list.stroke(builder.build(), stroke.clone(), style.clone(), 1.0, z);
     }
-
     // The axes themselves.
     for index in 0..dimensions {
         let x: f64 = plot.min_x + index as f64 * axis_width + axis_width * 0.5;
@@ -797,7 +794,6 @@ pub(crate) fn draw_lines(
     if coordinates.is_empty() {
         return;
     }
-
     let extent: (f64, f64) = coordinates
         .iter()
         .flatten()
@@ -896,7 +892,6 @@ pub(crate) fn draw_pictorial_bar(
         .and_then(|value: &String| parse_percent(value))
         .map(|value: f64| value * 100.0)
         .unwrap_or(20.0);
-
     for point in &layout.points {
         let height: f64 = (baseline - point.y).abs();
         let count: usize = ((height / size).ceil() as usize).max(1);
@@ -934,7 +929,6 @@ pub(crate) fn draw_funnel(
     }
     let plot: &BBox = &layout.plot_rect;
     let funnel: Option<&FunnelOptions> = series.funnel.as_ref();
-
     let center_x: f64 = funnel
         .and_then(|funnel: &FunnelOptions| funnel.center.as_ref())
         .and_then(|center: &Vec<String>| center.first())
@@ -954,7 +948,6 @@ pub(crate) fn draw_funnel(
     let gap: f64 = funnel
         .and_then(|funnel: &FunnelOptions| funnel.gap)
         .unwrap_or(0.2);
-
     let maximum: f64 = values
         .iter()
         .map(|value: &f64| value.abs())
@@ -962,7 +955,6 @@ pub(crate) fn draw_funnel(
         .max(f64::EPSILON);
     let stage_height: f64 = (total_height / values.len() as f64) * (1.0 - gap);
     let top: f64 = plot.min_y + (plot.height() - total_height) * 0.5;
-
     let fill: Fill = series_fill(series, color);
     for (index, value) in values.iter().enumerate() {
         let ratio: f64 = (value.abs() / maximum).clamp(0.0, 1.0);
@@ -1026,7 +1018,6 @@ pub(crate) fn draw_gauge(
         .and_then(parse_percent)
         .map(|value: f64| value * maximum)
         .unwrap_or(0.75 * maximum);
-
     let start_angle: f64 = gauge
         .and_then(|gauge: &GaugeOptions| gauge.start_angle)
         .unwrap_or(225.0)
@@ -1050,7 +1041,6 @@ pub(crate) fn draw_gauge(
     let ratio: f64 = ((value - minimum) / extent).clamp(0.0, 1.0);
     let sweep: f64 = end_angle - start_angle;
     let value_angle: f64 = start_angle + sweep * ratio;
-
     // The scale.
     let scale_path: Path = arc_path(
         center_x,
@@ -1070,7 +1060,6 @@ pub(crate) fn draw_gauge(
         1.0,
         z,
     );
-
     // The progress.
     let progress: Path = arc_path(
         center_x,
@@ -1090,7 +1079,6 @@ pub(crate) fn draw_gauge(
         1.0,
         z + 1,
     );
-
     // The pointer.
     let pointer_length: f64 = radius * 0.6;
     let pointer: Path = Path::builder()
@@ -1110,13 +1098,11 @@ pub(crate) fn draw_gauge(
         1.0,
         z + 2,
     );
-
     // The hub.
     let hub: Path = Path::builder()
         .ellipse(center_x as f32, center_y as f32, 4.0, 4.0)
         .build();
     list.fill(hub, Fill::Solid(color), 1.0, z + 3);
-
     // The value.
     let mut style: TextStyle = TextStyle::new();
     style.size = 16.0;
@@ -1305,7 +1291,6 @@ pub(crate) fn draw_graph(
     let plot: &BBox = &layout.plot_rect;
     let radius: f64 = plot.width().min(plot.height()) * 0.35;
     place_graph_nodes(&mut nodes, plot, radius);
-
     let links: Vec<GraphLink> = graph_links(series);
     let stroke: Stroke = series_stroke(series, color);
     let style: LineStyle = series_line_style(series, color);
@@ -1332,7 +1317,6 @@ pub(crate) fn draw_graph(
         };
         list.stroke(path, stroke.clone(), style.clone(), weight, z);
     }
-
     let fill: Fill = series_fill(series, color);
     for node in &nodes {
         let path: Path = symbol_path(SymbolType::Circle, node.x, node.y, node.size);
@@ -1371,19 +1355,16 @@ pub(crate) fn draw_map(
     let Some(geo) = layout.geo(&name) else {
         return;
     };
-
     // The values of the regions, by name. A data item names the region
     // it belongs to, the way a map series names it in ECharts.
     let mut values: HashMap<&str, f64> = HashMap::new();
     for point in &series_layout.points {
         values.insert(point.name.as_str(), point.value);
     }
-
     let visual: VisualMap = resolve_visual_map(option, series_layout.index, &values);
     let fallback: Fill = series_fill(series, color);
     let stroke: Stroke = series_stroke(series, color);
     let style: LineStyle = series_line_style(series, color);
-
     for region in &geo.regions {
         let paint: Fill = match values.get(region.name.as_str()) {
             Some(value) => Fill::Solid(visual.color_of(*value)),
@@ -1400,7 +1381,6 @@ pub(crate) fn draw_map(
             );
         }
     }
-
     draw_region_labels(list, series, series_layout, geo, z + 2);
 }
 
@@ -1591,7 +1571,6 @@ pub(crate) fn draw_radar(
         .map(|split: usize| split as f64)
         .unwrap_or(1.0)
         .max(1.0);
-
     // The web: the rings and the spokes.
     for ring in 1..=maximum as usize {
         let ratio: f64 = ring as f64 / maximum;
@@ -1637,7 +1616,6 @@ pub(crate) fn draw_radar(
             z - 1,
         );
     }
-
     // The series themselves.
     let values: Vec<f64> = series_values(series);
     if values.is_empty() {
@@ -1648,7 +1626,6 @@ pub(crate) fn draw_radar(
         .map(|value: &f64| value.abs())
         .fold(0.0_f64, f64::max)
         .max(f64::EPSILON);
-
     let mut builder: PathBuilder = Path::builder();
     for (index, value) in values.iter().enumerate() {
         let (x, y) = geometry.point(index, (value / extent).clamp(0.0, 1.0));
@@ -1854,7 +1831,6 @@ pub(crate) fn draw_sankey(
     let links: Vec<SankeyLink> = sankey_links(series);
     let plot: &BBox = &layout.plot_rect;
     place_sankey_nodes(&mut nodes, &links, plot);
-
     let column_count: usize = nodes
         .iter()
         .map(|node: &SankeyNode| node.column)
@@ -1868,11 +1844,9 @@ pub(crate) fn draw_sankey(
         .and_then(|sankey: &SankeyOptions| sankey.node_width)
         .unwrap_or(16.0)
         .min(column_width * 0.5);
-
     let fill: Fill = series_fill(series, color);
     let stroke: Stroke = series_stroke(series, color);
     let style: LineStyle = series_line_style(series, color);
-
     // The links are drawn as ribbons: a quadrilateral between the two
     // ends of the link.
     for link in &links {
@@ -1900,7 +1874,6 @@ pub(crate) fn draw_sankey(
             .build();
         list.fill(path, fill.clone(), 0.6, z);
     }
-
     for node in &nodes {
         let x: f64 = plot.min_x + node.column as f64 * column_width;
         let path: Path = Path::builder()
@@ -2017,7 +1990,6 @@ pub(crate) fn draw_sunburst(
         .and_then(|sunburst: &SunburstOptions| sunburst.start_angle)
         .unwrap_or(90.0)
         .to_radians();
-
     let mut sectors: Vec<SunburstSector> = Vec::new();
     flatten_sectors(
         series,
@@ -2037,7 +2009,6 @@ pub(crate) fn draw_sunburst(
         + 1;
     let ring: f64 = maximum / depth as f64;
     let fill: Fill = series_fill(series, color);
-
     for sector in &sectors {
         let inner: f64 = ring * sector.depth as f64;
         let outer: f64 = inner + ring;
@@ -2050,7 +2021,6 @@ pub(crate) fn draw_sunburst(
             sector.end_angle,
         );
         list.fill(path, fill.clone(), 1.0, z + sector.depth as i32);
-
         // The label sits in the middle of the sector's arc, and is left
         // out when the sector is too narrow to hold it.
         let middle: f64 = (sector.start_angle + sector.end_angle) * 0.5;

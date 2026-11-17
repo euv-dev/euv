@@ -88,7 +88,6 @@ fn the_virtual_list_handlers_keep_their_arity() {
     });
     on_scroll(120);
     assert_eq!(scrolls.get(), 120);
-
     let ranges: Rc<RefCell<Vec<(usize, usize)>>> = Rc::new(RefCell::new(Vec::new()));
     let sink2: Rc<RefCell<Vec<(usize, usize)>>> = ranges.clone();
     let on_range: VirtualListRangeHandler = Rc::new(move |span: (usize, usize)| {

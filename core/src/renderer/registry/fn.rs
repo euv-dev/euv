@@ -134,7 +134,7 @@ pub(crate) fn euv_event_collect_id_chain(event: &JsValue, max_depth: usize) -> F
     if let Some(walker) = event_id_chain_fn()
         && let Some(global_value) = global_this()
         && let Ok(result) = walker.call2(&global_value, event, &JsValue::from_f64(max_depth as f64))
-        && let Some(array) = result.dyn_ref::<js_sys::Array>()
+        && let Some(array) = result.dyn_ref::<Array>()
     {
         let length: u32 = array.length();
         if length > 0 {

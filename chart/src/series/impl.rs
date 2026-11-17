@@ -167,7 +167,6 @@ impl SeriesRenderer {
             .iter()
             .map(|point: &SeriesPoint| Point::new(point.x as f32, point.y as f32))
             .collect();
-
         // The area fill comes first: it sits under the line.
         if let Some(line_options) = &series.line
             && let Some(area_style) = &line_options.area_style
@@ -183,7 +182,6 @@ impl SeriesRenderer {
             let baseline: f64 = baseline_of(&layout.points);
             list.strip(points.clone(), baseline as f32, fill, 1.0, z);
         }
-
         let path: Path = match series
             .line
             .as_ref()
@@ -196,7 +194,6 @@ impl SeriesRenderer {
         let stroke: Stroke = series_stroke(series, color);
         let style: LineStyle = series_line_style(series, color);
         list.stroke(path, stroke, style, 1.0, z + 1);
-
         // The symbols.
         let show_symbol: bool = series
             .line
@@ -237,7 +234,6 @@ impl SeriesRenderer {
                 list.fill(path, fill.clone(), 1.0, z + 2);
             }
         }
-
         self.draw_labels(list, series, layout, color, z + 3);
     }
 
@@ -273,7 +269,6 @@ impl SeriesRenderer {
             .as_deref()
             .and_then(Color::parse)
             .unwrap_or(color);
-
         let bar_options: BarOptions = series.bar.clone().unwrap_or_default();
         let horizontal: bool = bar_options.horizontal;
         let category_gap: f64 = bar_options
@@ -286,7 +281,6 @@ impl SeriesRenderer {
             .as_deref()
             .and_then(parse_percent)
             .unwrap_or(DEFAULT_BAR_GAP);
-
         // The width of one bar: the band, minus the gaps.
         let group_size: f64 = layout.stack_size.max(1) as f64;
         let available: f64 = (layout.band_width * (1.0 - category_gap)).max(1.0);
@@ -297,10 +291,8 @@ impl SeriesRenderer {
         let clamped: f64 = bar_options.bar_max_width.unwrap_or(f64::INFINITY);
         let minimum: f64 = bar_options.bar_min_width.unwrap_or(0.0);
         let bar_width: f64 = bar_width.clamp(minimum, clamped);
-
         // The baseline the bars grow from.
         let baseline: f64 = baseline_of(&layout.points);
-
         for (index, point) in layout.points.iter().enumerate() {
             let offset: f64 = (index % group_size as usize) as f64
                 * (bar_width / (1.0 - group_gap).max(f64::EPSILON));
@@ -486,7 +478,6 @@ impl SeriesRenderer {
             .and_then(|candle: &CandlestickOptions| candle.bar_width)
             .unwrap_or(DEFAULT_BAR_WIDTH * 0.5);
         let baseline: f64 = baseline_of(&layout.points);
-
         for point in &layout.points {
             let body: f64 = series
                 .candlestick

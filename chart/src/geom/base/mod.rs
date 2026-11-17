@@ -7,3 +7,5 @@ mod r#struct;
 pub use {r#enum::*, r#struct::*};
 
 pub(crate) use {r#const::*, r#fn::*};
+
+use super::*;

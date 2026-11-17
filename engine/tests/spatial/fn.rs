@@ -775,9 +775,7 @@ fn boxes_overlap_is_false_for_disjoint_and_merely_adjacent_faces() {
 fn a_fresh_quadtree_reports_the_box_it_was_bounded_by() {
     let tree: QuadTree2D =
         QuadTree2D::create(Vector2D::new(-10.0, -10.0), Vector2D::new(10.0, 10.0), 4, 8);
-
     let (min, max): (Vector2D, Vector2D) = tree.bounds();
-
     assert_eq!(
         (min.get_x(), min.get_y()),
         (-10.0, -10.0),
@@ -1029,9 +1027,7 @@ fn two_quad_tree_nodes_with_the_same_fields_compare_equal() {
 fn a_quadtree_built_from_swapped_corners_still_reports_min_before_max() {
     let tree: QuadTree2D =
         QuadTree2D::create(Vector2D::new(10.0, 10.0), Vector2D::new(-10.0, -10.0), 4, 8);
-
     let (min, max): (Vector2D, Vector2D) = tree.bounds();
-
     assert!(
         min.get_x() < max.get_x() && min.get_y() < max.get_y(),
         "the two corners are ordered on construction, so a caller that passed them the wrong \

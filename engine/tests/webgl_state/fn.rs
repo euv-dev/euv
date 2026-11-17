@@ -105,9 +105,7 @@ fn state_with(depth_state: GlDepthState, scissor: Option<GlScissor>, mask: u32) 
 fn applying_the_state_a_fresh_backend_already_holds_issues_nothing() {
     let (mut subject, log): (WebGl2Backend, Object) = backend();
     let before: u32 = log_len(&log);
-
     subject.apply_state(&GlRenderState::context_defaults(800, 600));
-
     assert_eq!(
         ops_after(&log, before),
         Vec::<String>::new(),
@@ -125,9 +123,7 @@ fn applying_the_state_a_fresh_backend_already_holds_issues_nothing() {
 fn turning_depth_testing_on_toggles_the_capability_and_the_compare_function() {
     let (mut subject, log): (WebGl2Backend, Object) = backend();
     let before: u32 = log_len(&log);
-
     subject.apply_state(&state_with(depth(true, true), None, 0xf));
-
     assert_eq!(
         count_after(&log, "enable", before),
         1,
@@ -149,9 +145,7 @@ fn turning_depth_testing_on_toggles_the_capability_and_the_compare_function() {
 fn a_write_mask_change_alone_issues_only_the_colour_mask() {
     let (mut subject, log): (WebGl2Backend, Object) = backend();
     let before: u32 = log_len(&log);
-
     subject.apply_state(&state_with(depth(false, true), None, 0x3));
-
     assert_eq!(
         count_after(&log, "colorMask", before),
         1,
@@ -178,13 +172,11 @@ fn a_write_mask_change_alone_issues_only_the_colour_mask() {
 fn switching_scissor_on_enables_the_capability_and_sets_the_rectangle() {
     let (mut subject, log): (WebGl2Backend, Object) = backend();
     let before: u32 = log_len(&log);
-
     subject.apply_state(&state_with(
         depth(false, true),
         Some(GlScissor::new(10, 20, 100, 50)),
         0xf,
     ));
-
     assert_eq!(
         count_after(&log, "enable", before),
         1,
@@ -206,13 +198,11 @@ fn switching_scissor_on_enables_the_capability_and_sets_the_rectangle() {
 fn a_zero_sized_scissor_still_enables_the_capability_because_it_clips_everything() {
     let (mut subject, log): (WebGl2Backend, Object) = backend();
     let before: u32 = log_len(&log);
-
     subject.apply_state(&state_with(
         depth(false, true),
         Some(GlScissor::new(0, 0, 0, 0)),
         0xf,
     ));
-
     assert_eq!(
         count_after(&log, "enable", before),
         1,

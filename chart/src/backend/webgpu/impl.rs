@@ -231,7 +231,7 @@ impl WebGpuChartBackend {
             "powerPreference",
             &JsValue::from_str(WEBGPU_POWER_PREFERENCE),
         )]);
-        let promise: js_sys::Promise = method.call1(gpu, &options).ok()?.unchecked_into();
+        let promise: Promise = method.call1(gpu, &options).ok()?.unchecked_into();
         let adapter: JsValue = JsFuture::from(promise).await.ok()?;
         if adapter.is_undefined() || adapter.is_null() {
             return None;
@@ -250,7 +250,7 @@ impl WebGpuChartBackend {
     /// - `Option<JsValue>` - `Some(...)` on success, `None` otherwise.
     async fn request_device(adapter: &JsValue) -> Option<JsValue> {
         let method: Function = gpu_method(adapter, WEBGPU_METHOD_REQUEST_DEVICE)?;
-        let promise: js_sys::Promise = method.call0(adapter).ok()?.unchecked_into();
+        let promise: Promise = method.call0(adapter).ok()?.unchecked_into();
         let device: JsValue = JsFuture::from(promise).await.ok()?;
         if device.is_undefined() || device.is_null() {
             return None;

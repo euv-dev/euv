@@ -11,7 +11,6 @@ fn installing_the_console_and_logging_through_it_is_safe() {
     Console::log("hello from the engine");
     Console::warn("a slow frame");
     Console::clear();
-
     assert_eq!(
         ConsoleEntry::new(LogLevel::Warn, String::from("x")).level,
         LogLevel::Warn,
@@ -30,7 +29,6 @@ fn installing_the_console_twice_does_not_trip_over_its_own_state() {
     Console::init();
     let second: bool = catch_unwind(Console::init).is_ok();
     Console::clear();
-
     assert!(
         second,
         "a page that mounts the engine twice calls init twice; a cell that panics on the second \\
@@ -46,10 +44,8 @@ fn installing_the_console_twice_does_not_trip_over_its_own_state() {
 )]
 fn logging_before_any_install_is_still_harmless() {
     Console::log("no console installed yet");
-
     Console::init();
     Console::clear();
-
     assert_eq!(
         LogLevel::Log,
         LogLevel::Log,

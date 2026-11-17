@@ -61,9 +61,9 @@ pub(crate) fn gpu_get(target: &JsValue, key: &str) -> Option<JsValue> {
 ///
 /// # Returns
 ///
-/// - `Option<js_sys::Function>` - `Some(...)` on success, `None` otherwise.
-pub(crate) fn gpu_method(target: &JsValue, key: &str) -> Option<js_sys::Function> {
-    gpu_get(target, key).and_then(|value: JsValue| value.dyn_into::<js_sys::Function>().ok())
+/// - `Option<Function>` - `Some(...)` on success, `None` otherwise.
+pub(crate) fn gpu_method(target: &JsValue, key: &str) -> Option<Function> {
+    gpu_get(target, key).and_then(|value: JsValue| value.dyn_into::<Function>().ok())
 }
 
 /// Writes a property into a JavaScript object.

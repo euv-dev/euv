@@ -39,7 +39,7 @@ pub(crate) fn parse_class_prop_key(input: ParseStream) -> syn::Result<ClassPropK
     } else {
         let mut tokens: proc_macro2::TokenStream = proc_macro2::TokenStream::new();
         while !input.peek(Token![:]) && !input.is_empty() {
-            let token: proc_macro2::TokenTree = input.parse()?;
+            let token: TokenTree = input.parse()?;
             tokens.extend(Some(token));
         }
         Ok(ClassPropKey::Static(tokens))
@@ -116,21 +116,20 @@ pub(crate) fn expand_var_macros(expr: &Expr) -> proc_macro2::TokenStream {
 pub(crate) fn expand_var_macros_in_tokens(
     tokens: &proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
-    let mut result: Vec<proc_macro2::TokenTree> = Vec::new();
-    let mut iter: Peekable<proc_macro2::token_stream::IntoIter> =
-        tokens.clone().into_iter().peekable();
+    let mut result: Vec<TokenTree> = Vec::new();
+    let mut iter: Peekable<IntoIter> = tokens.clone().into_iter().peekable();
     while let Some(token) = iter.next() {
         match &token {
             proc_macro2::TokenTree::Ident(ident)
                 if *ident == VAR
                     && iter.peek().is_some_and(
-                        |token: &proc_macro2::TokenTree| matches!(token, proc_macro2::TokenTree::Punct(punct) if punct.as_char() == '!'),
+                        |token: &TokenTree| matches!(token, proc_macro2::TokenTree::Punct(punct) if punct.as_char() == '!'),
                     ) =>
             {
                 iter.next();
                 if iter
                     .peek()
-                    .is_some_and(|token: &proc_macro2::TokenTree| matches!(token, proc_macro2::TokenTree::Group(_)))
+                    .is_some_and(|token: &TokenTree| matches!(token, proc_macro2::TokenTree::Group(_)))
                 {
                     if let Some(proc_macro2::TokenTree::Group(group)) = iter.next() {
                         let inner: proc_macro2::TokenStream = group.stream();
@@ -150,7 +149,7 @@ pub(crate) fn expand_var_macros_in_tokens(
             proc_macro2::TokenTree::Group(group) => {
                 let expanded_inner: proc_macro2::TokenStream =
                     expand_var_macros_in_tokens(&group.stream());
-                let new_group: proc_macro2::Group =
+                let new_group: Group =
                     proc_macro2::Group::new(group.delimiter(), expanded_inner);
                 result.push(proc_macro2::TokenTree::Group(new_group));
             }
@@ -498,7 +497,7 @@ pub(crate) fn is_element_selector_block(input: ParseStream) -> bool {
             return false;
         }
         if forked.peek(Token![:]) && !forked.peek2(Token![:]) {
-            let _: Result<Token![:], syn::Error> = forked.parse::<Token![:]>();
+            let _: Result<Token![:], Error> = forked.parse::<Token![:]>();
             if forked.peek(Brace) {
                 return false;
             }
@@ -506,14 +505,14 @@ pub(crate) fn is_element_selector_block(input: ParseStream) -> bool {
                 if forked.peek(Semi) || forked.peek(Brace) {
                     break;
                 }
-                let _: Result<TokenTree, syn::Error> = forked.parse::<TokenTree>();
+                let _: Result<TokenTree, Error> = forked.parse::<TokenTree>();
             }
             if forked.peek(Brace) {
                 return true;
             }
             return false;
         }
-        let _: Result<TokenTree, syn::Error> = forked.parse::<TokenTree>();
+        let _: Result<TokenTree, Error> = forked.parse::<TokenTree>();
     }
     false
 }
@@ -708,12 +707,12 @@ pub(crate) fn peek_at_rule(input: ParseStream) -> bool {
         return false;
     }
     let forked: ParseBuffer<'_> = input.fork();
-    let _: Result<Token![@], syn::Error> = forked.parse::<Token![@]>();
+    let _: Result<Token![@], Error> = forked.parse::<Token![@]>();
     if let Ok(ident) = forked.parse::<Ident>() {
         let ident_str: String = ident.to_string();
         return lookup_at_rule_kind(&ident_str).is_some();
     }
-    if let Ok(token_tree) = forked.parse::<proc_macro2::TokenTree>()
+    if let Ok(token_tree) = forked.parse::<TokenTree>()
         && let proc_macro2::TokenTree::Ident(ident) = token_tree
     {
         let raw_name: String = ident.to_string();

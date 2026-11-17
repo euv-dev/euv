@@ -118,11 +118,9 @@ fn accordion_section(
     };
     let trigger_class: &Css = c_euv_accordion_trigger();
     let trigger_open_class: &Css = c_euv_accordion_trigger_open();
-
     let content_class: &Css = c_euv_accordion_content();
     let content_open_class: &Css = c_euv_accordion_content_open();
     let content_closed_class: &Css = c_euv_accordion_content_closed();
-
     html! {
         div {
             key: value
@@ -147,7 +145,6 @@ fn accordion_section(
                     } else {
                         trigger_class
                     }
-
                     "data-slot": "accordion-trigger"
                     "aria-expanded": if {
                         open_values.get().iter().any(|entry: &String| entry == value)
@@ -189,7 +186,6 @@ fn accordion_section(
                 } else {
                     content_closed_class
                 }
-
                 "data-slot": "accordion-content"
                 "data-state": if { open_values.get().iter().any(|entry: &String| entry == value) } {
                     "open"

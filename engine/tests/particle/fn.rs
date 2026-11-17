@@ -613,9 +613,7 @@ fn rendering_a_burst_draws_one_circle_per_live_particle() {
     let mut emitter: ParticleEmitter = ParticleEmitter::with_defaults(Vector2D::new(0.0, 0.0));
     emitter.burst(5);
     let mut list: DrawList = DrawList::create();
-
     emitter.render(&mut list);
-
     assert_eq!(
         circles(&list),
         5,
@@ -660,10 +658,8 @@ fn a_particle_that_has_run_out_of_life_is_dropped_from_the_frame() {
     let mut emitter: ParticleEmitter = ParticleEmitter::with_defaults(Vector2D::new(0.0, 0.0));
     emitter.burst(1);
     let mut list: DrawList = DrawList::create();
-
     emitter.update(1_000.0);
     emitter.render(&mut list);
-
     assert_eq!(
         circles(&list),
         0,
@@ -676,9 +672,7 @@ fn a_particle_that_has_run_out_of_life_is_dropped_from_the_frame() {
 fn rendering_an_emitter_with_nothing_alive_touches_nothing() {
     let emitter: ParticleEmitter = ParticleEmitter::with_defaults(Vector2D::new(0.0, 0.0));
     let mut list: DrawList = DrawList::create();
-
     emitter.render(&mut list);
-
     assert_eq!(
         list.len(),
         0,

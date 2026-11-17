@@ -552,7 +552,7 @@ fn focus_dropdown_panel_trigger(content: &Element) {
 fn dropdown_is_rtl(target: &Element) -> bool {
     window()
         .and_then(|window: Window| window.get_computed_style(target).ok().flatten())
-        .and_then(|style: web_sys::CssStyleDeclaration| {
+        .and_then(|style: CssStyleDeclaration| {
             style.get_property_value(DROPDOWN_DIRECTION_PROPERTY).ok()
         })
         .is_some_and(|direction: String| direction == DROPDOWN_RTL)
@@ -1492,11 +1492,11 @@ fn dropdown_content_for_root(root: &Element, open: Signal<bool>) -> Option<Eleme
 /// - `&HtmlElement` - The enabled row.
 /// - `&Element` - Its scrollable popup.
 fn focus_dropdown_item(item: &HtmlElement, content: &Element) {
-    let options: web_sys::FocusOptions = web_sys::FocusOptions::new();
+    let options: FocusOptions = web_sys::FocusOptions::new();
     options.set_prevent_scroll(true);
     let _: Result<(), JsValue> = item.focus_with_options(&options);
-    let row: web_sys::DomRect = item.get_bounding_client_rect();
-    let panel: web_sys::DomRect = content.get_bounding_client_rect();
+    let row: DomRect = item.get_bounding_client_rect();
+    let panel: DomRect = content.get_bounding_client_rect();
     let top: f64 = panel.top() + f64::from(content.client_top());
     let bottom: f64 = top + f64::from(content.client_height());
     let delta: f64 = if row.top() < top {
@@ -1756,7 +1756,7 @@ fn position_dropdown_popup(panel: &Element) {
     );
     let width: f64 = (viewport.0 - 2.0 * DROPDOWN_VIEWPORT_PADDING).max(0.0);
     let scroll_top: i32 = panel.scroll_top();
-    let style: web_sys::CssStyleDeclaration = element.style();
+    let style: CssStyleDeclaration = element.style();
     for (name, value) in DROPDOWN_MEASURE_STYLES {
         let _: Result<(), JsValue> = style.set_property(name, value);
     }
@@ -1765,7 +1765,7 @@ fn position_dropdown_popup(panel: &Element) {
     let policy: DropdownGeometryPolicy = dropdown_geometry_policy(c_euv_dropdown_menu());
     let submenu: bool =
         panel.get_attribute(DROPDOWN_SLOT_ATTRIBUTE).as_deref() == Some(DROPDOWN_SUB_CONTENT_SLOT);
-    let horizontal_anchor: web_sys::DomRect = if policy.get_anchor_trigger() {
+    let horizontal_anchor: DomRect = if policy.get_anchor_trigger() {
         trigger.get_bounding_client_rect()
     } else {
         root.get_bounding_client_rect()
@@ -1789,12 +1789,11 @@ fn position_dropdown_popup(panel: &Element) {
         let _: Result<(), JsValue> =
             style.set_property(DROPDOWN_WIDTH_PROPERTY, DROPDOWN_MAX_CONTENT);
     }
-    let anchor: web_sys::DomRect = trigger.get_bounding_client_rect();
-    let initial_rect: web_sys::DomRect = panel.get_bounding_client_rect();
+    let anchor: DomRect = trigger.get_bounding_client_rect();
+    let initial_rect: DomRect = panel.get_bounding_client_rect();
     // A transformed app root establishes the fixed containing block. Measure its
     // scale against fractional CSS dimensions, not integer-rounded offset sizes.
-    let computed: Option<web_sys::CssStyleDeclaration> =
-        window.get_computed_style(element).ok().flatten();
+    let computed: Option<CssStyleDeclaration> = window.get_computed_style(element).ok().flatten();
     let css_length: &dyn Fn(&str) -> Option<f64> = &|property: &str| -> Option<f64> {
         computed
             .as_ref()?
@@ -1839,7 +1838,7 @@ fn position_dropdown_popup(panel: &Element) {
             &format!("min(calc(4 * {}), {css_width}px)", var!(space - 3xl)),
         );
     }
-    let rect: web_sys::DomRect = panel.get_bounding_client_rect();
+    let rect: DomRect = panel.get_bounding_client_rect();
     let gap: f64 = policy.get_gap();
     let rtl: bool = dropdown_is_rtl(&trigger);
     if submenu || !panel.has_attribute(DROPDOWN_DIR_ATTRIBUTE) {
@@ -2240,7 +2239,7 @@ fn dropdown_sub_hover_move(state: &DropdownSubHover, event: &Event) {
         .unwrap_or_default();
     let hover: bool = window()
         .and_then(|window: Window| window.match_media(DROPDOWN_HOVER_MEDIA).ok().flatten())
-        .is_some_and(|query: web_sys::MediaQueryList| query.matches());
+        .is_some_and(|query: MediaQueryList| query.matches());
     if !matches!(
         pointer.as_str(),
         DROPDOWN_POINTER_MOUSE | DROPDOWN_POINTER_PEN
@@ -2286,8 +2285,8 @@ fn dropdown_sub_hover_move(state: &DropdownSubHover, event: &Event) {
                 .owner_document()
                 .and_then(|document: Document| document.get_element_by_id(&panel_id))
                 .is_some_and(|panel: Element| {
-                    let row: web_sys::DomRect = trigger.get_bounding_client_rect();
-                    let rect: web_sys::DomRect = panel.get_bounding_client_rect();
+                    let row: DomRect = trigger.get_bounding_client_rect();
+                    let rect: DomRect = panel.get_bounding_client_rect();
                     dropdown_hover_bridge(
                         point,
                         exit,

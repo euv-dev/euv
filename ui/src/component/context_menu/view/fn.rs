@@ -4,11 +4,11 @@ use super::*;
 ///
 /// # Arguments
 ///
-/// - `&web_sys::Element` - Shared reference to a `web_sys::Element`.
+/// - `&Element` - Shared reference to a `web_sys::Element`.
 /// - `Signal<bool>` - A `Signal<bool>` parameter.
 /// - `i32` - A 32-bit signed integer (`i32`).
 /// - `i32` - A 32-bit signed integer (`i32`).
-fn open_context_menu_at(trigger: &web_sys::Element, open: Signal<bool>, x: i32, y: i32) {
+fn open_context_menu_at(trigger: &Element, open: Signal<bool>, x: i32, y: i32) {
     set_context_menu_position(trigger, f64::from(x), f64::from(y));
     open.set(true);
     focus_context_menu_content_on_next_frame(trigger);
@@ -28,11 +28,11 @@ fn context_menu_touch_start(
     open: Signal<bool>,
     disabled: bool,
 ) {
-    let Some(touch_event) = event.dyn_ref::<web_sys::TouchEvent>() else {
+    let Some(touch_event) = event.dyn_ref::<TouchEvent>() else {
         return;
     };
-    let touches: web_sys::TouchList = touch_event.touches();
-    let touch: Option<web_sys::Touch> = touches.item(0);
+    let touches: TouchList = touch_event.touches();
+    let touch: Option<Touch> = touches.item(0);
     state.borrow_mut().cancel();
     let Some(touch) = touch else {
         return;
@@ -72,7 +72,7 @@ fn context_menu_touch_start(
                 open_context_menu_at(&trigger, open, x, y);
             }
         });
-        let timer: Result<i32, wasm_bindgen::JsValue> = window
+        let timer: Result<i32, JsValue> = window
             .set_timeout_with_callback_and_timeout_and_arguments_0(
                 callback.as_ref().unchecked_ref(),
                 CONTEXT_MENU_LONG_PRESS_MS,
@@ -129,15 +129,15 @@ pub(crate) fn context_menu_next_index(
 ///
 /// # Arguments
 ///
-/// - `&web_sys::Element` - The popup whose inherited direction is used.
+/// - `&Element` - The popup whose inherited direction is used.
 ///
 /// # Returns
 ///
 /// - `bool` - Whether the popup's computed direction is right-to-left.
-fn context_menu_is_rtl(popup: &web_sys::Element) -> bool {
+fn context_menu_is_rtl(popup: &Element) -> bool {
     web_sys::window()
-        .and_then(|window: web_sys::Window| window.get_computed_style(popup).ok().flatten())
-        .and_then(|style: web_sys::CssStyleDeclaration| {
+        .and_then(|window: Window| window.get_computed_style(popup).ok().flatten())
+        .and_then(|style: CssStyleDeclaration| {
             style
                 .get_property_value(CONTEXT_MENU_DIRECTION_PROPERTY)
                 .ok()
@@ -203,40 +203,39 @@ pub(crate) fn context_menu_sub_position(
 ///
 /// # Arguments
 ///
-/// - `&web_sys::Element` - A descendant submenu whose fixed position must use the viewport.
+/// - `&Element` - A descendant submenu whose fixed position must use the viewport.
 /// - `(f64, f64)` - The viewport width and height.
 #[cfg(target_arch = "wasm32")]
-fn freeze_context_menu_root_position(panel: &web_sys::Element, viewport: (f64, f64)) {
+fn freeze_context_menu_root_position(panel: &Element, viewport: (f64, f64)) {
     let Some(root) = panel.closest(CONTEXT_MENU_CONTENT_SELECTOR).ok().flatten() else {
         return;
     };
-    let Some(element) = root.dyn_ref::<web_sys::HtmlElement>() else {
+    let Some(element) = root.dyn_ref::<HtmlElement>() else {
         return;
     };
-    let rect: web_sys::DomRect = root.get_bounding_client_rect();
+    let rect: DomRect = root.get_bounding_client_rect();
     let left: f64 = rect.left().clamp(0.0, (viewport.0 - rect.width()).max(0.0));
     let top: f64 = rect.top().clamp(0.0, (viewport.1 - rect.height()).max(0.0));
-    let style: web_sys::CssStyleDeclaration = element.style();
-    let _: Result<(), wasm_bindgen::JsValue> =
+    let style: CssStyleDeclaration = element.style();
+    let _: Result<(), JsValue> =
         style.set_property(CONTEXT_MENU_TRANSFORM_PROPERTY, CONTEXT_MENU_NO_TRANSFORM);
-    let _: Result<(), wasm_bindgen::JsValue> =
+    let _: Result<(), JsValue> =
         style.set_property(CONTEXT_MENU_LEFT_PROPERTY, &format!("{left}px"));
-    let _: Result<(), wasm_bindgen::JsValue> =
-        style.set_property(CONTEXT_MENU_TOP_PROPERTY, &format!("{top}px"));
+    let _: Result<(), JsValue> = style.set_property(CONTEXT_MENU_TOP_PROPERTY, &format!("{top}px"));
 }
 
 /// Measures the mounted panel after rendering, like the Select positioning path.
 ///
 /// # Arguments
 ///
-/// - `NodeRef<web_sys::Element>` - The mounted submenu panel reference.
+/// - `NodeRef<Element>` - The mounted submenu panel reference.
 /// - `Signal<bool>` - The submenu open state, checked again in the scheduled frame.
 #[cfg(target_arch = "wasm32")]
-fn schedule_context_menu_sub_position(target: NodeRef<web_sys::Element>, open: Signal<bool>) {
+fn schedule_context_menu_sub_position(target: NodeRef<Element>, open: Signal<bool>) {
     let Some(window) = web_sys::window() else {
         return;
     };
-    let callback: js_sys::Function = Closure::once_into_js(move || {
+    let callback: Function = Closure::once_into_js(move || {
         if !open.get() {
             return;
         }
@@ -259,57 +258,57 @@ fn schedule_context_menu_sub_position(target: NodeRef<web_sys::Element>, open: S
         let Some(window) = web_sys::window() else {
             return;
         };
-        let Some(element) = panel.dyn_ref::<web_sys::HtmlElement>() else {
+        let Some(element) = panel.dyn_ref::<HtmlElement>() else {
             return;
         };
-        let style: web_sys::CssStyleDeclaration = element.style();
+        let style: CssStyleDeclaration = element.style();
         for (property, value) in CONTEXT_MENU_SUB_POSITION_STYLES {
-            let _: Result<(), wasm_bindgen::JsValue> = style.set_property(property, value);
+            let _: Result<(), JsValue> = style.set_property(property, value);
         }
         let width: f64 = window
             .inner_width()
             .ok()
-            .and_then(|value: wasm_bindgen::JsValue| value.as_f64())
+            .and_then(|value: JsValue| value.as_f64())
             .unwrap_or_default();
         let height: f64 = window
             .inner_height()
             .ok()
-            .and_then(|value: wasm_bindgen::JsValue| value.as_f64())
+            .and_then(|value: JsValue| value.as_f64())
             .unwrap_or_default();
         freeze_context_menu_root_position(&panel, (width, height));
-        let anchor: web_sys::DomRect = trigger.get_bounding_client_rect();
-        let rect: web_sys::DomRect = panel.get_bounding_client_rect();
+        let anchor: DomRect = trigger.get_bounding_client_rect();
+        let rect: DomRect = panel.get_bounding_client_rect();
         let (left, top): (f64, f64) = context_menu_sub_position(
             (anchor.left(), anchor.right(), anchor.top()),
             (rect.width(), rect.height()),
             (width, height),
             context_menu_is_rtl(&panel),
         );
-        let _: Result<(), wasm_bindgen::JsValue> =
+        let _: Result<(), JsValue> =
             style.set_property(CONTEXT_MENU_LEFT_PROPERTY, &format!("{left}px"));
-        let _: Result<(), wasm_bindgen::JsValue> =
+        let _: Result<(), JsValue> =
             style.set_property(CONTEXT_MENU_TOP_PROPERTY, &format!("{top}px"));
     })
     .unchecked_into();
-    let _: Result<i32, wasm_bindgen::JsValue> = window.request_animation_frame(&callback);
+    let _: Result<i32, JsValue> = window.request_animation_frame(&callback);
 }
 
 /// Clears measured coordinates when a submenu closes so reopening measures anew.
 ///
 /// # Arguments
 ///
-/// - `&NodeRef<web_sys::Element>` - Mounted submenu panel reference.
+/// - `&NodeRef<Element>` - Mounted submenu panel reference.
 #[cfg(target_arch = "wasm32")]
-fn reset_context_menu_sub_position(target: &NodeRef<web_sys::Element>) {
+fn reset_context_menu_sub_position(target: &NodeRef<Element>) {
     if let Some(panel) = target.get_cloned()
-        && let Some(element) = panel.dyn_ref::<web_sys::HtmlElement>()
+        && let Some(element) = panel.dyn_ref::<HtmlElement>()
     {
-        let style: web_sys::CssStyleDeclaration = element.style();
+        let style: CssStyleDeclaration = element.style();
         for (property, _) in CONTEXT_MENU_SUB_POSITION_STYLES {
-            let _: Result<String, wasm_bindgen::JsValue> = style.remove_property(property);
+            let _: Result<String, JsValue> = style.remove_property(property);
         }
         for property in [CONTEXT_MENU_LEFT_PROPERTY, CONTEXT_MENU_TOP_PROPERTY] {
-            let _: Result<String, wasm_bindgen::JsValue> = style.remove_property(property);
+            let _: Result<String, JsValue> = style.remove_property(property);
         }
     }
 }
@@ -325,7 +324,7 @@ fn context_menu_keydown(event: &Event, open: Signal<bool>, submenu: bool) {
     if !open.get() {
         return;
     }
-    let Some(keyboard) = event.dyn_ref::<web_sys::KeyboardEvent>() else {
+    let Some(keyboard) = event.dyn_ref::<KeyboardEvent>() else {
         return;
     };
     if keyboard.is_composing() || keyboard.ctrl_key() || keyboard.alt_key() || keyboard.meta_key() {
@@ -349,9 +348,9 @@ fn context_menu_keydown(event: &Event, open: Signal<bool>, submenu: bool) {
                     .query_selector(CONTEXT_MENU_SUB_TRIGGER_SELECTOR)
                     .ok()
                     .flatten()
-                && let Some(element) = trigger.dyn_ref::<web_sys::HtmlElement>()
+                && let Some(element) = trigger.dyn_ref::<HtmlElement>()
             {
-                let _: Result<(), wasm_bindgen::JsValue> = element.focus();
+                let _: Result<(), JsValue> = element.focus();
             }
         } else {
             focus_context_menu_trigger(event);
@@ -361,12 +360,12 @@ fn context_menu_keydown(event: &Event, open: Signal<bool>, submenu: bool) {
     let Ok(nodes) = popup.query_selector_all(CONTEXT_MENU_ITEM_SELECTOR) else {
         return;
     };
-    let mut rows: Vec<web_sys::Element> = Vec::new();
+    let mut rows: Vec<Element> = Vec::new();
     for index in 0..nodes.length() {
         let Some(node) = nodes.item(index) else {
             continue;
         };
-        let Some(row) = node.dyn_ref::<web_sys::Element>() else {
+        let Some(row) = node.dyn_ref::<Element>() else {
             continue;
         };
         if row
@@ -385,10 +384,10 @@ fn context_menu_keydown(event: &Event, open: Signal<bool>, submenu: bool) {
     }
     let current: Option<usize> = rows
         .iter()
-        .position(|row: &web_sys::Element| row == &target || row.contains(Some(&target)));
+        .position(|row: &Element| row == &target || row.contains(Some(&target)));
     if key == CONTEXT_MENU_ENTER_KEY || key == " " || key == forward {
         if let Some(index) = current {
-            let row: &web_sys::Element = &rows[index];
+            let row: &Element = &rows[index];
             if key != forward
                 || row
                     .matches(CONTEXT_MENU_SUB_TRIGGER_SELECTOR)
@@ -396,7 +395,7 @@ fn context_menu_keydown(event: &Event, open: Signal<bool>, submenu: bool) {
             {
                 event.prevent_default();
                 if !keyboard.repeat()
-                    && let Some(element) = row.dyn_ref::<web_sys::HtmlElement>()
+                    && let Some(element) = row.dyn_ref::<HtmlElement>()
                 {
                     element.click();
                 }
@@ -427,25 +426,23 @@ fn context_menu_keydown(event: &Event, open: Signal<bool>, submenu: bool) {
         if now - previous_time < CONTEXT_MENU_SEARCH_RESET_MS && previous != search {
             search = format!("{previous}{search}");
         }
-        let _: Result<(), wasm_bindgen::JsValue> =
-            popup.set_attribute(CONTEXT_MENU_SEARCH_ATTRIBUTE, &search);
-        let _: Result<(), wasm_bindgen::JsValue> =
+        let _: Result<(), JsValue> = popup.set_attribute(CONTEXT_MENU_SEARCH_ATTRIBUTE, &search);
+        let _: Result<(), JsValue> =
             popup.set_attribute(CONTEXT_MENU_SEARCH_TIME_ATTRIBUTE, &now.to_string());
     } else {
-        let _: Result<(), wasm_bindgen::JsValue> =
-            popup.remove_attribute(CONTEXT_MENU_SEARCH_ATTRIBUTE);
+        let _: Result<(), JsValue> = popup.remove_attribute(CONTEXT_MENU_SEARCH_ATTRIBUTE);
     }
     event.prevent_default();
     let labels: Vec<String> = rows
         .iter()
-        .map(|row: &web_sys::Element| row.text_content().unwrap_or_default())
+        .map(|row: &Element| row.text_content().unwrap_or_default())
         .collect();
     let selection: Option<usize> =
         context_menu_next_index(&labels, current, if navigation { &key } else { &search });
     if let Some(index) = selection
-        && let Some(element) = rows[index].dyn_ref::<web_sys::HtmlElement>()
+        && let Some(element) = rows[index].dyn_ref::<HtmlElement>()
     {
-        let _: Result<(), wasm_bindgen::JsValue> = element.focus();
+        let _: Result<(), JsValue> = element.focus();
     }
 }
 
@@ -457,9 +454,9 @@ fn context_menu_keydown(event: &Event, open: Signal<bool>, submenu: bool) {
 ///
 /// # Returns
 ///
-/// - `Option<web_sys::Element>` - The trigger element that received the event.
-fn context_menu_trigger_element(event: &Event) -> Option<web_sys::Element> {
-    let target: web_sys::Element = context_menu_target_element(event)?;
+/// - `Option<Element>` - The trigger element that received the event.
+fn context_menu_trigger_element(event: &Event) -> Option<Element> {
+    let target: Element = context_menu_target_element(event)?;
     target.closest(CONTEXT_MENU_TRIGGER_SELECTOR).ok().flatten()
 }
 
@@ -471,11 +468,11 @@ fn context_menu_trigger_element(event: &Event) -> Option<web_sys::Element> {
 ///
 /// # Returns
 ///
-/// - `Option<web_sys::Element>` - The event target when it is an element.
-fn context_menu_target_element(event: &Event) -> Option<web_sys::Element> {
-    let event_target: Option<web_sys::EventTarget> = event.target();
-    let event_target: web_sys::EventTarget = event_target?;
-    let target_result: Result<web_sys::Element, web_sys::EventTarget> = event_target.dyn_into();
+/// - `Option<Element>` - The event target when it is an element.
+fn context_menu_target_element(event: &Event) -> Option<Element> {
+    let event_target: Option<EventTarget> = event.target();
+    let event_target: EventTarget = event_target?;
+    let target_result: Result<Element, EventTarget> = event_target.dyn_into();
     target_result.ok()
 }
 
@@ -483,38 +480,35 @@ fn context_menu_target_element(event: &Event) -> Option<web_sys::Element> {
 ///
 /// # Arguments
 ///
-/// - `&web_sys::Element` - The trigger whose root owns the menu.
+/// - `&Element` - The trigger whose root owns the menu.
 /// - `f64` - The viewport x coordinate.
 /// - `f64` - The viewport y coordinate.
-fn set_context_menu_position(trigger: &web_sys::Element, left: f64, top: f64) {
+fn set_context_menu_position(trigger: &Element, left: f64, top: f64) {
     let Some(root_element) = trigger.closest(CONTEXT_MENU_ROOT_SELECTOR).ok().flatten() else {
         return;
     };
-    let root_result: Result<web_sys::HtmlElement, web_sys::Element> = root_element.dyn_into();
+    let root_result: Result<HtmlElement, Element> = root_element.dyn_into();
     let Ok(root) = root_result else {
         return;
     };
-    let style: web_sys::CssStyleDeclaration = root.style();
+    let style: CssStyleDeclaration = root.style();
     let left_value: String = format!("{left}px");
     let top_value: String = format!("{top}px");
-    let _: Result<(), wasm_bindgen::JsValue> =
-        style.set_property(CONTEXT_MENU_POSITION_X_PROPERTY, &left_value);
-    let _: Result<(), wasm_bindgen::JsValue> =
-        style.set_property(CONTEXT_MENU_POSITION_Y_PROPERTY, &top_value);
+    let _: Result<(), JsValue> = style.set_property(CONTEXT_MENU_POSITION_X_PROPERTY, &left_value);
+    let _: Result<(), JsValue> = style.set_property(CONTEXT_MENU_POSITION_Y_PROPERTY, &top_value);
     #[cfg(target_arch = "wasm32")]
     if let Some(content) = root
         .query_selector(CONTEXT_MENU_CONTENT_SELECTOR)
         .ok()
         .flatten()
-        .and_then(|element: web_sys::Element| element.dyn_into::<web_sys::HtmlElement>().ok())
+        .and_then(|element: Element| element.dyn_into::<HtmlElement>().ok())
     {
         for property in [
             CONTEXT_MENU_LEFT_PROPERTY,
             CONTEXT_MENU_TOP_PROPERTY,
             CONTEXT_MENU_TRANSFORM_PROPERTY,
         ] {
-            let _: Result<String, wasm_bindgen::JsValue> =
-                content.style().remove_property(property);
+            let _: Result<String, JsValue> = content.style().remove_property(property);
         }
     }
 }
@@ -528,7 +522,7 @@ fn set_context_menu_position_at_trigger(event: &Event) {
     let Some(trigger) = context_menu_trigger_element(event) else {
         return;
     };
-    let trigger_rect: web_sys::DomRect = trigger.get_bounding_client_rect();
+    let trigger_rect: DomRect = trigger.get_bounding_client_rect();
     set_context_menu_position(&trigger, trigger_rect.left(), trigger_rect.bottom());
 }
 
@@ -536,29 +530,28 @@ fn set_context_menu_position_at_trigger(event: &Event) {
 ///
 /// # Arguments
 ///
-/// - `&web_sys::Element` - The trigger whose context menu should receive focus.
-fn focus_context_menu_content_on_next_frame(trigger: &web_sys::Element) {
+/// - `&Element` - The trigger whose context menu should receive focus.
+fn focus_context_menu_content_on_next_frame(trigger: &Element) {
     let Some(root) = trigger.closest(CONTEXT_MENU_ROOT_SELECTOR).ok().flatten() else {
         return;
     };
     let Some(window) = web_sys::window() else {
         return;
     };
-    let callback: js_sys::Function = Closure::once_into_js(move || {
-        let content_result: Result<Option<web_sys::Element>, wasm_bindgen::JsValue> =
+    let callback: Function = Closure::once_into_js(move || {
+        let content_result: Result<Option<Element>, JsValue> =
             root.query_selector(CONTEXT_MENU_CONTENT_SELECTOR);
         let Some(content_element) = content_result.ok().flatten() else {
             return;
         };
-        let content_result: Result<web_sys::HtmlElement, web_sys::Element> =
-            content_element.dyn_into();
+        let content_result: Result<HtmlElement, Element> = content_element.dyn_into();
         let Ok(content) = content_result else {
             return;
         };
-        let _: Result<(), wasm_bindgen::JsValue> = content.focus();
+        let _: Result<(), JsValue> = content.focus();
     })
     .unchecked_into();
-    let _: Result<i32, wasm_bindgen::JsValue> = window.request_animation_frame(&callback);
+    let _: Result<i32, JsValue> = window.request_animation_frame(&callback);
 }
 
 /// Returns focus to the trigger that owns the event target.
@@ -573,16 +566,16 @@ fn focus_context_menu_trigger(event: &Event) {
     let Some(root) = target.closest(CONTEXT_MENU_ROOT_SELECTOR).ok().flatten() else {
         return;
     };
-    let trigger_result: Result<Option<web_sys::Element>, wasm_bindgen::JsValue> =
+    let trigger_result: Result<Option<Element>, JsValue> =
         root.query_selector(CONTEXT_MENU_TRIGGER_SELECTOR);
     let Some(trigger_element) = trigger_result.ok().flatten() else {
         return;
     };
-    let trigger_result: Result<web_sys::HtmlElement, web_sys::Element> = trigger_element.dyn_into();
+    let trigger_result: Result<HtmlElement, Element> = trigger_element.dyn_into();
     let Ok(trigger) = trigger_result else {
         return;
     };
-    let _: Result<(), wasm_bindgen::JsValue> = trigger.focus();
+    let _: Result<(), JsValue> = trigger.focus();
 }
 
 /// The frame that holds a context menu.
@@ -603,7 +596,7 @@ pub fn euv_context_menu(node: VirtualNode<EuvContextMenuProps>) -> VirtualNode {
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
     let outside: UseClickOutside = use_click_outside();
-    let outside_target: NodeRef<web_sys::Element> = outside.get_target().clone();
+    let outside_target: NodeRef<Element> = outside.get_target().clone();
     let outside_triggered: Signal<bool> = outside.get_triggered();
     watch!(outside_triggered, |triggered: bool| {
         if triggered {
@@ -614,7 +607,7 @@ pub fn euv_context_menu(node: VirtualNode<EuvContextMenuProps>) -> VirtualNode {
         }
     });
     let on_keydown: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |event: Event| {
-        let Some(keyboard) = event.dyn_ref::<web_sys::KeyboardEvent>() else {
+        let Some(keyboard) = event.dyn_ref::<KeyboardEvent>() else {
             return;
         };
         if keyboard.key() != CONTEXT_MENU_ESCAPE_KEY || !open.get() {
@@ -664,10 +657,10 @@ pub fn euv_context_menu_trigger(node: VirtualNode<EuvContextMenuTriggerProps>) -
     }));
     let move_hold: Rc<RefCell<ContextMenuLongPress>> = hold.clone();
     let on_touch_move: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |event: Event| {
-        let Some(touch_event) = event.dyn_ref::<web_sys::TouchEvent>() else {
+        let Some(touch_event) = event.dyn_ref::<TouchEvent>() else {
             return;
         };
-        let touches: web_sys::TouchList = touch_event.touches();
+        let touches: TouchList = touch_event.touches();
         if let Some(touch) = touches.item(0) {
             move_hold
                 .borrow_mut()
@@ -687,7 +680,7 @@ pub fn euv_context_menu_trigger(node: VirtualNode<EuvContextMenuTriggerProps>) -
         }
         event.prevent_default();
         if let Some(trigger) = context_menu_trigger_element(&event) {
-            if let Some(mouse_event) = event.dyn_ref::<web_sys::MouseEvent>() {
+            if let Some(mouse_event) = event.dyn_ref::<MouseEvent>() {
                 open_context_menu_at(
                     &trigger,
                     open,
@@ -705,7 +698,7 @@ pub fn euv_context_menu_trigger(node: VirtualNode<EuvContextMenuTriggerProps>) -
         }
     }));
     let on_keydown: Option<Rc<dyn Fn(Event)>> = Some(Rc::new(move |event: Event| {
-        let Some(keyboard) = event.dyn_ref::<web_sys::KeyboardEvent>() else {
+        let Some(keyboard) = event.dyn_ref::<KeyboardEvent>() else {
             return;
         };
         if keyboard.key() == CONTEXT_MENU_ESCAPE_KEY && open.get() {
@@ -737,7 +730,6 @@ pub fn euv_context_menu_trigger(node: VirtualNode<EuvContextMenuTriggerProps>) -
                 }
                 "data-slot": "context-menu-trigger"
                 class: c_euv_context_menu_trigger()
-
                 "aria-disabled": if disabled {
                     "true"
                 } else {
@@ -1010,7 +1002,7 @@ pub fn euv_context_menu_sub_trigger(
         delay_ms,
         close_delay_ms,
     }: EuvContextMenuSubTriggerProps = node.try_get_props().unwrap_or_default();
-    let trigger_ref: NodeRef<web_sys::Element> = App::use_node_ref();
+    let trigger_ref: NodeRef<Element> = App::use_node_ref();
     #[cfg(not(target_arch = "wasm32"))]
     let _: (bool, u32, u32) = (open_on_hover, delay_ms, close_delay_ms);
     #[cfg(target_arch = "wasm32")]
@@ -1085,13 +1077,13 @@ pub fn euv_context_menu_sub_content(
     let EuvContextMenuSubContentProps { open }: EuvContextMenuSubContentProps =
         node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
-    let panel_ref: NodeRef<web_sys::Element> = App::use_node_ref();
+    let panel_ref: NodeRef<Element> = App::use_node_ref();
     #[cfg(target_arch = "wasm32")]
     {
         let position_binding: Rc<RefCell<Option<(Signal<bool>, usize)>>> =
             HookContext::use_hook(|| Rc::new(RefCell::new(None)));
         let cleanup_binding: Rc<RefCell<Option<(Signal<bool>, usize)>>> = position_binding.clone();
-        let cleanup_ref: NodeRef<web_sys::Element> = panel_ref.clone();
+        let cleanup_ref: NodeRef<Element> = panel_ref.clone();
         App::use_cleanup(move || {
             if let Some((previous, subscription)) = cleanup_binding.borrow_mut().take() {
                 previous.unsubscribe(subscription);
@@ -1106,7 +1098,7 @@ pub fn euv_context_menu_sub_content(
             if let Some((previous, subscription)) = position_binding.borrow_mut().take() {
                 previous.unsubscribe(subscription);
             }
-            let position_ref: NodeRef<web_sys::Element> = panel_ref.clone();
+            let position_ref: NodeRef<Element> = panel_ref.clone();
             let subscription: usize = open.subscribe(move || {
                 if open.get() {
                     schedule_context_menu_sub_position(position_ref.clone(), open);
@@ -1116,7 +1108,7 @@ pub fn euv_context_menu_sub_content(
             });
             *position_binding.borrow_mut() = Some((open, subscription));
         }
-        let resize_ref: NodeRef<web_sys::Element> = panel_ref.clone();
+        let resize_ref: NodeRef<Element> = panel_ref.clone();
         App::use_window_event(CONTEXT_MENU_RESIZE_EVENT, move || {
             if let Some((current, _)) = *position_binding.borrow()
                 && current.get()
@@ -1515,7 +1507,7 @@ fn context_menu_sub_hover_move(state: &ContextMenuSubHover, event: &Event) {
     let Some(trigger) = state
         .target
         .get_cloned()
-        .filter(|trigger: &web_sys::Element| trigger.is_connected())
+        .filter(|trigger: &Element| trigger.is_connected())
     else {
         state.cancel();
         return;
@@ -1525,13 +1517,11 @@ fn context_menu_sub_hover_move(state: &ContextMenuSubHover, event: &Event) {
         &wasm_bindgen::JsValue::from_str(CONTEXT_MENU_POINTER_TYPE),
     )
     .ok()
-    .and_then(|value: wasm_bindgen::JsValue| value.as_string())
+    .and_then(|value: JsValue| value.as_string())
     .unwrap_or_default();
     let hover: bool = web_sys::window()
-        .and_then(|window: web_sys::Window| {
-            window.match_media(CONTEXT_MENU_HOVER_MEDIA).ok().flatten()
-        })
-        .is_some_and(|query: web_sys::MediaQueryList| query.matches());
+        .and_then(|window: Window| window.match_media(CONTEXT_MENU_HOVER_MEDIA).ok().flatten())
+        .is_some_and(|query: MediaQueryList| query.matches());
     if !matches!(
         pointer.as_str(),
         CONTEXT_MENU_POINTER_MOUSE | CONTEXT_MENU_POINTER_PEN
@@ -1544,56 +1534,55 @@ fn context_menu_sub_hover_move(state: &ContextMenuSubHover, event: &Event) {
         state.cancel();
         return;
     }
-    let Some(mouse) = event.dyn_ref::<web_sys::MouseEvent>() else {
+    let Some(mouse) = event.dyn_ref::<MouseEvent>() else {
         return;
     };
     if pointer == CONTEXT_MENU_POINTER_PEN && mouse.buttons() != 0 {
         state.cancel();
         return;
     }
-    let target: Option<web_sys::Element> = event
+    let target: Option<Element> = event
         .target()
-        .and_then(|target: web_sys::EventTarget| target.dyn_into::<web_sys::Element>().ok());
+        .and_then(|target: EventTarget| target.dyn_into::<Element>().ok());
     let on_trigger: bool = target
         .as_ref()
-        .is_some_and(|target: &web_sys::Element| trigger.contains(Some(target)));
+        .is_some_and(|target: &Element| trigger.contains(Some(target)));
     let point: (f64, f64) = (f64::from(mouse.client_x()), f64::from(mouse.client_y()));
     if on_trigger {
         state.anchor.set(Some(point));
     }
-    let owner: Option<web_sys::Element> = trigger.closest(CONTEXT_MENU_SUB_SELECTOR).ok().flatten();
-    let panel: Option<web_sys::Element> = owner.as_ref().and_then(|owner: &web_sys::Element| {
+    let owner: Option<Element> = trigger.closest(CONTEXT_MENU_SUB_SELECTOR).ok().flatten();
+    let panel: Option<Element> = owner.as_ref().and_then(|owner: &Element| {
         owner
             .query_selector(CONTEXT_MENU_SUB_CONTENT_SELECTOR)
             .ok()
             .flatten()
     });
     let in_branch: bool = state.open.get()
-        && target.as_ref().is_some_and(|target: &web_sys::Element| {
+        && target.as_ref().is_some_and(|target: &Element| {
             panel
                 .as_ref()
-                .is_some_and(|panel: &web_sys::Element| panel.contains(Some(target)))
+                .is_some_and(|panel: &Element| panel.contains(Some(target)))
         });
     if in_branch {
-        if let Some(row) = target.as_ref().and_then(|target: &web_sys::Element| {
-            target.closest(CONTEXT_MENU_ITEM_SELECTOR).ok().flatten()
-        }) && row
-            .get_attribute(CONTEXT_MENU_DISABLED_ATTRIBUTE)
-            .as_deref()
-            != Some(CONTEXT_MENU_ATTR_TRUE)
-            && let Some(row) = row.dyn_ref::<web_sys::HtmlElement>()
+        if let Some(row) = target
+            .as_ref()
+            .and_then(|target: &Element| target.closest(CONTEXT_MENU_ITEM_SELECTOR).ok().flatten())
+            && row
+                .get_attribute(CONTEXT_MENU_DISABLED_ATTRIBUTE)
+                .as_deref()
+                != Some(CONTEXT_MENU_ATTR_TRUE)
+            && let Some(row) = row.dyn_ref::<HtmlElement>()
         {
-            let options: web_sys::FocusOptions = web_sys::FocusOptions::new();
+            let options: FocusOptions = web_sys::FocusOptions::new();
             options.set_prevent_scroll(true);
-            let _: Result<(), wasm_bindgen::JsValue> = row.focus_with_options(&options);
+            let _: Result<(), JsValue> = row.focus_with_options(&options);
         }
     }
     let sibling: bool = target
         .as_ref()
-        .and_then(|target: &web_sys::Element| {
-            target.closest(CONTEXT_MENU_ITEM_SELECTOR).ok().flatten()
-        })
-        .is_some_and(|row: web_sys::Element| {
+        .and_then(|target: &Element| target.closest(CONTEXT_MENU_ITEM_SELECTOR).ok().flatten())
+        .is_some_and(|row: Element| {
             row != trigger
                 && row.closest(CONTEXT_MENU_POPUP_SELECTOR).ok().flatten()
                     == trigger.closest(CONTEXT_MENU_POPUP_SELECTOR).ok().flatten()
@@ -1601,9 +1590,9 @@ fn context_menu_sub_hover_move(state: &ContextMenuSubHover, event: &Event) {
     let bridge: bool = state.open.get()
         && !sibling
         && state.anchor.get().is_some_and(|exit: (f64, f64)| {
-            panel.as_ref().is_some_and(|panel: &web_sys::Element| {
-                let row: web_sys::DomRect = trigger.get_bounding_client_rect();
-                let rect: web_sys::DomRect = panel.get_bounding_client_rect();
+            panel.as_ref().is_some_and(|panel: &Element| {
+                let row: DomRect = trigger.get_bounding_client_rect();
+                let rect: DomRect = panel.get_bounding_client_rect();
                 context_menu_hover_bridge(
                     point,
                     exit,
@@ -1634,12 +1623,12 @@ fn context_menu_sub_hover_move(state: &ContextMenuSubHover, event: &Event) {
 /// # Arguments
 ///
 /// - `Signal<bool>` - A `Signal<bool>` parameter.
-/// - `NodeRef<web_sys::Element>` - A `NodeRef<web_sys::Element>` parameter.
+/// - `NodeRef<Element>` - A `NodeRef<web_sys::Element>` parameter.
 /// - `(bool, bool, u32, u32)` - A `(bool, bool, u32, u32)` parameter.
 #[cfg(target_arch = "wasm32")]
 fn use_context_menu_sub_hover(
     open: Signal<bool>,
-    target: NodeRef<web_sys::Element>,
+    target: NodeRef<Element>,
     options: (bool, bool, u32, u32),
 ) {
     let slot: Rc<RefCell<Option<Rc<ContextMenuSubHover>>>> =
@@ -1681,8 +1670,7 @@ fn use_context_menu_sub_hover(
     if let Some(state) = slot.borrow_mut().take() {
         state.dispose();
     }
-    let Some(document) = web_sys::window().and_then(|window: web_sys::Window| window.document())
-    else {
+    let Some(document) = web_sys::window().and_then(|window: Window| window.document()) else {
         return;
     };
     let state: Rc<ContextMenuSubHover> = Rc::new(ContextMenuSubHover {
@@ -1712,8 +1700,8 @@ fn use_context_menu_sub_hover(
             context_menu_sub_hover_move(&state, &event);
         } else if event.type_() == CONTEXT_MENU_POINTER_OUT {
             if event
-                .dyn_ref::<web_sys::MouseEvent>()
-                .is_some_and(|event: &web_sys::MouseEvent| event.related_target().is_none())
+                .dyn_ref::<MouseEvent>()
+                .is_some_and(|event: &MouseEvent| event.related_target().is_none())
             {
                 state.schedule(state.open.get().then_some(false));
             }
@@ -1722,12 +1710,11 @@ fn use_context_menu_sub_hover(
         }
     }) as Box<dyn FnMut(Event)>);
     for name in CONTEXT_MENU_HOVER_EVENTS {
-        let _: Result<(), wasm_bindgen::JsValue> = document
-            .add_event_listener_with_callback_and_bool(
-                name,
-                listener.as_ref().unchecked_ref(),
-                true,
-            );
+        let _: Result<(), JsValue> = document.add_event_listener_with_callback_and_bool(
+            name,
+            listener.as_ref().unchecked_ref(),
+            true,
+        );
     }
     let parent_signal: Signal<bool> = state.parent.get_parent();
     let weak: Weak<ContextMenuSubHover> = Rc::downgrade(&state);
@@ -1749,27 +1736,27 @@ fn use_context_menu_sub_hover(
             && !state
                 .target
                 .get_cloned()
-                .is_some_and(|target: web_sys::Element| target.is_connected())
+                .is_some_and(|target: Element| target.is_connected())
         {
             state.cancel();
             state.anchor.set(None);
         }
     }) as Box<dyn FnMut()>);
-    let observer: Option<wasm_bindgen::JsValue> = js_sys::Reflect::get(
+    let observer: Option<JsValue> = js_sys::Reflect::get(
         &js_sys::global(),
         &wasm_bindgen::JsValue::from_str(CONTEXT_MENU_MUTATION_OBSERVER),
     )
     .ok()
-    .and_then(|constructor: wasm_bindgen::JsValue| constructor.dyn_into::<js_sys::Function>().ok())
-    .and_then(|constructor: js_sys::Function| {
-        let arguments: js_sys::Array = js_sys::Array::new();
+    .and_then(|constructor: JsValue| constructor.dyn_into::<Function>().ok())
+    .and_then(|constructor: Function| {
+        let arguments: Array = js_sys::Array::new();
         arguments.push(disconnect_callback.as_ref());
         js_sys::Reflect::construct(&constructor, &arguments).ok()
     });
     if let Some(observer) = observer.as_ref() {
-        let options: js_sys::Object = js_sys::Object::new();
+        let options: Object = js_sys::Object::new();
         for property in CONTEXT_MENU_OBSERVER_OPTIONS {
-            let _: Result<bool, wasm_bindgen::JsValue> = js_sys::Reflect::set(
+            let _: Result<bool, JsValue> = js_sys::Reflect::set(
                 &options,
                 &wasm_bindgen::JsValue::from_str(property),
                 &wasm_bindgen::JsValue::TRUE,
@@ -1778,9 +1765,9 @@ fn use_context_menu_sub_hover(
         if let Ok(method) = js_sys::Reflect::get(
             observer,
             &wasm_bindgen::JsValue::from_str(CONTEXT_MENU_OBSERVE),
-        ) && let Some(method) = method.dyn_ref::<js_sys::Function>()
+        ) && let Some(method) = method.dyn_ref::<Function>()
         {
-            let _: Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue> =
+            let _: Result<JsValue, JsValue> =
                 method.call2(observer, document.as_ref(), options.as_ref());
         }
     }
@@ -1790,20 +1777,19 @@ fn use_context_menu_sub_hover(
                 &observer,
                 &wasm_bindgen::JsValue::from_str(CONTEXT_MENU_DISCONNECT),
             )
-            && let Some(method) = method.dyn_ref::<js_sys::Function>()
+            && let Some(method) = method.dyn_ref::<Function>()
         {
-            let _: Result<wasm_bindgen::JsValue, wasm_bindgen::JsValue> = method.call0(&observer);
+            let _: Result<JsValue, JsValue> = method.call0(&observer);
         }
         drop(disconnect_callback);
         open.unsubscribe(open_id);
         parent_signal.unsubscribe(parent_id);
         for name in CONTEXT_MENU_HOVER_EVENTS {
-            let _: Result<(), wasm_bindgen::JsValue> = document
-                .remove_event_listener_with_callback_and_bool(
-                    name,
-                    listener.as_ref().unchecked_ref(),
-                    true,
-                );
+            let _: Result<(), JsValue> = document.remove_event_listener_with_callback_and_bool(
+                name,
+                listener.as_ref().unchecked_ref(),
+                true,
+            );
         }
     });
     *state.cleanup.borrow_mut() = Some(cleanup);

@@ -711,9 +711,7 @@ fn rendering_an_active_entity_reaches_every_component() {
     entity.add_component(component("a", &counters));
     entity.add_component(component("b", &counters));
     let mut list: DrawList = DrawList::create();
-
     entity.render(&mut list);
-
     assert_eq!(
         counters.renders.get(),
         2,
@@ -727,10 +725,8 @@ fn an_inactive_entity_renders_nothing_at_all() {
     let mut entity: Entity = Entity::create("host");
     entity.add_component(component("a", &counters));
     let mut list: DrawList = DrawList::create();
-
     entity.set_active(false);
     entity.render(&mut list);
-
     assert_eq!(
         counters.renders.get(),
         0,
@@ -750,9 +746,7 @@ fn an_entity_with_no_components_renders_into_an_untouched_list() {
     let entity: Entity = Entity::create("empty");
     let mut list: DrawList = DrawList::create();
     let _: DrawList = DrawList::create();
-
     entity.render(&mut list);
-
     assert_eq!(
         list.len(),
         0,

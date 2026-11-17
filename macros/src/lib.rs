@@ -37,21 +37,24 @@ use std::{
     iter::Peekable,
     mem::MaybeUninit,
     path::PathBuf,
+    result::Result,
     time::UNIX_EPOCH,
 };
 
 use {
     lombok_macros::*,
     proc_macro::TokenStream,
-    proc_macro2::Span,
+    proc_macro2::{Group, Span, token_stream::IntoIter},
     quote::{ToTokens, quote, quote_spanned},
     syn::{
-        Attribute, Block, Expr, Field, File, Generics, Ident, Item, LitStr, Path, Stmt, Token,
-        Type, Visibility, WhereClause, braced, parenthesized, parse,
+        Attribute, Block, Error, Expr, ExprPath, Field, File, FnArg, Generics, Ident, Item, ItemFn,
+        LitStr, Path, Stmt, Token, Type, Visibility, WhereClause, braced, parenthesized, parse,
         parse::{Parse, ParseBuffer, ParseStream},
         parse_file, parse2,
+        punctuated::Punctuated,
         token::{Brace, Colon, Paren, Semi},
     },
+    toml::{Table, Value},
 };
 
 /// The `html!` macro for writing declarative UI in euv.

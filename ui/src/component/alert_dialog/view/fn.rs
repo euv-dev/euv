@@ -65,7 +65,6 @@ pub fn euv_alert_dialog_trigger(node: VirtualNode<EuvAlertDialogTriggerProps>) -
                 "aria-haspopup": ALERT_DIALOG_HASPOPUP_DIALOG
                 "aria-controls": content_id
                 class: c_euv_alert_dialog_trigger()
-
                 "data-slot": "alert-dialog-trigger"
                 onclick: on_click
                 {
@@ -416,8 +415,8 @@ fn alert_dialog_content_keydown(open: Signal<bool>) -> Option<Rc<dyn Fn(Event)>>
             return;
         }
         let active: Option<HtmlElement> = web_sys::window()
-            .and_then(|window: web_sys::Window| window.document())
-            .and_then(|document: web_sys::Document| document.active_element())
+            .and_then(|window: Window| window.document())
+            .and_then(|document: Document| document.active_element())
             .and_then(|element: Element| element.dyn_into::<HtmlElement>().ok());
         let active_index: Option<usize> = focusables.iter().position(|item: &HtmlElement| {
             active

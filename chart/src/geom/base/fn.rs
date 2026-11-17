@@ -34,29 +34,23 @@ pub(crate) fn arc_to_cubic<F>(
     let segments: usize = segments.max(1);
     let step: f64 = sweep / segments as f64;
     let kappa: f64 = ARC_BEZIER_KAPPA * (step / 4.0).tan();
-
     let mut angle: f64 = start_angle;
     let mut current_x: f64 = center_x + radius_x * angle.cos();
     let mut current_y: f64 = center_y + radius_y * angle.sin();
-
     for index in 0..segments {
         let next_angle: f64 = angle + step;
         let next_x: f64 = center_x + radius_x * next_angle.cos();
         let next_y: f64 = center_y + radius_y * next_angle.sin();
-
         let control1_x: f64 = current_x + kappa * radius_x * -angle.sin();
         let control1_y: f64 = current_y + kappa * radius_y * angle.cos();
         let control2_x: f64 = next_x - kappa * radius_x * -next_angle.sin();
         let control2_y: f64 = next_y - kappa * radius_y * next_angle.cos();
-
         emit(
             control1_x, control1_y, control2_x, control2_y, next_x, next_y,
         );
-
         current_x = next_x;
         current_y = next_y;
         angle = next_angle;
-
         if index + 1 < segments {
             // The next segment continues from where this one ended.
             let _: f64 = current_x;

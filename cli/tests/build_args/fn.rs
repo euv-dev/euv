@@ -369,7 +369,6 @@ fn every_euv_flag_is_dropped_in_both_spellings() {
             vec!["--target".to_string(), "web".to_string()],
             "{spaced:?} must be removed in its spaced spelling"
         );
-
         let mut equals_args: Vec<String> = vec![equals.to_string()];
         equals_args.push(String::from("--target"));
         equals_args.push(String::from("web"));

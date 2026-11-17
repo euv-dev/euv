@@ -85,7 +85,6 @@ fn an_inverted_element_range_never_reaches_the_driver() {
         clear_color: Color::new(0.0, 0.0, 0.0, 1.0),
     });
     let from: u32 = log.length();
-
     let drew: bool = subject.draw_element_range(
         &context,
         PrimitiveTopology::TriangleList,
@@ -93,7 +92,6 @@ fn an_inverted_element_range_never_reaches_the_driver() {
         4,
         IndexFormat::Uint16,
     );
-
     assert!(!drew, "an end below the start has no vertices to draw");
     assert_eq!(
         calls_after(&log, from),
@@ -119,7 +117,6 @@ fn an_element_range_counts_both_of_its_ends() {
         clear_color: Color::new(0.0, 0.0, 0.0, 1.0),
     });
     let from: u32 = log.length();
-
     let drew: bool = subject.draw_element_range(
         &context,
         PrimitiveTopology::TriangleList,
@@ -127,7 +124,6 @@ fn an_element_range_counts_both_of_its_ends() {
         10,
         IndexFormat::Uint16,
     );
-
     assert!(drew, "a well-ordered range is drawn");
     let args: Array = args_after(&log, "drawRangeElements", from);
     assert_eq!(args.get(1).as_f64(), Some(4.0), "the start index");
@@ -161,9 +157,7 @@ fn a_single_instanced_array_draw_still_uses_the_instanced_entry_point() {
         clear_color: Color::new(0.0, 0.0, 0.0, 1.0),
     });
     let from: u32 = log.length();
-
     subject.draw_arrays_instanced(&context, PrimitiveTopology::TriangleList, &stream(6, 1));
-
     assert_eq!(
         count_after(&log, "drawArraysInstanced", from),
         1,
@@ -196,14 +190,12 @@ fn an_instanced_indexed_draw_uses_the_instanced_call_and_converts_the_index_offs
         clear_color: Color::new(0.0, 0.0, 0.0, 1.0),
     });
     let from: u32 = log.length();
-
     let drew: bool = subject.draw_elements_instanced(
         &context,
         PrimitiveTopology::TriangleList,
         &indexed(0),
         IndexFormat::Uint32,
     );
-
     assert!(drew, "a flat base vertex is drawable");
     let args: Array = args_after(&log, "drawElementsInstanced", from);
     assert_eq!(
@@ -240,14 +232,12 @@ fn an_instanced_indexed_draw_with_a_base_vertex_is_refused_like_its_single_insta
         clear_color: Color::new(0.0, 0.0, 0.0, 1.0),
     });
     let from: u32 = log.length();
-
     let drew: bool = subject.draw_elements_instanced(
         &context,
         PrimitiveTopology::TriangleList,
         &indexed(4),
         IndexFormat::Uint32,
     );
-
     assert!(
         !drew,
         "WebGL has no base-vertex argument, so a non-zero one cannot be honored"

@@ -147,6 +147,5 @@ fn app_use_window_event_signature_pin() {
 fn marking_dependents_dirty_is_safe_with_nothing_watching() {
     App::schedule_update(&[1, 2, 3]);
     App::schedule_update(&[]);
-
     App::schedule_update(&[7]);
 }

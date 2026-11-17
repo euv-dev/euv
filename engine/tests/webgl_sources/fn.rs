@@ -82,13 +82,11 @@ fn sized_canvas() -> HtmlCanvasElement {
 fn an_image_becomes_a_texture_sized_from_its_natural_dimensions() {
     let (context, log): (WebGl2RenderingContext, Array) = recording_context();
     let from: u32 = log.length();
-
     let created: Option<GlTexture> = GlTexture::create_from_image(
         &context,
         &counted_element(&["naturalWidth", "naturalHeight"], 64.0),
         GpuTextureFormat::Rgba8Unorm,
     );
-
     assert!(created.is_some(), "the driver handed back a texture");
     assert_eq!(
         calls_after(&log, from),
@@ -131,13 +129,11 @@ fn an_image_becomes_a_texture_sized_from_its_natural_dimensions() {
 fn an_image_with_no_intrinsic_size_is_clamped_up_to_one_pixel() {
     let (context, log): (WebGl2RenderingContext, Array) = recording_context();
     let from: u32 = log.length();
-
     let created: Option<GlTexture> = GlTexture::create_from_image(
         &context,
         &counted_element(&["naturalWidth", "naturalHeight"], 0.0),
         GpuTextureFormat::Rgba8Unorm,
     );
-
     let texture: GlTexture = created.expect("the driver handed back a texture");
     assert_eq!(
         texture.get_width(),
@@ -162,10 +158,8 @@ fn an_image_with_no_intrinsic_size_is_clamped_up_to_one_pixel() {
 fn a_canvas_source_is_uploaded_without_the_vertical_flip() {
     let (context, log): (WebGl2RenderingContext, Array) = recording_context();
     let from: u32 = log.length();
-
     let created: Option<GlTexture> =
         GlTexture::create_from_canvas(&context, &sized_canvas(), GpuTextureFormat::Rgba8Unorm);
-
     assert!(created.is_some(), "the driver handed back a texture");
     assert_eq!(
         calls_after(&log, from),
@@ -201,10 +195,8 @@ fn a_bitmap_source_is_uploaded_from_the_raw_array_it_is_handed() {
         &JsValue::from_f64(0.0),
         &JsValue::from_f64(255.0),
     );
-
     let created: Option<GlTexture> =
         GlTexture::create_from_bitmap(&context, &pixels, 32, 16, GpuTextureFormat::Rgba8Unorm);
-
     assert!(created.is_some(), "the driver handed back a texture");
     let texture: GlTexture = created.expect("checked just above");
     assert_eq!(
@@ -237,10 +229,8 @@ fn a_driver_that_hands_back_no_texture_reports_the_failure_instead_of_a_handle()
     let armed: Result<JsValue, JsValue> = arm.call1(&JsValue::NULL, context.as_ref());
     assert!(armed.is_ok(), "the refusing recorder must install cleanly");
     let typed: WebGl2RenderingContext = context.unchecked_into();
-
     let created: Option<GlTexture> =
         GlTexture::create_from_bitmap(&typed, &Array::new(), 4, 4, GpuTextureFormat::Rgba8Unorm);
-
     assert!(
         created.is_none(),
         "a null texture from the driver is the documented failure signal, and it has to reach \

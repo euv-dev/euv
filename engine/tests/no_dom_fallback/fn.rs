@@ -675,7 +675,6 @@ fn a_read_only_storage_binding_is_not_the_same_as_a_read_write_one() {
 #[test]
 fn a_pad_with_no_axes_reports_zero_for_every_index_including_beyond_its_list() {
     let state: GamepadState = GamepadState::default();
-
     assert_eq!(
         state.axis(0),
         0.0,

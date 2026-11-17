@@ -118,9 +118,7 @@ fn args_after(log: &Object, op: &str, from: u32) -> Array {
 fn clearing_the_depth_buffer_alone_masks_out_the_colour_buffer() {
     let (subject, log): (WebGl2Backend, Object) = backend(800, 600);
     let before: u32 = log_len(&log);
-
     subject.clear_depth(&subject.get_context().clone());
-
     assert_eq!(
         count_after(&log, "clear", before),
         1,
@@ -153,9 +151,7 @@ fn a_frame_clears_both_buffers_to_the_colour_it_was_given() {
     let context: WebGl2RenderingContext = subject.get_context().clone();
     let program: GlProgram = program(&context);
     let before: u32 = log_len(&log);
-
     subject.render_frame(&context, &program, Color::new(0.25, 0.5, 0.75, 1.0), 3);
-
     let clear: Array = args_after(&log, "clear", before);
     let mask: u32 = clear.get(0).as_f64().unwrap_or(-1.0) as u32;
     assert_ne!(
@@ -188,9 +184,7 @@ fn a_frame_draws_the_vertex_count_the_caller_asked_for() {
     let context: WebGl2RenderingContext = subject.get_context().clone();
     let program: GlProgram = program(&context);
     let before: u32 = log_len(&log);
-
     subject.render_frame(&context, &program, Color::new(0.0, 0.0, 0.0, 1.0), 3);
-
     assert_eq!(
         count_after(&log, "drawArrays", before),
         1,
@@ -215,10 +209,8 @@ fn a_second_frame_rebinds_nothing_that_has_not_changed() {
     let context: WebGl2RenderingContext = subject.get_context().clone();
     let program: GlProgram = program(&context);
     subject.render_frame(&context, &program, Color::new(0.0, 0.0, 0.0, 1.0), 3);
-
     let before: u32 = log_len(&log);
     subject.render_frame(&context, &program, Color::new(0.0, 0.0, 0.0, 1.0), 3);
-
     assert_eq!(
         count_after(&log, "useProgram", before),
         0,
@@ -250,9 +242,7 @@ fn a_second_frame_rebinds_nothing_that_has_not_changed() {
 fn reading_pixels_back_returns_the_buffer_the_driver_filled() {
     let (mut subject, log): (WebGl2Backend, Object) = backend(2, 2);
     let before: u32 = log_len(&log);
-
     let read: Vec<u8> = subject.read_pixels(&subject.get_context().clone(), 0, 0, 2, 2);
-
     assert_eq!(
         read.len(),
         16,

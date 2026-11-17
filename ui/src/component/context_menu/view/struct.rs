@@ -233,7 +233,7 @@ pub(crate) struct ContextMenuSubHover {
     #[get(pub(super))]
     #[set(pub(super))]
     #[get_mut(pub(super))]
-    pub(super) target: NodeRef<web_sys::Element>,
+    pub(super) target: NodeRef<Element>,
     #[get(pub(super))]
     #[set(pub(super))]
     #[get_mut(pub(super))]

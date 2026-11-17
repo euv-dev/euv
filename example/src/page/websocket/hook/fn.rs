@@ -56,7 +56,7 @@ fn parse_ws_message(raw: &str) -> WsMessage {
             data: server_message.data,
             time: format_timestamp(server_message.time),
         })
-        .unwrap_or_else(|_: serde_json::Error| WsMessage {
+        .unwrap_or_else(|_: Error| WsMessage {
             data: raw.to_string(),
             time: String::new(),
         })

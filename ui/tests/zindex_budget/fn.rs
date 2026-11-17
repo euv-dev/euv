@@ -171,7 +171,6 @@ fn declared_z_indexes() -> BTreeMap<String, String> {
                 index += 1;
                 continue;
             }
-
             let name: String = trimmed
                 .trim_start_matches("pub(crate) ")
                 .trim_start_matches("pub ")
@@ -182,7 +181,6 @@ fn declared_z_indexes() -> BTreeMap<String, String> {
                 .unwrap_or_default()
                 .trim()
                 .to_string();
-
             let mut cursor: usize = index + 1;
             let mut value: Option<String> = None;
             while cursor < lines.len() {
@@ -202,7 +200,6 @@ fn declared_z_indexes() -> BTreeMap<String, String> {
                 }
                 cursor += 1;
             }
-
             if let Some(value) = value {
                 found.insert(name, value);
             }

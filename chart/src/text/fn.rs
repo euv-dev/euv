@@ -67,7 +67,6 @@ pub(crate) fn split_rich_text(text: &str) -> Vec<(Option<String>, String)> {
         }
         current.push_str(&content);
     }
-
     if !current.is_empty() {
         runs.push((current_style, current));
     }

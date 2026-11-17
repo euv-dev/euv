@@ -77,9 +77,7 @@ fn a_small_upload_writes_in_place_without_reallocating() {
     let mut buffer: GlBuffer =
         GlBuffer::create_for(&context, BufferUsage::Vertex, 64).expect("created");
     let before: usize = count_of(&log, "bufferData");
-
     buffer.upload(&context, TARGET_ARRAY_BUFFER, &[0; 32]);
-
     assert_eq!(
         count_of(&log, "bufferData"),
         before,
@@ -108,9 +106,7 @@ fn a_payload_larger_than_the_allocation_reallocates_and_grows_the_capacity() {
     let mut buffer: GlBuffer =
         GlBuffer::create_for(&context, BufferUsage::Vertex, 16).expect("created");
     let before: usize = count_of(&log, "bufferData");
-
     buffer.upload(&context, TARGET_ARRAY_BUFFER, &[0; 128]);
-
     assert_eq!(
         count_of(&log, "bufferData"),
         before + 1,
@@ -133,13 +129,11 @@ fn a_sub_range_write_past_the_capacity_is_refused_rather_than_overrunning() {
     let (context, _log): (WebGl2RenderingContext, Object) = recording_context();
     let mut buffer: GlBuffer =
         GlBuffer::create_for(&context, BufferUsage::Vertex, 64).expect("created");
-
     let inside: bool = buffer.update(&context, TARGET_ARRAY_BUFFER, 32, &[0; 32]);
     assert!(
         inside,
         "a range ending exactly at the capacity is inside it"
     );
-
     let outside: bool = buffer.update(&context, TARGET_ARRAY_BUFFER, 32, &[0; 64]);
     assert!(
         !outside,
@@ -158,7 +152,6 @@ fn deleting_a_buffer_zeroes_it_so_a_later_upload_reallocates() {
     let mut buffer: GlBuffer =
         GlBuffer::create_for(&context, BufferUsage::Vertex, 64).expect("created");
     buffer.delete(&context, TARGET_ARRAY_BUFFER);
-
     assert_eq!(
         buffer.get_capacity(),
         0,
@@ -168,7 +161,6 @@ fn deleting_a_buffer_zeroes_it_so_a_later_upload_reallocates() {
         ops(&log).contains(&String::from("deleteBuffer")),
         "the driver handle must actually be released"
     );
-
     let before: usize = count_of(&log, "bufferData");
     buffer.upload(&context, TARGET_ARRAY_BUFFER, &[0; 8]);
     assert_eq!(
@@ -189,9 +181,7 @@ fn binding_a_buffer_issues_exactly_one_call_and_leaves_capacity_alone() {
     let buffer: GlBuffer =
         GlBuffer::create_for(&context, BufferUsage::Vertex, 16).expect("created");
     let before: usize = count_of(&log, "bindBuffer");
-
     buffer.bind(&context, TARGET_ELEMENT_ARRAY_BUFFER);
-
     assert_eq!(
         count_of(&log, "bindBuffer"),
         before + 1,
@@ -216,7 +206,6 @@ fn each_buffer_usage_asks_the_driver_for_its_own_buffer() {
         GlBuffer::create_for(&context, BufferUsage::Vertex, 4).expect("created");
     let _indices: GlBuffer =
         GlBuffer::create_for(&context, BufferUsage::Index, 4).expect("created");
-
     assert_eq!(
         count_of(&log, "createBuffer"),
         2,

@@ -1,7 +1,7 @@
-mod r#backend;
-mod r#pipeline;
-mod r#scene;
+mod backend;
+mod pipeline;
+mod scene;
 
-pub use {r#backend::*, r#pipeline::*, r#scene::*};
+pub use {backend::*, pipeline::*, scene::*};
 
 use super::*;

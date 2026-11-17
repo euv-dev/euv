@@ -17,9 +17,7 @@ fn a_viewport_travels_as_six_scalars_rather_than_a_dictionary() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let pass: Object = node("pass");
-
     subject.set_viewport(&pass.clone().into(), &viewport());
-
     let args: Array = args_since("setViewport", before);
     assert_eq!(
         args.length(),
@@ -50,9 +48,7 @@ fn a_scissor_rect_forwards_four_integers_in_spec_order() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let pass: Object = node("pass");
-
     subject.set_scissor_rect(&pass.clone().into(), 10, 20, 30, 40);
-
     let args: Array = args_since("setScissorRect", before);
     assert_eq!(
         args.length(),
@@ -79,9 +75,7 @@ fn a_blend_constant_keeps_its_channel_order() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let pass: Object = node("pass");
-
     subject.set_blend_constant(&pass.clone().into(), 0.1, 0.2, 0.3, 0.4);
-
     let args: Array = args_since("setBlendConstant", before);
     assert_eq!(
         args.length(),
@@ -123,9 +117,7 @@ fn a_stencil_reference_reaches_the_pass_under_the_method_name_the_spec_uses() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let pass: Object = node("pass");
-
     subject.set_stencil_reference(&pass.clone().into(), 7);
-
     let args: Array = args_since("setStencilReference", before);
     assert_eq!(
         args.get(0).as_f64(),
@@ -145,14 +137,12 @@ fn an_empty_dynamic_offset_list_still_uses_the_four_argument_overload() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let pass: Object = node("pass");
-
     subject.set_bind_group_with_dynamic_offsets(
         &pass.clone().into(),
         0,
         &node("group").into(),
         &[],
     );
-
     let args: Array = args_since("setBindGroup", before);
     assert_eq!(
         args.length(),
@@ -173,14 +163,12 @@ fn a_compute_bind_group_with_offsets_uses_the_same_overload() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let pass: Object = node("pass");
-
     subject.set_bind_group_compute_with_dynamic_offsets(
         &pass.clone().into(),
         1,
         &node("group").into(),
         &[32],
     );
-
     let args: Array = args_since("setBindGroup", before);
     assert_eq!(
         args.length(),
@@ -206,9 +194,7 @@ fn generating_mipmaps_calls_the_texture_that_was_named() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let texture: Object = node("named-texture");
-
     subject.generate_mipmaps(&texture.clone().into());
-
     assert_eq!(
         count_on("named-texture", "generateMipmap", before),
         1,
@@ -225,9 +211,7 @@ fn generating_mipmaps_calls_the_texture_that_was_named() {
 fn an_error_scope_names_the_filter_the_caller_asked_for() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.push_error_scope(GpuErrorFilter::OutOfMemory);
-
     let args: Array = args_since("pushErrorScope", before);
     assert_eq!(
         args.get(0).as_string(),
@@ -246,9 +230,7 @@ fn an_error_scope_names_the_filter_the_caller_asked_for() {
 fn the_render_pipeline_preset_asks_for_the_auto_layout() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     let created: JsValue = subject.create_render_pipeline("@vertex fn vs() {}");
-
     assert!(
         !created.is_undefined(),
         "the driver handed back a pipeline handle"
@@ -279,9 +261,7 @@ fn the_render_pipeline_preset_asks_for_the_auto_layout() {
 fn resizing_rewrites_the_backing_store_and_reconfigures_the_swap_chain() {
     let mut subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     let resized: bool = subject.resize(1024, 768);
-
     assert!(resized, "a configure that does not throw reports success");
     let writes: Vec<String> = ops_from(before)
         .into_iter()

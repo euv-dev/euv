@@ -38,11 +38,9 @@ pub fn euv_progress(node: VirtualNode<EuvProgressProps>) -> VirtualNode {
                 aria-valuemax: "100"
                 "data-slot": "progress"
                 class: c_progress_container()
-
                 div {
                     "data-slot": "progress-track"
                     class: c_progress_bar_track()
-
                     div {
                         "data-slot": "progress-indicator"
                         class: c_progress_bar_fill()

@@ -33,9 +33,7 @@ fn pipeline_descriptor() -> RenderPipelineDescriptor {
 fn a_compute_pipeline_compiles_its_shader_before_asking_for_a_pipeline() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     let created: JsValue = subject.create_compute_pipeline(SHADER, "cs_main");
-
     assert!(!created.is_undefined(), "the driver handed back a handle");
     assert_eq!(
         ops_from(before),
@@ -75,9 +73,7 @@ fn a_compute_pass_opens_on_the_encoder_it_was_given() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let encoder: Object = node("encoder");
-
     let opened: JsValue = subject.begin_compute_pass(&encoder.clone().into());
-
     assert!(
         !opened.is_undefined(),
         "a driver handle means the pass was opened"
@@ -101,9 +97,7 @@ fn setting_a_compute_pipeline_reaches_the_pass_under_the_render_name() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let pass: Object = node("pass");
-
     subject.set_compute_pipeline(&pass.clone().into(), &node("pipeline").into());
-
     assert_eq!(
         count_on("pass", "setPipeline", before),
         1,
@@ -121,14 +115,12 @@ fn a_dispatch_with_a_bind_group_binds_everything_before_it_dispatches() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let pass: Object = node("pass");
-
     subject.dispatch_with_bind_group(
         &pass.clone().into(),
         &node("pipeline").into(),
         &node("group").into(),
         &grid(),
     );
-
     assert_eq!(
         ops_from(before),
         vec![
@@ -157,9 +149,7 @@ fn a_dispatch_keeps_the_axis_order_x_then_y_then_z() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let pass: Object = node("pass");
-
     subject.dispatch(&pass.clone().into(), &grid());
-
     let args: Array = args_on("pass", "dispatchWorkgroups", before);
     assert_eq!(args.length(), 3, "one count per axis, no more");
     assert_eq!(args.get(0).as_f64(), Some(4.0), "x is the first argument");
@@ -182,9 +172,7 @@ fn an_offset_indexed_draw_moves_the_first_index_and_leaves_the_base_vertex_at_ze
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let pass: Object = node("pass");
-
     subject.draw_indexed_offset(&pass.clone().into(), 12, 36, 2);
-
     let args: Array = args_on("pass", "drawIndexed", before);
     assert_eq!(
         args.get(0).as_f64(),
@@ -214,14 +202,12 @@ fn an_offset_indexed_draw_moves_the_first_index_and_leaves_the_base_vertex_at_ze
 fn a_frame_with_a_bind_group_encodes_ends_finishes_and_submits() {
     let mut subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.render_frame_with_bind_group(
         &node("pipeline").into(),
         &node("group").into(),
         Color::new(0.0, 0.0, 0.0, 1.0),
         6,
     );
-
     assert_eq!(
         ops_since(before),
         vec![
@@ -270,9 +256,7 @@ fn a_frame_with_a_bind_group_encodes_ends_finishes_and_submits() {
 fn a_render_pipeline_built_on_an_explicit_layout_carries_that_layout_rather_than_auto() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.create_render_pipeline_with_layout(&pipeline_descriptor(), &node("layout").into());
-
     let args: Array = args_on("device", "createRenderPipeline", before);
     let descriptor: JsValue = args.get(0);
     assert_eq!(
@@ -314,9 +298,7 @@ fn a_render_pipeline_without_a_fragment_stage_still_reaches_the_device() {
         MultisampleState::default(),
         None,
     );
-
     subject.create_render_pipeline_with_layout(&depth_only, &node("layout").into());
-
     let args: Array = args_on("device", "createRenderPipeline", before);
     assert_eq!(
         count_on("device", "createRenderPipeline", before),
@@ -338,7 +320,6 @@ fn a_render_pipeline_without_a_fragment_stage_still_reaches_the_device() {
 fn a_render_pass_onto_a_named_texture_never_touches_the_swap_chain() {
     let mut subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     let opened: JsValue = subject.begin_render_pass_to_texture(
         &node("encoder").into(),
         &node("colour-view").into(),
@@ -346,7 +327,6 @@ fn a_render_pass_onto_a_named_texture_never_touches_the_swap_chain() {
         Some(&node("depth-view").into()),
         Some(1.0),
     );
-
     assert!(
         !opened.is_undefined(),
         "the driver handed back a pass handle"

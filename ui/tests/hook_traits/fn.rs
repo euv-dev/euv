@@ -221,7 +221,6 @@ fn each_context_extension_is_reachable_through_its_trait() {
     let form: FormState = form_through_the_trait::<HookContext>();
     let i18n: I18n = i18n_through_the_trait::<HookContext>();
     let transition: TransitionState = transition_through_the_trait::<HookContext>();
-
     assert_eq!(
         form.field("email"),
         "",

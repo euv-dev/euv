@@ -97,8 +97,6 @@ pub fn euv_native_select(node: VirtualNode<EuvNativeSelectProps>) -> VirtualNode
                 onchange: onchange
                 class: base_class
                 class: size_class
-
-
                 class: invalid_class
                 children
             }

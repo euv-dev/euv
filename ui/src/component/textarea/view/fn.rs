@@ -49,7 +49,6 @@ pub fn euv_textarea(node: VirtualNode<EuvTextareaProps>) -> VirtualNode {
             placeholder: placeholder
             value: value
             class: base_class
-
             class: custom_class
             disabled: is_disabled
             oninput: oninput

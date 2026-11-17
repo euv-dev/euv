@@ -355,7 +355,6 @@ fn tree_item_keydown(
         else {
             return;
         };
-
         if key == TREE_KEY_ARROW_DOWN
             || key == TREE_KEY_ARROW_UP
             || key == TREE_KEY_HOME
@@ -378,13 +377,11 @@ fn tree_item_keydown(
             }
             return;
         }
-
         if key == TREE_KEY_ENTER || key == TREE_KEY_SPACE {
             keyboard_event.prevent_default();
             select_tree_node(selected, on_select.clone(), value);
             return;
         }
-
         if key == TREE_KEY_ARROW_RIGHT && has_children {
             keyboard_event.prevent_default();
             if !is_expanded {
@@ -403,7 +400,6 @@ fn tree_item_keydown(
             }
             return;
         }
-
         if key == TREE_KEY_ARROW_LEFT {
             if has_children && is_expanded {
                 keyboard_event.prevent_default();

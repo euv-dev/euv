@@ -248,7 +248,6 @@ pub(crate) fn fill_contours_into(
     if contours.is_empty() {
         return;
     }
-
     // Collect every contour into a single working vertex array, and
     // remember where each contour starts.
     working.clear();
@@ -257,7 +256,6 @@ pub(crate) fn fill_contours_into(
         starts.push(working.len());
         working.extend_from_slice(&contour.points);
     }
-
     // Decide which contours are holes. A contour is a hole when it is
     // contained by another contour and winds the other way.
     let mut holes: Vec<usize> = Vec::new();
@@ -277,7 +275,6 @@ pub(crate) fn fill_contours_into(
             outers.push(index);
         }
     }
-
     if outers.is_empty() {
         // Every contour is a hole: fall back to filling them as
         // individual polygons, which keeps degenerate input visible
@@ -293,7 +290,6 @@ pub(crate) fn fill_contours_into(
         }
         return;
     }
-
     for index in outers {
         let count: usize = contours[index].points.len();
         append_ear_clipped(
@@ -439,20 +435,17 @@ fn stroke_one_contour(
         }
         return;
     }
-
     let closed: bool = contour.closed;
     let segment_count: usize = if closed {
         points.len()
     } else {
         points.len() - 1
     };
-
     for index in 0..segment_count {
         let a: Point = points[index];
         let b: Point = points[(index + 1) % points.len()];
         push_segment_quad(mesh, a, b, half_width, color);
     }
-
     // Joins sit on the interior vertices of the contour.
     let join_start: usize = if closed { 0 } else { 1 };
     let join_end: usize = if closed {
@@ -466,7 +459,6 @@ fn stroke_one_contour(
         let next: Point = points[(index + 1) % points.len()];
         push_join(mesh, previous, current, next, style, color, half_width);
     }
-
     // Caps sit on the two end vertices of an open contour.
     if !closed {
         match style.cap {
@@ -481,7 +473,6 @@ fn stroke_one_contour(
                 let extended: Point =
                     Point::new(first.x + dx * half_width, first.y + dy * half_width);
                 push_segment_quad(mesh, extended, first, half_width, color);
-
                 let last: Point = points[points.len() - 1];
                 let before_last: Point = points[points.len() - 2];
                 let (dx, dy) = normalized(last.x - before_last.x, last.y - before_last.y);
@@ -830,12 +821,10 @@ pub(crate) fn ear_clip(points: &[Point], output: &mut Vec<usize>) {
             break;
         }
         guard += 1;
-
         let current: usize = cursor;
         let a: usize = previous[current];
         let b: usize = current;
         let c: usize = next[current];
-
         if is_ear(&ordered, &previous, &next, a, b, c) {
             output.push(a);
             output.push(b);
@@ -846,7 +835,6 @@ pub(crate) fn ear_clip(points: &[Point], output: &mut Vec<usize>) {
             cursor = a;
             continue;
         }
-
         cursor = c;
     }
     if remaining == 3 {
@@ -882,14 +870,12 @@ fn is_ear(
     let pa: Point = points[a];
     let pb: Point = points[b];
     let pc: Point = points[c];
-
     let cross: f64 =
         (pb.x - pa.x) as f64 * (pc.y - pa.y) as f64 - (pb.y - pa.y) as f64 * (pc.x - pa.x) as f64;
     if cross <= 0.0 {
         // Reflex or collinear: not an ear.
         return false;
     }
-
     let mut current: usize = next[c];
     while current != a {
         let p: Point = points[current];

@@ -102,7 +102,6 @@ pub fn euv_avatar_fallback(node: VirtualNode<EuvAvatarFallbackProps>) -> Virtual
     html! {
         span {
             class: c_euv_avatar_fallback()
-
             "data-slot": "avatar-fallback"
             if has_children {
                 children

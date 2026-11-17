@@ -543,7 +543,6 @@ fn a_layer_can_be_created_hidden_at_an_explicit_depth() {
 #[test]
 fn a_css_font_string_puts_the_size_first_and_the_family_second() {
     let built: String = CanvasRenderer::font(16.0, "sans-serif");
-
     assert_eq!(
         built,
         String::from("16px sans-serif"),
@@ -555,7 +554,6 @@ fn a_css_font_string_puts_the_size_first_and_the_family_second() {
 #[test]
 fn a_fractional_font_size_keeps_its_fraction() {
     let built: String = CanvasRenderer::font(10.5, "Inter, system-ui");
-
     assert_eq!(
         built,
         String::from("10.5px Inter, system-ui"),

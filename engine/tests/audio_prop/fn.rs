@@ -141,11 +141,9 @@ fn master_volume_is_clamped_into_the_unit_range_before_it_reaches_the_gain_node(
         browser_context(48000.0, 0.0),
         gain_node(&recording_param(&sink)),
     );
-
     context.apply_master_volume(2.0);
     context.apply_master_volume(-1.0);
     context.apply_master_volume(0.25);
-
     let written: u32 = sink.length();
     let observed: Vec<f64> = (0..written)
         .map(|index: u32| sink.get(index).as_f64().unwrap_or(-1.0))
@@ -172,9 +170,7 @@ fn suspending_a_context_is_routed_through_to_the_browser_context() {
     reflective(&holder, "suspend", suspend.as_ref());
     let browser: AudioContext = holder.clone().unchecked_into();
     let context: GameAudioContext = GameAudioContext::new(browser, gain_node(&silent_param()));
-
     context.suspend();
-
     let observed: JsValue = Reflect::get(&holder, &JsValue::from_str("__suspended"))
         .expect("the recorded flag must be readable");
     assert!(
@@ -194,9 +190,7 @@ fn a_host_without_web_audio_yields_no_context_instead_of_panicking() {
     let constructor: Result<JsValue, JsValue> =
         Reflect::get(&global, &JsValue::from_str("AudioContext"));
     let exposes_web_audio: bool = constructor.is_ok_and(|found: JsValue| found.is_function());
-
     let created: Option<GameAudioContext> = GameAudioContext::create();
-
     if exposes_web_audio {
         assert!(
             created.is_some(),

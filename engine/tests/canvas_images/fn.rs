@@ -89,9 +89,7 @@ fn renderer() -> (CanvasRenderer, Object) {
 )]
 fn an_image_is_drawn_at_the_four_coordinates_it_was_given() {
     let (subject, log): (CanvasRenderer, Object) = renderer();
-
     subject.draw_image(&image(16, 16), Vector2D::new(5.0, 7.0), 32.0, 48.0);
-
     let args: Array = args_of(&log, "drawImage");
     assert_eq!(args.get(1).as_f64(), Some(5.0), "x");
     assert_eq!(args.get(2).as_f64(), Some(7.0), "then y");
@@ -115,7 +113,6 @@ fn an_image_is_drawn_at_the_four_coordinates_it_was_given() {
 )]
 fn a_sub_region_draw_forwards_the_source_rectangle_before_the_destination() {
     let (subject, log): (CanvasRenderer, Object) = renderer();
-
     subject.draw_image_rect(
         &image(64, 64),
         Rect::new(1.0, 2.0, 8.0, 16.0),
@@ -123,7 +120,6 @@ fn a_sub_region_draw_forwards_the_source_rectangle_before_the_destination() {
         32.0,
         32.0,
     );
-
     let args: Array = args_of(&log, "drawImage");
     assert_eq!(
         args.length(),
@@ -150,9 +146,7 @@ fn a_sub_region_draw_forwards_the_source_rectangle_before_the_destination() {
 )]
 fn turning_smoothing_on_writes_the_flag_rather_than_leaving_the_driver_default() {
     let (typed, log): (CanvasRenderingContext2d, Object) = recording_context();
-
     CanvasRenderer::enable_smoothing_on(&typed);
-
     assert_eq!(
         ops(&log),
         vec![String::from("imageSmoothingEnabled")],
@@ -175,13 +169,11 @@ fn turning_smoothing_on_writes_the_flag_rather_than_leaving_the_driver_default()
 )]
 fn a_recorded_sprite_is_queued_rather_than_drawn_immediately() {
     let mut list: DrawList = DrawList::create();
-
     list.draw_sprite(
         &image(16, 16),
         Rect::new(0.0, 0.0, 8.0, 8.0),
         Transform2D::identity(),
     );
-
     assert_eq!(list.len(), 1, "one sprite, queued");
     assert!(
         matches!(
@@ -201,7 +193,6 @@ fn a_recorded_sprite_is_queued_rather_than_drawn_immediately() {
 )]
 fn a_recorded_image_rect_keeps_the_size_it_was_given() {
     let mut list: DrawList = DrawList::create();
-
     list.draw_image_rect(
         &image(64, 64),
         Rect::new(2.0, 3.0, 16.0, 16.0),
@@ -209,7 +200,6 @@ fn a_recorded_image_rect_keeps_the_size_it_was_given() {
         40.0,
         50.0,
     );
-
     assert_eq!(list.len(), 1, "one queued draw");
     let recorded: &DrawCommand = list
         .get_commands()
@@ -238,9 +228,7 @@ fn the_backend_trait_reaches_the_same_calls_as_the_inherent_draws() {
         backend.draw_image(image, Vector2D::new(1.0, 2.0), 3.0, 4.0);
     }
     let (subject, log): (CanvasRenderer, Object) = renderer();
-
     draw_through_the_trait(&subject, &image(8, 8));
-
     assert_eq!(
         ops(&log),
         vec![String::from("drawImage")],

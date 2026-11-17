@@ -1,7 +1,7 @@
-mod r#data;
-mod r#render;
-mod r#shader;
+mod data;
+mod render;
+mod shader;
 
-pub use {r#data::*, r#render::render_raytrace_rgba, r#shader::*};
+pub use {data::*, render::render_raytrace_rgba, shader::*};
 
 use super::*;

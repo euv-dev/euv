@@ -92,7 +92,6 @@ fn args_after(log: &Object, op: &str, from: u32) -> Array {
 )]
 fn a_fresh_backend_reports_a_live_context_and_no_context_loss() {
     let (subject, _log): (WebGl2Backend, Object) = backend(false);
-
     assert!(
         !subject.is_context_lost(),
         "a freshly constructed backend holds a live context, so the per-frame check reads false"
@@ -107,7 +106,6 @@ fn a_fresh_backend_reports_a_live_context_and_no_context_loss() {
 )]
 fn a_lost_context_is_reported_so_the_renderer_can_rebuild() {
     let (subject, _log): (WebGl2Backend, Object) = backend(true);
-
     assert!(
         subject.is_context_lost(),
         "every GL call against a lost context is a silent no-op, so this has to reach the caller"
@@ -126,9 +124,7 @@ fn resizing_pushes_the_new_viewport_to_the_driver() {
         .expect("log readable")
         .unchecked_into::<Array>()
         .length();
-
     subject.resize(1280, 720);
-
     let fresh: Vec<String> = ops_after(&log, before);
     assert_eq!(
         fresh,
@@ -152,9 +148,7 @@ fn resizing_pushes_the_new_viewport_to_the_driver() {
 )]
 fn invalidating_state_seeds_the_shadow_from_the_new_viewport() {
     let (mut subject, _log): (WebGl2Backend, Object) = backend(false);
-
     subject.invalidate_state(640, 480);
-
     assert!(
         !subject.is_context_lost(),
         "invalidating the shadow is a bookkeeping reset, not a context event"
@@ -169,7 +163,6 @@ fn invalidating_state_seeds_the_shadow_from_the_new_viewport() {
 )]
 fn the_default_state_a_fresh_backend_starts_with_disables_depth_testing() {
     let fresh: GlRenderState = GlRenderState::context_defaults(800, 600);
-
     assert!(
         !fresh.get_depth().get_enabled(),
         "a fresh GL context has depth testing off, so the shadow must not claim it is on"

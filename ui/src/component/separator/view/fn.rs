@@ -42,7 +42,6 @@ pub fn euv_separator(node: VirtualNode<EuvSeparatorProps>) -> VirtualNode {
             "data-orientation": orientation_attr
             class: base_class
             class: orientation_class
-
             children
         }
     }

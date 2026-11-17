@@ -59,7 +59,6 @@ pub fn euv_toggle_group(node: VirtualNode<EuvToggleGroupProps>) -> VirtualNode {
         div {
             "data-slot": "toggle-group"
             class: group_class
-
             role: "group"
             entries
         }

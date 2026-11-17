@@ -23,7 +23,6 @@ pub fn euv_questionnaire(node: VirtualNode<EuvQuestionnaireProps>) -> VirtualNod
             div {
                 "data-slot": "questionnaire"
                 class: base_class
-
                 children
             }
     }
@@ -100,7 +99,6 @@ pub fn euv_questionnaire_title(node: VirtualNode<EuvQuestionnaireTitleProps>) ->
             div {
                 "data-slot": "questionnaire-title"
                 class: base_class
-
                 children
             }
     }
@@ -206,7 +204,6 @@ pub fn euv_questionnaire_choice(node: VirtualNode<EuvQuestionnaireChoiceProps>) 
                     "false"
                 }
                 class: base_class
-
                 class: if disabled {
                     c_euv_questionnaire_choice_disabled()
                 } else {
@@ -363,7 +360,6 @@ pub fn euv_questionnaire_input(node: VirtualNode<EuvQuestionnaireInputProps>) ->
                 "data-slot": "questionnaire-input"
                 type: "text"
                 class: base_class
-
             }
         }
     }
@@ -442,7 +438,6 @@ pub fn euv_questionnaire_previous(node: VirtualNode<EuvQuestionnairePreviousProp
             "data-slot": "questionnaire-previous"
             type: "button"
             class: base_class
-
             children
         }
     }
@@ -469,7 +464,6 @@ pub fn euv_questionnaire_skip(node: VirtualNode<EuvQuestionnaireSkipProps>) -> V
             "data-slot": "questionnaire-skip"
             type: "button"
             class: base_class
-
             children
         }
     }
@@ -496,7 +490,6 @@ pub fn euv_questionnaire_next(node: VirtualNode<EuvQuestionnaireNextProps>) -> V
             "data-slot": "questionnaire-next"
             type: "button"
             class: base_class
-
             children
         }
     }
@@ -523,7 +516,6 @@ pub fn euv_questionnaire_submit(node: VirtualNode<EuvQuestionnaireSubmitProps>) 
             "data-slot": "questionnaire-submit"
             type: "button"
             class: base_class
-
             children
         }
     }

@@ -120,14 +120,12 @@ fn indexed(
 fn a_single_instance_indexed_draw_uses_the_plain_call() {
     let (subject, log): (WebGl2Backend, Object) = backend();
     let before: u32 = log_len(&log);
-
     let issued: bool = subject.draw_elements(
         &subject.get_context().clone(),
         PrimitiveTopology::TriangleList,
         &indexed(36, 0, 1, 0),
         IndexFormat::Uint16,
     );
-
     assert!(issued, "a zero base vertex is drawable on WebGL 2");
     assert_eq!(
         count_after(&log, "drawElements", before),
@@ -150,14 +148,12 @@ fn a_single_instance_indexed_draw_uses_the_plain_call() {
 fn several_instances_take_the_instanced_call() {
     let (subject, log): (WebGl2Backend, Object) = backend();
     let before: u32 = log_len(&log);
-
     subject.draw_elements(
         &subject.get_context().clone(),
         PrimitiveTopology::TriangleList,
         &indexed(36, 0, 4, 0),
         IndexFormat::Uint16,
     );
-
     assert_eq!(
         count_after(&log, "drawElementsInstanced", before),
         1,
@@ -179,14 +175,12 @@ fn several_instances_take_the_instanced_call() {
 fn a_non_zero_base_vertex_is_refused_rather_than_silently_drawing_the_wrong_mesh() {
     let (subject, log): (WebGl2Backend, Object) = backend();
     let before: u32 = log_len(&log);
-
     let issued: bool = subject.draw_elements(
         &subject.get_context().clone(),
         PrimitiveTopology::TriangleList,
         &indexed(36, 0, 1, 4),
         IndexFormat::Uint16,
     );
-
     assert!(
         !issued,
         "WebGL 2 has no baseVertex, so honouring it is impossible; drawing anyway would fetch \
@@ -208,14 +202,12 @@ fn a_non_zero_base_vertex_is_refused_rather_than_silently_drawing_the_wrong_mesh
 fn the_first_index_is_scaled_by_the_element_width_before_it_reaches_gl() {
     let (subject, log): (WebGl2Backend, Object) = backend();
     let before: u32 = log_len(&log);
-
     subject.draw_elements(
         &subject.get_context().clone(),
         PrimitiveTopology::TriangleList,
         &indexed(6, 10, 1, 0),
         IndexFormat::Uint32,
     );
-
     let args: Array = args_after(&log, "drawElements", before);
     assert_eq!(
         args.get(3).as_f64(),
@@ -233,7 +225,6 @@ fn the_first_index_is_scaled_by_the_element_width_before_it_reaches_gl() {
 fn binding_a_texture_switches_the_active_unit_only_when_it_differs() {
     let (mut subject, log): (WebGl2Backend, Object) = backend();
     let sample: GlTexture = texture(&subject, &subject.get_context().clone());
-
     let first: u32 = log_len(&log);
     subject.bind_texture_unit(&subject.get_context().clone(), 0, &sample);
     assert_eq!(
@@ -241,7 +232,6 @@ fn binding_a_texture_switches_the_active_unit_only_when_it_differs() {
         1,
         "the first bind has to select the unit"
     );
-
     let second: u32 = log_len(&log);
     subject.bind_texture_unit(&subject.get_context().clone(), 0, &sample);
     assert_eq!(
@@ -254,7 +244,6 @@ fn binding_a_texture_switches_the_active_unit_only_when_it_differs() {
         1,
         "but the texture itself is still bound, because it may have changed"
     );
-
     let third: u32 = log_len(&log);
     subject.bind_texture_unit(&subject.get_context().clone(), 1, &sample);
     assert_eq!(

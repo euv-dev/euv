@@ -216,7 +216,7 @@ impl Parse for HtmlMatch {
         while !arms_content.is_empty() {
             let mut pattern_tokens: proc_macro2::TokenStream = proc_macro2::TokenStream::new();
             while !arms_content.peek(Token![=>]) {
-                let token_tree: proc_macro2::TokenTree = arms_content.parse()?;
+                let token_tree: TokenTree = arms_content.parse()?;
                 pattern_tokens.extend([token_tree]);
             }
             arms_content.parse::<Token![=>]>()?;
@@ -257,7 +257,7 @@ impl Parse for HtmlFor {
         input.parse::<Token![for]>()?;
         let mut pattern_tokens: proc_macro2::TokenStream = proc_macro2::TokenStream::new();
         while !input.peek(Token![in]) {
-            let token_tree: proc_macro2::TokenTree = input.parse()?;
+            let token_tree: TokenTree = input.parse()?;
             pattern_tokens.extend([token_tree]);
         }
         input.parse::<Token![in]>()?;

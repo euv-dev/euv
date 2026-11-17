@@ -91,9 +91,7 @@ fn nth_of(context: &Object, op: &str, nth: usize) -> Array {
 )]
 fn a_block_records_its_capacity_and_binding_and_binds_itself() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(0.0);
-
     let block: Option<GlUniformBlock> = GlUniformBlock::create(&context, 128, 3);
-
     assert!(block.is_some(), "the driver handle came back");
     let created: &GlUniformBlock = block.as_ref().expect("created");
     assert_eq!(
@@ -122,9 +120,7 @@ fn a_block_records_its_capacity_and_binding_and_binds_itself() {
 )]
 fn a_zero_sized_request_still_reserves_one_byte_so_the_buffer_is_valid() {
     let (context, _log): (WebGl2RenderingContext, Object) = recording_context(0.0);
-
     let block: Option<GlUniformBlock> = GlUniformBlock::create(&context, 0, 0);
-
     assert!(
         block.is_some(),
         "a zero sized request must not fail; the driver refuses a zero byte buffer"
@@ -146,9 +142,7 @@ fn a_write_inside_the_block_goes_through_buffer_sub_data_without_reallocating() 
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(0.0);
     let mut block: GlUniformBlock = GlUniformBlock::create(&context, 256, 0).expect("created");
     let before: usize = count_of(&log, "bufferData");
-
     let issued: bool = block.update(&context, 64, &[0; 32]);
-
     assert!(issued, "a write inside the reserved capacity is issued");
     assert_eq!(
         count_of(&log, "bufferData"),
@@ -173,9 +167,7 @@ fn a_write_past_the_block_reallocates_and_the_capacity_grows_to_cover_it() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(0.0);
     let mut block: GlUniformBlock = GlUniformBlock::create(&context, 64, 0).expect("created");
     let before: usize = count_of(&log, "bufferData");
-
     let issued: bool = block.update(&context, 0, &[0; 256]);
-
     assert!(
         issued,
         "a growing write is still issued, after reallocating"
@@ -209,9 +201,7 @@ fn a_matrix_write_past_the_block_is_refused_rather_than_truncating() {
     let mut block: GlUniformBlock = GlUniformBlock::create(&context, 16, 0).expect("created");
     let before: usize = count_of(&log, "bufferSubData");
     let matrix: Matrix4x4 = Matrix4x4::identity();
-
     let accepted: bool = block.set_mat4(&context, 0, &matrix);
-
     assert!(
         !accepted,
         "a 64 byte transform cannot fit in 16 bytes, so it must be refused rather than truncated"
@@ -233,9 +223,7 @@ fn a_matrix_that_fits_is_written_as_sixty_four_bytes() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(0.0);
     let mut block: GlUniformBlock = GlUniformBlock::create(&context, 256, 0).expect("created");
     let matrix: Matrix4x4 = Matrix4x4::identity();
-
     let accepted: bool = block.set_mat4(&context, 16, &matrix);
-
     assert!(accepted, "a 64 byte transform fits in a 256 byte block");
     let write: Array = nth_of(&log, "bufferSubData", 0);
     assert_eq!(
@@ -261,9 +249,7 @@ fn deleting_a_block_unbinds_its_point_and_zeroes_the_capacity() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(0.0);
     let mut block: GlUniformBlock = GlUniformBlock::create(&context, 128, 5).expect("created");
     let before: usize = count_of(&log, "bindBufferBase");
-
     block.delete(&context);
-
     assert_eq!(
         count_of(&log, "bindBufferBase"),
         before + 1,
@@ -302,10 +288,8 @@ fn a_uniform_block_index_is_resolved_once_and_then_cached() {
     let mut program: GlProgram =
         GlProgram::create(&context, "vertex body", "fragment body").expect("linked");
     let after_link: usize = count_of(&log, "getUniformBlockIndex");
-
     let first: bool = program.bind_uniform_block(&context, "Scene", 2);
     let second: bool = program.bind_uniform_block(&context, "Scene", 2);
-
     assert!(
         first && second,
         "a block the driver knows about binds both times"
@@ -339,9 +323,7 @@ fn a_uniform_block_the_driver_optimised_out_reports_false_without_binding() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(missing);
     let mut program: GlProgram =
         GlProgram::create(&context, "vertex body", "fragment body").expect("linked");
-
     let bound: bool = program.bind_uniform_block(&context, "Unused", 4);
-
     assert!(
         !bound,
         "the sentinel index means the driver has no such block, so the bind did not happen"

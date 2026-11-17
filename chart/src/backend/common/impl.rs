@@ -59,7 +59,6 @@ impl BackendFactory {
             BackendKind::WebGl2 => &[BackendKind::WebGl2, BackendKind::Canvas2D],
             BackendKind::Canvas2D => &[BackendKind::Canvas2D],
         };
-
         for kind in order {
             match kind {
                 BackendKind::WebGpu => {

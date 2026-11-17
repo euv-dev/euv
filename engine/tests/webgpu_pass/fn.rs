@@ -23,9 +23,7 @@ fn indexed() -> DrawIndexedArgs {
 fn a_vertex_buffer_is_bound_at_the_slot_the_caller_named() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.set_vertex_buffer(&pass().into(), 2, &device().into());
-
     assert_eq!(count_on("pass", "setVertexBuffer", before), 1);
     let args: Array = args_on("pass", "setVertexBuffer", before);
     assert_eq!(
@@ -44,9 +42,7 @@ fn a_vertex_buffer_is_bound_at_the_slot_the_caller_named() {
 fn an_absent_vertex_buffer_is_skipped_rather_than_bound_as_undefined() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.set_vertex_buffer(&pass().into(), 0, &JsValue::UNDEFINED);
-
     assert_eq!(
         count_on("pass", "setVertexBuffer", before),
         0,
@@ -63,9 +59,7 @@ fn an_absent_vertex_buffer_is_skipped_rather_than_bound_as_undefined() {
 fn the_index_buffer_format_travels_as_the_spec_string() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.set_index_buffer(&pass().into(), &device().into(), IndexFormat::Uint32);
-
     let args: Array = args_on("pass", "setIndexBuffer", before);
     assert_eq!(
         args.get(1).as_string(),
@@ -84,9 +78,7 @@ fn the_index_buffer_format_travels_as_the_spec_string() {
 fn an_indexed_draw_forwards_all_five_arguments_in_spec_order() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.draw_indexed(&pass().into(), &indexed());
-
     assert_eq!(count_on("pass", "drawIndexed", before), 1);
     let args: Array = args_on("pass", "drawIndexed", before);
     assert_eq!(
@@ -118,9 +110,7 @@ fn an_indexed_draw_forwards_all_five_arguments_in_spec_order() {
 fn creating_a_uniform_buffer_reaches_the_device() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     let created: JsValue = subject.create_uniform_buffer(&[0.0; 16]);
-
     assert!(
         !created.is_undefined(),
         "the device handed back a handle, so the buffer exists"

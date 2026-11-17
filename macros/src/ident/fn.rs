@@ -49,7 +49,7 @@ pub(crate) fn is_attr_key_pattern(content: ParseStream) -> bool {
 ///
 /// - `syn::Result<String>` - The clean identifier name (without `r#`).
 pub(crate) fn parse_ident_segment(input: ParseStream) -> syn::Result<String> {
-    let token_tree: proc_macro2::TokenTree = input.parse()?;
+    let token_tree: TokenTree = input.parse()?;
     match token_tree {
         proc_macro2::TokenTree::Ident(ident) => {
             let raw_name: String = ident.to_string();
@@ -140,7 +140,7 @@ pub(crate) fn parse_ident_name(input: ParseStream) -> syn::Result<String> {
 ///
 /// - `String` - The reconstructed identifier chain name.
 pub(crate) fn reconstruct_ident_from_tokens(tokens: &proc_macro2::TokenStream) -> String {
-    let iter: Peekable<proc_macro2::token_stream::IntoIter> = tokens.clone().into_iter().peekable();
+    let iter: Peekable<IntoIter> = tokens.clone().into_iter().peekable();
     let mut result: String = String::new();
     for token in iter {
         match token {

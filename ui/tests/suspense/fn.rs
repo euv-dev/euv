@@ -201,7 +201,6 @@ fn state_signal_is_reactive() {
 #[test]
 fn outside_a_render_the_suspense_hook_still_hands_back_a_usable_handle() {
     let handle: SuspenseHandle<i32> = use_suspense();
-
     assert!(
         matches!(handle.get_phase().get(), SuspensePhase::Pending),
         "with no hook context active the factory result comes straight back, and a fresh \
@@ -218,13 +217,10 @@ fn outside_a_render_the_suspense_hook_still_hands_back_a_usable_handle() {
 #[test]
 fn the_suspense_hook_returns_the_same_slot_on_every_render() {
     let mut context: HookContext = HookContext::default();
-
     let first: SuspenseHandle<i32> = HookContext::with(context.clone(), use_suspense);
     context.reset_index();
     let second: SuspenseHandle<i32> = HookContext::with(context, use_suspense);
-
     first.resolve_sync(7);
-
     assert!(
         matches!(second.get_phase().get(), SuspensePhase::Resolved(7)),
         "a hook has to hand back the same slot on every render. If each render allocated a \
@@ -237,12 +233,9 @@ fn the_suspense_hook_returns_the_same_slot_on_every_render() {
 fn two_components_get_suspense_handles_of_their_own() {
     let left: HookContext = HookContext::default();
     let right: HookContext = HookContext::default();
-
     let first: SuspenseHandle<i32> = HookContext::with(left, use_suspense);
     let second: SuspenseHandle<i32> = HookContext::with(right, use_suspense);
-
     first.resolve_sync(9);
-
     assert!(
         matches!(second.get_phase().get(), SuspensePhase::Pending),
         "the slot belongs to the hook context, not to the hook name: one component's resolved \

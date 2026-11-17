@@ -220,7 +220,6 @@ pub fn euv_radio_group_item(node: VirtualNode<EuvRadioGroupItemProps>) -> Virtua
             span {
                 "data-slot": "radio-group-indicator"
                 class: c_euv_radio_group_indicator()
-
                 class: indicator_checked_class
                 if is_checked {
                     span {

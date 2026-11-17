@@ -44,7 +44,11 @@ use {
 
 use {
     qrcode::{QrCode, render::svg, types::QrError},
-    serde::{Deserialize, Serialize},
+    serde::{
+        Deserialize, Deserializer, Serialize,
+        de::{self, Visitor},
+    },
+    serde_json::Error,
 };
 
 /// Mounts the demo application into the page.

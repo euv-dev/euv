@@ -183,7 +183,6 @@ pub fn euv_menubar(node: VirtualNode<EuvMenubarProps>) -> VirtualNode {
             "data-slot": "menubar"
             "aria-label": label
             class: c_euv_menubar()
-
             onclick: close_other_menubar_menus()
             onfocusin: update_menubar_tab_stop()
             children
@@ -339,7 +338,6 @@ pub fn euv_menubar_content(node: VirtualNode<EuvMenubarContentProps>) -> Virtual
             "aria-labelledby": trigger_id
             "aria-label": label
             class: c_euv_menubar_content()
-
             class: if { open } {
                 c_euv_menubar_content_open()
             } else {
@@ -1005,7 +1003,6 @@ pub fn euv_menubar_item(node: VirtualNode<EuvMenubarItemProps>) -> VirtualNode {
                 tabindex: "-1"
                 disabled: MENUBAR_TRUE_VALUE
                 class: c_euv_menubar_item()
-
                 onclick: on_click
                 label
             }
@@ -1020,7 +1017,6 @@ pub fn euv_menubar_item(node: VirtualNode<EuvMenubarItemProps>) -> VirtualNode {
                 tabindex: "-1"
                 disabled: MENUBAR_FALSE_VALUE
                 class: c_euv_menubar_item()
-
                 onclick: on_click
                 label
             }
@@ -1072,7 +1068,6 @@ pub fn euv_menubar_separator(node: VirtualNode<EuvMenubarSeparatorProps>) -> Vir
             "data-slot": "menubar-separator"
             "aria-label": label
             class: c_euv_menubar_separator()
-
         }
     }
 }
@@ -1184,7 +1179,6 @@ pub fn euv_menubar_checkbox_item(node: VirtualNode<EuvMenubarCheckboxItemProps>)
                 tabindex: "-1"
                 disabled: MENUBAR_TRUE_VALUE
                 class: c_euv_menubar_checkbox_item()
-
                 onclick: on_click
                 span {
                     class: c_euv_menubar_checkbox_item_indicator()
@@ -1215,7 +1209,6 @@ pub fn euv_menubar_checkbox_item(node: VirtualNode<EuvMenubarCheckboxItemProps>)
                 tabindex: "-1"
                 disabled: MENUBAR_FALSE_VALUE
                 class: c_euv_menubar_checkbox_item()
-
                 onclick: on_click
                 span {
                     class: c_euv_menubar_checkbox_item_indicator()
@@ -1284,7 +1277,6 @@ pub fn euv_menubar_radio_item(node: VirtualNode<EuvMenubarRadioItemProps>) -> Vi
                 tabindex: "-1"
                 disabled: MENUBAR_TRUE_VALUE
                 class: c_euv_menubar_radio_item()
-
                 onclick: on_click
                 span {
                     class: c_euv_menubar_radio_item_indicator()
@@ -1317,7 +1309,6 @@ pub fn euv_menubar_radio_item(node: VirtualNode<EuvMenubarRadioItemProps>) -> Vi
                 tabindex: "-1"
                 disabled: MENUBAR_FALSE_VALUE
                 class: c_euv_menubar_radio_item()
-
                 onclick: on_click
                 span {
                     class: c_euv_menubar_radio_item_indicator()
@@ -1508,7 +1499,6 @@ pub fn euv_menubar_sub_content(node: VirtualNode<EuvMenubarSubContentProps>) -> 
             "aria-labelledby": trigger_id
             "aria-label": label
             class: c_euv_menubar_sub_content()
-
             class: if { open } {
                 c_euv_menubar_sub_content_open()
             } else {

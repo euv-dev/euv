@@ -65,7 +65,7 @@ use {
         spawn,
         sync::{
             RwLock, RwLockWriteGuard, broadcast,
-            mpsc::{Receiver, Sender, channel},
+            mpsc::{self, Receiver, Sender, channel},
         },
         time::{Interval, interval, sleep},
     },

@@ -184,9 +184,7 @@ fn zooming_moves_the_camera_toward_the_target_rather_than_along_a_world_axis() {
     let mut camera: Camera3D =
         Camera3D::create(Vector3D::new(0.0, 0.0, 10.0), target, 800.0, 600.0);
     let before: f64 = (camera.get_position() - target).magnitude();
-
     camera.zoom(2.5);
-
     let after: f64 = (camera.get_position() - target).magnitude();
     assert!(
         after < before,
@@ -215,12 +213,10 @@ fn zooming_twice_moves_twice_as_far_as_zooming_once() {
     );
     let start: Vector3D = camera.get_position();
     let one_step: Vector3D = camera.get_position() + camera.forward().scaled(3.0);
-
     camera.zoom(3.0);
     let after_one: Vector3D = camera.get_position();
     camera.zoom(3.0);
     let after_two: Vector3D = camera.get_position();
-
     let first_move: Vector3D = after_one - start;
     let second_move: Vector3D = after_two - after_one;
     assert!(

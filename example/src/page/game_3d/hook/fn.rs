@@ -1516,8 +1516,8 @@ pub(crate) fn start_game_3d_webgpu_loop(
         // single sub-millisecond observer callback that fires before
         // any frame is committed.
         let renderer_for_observer: Rc<RefCell<Option<WebGpuRenderer>>> = renderer_rc.clone();
-        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
-            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+        let observer_closure: Closure<dyn FnMut(Array, ResizeObserver)> =
+            Closure::wrap(Box::new(move |_entries: Array, _obs: ResizeObserver| {
                 let Some(window_value): Option<Window> = window() else {
                     return;
                 };
@@ -1579,8 +1579,7 @@ pub(crate) fn start_game_3d_webgpu_loop(
                         renderer.resize(new_w, new_h);
                     }
                 }
-            }),
-        );
+            }));
         let observer_callback: Function = observer_closure
             .as_ref()
             .unchecked_ref::<Function>()
@@ -1979,8 +1978,8 @@ pub(crate) fn start_game_3d_webgl_loop(
         // aspect-ratio distortion that would otherwise show for 6-12
         // frames while the GPU is busy.
         let renderer_for_observer: Rc<RefCell<Option<WebGl2Backend>>> = renderer_rc.clone();
-        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
-            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+        let observer_closure: Closure<dyn FnMut(Array, ResizeObserver)> =
+            Closure::wrap(Box::new(move |_entries: Array, _obs: ResizeObserver| {
                 let Some(window_value): Option<Window> = window() else {
                     return;
                 };
@@ -2020,8 +2019,7 @@ pub(crate) fn start_game_3d_webgl_loop(
                         renderer.resize(new_w, new_h);
                     }
                 }
-            }),
-        );
+            }));
         let observer_callback: Function = observer_closure
             .as_ref()
             .unchecked_ref::<Function>()

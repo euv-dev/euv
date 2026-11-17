@@ -116,9 +116,7 @@ fn a_linear_gradient_forwards_both_endpoints_and_every_stop_in_order() {
         Vector2D::new(100.0, 0.0),
         stops.clone(),
     );
-
     let built: Option<CanvasGradient> = gradient.to_gradient(&context);
-
     assert!(
         built.is_some(),
         "a linear gradient always builds against a live context"
@@ -175,9 +173,7 @@ fn a_linear_gradient_with_no_stops_still_builds_a_gradient() {
     let (context, log): (CanvasRenderingContext2d, Object) = recording_context();
     let gradient: LinearGradient =
         LinearGradient::create(Vector2D::zero(), Vector2D::new(10.0, 10.0), Vec::new());
-
     let built: Option<CanvasGradient> = gradient.to_gradient(&context);
-
     assert!(
         built.is_some(),
         "an empty stop list is still a valid gradient"
@@ -203,9 +199,7 @@ fn a_radial_gradient_forwards_both_circles_not_just_the_inner_one() {
         25.0,
         vec![(0.5, String::from("#ff0000"))],
     );
-
     let built: Option<CanvasGradient> = gradient.to_gradient(&context);
-
     assert!(
         built.is_some(),
         "a radial gradient always builds against a live context"
@@ -266,12 +260,10 @@ fn a_gradient_fill_reaches_fill_style_and_a_gradient_stroke_reaches_stroke_style
         3.0,
         Vec::new(),
     );
-
     subject.set_linear_gradient_fill(&linear);
     subject.set_radial_gradient_fill(&radial);
     subject.set_linear_gradient_stroke(&linear);
     subject.set_radial_gradient_stroke(&radial);
-
     let recorded: Vec<String> = ops(&log);
     assert_eq!(
         recorded
@@ -302,9 +294,7 @@ fn a_shadow_forwards_all_four_fields_and_clearing_zeroes_them() {
     let subject: CanvasRenderer = renderer(&context);
     let config: ShadowConfig =
         ShadowConfig::new(String::from("rgba(0, 0, 0, 0.5)"), 4.0, 2.0, -2.0);
-
     subject.set_shadow(&config);
-
     assert_eq!(
         last_string(&log, "setShadowColor"),
         String::from("rgba(0, 0, 0, 0.5)"),
@@ -325,9 +315,7 @@ fn a_shadow_forwards_all_four_fields_and_clearing_zeroes_them() {
         Some(-2.0),
         "a negative y offset survives the trip rather than being clamped"
     );
-
     subject.clear_shadow();
-
     assert_eq!(
         last_of(&log, "setShadowBlur").get(0).as_f64(),
         Some(0.0),

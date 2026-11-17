@@ -145,7 +145,6 @@ pub fn euv_pagination_item(node: VirtualNode<EuvPaginationItemProps>) -> Virtual
                 tabindex: "0"
                 class: base_class
                 class: direction_class
-
                 class: direction_shadcn_class
                 href: href_ref
                 onclick: Router::link_handler(link)
@@ -199,7 +198,6 @@ pub fn euv_pagination_content(node: VirtualNode<EuvPaginationContentProps>) -> V
         ul {
             "data-slot": "pagination-content"
             class: base_class
-
             children
         }
     }
@@ -232,7 +230,6 @@ pub fn euv_pagination_ellipsis(node: VirtualNode<EuvPaginationEllipsisProps>) ->
                 role: "img"
                 "aria-label": PAGINATION_ELLIPSIS_ARIA_LABEL
                 class: c_euv_pagination_ellipsis()
-
                 PAGINATION_ELLIPSIS_GLYPH
             }
         }
@@ -302,7 +299,6 @@ pub fn euv_pagination_link(node: VirtualNode<EuvPaginationLinkProps>) -> Virtual
                 aria-current: if active { "page" } else { "false" }
                 class: base_class
                 class: active_class
-
                 class: active_shadcn_class
                 href: href_ref
                 onclick: Router::link_handler(link)

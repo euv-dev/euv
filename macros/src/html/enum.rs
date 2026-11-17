@@ -14,7 +14,7 @@ pub(crate) enum HtmlNode {
     /// `Cow::Borrowed(&'static str)` constant — the binary embeds the
     /// string once and every render reuses the same slice instead of
     /// allocating a fresh `String` per text node.
-    Text(syn::LitStr),
+    Text(LitStr),
     /// A bare Rust expression (identifiers without braces), converted to a
     /// `VirtualNode` via `IntoNode::into_node`. This is a static one-shot
     /// conversion — no re-rendering on signal changes.

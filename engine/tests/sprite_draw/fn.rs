@@ -86,9 +86,7 @@ fn a_frame_is_drawn_between_a_transform_and_its_reset() {
     let (context, log): (CanvasRenderingContext2d, Object) = recording_context();
     let subject: SpriteSheet = sheet();
     let before: u32 = log_len(&log);
-
     subject.draw_frame(&context, 0, &Transform2D::default());
-
     assert_eq!(
         ops_after(&log, before),
         vec![
@@ -118,9 +116,7 @@ fn the_destination_is_centred_on_the_transform_position() {
     let (context, log): (CanvasRenderingContext2d, Object) = recording_context();
     let subject: SpriteSheet = sheet();
     let before: u32 = log_len(&log);
-
     subject.draw_frame(&context, 0, &Transform2D::default());
-
     let draw: Array = args_after(&log, "drawImage", before);
     assert_eq!(
         draw.get(5).as_f64(),
@@ -143,15 +139,12 @@ fn the_destination_is_centred_on_the_transform_position() {
 fn the_source_rectangle_follows_the_frame_index() {
     let (context, log): (CanvasRenderingContext2d, Object) = recording_context();
     let subject: SpriteSheet = sheet();
-
     let first: u32 = log_len(&log);
     subject.draw_frame(&context, 1, &Transform2D::default());
     let first_draw: Array = args_after(&log, "drawImage", first);
-
     let second: u32 = log_len(&log);
     subject.draw_frame(&context, 2, &Transform2D::default());
     let second_draw: Array = args_after(&log, "drawImage", second);
-
     assert_eq!(
         first_draw.get(1).as_f64(),
         Some(16.0),
@@ -181,9 +174,7 @@ fn the_transform_rotation_reaches_the_matrix() {
     let before: u32 = log_len(&log);
     let mut transform: Transform2D = Transform2D::default();
     transform.rotate(PI / 2.0);
-
     subject.draw_frame(&context, 0, &transform);
-
     let matrix: Array = args_after(&log, "setTransform", before);
     let a: f64 = matrix.get(0).as_f64().unwrap_or(-1.0);
     let b: f64 = matrix.get(1).as_f64().unwrap_or(-1.0);

@@ -17,7 +17,6 @@ use super::*;
 pub(crate) fn load_op_name(value: LoadOp) -> &'static str {
     match value {
         LoadOp::Clear => WEBGPU_LOAD_OP_CLEAR,
-
         LoadOp::Load => WEBGPU_LOAD_OP_LOAD,
     }
 }
@@ -39,7 +38,6 @@ pub(crate) fn load_op_name(value: LoadOp) -> &'static str {
 pub(crate) fn store_op_name(value: StoreOp) -> &'static str {
     match value {
         StoreOp::Store => WEBGPU_STORE_OP_STORE,
-
         StoreOp::Discard => WEBGPU_STORE_OP_DISCARD,
     }
 }
@@ -61,23 +59,14 @@ pub(crate) fn store_op_name(value: StoreOp) -> &'static str {
 pub(crate) fn buffer_usage_bit(value: BufferUsage) -> u32 {
     match value {
         BufferUsage::MapRead => RENDER_USAGE_MAP_READ as u32,
-
         BufferUsage::MapWrite => RENDER_USAGE_MAP_WRITE as u32,
-
         BufferUsage::CopySource => RENDER_USAGE_COPY_SRC as u32,
-
         BufferUsage::CopyDestination => RENDER_USAGE_COPY_DST as u32,
-
         BufferUsage::Index => RENDER_USAGE_INDEX as u32,
-
         BufferUsage::Vertex => RENDER_USAGE_VERTEX as u32,
-
         BufferUsage::Uniform => RENDER_USAGE_UNIFORM as u32,
-
         BufferUsage::Storage => RENDER_USAGE_STORAGE as u32,
-
         BufferUsage::Indirect => RENDER_USAGE_INDIRECT as u32,
-
         BufferUsage::QueryResolve => RENDER_USAGE_QUERY_RESOLVE as u32,
     }
 }
@@ -99,13 +88,9 @@ pub(crate) fn buffer_usage_bit(value: BufferUsage) -> u32 {
 pub(crate) fn texture_usage_bit(value: TextureUsage) -> u32 {
     match value {
         TextureUsage::CopySource => RENDER_TEXTURE_USAGE_COPY_SRC as u32,
-
         TextureUsage::CopyDestination => RENDER_TEXTURE_USAGE_COPY_DST as u32,
-
         TextureUsage::TextureBinding => RENDER_USAGE_TEXTURE_BINDING as u32,
-
         TextureUsage::StorageBinding => RENDER_USAGE_STORAGE_BINDING as u32,
-
         TextureUsage::RenderAttachment => RENDER_USAGE_RENDER_ATTACHMENT as u32,
     }
 }
@@ -127,9 +112,7 @@ pub(crate) fn texture_usage_bit(value: TextureUsage) -> u32 {
 pub(crate) fn shader_stage_bit(value: ShaderStage) -> u32 {
     match value {
         ShaderStage::Vertex => SHADER_STAGE_VERTEX as u32,
-
         ShaderStage::Fragment => SHADER_STAGE_FRAGMENT as u32,
-
         ShaderStage::Compute => SHADER_STAGE_COMPUTE as u32,
     }
 }
@@ -151,7 +134,6 @@ pub(crate) fn shader_stage_bit(value: ShaderStage) -> u32 {
 pub fn filter_mode_name(value: FilterMode) -> &'static str {
     match value {
         FilterMode::Nearest => WEBGPU_FILTER_MODE_NEAREST,
-
         FilterMode::Linear => WEBGPU_FILTER_MODE_LINEAR,
     }
 }
@@ -172,7 +154,6 @@ pub fn filter_mode_name(value: FilterMode) -> &'static str {
 pub fn mipmap_filter_name(value: MipmapFilter) -> &'static str {
     match value {
         MipmapFilter::Nearest => WEBGPU_FILTER_MODE_NEAREST,
-
         MipmapFilter::Linear => WEBGPU_FILTER_MODE_LINEAR,
     }
 }
@@ -194,9 +175,7 @@ pub fn mipmap_filter_name(value: MipmapFilter) -> &'static str {
 pub fn address_mode_name(value: AddressMode) -> &'static str {
     match value {
         AddressMode::ClampToEdge => WEBGPU_ADDRESS_MODE_CLAMP_TO_EDGE,
-
         AddressMode::MirrorRepeat => WEBGPU_ADDRESS_MODE_MIRROR_REPEAT,
-
         AddressMode::Repeat => WEBGPU_ADDRESS_MODE_REPEAT,
     }
 }
@@ -218,19 +197,12 @@ pub fn address_mode_name(value: AddressMode) -> &'static str {
 pub(crate) fn compare_function_name(value: CompareFunction) -> &'static str {
     match value {
         CompareFunction::Never => WEBGPU_COMPARE_NEVER,
-
         CompareFunction::Less => WEBGPU_COMPARE_LESS,
-
         CompareFunction::Equal => WEBGPU_COMPARE_EQUAL,
-
         CompareFunction::LessEqual => WEBGPU_COMPARE_LESS_EQUAL,
-
         CompareFunction::Greater => WEBGPU_COMPARE_GREATER,
-
         CompareFunction::NotEqual => WEBGPU_COMPARE_NOT_EQUAL,
-
         CompareFunction::GreaterEqual => WEBGPU_COMPARE_GREATER_EQUAL,
-
         CompareFunction::Always => WEBGPU_COMPARE_ALWAYS,
     }
 }
@@ -252,33 +224,19 @@ pub(crate) fn compare_function_name(value: CompareFunction) -> &'static str {
 pub(crate) fn blend_factor_name(value: BlendFactor) -> &'static str {
     match value {
         BlendFactor::Zero => WEBGPU_BLEND_FACTOR_ZERO,
-
         BlendFactor::One => WEBGPU_BLEND_FACTOR_ONE,
-
         BlendFactor::SourceColor => WEBGPU_BLEND_FACTOR_SRC,
-
         BlendFactor::OneMinusSourceColor => WEBGPU_BLEND_FACTOR_ONE_MINUS_SRC,
-
         BlendFactor::DestinationColor => WEBGPU_BLEND_FACTOR_DST,
-
         BlendFactor::OneMinusDestinationColor => WEBGPU_BLEND_FACTOR_ONE_MINUS_DST,
-
         BlendFactor::SourceAlpha => WEBGPU_BLEND_FACTOR_SRC_ALPHA,
-
         BlendFactor::OneMinusSourceAlpha => WEBGPU_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-
         BlendFactor::DestinationAlpha => WEBGPU_BLEND_FACTOR_DST_ALPHA,
-
         BlendFactor::OneMinusDestinationAlpha => WEBGPU_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
-
         BlendFactor::ConstantColor => WEBGPU_BLEND_FACTOR_CONSTANT,
-
         BlendFactor::OneMinusConstantColor => WEBGPU_BLEND_FACTOR_ONE_MINUS_CONSTANT,
-
         BlendFactor::ConstantAlpha => WEBGPU_BLEND_FACTOR_CONSTANT_ALPHA,
-
         BlendFactor::OneMinusConstantAlpha => WEBGPU_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA,
-
         BlendFactor::SourceAlphaSaturated => WEBGPU_BLEND_FACTOR_SRC_ALPHA_SATURATED,
     }
 }
@@ -300,13 +258,9 @@ pub(crate) fn blend_factor_name(value: BlendFactor) -> &'static str {
 pub(crate) fn blend_operation_name(value: BlendOperation) -> &'static str {
     match value {
         BlendOperation::Add => WEBGPU_BLEND_OPERATION_ADD,
-
         BlendOperation::Subtract => WEBGPU_BLEND_OPERATION_SUBTRACT,
-
         BlendOperation::ReverseSubtract => WEBGPU_BLEND_OPERATION_REVERSE_SUBTRACT,
-
         BlendOperation::Min => WEBGPU_BLEND_OPERATION_MIN,
-
         BlendOperation::Max => WEBGPU_BLEND_OPERATION_MAX,
     }
 }
@@ -328,13 +282,9 @@ pub(crate) fn blend_operation_name(value: BlendOperation) -> &'static str {
 pub(crate) fn primitive_topology_name(value: PrimitiveTopology) -> &'static str {
     match value {
         PrimitiveTopology::PointList => WEBGPU_PRIMITIVE_TOPOLOGY_POINT_LIST,
-
         PrimitiveTopology::LineList => WEBGPU_PRIMITIVE_TOPOLOGY_LINE_LIST,
-
         PrimitiveTopology::LineStrip => WEBGPU_PRIMITIVE_TOPOLOGY_LINE_STRIP,
-
         PrimitiveTopology::TriangleList => WEBGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-
         PrimitiveTopology::TriangleStrip => WEBGPU_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
     }
 }
@@ -356,7 +306,6 @@ pub(crate) fn primitive_topology_name(value: PrimitiveTopology) -> &'static str 
 pub(crate) fn index_format_name(value: IndexFormat) -> &'static str {
     match value {
         IndexFormat::Uint16 => WEBGPU_INDEX_FORMAT_UINT16,
-
         IndexFormat::Uint32 => WEBGPU_INDEX_FORMAT_UINT32,
     }
 }
@@ -378,7 +327,6 @@ pub(crate) fn index_format_name(value: IndexFormat) -> &'static str {
 pub(crate) fn front_face_name(value: FrontFace) -> &'static str {
     match value {
         FrontFace::CounterClockwise => WEBGPU_FRONT_FACE_COUNTER_CLOCKWISE,
-
         FrontFace::Clockwise => WEBGPU_FRONT_FACE_CLOCKWISE,
     }
 }
@@ -400,9 +348,7 @@ pub(crate) fn front_face_name(value: FrontFace) -> &'static str {
 pub(crate) fn cull_mode_name(value: CullMode) -> &'static str {
     match value {
         CullMode::None => WEBGPU_CULL_MODE_NONE,
-
         CullMode::Front => WEBGPU_CULL_MODE_FRONT,
-
         CullMode::Back => WEBGPU_CULL_MODE_BACK,
     }
 }
@@ -424,17 +370,11 @@ pub(crate) fn cull_mode_name(value: CullMode) -> &'static str {
 pub(crate) fn vertex_attribute_format_name(value: VertexAttributeFormat) -> &'static str {
     match value {
         VertexAttributeFormat::Float32 => WEBGPU_VERTEX_FORMAT_FLOAT32,
-
         VertexAttributeFormat::Float32x2 => WEBGPU_VERTEX_FORMAT_FLOAT32X2,
-
         VertexAttributeFormat::Float32x3 => WEBGPU_VERTEX_FORMAT_FLOAT32X3,
-
         VertexAttributeFormat::Float32x4 => WEBGPU_VERTEX_FORMAT_FLOAT32X4,
-
         VertexAttributeFormat::Unorm8x4 => WEBGPU_VERTEX_FORMAT_UNORM8X4,
-
         VertexAttributeFormat::Uint32 => WEBGPU_VERTEX_FORMAT_UINT32,
-
         VertexAttributeFormat::Sint32 => WEBGPU_VERTEX_FORMAT_SINT32,
     }
 }
@@ -456,19 +396,12 @@ pub(crate) fn vertex_attribute_format_name(value: VertexAttributeFormat) -> &'st
 pub(crate) fn gpu_texture_format_name(value: GpuTextureFormat) -> &'static str {
     match value {
         GpuTextureFormat::Rgba8Unorm => WEBGPU_FORMAT_RGBA8UNORM,
-
         GpuTextureFormat::Bgra8Unorm => WEBGPU_FORMAT_BGRA8UNORM,
-
         GpuTextureFormat::Rgba16Float => WEBGPU_FORMAT_RGBA16FLOAT,
-
         GpuTextureFormat::Depth24Plus => WEBGPU_DEPTH_FORMAT_DEPTH24_PLUS,
-
         GpuTextureFormat::Depth24PlusStencil8 => WEBGPU_DEPTH_FORMAT_DEPTH24_PLUS_STENCIL8,
-
         GpuTextureFormat::Depth32Float => WEBGPU_DEPTH_FORMAT_DEPTH32_FLOAT,
-
         GpuTextureFormat::R32Float => WEBGPU_FORMAT_R32FLOAT,
-
         GpuTextureFormat::Rgba32Float => WEBGPU_FORMAT_RGBA32FLOAT,
     }
 }
@@ -489,9 +422,7 @@ pub(crate) fn gpu_texture_format_name(value: GpuTextureFormat) -> &'static str {
 pub(crate) fn gpu_error_filter_name(value: GpuErrorFilter) -> &'static str {
     match value {
         GpuErrorFilter::Validation => WEBGPU_ERROR_FILTER_VALIDATION,
-
         GpuErrorFilter::OutOfMemory => WEBGPU_ERROR_FILTER_OUT_OF_MEMORY,
-
         GpuErrorFilter::Internal => WEBGPU_ERROR_FILTER_INTERNAL,
     }
 }

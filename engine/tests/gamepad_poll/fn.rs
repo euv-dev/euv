@@ -51,9 +51,7 @@ fn a_poll_with_no_pads_attached_leaves_the_state_empty_rather_than_failing() {
     let pads: Array = Array::new();
     let window: Window = window_with_pads(&pads);
     let mut manager: GamepadManager = GamepadManager::default();
-
     manager.poll(&window);
-
     assert!(
         manager.get_states().is_empty(),
         "with no pad reporting in, the manager stays empty and the poll is a no-op"
@@ -71,9 +69,7 @@ fn an_empty_slot_in_the_pad_list_is_skipped_rather_than_unwrapped_into_a_pad() {
     pads.push(&JsValue::NULL);
     let window: Window = window_with_pads(&pads);
     let mut manager: GamepadManager = GamepadManager::default();
-
     manager.poll(&window);
-
     assert!(
         manager.get_states().is_empty(),
         "the browser leaves a gap for a pad that is not connected, and null is not a pad"
@@ -91,9 +87,7 @@ fn a_live_pad_is_recorded_in_the_connected_set() {
     pads.push(pad().as_ref());
     let window: Window = window_with_pads(&pads);
     let mut manager: GamepadManager = GamepadManager::default();
-
     manager.poll(&window);
-
     assert_eq!(
         manager.get_states().len(),
         1,
@@ -114,11 +108,9 @@ fn a_pad_the_browser_stops_listing_is_dropped_from_the_connected_set() {
     let mut manager: GamepadManager = GamepadManager::default();
     manager.poll(&window);
     assert_eq!(manager.get_states().len(), 1, "it started connected");
-
     let empty: Array = Array::new();
     let window: Window = window_with_pads(&empty);
     manager.poll(&window);
-
     assert!(
         !manager.is_connected(3),
         "a pad the browser stops listing is marked disconnected, or a caller would read its          held buttons forever"

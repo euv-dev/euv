@@ -178,7 +178,6 @@ fn dom_source() -> js_sys::Function {
 fn the_browser_shaped_globals_can_be_installed_into_the_node_realm() {
     let install: js_sys::Function = dom_source();
     let _: Result<JsValue, JsValue> = install.call0(&JsValue::NULL);
-
     assert!(
         window().is_some(),
         "window() is an instanceof check against the global Window constructor; \
@@ -195,7 +194,6 @@ fn the_browser_shaped_globals_can_be_installed_into_the_node_realm() {
         1.0,
         "with a device pixel ratio the size helpers can read"
     );
-
     dom_teardown();
     assert!(
         window().is_none(),
@@ -212,10 +210,8 @@ fn the_browser_shaped_globals_can_be_installed_into_the_node_realm() {
 fn a_webgl_backend_can_be_built_once_the_document_exists() {
     let install: js_sys::Function = dom_source();
     let _: Result<JsValue, JsValue> = install.call0(&JsValue::NULL);
-
     let backend: Result<WebGl2Backend, WebGl2InitError> =
         WebGl2Backend::init(&EngineConfig::default().get_render());
-
     let shown: String = match &backend {
         Ok(_) => String::from("Ok"),
         Err(error) => format!("{:?}", error),
@@ -238,16 +234,13 @@ fn the_scheduler_loop_runs_when_its_animation_frame_callback_fires() {
     let _: Result<JsValue, JsValue> = install.call0(&JsValue::NULL);
     let (handler, updates, renders): (TickHandlerRc, Rc<Cell<u32>>, Rc<Cell<u32>>) =
         CountingHandler::spawn();
-
     let handle: SchedulerHandle =
         SchedulerHandle::start(SchedulerConfig::default(), handler, None, None);
     let updates_at_start: u64 = handle.update_count();
     let frames_at_start: u64 = handle.frame_count();
-
     let fired: bool = pump_animation_frame();
     handle.stop();
     dom_teardown();
-
     assert!(
         fired,
         "starting the scheduler has to register an animation-frame callback, or the loop has \
@@ -277,15 +270,12 @@ fn a_stopped_scheduler_does_not_advance_even_if_its_callback_is_fired() {
     let _: Result<JsValue, JsValue> = install.call0(&JsValue::NULL);
     let (handler, _updates, _renders): (TickHandlerRc, Rc<Cell<u32>>, Rc<Cell<u32>>) =
         CountingHandler::spawn();
-
     let handle: SchedulerHandle =
         SchedulerHandle::start(SchedulerConfig::default(), handler, None, None);
     handle.stop();
     let after_stop: u64 = handle.frame_count();
-
     let _: bool = pump_animation_frame();
     dom_teardown();
-
     assert!(
         !handle.is_running(),
         "stopping has to flip the running flag, or the next animation frame keeps ticking"
@@ -308,16 +298,13 @@ fn attaching_input_registers_listeners_and_hands_back_the_same_state_cell() {
     let _: Result<JsValue, JsValue> = install.call0(&JsValue::NULL);
     let window: Window = window().expect("the environment is installed");
     let cell: InputStateCell = Rc::new(EngineCell::new(InputState::new()));
-
     let returned: InputStateCell = Input::attach(
         Rc::clone(&cell),
         &window,
         &window.clone().unchecked_into::<EventTarget>(),
     );
-
     let registered: u32 = listener_count();
     dom_teardown();
-
     assert!(
         Rc::ptr_eq(&cell, &returned),
         "attach is documented to hand the cell back, and returning a different one would leave \
@@ -339,7 +326,6 @@ fn attaching_input_registers_listeners_and_hands_back_the_same_state_cell() {
 fn a_supersampled_canvas_builds_its_offscreen_buffer_and_blits_on_present() {
     let install: js_sys::Function = dom_source();
     let _: Result<JsValue, JsValue> = install.call0(&JsValue::NULL);
-
     let canvas: Option<SsaaCanvas> = SsaaCanvas::from_selector("canvas", 800.0, 600.0);
     let presentable: bool = canvas.is_some();
     if presentable {
@@ -347,7 +333,6 @@ fn a_supersampled_canvas_builds_its_offscreen_buffer_and_blits_on_present() {
         subject.present();
     }
     dom_teardown();
-
     assert!(
         presentable,
         "with a document that reports a canvas and a 2D context, the supersampled canvas has \
@@ -373,13 +358,11 @@ async fn running_the_engine_on_the_canvas_backend_brings_up_a_renderer_and_a_run
     let _: Result<JsValue, JsValue> = install.call0(&JsValue::NULL);
     let (handler, updates, _renders): (TickHandlerRc, Rc<Cell<u32>>, Rc<Cell<u32>>) =
         CountingHandler::spawn();
-
     let handle: EngineHandle = Engine::run(EngineConfig::default(), handler).await;
     let canvas_up: bool = handle.has_canvas_renderer();
     let pumping: bool = pump_animation_frame();
     handle.stop();
     dom_teardown();
-
     assert!(
         canvas_up,
         "run has to bring up the renderer the configuration asks for; the default config is the \

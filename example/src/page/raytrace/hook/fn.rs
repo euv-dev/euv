@@ -1162,11 +1162,10 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
         // Dropped only after `disconnect()`: while the observer is live
         // the browser may call the trampoline at any point, and a freed
         // one aborts the whole WASM instance.
-        let _: Option<Closure<dyn FnMut(js_sys::Array, ResizeObserver)>> =
-            observer_closure_for_cleanup
-                .try_borrow_mut()
-                .ok()
-                .and_then(|mut closure_slot: RayTraceObserverCallbackSlot<'_>| closure_slot.take());
+        let _: Option<Closure<dyn FnMut(Array, ResizeObserver)>> = observer_closure_for_cleanup
+            .try_borrow_mut()
+            .ok()
+            .and_then(|mut closure_slot: RayTraceObserverCallbackSlot<'_>| closure_slot.take());
         // Released only here: the resize listener stays registered
         // across a router navigation, and dropping its callback while it
         // can still be invoked would make the next window resize throw.
@@ -1241,8 +1240,8 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
         // observer collapses the stretched-frame window after a fullscreen
         // transition to zero.
         let renderer_for_observer: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
-        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
-            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+        let observer_closure: Closure<dyn FnMut(Array, ResizeObserver)> =
+            Closure::wrap(Box::new(move |_entries: Array, _obs: ResizeObserver| {
                 let renderer_for_frame: Rc<RefCell<Option<RayTraceRenderer>>> =
                     renderer_for_observer.clone();
                 let resize_accepted: bool = match renderer_for_frame.try_borrow_mut() {
@@ -1272,8 +1271,7 @@ pub(crate) fn start_raytrace_webgl_loop(state: UseRayTraceWebGl, angles: RayTrac
                          the backend keeps its previous size"
                     ));
                 }
-            }),
-        );
+            }));
         let observer_callback: Function = observer_closure
             .as_ref()
             .unchecked_ref::<Function>()
@@ -1568,11 +1566,10 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
         // Dropped only after `disconnect()`: while the observer is live
         // the browser may call the trampoline at any point, and a freed
         // one aborts the whole WASM instance.
-        let _: Option<Closure<dyn FnMut(js_sys::Array, ResizeObserver)>> =
-            observer_closure_for_cleanup
-                .try_borrow_mut()
-                .ok()
-                .and_then(|mut closure_slot: RayTraceObserverCallbackSlot<'_>| closure_slot.take());
+        let _: Option<Closure<dyn FnMut(Array, ResizeObserver)>> = observer_closure_for_cleanup
+            .try_borrow_mut()
+            .ok()
+            .and_then(|mut closure_slot: RayTraceObserverCallbackSlot<'_>| closure_slot.take());
         // Released only here: the resize listener stays registered
         // across a router navigation, and dropping its callback while it
         // can still be invoked would make the next window resize throw.
@@ -1645,8 +1642,8 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
         let lights: LightingUniforms = build_raytrace_lighting();
         let settings: RayTraceSettings = build_raytrace_settings();
         let renderer_for_observer: Rc<RefCell<Option<RayTraceRenderer>>> = renderer_rc.clone();
-        let observer_closure: Closure<dyn FnMut(js_sys::Array, ResizeObserver)> = Closure::wrap(
-            Box::new(move |_entries: js_sys::Array, _obs: ResizeObserver| {
+        let observer_closure: Closure<dyn FnMut(Array, ResizeObserver)> =
+            Closure::wrap(Box::new(move |_entries: Array, _obs: ResizeObserver| {
                 let renderer_for_frame: Rc<RefCell<Option<RayTraceRenderer>>> =
                     renderer_for_observer.clone();
                 let resize_accepted: bool = match renderer_for_frame.try_borrow_mut() {
@@ -1676,8 +1673,7 @@ pub(crate) fn start_raytrace_webgpu_loop(state: UseRayTraceWebGpu, angles: RayTr
                          the backend keeps its previous size"
                     ));
                 }
-            }),
-        );
+            }));
         let observer_callback: Function = observer_closure
             .as_ref()
             .unchecked_ref::<Function>()

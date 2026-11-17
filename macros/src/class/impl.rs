@@ -99,8 +99,7 @@ impl Parse for ClassInput {
                     let is_extends: bool =
                         forked.peek(Paren) && !keyword_str.starts_with(CHAR_AT) && {
                             let forked_extends_buffer: ParseBuffer<'_> = content.fork();
-                            let _: Result<Ident, syn::Error> =
-                                forked_extends_buffer.parse::<Ident>();
+                            let _: Result<Ident, Error> = forked_extends_buffer.parse::<Ident>();
                             if forked_extends_buffer.peek(Paren) {
                                 let _paren_content: ParseBuffer<'_>;
                                 parenthesized!(_paren_content in forked_extends_buffer);

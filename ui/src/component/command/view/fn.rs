@@ -26,7 +26,6 @@ pub fn euv_command(node: VirtualNode<EuvCommandProps>) -> VirtualNode {
                 role: "group"
                 "aria-label": label
                 class: base_class
-
                 "data-slot": "command"
                 children
             }
@@ -57,7 +56,6 @@ pub fn euv_command_input(node: VirtualNode<EuvCommandInputProps>) -> VirtualNode
     html! {
             div {
                 class: c_euv_command_input_wrapper()
-
                 "data-slot": "command-input-wrapper"
                 input {
                     type: "text"

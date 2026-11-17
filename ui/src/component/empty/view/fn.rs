@@ -33,7 +33,6 @@ pub fn euv_empty(node: VirtualNode<EuvEmptyProps>) -> VirtualNode {
             div {
                 "data-slot": "empty"
                 class: base_class
-
                 if !icon.is_empty() {
                     div {
                         "data-slot": "empty-icon"

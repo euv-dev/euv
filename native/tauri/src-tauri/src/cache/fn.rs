@@ -257,7 +257,7 @@ async fn switch_active_version(cache_root: &Path, version_name: &str) -> Result<
 /// - `&str` - The current active version name (will not be removed).
 /// - `Option<&Path>` - The running session snapshot, which must remain available.
 async fn cleanup_old_versions(cache_root: &Path, current: &str, pinned: Option<&Path>) {
-    let mut read_dir_result: tokio::fs::ReadDir = match read_dir(cache_root).await {
+    let mut read_dir_result: ReadDir = match read_dir(cache_root).await {
         Ok(entries) => entries,
         Err(_) => return,
     };
@@ -279,7 +279,7 @@ async fn cleanup_old_versions(cache_root: &Path, current: &str, pinned: Option<&
         return;
     }
     let to_remove: usize = versions.len() - max_old;
-    let remove_handles: Vec<tauri::async_runtime::JoinHandle<()>> = versions[..to_remove]
+    let remove_handles: Vec<JoinHandle<()>> = versions[..to_remove]
         .iter()
         .map(|name: &String| {
             let dir_path: PathBuf = cache_root.join(name);
@@ -1305,7 +1305,7 @@ pub(crate) async fn handle_euv_scheme(
     match read(&file_path).await {
         Ok(data) => {
             let mime: &str = mime_for(&path_decoded);
-            let mut builder: http::response::Builder = http::Response::builder()
+            let mut builder: response::Builder = http::Response::builder()
                 .status(200)
                 .header(CONTENT_TYPE_HEADER, mime)
                 .header("Cache-Control", "no-store, no-cache, must-revalidate")

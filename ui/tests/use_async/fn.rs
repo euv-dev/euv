@@ -130,13 +130,11 @@ fn handle_is_copy_when_payload_is_copy() {
 fn refetch_runs_the_factory_before_it_returns() {
     let handle: UseAsyncHandle<u32, ()> = UseAsyncHandle::default();
     let called: Rc<Cell<u32>> = Rc::new(Cell::new(0));
-
     let shared: Rc<Cell<u32>> = Rc::clone(&called);
     handle.refetch(move || {
         shared.set(shared.get() + 1);
         async { Ok::<u32, String>(7) }
     });
-
     assert_eq!(
         called.get(),
         1,
@@ -155,9 +153,7 @@ fn refetch_runs_the_factory_before_it_returns() {
 fn refetch_leaves_the_settled_state_alone_synchronously() {
     let handle: UseAsyncHandle<u32, ()> = UseAsyncHandle::default();
     handle.set_state(AsyncState::Ok(42));
-
     handle.refetch(|| async { Ok::<u32, String>(99) });
-
     match handle.state() {
         AsyncState::Ok(value) => assert_eq!(
             value, 42,
@@ -177,14 +173,12 @@ fn refetch_leaves_the_settled_state_alone_synchronously() {
 fn a_refetch_after_a_failure_starts_a_fresh_attempt() {
     let handle: UseAsyncHandle<u32, ()> = UseAsyncHandle::default();
     handle.set_state(AsyncState::Err(String::from("network down")));
-
     let called: Rc<Cell<bool>> = Rc::new(Cell::new(false));
     let shared: Rc<Cell<bool>> = Rc::clone(&called);
     handle.refetch(move || {
         shared.set(true);
         async { Ok::<u32, String>(1) }
     });
-
     assert!(
         called.get(),
         "a refetch is the documented way out of a failed attempt, so the factory must run \
@@ -200,13 +194,10 @@ fn a_refetch_after_a_failure_starts_a_fresh_attempt() {
 )]
 fn the_async_hook_returns_the_same_slot_on_every_render() {
     let mut context: HookContext = HookContext::default();
-
     let first: UseAsyncHandle<u32, ()> = HookContext::with(context.clone(), use_async::<u32, ()>);
     context.reset_index();
     let second: UseAsyncHandle<u32, ()> = HookContext::with(context, use_async::<u32, ()>);
-
     first.set_state(AsyncState::Ok(7));
-
     match second.state() {
         AsyncState::Ok(value) => assert_eq!(
             value, 7,
@@ -227,12 +218,9 @@ fn the_async_hook_returns_the_same_slot_on_every_render() {
 fn two_components_get_async_handles_of_their_own() {
     let left: HookContext = HookContext::default();
     let right: HookContext = HookContext::default();
-
     let first: UseAsyncHandle<u32, ()> = HookContext::with(left, use_async::<u32, ()>);
     let second: UseAsyncHandle<u32, ()> = HookContext::with(right, use_async::<u32, ()>);
-
     first.set_state(AsyncState::Ok(1));
-
     assert!(
         matches!(second.state(), AsyncState::Loading(())),
         "the slot belongs to the hook context, not to the hook name: one component's finished \

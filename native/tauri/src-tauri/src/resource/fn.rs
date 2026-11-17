@@ -93,8 +93,7 @@ pub(crate) async fn download_resources(
     mut pending: VecDeque<(String, String)>,
     version_dir: PathBuf,
 ) -> Result<Vec<DownloadedResource>, ResourceError> {
-    let mut tasks: tokio::task::JoinSet<Result<DownloadedResource, ResourceError>> =
-        tokio::task::JoinSet::new();
+    let mut tasks: JoinSet<Result<DownloadedResource, ResourceError>> = tokio::task::JoinSet::new();
     let mut results: Vec<DownloadedResource> = Vec::with_capacity(pending.len());
     let mut failure: Option<ResourceError> = None;
     loop {

@@ -70,12 +70,10 @@ pub fn euv_switch(node: VirtualNode<EuvSwitchProps>) -> VirtualNode {
             onclick: handler
             span {
                 class: base_track_class
-
                 class: shadcn_track_state_class
                 span {
                     "data-slot": "switch-thumb"
                     class: base_thumb_class
-
                     class: shadcn_thumb_state_class
                 }
             }

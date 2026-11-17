@@ -175,7 +175,7 @@ fn on_resizable_drag(
             let Ok(mouse) = event.dyn_into::<MouseEvent>() else {
                 return;
             };
-            let rect: web_sys::DomRect = group.get_bounding_client_rect();
+            let rect: DomRect = group.get_bounding_client_rect();
             let extent: f64 = match direction {
                 EuvResizableDirection::Horizontal => rect.width(),
                 EuvResizableDirection::Vertical => rect.height(),

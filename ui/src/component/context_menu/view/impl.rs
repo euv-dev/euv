@@ -184,7 +184,7 @@ impl ContextMenuSubHover {
         let Some(_trigger) = self
             .get_target()
             .get_cloned()
-            .filter(|trigger: &web_sys::Element| trigger.is_connected())
+            .filter(|trigger: &Element| trigger.is_connected())
         else {
             return;
         };
@@ -210,15 +210,15 @@ impl ContextMenuSubHover {
                         .flatten()
                     && let Some(active) = trigger
                         .owner_document()
-                        .and_then(|document: web_sys::Document| document.active_element())
+                        .and_then(|document: Document| document.active_element())
                     && panel.contains(Some(&active))
                     && let Some(parent) =
                         trigger.closest(CONTEXT_MENU_POPUP_SELECTOR).ok().flatten()
-                    && let Some(parent) = parent.dyn_ref::<web_sys::HtmlElement>()
+                    && let Some(parent) = parent.dyn_ref::<HtmlElement>()
                 {
-                    let options: web_sys::FocusOptions = web_sys::FocusOptions::new();
+                    let options: FocusOptions = web_sys::FocusOptions::new();
                     options.set_prevent_scroll(true);
-                    let _: Result<(), wasm_bindgen::JsValue> = parent.focus_with_options(&options);
+                    let _: Result<(), JsValue> = parent.focus_with_options(&options);
                 }
             }
             self.get_open().set(next);

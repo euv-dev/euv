@@ -728,7 +728,6 @@ impl PathBuilder {
         }
         self.set_current(Point::new(start_x as f32, start_y as f32));
         self.set_start(self.get_current());
-
         arc_to_cubic(
             Ellipse {
                 center_x: center_x as f64,

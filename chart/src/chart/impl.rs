@@ -44,7 +44,6 @@ impl Chart {
         let measurer: TextMeasurer = TextMeasurer::new()?;
         let atlas: GlyphAtlas = GlyphAtlas::new(DEFAULT_ATLAS_SIZE, DEFAULT_ATLAS_SIZE)?;
         let shaper: TextShaper = TextShaper::new(measurer, atlas);
-
         let (width, height) = canvas_size(&canvas);
         let mut chart: Chart = Self {
             canvas,
@@ -892,7 +891,6 @@ impl ChartRenderer {
             .and_then(|tooltip: &TooltipOption| tooltip.border_color.as_deref())
             .and_then(Color::parse)
             .unwrap_or(Color::rgb(217, 217, 217));
-
         let mut width: f64 = 0.0_f64;
         for (name, value) in &tooltip.lines {
             let text = format!("{}: {}", name, value);
@@ -902,7 +900,6 @@ impl ChartRenderer {
         let height: f64 = line_height * tooltip.lines.len() as f64;
         let box_width: f64 = width + padding.1 + padding.3;
         let box_height: f64 = height + padding.0 + padding.2;
-
         // The tooltip sits to the right of the point, and flips to the
         // left when it would run off the canvas.
         let mut left: f64 = tooltip.x + 12.0;
@@ -916,7 +913,6 @@ impl ChartRenderer {
         if top + box_height > layout.height {
             top = (layout.height - box_height).max(0.0);
         }
-
         let path: Path = Path::builder()
             .round_rect(
                 left as f32,
@@ -944,7 +940,6 @@ impl ChartRenderer {
                 Z_TOOLTIP + 1,
             );
         }
-
         let mut style: TextStyle = TextStyle::new();
         style.size = font_size;
         style.align = TextAlign::Left;
@@ -1129,7 +1124,6 @@ impl ChartRenderer {
         } else {
             option.y_axis.get(axis.index)
         };
-
         // The split lines run across the grid, perpendicular to the
         // axis.
         let split_line: Option<&SplitLineOption> =
@@ -1183,7 +1177,6 @@ impl ChartRenderer {
                 );
             }
         }
-
         // The axis' own line.
         let axis_line: Option<&AxisLineOption> =
             axis_option.and_then(|option: &AxisOption| option.axis_line.as_ref());
@@ -1228,7 +1221,6 @@ impl ChartRenderer {
                 Z_AXIS,
             );
         }
-
         // The tick marks: a short line at every tick, outside the grid.
         let tick_option: Option<&AxisTickOption> =
             axis_option.and_then(|option: &AxisOption| option.axis_tick.as_ref());
@@ -1286,7 +1278,6 @@ impl ChartRenderer {
                 );
             }
         }
-
         // The labels.
         let label_option: Option<LabelOption> =
             axis_option.and_then(|option: &AxisOption| option.axis_label.clone());
@@ -1343,7 +1334,6 @@ impl ChartRenderer {
                 list.text(tick.label.clone(), x, y, label_style, Z_AXIS + 1);
             }
         }
-
         // The axis' name.
         if let Some(name) = &axis.name
             && !name.is_empty()

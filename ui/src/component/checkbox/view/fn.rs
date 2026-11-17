@@ -48,7 +48,6 @@ pub fn euv_checkbox(node: VirtualNode<EuvCheckboxProps>) -> VirtualNode {
     html! {
         div {
             class: base_row_class
-
             input {
                 id: checkbox_id_value.clone()
                 name: name
@@ -58,7 +57,6 @@ pub fn euv_checkbox(node: VirtualNode<EuvCheckboxProps>) -> VirtualNode {
                 disabled: disabled
                 "data-slot": "checkbox"
                 class: base_checkbox_class
-
                 onchange: UseEuvInput::on_change_checked(checked)
             }
             span {

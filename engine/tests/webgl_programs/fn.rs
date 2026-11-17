@@ -92,10 +92,8 @@ fn nth_of(context: &Object, op: &str, nth: usize) -> Array {
 )]
 fn a_linked_program_compiles_both_stages_attaches_them_and_frees_the_shaders() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(true, true);
-
     let program: Result<GlProgram, WebGlProgramError> =
         GlProgram::create(&context, "vertex body", "fragment body");
-
     assert!(
         program.is_ok(),
         "a shader that compiles and links produces a program"
@@ -135,9 +133,7 @@ fn a_linked_program_compiles_both_stages_attaches_them_and_frees_the_shaders() {
 )]
 fn the_shader_source_reaches_the_driver_verbatim_for_each_stage() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(true, true);
-
     GlProgram::create(&context, "vertex body", "fragment body").expect("linked");
-
     assert_eq!(
         args_at(&log, "shaderSource", 0).get(1).as_string(),
         Some(String::from("vertex body")),
@@ -158,10 +154,8 @@ fn the_shader_source_reaches_the_driver_verbatim_for_each_stage() {
 )]
 fn a_failed_link_returns_the_driver_log_and_frees_the_program() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(false, true);
-
     let outcome: Result<GlProgram, WebGlProgramError> =
         GlProgram::create(&context, "vertex body", "fragment body");
-
     match outcome {
         Err(WebGlProgramError::ProgramLink(log_text)) => assert_eq!(
             log_text,
@@ -186,10 +180,8 @@ fn a_failed_link_returns_the_driver_log_and_frees_the_program() {
 )]
 fn a_shader_that_fails_to_compile_stops_before_the_program_is_ever_created() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(true, false);
-
     let outcome: Result<GlProgram, WebGlProgramError> =
         GlProgram::create(&context, "broken vertex", "fragment body");
-
     match outcome {
         Err(WebGlProgramError::ShaderCompile(log_text)) => assert_eq!(
             log_text,
@@ -217,10 +209,8 @@ fn a_uniform_location_is_resolved_once_and_then_served_from_cache() {
     let mut program: GlProgram =
         GlProgram::create(&context, "vertex body", "fragment body").expect("linked");
     let after_link: usize = count_of(&log, "getUniformLocation");
-
     program.set_uniform_1f(&context, "u_alpha", 0.5);
     program.set_uniform_1f(&context, "u_alpha", 0.75);
-
     assert_eq!(
         count_of(&log, "getUniformLocation"),
         after_link + 1,
@@ -308,12 +298,10 @@ fn each_uniform_width_forwards_exactly_its_own_component_count() {
     let (context, log): (WebGl2RenderingContext, Object) = recording_context(true, true);
     let mut program: GlProgram =
         GlProgram::create(&context, "vertex body", "fragment body").expect("linked");
-
     program.set_uniform_1f(&context, "a", 1.0);
     program.set_uniform_2f(&context, "b", 1.0, 2.0);
     program.set_uniform_3f(&context, "c", 1.0, 2.0, 3.0);
     program.set_uniform_4f(&context, "d", 1.0, 2.0, 3.0, 4.0);
-
     assert_eq!(
         args_at(&log, "uniform1f", 0).length(),
         2,
@@ -352,9 +340,7 @@ fn a_matrix_upload_passes_sixteen_lanes_untransposed() {
     let mut program: GlProgram =
         GlProgram::create(&context, "vertex body", "fragment body").expect("linked");
     let matrix: Matrix4x4 = Matrix4x4::identity();
-
     program.set_uniform_mat4(&context, "u_model", &matrix);
-
     let upload: Array = args_at(&log, "uniformMatrix4fv", 0);
     assert_eq!(
         upload.get(1).as_bool(),
@@ -392,9 +378,7 @@ fn a_vec4_array_upload_hands_the_callers_slice_straight_to_the_driver() {
     let mut program: GlProgram =
         GlProgram::create(&context, "vertex body", "fragment body").expect("linked");
     let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
-
     program.set_uniform_vec4_array(&context, "u_offsets[0]", &data);
-
     let upload: Array = args_at(&log, "uniform4fv", 0);
     assert!(
         !upload.get(0).is_undefined(),
@@ -424,9 +408,7 @@ fn deleting_a_program_releases_the_handle() {
     let mut program: GlProgram =
         GlProgram::create(&context, "vertex body", "fragment body").expect("linked");
     let before: usize = count_of(&log, "deleteProgram");
-
     program.delete(&context);
-
     assert_eq!(
         count_of(&log, "deleteProgram"),
         before + 1,

@@ -30,7 +30,6 @@ pub fn euv_collapsible(node: VirtualNode<EuvCollapsibleProps>) -> VirtualNode {
                 "closed"
             }
             class: base_class
-
             children
         }
     }
@@ -65,7 +64,6 @@ pub fn euv_collapsible_trigger(node: VirtualNode<EuvCollapsibleTriggerProps>) ->
                 "false"
             }
             class: base_class
-
             onclick: on_collapsible_toggle(open)
             children
         }

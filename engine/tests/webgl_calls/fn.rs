@@ -90,7 +90,6 @@ fn a_sub_rectangle_write_inside_the_texture_is_issued_and_one_outside_is_refused
     let texture: GlTexture =
         GlTexture::create(&context, 8, 8, GpuTextureFormat::Rgba8Unorm, &[]).expect("created");
     let before: usize = ops(&log).len();
-
     let inside: bool = texture.update(
         &context,
         &GlScissor::new(0, 0, 8, 8),
@@ -105,7 +104,6 @@ fn a_sub_rectangle_write_inside_the_texture_is_issued_and_one_outside_is_refused
         ops(&log)[before..].contains(&String::from("texSubImage2D")),
         "an accepted write must reach texSubImage2D"
     );
-
     let outside: bool = texture.update(
         &context,
         &GlScissor::new(4, 4, 8, 8),

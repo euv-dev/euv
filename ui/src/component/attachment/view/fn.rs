@@ -60,7 +60,6 @@ pub fn euv_attachment(node: VirtualNode<EuvAttachmentProps>) -> VirtualNode {
                 "data-size": size_attr
                 "data-orientation": orientation_attr
                 class: base_class
-
                 class: orientation_class()
                 class: state_class()
                 children
@@ -108,7 +107,6 @@ pub fn euv_attachment_media(node: VirtualNode<EuvAttachmentMediaProps>) -> Virtu
             "data-variant": variant_attr
             class: base_class
             class: variant_class()
-
             class: size_class()
             children
         }
@@ -280,7 +278,6 @@ pub fn euv_attachment_group(node: VirtualNode<EuvAttachmentGroupProps>) -> Virtu
             div {
                 "data-slot": "attachment-group"
                 class: c_euv_attachment_group()
-
                 children
             }
     }

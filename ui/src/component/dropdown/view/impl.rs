@@ -81,7 +81,7 @@ impl DropdownSubHover {
                     let _: Result<(), JsValue> = panel.remove_attribute(DROPDOWN_FOCUS_ATTRIBUTE);
                 }
                 if let Some(item) = trigger.dyn_ref::<HtmlElement>() {
-                    let options: web_sys::FocusOptions = web_sys::FocusOptions::new();
+                    let options: FocusOptions = web_sys::FocusOptions::new();
                     options.set_prevent_scroll(true);
                     let _: Result<(), JsValue> = item.focus_with_options(&options);
                 }

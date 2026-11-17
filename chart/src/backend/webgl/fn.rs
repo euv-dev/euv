@@ -472,11 +472,9 @@ pub(crate) fn dash_contours(contours: &[Contour], pattern: &[f32], offset: f32) 
         if contour.closed {
             points.push(contour.points[0]);
         }
-
         let mut index: usize = 0_usize;
         let mut phase: f32 = 0.0_f32;
         let mut on: bool = true;
-
         // The offset shifts the pattern along the path.
         let mut skip: f32 = offset.max(0.0);
         while skip > 0.0 {
@@ -489,12 +487,10 @@ pub(crate) fn dash_contours(contours: &[Contour], pattern: &[f32], offset: f32) 
             index = (index + 1) % lengths.len();
             on = !on;
         }
-
         let mut run: Vec<Point> = Vec::new();
         if on {
             run.push(points[0]);
         }
-
         for window in points.windows(2) {
             let start: Point = window[0];
             let end: Point = window[1];
@@ -536,7 +532,6 @@ pub(crate) fn dash_contours(contours: &[Contour], pattern: &[f32], offset: f32) 
                 }
             }
         }
-
         if on && run.len() >= 2 {
             dashed.push(Contour {
                 points: run,

@@ -7,7 +7,6 @@ fn both_stages() -> ShaderStages {
 #[test]
 fn a_lone_stage_becomes_a_mask_naming_only_itself() {
     let compute: ShaderStages = ShaderStage::Compute.into();
-
     assert_eq!(
         compute.bits(),
         4,
@@ -23,7 +22,6 @@ fn a_lone_stage_becomes_a_mask_naming_only_itself() {
 #[test]
 fn two_stages_or_together_into_the_union_of_their_bits() {
     let both: ShaderStages = both_stages();
-
     assert_eq!(
         both.bits(),
         3,
@@ -41,9 +39,7 @@ fn two_stages_or_together_into_the_union_of_their_bits() {
 #[test]
 fn adding_a_stage_to_a_mask_leaves_the_earlier_bits_alone() {
     let vertex_only: ShaderStages = ShaderStage::Vertex.into();
-
     let all_three: ShaderStages = vertex_only | ShaderStage::Fragment | ShaderStage::Compute;
-
     assert_eq!(all_three.bits(), 7, "0x01 | 0x02 | 0x04");
     assert!(all_three.contains(ShaderStage::Vertex));
     assert!(all_three.contains(ShaderStage::Compute));
@@ -53,7 +49,6 @@ fn adding_a_stage_to_a_mask_leaves_the_earlier_bits_alone() {
 fn two_masks_union_without_losing_either_side() {
     let render: ShaderStages = both_stages();
     let compute: ShaderStages = ShaderStage::Compute.into();
-
     assert_eq!(
         (render | compute).bits(),
         7,
@@ -65,7 +60,6 @@ fn two_masks_union_without_losing_either_side() {
 #[test]
 fn the_default_mask_names_nothing_at_all() {
     let empty: ShaderStages = ShaderStages::default();
-
     assert!(
         empty.is_empty(),
         "the default has to be the empty mask, not vertex"
@@ -80,7 +74,6 @@ fn the_default_mask_names_nothing_at_all() {
 #[test]
 fn a_layout_entry_keeps_both_stages_visible_when_given_the_combination() {
     let entry: BindGroupLayoutEntry = BindGroupLayoutEntry::uniform(0, both_stages());
-
     assert_eq!(
         entry.visibility.bits(),
         3,
@@ -96,7 +89,6 @@ fn a_layout_entry_keeps_both_stages_visible_when_given_the_combination() {
 #[test]
 fn a_layout_entry_still_accepts_a_bare_stage_unchanged() {
     let entry: BindGroupLayoutEntry = BindGroupLayoutEntry::uniform(2, ShaderStage::Compute);
-
     assert_eq!(
         entry.visibility.bits(),
         4,

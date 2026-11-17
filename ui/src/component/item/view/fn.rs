@@ -19,7 +19,6 @@ pub fn euv_item_group(node: VirtualNode<EuvItemProps>) -> VirtualNode {
     html! {
         div {
             class: base_class
-
             role: "list"
             "data-slot": "item-group"
             children
@@ -57,9 +56,7 @@ pub fn euv_item(node: VirtualNode<EuvItemProps>) -> VirtualNode {
     html! {
         div {
             class: base_variant_class
-
             class: base_size_class
-
             "data-slot": "item"
             "data-variant": match variant {
                 EuvItemVariant::Default => "default",

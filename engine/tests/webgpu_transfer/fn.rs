@@ -21,10 +21,8 @@ fn write_request(texture: Object) -> TextureWriteDescriptor {
 fn an_offline_target_comes_back_as_a_texture_and_its_default_view() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     let (texture, view): (JsValue, JsValue) =
         subject.create_offline_render_target(256, 128, "rgba8unorm");
-
     assert!(
         !texture.is_undefined() && !view.is_undefined(),
         "both halves of the pair have to exist, or the caller gets a tuple it cannot destructure \
@@ -69,9 +67,7 @@ fn a_texture_view_is_opened_on_the_texture_that_was_named() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
     let texture: Object = node("named-texture");
-
     let view: JsValue = subject.create_texture_view(&texture.clone().into());
-
     assert!(!view.is_undefined(), "the driver handed back a view handle");
     assert_eq!(
         count_on("named-texture", "createView", before),
@@ -90,9 +86,7 @@ fn a_texture_view_is_opened_on_the_texture_that_was_named() {
 fn a_storage_texture_carries_the_four_uses_its_documents() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.create_storage_texture(32, 32, "r32float");
-
     let args: Array = args_on("device", "createTexture", before);
     let descriptor: JsValue = args.get(0);
     assert_eq!(
@@ -122,9 +116,7 @@ fn a_storage_texture_carries_the_four_uses_its_documents() {
 fn a_texture_readback_needs_an_open_encoder_and_is_skipped_without_one() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.copy_texture_to_buffer(&node("texture").into(), &node("buffer").into(), 256, 64, 64);
-
     assert_eq!(
         ops_from(before),
         Vec::<String>::new(),
@@ -166,9 +158,7 @@ fn a_texture_upload_goes_to_the_queue_off_the_device() {
         )
         .expect("the texture dimension")
     );
-
     subject.write_texture(&write_request(texture.clone()));
-
     assert_eq!(
         count_on("device.queue", "writeTexture", before),
         1,
@@ -214,9 +204,7 @@ fn a_texture_upload_goes_to_the_queue_off_the_device() {
 fn a_uniform_buffer_upload_sends_three_arguments_and_no_length() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.update_uniform_buffer(&node("buffer").into(), &[1.0, 2.0, 3.0, 4.0]);
-
     let args: Array = args_on("queue", "writeBuffer", before);
     assert_eq!(
         args.length(),
@@ -241,9 +229,7 @@ fn a_uniform_buffer_upload_sends_three_arguments_and_no_length() {
 fn a_uniform_buffer_is_rounded_up_to_the_binding_alignment() {
     let subject: WebGpuRenderer = renderer(false);
     let before: u32 = mark();
-
     subject.create_uniform_buffer(&[1.0, 2.0]);
-
     let args: Array = args_on("device", "createBuffer", before);
     assert_eq!(
         field(&args.get(0), &["size"]).as_f64(),
