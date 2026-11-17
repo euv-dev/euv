@@ -1,0 +1,11 @@
+name: Sync workspace versions
+description: Prepare workspace dependency versions from the root release version.
+runs:
+  using: composite
+  steps:
+    - name: Install pinned crate-cli and sync workspace
+      shell: bash
+      run: |
+        set -euo pipefail
+        cargo install crate-cli --version '=10.3.0' --locked --force
+        crate sync

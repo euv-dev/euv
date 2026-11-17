@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { execFileSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '../..');
 const MANIFEST_NAME = '__euv_local_bundle__.json';
@@ -12,6 +13,14 @@ const WASM_HEADER = Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]);
 
 function sourceDirectory() {
   return path.resolve(process.env.EUV_WEB_DIST || path.join(ROOT, '../../example/www'));
+}
+
+function prepareExampleThemes({ source = sourceDirectory(), run = execFileSync } = {}) {
+  if (path.resolve(source) !== path.resolve(ROOT, '../../example/www')) return false;
+  const script = path.resolve(ROOT, '../../example/scripts/build_theme_variants.sh');
+  if (!fs.existsSync(script)) throw new Error('The example theme build script is required for native packaging');
+  run('bash', [script], { cwd: path.resolve(ROOT, '../..'), stdio: 'inherit', env: process.env });
+  return true;
 }
 
 function listFiles(directory, prefix = '') {
@@ -112,6 +121,7 @@ function bundleExample({ source = sourceDirectory(), destination = DEFAULT_DESTI
 
 if (require.main === module) {
   try {
+    prepareExampleThemes();
     const result = bundleExample();
     console.log(`[OK] Bundled ${result.files.length} local example files (${result.changed ? 'updated' : 'unchanged'})`);
   } catch (error) {
@@ -120,4 +130,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { MANIFEST_NAME, DEFAULT_DESTINATION, sourceDirectory, readExample, bundleExample, verifyBundle };
+module.exports = { MANIFEST_NAME, DEFAULT_DESTINATION, sourceDirectory, prepareExampleThemes, readExample, bundleExample, verifyBundle };

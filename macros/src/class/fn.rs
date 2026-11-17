@@ -465,6 +465,10 @@ pub(crate) fn parse_selector(input: ParseStream, initial_colons: usize) -> syn::
             break;
         }
     }
+    if input.peek(Token![>]) || input.peek(Token![+]) || input.peek(Token![~]) {
+        let tail: String = parse_element_selector(input)?;
+        selector.push_str(&tail);
+    }
     Ok(selector)
 }
 
@@ -482,7 +486,11 @@ pub(crate) fn parse_selector(input: ParseStream, initial_colons: usize) -> syn::
 ///
 /// - `bool` - `true` if the current position starts an element selector block.
 pub(crate) fn is_element_selector_block(input: ParseStream) -> bool {
-    if input.peek(Token![*]) {
+    if input.peek(Token![*])
+        || input.peek(Token![>])
+        || input.peek(Token![+])
+        || input.peek(Token![~])
+    {
         return true;
     }
     if !input.peek(Ident) {
@@ -974,6 +982,32 @@ pub(crate) fn selector_blocks_to_static_string(selector_blocks: &[SelectorBlock]
         result.push_str(&selector_block_to_static_string(block));
     }
     result
+}
+
+/// Detects relative selectors requiring structured media-rule emission.
+///
+/// The legacy runtime CSS parser only recognizes colon-leading nested rules.
+///
+/// # Arguments
+/// - `&[AtRuleBlock]` - At-rule blocks to inspect recursively.
+///
+/// # Returns
+/// - `bool` - Whether a nested selector begins with a CSS combinator.
+pub(crate) fn at_rule_blocks_have_combinator_selectors(blocks: &[AtRuleBlock]) -> bool {
+    let mut selectors: Vec<&SelectorBlock> = Vec::new();
+    for block in blocks {
+        if at_rule_blocks_have_combinator_selectors(block.get_at_rule_blocks()) {
+            return true;
+        }
+        selectors.extend(block.get_selector_blocks());
+    }
+    while let Some(selector) = selectors.pop() {
+        if selector.get_selector().starts_with(['>', '+', '~']) {
+            return true;
+        }
+        selectors.extend(selector.get_selector_blocks());
+    }
+    false
 }
 
 /// Generates static at-rule block string for compile-time evaluation.

@@ -70,6 +70,8 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt
+      - name: Sync workspace versions
+        uses: ./.github/actions/sync-workspace
       - name: Format check
         run: cargo fmt --all -- --check
 
@@ -87,6 +89,8 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
+      - name: Sync workspace versions
+        uses: ./.github/actions/sync-workspace
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
       - name: Run tests
@@ -116,6 +120,8 @@ jobs:
         with:
           toolchain: stable
           components: clippy
+      - name: Sync workspace versions
+        uses: ./.github/actions/sync-workspace
       - name: Run clippy
         run: |
           cargo clippy -p euv-ui --no-default-features --all-targets -- -D warnings
@@ -136,6 +142,8 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
+      - name: Sync workspace versions
+        uses: ./.github/actions/sync-workspace
       - name: Build release
         run: |
           cargo check -p euv-ui --no-default-features --target wasm32-unknown-unknown
@@ -160,6 +168,8 @@ jobs:
         with:
           toolchain: stable
           targets: wasm32-unknown-unknown
+      - name: Sync workspace versions
+        uses: ./.github/actions/sync-workspace
       - name: Install matching WASM bridge generator
         run: |
           version=$(

@@ -1,5 +1,6 @@
 #[path = "../class/mod.rs"]
 mod class;
+mod combinator;
 #[path = "../component/mod.rs"]
 mod component;
 #[path = "../computed/mod.rs"]

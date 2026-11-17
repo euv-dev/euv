@@ -47,6 +47,51 @@ final class EuvSmokeTests: XCTestCase {
         add(image)
     }
 
+    func testThemeVariantsAndRestart() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication(bundleIdentifier: "com.euv")
+        app.launch()
+        let selector = app.descendants(matching: .any).matching(identifier: "Theme feature").firstMatch
+        XCTAssertTrue(selector.waitForExistence(timeout: 60), app.debugDescription)
+        for theme in __THEME_NAMES__ {
+            let optionLabel = theme
+            selector.tap()
+            let wheel = app.pickerWheels.firstMatch
+            if wheel.waitForExistence(timeout: 2) {
+                wheel.adjust(toPickerWheelValue: optionLabel)
+                let done = app.buttons["Done"]
+                if done.exists { done.tap() }
+            } else {
+                let option = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", optionLabel)).firstMatch
+                for _ in 0..<4 {
+                    if option.exists { break }
+                    let menu = app.collectionViews.firstMatch
+                    if !menu.exists { break }
+                    let start = menu.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
+                    let end = menu.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
+                    start.press(forDuration: 0.05, thenDragTo: end)
+                }
+                XCTAssertTrue(option.waitForExistence(timeout: 5), app.debugDescription)
+                option.tap()
+            }
+            Thread.sleep(forTimeInterval: 0.8)
+            XCTAssertTrue(selector.waitForExistence(timeout: 60), "Theme failed to load: \(theme)\n\(app.debugDescription)")
+            let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", optionLabel), object: selector)
+            XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 60), .completed, app.debugDescription)
+            XCTAssertTrue(app.staticTexts["__EXPECTED_VERSION__"].waitForExistence(timeout: 60), app.debugDescription)
+            XCTAssertFalse(app.staticTexts["Page Not Found"].exists, theme)
+            XCTAssertTrue(app.buttons["☰"].exists, app.debugDescription)
+            attach(app, "theme-" + theme)
+        }
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(selector.waitForExistence(timeout: 60), app.debugDescription)
+        XCTAssertFalse(app.staticTexts["Page Not Found"].exists)
+        attach(app, "theme-restart")
+        app.terminate()
+    }
+
     func testLocalPagesCounterAndRestart() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
@@ -172,7 +217,10 @@ def main():
         run(['xcrun', 'simctl', 'install', udid, str(applications[0])])
         project = output / 'test-project'
         project.mkdir(exist_ok=True)
-        (project / 'SmokeTests.swift').write_text(SWIFT_TEST.replace('__EXPECTED_VERSION__', 'v' + version))
+        example_manifest = (ROOT / '../../example/Cargo.toml').resolve().read_text()
+        theme_names = sorted(re.findall(r'^theme-([a-z0-9]+)\s*=', example_manifest, re.MULTILINE)) + ['default']
+        swift_test = SWIFT_TEST.replace('__EXPECTED_VERSION__', 'v' + version).replace('__THEME_NAMES__', json.dumps(theme_names))
+        (project / 'SmokeTests.swift').write_text(swift_test)
         spec = {
             'name': 'EuvSmoke',
             'targets': {'EuvSmokeUITests': {

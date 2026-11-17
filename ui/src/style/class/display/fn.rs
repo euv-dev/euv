@@ -1123,7 +1123,10 @@ class! {
         gap: var!(space-sm);
         grid-column-start: "2";
         grid-row-start: "1";
-        grid-row-end: "span 2";
+        grid-row-end: "auto";
+        :is(".c_euv_card_header:has(.c_euv_card_description) .c_euv_card_action") {
+            grid-row-end: "span 2";
+        }
         justify-self: "end";
         align-self: "start";
     }
@@ -2738,7 +2741,7 @@ class! {
 #[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
 class! {
     pub c_card_title {
-        margin: format!("{} 0px", var!(space-lg));
+        margin: "0px";
         color: var!(card-foreground);
         font-size: var!(font-lg);
         font-weight: var!(font-weight-semibold);
@@ -3021,16 +3024,41 @@ class! {
         border: format!("{} solid {}", var!(surface-border-width), var!(border));
         box-shadow: var!(shadow-sm);
         padding: var!(space-2xl);
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xl);
+        // Shell-owned spacing outranks child classes, including through transparent slots.
+        > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > slot > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > slot > slot > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > : is("slot, [data-euv-dynamic-id]") > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > :is("[class], *") {
+            margin-block: "0px";
+        }
         box-sizing: "border-box";
-        // The card title carries a `gap-component` margin, and that margin
-        // collapses out of the card — the card has no padding and no border
-        // to stop it. The gap between two cards was therefore whatever the
-        // title's margin happened to be, not a value anybody chose. The
-        // block gap is the value the page template asks for, so it is named
-        // here instead of being left to a side effect.
-        margin-top: var!(page-block-gap);
+        // Only page-level cards own a block gap; composed cards use their parent's gap.
+        margin-top: "0px";
+        :is(".c_page_container > .c_card, .c_page_container > slot > .c_card, .c_page_container > slot > slot > .c_card") {
+            margin-top: var!(page-block-gap);
+        }
         @media ((max-width: 767px)) {
-            margin-top: var!(page-block-gap-mobile);
+            :is(".c_page_container > .c_card, .c_page_container > slot > .c_card, .c_page_container > slot > slot > .c_card") {
+                margin-top: var!(page-block-gap-mobile);
+            }
         }
         border-radius: var!(radius-xl);
     }
@@ -3038,7 +3066,7 @@ class! {
     pub(crate) c_euv_card_header {
         display: "grid";
         grid-template-columns: "1fr auto";
-        grid-template-rows: "auto auto";
+        grid-template-rows: "auto";
         grid-auto-rows: "min-content";
         align-items: "start";
         gap: var!(space-xs);
@@ -3056,7 +3084,7 @@ class! {
         line-height: "1";
         height: "20px";
         box-sizing: "border-box";
-        padding: format!("2px {}", var!(space-sm));
+        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         font-size: var!(font-xs);
         font-weight: var!(font-weight-semibold);
         transition: format!(
@@ -3331,7 +3359,7 @@ class! {
 #[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
 class! {
     pub c_card_title {
-        margin: format!("{} 0px", var!(space-lg));
+        margin: "0px";
         color: var!(card-foreground);
         font-size: var!(font-lg);
         font-weight: var!(font-weight-semibold);
@@ -3876,16 +3904,41 @@ class! {
         border: format!("{} solid {}", var!(surface-border-width), var!(border));
         box-shadow: var!(shadow-sm);
         padding: var!(space-2xl);
+        display: "flex";
+        flex-direction: "column";
+        gap: var!(space-2xl);
+        // Shell-owned spacing outranks child classes, including through transparent slots.
+        > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > slot > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > slot > slot > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > : is("slot, [data-euv-dynamic-id]") > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > :is("[class], *") {
+            margin-block: "0px";
+        }
+        > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > : is("slot, [data-euv-dynamic-id]") > :is("[class], *") {
+            margin-block: "0px";
+        }
         box-sizing: "border-box";
-        // The card title carries a `gap-component` margin, and that margin
-        // collapses out of the card — the card has no padding and no border
-        // to stop it. The gap between two cards was therefore whatever the
-        // title's margin happened to be, not a value anybody chose. The
-        // block gap is the value the page template asks for, so it is named
-        // here instead of being left to a side effect.
-        margin-top: var!(page-block-gap);
+        // Only page-level cards own a block gap; composed cards use their parent's gap.
+        margin-top: "0px";
+        :is(".c_page_container > .c_card, .c_page_container > slot > .c_card, .c_page_container > slot > slot > .c_card") {
+            margin-top: var!(page-block-gap);
+        }
         @media ((max-width: 767px)) {
-            margin-top: var!(page-block-gap-mobile);
+            :is(".c_page_container > .c_card, .c_page_container > slot > .c_card, .c_page_container > slot > slot > .c_card") {
+                margin-top: var!(page-block-gap-mobile);
+            }
         }
         border-radius: var!(radius-xl);
 
@@ -3904,7 +3957,7 @@ class! {
     pub(crate) c_euv_card_header {
         display: "grid";
         grid-template-columns: "1fr auto";
-        grid-template-rows: "auto auto";
+        grid-template-rows: "auto";
         grid-auto-rows: "min-content";
         align-items: "start";
         gap: var!(space-xs);
@@ -3924,7 +3977,7 @@ class! {
         line-height: "1";
         height: "20px";
         box-sizing: "border-box";
-        padding: format!("2px {}", var!(space-sm));
+        padding: format!("{} {}", var!(space-2xs), var!(space-sm));
         font-size: var!(font-xs);
         font-weight: var!(font-weight-semibold);
         transition: format!(

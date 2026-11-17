@@ -60,6 +60,8 @@ jobs:
           key: apk-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
           restore-keys: apk-${{ runner.os }}-
 
+      - name: Sync workspace versions
+        uses: ./.github/actions/sync-workspace
       - name: Install client dependencies and run tests
         working-directory: native/tauri
         run: |

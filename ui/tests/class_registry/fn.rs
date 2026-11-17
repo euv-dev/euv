@@ -519,11 +519,8 @@ fn the_cards_are_separated_by_the_block_gap() {
     let card: Rule = card.expect("the card class");
     let declarations: BTreeMap<String, String> = declarations(&card.body).into_iter().collect();
     let margin: String = declarations.get("margin-top").cloned().unwrap_or_default();
-    assert!(
-        margin.contains("page-block-gap"),
-        "c_card separates the cards with `{}` — the page template asks for the \
-         `page-block-gap` token, and without it the gap is whatever the card \
-         title's margin happens to be",
-        margin
-    );
+    assert_eq!(margin.trim_matches('"'), "0px");
+    assert!(card.body.contains(".c_page_container > .c_card"));
+    assert!(card.body.contains("page-block-gap"));
+    assert!(card.body.contains("page-block-gap-mobile"));
 }

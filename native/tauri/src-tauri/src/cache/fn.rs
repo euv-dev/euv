@@ -199,7 +199,12 @@ fn active_pointer_path(cache_root: &Path) -> PathBuf {
 async fn read_active_version(cache_root: &Path) -> Option<String> {
     let name: String = read_to_string(active_pointer_path(cache_root)).await.ok()?;
     let name: String = name.trim().to_string();
-    if name.is_empty() {
+    if name.is_empty()
+        || !name.starts_with(VERSION_PREFIX)
+        || !name
+            .bytes()
+            .all(|byte: u8| byte.is_ascii_alphanumeric() || byte == VERSION_SEPARATOR)
+    {
         return None;
     }
     if metadata(cache_root.join(&name)).await.ok()?.is_dir() {
@@ -218,7 +223,7 @@ fn new_version_name() -> String {
     let timestamp: u128 = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
-        .as_millis();
+        .as_nanos();
     format!("{VERSION_PREFIX}{timestamp}")
 }
 
@@ -307,6 +312,7 @@ fn shared_client() -> Result<&'static Client, CacheError> {
     match HTTP_CLIENT.get_or_init(|| {
         Client::builder()
             .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|error: Error| error.to_string())
     }) {
@@ -341,18 +347,58 @@ fn clean_relative_path(path: &str) -> String {
     result.to_string()
 }
 
-/// Deploys bundled cache files as a first-run seed only.
+/// Resolves the embedded document graph without requiring unrelated build output.
 ///
-/// The bundled cache is purely a fallback so the very first cold start (right
-/// after install, before any remote fetch has completed) has something to
-/// render. Once any active version exists — whether it was seeded from the
-/// bundle or fetched in the background on a previous launch — this function is
-/// a no-op and the existing active pointer is preserved untouched.
+/// # Returns
+/// - `Vec<String>` - Entry documents and every locally referenced resource.
+fn bundled_snapshot_paths() -> Vec<String> {
+    let mut pending: VecDeque<String> = snapshot_paths(BUNDLED_FILES).into();
+    let mut required: Vec<String> = Vec::new();
+    let mut visited: HashSet<String> = HashSet::new();
+    while let Some(path) = pending.pop_front() {
+        if !visited.insert(path.clone()) {
+            continue;
+        }
+        let Some((_, bytes)): Option<&(&str, &[u8])> = BUNDLED_FILES
+            .iter()
+            .find(|(name, _): &&(&str, &[u8])| *name == path)
+        else {
+            continue;
+        };
+        if !path.ends_with(HTML_EXTENSION)
+            && !path.ends_with(JS_EXTENSION)
+            && !path.ends_with(MJS_EXTENSION)
+        {
+            required.push(path);
+            continue;
+        }
+        let mut references: Vec<String> = Vec::new();
+        let source: Cow<'_, str> = String::from_utf8_lossy(bytes);
+        if path.ends_with(HTML_EXTENSION) {
+            let mut scripts: Vec<String> = Vec::new();
+            extract_resources_with_scraper(&source, &mut references, &mut scripts);
+            for script in &scripts {
+                extract_resources_from_js_ast(script, &mut references);
+            }
+        } else if path.ends_with(JS_EXTENSION) || path.ends_with(MJS_EXTENSION) {
+            extract_resources_from_js_ast(&source, &mut references);
+        }
+        for reference in references {
+            if !is_external_resource_url(&reference) {
+                pending.push_back(resolve_local_path(&path, &reference));
+            }
+        }
+        required.push(path);
+    }
+    required
+}
+
+/// Seeds bundled files on first launch and repairs incomplete older snapshots.
 ///
-/// This guarantees that every subsequent launch immediately serves the latest
-/// version the background updater committed last time, instead of ever being
-/// rolled back to the (older) compiled-in bundle. Remote updates keep happening
-/// in the background and take effect on the next launch.
+/// Complete remote snapshots are preserved across launches. An older root-only
+/// cache is not complete once theme pages are part of the packaged inventory;
+/// replace that unusable snapshot with the complete offline bundle before
+/// publishing readiness. Background updates still take effect next launch.
 ///
 /// # Arguments
 ///
@@ -370,15 +416,13 @@ pub(crate) async fn deploy_bundled_cache(app_handle: &AppHandle) -> bool {
     if create_dir_all(&cache_root).await.is_err() {
         return false;
     }
-    // If any active version already exists, always reuse it as-is. Never
-    // overwrite or roll it back to the compiled-in bundle — the active pointer
-    // already references the newest snapshot committed by a previous launch's
-    // background update.
+    // Preserve complete remote snapshots, but do not pin older root-only caches
+    // forever: they cannot serve the theme navigation paths compiled into WASM.
     if let Some(active) = read_active_version(&cache_root).await {
         let directory: PathBuf = cache_root.join(&active);
-        if metadata(directory.join(INDEX_FILE_NAME))
-            .await
-            .is_ok_and(|entry: Metadata| entry.len() > 0)
+        if let Ok(minimum) = bundled_release_version()
+            && verified_release(&directory, &minimum).await.is_ok()
+            && complete_snapshot(&directory, &bundled_snapshot_paths()).await
         {
             app_handle.state::<CacheSession>().publish(directory);
             euv_log!("[EUV] active cache present, reusing: {active}");
@@ -395,7 +439,7 @@ pub(crate) async fn deploy_bundled_cache(app_handle: &AppHandle) -> bool {
     }
     let version_name: String = new_version_name();
     let version_dir: PathBuf = cache_root.join(&version_name);
-    if create_dir_all(&version_dir).await.is_err() {
+    if tokio::fs::create_dir(&version_dir).await.is_err() {
         return false;
     }
     let mut count: usize = 0;
@@ -412,6 +456,14 @@ pub(crate) async fn deploy_bundled_cache(app_handle: &AppHandle) -> bool {
         }
     }
     if count == 0 {
+        remove_dir_all(&version_dir).await.ok();
+        return false;
+    }
+    let valid: bool = match bundled_release_version() {
+        Ok(minimum) => verified_release(&version_dir, &minimum).await.is_ok(),
+        Err(_) => false,
+    };
+    if !valid {
         remove_dir_all(&version_dir).await.ok();
         return false;
     }
@@ -441,6 +493,18 @@ pub(crate) async fn has_active_cache(app_handle: &AppHandle) -> bool {
     app_handle.state::<CacheSession>().directory().is_some()
 }
 
+/// Reads the authoritative website version embedded in this native bundle.
+///
+/// # Returns
+/// - `Result<String, String>` - Embedded release identity or a metadata failure.
+fn bundled_release_version() -> Result<String, String> {
+    let (_, bytes): &(&str, &[u8]) = BUNDLED_FILES
+        .iter()
+        .find(|(path, _): &&(&str, &[u8])| *path == RELEASE_NAME)
+        .ok_or_else(|| "BundledMetadataMissing".to_string())?;
+    Ok(parse_release(bytes, "0.0.0")?.version)
+}
+
 /// Fetches a full snapshot of the remote HTML page and all linked resources.
 ///
 /// Verifies that all critical resources (scripts, stylesheets, images, WASM) are present
@@ -458,46 +522,24 @@ async fn fetch_full_snapshot(
     cache_root: &Path,
     session: &CacheSession,
 ) -> Result<String, CacheError> {
+    let mut minimum: String = bundled_release_version().map_err(CacheError::Fetch)?;
+    if let Some(active) = read_active_version(cache_root).await {
+        let active_version: String = verified_release(&cache_root.join(active), &minimum)
+            .await
+            .map_err(CacheError::Fetch)?;
+        minimum = active_version;
+    }
     let version_name: String = new_version_name();
-    let version_dir: PathBuf = cache_root.join(&version_name);
-    create_dir_all(&version_dir)
-        .await
-        .map_err(|error: io::Error| CacheError::Write(error.to_string()))?;
-    let (final_url, html): (String, String) = match download_resource(
-        shared_client()?.clone(),
-        REMOTE_URL.to_string(),
-        version_dir.join(INDEX_FILE_NAME),
-        true,
+    activate_release(
+        shared_client()?,
+        RELEASE_BASE,
+        cache_root,
+        &version_name,
+        &minimum,
+        &snapshot_paths(BUNDLED_FILES),
     )
     .await
-    {
-        Ok(downloaded) => downloaded,
-        Err(error) => {
-            remove_dir_all(&version_dir).await.ok();
-            return Err(error.into());
-        }
-    };
-    if html.is_empty() {
-        remove_dir_all(&version_dir).await.ok();
-        return Err(CacheError::Fetch("empty HTML".to_string()));
-    }
-    euv_log!("[EUV] final URL after redirects: {}", final_url);
-    let resource_count: usize = match fetch_linked_resources(&version_dir, &html, &final_url).await
-    {
-        Ok(count) => count,
-        Err(error) => {
-            remove_dir_all(&version_dir).await.ok();
-            return Err(error);
-        }
-    };
-    euv_log!(
-        "[EUV] snapshot complete: {} resources fetched, all critical files verified",
-        resource_count
-    );
-    if let Err(error) = switch_active_version(cache_root, &version_name).await {
-        remove_dir_all(&version_dir).await.ok();
-        return Err(error);
-    }
+    .map_err(CacheError::Fetch)?;
     cleanup_old_versions(cache_root, &version_name, session.directory().as_deref()).await;
     Ok(version_name)
 }
@@ -541,107 +583,10 @@ pub(crate) async fn initial_fetch(app_handle: AppHandle) {
     }
 }
 
-/// Derives the base URL from a final URL by stripping the last path segment.
-///
-/// # Arguments
-///
-/// - `&str` - The final URL after redirects.
-///
-/// # Returns
-///
-/// - `String` - The base URL for resolving relative resource paths.
-fn derive_base_url(final_url: &str) -> String {
-    Url::parse(final_url)
-        .and_then(|url: Url| url.join("."))
-        .map(|url: Url| url.to_string())
-        .unwrap_or_default()
-}
-
-/// Fetches all linked resources (scripts, stylesheets, images) from an HTML page.
-///
-/// Also discovers and fetches transitive dependencies in JS files (WASM, ES module imports).
-/// Uses `HashSet` for deduplication to avoid O(n) linear scans.
-///
-/// # Arguments
-///
-/// - `&Path` - The version directory where resources should be saved.
-/// - `&str` - The HTML content to parse for resource links.
-/// - `&str` - The final URL of the page, used to derive the base URL.
-///
-/// # Returns
-///
-/// - `Result<usize, CacheError>` - The number of resources persisted, or a snapshot error.
-async fn fetch_linked_resources(
-    version_dir: &Path,
-    html: &str,
-    final_url: &str,
-) -> Result<usize, CacheError> {
-    euv_log!("[EUV] resource base URL: {}", derive_base_url(final_url));
-    let mut paths: Vec<String> = Vec::new();
-    let mut inline_scripts: Vec<String> = Vec::new();
-    extract_resources_with_scraper(html, &mut paths, &mut inline_scripts);
-    for script in &inline_scripts {
-        extract_resources_from_js_ast(script, &mut paths);
-    }
-    let mut fetched: FetchResult = fetch_resource_list(&paths, final_url, version_dir).await?;
-    let mut fetched_set: HashSet<String> = fetched
-        .iter()
-        .map(|resource: &FetchedResource| resource.get_clean_path().clone())
-        .collect();
-    fetched_set.insert(INDEX_FILE_NAME.to_string());
-    let mut total_count: usize = 0;
-    while !fetched.is_empty() {
-        total_count += fetched.len();
-        let mut extra_deps: Vec<(String, String)> = Vec::new();
-        for resource in &fetched {
-            let clean_path: &String = resource.get_clean_path();
-            let res_final_url: &String = resource.get_final_url();
-            let mut refs: Vec<String> = Vec::new();
-            if !resource.get_js_content().is_empty() {
-                extract_resources_from_js_ast(resource.get_js_content(), &mut refs);
-            }
-            for raw_ref in &refs {
-                if is_external_resource_url(raw_ref) {
-                    continue;
-                }
-                let dep_clean: String = resolve_local_path(clean_path, raw_ref);
-                if dep_clean.is_empty() || !fetched_set.insert(dep_clean.clone()) {
-                    continue;
-                }
-                let dep_url: String = resolve_against(res_final_url, raw_ref);
-                extra_deps.push((dep_url, dep_clean));
-            }
-        }
-        fetched = fetch_absolute_list(&extra_deps, version_dir).await?;
-    }
-    Ok(total_count)
-}
-
-/// Resolves a relative reference against a base URL (typically a resource's
-/// final URL after redirects).
-///
-/// Handles `./`, `../`, root-relative (`/...`) and bare relative references by
-/// performing path-segment resolution against the base URL's directory.
-///
-/// # Arguments
-///
-/// - `&str` - The base URL (e.g. the final URL of the JS file).
-/// - `&str` - The relative reference to resolve.
-///
-/// # Returns
-///
-/// - `String` - The absolute URL of the referenced resource.
-fn resolve_against(base_url: &str, reference: &str) -> String {
-    Url::parse(base_url)
-        .and_then(|url: Url| url.join(reference))
-        .map(|url: Url| url.to_string())
-        .unwrap_or_default()
-}
-
 /// Resolves a relative reference into a local cache path, relative to the
 /// directory of the referencing file.
 ///
-/// Mirrors `resolve_against` but operates on local (path-only) values so the
+/// Operates on local (path-only) values so the
 /// on-disk layout matches the served URL layout. For example, a `pkg/euv.js`
 /// that references `euv_bg.wasm` yields `pkg/euv_bg.wasm`; a reference of
 /// `../assets/x.png` yields `assets/x.png`.
@@ -675,74 +620,6 @@ fn resolve_local_path(referencing_clean_path: &str, reference: &str) -> String {
         }
     }
     segments.join("/")
-}
-
-/// Fetches a list of (absolute_url, clean_path) dependencies concurrently and
-/// writes them to disk under the version directory.
-///
-/// Unlike `fetch_resource_list`, the download URL is provided directly (already
-/// resolved against the referencing resource's final URL), so no base-URL
-/// concatenation is performed.
-///
-/// # Arguments
-///
-/// - `&[(String, String)]` - List of (absolute_url, clean_path) pairs.
-/// - `&Path` - The version directory where resources should be saved.
-///
-/// # Returns
-///
-/// - `Result<FetchResult, CacheError>` - Metadata for complete downloads, or a fetch error.
-async fn fetch_absolute_list(
-    deps: &[(String, String)],
-    version_dir: &Path,
-) -> Result<FetchResult, CacheError> {
-    let pending: VecDeque<(String, String)> = deps.iter().cloned().collect();
-    let downloaded: Vec<DownloadedResource> =
-        download_resources(shared_client()?.clone(), pending, version_dir.to_path_buf()).await?;
-    Ok(downloaded
-        .into_iter()
-        .map(
-            |(clean_path, final_url, js_content): DownloadedResource| FetchedResource {
-                clean_path,
-                final_url,
-                js_content,
-            },
-        )
-        .collect())
-}
-
-/// Fetches a list of resource URLs concurrently and writes them to disk.
-///
-/// Uses `JoinSet` for more efficient concurrent task management compared to
-/// manual `spawn` + `Vec<JoinHandle>` pattern. Skips data URIs, absolute HTTP URLs,
-/// and protocol-relative URLs.
-///
-/// # Arguments
-///
-/// - `&[String]` - The list of relative resource paths to fetch.
-/// - `&str` - The base URL for resolving relative paths.
-/// - `&Path` - The version directory where resources should be saved.
-///
-/// # Returns
-///
-/// - `Result<FetchResult, CacheError>` - Persisted resource metadata, or a required-resource error.
-async fn fetch_resource_list(
-    paths: &[String],
-    base_url: &str,
-    version_dir: &Path,
-) -> Result<FetchResult, CacheError> {
-    let mut deps: Vec<(String, String)> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-    for relative_path in paths {
-        if is_external_resource_url(relative_path) {
-            continue;
-        }
-        let clean: String = clean_relative_path(relative_path);
-        if !clean.is_empty() && clean != INDEX_FILE_NAME && seen.insert(clean.clone()) {
-            deps.push((resolve_against(base_url, relative_path), clean));
-        }
-    }
-    fetch_absolute_list(&deps, version_dir).await
 }
 
 /// Lazily initializes the cached `scraper::Selector` instances used by
@@ -1202,7 +1079,7 @@ pub(crate) fn mime_for(path: &str) -> &'static str {
         Some(pos) => &path[pos..],
         None => "",
     };
-    if extension.eq_ignore_ascii_case(".html") || extension.eq_ignore_ascii_case(".htm") {
+    if extension.eq_ignore_ascii_case(HTML_EXTENSION) || extension.eq_ignore_ascii_case(".htm") {
         "text/html"
     } else if extension.eq_ignore_ascii_case(JS_EXTENSION)
         || extension.eq_ignore_ascii_case(MJS_EXTENSION)
@@ -1281,6 +1158,7 @@ pub(crate) async fn handle_euv_scheme(
         .decode_utf8_lossy()
         .into_owned();
     let is_index: bool = path_decoded.is_empty() || path_decoded == INDEX_FILE_NAME;
+    let is_document: bool = is_index || path_decoded.ends_with(HTML_EXTENSION);
     let session: State<'_, CacheSession> = app_handle.state::<CacheSession>();
     let active_dir: Arc<Path> =
         match tokio::time::timeout(Duration::from_secs(2), session.wait()).await {
@@ -1316,8 +1194,8 @@ pub(crate) async fn handle_euv_scheme(
                     .header("Cross-Origin-Embedder-Policy", "require-corp")
                     .header("Cross-Origin-Opener-Policy", "same-origin");
             }
-            let body: Vec<u8> = if is_index {
-                let html: String = String::from_utf8_lossy(&data).into_owned();
+            let body: Vec<u8> = if is_document {
+                let html: String = local_document(&String::from_utf8_lossy(&data));
                 let extra_scripts: String = RELOAD_LISTENER_SCRIPT.to_string();
                 #[cfg(debug_assertions)]
                 let extra_scripts: String = {

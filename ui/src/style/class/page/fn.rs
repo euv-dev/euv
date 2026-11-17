@@ -206,7 +206,7 @@ class! {
             -webkit-appearance: "none";
             // The thumb is taller than the track it rides on, so the margin
             // pulls it up until it sits centred on the track.
-            margin-top: "-7px";
+            margin-top: format!("calc(({} - {}) / 2)", var!(space-xs-sm), var!(space-xl));
         }
         ::-moz-range-track {
             height: "6px";
@@ -799,7 +799,7 @@ class! {
         // difference between the input box and the line box of the glyph —
         // a number no spacing token holds, because it is derived from the
         // two heights rather than chosen.
-        padding-bottom: "10px";
+        padding-bottom: var!(space-sm-md);
     }
 
     pub c_binding_color_mixer {
@@ -861,7 +861,7 @@ class! {
             -webkit-appearance: "none";
             // The thumb is taller than the track it rides on, so the margin
             // pulls it up until it sits centred on the track.
-            margin-top: "-7px";
+            margin-top: format!("calc(({} - {}) / 2)", var!(space-xs-sm), var!(space-xl));
         }
         : active::-webkit-slider-thumb {
             transform: "scale(0.92)";
@@ -899,7 +899,7 @@ class! {
         font-size: var!(font-base);
         font-weight: var!(font-weight-semibold);
         color: var!(primary);
-        padding: format!("1px {}", var!(space-sm));
+        padding: format!("calc({} / 2) {}", var!(space-2xs), var!(space-sm));
     }
 
     pub c_binding_typed_prop_group {
@@ -1252,11 +1252,9 @@ class! {
     pub c_home_feature_grid {
         display: "grid";
         grid-template-columns: "repeat(2, minmax(0px, 1fr))";
-        // The cards carry the block gap between them, so the grid only has
-        // to separate the columns: a row gap on top of that would count the
-        // same space twice and the rows would drift apart.
-        column-gap: var!(space-md);
-        row-gap: "0px";
+        // The grid owns sibling spacing; cards keep their intrinsic height and insets.
+        align-items: "start";
+        gap: var!(page-block-gap);
         @media ((max-width: 767px)) {
             grid-template-columns: "1fr";
         }

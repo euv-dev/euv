@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
-const { bundleExample, verifyBundle, MANIFEST_NAME, DEFAULT_DESTINATION } = require('./bundle-example');
+const { bundleExample, prepareExampleThemes, verifyBundle, MANIFEST_NAME, DEFAULT_DESTINATION } = require('./bundle-example');
 const { pythonCommand, verifyNative, verifyIpa } = require('../validation/verify-native');
 const { verifyOutput } = require('../validation/verify-output');
 
@@ -135,6 +135,7 @@ function buildSimulator(apple, plan, env, scheme) {
 
 function buildClient(platform) {
   const plan = buildPlan(platform);
+  prepareExampleThemes();
   bundleExample();
   run(process.execPath, ['scripts/config/apply-config.js']);
   run('rustup', ['target', 'add', plan.target]);

@@ -590,8 +590,13 @@ fn commerce_heading_defaults_remain_h3_for_cards() {
     assert!(
         matches!(title, VirtualNode::Element { tag: Tag::Element(ref name), .. } if name == "h3")
     );
-    let card: VirtualNode = euv_card(element_node(EuvCardProps::default()));
+    let card: VirtualNode = euv_card(element_node(EuvCardProps {
+        title: String::from("Account").into(),
+        ..EuvCardProps::default()
+    }));
     assert!(format!("{card:?}").contains("Element(\"h3\")"));
+    let empty: VirtualNode = euv_card(element_node(EuvCardProps::default()));
+    assert!(!format!("{empty:?}").contains("Element(\"h3\")"));
 }
 
 #[test]

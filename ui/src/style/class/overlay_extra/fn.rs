@@ -394,7 +394,7 @@ class! {
         gap: var!(space-sm);
         // The reference pads the row with 6px (1.5 times the 4px base);
         // it is off the 4px scale, so it is spelled out here.
-        padding: format!("{} {} {} {}", "6px", var!(space-sm), "6px", var!(space-3xl));
+        padding: format!("{} {} {} {}", var!(space-xs-sm), var!(space-sm), var!(space-xs-sm), var!(space-3xl));
         border-radius: var!(radius-sm);
         color: var!(foreground);
         font-family: "inherit";
@@ -415,7 +415,7 @@ class! {
         gap: var!(space-sm);
         // The reference pads the row with 6px (1.5 times the 4px base);
         // it is off the 4px scale, so it is spelled out here.
-        padding: format!("{} {} {} {}", "6px", var!(space-sm), "6px", var!(space-3xl));
+        padding: format!("{} {} {} {}", var!(space-xs-sm), var!(space-sm), var!(space-xs-sm), var!(space-3xl));
         border-radius: var!(radius-sm);
         color: var!(foreground);
         font-family: "inherit";
@@ -654,7 +654,7 @@ class! {
         gap: var!(space-sm);
         // The reference pads the row with 6px (1.5 times the 4px base);
         // it is off the 4px scale, so it is spelled out here.
-        padding: format!("{} {} {} {}", "6px", var!(space-sm), "6px", var!(space-3xl));
+        padding: format!("{} {} {} {}", var!(space-xs-sm), var!(space-sm), var!(space-xs-sm), var!(space-3xl));
         border-radius: var!(radius-sm);
         color: var!(foreground);
         font-family: "inherit";
@@ -684,7 +684,7 @@ class! {
         gap: var!(space-sm);
         // The reference pads the row with 6px (1.5 times the 4px base);
         // it is off the 4px scale, so it is spelled out here.
-        padding: format!("{} {} {} {}", "6px", var!(space-sm), "6px", var!(space-3xl));
+        padding: format!("{} {} {} {}", var!(space-xs-sm), var!(space-sm), var!(space-xs-sm), var!(space-3xl));
         border-radius: var!(radius-sm);
         color: var!(foreground);
         font-family: "inherit";

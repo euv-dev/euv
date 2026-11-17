@@ -1,18 +1,5 @@
 use super::*;
 
-/// Streams one response into a temporary file and atomically publishes it.
-///
-/// Only JavaScript source is accumulated for dependency discovery. Other response
-/// chunks are written directly to disk and released instead of retained in memory.
-///
-/// # Arguments
-/// - `Client` - The shared HTTP client cloned for this operation.
-/// - `String` - The resource URL.
-/// - `PathBuf` - The final path inside the pending snapshot.
-/// - `bool` - Whether the source text is needed for dependency discovery.
-///
-/// # Returns
-/// - `Result<(String, String), ResourceError>` - Final URL and optional source text.
 pub(crate) async fn download_resource(
     client: Client,
     url: String,
@@ -79,15 +66,6 @@ pub(crate) async fn download_resource(
     result
 }
 
-/// Downloads resources while immediately filling every available worker slot.
-///
-/// # Arguments
-/// - `Client` - The shared HTTP client whose connection pool is reused.
-/// - `VecDeque<(String, String)>` - Pending `(URL, clean_path)` resource pairs.
-/// - `PathBuf` - The pending snapshot directory.
-///
-/// # Returns
-/// - `Result<Vec<DownloadedResource>, ResourceError>` - Complete file metadata.
 pub(crate) async fn download_resources(
     client: Client,
     mut pending: VecDeque<(String, String)>,
@@ -102,7 +80,9 @@ pub(crate) async fn download_resources(
                 break;
             };
             let target: PathBuf = version_dir.join(&clean);
-            let keep_source: bool = clean.ends_with(JS_EXTENSION) || clean.ends_with(MJS_EXTENSION);
+            let keep_source: bool = clean.ends_with(JS_EXTENSION)
+                || clean.ends_with(MJS_EXTENSION)
+                || clean.ends_with(HTML_EXTENSION);
             let client: Client = client.clone();
             tasks.spawn(async move {
                 let (final_url, source): (String, String) =

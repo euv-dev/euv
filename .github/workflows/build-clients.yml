@@ -65,6 +65,8 @@ jobs:
           key: clients-${{ runner.os }}-${{ matrix.platform }}-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
           restore-keys: clients-${{ runner.os }}-${{ matrix.platform }}-
 
+      - name: Sync workspace versions
+        uses: ./.github/actions/sync-workspace
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
 
@@ -139,6 +141,8 @@ jobs:
           key: clients-${{ runner.os }}-ios-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
           restore-keys: clients-${{ runner.os }}-ios-
 
+      - name: Sync workspace versions
+        uses: ./.github/actions/sync-workspace
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
 

@@ -1,19 +1,5 @@
 use super::*;
 
-/// Describes a persisted resource while retaining only JavaScript source text.
-#[derive(Data)]
-pub(crate) struct FetchedResource {
-    /// The normalized path relative to the snapshot directory.
-    #[get(pub(crate))]
-    pub(crate) clean_path: String,
-    /// The final network location used to resolve nested dependencies.
-    #[get(pub(crate))]
-    pub(crate) final_url: String,
-    /// JavaScript source, or an empty string for binary and style resources.
-    #[get(pub(crate))]
-    pub(crate) js_content: String,
-}
-
 /// Represents cached page metadata returned by the `load_cached_resource` Tauri command.
 ///
 /// Field reads on the rust side go through the `get_*` accessors generated

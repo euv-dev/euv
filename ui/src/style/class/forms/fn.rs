@@ -2648,7 +2648,7 @@ class! {
     pub(crate) c_euv_toggle_size_small {
         height: var!(control-height);
         min-width: var!(control-height);
-        padding-inline: "10px";
+        padding-inline: var!(space-sm-md);
     }
 
     pub(crate) c_euv_toggle_size_large {
@@ -2657,7 +2657,7 @@ class! {
         // spacing scale.
         height: "44px";
         min-width: "44px";
-        padding-inline: "20px";
+        padding-inline: var!(space-xl);
     }
 
     pub(crate) c_euv_toggle_pressed {
@@ -3361,7 +3361,7 @@ class! {
     pub(crate) c_euv_toggle_size_small {
         height: var!(control-height);
         min-width: var!(control-height);
-        padding-inline: "10px";
+        padding-inline: var!(space-sm-md);
 
         height: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
         min-width: format!("calc({} - {})", var!(control-height-sm), var!(space-xs));
@@ -3376,7 +3376,7 @@ class! {
         // spacing scale.
         height: "44px";
         min-width: "44px";
-        padding-inline: "20px";
+        padding-inline: var!(space-xl);
 
         height: format!("calc({} + {})", var!(control-height-sm), var!(space-xs));
         min-width: format!("calc({} + {})", var!(control-height-sm), var!(space-xs));

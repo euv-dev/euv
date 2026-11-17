@@ -17,15 +17,18 @@ use super::*;
 pub fn euv_card(node: VirtualNode<EuvCardProps>) -> VirtualNode {
     let EuvCardProps { title, level }: EuvCardProps = node.try_get_props().unwrap_or_default();
     let children: VirtualNode = node.get_children().into();
+    let has_title: bool = !title.as_str().trim().is_empty();
     let card_class: String = c_card().get_name().to_string();
     html! {
         div {
             class: card_class
             "data-slot": "card"
-            euv_card_header {
-                euv_card_title {
-                    text: title.clone()
-                    level: level
+            if has_title {
+                euv_card_header {
+                    euv_card_title {
+                        text: title.clone()
+                        level: level
+                    }
                 }
             }
             children

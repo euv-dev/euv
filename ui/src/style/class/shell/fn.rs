@@ -838,7 +838,7 @@ class! {
             width: "44px";
             height: "44px";
         }
-        border-radius: "0px";
+        border-radius: var!(radius-md);
         box-shadow: var!(shadow-md);
     }
 
@@ -1705,16 +1705,16 @@ class! {
         // `format!` around `var!(...)` yields `-var(--x)`, which is invalid CSS
         // and the declaration is dropped silently — the row then stays 54px
         // tall instead of 42px.
-        padding: "9px";
+        padding: var!(side-indent);
         // Vertical padding would otherwise leak into layout and grow every row
         // by 18px (42px -> 54px), so the negative top/bottom margins cancel
         // exactly the padding they accompany. The hit area is still the full
         // row height — it just overlaps the row's own padding instead of
         // pushing the row taller.
-        margin-top: "-9px";
-        margin-bottom: "-9px";
-        margin-right: "-9px";
-        margin-left: "-5px";
+        margin-top: format!("calc(0px - {})", var!(side-indent));
+        margin-bottom: format!("calc(0px - {})", var!(side-indent));
+        margin-right: format!("calc(0px - {})", var!(side-indent));
+        margin-left: format!("calc({} - {})", var!(space-xs), var!(side-indent));
         cursor: "pointer";
         user-select: "none";
         flex-shrink: "0";
@@ -1730,16 +1730,16 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "center";
-        padding: "9px";
+        padding: var!(side-indent);
         // Vertical padding would otherwise leak into layout and grow every row
         // by 18px (42px -> 54px), so the negative top/bottom margins cancel
         // exactly the padding they accompany. The hit area is still the full
         // row height — it just overlaps the row's own padding instead of
         // pushing the row taller.
-        margin-top: "-9px";
-        margin-bottom: "-9px";
-        margin-right: "-9px";
-        margin-left: "-5px";
+        margin-top: format!("calc(0px - {})", var!(side-indent));
+        margin-bottom: format!("calc(0px - {})", var!(side-indent));
+        margin-right: format!("calc(0px - {})", var!(side-indent));
+        margin-left: format!("calc({} - {})", var!(space-xs), var!(side-indent));
         cursor: "pointer";
         user-select: "none";
         flex-shrink: "0";
@@ -1755,16 +1755,16 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "center";
-        padding: "9px";
+        padding: var!(side-indent);
         // Vertical padding would otherwise leak into layout and grow every row
         // by 18px (42px -> 54px), so the negative top/bottom margins cancel
         // exactly the padding they accompany. The hit area is still the full
         // row height — it just overlaps the row's own padding instead of
         // pushing the row taller.
-        margin-top: "-9px";
-        margin-bottom: "-9px";
-        margin-right: "-9px";
-        margin-left: "-5px";
+        margin-top: format!("calc(0px - {})", var!(side-indent));
+        margin-bottom: format!("calc(0px - {})", var!(side-indent));
+        margin-right: format!("calc(0px - {})", var!(side-indent));
+        margin-left: format!("calc({} - {})", var!(space-xs), var!(side-indent));
         cursor: "pointer";
         user-select: "none";
         flex-shrink: "0";
@@ -1788,16 +1788,16 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "center";
-        padding: "9px";
+        padding: var!(side-indent);
         // Vertical padding would otherwise leak into layout and grow every row
         // by 18px (42px -> 54px), so the negative top/bottom margins cancel
         // exactly the padding they accompany. The hit area is still the full
         // row height — it just overlaps the row's own padding instead of
         // pushing the row taller.
-        margin-top: "-9px";
-        margin-bottom: "-9px";
-        margin-right: "-9px";
-        margin-left: "-5px";
+        margin-top: format!("calc(0px - {})", var!(side-indent));
+        margin-bottom: format!("calc(0px - {})", var!(side-indent));
+        margin-right: format!("calc(0px - {})", var!(side-indent));
+        margin-left: format!("calc({} - {})", var!(space-xs), var!(side-indent));
         cursor: "pointer";
         user-select: "none";
         flex-shrink: "0";
@@ -2131,7 +2131,7 @@ class! {
         width: "10px";
         height: "100%";
         // Shadcn's p-px leaves a seven-pixel thumb inside its ten-pixel bordered track.
-        padding: "1px";
+        padding: format!("calc({} / 2)", var!(space-2xs));
         border-inline-start: format!("{} {} {}", var!(border-width), "solid", "transparent");
         touch-action: "none";
         user-select: "none";
