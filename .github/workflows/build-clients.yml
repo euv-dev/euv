@@ -235,7 +235,13 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-version
 
       - name: Install iOS project tools
-        run: brew install xcodegen libimobiledevice cocoapods
+        run: |
+          set -euo pipefail
+          brew install xcodegen libimobiledevice
+          if ! command -v pod >/dev/null 2>&1; then
+            brew install cocoapods
+          fi
+          pod --version
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
