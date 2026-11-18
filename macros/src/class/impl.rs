@@ -440,6 +440,14 @@ impl ToTokens for ClassDef {
                                 selector_blocks_to_static_string(self.get_selector_blocks());
                             let at_rule_static: String =
                                 at_rule_blocks_to_static_string(self.get_at_rule_blocks());
+                            let static_at_rule_expr: proc_macro2::TokenStream =
+                                if at_rule_blocks_have_combinator_selectors(
+                                    self.get_at_rule_blocks(),
+                                ) {
+                                    at_rule_expr.clone()
+                                } else {
+                                    quote! { ::euv::Css::parse_media_rules(#at_rule_static) }
+                                };
                             emit_once_lock_fn(
                                 tokens,
                                 OnceLockParams {
@@ -449,7 +457,7 @@ impl ToTokens for ClassDef {
                                     class_name_str: &class_name_str,
                                     style_expr: &quote! { #css_string.to_string() },
                                     selector_expr: &quote! { ::euv::Css::parse_pseudo_rules(#selector_static) },
-                                    at_rule_expr: &quote! { ::euv::Css::parse_media_rules(#at_rule_static) },
+                                    at_rule_expr: &static_at_rule_expr,
                                 },
                             );
                         } else {

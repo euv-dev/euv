@@ -1,16 +1,28 @@
 mod readiness;
-#[path = "../src/resource/mod.rs"]
+#[path = "../src/release/mod.rs"]
+mod release;
+mod release_regression;
 mod resource;
+#[path = "../src/resource/const.rs"]
+mod resource_extensions;
 #[path = "../src/session/mod.rs"]
 mod session;
-mod transfer;
+#[path = "../src/snapshot/mod.rs"]
+mod snapshot;
+mod snapshot_regression;
 
 use {
     lombok_macros::*,
-    reqwest::{Client, Error, Response},
+    reqwest::{Client, Error, Response, Url},
+    serde::Deserialize,
+    serde_json::{Value, json},
+    sha2::{Digest, Sha256},
     std::{
-        collections::VecDeque,
-        env, error, fmt, fs, io,
+        collections::{HashSet, VecDeque},
+        env, error, fmt, fs,
+        fs::Metadata,
+        io,
+        iter::once,
         net::SocketAddr,
         path::{Path, PathBuf},
         process::id,
@@ -21,7 +33,7 @@ use {
         time::{Duration, Instant},
     },
     tokio::{
-        fs::{File, create_dir_all, remove_file, rename},
+        fs::{File, create_dir_all, metadata, read, remove_file, rename, write},
         io::{AsyncReadExt, AsyncWriteExt},
         net::{TcpListener, TcpStream},
         runtime::{Builder, Runtime},
@@ -32,4 +44,4 @@ use {
         task::{JoinHandle, JoinSet},
     },
 };
-use {resource::*, session::*};
+use {release::*, resource_extensions::*, session::*, snapshot::*};

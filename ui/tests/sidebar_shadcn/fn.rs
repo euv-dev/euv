@@ -180,7 +180,10 @@ fn sidebar_shadcn_does_not_change_other_theme_rows() {
         assert!(format!("{:?}", row.get_pseudo_rules()).contains("inset"));
     }
     for arrow in arrows() {
-        assert_eq!(value(arrow, "margin-top").as_deref(), Some("-9px"));
+        assert_eq!(
+            value(arrow, "margin-top").as_deref(),
+            Some("calc(0px - var(--side-indent))")
+        );
     }
     assert_eq!(rows().len(), 7);
 }

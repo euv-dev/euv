@@ -363,6 +363,128 @@ fn key_factories_emit_only_paint_hover_css_including_inherited_and_media_rules()
 }
 
 #[test]
+fn card_headers_do_not_reserve_an_empty_description_row() {
+    if cfg!(feature = "theme-custom") {
+        return;
+    }
+    let header: String = c_euv_card_header().get_style().split_whitespace().collect();
+    assert!(header.contains("grid-template-rows:auto;"), "{header}");
+    assert!(!header.contains("grid-template-rows:autoauto;"), "{header}");
+    let action: String = c_euv_card_action().get_style().split_whitespace().collect();
+    assert!(action.contains("grid-row-end:auto;"), "{action}");
+    let rules: String = format!("{:?}", c_euv_card_action().get_pseudo_rules());
+    assert!(rules.contains(":has(.c_euv_card_description)"), "{rules}");
+    assert!(rules.contains("span 2"), "{rules}");
+}
+
+#[test]
+fn card_shell_uses_one_token_for_padding_and_sibling_gaps() {
+    if cfg!(feature = "theme-custom") {
+        assert!(c_card().get_style().is_empty());
+        return;
+    }
+    let style: String = c_card().get_style().split_whitespace().collect();
+    let padding: Option<&str> = style
+        .split(';')
+        .filter_map(|declaration: &str| declaration.split_once(':'))
+        .filter(|(property, _): &(&str, &str)| *property == "padding")
+        .map(|(_, value): (&str, &str)| value)
+        .next_back();
+    let gap: Option<&str> = style
+        .split(';')
+        .filter_map(|declaration: &str| declaration.split_once(':'))
+        .filter(|(property, _): &(&str, &str)| *property == "gap")
+        .map(|(_, value): (&str, &str)| value)
+        .next_back();
+    assert!(padding.is_some_and(|value: &str| value.starts_with("var(--space-")));
+    assert_eq!(
+        padding, gap,
+        "card insets and sibling gaps use different tokens: {style}"
+    );
+    assert!(style.contains("display:flex"));
+    let rules: String = format!("{:?}", c_card().get_pseudo_rules());
+    let compact_rules: String = rules.split_whitespace().collect();
+    for selector in [
+        ">:is([class],*)",
+        ">slot>:is([class],*)",
+        ">slot>slot>:is([class],*)",
+    ] {
+        assert!(compact_rules.contains(selector), "{rules}");
+    }
+    assert!(
+        !style.contains("margin-block0px"),
+        "child declarations leaked into the surface: {style}"
+    );
+    assert!(
+        compact_rules.contains(">:is([class],*)"),
+        "card-owned margins must outrank subsequently injected child classes: {rules}"
+    );
+    assert!(rules.contains("margin-block"));
+    assert!(
+        rules.contains("data-euv-dynamic-id"),
+        "reactive boundaries are not normalized: {rules}"
+    );
+    assert!(
+        !rules.contains("selector: \"*"),
+        "unscoped universal selector: {rules}"
+    );
+    let title: String = c_card_title().get_style().split_whitespace().collect();
+    assert!(
+        title.contains("margin:0px;"),
+        "card title adds an inner gap: {title}"
+    );
+}
+
+#[test]
+fn card_child_margin_priority_covers_mixed_slot_and_dynamic_boundaries() {
+    if cfg!(feature = "theme-custom") {
+        return;
+    }
+    let rules: String = format!("{:?}", c_card().get_pseudo_rules());
+    let compact: String = rules.split_whitespace().collect();
+    assert!(compact.contains(">:is([class],*)"), "{rules}");
+    let boundary: &str = ">:is(slot,[data-euv-dynamic-id])";
+    for depth in 1..=4 {
+        let selector: String = format!("{}>:is([class],*)", boundary.repeat(depth));
+        assert!(
+            compact.contains(&selector),
+            "missing mixed boundary depth {depth}: {rules}"
+        );
+    }
+    assert!(compact.contains("margin-block:0px"), "{rules}");
+}
+
+#[test]
+fn feature_grid_preserves_intrinsic_card_height_and_owns_both_axis_gaps() {
+    let style: String = c_home_feature_grid()
+        .get_style()
+        .split_whitespace()
+        .collect();
+    if cfg!(feature = "theme-custom") {
+        assert!(style.is_empty());
+        return;
+    }
+    assert!(style.contains("align-items:start;"), "{style}");
+    assert!(style.contains("gap:var(--page-block-gap);"), "{style}");
+    assert!(!style.contains("row-gap:0px;"), "{style}");
+}
+
+#[test]
+fn console_fab_radius_uses_the_current_scheme_token() {
+    if cfg!(feature = "theme-custom") {
+        assert!(c_euv_logo_fab().get_style().is_empty());
+    } else {
+        assert!(
+            c_euv_logo_fab()
+                .get_style()
+                .split_whitespace()
+                .collect::<String>()
+                .contains("border-radius:var(--radius-md)")
+        );
+    }
+}
+
+#[test]
 fn emitted_css_parser_controls_preserve_functions_and_quoted_semicolons() {
     let mut violations: Vec<String> = Vec::new();
     hover_css_declarations(
@@ -401,6 +523,10 @@ fn all_source_class_definitions_including_inactive_cfg_keep_hover_paint_only() {
     let mut definitions: Vec<HoverDefinition> = Vec::new();
     hover_sources(
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+        &mut definitions,
+    );
+    hover_sources(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("../example/src/style"),
         &mut definitions,
     );
     let hover_classes: usize = definitions

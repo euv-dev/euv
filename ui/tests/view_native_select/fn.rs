@@ -82,6 +82,75 @@ fn has_attribute_value(node: &VirtualNode, name: &str, value: &str) -> bool {
         })
 }
 
+fn direct_children<'a>(node: &'a VirtualNode, tag_name: &str) -> &'a [VirtualNode] {
+    match node {
+        VirtualNode::Element {
+            tag: Tag::Element(tag),
+            children,
+            ..
+        } if tag == tag_name => children,
+        VirtualNode::Element { children, .. } => children
+            .iter()
+            .find_map(|child: &VirtualNode| {
+                let found: &[VirtualNode] = direct_children(child, tag_name);
+                (!found.is_empty()).then_some(found)
+            })
+            .unwrap_or_default(),
+        _ => &[],
+    }
+}
+
+fn assert_native_children(children: &[VirtualNode], tag_name: &str, values: &[&str]) {
+    assert_eq!(children.len(), values.len());
+    for (child, value) in children.iter().zip(values) {
+        assert!(
+            matches!(child, VirtualNode::Element { tag: Tag::Element(tag), .. } if tag == tag_name)
+        );
+        assert!(has_attribute_value(child, "value", value));
+    }
+}
+
+#[test]
+fn native_select_options_are_direct_native_children() {
+    let node: VirtualNode = html! {
+        euv_native_select {
+            id: "native-options"
+            euv_native_select_option { value: "theme-shadcn" label: "shadcn" }
+            euv_native_select_option { value: "theme-material" label: "material" }
+            euv_native_select_option { value: "theme-cupertino" label: "cupertino" }
+        }
+    };
+    assert_native_children(
+        direct_children(&node, "select"),
+        "option",
+        &["theme-shadcn", "theme-material", "theme-cupertino"],
+    );
+}
+
+#[test]
+fn native_select_group_options_are_direct_native_children() {
+    let node: VirtualNode = html! {
+        euv_native_select {
+            id: "native-group-options"
+            euv_native_select_opt_group {
+                label: "Themes"
+                euv_native_select_option { value: "theme-shadcn" label: "shadcn" }
+                euv_native_select_option { value: "theme-material" label: "material" }
+            }
+        }
+    };
+    let children: &[VirtualNode] = direct_children(&node, "select");
+    assert_eq!(children.len(), 1);
+    assert!(
+        matches!(&children[0], VirtualNode::Element { tag: Tag::Element(tag), .. } if tag == "optgroup")
+    );
+    assert_native_children(
+        direct_children(&node, "optgroup"),
+        "option",
+        &["theme-shadcn", "theme-material"],
+    );
+}
+
 #[test]
 fn a_native_select_carries_the_wrapper_and_the_control() {
     let node: VirtualNode = euv_native_select(props_node(EuvNativeSelectProps {

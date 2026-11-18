@@ -41,6 +41,7 @@ mod shadcn_spec;
 mod sidebar_css;
 mod sidebar_first_page;
 mod sidebar_shadcn;
+mod spacing_contract;
 mod suspense;
 mod tabs_relationships;
 mod theme;

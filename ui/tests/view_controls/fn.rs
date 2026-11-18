@@ -134,7 +134,7 @@ fn the_two_logo_variants_render_differently() {
 }
 
 #[test]
-fn floating_log_logo_is_square_at_every_viewport() {
+fn floating_log_logo_uses_the_theme_radius_at_every_viewport() {
     let css: &Css = c_euv_logo_fab();
     let style: String = css.get_style().replace(' ', "");
     if cfg!(feature = "theme-custom") {
@@ -142,7 +142,7 @@ fn floating_log_logo_is_square_at_every_viewport() {
         let reset: &str = include_str!("../../src/style/css/const.rs");
         assert!(reset.contains("border-radius: 0;"));
     } else {
-        assert!(style.contains("border-radius:0px"));
+        assert!(style.contains("border-radius:var(--radius-md)"));
         assert!(style.contains("width:36px"));
         assert!(style.contains("height:36px"));
     }

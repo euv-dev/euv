@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const { test } = require('node:test');
-const { MANIFEST_NAME, bundleExample, readExample, verifyBundle } = require('../build/bundle-example');
+const { MANIFEST_NAME, bundleExample, prepareExampleThemes, readExample, verifyBundle } = require('../build/bundle-example');
 const { verifyApk } = require('../validation/verify-apk');
 
 function fixture(t) {
@@ -27,6 +27,22 @@ function apkFixture(file, bytes, library = 'lib/arm64-v8a/libeuv_lib.so') {
     file, library, bytes.toString('base64')]);
 }
 
+test('native example packaging prepares every independently compiled theme', () => {
+  const source = path.resolve(__dirname, '../../../../example/www');
+  const calls = [];
+  assert.equal(prepareExampleThemes({ source, run: (...args) => calls.push(args) }), true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], 'bash');
+  assert.equal(calls[0][1][0], path.resolve(__dirname, '../../../../example/scripts/build_theme_variants.sh'));
+  assert.equal(calls[0][2].stdio, 'inherit');
+  assert.throws(() => prepareExampleThemes({ source, run: () => { throw new Error('theme build failed'); } }), /theme build failed/);
+});
+
+test('external web distributions do not build the repository example', (t) => {
+  const { source } = fixture(t);
+  assert.equal(prepareExampleThemes({ source, run: () => assert.fail('unexpected example build') }), false);
+});
+
 test('local bundling copies the complete output without fetching remote pages', (t) => {
   const options = fixture(t);
   fs.mkdirSync(path.join(options.source, 'images'));
@@ -40,6 +56,27 @@ test('local bundling copies the complete output without fetching remote pages', 
     assert.match(file.sha256, /^[a-f0-9]{64}$/);
   }
   assert.deepEqual(verifyBundle(options).files, result.files);
+});
+
+test('theme documents and their independent WASM payloads survive native packaging', (t) => {
+  const options = fixture(t);
+  const theme = path.join(options.source, 'themes', 'theme-shadcn');
+  fs.mkdirSync(path.join(theme, 'pkg'), { recursive: true });
+  fs.writeFileSync(path.join(theme, 'index.html'), '<html><script src="pkg/theme.js"></script></html>');
+  fs.writeFileSync(path.join(theme, 'pkg/theme.js'), 'export const wasm = "./theme_bg.wasm";');
+  fs.copyFileSync(path.join(options.source, 'pkg/euv_bg.wasm'), path.join(theme, 'pkg/theme_bg.wasm'));
+  const result = bundleExample(options);
+  for (const name of ['index.html', 'pkg/theme.js', 'pkg/theme_bg.wasm']) {
+    const relative = `themes/theme-shadcn/${name}`;
+    assert.ok(result.files.some((file) => file.path === relative));
+    assert.deepEqual(fs.readFileSync(path.join(options.destination, relative)), fs.readFileSync(path.join(theme, name)));
+  }
+  verifyBundle(options);
+});
+
+test('native updater uses the canonical complete static deployment', () => {
+  const config = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../config/app.config.json'), 'utf8'));
+  assert.equal(config.remote.url, 'https://ltpp.vip/pages/euv/');
 });
 
 test('identical local bundles preserve timestamps, including after Cargo creates its marker', (t) => {

@@ -146,7 +146,7 @@ class! {
         // The gutter is 14px, the reference's own `mx-3.5`; it is off the
         // four-pixel scale because the nested guide has to clear the
         // parent's label by the same amount the reference clears it by.
-        margin-left: "14px";
+        margin-left: format!("calc({} + {})", var!(space-md), var!(space-2xs));
         // The list is a list only in name: the browser's own margin and
         // bullets would put a gap and a dot next to the nested rows.
         margin-top: "0px";

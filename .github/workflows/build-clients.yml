@@ -16,8 +16,69 @@ permissions:
   contents: read
 
 jobs:
+  prepare-web:
+    name: Prepare shared release web themes
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo and wasm-pack
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cache/.wasm-pack
+            target
+          key: clients-web-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+          restore-keys: clients-web-${{ runner.os }}-
+
+      - name: Cache fingerprinted release themes
+        uses: actions/cache@v4
+        with:
+          path: |
+            Cargo.lock
+            example/www/themes
+            native/tauri/.cache/themes
+          key: clients-web-themes-${{ runner.os }}-${{ github.sha }}
+          restore-keys: clients-web-themes-${{ runner.os }}-
+
+      - name: Sync workspace versions
+        uses: ./.github/actions/sync-workspace
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Build release web through euv CLI
+        run: cargo run -p euv-cli -- build --release --crate-path ./example
+
+      - name: Build all release theme variants
+        run: bash example/scripts/build_theme_variants.sh
+
+      # Cargo.lock makes the artifact root the repository root, preserving layout.
+      # Stamps and the exact resolved lockfile enable cross-host theme cache hits.
+      - name: Upload shared release web
+        uses: actions/upload-artifact@v4
+        with:
+          name: euv-native-web-${{ github.sha }}
+          path: |
+            Cargo.lock
+            example/www/
+            native/tauri/.cache/themes/*.sha256
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
   build-desktop:
     name: Build ${{ matrix.platform }} client
+    needs: prepare-web
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
@@ -25,8 +86,8 @@ jobs:
       matrix:
         include:
           - platform: macos
-            os: macos-latest
-            rust-target: aarch64-apple-darwin
+            os: macos-15-intel
+            rust-target: x86_64-apple-darwin
     env:
       # The client must embed the locally built example pages, never a deployed page.
       EUV_WEB_DIST: ${{ github.workspace }}/example/www
@@ -45,7 +106,7 @@ jobs:
       - name: Setup Python 3
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
 
 
       - name: Install Rust toolchain
@@ -62,8 +123,61 @@ jobs:
             ~/.cache/.wasm-pack
             target
             native/tauri/src-tauri/target
-          key: clients-${{ runner.os }}-${{ matrix.platform }}-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
-          restore-keys: clients-${{ runner.os }}-${{ matrix.platform }}-
+          key: clients-${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
+          restore-keys: clients-${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-
+
+      - name: Sync workspace versions
+        uses: ./.github/actions/sync-workspace
+
+      # Download only this run's artifact, after derived workspace versions are set
+      # and before any native CLI invocation can resolve or compile the workspace.
+      - name: Download shared release web
+        uses: actions/download-artifact@v4
+        with:
+          name: euv-native-web-${{ github.sha }}
+          path: .
+
+      - name: Verify shared web layout, source stamps, and release hashes
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          import tomllib
+
+          root = Path.cwd()
+          assert (root / 'Cargo.lock').is_file(), 'Missing root Cargo.lock'
+          paths = [root / 'Cargo.toml', root / 'Cargo.lock', root / 'example/index.html', root / 'example/scripts/build_theme_variants.sh']
+          paths.extend((root / 'src').rglob('*'))
+          for name in ['core', 'macros', 'ui', 'engine', 'cli', 'example']:
+              paths.append(root / name / 'Cargo.toml')
+              paths.extend((root / name / 'src').rglob('*'))
+          digest = hashlib.sha256()
+          for path in sorted(path for path in paths if path.is_file()):
+              digest.update(str(path.relative_to(root)).encode())
+              digest.update(path.read_bytes())
+          source = digest.hexdigest()
+          features = tomllib.loads((root / 'example/Cargo.toml').read_text())['features']
+          themes = ['default'] + sorted(name for name in features if name.startswith('theme-'))
+          dist = root / 'example/www'
+          for theme in themes:
+              stamp = root / f'native/tauri/.cache/themes/{theme}.sha256'
+              assert stamp.read_text().strip() == source, f'Stale source stamp: {theme}'
+              for name in ['index.html', 'pkg/euv_example_bg.wasm']:
+                  assert (dist / 'themes' / theme / name).stat().st_size > 0
+          manifest = json.loads((dist / 'euv-release.json').read_text())
+          expected = tomllib.loads((root / 'Cargo.toml').read_text())['workspace']['package']['version']
+          assert manifest['version'] == expected, 'Wrong shared web release version'
+          for item in manifest['files']:
+              path = Path(item['path'])
+              assert not path.is_absolute() and '..' not in path.parts, f'Unsafe inventory path: {path}'
+              data = (dist / path).read_bytes()
+              assert len(data) == item['size'], f'Size mismatch: {path}'
+              assert hashlib.sha256(data).hexdigest() == item['sha256'], f'Hash mismatch: {path}'
+          actual = {path.relative_to(dist).as_posix() for path in dist.rglob('*') if path.is_file() and path.name != 'euv-release.json'}
+          assert actual == {item['path'] for item in manifest['files']}, 'Incomplete release inventory'
+          print(f'Verified root layout, {len(themes)} source stamps, and {len(actual)} release files')
+          PY
 
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
@@ -93,9 +207,11 @@ jobs:
 
   build-ios:
     name: Build ios client
-    runs-on: macos-latest
+    needs: prepare-web
+    runs-on: macos-15-intel
     timeout-minutes: 90
     env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
       EUV_WEB_DIST: ${{ github.workspace }}/example/www
       CARGO_TARGET_DIR: ${{ github.workspace }}/native/tauri/src-tauri/target
     steps:
@@ -112,20 +228,28 @@ jobs:
       - name: Setup Python 3
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
 
       - name: Select Xcode
         run: |
+          test -d "$DEVELOPER_DIR"
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
+          xcrun --sdk iphonesimulator --show-sdk-version
 
       - name: Install iOS project tools
-        run: brew install xcodegen libimobiledevice cocoapods
+        run: |
+          set -euo pipefail
+          brew install xcodegen libimobiledevice
+          if ! command -v pod >/dev/null 2>&1; then
+            brew install cocoapods
+          fi
+          pod --version
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown, aarch64-apple-ios, aarch64-apple-ios-sim
+          targets: wasm32-unknown-unknown, aarch64-apple-ios, x86_64-apple-ios
 
       - name: Cache Cargo and wasm-pack
         uses: actions/cache@v4
@@ -136,8 +260,61 @@ jobs:
             ~/.cache/.wasm-pack
             target
             native/tauri/src-tauri/target
-          key: clients-${{ runner.os }}-ios-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
-          restore-keys: clients-${{ runner.os }}-ios-
+          key: clients-${{ runner.os }}-${{ runner.arch }}-ios-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
+          restore-keys: clients-${{ runner.os }}-${{ runner.arch }}-ios-
+
+      - name: Sync workspace versions
+        uses: ./.github/actions/sync-workspace
+
+      # Download only this run's artifact, after derived workspace versions are set
+      # and before any native CLI invocation can resolve or compile the workspace.
+      - name: Download shared release web
+        uses: actions/download-artifact@v4
+        with:
+          name: euv-native-web-${{ github.sha }}
+          path: .
+
+      - name: Verify shared web layout, source stamps, and release hashes
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          import tomllib
+
+          root = Path.cwd()
+          assert (root / 'Cargo.lock').is_file(), 'Missing root Cargo.lock'
+          paths = [root / 'Cargo.toml', root / 'Cargo.lock', root / 'example/index.html', root / 'example/scripts/build_theme_variants.sh']
+          paths.extend((root / 'src').rglob('*'))
+          for name in ['core', 'macros', 'ui', 'engine', 'cli', 'example']:
+              paths.append(root / name / 'Cargo.toml')
+              paths.extend((root / name / 'src').rglob('*'))
+          digest = hashlib.sha256()
+          for path in sorted(path for path in paths if path.is_file()):
+              digest.update(str(path.relative_to(root)).encode())
+              digest.update(path.read_bytes())
+          source = digest.hexdigest()
+          features = tomllib.loads((root / 'example/Cargo.toml').read_text())['features']
+          themes = ['default'] + sorted(name for name in features if name.startswith('theme-'))
+          dist = root / 'example/www'
+          for theme in themes:
+              stamp = root / f'native/tauri/.cache/themes/{theme}.sha256'
+              assert stamp.read_text().strip() == source, f'Stale source stamp: {theme}'
+              for name in ['index.html', 'pkg/euv_example_bg.wasm']:
+                  assert (dist / 'themes' / theme / name).stat().st_size > 0
+          manifest = json.loads((dist / 'euv-release.json').read_text())
+          expected = tomllib.loads((root / 'Cargo.toml').read_text())['workspace']['package']['version']
+          assert manifest['version'] == expected, 'Wrong shared web release version'
+          for item in manifest['files']:
+              path = Path(item['path'])
+              assert not path.is_absolute() and '..' not in path.parts, f'Unsafe inventory path: {path}'
+              data = (dist / path).read_bytes()
+              assert len(data) == item['size'], f'Size mismatch: {path}'
+              assert hashlib.sha256(data).hexdigest() == item['sha256'], f'Hash mismatch: {path}'
+          actual = {path.relative_to(dist).as_posix() for path in dist.rglob('*') if path.is_file() and path.name != 'euv-release.json'}
+          assert actual == {item['path'] for item in manifest['files']}, 'Incomplete release inventory'
+          print(f'Verified root layout, {len(themes)} source stamps, and {len(actual)} release files')
+          PY
 
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked

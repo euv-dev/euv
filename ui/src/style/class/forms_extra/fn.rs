@@ -93,8 +93,8 @@ class! {
         // The reference pulls the rule 8px into the rows above and
         // below it, so the rule sits between them instead of adding to
         // the space they already keep.
-        margin-top: "-8px";
-        margin-bottom: "-8px";
+        margin-top: format!("calc(0px - {})", var!(space-sm));
+        margin-bottom: format!("calc(0px - {})", var!(space-sm));
         height: "20px";
         font-size: var!(font-sm);
     }
@@ -311,7 +311,7 @@ class! {
         display: "flex";
         width: "100%";
         flex-direction: "column";
-        gap: "28px";
+        gap: format!("calc({} + {})", var!(space-2xl), var!(space-xs));
     }
 
     pub c_euv_field_content {
@@ -320,7 +320,7 @@ class! {
         flex-direction: "column";
         // The reference sets a 6px gap between the description and the
         // control; 6px sits between the 4px and 8px steps of the scale.
-        gap: "6px";
+        gap: var!(space-xs-sm);
         line-height: "1.375";
     }
 
@@ -396,7 +396,7 @@ class! {
         display: "flex";
         width: "100%";
         flex-direction: "column";
-        gap: "28px";
+        gap: format!("calc({} + {})", var!(space-2xl), var!(space-xs));
 
         gap: var!(space-xl);
     }
@@ -407,7 +407,7 @@ class! {
         flex-direction: "column";
         // The reference sets a 6px gap between the description and the
         // control; 6px sits between the 4px and 8px steps of the scale.
-        gap: "6px";
+        gap: var!(space-xs-sm);
         line-height: "1.375";
 
         gap: var!(space-2xs);

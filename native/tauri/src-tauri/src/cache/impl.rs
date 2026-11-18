@@ -23,23 +23,6 @@ impl fmt::Display for CacheError {
 /// Implements `error::Error` for `CacheError`.
 impl error::Error for CacheError {}
 
-/// `From` conversion into [`CacheError`].
-impl From<ResourceError> for CacheError {
-    /// Preserves the network or filesystem category of a download failure.
-    ///
-    /// # Arguments
-    /// - `ResourceError` - The failed streaming download operation.
-    ///
-    /// # Returns
-    /// - `Self` - The corresponding snapshot error.
-    fn from(error: ResourceError) -> Self {
-        match error {
-            ResourceError::Fetch(message) => Self::Fetch(message),
-            ResourceError::Write(message) => Self::Write(message),
-        }
-    }
-}
-
 /// Inherent implementation of [`CacheUpdateStatus`].
 impl CacheUpdateStatus {
     /// String tag sent over the bridge.

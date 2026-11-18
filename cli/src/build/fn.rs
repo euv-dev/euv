@@ -815,6 +815,41 @@ pub(crate) async fn watch_and_build(state: Arc<AppState>) -> Result<(), EuvError
     Ok(())
 }
 
+/// Constructs the wasm-pack command with generated options before Cargo passthrough.
+///
+/// # Arguments
+///
+/// - `&ModeArgs` - The CLI arguments containing the crate path and forwarded arguments.
+///
+/// # Returns
+///
+/// - `Command` - The configured command preserving the forwarded argument order.
+pub(crate) fn wasm_pack_build_command(args: &ModeArgs) -> Command {
+    let build_mode: BuildMode = resolve_build_mode(args);
+    let build_mode_flag: &str = build_mode_to_flag(build_mode);
+    let filtered_args: Vec<String> = filter_euv_args(args.get_wasm_pack_args());
+    let has_existing_build_mode: bool = has_build_mode_flag(&filtered_args);
+    let default_out_dir: String = format!("{}/{PKG_DIR_NAME}", args.get_www_dir());
+    let mut command: Command = Command::new(WASM_PACK_COMMAND);
+    command.arg(WASM_PACK_BUILD_SUBCOMMAND);
+    command.args(once(build_mode_flag).filter(|_: &&str| !has_existing_build_mode));
+    command.env(RUST_MIN_STACK_ENV, RUST_MIN_STACK_VALUE);
+    let has_out_dir: bool = extract_out_dir(&filtered_args).is_some();
+    if !has_out_dir {
+        command.arg(OUT_DIR_ARG).arg(&default_out_dir);
+    }
+    let has_target: bool = filtered_args
+        .iter()
+        .any(|arg: &String| arg == TARGET_ARG || arg.starts_with(&format!("{TARGET_ARG}=")));
+    if !has_target {
+        command.arg(TARGET_ARG).arg(TARGET_WEB);
+    }
+    command.args(&filtered_args);
+    command.current_dir(args.get_crate_path());
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    command
+}
+
 /// Runs wasm-pack build for the target crate.
 ///
 /// All arguments in `args.wasm_pack_args` are transparently forwarded
@@ -830,50 +865,13 @@ pub(crate) async fn watch_and_build(state: Arc<AppState>) -> Result<(), EuvError
 ///
 /// - `Result<(), EuvError>` - Indicates success or failure of the wasm-pack build.
 pub async fn build_wasm(args: &ModeArgs) -> Result<(), EuvError> {
-    let build_mode: BuildMode = resolve_build_mode(args);
-    let build_mode_flag: &str = build_mode_to_flag(build_mode);
-    let filtered_args: Vec<String> = filter_euv_args(args.get_wasm_pack_args());
-    let has_existing_build_mode: bool = has_build_mode_flag(&filtered_args);
-    let default_out_dir: String = format!("{}/{PKG_DIR_NAME}", args.get_www_dir());
-    let mut command: Command = Command::new(WASM_PACK_COMMAND);
-    command.arg(WASM_PACK_BUILD_SUBCOMMAND);
-    if !has_existing_build_mode {
-        command.arg(build_mode_flag);
-    }
-    command
-        .args(&filtered_args)
-        .env(RUST_MIN_STACK_ENV, RUST_MIN_STACK_VALUE);
-    let has_out_dir: bool = extract_out_dir(&filtered_args).is_some();
-    if !has_out_dir {
-        command.arg(OUT_DIR_ARG).arg(&default_out_dir);
-    }
-    let has_target: bool = filtered_args
-        .iter()
-        .any(|arg: &String| arg == TARGET_ARG || arg.starts_with(&format!("{TARGET_ARG}=")));
-    if !has_target {
-        command.arg(TARGET_ARG).arg(TARGET_WEB);
-    }
-    command.current_dir(args.get_crate_path());
-    command.stdout(Stdio::piped()).stderr(Stdio::piped());
-    let display_args: Vec<String> = (if has_existing_build_mode {
-        filtered_args.to_vec()
-    } else {
-        once(build_mode_flag.to_string())
-            .chain(filtered_args.iter().cloned())
-            .collect::<Vec<String>>()
-    })
-    .into_iter()
-    .chain(if has_out_dir {
-        Vec::new()
-    } else {
-        vec![OUT_DIR_ARG.to_string(), default_out_dir.clone()]
-    })
-    .chain(if has_target {
-        Vec::new()
-    } else {
-        vec![TARGET_ARG.to_string(), TARGET_WEB.to_string()]
-    })
-    .collect();
+    let mut command: Command = wasm_pack_build_command(args);
+    let display_args: Vec<String> = command
+        .as_std()
+        .get_args()
+        .skip(1)
+        .map(|arg: &OsStr| arg.to_string_lossy().into_owned())
+        .collect();
     let out_dir_absolute: PathBuf = resolve_out_dir(args);
     create_dir_all(&out_dir_absolute)
         .await

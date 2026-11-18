@@ -283,6 +283,9 @@ pub(crate) const ACTIVE_LINK: &str = "active";
 /// The prefix for version directory names.
 pub(crate) const VERSION_PREFIX: &str = "v_";
 
+/// Separator byte permitted in generated cache version directory names.
+pub(crate) const VERSION_SEPARATOR: u8 = b'_';
+
 /// Interval in milliseconds between fetch retry attempts.
 pub(crate) const RETRY_INTERVAL_MILLIS: u64 = 1000;
 
@@ -301,9 +304,6 @@ pub(crate) const RESOURCE_NOT_FOUND_BODY: &[u8] = b"Not found";
 
 /// Maximum number of old version directories to keep.
 pub(crate) const MAX_KEPT_VERSIONS: usize = 2;
-
-/// The entry point required before a resource snapshot is published.
-pub(crate) const INDEX_FILE_NAME: &str = "index.html";
 
 /// The readiness tag for a pinned session snapshot.
 pub(crate) const SOURCE_ACTIVE: &str = "active";
