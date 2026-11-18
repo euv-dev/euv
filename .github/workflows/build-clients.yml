@@ -40,6 +40,16 @@ jobs:
           key: clients-web-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
           restore-keys: clients-web-${{ runner.os }}-
 
+      - name: Cache fingerprinted release themes
+        uses: actions/cache@v4
+        with:
+          path: |
+            Cargo.lock
+            example/www/themes
+            native/tauri/.cache/themes
+          key: clients-web-themes-${{ runner.os }}-${{ github.sha }}
+          restore-keys: clients-web-themes-${{ runner.os }}-
+
       - name: Sync workspace versions
         uses: ./.github/actions/sync-workspace
 
@@ -76,8 +86,8 @@ jobs:
       matrix:
         include:
           - platform: macos
-            os: macos-latest
-            rust-target: aarch64-apple-darwin
+            os: macos-15-intel
+            rust-target: x86_64-apple-darwin
     env:
       # The client must embed the locally built example pages, never a deployed page.
       EUV_WEB_DIST: ${{ github.workspace }}/example/www
@@ -96,7 +106,7 @@ jobs:
       - name: Setup Python 3
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
 
 
       - name: Install Rust toolchain
@@ -113,16 +123,11 @@ jobs:
             ~/.cache/.wasm-pack
             target
             native/tauri/src-tauri/target
-          key: clients-${{ runner.os }}-${{ matrix.platform }}-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
-          restore-keys: clients-${{ runner.os }}-${{ matrix.platform }}-
+          key: clients-${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
+          restore-keys: clients-${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-
 
       - name: Sync workspace versions
         uses: ./.github/actions/sync-workspace
-
-      - name: Prepare Python release verification
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
 
       # Download only this run's artifact, after derived workspace versions are set
       # and before any native CLI invocation can resolve or compile the workspace.
@@ -203,7 +208,7 @@ jobs:
   build-ios:
     name: Build ios client
     needs: prepare-web
-    runs-on: macos-latest
+    runs-on: macos-15-intel
     timeout-minutes: 90
     env:
       EUV_WEB_DIST: ${{ github.workspace }}/example/www
@@ -222,7 +227,7 @@ jobs:
       - name: Setup Python 3
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.13'
 
       - name: Select Xcode
         run: |
@@ -235,7 +240,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown, aarch64-apple-ios, aarch64-apple-ios-sim
+          targets: wasm32-unknown-unknown, aarch64-apple-ios, x86_64-apple-ios
 
       - name: Cache Cargo and wasm-pack
         uses: actions/cache@v4
@@ -246,16 +251,11 @@ jobs:
             ~/.cache/.wasm-pack
             target
             native/tauri/src-tauri/target
-          key: clients-${{ runner.os }}-ios-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
-          restore-keys: clients-${{ runner.os }}-ios-
+          key: clients-${{ runner.os }}-${{ runner.arch }}-ios-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
+          restore-keys: clients-${{ runner.os }}-${{ runner.arch }}-ios-
 
       - name: Sync workspace versions
         uses: ./.github/actions/sync-workspace
-
-      - name: Prepare Python release verification
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
 
       # Download only this run's artifact, after derived workspace versions are set
       # and before any native CLI invocation can resolve or compile the workspace.
