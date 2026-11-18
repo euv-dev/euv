@@ -211,6 +211,7 @@ jobs:
     runs-on: macos-15-intel
     timeout-minutes: 90
     env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
       EUV_WEB_DIST: ${{ github.workspace }}/example/www
       CARGO_TARGET_DIR: ${{ github.workspace }}/native/tauri/src-tauri/target
     steps:
@@ -231,8 +232,10 @@ jobs:
 
       - name: Select Xcode
         run: |
+          test -d "$DEVELOPER_DIR"
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
+          xcrun --sdk iphonesimulator --show-sdk-version
 
       - name: Install iOS project tools
         run: |

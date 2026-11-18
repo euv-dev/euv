@@ -141,6 +141,31 @@ final class EuvSmokeTests: XCTestCase {
 '''
 
 
+def select_ios_runtime(runtimes, sdk_version):
+    """Choose the newest available iOS runtime no newer than the active SDK."""
+    def normalized_version(version):
+        if not re.fullmatch(r'\d+(?:\.\d+)*', version):
+            raise ValueError(f'Invalid iOS version: {version!r}')
+        parts = list(map(int, version.split('.')))
+        while len(parts) > 1 and parts[-1] == 0:
+            parts.pop()
+        return tuple(parts)
+
+    sdk = normalized_version(sdk_version)
+    candidates = [
+        runtime for runtime in runtimes
+        if runtime.get('isAvailable')
+        and (runtime.get('platform') == 'iOS' or '.iOS-' in runtime.get('identifier', ''))
+        and normalized_version(runtime['version']) <= sdk
+    ]
+    if not candidates:
+        raise ValueError(
+            f'No available installed iOS Simulator runtime compatible with active '
+            f'iphonesimulator SDK {sdk_version} (requires runtime <= SDK)'
+        )
+    return max(candidates, key=lambda runtime: normalized_version(runtime['version']))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--udid', help='Use an existing simulator; only automatically created devices are deleted')
@@ -189,13 +214,18 @@ def main():
     version = version_match.group(1)
     udid = args.udid
     owned = not udid
+    runtime_report = {}
     if owned:
+        sdk_version = capture(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-version'])
         runtimes = json.loads(capture(['xcrun', 'simctl', 'list', 'runtimes', '-j']))['runtimes']
-        runtimes = [r for r in runtimes if r.get('isAvailable') and (r.get('platform') == 'iOS' or '.iOS-' in r.get('identifier', ''))]
-        runtimes.sort(key=lambda r: tuple(map(int, r['version'].split('.'))), reverse=True)
-        if not runtimes:
-            raise SystemExit('No installed iOS Simulator runtime')
-        runtime = runtimes[0]
+        try:
+            runtime = select_ios_runtime(runtimes, sdk_version)
+        except ValueError as error:
+            raise SystemExit(str(error)) from error
+        runtime_report = {'simulator_sdk_version': sdk_version,
+                          'runtime_version': runtime['version'], 'runtime_identifier': runtime['identifier']}
+        print(f'Active iphonesimulator SDK {sdk_version}; selected iOS runtime '
+              f'{runtime["version"]} ({runtime["identifier"]})', flush=True)
         devices = [d for d in runtime.get('supportedDeviceTypes', []) if d.get('productFamily') == 'iPhone']
         if not devices:
             inventory = json.loads(capture(['xcrun', 'simctl', 'list', 'devices', 'available', '-j']))
@@ -206,6 +236,7 @@ def main():
     if udid is None:
         raise SystemExit('No simulator selected')
     report = {'udid': udid, 'archive': str(archive), 'expected_version': version, 'passed': False, 'steps': []}
+    report.update(runtime_report)
     try:
         inventory = json.loads(capture(['xcrun', 'simctl', 'list', 'devices', 'available', '-j']))
         selected = next((d for group in inventory['devices'].values() for d in group if d['udid'] == udid), None)
