@@ -59,6 +59,9 @@ test('iOS theme smoke waits for the requested value on a rendered WebView', () =
   assert.match(readiness, /guard web\.staticTexts\["__EXPECTED_VERSION__"\]\.exists[\s\S]*"label == %@ AND value == %@", "Theme feature", theme[\s\S]*guard selected\.firstMatch\.exists/);
   assert.match(readiness, /return web\.buttons\["☰"\]\.exists/);
   assert.match(readiness, /XCTWaiter\.wait\(for: \[expectation\], timeout: 60\)/);
+  assert.match(readiness, /var result = waitForSnapshot\(\)\s*if result == \.timedOut \{[\s\S]*result = waitForSnapshot\(\)\s*\}\s*guard result == \.completed else \{/);
+  assert.equal((readiness.match(/result = waitForSnapshot\(\)/g) || []).length, 2);
+  assert.doesNotMatch(readiness, /\.tap\(/);
   assert.match(readiness, /XCTAssertFalse\(web\.staticTexts\["Page Not Found"\]\.exists/);
   assert.match(themes, /for theme in __THEME_NAMES__[\s\S]*option\.tap\(\)[\s\S]*assertThemeReady\(app, theme: theme\)\s*attach\(app, "theme-" \+ theme\)/);
   assert.doesNotMatch(themes, /Thread\.sleep/);

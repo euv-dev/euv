@@ -72,8 +72,17 @@ final class EuvSmokeTests: XCTestCase {
             pending = "mobile menu button"
             return web.buttons["☰"].exists
         }
-        let expectation = XCTNSPredicateExpectation(predicate: ready, object: app)
-        let result = XCTWaiter.wait(for: [expectation], timeout: 60)
+        func waitForSnapshot() -> XCTWaiter.Result {
+            let expectation = XCTNSPredicateExpectation(predicate: ready, object: app)
+            return XCTWaiter.wait(for: [expectation], timeout: 60)
+        }
+        var result = waitForSnapshot()
+        if result == .timedOut {
+            // One WebKit accessibility request can consume the entire wait on
+            // the Intel simulator. Retry the observation, not the selection.
+            print("Retrying theme \(theme) accessibility snapshot after waiting for \(pending)")
+            result = waitForSnapshot()
+        }
         guard result == .completed else {
             XCTFail("Theme \(theme) was not ready (\(pending), \(result))\n\(app.debugDescription)", file: file, line: line)
             return
