@@ -77,7 +77,7 @@ pub fn euv_native_select(node: VirtualNode<EuvNativeSelectProps>) -> VirtualNode
         EuvNativeSelectSize::Default => c_euv_native_select_size_default(),
         EuvNativeSelectSize::Sm => c_euv_native_select_size_sm(),
     };
-    let children: VirtualNode = node.get_children().into();
+    let children: &[VirtualNode] = node.get_children();
     html! {
         div {
             "data-slot": "native-select-wrapper"
@@ -98,7 +98,9 @@ pub fn euv_native_select(node: VirtualNode<EuvNativeSelectProps>) -> VirtualNode
                 class: base_class
                 class: size_class
                 class: invalid_class
-                children
+                for child in children {
+                    child.clone()
+                }
             }
             span {
                 "data-slot": "native-select-icon"
@@ -159,14 +161,16 @@ pub fn euv_native_select_opt_group(node: VirtualNode<EuvNativeSelectOptGroupProp
     let EuvNativeSelectOptGroupProps { label, disabled }: EuvNativeSelectOptGroupProps =
         node.try_get_props().unwrap_or_default();
     let disabled_attribute: &'static str = native_select_boolean_attribute(disabled);
-    let children: VirtualNode = node.get_children().into();
+    let children: &[VirtualNode] = node.get_children();
     html! {
         optgroup {
             "data-slot": "native-select-optgroup"
             label: label
             disabled: disabled_attribute
             class: c_euv_native_select_optgroup()
-            children
+            for child in children {
+                child.clone()
+            }
         }
     }
 }
