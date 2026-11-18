@@ -4,12 +4,14 @@
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import tarfile
+import time
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -166,6 +168,11 @@ def select_ios_runtime(runtimes, sdk_version):
     return max(candidates, key=lambda runtime: normalized_version(runtime['version']))
 
 
+def display_log_window_seconds(started, now):
+    """Include the whole acceptance session without assuming its duration."""
+    return max(1, math.ceil(now - started))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--udid', help='Use an existing simulator; only automatically created devices are deleted')
@@ -274,6 +281,7 @@ def main():
                    '-sdk', 'iphonesimulator',
                    '-destination', 'id=' + udid, '-derivedDataPath', str(output / 'derived-data'),
                    '-resultBundlePath', str(result), 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO']
+        test_started = time.monotonic()
         with (output / 'xcodebuild.log').open('w') as log:
             run(command, stdout=log, stderr=subprocess.STDOUT)
         report['steps'].append('XCTest verifies rendered local version, Counter 0 -> 1 -> 0 and restart')
@@ -288,7 +296,9 @@ def main():
         for entry in manifest['files']:
             content = (caches[0] / active / entry['path']).read_bytes()
             assert len(content) == entry['size'] and hashlib.sha256(content).hexdigest() == entry['sha256'], entry['path']
-        display_logs = json.loads(capture(['xcrun', 'simctl', 'spawn', udid, 'log', 'show', '--last', '10m',
+        display_log_seconds = display_log_window_seconds(test_started, time.monotonic())
+        report['display_log_window_seconds'] = display_log_seconds
+        display_logs = json.loads(capture(['xcrun', 'simctl', 'spawn', udid, 'log', 'show', '--last', f'{display_log_seconds}s',
                                            '--style', 'json', '--predicate',
                                            'eventMessage BEGINSWITH "[EUV] Frame-rate sample:"']))
         samples = []
