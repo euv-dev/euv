@@ -18,8 +18,19 @@ test('iOS counter resolves split text within the unique semantic paragraph', () 
   assert.match(counter, /NSPredicate\(format: "label MATCHES %@", "\^-\?\[0-9\]\+\$"\)/);
   assert.match(counter, /guard numbers\.count == 1 else \{ return false \}/);
   assert.match(counter, /numbers\.element\(boundBy: 0\)\.label == String\(expected\)/);
-  assert.doesNotMatch(counter, /firstMatch|label CONTAINS|app\.staticTexts/);
+  assert.doesNotMatch(counter.slice(counter.indexOf('let paragraphs')), /firstMatch|label CONTAINS|app\.staticTexts/);
   assert.doesNotMatch(swift, /The current count is [01]/);
+});
+
+test('iOS counter also resolves one combined paragraph without accepting unrelated numbers', () => {
+  assert.match(counter, /app\.webViews\.firstMatch\.staticTexts\.matching\(NSPredicate\(/);
+  const pattern = counter.match(/"label MATCHES %@", "(\^The current count is [^"]+)"/)[1].replace('\\\\.', '\\.');
+  const combined = new RegExp(pattern);
+  assert.ok(combined.test('The current count is 0. Each click updates the Signal, and the Virtual DOM patches the text.'));
+  assert.ok(combined.test('The current count is -1. Each click updates the Signal, and the Virtual DOM patches the text.'));
+  assert.ok(!combined.test('The current count is 10 elsewhere.'));
+  assert.ok(!combined.test('The current count is 0x Each click updates the Signal, and the Virtual DOM patches the text.'));
+  assert.match(counter, /combinedCount == 1 && combined\.element\(boundBy: 0\)\.label\s*\.hasPrefix\("The current count is \\\(expected\)\. Each click updates the Signal, "\)/);
 });
 
 test('iOS counter waits for strict values after real Add and Reset taps', () => {
@@ -39,4 +50,17 @@ test('iOS smoke keeps real launch, navigation, restart, screenshots and cleanup'
   assert.match(source, /finally:\s*cleanup\(\['xcrun', 'simctl', 'terminate', udid, 'com\.euv'\]\)/);
   assert.match(source, /if owned:\s*cleanup\(\['xcrun', 'simctl', 'shutdown', udid\]\)\s*cleanup\(\['xcrun', 'simctl', 'delete', udid\]\)/);
   assert.doesNotMatch(swift, /XCTSkip|try\?/);
+});
+
+test('iOS theme smoke waits for the requested value on a rendered WebView', () => {
+  const readiness = swift.slice(swift.indexOf('func assertThemeReady('), swift.indexOf('func testThemeVariantsAndRestart('));
+  const themes = swift.slice(swift.indexOf('func testThemeVariantsAndRestart('), swift.indexOf('func testLocalPagesCounterAndRestart('));
+  assert.match(readiness, /let web = app\.webViews\.firstMatch/);
+  assert.match(readiness, /guard web\.staticTexts\["__EXPECTED_VERSION__"\]\.exists[\s\S]*"label == %@ AND value == %@", "Theme feature", theme[\s\S]*guard selected\.firstMatch\.exists/);
+  assert.match(readiness, /return web\.buttons\["☰"\]\.exists/);
+  assert.match(readiness, /XCTWaiter\.wait\(for: \[expectation\], timeout: 60\)/);
+  assert.match(readiness, /XCTAssertFalse\(web\.staticTexts\["Page Not Found"\]\.exists/);
+  assert.match(themes, /for theme in __THEME_NAMES__[\s\S]*option\.tap\(\)[\s\S]*assertThemeReady\(app, theme: theme\)\s*attach\(app, "theme-" \+ theme\)/);
+  assert.doesNotMatch(themes, /Thread\.sleep/);
+  assert.match(source, /'-test-timeouts-enabled', 'YES',[\s\S]*'-maximum-test-execution-time-allowance', '\d+'/);
 });
