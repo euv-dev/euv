@@ -58,19 +58,24 @@ final class EuvSmokeTests: XCTestCase {
     }
 
     func assertThemeReady(_ app: XCUIApplication, theme: String, file: StaticString = #filePath, line: UInt = #line) {
-        let web = app.webViews.firstMatch
-        var pending = "version badge"
+        var pending = "rendered WebView"
         let ready = NSPredicate { _, _ in
-            // Resolve the selector only after WebKit exposes the rendered page.
+            pending = "rendered WebView"
+            guard app.webViews.firstMatch.exists else { return false }
+            // Query from the application: WebKit can expose nested WebViews
+            // while replacing a document during a theme navigation.
             pending = "version badge"
-            guard web.staticTexts["__EXPECTED_VERSION__"].exists else { return false }
+            // Custom renders the exact version twice (badge and package table).
+            // Resolve one exact match instead of an ambiguous single element.
+            let version = app.staticTexts.matching(identifier: "__EXPECTED_VERSION__").firstMatch
+            guard version.exists else { return false }
             pending = "theme selector value"
-            let selected = web.descendants(matching: .any).matching(NSPredicate(
+            let selected = app.descendants(matching: .any).matching(NSPredicate(
                 format: "label == %@ AND value == %@", "Theme feature", theme
             ))
             guard selected.firstMatch.exists else { return false }
             pending = "mobile menu button"
-            return web.buttons["☰"].exists
+            return app.buttons.matching(identifier: "☰").firstMatch.exists
         }
         func waitForSnapshot() -> XCTWaiter.Result {
             let expectation = XCTNSPredicateExpectation(predicate: ready, object: app)
@@ -87,7 +92,7 @@ final class EuvSmokeTests: XCTestCase {
             XCTFail("Theme \(theme) was not ready (\(pending), \(result))\n\(app.debugDescription)", file: file, line: line)
             return
         }
-        XCTAssertFalse(web.staticTexts["Page Not Found"].exists, theme, file: file, line: line)
+        XCTAssertFalse(app.staticTexts.matching(identifier: "Page Not Found").firstMatch.exists, theme, file: file, line: line)
     }
 
     func testThemeVariantsAndRestart() throws {
@@ -124,6 +129,7 @@ final class EuvSmokeTests: XCTestCase {
         app.terminate()
         app.launch()
         XCTAssertTrue(selector.waitForExistence(timeout: 60), app.debugDescription)
+        assertThemeReady(app, theme: "default")
         XCTAssertFalse(app.staticTexts["Page Not Found"].exists)
         attach(app, "theme-restart")
         app.terminate()
@@ -136,7 +142,7 @@ final class EuvSmokeTests: XCTestCase {
         app.launchEnvironment["EUV_CLIENT_DIAGNOSTICS"] = "1"
         app.launch()
         XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 45), app.debugDescription)
-        let version = app.staticTexts["__EXPECTED_VERSION__"]
+        let version = app.staticTexts.matching(identifier: "__EXPECTED_VERSION__").firstMatch
         XCTAssertTrue(version.waitForExistence(timeout: 45), app.debugDescription)
         XCTAssertEqual(app.statusBars.count, 0, "Immersive mode must hide the status bar")
         Thread.sleep(forTimeInterval: 3)

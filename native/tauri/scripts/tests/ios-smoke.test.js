@@ -52,18 +52,36 @@ test('iOS smoke keeps real launch, navigation, restart, screenshots and cleanup'
   assert.doesNotMatch(swift, /XCTSkip|try\?/);
 });
 
-test('iOS theme smoke waits for the requested value on a rendered WebView', () => {
+test('iOS theme smoke resolves exact readiness across nested WebViews after navigation', () => {
   const readiness = swift.slice(swift.indexOf('func assertThemeReady('), swift.indexOf('func testThemeVariantsAndRestart('));
   const themes = swift.slice(swift.indexOf('func testThemeVariantsAndRestart('), swift.indexOf('func testLocalPagesCounterAndRestart('));
-  assert.match(readiness, /let web = app\.webViews\.firstMatch/);
-  assert.match(readiness, /guard web\.staticTexts\["__EXPECTED_VERSION__"\]\.exists[\s\S]*"label == %@ AND value == %@", "Theme feature", theme[\s\S]*guard selected\.firstMatch\.exists/);
-  assert.match(readiness, /return web\.buttons\["☰"\]\.exists/);
+  assert.match(readiness, /guard app\.webViews\.firstMatch\.exists else \{ return false \}/);
+  assert.match(readiness, /let selected = app\.descendants\(matching: \.any\)\.matching\(NSPredicate\(\s*format: "label == %@ AND value == %@", "Theme feature", theme/);
+  assert.match(readiness, /guard selected\.firstMatch\.exists else \{ return false \}/);
+  assert.match(readiness, /return app\.buttons\.matching\(identifier: "☰"\)\.firstMatch\.exists/);
+  assert.doesNotMatch(readiness, /let web =|web\.staticTexts|web\.descendants|web\.buttons|label CONTAINS|Thread\.sleep/);
   assert.match(readiness, /XCTWaiter\.wait\(for: \[expectation\], timeout: 60\)/);
   assert.match(readiness, /var result = waitForSnapshot\(\)\s*if result == \.timedOut \{[\s\S]*result = waitForSnapshot\(\)\s*\}\s*guard result == \.completed else \{/);
   assert.equal((readiness.match(/result = waitForSnapshot\(\)/g) || []).length, 2);
+  assert.match(readiness, /XCTFail\("Theme \\\(theme\) was not ready/);
   assert.doesNotMatch(readiness, /\.tap\(/);
-  assert.match(readiness, /XCTAssertFalse\(web\.staticTexts\["Page Not Found"\]\.exists/);
+  assert.match(readiness, /XCTAssertFalse\(app\.staticTexts\.matching\(identifier: "Page Not Found"\)\.firstMatch\.exists/);
   assert.match(themes, /for theme in __THEME_NAMES__[\s\S]*option\.tap\(\)[\s\S]*assertThemeReady\(app, theme: theme\)\s*attach\(app, "theme-" \+ theme\)/);
   assert.doesNotMatch(themes, /Thread\.sleep/);
   assert.match(source, /'-test-timeouts-enabled', 'YES',[\s\S]*'-maximum-test-execution-time-allowance', '\d+'/);
+});
+
+test('iOS version checks tolerate duplicate exact badges without accepting another version', () => {
+  const readiness = swift.slice(swift.indexOf('func assertThemeReady('), swift.indexOf('func testThemeVariantsAndRestart('));
+  const exactVersion = /let version = app\.staticTexts\.matching\(identifier: "__EXPECTED_VERSION__"\)\.firstMatch/g;
+  assert.equal([...swift.matchAll(exactVersion)].length, 2, 'theme readiness and counter startup both use a non-ambiguous exact match');
+  assert.match(readiness, /pending = "version badge"[\s\S]*let version = app\.staticTexts\.matching\(identifier: "__EXPECTED_VERSION__"\)\.firstMatch\s*guard version\.exists else \{ return false \}/);
+  assert.doesNotMatch(swift, /staticTexts\["__EXPECTED_VERSION__"\]/);
+  assert.match(source, /SWIFT_TEST\.replace\('__EXPECTED_VERSION__', 'v' \+ version\)/);
+});
+
+test('iOS theme restart rechecks the rendered exact version and final selected theme', () => {
+  const themes = swift.slice(swift.indexOf('func testThemeVariantsAndRestart('), swift.indexOf('func testLocalPagesCounterAndRestart('));
+  assert.match(source, /theme_names = sorted\([\s\S]*\+ \['default'\]/);
+  assert.match(themes, /app\.terminate\(\)\s*app\.launch\(\)\s*XCTAssertTrue\(selector\.waitForExistence\(timeout: 60\), app\.debugDescription\)\s*assertThemeReady\(app, theme: "default"\)\s*XCTAssertFalse\(app\.staticTexts\["Page Not Found"\]\.exists\)\s*attach\(app, "theme-restart"\)/);
 });
