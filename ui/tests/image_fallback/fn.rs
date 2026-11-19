@@ -145,7 +145,6 @@ fn image_fallback_css_preserves_geometry_and_positive_lazy_image_box() {
         .get_style()
         .replace(' ', "");
     assert_eq!(loading, failed);
-
     for declaration in [
         "position:relative;",
         "display:flex;",

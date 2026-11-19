@@ -72,7 +72,6 @@ fn the_overlay_flag_does_not_change_the_element_shape() {
 #[test]
 fn the_spinner_draws_three_quarters_of_the_ring_not_one() {
     let style: String = c_spinner().get_style().to_string();
-
     for side in ["border-top:", "border-right:", "border-bottom:"] {
         assert!(
             style.contains(side),
@@ -91,7 +90,6 @@ fn the_spinner_draws_three_quarters_of_the_ring_not_one() {
 fn the_sidebar_guide_aligns_with_the_parent_label_text_at_every_depth() {
     let children: String = c_euv_sidebar_children().get_style().to_string();
     let parent: String = c_euv_sidebar_group_title().get_style().to_string();
-
     let guide_margin: String = token_of(&children, "margin-left");
     let parent_padding: String = shorthand_token(&parent, "padding");
     assert_eq!(

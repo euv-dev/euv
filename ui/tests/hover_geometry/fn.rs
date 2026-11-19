@@ -442,7 +442,6 @@ fn feature_grid_preserves_intrinsic_card_height_and_owns_both_axis_gaps() {
         .get_style()
         .split_whitespace()
         .collect();
-
     assert!(style.contains("align-items:start;"), "{style}");
     assert!(style.contains("gap:var(--page-block-gap);"), "{style}");
     assert!(!style.contains("row-gap:0px;"), "{style}");

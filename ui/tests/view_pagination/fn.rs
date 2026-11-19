@@ -146,7 +146,6 @@ fn auto_footer_geometry_does_not_change_manual_numbered_or_custom_pagination() {
         c_euv_pagination_next(),
         c_euv_pagination_content(),
     ];
-
     assert_eq!(
         pagination_style(c_euv_pagination_content(), "display").as_deref(),
         Some("flex")

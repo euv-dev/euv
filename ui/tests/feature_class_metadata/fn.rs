@@ -332,7 +332,6 @@ fn pagination_manual_and_automatic_content_preserve_ordered_layout_rules() {
     for css in [manual, automatic] {
         assert!(css.get_pseudo_rules().is_empty());
     }
-
     let mut manual_expected: String = format!(
         "display:flex;align-items:center;gap:{};list-style:none;margin:0px;padding:0px;",
         var!(space - 2xs)
