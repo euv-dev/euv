@@ -248,3 +248,19 @@ fn startup_injects_the_same_reset_for_every_theme_and_no_global_appearance() {
     assert!(!reset_constants.contains("#[cfg"));
     assert!(!reset_constants.contains("feature ="));
 }
+
+#[test]
+fn inherited_tap_highlighting_is_transparent_without_suppressing_control_states() {
+    let reset: &str = crate::APP_GLOBAL_CSS_ROOT;
+    assert!(reset.contains("-webkit-tap-highlight-color: transparent;"));
+    for forbidden in ["outline:", ":focus", ":active", "user-select:"] {
+        assert!(!reset.contains(forbidden), "{forbidden}");
+    }
+    let nav: String = format!("{:?}", c_nav_item_inactive().get_pseudo_rules());
+    assert!(nav.contains(":focus-visible"));
+    assert!(nav.contains("var(--ring)"));
+    let action: String = format!("{:?}", c_home_btn_primary().get_pseudo_rules());
+    assert!(action.contains(":active"));
+    assert!(action.contains("var(--press-scale)"));
+    assert!(action.contains(":focus-visible"));
+}

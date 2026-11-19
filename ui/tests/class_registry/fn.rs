@@ -44,14 +44,12 @@ fn form_normalization_is_global_and_preserves_component_cascade_priority() {
     assert!(!reset.contains("!important"));
 }
 
-#[cfg(not(feature = "theme-custom"))]
 #[test]
 fn desktop_shell_does_not_lazily_inject_global_form_normalization() {
     let rules: String = format!("{:?}", c_app_root().get_pseudo_rules());
     assert!(!rules.contains("input, textarea, select, button"));
 }
 
-#[cfg(not(feature = "theme-custom"))]
 #[test]
 fn attachment_groups_emit_the_supported_horizontal_overscroll_property() {
     assert!(
@@ -465,21 +463,18 @@ fn the_ring_token_is_not_an_orphan() {
 }
 fn registry_grouping_is_valid(source: &str) -> bool {
     let compact: String = source.split_whitespace().collect();
-    let shared: &str = "#[cfg(not(feature=\"theme-custom\"))]class!{";
-    let custom: &str = "#[cfg(feature=\"theme-custom\")]class!{";
-    let default: &str =
-        "#[cfg(all(not(feature=\"theme-shadcn\"),not(feature=\"theme-custom\")))]class!{";
-    let shadcn: &str = "#[cfg(all(feature=\"theme-shadcn\",not(feature=\"theme-custom\")))]class!{";
+    let default: &str = "#[cfg(not(feature=\"theme-shadcn\"))]class!{";
+    let shadcn: &str = "#[cfg(feature=\"theme-shadcn\")]class!{";
     let blocks: usize = compact.matches("class!{").count();
-    let selected: bool = match blocks {
-        2 => compact.matches(default).count() == 0 && compact.matches(shadcn).count() == 0,
-        4 => compact.matches(default).count() == 1 && compact.matches(shadcn).count() == 1,
+    match blocks {
+        1 => compact.matches("#[cfg(").count() == 0,
+        3 => {
+            compact.matches(default).count() == 1
+                && compact.matches(shadcn).count() == 1
+                && compact.matches("#[cfg(").count() == 2
+        }
         _ => false,
-    };
-    selected
-        && compact.matches(shared).count() == 1
-        && compact.matches(custom).count() == 1
-        && compact.matches("#[cfg(").count() == blocks
+    }
 }
 
 #[test]
@@ -495,7 +490,7 @@ fn each_registry_groups_its_feature_gated_classes() {
         let source: String = fs::read_to_string(&path).expect("a UI class registry");
         assert!(
             registry_grouping_is_valid(&source),
-            "{} must have one styled and one empty class block",
+            "{} must have one shared block and an optional default/shadcn pair",
             path.display()
         );
     }
@@ -503,10 +498,9 @@ fn each_registry_groups_its_feature_gated_classes() {
 
 #[test]
 fn registry_grouping_rejects_individually_guarded_classes() {
-    let grouped: &str = "#[cfg(not(feature = \"theme-custom\"))]\nclass! {\n}\n#[cfg(feature = \"theme-custom\")]\nclass! {\n}\n";
+    let grouped: &str = "class! {\n}\n#[cfg(not(feature = \"theme-shadcn\"))]\nclass! {\n}\n#[cfg(feature = \"theme-shadcn\")]\nclass! {\n}\n";
     assert!(registry_grouping_is_valid(grouped));
-    let split: String =
-        format!("#[cfg(not(feature = \"theme-custom\"))]\nclass! {{\n}}\n{grouped}");
+    let split: String = format!("class! {{\n}}\n{grouped}");
     assert!(!registry_grouping_is_valid(&split));
     assert!(!registry_grouping_is_valid(""));
 }

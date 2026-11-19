@@ -58,6 +58,12 @@ else:
   assert.equal(absent.status, 1);
   assert.equal(absent.stdout, '');
   const script = path.join(scripts, 'build_theme_variants.sh');
+  const retiredOutput = path.join(root, 'example/www/themes/theme-retired');
+  const retiredStamp = path.join(root, 'native/tauri/.cache/themes/theme-retired.sha256');
+  fs.mkdirSync(retiredOutput, { recursive: true });
+  fs.mkdirSync(path.dirname(retiredStamp), { recursive: true });
+  fs.writeFileSync(path.join(retiredOutput, 'index.html'), '<html>retired cached theme</html>');
+  fs.writeFileSync(retiredStamp, 'retired source stamp');
   const result = spawnSync(path.join(bin, 'bash'), [script], { env, encoding: 'utf8', timeout: 10000 });
   assert.equal(result.status, 0, result.stderr + result.stdout);
   assert.match(result.stdout, /Built 1 independent example variants\./);
@@ -65,6 +71,22 @@ else:
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'example/www/euv-release.json'), 'utf8'));
   assert.equal(manifest.version, '0.0.36');
   assert.ok(manifest.files.some((file) => file.path === 'themes/default/pkg/euv_example_bg.wasm'));
+  assert.equal(fs.existsSync(retiredOutput), false);
+  assert.equal(fs.existsSync(retiredStamp), false);
+  assert.ok(manifest.files.every((file) => !file.path.startsWith('themes/theme-retired/')));
+
+  fs.mkdirSync(retiredOutput, { recursive: true });
+  fs.writeFileSync(path.join(retiredOutput, 'index.html'), '<html>retired warm cache</html>');
+  fs.writeFileSync(retiredStamp, 'retired warm stamp');
+  fs.unlinkSync(path.join(root, 'cli-invoked.json'));
+  const cached = spawnSync(path.join(bin, 'bash'), [script], { env, encoding: 'utf8', timeout: 10000 });
+  assert.equal(cached.status, 0, cached.stderr + cached.stdout);
+  assert.match(cached.stdout, /Unchanged default/);
+  assert.equal(fs.existsSync(path.join(root, 'cli-invoked.json')), false);
+  assert.equal(fs.existsSync(retiredOutput), false);
+  assert.equal(fs.existsSync(retiredStamp), false);
+  const cachedManifest = JSON.parse(fs.readFileSync(path.join(root, 'example/www/euv-release.json'), 'utf8'));
+  assert.ok(cachedManifest.files.every((file) => !file.path.startsWith('themes/theme-retired/')));
 
   fs.unlinkSync(path.join(root, 'native/tauri/.cache/themes/default.sha256'));
   const failedBuild = spawnSync(path.join(bin, 'bash'), [script], {
@@ -74,7 +96,6 @@ else:
   assert.match(failedBuild.stderr, /unit feature compiler diagnostic/);
 
   fs.unlinkSync(path.join(bin, 'cargo'));
-  fs.unlinkSync(path.join(root, 'cli-invoked.json'));
   const missingCargo = spawnSync(path.join(bin, 'bash'), [script], { env, encoding: 'utf8', timeout: 10000 });
   assert.equal(missingCargo.status, 1, missingCargo.stderr);
   assert.match(missingCargo.stderr, /Required command not found: cargo/);

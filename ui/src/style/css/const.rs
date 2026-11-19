@@ -55,6 +55,7 @@ pub(crate) const APP_GLOBAL_CSS_ROOT: &str = r#"
 :where(html) {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
 }
 "#;
 

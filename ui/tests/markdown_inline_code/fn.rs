@@ -27,9 +27,7 @@ fn markdown_inline_code_class_is_attached_only_to_the_inline_render_branch() {
 fn markdown_inline_code_obeys_theme_tokens_and_custom_isolation() {
     let css: &Css = c_euv_markdown_inline_code();
     assert!(css.get_pseudo_rules().is_empty());
-    if cfg!(feature = "theme-custom") {
-        assert!(css.get_style().is_empty());
-    } else {
+    {
         assert_eq!(
             css.get_style().replace(' ', "").trim_end_matches(';'),
             "border-radius:var(--radius-sm)"

@@ -247,6 +247,7 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
                 }
             }
             div {
+                class: c_card_stack()
                 h2 {
                     class: c_home_section_title()
                     ABOUT_SECTION_PACKAGE_INFO_TITLE
@@ -302,6 +303,7 @@ pub(crate) fn page_about(node: VirtualNode<PageAboutProps>) -> VirtualNode {
             }
             if { !native_bridge_state.get_loading().get() && native_bridge_state.get_available().get() } {
                 div {
+                    class: c_card_stack()
                     h2 {
                         class: c_home_section_title()
                         ABOUT_SECTION_NATIVE_BRIDGE_TITLE

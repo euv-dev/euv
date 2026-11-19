@@ -1,6 +1,5 @@
 use super::*;
 
-#[cfg(not(feature = "theme-custom"))]
 class! {
     // ═══════════════════════════════════════════════════════════════════════════
     // Virtual List
@@ -35,13 +34,10 @@ class! {
 
     pub c_virtual_list_card {
         flex: "1";
-        padding: var!(space-xl);
+        padding: var!(card-padding);
         color: var!(foreground);
         display: "flex";
         flex-direction: "column";
-        @media ((max-width: 767px)) {
-            padding: var!(space-lg);
-        }
         border-radius: var!(radius-xl);
     }
 
@@ -599,184 +595,7 @@ class! {
     }
 }
 
-#[cfg(feature = "theme-custom")]
-class! {
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Virtual List
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub c_virtual_list_status {}
-
-    pub c_virtual_list_status_item {}
-
-    pub c_virtual_list_status_value {}
-
-    pub c_virtual_list_card {}
-
-    pub c_virtual_list_row {}
-
-    pub c_virtual_list_row_index {}
-
-    pub c_virtual_list_row_label {}
-
-    pub c_virtual_list_row_description {}
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Network Demo
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub c_net_messages_empty {}
-
-    pub c_net_messages_list {}
-
-    pub c_net_message_item {}
-
-    pub c_net_message_index {}
-
-    pub c_net_message_data {}
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // WebSocket Demo
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub c_ws_message_input {}
-
-    pub c_ws_message_time {}
-
-    pub(crate) c_euv_table_container {}
-
-    pub(crate) c_euv_table {}
-
-    pub(crate) c_euv_table_head {}
-
-    pub(crate) c_euv_table_body {}
-
-    pub(crate) c_euv_table_row {}
-
-    pub(crate) c_euv_table_row_zebra {}
-
-    pub(crate) c_euv_table_cell {}
-
-    pub(crate) c_euv_table_cell_center {}
-
-    pub(crate) c_euv_table_cell_right {}
-
-    pub(crate) c_euv_table_header_cell {}
-
-    pub(crate) c_euv_table_header_cell_center {}
-
-    pub(crate) c_euv_table_header_cell_right {}
-
-    pub(crate) c_euv_table_caption {}
-
-    pub(crate) c_euv_table_footer {}
-
-    pub(crate) c_euv_stat {}
-
-    pub(crate) c_euv_stat_icon {}
-
-    pub(crate) c_euv_stat_value {}
-
-    pub(crate) c_euv_stat_label {}
-
-    pub(crate) c_euv_stat_hint {}
-
-    pub(crate) c_euv_steps {}
-
-    pub(crate) c_euv_step {}
-
-    pub(crate) c_euv_step_active {}
-
-    pub(crate) c_euv_step_done {}
-
-    pub(crate) c_euv_step_marker {}
-
-    pub(crate) c_euv_step_title {}
-
-    pub(crate) c_euv_step_desc {}
-
-    pub(crate) c_euv_step_line {}
-
-    pub(crate) c_euv_timeline {}
-
-    pub(crate) c_euv_timeline_item {}
-
-    pub(crate) c_euv_timeline_marker {}
-
-    pub(crate) c_euv_timeline_content {}
-
-    pub(crate) c_euv_timeline_title {}
-
-    pub(crate) c_euv_timeline_desc {}
-
-    pub(crate) c_euv_timeline_time {}
-
-    pub(crate) c_euv_timeline_line {}
-
-    pub(crate) c_euv_skeleton {}
-
-    pub(crate) c_euv_skeleton_line {}
-
-    pub(crate) c_virtual_list_container {}
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // List
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_euv_list {}
-
-    pub(crate) c_euv_list_item {}
-
-    pub(crate) c_euv_list_item_body {}
-
-    pub(crate) c_euv_list_item_title {}
-
-    pub(crate) c_euv_list_item_desc {}
-
-    pub(crate) c_euv_list_item_meta {}
-
-    pub(crate) c_euv_list_empty {}
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Descriptions
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_euv_descriptions {}
-
-    pub(crate) c_euv_descriptions_item {}
-
-    pub(crate) c_euv_descriptions_label {}
-
-    pub(crate) c_euv_descriptions_value {}
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Tree
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_euv_tree {}
-
-    pub(crate) c_euv_tree_node {}
-
-    pub(crate) c_euv_tree_node_row {}
-
-    pub(crate) c_euv_tree_node_row_active {}
-
-    pub(crate) c_euv_tree_node_toggle {}
-
-    pub(crate) c_euv_tree_node_toggle_open {}
-
-    pub(crate) c_euv_tree_node_toggle_leaf {}
-
-    pub(crate) c_euv_tree_node_label {}
-
-    pub(crate) c_euv_tree_node_children {}
-
-    pub(crate) c_euv_tree_node_children_open {}
-
-    pub(crate) c_euv_tree_node_children_closed {}
-}
-
-#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+#[cfg(not(feature = "theme-shadcn"))]
 class! {
     pub(crate) c_euv_table {
         width: "100%";
@@ -874,7 +693,7 @@ class! {
     pub(crate) c_euv_table_header_cell_right {}
 }
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 class! {
     pub(crate) c_euv_table {
         width: "100%";

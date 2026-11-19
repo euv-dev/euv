@@ -125,6 +125,11 @@ vars! {
 
         page-block-gap: "24px";
         page-block-gap-mobile: "20px";
+        card-padding: var!(space-md);
+        card-content-gap: var!(gap-component);
+        nav-row-height: format!("calc({} + {})", var!(control-height), var!(space-lg));
+        nav-row-padding: var!(space-md);
+        nav-item-inset: var!(space-xs);
         side-indent: "9px";
         side-indent-num: "9";
 
@@ -318,6 +323,11 @@ vars! {
 
         page-block-gap: "24px";
         page-block-gap-mobile: "20px";
+        card-padding: var!(space-md);
+        card-content-gap: var!(gap-component);
+        nav-row-height: format!("calc({} + {})", var!(control-height), var!(space-lg));
+        nav-row-padding: var!(space-md);
+        nav-item-inset: var!(space-xs);
 
         // ═══════════════════════════════════════════════════════════════════════
         // Transition Durations (same as light)
@@ -551,23 +561,14 @@ fn selected_scheme_class() -> &'static str {
 fn selected_scheme_class() -> &'static str {
     c_scheme_supabase().get_name()
 }
-/// Returns the CSS class name of the scheme this build selects.
-///
-/// # Returns
-///
-/// - `&'static str` - The class name that carries the scheme's tokens.
-#[rustfmt::skip]
-#[cfg(all(not(any(feature = "theme-shadcn", feature = "theme-monochrome", feature = "theme-antdesign", feature = "theme-material", feature = "theme-bootstrap", feature = "theme-cupertino", feature = "theme-fluent", feature = "theme-radix", feature = "theme-mantine", feature = "theme-daisyui", feature = "theme-heroui", feature = "theme-park", feature = "theme-geist", feature = "theme-linear", feature = "theme-stripe", feature = "theme-notion", feature = "theme-supabase")), feature = "theme-custom"))]
-fn selected_scheme_class() -> &'static str {
-    c_scheme_shadcn().get_name()
-}
+
 /// Returns the CSS class name for the built-in monochrome default.
 ///
 /// # Returns
 ///
 /// - `&'static str` - The class name that carries the monochrome scheme tokens.
 #[rustfmt::skip]
-#[cfg(not(any(feature = "theme-shadcn", feature = "theme-monochrome", feature = "theme-antdesign", feature = "theme-material", feature = "theme-bootstrap", feature = "theme-cupertino", feature = "theme-fluent", feature = "theme-radix", feature = "theme-mantine", feature = "theme-daisyui", feature = "theme-heroui", feature = "theme-park", feature = "theme-geist", feature = "theme-linear", feature = "theme-stripe", feature = "theme-notion", feature = "theme-supabase", feature = "theme-custom")))]
+#[cfg(not(any(feature = "theme-shadcn", feature = "theme-monochrome", feature = "theme-antdesign", feature = "theme-material", feature = "theme-bootstrap", feature = "theme-cupertino", feature = "theme-fluent", feature = "theme-radix", feature = "theme-mantine", feature = "theme-daisyui", feature = "theme-heroui", feature = "theme-park", feature = "theme-geist", feature = "theme-linear", feature = "theme-stripe", feature = "theme-notion", feature = "theme-supabase")))]
 fn selected_scheme_class() -> &'static str {
     c_scheme_monochrome().get_name()
 }

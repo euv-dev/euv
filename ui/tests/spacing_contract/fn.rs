@@ -133,7 +133,7 @@ fn every_registry_spacing_dimension_is_variable_owned() {
 }
 
 #[test]
-#[cfg(not(feature = "theme-custom"))]
+
 fn standard_composite_parts_do_not_add_outer_spacing_to_container_gaps() {
     let parts: &[(&str, &Css)] = &[
         ("dialog header", c_euv_dialog_header()),
@@ -175,4 +175,76 @@ fn standard_composite_parts_do_not_add_outer_spacing_to_container_gaps() {
             }
         }
     }
+}
+
+#[test]
+fn card_surfaces_share_a_compact_inset_without_styling_their_content_twice() {
+    for css in [c_card(), c_euv_feature_card(), c_virtual_list_card()] {
+        assert_eq!(
+            class_property(css, "padding").as_deref(),
+            Some("var(--card-padding)")
+        );
+    }
+    assert_eq!(
+        class_property(c_card(), "gap").as_deref(),
+        Some("var(--card-content-gap)")
+    );
+    for css in [
+        c_euv_card_header(),
+        c_euv_card_content(),
+        c_euv_card_footer(),
+    ] {
+        assert_eq!(class_property(css, "padding"), None);
+    }
+    assert_eq!(
+        class_property(c_card_stack(), "gap").as_deref(),
+        Some("var(--page-block-gap)")
+    );
+    let stack: String = format!("{:?}", c_card_stack().get_pseudo_rules());
+    assert!(stack.contains("data-euv-dynamic-id"));
+    assert!(stack.contains("margin-block: 0px"));
+    assert!(stack.contains(".c_page_container > .c_card_stack"));
+    let mobile: String = format!("{:?}", c_card_stack().get_media_rules());
+    assert!(mobile.contains("var(--page-block-gap-mobile)"));
+    assert!(mobile.contains("pseudo_rules: [PseudoRule"), "{mobile}");
+    let compact: String = mobile.split_whitespace().collect();
+    assert!(
+        !compact.contains("gap:var(--page-block-gap-mobile);:is("),
+        "{mobile}"
+    );
+}
+
+#[test]
+fn feature_navigation_reserves_row_height_and_symmetric_paint_clearance() {
+    for css in [c_nav_item_active(), c_nav_item_inactive()] {
+        assert_eq!(
+            class_property(css, "min-height").as_deref(),
+            Some("var(--nav-row-height)")
+        );
+        assert_eq!(
+            class_property(css, "padding").as_deref(),
+            Some("var(--nav-row-padding) var(--edge-gutter-nav)")
+        );
+        let rules: String = format!("{:?}", css.get_pseudo_rules());
+        assert!(rules.contains(":focus-visible"));
+        assert!(rules.contains("var(--ring)"));
+    }
+    let scroll: &Css = c_nav_items_scroll();
+    assert_eq!(
+        class_property(scroll, "padding").as_deref(),
+        Some("var(--space-sm) var(--nav-item-inset)")
+    );
+    assert_eq!(class_property(scroll, "min-height").as_deref(), Some("0px"));
+    assert_eq!(
+        class_property(scroll, "overflow-y").as_deref(),
+        Some("auto")
+    );
+    assert_eq!(
+        class_property(scroll, "scrollbar-gutter").as_deref(),
+        Some("stable both-edges")
+    );
+    assert_eq!(
+        class_property(scroll, "scrollbar-width").as_deref(),
+        Some("thin")
+    );
 }

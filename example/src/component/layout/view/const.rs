@@ -54,9 +54,6 @@ pub(crate) const THEME_FEATURE_DEFAULT: &str = "default";
 /// Prefix shared by the separately compiled theme features.
 pub(crate) const THEME_FEATURE_PREFIX: &str = "theme-";
 
-/// The caller-styled build, which takes precedence over built-in component styles.
-pub(crate) const THEME_FEATURE_CUSTOM: &str = "theme-custom";
-
 /// The explicit monochrome feature, distinct from the no-feature build.
 pub(crate) const THEME_FEATURE_MONOCHROME: &str = "theme-monochrome";
 
@@ -79,12 +76,11 @@ pub(crate) const THEME_FEATURES_PATH_SEPARATOR: &str = "/themes/";
 pub(crate) const THEME_FEATURE_INDEX_FILE: &str = "index.html";
 
 /// Every selectable example theme build, including the no-feature build.
-pub(crate) const THEME_FEATURE_OPTIONS: [(&str, &str); 19] = [
+pub(crate) const THEME_FEATURE_OPTIONS: [(&str, &str); 18] = [
     (THEME_FEATURE_DEFAULT, THEME_FEATURE_DEFAULT_LABEL),
     ("theme-antdesign", "theme-antdesign"),
     ("theme-bootstrap", "theme-bootstrap"),
     ("theme-cupertino", "theme-cupertino"),
-    ("theme-custom", "theme-custom"),
     ("theme-daisyui", "theme-daisyui"),
     ("theme-fluent", "theme-fluent"),
     ("theme-geist", "theme-geist"),

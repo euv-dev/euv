@@ -23,7 +23,6 @@ pub(crate) fn desktop_layout(node: VirtualNode<DesktopLayoutProps>) -> VirtualNo
         div {
             class: root_class_signal
             class: c_example_theme()
-            class: c_example_motion_policy()
             nav {
                 class: c_app_nav()
                 a {
@@ -126,7 +125,6 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
         div {
             class: root_class_signal
             class: c_example_theme()
-            class: c_example_motion_policy()
             header {
                 class: c_example_mobile_header()
                 div {
@@ -235,10 +233,6 @@ pub(crate) fn mobile_layout(node: VirtualNode<MobileLayoutProps>) -> VirtualNode
                             euv_native_select_option {
                                 value: THEME_FEATURE_OPTIONS[17].0
                                 label: THEME_FEATURE_OPTIONS[17].0.trim_start_matches("theme-")
-                            }
-                            euv_native_select_option {
-                                value: THEME_FEATURE_OPTIONS[18].0
-                                label: THEME_FEATURE_OPTIONS[18].0.trim_start_matches("theme-")
                             }
                         }
                     }
@@ -406,9 +400,6 @@ fn navigate_to_theme_feature(feature: &str) {
 ///
 /// - `&'static str` - The current `theme-*` feature, or `default` when none is enabled.
 fn current_theme_feature() -> &'static str {
-    if cfg!(feature = "theme-custom") {
-        return THEME_FEATURE_CUSTOM;
-    }
     let selected_scheme: &str = scheme_name();
     let feature: &str = THEME_FEATURE_OPTIONS
         .iter()

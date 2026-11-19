@@ -289,10 +289,7 @@ fn select_item_alignment_default_tracks_the_selected_panel_class() {
     let expected: bool =
         class_property(c_euv_select_panel(), "--euv-select-align-item").as_deref() == Some("1");
     assert_eq!(EuvSelectProps::default().align_item_with_trigger, expected);
-    assert_eq!(
-        expected,
-        cfg!(all(feature = "theme-shadcn", not(feature = "theme-custom")))
-    );
+    assert_eq!(expected, cfg!(feature = "theme-shadcn"));
 }
 
 #[test]
@@ -338,9 +335,7 @@ fn select_option_indicator_is_always_mounted_and_visibility_is_class_owned() {
         "indicator attributes: {indicators:?}"
     );
     let display: Option<String> = class_property(c_euv_select_option_indicator(), "display");
-    if cfg!(feature = "theme-custom") {
-        assert_eq!(display, None);
-    } else if cfg!(feature = "theme-shadcn") {
+    if cfg!(feature = "theme-shadcn") {
         assert_eq!(display.as_deref(), Some("inline-flex"));
     } else {
         assert_eq!(display.as_deref(), Some("none"));

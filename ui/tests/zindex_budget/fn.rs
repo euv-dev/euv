@@ -209,7 +209,6 @@ fn declared_z_indexes() -> BTreeMap<String, String> {
     found
 }
 
-#[cfg(not(feature = "theme-custom"))]
 #[test]
 fn overlay_factories_emit_their_budgeted_z_indexes() {
     let cases: [ZIndexCase; 10] = [

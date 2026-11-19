@@ -21,7 +21,6 @@ fn arrows() -> [&'static Css; 4] {
     ]
 }
 
-#[cfg(not(feature = "theme-custom"))]
 fn value(css: &Css, property: &str) -> Option<String> {
     css.get_style()
         .split(';')
@@ -31,7 +30,7 @@ fn value(css: &Css, property: &str) -> Option<String> {
         .next_back()
 }
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 #[test]
 fn sidebar_shadcn_rows_share_canonical_geometry_and_four_rounded_corners() {
     let canonical: &Css = c_euv_sidebar_menu_button();
@@ -81,7 +80,7 @@ fn sidebar_shadcn_rows_share_canonical_geometry_and_four_rounded_corners() {
     }
 }
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 #[test]
 fn sidebar_shadcn_active_and_inactive_use_canonical_colors() {
     for (row, canonical) in [
@@ -120,7 +119,7 @@ fn sidebar_shadcn_active_and_inactive_use_canonical_colors() {
     }
 }
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 #[test]
 fn sidebar_shadcn_arrows_compose_action_without_expanding_rows() {
     let canonical: &Css = c_euv_sidebar_menu_action();
@@ -151,7 +150,7 @@ fn sidebar_shadcn_arrows_compose_action_without_expanding_rows() {
     }
 }
 
-#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+#[cfg(not(feature = "theme-shadcn"))]
 #[test]
 fn sidebar_shadcn_does_not_change_other_theme_rows() {
     for row in [
@@ -186,14 +185,4 @@ fn sidebar_shadcn_does_not_change_other_theme_rows() {
         );
     }
     assert_eq!(rows().len(), 7);
-}
-
-#[cfg(feature = "theme-custom")]
-#[test]
-fn sidebar_shadcn_custom_has_priority_and_keeps_styles_empty() {
-    for css in rows().into_iter().chain(arrows()) {
-        assert!(css.get_style().is_empty());
-        assert!(css.get_pseudo_rules().is_empty());
-        assert!(css.get_media_rules().is_empty());
-    }
 }

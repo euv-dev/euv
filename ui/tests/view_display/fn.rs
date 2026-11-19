@@ -72,10 +72,6 @@ fn the_overlay_flag_does_not_change_the_element_shape() {
 #[test]
 fn the_spinner_draws_three_quarters_of_the_ring_not_one() {
     let style: String = c_spinner().get_style().to_string();
-    if !cfg!(not(feature = "theme-custom")) {
-        assert!(style.is_empty());
-        return;
-    }
     for side in ["border-top:", "border-right:", "border-bottom:"] {
         assert!(
             style.contains(side),
@@ -90,14 +86,10 @@ fn the_spinner_draws_three_quarters_of_the_ring_not_one() {
 }
 
 #[test]
-#[cfg(any(not(feature = "theme-shadcn"), feature = "theme-custom"))]
+#[cfg(not(feature = "theme-shadcn"))]
 fn the_sidebar_guide_aligns_with_the_parent_label_text_at_every_depth() {
     let children: String = c_euv_sidebar_children().get_style().to_string();
     let parent: String = c_euv_sidebar_group_title().get_style().to_string();
-    if !cfg!(not(feature = "theme-custom")) {
-        assert!(children.is_empty() && parent.is_empty());
-        return;
-    }
     let guide_margin: String = token_of(&children, "margin-left");
     let parent_padding: String = shorthand_token(&parent, "padding");
     assert_eq!(
@@ -115,14 +107,10 @@ fn the_sidebar_guide_aligns_with_the_parent_label_text_at_every_depth() {
 }
 
 #[test]
-#[cfg(any(not(feature = "theme-shadcn"), feature = "theme-custom"))]
+#[cfg(not(feature = "theme-shadcn"))]
 fn the_sidebar_active_row_keeps_its_pull_back_off_the_container_margin() {
     let children: String = c_euv_sidebar_children().get_style().to_string();
     let active: String = c_euv_sidebar_link_active_flush().get_style().to_string();
-    if !cfg!(not(feature = "theme-custom")) {
-        assert!(children.is_empty() && active.is_empty());
-        return;
-    }
     assert!(
         !active.contains("margin-left: var("),
         "the active fill's own negative margin is the guide distance, not the \
@@ -259,7 +247,7 @@ fn element_count(node: &VirtualNode, needle: &str) -> usize {
     format!("{node:?}").matches(needle).count()
 }
 
-#[cfg(any(not(feature = "theme-shadcn"), feature = "theme-custom"))]
+#[cfg(not(feature = "theme-shadcn"))]
 fn token_of(style: &str, property: &str) -> String {
     declaration(style, property)
         .split("var(--")
@@ -268,7 +256,7 @@ fn token_of(style: &str, property: &str) -> String {
         .unwrap_or_default()
 }
 
-#[cfg(any(not(feature = "theme-shadcn"), feature = "theme-custom"))]
+#[cfg(not(feature = "theme-shadcn"))]
 fn shorthand_token(style: &str, property: &str) -> String {
     let horizontal: &str = declaration(style, property)
         .rsplit(' ')
@@ -277,7 +265,7 @@ fn shorthand_token(style: &str, property: &str) -> String {
     token_of(&format!("padding-left: {horizontal};"), "padding-left")
 }
 
-#[cfg(any(not(feature = "theme-shadcn"), feature = "theme-custom"))]
+#[cfg(not(feature = "theme-shadcn"))]
 fn declaration<'a>(style: &'a str, property: &str) -> &'a str {
     let found: String = format!("{property}: ");
     let start: usize = style.find(&found).expect("the property is declared");
