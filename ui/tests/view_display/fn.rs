@@ -111,7 +111,6 @@ fn the_sidebar_guide_aligns_with_the_parent_label_text_at_every_depth() {
 fn the_sidebar_active_row_keeps_its_pull_back_off_the_container_margin() {
     let children: String = c_euv_sidebar_children().get_style().to_string();
     let active: String = c_euv_sidebar_link_active_flush().get_style().to_string();
-
     assert!(
         !active.contains("margin-left: var("),
         "the active fill's own negative margin is the guide distance, not the \
