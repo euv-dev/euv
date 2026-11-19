@@ -229,9 +229,16 @@ jobs:
       - name: Install example browser contract runner
         run: python3 -m pip install 'playwright==1.60.0'
       - name: Install release example build tool
-        run: cargo install wasm-pack --version 0.15.1 --locked
+        run: |
+          tool_root="$RUNNER_TEMP/euv-release-tools"
+          cargo install wasm-pack --version 0.15.1 --locked --root "$tool_root"
+          test -x "$tool_root/bin/wasm-pack"
+          test "$("$tool_root/bin/wasm-pack" --version)" = "wasm-pack 0.15.1"
+          printf '%s\n' "$tool_root/bin" >> "$GITHUB_PATH"
       - name: Build release example for spacing and input regressions
-        run: cargo run -p euv-cli -- build --crate-path ./example --release --www-dir ../automation/results/example/default -- --no-default-features
+        run: |
+          test "$(wasm-pack --version)" = "wasm-pack 0.15.1"
+          cargo run -p euv-cli -- build --crate-path ./example --release --www-dir ../automation/results/example/default -- --no-default-features
       - name: Verify all example routes and pointer touch navigation contracts
         run: python3 example/scripts/validation/runtime.py automation/results/example automation/results/example-runtime.json --chrome "$EUV_AUTOMATION_CHROME"
       - name: Preserve browser reports and actual screenshots
