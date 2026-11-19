@@ -228,6 +228,8 @@ jobs:
           PY
       - name: Install example browser contract runner
         run: python3 -m pip install 'playwright==1.60.0'
+      - name: Install release example build tool
+        run: cargo install wasm-pack --version 0.15.1 --locked
       - name: Build release example for spacing and input regressions
         run: cargo run -p euv-cli -- build --crate-path ./example --release --www-dir ../automation/results/example/default -- --no-default-features
       - name: Verify all example routes and pointer touch navigation contracts
