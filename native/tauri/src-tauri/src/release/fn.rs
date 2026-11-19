@@ -88,14 +88,12 @@ pub(crate) fn parse_release(bytes: &[u8], minimum: &str) -> Result<ReleaseManife
     }
     let mut paths: HashSet<String> = HashSet::new();
     for file in &manifest.files {
-        if !safe_release_path(&file.path)
-            || !paths.insert(file.path.clone())
-            || file.sha256.len() != 64
-            || !file
-                .sha256
-                .bytes()
-                .all(|byte: u8| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        {
+        let digest_valid: bool = file.sha256.len() == 64
+            && file.sha256.bytes().all(|byte: u8| {
+                byte.is_ascii_digit()
+                    || (RELEASE_HEX_LETTER_START..=RELEASE_HEX_LETTER_END).contains(&byte)
+            });
+        if !safe_release_path(&file.path) || !paths.insert(file.path.clone()) || !digest_valid {
             return Err(INVALID_RELEASE_INVENTORY.to_string());
         }
     }
@@ -210,6 +208,9 @@ pub(crate) async fn stage_release(
     required: &[String],
 ) -> Result<String, String> {
     let base: Url = Url::parse(base).map_err(release_error)?;
+    if !base.path().ends_with('/') {
+        return Err(RELEASE_ORIGIN_MISMATCH.to_string());
+    }
     let descriptor: Url = base.join(RELEASE_NAME).map_err(release_error)?;
     let bytes: Vec<u8> = release_bytes(client, descriptor)
         .await
@@ -264,7 +265,7 @@ pub(crate) async fn activate_release(
     if !name.starts_with(RELEASE_PREFIX)
         || !name
             .bytes()
-            .all(|byte: u8| byte.is_ascii_alphanumeric() || byte == b'_')
+            .all(|byte: u8| byte.is_ascii_alphanumeric() || byte == RELEASE_SNAPSHOT_SEPARATOR)
     {
         return Err(INVALID_SNAPSHOT_NAME.to_string());
     }
@@ -273,10 +274,19 @@ pub(crate) async fn activate_release(
         .await
         .map_err(release_error)?;
     let temporary: PathBuf = root.join(format!(".release_pointer_{name}"));
+    let mut pointer_created: bool = false;
     let outcome: Result<(), String> = async {
         stage_release(client, base, &directory, minimum, required).await?;
         verified_release(&directory, minimum).await?;
-        write(&temporary, name).await.map_err(release_error)?;
+        let pointer: File = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .await
+            .map_err(release_error)?;
+        pointer_created = true;
+        io::Write::write_all(&mut pointer.into_std().await, name.as_bytes())
+            .map_err(release_error)?;
         tokio::fs::rename(&temporary, root.join(RELEASE_POINTER))
             .await
             .map_err(release_error)?;
@@ -285,7 +295,9 @@ pub(crate) async fn activate_release(
     .await;
     if outcome.is_err() {
         tokio::fs::remove_dir_all(&directory).await.ok();
-        tokio::fs::remove_file(&temporary).await.ok();
+        if pointer_created {
+            tokio::fs::remove_file(&temporary).await.ok();
+        }
     }
     outcome
 }

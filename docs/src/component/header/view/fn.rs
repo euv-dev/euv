@@ -14,6 +14,7 @@ use super::*;
 /// - `Signal<String>` - The current route signal.
 /// - `Signal<String>` - The current theme name signal.
 /// - `Signal<String>` - The search query signal.
+/// - `Signal<bool>` - The responsive layout mode.
 ///
 /// # Returns
 ///
@@ -23,6 +24,7 @@ pub(crate) fn docs_header(
     route_signal: Signal<String>,
     theme_signal: Signal<String>,
     search_query: Signal<String>,
+    mobile_signal: Signal<bool>,
 ) -> VirtualNode {
     html! {
         header {
@@ -36,13 +38,14 @@ pub(crate) fn docs_header(
             }
             div {
                 class: CLASS_DOCS_HEADER_ACTIONS
-                docs_header_search(route_signal, search_query)
+                docs_header_search(route_signal, search_query, mobile_signal)
                 div {
                     class: CLASS_DOCS_HEADER_SEPARATOR
                 }
                 button {
                     class: CLASS_DOCS_HEADER_ICON_BUTTON
-                    title: THEME_TOGGLE_TITLE
+                    title: locale_text(&route_signal.get(), DOCS_KEY_THEME_TOGGLE)
+                    "aria-label": locale_text(&route_signal.get(), DOCS_KEY_THEME_TOGGLE)
                     onclick: ThemeState::toggle(theme_signal)
                     theme_icon_node(theme_signal)
                 }
@@ -172,12 +175,18 @@ fn header_link_is_active(link: &str, locale_root: &str, route: &str) -> bool {
 ///
 /// - `Signal<String>` - Current route; changed only by explicit selection.
 /// - `Signal<String>` - Caller-owned search text.
+/// - `Signal<bool>` - The responsive layout mode.
 ///
 /// # Returns
 ///
 /// - `VirtualNode` - Hook-scoped search input and preview panel.
-fn docs_header_search(route_signal: Signal<String>, query: Signal<String>) -> VirtualNode {
-    VirtualNode::create_dynamic(move |_context: &mut HookContext| {
+fn docs_header_search(
+    route_signal: Signal<String>,
+    query: Signal<String>,
+    mobile: Signal<bool>,
+) -> VirtualNode {
+    VirtualNode::create_dynamic(move |context: &mut HookContext| {
+        use_docs_responsive_scope(context.clone(), mobile, false);
         let state: Signal<HeaderSearchState> = App::use_signal(HeaderSearchState::default);
         let id: UseId = use_id(HEADER_SEARCH_ID);
         let input_id: String = id.get_value().get();

@@ -114,7 +114,7 @@ pub fn supported_locale_tags() -> &'static [&'static str] {
     ]
 }
 
-/// Returns every translation key the password gate registers.
+/// Returns every translation key the documentation shell and gate register.
 ///
 /// Exposed as a function rather than as a `pub const` because the key
 /// list is exactly the thing a completeness test needs to enumerate,
@@ -132,6 +132,15 @@ pub fn gate_translation_keys() -> &'static [&'static str] {
         PW_GATE_KEY_ERROR,
         PW_GATE_KEY_LABEL,
         PW_GATE_KEY_PLACEHOLDER,
+        DOCS_KEY_DRAWER_OPEN,
+        DOCS_KEY_DRAWER_CLOSE,
+        DOCS_KEY_DRAWER_TITLE,
+        DOCS_KEY_THEME_TOGGLE,
+        DOCS_KEY_SEARCH_LABEL,
+        DOCS_KEY_SEARCH_EMPTY,
+        DOCS_KEY_SEARCH_NONE,
+        DOCS_KEY_SEARCH_PLACEHOLDER,
+        DOCS_KEY_SEARCH_COUNT,
     ]
 }
 

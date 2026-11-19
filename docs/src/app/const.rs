@@ -225,9 +225,6 @@ pub(crate) const LINK_TARGET_BLANK: &str = "_blank";
 /// cannot reach back through `window.opener`.
 pub(crate) const LINK_REL_NOOPENER: &str = "noopener noreferrer";
 
-/// The `title` (tooltip) of the desktop and mobile theme-toggle buttons.
-pub(crate) const THEME_TOGGLE_TITLE: &str = "切换主题";
-
 /// Selector matching the scrollable main column of the desktop shell.
 pub(crate) const MAIN_CONTAINER_SELECTOR_DESKTOP: &str = "[class*=c_app_main]";
 

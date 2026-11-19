@@ -5,8 +5,8 @@ use super::*;
 /// Mirrors the official euv example: one reactive root reading the mobile
 /// signal, delegating to a desktop shell (left nav column + internally
 /// scrolling main) or a mobile shell (top header + drawer). The wrapper key
-/// carries the locale prefix so switching languages remounts the shell with
-/// fresh localized labels.
+/// carries the locale and responsive mode so changing shells tears down
+/// their distinct DOM listeners instead of reusing incompatible hook slots.
 ///
 /// # Returns
 ///
@@ -15,6 +15,7 @@ pub(crate) fn app() -> VirtualNode {
     let route_signal: Signal<String> = App::use_signal(Router::current_route);
     let drawer_open: Signal<bool> = App::use_signal(|| false);
     let locale_menu_open: Signal<bool> = App::use_signal(|| false);
+    let desktop_locale_menu_open: Signal<bool> = App::use_signal(|| false);
     let collapsed: Signal<Vec<String>> = App::use_signal(all_sidebar_group_keys);
     let search_query: Signal<String> = App::use_signal(String::new);
     let mobile_signal: Signal<bool> = UseEuvLayout::use_resize();
@@ -26,34 +27,48 @@ pub(crate) fn app() -> VirtualNode {
     Router::use_overlay_history(drawer_open, mobile_signal);
     use_anchor_scroll(route_signal);
     use_sidebar_reveal(route_signal, collapsed, drawer_open);
+    use_docs_drawer_modal(drawer_open, locale_menu_open, mobile_signal);
     // Keep app hooks outside the reactive shell: their initialization reads
     // theme/mobile state and must not make the shell rebuild its bindings.
-    VirtualNode::create_dynamic(move |_hook_context: &mut euv::HookContext| {
+    VirtualNode::create_dynamic(move |hook_context: &mut euv::HookContext| {
+        let mobile: bool = mobile_signal.get();
+        hook_context.switch_arm(usize::from(mobile));
+        let key: String = format!(
+            "{}-{mobile}",
+            locale_of(&parse_route(&route_signal.get()).0).prefix
+        );
+        let shell: VirtualNode = if mobile {
+            html! {
+                docs_mobile_shell {
+                    route_signal
+                    theme_signal
+                    root_class_signal
+                    mobile_signal
+                    drawer_open
+                    locale_menu_open
+                    collapsed
+                    search_query
+                }
+            }
+        } else {
+            html! {
+                docs_desktop_shell {
+                    route_signal
+                    theme_signal
+                    root_class_signal
+                    mobile_signal
+                    drawer_open
+                    locale_menu_open: desktop_locale_menu_open
+                    collapsed
+                    search_query
+                }
+            }
+        };
         html! {
             div {
-                key: locale_of(&parse_route(&route_signal.get()).0).prefix
+                key: key
                 class: c_euv_display_contents()
-                if { mobile_signal.get() } {
-                    docs_mobile_shell {
-                        route_signal
-                        theme_signal
-                        root_class_signal
-                        drawer_open
-                        locale_menu_open
-                        collapsed
-                        search_query
-                    }
-                } else {
-                    docs_desktop_shell {
-                        route_signal
-                        theme_signal
-                        root_class_signal
-                        drawer_open
-                        locale_menu_open
-                        collapsed
-                        search_query
-                    }
-                }
+                shell
             }
         }
     })
@@ -97,6 +112,7 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
         route_signal,
         theme_signal,
         root_class_signal,
+        mobile_signal,
         drawer_open: _,
         locale_menu_open,
         collapsed,
@@ -109,12 +125,12 @@ pub(crate) fn docs_desktop_shell(node: VirtualNode<DocsShellProps>) -> VirtualNo
             class: root_class_signal
             class: c_app_root()
             class: CLASS_DOCS_SHELL
-            docs_header(locale, route_signal, theme_signal, search_query)
+            docs_header(locale, route_signal, theme_signal, search_query, mobile_signal)
             div {
                 class: CLASS_DOCS_BODY
                 nav {
                     class: c_app_nav()
-                    locale_row_node(route_signal, locale_menu_open)
+                    locale_row_node(route_signal, locale_menu_open, mobile_signal, false)
                     p {
                         class: c_nav_section_label()
                         {
@@ -159,6 +175,7 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
         route_signal,
         theme_signal,
         root_class_signal,
+        mobile_signal,
         drawer_open,
         locale_menu_open,
         collapsed,
@@ -177,6 +194,17 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                 div {
                     class: c_mobile_header_left()
                     button {
+                        id: DOCS_DRAWER_TRIGGER_ID
+                        type: DOCS_DRAWER_BUTTON_TYPE
+                        "aria-label": locale_text(&path, DOCS_KEY_DRAWER_OPEN)
+                        title: locale_text(&path, DOCS_KEY_DRAWER_OPEN)
+                        "aria-haspopup": DOCS_DRAWER_DIALOG_ROLE
+                        "aria-controls": DOCS_DRAWER_ID
+                        "aria-expanded": if { drawer_open.get() } {
+                            DOCS_DRAWER_ARIA_TRUE
+                        } else {
+                            DOCS_DRAWER_ARIA_FALSE
+                        }
                         class: if { drawer_open } {
                             c_mobile_menu_button_active()
                         } else {
@@ -185,11 +213,13 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                         onclick: UseEuvLayout::use_drawer_toggle(drawer_open)
                         "☰"
                     }
-                    brand_logo_row(locale)
+                    brand_logo_row(locale, false)
                 }
                 button {
+                    type: DOCS_DRAWER_BUTTON_TYPE
                     class: c_mobile_theme_button()
-                    title: THEME_TOGGLE_TITLE
+                    title: locale_text(&path, DOCS_KEY_THEME_TOGGLE)
+                    "aria-label": locale_text(&path, DOCS_KEY_THEME_TOGGLE)
                     onclick: ThemeState::toggle(theme_signal)
                     theme_icon_node(theme_signal)
                 }
@@ -202,6 +232,7 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                 }
             }
             div {
+                "aria-hidden": DOCS_DRAWER_ARIA_TRUE
                 class: if { drawer_open } {
                     c_mobile_overlay().to_string()
                 } else {
@@ -210,6 +241,16 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                 onclick: close_drawer(drawer_open)
             }
             nav {
+                id: DOCS_DRAWER_ID
+                role: DOCS_DRAWER_DIALOG_ROLE
+                "aria-modal": DOCS_DRAWER_ARIA_TRUE
+                "aria-label": locale_text(&path, DOCS_KEY_DRAWER_TITLE)
+                "aria-hidden": if { drawer_open.get() } {
+                    DOCS_DRAWER_ARIA_FALSE
+                } else {
+                    DOCS_DRAWER_ARIA_TRUE
+                }
+                tabindex: "-1"
                 "data-slot": DOCS_DRAWER_CONTENT_SLOT
                 class: if { drawer_open } {
                     c_mobile_nav_drawer().to_string()
@@ -218,14 +259,18 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
                 }
                 div {
                     class: c_mobile_nav_drawer_header()
-                    brand_logo_row(locale)
+                    brand_logo_row(locale, true)
                     button {
+                        id: DOCS_DRAWER_CLOSE_ID
+                        type: DOCS_DRAWER_BUTTON_TYPE
+                        "aria-label": locale_text(&path, DOCS_KEY_DRAWER_CLOSE)
+                        title: locale_text(&path, DOCS_KEY_DRAWER_CLOSE)
                         class: c_mobile_drawer_close_button()
                         onclick: close_drawer(drawer_open)
                         "✕"
                     }
                 }
-                locale_row_node(route_signal, locale_menu_open)
+                locale_row_node(route_signal, locale_menu_open, mobile_signal, true)
                 p {
                     class: c_nav_section_label()
                     {
@@ -251,11 +296,12 @@ pub(crate) fn docs_mobile_shell(node: VirtualNode<DocsShellProps>) -> VirtualNod
 /// # Arguments
 ///
 /// - `&'static DocsLocale` - The current locale.
+/// - `bool` - Whether the home link consumes the drawer's overlay entry.
 ///
 /// # Returns
 ///
 /// - `VirtualNode` - The brand row virtual DOM tree.
-fn brand_logo_row(locale: &'static DocsLocale) -> VirtualNode {
+fn brand_logo_row(locale: &'static DocsLocale, drawer: bool) -> VirtualNode {
     let site: &DocsSite = &crate::generated::SITE;
     let title: &str = if locale.title.is_empty() {
         site.title
@@ -266,7 +312,7 @@ fn brand_logo_row(locale: &'static DocsLocale) -> VirtualNode {
         a {
             class: c_mobile_header_logo()
             href: format!("#{}", locale.prefix)
-            onclick: Router::link_handler(locale.prefix)
+            onclick: if drawer { drawer_link_handler(locale.prefix) } else { Router::link_handler(locale.prefix) }
             euv_logo {
                 variant: LogoButtonVariant::Nav
             }
@@ -314,12 +360,20 @@ pub(crate) fn theme_icon_node(theme_signal: Signal<String>) -> VirtualNode {
 ///
 /// - `Signal<String>` - The current route signal.
 /// - `Signal<bool>` - The dropdown open signal.
+/// - `Signal<bool>` - The responsive mode signal.
+/// - `bool` - The responsive mode that owns the row.
 ///
 /// # Returns
 ///
 /// - `VirtualNode` - The locale row virtual DOM tree.
-fn locale_row_node(route_signal: Signal<String>, locale_menu_open: Signal<bool>) -> VirtualNode {
-    VirtualNode::create_dynamic(move |_: &mut HookContext| {
+fn locale_row_node(
+    route_signal: Signal<String>,
+    locale_menu_open: Signal<bool>,
+    mobile_signal: Signal<bool>,
+    mobile: bool,
+) -> VirtualNode {
+    VirtualNode::create_dynamic(move |context: &mut HookContext| {
+        use_docs_responsive_scope(context.clone(), mobile_signal, mobile);
         render_locale_row(route_signal, locale_menu_open)
     })
 }
@@ -457,9 +511,24 @@ fn switch_locale(
 /// - `Option<Rc<dyn Fn(Event)>>` - The click handler.
 fn close_drawer(drawer_open: Signal<bool>) -> Option<Rc<dyn Fn(Event)>> {
     Some(Rc::new(move |_| {
-        Router::overlay_stack_close();
-        drawer_open.set(false);
+        dismiss_docs_drawer(drawer_open);
     }))
+}
+
+/// Navigates from the drawer's home link after consuming its overlay entry.
+///
+/// # Arguments
+///
+/// - `&'static str` - The locale's home route.
+///
+/// # Returns
+///
+/// - `NativeEventHandler` - The intercepted link click handler.
+fn drawer_link_handler(link: &'static str) -> NativeEventHandler {
+    NativeEventHandler::create(DOCS_DRAWER_CLICK_EVENT, move |event: Event| {
+        event.prevent_default();
+        Router::overlay_back(Some(link.to_string()));
+    })
 }
 
 /// Drawer navigation handler: consumes the drawer's overlay history entry

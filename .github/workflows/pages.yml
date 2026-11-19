@@ -1,79 +1,108 @@
 name: Deploy Pages
 
 on:
-  workflow_run:
-    workflows: [Rust]
-    types: [completed]
-    branches: [master]
   workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Successful master Build Clients run that produced the release
+        required: true
+        type: string
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+  actions: read
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: euv-resource-origin
+  cancel-in-progress: false
 
 jobs:
-  build:
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+  publish:
+
     runs-on: ubuntu-latest
+    environment: github-pages
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-pages-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
-      - name: Build example
-        run: cargo run -p euv-cli -- build --release --crate-path ./example -- --target web --out-dir www/pkg --out-name euv --no-typescript --no-pack --no-gitignore
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: example/www
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-      - name: Sync Pages
+      - name: Resolve the exact successful release producer
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run_id }}
         run: |
-          max_retries=60
-          retry_delay=60
-          for i in $(seq 1 $max_retries); do
-            if curl -sf -X POST https://ltpp.vip/api/github/pages/sync/euv-dev/euv \
-              -H "Connection: close"; then
-              echo ""
-              echo "Sync succeeded on attempt $i"
-              exit 0
-            fi
-            echo "Attempt $i of $max_retries failed"
-            if [ $i -lt $max_retries ]; then
-              echo "Retrying in ${retry_delay}s..."
-              sleep $retry_delay
-            fi
-          done
-          echo "All $max_retries attempts failed"
-          exit 1
+          set -euo pipefail
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" > "$RUNNER_TEMP/source.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .conclusion == "success" and .head_branch == "master" and
+            .head_repository.full_name == $repo and
+            .path == ".github/workflows/build-clients.yml" and
+            (.event == "push" or .event == "workflow_dispatch")' "$RUNNER_TEMP/source.json" >/dev/null
+          sha=$(jq -er '.head_sha | select(test("^[a-f0-9]{40}$"))' "$RUNNER_TEMP/source.json")
+          printf 'sha=%s\nrun=%s\n' "$sha" "$SOURCE_RUN" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the artifact source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Download the exact shared native and website artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: euv-native-web-${{ steps.source.outputs.sha }}
+          run-id: ${{ steps.source.outputs.run }}
+          github-token: ${{ github.token }}
+          path: .
+
+      - name: Run publication protocol regressions
+        run: python3 example/scripts/test_publish_release.py
+
+      - name: Reject superseded releases and validate every release byte
+        id: release
+        run: |
+          set -euo pipefail
+          git fetch origin master
+          git merge-base --is-ancestor HEAD origin/master
+          git show origin/master:Cargo.toml > "$RUNNER_TEMP/current-Cargo.toml"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import sys
+          import tomllib
+          sys.path.insert(0, 'example/scripts')
+          from publish_release import validate_directory
+          version = tomllib.loads(Path('Cargo.toml').read_text())['workspace']['package']['version']
+          current = tomllib.loads((Path(os.environ['RUNNER_TEMP']) / 'current-Cargo.toml').read_text())['workspace']['package']['version']
+          assert version == current, 'A newer master release superseded this artifact'
+          _, manifest = validate_directory(Path('example/www'), version)
+          features = tomllib.loads(Path('example/Cargo.toml').read_text())['features']
+          expected = {'default'} | {name for name in features if name.startswith('theme-')}
+          actual = {path.name for path in Path('example/www/themes').iterdir() if path.is_dir()}
+          assert expected == actual, 'Shared artifact does not contain every current release theme'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\n')
+          print(f"Verified {len(manifest['files'])} files across {len(actual)} themes")
+          PY
+
+      - name: Publish one authoritative resource origin and verify ordinary live URLs
+        env:
+          PAGE_ARTIFACT_API_KEY: ${{ secrets.PAGE_ARTIFACT_API_KEY }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 example/scripts/publish_release.py example/www \
+            --version "$RELEASE_VERSION" --receipt "$RUNNER_TEMP/publication.json"
+
+      - name: Preserve the source-bound live publication receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: euv-resource-publication-${{ steps.source.outputs.sha }}
+          path: |
+            ${{ runner.temp }}/source.json
+            ${{ runner.temp }}/publication.json
+          if-no-files-found: error

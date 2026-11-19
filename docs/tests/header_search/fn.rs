@@ -225,8 +225,8 @@ fn option_click_is_explicit_and_mouse_down_preserves_input_focus() {
 #[test]
 fn empty_and_missing_queries_announce_state_and_never_change_route() {
     for (query, message) in [
-        ("   ", HEADER_SEARCH_EMPTY),
-        ("no-such-page-928364", HEADER_SEARCH_NONE),
+        ("   ", DOCS_KEY_SEARCH_EMPTY),
+        ("no-such-page-928364", DOCS_KEY_SEARCH_NONE),
     ] {
         let route: Signal<String> = Signal::create("/unchanged".to_string());
         let mut snapshot: HeaderSearchState = HeaderSearchState::default();
@@ -242,7 +242,7 @@ fn empty_and_missing_queries_announce_state_and_never_change_route() {
         assert!(find_role(&node, "option").is_none());
         let status: &VirtualNode = find_role(&node, "status").expect("live status");
         assert_eq!(attr(status, "aria-live").as_deref(), Some("polite"));
-        assert!(format!("{status:?}").contains(message));
+        assert!(format!("{status:?}").contains(&locale_text(&route.get(), message)));
     }
 }
 
