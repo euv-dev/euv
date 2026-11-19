@@ -319,6 +319,22 @@ pub(crate) fn theme_icon_node(theme_signal: Signal<String>) -> VirtualNode {
 ///
 /// - `VirtualNode` - The locale row virtual DOM tree.
 fn locale_row_node(route_signal: Signal<String>, locale_menu_open: Signal<bool>) -> VirtualNode {
+    VirtualNode::create_dynamic(move |_: &mut HookContext| {
+        render_locale_row(route_signal, locale_menu_open)
+    })
+}
+
+/// Renders the locale dropdown within its own stable hook lifecycle.
+///
+/// # Arguments
+///
+/// - `Signal<String>` - The current route signal.
+/// - `Signal<bool>` - The dropdown open signal.
+///
+/// # Returns
+///
+/// - `VirtualNode` - The dropdown row.
+fn render_locale_row(route_signal: Signal<String>, locale_menu_open: Signal<bool>) -> VirtualNode {
     let languages: &'static [DocsLanguageLink] = crate::generated::SITE_LANGUAGES;
     if languages.len() <= 1 {
         return html! {
