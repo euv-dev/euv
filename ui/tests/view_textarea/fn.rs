@@ -2,12 +2,7 @@ use super::*;
 
 #[test]
 fn textarea_rows_use_compiled_metadata_without_overriding_positive_caller_rows() {
-    let expected_default: i32 =
-        if cfg!(all(feature = "theme-shadcn", not(feature = "theme-custom"))) {
-            2
-        } else {
-            3
-        };
+    let expected_default: i32 = if cfg!(feature = "theme-shadcn") { 2 } else { 3 };
     for rows in [-2, 0, 1, 7] {
         let rendered: VirtualNode = render("Notes", rows, false);
         let VirtualNode::Element { attributes, .. } = rendered else {

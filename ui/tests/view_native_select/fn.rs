@@ -115,9 +115,15 @@ fn native_select_options_are_direct_native_children() {
     let node: VirtualNode = html! {
         euv_native_select {
             id: "native-options"
-            euv_native_select_option { value: "theme-shadcn" label: "shadcn" }
-            euv_native_select_option { value: "theme-material" label: "material" }
-            euv_native_select_option { value: "theme-cupertino" label: "cupertino" }
+            euv_native_select_option {
+                value: "theme-shadcn" label: "shadcn"
+            }
+            euv_native_select_option {
+                value: "theme-material" label: "material"
+            }
+            euv_native_select_option {
+                value: "theme-cupertino" label: "cupertino"
+            }
         }
     };
     assert_native_children(
@@ -134,8 +140,12 @@ fn native_select_group_options_are_direct_native_children() {
             id: "native-group-options"
             euv_native_select_opt_group {
                 label: "Themes"
-                euv_native_select_option { value: "theme-shadcn" label: "shadcn" }
-                euv_native_select_option { value: "theme-material" label: "material" }
+                euv_native_select_option {
+                    value: "theme-shadcn" label: "shadcn"
+                }
+                euv_native_select_option {
+                    value: "theme-material" label: "material"
+                }
             }
         }
     };

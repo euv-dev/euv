@@ -11,7 +11,6 @@ fn classes() -> [&'static Css; 6] {
     ]
 }
 
-#[cfg(not(feature = "theme-custom"))]
 fn value(css: &Css, property: &str) -> Option<String> {
     css.get_style()
         .split(';')
@@ -21,7 +20,6 @@ fn value(css: &Css, property: &str) -> Option<String> {
         .next_back()
 }
 
-#[cfg(not(feature = "theme-custom"))]
 #[test]
 fn toc_frame_has_no_outer_or_title_frame() {
     for css in classes() {
@@ -53,7 +51,6 @@ fn toc_frame_has_no_outer_or_title_frame() {
     assert_eq!(value(c_euv_toc(), "padding-left"), None);
 }
 
-#[cfg(not(feature = "theme-custom"))]
 #[test]
 fn toc_frame_preserves_nested_indentation_and_active_weight() {
     assert_eq!(
@@ -84,16 +81,6 @@ fn toc_frame_preserves_nested_indentation_and_active_weight() {
     }
 }
 
-#[cfg(feature = "theme-custom")]
-#[test]
-fn toc_frame_leaves_custom_classes_empty() {
-    for css in classes().into_iter().chain([c_euv_toc_link_separator()]) {
-        assert!(css.get_style().is_empty(), "{}", css.get_name());
-        assert!(css.get_pseudo_rules().is_empty(), "{}", css.get_name());
-    }
-}
-
-#[cfg(not(feature = "theme-custom"))]
 #[test]
 fn toc_frame_separator_adds_only_a_straight_horizontal_rule() {
     let separator: &Css = c_euv_toc_link_separator();

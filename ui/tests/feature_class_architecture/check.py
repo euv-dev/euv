@@ -51,8 +51,8 @@ def check(root):
 def self_test():
     for source in [
         'if cfg!(feature = "theme-shadcn") {}',
-        'cfg ! (any(target_arch = "wasm32",\n all(not(feature = "theme-custom"), feature = "theme-shadcn")))',
-        'cfg!(not(any(feature = "theme-custom", feature = "theme-park")))',
+        'cfg ! (any(target_arch = "wasm32",\n all(not(feature = "theme-geist"), feature = "theme-shadcn")))',
+        'cfg!(not(any(feature = "theme-geist", feature = "theme-park")))',
     ]:
         assert feature_runtime_checks(source) == [1]
     for source in ['cfg!(target_arch = "wasm32")', '#[cfg(feature = "theme-shadcn")]',

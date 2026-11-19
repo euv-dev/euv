@@ -348,13 +348,8 @@ fn key_factories_emit_only_paint_hover_css_including_inherited_and_media_rules()
             "{} emitted hover geometry: {violations:?}",
             factory.get_name()
         );
-        if cfg!(feature = "theme-custom") {
-            assert!(factory.get_style().is_empty());
-            assert!(factory.get_pseudo_rules().is_empty());
-            assert!(factory.get_media_rules().is_empty());
-        }
     }
-    if !cfg!(feature = "theme-custom") {
+    {
         assert!(
             count >= 10,
             "emitted hover coverage unexpectedly empty: {count}"
@@ -364,9 +359,6 @@ fn key_factories_emit_only_paint_hover_css_including_inherited_and_media_rules()
 
 #[test]
 fn card_headers_do_not_reserve_an_empty_description_row() {
-    if cfg!(feature = "theme-custom") {
-        return;
-    }
     let header: String = c_euv_card_header().get_style().split_whitespace().collect();
     assert!(header.contains("grid-template-rows:auto;"), "{header}");
     assert!(!header.contains("grid-template-rows:autoauto;"), "{header}");
@@ -378,11 +370,7 @@ fn card_headers_do_not_reserve_an_empty_description_row() {
 }
 
 #[test]
-fn card_shell_uses_one_token_for_padding_and_sibling_gaps() {
-    if cfg!(feature = "theme-custom") {
-        assert!(c_card().get_style().is_empty());
-        return;
-    }
+fn card_shell_separates_surface_padding_from_content_spacing() {
     let style: String = c_card().get_style().split_whitespace().collect();
     let padding: Option<&str> = style
         .split(';')
@@ -396,11 +384,8 @@ fn card_shell_uses_one_token_for_padding_and_sibling_gaps() {
         .filter(|(property, _): &(&str, &str)| *property == "gap")
         .map(|(_, value): (&str, &str)| value)
         .next_back();
-    assert!(padding.is_some_and(|value: &str| value.starts_with("var(--space-")));
-    assert_eq!(
-        padding, gap,
-        "card insets and sibling gaps use different tokens: {style}"
-    );
+    assert_eq!(padding, Some("var(--card-padding)"), "{style}");
+    assert_eq!(gap, Some("var(--card-content-gap)"), "{style}");
     assert!(style.contains("display:flex"));
     let rules: String = format!("{:?}", c_card().get_pseudo_rules());
     let compact_rules: String = rules.split_whitespace().collect();
@@ -437,9 +422,6 @@ fn card_shell_uses_one_token_for_padding_and_sibling_gaps() {
 
 #[test]
 fn card_child_margin_priority_covers_mixed_slot_and_dynamic_boundaries() {
-    if cfg!(feature = "theme-custom") {
-        return;
-    }
     let rules: String = format!("{:?}", c_card().get_pseudo_rules());
     let compact: String = rules.split_whitespace().collect();
     assert!(compact.contains(">:is([class],*)"), "{rules}");
@@ -460,10 +442,6 @@ fn feature_grid_preserves_intrinsic_card_height_and_owns_both_axis_gaps() {
         .get_style()
         .split_whitespace()
         .collect();
-    if cfg!(feature = "theme-custom") {
-        assert!(style.is_empty());
-        return;
-    }
     assert!(style.contains("align-items:start;"), "{style}");
     assert!(style.contains("gap:var(--page-block-gap);"), "{style}");
     assert!(!style.contains("row-gap:0px;"), "{style}");
@@ -471,9 +449,7 @@ fn feature_grid_preserves_intrinsic_card_height_and_owns_both_axis_gaps() {
 
 #[test]
 fn console_fab_radius_uses_the_current_scheme_token() {
-    if cfg!(feature = "theme-custom") {
-        assert!(c_euv_logo_fab().get_style().is_empty());
-    } else {
+    {
         assert!(
             c_euv_logo_fab()
                 .get_style()

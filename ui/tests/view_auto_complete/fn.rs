@@ -14,7 +14,7 @@ fn auto_complete_always_emits_its_same_named_input_factories() {
         &rendered,
         &["c_euv_auto_complete_input_default"]
     ));
-    if cfg!(any(feature = "theme-custom", feature = "theme-shadcn")) {
+    if cfg!(feature = "theme-shadcn") {
         assert!(c_euv_auto_complete_input_default().get_style().is_empty());
     } else {
         assert!(class_property(c_euv_auto_complete_input_default(), "min-height").is_some());

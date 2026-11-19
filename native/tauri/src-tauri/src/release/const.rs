@@ -38,3 +38,12 @@ pub(crate) const RELEASE_PREFIX: &str = "v_";
 
 /// Release protocol constant.
 pub(crate) const RELEASE_INDEX: &str = "index.html";
+
+/// First lowercase letter accepted in a SHA-256 digest.
+pub(crate) const RELEASE_HEX_LETTER_START: u8 = b'a';
+
+/// Last lowercase letter accepted in a SHA-256 digest.
+pub(crate) const RELEASE_HEX_LETTER_END: u8 = b'f';
+
+/// Separator accepted in a staged snapshot directory name.
+pub(crate) const RELEASE_SNAPSHOT_SEPARATOR: u8 = b'_';

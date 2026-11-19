@@ -17,9 +17,7 @@ fn horizontal_tracks_use_length_radii_instead_of_elliptical_percentage_radii() {
         c_euv_slider_range(),
         c_progress_bar_track(),
     ] {
-        if cfg!(feature = "theme-custom") {
-            assert!(class.get_style().is_empty());
-        } else {
+        {
             assert_eq!(
                 track_property(class, "border-radius").as_deref(),
                 Some("var(--radius-sm)")
@@ -30,10 +28,6 @@ fn horizontal_tracks_use_length_radii_instead_of_elliptical_percentage_radii() {
 
 #[test]
 fn track_and_fill_heights_remain_consistent() {
-    if cfg!(feature = "theme-custom") {
-        assert!(c_progress_bar_fill().get_style().is_empty());
-        return;
-    }
     assert_eq!(
         track_property(c_euv_slider_track(), "height").as_deref(),
         Some("var(--space-xs)")
@@ -59,10 +53,6 @@ fn track_and_fill_heights_remain_consistent() {
 
 #[test]
 fn circular_slider_thumb_is_not_flattened_with_the_tracks() {
-    if cfg!(feature = "theme-custom") {
-        assert!(c_euv_slider_thumb().get_style().is_empty());
-        return;
-    }
     assert_eq!(
         track_property(c_euv_slider_thumb(), "border-radius").as_deref(),
         Some("var(--radius-full)")

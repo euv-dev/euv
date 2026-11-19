@@ -16,75 +16,6 @@
 /// The DOM element id the documentation app mounts into.
 pub(crate) const APP_MOUNT_SELECTOR: &str = "#app";
 
-/// Consumer-owned shell geometry for the headless custom build.
-#[cfg(feature = "theme-custom")]
-pub(crate) const APP_CUSTOM_LAYOUT_CSS: &str = r#"
-
-#app .c_euv_display_contents { display: contents; }
-#app .c_app_root { display: flex; height: 100%; min-height: 0; overflow: hidden; padding-bottom: var(--safe-area-inset-bottom, 0px); }
-#app .c_mobile_app_root { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; padding-bottom: var(--safe-area-inset-bottom, 0px); }
-#app .c_app_nav { display: flex; flex-direction: column; flex: 0 0 var(--nav-width, 248px); width: var(--nav-width, 248px); height: 100%; min-height: 0; overflow: hidden; }
-#app .c_nav_items_scroll { flex: 1 1 0%; min-height: 0; overflow-y: auto; overflow-x: hidden; }
-#app .c_nav_header, #app .c_nav_locale_row, #app .c_nav_section_label, #app .c_nav_theme_toggle, #app .c_nav_footer { flex-shrink: 0; }
-#app .c_nav_header { display: flex; align-items: center; gap: var(--space-md, 12px); padding: var(--space-xl, 20px) var(--edge-gutter-nav, 16px); }
-#app .c_nav_item_active, #app .c_nav_item_inactive { display: flex; align-items: center; gap: var(--space-sm, 8px); padding: var(--space-sm, 8px) var(--edge-gutter-nav, 16px); }
-#app .c_app_main, #app .c_mobile_main { flex: 1 1 0%; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: var(--padding-main-top, 24px) var(--padding-main-horizontal, 28px) var(--edge-gutter-bottom, 20px) var(--edge-gutter, 28px); }
-#app .c_home { display: flex; flex-direction: column; min-height: 100%; min-width: 0; }
-#app .c_home_content { display: flex; flex-direction: column; flex: 1 0 auto; width: 100%; max-width: var(--content-max-width, 820px); margin-inline: auto; min-width: 0; }
-#app .c_home_body { flex: 1 0 auto; min-width: 0; }
-#app .c_home_tail { flex: 0 0 auto; margin-top: auto; }
-#app .c_home_actions { display: flex; flex-wrap: wrap; gap: var(--gap-element, 8px); }
-#app .c_home_stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-md, 12px); }
-#app .c_home_feature_grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap-component, 16px); }
-@media (max-width: 767px) {
-#app .c_home_stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-#app .c_home_feature_grid { grid-template-columns: minmax(0, 1fr); }
-}
-#app .c_page_router { display: flex; flex-direction: column; min-width: 0; }
-#app .c_page_container { width: 100%; max-width: var(--content-max-width, 820px); margin: 0 auto; min-width: 0; }
-#app .c_euv_card { display: flex; flex-direction: column; gap: var(--gap-component, 16px); margin-top: var(--page-block-gap, 24px); }
-#app .c_euv_card_header, #app .c_euv_card_content, #app .c_euv_card_footer { min-width: 0; }
-#app .c_button_controls { display: flex; flex-wrap: wrap; gap: var(--gap-element, 8px); margin-block: var(--gap-component, 16px); }
-#app .c_mobile_header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; height: calc(var(--mobile-header-height, 56px) + var(--euv-mobile-safe-top, 0px)); padding: var(--euv-mobile-safe-top, 0px) var(--edge-gutter-mobile, 16px) 0; position: sticky; top: 0; z-index: 100; }
-#app .c_mobile_header_left, #app .c_mobile_header_logo { display: flex; align-items: center; min-width: 0; gap: var(--space-sm, 8px); }
-#app .c_mobile_menu_button, #app .c_mobile_menu_button_active, #app .c_mobile_theme_button, #app .c_mobile_drawer_close_button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: var(--mobile-header-height, 40px); height: var(--mobile-header-height, 40px); }
-#app .c_theme_icon_sun, #app .c_theme_icon_moon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: var(--space-xl, 20px); height: var(--space-xl, 20px); font-size: var(--space-xl, 20px); line-height: 1; }
-#app .c_theme_icon_sun::before { content: "\2600\FE0E" / ""; }
-#app .c_theme_icon_moon::before { content: "\263E\FE0E" / ""; }
-#app .c_mobile_overlay { position: fixed; inset: 0; z-index: 200; pointer-events: auto; }
-#app .c_mobile_overlay_hidden { visibility: hidden; pointer-events: none; }
-#app .c_mobile_nav_drawer { position: fixed; inset: 0 auto 0 0; width: var(--nav-width, 248px); max-width: 100%; display: flex; flex-direction: column; min-height: 0; overflow: hidden; z-index: 201; padding-top: var(--euv-mobile-safe-top, 0px); padding-bottom: var(--padding-shell-bottom, 0px); transform: translateX(0); visibility: visible; pointer-events: auto; }
-#app .c_mobile_nav_drawer_closed { transform: translateX(-100%); visibility: hidden; pointer-events: none; }
-#app .c_mobile_nav_drawer_header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; height: var(--mobile-header-height, 56px); padding-inline: var(--edge-gutter-mobile, 16px); }
-@media (max-width: 767px) {
-#app .c_app_nav { display: none; }
-#app .c_mobile_main, #app .c_app_main { padding: var(--padding-main-top-mobile, 16px) var(--padding-main-horizontal-mobile, 16px) var(--edge-gutter-bottom, 20px) var(--edge-gutter-mobile, 16px); }
-}
-
-#app .c_docs_body { display: flex; flex: 1 1 0%; min-height: 0; min-width: 0; overflow: hidden; }
-#app .c_app_main, #app .c_mobile_main { display: flex; flex-direction: column; }
-#app .c_euv_doc_layout { display: flex; flex-direction: row; width: 100%; max-width: 1160px; min-height: 100%; min-width: 0; flex: 0 0 auto; margin-inline: auto; gap: var(--gap-component, 16px); }
-#app .c_euv_doc_content { display: flex; flex-direction: column; flex: 1 1 0%; min-width: 0; justify-content: space-between; }
-#app .c_euv_doc_tail { display: block; flex: 0 0 auto; }
-#app .c_euv_doc_toc { width: var(--nav-width, 248px); min-width: 0; flex-shrink: 0; position: sticky; top: var(--padding-main-top, 24px); align-self: flex-start; max-height: calc(100dvh - var(--mobile-header-height, 56px) - var(--padding-main-top, 24px)); overflow-y: auto; }
-#app .c_euv_footer { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: var(--space-sm, 8px); flex: 0 0 auto; }
-#app .c_euv_pagination { display: flex; justify-content: space-between; }
-#app .c_euv_pagination_auto_content { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; width: 100%; min-width: 0; box-sizing: border-box; list-style: none; margin: var(--space-2xl, 24px) 0 0; padding: 0; gap: var(--gap-component, 16px); }
-#app .c_euv_pagination_auto_content .c_euv_pagination_item { display: flex; min-width: 0; align-items: stretch; }
-#app .c_euv_pagination_auto_content .c_euv_pagination_link { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: center; align-items: center; flex: 1; width: 100%; height: auto; min-width: 0; min-height: calc(var(--control-height, 32px) + var(--space-lg, 16px)); box-sizing: border-box; padding: var(--space-lg, 16px); column-gap: var(--space-sm, 8px); row-gap: var(--space-2xs, 2px); white-space: normal; text-align: left; }
-#app .c_euv_pagination_auto_content .c_euv_pagination_next { text-align: right; }
-#app .c_euv_pagination_auto_content .c_euv_pagination_label, #app .c_euv_pagination_auto_content .c_euv_pagination_text { display: block; grid-column: 2; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#app .c_euv_pagination_auto_content .c_euv_pagination_label { grid-row: 1; }
-#app .c_euv_pagination_auto_content .c_euv_pagination_text { grid-row: 2; }
-#app .c_euv_pagination_auto_content .c_euv_pagination_icon { display: flex; grid-row: 1 / 3; width: var(--space-lg, 16px); align-items: center; justify-content: center; }
-#app .c_euv_pagination_auto_content .c_euv_pagination_previous .c_euv_pagination_icon { grid-column: 1; }
-#app .c_euv_pagination_auto_content .c_euv_pagination_next .c_euv_pagination_icon { grid-column: 3; }
-@media (max-width: 767px) {
-#app .c_euv_doc_layout { flex-direction: column; }
-#app .c_euv_doc_toc { display: none; }
-}
-"#;
-
 /// The error description shown by the `euv_result` 404 component.
 pub(crate) const NOT_FOUND_DESCRIPTION: &str = "页面不存在";
 
@@ -92,11 +23,11 @@ pub(crate) const NOT_FOUND_DESCRIPTION: &str = "页面不存在";
 pub(crate) const NOT_FOUND_HOME_LABEL: &str = "首页";
 
 /// Leaves shadcn row appearance entirely to the selected shared UI classes.
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 pub(crate) const APP_SIDEBAR_CSS: &str = "";
 
 /// Preserves the existing monochrome navigation treatment outside shadcn builds.
-#[cfg(any(not(feature = "theme-shadcn"), feature = "theme-custom"))]
+#[cfg(not(feature = "theme-shadcn"))]
 pub(crate) const APP_SIDEBAR_CSS: &str = r#"
 #app .c_euv_sidebar_children { margin-left: var(--space-md, 12px); padding-left: var(--space-sm, 8px); }
 #app .c_euv_sidebar_children .c_euv_sidebar_link::before, #app .c_euv_sidebar_children .c_euv_sidebar_group_title::before { left: -9px; }

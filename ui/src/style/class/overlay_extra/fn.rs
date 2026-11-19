@@ -1,6 +1,5 @@
 use super::*;
 
-#[cfg(not(feature = "theme-custom"))]
 class! {
     // ═══════════════════════════════════════════════════════════════════════════
     // Combobox — chip family
@@ -235,86 +234,7 @@ class! {
     }
 }
 
-#[cfg(feature = "theme-custom")]
-class! {
-    pub c_euv_combobox_chips {}
-
-    pub c_euv_combobox_chip_list {}
-
-    pub c_euv_combobox_chip {}
-
-    pub c_euv_combobox_chip_disabled {}
-
-    pub c_euv_combobox_chip_remove {}
-
-    pub c_euv_combobox_chips_input {}
-
-    pub c_euv_combobox_value {}
-
-    pub c_euv_menubar_group {}
-
-    pub c_euv_menubar_separator {}
-
-    pub c_euv_menubar_label {}
-
-    pub c_euv_menubar_label_inset {}
-
-    pub c_euv_menubar_shortcut {}
-
-    pub c_euv_menubar_checkbox_item {}
-
-    pub c_euv_menubar_checkbox_item_indicator {}
-
-    pub c_euv_menubar_radio_item {}
-
-    pub c_euv_menubar_radio_item_indicator {}
-
-    pub c_euv_menubar_radio_group {}
-
-    pub c_euv_menubar_sub {}
-
-    pub c_euv_menubar_sub_trigger {}
-
-    pub c_euv_menubar_sub_trigger_inset {}
-
-    pub c_euv_menubar_sub_content {}
-
-    pub c_euv_menubar_sub_content_open {}
-
-    pub c_euv_menubar_sub_content_closed {}
-
-    pub(crate) c_euv_menubar_radio_item_indicator_dot {}
-
-    pub(crate) c_euv_menubar_sub_trigger_open {}
-
-    pub(crate) c_euv_menubar_sub_trigger_indicator {}
-
-    pub c_euv_carousel_content {}
-
-    pub c_euv_carousel_content_track {}
-
-    pub c_euv_carousel_content_track_vertical {}
-
-    pub c_euv_carousel_item {}
-
-    pub c_euv_carousel_item_vertical {}
-
-    pub c_euv_carousel_next {}
-
-    pub c_euv_carousel_next_vertical {}
-
-    pub c_euv_carousel_previous {}
-
-    pub c_euv_carousel_previous_vertical {}
-
-    pub c_euv_calendar_day_button {}
-
-    pub c_euv_calendar_day_button_selected {}
-
-    pub c_euv_calendar_day_button_disabled {}
-}
-
-#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+#[cfg(not(feature = "theme-shadcn"))]
 class! {
     pub c_euv_combobox_chips {
         display: "flex";
@@ -543,7 +463,7 @@ class! {
     }
 }
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 class! {
     pub c_euv_combobox_chips {
         display: "flex";

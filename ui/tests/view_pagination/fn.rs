@@ -10,7 +10,6 @@ fn pagination_style(class: &Css, property: &str) -> Option<String> {
         .next_back()
 }
 
-#[cfg(not(feature = "theme-custom"))]
 fn assert_pagination_auto_rule(class: &Css, properties: &[(&str, &str)]) {
     let selector: String = format!(":is(.c_euv_pagination_auto_content .{})", class.get_name());
     let expected: PseudoRule = PseudoRule::new(
@@ -26,7 +25,7 @@ fn assert_pagination_auto_rule(class: &Css, properties: &[(&str, &str)]) {
 }
 
 #[test]
-#[cfg(not(feature = "theme-custom"))]
+
 fn auto_footer_uses_two_equal_stretch_tracks_without_a_mobile_collapse() {
     let auto: &Css = c_euv_pagination_auto_content();
     for (property, expected) in [
@@ -79,7 +78,7 @@ fn auto_footer_uses_two_equal_stretch_tracks_without_a_mobile_collapse() {
 }
 
 #[test]
-#[cfg(not(feature = "theme-custom"))]
+
 fn auto_footer_restores_two_visible_bounded_text_rows_with_qualified_selectors() {
     assert_pagination_auto_rule(
         c_euv_pagination_label(),
@@ -136,7 +135,7 @@ fn auto_footer_restores_two_visible_bounded_text_rows_with_qualified_selectors()
 
 #[test]
 fn auto_footer_geometry_does_not_change_manual_numbered_or_custom_pagination() {
-    let classes: [&Css; 9] = [
+    let _classes: [&Css; 9] = [
         c_euv_pagination_auto_content(),
         c_euv_pagination_item(),
         c_euv_pagination_link(),
@@ -147,14 +146,6 @@ fn auto_footer_geometry_does_not_change_manual_numbered_or_custom_pagination() {
         c_euv_pagination_next(),
         c_euv_pagination_content(),
     ];
-    if cfg!(feature = "theme-custom") {
-        for class in classes {
-            assert!(class.get_style().is_empty(), "{}", class.get_name());
-            assert!(class.get_pseudo_rules().is_empty(), "{}", class.get_name());
-            assert!(class.get_media_rules().is_empty(), "{}", class.get_name());
-        }
-        return;
-    }
     assert_eq!(
         pagination_style(c_euv_pagination_content(), "display").as_deref(),
         Some("flex")

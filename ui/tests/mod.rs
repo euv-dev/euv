@@ -26,7 +26,6 @@ mod layout_shell;
 mod lazy;
 mod markdown_inline_code;
 mod md_css;
-#[cfg(not(feature = "theme-custom"))]
 mod menu_hover_css;
 mod month_caption;
 mod no_dom_fallback;
@@ -37,7 +36,7 @@ mod router;
 mod router_select;
 mod safe_area_contract;
 mod shadcn_spec;
-#[cfg(all(not(feature = "theme-custom"), not(feature = "theme-shadcn")))]
+#[cfg(not(feature = "theme-shadcn"))]
 mod sidebar_css;
 mod sidebar_first_page;
 mod sidebar_shadcn;

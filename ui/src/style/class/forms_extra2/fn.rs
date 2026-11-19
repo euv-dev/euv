@@ -1,6 +1,5 @@
 use super::*;
 
-#[cfg(not(feature = "theme-custom"))]
 class! {
     // A field wraps one control of a form. The name and the invalid state
     // live on the element so the label, the description and the message
@@ -105,29 +104,7 @@ class! {
     }
 }
 
-#[cfg(feature = "theme-custom")]
-class! {
-    pub c_euv_form_field {}
-    pub c_euv_form_item {}
-    pub c_euv_pagination_page {}
-
-    pub c_euv_pagination_page_active {}
-
-    pub c_euv_pagination_page_inactive {}
-    pub c_euv_pagination_content {}
-    pub c_euv_pagination_auto_content {}
-
-    pub c_euv_pagination_item {}
-    pub c_euv_pagination_ellipsis {}
-
-    pub c_euv_questionnaire_choice_indicator_dot {}
-    pub c_euv_questionnaire_choice_indicator_check {}
-    pub c_euv_questionnaire_choice_input {}
-    pub c_euv_questionnaire_choice_shortcut {}
-    pub c_euv_questionnaire_input_wrapper {}
-}
-
-#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+#[cfg(not(feature = "theme-shadcn"))]
 class! {
     pub c_euv_pagination_page {
         display: "inline-flex";
@@ -199,7 +176,7 @@ class! {
     }
 }
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 class! {
     pub c_euv_pagination_page {
         display: "inline-flex";

@@ -1,6 +1,6 @@
 use super::*;
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 #[test]
 fn selected_select_rules_keep_attribute_conditions_and_real_descendant_selectors() {
     for (css, expected) in [
@@ -40,7 +40,7 @@ fn selected_select_rules_keep_attribute_conditions_and_real_descendant_selectors
     }
 }
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 #[test]
 fn mounted_tabs_and_checkbox_states_keep_ordered_state_paint_above_the_base() {
     assert_eq!(
@@ -82,7 +82,7 @@ fn mounted_tabs_and_checkbox_states_keep_ordered_state_paint_above_the_base() {
     );
 }
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 #[test]
 fn formerly_global_canonical_geometry_is_selected_without_scheme_ancestors() {
     for (css, property, expected) in [
@@ -210,9 +210,8 @@ fn root_property_reader_does_not_read_pseudo_or_media_rules() {
 }
 
 #[test]
-fn compiled_geometry_metadata_has_concrete_capabilities_and_custom_is_empty() {
-    let custom: bool = cfg!(feature = "theme-custom");
-    let shadcn: bool = cfg!(feature = "theme-shadcn") && !custom;
+fn compiled_geometry_metadata_has_concrete_capabilities() {
+    let shadcn: bool = cfg!(feature = "theme-shadcn");
     for (css, property, default, selected) in [
         (
             c_euv_dropdown_menu(),
@@ -236,17 +235,8 @@ fn compiled_geometry_metadata_has_concrete_capabilities_and_custom_is_empty() {
         (c_euv_select_panel(), "--euv-select-align-item", "0", "1"),
         (c_euv_textarea(), "--euv-textarea-rows", "3", "2"),
     ] {
-        let expected: Option<String> = if custom {
-            None
-        } else {
-            Some(String::from(if shadcn { selected } else { default }))
-        };
+        let expected: Option<String> = Some(String::from(if shadcn { selected } else { default }));
         assert_eq!(class_property(css, property), expected, "{property}");
-        if custom {
-            assert!(css.get_style().is_empty());
-            assert!(css.get_pseudo_rules().is_empty());
-            assert!(css.get_media_rules().is_empty());
-        }
     }
     let align_item: bool = class_property(c_euv_select_panel(), "--euv-select-align-item")
         .map(|value: String| value == "1")
@@ -256,13 +246,10 @@ fn compiled_geometry_metadata_has_concrete_capabilities_and_custom_is_empty() {
 
 #[test]
 fn unconditional_indicators_are_hidden_only_in_the_default_style() {
-    let custom: bool = cfg!(feature = "theme-custom");
-    let shadcn: bool = cfg!(feature = "theme-shadcn") && !custom;
+    let shadcn: bool = cfg!(feature = "theme-shadcn");
     for css in [c_form_checkbox_indicator(), c_euv_select_option_indicator()] {
         let display: Option<String> = class_property(css, "display");
-        if custom {
-            assert!(css.get_style().is_empty());
-        } else if shadcn {
+        if shadcn {
             assert_ne!(display.as_deref(), Some("none"));
         } else {
             assert_eq!(display.as_deref(), Some("none"));
@@ -288,10 +275,6 @@ fn primary_and_default_buttons_keep_distinct_names_and_the_same_compiled_paint()
 
 #[test]
 fn disabled_group_contains_its_own_frame_paint_and_disabled_state() {
-    if cfg!(feature = "theme-custom") {
-        assert!(c_euv_input_group_disabled().get_style().is_empty());
-        return;
-    }
     let css: &Css = c_euv_input_group_disabled();
     assert_eq!(class_property(css, "display").as_deref(), Some("flex"));
     assert_eq!(
@@ -311,17 +294,7 @@ fn disabled_group_contains_its_own_frame_paint_and_disabled_state() {
 
 #[test]
 fn pagination_display_policy_preserves_titles_in_default_and_directions_in_shadcn() {
-    if cfg!(feature = "theme-custom") {
-        for css in [
-            c_euv_pagination(),
-            c_euv_pagination_content(),
-            c_euv_pagination_auto_content(),
-            c_euv_pagination_text(),
-            c_euv_pagination_icon(),
-        ] {
-            assert!(css.get_style().is_empty());
-        }
-    } else if cfg!(feature = "theme-shadcn") {
+    if cfg!(feature = "theme-shadcn") {
         assert_eq!(
             class_property(c_euv_pagination_text(), "display").as_deref(),
             Some("none")
@@ -358,13 +331,6 @@ fn pagination_manual_and_automatic_content_preserve_ordered_layout_rules() {
     assert_ne!(manual.get_name(), automatic.get_name());
     for css in [manual, automatic] {
         assert!(css.get_pseudo_rules().is_empty());
-    }
-    if cfg!(feature = "theme-custom") {
-        for css in [manual, automatic] {
-            assert!(css.get_style().is_empty());
-            assert!(css.get_media_rules().is_empty());
-        }
-        return;
     }
     let mut manual_expected: String = format!(
         "display:flex;align-items:center;gap:{};list-style:none;margin:0px;padding:0px;",
@@ -406,7 +372,7 @@ fn pagination_root_never_inherits_automatic_grid_or_spacing() {
     for property in ["grid-template-columns", "gap", "margin-top"] {
         assert_eq!(class_property(root, property), None, "{property}");
     }
-    if cfg!(feature = "theme-custom") || !cfg!(feature = "theme-shadcn") {
+    if !cfg!(feature = "theme-shadcn") {
         assert!(root.get_style().is_empty());
     } else {
         assert_eq!(

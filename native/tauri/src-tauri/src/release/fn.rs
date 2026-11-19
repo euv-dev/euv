@@ -88,14 +88,12 @@ pub(crate) fn parse_release(bytes: &[u8], minimum: &str) -> Result<ReleaseManife
     }
     let mut paths: HashSet<String> = HashSet::new();
     for file in &manifest.files {
-        if !safe_release_path(&file.path)
-            || !paths.insert(file.path.clone())
-            || file.sha256.len() != 64
-            || !file
-                .sha256
-                .bytes()
-                .all(|byte: u8| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        {
+        let digest_valid: bool = file.sha256.len() == 64
+            && file.sha256.bytes().all(|byte: u8| {
+                byte.is_ascii_digit()
+                    || (RELEASE_HEX_LETTER_START..=RELEASE_HEX_LETTER_END).contains(&byte)
+            });
+        if !safe_release_path(&file.path) || !paths.insert(file.path.clone()) || !digest_valid {
             return Err(INVALID_RELEASE_INVENTORY.to_string());
         }
     }
@@ -267,7 +265,7 @@ pub(crate) async fn activate_release(
     if !name.starts_with(RELEASE_PREFIX)
         || !name
             .bytes()
-            .all(|byte: u8| byte.is_ascii_alphanumeric() || byte == b'_')
+            .all(|byte: u8| byte.is_ascii_alphanumeric() || byte == RELEASE_SNAPSHOT_SEPARATOR)
     {
         return Err(INVALID_SNAPSHOT_NAME.to_string());
     }
