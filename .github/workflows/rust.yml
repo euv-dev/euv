@@ -76,6 +76,8 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Verify live example inventory and removed feature wiring
         run: python3 example/scripts/validation/source.py
+      - name: Verify cold and warm retired-theme cache removal
+        run: node --test native/tauri/scripts/tests/theme-build.test.js
 
   tests:
     needs: setup
