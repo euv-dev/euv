@@ -276,12 +276,7 @@ fn build_one(args: &Args, out_dir: &Path) -> Result<(), String> {
     // like GitHub Pages serve the SPA shell for unknown paths instead
     // of returning a plain 404 — the wasm router will then resolve the
     // locale-specific route client-side.
-    let index_html: PathBuf = out_dir.join(INDEX_HTML_FILE_NAME);
-    let not_found_html: PathBuf = out_dir.join(NOT_FOUND_HTML_FILE_NAME);
-    if index_html.is_file() {
-        fs::copy(&index_html, &not_found_html)
-            .map_err(|e: io::Error| format!("copy 404.html: {e}"))?;
-    }
+    localize_document_output(out_dir)?;
     println!("euv-docs: build complete -> {}", out_dir.display());
     Ok(())
 }

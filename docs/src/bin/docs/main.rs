@@ -1,8 +1,10 @@
 mod r#const;
+#[path = "../../document_html/mod.rs"]
+mod document_html;
 mod r#fn;
 mod r#struct;
 
-pub(crate) use {r#const::*, r#fn::*, r#struct::*};
+pub(crate) use {r#const::*, document_html::*, r#fn::*, r#struct::*};
 
 use std::{
     env,

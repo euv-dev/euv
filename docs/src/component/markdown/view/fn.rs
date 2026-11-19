@@ -125,9 +125,9 @@ fn render_docs_block(
         EuvMdBlock::Container {
             kind,
             title,
-            blocks,
+            blocks: inner,
         } => {
-            if contains_code(blocks) {
+            if contains_code(inner) {
                 html! {
                     div {
                         class: {
@@ -144,7 +144,7 @@ fn render_docs_block(
                             }
                         }
                         {
-                            render_docs_blocks(blocks)
+                            render_docs_blocks(inner)
                         }
                     }
                 }

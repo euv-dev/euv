@@ -57,76 +57,97 @@ final class EuvSmokeTests: XCTestCase {
         add(image)
     }
 
+    func themeContentWebView(_ app: XCUIApplication) -> XCUIElement? {
+        // WebKit can nest WebViews. Resolve the innermost one containing the
+        // selector, not an outer wrapper or an unrelated sibling document.
+        let candidates = app.webViews.containing(.any, identifier: "Theme feature").allElementsBoundByIndex
+        return candidates.first(where: {
+            !$0.webViews.containing(.any, identifier: "Theme feature").firstMatch.exists
+        })
+    }
+
     func assertThemeReady(_ app: XCUIApplication, theme: String, file: StaticString = #filePath, line: UInt = #line) {
-        let web = app.webViews.firstMatch
-        var pending = "version badge"
+        var pending = "rendered content WebView"
+        var content: XCUIElement?
         let ready = NSPredicate { _, _ in
-            // Resolve the selector only after WebKit exposes the rendered page.
+            // Resolve once after navigation; subsequent polls stay inside the
+            // concrete document instead of repeatedly snapshotting the app.
+            if content == nil { content = self.themeContentWebView(app) }
+            guard let web = content, web.exists else { return false }
             pending = "version badge"
-            guard web.staticTexts["__EXPECTED_VERSION__"].exists else { return false }
+            // Custom renders the exact version twice (badge and package table).
+            // Match rendered labels exactly and tolerate duplicate exact labels.
+            let version = web.staticTexts.matching(NSPredicate(
+                format: "label == %@", "__EXPECTED_VERSION__"
+            )).firstMatch
+            guard version.exists else { return false }
             pending = "theme selector value"
             let selected = web.descendants(matching: .any).matching(NSPredicate(
                 format: "label == %@ AND value == %@", "Theme feature", theme
             ))
             guard selected.firstMatch.exists else { return false }
             pending = "mobile menu button"
-            return web.buttons["☰"].exists
+            guard web.buttons.matching(identifier: "☰").firstMatch.exists else { return false }
+            pending = "unexpected Page Not Found"
+            return !web.staticTexts.matching(NSPredicate(format: "label == %@", "Page Not Found")).firstMatch.exists
         }
-        func waitForSnapshot() -> XCTWaiter.Result {
-            let expectation = XCTNSPredicateExpectation(predicate: ready, object: app)
-            return XCTWaiter.wait(for: [expectation], timeout: 60)
-        }
-        var result = waitForSnapshot()
-        if result == .timedOut {
-            // One WebKit accessibility request can consume the entire wait on
-            // the Intel simulator. Retry the observation, not the selection.
-            print("Retrying theme \(theme) accessibility snapshot after waiting for \(pending)")
-            result = waitForSnapshot()
-        }
+        let expectation = XCTNSPredicateExpectation(predicate: ready, object: app)
+        let result = XCTWaiter.wait(for: [expectation], timeout: 60)
         guard result == .completed else {
             XCTFail("Theme \(theme) was not ready (\(pending), \(result))\n\(app.debugDescription)", file: file, line: line)
             return
         }
-        XCTAssertFalse(web.staticTexts["Page Not Found"].exists, theme, file: file, line: line)
     }
 
-    func testThemeVariantsAndRestart() throws {
+    func assertThemeVariant(_ theme: String) {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: "com.euv")
         app.launch()
-        let selector = app.descendants(matching: .any).matching(identifier: "Theme feature").firstMatch
-        XCTAssertTrue(selector.waitForExistence(timeout: 60), app.debugDescription)
-        for theme in __THEME_NAMES__ {
-            let optionLabel = theme
-            selector.tap()
-            let wheel = app.pickerWheels.firstMatch
-            if wheel.waitForExistence(timeout: 2) {
-                wheel.adjust(toPickerWheelValue: optionLabel)
-                let done = app.buttons["Done"]
-                if done.exists { done.tap() }
-            } else {
-                let option = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", optionLabel)).firstMatch
-                for _ in 0..<4 {
-                    if option.exists { break }
-                    let menu = app.collectionViews.firstMatch
-                    if !menu.exists { break }
-                    let start = menu.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
-                    let end = menu.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
-                    start.press(forDuration: 0.05, thenDragTo: end)
-                }
-                XCTAssertTrue(option.waitForExistence(timeout: 5), app.debugDescription)
-                option.tap()
-            }
-            assertThemeReady(app, theme: theme)
-            attach(app, "theme-" + theme)
+        defer { app.terminate() }
+        let documents = app.webViews.containing(.any, identifier: "Theme feature")
+        XCTAssertTrue(documents.firstMatch.waitForExistence(timeout: 60), app.debugDescription)
+        guard let web = themeContentWebView(app) else {
+            XCTFail("No content WebView hosting Theme feature\n\(app.debugDescription)")
+            return
         }
+        let selector = web.descendants(matching: .any).matching(identifier: "Theme feature").firstMatch
+        selector.tap()
+        let wheel = app.pickerWheels.firstMatch
+        if wheel.waitForExistence(timeout: 2) {
+            wheel.adjust(toPickerWheelValue: theme)
+            let done = app.buttons["Done"]
+            if done.exists { done.tap() }
+        } else {
+            let option = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", theme)).firstMatch
+            for _ in 0..<4 {
+                if option.exists { break }
+                let menu = app.collectionViews.firstMatch
+                if !menu.exists { break }
+                let start = menu.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
+                let end = menu.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
+                start.press(forDuration: 0.05, thenDragTo: end)
+            }
+            XCTAssertTrue(option.waitForExistence(timeout: 5), app.debugDescription)
+            option.tap()
+        }
+        assertThemeReady(app, theme: theme)
+        attach(app, "theme-" + theme)
+    }
+
+__THEME_TEST_METHODS__
+
+    func testDefaultThemeRestart() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication(bundleIdentifier: "com.euv")
+        app.launch()
+        defer { app.terminate() }
+        assertThemeReady(app, theme: "default")
         app.terminate()
         app.launch()
-        XCTAssertTrue(selector.waitForExistence(timeout: 60), app.debugDescription)
-        XCTAssertFalse(app.staticTexts["Page Not Found"].exists)
+        assertThemeReady(app, theme: "default")
         attach(app, "theme-restart")
-        app.terminate()
     }
 
     func testLocalPagesCounterAndRestart() throws {
@@ -136,7 +157,7 @@ final class EuvSmokeTests: XCTestCase {
         app.launchEnvironment["EUV_CLIENT_DIAGNOSTICS"] = "1"
         app.launch()
         XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 45), app.debugDescription)
-        let version = app.staticTexts["__EXPECTED_VERSION__"]
+        let version = app.staticTexts.matching(identifier: "__EXPECTED_VERSION__").firstMatch
         XCTAssertTrue(version.waitForExistence(timeout: 45), app.debugDescription)
         XCTAssertEqual(app.statusBars.count, 0, "Immersive mode must hide the status bar")
         Thread.sleep(forTimeInterval: 3)
@@ -176,6 +197,17 @@ final class EuvSmokeTests: XCTestCase {
     }
 }
 '''
+
+
+def render_swift_tests(version, theme_names):
+    """Give every metadata-derived theme an independent application lifecycle."""
+    methods = '\n\n'.join(
+        f'    func testTheme_{theme}() throws {{\n'
+        f'        assertThemeVariant("{theme}")\n'
+        '    }'
+        for theme in theme_names
+    )
+    return SWIFT_TEST.replace('__EXPECTED_VERSION__', 'v' + version).replace('__THEME_TEST_METHODS__', methods)
 
 
 def select_ios_runtime(runtimes, sdk_version):
@@ -292,7 +324,9 @@ def main():
         project.mkdir(exist_ok=True)
         example_manifest = (ROOT / '../../example/Cargo.toml').resolve().read_text()
         theme_names = sorted(re.findall(r'^theme-([a-z0-9]+)\s*=', example_manifest, re.MULTILINE)) + ['default']
-        swift_test = SWIFT_TEST.replace('__EXPECTED_VERSION__', 'v' + version).replace('__THEME_NAMES__', json.dumps(theme_names))
+        swift_test = render_swift_tests(version, theme_names)
+        report['theme_names'] = theme_names
+        report['expected_xctest_count'] = len(theme_names) + 2
         (project / 'SmokeTests.swift').write_text(swift_test)
         spec = {
             'name': 'EuvSmoke',
@@ -333,6 +367,7 @@ def main():
         for entry in manifest['files']:
             content = (caches[0] / active / entry['path']).read_bytes()
             assert len(content) == entry['size'] and hashlib.sha256(content).hexdigest() == entry['sha256'], entry['path']
+        report['cache_files_verified'] = len(manifest['files'])
         display_log_seconds = display_log_window_seconds(test_started, time.monotonic())
         report['display_log_window_seconds'] = display_log_seconds
         display_logs = json.loads(capture(['xcrun', 'simctl', 'spawn', udid, 'log', 'show', '--last', f'{display_log_seconds}s',

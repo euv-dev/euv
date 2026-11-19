@@ -19,17 +19,16 @@ pub(crate) const SIDEBAR_ACTIVE_SELECTOR: &str = ".c_euv_sidebar_link_active, \
 /// rather than revealed; a large value reintroduces the drift the minimum
 /// move was meant to remove.
 pub(crate) const SIDEBAR_SCROLL_GAP: f64 = 12.0;
-/// Selector of a locale dropdown root (trigger plus its menu), so an
-/// outside-click can tell an inside click from an outside one.
-pub(crate) const LOCALE_DROPDOWN_SELECTOR: &str = ".c_euv_dropdown";
-/// The document event an outside click is delivered on.
-///
-/// `pointerdown` rather than `click`: `click` fires only after the browser
-/// has finished deciding what the press means, so a press that starts
-/// outside and ends on a row (or is cancelled by a drag) still closes the
-/// menu. Capturing the press is what makes "click away to dismiss" feel
-/// immediate rather than lagging a frame or two behind the finger.
-pub(crate) const DOCUMENT_OUTSIDE_POINTER_EVENT: &str = "pointerdown";
+
+/// Class attribute used to preserve the locale trigger's nav styling.
+pub(crate) const LOCALE_TRIGGER_CLASS_ATTRIBUTE: &str = "class";
+/// Title attribute used by the locale trigger.
+pub(crate) const LOCALE_TRIGGER_TITLE_ATTRIBUTE: &str = "title";
+/// Existing locale trigger tooltip.
+pub(crate) const LOCALE_TRIGGER_TITLE: &str = "语言";
+
+/// Identifies the mobile drawer as the owning sheet for nested UI portals.
+pub(crate) const DOCS_DRAWER_CONTENT_SLOT: &str = "sheet-content";
 
 /// The placeholder of the header's search field.
 pub(crate) const HEADER_SEARCH_PLACEHOLDER: &str = "Search documentation...";

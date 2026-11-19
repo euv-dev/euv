@@ -302,3 +302,6 @@ pub(crate) const DEPLOY_DIR_NAME: &str = ".deploy";
 /// directory: URL prefix, bundle directory, label). The `euv-docs` CLI
 /// reads it to discover the remaining locales after the first build.
 pub(crate) const LOCALE_MANIFEST_FILE_NAME: &str = "locales.tsv";
+
+/// Pinned document language consumed when finalizing the generated HTML.
+pub(crate) const DOCUMENT_LANGUAGE_FILE_NAME: &str = "document-lang.txt";
