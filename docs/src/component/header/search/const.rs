@@ -2,12 +2,6 @@
 pub(crate) const HEADER_SEARCH_LIMIT: usize = 8;
 /// Unique-instance id prefix.
 pub(crate) const HEADER_SEARCH_ID: &str = "docs-search";
-/// Accessible search name.
-pub(crate) const HEADER_SEARCH_LABEL: &str = "Search documentation";
-/// Empty-query instruction.
-pub(crate) const HEADER_SEARCH_EMPTY: &str = "Type to search documentation";
-/// No-match announcement.
-pub(crate) const HEADER_SEARCH_NONE: &str = "No matching pages";
 /// Keyboard keys handled by the search controller.
 pub(crate) const HEADER_SEARCH_DOWN: &str = "ArrowDown";
 /// Previous preview key.

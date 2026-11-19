@@ -61,6 +61,7 @@ fn assert_rendered_link(locale: &'static DocsLocale, link: &str, route: &str, ex
         Signal::create(route.to_string()),
         Signal::create("light".to_string()),
         Signal::create(String::new()),
+        Signal::create(false),
     );
     let href: String = if link.starts_with("http") {
         link.to_string()

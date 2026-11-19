@@ -210,6 +210,9 @@ pub(crate) async fn stage_release(
     required: &[String],
 ) -> Result<String, String> {
     let base: Url = Url::parse(base).map_err(release_error)?;
+    if !base.path().ends_with('/') {
+        return Err(RELEASE_ORIGIN_MISMATCH.to_string());
+    }
     let descriptor: Url = base.join(RELEASE_NAME).map_err(release_error)?;
     let bytes: Vec<u8> = release_bytes(client, descriptor)
         .await
@@ -273,10 +276,19 @@ pub(crate) async fn activate_release(
         .await
         .map_err(release_error)?;
     let temporary: PathBuf = root.join(format!(".release_pointer_{name}"));
+    let mut pointer_created: bool = false;
     let outcome: Result<(), String> = async {
         stage_release(client, base, &directory, minimum, required).await?;
         verified_release(&directory, minimum).await?;
-        write(&temporary, name).await.map_err(release_error)?;
+        let pointer: File = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .await
+            .map_err(release_error)?;
+        pointer_created = true;
+        io::Write::write_all(&mut pointer.into_std().await, name.as_bytes())
+            .map_err(release_error)?;
         tokio::fs::rename(&temporary, root.join(RELEASE_POINTER))
             .await
             .map_err(release_error)?;
@@ -285,7 +297,9 @@ pub(crate) async fn activate_release(
     .await;
     if outcome.is_err() {
         tokio::fs::remove_dir_all(&directory).await.ok();
-        tokio::fs::remove_file(&temporary).await.ok();
+        if pointer_created {
+            tokio::fs::remove_file(&temporary).await.ok();
+        }
     }
     outcome
 }

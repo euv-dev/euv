@@ -9,6 +9,8 @@ pub(crate) struct DocsShellProps {
     pub(crate) theme_signal: Signal<String>,
     /// The theme root class signal (`c_app_root c_theme_light`, …).
     pub(crate) root_class_signal: Signal<String>,
+    /// The responsive layout mode shared with scope cleanup.
+    pub(crate) mobile_signal: Signal<bool>,
     /// Mobile drawer open state.
     pub(crate) drawer_open: Signal<bool>,
     /// Locale dropdown open state.

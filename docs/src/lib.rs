@@ -30,6 +30,7 @@ pub(crate) use {
     description::*,
     highlight::*,
     js_sys::Promise,
+    std::cell::{Cell, RefCell},
     {Event, HtmlInputElement, KeyboardEvent, Location},
 };
 

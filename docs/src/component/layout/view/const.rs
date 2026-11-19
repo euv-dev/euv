@@ -29,6 +29,3 @@ pub(crate) const LOCALE_TRIGGER_TITLE: &str = "语言";
 
 /// Identifies the mobile drawer as the owning sheet for nested UI portals.
 pub(crate) const DOCS_DRAWER_CONTENT_SLOT: &str = "sheet-content";
-
-/// The placeholder of the header's search field.
-pub(crate) const HEADER_SEARCH_PLACEHOLDER: &str = "Search documentation...";

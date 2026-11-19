@@ -20,6 +20,8 @@ pub(crate) fn header_search_preview(
     input_id: String,
     target: NodeRef<Element>,
 ) -> VirtualNode {
+    let route: String = route_signal.get();
+    let label: String = locale_text(&route, DOCS_KEY_SEARCH_LABEL);
     let results: Vec<DocsPage> = header_search_matches(crate::generated::SITE.pages, &query.get());
     let snapshot: HeaderSearchState = state.get();
     let open: bool = snapshot.get_open();
@@ -36,11 +38,12 @@ pub(crate) fn header_search_preview(
     let status: String = if !open {
         String::new()
     } else if query.get().trim().is_empty() {
-        HEADER_SEARCH_EMPTY.to_string()
+        locale_text(&route, DOCS_KEY_SEARCH_EMPTY)
     } else if results.is_empty() {
-        HEADER_SEARCH_NONE.to_string()
+        locale_text(&route, DOCS_KEY_SEARCH_NONE)
     } else {
-        format!("{} matching pages", results.len())
+        locale_text(&route, DOCS_KEY_SEARCH_COUNT)
+            .replace(DOCS_SEARCH_COUNT_TOKEN, &results.len().to_string())
     };
     let rows: Vec<VirtualNode> = results
         .iter()
@@ -88,7 +91,7 @@ pub(crate) fn header_search_preview(
                 class: CLASS_DOCS_HEADER_SEARCH_INPUT
                 type: HEADER_SEARCH_TYPE
                 role: HEADER_SEARCH_COMBOBOX
-                "aria-label": HEADER_SEARCH_LABEL
+                "aria-label": label.clone()
                 "aria-autocomplete": HEADER_SEARCH_LIST
                 "aria-haspopup": HEADER_SEARCH_LISTBOX
                 "aria-expanded": if open {
@@ -99,7 +102,7 @@ pub(crate) fn header_search_preview(
                 "aria-controls": list_id.clone()
                 "aria-activedescendant": active_id
                 autocomplete: HEADER_SEARCH_OFF
-                placeholder: HEADER_SEARCH_PLACEHOLDER
+                placeholder: locale_text(&route, DOCS_KEY_SEARCH_PLACEHOLDER)
                 value: query
                 onfocus: move |_event: Event| {
                     header_search_focus(state);
@@ -130,7 +133,7 @@ pub(crate) fn header_search_preview(
                 div {
                     id: list_id
                     role: HEADER_SEARCH_LISTBOX
-                    "aria-label": HEADER_SEARCH_LABEL
+                    "aria-label": label.clone()
                     rows
                 }
                 div {

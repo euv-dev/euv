@@ -49,8 +49,8 @@ pub(crate) use {
     },
     tokio::{
         fs::{
-            ReadDir, create_dir_all, metadata, read, read_dir, read_to_string, remove_dir_all,
-            rename, write,
+            File, OpenOptions, ReadDir, create_dir_all, metadata, read, read_dir, read_to_string,
+            remove_dir_all, rename, write,
         },
         sync::{
             Mutex, MutexGuard,

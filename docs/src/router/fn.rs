@@ -453,6 +453,12 @@ pub fn locale_prefix_for(route: &str) -> &'static str {
 /// - `&'static str` - The owning locale's label, as `build.rs` emitted
 ///   it from the content repository's `[[locales]]` frontmatter.
 pub fn locale_label_for(route: &str) -> &'static str {
+    if let Some(language) = crate::generated::SITE_LANGUAGES
+        .iter()
+        .find(|language: &&DocsLanguageLink| language.dir == crate::generated::SITE_LOCALE_DIR)
+    {
+        return language.label;
+    }
     let prefix: &str = locale_of(route).prefix;
     for language in crate::generated::SITE_LANGUAGES {
         if language.dir.is_empty() && prefix == "/" {
