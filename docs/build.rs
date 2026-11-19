@@ -1,11 +1,18 @@
+#[cfg(test)]
+#[path = "tests/asset_url/mod.rs"]
+mod asset_url;
 mod codegen;
+#[path = "src/document_language/mod.rs"]
+mod document_language;
 
 use std::{
     collections::{HashSet, VecDeque},
     env::var,
     ffi::OsStr,
     fs,
+    option::Option,
     path::{Component, Path, PathBuf},
+    string::String,
 };
 
 use {
@@ -14,7 +21,7 @@ use {
     serde_yaml::Value,
 };
 
-use codegen::*;
+use {codegen::*, document_language::*};
 
 /// Root of the project README.md frontmatter (site + locales block).
 #[derive(Debug)]
@@ -375,6 +382,14 @@ fn main() {
     let sidebars: Vec<(String, Vec<SideItem>)> = vec![(URL_PREFIX_ROOT.to_string(), sidebar_items)];
 
     write_locale_manifest(&www_dir, &config);
+    if let Err(reason) = fs::write(
+        www_dir
+            .join(DEPLOY_DIR_NAME)
+            .join(DOCUMENT_LANGUAGE_FILE_NAME),
+        document_language_for_label(&config.locales[pinned].label),
+    ) {
+        fail(&format!("failed to write document language: {reason}"));
+    }
 
     let footer_items: String = footer_items_code(&config.site.footer_items, default_bundle);
     let code: String = codegen(&config, &pinned_locale, &pages, &sidebars, &footer_items);
@@ -626,6 +641,7 @@ fn rebase_asset_url(url: &str) -> String {
         || url.starts_with("../")
         || url.starts_with('/')
         || url.starts_with(URL_SCHEME_HTTP)
+        || url.starts_with(URL_SCHEME_HTTPS)
         || url.starts_with(URL_SCHEME_DATA)
         || url.starts_with(URL_SCHEME_BLOB)
     {

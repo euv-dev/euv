@@ -1,8 +1,13 @@
 mod anchor;
+#[path = "../src/document_language/mod.rs"]
+mod build_document_language;
 mod code_block;
 #[cfg(feature = "theme-custom")]
 mod custom_layout;
 mod description;
+#[path = "../src/document_html/mod.rs"]
+mod document_html;
+mod document_language;
 mod footer;
 mod header_links;
 mod header_search;
@@ -14,13 +19,14 @@ mod scroll;
 mod sidebar;
 mod toc_navigation;
 
-use super::*;
-use euv_ui::EuvSidebarItem;
+use {super::*, build_document_language::*, document_html::*, euv_ui::EuvSidebarItem};
 
 use std::{
     borrow::Cow,
     collections::HashSet,
+    env,
     ffi::OsStr,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
+    process,
 };
