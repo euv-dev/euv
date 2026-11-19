@@ -20,10 +20,18 @@ import XCTest
 
 final class EuvSmokeTests: XCTestCase {
     func assertCounter(_ app: XCUIApplication, equals expected: Int, file: StaticString = #filePath, line: UInt = #line) {
-        // WebKit exposes the paragraph as separate prefix, number and suffix texts.
-        // Require the number to be a direct sibling of the exact semantic prefix,
-        // not an unrelated 0/1 elsewhere in the page or an ancestor's heading value.
         let predicate = NSPredicate { _, _ in
+            // Newer WebKit exposes the entire paragraph as one text element.
+            let combined = app.webViews.firstMatch.staticTexts.matching(NSPredicate(
+                format: "label MATCHES %@", "^The current count is -?[0-9]+\\. Each click updates the Signal, .+$"
+            ))
+            let combinedCount = combined.count
+            if combinedCount > 0 {
+                return combinedCount == 1 && combined.element(boundBy: 0).label
+                    .hasPrefix("The current count is \(expected). Each click updates the Signal, ")
+            }
+            // Older WebKit splits the paragraph into text nodes. Require the
+            // number beside the exact prefix, not an unrelated value on the page.
             let paragraphs = app.otherElements
                 .containing(.staticText, identifier: "The current count is")
                 .allElementsBoundByIndex.filter {
@@ -47,6 +55,39 @@ final class EuvSmokeTests: XCTestCase {
         image.name = name
         image.lifetime = .keepAlways
         add(image)
+    }
+
+    func assertThemeReady(_ app: XCUIApplication, theme: String, file: StaticString = #filePath, line: UInt = #line) {
+        let web = app.webViews.firstMatch
+        var pending = "version badge"
+        let ready = NSPredicate { _, _ in
+            // Resolve the selector only after WebKit exposes the rendered page.
+            pending = "version badge"
+            guard web.staticTexts["__EXPECTED_VERSION__"].exists else { return false }
+            pending = "theme selector value"
+            let selected = web.descendants(matching: .any).matching(NSPredicate(
+                format: "label == %@ AND value == %@", "Theme feature", theme
+            ))
+            guard selected.firstMatch.exists else { return false }
+            pending = "mobile menu button"
+            return web.buttons["☰"].exists
+        }
+        func waitForSnapshot() -> XCTWaiter.Result {
+            let expectation = XCTNSPredicateExpectation(predicate: ready, object: app)
+            return XCTWaiter.wait(for: [expectation], timeout: 60)
+        }
+        var result = waitForSnapshot()
+        if result == .timedOut {
+            // One WebKit accessibility request can consume the entire wait on
+            // the Intel simulator. Retry the observation, not the selection.
+            print("Retrying theme \(theme) accessibility snapshot after waiting for \(pending)")
+            result = waitForSnapshot()
+        }
+        guard result == .completed else {
+            XCTFail("Theme \(theme) was not ready (\(pending), \(result))\n\(app.debugDescription)", file: file, line: line)
+            return
+        }
+        XCTAssertFalse(web.staticTexts["Page Not Found"].exists, theme, file: file, line: line)
     }
 
     func testThemeVariantsAndRestart() throws {
@@ -77,13 +118,7 @@ final class EuvSmokeTests: XCTestCase {
                 XCTAssertTrue(option.waitForExistence(timeout: 5), app.debugDescription)
                 option.tap()
             }
-            Thread.sleep(forTimeInterval: 0.8)
-            XCTAssertTrue(selector.waitForExistence(timeout: 60), "Theme failed to load: \(theme)\n\(app.debugDescription)")
-            let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", optionLabel), object: selector)
-            XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 60), .completed, app.debugDescription)
-            XCTAssertTrue(app.staticTexts["__EXPECTED_VERSION__"].waitForExistence(timeout: 60), app.debugDescription)
-            XCTAssertFalse(app.staticTexts["Page Not Found"].exists, theme)
-            XCTAssertTrue(app.buttons["☰"].exists, app.debugDescription)
+            assertThemeReady(app, theme: theme)
             attach(app, "theme-" + theme)
         }
         app.terminate()
@@ -280,7 +315,9 @@ def main():
         command = ['xcodebuild', 'test', '-project', str(project / 'EuvSmoke.xcodeproj'), '-scheme', 'EuvSmoke',
                    '-sdk', 'iphonesimulator',
                    '-destination', 'id=' + udid, '-derivedDataPath', str(output / 'derived-data'),
-                   '-resultBundlePath', str(result), 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO']
+                   '-resultBundlePath', str(result), 'CODE_SIGN_IDENTITY=-', 'CODE_SIGNING_REQUIRED=NO',
+                   '-test-timeouts-enabled', 'YES', '-default-test-execution-time-allowance', '1800',
+                   '-maximum-test-execution-time-allowance', '1800']
         test_started = time.monotonic()
         with (output / 'xcodebuild.log').open('w') as log:
             run(command, stdout=log, stderr=subprocess.STDOUT)
