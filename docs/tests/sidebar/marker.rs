@@ -65,7 +65,7 @@ fn the_active_group_title_marker_is_not_dragged_off_its_own_fill() {
 
 #[test]
 fn the_active_rows_keep_their_marker_at_the_fill_edge() {
-    if cfg!(all(feature = "theme-shadcn", not(feature = "theme-custom"))) {
+    if cfg!(feature = "theme-shadcn") {
         assert!(APP_SIDEBAR_CSS.is_empty());
         assert!(!APP_GLOBAL_CSS.contains("c_euv_sidebar_"));
         assert!(css_rules().is_empty());

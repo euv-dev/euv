@@ -132,7 +132,7 @@ fn select_scroll_buttons_do_not_move_an_unmeasured_viewport() {
 #[test]
 fn dropdown_geometry_reads_selected_class_metadata_without_a_browser() {
     let policy: DropdownGeometryPolicy = dropdown_geometry_policy(c_euv_dropdown_menu());
-    let content: bool = cfg!(all(feature = "theme-shadcn", not(feature = "theme-custom")));
+    let content: bool = cfg!(feature = "theme-shadcn");
     assert_eq!(policy.get_align_start(), content);
     assert_eq!(policy.get_anchor_trigger(), content);
     assert_eq!(policy.get_content_width(), content);

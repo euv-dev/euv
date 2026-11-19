@@ -1,8 +1,8 @@
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 mod r#const;
 mod r#fn;
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 use r#const::*;
 
 use super::*;

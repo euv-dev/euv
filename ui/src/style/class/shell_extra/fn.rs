@@ -1,6 +1,5 @@
 use super::*;
 
-#[cfg(not(feature = "theme-custom"))]
 class! {
     // ═══════════════════════════════════════════════════════════════════════════
     // euv_sidebar — the composable parts of the reference sidebar.
@@ -377,74 +376,7 @@ class! {
     }
 }
 
-#[cfg(feature = "theme-custom")]
-class! {
-    pub c_euv_sidebar_header {}
-
-    pub c_euv_sidebar_content {}
-
-    pub c_euv_sidebar_footer {}
-
-    pub c_euv_sidebar_group_panel {}
-
-    pub c_euv_sidebar_group_label {}
-
-    pub c_euv_sidebar_group_action {}
-
-    pub c_euv_sidebar_group_content {}
-
-    pub c_euv_sidebar_menu {}
-
-    pub c_euv_sidebar_menu_item {}
-
-    pub c_euv_sidebar_menu_button {}
-
-    pub c_euv_sidebar_menu_button_active {}
-
-    pub c_euv_sidebar_menu_action {}
-
-    pub c_euv_sidebar_menu_badge {}
-
-    pub c_euv_sidebar_menu_sub {}
-
-    pub c_euv_sidebar_menu_sub_item {}
-
-    pub c_euv_sidebar_menu_sub_button {}
-
-    pub c_euv_sidebar_menu_sub_button_active {}
-
-    pub c_euv_sidebar_menu_skeleton {}
-
-    pub c_euv_sidebar_menu_skeleton_icon {}
-
-    pub c_euv_sidebar_menu_skeleton_text {}
-
-    pub c_euv_sidebar_input {}
-
-    pub c_euv_sidebar_inset {}
-
-    pub c_euv_sidebar_provider {}
-
-    pub c_euv_sidebar_rail {}
-
-    pub c_euv_sidebar_separator {}
-
-    pub c_euv_sidebar_trigger {}
-
-    pub c_euv_toast_provider {}
-
-    pub c_euv_toast_viewport {}
-
-    pub c_euv_chart_container {}
-
-    pub c_euv_chart_tooltip_content {}
-
-    pub c_euv_chart_legend_content {}
-
-    pub c_euv_direction_provider {}
-}
-
-#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+#[cfg(not(feature = "theme-shadcn"))]
 class! {
     pub c_euv_sidebar_content {
         display: "flex";
@@ -498,7 +430,7 @@ class! {
     }
 }
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 class! {
     pub c_euv_sidebar_content {
         display: "flex";

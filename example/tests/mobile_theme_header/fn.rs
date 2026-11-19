@@ -89,7 +89,7 @@ fn mobile_theme_header_contains_the_only_selector_and_keeps_all_builds() {
             .map(|(value, _): &(&str, &str)| value.to_string())
             .collect::<Vec<String>>()
     );
-    assert_eq!(values.len(), 19);
+    assert_eq!(values.len(), THEME_FEATURE_OPTIONS.len());
     assert!(
         header_nodes
             .iter()
@@ -117,9 +117,7 @@ fn mobile_theme_header_contains_the_only_selector_and_keeps_all_builds() {
     );
     let selected: String = attribute(selector, "value").expect("selected compiled feature");
     assert!(values.contains(&selected));
-    if cfg!(feature = "theme-custom") {
-        assert_eq!(selected, THEME_FEATURE_CUSTOM);
-    } else {
+    {
         assert!(
             selected == THEME_FEATURE_DEFAULT
                 || selected == format!("{}{}", THEME_FEATURE_PREFIX, scheme_name())

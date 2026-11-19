@@ -1,6 +1,5 @@
 use super::*;
 
-#[cfg(not(feature = "theme-custom"))]
 class! {
     // ═══════════════════════════════════════════════════════════════════════════
     // Field — the parts of a group of form fields.
@@ -236,70 +235,7 @@ class! {
     }
 }
 
-#[cfg(feature = "theme-custom")]
-class! {
-    pub c_euv_field_set {}
-
-    pub c_euv_field_legend {}
-
-    pub c_euv_field_legend_legend {}
-
-    pub c_euv_field_legend_label {}
-
-    pub c_euv_field_group {}
-
-    pub c_euv_field_group_vertical {}
-
-    pub c_euv_field_group_horizontal {}
-
-    pub c_euv_field_group_responsive {}
-
-    pub c_euv_field_content {}
-
-    pub c_euv_field_label {}
-
-    pub c_euv_field_title {}
-
-    pub c_euv_field_description {}
-
-    pub c_euv_field_error {}
-
-    pub c_euv_field_separator {}
-
-    pub c_euv_field_separator_line {}
-
-    pub c_euv_field_separator_content {}
-
-    pub c_euv_empty_header {}
-
-    pub c_euv_empty_media {}
-
-    pub c_euv_empty_media_default {}
-
-    pub c_euv_empty_media_icon {}
-
-    pub c_euv_empty_title {}
-
-    pub c_euv_empty_description {}
-
-    pub c_euv_empty_content {}
-
-    pub c_euv_message_group {}
-
-    pub c_euv_message_header {}
-
-    pub c_euv_message_avatar {}
-
-    pub c_euv_message_content {}
-
-    pub c_euv_message_footer {}
-
-    pub c_euv_message_bubble {}
-
-    pub c_euv_kbd_group {}
-}
-
-#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+#[cfg(not(feature = "theme-shadcn"))]
 class! {
     pub c_euv_field_set {
         display: "flex";
@@ -382,7 +318,7 @@ class! {
     }
 }
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 class! {
     pub c_euv_field_set {
         display: "flex";

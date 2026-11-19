@@ -1,6 +1,5 @@
 use super::*;
 
-#[cfg(not(feature = "theme-custom"))]
 class! {
     // ═══════════════════════════════════════════════════════════════════════════
     // Layout Shell
@@ -234,6 +233,14 @@ class! {
 
     pub c_nav_items_scroll {
         flex: "1";
+        min-height: "0px";
+        padding: format!("{} {}", var!(space-sm), var!(nav-item-inset));
+        scrollbar-gutter: "stable both-edges";
+        scrollbar-width: "thin";
+        ::-webkit-scrollbar {
+            width: var!(space-xs-sm);
+        }
+        overflow-x: "hidden";
         overflow-y: "auto";
         contain: "content";
         scrollbar-color: format!("{} {}", var!(scrollbar-thumb), var!(scrollbar-track));
@@ -848,20 +855,20 @@ class! {
         gap: var!(space-sm);
         background: var!(accent);
         color: var!(accent-foreground);
-        // `control-row-pad` vertically, same as `c_nav_item_inactive` below and
-        // same reason the sidebar rows use it: two 12px paddings used to meet
-        // to leave 24px of blank between labels while the row stayed 48px tall,
-        // so the hover bar and the active fill sat in twice the air the text
-        // occupied. 9px lands the row on the same 42px box as `c_home_btn_*`.
-        padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-nav));
+        min-height: var!(nav-row-height);
+        padding: format!("{} {}", var!(nav-row-padding), var!(edge-gutter-nav));
         @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-mobile));
+            padding: format!("{} {}", var!(nav-row-padding), var!(edge-gutter-mobile));
         }
         text-decoration: "none";
         font-size: var!(font-base);
         color: var!(primary-foreground);
         font-weight: var!(font-weight-semibold);
         background: var!(primary);
+        :focus-visible {
+            outline: format!("{} solid {}", var!(ring-width), var!(ring));
+            outline-offset: var!(ring-offset);
+        }
         border-radius: var!(radius-md);
     }
 
@@ -869,9 +876,10 @@ class! {
         display: "flex";
         align-items: "center";
         gap: var!(space-sm);
-        padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-nav));
+        min-height: var!(nav-row-height);
+        padding: format!("{} {}", var!(nav-row-padding), var!(edge-gutter-nav));
         @media ((max-width: 767px)) {
-            padding: format!("{} {}", var!(control-row-pad), var!(edge-gutter-mobile));
+            padding: format!("{} {}", var!(nav-row-padding), var!(edge-gutter-mobile));
         }
         text-decoration: "none";
         font-size: var!(font-base);
@@ -881,6 +889,10 @@ class! {
             background: var!(muted);
             color: var!(primary);
             box-shadow: format!("inset 4px 0 0 0 {}", var!(foreground));
+        }
+        :focus-visible {
+            outline: format!("{} solid {}", var!(ring-width), var!(ring));
+            outline-offset: var!(ring-offset);
         }
         border-radius: var!(radius-md);
     }
@@ -1206,289 +1218,7 @@ class! {
     }
 }
 
-#[cfg(feature = "theme-custom")]
-class! {
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Layout Shell
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub c_app_root {}
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Navigation - Desktop Sidebar
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub c_app_nav {}
-
-    pub c_nav_header {}
-
-    pub c_nav_brand_title {}
-
-    pub c_nav_section_label {}
-
-    pub c_nav_items_scroll {}
-
-    pub c_nav_theme_toggle {}
-
-    // Optional row in the nav column / drawer for locale switchers or similar
-    // widgets, placed between the brand header and the section label.
-    pub c_nav_locale_row {}
-
-    pub c_nav_locale_button {}
-
-    // Open state of the locale switcher: the same solid treatment the sidebar
-    // gives its current page, so "menu is open" reads as strongly as
-    // "this is the page you are on".
-    pub c_nav_locale_button_open {}
-
-    pub c_nav_theme_button {}
-
-    pub c_theme_icon_sun {}
-
-    pub c_theme_icon_moon {}
-
-    pub c_nav_footer {}
-
-    pub c_nav_footer_divider {}
-
-    pub c_nav_footer_text {}
-
-    pub c_nav_footer_brand {}
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Main Content Area
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub c_app_main {}
-
-    pub c_page_router {}
-
-    pub c_page_container {}
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Mobile Layout
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub c_mobile_header {}
-
-    pub c_mobile_header_left {}
-
-    pub c_mobile_header_logo {}
-
-    pub c_mobile_menu_button {}
-
-    pub c_mobile_theme_button {}
-
-    pub c_mobile_menu_button_active {}
-
-    pub c_mobile_drawer_close_button {}
-
-    pub c_mobile_overlay {}
-
-    pub c_mobile_overlay_hidden {}
-
-    pub c_mobile_nav_drawer {}
-
-    pub c_mobile_nav_drawer_closed {}
-
-    pub c_mobile_nav_drawer_header {}
-
-    pub c_mobile_main {}
-
-    pub c_euv_navbar_icon_button {}
-
-    pub c_euv_sidebar_group_title {}
-
-    // A top-level group title has no `c_euv_sidebar_children` ancestor, so
-    // the base hover bar paints flush against the sidebar's own left edge
-    // and reads as part of the sidebar border rather than as an affordance.
-    // This variant insets the bar by the row's own left padding and doubles
-    // its weight, so a first-level row gets the same "you can click this"
-    // cue a nested row does, just with room around it. The offset lives on
-    // the shadow rather than on `padding`, so the text never moves.
-    //
-    // Vertical padding is `control-row-pad` like every other sidebar row —
-    // see `c_euv_sidebar_group_title`. A root title sits directly above a
-    // nested one, so a taller row here left the two ends of the same pair
-    // mismatched.
-    pub c_euv_sidebar_group_title_root {}
-
-    pub c_euv_sidebar_group_title_root_active {}
-
-    pub c_euv_sidebar_group_title_active {}
-
-    pub c_euv_sidebar_children {}
-
-    pub c_euv_sidebar_link {}
-
-    pub c_euv_sidebar_link_active {}
-
-    // An active child needs the accent fill to read as one continuous block
-    // against the sidebar, not as a chip floating inside its parent's gutter.
-    // `c_euv_sidebar_children` offsets its rows from the dashed guide by its
-    // own `padding-left` plus the 1px border. The active row pulls its fill
-    // back out to the guide — `padding-left + border-left-width`, i.e.
-    // `side-indent` (9px) — so the fill starts exactly at the dashed rail.
-    // Compensating by the container's `margin-left` as well is wrong: it also
-    // cancels the row's own `padding-left`, pushing the fill past the guide.
-    // The negative margin is otherwise safe because the row is the full width
-    // of its container: the fill grows leftward into the parent's padding and
-    // nothing to its left moves.
-    pub c_euv_sidebar_link_active_flush {}
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // euv_toc
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub c_euv_toc {}
-
-    pub c_euv_toc_link {}
-
-    pub c_euv_toc_link_active {}
-
-    pub c_euv_toc_link_nested {}
-
-    pub c_euv_toc_link_nested_active {}
-
-    pub(crate) c_euv_toc_link_separator {}
-
-    pub(crate) c_mobile_app_root {}
-
-    pub(crate) c_euv_logo {}
-
-    pub(crate) c_euv_logo_nav {}
-
-    pub(crate) c_euv_logo_fab {}
-
-    pub(crate) c_nav_item_active {}
-
-    pub(crate) c_nav_item_inactive {}
-
-    pub(crate) c_nav_item_icon {}
-
-    pub(crate) c_nav_item_label {}
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // euv_navbar
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_euv_navbar {}
-
-    pub(crate) c_euv_navbar_brand {}
-
-    pub(crate) c_euv_navbar_logo {}
-
-    pub(crate) c_euv_navbar_links {}
-
-    pub(crate) c_euv_navbar_link {}
-
-    pub(crate) c_euv_navbar_link_active {}
-
-    pub(crate) c_euv_navbar_actions {}
-
-    pub(crate) c_euv_navbar_menu_button {}
-
-    pub(crate) c_euv_navbar_menu_button_active {}
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // euv_sidebar
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    pub(crate) c_euv_sidebar_group {}
-
-    // The glyph itself is a 6px `▸`, far too small a target: the clickable
-    // box wants to clear the ~24px that is comfortable to hit, without making
-    // the triangle *look* bigger. So the glyph keeps its font size and the
-    // extra area is built out of transparent padding plus negative margins
-    // that cancel the padding back out — the row keeps its 42px height and
-    // the glyph keeps its place at the right edge, but the invisible hit box
-    // grows to roughly 24x42.
-    //
-    // `euv_sidebar_group` applies exactly ONE arrow class (see the
-    // `(active, open)` match there), so these four variants do not stack and
-    // each one has to repeat the base declarations — the same duplication
-    // `c_euv_sidebar_group_title_root` already uses. Only the colour and the
-    // rotation differ between them.
-    //
-    // `cursor: pointer` and `user-select: none` are load-bearing now that the
-    // arrow is its own control: without them most of the enlarged area keeps
-    // the inherited `default` cursor, and a double-click can select the glyph
-    // as text instead of folding the group.
-    pub(crate) c_euv_sidebar_group_arrow {}
-
-    pub(crate) c_euv_sidebar_group_arrow_open {}
-
-    pub(crate) c_euv_sidebar_group_arrow_active {}
-
-    // The arrow's colour and its rotation are independent: `_active` only
-    // recolours the glyph so it reads on the accent fill, while `_open` only
-    // points it down. An active group can be open *or* collapsed, so it needs
-    // both at once — without this the active branch in `euv_sidebar_group`
-    // won the exclusive match and the arrow stopped following the toggle.
-    pub(crate) c_euv_sidebar_group_arrow_active_open {}
-
-    pub(crate) c_euv_toc_title {}
-    pub c_euv_dropdown_menu_item {}
-
-    pub c_euv_dropdown_menu_item_disabled {}
-
-    pub c_euv_dropdown_menu_item_label {}
-
-    pub c_euv_dropdown_menu_label {}
-
-    pub c_euv_dropdown_menu_separator {}
-
-    pub c_euv_dropdown_menu_group {}
-
-    pub c_euv_dropdown_menu_checkbox_item {}
-
-    pub c_euv_dropdown_menu_checkbox_indicator {}
-
-    pub c_euv_dropdown_menu_radio_group {}
-
-    pub c_euv_dropdown_menu_radio_item {}
-
-    pub c_euv_dropdown_menu_sub {}
-
-    pub c_euv_dropdown_menu_sub_trigger {}
-
-    pub(crate) c_euv_dropdown_menu_sub_caret {}
-
-    pub c_euv_dropdown_menu_sub_content {}
-
-    pub c_euv_dropdown_menu_shortcut {}
-
-    pub c_euv_menubar {}
-
-    pub c_euv_menubar_menu {}
-
-    pub c_euv_menubar_menu_open {}
-
-    pub c_euv_menubar_menu_closed {}
-
-    pub c_euv_menubar_trigger {}
-
-    pub c_euv_menubar_trigger_open {}
-
-    pub c_euv_menubar_content {}
-
-    pub c_euv_menubar_content_open {}
-
-    pub c_euv_menubar_content_closed {}
-
-    pub c_euv_menubar_item {}
-    pub c_euv_menu_panel {}
-
-    pub c_euv_scroll_area {}
-
-    pub c_euv_scroll_area_viewport {}
-
-    pub c_euv_scroll_bar {}
-
-    pub c_euv_scroll_bar_thumb {}
-}
-
-#[cfg(all(not(feature = "theme-shadcn"), not(feature = "theme-custom")))]
+#[cfg(not(feature = "theme-shadcn"))]
 class! {
     pub c_euv_sidebar_group_title {
         display: "flex";
@@ -1921,7 +1651,7 @@ class! {
     }
 }
 
-#[cfg(all(feature = "theme-shadcn", not(feature = "theme-custom")))]
+#[cfg(feature = "theme-shadcn")]
 class! {
     pub c_euv_sidebar_group_title {
         c_euv_sidebar_menu_button();

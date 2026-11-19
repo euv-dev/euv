@@ -2,8 +2,6 @@ mod anchor;
 #[path = "../src/document_language/mod.rs"]
 mod build_document_language;
 mod code_block;
-#[cfg(feature = "theme-custom")]
-mod custom_layout;
 mod description;
 #[path = "../src/document_html/mod.rs"]
 mod document_html;

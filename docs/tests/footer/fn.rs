@@ -324,12 +324,7 @@ fn footer_styles_are_natural_wrapping_and_do_not_reserve_a_bar() {
     assert!(!include_str!("../../src/lib.rs").contains("SITE_FOOTER_CSS"));
     assert!(!include_str!("../../src/component/site_footer/view/mod.rs").contains("mod r#const"));
     for style in [c_euv_doc_content(), c_home_content()] {
-        let expected: Option<&str> = if cfg!(feature = "theme-custom") {
-            assert!(style.get_style().is_empty());
-            None
-        } else {
-            Some("space-between")
-        };
+        let expected: Option<&str> = { Some("space-between") };
         assert_eq!(declaration(style.get_style(), "justify-content"), expected);
     }
 }

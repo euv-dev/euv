@@ -176,7 +176,6 @@ fn tabs_keep_native_button_activation_and_keyboard_handlers() {
     }
 }
 
-#[cfg(not(feature = "theme-custom"))]
 fn tabs_style_value(class: &Css, property: &str) -> Option<String> {
     class
         .get_style()
@@ -187,7 +186,6 @@ fn tabs_style_value(class: &Css, property: &str) -> Option<String> {
         .next_back()
 }
 
-#[cfg(not(feature = "theme-custom"))]
 #[test]
 fn tabs_shadcn_factories_inherit_before_overriding_selected_fill_and_line_height() {
     assert_eq!(
@@ -238,7 +236,6 @@ fn tabs_shadcn_factories_inherit_before_overriding_selected_fill_and_line_height
     }
 }
 
-#[cfg(not(feature = "theme-custom"))]
 #[test]
 fn tabs_shadcn_paint_keeps_transparent_borders_and_theme_scoped_dark_overrides() {
     let inactive: &Css = c_euv_tab_item();
@@ -294,10 +291,6 @@ fn tabs_render_only_the_feature_selected_trigger_strategy() {
         .collect();
     assert_eq!(classes[0], "c_euv_tab_item c_euv_tab_item_active");
     assert_eq!(classes[1], "c_euv_tab_item");
-    if cfg!(feature = "theme-custom") {
-        assert!(c_euv_tab_item().get_style().is_empty());
-        assert!(c_euv_tab_item_active().get_style().is_empty());
-    }
 }
 
 #[test]

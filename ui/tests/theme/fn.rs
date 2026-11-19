@@ -311,8 +311,6 @@ fn the_compiled_scheme_names_itself() {
         "notion"
     } else if cfg!(feature = "theme-supabase") {
         "supabase"
-    } else if cfg!(feature = "theme-custom") {
-        "shadcn"
     } else {
         "monochrome"
     };
