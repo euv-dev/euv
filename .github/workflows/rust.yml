@@ -76,6 +76,11 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Verify live example inventory and removed feature wiring
         run: python3 example/scripts/validation/source.py
+      - name: Run publication protocol regressions
+        # The publisher is the only path that writes the public release, so its
+        # contract must be gated on every change, not only when the manual
+        # Pages deployment is dispatched.
+        run: python3 example/scripts/test_publish_release.py
       - name: Verify cold and warm retired-theme cache removal
         run: node --test native/tauri/scripts/tests/theme-build.test.js
 
