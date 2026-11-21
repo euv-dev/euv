@@ -28,6 +28,7 @@ mod markdown_inline_code;
 mod md_css;
 mod menu_hover_css;
 mod month_caption;
+mod nav_scroll_gutter;
 mod no_dom_fallback;
 mod previous;
 mod previous_step;

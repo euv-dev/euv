@@ -1,5 +1,7 @@
 mod adapter;
 mod app;
+#[cfg(target_arch = "wasm32")]
+mod app_fetch;
 mod attribute;
 mod cache;
 mod hook;

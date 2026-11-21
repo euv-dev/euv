@@ -12,7 +12,7 @@ categories = ["network-programming", "web-programming"]
 exclude.workspace = true
 
 [workspace.package]
-version = "0.37.1"
+version = "0.37.2"
 readme = "README.md"
 edition = "2024"
 authors = ["root@devhub.vip"]
@@ -114,7 +114,9 @@ web-sys = { version = "0.3.106", features = [
     "DomRect",
     "Element",
     "Gamepad",
+    "Headers",
     "History",
+    "Request",
     "Storage",
     "console",
     "Document",
@@ -154,6 +156,8 @@ web-sys = { version = "0.3.106", features = [
     "HtmlElement",
     "MediaStream",
     "Performance",
+    "RequestInit",
+    "RequestMode",
     "SubmitEvent",
     "TextMetrics",
     "WebGlBuffer",
@@ -246,6 +250,7 @@ web-sys = { version = "0.3.106", features = [
     "GpuSupportedLimits",
     "GpuValidationError",
     "GpuVertexAttribute",
+    "RequestCredentials",
     "CssStyleDeclaration",
     "GpuBufferDescriptor",
     "GpuColorTargetState",
@@ -316,7 +321,7 @@ web-sys = { version = "0.3.106", features = [
     "GpuStorageTextureBindingLayout",
     "GpuRenderBundleEncoderDescriptor",
     "GpuRenderPassDepthStencilAttachment",
-] }
+ ] }
 
 [dependencies]
 euv-core = { workspace = true }

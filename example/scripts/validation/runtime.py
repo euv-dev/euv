@@ -119,10 +119,16 @@ def navigation(page, width, expected, current, screenshots=None):
             minimum = tokens["nav-row-height"]
             assert minimum and record["height"] >= minimum - .1, record
             maximum = tokens["space-lg"]
-            assert abs(record["left"] - record["right"]) < .1 and 0 < record["left"] <= maximum + .1, record
-            assert abs(record["left"]-record["nativeLeft"]-tokens["nav-item-inset"])<.1, record
-            assert abs(record["right"]-record["nativeRight"]-tokens["nav-item-inset"])<.1, record
-            assert tokens["nav-item-inset"]>=tokens["ring-width"]+tokens["ring-offset"], tokens
+            inset = tokens["nav-item-inset"]
+            # The column reserves its scrollbar gutter on the right only, so the
+            # row's own inset is the column's padding on both sides and the left
+            # edge keeps nothing but a hint of breathing room.
+            assert record["nativeLeft"] < .1, record
+            assert 0 < record["left"] <= inset + .1 and record["left"] <= maximum + .1, record
+            assert abs(record["left"]-record["nativeLeft"]-inset)<.1, record
+            assert abs(record["right"]-record["nativeRight"]-inset)<.1, record
+            assert record["right"] >= record["left"], record
+            assert inset>=tokens["ring-width"]+tokens["ring-offset"], tokens
         if index in {0, len(expected)//2, len(expected)-1}:
             row.scroll_into_view_if_needed()
             before = row.bounding_box()
@@ -158,11 +164,15 @@ def navigation(page, width, expected, current, screenshots=None):
         const parent=e.closest('.c_nav_items_scroll'),probe=document.createElement('a'),label=document.createElement('span');
         probe.className=e.className;label.className='c_nav_item_label';label.textContent='Internationalization and long feature navigation labels';probe.append(label);parent.append(probe);
         try {probe.scrollIntoView();const r=probe.getBoundingClientRect(),p=parent.getBoundingClientRect(),s=getComputedStyle(label);
-            return {height:r.height,left:r.left-p.left,right:p.right-r.right,scroll:probe.scrollWidth,client:probe.clientWidth,ellipsis:s.textOverflow,nowrap:s.whiteSpace};
+            return {height:r.height,left:r.left-p.left,right:p.right-r.right,scroll:probe.scrollWidth,client:probe.clientWidth,ellipsis:s.textOverflow,nowrap:s.whiteSpace,
+                nativeLeft:parent.clientLeft,nativeRight:parent.offsetWidth-parent.clientWidth-parent.clientLeft};
         }finally{probe.remove();}
     }""")
     if current:
-        assert compatibility["height"]>=tokens["nav-row-height"] and abs(compatibility["left"]-compatibility["right"])<.1, compatibility
+        inset = tokens["nav-item-inset"]
+        assert compatibility["height"]>=tokens["nav-row-height"] and compatibility["nativeLeft"] < .1, compatibility
+        assert abs(compatibility["left"]-compatibility["nativeLeft"]-inset)<.1, compatibility
+        assert abs(compatibility["right"]-compatibility["nativeRight"]-inset)<.1, compatibility
         assert compatibility["scroll"]<=compatibility["client"]+1 and compatibility["ellipsis"]=="ellipsis", compatibility
     if width < 768:
         page.locator(".c_mobile_drawer_close_button").first.click()
