@@ -5,6 +5,8 @@
 
 mod app;
 mod event;
+#[cfg(target_arch = "wasm32")]
+mod fetch;
 mod noderef;
 mod reactive;
 mod renderer;
@@ -15,6 +17,9 @@ mod vdom;
 mod tests;
 
 pub use {app::*, event::*, noderef::*, reactive::*, vdom::*};
+
+#[cfg(target_arch = "wasm32")]
+pub use fetch::*;
 
 pub use std::{
     borrow::Cow,
