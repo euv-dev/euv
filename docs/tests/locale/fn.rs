@@ -113,3 +113,20 @@ fn every_label_binding_resolves_to_a_table() {
         );
     }
 }
+
+#[test]
+fn the_language_control_title_is_localized_in_every_table() {
+    for (tag, expected) in [
+        ("zh-CN", "语言"),
+        ("en-US", "Language"),
+        ("ja-JP", "言語"),
+        ("ko-KR", "언어"),
+    ] {
+        assert_eq!(
+            lookup_table(tag, "docs.locale.title"),
+            Some(expected.to_string()),
+            "{tag} must localize the language control title"
+        );
+        assert!(gate_translation_keys().contains(&"docs.locale.title"));
+    }
+}

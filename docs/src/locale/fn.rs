@@ -136,6 +136,7 @@ pub fn gate_translation_keys() -> &'static [&'static str] {
         DOCS_KEY_DRAWER_CLOSE,
         DOCS_KEY_DRAWER_TITLE,
         DOCS_KEY_THEME_TOGGLE,
+        DOCS_KEY_LOCALE_TITLE,
         DOCS_KEY_SEARCH_LABEL,
         DOCS_KEY_SEARCH_EMPTY,
         DOCS_KEY_SEARCH_NONE,

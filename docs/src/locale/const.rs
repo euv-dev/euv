@@ -25,6 +25,8 @@ pub(crate) const DOCS_KEY_DRAWER_CLOSE: &str = "docs.drawer.close";
 pub(crate) const DOCS_KEY_DRAWER_TITLE: &str = "docs.drawer.title";
 /// The localized accessible name and tooltip of the theme toggle.
 pub(crate) const DOCS_KEY_THEME_TOGGLE: &str = "docs.theme.toggle";
+/// The localized tooltip of the language control.
+pub(crate) const DOCS_KEY_LOCALE_TITLE: &str = "docs.locale.title";
 /// The localized accessible name of documentation search.
 pub(crate) const DOCS_KEY_SEARCH_LABEL: &str = "docs.search.label";
 /// The localized instruction announced for an empty query.
@@ -41,7 +43,7 @@ pub(crate) const DOCS_SEARCH_COUNT_TOKEN: &str = "{count}";
 /// The Chinese translation table for the password gate. It carries the
 /// strings the gate used before it was localised, so the root locale
 /// renders exactly what it always did.
-pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 15] = [
+pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 16] = [
     (PW_GATE_KEY_HINT, "本文受密码保护，输入密码后即可查看内容。"),
     (PW_GATE_KEY_IDLE, "解锁"),
     (PW_GATE_KEY_BUSY, "验证中…"),
@@ -52,6 +54,7 @@ pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 15] = [
     (DOCS_KEY_DRAWER_CLOSE, "关闭导航菜单"),
     (DOCS_KEY_DRAWER_TITLE, "文档导航"),
     (DOCS_KEY_THEME_TOGGLE, "切换主题"),
+    (DOCS_KEY_LOCALE_TITLE, "语言"),
     (DOCS_KEY_SEARCH_LABEL, "搜索文档"),
     (DOCS_KEY_SEARCH_EMPTY, "输入关键词搜索文档"),
     (DOCS_KEY_SEARCH_NONE, "没有匹配的页面"),
@@ -61,7 +64,7 @@ pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 15] = [
 
 /// The English translation table for the password gate, and the fallback
 /// every other locale defers to.
-pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 15] = [
+pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 16] = [
     (
         PW_GATE_KEY_HINT,
         "This article is password protected. Enter the password to read it.",
@@ -75,6 +78,7 @@ pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 15] = [
     (DOCS_KEY_DRAWER_CLOSE, "Close navigation menu"),
     (DOCS_KEY_DRAWER_TITLE, "Documentation navigation"),
     (DOCS_KEY_THEME_TOGGLE, "Toggle theme"),
+    (DOCS_KEY_LOCALE_TITLE, "Language"),
     (DOCS_KEY_SEARCH_LABEL, "Search documentation"),
     (DOCS_KEY_SEARCH_EMPTY, "Type to search documentation"),
     (DOCS_KEY_SEARCH_NONE, "No matching pages"),
@@ -83,7 +87,7 @@ pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 15] = [
 ];
 
 /// The Japanese translation table for the password gate.
-pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 15] = [
+pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 16] = [
     (
         PW_GATE_KEY_HINT,
         "この記事のパスワードで保護されています。パスワードを入力すると内容をご覧できます。",
@@ -100,6 +104,7 @@ pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 15] = [
     (DOCS_KEY_DRAWER_CLOSE, "ナビゲーションメニューを閉じる"),
     (DOCS_KEY_DRAWER_TITLE, "ドキュメントナビゲーション"),
     (DOCS_KEY_THEME_TOGGLE, "テーマを切り替える"),
+    (DOCS_KEY_LOCALE_TITLE, "言語"),
     (DOCS_KEY_SEARCH_LABEL, "ドキュメントを検索"),
     (
         DOCS_KEY_SEARCH_EMPTY,
@@ -111,7 +116,7 @@ pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 15] = [
 ];
 
 /// The Korean translation table for the password gate.
-pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 15] = [
+pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 16] = [
     (
         PW_GATE_KEY_HINT,
         "이 문서는 비밀번호로 보호되어 있습니다. 비밀번호를 입력해 주세요.",
@@ -128,6 +133,7 @@ pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 15] = [
     (DOCS_KEY_DRAWER_CLOSE, "탐색 메뉴 닫기"),
     (DOCS_KEY_DRAWER_TITLE, "문서 탐색"),
     (DOCS_KEY_THEME_TOGGLE, "테마 전환"),
+    (DOCS_KEY_LOCALE_TITLE, "언어"),
     (DOCS_KEY_SEARCH_LABEL, "문서 검색"),
     (DOCS_KEY_SEARCH_EMPTY, "검색어를 입력하여 문서 검색"),
     (DOCS_KEY_SEARCH_NONE, "일치하는 페이지가 없습니다"),

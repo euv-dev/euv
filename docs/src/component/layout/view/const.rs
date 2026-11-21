@@ -24,8 +24,6 @@ pub(crate) const SIDEBAR_SCROLL_GAP: f64 = 12.0;
 pub(crate) const LOCALE_TRIGGER_CLASS_ATTRIBUTE: &str = "class";
 /// Title attribute used by the locale trigger.
 pub(crate) const LOCALE_TRIGGER_TITLE_ATTRIBUTE: &str = "title";
-/// Existing locale trigger tooltip.
-pub(crate) const LOCALE_TRIGGER_TITLE: &str = "语言";
 
 /// Identifies the mobile drawer as the owning sheet for nested UI portals.
 pub(crate) const DOCS_DRAWER_CONTENT_SLOT: &str = "sheet-content";
