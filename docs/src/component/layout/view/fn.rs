@@ -427,7 +427,7 @@ fn render_locale_row(route_signal: Signal<String>, locale_menu_open: Signal<bool
         ),
         AttributeEntry::new(
             LOCALE_TRIGGER_TITLE_ATTRIBUTE.into(),
-            AttributeValue::StaticText(LOCALE_TRIGGER_TITLE),
+            AttributeValue::Text(locale_text(&route_signal.get(), DOCS_KEY_LOCALE_TITLE)),
         ),
     ]);
     html! {
