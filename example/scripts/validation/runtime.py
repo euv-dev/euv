@@ -165,7 +165,7 @@ def navigation(page, width, expected, current, screenshots=None):
         probe.className=e.className;label.className='c_nav_item_label';label.textContent='Internationalization and long feature navigation labels';probe.append(label);parent.append(probe);
         try {probe.scrollIntoView();const r=probe.getBoundingClientRect(),p=parent.getBoundingClientRect(),s=getComputedStyle(label);
             return {height:r.height,left:r.left-p.left,right:p.right-r.right,scroll:probe.scrollWidth,client:probe.clientWidth,ellipsis:s.textOverflow,nowrap:s.whiteSpace,
-                nativeLeft:p.clientLeft,nativeRight:p.offsetWidth-p.clientWidth-p.clientLeft};
+                nativeLeft:parent.clientLeft,nativeRight:parent.offsetWidth-parent.clientWidth-parent.clientLeft};
         }finally{probe.remove();}
     }""")
     if current:
