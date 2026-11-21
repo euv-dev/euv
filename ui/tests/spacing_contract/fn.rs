@@ -241,7 +241,7 @@ fn feature_navigation_reserves_row_height_and_symmetric_paint_clearance() {
     );
     assert_eq!(
         class_property(scroll, "scrollbar-gutter").as_deref(),
-        Some("stable both-edges")
+        Some("stable")
     );
     assert_eq!(
         class_property(scroll, "scrollbar-width").as_deref(),

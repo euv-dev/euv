@@ -1,5 +1,6 @@
 use super::*;
 
+/// Inherent implementation of [`FetchMethod`].
 impl FetchMethod {
     /// The method name of a request, as it goes on the wire.
     ///

@@ -5,7 +5,7 @@ use super::*;
 /// The body is kept as the raw bytes the server sent, and the status is the
 /// one the server answered with, so a caller can decide what a non-2xx
 /// answer means instead of having it thrown away.
-#[derive(Clone, Debug, Eq, PartialEq, Data, New)]
+#[derive(Clone, Data, Debug, Eq, New, PartialEq)]
 pub struct FetchResponse {
     /// The HTTP status the server answered with.
     #[get(type(copy))]
