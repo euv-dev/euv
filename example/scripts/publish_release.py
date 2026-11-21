@@ -2,23 +2,25 @@
 """Publish one verified native/web release through the page-artifact API."""
 import argparse
 import hashlib
+import http.client
 import io
 import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import sys
 import tarfile
 import time
-from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.parse import urljoin, urlsplit
 from typing import Optional
 
 MANIFEST = 'euv-release.json'
+ATTEMPTS = 9
 
-class NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
+
+def sleep(seconds):
+    """Indirection so the retry backoff can be exercised without real waiting."""
+    time.sleep(seconds)
 
 
 def version(value):
@@ -76,26 +78,53 @@ def validate_directory(directory, expected=None):
     return descriptor, release
 
 
+def transport_detail(error, token=None):
+    """Render a transport failure for the log without ever exposing the token."""
+    message = str(error)
+    if token:
+        message = message.replace(token, '[REDACTED]')
+    detail = type(error).__name__
+    return detail + (': ' + message if message else '')
+
+
 def request(method, url, data=None, token=None, headers=None, allow_missing=False) -> Optional[bytes]:
     headers = dict(headers or {})
     if token:
         headers['Authorization'] = 'Bearer ' + token
-    for attempt in range(9):
+    parsed = urlsplit(url)
+    if parsed.scheme not in {'http', 'https'} or not parsed.hostname:
+        raise ValueError('Publication URL must be an absolute http(s) URL')
+    target = parsed.path or '/'
+    if parsed.query:
+        target += '?' + parsed.query
+    connection_type = http.client.HTTPSConnection if parsed.scheme == 'https' else http.client.HTTPConnection
+    last = 'no attempt reached the server'
+    for attempt in range(ATTEMPTS):
         if attempt:
-            time.sleep(2 ** (attempt - 1))
+            sleep(2 ** (attempt - 1))
+        connection = connection_type(parsed.hostname, parsed.port, timeout=180)
+        status = None
         try:
-            with build_opener(NoRedirect).open(Request(url, data=data, headers=headers, method=method), timeout=180) as response:
-                if response.geturl() != url:
-                    raise ValueError('Publication redirect rejected')
-                return bytes(response.read())
-        except HTTPError as error:
-            if allow_missing and error.code == 404:
+            connection.request(method, target, body=data, headers=headers)
+            response = connection.getresponse()
+            status = response.status
+            body = response.read()
+            if 300 <= status < 400:
+                raise ValueError('Publication redirect rejected')
+            if status == 404 and allow_missing:
                 return None
-            if error.code < 500 and error.code != 429:
-                raise ValueError('Publication HTTP ' + str(error.code)) from None
-        except (URLError, TimeoutError):
-            pass
-    raise RuntimeError('Publication request failed after initial attempt plus eight retries')
+            if 200 <= status < 300:
+                return body
+            if status < 500 and status != 429:
+                raise ValueError('Publication HTTP ' + str(status))
+            last = 'server answered HTTP ' + str(status)
+        except (OSError, http.client.HTTPException) as error:
+            last = transport_detail(error, token)
+            print('Publication transport failure: ' + last, file=sys.stderr)
+        finally:
+            connection.close()
+        print('Publication request failed (HTTP ' + str(status) + ', attempt ' + str(attempt + 1) + '/' + str(ATTEMPTS) + ')', file=sys.stderr)
+    raise RuntimeError('Publication request failed after the initial attempt and ' + str(ATTEMPTS - 1) + ' retries (' + method + ' ' + parsed.path + '): ' + last)
 
 
 def archive_bytes(directory, release):

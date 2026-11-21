@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
@@ -29,7 +30,7 @@ class PublicationTests(unittest.TestCase):
         self.token = 'local-test-credential'
         owner = self
         class Handler(BaseHTTPRequestHandler):
-            def log_message(self, *args):
+            def log_message(self, format, *args):
                 pass
             def reply(self, data, status=200):
                 self.send_response(status)
@@ -122,6 +123,114 @@ class PublicationTests(unittest.TestCase):
         manifest['files'][0]['path'] = '../outside'
         with self.assertRaises(ValueError):
             publisher.inventory(json.dumps(manifest))
+
+
+class TransportFailureTests(unittest.TestCase):
+    """The retry loop must name the transport failure instead of collapsing it."""
+
+    def setUp(self):
+        self.saved = publisher.sleep
+        publisher.sleep = lambda seconds: None
+        self.stderr = io.StringIO()
+        self.addCleanup(self.restore)
+
+    def restore(self):
+        publisher.sleep = self.saved
+
+    def test_transport_failure_is_reported_with_its_cause(self):
+        """A dead peer must surface the underlying transport error, not a generic one."""
+        with self.assertRaises(RuntimeError) as caught:
+            with contextlib.redirect_stderr(self.stderr):
+                publisher.request('PUT', 'http://127.0.0.1:1/uploads/local-session/chunks/0', b'chunk', 'token')
+        message = str(caught.exception)
+        self.assertIn('ConnectionRefusedError', message)
+        self.assertIn('PUT', message)
+        self.assertIn('/uploads/local-session/chunks/0', message)
+        self.assertNotIn('token', message)
+        self.assertIn('ConnectionRefusedError', self.stderr.getvalue())
+
+    def test_transport_failure_never_prints_the_bearer_token(self):
+        """The rendered transport detail must not carry the credential."""
+        with self.assertRaises(RuntimeError) as caught:
+            with contextlib.redirect_stderr(self.stderr):
+                publisher.request('GET', 'http://127.0.0.1:1/api/page-artifacts', None, 'super-secret-token')
+        self.assertNotIn('super-secret-token', str(caught.exception))
+        self.assertNotIn('super-secret-token', self.stderr.getvalue())
+
+    def test_client_errors_are_not_retried(self):
+        """A 4xx answer is a defect in the request, so it fails immediately."""
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):
+                pass
+            def do_GET(self):
+                self.send_response(403)
+                self.send_header('Content-Length','0')
+                self.end_headers()
+        server = ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        thread = threading.Thread(target=server.serve_forever,daemon=True)
+        thread.start()
+        self.addCleanup(lambda: (server.shutdown(), server.server_close(), thread.join()))
+        base = 'http://127.0.0.1:'+str(server.server_port)
+        with self.assertRaisesRegex(ValueError,'Publication HTTP 403'):
+            publisher.request('GET', base+'/api/page-artifacts')
+
+    def test_redirects_are_rejected(self):
+        """A redirecting publication endpoint must never be followed."""
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):
+                pass
+            def do_GET(self):
+                self.send_response(302)
+                self.send_header('Location','http://example.com/other')
+                self.send_header('Content-Length','0')
+                self.end_headers()
+        server = ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        thread = threading.Thread(target=server.serve_forever,daemon=True)
+        thread.start()
+        self.addCleanup(lambda: (server.shutdown(), server.server_close(), thread.join()))
+        base = 'http://127.0.0.1:'+str(server.server_port)
+        with self.assertRaisesRegex(ValueError,'redirect rejected'):
+            publisher.request('GET', base+'/euv-release.json')
+
+    def test_missing_resource_is_only_allowed_when_asked(self):
+        """A 404 is an answer, so it is returned as missing, not raised."""
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):
+                pass
+            def do_GET(self):
+                self.send_response(404)
+                self.send_header('Content-Length','0')
+                self.end_headers()
+        server = ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        thread = threading.Thread(target=server.serve_forever,daemon=True)
+        thread.start()
+        self.addCleanup(lambda: (server.shutdown(), server.server_close(), thread.join()))
+        base = 'http://127.0.0.1:'+str(server.server_port)
+        self.assertIsNone(publisher.request('GET', base+'/euv-release.json', allow_missing=True))
+        with self.assertRaisesRegex(ValueError,'Publication HTTP 404'):
+            publisher.request('GET', base+'/euv-release.json')
+
+    def test_server_errors_are_retried_and_then_reported(self):
+        """A 5xx answer is retried, and the final failure names the status."""
+        attempts = []
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):
+                pass
+            def do_GET(self):
+                attempts.append(1)
+                self.send_response(503)
+                self.send_header('Content-Length','0')
+                self.end_headers()
+        server = ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        thread = threading.Thread(target=server.serve_forever,daemon=True)
+        thread.start()
+        self.addCleanup(lambda: (server.shutdown(), server.server_close(), thread.join()))
+        base = 'http://127.0.0.1:'+str(server.server_port)
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(RuntimeError) as caught:
+                publisher.request('GET', base+'/api/page-artifacts')
+        self.assertEqual(len(attempts), publisher.ATTEMPTS)
+        self.assertIn('HTTP 503', str(caught.exception))
 
 
 if __name__ == '__main__':

@@ -6,6 +6,7 @@ mod description;
 #[path = "../src/document_html/mod.rs"]
 mod document_html;
 mod document_language;
+mod focus_ring;
 mod footer;
 mod header_links;
 mod header_search;
