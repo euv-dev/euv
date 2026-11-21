@@ -92,7 +92,7 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100%; overflow: hi
              #app .c_docs_header_link:hover { background: var(--accent); color: var(--accent-foreground); } \
              #app .c_docs_header_actions { margin-left: auto; display: flex; align-items: center; gap: 8px; } \
              #app .c_docs_header_search { position: relative; display: flex; align-items: center; height: 32px; width: 256px; padding: 0 12px; border-radius: var(--radius-md, 0px); background: var(--muted); border: 1px solid transparent; } \
-             #app .c_docs_header_search:focus-within { border-color: var(--ring); } \
+             #app .c_docs_header_search:focus-within { box-shadow: 0 0 0 calc(var(--ring-width) + var(--ring-offset)) var(--ring); } \
              #app .c_docs_header_search_input { width: 100%; border: none; background: transparent; color: var(--foreground); font-size: 14px; font-family: inherit; outline: none; } \
              #app .c_docs_header_search_input::placeholder { color: var(--muted-foreground); } \
              #app .c_docs_header_separator { width: 1px; height: 16px; background: var(--border); } \
