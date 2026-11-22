@@ -125,37 +125,46 @@ pub(crate) const CLASS_TOKEN_VARIABLE: &str = "c_docs_code_var";
 /// custom properties. Everything else in the docs site reads its
 /// colours from the euv role tokens.
 ///
-/// The light values are the reference site's own highlighter colours;
-/// the dark ones are its dark counterpart. Both are consumed through
-/// `var(--docs-code-…)`, so switching the theme switches the palette
-/// without a second stylesheet.
+/// The two palettes are the reference editor theme's own light and dark
+/// faces: the light one in `:root`, the dark one under `.c_theme_dark`.
+/// They are never collapsed into one palette — a colour that reads as a
+/// keyword on the light surface is unreadable on the dark one, and the
+/// editor's answer is a second palette, not a compromise.
+///
+/// Both are consumed through `var(--docs-code-…)`, so switching the theme
+/// switches the palette without a second stylesheet.
 pub(crate) const CODE_CSS: &str = ":root { \
-         --docs-code-keyword: #d73a49; \
-         --docs-code-string: #032f62; \
-         --docs-code-number: #005cc5; \
-         --docs-code-comment: #6a737d; \
-         --docs-code-function: #6f42c1; \
-         --docs-code-type: #22863a; \
-         --docs-code-attribute: #6f42c1; \
-         --docs-code-tag: #22863a; \
-         --docs-code-variable: #e36209; \
+         --docs-code-keyword: #7C4DFF; \
+         --docs-code-string: #53A053; \
+         --docs-code-number: #FF6D12; \
+         --docs-code-comment: #A9A9AA; \
+         --docs-code-function: #437AED; \
+         --docs-code-type: #00BEC4; \
+         --docs-code-attribute: #00BEC4; \
+         --docs-code-tag: #CD6069; \
+         --docs-code-variable: #5D5D5F; \
+         --docs-code-surface: #EBEEF5; \
+         --docs-code-foreground: #5D5D5F; \
+         --docs-code-font-family: Menlo, Monaco, 'Courier New', monospace; \
      } \
      .c_theme_dark { \
-         --docs-code-keyword: #f97583; \
-         --docs-code-string: #9ecbff; \
-         --docs-code-number: #79c0ff; \
-         --docs-code-comment: #8b949e; \
-         --docs-code-function: #b392f0; \
-         --docs-code-type: #7ee787; \
-         --docs-code-attribute: #b392f0; \
-         --docs-code-tag: #7ee787; \
-         --docs-code-variable: #ffa657; \
+         --docs-code-keyword: #A78CFA; \
+         --docs-code-string: #98C379; \
+         --docs-code-number: #FF9070; \
+         --docs-code-comment: #676E95; \
+         --docs-code-function: #6495EE; \
+         --docs-code-type: #56B7C3; \
+         --docs-code-attribute: #56B7C3; \
+         --docs-code-tag: #E06C75; \
+         --docs-code-variable: #B0B7C3; \
+         --docs-code-surface: #282c34; \
+         --docs-code-foreground: #9DA5B3; \
      } \
-     .c_docs_code_kw { color: var(--docs-code-keyword); } \
+     .c_docs_code_kw { color: var(--docs-code-keyword); font-weight: bold; } \
      .c_docs_code_str { color: var(--docs-code-string); } \
      .c_docs_code_num { color: var(--docs-code-number); } \
      .c_docs_code_com { color: var(--docs-code-comment); font-style: italic; } \
-     .c_docs_code_fn { color: var(--docs-code-function); } \
+     .c_docs_code_fn { color: var(--docs-code-function); font-weight: bold; } \
      .c_docs_code_ty { color: var(--docs-code-type); } \
      .c_docs_code_attr { color: var(--docs-code-attribute); } \
      .c_docs_code_tag { color: var(--docs-code-tag); } \
