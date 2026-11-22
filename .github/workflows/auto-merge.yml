@@ -22,6 +22,8 @@ permissions:
   contents: write
   pull-requests: write
   actions: write
+  checks: read
+  statuses: read
 
 concurrency:
   group: auto-merge-${{ github.repository }}
