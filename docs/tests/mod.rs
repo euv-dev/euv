@@ -14,6 +14,7 @@ mod header_search;
 mod highlight;
 mod hover;
 mod locale;
+mod mermaid;
 mod route;
 mod scroll;
 mod sidebar;

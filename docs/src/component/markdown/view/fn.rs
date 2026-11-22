@@ -63,17 +63,28 @@ fn render_docs_blocks(blocks: &'static [EuvMdBlock]) -> VirtualNode {
 /// # Returns
 ///
 /// - `VirtualNode` - The rendered block.
-fn render_docs_block(
+pub(crate) fn render_docs_block(
     blocks: &'static [EuvMdBlock],
     index: usize,
     block: &'static EuvMdBlock,
 ) -> VirtualNode {
     match block {
-        EuvMdBlock::CodeBlock { lang, code } => html! {
-            docs_code_block {
-                lang: *lang
-                code: *code
+        EuvMdBlock::CodeBlock { lang, code } => match code_block_route(lang) {
+            CodeBlockRoute::Diagram => {
+                let ordinal: usize = mermaid_ordinal(blocks, index);
+                html! {
+                    docs_mermaid {
+                        source: *code
+                        ordinal: ordinal
+                    }
+                }
             }
+            CodeBlockRoute::Code => html! {
+                docs_code_block {
+                    lang: *lang
+                    code: *code
+                }
+            },
         },
         EuvMdBlock::BlockQuote(inner) => {
             if contains_code(inner) {
@@ -175,4 +186,49 @@ fn contains_code(blocks: &'static [EuvMdBlock]) -> bool {
         EuvMdBlock::Container { blocks, .. } => contains_code(blocks),
         _ => false,
     })
+}
+
+/// Chooses how a fenced code block is rendered.
+///
+/// A mermaid fence is rendered as a diagram; every other fence is
+/// rendered as an ordinary code block.
+///
+/// # Arguments
+///
+/// - `&str` - The fence language of the block.
+///
+/// # Returns
+///
+/// - `CodeBlockRoute` - The route the block takes.
+pub(crate) fn code_block_route(lang: &str) -> CodeBlockRoute {
+    if lang == MERMAID_LANG {
+        CodeBlockRoute::Diagram
+    } else {
+        CodeBlockRoute::Code
+    }
+}
+
+/// The ordinal of the mermaid diagram at one block index.
+///
+/// The ordinal names the diagram's scoped ids and CSS selectors, so two
+/// diagrams on one page never share a marker id. It counts every
+/// mermaid fence above the block, so the number does not depend on the
+/// order the blocks are rendered in.
+///
+/// # Arguments
+///
+/// - `&'static [EuvMdBlock]` - The blocks of the page.
+/// - `usize` - The index of the block in that list.
+///
+/// # Returns
+///
+/// - `usize` - The number of mermaid fences before that block.
+fn mermaid_ordinal(blocks: &'static [EuvMdBlock], index: usize) -> usize {
+    blocks
+        .iter()
+        .take(index)
+        .filter(|block: &&'static EuvMdBlock| {
+            matches!(block, EuvMdBlock::CodeBlock { lang, .. } if *lang == MERMAID_LANG)
+        })
+        .count()
 }
