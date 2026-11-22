@@ -17,6 +17,7 @@ mod locale;
 mod route;
 mod scroll;
 mod sidebar;
+mod toc_active_contrast;
 mod toc_navigation;
 
 use {super::*, build_document_language::*, document_html::*, euv_ui::EuvSidebarItem};

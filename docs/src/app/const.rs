@@ -112,8 +112,7 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100%; overflow: hi
                          #app .c_euv_toc_link_nested { padding-left: 0.75rem; font-size: var(--font-sm, 0.875rem); color: var(--muted-foreground); line-height: 1.5; } \
                          #app .c_euv_doc_toc .c_euv_toc_link, #app .c_euv_doc_toc .c_euv_toc_link_active, #app .c_euv_doc_toc .c_euv_toc_link_nested, #app .c_euv_doc_toc .c_euv_toc_link_nested_active { display: block; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } \
                          #app .c_euv_toc_link:hover, #app .c_euv_toc_link_nested:hover { color: var(--primary); } \
-                         #app .c_euv_toc_link_active, #app .c_euv_toc_link_nested_active { color: var(--primary); font-weight: 700; } \
-                         #app .c_euv_toc_link_active:hover, #app .c_euv_toc_link_nested_active:hover { color: var(--primary); } \
+                         #app .c_euv_toc_link_active, #app .c_euv_toc_link_nested_active { font-weight: 700; } \
              \
              #app .c_euv_pagination { padding-bottom: var(--space-xl, 1.25rem); gap: var(--gap-component, 1rem); flex-wrap: nowrap; align-items: stretch; width: 100%; } \
              #app .c_euv_pagination_content .c_euv_pagination_link { padding: var(--space-md, 0.75rem); gap: var(--space-2xs, 0.25rem); min-width: 0; max-width: none; } \
