@@ -30,25 +30,6 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
             ""
         };
     };
-    // The catalog is fetched in a browser build. A host build has no page
-    // to fetch from, so the request is never issued there.
-    #[cfg(target_arch = "wasm32")]
-    let artifacts: Vec<DocsCatalogArtifact> = {
-        let catalog: UseAsyncHandle<Vec<DocsCatalogArtifact>, ()> =
-            use_async::<Vec<DocsCatalogArtifact>, ()>();
-        if matches!(
-            catalog.state(),
-            AsyncState::<Vec<DocsCatalogArtifact>, ()>::Loading(_)
-        ) {
-            catalog.refetch(|| async { load_catalog().await });
-        }
-        match catalog.state() {
-            AsyncState::<Vec<DocsCatalogArtifact>, ()>::Ok(value) => value,
-            _ => Vec::new(),
-        }
-    };
-    #[cfg(not(target_arch = "wasm32"))]
-    let artifacts: Vec<DocsCatalogArtifact> = Vec::new();
     let hero_title: &str = if page.hero_text.is_empty() {
         if locale.title.is_empty() {
             site.title
@@ -80,7 +61,6 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
                         docs_markdown(page.blocks)
                     }
                     docs_catalog {
-                        artifacts: artifacts.clone()
                         route_signal: route_signal
                     }
                 }

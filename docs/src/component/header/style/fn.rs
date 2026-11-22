@@ -35,15 +35,38 @@ class! {
         border-radius: var!(radius-sm);
         cursor: "pointer";
         overflow-wrap: "anywhere";
+        // Hover paints a left bar and leaves the row's own background
+        // transparent, the same way the sidebar tree marks the row
+        // under the pointer.
+        //
+        // The bar is an inset shadow rather than a border, because a
+        // border takes part in the box's layout and would move the
+        // text when the state changes; an inset shadow is painted
+        // inside the existing padding box and moves nothing.
+        //
+        // The bar is the foreground colour, so it follows the row's
+        // text colour in every scheme.
         :hover {
-            background: var!(accent);
-            color: var!(accent-foreground);
+            background: "transparent";
+            color: var!(foreground);
+            box-shadow: format!("inset 5px 0 0 0 {}", var!(foreground));
         }
     }
     pub(crate) c_docs_header_search_option_active {
         c_docs_header_search_option();
-        background: var!(accent);
-        color: var!(accent-foreground);
+        // The active row changes its fill, the same way the sidebar's
+        // active row does. The fill is the primary colour rather than
+        // the accent: inside the app root the accent is the panel's
+        // own background, so an accent fill would leave the active row
+        // invisible.
+        background: var!(primary);
+        color: var!(primary-foreground);
+        box-shadow: format!("inset 5px 0 0 0 {}", var!(primary));
+        :hover {
+            background: var!(primary);
+            color: var!(primary-foreground);
+            box-shadow: format!("inset 5px 0 0 0 {}", var!(primary));
+        }
     }
     pub(crate) c_docs_header_search_route {
         font-size: var!(font-xs);

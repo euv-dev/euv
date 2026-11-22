@@ -39,13 +39,8 @@ pub struct DocsCatalog {
 }
 
 /// The props of the catalog component.
-///
-/// The artifacts are owned rather than borrowed: the catalog is fetched
-/// at runtime, so there is no static slice to point at.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DocsCatalogProps {
-    /// The stored projects, in the order the API listed them.
-    pub artifacts: Vec<DocsCatalogArtifact>,
     /// The route the catalog is rendered on, whose locale selects the
     /// labels the cards carry.
     pub(crate) route_signal: Signal<String>,

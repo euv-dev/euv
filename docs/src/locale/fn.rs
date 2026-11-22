@@ -147,6 +147,7 @@ pub fn gate_translation_keys() -> &'static [&'static str] {
         DOCS_KEY_CATALOG_FILES,
         DOCS_KEY_CATALOG_SIZE,
         DOCS_KEY_CATALOG_UPDATED,
+        DOCS_KEY_CATALOG_RETRY,
     ]
 }
 

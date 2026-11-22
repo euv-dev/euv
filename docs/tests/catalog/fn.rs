@@ -96,6 +96,7 @@ fn every_locale_translates_the_catalog_labels() {
         for key in [
             DOCS_KEY_CATALOADING,
             DOCS_KEY_CATALOG_ERROR,
+            DOCS_KEY_CATALOG_RETRY,
             DOCS_KEY_CATALOG_FILES,
             DOCS_KEY_CATALOG_SIZE,
             DOCS_KEY_CATALOG_UPDATED,
@@ -116,6 +117,7 @@ fn the_catalog_labels_are_part_of_the_translation_key_list() {
     for key in [
         DOCS_KEY_CATALOADING,
         DOCS_KEY_CATALOG_ERROR,
+        DOCS_KEY_CATALOG_RETRY,
         DOCS_KEY_CATALOG_FILES,
         DOCS_KEY_CATALOG_SIZE,
         DOCS_KEY_CATALOG_UPDATED,

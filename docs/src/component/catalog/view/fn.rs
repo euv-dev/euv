@@ -6,24 +6,26 @@ use super::*;
 /// the documentation home page needs no script and no hand-written
 /// stylesheet: the cards carry the framework's own `c_catalog*` classes.
 ///
+/// The component owns the request, so it can render the three states the
+/// catalog has: loading, failed and loaded. The failed state carries a
+/// retry button, because a transient network failure must not leave the
+/// page with a dead end.
+///
 /// The cards are built in plain Rust and handed to the grid through the
 /// component's children. A `html!` loop needs static data, and the
 /// catalog is runtime data, so the cards travel as children instead.
 ///
 /// # Arguments
 ///
-/// - `VirtualNode<DocsCatalogProps>` - The props node carrying the
-///   artifacts and the route.
+/// - `VirtualNode<DocsCatalogProps>` - The props node carrying the route.
 ///
 /// # Returns
 ///
 /// - `VirtualNode` - The rendered catalog.
 #[component]
 pub(crate) fn docs_catalog(node: VirtualNode<DocsCatalogProps>) -> VirtualNode {
-    let DocsCatalogProps {
-        artifacts,
-        route_signal,
-    }: DocsCatalogProps = node.try_get_props().unwrap_or_default();
+    let DocsCatalogProps { route_signal }: DocsCatalogProps =
+        node.try_get_props().unwrap_or_default();
     // The locale is resolved once, before the cards are built. Reading
     // the signal inside the loop would make every card register its own
     // dependency on the route.
@@ -31,22 +33,76 @@ pub(crate) fn docs_catalog(node: VirtualNode<DocsCatalogProps>) -> VirtualNode {
     let files_label: String = locale_text(&locale, DOCS_KEY_CATALOG_FILES);
     let size_label: String = locale_text(&locale, DOCS_KEY_CATALOG_SIZE);
     let updated_label: String = locale_text(&locale, DOCS_KEY_CATALOG_UPDATED);
-    let mut cards: Vec<VirtualNode> = Vec::with_capacity(artifacts.len());
-    for artifact in artifacts.iter() {
-        cards.push(docs_catalog_card(
-            artifact.clone(),
-            files_label.clone(),
-            size_label.clone(),
-            updated_label.clone(),
-        ));
-    }
-    let children: VirtualNode = VirtualNode::Fragment(cards);
-    html! {
-        div {
-            class: c_catalog()
+    let loading_label: String = locale_text(&locale, DOCS_KEY_CATALOADING);
+    let error_label: String = locale_text(&locale, DOCS_KEY_CATALOG_ERROR);
+    let retry_label: String = locale_text(&locale, DOCS_KEY_CATALOG_RETRY);
+    let catalog: UseAsyncHandle<Vec<DocsCatalogArtifact>, ()> =
+        use_async::<Vec<DocsCatalogArtifact>, ()>();
+    match catalog.state() {
+        AsyncState::<Vec<DocsCatalogArtifact>, ()>::Loading(_) => {
+            // The request is issued from the loading state, and the
+            // retry button re-enters that state, so both paths send
+            // exactly one request.
+            //
+            // A host build has no page to fetch from, so the request is
+            // not issued there and the host build renders the failure
+            // state instead of spawning a browser future.
+            #[cfg(target_arch = "wasm32")]
+            catalog.refetch(|| async { request_catalog().await });
+            html! {
+                div {
+                    class: c_catalog()
+                    p {
+                        class: c_catalog_card_summary()
+                        role: CATALOG_ROLE_STATUS
+                        {
+                            loading_label.clone()
+                        }
+                    }
+                }
+            }
+        }
+        AsyncState::<Vec<DocsCatalogArtifact>, ()>::Err(_) => html! {
             div {
-                class: c_catalog_grid()
-                children
+                class: c_catalog()
+                p {
+                    class: c_catalog_card_summary()
+                    role: CATALOG_ROLE_STATUS
+                    {
+                        error_label.clone()
+                    }
+                }
+                button {
+                    class: c_catalog_button()
+                    type: CATALOG_BUTTON_TYPE
+                    onclick: move |_event: Event| {
+                        catalog.set_state(AsyncState::<Vec<DocsCatalogArtifact>, ()>::Loading(()));
+                    }
+                    {
+                        retry_label.clone()
+                    }
+                }
+            }
+        },
+        AsyncState::<Vec<DocsCatalogArtifact>, ()>::Ok(artifacts) => {
+            let mut cards: Vec<VirtualNode> = Vec::with_capacity(artifacts.len());
+            for artifact in artifacts.iter() {
+                cards.push(docs_catalog_card(
+                    artifact.clone(),
+                    files_label.clone(),
+                    size_label.clone(),
+                    updated_label.clone(),
+                ));
+            }
+            let children: VirtualNode = VirtualNode::Fragment(cards);
+            html! {
+                div {
+                    class: c_catalog()
+                    div {
+                        class: c_catalog_grid()
+                        children
+                    }
+                }
             }
         }
     }
@@ -147,14 +203,17 @@ fn docs_catalog_card(
     }
 }
 
-/// Fetches the catalog and parses it.
+/// Requests the catalog and parses it.
+///
+/// The framework's fetch primitive is a browser API, so a host build
+/// has no page to fetch from and the request cannot be made there.
 ///
 /// # Returns
 ///
 /// - `Result<Vec<DocsCatalogArtifact>, String>` - The stored projects, or
 ///   the reason they could not be read.
 #[cfg(target_arch = "wasm32")]
-pub(crate) async fn load_catalog() -> Result<Vec<DocsCatalogArtifact>, String> {
+async fn request_catalog() -> Result<Vec<DocsCatalogArtifact>, String> {
     let response: FetchResponse = fetch(CATALOG_URL)
         .await
         .map_err(|error: FetchError| format!("{ERROR_CATALOG_SHAPE}: {error}"))?;
@@ -308,9 +367,9 @@ fn is_safe_artifact_name(name: &str) -> bool {
         && name.len() <= 63
         && name
             .bytes()
-            .all(|byte: u8| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
-        && !name.starts_with('-')
-        && !name.ends_with('-')
+            .all(|byte: u8| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == HYPHEN)
+        && !name.starts_with(HYPHEN_CHAR)
+        && !name.ends_with(HYPHEN_CHAR)
 }
 
 /// Whether the digest is a hex SHA-256.

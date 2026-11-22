@@ -16,3 +16,15 @@ pub const CATALOG_CARD_CLASS: &str = "docs-catalog-card";
 
 /// The template of a published project page link.
 pub const CATALOG_LINK_TEMPLATE: &str = "/pages/{name}/";
+
+/// The character a safe artifact name may carry as a separator.
+pub const HYPHEN: u8 = b'-';
+
+/// The separator a safe artifact name may carry, as a character.
+pub const HYPHEN_CHAR: char = '-';
+
+/// The role of the catalog's loading and failure messages.
+pub const CATALOG_ROLE_STATUS: &str = "status";
+
+/// The type of the catalog's retry button.
+pub const CATALOG_BUTTON_TYPE: &str = "button";

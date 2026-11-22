@@ -11,6 +11,23 @@ fn classes() -> [&'static Css; 6] {
     ]
 }
 
+fn pseudo(css: &Css, selector: &str) -> String {
+    let rules: String = format!("{:?}", css.get_pseudo_rules());
+    let marker: String = format!("selector: \"{selector}\"");
+    let Some(start) = rules.find(&marker) else {
+        return String::new();
+    };
+    let tail: &str = &rules[start..];
+    let Some(open) = tail.find("style: \"") else {
+        return String::new();
+    };
+    let body: &str = &tail[open + "style: \"".len()..];
+    let Some(end) = body.find('"') else {
+        return String::new();
+    };
+    body[..end].to_string()
+}
+
 fn value(css: &Css, property: &str) -> Option<String> {
     css.get_style()
         .split(';')
@@ -41,9 +58,8 @@ fn toc_frame_has_no_outer_or_title_frame() {
             );
         }
         let pseudos: String = format!("{:?}", css.get_pseudo_rules());
-        assert!(!pseudos.contains("border"), "{}: {pseudos}", css.get_name());
         assert!(
-            !pseudos.contains("box-shadow"),
+            !pseudos.contains("border-bottom"),
             "{}: {pseudos}",
             css.get_name()
         );
@@ -62,7 +78,16 @@ fn toc_frame_preserves_nested_indentation_and_active_weight() {
             value(css, "font-weight").as_deref(),
             Some("var(--font-weight-bold)")
         );
-        assert_eq!(value(css, "color").as_deref(), Some("var(--primary)"));
+        assert_eq!(
+            value(css, "color").as_deref(),
+            Some("var(--primary-foreground)")
+        );
+        assert_eq!(
+            value(css, "background").as_deref(),
+            Some("var(--primary)"),
+            "{}",
+            css.get_name()
+        );
     }
     for css in [c_euv_toc_link_nested(), c_euv_toc_link_nested_active()] {
         assert_eq!(
@@ -71,7 +96,6 @@ fn toc_frame_preserves_nested_indentation_and_active_weight() {
         );
     }
     for css in &classes()[2..] {
-        assert_eq!(value(css, "box-shadow").as_deref(), Some("none"));
         assert_eq!(value(css, "border-radius").as_deref(), Some("0"));
         assert_eq!(
             value(css, "outline"),
@@ -82,15 +106,44 @@ fn toc_frame_preserves_nested_indentation_and_active_weight() {
 }
 
 #[test]
-fn toc_frame_separator_adds_only_a_straight_horizontal_rule() {
+fn toc_frame_separator_draws_no_rule() {
     let separator: &Css = c_euv_toc_link_separator();
     assert!(separator.get_style().is_empty());
     assert_eq!(
         separator.get_pseudo_rules(),
         &vec![PseudoRule::new(
             ":is(.c_euv_toc_link_separator)".to_string(),
-            "border-bottom: var(--border-width) solid var(--border); padding-bottom: var(--space-xs); ".to_string(),
+            "border-bottom: none; ".to_string(),
         )]
+    );
+}
+
+#[test]
+fn toc_frame_paints_a_left_bar_on_hover_and_on_the_active_row() {
+    let hover: String = pseudo(c_euv_toc_link(), ":hover");
+    assert!(
+        hover.contains("inset var(--toc-bar-width) 0 0 0 var(--foreground)"),
+        "the hover bar must be an inset shadow in the foreground colour, got {hover}"
+    );
+    assert!(
+        !hover.contains("border"),
+        "the hover must not draw a border, got {hover}"
+    );
+    let active: &Css = c_euv_toc_link_active();
+    assert!(
+        value(active, "box-shadow")
+            .unwrap_or_default()
+            .contains("inset var(--toc-bar-width) 0 0 0 var(--primary)"),
+        "the active row must paint its own bar"
+    );
+    let active_hover: String = pseudo(active, ":hover");
+    assert!(
+        active_hover.contains("var(--primary)"),
+        "the active row must keep its fill on hover, got {active_hover}"
+    );
+    assert_eq!(
+        value(c_euv_toc_link(), "position").as_deref(),
+        Some("relative")
     );
 }
 

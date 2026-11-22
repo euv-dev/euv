@@ -49,11 +49,13 @@ pub(crate) const DOCS_KEY_CATALOG_FILES: &str = "docs.catalog.files";
 pub(crate) const DOCS_KEY_CATALOG_SIZE: &str = "docs.catalog.size";
 /// The localized label of the update time field.
 pub(crate) const DOCS_KEY_CATALOG_UPDATED: &str = "docs.catalog.updated";
+/// The localized label of the button that retries a failed catalog load.
+pub(crate) const DOCS_KEY_CATALOG_RETRY: &str = "docs.catalog.retry";
 
 /// The Chinese translation table for the password gate. It carries the
 /// strings the gate used before it was localised, so the root locale
 /// renders exactly what it always did.
-pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 21] = [
+pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 22] = [
     (PW_GATE_KEY_HINT, "本文受密码保护，输入密码后即可查看内容。"),
     (PW_GATE_KEY_IDLE, "解锁"),
     (PW_GATE_KEY_BUSY, "验证中…"),
@@ -75,11 +77,12 @@ pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 21] = [
     (DOCS_KEY_CATALOG_FILES, "文件数"),
     (DOCS_KEY_CATALOG_SIZE, "总大小"),
     (DOCS_KEY_CATALOG_UPDATED, "更新时间"),
+    (DOCS_KEY_CATALOG_RETRY, "重试"),
 ];
 
 /// The English translation table for the password gate, and the fallback
 /// every other locale defers to.
-pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 21] = [
+pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 22] = [
     (
         PW_GATE_KEY_HINT,
         "This article is password protected. Enter the password to read it.",
@@ -107,10 +110,11 @@ pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 21] = [
     (DOCS_KEY_CATALOG_FILES, "Files"),
     (DOCS_KEY_CATALOG_SIZE, "Total size"),
     (DOCS_KEY_CATALOG_UPDATED, "Updated"),
+    (DOCS_KEY_CATALOG_RETRY, "Retry"),
 ];
 
 /// The Japanese translation table for the password gate.
-pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 21] = [
+pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 22] = [
     (
         PW_GATE_KEY_HINT,
         "この記事のパスワードで保護されています。パスワードを入力すると内容をご覧できます。",
@@ -144,10 +148,11 @@ pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 21] = [
     (DOCS_KEY_CATALOG_FILES, "ファイル数"),
     (DOCS_KEY_CATALOG_SIZE, "合計サイズ"),
     (DOCS_KEY_CATALOG_UPDATED, "更新日時"),
+    (DOCS_KEY_CATALOG_RETRY, "再試行"),
 ];
 
 /// The Korean translation table for the password gate.
-pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 21] = [
+pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 22] = [
     (
         PW_GATE_KEY_HINT,
         "이 문서는 비밀번호로 보호되어 있습니다. 비밀번호를 입력해 주세요.",
@@ -178,6 +183,7 @@ pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 21] = [
     (DOCS_KEY_CATALOG_FILES, "파일 수"),
     (DOCS_KEY_CATALOG_SIZE, "전체 크기"),
     (DOCS_KEY_CATALOG_UPDATED, "업데이트 시각"),
+    (DOCS_KEY_CATALOG_RETRY, "다시 시도"),
 ];
 
 /// The `<html lang>` tag the Chinese locale publishes under.

@@ -769,22 +769,46 @@ class! {
         // so hovering an inactive entry must not bold it or the weight would
         // read as a false "you are here" cue on mouse-over alone.
         font-weight: var!(font-weight-normal);
+        // The row is the positioning context of its own left bar, the same
+        // mechanism the sidebar tree uses for the row under the pointer.
+        position: "relative";
+        // Hover paints a left bar and leaves the row's own background
+        // transparent. The bar is an inset shadow rather than a border,
+        // because a border takes part in the box's layout and would move
+        // the text when the state changes; an inset shadow is painted
+        // inside the existing padding box and moves nothing.
+        //
+        // The bar is narrower than the sidebar's, because the table of
+        // contents is a narrower column and a full-width bar would read
+        // as a heavy rule rather than as a marker.
         :hover {
             color: var!(primary);
+            box-shadow: format!("inset {} 0 0 0 {}", var!(toc-bar-width), var!(foreground));
         }
         border-radius: "0";
     }
 
     pub c_euv_toc_link_active {
         c_euv_toc_link();
-        color: var!(primary);
+        // The active entry changes its fill, the same way the sidebar's
+        // active row does, so the current section is unmistakable.
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-weight: var!(font-weight-bold);
+        box-shadow: format!("inset {} 0 0 0 {}", var!(toc-bar-width), var!(primary));
+        :hover {
+            background: var!(primary);
+            color: var!(primary-foreground);
+            box-shadow: format!("inset {} 0 0 0 {}", var!(toc-bar-width), var!(primary));
+        }
     }
 
     pub(crate) c_euv_toc_link_separator {
         :is(.c_euv_toc_link_separator) {
-            border-bottom: format!("{} solid {}", var!(border-width), var!(border));
-            padding-bottom: var!(space-xs);
+            // The rows are separated by the lock-in bar and the active
+            // fill, not by a rule: a solid line under every row read as a
+            // table border, and the hover had nothing left to show.
+            border-bottom: "none";
         }
     }
 
@@ -795,8 +819,18 @@ class! {
 
     pub c_euv_toc_link_nested_active {
         c_euv_toc_link_nested();
-        color: var!(primary);
+        // The nested active row carries the same fill and the same bar as
+        // the active row it nests, so the current section looks the same
+        // at every depth.
+        background: var!(primary);
+        color: var!(primary-foreground);
         font-weight: var!(font-weight-bold);
+        box-shadow: format!("inset {} 0 0 0 {}", var!(toc-bar-width), var!(primary));
+        :hover {
+            background: var!(primary);
+            color: var!(primary-foreground);
+            box-shadow: format!("inset {} 0 0 0 {}", var!(toc-bar-width), var!(primary));
+        }
     }
 
     pub(crate) c_mobile_app_root {
