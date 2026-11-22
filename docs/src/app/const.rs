@@ -88,16 +88,15 @@ pub(crate) const APP_GLOBAL_CSS: &str = "html, body { height: 100%; overflow: hi
              #app .c_docs_header_brand { display: inline-flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500; color: var(--foreground); text-decoration: none; } \
              #app .c_docs_header_brand_title { white-space: nowrap; } \
              #app .c_docs_header_links { display: flex; align-items: center; gap: 2px; } \
-             #app .c_docs_header_link, #app .c_docs_header_link_active { display: inline-flex; align-items: center; height: 32px; padding: 0 10px; border-radius: var(--radius-md, 0px); font-size: 14px; font-weight: 500; text-decoration: none; transition: background 150ms ease, color 150ms ease; } \
-             #app .c_docs_header_link:hover { background: var(--accent); color: var(--accent-foreground); } \
+             #app .c_docs_header_link, #app .c_docs_header_link_active { display: inline-flex; align-items: center; height: 32px; padding: 0 10px; border-radius: var(--radius-md, 0px); font-size: 14px; text-decoration: none; transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease; } \
              #app .c_docs_header_actions { margin-left: auto; display: flex; align-items: center; gap: 8px; } \
-             #app .c_docs_header_search { position: relative; display: flex; align-items: center; height: 32px; width: 256px; padding: 0 12px; border-radius: var(--radius-md, 0px); background: var(--muted); border: 1px solid transparent; } \
-             #app .c_docs_header_search:focus-within { box-shadow: 0 0 0 calc(var(--ring-width) + var(--ring-offset)) var(--ring); } \
+             #app .c_docs_header_search { position: relative; display: flex; align-items: center; height: 32px; width: 256px; padding: 0 12px; border-radius: var(--radius-md, 0px); background: var(--muted); border: var(--border-width) solid var(--input); } \
+             #app .c_docs_header_search:hover { border-color: var(--ring); } \
+             #app .c_docs_header_search:focus-within { border-color: var(--ring); box-shadow: 0 0 0 calc(var(--ring-width) + var(--ring-offset)) var(--ring); } \
              #app .c_docs_header_search_input { width: 100%; border: none; background: transparent; color: var(--foreground); font-size: 14px; font-family: inherit; outline: none; } \
              #app .c_docs_header_search_input::placeholder { color: var(--muted-foreground); } \
-             #app .c_docs_header_separator { width: 1px; height: 16px; background: var(--border); } \
-             #app .c_docs_header_icon_button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: var(--radius-md, 0px); color: var(--foreground); cursor: pointer; } \
-             #app .c_docs_header_icon_button:hover { background: var(--accent); color: var(--accent-foreground); } \
+             #app .c_docs_header_icon_button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: var(--radius-md, 0px); color: var(--foreground); cursor: pointer; transition: box-shadow 150ms ease; } \
+             #app .c_docs_header_icon_button:hover { background: transparent; box-shadow: inset 3px 0 0 0 var(--foreground); } \
              #app .c_docs_shell { flex-direction: column; } \
              #app .c_docs_body { display: flex; flex: 1; min-height: 0; width: 100%; } \
              #app .c_nav_section_label { padding-left: 0.75rem; } \
@@ -182,9 +181,6 @@ pub(crate) const CLASS_DOCS_HEADER_SEARCH: &str = "c_docs_header_search";
 
 /// The `class` of the search field's input element.
 pub(crate) const CLASS_DOCS_HEADER_SEARCH_INPUT: &str = "c_docs_header_search_input";
-
-/// The `class` of the vertical rule between the header's action groups.
-pub(crate) const CLASS_DOCS_HEADER_SEPARATOR: &str = "c_docs_header_separator";
 
 /// The `class` of the header's icon button (the theme toggle).
 pub(crate) const CLASS_DOCS_HEADER_ICON_BUTTON: &str = "c_docs_header_icon_button";

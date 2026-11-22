@@ -1,3 +1,4 @@
+pub mod catalog;
 mod code_block;
 mod doc_page;
 mod header;
@@ -7,6 +8,8 @@ mod markdown;
 mod not_found;
 mod password_gate;
 mod site_footer;
+
+pub use catalog::*;
 
 pub(crate) use {
     code_block::*, doc_page::*, header::*, home_page::*, layout::*, markdown::*, not_found::*,

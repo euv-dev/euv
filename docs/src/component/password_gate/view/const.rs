@@ -48,6 +48,14 @@ class! {
     pub c_pw_gate_actions {
         display: "flex";
         margin-top: var!(space-xl);
+        // The row is as wide as the card, so the unlock button can fill
+        // it: a small button in the corner of a wide card is hard to
+        // find and hard to tap.
+        width: "100%";
+    }
+
+    pub c_pw_gate_action {
+        width: "100%";
     }
 }
 

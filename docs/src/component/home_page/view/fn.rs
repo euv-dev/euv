@@ -60,6 +60,9 @@ pub(crate) fn docs_home_page(node: VirtualNode<DocsPageProps>) -> VirtualNode {
                     if { !page.blocks.is_empty() } {
                         docs_markdown(page.blocks)
                     }
+                    docs_catalog {
+                        route_signal: route_signal
+                    }
                 }
                 div {
                     class: c_home_tail()

@@ -41,17 +41,31 @@ fn the_search_focus_ring_is_a_box_shadow_that_uses_the_theme_ring_tokens() {
 }
 
 #[test]
-fn the_search_wrapper_never_recolours_its_border_to_signal_focus() {
+fn the_search_wrapper_paints_a_visible_border_and_keeps_it_stable_across_states() {
     let base: String = rule(APP_GLOBAL_CSS, "#app .c_docs_header_search");
     assert_eq!(
         declaration(&base, "border").as_deref(),
-        Some("1px solid transparent"),
-        "the wrapper's border is transparent in both states"
+        Some("var(--border-width) solid var(--input)"),
+        "the wrapper must paint a visible border, the way every framework-native control does"
     );
     assert_eq!(declaration(&base, "box-shadow"), None);
     let focus: String = rule(APP_GLOBAL_CSS, "#app .c_docs_header_search:focus-within");
-    assert_eq!(declaration(&focus, "border-color"), None);
-    assert_eq!(declaration(&focus, "border-width"), None);
+    assert_eq!(
+        declaration(&focus, "border-width"),
+        None,
+        "focus must not change the border width, or the box would resize"
+    );
+    assert_eq!(
+        declaration(&focus, "border-color").as_deref(),
+        Some("var(--ring)"),
+        "focus recolours the border, which keeps the box the same size"
+    );
+    assert!(
+        declaration(&focus, "box-shadow")
+            .unwrap_or_default()
+            .contains("var(--ring-width)"),
+        "focus paints the ring as a box shadow, so the box does not resize"
+    );
 }
 
 #[test]

@@ -9,23 +9,92 @@ fn value(css: &Css, property: &str) -> Option<String> {
         .next_back()
 }
 
+fn pseudo(css: &Css, selector: &str) -> String {
+    let rules: String = format!("{:?}", css.get_pseudo_rules());
+    let marker: String = format!("selector: \"{selector}\"");
+    let mut found: Option<String> = None;
+    let mut cursor: usize = 0;
+    while let Some(start) = rules[cursor..].find(&marker) {
+        let start: usize = cursor + start;
+        let tail: &str = &rules[start..];
+        let Some(open) = tail.find("style: \"") else {
+            break;
+        };
+        let body: &str = &tail[open + "style: \"".len()..];
+        let Some(end) = body.find('"') else {
+            break;
+        };
+        found = Some(body[..end].to_string());
+        cursor = start + marker.len();
+    }
+    found.unwrap_or_default()
+}
+
 #[test]
-fn active_header_links_have_a_persistent_theme_background_and_contrasting_text() {
-    let active: &Css = c_docs_header_link_active();
-    assert_eq!(active.get_name(), "c_docs_header_link_active");
-    assert_eq!(
-        value(active, "background").as_deref(),
-        Some("var(--accent)")
-    );
-    assert_eq!(
-        value(active, "color").as_deref(),
-        Some("var(--accent-foreground)")
-    );
-    assert!(active.get_pseudo_rules().is_empty());
+fn the_inactive_header_link_paints_a_lock_in_bar_on_hover_and_keeps_its_background_transparent() {
     let normal: &Css = c_docs_header_link();
     assert_eq!(normal.get_name(), "c_docs_header_link");
     assert_eq!(value(normal, "background"), None);
     assert_eq!(value(normal, "color").as_deref(), Some("var(--foreground)"));
+    let hover: String = pseudo(normal, ":hover");
+    assert!(
+        hover.contains("inset 3px 0 0 0 var(--foreground)"),
+        "the hover must paint the same left bar the sidebar tree paints, got {hover}"
+    );
+    assert!(
+        !hover.contains("border"),
+        "the hover must not draw a border, or the text would move, got {hover}"
+    );
+    assert!(
+        hover.contains("background: transparent"),
+        "the hover must leave the row's own background transparent, got {hover}"
+    );
+}
+
+#[test]
+fn the_active_header_link_paints_the_primary_fill_and_keeps_it_on_hover() {
+    let active: &Css = c_docs_header_link_active();
+    assert_eq!(active.get_name(), "c_docs_header_link_active");
+    assert_eq!(
+        value(active, "background").as_deref(),
+        Some("var(--primary)"),
+        "the active link must be filled with the primary colour, the way the sidebar's active row is"
+    );
+    assert_eq!(
+        value(active, "color").as_deref(),
+        Some("var(--primary-foreground)")
+    );
+    assert_eq!(
+        value(active, "font-weight").as_deref(),
+        Some("var(--font-weight-semibold)")
+    );
+    let hover: String = pseudo(active, ":hover");
+    assert!(
+        hover.contains("background: var(--primary)"),
+        "the active link must keep its fill on hover, got {hover}"
+    );
+    assert!(
+        hover.contains("box-shadow: none"),
+        "the active link must drop the bar on hover, because the fill already carries the weight, got {hover}"
+    );
+}
+
+#[test]
+fn no_header_link_state_paints_the_accent_colour() {
+    for css in [c_docs_header_link(), c_docs_header_link_active()] {
+        let style: &str = css.get_style();
+        assert!(
+            !style.contains("--accent"),
+            "{} must not paint the accent, which is the header's own background: {style}",
+            css.get_name()
+        );
+        let pseudo_rules: String = format!("{:?}", css.get_pseudo_rules());
+        assert!(
+            !pseudo_rules.contains("--accent"),
+            "{} must not paint the accent on hover either: {pseudo_rules}",
+            css.get_name()
+        );
+    }
 }
 
 #[test]
@@ -39,6 +108,41 @@ fn header_layout_does_not_override_the_active_class_text_color() {
         .0;
     assert!(!shared.contains("color:"));
     assert!(!shared.contains("background:"));
+    assert!(!shared.contains("font-weight:"));
+    assert!(
+        shared.contains("box-shadow 150ms ease"),
+        "the bar must fade in with the other transitions, got {shared}"
+    );
+}
+
+#[test]
+fn the_header_layout_owns_no_hover_paint_of_its_own() {
+    assert!(
+        !APP_GLOBAL_CSS.contains("#app .c_docs_header_link:hover"),
+        "the id-scoped hover rule would outrank the class rule and hide the bar"
+    );
+    assert!(
+        !APP_GLOBAL_CSS.contains("c_docs_header_icon_button:hover { background: var(--accent)"),
+        "the accent fill is the header's own background, so the theme button's hover showed nothing"
+    );
+}
+
+#[test]
+fn the_header_carries_no_vertical_rule_between_the_search_field_and_the_theme_button() {
+    assert!(
+        !APP_GLOBAL_CSS.contains("c_docs_header_separator"),
+        "the search field now paints its own border, so the hairline is a second divider"
+    );
+    let view: &str = include_str!("../../src/component/header/view/fn.rs");
+    assert!(
+        !view.contains("CLASS_DOCS_HEADER_SEPARATOR"),
+        "the separator's class, its rule and its constant must all be gone"
+    );
+    let app: &str = include_str!("../../src/app/const.rs");
+    assert!(
+        !app.contains("CLASS_DOCS_HEADER_SEPARATOR"),
+        "the separator's constant must be gone"
+    );
 }
 
 fn anchor<'a>(node: &'a VirtualNode, href: &str) -> Option<&'a VirtualNode> {

@@ -193,6 +193,51 @@ fn locked_page_has_one_centered_footer_and_no_document_body() {
 }
 
 #[test]
+fn the_gate_input_carries_no_placeholder_and_keeps_its_accessible_name() {
+    let source: &str = include_str!("../../src/component/password_gate/view/fn.rs");
+    let view: &str = source
+        .split("pub(crate) fn docs_password_gate")
+        .nth(1)
+        .expect("gate view")
+        .split("/// Builds the submit handler")
+        .next()
+        .expect("gate view end");
+    assert!(
+        !view.contains("placeholder"),
+        "the gate input must be genuinely blank: a placeholder reads as content the field wrote"
+    );
+    assert!(
+        view.contains("aria-label: locale_text(route, PW_GATE_KEY_LABEL)"),
+        "the gate input must keep its accessible name"
+    );
+    let locale: &str = include_str!("../../src/locale/const.rs");
+    assert!(
+        !locale.contains("PW_GATE_KEY_PLACEHOLDER"),
+        "the dead placeholder key must not stay in the locale tables"
+    );
+}
+
+#[test]
+fn the_gate_button_fills_the_width_of_the_card() {
+    let source: &str = include_str!("../../src/component/password_gate/view/const.rs");
+    assert!(
+        source.contains("width: \"100%\""),
+        "the actions row must be as wide as the card, or the unlock button cannot fill it"
+    );
+    let button: &Css = c_pw_gate_action();
+    assert!(
+        button.get_style().contains("width: 100%"),
+        "the unlock button must fill the card, got {}",
+        button.get_style()
+    );
+    let view: &str = include_str!("../../src/component/password_gate/view/fn.rs");
+    assert!(
+        view.contains("class: c_pw_gate_action()"),
+        "the unlock button must carry the full-width class"
+    );
+}
+
+#[test]
 fn neither_shell_owns_a_footer() {
     let shell: &str = include_str!("../../src/component/layout/view/fn.rs");
     assert!(shell_has_no_footer(shell));

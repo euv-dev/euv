@@ -130,6 +130,11 @@ vars! {
         nav-row-height: format!("calc({} + {})", var!(control-height), var!(space-lg));
         nav-row-padding: var!(space-md);
         nav-item-inset: var!(space-xs);
+        // The width of the lock-in bar a table-of-contents row paints on
+        // hover. It is narrower than the sidebar's 5px bar, because the
+        // table of contents is a narrower column and a full-width bar
+        // would read as a heavy rule rather than as a marker.
+        toc-bar-width: "3px";
         side-indent: "9px";
         side-indent-num: "9";
 
@@ -328,6 +333,7 @@ vars! {
         nav-row-height: format!("calc({} + {})", var!(control-height), var!(space-lg));
         nav-row-padding: var!(space-md);
         nav-item-inset: var!(space-xs);
+        toc-bar-width: "3px";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Transition Durations (same as light)

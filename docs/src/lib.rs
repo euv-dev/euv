@@ -21,7 +21,7 @@ mod generated {
     include!(concat!(env!("OUT_DIR"), "/docs_gen.rs"));
 }
 
-pub use {locale::*, route::*, router::*, std::rc::Rc};
+pub use {component::catalog::*, locale::*, route::*, router::*, std::rc::Rc};
 
 pub(crate) use {
     app::*,
@@ -31,12 +31,14 @@ pub(crate) use {
     highlight::*,
     js_sys::Promise,
     std::cell::{Cell, RefCell},
+    std::str::from_utf8,
     {Event, HtmlInputElement, KeyboardEvent, Location},
 };
 
 use {
     euv::{wasm_bindgen::prelude::*, *},
     euv_ui::*,
+    serde_json::{Error, Value},
     wasm_bindgen_futures::{JsFuture, spawn_local},
 };
 

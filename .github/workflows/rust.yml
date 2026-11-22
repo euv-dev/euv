@@ -114,6 +114,14 @@ jobs:
           cd ui
           wasm-pack test --node
           wasm-pack test --node --features theme-shadcn
+      - name: Run the core wasm tests
+        # The core crate's test module is gated on the wasm32 target, so
+        # the host test run never compiles it. Without this step a broken
+        # wasm-only module ships without a single failing check: the
+        # `fetch` module's own test file did not compile through 0.37.2.
+        run: |
+          cd core
+          wasm-pack test --node
 
   clippy:
     needs: setup

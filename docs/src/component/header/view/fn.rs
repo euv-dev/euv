@@ -39,9 +39,6 @@ pub(crate) fn docs_header(
             div {
                 class: CLASS_DOCS_HEADER_ACTIONS
                 docs_header_search(route_signal, search_query, mobile_signal)
-                div {
-                    class: CLASS_DOCS_HEADER_SEPARATOR
-                }
                 button {
                     class: CLASS_DOCS_HEADER_ICON_BUTTON
                     title: locale_text(&route_signal.get(), DOCS_KEY_THEME_TOGGLE)
