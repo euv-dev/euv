@@ -102,6 +102,9 @@ def parse_version(text, path):
     The file is read as text on purpose: the runner's Python is the one
     that has to parse it, and a plain scan keeps this script runnable on
     any interpreter the repository already uses.
+
+    A section of None means the first version the file declares, which is
+    the root package version in a manifest that opens with ``[package]``.
     """
     section = None
     pattern = re.compile(r'^\s*version\s*=\s*"([^"]+)"')
@@ -110,7 +113,7 @@ def parse_version(text, path):
         if stripped.startswith("[") and stripped.endswith("]"):
             section = stripped[1:-1].strip()
             continue
-        if path and section != path:
+        if path and section is not None and section != path:
             continue
         match = pattern.match(line)
         if match:
@@ -229,6 +232,32 @@ def merge(pull, repository, config):
     return "merged"
 
 
+def dispatch_workflows(repository, workflows, ref):
+    """Starts the workflows that a merge must run.
+
+    A merge pushed with the workflow's own GITHUB_TOKEN does NOT trigger
+    the workflows that the merge itself would trigger: GitHub suppresses
+    them on purpose, to stop a workflow from recursively triggering
+    itself. The release pipeline must still run after a merge, so the
+    merge job starts those workflows explicitly.
+    """
+    started = []
+    for workflow in workflows or []:
+        run_gh(
+            [
+                "workflow",
+                "run",
+                workflow,
+                "--repo",
+                repository,
+                "--ref",
+                ref,
+            ]
+        )
+        started.append(workflow)
+    return started
+
+
 def load_config(path):
     """Reads the gate configuration."""
     with open(path, "r", encoding="utf-8") as handle:
@@ -268,6 +297,13 @@ def main():
         outcome = merge(pull, repository, config)
         merged.append(number)
         print("%s #%s: %s" % (outcome, number, reason), flush=True)
+        started = dispatch_workflows(
+            repository,
+            config.get("post_merge_dispatch"),
+            config.get("base_branch") or DEFAULT_BASE_BRANCH,
+        )
+        for workflow in started:
+            print("dispatched %s on %s" % (workflow, config.get("base_branch")), flush=True)
     print(
         "auto-merge summary: merged %d, skipped %d" % (len(merged), len(skipped)),
         flush=True,

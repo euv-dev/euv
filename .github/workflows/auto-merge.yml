@@ -6,10 +6,10 @@ name: Auto Merge
 # untrusted author, a draft, a wrong base branch or an unchanged version
 # all keep the pull request open.
 #
-# The merge is performed with the repository's own PAT, not with the
-# workflow's GITHUB_TOKEN: a merge pushed by GITHUB_TOKEN suppresses the
-# workflows that the merge itself triggers, and the release pipeline must
-# still run after this job merges the pull request.
+# The merge is performed with the workflow's own token, and the workflows
+# that a merge must run are started explicitly afterwards: a merge pushed
+# by GITHUB_TOKEN suppresses the workflows that the merge itself would
+# trigger, so the release pipeline would never run without that step.
 
 on:
   pull_request:
@@ -19,8 +19,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: auto-merge-${{ github.repository }}
@@ -40,15 +41,14 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install gh
+      - name: Locate gh
+        # The runner already ships gh. Installing it needs a root-owned
+        # directory this job does not have, so the preinstalled binary is
+        # used instead.
         run: |
           set -euo pipefail
-          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-            -o /usr/share/keyrings/githubcli-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-            > /etc/apt/sources.list.d/github-cli.list
-          apt-get update
-          apt-get install -y gh
+          command -v gh
+          gh --version
 
       - name: Test the merge gate
         run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p 'test_auto_merge.py'
@@ -63,7 +63,7 @@ jobs:
             --repo "$GH_REPO" \
             --config scripts/auto_merge_config.json
 
-      - name: Report the merge
+      - name: Report the merged pull requests
         env:
           GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
