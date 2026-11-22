@@ -93,6 +93,13 @@ class! {
         background: var!(primary);
         color: var!(primary-foreground);
         box-shadow: format!("inset 5px 0 0 0 {}", var!(primary));
+        // The route keeps its muted colour at rest, but on the active row it
+        // must follow the row's own text colour: the muted foreground equals
+        // the primary fill in the monochrome scheme in both themes, so the
+        // route would otherwise be painted in the fill and disappear.
+        > .c_docs_header_search_route {
+            color: var!(primary-foreground);
+        }
         :hover {
             background: var!(primary);
             color: var!(primary-foreground);

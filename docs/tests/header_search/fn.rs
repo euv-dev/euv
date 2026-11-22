@@ -286,3 +286,101 @@ fn committed_search_selection_clears_the_query_for_click_and_enter() {
         2
     );
 }
+
+fn declaration(style: &str, property: &str) -> Option<String> {
+    style
+        .split(';')
+        .filter_map(|part: &str| part.split_once(':'))
+        .filter(|(name, _): &(&str, &str)| name.trim() == property)
+        .map(|(_, value): (&str, &str)| value.trim().to_string())
+        .next_back()
+}
+
+fn pseudo_rule(css: &Css, selector_fragment: &str) -> Option<(String, String)> {
+    let rules: String = format!("{:?}", css.get_pseudo_rules());
+    let marker: &str = "selector: \"";
+    let mut cursor: usize = 0;
+    while let Some(found) = rules[cursor..].find(marker) {
+        let start: usize = cursor + found;
+        let tail: &str = &rules[start + marker.len()..];
+        let Some(selector_end) = tail.find('"') else {
+            break;
+        };
+        let selector: String = tail[..selector_end].to_string();
+        let rest: &str = &tail[selector_end..];
+        let style: String = match rest.find("style: \"") {
+            Some(open) => {
+                let body: &str = &rest[open + "style: \"".len()..];
+                let end: usize = body.find('"').unwrap_or(body.len());
+                body[..end].to_string()
+            }
+            None => String::new(),
+        };
+        if selector.contains(selector_fragment) {
+            return Some((selector, style));
+        }
+        cursor = start + marker.len();
+    }
+    None
+}
+
+fn scheme_literal(source: &str, name: &str) -> String {
+    let marker: String = format!("{name}:");
+    let tail: &str = source
+        .split_once(&marker)
+        .unwrap_or_else(|| panic!("{name} is defined"))
+        .1;
+    let value: &str = tail
+        .split_once('"')
+        .unwrap_or_else(|| panic!("{name} is a literal"))
+        .1;
+    value
+        .split_once('"')
+        .unwrap_or_else(|| panic!("{name} is quoted"))
+        .0
+        .to_string()
+}
+
+#[test]
+fn docs_header_search_active_route_differs_from_fill() {
+    let active: &Css = c_docs_header_search_option_active();
+    assert_eq!(
+        declaration(active.get_style(), "background").as_deref(),
+        Some("var(--primary)"),
+        "the active row fills itself with the primary colour"
+    );
+    assert_eq!(
+        declaration(active.get_style(), "color").as_deref(),
+        Some("var(--primary-foreground)"),
+        "the active row paints its own text in the primary foreground"
+    );
+    assert_eq!(
+        declaration(c_docs_header_search_route().get_style(), "color").as_deref(),
+        Some("var(--muted-foreground)"),
+        "the resting route keeps its muted colour"
+    );
+    let (selector, style): (String, String) = pseudo_rule(active, "c_docs_header_search_route")
+        .expect("the active row must restate the route colour");
+    assert!(
+        selector.contains('>'),
+        "the route is a direct child of the row, got {selector}"
+    );
+    assert_eq!(
+        declaration(&style, "color").as_deref(),
+        Some("var(--primary-foreground)"),
+        "the active row must paint its route in its own text colour, got {style}"
+    );
+    let scheme: &str = include_str!("../../../ui/src/style/var/scheme/monochrome/fn.rs");
+    let light_fill: String = scheme_literal(scheme, "role-primary-light");
+    let light_ink: String = scheme_literal(scheme, "role-primary-foreground-light");
+    let dark_fill: String = scheme_literal(scheme, "role-primary-dark");
+    let dark_ink: String = scheme_literal(scheme, "role-primary-foreground-dark");
+    assert_ne!(
+        light_fill, light_ink,
+        "the monochrome light scheme must contrast its primary fill and ink"
+    );
+    assert_ne!(
+        dark_fill, dark_ink,
+        "the monochrome dark scheme must contrast its primary fill and ink"
+    );
+}
