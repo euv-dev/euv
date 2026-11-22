@@ -235,7 +235,12 @@ class! {
         flex: "1";
         min-height: "0px";
         padding: format!("{} {}", var!(space-sm), var!(nav-item-inset));
-        scrollbar-gutter: "stable both-edges";
+        // `stable both-edges` reserves the scrollbar gutter on BOTH sides of
+        // the column, which pushed every nav row 11px away from the sidebar
+        // edge on the left as well. The column scrolls vertically, so the
+        // gutter belongs on the right only; the left keeps just the column's
+        // own padding, which is the breathing room the nav needs.
+        scrollbar-gutter: "stable";
         scrollbar-width: "thin";
         ::-webkit-scrollbar {
             width: var!(space-xs-sm);

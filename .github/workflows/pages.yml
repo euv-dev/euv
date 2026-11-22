@@ -11,6 +11,8 @@ on:
 permissions:
   contents: read
   actions: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: euv-resource-origin
@@ -20,7 +22,6 @@ jobs:
   publish:
 
     runs-on: ubuntu-latest
-    environment: github-pages
     steps:
       - name: Resolve the exact successful release producer
         id: source
@@ -106,3 +107,115 @@ jobs:
             ${{ runner.temp }}/source.json
             ${{ runner.temp }}/publication.json
           if-no-files-found: error
+
+  mirror:
+    # The GitHub-Pages mirror is published from the same verified artifact as
+    # the authoritative resource origin. It is a separate job with no
+    # dependency on the upload, so a stalled artifact-API upload can never
+    # strand the mirror on a stale build. Both jobs download the same
+    # artifact from the same source run and validate every byte, so the two
+    # channels serve identical content by construction.
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Resolve the exact successful release producer
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" > "$RUNNER_TEMP/source.json"
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .conclusion == "success" and .head_branch == "master" and
+            .head_repository.full_name == $repo and
+            .path == ".github/workflows/build-clients.yml" and
+            (.event == "push" or .event == "workflow_dispatch")' "$RUNNER_TEMP/source.json" >/dev/null
+          sha=$(jq -er '.head_sha | select(test("^[a-f0-9]{40}$"))' "$RUNNER_TEMP/source.json")
+          printf 'sha=%s\n' "$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the artifact source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Download the exact shared native and website artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: euv-native-web-${{ steps.source.outputs.sha }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+          path: .
+
+      - name: Reject superseded releases and validate every release byte
+        run: |
+          set -euo pipefail
+          git fetch origin master
+          git merge-base --is-ancestor HEAD origin/master
+          git show origin/master:Cargo.toml > "$RUNNER_TEMP/current-Cargo.toml"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import sys
+          import tomllib
+          sys.path.insert(0, 'example/scripts')
+          from publish_release import validate_directory
+          version = tomllib.loads(Path('Cargo.toml').read_text())['workspace']['package']['version']
+          current = tomllib.loads((Path(os.environ['RUNNER_TEMP']) / 'current-Cargo.toml').read_text())['workspace']['package']['version']
+          assert version == current, 'A newer master release superseded this artifact'
+          _, manifest = validate_directory(Path('example/www'), version)
+          print(f"Verified {len(manifest['files'])} release resources")
+          PY
+
+      - name: Publish the same verified artifact to the GitHub Pages mirror
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: example/www
+
+      - name: Deploy the GitHub Pages mirror
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Verify the mirror serves the published release
+        env:
+          MIRROR_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          python3 - "$MIRROR_URL" <<'PY'
+          import hashlib
+          import json
+          import sys
+          import urllib.request
+
+          base = sys.argv[1].rstrip('/')
+          expected = json.loads(open('example/www/euv-release.json').read())
+          paths = [item['path'] for item in expected['files']]
+          # The mirror must serve the same root document, the same root wasm and
+          # every theme variant, byte for byte, and it must carry the same
+          # release version as the authoritative origin.
+          wanted = ['index.html', 'euv-release.json']
+          wanted += [p for p in paths if p.startswith('pkg/') and p.endswith('.wasm') and p.count('/') == 1]
+          wanted += [p for p in paths if p.startswith('themes/') and p.endswith('index.html')]
+          wanted += [p for p in paths if p.startswith('themes/') and p.endswith('.wasm')]
+          manifest = {item['path']: item['sha256'] for item in expected['files'] if item['path'] in set(wanted)}
+          assert manifest, 'The release inventory names no verifiable root resource'
+          assert 'index.html' in manifest, 'The release inventory names no root document'
+          assert any(p.startswith('themes/') for p in manifest), 'The release inventory names no theme variant'
+          for path, digest in sorted(manifest.items()):
+              with urllib.request.urlopen(base + '/' + path, timeout=60) as response:
+                  body = response.read()
+              actual = hashlib.sha256(body).hexdigest()
+              assert actual == digest, f'{path} differs on the mirror: {actual} != {digest}'
+          served = json.loads(urllib.request.urlopen(base + '/euv-release.json', timeout=60).read())
+          assert served['version'] == expected['version'], 'The mirror serves another release version'
+          print(f"{len(manifest)} mirror resources verified at version {expected['version']}")
+          PY

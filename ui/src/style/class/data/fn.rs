@@ -593,6 +593,100 @@ class! {
     pub(crate) c_euv_tree_node_children_closed {
         display: "none";
     }
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Catalog
+    //
+    // The catalog surface is a grid of cards that describe a stored project:
+    // its name, its size, its age and its digest. The styling lives here so
+    // a consumer can render the catalog without shipping a stylesheet.
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    pub c_catalog {
+        margin-block: format!("{} {}", var!(space-2xl), var!(space-3xl));
+        min-width: "0px";
+    }
+
+    pub c_catalog_grid {
+        display: "grid";
+        grid-template-columns: "repeat(auto-fit, minmax(min(100%, 20rem), 1fr))";
+        gap: var!(gap-component);
+    }
+
+    pub c_catalog_card {
+        color: var!(card-foreground);
+        background: var!(card);
+        border: format!("{} solid {}", var!(surface-border-width), var!(border));
+        border-radius: var!(radius-xl);
+        box-shadow: var!(shadow-sm);
+        padding: var!(space-2xl);
+        box-sizing: "border-box";
+        min-width: "0px";
+    }
+
+    pub c_catalog_card_title {
+        margin: format!("{} 0px", var!(space-lg));
+        color: var!(card-foreground);
+        font-size: var!(font-lg);
+        font-weight: var!(font-weight-semibold);
+        letter-spacing: var!(letter-spacing-tight);
+        @media ((max-width: 767px)) {
+            font-size: var!(font-md);
+        }
+    }
+
+    pub c_catalog_card_title_link {
+        color: "inherit";
+        font-weight: "inherit";
+    }
+
+    pub c_catalog_card_details {
+        display: "grid";
+        grid-template-columns: format!("auto minmax(0, 1fr)");
+        gap: format!("{} {}", var!(space-sm), var!(space-lg));
+        margin: "0px";
+    }
+
+    pub c_catalog_card_details_label {
+        color: var!(muted-foreground);
+    }
+
+    pub c_catalog_card_details_value {
+        margin: "0px";
+        min-width: "0px";
+        overflow-wrap: "anywhere";
+    }
+
+    pub c_catalog_card_digest {
+        display: "block";
+        overflow-wrap: "anywhere";
+        white-space: "normal";
+        user-select: "all";
+        margin-block: var!(space-md);
+    }
+
+    pub c_catalog_card_summary {
+        cursor: "pointer";
+        font-family: var!(font-family-mono);
+    }
+
+    pub c_catalog_button {
+        font: "inherit";
+        color: var!(primary-foreground);
+        background: var!(primary);
+        border: format!("{} solid transparent", var!(border-width));
+        border-radius: var!(radius-md);
+        padding: format!("{} {}", var!(space-sm), var!(space-lg));
+        cursor: "pointer";
+    }
+
+    pub c_catalog_focus_ring {
+        outline: "none";
+        box-shadow: format!("0 0 0 calc({} + {}) {}", var!(ring-width), var!(ring-offset), var!(ring));
+        :focus-visible {
+            outline: "none";
+            box-shadow: format!("0 0 0 calc({} + {}) {}", var!(ring-width), var!(ring-offset), var!(ring));
+        }
+    }
 }
 
 #[cfg(not(feature = "theme-shadcn"))]
