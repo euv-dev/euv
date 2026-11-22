@@ -12,7 +12,7 @@ categories = ["network-programming", "web-programming"]
 exclude.workspace = true
 
 [workspace.package]
-version = "0.37.6"
+version = "0.37.7"
 readme = "README.md"
 edition = "2024"
 authors = ["root@devhub.vip"]
@@ -101,6 +101,7 @@ tokio = { version = "1.54.1", features = [
     "process",
     "rt-multi-thread",
 ] }
+merman = { version = "0.11.0", default-features = false, features = ["svg", "diagram-sequence", "diagram-flowchart"] }
 web-sys = { version = "0.3.106", features = [
     "Gpu",
     "Blob",

@@ -17,6 +17,7 @@ euv = { workspace = true }
 euv-ui = { workspace = true }
 
 chrono = { workspace = true }
+merman = { workspace = true }
 serde_json = { workspace = true }
 lombok-macros = { workspace = true }
 

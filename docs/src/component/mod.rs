@@ -5,6 +5,7 @@ mod header;
 mod home_page;
 mod layout;
 mod markdown;
+mod mermaid;
 mod not_found;
 mod password_gate;
 mod site_footer;
@@ -12,8 +13,8 @@ mod site_footer;
 pub use catalog::*;
 
 pub(crate) use {
-    code_block::*, doc_page::*, header::*, home_page::*, layout::*, markdown::*, not_found::*,
-    password_gate::*, site_footer::*,
+    code_block::*, doc_page::*, header::*, home_page::*, layout::*, markdown::*, mermaid::*,
+    not_found::*, password_gate::*, site_footer::*,
 };
 
 use super::*;

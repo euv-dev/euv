@@ -51,6 +51,29 @@ impl AttributeEntry {
             _ => None,
         }
     }
+
+    /// Returns the markup an `inner_html` attribute carries.
+    ///
+    /// An `inner_html` attribute is a payload the renderer writes into
+    /// the element, not a text the reader sees, so `text_value` does
+    /// not report it. A consumer that needs to know what the payload
+    /// says — a component that inlines a rendered diagram, a test that
+    /// pins what the payload contains — reads it here. The reactive
+    /// shape reports the markup it currently holds.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<String>` - The markup, when the attribute is an
+    ///   `inner_html` attribute.
+    pub fn inner_html_value(&self) -> Option<String> {
+        match self.get_value() {
+            AttributeValue::InnerHtml(html) => Some(html.clone()),
+            AttributeValue::InnerHtmlSignal(signal) => {
+                Some(signal.with(|html: &String| html.clone()))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Implementation of injected class tracking for CSS deduplication.
