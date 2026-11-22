@@ -17,7 +17,7 @@ pub(crate) const SCOPED_CSS: &str = r#"
 .actor{stroke:var(--foreground);fill:var(--muted);}
 .actor-line{stroke:var(--foreground);}
 .messageLine0,.messageLine1{stroke:var(--foreground);}
-.note{stroke:var(--border);fill:var(--muted);}
+rect.note[data-look]{stroke:var(--border);fill:var(--muted);}
 text.actor>tspan{fill:var(--foreground);stroke:none;}
 .noteText,.noteText>tspan{fill:var(--foreground);stroke:none;}
 .messageText,.messageText>tspan{fill:var(--foreground);stroke:none;}

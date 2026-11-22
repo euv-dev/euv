@@ -92,7 +92,7 @@ const THEME_RULES: &[&str] = &[
     ".actor-line",
     ".messageLine0",
     ".messageLine1",
-    ".note",
+    "rect.note[data-look]",
     "text.actor>tspan",
     ".noteText",
     ".messageText",
