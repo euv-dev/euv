@@ -8,7 +8,7 @@ use super::*;
 /// The fields are crate-visible and the accessors are public, so a
 /// consumer reads the artifact through `get_name()` and cannot freeze
 /// the field layout into the published API.
-#[derive(Clone, Debug, Data, Default, New, PartialEq)]
+#[derive(Clone, Data, Debug, Default, New, PartialEq)]
 pub struct DocsCatalogArtifact {
     /// Project name; also the path segment of its published page.
     #[get(type(clone))]
@@ -31,7 +31,7 @@ pub struct DocsCatalogArtifact {
 ///
 /// The field is crate-visible and the accessor is public, so a consumer
 /// reads the list through `get_artifacts()`.
-#[derive(Clone, Debug, Data, Default, New, PartialEq)]
+#[derive(Clone, Data, Debug, Default, New, PartialEq)]
 pub struct DocsCatalog {
     /// The stored projects, in the order the API listed them.
     #[get(type(clone))]

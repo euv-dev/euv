@@ -14,9 +14,6 @@ pub(crate) const PW_GATE_KEY_ERROR: &str = "docs.password_gate.error";
 /// The translation key for the password input's accessible name.
 pub(crate) const PW_GATE_KEY_LABEL: &str = "docs.password_gate.label";
 
-/// The translation key for the password input's placeholder.
-pub(crate) const PW_GATE_KEY_PLACEHOLDER: &str = "docs.password_gate.placeholder";
-
 /// The localized accessible name for opening the navigation drawer.
 pub(crate) const DOCS_KEY_DRAWER_OPEN: &str = "docs.drawer.open";
 /// The localized accessible name for closing the navigation drawer.
@@ -55,13 +52,12 @@ pub(crate) const DOCS_KEY_CATALOG_RETRY: &str = "docs.catalog.retry";
 /// The Chinese translation table for the password gate. It carries the
 /// strings the gate used before it was localised, so the root locale
 /// renders exactly what it always did.
-pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 22] = [
+pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 21] = [
     (PW_GATE_KEY_HINT, "本文受密码保护，输入密码后即可查看内容。"),
     (PW_GATE_KEY_IDLE, "解锁"),
     (PW_GATE_KEY_BUSY, "验证中…"),
     (PW_GATE_KEY_ERROR, "密码错误，请重试。"),
     (PW_GATE_KEY_LABEL, "访问密码"),
-    (PW_GATE_KEY_PLACEHOLDER, "密码"),
     (DOCS_KEY_DRAWER_OPEN, "打开导航菜单"),
     (DOCS_KEY_DRAWER_CLOSE, "关闭导航菜单"),
     (DOCS_KEY_DRAWER_TITLE, "文档导航"),
@@ -82,7 +78,7 @@ pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 22] = [
 
 /// The English translation table for the password gate, and the fallback
 /// every other locale defers to.
-pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 22] = [
+pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 21] = [
     (
         PW_GATE_KEY_HINT,
         "This article is password protected. Enter the password to read it.",
@@ -91,7 +87,6 @@ pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 22] = [
     (PW_GATE_KEY_BUSY, "Verifying…"),
     (PW_GATE_KEY_ERROR, "Incorrect password. Please try again."),
     (PW_GATE_KEY_LABEL, "Access password"),
-    (PW_GATE_KEY_PLACEHOLDER, "Password"),
     (DOCS_KEY_DRAWER_OPEN, "Open navigation menu"),
     (DOCS_KEY_DRAWER_CLOSE, "Close navigation menu"),
     (DOCS_KEY_DRAWER_TITLE, "Documentation navigation"),
@@ -114,7 +109,7 @@ pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 22] = [
 ];
 
 /// The Japanese translation table for the password gate.
-pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 22] = [
+pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 21] = [
     (
         PW_GATE_KEY_HINT,
         "この記事のパスワードで保護されています。パスワードを入力すると内容をご覧できます。",
@@ -126,7 +121,6 @@ pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 22] = [
         "パスワードが違います。もう一度お試しください。",
     ),
     (PW_GATE_KEY_LABEL, "閲覧パスワード"),
-    (PW_GATE_KEY_PLACEHOLDER, "パスワード"),
     (DOCS_KEY_DRAWER_OPEN, "ナビゲーションメニューを開く"),
     (DOCS_KEY_DRAWER_CLOSE, "ナビゲーションメニューを閉じる"),
     (DOCS_KEY_DRAWER_TITLE, "ドキュメントナビゲーション"),
@@ -152,7 +146,7 @@ pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 22] = [
 ];
 
 /// The Korean translation table for the password gate.
-pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 22] = [
+pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 21] = [
     (
         PW_GATE_KEY_HINT,
         "이 문서는 비밀번호로 보호되어 있습니다. 비밀번호를 입력해 주세요.",
@@ -164,7 +158,6 @@ pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 22] = [
         "비밀번호가 올바르지 않습니다. 다시 시도해 주세요.",
     ),
     (PW_GATE_KEY_LABEL, "접속 비밀번호"),
-    (PW_GATE_KEY_PLACEHOLDER, "비밀번호"),
     (DOCS_KEY_DRAWER_OPEN, "탐색 메뉴 열기"),
     (DOCS_KEY_DRAWER_CLOSE, "탐색 메뉴 닫기"),
     (DOCS_KEY_DRAWER_TITLE, "문서 탐색"),

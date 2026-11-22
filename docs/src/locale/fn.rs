@@ -131,7 +131,6 @@ pub fn gate_translation_keys() -> &'static [&'static str] {
         PW_GATE_KEY_BUSY,
         PW_GATE_KEY_ERROR,
         PW_GATE_KEY_LABEL,
-        PW_GATE_KEY_PLACEHOLDER,
         DOCS_KEY_DRAWER_OPEN,
         DOCS_KEY_DRAWER_CLOSE,
         DOCS_KEY_DRAWER_TITLE,

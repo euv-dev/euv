@@ -93,7 +93,7 @@ fn unlock_key_for(route: &str) -> String {
 /// # Localisation
 ///
 /// Every user-facing string — the hint, the button's idle and busy
-/// labels, the error, the input's placeholder and its accessible name —
+/// labels, the error and the input's accessible name —
 /// comes from [`locale_text`], keyed on the route's locale. The view
 /// holds no language branch of its own, so adding a fifth language is a
 /// row in the locale table and nothing here changes.
@@ -161,7 +161,6 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                         id: input_id.clone()
                         type: INPUT_TYPE_PASSWORD
                         aria-label: locale_text(route, PW_GATE_KEY_LABEL)
-                        placeholder: locale_text(route, PW_GATE_KEY_PLACEHOLDER)
                         autocomplete: INPUT_AUTOCOMPLETE_OFF
                         class: if { !error_signal.get().is_empty() } {
                             c_euv_input_error()
@@ -182,6 +181,7 @@ pub(crate) fn docs_password_gate(node: VirtualNode<DocsPasswordGateProps>) -> Vi
                         class: c_pw_gate_actions()
                         button {
                             class: c_euv_button_primary_md()
+                            class: c_pw_gate_action()
                             disabled: busy_signal.get()
                             onclick: submit
                             if { busy_signal.get() } {

@@ -3,11 +3,42 @@ use super::*;
 class! {
     pub(crate) c_docs_header_link {
         color: var!(foreground);
+        font-weight: var!(font-weight-medium);
+        // Hover paints the same lock-in bar the sidebar tree paints on the
+        // row under the pointer, and leaves the row's own background
+        // transparent.
+        //
+        // The bar is an inset shadow rather than a border: a border takes
+        // part in the box's layout, so the text would move when the state
+        // changes, and an inset shadow is painted inside the existing
+        // padding box and moves nothing.
+        //
+        // The bar is the foreground colour, so it follows the link's own
+        // text colour in every scheme.
+        :hover {
+            background: "transparent";
+            color: var!(foreground);
+            box-shadow: format!("inset 3px 0 0 0 {}", var!(foreground));
+        }
     }
     pub(crate) c_docs_header_link_active {
         c_docs_header_link();
-        background: var!(accent);
-        color: var!(accent-foreground);
+        // The active link changes its fill, the way the sidebar's active
+        // project row does. The fill is the primary colour rather than the
+        // accent: inside the app root the accent is the header's own
+        // background, so an accent fill would leave the active link
+        // invisible.
+        //
+        // The active link drops the bar on hover, because the accent fill
+        // already carries the weight.
+        background: var!(primary);
+        color: var!(primary-foreground);
+        font-weight: var!(font-weight-semibold);
+        :hover {
+            background: var!(primary);
+            color: var!(primary-foreground);
+            box-shadow: "none";
+        }
     }
     pub(crate) c_docs_header_search_panel {
         position: "absolute";
