@@ -45,3 +45,7 @@ Contributions are welcome! Please open an issue or submit a pull request.
 ## Contact
 
 For any inquiries, please reach out to the author at [root@devhub.vip](mailto:root@devhub.vip).
+
+The merge gate merges a pull request on its own once its required
+checks are green. See scripts/auto_merge.py for the rules it
+enforces and scripts/test_auto_merge.py for the rules as fixtures.
