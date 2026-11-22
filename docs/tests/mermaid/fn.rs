@@ -57,12 +57,14 @@ fn find_by_class<'a>(node: &'a VirtualNode, name: &str) -> Option<&'a VirtualNod
 
 fn inner_html_payload(node: &VirtualNode) -> Option<String> {
     match node {
-        VirtualNode::Element { attributes, .. } => attributes.iter().find_map(|entry: &AttributeEntry| {
-            if entry.get_name() != "inner_html" {
-                return None;
-            }
-            entry.inner_html_value()
-        }),
+        VirtualNode::Element { attributes, .. } => {
+            attributes.iter().find_map(|entry: &AttributeEntry| {
+                if entry.get_name() != "inner_html" {
+                    return None;
+                }
+                entry.inner_html_value()
+            })
+        }
         _ => None,
     }
 }
@@ -84,6 +86,24 @@ fn scoped_sheet(svg: &str) -> String {
     let end: usize = tail.find("</style>").expect("the scoped sheet ends");
     tail[..end].to_string()
 }
+
+const THEME_RULES: &[&str] = &[
+    ".actor",
+    ".actor-line",
+    ".messageLine0",
+    ".messageLine1",
+    ".note",
+    "text.actor>tspan",
+    ".noteText",
+    ".messageText",
+    ".labelBox",
+    ".labelText",
+    ".loopText",
+    ".sectionTitle",
+    ".loopLabel",
+];
+
+const THEME_TOKENS: &[&str] = &["var(--foreground)", "var(--muted)", "var(--border)"];
 
 const SEQUENCE: &str = "sequenceDiagram\n    participant Client as \"客户端\"\n    participant Server as \"Server\"\n    Client->>Server: \"TCP 连接请求\"\n";
 

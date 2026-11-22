@@ -29,34 +29,6 @@ text.actor>tspan{fill:var(--foreground);stroke:none;}
 .loopLabel>tspan{fill:var(--foreground);stroke:none;}
 "#;
 
-/// The rules the diagram's stylesheet must paint with a theme token.
-///
-/// Every rule that paints the diagram names a docs theme token, so the
-/// diagram follows the root theme class — light or dark — without a
-/// re-render and without `!important`. The list is the contract: a rule
-/// that drops its token, or a rule that is missing from the sheet, is a
-/// diagram that paints in the wrong theme.
-pub(crate) const THEME_RULES: &[&str] = &[
-    ".actor",
-    ".actor-line",
-    ".messageLine0",
-    ".messageLine1",
-    ".note",
-    "text.actor>tspan",
-    ".noteText",
-    ".messageText",
-    ".labelBox",
-    ".labelText",
-    ".loopText",
-    ".sectionTitle",
-    ".loopLabel",
-];
-/// The theme tokens the diagram's stylesheet must name.
-///
-/// A rule that paints the diagram with anything else paints the diagram
-/// in the wrong theme, so every colour in the sheet is one of these.
-pub(crate) const THEME_TOKENS: &[&str] = &["var(--foreground)", "var(--muted)", "var(--border)"];
-
 class! {
     // The figure owns the frame; the diagram inside it stays unframed
     // so the engine's own geometry is the only layout the reader sees.
