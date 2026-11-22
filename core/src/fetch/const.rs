@@ -18,3 +18,9 @@ pub(crate) const UNKNOWN_ERROR: &str = "unknown";
 
 /// The message used when the page has no window to fetch from.
 pub(crate) const NOWINDOW: &str = "no window";
+
+/// The lowest HTTP status the server accepts a request with.
+pub(crate) const STATUS_OK_LOW: u16 = 200;
+
+/// The highest HTTP status the server accepts a request with.
+pub(crate) const STATUS_OK_HIGH: u16 = 299;

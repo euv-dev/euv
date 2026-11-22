@@ -39,11 +39,21 @@ pub(crate) const DOCS_KEY_SEARCH_PLACEHOLDER: &str = "docs.search.placeholder";
 pub(crate) const DOCS_KEY_SEARCH_COUNT: &str = "docs.search.count";
 /// The substitution token in localized result count templates.
 pub(crate) const DOCS_SEARCH_COUNT_TOKEN: &str = "{count}";
+/// The localized message shown while the catalog is loading.
+pub(crate) const DOCS_KEY_CATALOADING: &str = "docs.catalog.loading";
+/// The localized message shown when the catalog could not be loaded.
+pub(crate) const DOCS_KEY_CATALOG_ERROR: &str = "docs.catalog.error";
+/// The localized label of the file count field.
+pub(crate) const DOCS_KEY_CATALOG_FILES: &str = "docs.catalog.files";
+/// The localized label of the total size field.
+pub(crate) const DOCS_KEY_CATALOG_SIZE: &str = "docs.catalog.size";
+/// The localized label of the update time field.
+pub(crate) const DOCS_KEY_CATALOG_UPDATED: &str = "docs.catalog.updated";
 
 /// The Chinese translation table for the password gate. It carries the
 /// strings the gate used before it was localised, so the root locale
 /// renders exactly what it always did.
-pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 16] = [
+pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 21] = [
     (PW_GATE_KEY_HINT, "本文受密码保护，输入密码后即可查看内容。"),
     (PW_GATE_KEY_IDLE, "解锁"),
     (PW_GATE_KEY_BUSY, "验证中…"),
@@ -60,11 +70,16 @@ pub(crate) const PW_GATE_MESSAGES_ZH: [(&str, &str); 16] = [
     (DOCS_KEY_SEARCH_NONE, "没有匹配的页面"),
     (DOCS_KEY_SEARCH_PLACEHOLDER, "搜索文档…"),
     (DOCS_KEY_SEARCH_COUNT, "找到 {count} 个匹配页面"),
+    (DOCS_KEY_CATALOADING, "正在加载项目…"),
+    (DOCS_KEY_CATALOG_ERROR, "项目列表加载失败，请稍后重试。"),
+    (DOCS_KEY_CATALOG_FILES, "文件数"),
+    (DOCS_KEY_CATALOG_SIZE, "总大小"),
+    (DOCS_KEY_CATALOG_UPDATED, "更新时间"),
 ];
 
 /// The English translation table for the password gate, and the fallback
 /// every other locale defers to.
-pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 16] = [
+pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 21] = [
     (
         PW_GATE_KEY_HINT,
         "This article is password protected. Enter the password to read it.",
@@ -84,10 +99,18 @@ pub(crate) const PW_GATE_MESSAGES_EN: [(&str, &str); 16] = [
     (DOCS_KEY_SEARCH_NONE, "No matching pages"),
     (DOCS_KEY_SEARCH_PLACEHOLDER, "Search documentation..."),
     (DOCS_KEY_SEARCH_COUNT, "{count} matching pages"),
+    (DOCS_KEY_CATALOADING, "Loading projects…"),
+    (
+        DOCS_KEY_CATALOG_ERROR,
+        "The project list could not be loaded. Please try again later.",
+    ),
+    (DOCS_KEY_CATALOG_FILES, "Files"),
+    (DOCS_KEY_CATALOG_SIZE, "Total size"),
+    (DOCS_KEY_CATALOG_UPDATED, "Updated"),
 ];
 
 /// The Japanese translation table for the password gate.
-pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 16] = [
+pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 21] = [
     (
         PW_GATE_KEY_HINT,
         "この記事のパスワードで保護されています。パスワードを入力すると内容をご覧できます。",
@@ -113,10 +136,18 @@ pub(crate) const PW_GATE_MESSAGES_JA: [(&str, &str); 16] = [
     (DOCS_KEY_SEARCH_NONE, "一致するページがありません"),
     (DOCS_KEY_SEARCH_PLACEHOLDER, "ドキュメントを検索…"),
     (DOCS_KEY_SEARCH_COUNT, "{count} 件のページが見つかりました"),
+    (DOCS_KEY_CATALOADING, "プロジェクトを読み込み中…"),
+    (
+        DOCS_KEY_CATALOG_ERROR,
+        "プロジェクト一覧を読み込めませんでした。後でもう一度お試しください。",
+    ),
+    (DOCS_KEY_CATALOG_FILES, "ファイル数"),
+    (DOCS_KEY_CATALOG_SIZE, "合計サイズ"),
+    (DOCS_KEY_CATALOG_UPDATED, "更新日時"),
 ];
 
 /// The Korean translation table for the password gate.
-pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 16] = [
+pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 21] = [
     (
         PW_GATE_KEY_HINT,
         "이 문서는 비밀번호로 보호되어 있습니다. 비밀번호를 입력해 주세요.",
@@ -139,6 +170,14 @@ pub(crate) const PW_GATE_MESSAGES_KO: [(&str, &str); 16] = [
     (DOCS_KEY_SEARCH_NONE, "일치하는 페이지가 없습니다"),
     (DOCS_KEY_SEARCH_PLACEHOLDER, "문서 검색…"),
     (DOCS_KEY_SEARCH_COUNT, "일치하는 페이지 {count}개"),
+    (DOCS_KEY_CATALOADING, "프로젝트를 불러오는 중…"),
+    (
+        DOCS_KEY_CATALOG_ERROR,
+        "프로젝트 목록을 불러오지 못했습니다. 나중에 다시 시도해 주세요.",
+    ),
+    (DOCS_KEY_CATALOG_FILES, "파일 수"),
+    (DOCS_KEY_CATALOG_SIZE, "전체 크기"),
+    (DOCS_KEY_CATALOG_UPDATED, "업데이트 시각"),
 ];
 
 /// The `<html lang>` tag the Chinese locale publishes under.

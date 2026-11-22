@@ -1,6 +1,7 @@
 mod anchor;
 #[path = "../src/document_language/mod.rs"]
 mod build_document_language;
+mod catalog;
 mod code_block;
 mod description;
 #[path = "../src/document_html/mod.rs"]

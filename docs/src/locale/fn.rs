@@ -142,6 +142,11 @@ pub fn gate_translation_keys() -> &'static [&'static str] {
         DOCS_KEY_SEARCH_NONE,
         DOCS_KEY_SEARCH_PLACEHOLDER,
         DOCS_KEY_SEARCH_COUNT,
+        DOCS_KEY_CATALOADING,
+        DOCS_KEY_CATALOG_ERROR,
+        DOCS_KEY_CATALOG_FILES,
+        DOCS_KEY_CATALOG_SIZE,
+        DOCS_KEY_CATALOG_UPDATED,
     ]
 }
 
