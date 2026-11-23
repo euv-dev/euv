@@ -62,6 +62,37 @@ fn a_name_that_is_not_a_safe_path_segment_is_refused() {
 }
 
 #[test]
+fn a_qualified_organization_and_repository_name_is_accepted() {
+    let body: &str = r#"{"count":1,"artifacts":[{"name":"docs-pages/docs","fileCount":1,"totalBytes":2,"sha256":"7770f71657089f31e417f147943f49c8f7e6563fcadb3dcd959c609918564f2d","updatedAt":1}]}"#;
+    let catalog: DocsCatalog = parse_catalog(body.as_bytes()).unwrap_or_default();
+    assert_eq!(catalog.get_artifacts().len(), 1);
+    assert_eq!(catalog.get_artifacts()[0].get_name(), "docs-pages/docs");
+}
+
+#[test]
+fn a_qualified_name_whose_segments_are_not_safe_is_refused() {
+    for name in [
+        "/repo",
+        "org/",
+        "org//repo",
+        "org/repo/extra",
+        "ORG/repo",
+        "org/REPO",
+        "org/with space",
+        "../repo",
+        "org/..",
+    ] {
+        let body: String = format!(
+            r#"{{"count":1,"artifacts":[{{"name":"{name}","fileCount":1,"totalBytes":2,"sha256":"7770f71657089f31e417f147943f49c8f7e6563fcadb3dcd959c609918564f2d","updatedAt":1}}]}}"#
+        );
+        assert!(
+            parse_catalog(body.as_bytes()).is_err(),
+            "the name {name} must be refused"
+        );
+    }
+}
+
+#[test]
 fn a_digest_that_is_not_a_sha256_is_refused() {
     let body: &str = r#"{"count":1,"artifacts":[{"name":"euv","fileCount":1,"totalBytes":2,"sha256":"short","updatedAt":1}]}"#;
     assert!(parse_catalog(body.as_bytes()).is_err());
