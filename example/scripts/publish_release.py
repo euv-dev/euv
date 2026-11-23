@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
-"""Publish one verified native/web release through the page-artifact API."""
+"""Publish one verified native/web release through the per-file page-artifact API."""
 import argparse
 import hashlib
 import http.client
-import io
 import json
 import os
 from pathlib import Path, PurePosixPath
 import re
 import sys
-import tarfile
 import time
 from urllib.parse import urljoin, urlsplit
 from typing import Optional
 
 MANIFEST = 'euv-release.json'
 ATTEMPTS = 9
+DEFAULT_ORG = 'euv-dev'
+DEFAULT_REPO = 'euv'
+FILE_DIGEST_HEADER = 'X-File-SHA256'
+SLUG_PATTERN = r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?'
+MAX_FILE_BYTES = 8 * 1024 * 1024
+MAX_FILE_COUNT = 8192
+MAX_TOTAL_BYTES = 512 * 1024 * 1024
 
 
 def sleep(seconds):
@@ -127,21 +132,53 @@ def request(method, url, data=None, token=None, headers=None, allow_missing=Fals
     raise RuntimeError('Publication request failed after the initial attempt and ' + str(ATTEMPTS - 1) + ' retries (' + method + ' ' + parsed.path + '): ' + last)
 
 
-def archive_bytes(directory, release):
-    output = io.BytesIO()
-    with tarfile.open(fileobj=output, mode='w:gz') as archive:
-        for name in [MANIFEST] + [item['path'] for item in release['files']]:
-            archive.add(directory / name, arcname=name, recursive=False)
-    return output.getvalue()
+def envelope(body):
+    """Read the server's success envelope and return its payload."""
+    try:
+        result = json.loads(body or b'')
+    except ValueError as error:
+        raise ValueError('Publication API returned a non-JSON answer') from error
+    if not isinstance(result, dict) or result.get('success') is not True or 'data' not in result:
+        raise ValueError('Publication API returned an unconfirmed success envelope')
+    return result['data']
+
+
+def canonical_manifest(files):
+    """Serialize the announced manifest exactly as the server canonicalizes it."""
+    return json.dumps(files, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
+
+
+def announced_files(descriptor, release):
+    """Announce the release manifest and every release file as digest-bound entries."""
+    announced = [(MANIFEST, len(descriptor), hashlib.sha256(descriptor).hexdigest())]
+    for item in release['files']:
+        announced.append((item['path'], item['size'], item['sha256']))
+    if len(announced) > MAX_FILE_COUNT:
+        raise ValueError('Release inventory exceeds the artifact file count limit')
+    total = 0
+    for path, size, _ in announced:
+        if size > MAX_FILE_BYTES:
+            raise ValueError('Release file exceeds the per-file upload limit: ' + path)
+        total += size
+    if total > MAX_TOTAL_BYTES:
+        raise ValueError('Release inventory exceeds the artifact size limit')
+    return announced
+
+
+def manifest_entries(announced):
+    """Render the announced files in the wire shape the server deserializes."""
+    return [dict(path=path, bytes=size, sha256=digest) for path, size, digest in announced]
 
 
 def verify_live(base, descriptor, release):
-    actual = request('GET', urljoin(base, MANIFEST))
+    actual = request('GET', urljoin(base, MANIFEST), allow_missing=True)
+    if actual is None:
+        raise ValueError('Missing live release manifest')
     if actual != descriptor:
         raise ValueError('Live manifest differs from the uploaded artifact')
     receipts = []
     for item in release['files']:
-        data = request('GET', urljoin(base, item['path']))
+        data = request('GET', urljoin(base, item['path']), allow_missing=True)
         if data is None:
             raise ValueError('Missing live release resource')
         verify_file(item, data)
@@ -149,43 +186,102 @@ def verify_live(base, descriptor, release):
     return receipts
 
 
-def publish(directory, expected, token, api='https://ltpp.vip/api/page-artifacts/', public='https://ltpp.vip/pages/euv/'):
+def live_version(base):
+    """Read the version of the release a public base already serves."""
+    current = request('GET', urljoin(base, MANIFEST), allow_missing=True)
+    if current is None:
+        return None
+    return version(inventory(current)['version'])
+
+
+def upload_file(directory, endpoint, upload_id, index, entry, token):
+    """Send one announced file as its own digest-bound request."""
+    path, size, digest = entry
+    source = directory / Path(*path.split('/'))
+    if not source.is_file():
+        raise ValueError('An announced release file disappeared before it was uploaded: ' + path)
+    payload = source.read_bytes()
+    if len(payload) != size or hashlib.sha256(payload).hexdigest() != digest:
+        raise ValueError('An announced release file changed before it was uploaded: ' + path)
+    request('PUT', endpoint + '/' + upload_id + '/files/' + str(index), payload, token,
+            {'Content-Type': 'application/octet-stream', FILE_DIGEST_HEADER: digest})
+    return len(payload)
+
+
+def publish(directory, expected, token, org=DEFAULT_ORG, repo=DEFAULT_REPO,
+            api='https://ltpp.vip/api/page-artifacts/', public=None, legacy_public=None):
+    if not re.fullmatch(SLUG_PATTERN, org) or not re.fullmatch(SLUG_PATTERN, repo):
+        raise ValueError('Invalid artifact organization or repository name')
+    qualifier = org + '/' + repo
+    api = api.rstrip('/') + '/'
+    public = public or 'https://ltpp.vip/pages/' + qualifier + '/'
+    legacy_public = legacy_public or 'https://ltpp.vip/pages/' + repo + '/'
     descriptor, release = validate_directory(directory, expected)
-    current = request('GET', urljoin(public, MANIFEST), allow_missing=True)
-    if current is not None and version(inventory(current)['version']) > version(release['version']):
+    live = live_version(legacy_public)
+    if live is not None and live > version(release['version']):
         raise ValueError('Refusing to replace a newer live release')
-    archive = archive_bytes(directory, release)
-    digest = hashlib.sha256(archive).hexdigest()
-    endpoint = urljoin(api, 'euv/uploads')
-    initialized = json.loads(request('POST', endpoint, json.dumps(dict(archiveBytes=len(archive), archiveSha256=digest)).encode(), token, {'Content-Type': 'application/json'}) or b'')
-    parameters = initialized['data']
-    upload_id, size, count = parameters['uploadId'], parameters['chunkSizeBytes'], parameters['chunkCount']
-    if (initialized.get('success') is not True or not re.fullmatch('[a-zA-Z0-9-]+', upload_id)
-            or not isinstance(size, int) or not 1 <= size <= 8388608
-            or count != (len(archive)+size-1)//size):
+    announced = announced_files(descriptor, release)
+    manifest = canonical_manifest(manifest_entries(announced))
+    artifact_sha256 = hashlib.sha256(manifest).hexdigest()
+    total_bytes = sum(size for _, size, _ in announced)
+    endpoint = urljoin(api, qualifier + '/uploads')
+    session = envelope(request('POST', endpoint, json.dumps(dict(files=manifest_entries(announced)),
+                                                            separators=(',', ':'), ensure_ascii=False).encode(),
+                               token, {'Content-Type': 'application/json'}))
+    if not isinstance(session, dict):
         raise ValueError('Invalid upload session')
-    for index in range(count):
-        chunk = archive[index*size:(index+1)*size]
-        request('PUT', endpoint+'/'+upload_id+'/chunks/'+str(index), chunk, token, {'Content-Type': 'application/octet-stream', 'X-Chunk-SHA256': hashlib.sha256(chunk).hexdigest()})
-    committed = json.loads(request('POST', endpoint+'/'+upload_id+'/commit', b'', token) or b'')
-    if committed.get('success') is not True:
-        raise ValueError('Artifact commit rejected')
-    catalog = json.loads(request('GET', api.rstrip('/')) or b'')
-    if catalog.get('success') is not True or not any(item['name'] == 'euv' and item['sha256'] == digest for item in catalog['data']['artifacts']):
-        raise ValueError('Public artifact catalog differs from upload')
-    files = verify_live(public, descriptor, release)
-    return dict(version=release['version'], archive_sha256=digest, archive_bytes=len(archive), manifest_sha256=hashlib.sha256(descriptor).hexdigest(), files=files, public_base=public, publication_route='page-artifacts API only; no GitHub Pages sync')
+    upload_id, file_count, announced_digest = session.get('uploadId'), session.get('fileCount'), session.get('manifestSha256')
+    if not isinstance(upload_id, str) or not re.fullmatch('[A-Za-z0-9-]+', upload_id):
+        raise ValueError('Invalid upload session identifier')
+    if not isinstance(file_count, int) or file_count != len(announced):
+        raise ValueError('Upload session file count does not match the announced manifest')
+    if announced_digest != artifact_sha256:
+        raise ValueError('Upload session manifest digest does not match the announced manifest')
+    for index, entry in enumerate(announced):
+        upload_file(directory, endpoint, upload_id, index, entry, token)
+        print('Uploaded release file ' + str(index + 1) + '/' + str(len(announced)) + ': ' + entry[0], flush=True)
+    receipt = envelope(request('POST', endpoint + '/' + upload_id + '/commit', b'', token))
+    if not isinstance(receipt, dict):
+        raise ValueError('Invalid artifact commit receipt')
+    expected_receipt = dict(name=qualifier, org=org, repo=repo, fileCount=len(announced),
+                            totalBytes=total_bytes, sha256=artifact_sha256)
+    if any(receipt.get(field) != value for field, value in expected_receipt.items()):
+        raise ValueError('Artifact commit receipt does not match the uploaded release')
+    catalog = envelope(request('GET', api.rstrip('/')))
+    if not isinstance(catalog, dict) or not isinstance(catalog.get('artifacts'), list):
+        raise ValueError('Invalid public artifact catalog')
+    matches = [item for item in catalog['artifacts']
+               if isinstance(item, dict) and item.get('name') == qualifier
+               and item.get('org') == org and item.get('repo') == repo]
+    if len(matches) != 1:
+        raise ValueError('Public artifact catalog does not contain exactly one matching artifact')
+    published = matches[0]
+    if (published.get('sha256') != artifact_sha256
+            or not isinstance(published.get('fileCount'), int) or published['fileCount'] != len(announced)
+            or not isinstance(published.get('totalBytes'), int) or published['totalBytes'] != total_bytes):
+        raise ValueError('Public artifact catalog differs from the uploaded release')
+    files_receipt = verify_live(public, descriptor, release)
+    alias = request('GET', urljoin(legacy_public, MANIFEST), allow_missing=True)
+    if alias is not None and alias != descriptor:
+        raise ValueError('Legacy public alias differs from the uploaded artifact')
+    return dict(version=release['version'], org=org, repo=repo, qualifier=qualifier,
+                artifact_sha256=artifact_sha256, file_count=len(announced), total_bytes=total_bytes,
+                release_manifest_sha256=hashlib.sha256(descriptor).hexdigest(),
+                files=files_receipt, public_base=public, legacy_public_base=legacy_public,
+                publication_route='page-artifacts API only; no GitHub Pages sync')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('directory', type=Path)
     parser.add_argument('--version', required=True)
+    parser.add_argument('--org', default=DEFAULT_ORG)
+    parser.add_argument('--repo', default=DEFAULT_REPO)
     parser.add_argument('--receipt', type=Path, required=True)
     args = parser.parse_args()
     token = os.environ.get('PAGE_ARTIFACT_API_KEY')
     if not token:
         raise SystemExit('PAGE_ARTIFACT_API_KEY is required')
-    result = publish(args.directory, args.version, token)
+    result = publish(args.directory, args.version, token, args.org, args.repo)
     args.receipt.write_text(json.dumps(result, indent=2))
     print('Published and verified', len(result['files']), 'release resources at', result['public_base'])
