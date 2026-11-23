@@ -69,25 +69,19 @@ pub(crate) fn render_docs_block(
     block: &'static EuvMdBlock,
 ) -> VirtualNode {
     match block {
-        EuvMdBlock::CodeBlock { lang, code } => match code_block_route(lang) {
-            CodeBlockRoute::Diagram => {
-                let ordinal: usize = mermaid_ordinal(blocks, index);
-                html! {
-                    docs_mermaid {
-                        source: *code
-                        ordinal: ordinal
-                    }
-                }
+        EuvMdBlock::Diagram { svg } => html! {
+            docs_mermaid {
+                svg: *svg
             }
-            CodeBlockRoute::Code => html! {
-                docs_code_block {
-                    lang: *lang
-                    code: *code
-                }
-            },
+        },
+        EuvMdBlock::CodeBlock { lang, code } => html! {
+            docs_code_block {
+                lang: *lang
+                code: *code
+            }
         },
         EuvMdBlock::BlockQuote(inner) => {
-            if contains_code(inner) {
+            if contains_code_or_diagram(inner) {
                 html! {
                     blockquote {
                         {
@@ -102,7 +96,7 @@ pub(crate) fn render_docs_block(
         EuvMdBlock::List { ordered, items } => {
             if items
                 .iter()
-                .any(|item: &&'static [EuvMdBlock]| contains_code(item))
+                .any(|item: &&'static [EuvMdBlock]| contains_code_or_diagram(item))
             {
                 if *ordered {
                     html! {
@@ -138,7 +132,7 @@ pub(crate) fn render_docs_block(
             title,
             blocks: inner,
         } => {
-            if contains_code(inner) {
+            if contains_code_or_diagram(inner) {
                 html! {
                     div {
                         class: {
@@ -167,7 +161,14 @@ pub(crate) fn render_docs_block(
     }
 }
 
-/// Whether a run of blocks holds a code block anywhere below it.
+/// Whether a run of blocks holds a block the shared renderer cannot
+/// render the docs' own way.
+///
+/// A code block needs the docs' own code block — it carries a toolbar
+/// and a copy button the shared renderer does not provide. A diagram
+/// needs the docs' own figure — it carries the frame and the sideways
+/// scroll a wide diagram needs. A run holding either is therefore
+/// rendered here instead of by the shared renderer.
 ///
 /// # Arguments
 ///
@@ -175,60 +176,16 @@ pub(crate) fn render_docs_block(
 ///
 /// # Returns
 ///
-/// - `bool` - `true` when a code block is reachable from the run.
-fn contains_code(blocks: &'static [EuvMdBlock]) -> bool {
+/// - `bool` - `true` when a code block or a diagram is reachable from
+///   the run.
+fn contains_code_or_diagram(blocks: &'static [EuvMdBlock]) -> bool {
     blocks.iter().any(|block: &'static EuvMdBlock| match block {
-        EuvMdBlock::CodeBlock { .. } => true,
-        EuvMdBlock::BlockQuote(inner) => contains_code(inner),
+        EuvMdBlock::CodeBlock { .. } | EuvMdBlock::Diagram { .. } => true,
+        EuvMdBlock::BlockQuote(inner) => contains_code_or_diagram(inner),
         EuvMdBlock::List { items, .. } => items
             .iter()
-            .any(|item: &&'static [EuvMdBlock]| contains_code(item)),
-        EuvMdBlock::Container { blocks, .. } => contains_code(blocks),
+            .any(|item: &&'static [EuvMdBlock]| contains_code_or_diagram(item)),
+        EuvMdBlock::Container { blocks, .. } => contains_code_or_diagram(blocks),
         _ => false,
     })
-}
-
-/// Chooses how a fenced code block is rendered.
-///
-/// A mermaid fence is rendered as a diagram; every other fence is
-/// rendered as an ordinary code block.
-///
-/// # Arguments
-///
-/// - `&str` - The fence language of the block.
-///
-/// # Returns
-///
-/// - `CodeBlockRoute` - The route the block takes.
-pub(crate) fn code_block_route(lang: &str) -> CodeBlockRoute {
-    if lang == MERMAID_LANG {
-        CodeBlockRoute::Diagram
-    } else {
-        CodeBlockRoute::Code
-    }
-}
-
-/// The ordinal of the mermaid diagram at one block index.
-///
-/// The ordinal names the diagram's scoped ids and CSS selectors, so two
-/// diagrams on one page never share a marker id. It counts every
-/// mermaid fence above the block, so the number does not depend on the
-/// order the blocks are rendered in.
-///
-/// # Arguments
-///
-/// - `&'static [EuvMdBlock]` - The blocks of the page.
-/// - `usize` - The index of the block in that list.
-///
-/// # Returns
-///
-/// - `usize` - The number of mermaid fences before that block.
-fn mermaid_ordinal(blocks: &'static [EuvMdBlock], index: usize) -> usize {
-    blocks
-        .iter()
-        .take(index)
-        .filter(|block: &&'static EuvMdBlock| {
-            matches!(block, EuvMdBlock::CodeBlock { lang, .. } if *lang == MERMAID_LANG)
-        })
-        .count()
 }

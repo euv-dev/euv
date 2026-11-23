@@ -17,7 +17,6 @@ euv = { workspace = true }
 euv-ui = { workspace = true }
 
 chrono = { workspace = true }
-merman = { workspace = true }
 serde_json = { workspace = true }
 lombok-macros = { workspace = true }
 
@@ -38,9 +37,13 @@ theme-cupertino = ["euv-ui/theme-cupertino"]
 theme-monochrome = ["euv-ui/theme-monochrome"]
 
 [build-dependencies]
+merman = { workspace = true }
 serde_yaml = { workspace = true }
 http-constant = { workspace = true }
 pulldown-cmark = { workspace = true }
+
+[dev-dependencies]
+merman = { workspace = true }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
