@@ -47,10 +47,11 @@ fn negative_control_is_not_part_of_the_positive_case_set() {
         Scenario::Modal,
         Scenario::Scroll,
         Scenario::Responsive,
+        Scenario::CaretGap,
     ]
     .into_iter()
     .map(Scenario::name)
     .collect();
-    assert_eq!(names.len(), 7);
+    assert_eq!(names.len(), 8);
     assert!(!names.contains(&Scenario::Negative.name()));
 }

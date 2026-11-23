@@ -170,6 +170,7 @@ fn execute_suite(settings: Settings) -> AutomationResult<()> {
         Scenario::Modal,
         Scenario::Scroll,
         Scenario::Responsive,
+        Scenario::CaretGap,
     ];
     if settings.get_probe_failure() {
         scenarios.push(Scenario::Negative);

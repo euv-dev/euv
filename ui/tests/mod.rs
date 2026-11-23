@@ -1,4 +1,5 @@
 mod browser_reset;
+mod caret_gap;
 mod class_registry;
 mod console_entry;
 mod counter;

@@ -28,4 +28,8 @@ class! {
     pub(crate) c_automation_content {
         min-height: format!("calc({} * 40)", var!(space-4xl));
     }
+
+    pub(crate) c_automation_caret_group {
+        width: "320px";
+    }
 }

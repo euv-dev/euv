@@ -1,5 +1,20 @@
 use super::*;
 
+/// Builds the single option the caret trigger selects.
+///
+/// # Returns
+///
+/// - `Vec<EuvSelectOption>` - The one option the trigger carries.
+fn caret_options() -> Vec<EuvSelectOption> {
+    vec![EuvSelectOption {
+        value: CARET_OPTION,
+        label: CARET_OPTION,
+        group: "",
+        separator_before: false,
+        disabled: false,
+    }]
+}
+
 /// Renders real euv controls and stable browser-test observation points.
 ///
 /// # Arguments
@@ -99,6 +114,19 @@ pub(crate) fn fixture_page(node: VirtualNode<FixturePageProps>) -> VirtualNode {
                     }
                     span {
                         id: SCROLL_ID state.get_scroll()
+                    }
+                }
+                euv_card {
+                    title: CARET_TITLE
+                    div {
+                        id: CARET_ID
+                        class: c_automation_caret_group()
+                        euv_select {
+                            value: App::use_signal(|| String::from(CARET_OPTION))
+                            options: caret_options()
+                            label: CARET_LABEL
+                            aria_label: CARET_LABEL.to_string()
+                        }
                     }
                 }
             }

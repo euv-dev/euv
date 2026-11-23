@@ -103,3 +103,14 @@ pub(crate) const SCREENSHOT_DIRECTORY: &str = "screenshots";
 
 /// Bounds each fixture-readiness HTTP request.
 pub(crate) const SERVER_REQUEST_TIMEOUT: &str = "2";
+
+/// Caret-gap geometry case identifier.
+pub(crate) const CASE_CARET: &str = "caret-gap";
+
+/// Observes whether the real distance between a trigger's label and its caret
+/// reaches the shared gap token. The measurement reads the rendered boxes, so
+/// it proves the gap in the browser rather than in the stylesheet.
+pub(crate) const CARET_GAP_SCRIPT: &str = "const l=document.querySelector(arguments[0]).getBoundingClientRect(),c=document.querySelector(arguments[1]).getBoundingClientRect();return c.left-l.right>=arguments[2];";
+
+/// The minimum label-to-caret distance the shared gap token promises.
+pub(crate) const CARET_GAP_MINIMUM: f64 = 8.0;

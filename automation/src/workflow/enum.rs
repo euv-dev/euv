@@ -15,6 +15,8 @@ pub(crate) enum Scenario {
     Scroll,
     /// Controls remain usable in a narrow browser viewport.
     Responsive,
+    /// The caret keeps its distance from the label it belongs to.
+    CaretGap,
     /// Deliberately incorrect expectation proves failure is observable.
     Negative,
 }

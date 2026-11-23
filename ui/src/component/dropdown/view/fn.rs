@@ -1244,8 +1244,11 @@ pub fn euv_dropdown_menu_sub_trigger(
                 DROPDOWN_STATE_CLOSED
             }
             class: item_class()
-            {
-                label
+            span {
+                class: c_euv_dropdown_menu_item_label()
+                {
+                    label
+                }
             }
             span {
                 "data-slot": "dropdown-menu-sub-caret"
