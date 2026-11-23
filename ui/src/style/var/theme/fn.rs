@@ -118,6 +118,11 @@ vars! {
         gap-inline: "8px";
         gap-page-header: "16px";
         gap-page-title: "6px";
+        // The minimum distance between a dropdown trigger's label and its
+        // caret. Every caret in the family reads this one token, so the gap
+        // is a decision rather than an accident of how each trigger happens
+        // to lay its two children out.
+        gap-caret: "8px";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Page Block Vertical Spacing
@@ -321,6 +326,11 @@ vars! {
         gap-inline: "8px";
         gap-page-header: "16px";
         gap-page-title: "6px";
+        // The minimum distance between a dropdown trigger's label and its
+        // caret. Every caret in the family reads this one token, so the gap
+        // is a decision rather than an accident of how each trigger happens
+        // to lay its two children out.
+        gap-caret: "8px";
 
         // ═══════════════════════════════════════════════════════════════════════
         // Page Block Vertical Spacing (same as light)

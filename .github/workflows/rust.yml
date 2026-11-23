@@ -235,7 +235,7 @@ jobs:
           import json, pathlib
           report = json.loads(pathlib.Path("automation/results/negative/report.json").read_text())
           cases = report["cases"]
-          assert len(cases) == 8
+          assert len(cases) == 9
           assert all(case["passed"] for case in cases[:-1])
           assert cases[-1]["name"] == "negative-control" and not cases[-1]["passed"]
           assert "999" in cases[-1]["error"] and cases[-1]["capture_error"] is None

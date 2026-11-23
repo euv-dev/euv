@@ -165,3 +165,27 @@ pub(crate) const DIALOG_CLOSE_SELECTOR: &str = "#dialog button";
 /// Locates the modal content observation point.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) const DIALOG_CONTENT_SELECTOR: &str = "#dialog-content";
+
+/// Identifies the wrapper of every caret-bearing trigger in the fixture.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const CARET_ID: &str = "caret-triggers";
+
+/// Section title for the caret-gap measurement.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const CARET_TITLE: &str = "Caret gap";
+
+/// The label the caret triggers carry, long enough to need an ellipsis.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const CARET_LABEL: &str = "A deliberately long trigger label that has to ellipsize";
+
+/// The option every caret trigger selects.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const CARET_OPTION: &str = "Selected option";
+
+/// Locates one caret trigger's label by its caret class.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const CARET_LABEL_SELECTOR: &str = ".c_euv_select_value";
+
+/// Locates one caret trigger's caret.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) const CARET_ICON_SELECTOR: &str = ".c_euv_select_caret";

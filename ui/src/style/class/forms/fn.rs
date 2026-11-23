@@ -360,6 +360,11 @@ class! {
     }
 
     pub(crate) c_euv_select_placeholder {
+        flex: "1";
+        min-width: "0px";
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        white-space: "nowrap";
         color: var!(muted-foreground);
     }
 
@@ -899,7 +904,7 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        gap: var!(space-sm);
+        gap: var!(gap-caret);
         width: "100%";
         min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
@@ -930,11 +935,24 @@ class! {
     }
 
     pub(crate) c_euv_date_picker_placeholder {
+        flex: "1";
+        min-width: "0px";
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        white-space: "nowrap";
         color: var!(muted-foreground);
     }
 
+    // The date, time, cascader and tree-select carets share one box with the
+    // select caret, so the family reads as one control, and every trigger
+    // keeps the label and the caret apart by the shared `gap-caret` token.
     pub(crate) c_euv_date_picker_caret {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
         flex-shrink: "0";
+        width: var!(space-lg);
+        height: var!(space-lg);
         font-size: var!(font-xs);
         line-height: "1";
         color: var!(muted-foreground);
@@ -1034,7 +1052,7 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        gap: var!(space-sm);
+        gap: var!(gap-caret);
         width: "100%";
         min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
@@ -1065,11 +1083,21 @@ class! {
     }
 
     pub(crate) c_euv_time_picker_placeholder {
+        flex: "1";
+        min-width: "0px";
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        white-space: "nowrap";
         color: var!(muted-foreground);
     }
 
     pub(crate) c_euv_time_picker_caret {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
         flex-shrink: "0";
+        width: var!(space-lg);
+        height: var!(space-lg);
         font-size: var!(font-xs);
         line-height: "1";
         color: var!(muted-foreground);
@@ -1314,7 +1342,7 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        gap: var!(space-sm);
+        gap: var!(gap-caret);
         width: "100%";
         min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
@@ -1345,11 +1373,21 @@ class! {
     }
 
     pub(crate) c_euv_cascader_placeholder {
+        flex: "1";
+        min-width: "0px";
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        white-space: "nowrap";
         color: var!(muted-foreground);
     }
 
     pub(crate) c_euv_cascader_caret {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
         flex-shrink: "0";
+        width: var!(space-lg);
+        height: var!(space-lg);
         font-size: var!(font-xs);
         line-height: "1";
         color: var!(muted-foreground);
@@ -1465,7 +1503,7 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        gap: var!(space-sm);
+        gap: var!(gap-caret);
         width: "100%";
         min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
@@ -1496,11 +1534,21 @@ class! {
     }
 
     pub(crate) c_euv_tree_select_placeholder {
+        flex: "1";
+        min-width: "0px";
+        overflow: "hidden";
+        text-overflow: "ellipsis";
+        white-space: "nowrap";
         color: var!(muted-foreground);
     }
 
     pub(crate) c_euv_tree_select_caret {
+        display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
         flex-shrink: "0";
+        width: var!(space-lg);
+        height: var!(space-lg);
         font-size: var!(font-xs);
         line-height: "1";
         color: var!(muted-foreground);
@@ -2048,7 +2096,7 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        gap: var!(space-sm);
+        gap: var!(gap-caret);
         width: "100%";
         min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
@@ -2683,7 +2731,7 @@ class! {
         display: "flex";
         align-items: "center";
         justify-content: "space-between";
-        gap: var!(space-sm);
+        gap: var!(gap-caret);
         width: "100%";
         min-height: var!(control-height);
         padding: format!("{} {}", var!(space-xs), var!(space-lg));
@@ -2717,7 +2765,7 @@ class! {
         border-radius: var!(radius-md);
 
         height: var!(control-height);
-        gap: var!(space-sm);
+        gap: var!(gap-caret);
         min-height: var!(control-height);
         padding: format!("{} {}", var!(space-sm), var!(space-md));
         border-radius: var!(radius-md);

@@ -16,6 +16,7 @@ impl Scenario {
             Self::Modal => CASE_MODAL,
             Self::Scroll => CASE_SCROLL,
             Self::Responsive => CASE_RESPONSIVE,
+            Self::CaretGap => CASE_CARET,
             Self::Negative => CASE_NEGATIVE,
         }
     }
@@ -103,6 +104,17 @@ impl Scenario {
                 browser.assert_script(
                     RESPONSIVE_SCRIPT,
                     vec![json!(INPUT_SELECTOR)],
+                    json!(true),
+                )?;
+            }
+            Self::CaretGap => {
+                browser.assert_script(
+                    CARET_GAP_SCRIPT,
+                    vec![
+                        json!(CARET_LABEL_SELECTOR),
+                        json!(CARET_ICON_SELECTOR),
+                        json!(CARET_GAP_MINIMUM),
+                    ],
                     json!(true),
                 )?;
             }

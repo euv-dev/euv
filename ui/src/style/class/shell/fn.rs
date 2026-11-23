@@ -1127,6 +1127,7 @@ class! {
     }
 
     pub c_euv_dropdown_menu_item_label {
+        min-width: "0px";
         overflow: "hidden";
         text-overflow: "ellipsis";
         white-space: "nowrap";
@@ -1182,13 +1183,19 @@ class! {
         flex-direction: "column";
     }
 
+    // The sub-menu row carries the same gap as every other caret-bearing
+    // trigger, so a nested menu opens its caret at the same distance from its
+    // label as a select trigger opens its own.
     pub c_euv_dropdown_menu_sub_trigger {
         c_euv_dropdown_menu_item();
         justify-content: "flex-start";
+        gap: var!(gap-caret);
     }
 
     pub(crate) c_euv_dropdown_menu_sub_caret {
         display: "inline-flex";
+        align-items: "center";
+        justify-content: "center";
         flex-shrink: "0";
         width: var!(space-lg);
         height: var!(space-lg);
