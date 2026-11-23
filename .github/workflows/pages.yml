@@ -93,10 +93,13 @@ jobs:
         env:
           PAGE_ARTIFACT_API_KEY: ${{ secrets.PAGE_ARTIFACT_API_KEY }}
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_ORG: euv-dev
+          RELEASE_REPO: euv
         run: |
           set -euo pipefail
           python3 example/scripts/publish_release.py example/www \
-            --version "$RELEASE_VERSION" --receipt "$RUNNER_TEMP/publication.json"
+            --version "$RELEASE_VERSION" --org "$RELEASE_ORG" --repo "$RELEASE_REPO" \
+            --receipt "$RUNNER_TEMP/publication.json"
 
       - name: Preserve the source-bound live publication receipt
         if: always()
