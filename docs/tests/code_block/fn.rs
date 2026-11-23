@@ -220,8 +220,8 @@ fn code_block_pre_rule_is_class_local_and_unframed() {
                 ("border-radius", "0"),
                 ("box-shadow", "none"),
                 ("background", "transparent"),
-                ("color", "var(--foreground)"),
-                ("font-family", "var(--font-family-mono)"),
+                ("color", "var(--docs-code-foreground)"),
+                ("font-family", "var(--docs-code-font-family)"),
                 ("font-size", "var(--font-xs)"),
                 ("line-height", "1.6"),
                 ("white-space", "pre"),
@@ -258,7 +258,10 @@ fn code_block_content_rule_removes_inline_markdown_geometry_without_touching_tok
             ]
         )]
     );
-    assert!(CODE_CSS.contains(".c_docs_code_kw { color: var(--docs-code-keyword); }"));
+    assert!(
+        CODE_CSS
+            .contains(".c_docs_code_kw { color: var(--docs-code-keyword); font-weight: bold; }")
+    );
     assert!(!CODE_CSS.contains("border:"));
 }
 

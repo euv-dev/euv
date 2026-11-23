@@ -2,11 +2,14 @@ use super::*;
 
 class! {
     // The figure owns the only frame; its children remain unframed.
+    // The frame's fill is the editor surface of the active mode: the
+    // code area below the toolbar is the editor's own canvas, so the
+    // page and the editor share one background.
     pub c_docs_code {
         margin: format!("{} 0", var!(space-lg));
         border: format!("{} solid {}", var!(border-width), var!(border));
         border-radius: var!(radius-lg);
-        background: var!(muted);
+        background: var!(docs-code-surface);
         overflow: "hidden";
         min-width: "0";
     }
@@ -20,8 +23,8 @@ class! {
             border-radius: "0";
             box-shadow: "none";
             background: "transparent";
-            color: var!(foreground);
-            font-family: var!(font-family-mono);
+            color: var!(docs-code-foreground);
+            font-family: var!(docs-code-font-family);
             font-size: var!(font-xs);
             line-height: "1.6";
             white-space: "pre";

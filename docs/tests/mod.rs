@@ -3,6 +3,7 @@ mod anchor;
 mod build_document_language;
 mod catalog;
 mod code_block;
+mod code_palette;
 mod description;
 #[path = "../src/document_html/mod.rs"]
 mod document_html;

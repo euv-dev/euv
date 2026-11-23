@@ -33,7 +33,7 @@ const RESERVED_TOKENS: [&str; 10] = [
     "warning-container",
 ];
 
-const HOST_VARIABLES: [&str; 15] = [
+const HOST_VARIABLES: [&str; 18] = [
     "euv-mobile-safe-top",
     "euv-safe-bottom",
     "euv-safe-left",
@@ -49,6 +49,9 @@ const HOST_VARIABLES: [&str; 15] = [
     "docs-code-attribute",
     "docs-code-tag",
     "docs-code-variable",
+    "docs-code-surface",
+    "docs-code-foreground",
+    "docs-code-font-family",
 ];
 
 fn repo_root() -> PathBuf {
