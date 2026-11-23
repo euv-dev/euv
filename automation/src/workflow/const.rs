@@ -107,10 +107,15 @@ pub(crate) const SERVER_REQUEST_TIMEOUT: &str = "2";
 /// Caret-gap geometry case identifier.
 pub(crate) const CASE_CARET: &str = "caret-gap";
 
-/// Observes whether the real distance between a trigger's label and its caret
-/// reaches the shared gap token. The measurement reads the rendered boxes, so
-/// it proves the gap in the browser rather than in the stylesheet.
-pub(crate) const CARET_GAP_SCRIPT: &str = "const l=document.querySelector(arguments[0]).getBoundingClientRect(),c=document.querySelector(arguments[1]).getBoundingClientRect();return c.left-l.right>=arguments[2];";
+/// Observes whether every caret-bearing trigger keeps the shared gap token
+/// between its label and its caret. The measurement reads the rendered boxes,
+/// so it proves the gap in the browser rather than in the stylesheet, and it
+/// covers the whole family rather than one control.
+///
+/// A trigger renders either its value class or its placeholder class
+/// depending on whether it carries a selection, so each pair names both
+/// label classes and the script measures whichever one is on screen.
+pub(crate) const CARET_GAP_SCRIPT: &str = "const pairs=arguments[0];for(const [labels,caret] of pairs){const c=document.querySelector(caret);if(!c)return 'missing-caret:'+caret;const l=labels.map(s=>document.querySelector(s)).find(Boolean);if(!l)return 'missing-label:'+labels[0];const lr=l.getBoundingClientRect(),cr=c.getBoundingClientRect();if(!(cr.left-lr.right>=arguments[1]))return 'gap:'+labels[0]+':'+(cr.left-lr.right);}return 'ok';";
 
 /// The minimum label-to-caret distance the shared gap token promises.
 pub(crate) const CARET_GAP_MINIMUM: f64 = 8.0;

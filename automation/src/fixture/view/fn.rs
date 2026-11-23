@@ -15,6 +15,45 @@ fn caret_options() -> Vec<EuvSelectOption> {
     }]
 }
 
+/// Builds the single option the cascader trigger selects.
+///
+/// # Returns
+///
+/// - `Vec<EuvCascaderOption>` - The one option the trigger carries.
+fn caret_cascader_options() -> Vec<EuvCascaderOption> {
+    vec![EuvCascaderOption {
+        value: CARET_OPTION,
+        label: CARET_OPTION,
+        children: Vec::new(),
+    }]
+}
+
+/// Builds the chosen path of the cascader trigger.
+///
+/// The cascader renders its value class only when the chosen path names a
+/// choice, so an empty path would render the placeholder class instead and
+/// the measurement would read the wrong element.
+///
+/// # Returns
+///
+/// - `Vec<String>` - The one value of the chosen path.
+fn caret_cascader_path() -> Vec<String> {
+    vec![String::from(CARET_OPTION)]
+}
+
+/// Builds the single node the tree-select trigger selects.
+///
+/// # Returns
+///
+/// - `Vec<EuvTreeNode>` - The one node the trigger carries.
+fn caret_tree_nodes() -> Vec<EuvTreeNode> {
+    vec![EuvTreeNode {
+        label: CARET_OPTION,
+        value: CARET_OPTION,
+        children: Vec::new(),
+    }]
+}
+
 /// Renders real euv controls and stable browser-test observation points.
 ///
 /// # Arguments
@@ -126,6 +165,32 @@ pub(crate) fn fixture_page(node: VirtualNode<FixturePageProps>) -> VirtualNode {
                             options: caret_options()
                             label: CARET_LABEL
                             aria_label: CARET_LABEL.to_string()
+                        }
+                        euv_date_picker {
+                            value: App::use_signal(|| String::from(CARET_DATE))
+                            placeholder: CARET_LABEL
+                            label: CARET_LABEL
+                            on_change: None
+                        }
+                        euv_time_picker {
+                            value: App::use_signal(|| String::from(CARET_TIME))
+                            placeholder: CARET_LABEL
+                            label: CARET_LABEL
+                            on_change: None
+                        }
+                        euv_cascader {
+                            options: caret_cascader_options()
+                            value: App::use_signal(caret_cascader_path)
+                            placeholder: CARET_LABEL
+                            label: CARET_LABEL
+                            on_select: None
+                        }
+                        euv_tree_select {
+                            nodes: caret_tree_nodes()
+                            value: App::use_signal(|| String::from(CARET_OPTION))
+                            placeholder: CARET_LABEL
+                            label: CARET_LABEL
+                            on_select: None
                         }
                     }
                 }

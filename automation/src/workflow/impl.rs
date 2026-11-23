@@ -108,14 +108,17 @@ impl Scenario {
                 )?;
             }
             Self::CaretGap => {
+                let pairs: Vec<Value> = CARET_PAIRS
+                    .iter()
+                    .map(|entry: &(&[&str], &str)| {
+                        let (labels, caret): (&[&str], &str) = *entry;
+                        json!([labels, caret])
+                    })
+                    .collect();
                 browser.assert_script(
                     CARET_GAP_SCRIPT,
-                    vec![
-                        json!(CARET_LABEL_SELECTOR),
-                        json!(CARET_ICON_SELECTOR),
-                        json!(CARET_GAP_MINIMUM),
-                    ],
-                    json!(true),
+                    vec![json!(pairs), json!(CARET_GAP_MINIMUM)],
+                    json!("ok"),
                 )?;
             }
             Self::Negative => browser.assert_text(COUNT_SELECTOR, WRONG_COUNT)?,
