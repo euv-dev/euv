@@ -277,11 +277,17 @@ if __name__ == '__main__':
     parser.add_argument('--version', required=True)
     parser.add_argument('--org', default=DEFAULT_ORG)
     parser.add_argument('--repo', default=DEFAULT_REPO)
+    parser.add_argument('--base-url', default='https://ltpp.vip',
+                        help='Origin that serves the page-artifact API and the public pages')
     parser.add_argument('--receipt', type=Path, required=True)
     args = parser.parse_args()
     token = os.environ.get('PAGE_ARTIFACT_API_KEY')
     if not token:
         raise SystemExit('PAGE_ARTIFACT_API_KEY is required')
-    result = publish(args.directory, args.version, token, args.org, args.repo)
+    origin = args.base_url.rstrip('/')
+    result = publish(args.directory, args.version, token, args.org, args.repo,
+                     api=origin + '/api/page-artifacts/',
+                     public=origin + '/pages/' + args.org + '/' + args.repo + '/',
+                     legacy_public=origin + '/pages/' + args.repo + '/')
     args.receipt.write_text(json.dumps(result, indent=2))
     print('Published and verified', len(result['files']), 'release resources at', result['public_base'])

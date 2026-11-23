@@ -3,7 +3,9 @@ import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
+import os
 from pathlib import Path
+import shutil
 import tempfile
 import threading
 import unittest
@@ -470,6 +472,49 @@ class TransportFailureTests(unittest.TestCase):
         base = 'http://127.0.0.1:'+str(server.server_port)
         with self.assertRaisesRegex(ValueError,'unconfirmed success envelope'):
             publisher.envelope(publisher.request('GET', base+'/api/page-artifacts'))
+
+    def test_the_command_line_publishes_against_the_requested_origin(self):
+        """The publisher must address the origin it was told to publish to."""
+        import subprocess
+        import sys
+        seen = []
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):
+                pass
+            def reply(self, data, status):
+                self.send_response(status)
+                self.send_header('Content-Length',str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+            def do_GET(self):
+                seen.append(('GET',self.path))
+                self.reply(b'missing',404)
+            def do_POST(self):
+                seen.append(('POST',self.path))
+                self.reply(b'{"success":false}',400)
+        server = ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        thread = threading.Thread(target=server.serve_forever,daemon=True)
+        thread.start()
+        self.addCleanup(lambda: (server.shutdown(), server.server_close(), thread.join()))
+        origin = 'http://127.0.0.1:'+str(server.server_port)
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(directory, ignore_errors=True))
+        resources = {'index.html': b'<html>release</html>', 'pkg/app.wasm': b'\0asm\x01\0\0\0', 'themes/default/index.html': b'<html>default</html>', 'themes/default/pkg/app.wasm': b'\0asm\x01\0\0\0'}
+        for name, data in resources.items():
+            path = directory / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        descriptor = json.dumps(dict(format=1, version='0.36.4', files=[dict(path=name,size=len(data),sha256=hashlib.sha256(data).hexdigest()) for name,data in resources.items()])).encode()
+        (directory/publisher.MANIFEST).write_bytes(descriptor)
+        receipt = directory.parent / 'receipt.json'
+        result = subprocess.run([sys.executable, str(Path(publisher.__file__).resolve()), str(directory),
+                                 '--version', '0.36.4', '--org', 'euv-dev', '--repo', 'euv',
+                                 '--base-url', origin, '--receipt', str(receipt)],
+                                env=dict(os.environ, PAGE_ARTIFACT_API_KEY='token'), capture_output=True, text=True, timeout=300)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(('POST','/api/page-artifacts/euv-dev/euv/uploads'), seen)
+        self.assertIn(('GET','/pages/euv/euv-release.json'), seen)
+        self.assertFalse(receipt.exists())
 
 
 if __name__ == '__main__':
