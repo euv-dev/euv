@@ -353,7 +353,15 @@ fn count_field(item: &Value, field: &str) -> Result<u64, String> {
         .ok_or_else(|| ERROR_CATALOG_SHAPE.to_string())
 }
 
-/// Whether the name is a safe path segment for a published page.
+/// Whether the name is a safe path for a published page.
+///
+/// A published artifact is addressed either by its bare name, such as
+/// `docs`, or by its qualified name, such as `docs-pages/docs`, which
+/// names the organization and the repository. The catalog lists the
+/// qualified name, so both shapes have to be accepted — but a qualified
+/// name is only safe when each of its two segments is safe on its own.
+/// A name with a different number of segments, an empty segment or a
+/// traversing segment is refused.
 ///
 /// # Arguments
 ///
@@ -363,13 +371,34 @@ fn count_field(item: &Value, field: &str) -> Result<u64, String> {
 ///
 /// - `bool` - `true` when the name can be used in a link.
 fn is_safe_artifact_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= 63
-        && name
+    if name.is_empty() || name.len() > 63 {
+        return false;
+    }
+    let segments: Vec<&str> = name.split(ORG_REPO_SEPARATOR).collect();
+    if segments.len() > 2 {
+        return false;
+    }
+    segments
+        .iter()
+        .all(|segment: &&str| is_safe_name_segment(segment))
+}
+
+/// Whether the segment is a safe path segment on its own.
+///
+/// # Arguments
+///
+/// - `&str` - The segment.
+///
+/// # Returns
+///
+/// - `bool` - `true` when the segment can be used in a link.
+fn is_safe_name_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && segment
             .bytes()
             .all(|byte: u8| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == HYPHEN)
-        && !name.starts_with(HYPHEN_CHAR)
-        && !name.ends_with(HYPHEN_CHAR)
+        && !segment.starts_with(HYPHEN_CHAR)
+        && !segment.ends_with(HYPHEN_CHAR)
 }
 
 /// Whether the digest is a hex SHA-256.

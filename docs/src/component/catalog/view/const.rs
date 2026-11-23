@@ -23,6 +23,14 @@ pub const HYPHEN: u8 = b'-';
 /// The separator a safe artifact name may carry, as a character.
 pub const HYPHEN_CHAR: char = '-';
 
+/// The separator between an artifact's organization and its repository.
+///
+/// A published artifact is addressed either by its bare name (a legacy
+/// alias) or by its qualified name, which the server writes as the
+/// organization, the separator and the repository. The catalog lists the
+/// qualified name, so the name rule has to accept that shape.
+pub const ORG_REPO_SEPARATOR: char = '/';
+
 /// The role of the catalog's loading and failure messages.
 pub const CATALOG_ROLE_STATUS: &str = "status";
 
