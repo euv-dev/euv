@@ -182,10 +182,47 @@ pub(crate) const CARET_LABEL: &str = "A deliberately long trigger label that has
 #[cfg(target_arch = "wasm32")]
 pub(crate) const CARET_OPTION: &str = "Selected option";
 
-/// Locates one caret trigger's label by its caret class.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) const CARET_LABEL_SELECTOR: &str = ".c_euv_select_value";
+/// The date the date-picker trigger selects.
+///
+/// The date has to be a parseable `YYYY-MM-DD` value, because the picker
+/// renders its value class only for a value it can parse; anything else
+/// renders the placeholder class and the measurement would read the wrong
+/// element.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const CARET_DATE: &str = "2026-01-15";
 
-/// Locates one caret trigger's caret.
+/// The time the time-picker trigger selects.
+///
+/// The time has to be a parseable `HH:MM` value for the same reason the
+/// date has to be a parseable date.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const CARET_TIME: &str = "09:30";
+
+/// The label and caret class of every caret-bearing trigger in the family.
+///
+/// Each trigger names its value class and its placeholder class, because a
+/// trigger renders one or the other depending on whether it carries a
+/// selection, and the gap has to hold in both states.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) const CARET_ICON_SELECTOR: &str = ".c_euv_select_caret";
+pub(crate) const CARET_PAIRS: [(&[&str], &str); 5] = [
+    (
+        &[".c_euv_select_value", ".c_euv_select_placeholder"],
+        ".c_euv_select_caret",
+    ),
+    (
+        &[".c_euv_date_picker_value", ".c_euv_date_picker_placeholder"],
+        ".c_euv_date_picker_caret",
+    ),
+    (
+        &[".c_euv_time_picker_value", ".c_euv_time_picker_placeholder"],
+        ".c_euv_time_picker_caret",
+    ),
+    (
+        &[".c_euv_cascader_value", ".c_euv_cascader_placeholder"],
+        ".c_euv_cascader_caret",
+    ),
+    (
+        &[".c_euv_tree_select_value", ".c_euv_tree_select_placeholder"],
+        ".c_euv_tree_select_caret",
+    ),
+];
