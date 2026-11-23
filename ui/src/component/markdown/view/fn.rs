@@ -182,6 +182,11 @@ fn render_md_block(block: &'static EuvMdBlock) -> VirtualNode {
         EuvMdBlock::Rule => html! {
             hr {}
         },
+        EuvMdBlock::Diagram { svg } => html! {
+            div {
+                inner_html: *svg
+            }
+        },
         EuvMdBlock::Html(raw) => html! {
             div {
                 inner_html: *raw

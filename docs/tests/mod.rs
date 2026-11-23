@@ -1,4 +1,6 @@
 mod anchor;
+#[path = "../diagram/mod.rs"]
+mod build_diagram;
 #[path = "../src/document_language/mod.rs"]
 mod build_document_language;
 mod catalog;
@@ -22,7 +24,10 @@ mod sidebar;
 mod toc_active_contrast;
 mod toc_navigation;
 
-use {super::*, build_document_language::*, document_html::*, euv_ui::EuvSidebarItem};
+use {
+    super::*, build_diagram::*, build_document_language::*, document_html::*,
+    euv_ui::EuvSidebarItem,
+};
 
 use std::{
     borrow::Cow,

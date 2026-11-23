@@ -2,6 +2,7 @@
 #[path = "tests/asset_url/mod.rs"]
 mod asset_url;
 mod codegen;
+mod diagram;
 #[path = "src/document_language/mod.rs"]
 mod document_language;
 
@@ -21,7 +22,7 @@ use {
     serde_yaml::Value,
 };
 
-use {codegen::*, document_language::*};
+use {codegen::*, diagram::*, document_language::*};
 
 /// Root of the project README.md frontmatter (site + locales block).
 #[derive(Debug)]
@@ -138,6 +139,15 @@ enum AstBlock {
         lang: String,
         /// Raw code.
         code: String,
+    },
+    /// A diagram rendered to an inline SVG.
+    ///
+    /// The SVG is produced while the markdown is parsed, so the diagram
+    /// engine is a build-time dependency of the generator and never
+    /// reaches the browser bundle.
+    Diagram {
+        /// The inline SVG markup of the diagram.
+        svg: String,
     },
     /// Block quote.
     BlockQuote(Vec<AstBlock>),
@@ -586,7 +596,7 @@ fn strip_blocks_prefix(blocks: &mut [AstBlock], pinned: &str) {
             }
             AstBlock::Container { blocks: inner, .. } => strip_blocks_prefix(inner, pinned),
             AstBlock::Html(raw) => *raw = rebase_html_asset_srcs(raw),
-            AstBlock::CodeBlock { .. } | AstBlock::Rule => {}
+            AstBlock::CodeBlock { .. } | AstBlock::Diagram { .. } | AstBlock::Rule => {}
         }
     }
 }
@@ -1546,7 +1556,7 @@ fn split_frontmatter(raw: &str) -> (Value, &str) {
         return (Value::Null, raw);
     }
     let after_open: &str = &trimmed[3..];
-    let Some(after_open) = after_open.strip_prefix(['\n', '\r'].as_ref()) else {
+    let Some(after_open) = after_open.strip_prefix(['\n', '\r']) else {
         return (Value::Null, raw);
     };
     let Some(end) = after_open.find(FRONTMATTER_TERMINATOR) else {
@@ -1751,6 +1761,8 @@ fn render_markdown(body: &str, route: &str) -> (Vec<AstBlock>, Vec<Heading>, Opt
     // Tracks whether the leading h1 has been consumed, carried across
     // segments so an h1 at the top of a later segment is still dropped.
     let mut h1_done: bool = false;
+    // Diagrams are numbered per page, so their scoped ids never collide.
+    let mut diagram_ordinal: usize = 0;
 
     for segment in segments {
         match segment {
@@ -1761,9 +1773,11 @@ fn render_markdown(body: &str, route: &str) -> (Vec<AstBlock>, Vec<Heading>, Opt
                     first_h1: &mut first_h1,
                     used_slugs: &mut used_slugs,
                     h1_seen: h1_done,
+                    diagram_ordinal,
                 };
                 blocks.extend(parse_blocks(&src, &mut ctx));
                 h1_done = ctx.h1_seen;
+                diagram_ordinal = ctx.diagram_ordinal;
             }
             Segment::Container { kind, title, body } => {
                 let mut ctx: ParseCtx = ParseCtx {
@@ -1772,9 +1786,11 @@ fn render_markdown(body: &str, route: &str) -> (Vec<AstBlock>, Vec<Heading>, Opt
                     first_h1: &mut first_h1,
                     used_slugs: &mut used_slugs,
                     h1_seen: h1_done,
+                    diagram_ordinal,
                 };
                 let inner: Vec<AstBlock> = parse_blocks(&body, &mut ctx);
                 h1_done = ctx.h1_seen;
+                diagram_ordinal = ctx.diagram_ordinal;
                 blocks.push(AstBlock::Container {
                     title: title.unwrap_or_else(|| kind.to_uppercase()),
                     kind,
@@ -1805,6 +1821,11 @@ struct ParseCtx<'a> {
     /// block stream. Only the leading one is dropped — a second h1 later
     /// in the body is a real section heading and is kept.
     h1_seen: bool,
+    /// How many diagrams the page has rendered so far.
+    ///
+    /// The count names each diagram's scoped ids and CSS selectors, so
+    /// two diagrams on one page never share a marker id.
+    diagram_ordinal: usize,
 }
 
 /// A source segment: plain markdown or a `:::` custom container.
@@ -2083,7 +2104,17 @@ fn parse_block_stream(it: &mut EventIter, ctx: &mut ParseCtx, end: EndCtx) -> Ve
                         _ => {}
                     }
                 }
-                blocks.push(AstBlock::CodeBlock { lang, code });
+                // A mermaid fence becomes a diagram rendered here, at build
+                // time: the engine never reaches the browser bundle. A
+                // diagram it cannot lay out stays an ordinary code block,
+                // so the source remains readable.
+                match render_diagram(&lang, &code, ctx.diagram_ordinal) {
+                    Some(svg) => {
+                        ctx.diagram_ordinal += 1;
+                        blocks.push(AstBlock::Diagram { svg });
+                    }
+                    None => blocks.push(AstBlock::CodeBlock { lang, code }),
+                }
             }
             Event::Start(Tag::BlockQuote(_)) => {
                 let inner: Vec<AstBlock> = parse_block_stream(it, ctx, EndCtx::Quote);
@@ -3093,6 +3124,9 @@ fn emit_blocks(blocks: &[AstBlock]) -> String {
             }
             AstBlock::CodeBlock { lang, code } => {
                 format!("euv_ui::EuvMdBlock::CodeBlock {{ lang: {lang:?}, code: {code:?} }}")
+            }
+            AstBlock::Diagram { svg } => {
+                format!("euv_ui::EuvMdBlock::Diagram {{ svg: {svg:?} }}")
             }
             AstBlock::BlockQuote(inner) => {
                 format!("euv_ui::EuvMdBlock::BlockQuote({})", emit_blocks(inner))

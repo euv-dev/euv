@@ -26,6 +26,16 @@ pub enum EuvMdBlock {
         /// Raw code.
         code: &'static str,
     },
+    /// A diagram rendered to an inline SVG.
+    ///
+    /// The SVG is produced before the page data is generated — the
+    /// diagram engine is a build-time dependency of the generator, not
+    /// a runtime dependency of the browser bundle — so the browser only
+    /// ever carries the finished markup.
+    Diagram {
+        /// The inline SVG markup of the diagram.
+        svg: &'static str,
+    },
     /// A block quote.
     BlockQuote(&'static [EuvMdBlock]),
     /// An ordered or unordered list.

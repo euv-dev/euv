@@ -1,19 +1,22 @@
 use super::*;
 
-fn mermaid_node(source: &'static str, ordinal: usize) -> VirtualNode<DocsMermaidProps> {
+fn mermaid_node(svg: &'static str) -> VirtualNode<DocsMermaidProps> {
     VirtualNode::Element {
         tag: Tag::Element(Cow::Borrowed("div")),
         attributes: Vec::new(),
         children: Vec::new(),
         key: None,
-        props: Some(Box::new(DocsMermaidProps { source, ordinal })),
+        props: Some(Box::new(DocsMermaidProps { svg })),
     }
 }
 
-fn render_mermaid_diagram(source: &'static str, ordinal: usize) -> VirtualNode {
-    HookContext::with(HookContext::current(), || {
-        docs_mermaid(mermaid_node(source, ordinal))
-    })
+fn render_mermaid_diagram(svg: &'static str) -> VirtualNode {
+    HookContext::with(HookContext::current(), || docs_mermaid(mermaid_node(svg)))
+}
+
+fn rendered_diagram() -> &'static str {
+    let svg: String = render_diagram("mermaid", SEQUENCE, 0).expect("the diagram must render");
+    Box::leak(svg.into_boxed_str())
 }
 
 fn children_of(node: &VirtualNode) -> Vec<&VirtualNode> {
@@ -107,14 +110,11 @@ const THEME_TOKENS: &[&str] = &["var(--foreground)", "var(--muted)", "var(--bord
 
 const SEQUENCE: &str = "sequenceDiagram\n    participant Client as \"客户端\"\n    participant Server as \"Server\"\n    Client->>Server: \"TCP 连接请求\"\n";
 
-static BLOCKS: &[EuvMdBlock] = &[EuvMdBlock::CodeBlock {
-    lang: "mermaid",
-    code: SEQUENCE,
-}];
+static DIAGRAM_BLOCKS: &[EuvMdBlock] = &[EuvMdBlock::Diagram { svg: "<svg></svg>" }];
 
 #[test]
-fn a_mermaid_fence_renders_an_svg_node() {
-    let svg: Option<String> = render_mermaid(SEQUENCE, 0);
+fn a_mermaid_fence_renders_an_svg_at_build_time() {
+    let svg: Option<String> = render_diagram("mermaid", SEQUENCE, 0);
     let svg: String = svg.expect("the sequence diagram must render");
     let head: String = svg.chars().take(200).collect();
     assert!(
@@ -129,7 +129,7 @@ fn a_mermaid_fence_renders_an_svg_node() {
 
 #[test]
 fn a_mermaid_fence_carries_its_labels() {
-    let svg: Option<String> = render_mermaid(SEQUENCE, 0);
+    let svg: Option<String> = render_diagram("mermaid", SEQUENCE, 0);
     let svg: String = svg.expect("the sequence diagram must render");
     assert!(
         svg.contains("客户端"),
@@ -142,8 +142,54 @@ fn a_mermaid_fence_carries_its_labels() {
 }
 
 #[test]
+fn only_a_mermaid_fence_is_a_diagram() {
+    for language in ["rust", "shell", "json", "text", ""] {
+        assert!(
+            render_diagram(language, "fn main() {}", 0).is_none(),
+            "a {language} fence must not be routed to the diagram"
+        );
+    }
+}
+
+#[test]
+fn a_language_that_merely_starts_with_mermaid_is_not_a_mermaid_fence() {
+    for language in ["mermaidjs", "mermaid-lang"] {
+        assert!(
+            render_diagram(language, SEQUENCE, 0).is_none(),
+            "a language that merely starts with mermaid is not a mermaid fence"
+        );
+    }
+}
+
+#[test]
+fn a_diagram_the_engine_cannot_lay_out_stays_a_code_block() {
+    assert!(
+        render_diagram("mermaid", "this is not a diagram", 0).is_none(),
+        "a diagram the engine cannot lay out must not produce an svg"
+    );
+}
+
+#[test]
+fn the_diagram_engine_is_not_a_runtime_dependency() {
+    let manifest: String = include_str!("../../Cargo.toml").to_string();
+    let runtime: &str = manifest
+        .split("[dependencies]")
+        .nth(1)
+        .and_then(|rest: &str| rest.split("[build-dependencies]").next())
+        .unwrap_or_default();
+    assert!(
+        !runtime.contains("merman"),
+        "the mermaid engine must be a build dependency, never a runtime one"
+    );
+    assert!(
+        manifest.contains("merman"),
+        "the mermaid engine must still be a build dependency"
+    );
+}
+
+#[test]
 fn a_mermaid_diagram_is_inlined_in_the_page() {
-    let rendered: VirtualNode = render_mermaid_diagram(SEQUENCE, 0);
+    let rendered: VirtualNode = render_mermaid_diagram(rendered_diagram());
     let figure: &VirtualNode = find_by_class(&rendered, "c_docs_mermaid").expect("the figure");
     let frame: &VirtualNode = find_by_class(figure, "c_docs_mermaid_frame").expect("the frame");
     let payload: String = inner_html_payload(frame).expect("the frame must carry the svg inline");
@@ -161,15 +207,14 @@ fn a_mermaid_diagram_is_inlined_in_the_page() {
 
 #[test]
 fn a_mermaid_diagram_emits_no_javascript_or_stylesheet_asset() {
-    let svg: Option<String> = render_mermaid(SEQUENCE, 0);
-    let svg: String = svg.expect("the sequence diagram must render");
+    let svg: String = render_diagram("mermaid", SEQUENCE, 0).expect("the diagram must render");
     for forbidden in [".js", ".css", "mermaid.min.js", "mermaid.js", "<script"] {
         assert!(
             !svg.contains(forbidden),
             "the rendered diagram must not carry {forbidden}"
         );
     }
-    let rendered: VirtualNode = render_mermaid_diagram(SEQUENCE, 0);
+    let rendered: VirtualNode = render_mermaid_diagram(rendered_diagram());
     let names: Vec<String> = attribute_names(&rendered);
     for forbidden in ["src", "href"] {
         assert!(
@@ -181,8 +226,7 @@ fn a_mermaid_diagram_emits_no_javascript_or_stylesheet_asset() {
 
 #[test]
 fn a_mermaid_diagram_follows_the_theme_tokens() {
-    let svg: Option<String> = render_mermaid(SEQUENCE, 0);
-    let svg: String = svg.expect("the sequence diagram must render");
+    let svg: String = render_diagram("mermaid", SEQUENCE, 0).expect("the diagram must render");
     for rule in THEME_RULES {
         assert!(
             svg.contains(rule),
@@ -214,20 +258,20 @@ fn a_mermaid_diagram_follows_the_theme_tokens() {
 
 fn render_page_block(index: usize) -> VirtualNode {
     HookContext::with(HookContext::current(), || {
-        render_docs_block(BLOCKS, index, &BLOCKS[index])
+        render_docs_block(DIAGRAM_BLOCKS, index, &DIAGRAM_BLOCKS[index])
     })
 }
 
 #[test]
-fn a_mermaid_fence_on_a_page_renders_the_diagram() {
+fn a_diagram_block_on_a_page_renders_the_diagram() {
     let rendered: VirtualNode = render_page_block(0);
     assert!(
         find_by_class(&rendered, "c_docs_mermaid").is_some(),
-        "a mermaid fence on a page must render the diagram"
+        "a diagram block on a page must render the diagram"
     );
     assert!(
         find_by_class(&rendered, "c_docs_code").is_none(),
-        "a mermaid fence on a page must not render the code block"
+        "a diagram block on a page must not render the code block"
     );
 }
 
@@ -251,56 +295,26 @@ fn an_ordinary_fence_on_a_page_renders_the_code_block() {
 }
 
 #[test]
-fn a_mermaid_fence_is_routed_to_the_diagram() {
-    assert_eq!(
-        code_block_route("mermaid"),
-        CodeBlockRoute::Diagram,
-        "a mermaid fence must be routed to the diagram"
-    );
-}
-
-#[test]
-fn an_ordinary_fence_is_not_routed_to_the_diagram() {
-    for language in ["rust", "shell", "json", "text", ""] {
-        assert_eq!(
-            code_block_route(language),
-            CodeBlockRoute::Code,
-            "a {language} fence must not be routed to the diagram"
-        );
-    }
-}
-
-#[test]
-fn a_mermaid_fence_is_not_confused_with_a_longer_language() {
-    assert_eq!(
-        code_block_route("mermaidjs"),
-        CodeBlockRoute::Code,
-        "a language that merely starts with mermaid is not a mermaid fence"
-    );
-    assert_eq!(
-        code_block_route("mermaid-lang"),
-        CodeBlockRoute::Code,
-        "a language that merely starts with mermaid is not a mermaid fence"
-    );
-}
-
-#[test]
-fn an_unrenderable_mermaid_fence_falls_back_to_the_code_block() {
-    let rendered: VirtualNode = render_mermaid_diagram("this is not a diagram", 0);
+fn a_diagram_nested_in_a_quote_is_rendered_by_the_docs_renderer() {
+    static NESTED: &[EuvMdBlock] = &[EuvMdBlock::BlockQuote(&[EuvMdBlock::Diagram {
+        svg: "<svg></svg>",
+    }])];
+    let rendered: VirtualNode = HookContext::with(HookContext::current(), || {
+        render_docs_block(NESTED, 0, &NESTED[0])
+    });
     assert!(
-        find_by_class(&rendered, "c_docs_code").is_some(),
-        "a diagram the engine cannot lay out must degrade to the code block"
+        find_by_class(&rendered, "c_euv_markdown").is_none(),
+        "a quote holding a diagram must not fall through to the shared renderer, which has no diagram frame"
     );
     assert!(
-        find_by_class(&rendered, "c_docs_mermaid").is_none(),
-        "a diagram the engine cannot lay out must not render a broken figure"
+        find_by_class(&rendered, "md-body").is_none(),
+        "a quote holding a diagram must not fall through to the shared renderer, which has no diagram frame"
     );
 }
 
 #[test]
 fn a_mermaid_diagram_carries_no_inline_colour() {
-    let svg: Option<String> = render_mermaid(SEQUENCE, 0);
-    let svg: String = svg.expect("the sequence diagram must render");
+    let svg: String = render_diagram("mermaid", SEQUENCE, 0).expect("the diagram must render");
     for inline in ["style=\"stroke:", "style=\"color:"] {
         assert!(
             !svg.contains(inline),
@@ -317,8 +331,7 @@ fn a_mermaid_diagram_carries_no_inline_colour() {
 
 #[test]
 fn a_mermaid_diagram_paints_its_text_with_the_theme_token() {
-    let svg: Option<String> = render_mermaid(SEQUENCE, 0);
-    let svg: String = svg.expect("the sequence diagram must render");
+    let svg: String = render_diagram("mermaid", SEQUENCE, 0).expect("the diagram must render");
     assert!(
         scoped_sheet(&svg).contains("text.actor>tspan"),
         "the scoped sheet must style the actor labels"
