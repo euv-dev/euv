@@ -83,10 +83,9 @@ fn attribute_names(node: &VirtualNode) -> Vec<String> {
 }
 
 fn scoped_sheet(svg: &str) -> String {
-    let marker: &str = "<style data-merman-postprocess=\"scoped-css\">";
-    let start: usize = svg.find(marker).expect("the scoped sheet");
-    let tail: &str = &svg[start + marker.len()..];
-    let end: usize = tail.find("</style>").expect("the scoped sheet ends");
+    let last: usize = svg.rfind("<style>").expect("the appended theme sheet");
+    let tail: &str = &svg[last + "<style>".len()..];
+    let end: usize = tail.find("</style>").expect("the theme sheet ends");
     tail[..end].to_string()
 }
 
@@ -362,5 +361,52 @@ fn the_theme_rules_and_the_stylesheet_agree() {
         selectors.len(),
         13,
         "the rule list must name every rule the stylesheet declares"
+    );
+}
+
+#[test]
+fn the_theme_sheet_is_scoped_to_the_diagram_and_carries_the_page_tokens() {
+    let svg: String = render_diagram("mermaid", SEQUENCE, 0).expect("the diagram must render");
+    let id: &str = "docs-mermaid-0";
+    assert!(
+        svg.contains(&format!("#{id} .actor{{")),
+        "the actor rule must be scoped to the diagram id, or the engine's own literal wins"
+    );
+    assert!(
+        svg.contains(&format!("#{id} text.actor>tspan{{fill:var(--foreground)")),
+        "the actor label must take its fill from the page token, not from a literal"
+    );
+    assert!(
+        svg.contains(&format!("#{id} text.text>tspan{{fill:var(--foreground)")),
+        "the plain text label must take its fill from the page token, not from a literal"
+    );
+    let injected: &str = svg
+        .rsplit_once("<style>")
+        .expect("the theme sheet must be appended")
+        .1;
+    assert!(
+        injected.contains("var(--"),
+        "the appended sheet must reference page tokens"
+    );
+    assert!(
+        !injected.contains("#0f172a"),
+        "the appended sheet must not reintroduce the literal the engine paints with"
+    );
+}
+
+#[test]
+fn the_theme_sheet_lands_after_the_engine_stylesheet() {
+    let svg: String = render_diagram("mermaid", SEQUENCE, 0).expect("the diagram must render");
+    let engine: usize = svg.find("<style>").expect("the engine ships a stylesheet");
+    let appended: usize = svg.rfind("<style>").expect("the theme sheet is appended");
+    assert!(
+        appended > engine,
+        "the theme sheet must follow the engine's stylesheet so it wins on source order"
+    );
+    let close: usize = svg.rfind("</style>").expect("the sheet closes");
+    let svg_close: usize = svg.find("</svg>").expect("the svg closes");
+    assert!(
+        close < svg_close,
+        "the theme sheet must be inside the svg element"
     );
 }
