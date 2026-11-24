@@ -20,6 +20,7 @@ pub(crate) const SCOPED_CSS: &str = r#"
 .messageLine0,.messageLine1{stroke:var(--foreground);}
 rect.note[data-look]{stroke:var(--border);fill:var(--muted);}
 text.actor>tspan{fill:var(--foreground);stroke:none;}
+text.text>tspan{fill:var(--foreground);stroke:none;}
 .noteText,.noteText>tspan{fill:var(--foreground);stroke:none;}
 .messageText,.messageText>tspan{fill:var(--foreground);stroke:none;}
 .labelBox{stroke:var(--border);fill:var(--muted);}
