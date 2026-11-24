@@ -132,8 +132,8 @@ vars! {
         page-block-gap-mobile: "20px";
         card-padding: var!(space-md);
         card-content-gap: var!(gap-component);
-        nav-row-height: format!("calc({} + {})", var!(control-height), var!(space-lg));
-        nav-row-padding: var!(space-md);
+        nav-row-height: format!("calc({} + {})", var!(control-height), var!(space-xs));
+        nav-row-padding: var!(space-sm-md);
         nav-item-inset: var!(space-xs);
         // The width of the lock-in bar a table-of-contents row paints on
         // hover. It is narrower than the sidebar's 5px bar, because the
@@ -340,8 +340,8 @@ vars! {
         page-block-gap-mobile: "20px";
         card-padding: var!(space-md);
         card-content-gap: var!(gap-component);
-        nav-row-height: format!("calc({} + {})", var!(control-height), var!(space-lg));
-        nav-row-padding: var!(space-md);
+        nav-row-height: format!("calc({} + {})", var!(control-height), var!(space-xs));
+        nav-row-padding: var!(space-sm-md);
         nav-item-inset: var!(space-xs);
         toc-bar-width: "3px";
 
