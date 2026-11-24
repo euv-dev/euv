@@ -323,3 +323,28 @@ fn the_compiled_scheme_names_itself() {
         "the compiled scheme reports {expected}, the enabled feature selects {expected}"
     );
 }
+
+fn token_definition(token: &str) -> String {
+    let text: String = fs::read_to_string(theme_file()).expect("the theme file");
+    let prefix: String = format!("{token}:");
+    for line in text.lines() {
+        let trimmed: &str = line.trim();
+        if trimmed.starts_with(&prefix) {
+            return trimmed[prefix.len()..]
+                .trim_end_matches(';')
+                .trim()
+                .to_string();
+        }
+    }
+    String::new()
+}
+
+#[test]
+fn the_nav_row_reserves_a_compact_height_and_a_matching_padding() {
+    let height: String = token_definition("nav-row-height");
+    let expected_height: String =
+        "format!(\"calc({} + {})\", var!(control-height), var!(space-xs))".to_string();
+    assert_eq!(height, expected_height);
+    let padding: String = token_definition("nav-row-padding");
+    assert_eq!(padding, "var!(space-sm-md)");
+}
