@@ -273,6 +273,26 @@ unsafe extern "C" {
         count: usize,
         context: *mut c_void,
     );
+    /// Returns the typographic ascent metric of a CoreText font.
+    ///
+    /// # Arguments
+    ///
+    /// - `*const c_void` - A CoreText `CTFontRef` handle.
+    ///
+    /// # Returns
+    ///
+    /// - `f64` - Ascent distance above the baseline in points.
+    fn CTFontGetAscent(font: *const c_void) -> f64;
+    /// Returns the typographic descent metric of a CoreText font.
+    ///
+    /// # Arguments
+    ///
+    /// - `*const c_void` - A CoreText `CTFontRef` handle.
+    ///
+    /// # Returns
+    ///
+    /// - `f64` - Descent distance below the baseline in points.
+    fn CTFontGetDescent(font: *const c_void) -> f64;
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -356,6 +376,27 @@ unsafe extern "C" {
     /// - `*mut c_void` - A `*mut c_void` parameter.
     /// - `bool` - A boolean (`bool`).
     fn CGContextSetShouldAntialias(ctx: *mut c_void, should_antialias: bool);
+    /// Allows or disallows anti-aliasing on a CoreGraphics context.
+    ///
+    /// # Arguments
+    ///
+    /// - `*mut c_void` - CoreGraphics context pointer.
+    /// - `bool` - Whether anti-aliasing is permitted.
+    fn CGContextSetAllowsAntialiasing(ctx: *mut c_void, allows_antialiasing: bool);
+    /// Allows or disallows subpixel font smoothing on a CoreGraphics context.
+    ///
+    /// # Arguments
+    ///
+    /// - `*mut c_void` - CoreGraphics context pointer.
+    /// - `bool` - Whether font smoothing is permitted.
+    fn CGContextSetAllowsFontSmoothing(ctx: *mut c_void, allows_font_smoothing: bool);
+    /// Enables or disables font smoothing on a CoreGraphics context.
+    ///
+    /// # Arguments
+    ///
+    /// - `*mut c_void` - CoreGraphics context pointer.
+    /// - `bool` - Whether font smoothing should be active.
+    fn CGContextSetShouldSmoothFonts(ctx: *mut c_void, should_smooth_fonts: bool);
     /// Releases a CoreGraphics context.
     ///
     /// # Arguments
@@ -379,12 +420,18 @@ fn rasterize_coretext_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
     let mut utf16_buf: [u16; 2] = [0; 2];
     let encoded: &[u16] = key.get_codepoint().encode_utf16(&mut utf16_buf);
     let count: isize = encoded.len() as isize;
+    let ui_font_kind: u32 = if key.get_bold() {
+        CT_FONT_UI_EMPHASIZED_SYSTEM
+    } else {
+        CT_FONT_UI_SYSTEM
+    };
     unsafe {
-        let base_font: *mut c_void =
-            CTFontCreateUIFontForLanguage(CT_FONT_UI_SYSTEM, size_px, null());
+        let base_font: *mut c_void = CTFontCreateUIFontForLanguage(ui_font_kind, size_px, null());
         if base_font.is_null() {
             return None;
         }
+        let base_ascent: f64 = CTFontGetAscent(base_font).max(size_px * 0.80);
+        let base_descent: f64 = CTFontGetDescent(base_font).max(size_px * 0.24);
         let cf_str: *mut c_void = CFStringCreateWithCharacters(null(), encoded.as_ptr(), count);
         let active_font: *mut c_void = if !cf_str.is_null() {
             let range: CtRange = CtRange {
@@ -420,9 +467,9 @@ fn rasterize_coretext_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
             &mut adv_size,
             1,
         );
-        let advance: u32 = adv_f64.ceil().max(4.0) as u32;
-        let out_w: u32 = advance.max((size_px * 0.7).ceil() as u32);
-        let out_h: u32 = (size_px * 1.25).ceil().max(8.0) as u32;
+        let advance: u32 = adv_f64.ceil().max(2.0) as u32;
+        let out_w: u32 = (adv_f64.ceil() + 3.0).max(4.0) as u32;
+        let out_h: u32 = (base_ascent + base_descent).ceil().max(8.0) as u32 + 2;
         let mut coverage: Vec<u8> = vec![0; (out_w as usize) * (out_h as usize)];
         let cs: *mut c_void = CGColorSpaceCreateDeviceGray();
         if cs.is_null() {
@@ -443,11 +490,14 @@ fn rasterize_coretext_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
             CFRelease(active_font);
             return None;
         }
+        CGContextSetAllowsAntialiasing(cg_ctx, true);
         CGContextSetShouldAntialias(cg_ctx, true);
+        CGContextSetAllowsFontSmoothing(cg_ctx, true);
+        CGContextSetShouldSmoothFonts(cg_ctx, true);
         CGContextSetGrayFillColor(cg_ctx, 1.0, 1.0);
         let pos: CtPoint = CtPoint {
             x: 1.0,
-            y: (size_px * 0.24).max(2.0),
+            y: base_descent.ceil() + 1.0,
         };
         CTFontDrawGlyphs(active_font, glyphs.as_ptr(), &pos, 1, cg_ctx);
         CGContextRelease(cg_ctx);
@@ -758,27 +808,33 @@ fn rasterize_web_canvas_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
     let el: Element = doc.create_element(WEB_FONT_CANVAS_TAG).ok()?;
     let canvas: HtmlCanvasElement = el.dyn_into::<HtmlCanvasElement>().ok()?;
     let size_px: f32 = ((key.get_size_tenths() as f32) * 0.1).max(8.0);
-    let w: u32 = if is_wide_unicode(key.get_codepoint()) {
-        size_px.ceil() as u32
-    } else {
-        (size_px * 0.72).ceil().max(6.0) as u32
-    };
-    let h: u32 = (size_px * 1.25).ceil().max(8.0) as u32;
-    canvas.set_width(w);
+    let h: u32 = (size_px * 1.32).ceil().max(10.0) as u32;
+    let initial_w: u32 = (size_px * 1.6).ceil().max(12.0) as u32;
+    canvas.set_width(initial_w);
     canvas.set_height(h);
     let raw: Object = canvas.get_context(WEB_FONT_CTX_2D).ok()??;
     let ctx2d: CanvasRenderingContext2d = raw.dyn_into::<CanvasRenderingContext2d>().ok()?;
-    let weight: &str = if key.get_bold() { "700" } else { "400" };
-    ctx2d.set_font(&format!("{weight} {size_px}px {FONT_FAMILY_WEB_SYSTEM}"));
-    ctx2d.set_fill_style_str(WEB_FONT_WHITE);
+    let weight: &str = if key.get_bold() { "600" } else { "400" };
+    let font_decl: String = format!("{weight} {size_px}px {FONT_FAMILY_WEB_SYSTEM}");
+    ctx2d.set_font(&font_decl);
     let mut text_buf: [u8; 4] = [0; 4];
     let text: &str = key.get_codepoint().encode_utf8(&mut text_buf);
-    drop(ctx2d.fill_text(text, 1.0, (size_px * 0.92) as f64));
+    let measured_w: f64 = ctx2d
+        .measure_text(text)
+        .map(|m: TextMetrics| m.width())
+        .unwrap_or((size_px * 0.62) as f64);
+    let advance: u32 = measured_w.ceil().max(2.0) as u32;
+    let w: u32 = (advance + 3).max(4);
+    canvas.set_width(w);
+    canvas.set_height(h);
+    ctx2d.set_font(&font_decl);
+    ctx2d.set_fill_style_str(WEB_FONT_WHITE);
+    drop(ctx2d.fill_text(text, 1.0, (size_px * 0.98) as f64));
     let img: ImageData = ctx2d.get_image_data(0.0, 0.0, w as f64, h as f64).ok()?;
     let rgba: Clamped<Vec<u8>> = img.data();
     let mut coverage: Vec<u8> = Vec::with_capacity((w as usize) * (h as usize));
     for px in rgba.0.as_chunks::<4>().0.iter() {
         coverage.push(px[3]);
     }
-    Some(RasterizedGlyph::new(w, h, w, coverage))
+    Some(RasterizedGlyph::new(w, h, advance, coverage))
 }

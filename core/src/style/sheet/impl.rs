@@ -276,6 +276,24 @@ impl Style {
         self
     }
 
+    /// Sets an explicit width-to-height aspect ratio constraint.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source style.
+    /// - `f32` - Positive aspect ratio (`width / height`).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated style.
+    #[must_use]
+    pub fn aspect_ratio(mut self, ratio: f32) -> Self {
+        if ratio > 0.0 && ratio.is_finite() {
+            self.get_mut_layout().set_aspect_ratio(Some(ratio));
+        }
+        self
+    }
+
     /// Sets uniform gap along both row and column axes.
     ///
     /// # Arguments

@@ -87,9 +87,10 @@ impl Mountable for EuvTabs {
         let bar: NodeId = ctx.view(
             Style::empty()
                 .row()
+                .wrap(FlexWrap::Wrap)
                 .width(Length::Percent(100.0))
-                .gap(SPACE_SM)
-                .border(g.get_border_width(), p.get_border())
+                .gap(SPACE_XS)
+                .background(p.get_muted())
                 .padding(Edges::all(SPACE_XS))
                 .radius(g.get_radius_md()),
         );
@@ -98,7 +99,7 @@ impl Mountable for EuvTabs {
             let txt: NodeId = ctx.text(
                 label,
                 Style::empty()
-                    .font_size(14.0)
+                    .font_size(13.0)
                     .font_weight(FontWeight::Medium)
                     .color(p.get_foreground()),
             );
@@ -107,16 +108,20 @@ impl Mountable for EuvTabs {
             let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
                 handle.bind_style(tab, move || {
                     let selected: bool = active.get() == idx;
-                    Style::empty()
+                    let mut st: Style = Style::empty()
                         .row()
-                        .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+                        .padding(Edges::symmetric(6.0, SPACE_MD))
                         .radius(g.get_radius_sm())
                         .background(if selected {
-                            p.get_secondary()
+                            p.get_card()
                         } else {
                             COLOR_TRANSPARENT
                         })
-                        .cursor(CursorIcon::Pointer)
+                        .cursor(CursorIcon::Pointer);
+                    if selected {
+                        st = st.shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 16)));
+                    }
+                    st
                 })
             });
             ctx.get_scene().with_write(

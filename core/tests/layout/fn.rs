@@ -61,3 +61,86 @@ fn grid_layout_and_zindex_hit_test_work() {
     assert!((rect_b.get_width() - 100.0).abs() < 0.01);
     assert_eq!(hit_test(&tree, Point::new(15.0, 15.0)), Some(overlay));
 }
+
+#[test]
+fn flex_grow_sidebar_and_table_cells_never_overflow_viewport() {
+    let mut tree: SceneTree = SceneTree::default();
+    let root: NodeId = tree.get_root();
+    let shell: NodeId = tree.create_view(
+        Style::empty()
+            .row()
+            .width(Length::Percent(100.0))
+            .height(Length::Percent(100.0))
+            .overflow(Overflow::Hidden),
+    );
+    let nav: NodeId = tree.create_view(
+        Style::empty()
+            .column()
+            .width(Length::Px(240.0))
+            .height(Length::Percent(100.0)),
+    );
+    let main_area: NodeId = tree.create_scroll_view(
+        Style::empty()
+            .column()
+            .flex_grow(1.0)
+            .height(Length::Percent(100.0))
+            .padding(Edges::all(24.0)),
+    );
+    let table_row: NodeId = tree.create_view(Style::empty().row().width(Length::Percent(100.0)));
+    let cell_a: NodeId = tree.create_view(Style::empty().flex_grow(1.0).overflow(Overflow::Hidden));
+    let cell_b: NodeId = tree.create_view(Style::empty().flex_grow(1.0).overflow(Overflow::Hidden));
+    let txt_a: NodeId = tree.create_text("Target".to_string(), Style::empty().font_size(13.0));
+    let txt_b: NodeId =
+        tree.create_text("Metal / Vulkan".to_string(), Style::empty().font_size(13.0));
+    tree.append_child(cell_a, txt_a);
+    tree.append_child(cell_b, txt_b);
+    tree.append_child(table_row, cell_a);
+    tree.append_child(table_row, cell_b);
+    tree.append_child(main_area, table_row);
+    tree.append_child(shell, nav);
+    tree.append_child(shell, main_area);
+    tree.append_child(root, shell);
+    let mut engine: LayoutEngine = LayoutEngine::default();
+    let _: LayoutStats = engine.compute(&mut tree, Size::new(1200.0, 800.0));
+    let main_b: Rect = tree
+        .get_node(main_area)
+        .unwrap()
+        .get_layout_box()
+        .get_bounds();
+    let row_b: Rect = tree
+        .get_node(table_row)
+        .unwrap()
+        .get_layout_box()
+        .get_bounds();
+    assert!((main_b.get_x() - 240.0).abs() < 0.01);
+    assert!((main_b.get_width() - 960.0).abs() < 0.01);
+    assert!(main_b.right() <= 1200.01);
+    assert!(row_b.get_height() > 10.0 && row_b.get_height() < 60.0);
+    assert!(row_b.right() <= 1200.01);
+}
+
+#[test]
+fn word_boundary_text_wrap_and_uniform_baseline_glyph_advances_prevent_overlap() {
+    let measurer: DeterministicTextMeasurer = DeterministicTextMeasurer;
+    let style: TextStyle = TextStyle::default();
+    let result: TextLayoutResult = measurer.measure("Hello Native World", style, Some(90.0));
+    assert!(result.get_lines().len() >= 2);
+    assert_eq!(result.get_lines()[0].get_text().as_str(), "Hello Native");
+    let mut atlas: GlyphAtlas = GlyphAtlas::default();
+    let provider: NativeSystemFont = NativeSystemFont::system();
+    let g_cap: RasterizedGlyph = atlas
+        .get_or_rasterize_with(GlyphKey::from_style('W', 28.0, FontWeight::Bold), &provider)
+        .clone();
+    let g_desc: RasterizedGlyph = atlas
+        .get_or_rasterize_with(GlyphKey::from_style('g', 28.0, FontWeight::Bold), &provider)
+        .clone();
+    let g_narrow: RasterizedGlyph = atlas
+        .get_or_rasterize_with(
+            GlyphKey::from_style('i', 28.0, FontWeight::Normal),
+            &provider,
+        )
+        .clone();
+    assert!(g_cap.get_advance() > g_narrow.get_advance());
+    assert!(g_cap.get_advance() >= 10);
+    assert_eq!(g_cap.get_height(), g_desc.get_height());
+}

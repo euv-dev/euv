@@ -56,6 +56,10 @@ impl WindowController for WebPlatform {
                 if let Some(el) = canvas.as_ref() {
                     el.set_width(phys_w);
                     el.set_height(phys_h);
+                    let css_style: String = format!(
+                        "position:fixed;inset:0;width:{w}px;height:{h}px;display:block;outline:none;cursor:pointer;margin:0;"
+                    );
+                    drop(el.set_attribute(WEB_ATTR_STYLE, &css_style));
                 }
                 rec.get_mut_config().set_width(w);
                 rec.get_mut_config().set_height(h);
@@ -156,6 +160,22 @@ impl PlatformBackend for WebPlatform {
         let id: WindowId = WindowId::new(raw_id);
         self.set_next_id(raw_id.wrapping_add(1));
         let mut state: WindowState = WindowState::from_config(id, config, dpr);
+        if let Some(win) = window() {
+            if let Some(w) = win.inner_width().ok().and_then(|v: JsValue| v.as_f64())
+                && w >= 320.0
+            {
+                let lw: f32 = w.floor() as f32;
+                state.set_logical_width(lw);
+                state.set_physical_width((lw * dpr).round().max(1.0) as u32);
+            }
+            if let Some(h) = win.inner_height().ok().and_then(|v: JsValue| v.as_f64())
+                && h >= 320.0
+            {
+                let lh: f32 = h.floor() as f32;
+                state.set_logical_height(lh);
+                state.set_physical_height((lh * dpr).round().max(1.0) as u32);
+            }
+        }
         state.set_system_theme(web_system_theme());
         self.get_mut_windows().insert(
             id,

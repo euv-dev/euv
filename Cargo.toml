@@ -92,6 +92,7 @@ web-sys = { version = "0.3.106", features = [
     "EventTarget",
     "HtmlElement",
     "Performance",
+    "TextMetrics",
     "WebGlBuffer",
     "WebGlShader",
     "PointerEvent",

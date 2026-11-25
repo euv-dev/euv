@@ -56,6 +56,17 @@ impl ShowcaseState {
             dynamic_hub: DynamicUpdateHub::new(),
             sibling_counter: Signal::new(0),
             dynamic_action_log: Signal::new("None yet".to_string()),
+            alert_dialog_open: Signal::new(false),
+            alert_dialog_confirmed: Signal::new(false),
+            collapsible_open: Signal::new(true),
+            toggle_group_index: Signal::new(0),
+            otp_code: Signal::new("202642".to_string()),
+            command_query: Signal::new(String::new()),
+            command_selected: Signal::new(Some(0)),
+            hover_card_open: Signal::new(false),
+            calendar_day: Signal::new(25),
+            menubar_active: Signal::new(None),
+            carousel_index: Signal::new(0),
         }
     }
 
@@ -216,13 +227,18 @@ impl GameScene for DemoPhysicsScene {
             1.5,
             Color::hex(0x1E293B),
         );
-        ctx.fill_circle(
-            Point::new(self.get_orb_x(), self.get_orb_y()),
-            14.0,
-            Color::hex(0x38BDF8),
-        );
+        let w: f32 = size.get_width().max(40.0);
+        let h: f32 = size.get_height().max(40.0);
+        let orb_x: f32 = self.get_orb_x().clamp(18.0, (w - 18.0).max(18.0));
+        let orb_y: f32 = self.get_orb_y().clamp(18.0, (h - 24.0).max(18.0));
+        let paddle_w: f32 = 96.0_f32.min((w - 24.0).max(32.0));
+        let paddle_x: f32 = self
+            .get_paddle_x()
+            .clamp(12.0, (w - paddle_w - 12.0).max(12.0));
+        let paddle_y: f32 = (h - 24.0).max(24.0);
+        ctx.fill_circle(Point::new(orb_x, orb_y), 14.0, Color::hex(0x38BDF8));
         ctx.fill_rounded_rect(
-            Rect::new(self.get_paddle_x(), 184.0, 96.0, 12.0),
+            Rect::new(paddle_x, paddle_y, paddle_w, 12.0),
             Color::hex(0x34D399),
             6.0,
         );

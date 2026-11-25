@@ -16,7 +16,14 @@ impl Mountable for EuvBreadcrumb {
         let p: ThemePalette = self.get_tokens().get_palette();
         let Self { segments, .. } = self;
         let last_idx: usize = segments.len().saturating_sub(1);
-        let row: NodeId = ctx.view(Style::empty().row().align(AlignItems::Center).gap(SPACE_XS));
+        let row: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .wrap(FlexWrap::Wrap)
+                .width(Length::Percent(100.0))
+                .align(AlignItems::Center)
+                .gap(SPACE_XS),
+        );
         for (idx, seg) in segments.into_iter().enumerate() {
             let color: Color = if idx == last_idx {
                 p.get_foreground()
@@ -56,7 +63,13 @@ impl Mountable for EuvPagination {
         let p: ThemePalette = tokens.get_palette();
         let current: Signal<usize> = self.get_current();
         let total: usize = self.get_total_pages();
-        let row: NodeId = ctx.view(Style::empty().row().align(AlignItems::Center).gap(SPACE_SM));
+        let row: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .wrap(FlexWrap::Wrap)
+                .align(AlignItems::Center)
+                .gap(SPACE_SM),
+        );
         let mut prev_cfg: EuvButton =
             EuvButton::new(PAGE_PREV_LABEL.to_string(), tokens).on_click(move |_: &UiEvent| {
                 let _: bool = current.update(|v: &mut usize| *v = v.saturating_sub(1).max(1));
@@ -106,6 +119,7 @@ impl Mountable for EuvSteps {
         let row: NodeId = ctx.view(
             Style::empty()
                 .row()
+                .wrap(FlexWrap::Wrap)
                 .width(Length::Percent(100.0))
                 .gap(SPACE_MD),
         );

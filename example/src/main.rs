@@ -47,7 +47,7 @@ fn main() {
                                 break;
                             }
                         }
-                        sleep(Duration::from_millis(16));
+                        sleep(Duration::from_millis(8));
                     }
                     print_stats(&last_stats);
                 } else if let Ok(stats) = app.run_frames(Some(1)) {

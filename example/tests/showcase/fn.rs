@@ -195,6 +195,13 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     assert!(state.get_sheet_open().get_untracked());
     let _: FrameStats = click_label(&mut app, "Close Sheet");
     assert!(!state.get_sheet_open().get_untracked());
+    let _: FrameStats = click_label(&mut app, "Alert Dialog");
+    assert!(state.get_alert_dialog_open().get_untracked());
+    let _: FrameStats = click_label(&mut app, "Continue");
+    assert!(!state.get_alert_dialog_open().get_untracked());
+    assert!(state.get_alert_dialog_confirmed().get_untracked());
+    let _: FrameStats = click_label(&mut app, "@euv-dev");
+    assert!(state.get_hover_card_open().get_untracked());
     let f_dyn_0: FrameStats = click_label(&mut app, "Dynamic OTA");
     assert_eq!(state.get_route().get_untracked(), ROUTE_DYNAMIC);
     let _: FrameStats = click_label(&mut app, "Increment Sibling (+1)");
@@ -282,4 +289,90 @@ fn showcase_supports_render_mode_switching_and_theme_cycling() {
     );
     let _: bool = state.get_render_mode_index().set(2);
     assert_eq!(state.selected_render_mode(), RenderMode::Hardware);
+}
+
+#[test]
+fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_overflow() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let wid: WindowId = app.get_window_state().get_id();
+    let f_desk: FrameStats = app.step_frame().unwrap();
+    assert_eq!(
+        app.get_build_context().get_breakpoint().get_untracked(),
+        Breakpoint::Expanded
+    );
+    app.queue_window_command(WindowCommand::SetSize(wid, 768, 1024));
+    app.dispatch_window_event(WindowEvent::Resized(wid, 768, 1024, 1.0));
+    let f_tab: FrameStats = app.step_frame().unwrap();
+    assert_eq!(
+        app.get_build_context().get_breakpoint().get_untracked(),
+        Breakpoint::Medium
+    );
+    assert_ne!(f_tab.get_frame_hash(), f_desk.get_frame_hash());
+    app.queue_window_command(WindowCommand::SetSize(wid, 390, 844));
+    app.dispatch_window_event(WindowEvent::Resized(wid, 390, 844, 1.0));
+    let f_mob: FrameStats = app.step_frame().unwrap();
+    assert_eq!(
+        app.get_build_context().get_breakpoint().get_untracked(),
+        Breakpoint::Compact
+    );
+    assert_ne!(f_mob.get_frame_hash(), f_tab.get_frame_hash());
+    let f_menu_open: FrameStats = click_label(&mut app, "Menu");
+    assert_ne!(f_menu_open.get_frame_hash(), f_mob.get_frame_hash());
+    let _: FrameStats = click_label(&mut app, "Reactivity");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_REACTIVE);
+    let routes: [&str; 10] = [
+        ROUTE_OVERVIEW,
+        ROUTE_REACTIVE,
+        ROUTE_RENDER,
+        ROUTE_WINDOW,
+        ROUTE_FORMS,
+        ROUTE_THEMES,
+        ROUTE_DATA,
+        ROUTE_GAME,
+        ROUTE_OVERLAYS,
+        ROUTE_DYNAMIC,
+    ];
+    let sizes: [(u32, u32, Breakpoint); 3] = [
+        (390, 844, Breakpoint::Compact),
+        (768, 1024, Breakpoint::Medium),
+        (1280, 800, Breakpoint::Expanded),
+    ];
+    for (vw, vh, expected_bp) in sizes.into_iter() {
+        app.queue_window_command(WindowCommand::SetSize(wid, vw, vh));
+        app.dispatch_window_event(WindowEvent::Resized(wid, vw, vh, 1.0));
+        let _: FrameStats = app.step_frame().unwrap();
+        assert_eq!(
+            app.get_build_context().get_breakpoint().get_untracked(),
+            expected_bp
+        );
+        for route in routes.iter() {
+            let _: bool = state.get_route().set_if_changed((*route).to_string());
+            let stats: FrameStats = app.step_frame().unwrap();
+            assert_ne!(stats.get_frame_hash(), 0);
+            let overflows: Vec<(f32, f32)> = app.get_scene().with_read(
+                |tree: &SceneTree| {
+                    let mut out: Vec<(f32, f32)> = Vec::new();
+                    for node in tree.get_nodes().iter() {
+                        if !node.get_alive()
+                            || node.get_style().get_layout().get_display() == Display::None
+                        {
+                            continue;
+                        }
+                        let b: Rect = node.get_layout_box().get_bounds();
+                        if b.get_width() > 0.0 && b.right() > (vw as f32) + 1.5 {
+                            out.push((b.get_x(), b.right()));
+                        }
+                    }
+                    out
+                },
+                Vec::new(),
+            );
+            assert!(
+                overflows.is_empty(),
+                "route `{route}` overflowed horizontally at {vw}x{vh}: {overflows:?}"
+            );
+        }
+    }
 }

@@ -36,9 +36,9 @@ impl EuvButton {
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let (height, pad_x, font_sz): (f32, f32, f32) = match self.get_size() {
             EuvButtonSize::Small => (g.get_control_sm(), SPACE_MD, 12.0),
-            EuvButtonSize::Default => (g.get_control_md(), SPACE_LG, g.get_font_body()),
-            EuvButtonSize::Large => (g.get_control_lg(), SPACE_2XL, 16.0),
-            EuvButtonSize::Icon => (g.get_control_md(), SPACE_SM, g.get_font_body()),
+            EuvButtonSize::Default => (g.get_control_md(), SPACE_LG, 13.0),
+            EuvButtonSize::Large => (g.get_control_lg(), SPACE_2XL, 14.0),
+            EuvButtonSize::Icon => (g.get_control_md(), SPACE_SM, 13.0),
         };
         let mut style: Style = Style::empty()
             .row()
@@ -58,17 +58,20 @@ impl EuvButton {
         style = match self.get_variant() {
             EuvButtonVariant::Primary => style
                 .background(p.get_primary())
-                .color(p.get_primary_foreground()),
+                .color(p.get_primary_foreground())
+                .shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 20))),
             EuvButtonVariant::Secondary => style
                 .background(p.get_secondary())
                 .color(p.get_secondary_foreground()),
             EuvButtonVariant::Destructive => style
                 .background(p.get_destructive())
-                .color(p.get_destructive_foreground()),
+                .color(p.get_destructive_foreground())
+                .shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 20))),
             EuvButtonVariant::Outline => style
                 .background(p.get_background())
                 .border(g.get_border_width(), p.get_border())
-                .color(p.get_foreground()),
+                .color(p.get_foreground())
+                .shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 10))),
             EuvButtonVariant::Ghost => style.color(p.get_foreground()),
             EuvButtonVariant::Link => style.color(p.get_primary()),
         };

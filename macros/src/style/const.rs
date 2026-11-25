@@ -40,6 +40,12 @@ pub(crate) const STYLE_KEY_JUSTIFY: &str = "justify";
 /// Style property key for flex grow weight.
 pub(crate) const STYLE_KEY_FLEX_GROW: &str = "flex_grow";
 
+/// Style property key for flex wrap mode.
+pub(crate) const STYLE_KEY_FLEX_WRAP: &str = "flex_wrap";
+
+/// Style property key for maximum width constraint.
+pub(crate) const STYLE_KEY_MAX_WIDTH: &str = "max_width";
+
 /// Style property key for overflow clipping or scrolling.
 pub(crate) const STYLE_KEY_OVERFLOW: &str = "overflow";
 
@@ -78,6 +84,8 @@ pub(crate) const KNOWN_STYLE_PROPS: &[&str] = &[
     STYLE_KEY_ALIGN,
     STYLE_KEY_JUSTIFY,
     STYLE_KEY_FLEX_GROW,
+    STYLE_KEY_FLEX_WRAP,
+    STYLE_KEY_MAX_WIDTH,
     STYLE_KEY_OVERFLOW,
     STYLE_KEY_FONT_SIZE,
     STYLE_KEY_FONT_WEIGHT,

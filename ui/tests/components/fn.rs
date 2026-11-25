@@ -409,3 +409,88 @@ fn interactive_widgets_and_virtual_scroll_list_respond_to_events_and_update_pixe
     assert_ne!(after.get_frame_hash(), 0);
     assert_ne!(before.get_frame_hash(), after.get_frame_hash());
 }
+
+#[test]
+fn shadcn_extra_components_and_responsive_shell_adapt_across_mobile_tablet_desktop() {
+    let viewports: [(u32, u32, Breakpoint, ThemeMode); 3] = [
+        (390, 844, Breakpoint::Compact, ThemeMode::Light),
+        (768, 1024, Breakpoint::Medium, ThemeMode::Dark),
+        (1280, 800, Breakpoint::Expanded, ThemeMode::Light),
+    ];
+    for (vw, vh, expected_bp, mode) in viewports.into_iter() {
+        reset_reactive_runtime();
+        let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, mode);
+        let route: Signal<String> = Signal::new("/home".to_string());
+        let alert_open: Signal<bool> = Signal::new(true);
+        let alert_confirmed: Signal<bool> = Signal::new(false);
+        let coll_open: Signal<bool> = Signal::new(true);
+        let tg_sel: Signal<usize> = Signal::new(0);
+        let otp: Signal<String> = Signal::new("123456".to_string());
+        let cmd_q: Signal<String> = Signal::new(String::new());
+        let cmd_sel: Signal<Option<usize>> = Signal::new(None);
+        let hover_open: Signal<bool> = Signal::new(true);
+        let cal_day: Signal<u32> = Signal::new(15);
+        let menu_act: Signal<Option<usize>> = Signal::new(Some(0));
+        let car_idx: Signal<usize> = Signal::new(0);
+        let mut win: WindowConfig = WindowConfig::default();
+        win.set_size(vw, vh).set_render(RenderConfig::software());
+        let mut cfg: AppConfig = AppConfig::default();
+        cfg.set_window(win);
+        let mut app: App = App::headless(cfg).unwrap();
+        let _: NodeId = app.mount(move || {
+            assert_eq!(use_breakpoint().get_untracked(), expected_bp);
+            let vp_size: Size = use_viewport_size().get_untracked();
+            assert!((vp_size.get_width() - (vw as f32)).abs() < 1.0);
+            let nav: NodeId = EuvSidebarNav::new(
+                vec![EuvNavItem::new("/home".to_string(), "Home".to_string())],
+                route,
+                tokens,
+            )
+            .mount_current();
+            let coll_body: NodeId = view! { text { "Collapsible content" } };
+            let aspect_child: NodeId = view! { text { "16:9 Media" } };
+            let body: NodeId = view! {
+                column {
+                    width: Length::Percent(100.0)
+                    gap: SPACE_MD
+                    { EuvMenubar::new(vec!["File".to_string(), "Edit".to_string(), "View".to_string()], menu_act, tokens) }
+                    { EuvToggleGroup::new(vec!["Left".to_string(), "Center".to_string(), "Right".to_string()], tg_sel, tokens) }
+                    { EuvInputOtp::new(otp, 6, tokens) }
+                    { EuvCollapsible::new(coll_open, "Details".to_string(), coll_body, tokens) }
+                    { EuvCommand::new(cmd_q, "Search...".to_string(), vec!["Build".to_string(), "Deploy".to_string()], cmd_sel, tokens) }
+                    { EuvHoverCard::new(hover_open, "@shadcn".to_string(), "shadcn/ui".to_string(), "Design system parity.".to_string(), tokens) }
+                    { EuvCalendar::new("November 2026".to_string(), 30, cal_day, tokens) }
+                    { EuvAspectRatio::new(16.0 / 9.0, aspect_child, tokens) }
+                    { EuvCarousel::new(vec!["Slide A".to_string(), "Slide B".to_string()], car_idx, tokens) }
+                    { EuvAlertDialog::new(alert_open, "Confirm".to_string(), "Proceed?".to_string(), "Cancel".to_string(), "Continue".to_string(), alert_confirmed, tokens) }
+                }
+            };
+            EuvAppShell::new("shadcn-euv".to_string(), nav, body, tokens)
+        });
+        let stats: FrameStats = app.step_frame().unwrap();
+        assert_ne!(stats.get_frame_hash(), 0);
+        assert!(stats.get_draw_commands() >= 30);
+        let overflow_count: usize = app.get_scene().with_read(
+            |tree: &SceneTree| {
+                let mut bad: usize = 0;
+                for node in tree.get_nodes().iter() {
+                    if !node.get_alive()
+                        || node.get_style().get_layout().get_display() == Display::None
+                    {
+                        continue;
+                    }
+                    let b: Rect = node.get_layout_box().get_bounds();
+                    if b.get_width() > 0.0 && b.right() > (vw as f32) + 1.5 {
+                        bad += 1;
+                    }
+                }
+                bad
+            },
+            0,
+        );
+        assert_eq!(
+            overflow_count, 0,
+            "unexpected horizontal overflow at viewport {vw}x{vh}"
+        );
+    }
+}

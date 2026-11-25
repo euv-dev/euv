@@ -9,7 +9,8 @@ pub const FONT_FAMILY_LINUX_SYSTEM: &str = "DejaVu Sans / Noto Sans";
 /// Display family name for Android system UI font.
 pub const FONT_FAMILY_ANDROID_SYSTEM: &str = "Roboto / Noto Sans CJK";
 /// Display family name for Web browser Canvas system font.
-pub const FONT_FAMILY_WEB_SYSTEM: &str = "system-ui";
+pub const FONT_FAMILY_WEB_SYSTEM: &str =
+    "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif";
 
 pub(crate) const CJK_UNIFIED_START: u32 = 0x4E00;
 pub(crate) const CJK_UNIFIED_END: u32 = 0x9FFF;
@@ -25,6 +26,8 @@ pub(crate) const ATLAS_DEFAULT_WIDTH: u32 = 512;
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) const CT_FONT_UI_SYSTEM: u32 = 2;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) const CT_FONT_UI_EMPHASIZED_SYSTEM: u32 = 3;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) const CT_FONT_ORIENTATION_DEFAULT: u32 = 0;
 

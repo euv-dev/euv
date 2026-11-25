@@ -41,21 +41,20 @@ impl Mountable for EuvBadge {
     /// - `NodeId` - Mounted badge node.
     fn mount(self, ctx: &mut BuildContext) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
         let (bg, fg): (Color, Color) = self.get_tone().colors(p);
         let Self { label, .. } = self;
         let pill: NodeId = ctx.view(
             Style::empty()
                 .row()
                 .align(AlignItems::Center)
-                .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
+                .padding(Edges::symmetric(3.0, 10.0))
                 .background(bg)
-                .radius(g.get_radius_sm()),
+                .radius(999.0),
         );
         let txt: NodeId = ctx.text(
             label,
             Style::empty()
-                .font_size(12.0)
+                .font_size(11.0)
                 .font_weight(FontWeight::SemiBold)
                 .color(fg),
         );
@@ -355,7 +354,7 @@ impl Mountable for EuvTable {
                 .gap(SPACE_SM),
         );
         for h in headers.into_iter() {
-            let cell: NodeId = ctx.view(Style::empty().flex_grow(1.0));
+            let cell: NodeId = ctx.view(Style::empty().flex_grow(1.0).overflow(Overflow::Hidden));
             let txt: NodeId = ctx.text(
                 h,
                 Style::empty()
@@ -377,7 +376,8 @@ impl Mountable for EuvTable {
                     .gap(SPACE_SM),
             );
             for cell_text in row.into_iter() {
-                let cell: NodeId = ctx.view(Style::empty().flex_grow(1.0));
+                let cell: NodeId =
+                    ctx.view(Style::empty().flex_grow(1.0).overflow(Overflow::Hidden));
                 let txt: NodeId = ctx.text(
                     cell_text,
                     Style::empty().font_size(13.0).color(p.get_foreground()),

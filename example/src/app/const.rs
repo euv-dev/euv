@@ -14,3 +14,33 @@ pub const FLAG_HARDWARE: &str = "--hardware";
 pub const FLAG_HYBRID: &str = "--hybrid";
 /// Command-line flag keeping the native window open in an interactive event loop.
 pub const FLAG_INTERACTIVE: &str = "--interactive";
+/// DOM KeyboardEvent key name for Enter.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_KEY_ENTER: &str = "Enter";
+/// DOM KeyboardEvent key name for Backspace.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_KEY_BACKSPACE: &str = "Backspace";
+/// DOM KeyboardEvent key name for Delete.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_KEY_DELETE: &str = "Delete";
+/// DOM KeyboardEvent key name for Escape.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_KEY_ESCAPE: &str = "Escape";
+/// DOM KeyboardEvent key name for Tab.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_KEY_TAB: &str = "Tab";
+/// DOM KeyboardEvent key name for Spacebar.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_KEY_SPACE: &str = " ";
+/// DOM KeyboardEvent key name for ArrowLeft.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_KEY_ARROW_LEFT: &str = "ArrowLeft";
+/// DOM KeyboardEvent key name for ArrowRight.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_KEY_ARROW_RIGHT: &str = "ArrowRight";
+/// DOM KeyboardEvent key name for ArrowUp.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_KEY_ARROW_UP: &str = "ArrowUp";
+/// DOM KeyboardEvent key name for ArrowDown.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_KEY_ARROW_DOWN: &str = "ArrowDown";

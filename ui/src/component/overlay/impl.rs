@@ -22,12 +22,14 @@ impl Mountable for EuvModal {
         let dialog: NodeId = ctx.view(
             Style::empty()
                 .column()
-                .width(Length::Px(420.0))
+                .width(Length::Percent(92.0))
+                .max_width(Length::Px(460.0))
                 .padding(Edges::all(SPACE_XL))
                 .gap(SPACE_MD)
                 .background(p.get_card())
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_xl())
+                .overflow(Overflow::Hidden)
                 .shadow(Shadow::new(0.0, 12.0, 24.0, 0.0, Color::rgba(0, 0, 0, 72))),
         );
         let heading: NodeId = ctx.text(

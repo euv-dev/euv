@@ -178,7 +178,10 @@ impl Mountable for EuvSpace {
         let base: Style = if self.get_vertical() {
             Style::empty().column()
         } else {
-            Style::empty().row().align(AlignItems::Center)
+            Style::empty()
+                .row()
+                .wrap(FlexWrap::Wrap)
+                .align(AlignItems::Center)
         };
         let gap: f32 = self.get_gap();
         let Self { children, .. } = self;
@@ -454,6 +457,7 @@ impl Mountable for EuvButtonGroup {
         let grp: NodeId = ctx.view(
             Style::empty()
                 .row()
+                .wrap(FlexWrap::Wrap)
                 .gap(SPACE_XS)
                 .padding(Edges::all(SPACE_XS))
                 .border(g.get_border_width(), p.get_border())

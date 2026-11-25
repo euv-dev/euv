@@ -164,6 +164,14 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
                 style_mutations
                     .push(quote_spanned! {pspan=> __euv_style = __euv_style.flex_grow(#val); });
             }
+            PROP_FLEX_WRAP => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.wrap(#val); });
+            }
+            PROP_MAX_WIDTH => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.max_width(#val); });
+            }
             PROP_OVERFLOW => {
                 style_mutations
                     .push(quote_spanned! {pspan=> __euv_style = __euv_style.overflow(#val); });

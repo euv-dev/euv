@@ -61,17 +61,31 @@ pub(crate) fn web_create_canvas(
     let canvas: HtmlCanvasElement = el.dyn_into::<HtmlCanvasElement>().map_err(|_: Element| {
         PlatformError::InitializationFailed(ERR_WEB_CANVAS_CREATE.to_string())
     })?;
-    let phys_w: u32 = ((config.get_width() as f32) * dpr).round().max(1.0) as u32;
-    let phys_h: u32 = ((config.get_height() as f32) * dpr).round().max(1.0) as u32;
+    let win_w: u32 = win
+        .inner_width()
+        .ok()
+        .and_then(|v: JsValue| v.as_f64())
+        .map(|w: f64| w.floor() as u32)
+        .filter(|w: &u32| *w >= 320)
+        .unwrap_or_else(|| config.get_width());
+    let win_h: u32 = win
+        .inner_height()
+        .ok()
+        .and_then(|v: JsValue| v.as_f64())
+        .map(|h: f64| h.floor() as u32)
+        .filter(|h: &u32| *h >= 320)
+        .unwrap_or_else(|| config.get_height());
+    let phys_w: u32 = ((win_w as f32) * dpr).round().max(1.0) as u32;
+    let phys_h: u32 = ((win_h as f32) * dpr).round().max(1.0) as u32;
     canvas.set_width(phys_w);
     canvas.set_height(phys_h);
     let css_style: String = format!(
-        "width:{}px;height:{}px;display:block;margin:0 auto;",
-        config.get_width(),
-        config.get_height()
+        "position:fixed;inset:0;width:{win_w}px;height:{win_h}px;display:block;outline:none;cursor:pointer;margin:0;"
     );
-    drop(canvas.set_attribute("style", &css_style));
+    drop(canvas.set_attribute(WEB_ATTR_STYLE, &css_style));
+    drop(canvas.set_attribute(WEB_ATTR_TABINDEX, "0"));
     if let Some(body) = doc.body() {
+        drop(body.set_attribute(WEB_ATTR_STYLE, WEB_BODY_STYLE));
         drop(body.append_child(&canvas));
     }
     let raw_ctx: Object = canvas

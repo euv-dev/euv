@@ -32,14 +32,54 @@ impl TextMeasurer for DeterministicTextMeasurer {
             if let Some(limit) = wrap_limit {
                 let mut current: String = String::new();
                 let mut current_w: f32 = 0.0;
+                let mut word: String = String::new();
+                let mut word_w: f32 = 0.0;
+                let space_w: f32 = measure_char_advance(' ', style);
                 for ch in raw_line.chars() {
                     let ch_w: f32 = measure_char_advance(ch, style);
-                    if !current.is_empty() && current_w + ch_w > limit {
+                    if ch == ' ' {
+                        if !current.is_empty() && current_w + word_w > limit {
+                            while current.ends_with(' ') {
+                                let _: Option<char> = current.pop();
+                                current_w = (current_w - space_w).max(0.0);
+                            }
+                            lines.push(TextLine::new(take(&mut current), current_w));
+                            current_w = 0.0;
+                        }
+                        if !word.is_empty() {
+                            current.push_str(&word);
+                            current_w += word_w;
+                            word.clear();
+                            word_w = 0.0;
+                        }
+                        if !current.is_empty() && current_w + ch_w <= limit {
+                            current.push(' ');
+                            current_w += ch_w;
+                        }
+                    } else {
+                        if !word.is_empty() && current.is_empty() && word_w + ch_w > limit {
+                            lines.push(TextLine::new(take(&mut word), word_w));
+                            word_w = 0.0;
+                        }
+                        word.push(ch);
+                        word_w += ch_w;
+                    }
+                }
+                if !word.is_empty() {
+                    if !current.is_empty() && current_w + word_w > limit {
+                        while current.ends_with(' ') {
+                            let _: Option<char> = current.pop();
+                            current_w = (current_w - space_w).max(0.0);
+                        }
                         lines.push(TextLine::new(take(&mut current), current_w));
                         current_w = 0.0;
                     }
-                    current.push(ch);
-                    current_w += ch_w;
+                    current.push_str(&word);
+                    current_w += word_w;
+                }
+                while current.ends_with(' ') {
+                    let _: Option<char> = current.pop();
+                    current_w = (current_w - space_w).max(0.0);
                 }
                 lines.push(TextLine::new(current, current_w));
             } else {

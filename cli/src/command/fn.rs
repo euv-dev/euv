@@ -33,6 +33,10 @@ pub fn execute_cli(cli: &Cli) -> io::Result<String> {
                     for step in item.get_steps().iter() {
                         run_external_command(step.get_program(), step.get_args())?;
                     }
+                    if item.get_target().get_name() == NAME_WEB {
+                        let _: PathBuf =
+                            package_zero_js_web_bundle(Path::new(OUT_DIR_WEB), WEB_BUNDLE_TITLE)?;
+                    }
                 }
                 serialize_json(&plans)
             }
@@ -240,6 +244,68 @@ pub fn scaffold_project(parent_dir: &Path, name: &str) -> io::Result<ScaffoldRep
             readme_path.display().to_string(),
         ],
     ))
+}
+
+/// Packages a compiled WebAssembly output directory into a zero-JS-file bundle containing only `index.html` and `.wasm`.
+///
+/// # Arguments
+///
+/// - `&Path` - Web build output directory containing the compiled `.wasm` artifact.
+/// - `&str` - HTML document title.
+///
+/// # Returns
+///
+/// - `io::Result<PathBuf>` - Path to the generated `index.html` entry file.
+pub fn package_zero_js_web_bundle(out_dir: &Path, title: &str) -> io::Result<PathBuf> {
+    let mut wasm_name: Option<String> = None;
+    let mut loader_path: Option<PathBuf> = None;
+    let mut removable: Vec<PathBuf> = Vec::new();
+    for entry_res in fs::read_dir(out_dir)? {
+        let entry: fs::DirEntry = entry_res?;
+        let path: PathBuf = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        if name.ends_with(".wasm") && wasm_name.is_none() {
+            wasm_name = Some(name);
+        } else if name.ends_with(".js") {
+            if loader_path.is_none() {
+                loader_path = Some(path.clone());
+            }
+            removable.push(path);
+        } else if name.ends_with(".d.ts") || name == "package.json" || name == ".gitignore" {
+            removable.push(path);
+        }
+    }
+    let wasm_file: String =
+        wasm_name.ok_or_else(|| Error::other(ERR_WEB_WASM_MISSING.to_string()))?;
+    let mut inline_runtime: String = if let Some(js_file) = loader_path {
+        fs::read_to_string(&js_file)?
+    } else {
+        "async function __wbg_init(p){await WebAssembly.instantiateStreaming(fetch(p));}"
+            .to_string()
+    };
+    let url_expr: String = format!("new URL('{wasm_file}', import.meta.url)");
+    inline_runtime = inline_runtime.replace(&url_expr, &format!("'./{wasm_file}'"));
+    let cleaned_lines: Vec<String> = inline_runtime
+        .lines()
+        .filter(|line: &&str| {
+            let trimmed: &str = line.trim_start();
+            !trimmed.starts_with("export {") && !trimmed.starts_with("export default ")
+        })
+        .map(|line: &str| line.strip_prefix("export ").unwrap_or(line).to_string())
+        .collect();
+    let cleaned_loader: String = cleaned_lines.join("\n");
+    let html: String = format!(
+        "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\"/>\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/>\n<title>{title}</title>\n<style>html,body{{margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#09090b;}}</style>\n</head>\n<body>\n<script type=\"module\">\n{cleaned_loader}\n__wbg_init('./{wasm_file}');\n</script>\n</body>\n</html>\n"
+    );
+    let index_path: PathBuf = out_dir.join(INDEX_HTML_NAME);
+    fs::write(&index_path, html)?;
+    for path in removable.into_iter() {
+        drop(fs::remove_file(path));
+    }
+    Ok(index_path)
 }
 
 /// Formats a `DoctorReport` as human-readable terminal lines.

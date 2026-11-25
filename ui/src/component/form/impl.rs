@@ -264,6 +264,8 @@ impl Mountable for EuvSegmented {
         let container: NodeId = ctx.view(
             Style::empty()
                 .row()
+                .wrap(FlexWrap::Wrap)
+                .width(Length::Percent(100.0))
                 .padding(Edges::all(SPACE_XS))
                 .gap(SPACE_XS)
                 .background(p.get_muted())

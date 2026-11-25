@@ -49,6 +49,12 @@ pub(crate) fn expand_style(input: StyleBlockInput) -> proc_macro2::TokenStream {
                 STYLE_KEY_FLEX_GROW => {
                     stmts.push(quote_spanned! {kspan=> __s = __s.flex_grow(#val); });
                 }
+                STYLE_KEY_FLEX_WRAP => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.wrap(#val); });
+                }
+                STYLE_KEY_MAX_WIDTH => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.max_width(#val); });
+                }
                 STYLE_KEY_OVERFLOW => {
                     stmts.push(quote_spanned! {kspan=> __s = __s.overflow(#val); });
                 }

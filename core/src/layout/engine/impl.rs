@@ -351,24 +351,48 @@ impl LayoutEngine {
         if is_reverse {
             ordered.reverse();
         }
+        let wrap_enabled: bool = parent_layout.get_flex_wrap() == FlexWrap::Wrap;
         let mut total_grow: f32 = 0.0;
         for child_id in ordered.iter().copied() {
             let child_layout: LayoutStyle = tree
                 .get_node(child_id)
                 .map(|node: &SceneNode| node.get_style().get_layout())
                 .unwrap_or_default();
-            total_grow += child_layout.get_flex_grow();
-            let probe_space: AvailableSpace = AvailableSpace::new(
-                inner_avail.get_width(),
-                inner_avail.get_height(),
-                viewport,
-                content_origin.get_x(),
-                content_origin.get_y(),
-            );
-            let child_size: Size = self.layout_node(tree, child_id, probe_space, stats);
+            let grow: f32 = child_layout.get_flex_grow();
+            total_grow += grow;
+            let zero_basis_grow: bool = !wrap_enabled
+                && grow > 0.0
+                && if is_row {
+                    child_layout.get_width() == Length::Auto
+                } else {
+                    child_layout.get_height() == Length::Auto
+                };
+            let child_size: Size = if zero_basis_grow {
+                if is_row {
+                    let h: f32 = child_layout
+                        .get_height()
+                        .resolve(cross_avail, viewport)
+                        .unwrap_or(0.0);
+                    Size::new(0.0, h)
+                } else {
+                    let w: f32 = child_layout
+                        .get_width()
+                        .resolve(cross_avail, viewport)
+                        .unwrap_or(0.0);
+                    Size::new(w, 0.0)
+                }
+            } else {
+                let probe_space: AvailableSpace = AvailableSpace::new(
+                    inner_avail.get_width(),
+                    inner_avail.get_height(),
+                    viewport,
+                    content_origin.get_x(),
+                    content_origin.get_y(),
+                );
+                self.layout_node(tree, child_id, probe_space, stats)
+            };
             measured_sizes.push((child_id, child_size, child_layout));
         }
-        let wrap_enabled: bool = parent_layout.get_flex_wrap() == FlexWrap::Wrap;
         let mut lines: Vec<Vec<(NodeId, Size, LayoutStyle)>> = Vec::new();
         let mut current_line: Vec<(NodeId, Size, LayoutStyle)> = Vec::new();
         let mut line_main: f32 = 0.0;
@@ -478,6 +502,7 @@ impl LayoutEngine {
             } else {
                 line_cross
             };
+            let mut actual_line_cross: f32 = line_cross;
             for (idx, (child_id, child_size, child_layout)) in line.into_iter().enumerate() {
                 let margin: Edges = child_layout.get_margin();
                 let item_cross: f32 = if is_row {
@@ -504,6 +529,13 @@ impl LayoutEngine {
                     AlignItems::Center => ((avail_item_cross - item_cross) * 0.5).max(0.0),
                     AlignItems::End => (avail_item_cross - item_cross).max(0.0),
                 };
+                let auto_cross_grow: bool = !wrap_enabled
+                    && child_layout.get_flex_grow() > 0.0
+                    && if is_row {
+                        child_layout.get_height() == Length::Auto
+                    } else {
+                        child_layout.get_width() == Length::Auto
+                    };
                 let target_w: f32 = if !is_row
                     && align == AlignItems::Stretch
                     && child_layout.get_width() == Length::Auto
@@ -531,13 +563,44 @@ impl LayoutEngine {
                         content_origin.get_y() + main_cursor + margin.get_top(),
                     )
                 };
+                let space_w: f32 = if auto_cross_grow && !is_row {
+                    cross_avail
+                } else {
+                    target_w
+                };
+                let space_h: f32 = if auto_cross_grow && is_row {
+                    cross_avail
+                } else {
+                    target_h
+                };
                 let final_space: AvailableSpace =
-                    AvailableSpace::new(target_w, target_h, viewport, x, y);
+                    AvailableSpace::new(space_w, space_h, viewport, x, y);
                 let placed: Size = self.layout_node(tree, child_id, final_space, stats);
                 if let Some(node) = tree.get_node_mut(child_id) {
                     let mut b: Rect = node.get_layout_box().get_bounds();
-                    b.set_width(target_w.max(placed.get_width()));
-                    b.set_height(target_h.max(placed.get_height()));
+                    let is_clipped: bool = matches!(
+                        child_layout.get_overflow(),
+                        Overflow::Hidden | Overflow::Scroll
+                    );
+                    if auto_cross_grow {
+                        if is_row {
+                            b.set_width(target_w);
+                            b.set_height(placed.get_height());
+                            actual_line_cross =
+                                actual_line_cross.max(placed.get_height() + margin.vertical());
+                        } else {
+                            b.set_width(placed.get_width());
+                            b.set_height(target_h);
+                            actual_line_cross =
+                                actual_line_cross.max(placed.get_width() + margin.horizontal());
+                        }
+                    } else if is_clipped || child_layout.get_flex_grow() > 0.0 {
+                        b.set_width(target_w);
+                        b.set_height(target_h);
+                    } else {
+                        b.set_width(target_w.max(placed.get_width()));
+                        b.set_height(target_h.max(placed.get_height()));
+                    }
                     node.get_mut_layout_box().set_bounds(b);
                 }
                 let advance: f32 = if is_row {
@@ -551,7 +614,7 @@ impl LayoutEngine {
                 }
             }
             max_main_extent = max_main_extent.max(final_used_main);
-            cross_cursor += line_cross;
+            cross_cursor += actual_line_cross;
             if line_idx + 1 < line_count {
                 cross_cursor += cross_gap;
             }

@@ -1,6 +1,16 @@
 /// HTML tag name created when mounting a cross-platform canvas surface.
 pub(crate) const WEB_CANVAS_TAG: &str = "canvas";
 
+/// Inline style HTML attribute name.
+pub(crate) const WEB_ATTR_STYLE: &str = "style";
+
+/// Tabindex HTML attribute name enabling keyboard focus on canvas.
+pub(crate) const WEB_ATTR_TABINDEX: &str = "tabindex";
+
+/// Default full-viewport body inline CSS eliminating scrollbars and borders.
+pub(crate) const WEB_BODY_STYLE: &str =
+    "margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#09090b;";
+
 /// 2D rendering context identifier passed to `HTMLCanvasElement.getContext`.
 pub(crate) const WEB_CONTEXT_2D: &str = "2d";
 

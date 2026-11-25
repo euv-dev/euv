@@ -69,6 +69,9 @@ impl App {
             .get_breakpoint()
             .set(window_state.breakpoint());
         let _: bool = build_context
+            .get_viewport_size()
+            .set(window_state.logical_size());
+        let _: bool = build_context
             .get_theme_mode()
             .set(window_state.get_system_theme());
         let _: bool = build_context
@@ -245,7 +248,23 @@ impl App {
                 self.get_mut_window_state()
                     .set_physical_height(((height.max(1) as f32) * safe_scale).round() as u32);
                 let bp: Breakpoint = self.get_window_state().breakpoint();
-                let _: bool = self.get_build_context().get_breakpoint().set_if_changed(bp);
+                let next_size: Size = self.get_window_state().logical_size();
+                batch(|| {
+                    let _: bool = self.get_build_context().get_breakpoint().set_if_changed(bp);
+                    let _: bool = self
+                        .get_build_context()
+                        .get_viewport_size()
+                        .set_if_changed(next_size);
+                });
+                let scene: SceneHandle = self.get_scene().clone();
+                scene.with_write(
+                    |tree: &mut SceneTree| {
+                        let root: NodeId = tree.get_root();
+                        let layout_bits: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                        tree.mark_dirty(root, layout_bits | DIRTY_PAINT);
+                    },
+                    (),
+                );
                 self.set_pending_damage(DamageRegion::full());
             }
             WindowEvent::SafeAreaChanged(_, insets) => {

@@ -608,7 +608,20 @@ impl SoftwareRenderer {
             ..
         } = self;
         for (line_idx, line) in layout.get_lines().iter().enumerate() {
-            let line_w_phys: f32 = line.get_width() * scale;
+            let letter_sp: f32 = style.get_letter_spacing() * scale;
+            let space_adv: f32 = measure_char_advance(' ', style) * scale;
+            let mut line_w_phys: f32 = 0.0;
+            for ch in line.get_text().chars() {
+                if ch == ' ' {
+                    line_w_phys += space_adv + letter_sp;
+                } else {
+                    let key: GlyphKey =
+                        GlyphKey::from_style(ch, phys_font_size, style.get_weight());
+                    let glyph: &RasterizedGlyph =
+                        glyph_atlas.get_or_rasterize_with(key, font_provider);
+                    line_w_phys += (glyph.get_advance() as f32).max(1.0) + letter_sp;
+                }
+            }
             let align_x: f32 = match style.get_align() {
                 TextAlign::Left => 0.0,
                 TextAlign::Center => ((box_w_phys - line_w_phys) * 0.5).max(0.0),
@@ -617,46 +630,40 @@ impl SoftwareRenderer {
             let mut pen_x: f32 = rect.get_x() * scale + align_x;
             let pen_y: f32 = rect.get_y() * scale + (line_idx as f32) * line_h_phys;
             for ch in line.get_text().chars() {
-                let adv_phys: f32 = measure_char_advance(ch, style) * scale;
-                if ch != ' ' {
-                    let key: GlyphKey =
-                        GlyphKey::from_style(ch, phys_font_size, style.get_weight());
-                    let glyph: &RasterizedGlyph =
-                        glyph_atlas.get_or_rasterize_with(key, font_provider);
-                    let gx0: i32 = pen_x.round() as i32;
-                    let gy0: i32 =
-                        (pen_y + (line_h_phys - (glyph.get_height() as f32)) * 0.5).round() as i32;
-                    let gw: i32 = glyph.get_width() as i32;
-                    let gh: i32 = glyph.get_height() as i32;
-                    let py_start: i32 = (clip_y0 - gy0).max(0);
-                    let py_end: i32 = (clip_y1 - gy0).min(gh);
-                    let px_start: i32 = (clip_x0 - gx0).max(0);
-                    let px_end: i32 = (clip_x1 - gx0).min(gw);
-                    if py_start < py_end && px_start < px_end {
-                        let cov_bytes: &[u8] = glyph.get_coverage().as_slice();
-                        let gw_usize: usize = gw as usize;
-                        for py in py_start..py_end {
-                            let dy: u32 = (gy0 + py) as u32;
-                            let row_off: usize = (py as usize) * gw_usize;
-                            for px in px_start..px_end {
-                                let alpha_byte: u8 = cov_bytes[row_off + (px as usize)];
-                                if alpha_byte > 0 {
-                                    let eff_a: u8 = (((color.get_a() as u32) * (alpha_byte as u32)
-                                        + 127)
-                                        / 255)
-                                        as u8;
-                                    framebuffer.blend_pixel(
-                                        (gx0 + px) as u32,
-                                        dy,
-                                        Color::new(
-                                            color.get_r(),
-                                            color.get_g(),
-                                            color.get_b(),
-                                            eff_a,
-                                        ),
-                                    );
-                                    shaded += 1;
-                                }
+                if ch == ' ' {
+                    pen_x += space_adv + letter_sp;
+                    continue;
+                }
+                let key: GlyphKey = GlyphKey::from_style(ch, phys_font_size, style.get_weight());
+                let glyph: &RasterizedGlyph = glyph_atlas.get_or_rasterize_with(key, font_provider);
+                let adv_phys: f32 = (glyph.get_advance() as f32).max(1.0) + letter_sp;
+                let gx0: i32 = pen_x.round() as i32;
+                let gy0: i32 =
+                    (pen_y + (line_h_phys - (glyph.get_height() as f32)) * 0.5).round() as i32;
+                let gw: i32 = glyph.get_width() as i32;
+                let gh: i32 = glyph.get_height() as i32;
+                let py_start: i32 = (clip_y0 - gy0).max(0);
+                let py_end: i32 = (clip_y1 - gy0).min(gh);
+                let px_start: i32 = (clip_x0 - gx0).max(0);
+                let px_end: i32 = (clip_x1 - gx0).min(gw);
+                if py_start < py_end && px_start < px_end {
+                    let cov_bytes: &[u8] = glyph.get_coverage().as_slice();
+                    let gw_usize: usize = gw as usize;
+                    for py in py_start..py_end {
+                        let dy: u32 = (gy0 + py) as u32;
+                        let row_off: usize = (py as usize) * gw_usize;
+                        for px in px_start..px_end {
+                            let alpha_byte: u8 = cov_bytes[row_off + (px as usize)];
+                            if alpha_byte > 0 {
+                                let eff_a: u8 = (((color.get_a() as u32) * (alpha_byte as u32)
+                                    + 127)
+                                    / 255) as u8;
+                                framebuffer.blend_pixel(
+                                    (gx0 + px) as u32,
+                                    dy,
+                                    Color::new(color.get_r(), color.get_g(), color.get_b(), eff_a),
+                                );
+                                shaded += 1;
                             }
                         }
                     }

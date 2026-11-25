@@ -22,12 +22,14 @@ impl Mountable for EuvDrawer {
         let panel: NodeId = ctx.view(
             Style::empty()
                 .column()
-                .width(Length::Px(360.0))
+                .width(Length::Percent(85.0))
+                .max_width(Length::Px(360.0))
                 .height(Length::Percent(100.0))
                 .padding(Edges::all(SPACE_XL))
                 .gap(SPACE_MD)
                 .background(p.get_card())
-                .border(g.get_border_width(), p.get_border()),
+                .border(g.get_border_width(), p.get_border())
+                .overflow(Overflow::Hidden),
         );
         let heading: NodeId = ctx.text(
             title,
@@ -349,12 +351,14 @@ impl Mountable for EuvNotification {
                     .display(disp)
                     .position(Position::Fixed)
                     .inset(Some(SPACE_LG), Some(SPACE_LG), None, None)
-                    .width(Length::Px(320.0))
+                    .width(Length::Percent(90.0))
+                    .max_width(Length::Px(340.0))
                     .padding(Edges::all(SPACE_MD))
                     .gap(SPACE_XS)
                     .background(p.get_card())
                     .border(g.get_border_width(), accent)
                     .radius(g.get_radius_md())
+                    .overflow(Overflow::Hidden)
                     .z_index(Z_INDEX_TOAST)
             })
         });

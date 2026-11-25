@@ -123,6 +123,39 @@ pub struct ShowcaseState {
     /// Human-readable log of the most recent action dispatched from a dynamically updated control.
     #[get(type(copy))]
     pub(crate) dynamic_action_log: Signal<String>,
+    /// Controlled shadcn `EuvAlertDialog` open state.
+    #[get(type(copy))]
+    pub(crate) alert_dialog_open: Signal<bool>,
+    /// Controlled shadcn `EuvAlertDialog` confirmed status.
+    #[get(type(copy))]
+    pub(crate) alert_dialog_confirmed: Signal<bool>,
+    /// Controlled shadcn `EuvCollapsible` expanded state.
+    #[get(type(copy))]
+    pub(crate) collapsible_open: Signal<bool>,
+    /// Controlled shadcn `EuvToggleGroup` active option index.
+    #[get(type(copy))]
+    pub(crate) toggle_group_index: Signal<usize>,
+    /// Controlled shadcn `EuvInputOtp` passcode string.
+    #[get(type(copy))]
+    pub(crate) otp_code: Signal<String>,
+    /// Controlled shadcn `EuvCommand` search filter text.
+    #[get(type(copy))]
+    pub(crate) command_query: Signal<String>,
+    /// Controlled shadcn `EuvCommand` selected action index.
+    #[get(type(copy))]
+    pub(crate) command_selected: Signal<Option<usize>>,
+    /// Controlled shadcn `EuvHoverCard` open flag.
+    #[get(type(copy))]
+    pub(crate) hover_card_open: Signal<bool>,
+    /// Controlled shadcn `EuvCalendar` selected day of month.
+    #[get(type(copy))]
+    pub(crate) calendar_day: Signal<u32>,
+    /// Controlled shadcn `EuvMenubar` active menu index.
+    #[get(type(copy))]
+    pub(crate) menubar_active: Signal<Option<usize>>,
+    /// Controlled shadcn `EuvCarousel` active slide index.
+    #[get(type(copy))]
+    pub(crate) carousel_index: Signal<usize>,
 }
 
 /// Deterministic 2D physics scene showcasing `GameScene`, `FrameClock`, `InputState`, and HUD overlay.

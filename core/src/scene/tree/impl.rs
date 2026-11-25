@@ -636,6 +636,7 @@ impl BuildContext {
         Self {
             scene,
             breakpoint: Signal::new(Breakpoint::Expanded),
+            viewport_size: Signal::new(Size::new(1200.0, 800.0)),
             theme_mode: Signal::new(ThemeMode::Light),
             platform,
             safe_area: Signal::new(SafeAreaInsets::default()),

@@ -76,6 +76,12 @@ pub(crate) const PROP_JUSTIFY: &str = "justify";
 /// Property keyword for flex grow weight.
 pub(crate) const PROP_FLEX_GROW: &str = "flex_grow";
 
+/// Property keyword for flex wrapping mode.
+pub(crate) const PROP_FLEX_WRAP: &str = "flex_wrap";
+
+/// Property keyword for maximum width constraint.
+pub(crate) const PROP_MAX_WIDTH: &str = "max_width";
+
 /// Property keyword for overflow clipping or scrolling.
 pub(crate) const PROP_OVERFLOW: &str = "overflow";
 
@@ -151,6 +157,8 @@ pub(crate) const KNOWN_VIEW_PROPS: &[&str] = &[
     PROP_ALIGN,
     PROP_JUSTIFY,
     PROP_FLEX_GROW,
+    PROP_FLEX_WRAP,
+    PROP_MAX_WIDTH,
     PROP_OVERFLOW,
     PROP_FONT_SIZE,
     PROP_FONT_WEIGHT,

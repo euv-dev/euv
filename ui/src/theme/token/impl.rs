@@ -33,7 +33,7 @@ impl ThemeTokens {
             f32,
             f32,
         ) = match scheme {
-            DesignScheme::Shadcn => (Color::hex(0x18181B), Color::hex(0xFAFAFA), 6.0, 10.0, 36.0),
+            DesignScheme::Shadcn => (Color::hex(0x18181B), Color::hex(0xFAFAFA), 6.0, 8.0, 36.0),
             DesignScheme::Cupertino => {
                 (Color::hex(0x007AFF), Color::hex(0x0A84FF), 10.0, 14.0, 38.0)
             }
@@ -72,7 +72,7 @@ impl ThemeTokens {
             ThemePalette {
                 background: Color::hex(0x09090B),
                 foreground: Color::hex(0xFAFAFA),
-                card: Color::hex(0x111114),
+                card: Color::hex(0x09090B),
                 card_foreground: Color::hex(0xFAFAFA),
                 primary,
                 primary_foreground,
@@ -82,12 +82,12 @@ impl ThemeTokens {
                 muted_foreground: Color::hex(0xA1A1AA),
                 accent: Color::hex(0x27272A),
                 destructive: Color::hex(0xEF4444),
-                destructive_foreground: Color::hex(0xFFFFFF),
+                destructive_foreground: Color::hex(0xFAFAFA),
                 success: Color::hex(0x22C55E),
                 warning: Color::hex(0xF59E0B),
                 border: Color::hex(0x27272A),
-                ring: primary,
-                overlay: Color::rgba(255, 255, 255, 42),
+                ring: Color::hex(0xD4D4D8),
+                overlay: Color::rgba(0, 0, 0, 180),
             }
         } else {
             ThemePalette {
@@ -122,8 +122,8 @@ impl ThemeTokens {
             control_md,
             control_lg: control_md + 8.0,
             font_body: 14.0,
-            font_heading: 18.0,
-            font_title: 26.0,
+            font_heading: 16.0,
+            font_title: 24.0,
         };
         Self {
             scheme,
@@ -153,6 +153,8 @@ impl ThemeTokens {
             .background(p.get_card())
             .border(g.get_border_width(), p.get_border())
             .radius(g.get_radius_lg())
+            .shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 14)))
+            .overflow(Overflow::Hidden)
             .color(p.get_card_foreground())
             .font_size(g.get_font_body())
     }

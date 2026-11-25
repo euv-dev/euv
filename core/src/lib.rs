@@ -78,6 +78,6 @@ use {
     wasm_bindgen::{Clamped, JsCast, JsValue},
     web_sys::{
         CanvasRenderingContext2d, Document, Element, HtmlCanvasElement, ImageData, MediaQueryList,
-        WebGl2RenderingContext, WebGlProgram, WebGlShader, Window, window,
+        TextMetrics, WebGl2RenderingContext, WebGlProgram, WebGlShader, Window, window,
     },
 };

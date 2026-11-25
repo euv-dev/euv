@@ -8,6 +8,9 @@ style! {
     }
     c_action_row {
         direction: row;
+        width: Length::Percent(100.0);
+        flex_wrap: FlexWrap::Wrap;
+        align: AlignItems::Center;
         gap: SPACE_SM;
     }
     c_stats_grid {
@@ -22,7 +25,7 @@ style! {
     }
 }
 
-/// Mounts the fully reactive showcase application shell rebuilding cleanly on route or theme changes.
+/// Mounts the fully reactive showcase application shell rebuilding cleanly on route, theme, or viewport changes.
 ///
 /// # Arguments
 ///
@@ -40,7 +43,11 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
     };
     let state_c: ShowcaseState = state.clone();
     let mut ctx: BuildContext = current_build_context();
+    let bp_sig: Signal<Breakpoint> = ctx.get_breakpoint();
+    let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
     ctx.bind_children(host, move || {
+        let _: Breakpoint = bp_sig.get();
+        let _: SafeAreaInsets = safe_sig.get();
         let tokens: ThemeTokens = state_c.get_theme().get_tokens().get();
         let hub: DynamicUpdateHub = state_c.get_dynamic_hub().clone();
         let _: u64 = hub.routes_signal().get();
@@ -194,12 +201,19 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
         .child(quick_row)
         .child(table);
     card.set_subtitle(CARD_PLATFORMS_SUB.to_string());
+    let bp: Breakpoint = use_breakpoint().get_untracked();
+    let stats_cols: u16 = match bp {
+        Breakpoint::Compact => 1,
+        Breakpoint::Medium => 2,
+        Breakpoint::Expanded => 3,
+    };
     view! {
         column {
             style: c_page_column()
             { EuvHeader::new(OVERVIEW_TITLE.to_string(), OVERVIEW_SUBTITLE.to_string(), tokens) }
             grid {
                 style: c_stats_grid()
+                columns: stats_cols
                 { EuvStatCard::new(STAT_PLATFORMS_LABEL.to_string(), STAT_PLATFORMS_VAL.to_string(), STAT_PLATFORMS_CAP.to_string(), tokens) }
                 { EuvStatCard::new(STAT_SCHEMES_LABEL.to_string(), STAT_SCHEMES_VAL.to_string(), STAT_SCHEMES_CAP.to_string(), tokens) }
                 { EuvStatCard::new(STAT_RENDER_LABEL.to_string(), STAT_RENDER_VAL.to_string(), STAT_RENDER_CAP.to_string(), tokens) }
@@ -317,20 +331,26 @@ pub fn mount_render_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 border: (g.get_border_width(), p.get_border())
                 radius: g.get_radius_md()
                 painter: move |bounds: Rect, dl: &mut DisplayList| {
+                    let bw: f32 = bounds.get_width().max(120.0);
+                    let rect_w: f32 = (bw * 0.28).clamp(56.0, 160.0);
+                    let circle_r: f32 = (bw * 0.08).clamp(20.0, 42.0);
+                    let circle_x: f32 = bounds.get_x() + 16.0 + rect_w + circle_r + 20.0;
+                    let line_x0: f32 = (circle_x + circle_r + 16.0).min(bounds.right() - 24.0);
+                    let line_x1: f32 = (bounds.right() - 16.0).max(line_x0);
                     dl.push(DrawCommand::FillRoundedRect {
-                        rect: Rect::new(bounds.get_x() + 16.0, bounds.get_y() + 16.0, 160.0, 108.0),
+                        rect: Rect::new(bounds.get_x() + 16.0, bounds.get_y() + 16.0, rect_w, 108.0),
                         color: p.get_primary(),
                         radius: CornerRadius::all(14.0),
                         border: Border::default(),
                     });
                     dl.push(DrawCommand::Circle {
-                        center: Point::new(bounds.get_x() + 260.0, bounds.get_y() + 70.0),
-                        radius: 42.0,
+                        center: Point::new(circle_x.min(bounds.right() - circle_r - 8.0), bounds.get_y() + 70.0),
+                        radius: circle_r,
                         color: p.get_success(),
                     });
                     dl.push(DrawCommand::Line {
-                        from: Point::new(bounds.get_x() + 340.0, bounds.get_y() + 28.0),
-                        to: Point::new(bounds.get_x() + 480.0, bounds.get_y() + 112.0),
+                        from: Point::new(line_x0, bounds.get_y() + 28.0),
+                        to: Point::new(line_x1, bounds.get_y() + 112.0),
                         color: p.get_warning(),
                         width: 3.0,
                     });
@@ -376,10 +396,11 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let proto_status: Signal<String> = state.get_protocol_status();
     let a11y_count: Signal<u32> = state.get_a11y_announcements();
     let haptic_count: Signal<u32> = state.get_haptic_pulses();
+    let bp_sig: Signal<Breakpoint> = use_breakpoint();
+    let vp_sig: Signal<Size> = use_viewport_size();
     let summary: String = format!(
-        "Platform: {:?} | Breakpoint: {:?} | Font: {} ({:?}) | GPU: {} (shader_ok={})",
+        "Platform: {:?} | Font: {} ({:?}) | GPU: {} (shader_ok={})",
         platform,
-        use_breakpoint().get_untracked(),
         font_info.get_family_name(),
         font_info.get_backend(),
         gpu_info.get_device_name(),
@@ -435,6 +456,15 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             }
             text {
                 font_size: 13.0
+                font_weight: FontWeight::SemiBold
+                color: p.get_primary()
+                { move || {
+                    let vp: Size = vp_sig.get();
+                    format!("Live Viewport: {:.0}x{:.0} | Breakpoint: {:?}", vp.get_width(), vp.get_height(), bp_sig.get())
+                } }
+            }
+            text {
+                font_size: 13.0
                 color: p.get_primary()
                 { move || format!("Dynamic Island: active={} ({}%) | Mode: {:?} | Biometrics: {:?}", island_active.get(), island_progress.get(), PlatformServiceHub::default_island_mode(platform), hub.biometric_kind()) }
             }
@@ -485,6 +515,7 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let username: Signal<String> = state.get_username();
     let stepper: Signal<i64> = state.get_stepper_value();
     let rating: Signal<usize> = state.get_rating_value();
+    let cal_day: Signal<u32> = state.get_calendar_day();
     let input: NodeId =
         EuvInput::new(username, PLACEHOLDER_USERNAME.to_string(), tokens).mount_current();
     let mut b2: EuvButton = EuvButton::new(BTN_SECONDARY_LABEL.to_string(), tokens);
@@ -496,6 +527,13 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             let _: bool = username.set_if_changed(DEFAULT_USERNAME.to_string());
         });
     b4.set_variant(EuvButtonVariant::Destructive);
+    let collapsible_body: NodeId = view! {
+        text {
+            font_size: 13.0
+            color: p.get_muted_foreground()
+            "shadcn/ui Collapsible disclosure panel adapts across Mobile, Tablet, and Desktop."
+        }
+    };
     let body: NodeId = view! {
         column {
             gap: SPACE_MD
@@ -516,7 +554,7 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             text {
                 font_size: 12.0
                 color: p.get_muted_foreground()
-                { move || format!("Handle: {} | Stepper: {} | Stars: {}/5", username.get(), stepper.get(), rating.get()) }
+                { move || format!("Handle: {} | Stepper: {} | Stars: {}/5 | Day: {}", username.get(), stepper.get(), rating.get(), cal_day.get()) }
             }
             row {
                 style: c_action_row()
@@ -527,13 +565,26 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             }
         }
     };
+    let shadcn_body: NodeId = view! {
+        column {
+            gap: SPACE_MD
+            { EuvToggleGroup::new(vec!["Bold".to_string(), "Italic".to_string(), "Underline".to_string()], state.get_toggle_group_index(), tokens) }
+            { EuvInputOtp::new(state.get_otp_code(), 6, tokens) }
+            { EuvCalendar::new("November 2026".to_string(), 30, state.get_calendar_day(), tokens) }
+            { EuvCollapsible::new(state.get_collapsible_open(), "Advanced Form Details".to_string(), collapsible_body, tokens) }
+        }
+    };
     let mut card: EuvCard = EuvCard::new(FORMS_CARD_TITLE.to_string(), tokens).child(body);
     card.set_subtitle(FORMS_CARD_SUB.to_string());
+    let mut shadcn_card: EuvCard =
+        EuvCard::new("shadcn/ui Extended Form Controls".to_string(), tokens).child(shadcn_body);
+    shadcn_card.set_subtitle("ToggleGroup, InputOTP, Calendar, and Collapsible".to_string());
     view! {
         column {
             style: c_page_column()
             { EuvHeader::new(FORMS_TITLE.to_string(), FORMS_SUBTITLE.to_string(), tokens) }
             { card }
+            { shadcn_card }
         }
     }
 }
@@ -559,9 +610,15 @@ pub fn mount_themes_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             state_for_mode.toggle_theme_mode();
         });
     mode_btn.set_variant(EuvButtonVariant::Outline);
+    let scheme_cols: u16 = match use_breakpoint().get_untracked() {
+        Breakpoint::Compact => 2,
+        Breakpoint::Medium => 3,
+        Breakpoint::Expanded => 4,
+    };
     let badges_grid: NodeId = view! {
         grid {
             style: c_scheme_grid()
+            columns: scheme_cols
         }
     };
     let mut ctx: BuildContext = current_build_context();
@@ -640,9 +697,18 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             let _: bool = scroll_y.set_if_changed(0.0);
         });
     top_btn.set_variant(EuvButtonVariant::Outline);
+    let aspect_inner: NodeId = view! {
+        text {
+            font_size: 13.0
+            font_weight: FontWeight::Medium
+            color: p.get_foreground()
+            "16:9 shadcn AspectRatio Frame"
+        }
+    };
     let body: NodeId = view! {
         column {
             gap: SPACE_MD
+            { EuvMenubar::new(vec!["File".to_string(), "Edit".to_string(), "View".to_string(), "Profiles".to_string()], state.get_menubar_active(), tokens) }
             row {
                 style: c_action_row()
                 { EuvBadge::new(BADGE_READY.to_string(), EuvTone::Success, tokens) }
@@ -657,6 +723,9 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             }
             { EuvProgress::new(0.84, tokens) }
             { list_node }
+            { EuvCommand::new(state.get_command_query(), "Search commands...".to_string(), vec!["Switch to Dark Mode".to_string(), "Open OTA Updates".to_string(), "Run Physics Tick".to_string()], state.get_command_selected(), tokens) }
+            { EuvCarousel::new(vec!["Slide 1: Native Metal & Vulkan".to_string(), "Slide 2: Complete shadcn/ui Parity".to_string(), "Slide 3: Instant Responsive Resize".to_string()], state.get_carousel_index(), tokens) }
+            { EuvAspectRatio::new(16.0 / 9.0, aspect_inner, tokens) }
             { EuvPagination::new(state.get_page_index(), 12, tokens) }
             { EuvSteps::new(vec!["Layout".to_string(), "Paint".to_string(), "Present".to_string()], state.get_step_index(), tokens) }
             { EuvAccordion::new(vec![EuvAccordionItem::new("Virtualization".to_string(), "Only visible rows + overscan are materialized in O(visible).".to_string())], state.get_accordion_open(), tokens) }
@@ -760,10 +829,17 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
             let _: bool = modal_open.set_if_changed(false);
         });
     close_btn.set_variant(EuvButtonVariant::Outline);
+    let alert_open: Signal<bool> = state.get_alert_dialog_open();
+    let mut alert_btn: EuvButton =
+        EuvButton::new("Alert Dialog".to_string(), tokens).on_click(move |_: &UiEvent| {
+            let _: bool = alert_open.set_if_changed(true);
+        });
+    alert_btn.set_variant(EuvButtonVariant::Destructive);
     let actions: NodeId = view! {
         row {
             style: c_action_row()
             { EuvButton::new(BTN_OPEN_MODAL.to_string(), tokens).on_click(move |_: &UiEvent| { let _: bool = modal_open.set_if_changed(true); }) }
+            { alert_btn }
             { toast_btn }
             { drawer_btn }
             { sheet_btn }
@@ -778,9 +854,18 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
         tokens,
     )
     .mount_current();
+    let hover_card: NodeId = EuvHoverCard::new(
+        state.get_hover_card_open(),
+        "@euv-dev".to_string(),
+        "euv 0.38 Native Engine".to_string(),
+        "Full ui.shadcn.com component alignment across all 7 native targets.".to_string(),
+        tokens,
+    )
+    .mount_current();
     let mut card: EuvCard = EuvCard::new(OVERLAYS_CARD_TITLE.to_string(), tokens)
         .child(actions)
-        .child(dropdown);
+        .child(dropdown)
+        .child(hover_card);
     card.set_subtitle(OVERLAYS_CARD_SUB.to_string());
     let modal_body: NodeId = view! {
         column {
@@ -832,6 +917,7 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
             { EuvAlert::new(ALERT_TITLE.to_string(), ALERT_DESC.to_string(), EuvTone::Primary, tokens) }
             { card }
             { EuvModal::new(modal_open, MODAL_TITLE.to_string(), modal_body, tokens) }
+            { EuvAlertDialog::new(alert_open, "Are you absolutely sure?".to_string(), "This shadcn AlertDialog confirms destructive operations cleanly.".to_string(), "Cancel".to_string(), "Continue".to_string(), state.get_alert_dialog_confirmed(), tokens) }
             { EuvDrawer::new(drawer_open, "Inspector Drawer".to_string(), drawer_body, tokens) }
             { EuvSheet::new(sheet_open, "Quick Sheet".to_string(), sheet_body, tokens) }
             { EuvToast::new(toast_visible, TOAST_TEXT.to_string(), EuvTone::Success, tokens) }
@@ -884,6 +970,7 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                     view! {
                         row {
                             width: Length::Percent(100.0)
+                            flex_wrap: FlexWrap::Wrap
                             padding: Edges::all(SPACE_MD)
                             gap: SPACE_MD
                             align: AlignItems::Center

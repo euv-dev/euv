@@ -39,6 +39,16 @@ pub fn use_breakpoint() -> Signal<Breakpoint> {
     current_build_context().get_breakpoint()
 }
 
+/// Returns the reactive `Signal<Size>` logical viewport dimensions from the ambient `BuildContext`.
+///
+/// # Returns
+///
+/// - `Signal<Size>` - Live logical viewport size signal updated immediately on window resize.
+#[must_use]
+pub fn use_viewport_size() -> Signal<Size> {
+    current_build_context().get_viewport_size()
+}
+
 /// Creates a cross-platform reactive `Router` hook initialized at `initial_path`.
 ///
 /// # Arguments

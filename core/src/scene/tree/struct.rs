@@ -36,6 +36,9 @@ pub struct BuildContext {
     /// Current viewport logical breakpoint signal for responsive layouts.
     #[get(type(copy))]
     pub(crate) breakpoint: Signal<Breakpoint>,
+    /// Current logical viewport dimensions signal updated immediately on window resize.
+    #[get(type(copy))]
+    pub(crate) viewport_size: Signal<Size>,
     /// Current OS/app theme mode signal (`Light` / `Dark`).
     #[get(type(copy))]
     pub(crate) theme_mode: Signal<ThemeMode>,

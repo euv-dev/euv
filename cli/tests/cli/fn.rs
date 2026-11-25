@@ -55,3 +55,43 @@ fn cli_doctor_and_project_scaffolding_work_end_to_end() {
     }
     drop(fs::remove_dir_all(&temp_root));
 }
+
+#[test]
+fn cli_web_bundler_emits_zero_js_files_and_valid_html_wasm_bundle() {
+    let temp_dir: PathBuf = env::temp_dir().join("euv_cli_zero_js_web_test");
+    drop(fs::remove_dir_all(&temp_dir));
+    fs::create_dir_all(&temp_dir).unwrap();
+    fs::write(temp_dir.join("app_bg.wasm"), b"\0asm\x01\0\0\0").unwrap();
+    fs::write(
+        temp_dir.join("app.js"),
+        "export function helper() {}\nasync function __wbg_init(p) { const u = new URL('app_bg.wasm', import.meta.url); return u; }\nexport { __wbg_init as default };\n",
+    )
+    .unwrap();
+    fs::write(
+        temp_dir.join("app.d.ts"),
+        "export function helper(): void;\n",
+    )
+    .unwrap();
+    fs::write(temp_dir.join("package.json"), "{}").unwrap();
+    let index_path: PathBuf = package_zero_js_web_bundle(&temp_dir, "Zero JS App").unwrap();
+    assert!(index_path.exists());
+    let html: String = fs::read_to_string(&index_path).unwrap();
+    assert!(html.contains("<title>Zero JS App</title>"));
+    assert!(html.contains("__wbg_init('./app_bg.wasm')"));
+    assert!(!html.contains("import.meta.url"));
+    assert!(!html.contains("export {"));
+    let mut files: Vec<String> = Vec::new();
+    for entry_res in fs::read_dir(&temp_dir).unwrap() {
+        let entry: fs::DirEntry = entry_res.unwrap();
+        files.push(entry.file_name().to_string_lossy().into_owned());
+    }
+    assert!(
+        files
+            .iter()
+            .all(|f: &String| !f.ends_with(".js") && !f.ends_with(".d.ts"))
+    );
+    assert!(files.contains(&"index.html".to_string()));
+    assert!(files.contains(&"app_bg.wasm".to_string()));
+    assert_eq!(files.len(), 2);
+    drop(fs::remove_dir_all(&temp_dir));
+}
