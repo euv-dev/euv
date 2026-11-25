@@ -40,6 +40,7 @@ impl Mountable for EuvAlertDialog {
                 .justify(JustifyContent::Center)
                 .align(AlignItems::Center)
                 .background(p.get_overlay())
+                .stop_scroll_propagation(true)
                 .z_index(Z_INDEX_MODAL),
         );
         let card: NodeId = ctx.view(
@@ -53,7 +54,7 @@ impl Mountable for EuvAlertDialog {
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_lg())
                 .overflow(Overflow::Hidden)
-                .shadow(Shadow::new(0.0, 12.0, 24.0, 0.0, Color::rgba(0, 0, 0, 72))),
+                .shadow(Shadow::new(0.0, 10.0, 18.0, 0.0, Color::rgba(0, 0, 0, 28))),
         );
         let h_node: NodeId = ctx.text(
             title,
@@ -105,6 +106,7 @@ impl Mountable for EuvAlertDialog {
         let handle: SceneHandle = ctx.get_scene().clone();
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect = EuvOverlayStack::bind_signal(open, "EuvAlertDialog", Z_INDEX_MODAL);
             Effect::new(move || {
                 let is_open: bool = open.get();
                 let was_open: bool = prev_open.replace(is_open);

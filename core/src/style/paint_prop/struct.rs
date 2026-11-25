@@ -98,4 +98,10 @@ pub struct PaintStyle {
     /// Pointer hit-testing policy.
     #[get(type(copy))]
     pub(crate) pointer_events: PointerEvents,
+    /// When `true`, prevents scroll deltas from chaining/penetrating through to ancestor scroll containers.
+    #[get(type(copy))]
+    pub(crate) stop_scroll_propagation: bool,
+    /// When `true`, stops pointer/click event bubbling past this node to ancestor handlers.
+    #[get(type(copy))]
+    pub(crate) stop_event_propagation: bool,
 }

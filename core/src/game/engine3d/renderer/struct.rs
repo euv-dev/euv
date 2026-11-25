@@ -32,11 +32,13 @@ pub struct RenderStats3D {
     pub(crate) lod_simplified_objects: usize,
 }
 
-/// Zero-allocation PBR + BVH Ray-Tracing 3D software/hybrid renderer outputting directly to `ImageBuffer`.
+/// Zero-allocation PBR + BVH Ray-Tracing + FXAA 3D software/hybrid renderer outputting directly to `ImageBuffer`.
 #[derive(Clone, Data, Debug, Default)]
 pub struct Renderer3D {
     /// Pre-allocated RGBA8 pixel output buffer.
     pub(crate) color_buffer: Vec<u8>,
+    /// Pre-allocated RGBA8 FXAA post-processing output buffer.
+    pub(crate) aa_buffer: Vec<u8>,
     /// Pre-allocated floating-point depth buffer (`Z-Buffer`).
     pub(crate) depth_buffer: Vec<f32>,
     /// Last rendered internal width.

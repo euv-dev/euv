@@ -348,3 +348,350 @@ fn dynamic_slot_disposes_previous_reactive_scope_and_cleanups_on_swap() {
     let _: FrameStats = app.step_frame().unwrap();
     assert_eq!(cleanups.get(), 2);
 }
+
+#[test]
+fn dynamic_wasm_partial_and_global_cover_all_production_cases() {
+    reset_reactive_runtime();
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.get_mut_window()
+        .set_size(800, 600)
+        .set_render(RenderConfig::software());
+    let mut app: App = App::headless(cfg).unwrap();
+    let hub: DynamicUpdateHub = app.get_dynamic_hub().clone();
+    let registry: RegistryWasmFetcher = RegistryWasmFetcher::default();
+    let signing_key: &str = "test-prod-key";
+    let p_v1: Vec<u8> = build_partial_widget_wasm("Partial Widget v1", 1, 0x2563EB);
+    let p_v2: Vec<u8> = build_partial_widget_wasm("Partial Widget v2", 2, 0x7C3AED);
+    let g_v1: Vec<u8> = build_global_app_wasm("Global Shell v1", 1);
+    let g_v2: Vec<u8> = build_global_app_wasm("Global Shell v2", 2);
+    registry.register(
+        "euv-cdn://p/v1.wasm".to_string(),
+        p_v1.clone(),
+        "e1".to_string(),
+        WasmFaultKind::None,
+    );
+    registry.register(
+        "euv-cdn://p/v2.wasm".to_string(),
+        p_v2.clone(),
+        "e2".to_string(),
+        WasmFaultKind::None,
+    );
+    registry.register(
+        "euv-cdn://g/v1.wasm".to_string(),
+        g_v1.clone(),
+        "g1".to_string(),
+        WasmFaultKind::None,
+    );
+    registry.register(
+        "euv-cdn://g/v2.wasm".to_string(),
+        g_v2.clone(),
+        "g2".to_string(),
+        WasmFaultKind::None,
+    );
+    registry.register(
+        "euv-cdn://f/retry.wasm".to_string(),
+        p_v1.clone(),
+        "fr".to_string(),
+        WasmFaultKind::TimeoutOnceThenSucceed,
+    );
+    registry.register(
+        "euv-cdn://f/500.wasm".to_string(),
+        p_v1.clone(),
+        "f5".to_string(),
+        WasmFaultKind::Http500,
+    );
+    registry.register(
+        "euv-cdn://f/corrupt.wasm".to_string(),
+        build_faulty_wasm(WasmFaultKind::CorruptedMagic),
+        "fc".to_string(),
+        WasmFaultKind::None,
+    );
+    registry.register(
+        "euv-cdn://f/tamper.wasm".to_string(),
+        p_v1.clone(),
+        "ft".to_string(),
+        WasmFaultKind::TamperedChecksum,
+    );
+    registry.register(
+        "euv-cdn://f/abi.wasm".to_string(),
+        build_faulty_wasm(WasmFaultKind::AbiMismatch),
+        "fa".to_string(),
+        WasmFaultKind::None,
+    );
+    registry.register(
+        "euv-cdn://f/noexp.wasm".to_string(),
+        build_faulty_wasm(WasmFaultKind::MissingExport),
+        "fe".to_string(),
+        WasmFaultKind::None,
+    );
+    registry.register(
+        "euv-cdn://f/fuel.wasm".to_string(),
+        build_faulty_wasm(WasmFaultKind::InfiniteLoopOutOfFuel),
+        "ff".to_string(),
+        WasmFaultKind::None,
+    );
+    registry.register(
+        "euv-cdn://f/trap.wasm".to_string(),
+        build_faulty_wasm(WasmFaultKind::ExecutionTrap),
+        "fp".to_string(),
+        WasmFaultKind::None,
+    );
+    registry.register(
+        "euv-cdn://f/big.wasm".to_string(),
+        build_faulty_wasm(WasmFaultKind::OversizedBinary),
+        "fb".to_string(),
+        WasmFaultKind::None,
+    );
+    let mgr: WasmDynamicManager = WasmDynamicManager::new(
+        hub.clone(),
+        Rc::new(registry.clone()),
+        WasmSandboxConfig::default(),
+    );
+    let hub_mount: DynamicUpdateHub = hub.clone();
+    let _: NodeId = app.mount(move || {
+        let mut ctx: BuildContext = current_build_context();
+        let mut partial_cfg: DynamicComponentSlot = DynamicComponentSlot::new(
+            "slot_a".to_string(),
+            Rc::new(|| {
+                let mut c: BuildContext = current_build_context();
+                c.text("Native Fallback A".to_string(), Style::empty())
+            }),
+        );
+        partial_cfg.set_hub(Some(hub_mount.clone()));
+        let partial_slot: NodeId = partial_cfg.mount(&mut ctx);
+        let mut global_cfg: DynamicComponentSlot = DynamicComponentSlot::new(
+            WASM_GLOBAL_ROOT_SLOT.to_string(),
+            Rc::new(move || partial_slot),
+        );
+        global_cfg.set_hub(Some(hub_mount));
+        global_cfg.mount(&mut ctx)
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let req_p1: WasmDownloadRequest =
+        WasmDownloadRequest::partial("euv-cdn://p/v1.wasm".to_string(), "slot_a".to_string(), 1)
+            .with_checksum(compute_wasm_checksum(&p_v1))
+            .with_signature(compute_wasm_signature(&p_v1, 1, signing_key));
+    assert_eq!(mgr.load_and_mount(req_p1.clone(), signing_key).unwrap(), 1);
+    let _: FrameStats = app.step_frame().unwrap();
+    assert_eq!(hub.component_version("slot_a"), 1);
+    let partial_scope: WasmDynamicScope = WasmDynamicScope::Partial {
+        slot_id: "slot_a".to_string(),
+    };
+    assert_eq!(mgr.dispatch_wasm_event(&partial_scope, 1).unwrap(), 1);
+    let _: FrameStats = app.step_frame().unwrap();
+    let req_downgrade: WasmDownloadRequest =
+        WasmDownloadRequest::partial("euv-cdn://p/v1.wasm".to_string(), "slot_a".to_string(), 1);
+    assert!(matches!(
+        mgr.load_and_mount(req_downgrade, signing_key),
+        Err(WasmDynamicError::VersionRegression {
+            current: 1,
+            incoming: 1
+        })
+    ));
+    let req_p2: WasmDownloadRequest =
+        WasmDownloadRequest::partial("euv-cdn://p/v2.wasm".to_string(), "slot_a".to_string(), 2)
+            .with_checksum(compute_wasm_checksum(&p_v2))
+            .with_signature(compute_wasm_signature(&p_v2, 2, signing_key));
+    assert_eq!(mgr.load_and_mount(req_p2, signing_key).unwrap(), 2);
+    assert_eq!(mgr.rollback_partial("slot_a", "test").unwrap(), 1);
+    registry.set_offline(true);
+    assert_eq!(
+        mgr.load_and_mount(req_p1.with_allow_downgrade(true), signing_key)
+            .unwrap(),
+        1
+    );
+    assert!(mgr.telemetry().get_untracked().get_cache_hits() >= 1);
+    registry.set_offline(false);
+    let req_retry: WasmDownloadRequest = WasmDownloadRequest::partial(
+        "euv-cdn://f/retry.wasm".to_string(),
+        "slot_a".to_string(),
+        3,
+    );
+    assert_eq!(mgr.load_and_mount(req_retry, signing_key).unwrap(), 3);
+    assert!(mgr.telemetry().get_untracked().get_retries_performed() >= 1);
+    assert!(matches!(
+        mgr.load_and_mount(
+            WasmDownloadRequest::partial("ftp://bad".to_string(), "slot_a".to_string(), 4),
+            signing_key
+        ),
+        Err(WasmDynamicError::InvalidUrl(_))
+    ));
+    assert!(matches!(
+        mgr.load_and_mount(
+            WasmDownloadRequest::partial(
+                "euv-cdn://f/500.wasm".to_string(),
+                "slot_a".to_string(),
+                4
+            ),
+            signing_key
+        ),
+        Err(WasmDynamicError::HttpStatus { status: 500, .. })
+    ));
+    assert!(matches!(
+        mgr.load_and_mount(
+            WasmDownloadRequest::partial(
+                "euv-cdn://f/corrupt.wasm".to_string(),
+                "slot_a".to_string(),
+                4
+            ),
+            signing_key
+        ),
+        Err(WasmDynamicError::InvalidWasmBinary(_))
+    ));
+    assert!(matches!(
+        mgr.load_and_mount(
+            WasmDownloadRequest::partial(
+                "euv-cdn://f/tamper.wasm".to_string(),
+                "slot_a".to_string(),
+                4
+            )
+            .with_checksum(compute_wasm_checksum(&p_v1)),
+            signing_key
+        ),
+        Err(WasmDynamicError::ChecksumMismatch { .. })
+    ));
+    assert!(matches!(
+        mgr.load_and_mount(
+            WasmDownloadRequest::partial(
+                "euv-cdn://p/v1.wasm".to_string(),
+                "slot_a".to_string(),
+                4
+            )
+            .with_signature("euv-sig-v1:invalid".to_string()),
+            signing_key
+        ),
+        Err(WasmDynamicError::SignatureInvalid { .. })
+    ));
+    assert!(matches!(
+        mgr.load_and_mount(
+            WasmDownloadRequest::partial(
+                "euv-cdn://f/abi.wasm".to_string(),
+                "slot_a".to_string(),
+                4
+            ),
+            signing_key
+        ),
+        Err(WasmDynamicError::AbiMismatch {
+            expected: 1,
+            actual: 99
+        })
+    ));
+    assert!(matches!(
+        mgr.load_and_mount(
+            WasmDownloadRequest::partial(
+                "euv-cdn://f/noexp.wasm".to_string(),
+                "slot_a".to_string(),
+                4
+            ),
+            signing_key
+        ),
+        Err(WasmDynamicError::MissingExport(_))
+    ));
+    assert!(matches!(
+        mgr.load_and_mount(
+            WasmDownloadRequest::partial(
+                "euv-cdn://f/fuel.wasm".to_string(),
+                "slot_a".to_string(),
+                4
+            ),
+            signing_key
+        ),
+        Err(WasmDynamicError::OutOfFuel { .. })
+    ));
+    assert!(matches!(
+        mgr.load_and_mount(
+            WasmDownloadRequest::partial(
+                "euv-cdn://f/trap.wasm".to_string(),
+                "slot_a".to_string(),
+                4
+            ),
+            signing_key
+        ),
+        Err(WasmDynamicError::ExecutionTrap(_))
+    ));
+    assert!(matches!(
+        mgr.load_and_mount(
+            WasmDownloadRequest::partial(
+                "euv-cdn://f/big.wasm".to_string(),
+                "slot_a".to_string(),
+                4
+            ),
+            signing_key
+        ),
+        Err(WasmDynamicError::BinaryTooLarge { .. })
+    ));
+    let cancel_gen: u64 = mgr.cancel_scope(&partial_scope);
+    assert!(cancel_gen > 0);
+    mgr.unmount_partial("slot_a");
+    assert_eq!(hub.component_version("slot_a"), 0);
+    let req_g1: WasmDownloadRequest =
+        WasmDownloadRequest::global("euv-cdn://g/v1.wasm".to_string(), 1)
+            .with_checksum(compute_wasm_checksum(&g_v1))
+            .with_signature(compute_wasm_signature(&g_v1, 1, signing_key));
+    assert_eq!(mgr.load_and_mount(req_g1, signing_key).unwrap(), 1);
+    let _: FrameStats = app.step_frame().unwrap();
+    assert_eq!(mgr.global_version_signal().get_untracked(), 1);
+    let req_g2: WasmDownloadRequest =
+        WasmDownloadRequest::global("euv-cdn://g/v2.wasm".to_string(), 2)
+            .with_checksum(compute_wasm_checksum(&g_v2))
+            .with_signature(compute_wasm_signature(&g_v2, 2, signing_key));
+    assert_eq!(mgr.load_and_mount(req_g2, signing_key).unwrap(), 2);
+    assert!(
+        mgr.load_and_mount(
+            WasmDownloadRequest::global("euv-cdn://f/trap.wasm".to_string(), 3),
+            signing_key
+        )
+        .is_err()
+    );
+    assert_eq!(mgr.global_version_signal().get_untracked(), 2);
+    assert!(matches!(
+        mgr.state_signal(&WasmDynamicScope::Global).get_untracked(),
+        WasmLoadState::RolledBack {
+            active_version: 2,
+            ..
+        }
+    ));
+    assert_eq!(mgr.rollback_global("manual").unwrap(), 1);
+    mgr.restore_native_global();
+    assert_eq!(mgr.global_version_signal().get_untracked(), 0);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn http_wasm_fetcher_downloads_real_wasm_over_local_tcp_and_renders_natively() {
+    reset_reactive_runtime();
+    let wasm_bytes: Vec<u8> = build_partial_widget_wasm("Live HTTP Downloaded WASM", 1, 0x059669);
+    let body_clone: Vec<u8> = wasm_bytes.clone();
+    let listener: TcpListener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr: SocketAddr = listener.local_addr().unwrap();
+    let handle: JoinHandle<()> = spawn(move || {
+        if let Ok((mut stream, _)) = listener.accept() {
+            let mut req_buf: [u8; 512] = [0; 512];
+            let _: Result<usize, io::Error> = Read::read(&mut stream, &mut req_buf);
+            let header: String = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/wasm\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body_clone.len()
+            );
+            let _: Result<(), io::Error> = Write::write_all(&mut stream, header.as_bytes());
+            let _: Result<(), io::Error> = Write::write_all(&mut stream, &body_clone);
+        }
+    });
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.get_mut_window()
+        .set_size(800, 600)
+        .set_render(RenderConfig::software());
+    let mut app: App = App::headless(cfg).unwrap();
+    let hub: DynamicUpdateHub = app.get_dynamic_hub().clone();
+    let mgr: WasmDynamicManager = WasmDynamicManager::new(
+        hub.clone(),
+        Rc::new(HttpWasmFetcher::default()),
+        WasmSandboxConfig::default(),
+    );
+    let url: String = format!("http://127.0.0.1:{}/widget.wasm", addr.port());
+    let req: WasmDownloadRequest = WasmDownloadRequest::partial(url, "http_slot".to_string(), 1)
+        .with_checksum(compute_wasm_checksum(&wasm_bytes));
+    assert_eq!(mgr.load_and_mount(req, "").unwrap(), 1);
+    assert_eq!(hub.component_version("http_slot"), 1);
+    let _: Result<(), Box<dyn Any + Send>> = handle.join();
+    let _: FrameStats = app.step_frame().unwrap();
+}

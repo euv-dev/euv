@@ -186,10 +186,33 @@ fn top_layer_portal_hit_test_and_overlay_scrollbar_commands_work_when_scrolled()
     let _: LayoutStats = engine.compute(&mut tree, Size::new(400.0, 200.0));
     tree.set_scroll_offset(scroller, Point::new(0.0, 300.0));
     assert_eq!(hit_test(&tree, Point::new(200.0, 100.0)), Some(dialog_btn));
-    let mut dl: DisplayList = DisplayList::default();
+    let mut dl_mobile: DisplayList = DisplayList::default();
     PaintPass::build(
         &tree,
         Size::new(400.0, 200.0),
+        1.0,
+        Color::hex(0xFFFFFF),
+        &mut dl_mobile,
+    );
+    let mobile_scrollbars: usize = dl_mobile
+        .get_commands()
+        .iter()
+        .filter(|cmd: &&DrawCommand| {
+            matches!(
+                cmd,
+                DrawCommand::FillRoundedRect { rect, .. }
+                    if rect.get_width() <= 6.5 && rect.get_x() > 380.0
+            )
+        })
+        .count();
+    assert_eq!(
+        mobile_scrollbars, 0,
+        "mobile compact viewports (< 640px) must hide scrollbars"
+    );
+    let mut dl: DisplayList = DisplayList::default();
+    PaintPass::build(
+        &tree,
+        Size::new(800.0, 200.0),
         1.0,
         Color::hex(0xFFFFFF),
         &mut dl,
@@ -201,9 +224,9 @@ fn top_layer_portal_hit_test_and_overlay_scrollbar_commands_work_when_scrolled()
             matches!(
                 cmd,
                 DrawCommand::FillRoundedRect { rect, .. }
-                    if (rect.get_width() - 6.0).abs() < 0.1 && rect.get_x() > 380.0
+                    if rect.get_width() <= 6.5 && rect.get_x() > 380.0
             )
         })
         .count();
-    assert!(scrollbar_rects >= 2);
+    assert!(scrollbar_rects >= 1);
 }

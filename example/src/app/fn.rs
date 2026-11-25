@@ -41,6 +41,48 @@ pub fn create_showcase_app(
     Ok((app, state))
 }
 
+/// Builds an `App` and reactive `ShowcaseState` reporting a specific host `PlatformKind` (for native mobile hosts).
+///
+/// # Arguments
+///
+/// - `PlatformKind` - Active native host platform identity (e.g. `PlatformKind::Android`, `PlatformKind::Ios`).
+/// - `RenderMode` - Initial rendering pipeline mode.
+///
+/// # Returns
+///
+/// - `Result<(App, ShowcaseState), PlatformError>` - Initialized showcase app and state.
+pub fn create_showcase_app_for_platform(
+    platform: PlatformKind,
+    mode: RenderMode,
+) -> Result<(App, ShowcaseState), PlatformError> {
+    let render_cfg: RenderConfig = match mode {
+        RenderMode::Software => RenderConfig::software(),
+        RenderMode::Hardware => RenderConfig::hardware(),
+        RenderMode::Hybrid => RenderConfig::hybrid(),
+        RenderMode::Auto => RenderConfig::default(),
+    };
+    let mut window_cfg: WindowConfig = WindowConfig::default();
+    window_cfg
+        .set_title(SHOWCASE_WINDOW_TITLE.to_string())
+        .set_size(SHOWCASE_WINDOW_WIDTH, SHOWCASE_WINDOW_HEIGHT)
+        .set_render(render_cfg);
+    let mut app_cfg: AppConfig = AppConfig::default();
+    app_cfg.set_window(window_cfg);
+    let backend: Box<dyn PlatformBackend> = Box::new(HeadlessPlatform::emulating(
+        platform,
+        1.0,
+        SafeAreaInsets::default(),
+    ));
+    let mut app: App = App::with_platform(app_cfg, backend)?;
+    let mut state: ShowcaseState = ShowcaseState::new();
+    state.attach_dynamic_hub(app.get_dynamic_hub().clone());
+    app.attach_game_host(state.get_game_host().clone());
+    app.attach_game_host(state.get_game3d_host().clone());
+    let mount_state: ShowcaseState = state.clone();
+    let _: NodeId = app.mount(move || mount_showcase_root(&mount_state));
+    Ok((app, state))
+}
+
 /// Runs a complete headless smoke render of the showcase and returns frame telemetry.
 ///
 /// # Arguments
@@ -318,7 +360,7 @@ pub fn euv_web_boot() {
         .map(|n: f64| n.floor() as u32)
         .unwrap_or(800)
         .max(320);
-    let init_dpr: f32 = (win.device_pixel_ratio() as f32).clamp(1.0, 2.0);
+    let init_dpr: f32 = (win.device_pixel_ratio() as f32).clamp(1.0, 4.0);
     let _: u64 = euv_web_resize(init_w, init_h, init_dpr);
     let canvas_move: HtmlCanvasElement = canvas.clone();
     let on_move: Closure<dyn FnMut(MouseEvent)> = Closure::wrap(Box::new(move |ev: MouseEvent| {
@@ -405,7 +447,7 @@ pub fn euv_web_boot() {
             .map(|n: f64| n.floor() as u32)
             .unwrap_or(800)
             .max(320);
-        let dpr: f32 = (win_resize.device_pixel_ratio() as f32).clamp(1.0, 2.0);
+        let dpr: f32 = (win_resize.device_pixel_ratio() as f32).clamp(1.0, 4.0);
         web_queue_resize(lw, lh, dpr);
     }) as Box<dyn FnMut(Event)>);
     drop(win.add_event_listener_with_callback("resize", on_resize.as_ref().unchecked_ref()));
@@ -423,13 +465,47 @@ pub fn euv_web_boot() {
                 }
                 *prev = ts;
             }
+            let cur_w: u32 = win_raf
+                .inner_width()
+                .ok()
+                .and_then(|v: JsValue| v.as_f64())
+                .map(|n: f64| n.floor() as u32)
+                .unwrap_or(1200)
+                .max(320);
+            let cur_h: u32 = win_raf
+                .inner_height()
+                .ok()
+                .and_then(|v: JsValue| v.as_f64())
+                .map(|n: f64| n.floor() as u32)
+                .unwrap_or(800)
+                .max(320);
+            let cur_dpr: f32 = (win_raf.device_pixel_ratio() as f32).clamp(1.0, 4.0);
+            let resized_or_scaled: bool = WEB_SHOWCASE_RUNTIME.with(
+                |slot: &RefCell<Option<(App, ShowcaseState)>>| match slot.try_borrow() {
+                    Ok(guard) => guard
+                        .as_ref()
+                        .map(|(app, _): &(App, ShowcaseState)| {
+                            let ws: WindowState = app.get_window_state();
+                            let prev_w: u32 = ws.get_logical_width().round() as u32;
+                            let prev_h: u32 = ws.get_logical_height().round() as u32;
+                            prev_w != cur_w
+                                || prev_h != cur_h
+                                || (ws.get_scale_factor() - cur_dpr).abs() > 0.01
+                        })
+                        .unwrap_or(false),
+                    Err(_) => false,
+                },
+            );
+            if resized_or_scaled {
+                let _: u64 = euv_web_resize(cur_w, cur_h, cur_dpr);
+            }
             let cur_route: String = euv_web_current_route();
             let on_game: bool = cur_route == ROUTE_GAME || cur_route == ROUTE_GAME_3D;
             let animating: bool = web_has_active_animations();
             let dirty: bool = WEB_NEEDS_FRAME.with(|flag: &Cell<bool>| flag.replace(false));
             if on_game || animating {
                 let _: u64 = euv_web_tick(dt);
-            } else if dirty {
+            } else if dirty && !resized_or_scaled {
                 let _: u64 = web_flush_frame();
             }
             if let Ok(cb_ref) = raf_loop.try_borrow()

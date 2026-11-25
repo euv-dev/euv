@@ -116,6 +116,9 @@ impl App {
             last_tap_pos: None,
             last_tap_age_secs: 10.0,
             gesture_seq: 0,
+            scroll_velocity: Point::default(),
+            scroll_fling_pos: Point::default(),
+            in_step_frame: false,
         })
     }
 
@@ -398,16 +401,25 @@ impl App {
             1.0 / 60.0
         };
         let scene: SceneHandle = self.get_scene().clone();
-        let has_canvas: bool = scene.with_read(
+        let canvas_damage_rects: Vec<Rect> = scene.with_read(
             |tree: &SceneTree| {
-                tree.get_nodes().iter().any(|n: &SceneNode| {
-                    n.get_alive()
+                let mut rects: Vec<Rect> = Vec::new();
+                for n in tree.get_nodes().iter() {
+                    if n.get_alive()
                         && matches!(n.get_kind(), NodeKind::Canvas)
                         && n.get_style().get_layout().get_display() != Display::None
-                })
+                    {
+                        let b: Rect = n.get_layout_box().get_bounds();
+                        if b.get_width() > 0.0 && b.get_height() > 0.0 {
+                            rects.push(b);
+                        }
+                    }
+                }
+                rects
             },
-            false,
+            Vec::new(),
         );
+        let has_canvas: bool = !canvas_damage_rects.is_empty();
         if has_canvas && !self.get_game_hosts().is_empty() {
             for host in self.get_game_hosts().iter() {
                 let _: u32 = host.step(anim_dt);
@@ -416,6 +428,7 @@ impl App {
         let _: bool =
             scene.with_write(|tree: &mut SceneTree| tree.tick_transitions(anim_dt), false);
         self.tick_gesture_timers(anim_dt);
+        self.tick_scroll_inertia(anim_dt);
         let viewport: Size = self.get_window_state().logical_size();
         let scale: f32 = self.get_window_state().get_scale_factor();
         let clear: Color = self.get_config().get_clear_color();
@@ -437,6 +450,16 @@ impl App {
             }
         } else if let Some(rect) = tree_damage.bounds_rect() {
             damage.add_rect(rect);
+        }
+        if has_canvas && !self.get_game_hosts().is_empty() && !damage.get_full_damage() {
+            for r in canvas_damage_rects.iter() {
+                damage.add_rect(Rect::new(
+                    (r.get_x() * scale).floor(),
+                    (r.get_y() * scale).floor(),
+                    (r.get_width() * scale).ceil() + 2.0,
+                    (r.get_height() * scale).ceil() + 2.0,
+                ));
+            }
         }
         let phys_w: u32 = ((viewport.get_width() * scale).round() as u32).max(1);
         let phys_h: u32 = ((viewport.get_height() * scale).round() as u32).max(1);
@@ -501,6 +524,27 @@ impl App {
         Ok(stats)
     }
 
+    /// CoreFoundation run-loop timer callback keeping macOS live window border dragging repainting smoothly at 60Hz.
+    ///
+    /// # Arguments
+    ///
+    /// - `*mut c_void` - Unused `CFRunLoopTimerRef`.
+    /// - `*mut c_void` - Pointer to the active `App`.
+    #[cfg(target_os = "macos")]
+    unsafe extern "C" fn macos_live_resize_tick(_timer: *mut c_void, info: *mut c_void) {
+        if info.is_null() {
+            return;
+        }
+        // SAFETY: `info` points to the live `App` on the main thread for the exact duration of `run_frames`.
+        let app: &mut Self = unsafe { &mut *info.cast::<Self>() };
+        if !app.get_running() || app.get_in_step_frame() {
+            return;
+        }
+        app.set_in_step_frame(true);
+        let _: Result<FrameStats, PlatformError> = app.step_frame();
+        app.set_in_step_frame(false);
+    }
+
     /// Runs the interactive frame loop until `max_frames` is reached or the window closes.
     ///
     /// # Arguments
@@ -512,10 +556,32 @@ impl App {
     ///
     /// - `Result<FrameStats, PlatformError>` - Telemetry from the final rendered frame.
     pub fn run_frames(&mut self, max_frames: Option<u64>) -> Result<FrameStats, PlatformError> {
+        #[cfg(target_os = "macos")]
+        let live_timer: *mut c_void =
+            if max_frames.is_none() && self.platform_kind() == PlatformKind::MacOs {
+                macos_install_live_resize_timer(
+                    Self::macos_live_resize_tick,
+                    (self as *mut Self).cast(),
+                )
+            } else {
+                null_mut()
+            };
         let mut last_stats: FrameStats = FrameStats::default();
         let mut rendered: u64 = 0;
+        let mut loop_err: Option<PlatformError> = None;
         while self.get_running() {
-            last_stats = self.step_frame()?;
+            #[cfg(not(target_arch = "wasm32"))]
+            let frame_start: Instant = Instant::now();
+            self.set_in_step_frame(true);
+            let step_res: Result<FrameStats, PlatformError> = self.step_frame();
+            self.set_in_step_frame(false);
+            match step_res {
+                Ok(stats) => last_stats = stats,
+                Err(err) => {
+                    loop_err = Some(err);
+                    break;
+                }
+            }
             rendered = rendered.saturating_add(1);
             if let Some(limit) = max_frames
                 && rendered >= limit
@@ -527,10 +593,76 @@ impl App {
             }
             #[cfg(not(target_arch = "wasm32"))]
             if max_frames.is_none() {
-                sleep(Duration::from_millis(16));
+                let active_game: bool = !self.get_game_hosts().is_empty()
+                    && self.get_scene().with_read(
+                        |tree: &SceneTree| {
+                            tree.get_nodes().iter().any(|n: &SceneNode| {
+                                n.get_alive()
+                                    && matches!(n.get_kind(), NodeKind::Canvas)
+                                    && n.get_style().get_layout().get_display() != Display::None
+                            })
+                        },
+                        false,
+                    );
+                if !active_game {
+                    let target_budget: Duration = if self.has_active_animations()
+                        || self.get_scroll_velocity().get_x().abs() > 1.0
+                        || self.get_scroll_velocity().get_y().abs() > 1.0
+                    {
+                        Duration::from_micros(4_000)
+                    } else {
+                        Duration::from_micros(16_666)
+                    };
+                    let elapsed: Duration = frame_start.elapsed();
+                    if let Some(remaining) = target_budget.checked_sub(elapsed) {
+                        sleep(remaining);
+                    }
+                }
             }
         }
+        #[cfg(target_os = "macos")]
+        if !live_timer.is_null() {
+            macos_remove_live_resize_timer(live_timer);
+        }
+        if let Some(err) = loop_err {
+            return Err(err);
+        }
         Ok(last_stats)
+    }
+
+    /// Applies smooth exponential friction decay for touch inertial fling scrolling.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `f32` - Elapsed frame delta in seconds.
+    fn tick_scroll_inertia(&mut self, dt_secs: f32) {
+        if self.get_touch_dragging() {
+            return;
+        }
+        let vel: Point = self.get_scroll_velocity();
+        let speed: f32 = vel.get_x().hypot(vel.get_y());
+        if speed < 14.0 {
+            if speed > 0.0 {
+                self.set_scroll_velocity(Point::default());
+            }
+            return;
+        }
+        let dx: f32 = vel.get_x() * dt_secs;
+        let dy: f32 = vel.get_y() * dt_secs;
+        let prev_ptr: Point = self.get_input_state().get_pointer_position();
+        let fling_pos: Point = self.get_scroll_fling_pos();
+        self.get_mut_input_state().set_pointer_position(fling_pos);
+        self.handle_scroll(Point::new(dx, dy));
+        self.get_mut_input_state().set_pointer_position(prev_ptr);
+        let decay: f32 = (-5.2 * dt_secs).exp();
+        let next_vx: f32 = vel.get_x() * decay;
+        let next_vy: f32 = vel.get_y() * decay;
+        if next_vx.hypot(next_vy) < 14.0 {
+            self.set_scroll_velocity(Point::default());
+        } else {
+            self.set_scroll_velocity(Point::new(next_vx, next_vy));
+        }
     }
 
     /// Collects the ancestor chain starting from `start` up to the root node.
@@ -551,6 +683,71 @@ impl App {
             cursor = tree.get_node(id).and_then(SceneNode::parent_id);
         }
         chain
+    }
+
+    /// Synchronizes hovered state across old and new ancestor chains, preventing stuck hover backgrounds on clicked items.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut SceneTree` - Active scene tree.
+    /// - `Option<NodeId>` - Newly hovered leaf node (`None` clears all hover states).
+    /// - `&mut Vec<(UiEventHandler, UiEvent)>` - Output enter/leave callback queue.
+    fn sync_hover_chain(
+        tree: &mut SceneTree,
+        next_hit: Option<NodeId>,
+        out: &mut Vec<(UiEventHandler, UiEvent)>,
+    ) {
+        let prev: Option<NodeId> = tree.get_focus().hovered_node();
+        if prev == next_hit {
+            return;
+        }
+        let old_chain: Vec<NodeId> = Self::ancestor_chain(tree, prev);
+        let new_chain: Vec<NodeId> = Self::ancestor_chain(tree, next_hit);
+        for old_id in old_chain.iter().copied() {
+            if new_chain.contains(&old_id) {
+                continue;
+            }
+            let mut visual_hover: bool = false;
+            if let Some(node) = tree.get_node_mut(old_id) {
+                node.get_mut_interaction().set_hovered(false);
+                visual_hover = node.hover_paint().is_some()
+                    || node.get_style().get_paint().get_cursor() == CursorIcon::Pointer
+                    || node.get_style().get_layout().get_overflow() == Overflow::Scroll
+                    || node
+                        .get_handlers()
+                        .handler_for(&UiEventKind::Click(Point::default()))
+                        .is_some();
+                if let Some(h) = node.get_handlers().handler_for(&UiEventKind::PointerLeave) {
+                    out.push((h, UiEvent::new(old_id, UiEventKind::PointerLeave)));
+                }
+            }
+            if visual_hover {
+                tree.mark_dirty(old_id, DIRTY_PAINT);
+            }
+        }
+        tree.get_mut_focus().set_hovered(next_hit);
+        for new_id in new_chain.iter().copied() {
+            if old_chain.contains(&new_id) {
+                continue;
+            }
+            let mut visual_hover: bool = false;
+            if let Some(node) = tree.get_node_mut(new_id) {
+                node.get_mut_interaction().set_hovered(true);
+                visual_hover = node.hover_paint().is_some()
+                    || node.get_style().get_paint().get_cursor() == CursorIcon::Pointer
+                    || node.get_style().get_layout().get_overflow() == Overflow::Scroll
+                    || node
+                        .get_handlers()
+                        .handler_for(&UiEventKind::Click(Point::default()))
+                        .is_some();
+                if let Some(h) = node.get_handlers().handler_for(&UiEventKind::PointerEnter) {
+                    out.push((h, UiEvent::new(new_id, UiEventKind::PointerEnter)));
+                }
+            }
+            if visual_hover {
+                tree.mark_dirty(new_id, DIRTY_PAINT);
+            }
+        }
     }
 
     /// Emits a recognized cross-platform `GestureEvent` into the reactive `BuildContext::get_gesture()` signal.
@@ -711,7 +908,7 @@ impl App {
             if !captured_drag_control {
                 let total_dx: f32 = pos.get_x() - origin.get_x();
                 let total_dy: f32 = pos.get_y() - origin.get_y();
-                if !self.get_touch_dragging() && (total_dx.abs() > 10.0 || total_dy.abs() > 10.0) {
+                if !self.get_touch_dragging() && (total_dx.abs() > 4.0 || total_dy.abs() > 4.0) {
                     self.set_touch_dragging(true);
                 }
                 if self.get_touch_dragging() {
@@ -725,6 +922,16 @@ impl App {
                         let scroll_dx: f32 = prev.get_x() - pos.get_x();
                         let scroll_dy: f32 = prev.get_y() - pos.get_y();
                         self.handle_scroll(Point::new(scroll_dx, scroll_dy));
+                        let dt_est: f32 =
+                            self.get_frame_clock().get_delta_secs().clamp(0.008, 0.033);
+                        let inst_vx: f32 = (scroll_dx / dt_est).clamp(-3200.0, 3200.0);
+                        let inst_vy: f32 = (scroll_dy / dt_est).clamp(-3200.0, 3200.0);
+                        let cur_v: Point = self.get_scroll_velocity();
+                        self.set_scroll_velocity(Point::new(
+                            cur_v.get_x() * 0.45 + inst_vx * 0.55,
+                            cur_v.get_y() * 0.45 + inst_vy * 0.55,
+                        ));
+                        self.set_scroll_fling_pos(pos);
                     }
                     self.set_touch_drag_last(Some(pos));
                     return;
@@ -795,64 +1002,7 @@ impl App {
                         }
                     }
                     let hit: Option<NodeId> = hit_test(tree, pos);
-                    let prev: Option<NodeId> = tree.get_focus().hovered_node();
-                    if prev != hit {
-                        let old_chain: Vec<NodeId> = Self::ancestor_chain(tree, prev);
-                        let new_chain: Vec<NodeId> = Self::ancestor_chain(tree, hit);
-                        for old_id in old_chain.iter().copied() {
-                            if new_chain.contains(&old_id) {
-                                continue;
-                            }
-                            let mut visual_hover: bool = false;
-                            if let Some(node) = tree.get_node_mut(old_id) {
-                                node.get_mut_interaction().set_hovered(false);
-                                visual_hover = node.hover_paint().is_some()
-                                    || node.get_style().get_paint().get_cursor()
-                                        == CursorIcon::Pointer
-                                    || node.get_style().get_layout().get_overflow()
-                                        == Overflow::Scroll
-                                    || node
-                                        .get_handlers()
-                                        .handler_for(&UiEventKind::Click(Point::default()))
-                                        .is_some();
-                                if let Some(h) =
-                                    node.get_handlers().handler_for(&UiEventKind::PointerLeave)
-                                {
-                                    out.push((h, UiEvent::new(old_id, UiEventKind::PointerLeave)));
-                                }
-                            }
-                            if visual_hover {
-                                tree.mark_dirty(old_id, DIRTY_PAINT);
-                            }
-                        }
-                        tree.get_mut_focus().set_hovered(hit);
-                        for new_id in new_chain.iter().copied() {
-                            if old_chain.contains(&new_id) {
-                                continue;
-                            }
-                            let mut visual_hover: bool = false;
-                            if let Some(node) = tree.get_node_mut(new_id) {
-                                node.get_mut_interaction().set_hovered(true);
-                                visual_hover = node.hover_paint().is_some()
-                                    || node.get_style().get_paint().get_cursor()
-                                        == CursorIcon::Pointer
-                                    || node.get_style().get_layout().get_overflow()
-                                        == Overflow::Scroll
-                                    || node
-                                        .get_handlers()
-                                        .handler_for(&UiEventKind::Click(Point::default()))
-                                        .is_some();
-                                if let Some(h) =
-                                    node.get_handlers().handler_for(&UiEventKind::PointerEnter)
-                                {
-                                    out.push((h, UiEvent::new(new_id, UiEventKind::PointerEnter)));
-                                }
-                            }
-                            if visual_hover {
-                                tree.mark_dirty(new_id, DIRTY_PAINT);
-                            }
-                        }
-                    }
+                    Self::sync_hover_chain(tree, hit, &mut out);
                     let mut resolved_cursor: CursorIcon = CursorIcon::Default;
                     for aid in Self::ancestor_chain(tree, hit).into_iter() {
                         if let Some(node) = tree.get_node(aid) {
@@ -919,19 +1069,31 @@ impl App {
             self.set_touch_drag_origin(Some(pos));
             self.set_touch_drag_last(Some(pos));
             self.set_touch_dragging(false);
+            self.set_scroll_velocity(Point::default());
+            self.set_scroll_fling_pos(pos);
         } else {
             self.set_touch_drag_origin(None);
             self.set_touch_drag_last(None);
             self.set_touch_dragging(false);
+            self.set_scroll_velocity(Point::default());
         }
         let scene: SceneHandle = self.get_scene().clone();
         let (callbacks, grabbed_scrollbar): (Vec<(UiEventHandler, UiEvent)>, bool) = scene
             .with_write(
                 |tree: &mut SceneTree| {
                     let hit: Option<NodeId> = hit_test(tree, pos);
-                    tree.get_mut_focus().set_hovered(hit);
+                    let mut hover_out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
+                    Self::sync_hover_chain(
+                        tree,
+                        if ptr.get_device() == PointerDevice::Touch {
+                            None
+                        } else {
+                            hit
+                        },
+                        &mut hover_out,
+                    );
                     let mut scrollbar_target: Option<NodeId> = None;
-                    let mut sb_callbacks: Vec<(UiEventHandler, UiEvent)> = Vec::new();
+                    let mut sb_callbacks: Vec<(UiEventHandler, UiEvent)> = hover_out;
                     for aid in Self::ancestor_chain(tree, hit).into_iter() {
                         if let Some(node) = tree.get_node(aid)
                             && node.get_style().get_layout().get_overflow() == Overflow::Scroll
@@ -1020,7 +1182,8 @@ impl App {
                             }
                         }
                     }
-                    let mut out: Vec<(UiEventHandler, UiEvent)> = tree.update_focus(focus_target);
+                    let mut out: Vec<(UiEventHandler, UiEvent)> = sb_callbacks;
+                    out.extend(tree.update_focus(focus_target));
                     tree.get_mut_focus().set_pressed(press_target);
                     if let Some(id) = press_target {
                         if let Some(node) = tree.get_node_mut(id) {
@@ -1162,12 +1325,18 @@ impl App {
                                     out.push((h, UiEvent::new(target_id, UiEventKind::Click(pos))));
                                     break;
                                 }
+                                if node.get_style().get_paint().get_stop_event_propagation() {
+                                    break;
+                                }
                                 bubble = node.parent_id();
                             } else {
                                 break;
                             }
                         }
                     }
+                }
+                if ptr.get_device() == PointerDevice::Touch {
+                    Self::sync_hover_chain(tree, None, &mut out);
                 }
                 out
             },
@@ -1231,16 +1400,13 @@ impl App {
                                     (cur.get_x() + delta.get_x()).clamp(0.0, max_x),
                                     (cur.get_y() + delta.get_y()).clamp(0.0, max_y),
                                 );
-                                let has_custom: bool = node
-                                    .get_handlers()
-                                    .handler_for(&UiEventKind::Scroll(delta))
-                                    .is_some();
+                                let is_virtual: bool = node.virtual_scroll_metrics().is_some();
                                 if let Some(h) =
                                     node.get_handlers().handler_for(&UiEventKind::Scroll(delta))
                                 {
                                     out.push((h, UiEvent::new(id, UiEventKind::Scroll(delta))));
                                 }
-                                if has_custom {
+                                if is_virtual {
                                     return out;
                                 }
                                 let moved: bool = (next.get_x() - cur.get_x()).abs() > 0.01
@@ -1249,6 +1415,14 @@ impl App {
                                     tree.set_scroll_offset(id, next);
                                     return out;
                                 }
+                            }
+                            let blocks_scroll: bool =
+                                node.get_style().get_paint().get_stop_scroll_propagation()
+                                    || matches!(node.get_kind(), NodeKind::Portal)
+                                    || node.get_style().get_layout().get_position()
+                                        == Position::Fixed;
+                            if blocks_scroll {
+                                return out;
                             }
                             node.parent_id()
                         }
@@ -1270,6 +1444,12 @@ impl App {
     /// - `&Self` - Mutable app.
     /// - `KeyEvent` - Keyboard event payload.
     fn handle_key_down(&mut self, key: KeyEvent) {
+        if matches!(key.get_code(), KeyCode::Back | KeyCode::Escape) {
+            let _: bool = self
+                .get_build_context()
+                .get_system_back()
+                .update(|v: &mut u64| *v = v.wrapping_add(1));
+        }
         let scene: SceneHandle = self.get_scene().clone();
         let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
             |tree: &mut SceneTree| {

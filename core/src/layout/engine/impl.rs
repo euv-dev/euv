@@ -70,17 +70,16 @@ impl LayoutEngine {
         stats.set_nodes_computed(stats.get_nodes_computed() + 1);
         let layout: LayoutStyle = style.get_layout();
         if layout.get_display() == Display::None {
-            if let Some(node) = tree.get_node_mut(node_id) {
-                node.get_mut_layout_box().set_bounds(Rect::new(
-                    space.get_origin_x(),
-                    space.get_origin_y(),
-                    0.0,
-                    0.0,
-                ));
-                node.get_mut_layout_box()
-                    .set_content_bounds(Rect::default());
-                node.set_last_constraint(Some(space));
-                node.get_mut_dirty().remove(DIRTY_LAYOUT_PASS_MASK);
+            let mut stack: Vec<NodeId> = vec![node_id];
+            while let Some(hid) = stack.pop() {
+                if let Some(node) = tree.get_node_mut(hid) {
+                    node.get_mut_layout_box().set_bounds(Rect::default());
+                    node.get_mut_layout_box()
+                        .set_content_bounds(Rect::default());
+                    node.set_last_constraint(Some(space));
+                    node.get_mut_dirty().remove(DIRTY_LAYOUT_PASS_MASK);
+                    stack.extend(node.get_children().iter().copied());
+                }
             }
             return Size::default();
         }

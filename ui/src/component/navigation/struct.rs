@@ -1,12 +1,15 @@
 use super::*;
 
-/// Single sidebar navigation destination descriptor.
+/// Single sidebar navigation destination descriptor with optional category section header.
 #[derive(Clone, Data, Debug, Eq, New, PartialEq)]
 pub struct EuvNavItem {
     /// Route path identifier.
     pub(crate) path: String,
     /// Human-readable navigation label.
     pub(crate) label: String,
+    /// Optional uppercase sidebar section heading (e.g. `"WORKSPACE"`, `"ENGINE & MEDIA"`).
+    #[new(skip)]
+    pub(crate) section: String,
 }
 
 /// Vertical sidebar navigation list highlighting the active route reactively.

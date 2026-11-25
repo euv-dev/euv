@@ -106,17 +106,31 @@ impl Mountable for EuvImage {
             EuvBadge::new(format_lbl, EuvTone::Primary, self.get_tokens()).mount(ctx);
         ctx.append(head, title_n);
         ctx.append(head, badge);
-        let img_node: NodeId = ctx.image(
-            img_buf,
+        let aspect: f32 =
+            (img_buf.get_width().max(1) as f32) / (img_buf.get_height().max(1) as f32);
+        let fit_w: f32 = (h_px * aspect).round().max(48.0);
+        let stage: NodeId = ctx.view(
             Style::empty()
+                .row()
                 .width(Length::Percent(100.0))
                 .height(Length::Px(h_px))
+                .justify(JustifyContent::Center)
+                .align(AlignItems::Center)
+                .background(Color::hex(0x0B1120))
                 .radius(g.get_radius_md())
                 .border(g.get_border_width(), p.get_border())
                 .overflow(Overflow::Hidden),
         );
+        let img_node: NodeId = ctx.image(
+            img_buf,
+            Style::empty()
+                .width(Length::Px(fit_w))
+                .max_width(Length::Percent(100.0))
+                .height(Length::Px(h_px)),
+        );
+        ctx.append(stage, img_node);
         ctx.append(wrap, head);
-        ctx.append(wrap, img_node);
+        ctx.append(wrap, stage);
         wrap
     }
 }
@@ -196,17 +210,33 @@ impl Mountable for EuvSvgView {
             EuvBadge::new(badge_txt, EuvTone::Primary, self.get_tokens()).mount(ctx);
         ctx.append(head, title_n);
         ctx.append(head, badge);
-        let img_n: NodeId = ctx.image(
-            self.get_document().get_rasterized().clone(),
+        let svg_buf: ImageBuffer = self.get_document().get_rasterized().clone();
+        let svg_h: f32 = self.get_height_px();
+        let svg_aspect: f32 =
+            (svg_buf.get_width().max(1) as f32) / (svg_buf.get_height().max(1) as f32);
+        let svg_fit_w: f32 = (svg_h * svg_aspect).round().max(48.0);
+        let svg_stage: NodeId = ctx.view(
             Style::empty()
+                .row()
                 .width(Length::Percent(100.0))
-                .height(Length::Px(self.get_height_px()))
+                .height(Length::Px(svg_h))
+                .justify(JustifyContent::Center)
+                .align(AlignItems::Center)
+                .background(Color::hex(0x0F172A))
                 .radius(g.get_radius_md())
                 .border(g.get_border_width(), p.get_border())
                 .overflow(Overflow::Hidden),
         );
+        let img_n: NodeId = ctx.image(
+            svg_buf,
+            Style::empty()
+                .width(Length::Px(svg_fit_w))
+                .max_width(Length::Percent(100.0))
+                .height(Length::Px(svg_h)),
+        );
+        ctx.append(svg_stage, img_n);
         ctx.append(wrap, head);
-        ctx.append(wrap, img_n);
+        ctx.append(wrap, svg_stage);
         wrap
     }
 }
@@ -295,15 +325,31 @@ impl Mountable for EuvGifPlayer {
             .mount(&mut inner);
             inner.append(head, title_n);
             inner.append(head, badge);
-            let img: NodeId = inner.image(
-                anim.active_image(),
+            let gif_buf: ImageBuffer = anim.active_image();
+            let gif_aspect: f32 =
+                (gif_buf.get_width().max(1) as f32) / (gif_buf.get_height().max(1) as f32);
+            let gif_fit_w: f32 = (h_px * gif_aspect).round().max(48.0);
+            let img_stage: NodeId = inner.view(
                 Style::empty()
+                    .row()
                     .width(Length::Percent(100.0))
                     .height(Length::Px(h_px))
+                    .justify(JustifyContent::Center)
+                    .align(AlignItems::Center)
+                    .background(Color::hex(0x0B1120))
                     .radius(g.get_radius_md())
                     .border(g.get_border_width(), p.get_border())
                     .overflow(Overflow::Hidden),
             );
+            let img_node: NodeId = inner.image(
+                gif_buf,
+                Style::empty()
+                    .width(Length::Px(gif_fit_w))
+                    .max_width(Length::Percent(100.0))
+                    .height(Length::Px(h_px)),
+            );
+            inner.append(img_stage, img_node);
+            let img: NodeId = img_stage;
             let bar: NodeId = EuvActionRow::new()
                 .child(
                     EuvButton::new(
@@ -454,11 +500,18 @@ impl Mountable for EuvLivePhoto {
             .mount(&mut inner);
             inner.append(head, title_n);
             inner.append(head, badge);
-            let img: NodeId = inner.image(
-                live.active_image(),
+            let live_buf: ImageBuffer = live.active_image();
+            let live_aspect: f32 =
+                (live_buf.get_width().max(1) as f32) / (live_buf.get_height().max(1) as f32);
+            let live_fit_w: f32 = (h_px * live_aspect).round().max(48.0);
+            let img: NodeId = inner.view(
                 Style::empty()
+                    .row()
                     .width(Length::Percent(100.0))
                     .height(Length::Px(h_px))
+                    .justify(JustifyContent::Center)
+                    .align(AlignItems::Center)
+                    .background(Color::hex(0x0B1120))
                     .radius(g.get_radius_md())
                     .border(
                         if active { 2.0 } else { g.get_border_width() },
@@ -471,6 +524,14 @@ impl Mountable for EuvLivePhoto {
                     .cursor(CursorIcon::Pointer)
                     .overflow(Overflow::Hidden),
             );
+            let live_img_node: NodeId = inner.image(
+                live_buf,
+                Style::empty()
+                    .width(Length::Px(live_fit_w))
+                    .max_width(Length::Percent(100.0))
+                    .height(Length::Px(h_px)),
+            );
+            inner.append(img, live_img_node);
             inner.on_pointer_down(img, move |_: &UiEvent| {
                 let mut next: LivePhotoAsset = sig.get_untracked();
                 next.set_motion_playing(true);
@@ -616,15 +677,30 @@ impl Mountable for EuvVideoPlayer {
             .mount(&mut inner);
             inner.append(head, title_n);
             inner.append(head, badge);
-            let frame_img: NodeId = inner.image(
-                track.active_frame(),
+            let vid_buf: ImageBuffer = track.active_frame();
+            let vid_aspect: f32 =
+                (vid_buf.get_width().max(1) as f32) / (vid_buf.get_height().max(1) as f32);
+            let vid_fit_w: f32 = (h_px * vid_aspect).round().max(48.0);
+            let frame_img: NodeId = inner.view(
                 Style::empty()
+                    .row()
                     .width(Length::Percent(100.0))
                     .height(Length::Px(h_px))
+                    .justify(JustifyContent::Center)
+                    .align(AlignItems::Center)
+                    .background(Color::hex(0x0B1120))
                     .radius(g.get_radius_md())
                     .border(g.get_border_width(), p.get_border())
                     .overflow(Overflow::Hidden),
             );
+            let vid_img_node: NodeId = inner.image(
+                vid_buf,
+                Style::empty()
+                    .width(Length::Px(vid_fit_w))
+                    .max_width(Length::Percent(100.0))
+                    .height(Length::Px(h_px)),
+            );
+            inner.append(frame_img, vid_img_node);
             let caption_text: String = format!(
                 "CC: {}  [{:02}:{:02} / {:02}:{:02}]",
                 track.active_caption(),

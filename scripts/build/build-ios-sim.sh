@@ -34,10 +34,10 @@ EOF
 
 cat > "${BUILD_DIR}/src/lib.rs" <<'EOF'
 use euv::{
-    App, NativeSystemFont, PointerEvent, RenderMode, SafeAreaInsets, WindowCommand, WindowEvent,
+    App, NativeSystemFont, PlatformKind, PointerEvent, RenderMode, SafeAreaInsets, WindowEvent,
     WindowId,
 };
-use euv_example::{ShowcaseState, create_showcase_app};
+use euv_example::{ShowcaseState, create_showcase_app_for_platform};
 
 pub struct EuvIosHandle {
     app: App,
@@ -50,7 +50,7 @@ pub struct EuvIosHandle {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn euv_ios_create(width: f32, height: f32, scale: f32) -> *mut EuvIosHandle {
-    let Ok((mut app, state)) = create_showcase_app(true, RenderMode::Software) else {
+    let Ok((mut app, state)) = create_showcase_app_for_platform(PlatformKind::Ios, RenderMode::Software) else {
         return std::ptr::null_mut();
     };
     app.get_mut_renderer()
@@ -59,8 +59,7 @@ pub extern "C" fn euv_ios_create(width: f32, height: f32, scale: f32) -> *mut Eu
     let wid: WindowId = app.get_window_state().get_id();
     let w: u32 = width.max(320.0).round() as u32;
     let h: u32 = height.max(480.0).round() as u32;
-    let s: f32 = scale.clamp(1.0, 3.0);
-    app.queue_window_command(WindowCommand::SetSize(wid, w, h));
+    let s: f32 = scale.clamp(1.0, 4.0);
     app.dispatch_window_event(WindowEvent::Resized(wid, w, h, s));
     let _ = app.step_game_frame(1.0 / 60.0);
     let mut handle = Box::new(EuvIosHandle {
@@ -92,8 +91,7 @@ pub unsafe extern "C" fn euv_ios_resize(
     let h: &mut EuvIosHandle = unsafe { &mut *handle };
     let w: u32 = width.max(320.0).round() as u32;
     let ht: u32 = height.max(480.0).round() as u32;
-    let s: f32 = scale.clamp(1.0, 3.0);
-    h.app.queue_window_command(WindowCommand::SetSize(h.wid, w, ht));
+    let s: f32 = scale.clamp(1.0, 4.0);
     h.app
         .dispatch_window_event(WindowEvent::Resized(h.wid, w, ht, s));
 }
@@ -117,33 +115,54 @@ pub unsafe extern "C" fn euv_ios_set_safe_area(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn euv_ios_touch_down(handle: *mut EuvIosHandle, x: f32, y: f32) {
+pub unsafe extern "C" fn euv_ios_touch_down(
+    handle: *mut EuvIosHandle,
+    pointer_id: u64,
+    x: f32,
+    y: f32,
+) {
     if handle.is_null() {
         return;
     }
     let h: &mut EuvIosHandle = unsafe { &mut *handle };
-    h.app
-        .dispatch_window_event(WindowEvent::PointerDown(h.wid, PointerEvent::touch(1, x, y)));
+    h.app.dispatch_window_event(WindowEvent::PointerDown(
+        h.wid,
+        PointerEvent::touch(pointer_id.max(1), x, y),
+    ));
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn euv_ios_touch_move(handle: *mut EuvIosHandle, x: f32, y: f32) {
+pub unsafe extern "C" fn euv_ios_touch_move(
+    handle: *mut EuvIosHandle,
+    pointer_id: u64,
+    x: f32,
+    y: f32,
+) {
     if handle.is_null() {
         return;
     }
     let h: &mut EuvIosHandle = unsafe { &mut *handle };
-    h.app
-        .dispatch_window_event(WindowEvent::PointerMove(h.wid, PointerEvent::touch(1, x, y)));
+    h.app.dispatch_window_event(WindowEvent::PointerMove(
+        h.wid,
+        PointerEvent::touch(pointer_id.max(1), x, y),
+    ));
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn euv_ios_touch_up(handle: *mut EuvIosHandle, x: f32, y: f32) {
+pub unsafe extern "C" fn euv_ios_touch_up(
+    handle: *mut EuvIosHandle,
+    pointer_id: u64,
+    x: f32,
+    y: f32,
+) {
     if handle.is_null() {
         return;
     }
     let h: &mut EuvIosHandle = unsafe { &mut *handle };
-    h.app
-        .dispatch_window_event(WindowEvent::PointerUp(h.wid, PointerEvent::touch(1, x, y)));
+    h.app.dispatch_window_event(WindowEvent::PointerUp(
+        h.wid,
+        PointerEvent::touch(pointer_id.max(1), x, y),
+    ));
 }
 
 #[unsafe(no_mangle)]
@@ -191,9 +210,9 @@ typedef struct EuvIosHandle EuvIosHandle;
 extern EuvIosHandle *euv_ios_create(float width, float height, float scale);
 extern void euv_ios_resize(EuvIosHandle *handle, float width, float height, float scale);
 extern void euv_ios_set_safe_area(EuvIosHandle *handle, float top, float right, float bottom, float left);
-extern void euv_ios_touch_down(EuvIosHandle *handle, float x, float y);
-extern void euv_ios_touch_move(EuvIosHandle *handle, float x, float y);
-extern void euv_ios_touch_up(EuvIosHandle *handle, float x, float y);
+extern void euv_ios_touch_down(EuvIosHandle *handle, uint64_t pointer_id, float x, float y);
+extern void euv_ios_touch_move(EuvIosHandle *handle, uint64_t pointer_id, float x, float y);
+extern void euv_ios_touch_up(EuvIosHandle *handle, uint64_t pointer_id, float x, float y);
 extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_ptr, uint32_t *out_w, uint32_t *out_h);
 
 @interface EuvCanvasView : UIView
@@ -201,6 +220,10 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 @property (nonatomic, strong) CADisplayLink *displayLink;
 @property (nonatomic, assign) CFTimeInterval lastTimestamp;
 @property (nonatomic, assign) CGColorSpaceRef colorSpace;
+@property (nonatomic, assign) uint64_t renderedFrames;
+@property (nonatomic, assign) double accumRenderMs;
+@property (nonatomic, assign) double maxRenderMs;
+@property (nonatomic, assign) uint64_t droppedFrames;
 @end
 
 @implementation EuvCanvasView
@@ -209,16 +232,21 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     self = [super initWithFrame:frame];
     if (self) {
         self.backgroundColor = [UIColor whiteColor];
-        self.multipleTouchEnabled = NO;
+        self.multipleTouchEnabled = YES;
         _colorSpace = CGColorSpaceCreateDeviceRGB();
         CGFloat scale = UIScreen.mainScreen.scale;
         self.layer.contentsScale = scale;
+        self.layer.magnificationFilter = kCAFilterLinear;
+        self.layer.minificationFilter = kCAFilterTrilinear;
         CGFloat w = frame.size.width > 0 ? frame.size.width : 393.0;
         CGFloat h = frame.size.height > 0 ? frame.size.height : 852.0;
         _handle = euv_ios_create((float)w, (float)h, (float)scale);
         [self syncSafeArea];
         [self presentFrameWithDt:1.0f / 60.0f force:YES];
         _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(onDisplayLink:)];
+        if (@available(iOS 15.0, *)) {
+            _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(60.0f, 120.0f, 120.0f);
+        }
         [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
     }
     return self;
@@ -236,15 +264,30 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     [self presentFrameWithDt:1.0f / 60.0f force:YES];
 }
 
+- (void)syncViewportScaleAndBounds {
+    if (!_handle || self.bounds.size.width <= 0 || self.bounds.size.height <= 0) return;
+    CGFloat scale = self.traitCollection.displayScale > 0
+        ? self.traitCollection.displayScale
+        : (self.window.screen.scale > 0 ? self.window.screen.scale : UIScreen.mainScreen.scale);
+    self.layer.contentsScale = scale;
+    euv_ios_resize(_handle, (float)self.bounds.size.width, (float)self.bounds.size.height, (float)scale);
+    [self syncSafeArea];
+    [self presentFrameWithDt:1.0f / 60.0f force:YES];
+}
+
 - (void)layoutSubviews {
     [super layoutSubviews];
-    if (_handle && self.bounds.size.width > 0 && self.bounds.size.height > 0) {
-        CGFloat scale = self.window.screen.scale > 0 ? self.window.screen.scale : UIScreen.mainScreen.scale;
-        self.layer.contentsScale = scale;
-        euv_ios_resize(_handle, (float)self.bounds.size.width, (float)self.bounds.size.height, (float)scale);
-        [self syncSafeArea];
-        [self presentFrameWithDt:1.0f / 60.0f force:YES];
-    }
+    [self syncViewportScaleAndBounds];
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+    [super traitCollectionDidChange:previousTraitCollection];
+    [self syncViewportScaleAndBounds];
+}
+
+- (void)setBounds:(CGRect)bounds {
+    [super setBounds:bounds];
+    [self syncViewportScaleAndBounds];
 }
 
 - (void)onDisplayLink:(CADisplayLink *)link {
@@ -256,6 +299,7 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 
 - (void)presentFrameWithDt:(float)dt force:(BOOL)force {
     if (!_handle) return;
+    CFTimeInterval t0 = CACurrentMediaTime();
     const uint8_t *pixels = NULL;
     uint32_t w = 0, h = 0;
     int32_t changed = euv_ios_step(_handle, dt, &pixels, &w, &h);
@@ -264,37 +308,50 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         NSData *copyData = [NSData dataWithBytes:pixels length:bytes];
         CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)copyData);
         CGBitmapInfo info = kCGBitmapByteOrder32Big | kCGImageAlphaLast;
-        CGImageRef img = CGImageCreate(w, h, 8, 32, (size_t)w * 4, _colorSpace, info, provider, NULL, false, kCGRenderingIntentDefault);
+        CGImageRef img = CGImageCreate(w, h, 8, 32, (size_t)w * 4, _colorSpace, info, provider, NULL, true, kCGRenderingIntentDefault);
         if (img) {
             self.layer.contents = (__bridge id)img;
             self.layer.contentsGravity = kCAGravityResize;
             CGImageRelease(img);
         }
         CGDataProviderRelease(provider);
+        double renderMs = (CACurrentMediaTime() - t0) * 1000.0;
+        _renderedFrames += 1;
+        _accumRenderMs += renderMs;
+        if (renderMs > _maxRenderMs) _maxRenderMs = renderMs;
+        if (renderMs > 16.67) _droppedFrames += 1;
+        if (_renderedFrames % 60 == 0) {
+            double avg = _accumRenderMs / 60.0;
+            NSLog(@"[euv-fps] ios rendered=%llu avg=%.2fms max=%.2fms dropped=%llu res=%ux%u",
+                _renderedFrames, avg, _maxRenderMs, _droppedFrames, w, h);
+            _accumRenderMs = 0.0;
+            _maxRenderMs = 0.0;
+        }
     }
 }
 
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    UITouch *t = [touches anyObject];
-    if (!t || !_handle) return;
-    CGPoint p = [t locationInView:self];
-    euv_ios_touch_down(_handle, (float)p.x, (float)p.y);
-    [self presentFrameWithDt:1.0f / 60.0f force:YES];
+    if (!_handle) return;
+    for (UITouch *t in touches) {
+        CGPoint p = [t locationInView:self];
+        euv_ios_touch_down(_handle, (uint64_t)(uintptr_t)t, (float)p.x, (float)p.y);
+    }
 }
 
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    UITouch *t = [touches anyObject];
-    if (!t || !_handle) return;
-    CGPoint p = [t locationInView:self];
-    euv_ios_touch_move(_handle, (float)p.x, (float)p.y);
+    if (!_handle) return;
+    for (UITouch *t in touches) {
+        CGPoint p = [t locationInView:self];
+        euv_ios_touch_move(_handle, (uint64_t)(uintptr_t)t, (float)p.x, (float)p.y);
+    }
 }
 
 - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    UITouch *t = [touches anyObject];
-    if (!t || !_handle) return;
-    CGPoint p = [t locationInView:self];
-    euv_ios_touch_up(_handle, (float)p.x, (float)p.y);
-    [self presentFrameWithDt:1.0f / 60.0f force:YES];
+    if (!_handle) return;
+    for (UITouch *t in touches) {
+        CGPoint p = [t locationInView:self];
+        euv_ios_touch_up(_handle, (uint64_t)(uintptr_t)t, (float)p.x, (float)p.y);
+    }
 }
 
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
@@ -402,10 +459,23 @@ cat > "${BUILD_DIR}/Info.plist" <<'EOF'
         </dict>
     </dict>
     <key>UIApplicationSupportsIndirectInputEvents</key><true/>
+    <key>UIDeviceFamily</key>
+    <array>
+        <integer>1</integer>
+        <integer>2</integer>
+    </array>
+    <key>UIRequiresFullScreen</key><true/>
     <key>UILaunchScreen</key><dict/>
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>

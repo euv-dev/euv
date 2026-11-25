@@ -363,10 +363,20 @@ impl PlatformBackend for MacOsPlatform {
             if let Some((w, h)) = macos_view_logical_size(view_ptr) {
                 let prev_w: u32 = rec.get_state().get_logical_width().round() as u32;
                 let prev_h: u32 = rec.get_state().get_logical_height().round() as u32;
-                if w != prev_w || h != prev_h {
-                    let scale: f32 = rec.get_state().get_scale_factor();
+                let prev_scale: f32 = rec.get_state().get_scale_factor();
+                let scale: f32 = macos_window_backing_scale(win_ptr);
+                if w != prev_w || h != prev_h || (scale - prev_scale).abs() > 0.01 {
+                    let layer_ptr: *mut c_void = rec.get_metal_layer() as *mut c_void;
+                    if !layer_ptr.is_null() && (scale - prev_scale).abs() > 0.01 {
+                        objc_send_void_f64(
+                            layer_ptr,
+                            objc_sel(OBJC_SEL_SET_CONTENTS_SCALE),
+                            scale as f64,
+                        );
+                    }
                     rec.get_mut_state().set_logical_width(w as f32);
                     rec.get_mut_state().set_logical_height(h as f32);
+                    rec.get_mut_state().set_scale_factor(scale);
                     rec.get_mut_state()
                         .set_physical_width(((w as f32) * scale).round() as u32);
                     rec.get_mut_state()

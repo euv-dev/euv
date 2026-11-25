@@ -227,25 +227,30 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     assert!(state.get_alert_dialog_confirmed().get_untracked());
     let _: FrameStats = click_label(&mut app, "@euv-dev");
     assert!(state.get_hover_card_open().get_untracked());
-    let f_dyn_0: FrameStats = click_label(&mut app, "Dynamic OTA");
+    let f_dyn_0: FrameStats = click_label(&mut app, "Dynamic WASM");
     assert_eq!(state.get_route().get_untracked(), ROUTE_DYNAMIC);
-    let _: FrameStats = click_label(&mut app, "Increment Sibling (+1)");
+    let _: FrameStats = scroll_and_click_label(&mut app, "Download Partial WASM v1");
+    assert_eq!(
+        state.get_dynamic_hub().component_version(SLOT_WASM_WIDGET),
+        1
+    );
+    let _: FrameStats = scroll_and_click_label(&mut app, "Increment Sibling (+1)");
     assert_eq!(state.get_sibling_counter().get_untracked(), 1);
-    let f_dyn_banner_v1: FrameStats = click_label(&mut app, "Push Banner v1 (JSON)");
+    let f_dyn_banner_v1: FrameStats = scroll_and_click_label(&mut app, "Push Banner v1 (JSON)");
     assert_eq!(
         state.get_dynamic_hub().component_version(SLOT_PROMO_BANNER),
         1
     );
     assert_eq!(state.get_sibling_counter().get_untracked(), 1);
     assert_ne!(f_dyn_banner_v1.get_frame_hash(), f_dyn_0.get_frame_hash());
-    let _: FrameStats = click_label(&mut app, "Claim Dynamic Offer");
+    let _: FrameStats = scroll_and_click_label(&mut app, "Claim Dynamic Offer");
     assert!(
         state
             .get_dynamic_action_log()
             .get_untracked()
             .contains("claim_offer")
     );
-    let f_dyn_banner_v2: FrameStats = click_label(&mut app, "Push Banner v2 (Native)");
+    let f_dyn_banner_v2: FrameStats = scroll_and_click_label(&mut app, "Push Banner v2 (Native)");
     assert_eq!(
         state.get_dynamic_hub().component_version(SLOT_PROMO_BANNER),
         2
@@ -254,25 +259,25 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
         f_dyn_banner_v2.get_frame_hash(),
         f_dyn_banner_v1.get_frame_hash()
     );
-    let _: FrameStats = click_label(&mut app, "Patch Metrics Widget");
+    let _: FrameStats = scroll_and_click_label(&mut app, "Patch Metrics Widget");
     assert_eq!(
         state
             .get_dynamic_hub()
             .component_version(SLOT_METRICS_WIDGET),
         1
     );
-    let _: FrameStats = click_label(&mut app, "Rollback Banner");
+    let _: FrameStats = scroll_and_click_label(&mut app, "Rollback Banner");
     assert_eq!(
         state.get_dynamic_hub().component_version(SLOT_PROMO_BANNER),
         1
     );
-    let f_dyn_page_v1: FrameStats = click_label(&mut app, "Hot-Update Page (v1)");
+    let f_dyn_page_v1: FrameStats = scroll_and_click_label(&mut app, "Hot-Update Page (v1)");
     assert_eq!(state.get_dynamic_hub().page_version(ROUTE_DYNAMIC_PANEL), 1);
     assert_ne!(
         f_dyn_page_v1.get_frame_hash(),
         f_dyn_banner_v2.get_frame_hash()
     );
-    let _: FrameStats = click_label(&mut app, "Apply Atomic Bundle");
+    let _: FrameStats = scroll_and_click_label(&mut app, "Apply Atomic Bundle");
     assert_eq!(
         state
             .get_dynamic_hub()
@@ -280,7 +285,7 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
         2
     );
     assert_eq!(state.get_dynamic_hub().page_version(ROUTE_DYNAMIC_PANEL), 2);
-    let f_promo: FrameStats = click_label(&mut app, "Inject & Visit /promo-live");
+    let f_promo: FrameStats = scroll_and_click_label(&mut app, "Inject & Visit /promo-live");
     assert_eq!(state.get_route().get_untracked(), ROUTE_PROMO_LIVE);
     assert!(state.get_dynamic_hub().has_dynamic_page(ROUTE_PROMO_LIVE));
     assert_ne!(f_promo.get_frame_hash(), f_dyn_page_v1.get_frame_hash());
@@ -347,7 +352,7 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
     assert_ne!(f_menu_open.get_frame_hash(), f_mob.get_frame_hash());
     let _: FrameStats = click_label(&mut app, "Reactivity");
     assert_eq!(state.get_route().get_untracked(), ROUTE_REACTIVE);
-    let routes: [&str; 12] = [
+    let routes: [&str; 13] = [
         ROUTE_OVERVIEW,
         ROUTE_REACTIVE,
         ROUTE_RENDER,
@@ -358,6 +363,7 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
         ROUTE_GAME,
         ROUTE_GAME_3D,
         ROUTE_MEDIA,
+        ROUTE_LAB,
         ROUTE_OVERLAYS,
         ROUTE_DYNAMIC,
     ];
@@ -624,6 +630,19 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
         let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     }
     let f3d_before: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    let _: FrameStats = click_label(&mut app, "Switch Camera");
+    let f3d_hood: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(state.get_engine3d_camera_mode().get_untracked(), 1);
+    assert_ne!(f3d_before.get_frame_hash(), f3d_hood.get_frame_hash());
+    let _: FrameStats = click_label(&mut app, "Switch Camera");
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(state.get_engine3d_camera_mode().get_untracked(), 2);
+    let _: FrameStats = click_label(&mut app, "Switch Camera");
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(state.get_engine3d_camera_mode().get_untracked(), 3);
+    let _: FrameStats = click_label(&mut app, "Switch Camera");
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(state.get_engine3d_camera_mode().get_untracked(), 0);
     let _: FrameStats = click_label(&mut app, "Import .OBJ Monument");
     let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
     assert!(
@@ -709,5 +728,69 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
             .get_media_html_link_log()
             .get_untracked()
             .contains("euv://docs/media-engine")
+    );
+    let _: FrameStats = click_label(&mut app, "UI & Edge Lab");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_LAB);
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let _: FrameStats = click_label(&mut app, "Window & OS");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_WINDOW);
+    let stuck_hover_count: usize = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes()
+                .iter()
+                .filter(|n: &&SceneNode| {
+                    n.get_alive()
+                        && n.get_interaction().get_hovered()
+                        && n.get_style().get_paint().get_cursor() == CursorIcon::Pointer
+                })
+                .count()
+        },
+        0,
+    );
+    assert!(
+        stuck_hover_count <= 1,
+        "clicked sidebar items must never retain stuck hover states (found {stuck_hover_count})"
+    );
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Back, Modifiers::default(), false),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert_eq!(state.get_route().get_untracked(), ROUTE_LAB);
+    let _: FrameStats = click_label(&mut app, "Overlays");
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let _: FrameStats = click_label(&mut app, "Open Dialog Modal");
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert!(state.get_modal_open().get_untracked());
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Back, Modifiers::default(), false),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(
+        !state.get_modal_open().get_untracked(),
+        "System Back must dismiss top EuvOverlayStack modal first"
+    );
+    assert_eq!(
+        state.get_route().get_untracked(),
+        ROUTE_OVERLAYS,
+        "System Back consumed by modal must not pop the active route"
+    );
+    let _: FrameStats = click_label(&mut app, "UI & Edge Lab");
+    let _: FrameStats = scroll_and_click_label(&mut app, "Increment Preserved Counter");
+    let preserved_before: u32 = state.get_lab_resize_preserve_count().get_untracked();
+    app.queue_window_command(WindowCommand::SetSize(wid, 390, 844));
+    app.dispatch_window_event(WindowEvent::Resized(wid, 390, 844, 3.0));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert_eq!(
+        state.get_lab_resize_preserve_count().get_untracked(),
+        preserved_before,
+        "Live viewport resize must update layout only without clearing data"
     );
 }

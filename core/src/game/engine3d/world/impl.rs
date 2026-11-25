@@ -185,6 +185,8 @@ impl Default for World3D {
             chunk_size: 64.0,
             player_vehicle_index: None,
             imported_model_count: 0,
+            camera_mode: 0,
+            camera_orbit_rad: 0.4,
         }
     }
 }
@@ -449,9 +451,9 @@ impl World3D {
                     &format!("crown_{idx_counter}"),
                     neon_unit,
                     Transform3D::new(
-                        Vec3::new(x - side * (w * 0.48), h * 0.72, z),
+                        Vec3::new(x - side * (w * 0.5 + 0.28), h * 0.72, z),
                         0.0,
-                        Vec3::new(0.4, 1.4, 8.2),
+                        Vec3::new(0.36, 1.4, 8.2),
                     ),
                     neon_mat,
                     false,
@@ -483,7 +485,53 @@ impl World3D {
         world
     }
 
-    /// Advances drivable vehicle/camera controls and spinning hero models by `dt` seconds.
+    /// Cycles the active 3D camera perspective (`Chase` -> `Hood` -> `Orbit` -> `Aerial`) safely without clipping.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable world.
+    ///
+    /// # Returns
+    ///
+    /// - `u8` - New active camera mode index.
+    pub fn cycle_camera_mode(&mut self) -> u8 {
+        let next: u8 = (self.get_camera_mode() + 1) % 4;
+        self.set_camera_mode(next);
+        next
+    }
+
+    /// Tests whether a candidate horizontal AABB intersects any solid obstacle object excluding `ignore_idx`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - World reference.
+    /// - `Aabb3D` - Candidate moving object bounds.
+    /// - `usize` - Self object index to skip.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when blocked by a solid building or imported model.
+    #[must_use]
+    fn collides_with_obstacles(&self, candidate: Aabb3D, ignore_idx: usize) -> bool {
+        for (idx, obj) in self.get_objects().iter().enumerate() {
+            if idx == ignore_idx || !obj.get_ray_trace_caster() {
+                continue;
+            }
+            let b: Aabb3D = obj.get_world_bounds();
+            let overlap_x: bool = candidate.get_min().get_x() < b.get_max().get_x()
+                && candidate.get_max().get_x() > b.get_min().get_x();
+            let overlap_y: bool = candidate.get_min().get_y() < b.get_max().get_y()
+                && candidate.get_max().get_y() > b.get_min().get_y();
+            let overlap_z: bool = candidate.get_min().get_z() < b.get_max().get_z()
+                && candidate.get_max().get_z() > b.get_min().get_z();
+            if overlap_x && overlap_y && overlap_z {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Advances drivable vehicle/camera controls, AABB collision resolution, and spinning models by `dt` seconds.
     ///
     /// # Arguments
     ///
@@ -503,27 +551,41 @@ impl World3D {
                 .get(car_idx)
                 .map(|car: &SceneObject3D| (car.get_transform(), car.get_mesh_id()))
         {
+            let mesh_bounds: Aabb3D = self
+                .get_mesh_library()
+                .get(mesh_id)
+                .and_then(|c: &MeshLodChain| c.get_levels().first())
+                .map(Mesh3D::get_bounds)
+                .unwrap_or_else(|| Aabb3D::new(Vec3::splat(-2.0), Vec3::splat(2.0)));
             if steer.abs() > 0.05 {
-                tr.set_yaw_rad(tr.get_yaw_rad() - steer * 1.85 * dt);
-                any_moved = true;
+                let mut rotated: Transform3D = tr;
+                rotated.set_yaw_rad(tr.get_yaw_rad() - steer * 1.85 * dt);
+                if !self.collides_with_obstacles(rotated.transform_aabb(mesh_bounds), car_idx) {
+                    tr = rotated;
+                    any_moved = true;
+                }
             }
             if throttle.abs() > 0.05 {
                 let fwd_x: f32 = -tr.get_yaw_rad().sin();
                 let fwd_z: f32 = -tr.get_yaw_rad().cos();
                 let speed: f32 = 24.0 * throttle * dt;
                 let cur: Vec3 = tr.get_position();
-                let next_x: f32 = (cur.get_x() + fwd_x * speed).clamp(-12.0, 12.0);
-                let next_z: f32 = (cur.get_z() + fwd_z * speed).clamp(-85.0, 85.0);
-                tr.set_position(Vec3::new(next_x, 0.0, next_z));
-                any_moved = true;
+                let cand_x: f32 = (cur.get_x() + fwd_x * speed).clamp(-9.2, 9.2);
+                let cand_z: f32 = (cur.get_z() + fwd_z * speed).clamp(-85.0, 85.0);
+                let mut try_x: Transform3D = tr;
+                try_x.set_position(Vec3::new(cand_x, 0.0, cur.get_z()));
+                if !self.collides_with_obstacles(try_x.transform_aabb(mesh_bounds), car_idx) {
+                    tr.set_position(Vec3::new(cand_x, 0.0, tr.get_position().get_z()));
+                    any_moved = true;
+                }
+                let mut try_z: Transform3D = tr;
+                try_z.set_position(Vec3::new(tr.get_position().get_x(), 0.0, cand_z));
+                if !self.collides_with_obstacles(try_z.transform_aabb(mesh_bounds), car_idx) {
+                    tr.set_position(Vec3::new(tr.get_position().get_x(), 0.0, cand_z));
+                    any_moved = true;
+                }
             }
             if any_moved {
-                let mesh_bounds: Aabb3D = self
-                    .get_mesh_library()
-                    .get(mesh_id)
-                    .and_then(|c: &MeshLodChain| c.get_levels().first())
-                    .map(Mesh3D::get_bounds)
-                    .unwrap_or_else(|| Aabb3D::new(Vec3::splat(-2.0), Vec3::splat(2.0)));
                 let world_b: Aabb3D = tr.transform_aabb(mesh_bounds);
                 if let Some(car_mut) = self.get_mut_objects().get_mut(car_idx) {
                     car_mut.set_transform(tr);
@@ -533,18 +595,68 @@ impl World3D {
             let car_tr: Transform3D = self.get_objects()[car_idx].get_transform();
             let car_pos: Vec3 = car_tr.get_position();
             let yaw: f32 = car_tr.get_yaw_rad();
-            let back_x: f32 = yaw.sin() * 12.5;
-            let back_z: f32 = yaw.cos() * 12.5;
-            let desired_eye: Vec3 =
-                Vec3::new(car_pos.get_x() + back_x, 6.0, car_pos.get_z() + back_z);
+            let cam_mode: u8 = self.get_camera_mode();
+            let (mut desired_eye, look_target): (Vec3, Vec3) = match cam_mode {
+                1 => {
+                    let eye: Vec3 = Vec3::new(
+                        car_pos.get_x() - yaw.sin() * 1.4,
+                        2.15,
+                        car_pos.get_z() - yaw.cos() * 1.4,
+                    );
+                    let tgt: Vec3 = Vec3::new(
+                        car_pos.get_x() - yaw.sin() * 18.0,
+                        1.8,
+                        car_pos.get_z() - yaw.cos() * 18.0,
+                    );
+                    (eye, tgt)
+                }
+                2 => {
+                    let orbit: f32 = self.get_camera_orbit_rad() + dt * 0.45;
+                    self.set_camera_orbit_rad(orbit);
+                    let eye: Vec3 = Vec3::new(
+                        car_pos.get_x() + orbit.sin() * 10.5,
+                        5.2,
+                        car_pos.get_z() + orbit.cos() * 10.5,
+                    );
+                    (eye, Vec3::new(car_pos.get_x(), 1.6, car_pos.get_z()))
+                }
+                3 => {
+                    let eye: Vec3 = Vec3::new(
+                        car_pos.get_x() + yaw.sin() * 18.0,
+                        18.5,
+                        car_pos.get_z() + yaw.cos() * 18.0,
+                    );
+                    (eye, Vec3::new(car_pos.get_x(), 1.2, car_pos.get_z()))
+                }
+                _ => {
+                    let eye: Vec3 = Vec3::new(
+                        car_pos.get_x() + yaw.sin() * 12.5,
+                        6.0,
+                        car_pos.get_z() + yaw.cos() * 12.5,
+                    );
+                    let tgt: Vec3 =
+                        Vec3::new(car_pos.get_x(), 2.2, car_pos.get_z() - yaw.cos() * 4.0);
+                    (eye, tgt)
+                }
+            };
+            desired_eye.set_x(desired_eye.get_x().clamp(-9.5, 9.5));
+            let cam_probe: Aabb3D = Aabb3D::new(
+                desired_eye.sub(Vec3::splat(0.6)),
+                desired_eye.add(Vec3::splat(0.6)),
+            );
+            if self.collides_with_obstacles(cam_probe, car_idx) {
+                desired_eye = Vec3::new(
+                    car_pos.get_x(),
+                    desired_eye.get_y().max(8.5),
+                    car_pos.get_z() + 8.0,
+                );
+            }
             let mut cam: Camera3D = self.get_camera();
             let smooth: f32 = (dt * 7.0).clamp(0.05, 1.0);
             cam.set_position(cam.get_position().lerp(desired_eye, smooth));
-            let look_target: Vec3 =
-                Vec3::new(car_pos.get_x(), 2.2, car_pos.get_z() - yaw.cos() * 4.0);
             let look_dir: Vec3 = look_target.sub(cam.get_position()).normalize();
             cam.set_yaw(look_dir.get_z().atan2(look_dir.get_x()));
-            cam.set_pitch(look_dir.get_y().clamp(-0.9, 0.9).asin());
+            cam.set_pitch(look_dir.get_y().clamp(-0.92, 0.92).asin());
             self.set_camera(cam);
         }
         for obj in self.get_mut_objects().iter_mut() {

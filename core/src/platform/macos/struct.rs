@@ -30,6 +30,22 @@ pub(crate) struct CgRect {
     pub(crate) size: CgSize,
 }
 
+/// CoreFoundation timer context ABI layout matching `CFRunLoopTimerContext`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CfRunLoopTimerContext {
+    /// Structure version (`0`).
+    pub(crate) version: isize,
+    /// Opaque user info pointer forwarded to timer callout.
+    pub(crate) info: *mut c_void,
+    /// Optional retain callback (`null`).
+    pub(crate) retain: *const c_void,
+    /// Optional release callback (`null`).
+    pub(crate) release: *const c_void,
+    /// Optional copyDescription callback (`null`).
+    pub(crate) copy_description: *const c_void,
+}
+
 /// Native macOS window record storing direct Cocoa/AppKit/QuartzCore pointers.
 #[derive(Clone, Data, Debug)]
 pub struct MacOsWindowRecord {

@@ -17,6 +17,54 @@ impl EuvAppShell {
         self.set_route_signal(Some(route_signal));
         self
     }
+
+    /// Attaches global header actions (e.g. Command Palette button, Theme Toggle) to the persistent top chrome bar.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source app shell.
+    /// - `NodeId` - Mounted header actions row node.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated app shell.
+    #[must_use]
+    pub fn top_bar_actions(mut self, actions: NodeId) -> Self {
+        self.set_top_bar_actions(Some(actions));
+        self
+    }
+
+    /// Attaches a footer widget (e.g. theme/DPI indicator) pinned below the sidebar navigation list.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source app shell.
+    /// - `NodeId` - Mounted sidebar footer node.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated app shell.
+    #[must_use]
+    pub fn sidebar_footer(mut self, footer: NodeId) -> Self {
+        self.set_sidebar_footer(Some(footer));
+        self
+    }
+
+    /// Binds a reactive breadcrumb string displayed in the persistent desktop/tablet top header bar.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source app shell.
+    /// - `Signal<String>` - Reactive breadcrumb text signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated app shell.
+    #[must_use]
+    pub fn breadcrumb(mut self, breadcrumb: Signal<String>) -> Self {
+        self.set_breadcrumb(Some(breadcrumb));
+        self
+    }
 }
 
 /// `Mountable` implementation adapting shell layout to `Breakpoint` and `SafeAreaInsets`.
@@ -35,305 +83,540 @@ impl Mountable for EuvAppShell {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
-        let bp: Breakpoint = ctx.get_breakpoint().get_untracked();
-        let safe: SafeAreaInsets = ctx.get_safe_area().get_untracked();
+        let bp_sig: Signal<Breakpoint> = ctx.get_breakpoint();
+        let vp_sig: Signal<Size> = ctx.get_viewport_size();
+        let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
+        let gesture_sig: Signal<Option<GestureEvent>> = ctx.get_gesture();
         let Self {
             brand,
             sidebar,
             main_content,
             route_signal,
+            top_bar_actions,
+            sidebar_footer,
+            breadcrumb,
             ..
         } = self;
-        let root_style: Style = Style::empty()
-            .width(Length::Percent(100.0))
-            .height(Length::Percent(100.0))
-            .background(p.get_background())
-            .overflow(Overflow::Hidden);
-        if bp.is_compact() {
-            let root: NodeId = ctx.view(root_style.column());
-            let menu_open: Signal<bool> = Signal::new(false);
-            let top_inset: f32 = safe.get_top();
-            let bottom_inset: f32 = safe.get_bottom();
-            let left_inset: f32 = safe.get_left();
-            let right_inset: f32 = safe.get_right();
-            let top_bar: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .height(Length::Px(MOBILE_HEADER_HEIGHT + top_inset))
-                    .padding(Edges::new(
-                        top_inset,
-                        SPACE_MD + right_inset,
-                        0.0,
-                        SPACE_MD + left_inset,
-                    ))
-                    .justify(JustifyContent::SpaceBetween)
-                    .align(AlignItems::Center)
-                    .background(p.get_card())
-                    .border(g.get_border_width(), p.get_border())
-                    .z_index(Z_INDEX_CHROME),
-            );
-            let title: NodeId = ctx.text(
-                brand.clone(),
-                Style::empty()
-                    .font_size(15.0)
-                    .font_weight(FontWeight::Bold)
-                    .color(p.get_foreground()),
-            );
-            let menu_btn_node: NodeId = EuvButton::new("Menu".to_string(), tokens)
-                .outline()
-                .sm()
-                .on_click(move |_: &UiEvent| {
-                    let _: bool = menu_open.update(|v: &mut bool| *v = !*v);
-                })
-                .mount(ctx);
-            ctx.append(top_bar, title);
-            ctx.append(top_bar, menu_btn_node);
-            let vp_h: f32 = ctx
-                .get_viewport_size()
-                .get_untracked()
-                .get_height()
-                .max(240.0);
-            let header_h: f32 = MOBILE_HEADER_HEIGHT + top_inset;
-            let body_h: f32 = (vp_h - header_h).max(120.0);
-            let body: NodeId = ctx.scroll_view(
-                Style::empty()
-                    .column()
-                    .flex_grow(1.0)
-                    .width(Length::Percent(100.0))
-                    .height(Length::Px(body_h))
-                    .padding(Edges::new(
-                        SPACE_MD,
-                        SPACE_MD + right_inset,
-                        SPACE_MD + bottom_inset,
-                        SPACE_MD + left_inset,
-                    ))
-                    .gap(SPACE_MD),
-            );
-            ctx.append(body, main_content);
-            let drawer_portal: NodeId = ctx.portal(
-                Style::empty()
-                    .row()
-                    .display(Display::None)
-                    .position(Position::Fixed)
-                    .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
-                    .width(Length::Percent(100.0))
-                    .height(Length::Percent(100.0))
-                    .justify(JustifyContent::Start)
-                    .background(p.get_overlay())
-                    .z_index(Z_INDEX_DRAWER),
-            );
-            let drawer_panel: NodeId = ctx.scroll_view(
-                Style::empty()
-                    .column()
-                    .width(Length::Percent(82.0))
-                    .max_width(Length::Px(280.0))
-                    .height(Length::Percent(100.0))
-                    .padding(Edges::new(
-                        SPACE_LG + top_inset,
-                        SPACE_LG,
-                        SPACE_LG + bottom_inset,
-                        SPACE_LG + left_inset,
-                    ))
-                    .gap(SPACE_MD)
-                    .background(p.get_card())
-                    .border(g.get_border_width(), p.get_border())
-                    .shadow(Shadow::new(4.0, 0.0, 20.0, 0.0, Color::rgba(0, 0, 0, 64))),
-            );
-            let drawer_head: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .justify(JustifyContent::SpaceBetween)
-                    .align(AlignItems::Center),
-            );
-            let drawer_title: NodeId = ctx.text(
-                brand,
-                Style::empty()
-                    .font_size(15.0)
-                    .font_weight(FontWeight::Bold)
-                    .color(p.get_foreground()),
-            );
-            let close_node: NodeId = EuvButton::new("Close".to_string(), tokens)
-                .ghost()
-                .sm()
-                .on_click(move |_: &UiEvent| {
-                    let _: bool = menu_open.set_if_changed(false);
-                })
-                .mount(ctx);
-            ctx.append(drawer_head, drawer_title);
-            ctx.append(drawer_head, close_node);
-            ctx.append(drawer_panel, drawer_head);
-            ctx.append(drawer_panel, sidebar);
-            ctx.append(drawer_portal, drawer_panel);
-            ctx.on_click(drawer_portal, move |ev: &UiEvent| {
-                if ev.get_target() == drawer_portal {
+        let root: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .background(p.get_background())
+                .overflow(Overflow::Hidden),
+        );
+        let menu_open: Signal<bool> = Signal::new(false);
+        let top_bar: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .width(Length::Percent(100.0))
+                .height(Length::Px(MOBILE_HEADER_HEIGHT))
+                .justify(JustifyContent::SpaceBetween)
+                .align(AlignItems::Center)
+                .background(p.get_card())
+                .z_index(Z_INDEX_CHROME),
+        );
+        let top_bar_divider: NodeId = ctx.view(
+            Style::empty()
+                .width(Length::Percent(100.0))
+                .height(Length::Px(g.get_border_width().max(1.0)))
+                .background(p.get_border()),
+        );
+        let title: NodeId = ctx.text(
+            brand.clone(),
+            Style::empty()
+                .font_size(15.0)
+                .font_weight(FontWeight::Bold)
+                .color(p.get_foreground()),
+        );
+        let menu_btn_node: NodeId = EuvButton::new("Menu".to_string(), tokens)
+            .outline()
+            .sm()
+            .on_click(move |_: &UiEvent| {
+                let _: bool = menu_open.update(|v: &mut bool| *v = !*v);
+            })
+            .mount(ctx);
+        ctx.append(top_bar, title);
+        ctx.append(top_bar, menu_btn_node);
+        let body_row: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .flex_grow(1.0)
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .overflow(Overflow::Hidden),
+        );
+        let nav_rail: NodeId = ctx.scroll_view(
+            Style::empty()
+                .column()
+                .width(Length::Px(NAV_SIDEBAR_WIDTH))
+                .height(Length::Percent(100.0))
+                .gap(SPACE_MD)
+                .background(p.get_card())
+                .stop_scroll_propagation(true)
+                .z_index(Z_INDEX_CHROME),
+        );
+        let nav_divider: NodeId = ctx.view(
+            Style::empty()
+                .width(Length::Px(g.get_border_width().max(1.0)))
+                .height(Length::Percent(100.0))
+                .background(p.get_border()),
+        );
+        let brand_row: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .width(Length::Percent(100.0))
+                .align(AlignItems::Center)
+                .gap(SPACE_SM)
+                .padding(Edges::new(0.0, 0.0, SPACE_XS, 0.0)),
+        );
+        let brand_mark: NodeId = ctx.view(
+            Style::empty()
+                .width(Length::Px(24.0))
+                .height(Length::Px(24.0))
+                .radius(6.0)
+                .background(p.get_primary())
+                .justify(JustifyContent::Center)
+                .align(AlignItems::Center),
+        );
+        let brand_mark_txt: NodeId = ctx.text(
+            "e".to_string(),
+            Style::empty()
+                .font_size(13.0)
+                .font_weight(FontWeight::Bold)
+                .color(p.get_primary_foreground()),
+        );
+        ctx.append(brand_mark, brand_mark_txt);
+        let brand_node: NodeId = ctx.text(
+            brand.clone(),
+            Style::empty()
+                .font_size(14.5)
+                .font_weight(FontWeight::Bold)
+                .color(p.get_foreground()),
+        );
+        ctx.append(brand_row, brand_mark);
+        ctx.append(brand_row, brand_node);
+        ctx.append(nav_rail, brand_row);
+        let content_column: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .flex_grow(1.0)
+                .height(Length::Percent(100.0))
+                .overflow(Overflow::Hidden),
+        );
+        let desktop_top_bar: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .width(Length::Percent(100.0))
+                .height(Length::Px(52.0))
+                .justify(JustifyContent::SpaceBetween)
+                .align(AlignItems::Center)
+                .padding(Edges::symmetric(0.0, SPACE_XL))
+                .background(p.get_card())
+                .z_index(Z_INDEX_CHROME),
+        );
+        let desktop_top_divider: NodeId = ctx.view(
+            Style::empty()
+                .width(Length::Percent(100.0))
+                .height(Length::Px(g.get_border_width().max(1.0)))
+                .background(p.get_border()),
+        );
+        let crumb_txt: NodeId = ctx.text(
+            brand.clone(),
+            Style::empty()
+                .font_size(13.0)
+                .font_weight(FontWeight::Medium)
+                .color(p.get_muted_foreground()),
+        );
+        ctx.append(desktop_top_bar, crumb_txt);
+        if let Some(actions_node) = top_bar_actions {
+            ctx.append(desktop_top_bar, actions_node);
+        }
+        let main_area: NodeId = ctx.scroll_view(
+            Style::empty()
+                .column()
+                .flex_grow(1.0)
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .gap(SPACE_LG),
+        );
+        ctx.append(main_area, main_content);
+        ctx.append(content_column, desktop_top_bar);
+        ctx.append(content_column, desktop_top_divider);
+        ctx.append(content_column, main_area);
+        ctx.append(body_row, nav_rail);
+        ctx.append(body_row, nav_divider);
+        ctx.append(body_row, content_column);
+        let drawer_portal: NodeId = ctx.portal(
+            Style::empty()
+                .row()
+                .display(Display::None)
+                .position(Position::Fixed)
+                .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .justify(JustifyContent::Start)
+                .background(p.get_overlay())
+                .stop_scroll_propagation(true)
+                .z_index(Z_INDEX_DRAWER),
+        );
+        let drawer_panel: NodeId = ctx.scroll_view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(82.0))
+                .max_width(Length::Px(280.0))
+                .height(Length::Percent(100.0))
+                .gap(SPACE_MD)
+                .background(p.get_card())
+                .border(g.get_border_width(), p.get_border())
+                .shadow(Shadow::new(4.0, 0.0, 18.0, 0.0, Color::rgba(0, 0, 0, 28))),
+        );
+        let drawer_head: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .width(Length::Percent(100.0))
+                .justify(JustifyContent::SpaceBetween)
+                .align(AlignItems::Center),
+        );
+        let drawer_title: NodeId = ctx.text(
+            brand,
+            Style::empty()
+                .font_size(15.0)
+                .font_weight(FontWeight::Bold)
+                .color(p.get_foreground()),
+        );
+        let close_node: NodeId = EuvButton::new("Close".to_string(), tokens)
+            .ghost()
+            .sm()
+            .on_click(move |_: &UiEvent| {
+                let _: bool = menu_open.set_if_changed(false);
+            })
+            .mount(ctx);
+        ctx.append(drawer_head, drawer_title);
+        ctx.append(drawer_head, close_node);
+        ctx.append(drawer_panel, drawer_head);
+        ctx.append(drawer_portal, drawer_panel);
+        ctx.on_click(drawer_portal, move |ev: &UiEvent| {
+            if ev.get_target() == drawer_portal {
+                let _: bool = menu_open.set_if_changed(false);
+            }
+        });
+        ctx.append(root, top_bar);
+        ctx.append(root, top_bar_divider);
+        ctx.append(root, body_row);
+        ctx.append(root, drawer_portal);
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let handle_layout: SceneHandle = handle.clone();
+        let handle_crumb: SceneHandle = handle.clone();
+        let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect =
+                EuvOverlayStack::bind_signal(menu_open, "EuvAppShellDrawer", Z_INDEX_DRAWER);
+            if let Some(crumb_sig) = breadcrumb {
+                let _: Effect = handle_crumb.bind_text(crumb_txt, move || crumb_sig.get());
+            }
+            let _: Effect = Effect::new(move || {
+                let bp: Breakpoint = bp_sig.get();
+                let vp: Size = vp_sig.get();
+                let safe: SafeAreaInsets = safe_sig.get();
+                let compact: bool = bp.is_compact();
+                let is_medium: bool = bp == Breakpoint::Medium;
+                let top_inset: f32 = safe.get_top();
+                let bottom_inset: f32 = safe.get_bottom();
+                let left_inset: f32 = safe.get_left();
+                let right_inset: f32 = safe.get_right();
+                let vp_h: f32 = vp.get_height().max(240.0);
+                let header_h: f32 = MOBILE_HEADER_HEIGHT + top_inset;
+                let desktop_bar_h: f32 = 52.0 + top_inset;
+                let body_h: f32 = if compact {
+                    (vp_h - header_h - 1.0).max(120.0)
+                } else {
+                    vp_h
+                };
+                let main_h: f32 = if compact {
+                    body_h
+                } else {
+                    (vp_h - desktop_bar_h - 1.0).max(120.0)
+                };
+                if !compact {
                     let _: bool = menu_open.set_if_changed(false);
                 }
-            });
-            let handle: SceneHandle = ctx.get_scene().clone();
-            let gesture_sig: Signal<Option<GestureEvent>> = ctx.get_gesture();
-            let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(false));
-            let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-                let last_g_seq: Rc<Cell<u64>> = Rc::new(Cell::new(
-                    gesture_sig
-                        .get_untracked()
-                        .map(|ev: GestureEvent| ev.get_sequence())
-                        .unwrap_or(0),
-                ));
-                let _: Effect = Effect::new(move || {
-                    if let Some(ev) = gesture_sig.get() {
-                        let seq: u64 = ev.get_sequence();
-                        if seq != last_g_seq.replace(seq) {
-                            if ev.get_kind() == GestureEventKind::SwipeRight
-                                && ev.get_origin().get_x() <= 48.0
-                            {
-                                let _: bool = menu_open.set_if_changed(true);
-                            } else if ev.get_kind() == GestureEventKind::SwipeLeft
-                                && menu_open.get_untracked()
-                            {
-                                let _: bool = menu_open.set_if_changed(false);
+                handle_layout.with_write(
+                    |tree: &mut SceneTree| {
+                        let target_sidebar_parent: NodeId =
+                            if compact { drawer_panel } else { nav_rail };
+                        let cur_parent: Option<NodeId> =
+                            tree.get_node(sidebar).and_then(SceneNode::parent_id);
+                        if cur_parent != Some(target_sidebar_parent) {
+                            tree.append_child(target_sidebar_parent, sidebar);
+                        }
+                        if let Some(footer_id) = sidebar_footer {
+                            let cur_f: Option<NodeId> =
+                                tree.get_node(footer_id).and_then(SceneNode::parent_id);
+                            if cur_f != Some(target_sidebar_parent) {
+                                tree.append_child(target_sidebar_parent, footer_id);
                             }
                         }
-                    }
-                });
-                if let Some(route_sig) = route_signal {
-                    let prev_route: Rc<RefCell<String>> =
-                        Rc::new(RefCell::new(route_sig.get_untracked()));
-                    let _: Effect = Effect::new(move || {
-                        let next_r: String = route_sig.get();
-                        if let Ok(mut guard) = prev_route.try_borrow_mut()
-                            && *guard != next_r
+                        let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                        let mask_all: u16 = dirty_l | DIRTY_PAINT;
+                        tree.mark_dirty(sidebar, mask_all);
+                        let nav_children: Vec<NodeId> = tree
+                            .get_node(sidebar)
+                            .map(|node: &SceneNode| node.get_children().clone())
+                            .unwrap_or_default();
+                        for child_id in nav_children.into_iter() {
+                            tree.mark_dirty(child_id, mask_all);
+                        }
+                        if let Some(n) = tree.get_node_mut(top_bar) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_display(if compact {
+                                Display::Flex
+                            } else {
+                                Display::None
+                            });
+                            st.get_mut_layout().set_height(Length::Px(header_h));
+                            st.get_mut_layout().set_padding(Edges::new(
+                                top_inset,
+                                SPACE_MD + right_inset,
+                                0.0,
+                                SPACE_MD + left_inset,
+                            ));
+                            n.set_style(st);
+                        }
+                        if let Some(n) = tree.get_node_mut(top_bar_divider) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_display(if compact {
+                                Display::Flex
+                            } else {
+                                Display::None
+                            });
+                            n.set_style(st);
+                        }
+                        if let Some(n) = tree.get_node_mut(desktop_top_bar) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_display(if compact {
+                                Display::None
+                            } else {
+                                Display::Flex
+                            });
+                            st.get_mut_layout().set_height(Length::Px(desktop_bar_h));
+                            let bar_pad: f32 = if is_medium { SPACE_MD } else { SPACE_XL };
+                            st.get_mut_layout().set_padding(Edges::new(
+                                top_inset,
+                                bar_pad + right_inset,
+                                0.0,
+                                bar_pad,
+                            ));
+                            n.set_style(st);
+                        }
+                        if let Some(n) = tree.get_node_mut(desktop_top_divider) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_display(if compact {
+                                Display::None
+                            } else {
+                                Display::Flex
+                            });
+                            n.set_style(st);
+                        }
+                        if let Some(n) = tree.get_node_mut(body_row) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_height(Length::Px(body_h));
+                            n.set_style(st);
+                        }
+                        if let Some(n) = tree.get_node_mut(content_column) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_height(Length::Px(body_h));
+                            n.set_style(st);
+                        }
+                        let nav_w: f32 = if is_medium { 204.0 } else { NAV_SIDEBAR_WIDTH };
+                        let nav_pad: f32 = if is_medium { SPACE_MD } else { SPACE_LG };
+                        if let Some(n) = tree.get_node_mut(nav_divider) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_display(if compact {
+                                Display::None
+                            } else {
+                                Display::Flex
+                            });
+                            n.set_style(st);
+                        }
+                        if let Some(n) = tree.get_node_mut(nav_rail) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_display(if compact {
+                                Display::None
+                            } else {
+                                Display::Flex
+                            });
+                            st.get_mut_layout().set_width(Length::Px(nav_w));
+                            st.get_mut_layout().set_padding(Edges::new(
+                                nav_pad + top_inset,
+                                nav_pad,
+                                nav_pad + bottom_inset,
+                                nav_pad + left_inset,
+                            ));
+                            n.set_style(st);
+                        }
+                        let main_pad: f32 = if compact {
+                            SPACE_MD
+                        } else if is_medium {
+                            SPACE_LG
+                        } else {
+                            SPACE_XL
+                        };
+                        if let Some(n) = tree.get_node_mut(main_area) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_height(Length::Px(main_h));
+                            st.get_mut_layout().set_padding(Edges::new(
+                                main_pad,
+                                main_pad + right_inset,
+                                main_pad + bottom_inset,
+                                if compact {
+                                    SPACE_MD + left_inset
+                                } else {
+                                    main_pad
+                                },
+                            ));
+                            st = st.gap(if compact { SPACE_MD } else { SPACE_LG });
+                            n.set_style(st);
+                        }
+                        if let Some(n) = tree.get_node_mut(drawer_panel) {
+                            let mut st: Style = n.get_style();
+                            st.get_mut_layout().set_padding(Edges::new(
+                                SPACE_LG + top_inset,
+                                SPACE_LG,
+                                SPACE_LG + bottom_inset,
+                                SPACE_LG + left_inset,
+                            ));
+                            n.set_style(st);
+                        }
+                        let mask: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                        tree.mark_dirty(root, mask | DIRTY_PAINT);
+                    },
+                    (),
+                );
+            });
+            let last_g_seq: Rc<Cell<u64>> = Rc::new(Cell::new(
+                gesture_sig
+                    .get_untracked()
+                    .map(|ev: GestureEvent| ev.get_sequence())
+                    .unwrap_or(0),
+            ));
+            let _: Effect = Effect::new(move || {
+                if let Some(ev) = gesture_sig.get() {
+                    let seq: u64 = ev.get_sequence();
+                    if seq != last_g_seq.replace(seq) && bp_sig.get_untracked().is_compact() {
+                        if ev.get_kind() == GestureEventKind::SwipeRight
+                            && ev.get_origin().get_x() <= 48.0
                         {
-                            *guard = next_r;
+                            let _: bool = menu_open.set_if_changed(true);
+                        } else if ev.get_kind() == GestureEventKind::SwipeLeft
+                            && menu_open.get_untracked()
+                        {
                             let _: bool = menu_open.set_if_changed(false);
                         }
-                    });
+                    }
                 }
-                Effect::new(move || {
-                    let is_open: bool = menu_open.get();
-                    let was_open: bool = prev_open.replace(is_open);
-                    if is_open == was_open {
-                        return;
-                    }
-                    if is_open {
-                        handle.with_write(
-                            |tree: &mut SceneTree| {
-                                if let Some(n) = tree.get_node_mut(drawer_portal) {
-                                    let mut st: Style = n.get_style();
-                                    st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
-                                    n.set_style(st);
-                                }
-                            },
-                            (),
-                        );
-                        handle.start_transition(NodeTransition::fade(
-                            drawer_portal,
-                            0.0,
-                            1.0,
-                            0.22,
-                            false,
-                        ));
-                        handle.start_transition(NodeTransition::slide_fade(
-                            drawer_panel,
-                            Point::new(-280.0, 0.0),
-                            Point::new(0.0, 0.0),
-                            0.92,
-                            1.0,
-                            0.24,
-                            false,
-                        ));
-                    } else {
-                        handle.with_write(
-                            |tree: &mut SceneTree| {
-                                if let Some(n) = tree.get_node_mut(drawer_portal) {
-                                    let mut st: Style = n.get_style();
-                                    st.get_mut_paint().set_pointer_events(PointerEvents::None);
-                                    n.set_style(st);
-                                }
-                            },
-                            (),
-                        );
-                        handle.start_transition(NodeTransition::slide_fade(
-                            drawer_panel,
-                            Point::new(0.0, 0.0),
-                            Point::new(-280.0, 0.0),
-                            1.0,
-                            0.9,
-                            0.22,
-                            false,
-                        ));
-                        handle.start_transition(NodeTransition::fade(
-                            drawer_portal,
-                            1.0,
-                            0.0,
-                            0.22,
-                            true,
-                        ));
-                    }
-                })
             });
-            ctx.get_scene().with_write(
-                |tree: &mut SceneTree| {
-                    tree.attach_scope(drawer_portal, scope);
-                },
-                (),
-            );
-            ctx.append(root, top_bar);
-            ctx.append(root, body);
-            ctx.append(root, drawer_portal);
-            root
-        } else {
-            let root: NodeId = ctx.view(root_style.row());
-            let is_medium: bool = bp == Breakpoint::Medium;
-            let nav_w: f32 = if is_medium { 192.0 } else { NAV_SIDEBAR_WIDTH };
-            let nav_pad: f32 = if is_medium { SPACE_MD } else { SPACE_LG };
-            let main_pad: f32 = if is_medium { SPACE_LG } else { SPACE_2XL };
-            let top_inset: f32 = safe.get_top();
-            let bottom_inset: f32 = safe.get_bottom();
-            let nav_rail: NodeId = ctx.scroll_view(
-                Style::empty()
-                    .column()
-                    .width(Length::Px(nav_w))
-                    .height(Length::Percent(100.0))
-                    .padding(Edges::new(
-                        nav_pad + top_inset,
-                        nav_pad,
-                        nav_pad + bottom_inset,
-                        nav_pad + safe.get_left(),
-                    ))
-                    .gap(SPACE_MD)
-                    .background(p.get_card())
-                    .border(g.get_border_width(), p.get_border())
-                    .z_index(Z_INDEX_CHROME),
-            );
-            let brand_node: NodeId = ctx.text(
-                brand,
-                Style::empty()
-                    .font_size(16.0)
-                    .font_weight(FontWeight::Bold)
-                    .color(p.get_foreground()),
-            );
-            ctx.append(nav_rail, brand_node);
-            ctx.append(nav_rail, sidebar);
-            let main_area: NodeId = ctx.scroll_view(
-                Style::empty()
-                    .column()
-                    .flex_grow(1.0)
-                    .height(Length::Percent(100.0))
-                    .padding(Edges::new(
-                        main_pad + top_inset,
-                        main_pad + safe.get_right(),
-                        main_pad + bottom_inset,
-                        main_pad,
-                    ))
-                    .gap(SPACE_LG),
-            );
-            ctx.append(main_area, main_content);
-            ctx.append(root, nav_rail);
-            ctx.append(root, main_area);
-            root
-        }
+            if let Some(route_sig) = route_signal {
+                let prev_route: Rc<RefCell<String>> =
+                    Rc::new(RefCell::new(route_sig.get_untracked()));
+                let handle_route_scroll: SceneHandle = handle.clone();
+                let _: Effect = Effect::new(move || {
+                    let next_r: String = route_sig.get();
+                    if let Ok(mut guard) = prev_route.try_borrow_mut()
+                        && *guard != next_r
+                    {
+                        *guard = next_r;
+                        let _: bool = menu_open.set_if_changed(false);
+                        handle_route_scroll.with_write(
+                            |tree: &mut SceneTree| {
+                                tree.set_scroll_offset(main_area, Point::new(0.0, 0.0));
+                            },
+                            (),
+                        );
+                    }
+                });
+            }
+            Effect::new(move || {
+                let is_open: bool = menu_open.get();
+                let was_open: bool = prev_open.replace(is_open);
+                if is_open == was_open {
+                    return;
+                }
+                if is_open {
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(drawer_portal) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                                n.set_style(st);
+                            }
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            let mask_all: u16 = dirty_l | DIRTY_PAINT;
+                            tree.mark_dirty(drawer_panel, mask_all);
+                            tree.mark_dirty(sidebar, mask_all);
+                            let nav_children: Vec<NodeId> = tree
+                                .get_node(sidebar)
+                                .map(|node: &SceneNode| node.get_children().clone())
+                                .unwrap_or_default();
+                            for child_id in nav_children.into_iter() {
+                                tree.mark_dirty(child_id, mask_all);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::fade(
+                        drawer_portal,
+                        0.0,
+                        1.0,
+                        0.22,
+                        false,
+                    ));
+                    handle.start_transition(NodeTransition::slide_fade(
+                        drawer_panel,
+                        Point::new(-280.0, 0.0),
+                        Point::new(0.0, 0.0),
+                        0.92,
+                        1.0,
+                        0.24,
+                        false,
+                    ));
+                } else {
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(drawer_portal) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::slide_fade(
+                        drawer_panel,
+                        Point::new(0.0, 0.0),
+                        Point::new(-280.0, 0.0),
+                        1.0,
+                        0.9,
+                        0.22,
+                        false,
+                    ));
+                    handle.start_transition(NodeTransition::fade(
+                        drawer_portal,
+                        1.0,
+                        0.0,
+                        0.22,
+                        true,
+                    ));
+                }
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(root, scope);
+            },
+            (),
+        );
+        root
     }
 }
 
@@ -446,6 +729,7 @@ impl Mountable for EuvPage {
             Style::empty()
                 .column()
                 .width(Length::Percent(100.0))
+                .max_width(Length::Px(1120.0))
                 .gap(SPACE_LG),
         );
         let header: NodeId = EuvHeader::new(title, subtitle, tokens).mount(ctx);
@@ -537,21 +821,51 @@ impl Mountable for EuvStatGrid {
     ///
     /// - `NodeId` - Mounted grid node handle.
     fn mount(self, ctx: &mut BuildContext) -> NodeId {
-        let cols: u16 = match ctx.get_breakpoint().get_untracked() {
-            Breakpoint::Compact => 1,
-            Breakpoint::Medium => 2,
-            Breakpoint::Expanded => 3,
-        };
+        let bp_sig: Signal<Breakpoint> = ctx.get_breakpoint();
         let Self { cards } = self;
+        let max_cols: u16 = (cards.len() as u16).clamp(1, 3);
+        let initial_cols: u16 = match bp_sig.get_untracked() {
+            Breakpoint::Compact => 1,
+            Breakpoint::Medium => max_cols.min(2),
+            Breakpoint::Expanded => max_cols,
+        };
         let grid: NodeId = ctx.view(
             Style::empty()
-                .grid(cols)
+                .grid(initial_cols)
                 .width(Length::Percent(100.0))
                 .gap(SPACE_MD),
         );
         for card in cards.into_iter() {
             ctx.append(grid, card);
         }
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let cols: u16 = match bp_sig.get() {
+                    Breakpoint::Compact => 1,
+                    Breakpoint::Medium => max_cols.min(2),
+                    Breakpoint::Expanded => max_cols,
+                };
+                handle.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(node) = tree.get_node_mut(grid) {
+                            let mut st: Style = node.get_style();
+                            st.get_mut_layout().set_grid_columns(cols);
+                            node.set_style(st);
+                        }
+                        let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                        tree.mark_dirty(grid, dirty_l | DIRTY_PAINT);
+                    },
+                    (),
+                );
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(grid, scope);
+            },
+            (),
+        );
         grid
     }
 }

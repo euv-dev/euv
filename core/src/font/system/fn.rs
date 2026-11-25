@@ -112,8 +112,9 @@ pub fn probe_system_font() -> SystemFontInfo {
     }
     #[cfg(target_os = "android")]
     {
-        let has_ft: bool = freetype_runtime_available();
-        if has_ft {
+        let has_native: bool = !EXTERNAL_GLYPH_RASTERIZER.load(Ordering::Acquire).is_null()
+            || freetype_runtime_available();
+        if has_native {
             SystemFontInfo::new(
                 FontRenderBackend::FreeType,
                 FONT_FAMILY_ANDROID_SYSTEM.to_string(),
@@ -149,6 +150,36 @@ pub fn probe_system_font() -> SystemFontInfo {
     }
 }
 
+/// Registers an external platform-host native glyph rasterizer callback (for example Android Skia `Paint` via JNI).
+///
+/// # Arguments
+///
+/// - `ExternalGlyphRasterizer` - Anti-aliased native glyph rasterizer function pointer.
+pub fn register_external_glyph_rasterizer(rasterizer: ExternalGlyphRasterizer) {
+    let raw: *mut () = rasterizer as *mut ();
+    EXTERNAL_GLYPH_RASTERIZER.store(raw, Ordering::Release);
+}
+
+/// Invokes the registered external native glyph rasterizer if one has been installed.
+///
+/// # Arguments
+///
+/// - `GlyphKey` - Quantized glyph descriptor.
+///
+/// # Returns
+///
+/// - `Option<RasterizedGlyph>` - Anti-aliased glyph bitmap from the host OS bridge.
+#[must_use]
+fn try_external_glyph_rasterizer(key: GlyphKey) -> Option<RasterizedGlyph> {
+    let raw: *mut () = EXTERNAL_GLYPH_RASTERIZER.load(Ordering::Acquire);
+    if raw.is_null() {
+        return None;
+    }
+    // SAFETY: `raw` was exclusively stored by `register_external_glyph_rasterizer` from a valid `ExternalGlyphRasterizer` fn pointer.
+    let func: ExternalGlyphRasterizer = unsafe { transmute(raw) };
+    func(key)
+}
+
 /// Rasterizes a glyph through the active OS native font API, falling back to `None` if unavailable.
 ///
 /// # Arguments
@@ -160,6 +191,9 @@ pub fn probe_system_font() -> SystemFontInfo {
 /// - `Option<RasterizedGlyph>` - Anti-aliased native OS glyph bitmap when available.
 #[must_use]
 pub fn rasterize_native_glyph(key: GlyphKey) -> Option<RasterizedGlyph> {
+    if let Some(ext) = try_external_glyph_rasterizer(key) {
+        return Some(ext);
+    }
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     {
         rasterize_coretext_glyph(key)

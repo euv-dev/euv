@@ -426,10 +426,10 @@ impl AudioTrack {
         let sample_count: usize = (sample_rate as usize) * duration_secs;
         let data_bytes: u32 = (sample_count * 2) as u32;
         let mut wav: Vec<u8> = Vec::with_capacity(44 + data_bytes as usize);
-        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(MAGIC_RIFF);
         wav.extend_from_slice(&(36_u32 + data_bytes).to_le_bytes());
-        wav.extend_from_slice(b"WAVE");
-        wav.extend_from_slice(b"fmt ");
+        wav.extend_from_slice(MAGIC_WAVE);
+        wav.extend_from_slice(MAGIC_WAV_FMT);
         wav.extend_from_slice(&16_u32.to_le_bytes());
         wav.extend_from_slice(&1_u16.to_le_bytes());
         wav.extend_from_slice(&1_u16.to_le_bytes());
@@ -437,7 +437,7 @@ impl AudioTrack {
         wav.extend_from_slice(&(sample_rate * 2).to_le_bytes());
         wav.extend_from_slice(&2_u16.to_le_bytes());
         wav.extend_from_slice(&16_u16.to_le_bytes());
-        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(MAGIC_WAV_DATA);
         wav.extend_from_slice(&data_bytes.to_le_bytes());
         for i in 0..sample_count {
             let t: f32 = (i as f32) / (sample_rate as f32);
@@ -669,6 +669,6 @@ impl SvgDocument {
 <circle cx=\"92\" cy=\"50\" r=\"20\" fill=\"#A855F7\"/>\
 <line x1=\"24\" y1=\"80\" x2=\"136\" y2=\"80\" stroke=\"#34D399\"/>\
 </svg>";
-        MediaCodecRegistry::parse_and_rasterize_svg(raw, 200, 125).unwrap_or_default()
+        MediaCodecRegistry::parse_and_rasterize_svg(raw, 480, 300).unwrap_or_default()
     }
 }

@@ -138,6 +138,9 @@ pub struct ShowcaseState {
     /// Human-readable status of the most recent 3D model import.
     #[get(type(copy))]
     pub(crate) engine3d_import_status: Signal<String>,
+    /// Active 3D camera perspective mode (`0=Chase, 1=Hood, 2=Orbit, 3=Aerial`).
+    #[get(type(copy))]
+    pub(crate) engine3d_camera_mode: Signal<u8>,
     /// Shared hub managing live component-level and page-level dynamic OTA updates.
     pub(crate) dynamic_hub: DynamicUpdateHub,
     /// Sibling counter preserved untouched during surgical component-level dynamic updates.
@@ -197,6 +200,88 @@ pub struct ShowcaseState {
     /// Most recently clicked native HTML hyperlink URI in the Media Studio showcase.
     #[get(type(copy))]
     pub(crate) media_html_link_log: Signal<String>,
+    /// Simulated target platform index for cross-platform Dynamic Island & permissions matrix (`0..7`).
+    #[get(type(copy))]
+    pub(crate) os_target_platform_idx: Signal<usize>,
+    /// Active Dynamic Island presentation mode index (`0..6`).
+    #[get(type(copy))]
+    pub(crate) island_mode_idx: Signal<usize>,
+    /// Live notification delivery stack displayed via `EuvSonner`.
+    #[get(type(copy))]
+    pub(crate) system_notifications: Signal<Vec<(String, String)>>,
+    /// Per-permission status map across all 14 `SystemPermission` categories.
+    #[get(type(copy))]
+    pub(crate) permission_statuses: Signal<Vec<PermissionStatus>>,
+    /// Controlled search query for `EuvCombobox` in the UI & Edge Lab.
+    #[get(type(copy))]
+    pub(crate) lab_combobox_query: Signal<String>,
+    /// Controlled selected index for `EuvCombobox`.
+    #[get(type(copy))]
+    pub(crate) lab_combobox_selected: Signal<usize>,
+    /// Controlled open flag for `EuvCombobox`.
+    #[get(type(copy))]
+    pub(crate) lab_combobox_open: Signal<bool>,
+    /// Controlled filter string for `EuvDataTable`.
+    #[get(type(copy))]
+    pub(crate) lab_table_filter: Signal<String>,
+    /// Controlled sort order for `EuvDataTable`.
+    #[get(type(copy))]
+    pub(crate) lab_table_sort_asc: Signal<bool>,
+    /// Controlled selected row index for `EuvDataTable`.
+    #[get(type(copy))]
+    pub(crate) lab_table_selected: Signal<Option<usize>>,
+    /// Controlled selected day for `EuvDatePicker`.
+    #[get(type(copy))]
+    pub(crate) lab_date_day: Signal<u32>,
+    /// Controlled open flag for `EuvDatePicker`.
+    #[get(type(copy))]
+    pub(crate) lab_date_open: Signal<bool>,
+    /// Controlled domain input value for `EuvInputGroup`.
+    #[get(type(copy))]
+    pub(crate) lab_input_group_val: Signal<String>,
+    /// Controlled selected index for `EuvNativeSelect`.
+    #[get(type(copy))]
+    pub(crate) lab_native_select_idx: Signal<usize>,
+    /// Controlled active dropdown index for `EuvNavigationMenu`.
+    #[get(type(copy))]
+    pub(crate) lab_nav_menu_active: Signal<Option<usize>>,
+    /// Controlled split ratio for `EuvResizable`.
+    #[get(type(copy))]
+    pub(crate) lab_split_ratio: Signal<f32>,
+    /// Toggle controlling whether the nested edge-case box blocks scroll penetration (`true`) or allows chaining (`false`).
+    #[get(type(copy))]
+    pub(crate) lab_block_scroll_chain: Signal<bool>,
+    /// Toggle controlling whether the nested edge-case box stops click event bubbling (`true`) or allows bubbling (`false`).
+    #[get(type(copy))]
+    pub(crate) lab_stop_click_bubble: Signal<bool>,
+    /// Counter tracking clicks received by the outer parent card in the event bubbling test.
+    #[get(type(copy))]
+    pub(crate) lab_parent_clicks: Signal<u32>,
+    /// Counter tracking clicks received by the inner button in the event bubbling test.
+    #[get(type(copy))]
+    pub(crate) lab_child_clicks: Signal<u32>,
+    /// Persistent counter proving live resize never destroys or resets page state.
+    #[get(type(copy))]
+    pub(crate) lab_resize_preserve_count: Signal<u32>,
+    /// Controlled direction mode toggle (`false=LTR, true=RTL`).
+    #[get(type(copy))]
+    pub(crate) lab_rtl_mode: Signal<bool>,
+    /// Cross-platform in-memory WASM CDN registry serving real `.wasm` binaries and fault scenarios.
+    pub(crate) wasm_registry: RegistryWasmFetcher,
+    /// Dynamic WASM download, verification, sandbox execution, cache, and rollback manager.
+    pub(crate) wasm_manager: WasmDynamicManager,
+    /// Simulated offline network mode toggle for verifying verified offline WASM cache hits.
+    #[get(type(copy))]
+    pub(crate) wasm_offline: Signal<bool>,
+    /// Live human-readable readout of the latest dynamic WASM download or fault verification case.
+    #[get(type(copy))]
+    pub(crate) wasm_fault_status: Signal<String>,
+    /// Controlled global `⌘K` Command Palette modal visibility flag.
+    #[get(type(copy))]
+    pub(crate) cmd_palette_open: Signal<bool>,
+    /// Controlled global `⌘K` Command Palette filter query.
+    #[get(type(copy))]
+    pub(crate) cmd_palette_query: Signal<String>,
 }
 
 /// Full-featured 2D arcade arena scene powered by `GameWorld`, `PhysicsWorld2D`, `Camera2D`, `ParticleSystem`, `TileMap`, `ActionMap`, and `AudioBus`.
@@ -267,6 +352,9 @@ pub struct DemoOpenWorld3DScene {
     /// Status text signal reporting imported vertices/triangles/BVH count.
     #[get(type(copy))]
     pub(crate) status_signal: Signal<String>,
+    /// Reactive 3D camera mode signal (`0=Chase, 1=Hood, 2=Orbit, 3=Aerial`).
+    #[get(type(copy))]
+    pub(crate) camera_mode_signal: Signal<u8>,
     /// Smoothed real-time FPS telemetry.
     #[get(type(copy))]
     pub(crate) smoothed_fps: f32,

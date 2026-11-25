@@ -542,7 +542,9 @@ impl PaintPass {
                 );
             }
         }
-        if layout.get_overflow() == Overflow::Scroll && bounds.get_height() > 24.0 {
+        let show_scrollbar: bool = display_list.get_viewport().get_width() >= 640.0;
+        if show_scrollbar && layout.get_overflow() == Overflow::Scroll && bounds.get_height() > 24.0
+        {
             let lbox: LayoutBox = node.get_layout_box();
             let border_w: f32 = paint.get_border().get_width();
             let inner_x: f32 = bounds.get_x() + border_w;
@@ -560,7 +562,7 @@ impl PaintPass {
             let max_scroll_y: f32 = (total_h - view_h).max(0.0);
             if max_scroll_y > 1.0 {
                 let track_margin: f32 = 3.0;
-                let track_w: f32 = 6.0;
+                let track_w: f32 = if hovered { 6.0 } else { 4.0 };
                 let track_x: f32 = (inner_x + inner_w - track_w - 2.0).max(inner_x);
                 let track_y: f32 = inner_y + track_margin;
                 let track_h: f32 = (inner_h - track_margin * 2.0).max(16.0);
@@ -569,17 +571,19 @@ impl PaintPass {
                 let thumb_h: f32 = (track_h * ratio).clamp(min_thumb_h, track_h);
                 let scroll_frac: f32 = (scroll_y / max_scroll_y).clamp(0.0, 1.0);
                 let thumb_y: f32 = track_y + (track_h - thumb_h) * scroll_frac;
-                display_list.push(DrawCommand::FillRoundedRect {
-                    rect: Rect::new(track_x, track_y, track_w, track_h),
-                    color: Color::rgba(113, 113, 122, 32).multiply_alpha(opacity),
-                    radius: CornerRadius::all(3.0),
-                    border: Border::default(),
-                });
-                let thumb_alpha: u8 = if hovered { 190 } else { 136 };
+                if hovered {
+                    display_list.push(DrawCommand::FillRoundedRect {
+                        rect: Rect::new(track_x, track_y, track_w, track_h),
+                        color: Color::rgba(113, 113, 122, 24).multiply_alpha(opacity),
+                        radius: CornerRadius::all(3.0),
+                        border: Border::default(),
+                    });
+                }
+                let thumb_alpha: u8 = if hovered { 180 } else { 112 };
                 display_list.push(DrawCommand::FillRoundedRect {
                     rect: Rect::new(track_x, thumb_y, track_w, thumb_h),
                     color: Color::rgba(113, 113, 122, thumb_alpha).multiply_alpha(opacity),
-                    radius: CornerRadius::all(3.0),
+                    radius: CornerRadius::all(track_w * 0.5),
                     border: Border::default(),
                 });
             }

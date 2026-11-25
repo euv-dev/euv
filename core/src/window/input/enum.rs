@@ -34,6 +34,8 @@ pub enum KeyCode {
     Enter,
     /// Escape key.
     Escape,
+    /// System Back navigation key/gesture (Android hardware/gesture Back, iOS/Web back command).
+    Back,
     /// Tab key.
     Tab,
     /// Backspace key.

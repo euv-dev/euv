@@ -105,5 +105,5 @@ fn media_codec_registry_sniffs_and_decodes_image_bmp_gif_live_video_audio_wav_pd
     );
     let svg: SvgDocument = SvgDocument::sample_svg();
     assert_eq!(svg.get_primitive_count(), 5);
-    assert_eq!(svg.get_rasterized().get_width(), 200);
+    assert_eq!(svg.get_rasterized().get_width(), 480);
 }

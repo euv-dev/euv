@@ -119,10 +119,14 @@ impl SoftwareRenderer {
                 radius,
                 border,
             } => {
-                let phys_rect: Rect = Self::scale_rect(*rect, scale);
+                let phys_rect: Rect = snap_physical_rect(*rect, scale);
                 let phys_radius: CornerRadius = Self::scale_radius(*radius, scale);
-                let phys_border: Border =
-                    Border::new(border.get_width() * scale, border.get_color());
+                let bw: f32 = if border.get_width() > 0.0 {
+                    (border.get_width() * scale).round().max(1.0)
+                } else {
+                    0.0
+                };
+                let phys_border: Border = Border::new(bw, border.get_color());
                 self.raster_rounded_rect(phys_rect, *color, phys_radius, phys_border, active_clip)
             }
             DrawCommand::LinearGradientRect {
@@ -130,7 +134,7 @@ impl SoftwareRenderer {
                 gradient,
                 radius,
             } => {
-                let phys_rect: Rect = Self::scale_rect(*rect, scale);
+                let phys_rect: Rect = snap_physical_rect(*rect, scale);
                 let phys_radius: CornerRadius = Self::scale_radius(*radius, scale);
                 self.raster_gradient_rect(phys_rect, *gradient, phys_radius, active_clip)
             }
@@ -390,17 +394,14 @@ impl SoftwareRenderer {
                 if outer_cov > 0.0 {
                     if has_border {
                         let inner_cov: f32 = sdf_coverage(dist_y + border_w, aa);
-                        let border_cov: f32 = (outer_cov - inner_cov).clamp(0.0, 1.0);
-                        if inner_cov > 0.0 && color.get_a() > 0 {
-                            fb.fill_span(cx0, cx1, y, color.multiply_alpha(inner_cov));
-                        }
-                        if border_cov > 0.0 {
-                            fb.fill_span(
-                                cx0,
-                                cx1,
-                                y,
-                                border.get_color().multiply_alpha(border_cov),
-                            );
+                        let mixed: Color = composite_fill_and_border(
+                            color,
+                            border.get_color(),
+                            outer_cov,
+                            inner_cov,
+                        );
+                        if mixed.get_a() > 0 {
+                            fb.fill_span(cx0, cx1, y, mixed);
                         }
                         shaded += (cx1 - cx0) as usize;
                     } else if color.get_a() > 0 {
@@ -467,14 +468,13 @@ impl SoftwareRenderer {
         }
         if border.get_width() > 0.0 && border.get_color().get_a() > 0 {
             let inner_cov: f32 = sdf_coverage(dist + border.get_width(), aa);
-            let border_cov: f32 = (outer_cov - inner_cov).clamp(0.0, 1.0);
-            if inner_cov > 0.0 && color.get_a() > 0 {
-                fb.blend_pixel(x, y, color.multiply_alpha(inner_cov));
+            let mixed: Color =
+                composite_fill_and_border(color, border.get_color(), outer_cov, inner_cov);
+            if mixed.get_a() > 0 {
+                fb.blend_pixel(x, y, mixed);
+                return 1;
             }
-            if border_cov > 0.0 {
-                fb.blend_pixel(x, y, border.get_color().multiply_alpha(border_cov));
-            }
-            return 1;
+            return 0;
         }
         if color.get_a() > 0 {
             fb.blend_pixel(x, y, color.multiply_alpha(outer_cov));
@@ -610,7 +610,7 @@ impl SoftwareRenderer {
                             1.0
                         } else {
                             let norm: f32 = 1.0 - (dist * inv_blur).clamp(0.0, 1.0);
-                            norm * norm
+                            norm * norm * (3.0 - 2.0 * norm)
                         };
                         if falloff > 0.0 {
                             fb.blend_pixel(x, y, color.multiply_alpha(falloff));
@@ -628,7 +628,7 @@ impl SoftwareRenderer {
                             1.0
                         } else {
                             let norm: f32 = 1.0 - (dist * inv_blur).clamp(0.0, 1.0);
-                            norm * norm
+                            norm * norm * (3.0 - 2.0 * norm)
                         };
                         if falloff > 0.0 {
                             fb.blend_pixel(x, y, color.multiply_alpha(falloff));
@@ -645,7 +645,7 @@ impl SoftwareRenderer {
                             1.0
                         } else {
                             let norm: f32 = 1.0 - (dist * inv_blur).clamp(0.0, 1.0);
-                            norm * norm
+                            norm * norm * (3.0 - 2.0 * norm)
                         };
                         if falloff > 0.0 {
                             fb.blend_pixel(x, y, color.multiply_alpha(falloff));
@@ -659,7 +659,7 @@ impl SoftwareRenderer {
                         1.0
                     } else {
                         let norm: f32 = 1.0 - (dist_y * inv_blur).clamp(0.0, 1.0);
-                        norm * norm
+                        norm * norm * (3.0 - 2.0 * norm)
                     };
                     if falloff > 0.0 {
                         fb.fill_span(sx0, sx1, y, color.multiply_alpha(falloff));
@@ -674,7 +674,7 @@ impl SoftwareRenderer {
                             1.0
                         } else {
                             let norm: f32 = 1.0 - (dist * inv_blur).clamp(0.0, 1.0);
-                            norm * norm
+                            norm * norm * (3.0 - 2.0 * norm)
                         };
                         if falloff > 0.0 {
                             fb.blend_pixel(x, y, color.multiply_alpha(falloff));
@@ -833,7 +833,7 @@ impl SoftwareRenderer {
         shaded
     }
 
-    /// Blits a decoded `ImageBuffer` into `rect` with nearest-neighbor scaling and rounded clip.
+    /// Blits a decoded `ImageBuffer` into `rect` with bilinear anti-aliased filtering and SDF rounded clip.
     ///
     /// # Arguments
     ///
@@ -864,46 +864,196 @@ impl SoftwareRenderer {
         let half_h: f32 = rect.get_height() * 0.5;
         let cx: f32 = rect.get_x() + half_w;
         let cy: f32 = rect.get_y() + half_h;
-        let x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(self.get_framebuffer().get_width());
-        let y0: u32 =
-            (vis.get_y().floor().max(0.0) as u32).min(self.get_framebuffer().get_height());
-        let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(self.get_framebuffer().get_width());
-        let y1: u32 =
-            (vis.bottom().ceil().max(0.0) as u32).min(self.get_framebuffer().get_height());
+        let fb_w: u32 = self.get_framebuffer().get_width();
+        let fb_h: u32 = self.get_framebuffer().get_height();
+        let x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(fb_w);
+        let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(fb_h);
+        let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
+        let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(fb_h);
         let src_w: u32 = buffer.get_width();
         let src_h: u32 = buffer.get_height();
         let src_bytes: &[u8] = buffer.get_pixels().as_slice();
+        let inv_dst_w: f32 = 1.0 / rect.get_width().max(1.0);
+        let inv_dst_h: f32 = 1.0 / rect.get_height().max(1.0);
+        let use_bilinear: bool = aa != AntialiasingMode::None
+            && ((rect.get_width() - (src_w as f32)).abs() > 0.5
+                || (rect.get_height() - (src_h as f32)).abs() > 0.5);
+        let has_radius: bool = radius.max_radius() > 0.0;
+        let max_r: f32 = radius.max_radius();
+        let max_sx: usize = (src_w as usize).saturating_sub(1);
+        let max_sy: usize = (src_h as usize).saturating_sub(1);
+        let src_w_usize: usize = src_w as usize;
         let mut shaded: usize = 0;
-        for y in y0..y1 {
-            let v: f32 = ((y as f32) - rect.get_y()) / rect.get_height().max(1.0);
-            let sy: u32 = ((v * (src_h as f32)).floor() as u32).min(src_h - 1);
-            let py: f32 = (y as f32) + 0.5 - cy;
+        let fb: &mut Framebuffer = self.get_mut_framebuffer();
+        if !has_radius && use_bilinear && x0 < x1 && y0 < y1 {
+            let span_w: usize = (x1 - x0) as usize;
+            let mut x_lut: Vec<(usize, usize, u32)> = Vec::with_capacity(span_w);
             for x in x0..x1 {
-                let px: f32 = (x as f32) + 0.5 - cx;
-                let cov: f32 = if radius.max_radius() > 0.0 {
-                    sdf_coverage(
-                        rounded_box_sdf(px, py, half_w, half_h, radius.max_radius()),
-                        aa,
-                    )
-                } else {
-                    1.0
-                };
-                if cov <= 0.0 {
-                    continue;
-                }
-                let u: f32 = ((x as f32) - rect.get_x()) / rect.get_width().max(1.0);
-                let sx: u32 = ((u * (src_w as f32)).floor() as u32).min(src_w - 1);
-                let idx: usize = ((sy as usize) * (src_w as usize) + (sx as usize)) * 4;
-                if idx + 4 <= src_bytes.len() {
-                    let sample: Color = Color::new(
-                        src_bytes[idx],
-                        src_bytes[idx + 1],
-                        src_bytes[idx + 2],
-                        src_bytes[idx + 3],
-                    )
-                    .multiply_alpha(cov);
-                    self.get_mut_framebuffer().blend_pixel(x, y, sample);
+                let u: f32 = (((x as f32) + 0.5 - rect.get_x()) * inv_dst_w).clamp(0.0, 1.0);
+                let fx: f32 = (u * (src_w as f32) - 0.5).clamp(0.0, max_sx as f32);
+                let sx0: usize = (fx.floor() as usize).min(max_sx);
+                let sx1: usize = (sx0 + 1).min(max_sx);
+                let wx: u32 = ((fx - (sx0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
+                x_lut.push((sx0, sx1, wx));
+            }
+            let fb_w_usize: usize = fb_w as usize;
+            let dst_pixels: &mut [u8] = fb.get_mut_pixels().as_mut_slice();
+            for y in y0..y1 {
+                let v: f32 = (((y as f32) + 0.5 - rect.get_y()) * inv_dst_h).clamp(0.0, 1.0);
+                let fy: f32 = (v * (src_h as f32) - 0.5).clamp(0.0, max_sy as f32);
+                let sy0: usize = (fy.floor() as usize).min(max_sy);
+                let sy1: usize = (sy0 + 1).min(max_sy);
+                let wy: u32 = ((fy - (sy0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
+                let iwy: u32 = 256 - wy;
+                let row0: usize = sy0 * src_w_usize;
+                let row1: usize = sy1 * src_w_usize;
+                let dst_row_base: usize = (y as usize) * fb_w_usize;
+                for (dx, &(sx0, sx1, wx)) in x_lut.iter().enumerate() {
+                    let iwx: u32 = 256 - wx;
+                    let w00: u32 = iwx * iwy;
+                    let w10: u32 = wx * iwy;
+                    let w01: u32 = iwx * wy;
+                    let w11: u32 = wx * wy;
+                    let i00: usize = (row0 + sx0) * 4;
+                    let i10: usize = (row0 + sx1) * 4;
+                    let i01: usize = (row1 + sx0) * 4;
+                    let i11: usize = (row1 + sx1) * 4;
+                    let a_val: u32 = ((src_bytes[i00 + 3] as u32) * w00
+                        + (src_bytes[i10 + 3] as u32) * w10
+                        + (src_bytes[i01 + 3] as u32) * w01
+                        + (src_bytes[i11 + 3] as u32) * w11
+                        + 32768)
+                        >> 16;
+                    if a_val == 0 {
+                        continue;
+                    }
+                    let r: u32 = ((src_bytes[i00] as u32) * w00
+                        + (src_bytes[i10] as u32) * w10
+                        + (src_bytes[i01] as u32) * w01
+                        + (src_bytes[i11] as u32) * w11
+                        + 32768)
+                        >> 16;
+                    let g: u32 = ((src_bytes[i00 + 1] as u32) * w00
+                        + (src_bytes[i10 + 1] as u32) * w10
+                        + (src_bytes[i01 + 1] as u32) * w01
+                        + (src_bytes[i11 + 1] as u32) * w11
+                        + 32768)
+                        >> 16;
+                    let b: u32 = ((src_bytes[i00 + 2] as u32) * w00
+                        + (src_bytes[i10 + 2] as u32) * w10
+                        + (src_bytes[i01 + 2] as u32) * w01
+                        + (src_bytes[i11 + 2] as u32) * w11
+                        + 32768)
+                        >> 16;
+                    let didx: usize = (dst_row_base + (x0 as usize) + dx) * 4;
+                    if a_val >= 255 {
+                        dst_pixels[didx] = r as u8;
+                        dst_pixels[didx + 1] = g as u8;
+                        dst_pixels[didx + 2] = b as u8;
+                        dst_pixels[didx + 3] = 255;
+                    } else {
+                        let inv_a: u32 = 255 - a_val;
+                        dst_pixels[didx] =
+                            ((r * a_val + (dst_pixels[didx] as u32) * inv_a + 127) / 255) as u8;
+                        dst_pixels[didx + 1] =
+                            ((g * a_val + (dst_pixels[didx + 1] as u32) * inv_a + 127) / 255) as u8;
+                        dst_pixels[didx + 2] =
+                            ((b * a_val + (dst_pixels[didx + 2] as u32) * inv_a + 127) / 255) as u8;
+                        dst_pixels[didx + 3] = 255;
+                    }
                     shaded += 1;
+                }
+            }
+            return shaded;
+        }
+        for y in y0..y1 {
+            let v: f32 = (((y as f32) + 0.5 - rect.get_y()) * inv_dst_h).clamp(0.0, 1.0);
+            let py: f32 = (y as f32) + 0.5 - cy;
+            if use_bilinear {
+                let fy: f32 = (v * (src_h as f32) - 0.5).clamp(0.0, max_sy as f32);
+                let sy0: usize = (fy.floor() as usize).min(max_sy);
+                let sy1: usize = (sy0 + 1).min(max_sy);
+                let wy: f32 = fy - (sy0 as f32);
+                let iwy: f32 = 1.0 - wy;
+                let row0: usize = sy0 * src_w_usize;
+                let row1: usize = sy1 * src_w_usize;
+                for x in x0..x1 {
+                    let cov: f32 = if has_radius {
+                        let px: f32 = (x as f32) + 0.5 - cx;
+                        sdf_coverage(rounded_box_sdf(px, py, half_w, half_h, max_r), aa)
+                    } else {
+                        1.0
+                    };
+                    if cov <= 0.0 {
+                        continue;
+                    }
+                    let u: f32 = (((x as f32) + 0.5 - rect.get_x()) * inv_dst_w).clamp(0.0, 1.0);
+                    let fx: f32 = (u * (src_w as f32) - 0.5).clamp(0.0, max_sx as f32);
+                    let sx0: usize = (fx.floor() as usize).min(max_sx);
+                    let sx1: usize = (sx0 + 1).min(max_sx);
+                    let wx: f32 = fx - (sx0 as f32);
+                    let iwx: f32 = 1.0 - wx;
+                    let i00: usize = (row0 + sx0) * 4;
+                    let i10: usize = (row0 + sx1) * 4;
+                    let i01: usize = (row1 + sx0) * 4;
+                    let i11: usize = (row1 + sx1) * 4;
+                    if i11 + 4 <= src_bytes.len() {
+                        let w00: f32 = iwx * iwy;
+                        let w10: f32 = wx * iwy;
+                        let w01: f32 = iwx * wy;
+                        let w11: f32 = wx * wy;
+                        let r: u8 = ((src_bytes[i00] as f32) * w00
+                            + (src_bytes[i10] as f32) * w10
+                            + (src_bytes[i01] as f32) * w01
+                            + (src_bytes[i11] as f32) * w11)
+                            .round() as u8;
+                        let g: u8 = ((src_bytes[i00 + 1] as f32) * w00
+                            + (src_bytes[i10 + 1] as f32) * w10
+                            + (src_bytes[i01 + 1] as f32) * w01
+                            + (src_bytes[i11 + 1] as f32) * w11)
+                            .round() as u8;
+                        let b: u8 = ((src_bytes[i00 + 2] as f32) * w00
+                            + (src_bytes[i10 + 2] as f32) * w10
+                            + (src_bytes[i01 + 2] as f32) * w01
+                            + (src_bytes[i11 + 2] as f32) * w11)
+                            .round() as u8;
+                        let a: u8 = ((src_bytes[i00 + 3] as f32) * w00
+                            + (src_bytes[i10 + 3] as f32) * w10
+                            + (src_bytes[i01 + 3] as f32) * w01
+                            + (src_bytes[i11 + 3] as f32) * w11)
+                            .round() as u8;
+                        let sample: Color = Color::new(r, g, b, a).multiply_alpha(cov);
+                        fb.blend_pixel(x, y, sample);
+                        shaded += 1;
+                    }
+                }
+            } else {
+                let sy: usize = ((v * (src_h as f32)).floor() as usize).min(max_sy);
+                let row: usize = sy * src_w_usize;
+                for x in x0..x1 {
+                    let cov: f32 = if has_radius {
+                        let px: f32 = (x as f32) + 0.5 - cx;
+                        sdf_coverage(rounded_box_sdf(px, py, half_w, half_h, max_r), aa)
+                    } else {
+                        1.0
+                    };
+                    if cov <= 0.0 {
+                        continue;
+                    }
+                    let u: f32 = (((x as f32) + 0.5 - rect.get_x()) * inv_dst_w).clamp(0.0, 1.0);
+                    let sx: usize = ((u * (src_w as f32)).floor() as usize).min(max_sx);
+                    let idx: usize = (row + sx) * 4;
+                    if idx + 4 <= src_bytes.len() {
+                        let sample: Color = Color::new(
+                            src_bytes[idx],
+                            src_bytes[idx + 1],
+                            src_bytes[idx + 2],
+                            src_bytes[idx + 3],
+                        )
+                        .multiply_alpha(cov);
+                        fb.blend_pixel(x, y, sample);
+                        shaded += 1;
+                    }
                 }
             }
         }
@@ -1101,6 +1251,7 @@ impl SoftwareRenderer {
         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(fb_h);
         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(fb_h);
         let edges: [(Point, Point); 3] = [(p0, p1), (p1, p2), (p2, p0)];
+        let aa: AntialiasingMode = self.get_antialiasing();
         let mut shaded: usize = 0;
         let fb: &mut Framebuffer = self.get_mut_framebuffer();
         for y in y0..y1 {
@@ -1118,11 +1269,46 @@ impl SoftwareRenderer {
                 }
             }
             if min_ix <= max_ix {
-                let sx0: u32 = (min_ix.floor().max(0.0) as u32).clamp(clip_x0, clip_x1);
-                let sx1: u32 = (max_ix.ceil().max(0.0) as u32).clamp(clip_x0, clip_x1);
-                if sx0 < sx1 {
-                    fb.fill_span(sx0, sx1, y, color);
-                    shaded += (sx1 - sx0) as usize;
+                if aa == AntialiasingMode::None {
+                    let sx0: u32 = (min_ix.floor().max(0.0) as u32).clamp(clip_x0, clip_x1);
+                    let sx1: u32 = (max_ix.ceil().max(0.0) as u32).clamp(clip_x0, clip_x1);
+                    if sx0 < sx1 {
+                        fb.fill_span(sx0, sx1, y, color);
+                        shaded += (sx1 - sx0) as usize;
+                    }
+                } else {
+                    let left_px: u32 = (min_ix.floor().max(0.0) as u32).clamp(clip_x0, clip_x1);
+                    let right_px: u32 = (max_ix.floor().max(0.0) as u32).clamp(clip_x0, clip_x1);
+                    if left_px == right_px {
+                        if left_px < clip_x1 {
+                            let cov: f32 = (max_ix - min_ix).clamp(0.0, 1.0);
+                            if cov > 0.01 {
+                                fb.blend_pixel(left_px, y, color.multiply_alpha(cov));
+                                shaded += 1;
+                            }
+                        }
+                    } else {
+                        if left_px >= clip_x0 && left_px < clip_x1 {
+                            let cov: f32 = ((left_px as f32) + 1.0 - min_ix).clamp(0.0, 1.0);
+                            if cov > 0.01 {
+                                fb.blend_pixel(left_px, y, color.multiply_alpha(cov));
+                                shaded += 1;
+                            }
+                        }
+                        let inner_start: u32 = (left_px + 1).clamp(clip_x0, clip_x1);
+                        let inner_end: u32 = right_px.clamp(clip_x0, clip_x1);
+                        if inner_start < inner_end {
+                            fb.fill_span(inner_start, inner_end, y, color);
+                            shaded += (inner_end - inner_start) as usize;
+                        }
+                        if right_px >= clip_x0 && right_px < clip_x1 {
+                            let cov: f32 = (max_ix - (right_px as f32)).clamp(0.0, 1.0);
+                            if cov > 0.01 {
+                                fb.blend_pixel(right_px, y, color.multiply_alpha(cov));
+                                shaded += 1;
+                            }
+                        }
+                    }
                 }
             }
         }

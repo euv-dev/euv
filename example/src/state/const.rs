@@ -18,6 +18,8 @@ pub const ROUTE_GAME: &str = "/game";
 pub const ROUTE_GAME_3D: &str = "/game3d";
 /// Route path for the full cross-platform media studio (Image, SVG, GIF, LIVE, Video, Audio, PDF, HTML).
 pub const ROUTE_MEDIA: &str = "/media";
+/// Route path for the complete shadcn/ui component gallery and edge-case regression lab.
+pub const ROUTE_LAB: &str = "/lab";
 /// Route path for the modal, toast, and alert overlay showcase page.
 pub const ROUTE_OVERLAYS: &str = "/overlays";
 /// Route path for the component-level and page-level dynamic OTA updates showcase page.
@@ -30,9 +32,45 @@ pub const ROUTE_PROMO_LIVE: &str = "/promo-live";
 pub const SLOT_PROMO_BANNER: &str = "promo_banner";
 /// Component slot identifier for the independent live-updatable metrics widget.
 pub const SLOT_METRICS_WIDGET: &str = "metrics_widget";
+/// Scoped partial slot identifier for the live downloaded `.wasm` native widget.
+pub const SLOT_WASM_WIDGET: &str = "wasm_live_widget";
+/// Display title for the downloaded partial WASM v1 widget fixture.
+pub const TITLE_WASM_PARTIAL_V1: &str = "Downloaded Partial WASM Widget v1";
+/// Shared verification key used to sign showcase dynamic `.wasm` bundles.
+pub const WASM_SHOWCASE_SIGNING_KEY: &str = "euv-prod-signing-key-2026";
+/// CDN URL for healthy partial `.wasm` module v1.
+pub const URL_WASM_PARTIAL_V1: &str = "euv-cdn://bundles/partial-widget-v1.wasm";
+/// CDN URL for healthy partial `.wasm` module v2.
+pub const URL_WASM_PARTIAL_V2: &str = "euv-cdn://bundles/partial-widget-v2.wasm";
+/// CDN URL for healthy global full-app `.wasm` bundle v1.
+pub const URL_WASM_GLOBAL_V1: &str = "euv-cdn://bundles/global-app-v1.wasm";
+/// CDN URL for healthy global full-app `.wasm` bundle v2.
+pub const URL_WASM_GLOBAL_V2: &str = "euv-cdn://bundles/global-app-v2.wasm";
+/// CDN URL simulating first-attempt timeout followed by automatic retry success.
+pub const URL_WASM_TIMEOUT_RETRY: &str = "euv-cdn://faults/timeout-retry.wasm";
+/// CDN URL simulating persistent HTTP 500 server error.
+pub const URL_WASM_HTTP_500: &str = "euv-cdn://faults/http-500.wasm";
+/// CDN URL serving corrupted non-WASM magic header bytes.
+pub const URL_WASM_CORRUPTED: &str = "euv-cdn://faults/corrupted.wasm";
+/// CDN URL serving checksum-tampered `.wasm` bytes.
+pub const URL_WASM_TAMPERED: &str = "euv-cdn://faults/tampered.wasm";
+/// CDN URL serving a `.wasm` with mismatched ABI version.
+pub const URL_WASM_BAD_ABI: &str = "euv-cdn://faults/bad-abi.wasm";
+/// CDN URL serving a `.wasm` missing `euv_render` export.
+pub const URL_WASM_MISSING_EXPORT: &str = "euv-cdn://faults/missing-export.wasm";
+/// CDN URL serving an infinite-loop `.wasm` terminated by fuel metering.
+pub const URL_WASM_FUEL_BOMB: &str = "euv-cdn://faults/fuel-bomb.wasm";
+/// CDN URL serving a trapping `unreachable` `.wasm`.
+pub const URL_WASM_TRAP: &str = "euv-cdn://faults/trap.wasm";
+/// CDN URL serving an oversized binary exceeding sandbox limit.
+pub const URL_WASM_OVERSIZED: &str = "euv-cdn://faults/oversized.wasm";
 /// Application brand title displayed in the shell chrome.
-pub const SHOWCASE_BRAND: &str = "euv Native Showcase";
+pub const SHOWCASE_BRAND: &str = "euv Studio";
 
+pub(crate) const NAV_SEC_WORKSPACE: &str = "WORKSPACE";
+pub(crate) const NAV_SEC_DESIGN: &str = "DESIGN SYSTEM";
+pub(crate) const NAV_SEC_ENGINE: &str = "ENGINE & MEDIA";
+pub(crate) const NAV_SEC_RUNTIME: &str = "RUNTIME & OTA";
 pub(crate) const NAV_LABEL_OVERVIEW: &str = "Overview";
 pub(crate) const NAV_LABEL_REACTIVE: &str = "Reactivity";
 pub(crate) const NAV_LABEL_RENDER: &str = "Rendering";
@@ -43,8 +81,9 @@ pub(crate) const NAV_LABEL_DATA: &str = "Scroll List";
 pub(crate) const NAV_LABEL_GAME: &str = "Game Engine";
 pub(crate) const NAV_LABEL_GAME_3D: &str = "3D Engine (RT)";
 pub(crate) const NAV_LABEL_MEDIA: &str = "Media Studio";
+pub(crate) const NAV_LABEL_LAB: &str = "UI & Edge Lab";
 pub(crate) const NAV_LABEL_OVERLAYS: &str = "Overlays";
-pub(crate) const NAV_LABEL_DYNAMIC: &str = "Dynamic OTA";
+pub(crate) const NAV_LABEL_DYNAMIC: &str = "Dynamic WASM";
 pub(crate) const DEFAULT_USERNAME: &str = "euv-developer";
 pub(crate) const GAME_HUD_CONTROLS_HINT: &str =
     "WASD/Arrows Move | Space/Click Fire | E Dash | R Wave";

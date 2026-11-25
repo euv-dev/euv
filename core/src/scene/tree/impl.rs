@@ -246,6 +246,9 @@ impl SceneTree {
             old_node
                 .get_mut_children()
                 .retain(|item: &NodeId| *item != child);
+            if old_parent != parent {
+                self.mark_dirty(old_parent, DIRTY_CHILDREN_CHANGE_MASK);
+            }
         }
         if let Some(child_node) = self.get_node_mut(child) {
             child_node.set_parent(Some(parent));
@@ -282,24 +285,6 @@ impl SceneTree {
         }
         if let Some(parent_node) = self.get_node_mut(parent) {
             parent_node.set_children(new_children);
-        }
-        let mut anc: Option<NodeId> = Some(parent);
-        while let Some(aid) = anc {
-            let next_anc: Option<NodeId> = match self.get_node_mut(aid) {
-                Some(node) => {
-                    if node.get_style().get_layout().get_overflow() == Overflow::Scroll {
-                        if node.virtual_scroll_metrics().is_none() {
-                            node.get_mut_layout_box()
-                                .set_scroll_offset(Point::new(0.0, 0.0));
-                        }
-                        None
-                    } else {
-                        node.parent_id()
-                    }
-                }
-                None => None,
-            };
-            anc = next_anc;
         }
         self.mark_dirty(parent, DIRTY_CHILDREN_CHANGE_MASK);
     }
@@ -994,6 +979,7 @@ impl BuildContext {
             platform,
             safe_area: Signal::new(SafeAreaInsets::default()),
             gesture: Signal::new(None),
+            system_back: Signal::new(0),
             dynamic_hub: DynamicUpdateHub::new(),
         }
     }

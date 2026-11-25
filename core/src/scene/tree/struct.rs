@@ -53,6 +53,9 @@ pub struct BuildContext {
     /// Reactive stream of recognized cross-platform gestures (`Tap`, `DoubleTap`, `LongPress`, `Swipe*`, `Pan`, `Pinch`).
     #[get(type(copy))]
     pub(crate) gesture: Signal<Option<GestureEvent>>,
+    /// Monotonic counter incremented on OS Back button / Escape / edge-back triggers for unified overlay & router stack dismissal.
+    #[get(type(copy))]
+    pub(crate) system_back: Signal<u64>,
     /// Shared dynamic update hub enabling ambient component-level and page-level live updates.
     pub(crate) dynamic_hub: DynamicUpdateHub,
 }

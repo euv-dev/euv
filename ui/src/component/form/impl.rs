@@ -133,7 +133,7 @@ impl Mountable for EuvSwitch {
                 .height(Length::Px(20.0))
                 .radius(10.0)
                 .background(Color::hex(0xFFFFFF))
-                .shadow(Shadow::new(0.0, 1.0, 3.0, 0.0, Color::rgba(0, 0, 0, 56))),
+                .shadow(Shadow::new(0.0, 1.0, 3.0, 0.0, Color::rgba(0, 0, 0, 28))),
         );
         ctx.append(track, thumb);
         let handle: SceneHandle = ctx.get_scene().clone();

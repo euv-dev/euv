@@ -85,7 +85,7 @@ impl RenderQualityConfig {
             QualityPreset::High => Self {
                 preset,
                 resolution_preset: ResolutionPreset::Fhd1080,
-                resolution_scale: 0.85,
+                resolution_scale: 0.95,
                 dynamic_resolution: true,
                 target_fps: 60.0,
                 ray_tracing: RayTracingMode::ShadowsAndReflections,

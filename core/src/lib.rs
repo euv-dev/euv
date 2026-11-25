@@ -40,20 +40,12 @@ use std::ffi::c_void;
 use std::mem::size_of;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 use std::mem::size_of_val;
-#[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux"))]
-use std::mem::transmute;
 #[cfg(any(target_os = "linux", target_os = "android"))]
 use std::path::Path;
 #[cfg(target_os = "android")]
 use std::ptr::copy_nonoverlapping;
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux", windows))]
 use std::ptr::null;
-#[cfg(any(unix, windows))]
-use std::ptr::null_mut;
-#[cfg(not(target_arch = "wasm32"))]
-use std::thread::sleep;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Duration;
 use std::{
     any::Any,
     cell::{Ref, RefCell, RefMut},
@@ -63,10 +55,25 @@ use std::{
     fmt::{self, Formatter},
     hash::{Hash, Hasher},
     marker::PhantomData,
-    mem::{swap, take},
+    mem::{swap, take, transmute},
     ops::{Add, Mul, Sub},
+    ptr::null_mut,
     rc::Rc,
     str::{Chars, from_utf8},
+    sync::atomic::{AtomicPtr, Ordering},
+};
+#[cfg(not(target_arch = "wasm32"))]
+use std::{
+    fs,
+    io::{self, Read, Write},
+    net::{SocketAddr, TcpStream, ToSocketAddrs},
+    thread::sleep,
+    time::{Duration, Instant},
+};
+#[cfg(all(test, not(target_arch = "wasm32")))]
+use std::{
+    net::TcpListener,
+    thread::{JoinHandle, spawn},
 };
 
 use {

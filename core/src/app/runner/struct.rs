@@ -97,4 +97,13 @@ pub struct App {
     /// Monotonic gesture event sequence counter.
     #[get(type(copy))]
     pub(crate) gesture_seq: u64,
+    /// Inertial touch-scroll fling velocity in logical pixels per second.
+    #[get(type(copy))]
+    pub(crate) scroll_velocity: Point,
+    /// Pointer coordinates where inertial touch-scroll fling originated for hit-target resolution.
+    #[get(type(copy))]
+    pub(crate) scroll_fling_pos: Point,
+    /// Re-entrancy guard preventing nested `step_frame` execution during macOS live-resize callbacks.
+    #[get(type(copy))]
+    pub(crate) in_step_frame: bool,
 }

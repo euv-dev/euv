@@ -38,12 +38,10 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
     };
     let state_c: ShowcaseState = state.clone();
     let mut ctx: BuildContext = current_build_context();
-    let bp_sig: Signal<Breakpoint> = ctx.get_breakpoint();
-    let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
     ctx.bind_children(host, move || {
-        let _: Breakpoint = bp_sig.get();
-        let _: SafeAreaInsets = safe_sig.get();
         let tokens: ThemeTokens = state_c.get_theme().get_tokens().get();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let hub: DynamicUpdateHub = state_c.get_dynamic_hub().clone();
         let _: u64 = hub.routes_signal().get();
         let mut nav_items: Vec<EuvNavItem> = ShowcaseState::nav_items();
@@ -59,24 +57,183 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
                     .page_title(&dyn_route)
                     .filter(|t: &String| !t.is_empty())
                     .unwrap_or_else(|| dyn_route.clone());
-                nav_items.push(EuvNavItem::new(dyn_route, label));
+                nav_items.push(EuvNavItem::new(dyn_route, label).section(NAV_SEC_RUNTIME));
             }
         }
         let nav: NodeId =
             EuvSidebarNav::new(nav_items, state_c.get_route(), tokens).mount_current();
         let state_for_outlet: ShowcaseState = state_c.clone();
-        let mut outlet: DynamicPageOutlet = DynamicPageOutlet::new(
-            state_c.get_route(),
-            Rc::new(move |active_route: &str| {
-                mount_route_by_name(active_route, &state_for_outlet, tokens)
-            }),
+        let router: EuvRouter =
+            EuvRouter::new(&state_c.get_route().get_untracked()).with_dynamic_hub(hub.clone());
+        let route_sig: Signal<String> = state_c.get_route();
+        let breadcrumb_sig: Signal<String> = Signal::new(ShowcaseState::breadcrumb_for_route(
+            &route_sig.get_untracked(),
+        ));
+        let router_sync_in: EuvRouter = router.clone();
+        let router_path_sig: Signal<String> = router.get_current_path();
+        let mut rctx: BuildContext = current_build_context();
+        let (sync_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect = Effect::new(move || {
+                let target: String = route_sig.get();
+                let _: bool =
+                    breadcrumb_sig.set_if_changed(ShowcaseState::breadcrumb_for_route(&target));
+                if router_sync_in.get_current_path().get_untracked() != target {
+                    router_sync_in.push(&target);
+                }
+            });
+            Effect::new(move || {
+                let rp: String = router_path_sig.get();
+                if route_sig.get_untracked() != rp {
+                    let _: bool = route_sig.set_if_changed(rp);
+                }
+            })
+        });
+        let page_node: NodeId = router
+            .outlet(move |matched: &EuvRouteMatch| {
+                mount_route_by_name(matched.get_path(), &state_for_outlet, tokens)
+            })
+            .mount(&mut rctx);
+        rctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(page_node, sync_scope);
+            },
+            (),
         );
-        outlet.set_hub(Some(hub));
-        let page_node: NodeId = outlet.mount_current();
+        let cmd_open: Signal<bool> = state_c.get_cmd_palette_open();
+        let cmd_query: Signal<String> = state_c.get_cmd_palette_query();
+        let st_dark_top: ShowcaseState = state_c.clone();
+        let st_scheme_top: ShowcaseState = state_c.clone();
+        let st_dark_foot: ShowcaseState = state_c.clone();
+        let mode_label: String = match state_c.get_theme().get_mode().get_untracked() {
+            ThemeMode::Dark => "Light".to_string(),
+            ThemeMode::Light => "Dark".to_string(),
+        };
+        let scheme_label: String = format!("{:?}", state_c.get_theme().get_scheme().get_untracked());
+        let top_actions: NodeId = view! {
+            row {
+                gap: SPACE_SM
+                align: AlignItems::Center
+                { EuvButton::new("Search  Cmd+K".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let _: bool = cmd_open.set_if_changed(true);
+                }) }
+                { EuvButton::new(scheme_label.clone(), tokens).secondary().sm().on_click(move |_: &UiEvent| {
+                    st_scheme_top.next_scheme();
+                }) }
+                { EuvButton::new(mode_label.clone(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    st_dark_top.toggle_theme_mode();
+                }) }
+            }
+        };
+        let sidebar_footer: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_XS
+                padding: Edges::all(SPACE_SM)
+                radius: g.get_radius_md()
+                background: p.get_muted()
+                border: (g.get_border_width(), p.get_border())
+                text {
+                    font_size: 11.5
+                    font_weight: FontWeight::SemiBold
+                    color: p.get_foreground()
+                    { format!("Theme: {scheme_label}") }
+                }
+                text {
+                    font_size: 11.0
+                    color: p.get_muted_foreground()
+                    "Zero-WebView Native · 7 Targets"
+                }
+                { EuvButton::new(format!("Switch to {mode_label}"), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    st_dark_foot.toggle_theme_mode();
+                }) }
+            }
+        };
+        let cmd_items: Vec<String> = vec![
+            "Go to Overview (Workspace)".to_string(),
+            "Go to UI & Edge Lab (Workspace)".to_string(),
+            "Go to 3D Engine (RT)".to_string(),
+            "Go to Media Studio (Engine)".to_string(),
+            "Go to Dynamic WASM (OTA)".to_string(),
+            "Go to Window & OS (Runtime)".to_string(),
+            "Go to Themes (17 Schemes)".to_string(),
+            "Toggle Dark / Light Mode".to_string(),
+        ];
+        let cmd_sel: Signal<Option<usize>> = Signal::new(None);
+        let cmd_route: Signal<String> = state_c.get_route();
+        let cmd_state: ShowcaseState = state_c.clone();
+        let cmd_list: NodeId = EuvCommand::new(
+            cmd_query,
+            "Type a route or action...".to_string(),
+            cmd_items,
+            cmd_sel,
+            tokens,
+        )
+        .mount_current();
+        let (cmd_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                if let Some(idx) = cmd_sel.get() {
+                    match idx {
+                        0 => {
+                            let _: bool = cmd_route.set_if_changed(ROUTE_OVERVIEW.to_string());
+                        }
+                        1 => {
+                            let _: bool = cmd_route.set_if_changed(ROUTE_LAB.to_string());
+                        }
+                        2 => {
+                            let _: bool = cmd_route.set_if_changed(ROUTE_GAME_3D.to_string());
+                        }
+                        3 => {
+                            let _: bool = cmd_route.set_if_changed(ROUTE_MEDIA.to_string());
+                        }
+                        4 => {
+                            let _: bool = cmd_route.set_if_changed(ROUTE_DYNAMIC.to_string());
+                        }
+                        5 => {
+                            let _: bool = cmd_route.set_if_changed(ROUTE_WINDOW.to_string());
+                        }
+                        6 => {
+                            let _: bool = cmd_route.set_if_changed(ROUTE_THEMES.to_string());
+                        }
+                        _ => {
+                            cmd_state.toggle_theme_mode();
+                        }
+                    }
+                    let _: bool = cmd_sel.set_if_changed(None);
+                    let _: bool = cmd_open.set_if_changed(false);
+                }
+            })
+        });
+        let cmd_modal: NodeId = EuvModal::new(
+            cmd_open,
+            "Command Palette".to_string(),
+            cmd_list,
+            tokens,
+        )
+        .mount_current();
+        rctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(cmd_modal, cmd_scope);
+            },
+            (),
+        );
         let shell: NodeId = EuvAppShell::new(SHOWCASE_BRAND.to_string(), nav, page_node, tokens)
             .route(state_c.get_route())
+            .breadcrumb(breadcrumb_sig)
+            .top_bar_actions(top_actions)
+            .sidebar_footer(sidebar_footer)
             .mount_current();
-        vec![shell]
+        let mut global_slot_cfg: DynamicComponentSlot = DynamicComponentSlot::new(
+            WASM_GLOBAL_ROOT_SLOT.to_string(),
+            Rc::new(move || shell),
+        );
+        global_slot_cfg.set_hub(Some(hub)).set_style(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0)),
+        );
+        let global_wasm_slot: NodeId = global_slot_cfg.mount_current();
+        vec![global_wasm_slot, cmd_modal]
     });
     host
 }
@@ -118,6 +275,7 @@ fn mount_route_by_name(route: &str, state: &ShowcaseState, tokens: ThemeTokens) 
         ROUTE_GAME => mount_game_page(state, tokens),
         ROUTE_GAME_3D => mount_game3d_page(state, tokens),
         ROUTE_MEDIA => mount_media_page(state, tokens),
+        ROUTE_LAB => mount_lab_page(state, tokens),
         ROUTE_OVERLAYS => mount_overlays_page(state, tokens),
         ROUTE_DYNAMIC => mount_dynamic_page(state, tokens),
         _ => mount_overview_page(state, tokens),
@@ -512,6 +670,238 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             { EuvCodeBlock::new(CODE_WINDOW_SNIPPET.to_string(), tokens) }
         }
     };
+    let target_plat_idx: Signal<usize> = state.get_os_target_platform_idx();
+    let island_mode_idx: Signal<usize> = state.get_island_mode_idx();
+    let sys_notifs: Signal<Vec<(String, String)>> = state.get_system_notifications();
+    let perm_statuses: Signal<Vec<PermissionStatus>> = state.get_permission_statuses();
+    let all_platforms: [PlatformKind; 7] = [
+        PlatformKind::Ios,
+        PlatformKind::IpadOs,
+        PlatformKind::Android,
+        PlatformKind::MacOs,
+        PlatformKind::Windows,
+        PlatformKind::Linux,
+        PlatformKind::Web,
+    ];
+    let all_island_modes: [IslandPresentationMode; 6] = [
+        IslandPresentationMode::Compact,
+        IslandPresentationMode::Minimal,
+        IslandPresentationMode::Expanded,
+        IslandPresentationMode::LockScreen,
+        IslandPresentationMode::FallbackNotification,
+        IslandPresentationMode::FallbackStatusBar,
+    ];
+    let all_perms: [SystemPermission; 14] = [
+        SystemPermission::Camera,
+        SystemPermission::Microphone,
+        SystemPermission::LocationWhenInUse,
+        SystemPermission::LocationAlways,
+        SystemPermission::Notifications,
+        SystemPermission::Photos,
+        SystemPermission::Contacts,
+        SystemPermission::Calendar,
+        SystemPermission::Bluetooth,
+        SystemPermission::Biometrics,
+        SystemPermission::FileStorage,
+        SystemPermission::ClipboardRead,
+        SystemPermission::MotionSensors,
+        SystemPermission::LocalNetwork,
+    ];
+    let plat_seg: NodeId = EuvSegmented::new(
+        vec![
+            "iOS".to_string(),
+            "iPadOS".to_string(),
+            LABEL_PLATFORM_ANDROID.to_string(),
+            LABEL_PLATFORM_MACOS.to_string(),
+            "Windows".to_string(),
+            "Linux".to_string(),
+            "Web".to_string(),
+        ],
+        target_plat_idx,
+        tokens,
+    )
+    .mount_current();
+    let mode_seg: NodeId = EuvSegmented::new(
+        vec![
+            "Compact".to_string(),
+            "Minimal".to_string(),
+            "Expanded".to_string(),
+            "LockScreen".to_string(),
+            "FallbackNotif".to_string(),
+            "StatusBar".to_string(),
+        ],
+        island_mode_idx,
+        tokens,
+    )
+    .mount_current();
+    let mut ctx_win: BuildContext = current_build_context();
+    let island_preview: NodeId = ctx_win.view(
+        Style::empty()
+            .column()
+            .width(Length::Percent(100.0))
+            .padding(Edges::all(SPACE_MD))
+            .gap(SPACE_XS)
+            .background(Color::hex(0x09090B))
+            .radius(20.0),
+    );
+    let island_preview_txt: NodeId = ctx_win.reactive_text(
+        Style::empty()
+            .font_size(12.0)
+            .font_weight(FontWeight::SemiBold)
+            .color(Color::hex(0xF8FAFC)),
+        move || {
+            let tp: PlatformKind = all_platforms[target_plat_idx.get() % 7];
+            let im: IslandPresentationMode = all_island_modes[island_mode_idx.get() % 6];
+            let def_im: IslandPresentationMode = PlatformServiceHub::default_island_mode(tp);
+            let active: bool = island_active.get();
+            let pct: u8 = island_progress.get();
+            let state_tag: &str = if active { "LIVE" } else { "IDLE" };
+            format!(
+                "[{state_tag}] Dynamic Island ({tp:?}) | Mode: {im:?} (OS Default: {def_im:?}) | Progress: {pct}%"
+            )
+        },
+    );
+    ctx_win.append(island_preview, island_preview_txt);
+    let notif_actions: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new("Trigger Alert Notification".to_string(), tokens)
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let tp: PlatformKind = all_platforms[target_plat_idx.get_untracked() % 7];
+                    let mut svc: PlatformServiceHub = PlatformServiceHub::new(tp);
+                    let n: SystemNotification = SystemNotification::new(
+                        "euv-alert".to_string(),
+                        format!("{tp:?} Alert Notification"),
+                        "High-priority native OS alert dispatched cleanly".to_string(),
+                    );
+                    svc.send_notification(n.clone());
+                    let _: bool = sys_notifs.update(|v: &mut Vec<(String, String)>| {
+                        v.insert(0, (n.get_title().clone(), n.get_body().clone()));
+                        v.truncate(5);
+                    });
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Trigger Silent + Badge(3)".to_string(), tokens)
+                .secondary()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let tp: PlatformKind = all_platforms[target_plat_idx.get_untracked() % 7];
+                    let mut svc: PlatformServiceHub = PlatformServiceHub::new(tp);
+                    let mut n: SystemNotification = SystemNotification::new(
+                        "euv-sync".to_string(),
+                        format!("{tp:?} Silent Sync (Badge 3)"),
+                        "Background OTA sync completed silently".to_string(),
+                    );
+                    n.set_silent(true);
+                    n.set_badge_count(Some(3));
+                    svc.send_notification(n.clone());
+                    let _: bool = sys_notifs.update(|v: &mut Vec<(String, String)>| {
+                        v.insert(0, (n.get_title().clone(), n.get_body().clone()));
+                        v.truncate(5);
+                    });
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Clear Notifications".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = sys_notifs.set_if_changed(Vec::new());
+                })
+                .mount_current(),
+        )
+        .mount_current();
+    let notif_deck: NodeId = EuvSonner::new(sys_notifs, tokens).mount_current();
+    let perm_list_host: NodeId = ctx_win.view(
+        Style::empty()
+            .column()
+            .width(Length::Percent(100.0))
+            .gap(SPACE_XS),
+    );
+    ctx_win.bind_children(perm_list_host, move || {
+        let tp: PlatformKind = all_platforms[target_plat_idx.get() % 7];
+        let statuses: Vec<PermissionStatus> = perm_statuses.get();
+        let mut rows: Vec<NodeId> = Vec::with_capacity(14);
+        let mut bctx: BuildContext = current_build_context();
+        for (idx, perm) in all_perms.iter().copied().enumerate() {
+            let st: PermissionStatus = statuses
+                .get(idx)
+                .copied()
+                .unwrap_or(PermissionStatus::NotDetermined);
+            let native_key: &'static str = perm.native_key(tp);
+            let row: NodeId = bctx.view(
+                Style::empty()
+                    .row()
+                    .wrap(FlexWrap::Wrap)
+                    .width(Length::Percent(100.0))
+                    .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
+                    .justify(JustifyContent::SpaceBetween)
+                    .align(AlignItems::Center)
+                    .gap(SPACE_XS)
+                    .background(p.get_card())
+                    .border(tokens.get_geometry().get_border_width(), p.get_border())
+                    .radius(tokens.get_geometry().get_radius_sm()),
+            );
+            let lbl: NodeId = bctx.text(
+                format!("{perm:?} [{st:?}] · {native_key}"),
+                Style::empty()
+                    .flex_grow(1.0)
+                    .font_size(12.0)
+                    .color(p.get_foreground()),
+            );
+            let req_btn: NodeId = EuvButton::new("Request".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let mut mgr: PermissionManager = PermissionManager::new();
+                    let desc: PermissionDescriptor =
+                        mgr.request(perm, format!("Test {perm:?} access"), tp);
+                    let _: bool = perm_statuses.update(|vec: &mut Vec<PermissionStatus>| {
+                        if let Some(slot) = vec.get_mut(idx) {
+                            *slot = desc.get_status();
+                        }
+                    });
+                })
+                .mount(&mut bctx);
+            let deny_btn: NodeId = EuvButton::new("Deny".to_string(), tokens)
+                .ghost()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = perm_statuses.update(|vec: &mut Vec<PermissionStatus>| {
+                        if let Some(slot) = vec.get_mut(idx) {
+                            *slot = PermissionStatus::Denied;
+                        }
+                    });
+                })
+                .mount(&mut bctx);
+            bctx.append(row, lbl);
+            bctx.append(row, req_btn);
+            bctx.append(row, deny_btn);
+            rows.push(row);
+        }
+        rows
+    });
+    let island_card: NodeId = EuvCard::new(
+        "Cross-Platform Dynamic Island & Notifications".to_string(),
+        tokens,
+    )
+    .subtitle("Test Live Activities across all 7 platforms and dispatch native OS notifications")
+    .child(plat_seg)
+    .child(mode_seg)
+    .child(island_preview)
+    .child(notif_actions)
+    .child(notif_deck)
+    .mount_current();
+    let perm_card: NodeId = EuvCard::new(
+        "Complete 14-Category OS Permissions Matrix".to_string(),
+        tokens,
+    )
+    .subtitle("Inspect per-platform native entitlement keys and test Grant / Deny flows")
+    .child(perm_list_host)
+    .mount_current();
     let mut card: EuvCard = EuvCard::new(WINDOW_CARD_TITLE.to_string(), tokens).child(body);
     card.set_subtitle(WINDOW_CARD_SUB.to_string());
     view! {
@@ -519,8 +909,319 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             style: c_page_column()
             { EuvHeader::new(WINDOW_TITLE.to_string(), WINDOW_SUBTITLE.to_string(), tokens) }
             { card }
+            { island_card }
+            { perm_card }
         }
     }
+}
+
+/// Mounts the complete shadcn/ui component showcase and production edge-case regression lab.
+///
+/// # Arguments
+///
+/// - `&ShowcaseState` - Reactive showcase state.
+/// - `ThemeTokens` - Active design tokens.
+///
+/// # Returns
+///
+/// - `NodeId` - Mounted UI & Edge Lab page node.
+pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
+    let p: ThemePalette = tokens.get_palette();
+    let g: ThemeGeometry = tokens.get_geometry();
+    let mut ctx: BuildContext = current_build_context();
+    let chart_data: Vec<EuvChartPoint> = vec![
+        EuvChartPoint::new("Mon".to_string(), 60.0),
+        EuvChartPoint::new("Tue".to_string(), 88.0),
+        EuvChartPoint::new("Wed".to_string(), 118.0),
+        EuvChartPoint::new("Thu".to_string(), 104.0),
+        EuvChartPoint::new("Fri".to_string(), 120.0),
+        EuvChartPoint::new("Sat".to_string(), 116.0),
+    ];
+    let bar_chart: NodeId = EuvChart::new(
+        "Frame Rate Telemetry (Bar)".to_string(),
+        EuvChartKind::Bar,
+        chart_data.clone(),
+        tokens,
+    )
+    .mount(&mut ctx);
+    let area_chart: NodeId = EuvChart::new(
+        "3D Ray-Tracing Throughput (Area)".to_string(),
+        EuvChartKind::Area,
+        chart_data,
+        tokens,
+    )
+    .mount(&mut ctx);
+    let combobox: NodeId = EuvCombobox::new(
+        "Filter frameworks...".to_string(),
+        vec![
+            "euv Native Rust".to_string(),
+            "WebAssembly Zero-JS".to_string(),
+            "Android ARM64 JNI".to_string(),
+            "iOS CoreText Metal".to_string(),
+            "macOS AppKit Retina".to_string(),
+        ],
+        state.get_lab_combobox_query(),
+        state.get_lab_combobox_selected(),
+        state.get_lab_combobox_open(),
+        tokens,
+    )
+    .mount(&mut ctx);
+    let date_picker: NodeId = EuvDatePicker::new(
+        LABEL_CALENDAR_MONTH.to_string(),
+        state.get_lab_date_day(),
+        state.get_lab_date_open(),
+        tokens,
+    )
+    .mount(&mut ctx);
+    let input_group: NodeId = EuvInputGroup::new(
+        "https://".to_string(),
+        state.get_lab_input_group_val(),
+        "subdomain".to_string(),
+        ".euv.dev".to_string(),
+        tokens,
+    )
+    .mount(&mut ctx);
+    let native_sel: NodeId = EuvNativeSelect::new(
+        vec![
+            "60 Hz Standard".to_string(),
+            "120 Hz ProMotion".to_string(),
+            "Unlocked Benchmark".to_string(),
+        ],
+        state.get_lab_native_select_idx(),
+        tokens,
+    )
+    .mount(&mut ctx);
+    let nav_menu: NodeId = EuvNavigationMenu::new(
+        vec![
+            (
+                "Architecture".to_string(),
+                "Arena signals + deterministic Flexbox/Grid + retained scene graph.".to_string(),
+            ),
+            (
+                "3D Engine".to_string(),
+                "PBR metallic-roughness + BVH ray-traced shadows/reflections + FXAA.".to_string(),
+            ),
+            (
+                "Media Suite".to_string(),
+                "Pure-Rust Image, SVG, GIF, LIVE Photo, Video, WAV Audio, PDF, HTML.".to_string(),
+            ),
+        ],
+        state.get_lab_nav_menu_active(),
+        tokens,
+    )
+    .mount(&mut ctx);
+    let data_table: NodeId = EuvDataTable::new(
+        vec![
+            "Target".to_string(),
+            "Font Engine".to_string(),
+            "Status".to_string(),
+        ],
+        vec![
+            vec![
+                LABEL_PLATFORM_ANDROID.to_string(),
+                "Skia Paint AA".to_string(),
+                "1:1 DPI".to_string(),
+            ],
+            vec![
+                "iOS / iPadOS".to_string(),
+                "CoreText @3x".to_string(),
+                "ProMotion".to_string(),
+            ],
+            vec![
+                LABEL_PLATFORM_MACOS.to_string(),
+                "CoreText Retina".to_string(),
+                "Live Resize".to_string(),
+            ],
+            vec![
+                "WebAssembly".to_string(),
+                "Canvas2D AA".to_string(),
+                "Zero-JS".to_string(),
+            ],
+        ],
+        state.get_lab_table_filter(),
+        state.get_lab_table_sort_asc(),
+        state.get_lab_table_selected(),
+        tokens,
+    )
+    .mount(&mut ctx);
+    let left_split: NodeId = ctx.text(
+        "Left Split Pane (Drag handle ->)".to_string(),
+        Style::empty().font_size(13.0).color(p.get_foreground()),
+    );
+    let right_split: NodeId = ctx.text(
+        "Right Split Pane (Zero rebuild on drag)".to_string(),
+        Style::empty()
+            .font_size(13.0)
+            .color(p.get_muted_foreground()),
+    );
+    let resizable: NodeId =
+        EuvResizable::new(left_split, right_split, state.get_lab_split_ratio(), tokens)
+            .mount(&mut ctx);
+    let item_row: NodeId = EuvItem::new(
+        "EU".to_string(),
+        "Production shadcn/ui Alignment".to_string(),
+        "Unified layout grammar across all 17 design schemes with per-theme surface/radius tokens"
+            .to_string(),
+        "v0.38".to_string(),
+        tokens,
+    )
+    .mount(&mut ctx);
+    let sep: NodeId =
+        EuvSeparator::new("EDGE-CASE REGRESSION SUITE".to_string(), tokens).mount(&mut ctx);
+    let rtl_sig: Signal<bool> = state.get_lab_rtl_mode();
+    let dir_host: NodeId = ctx.view(Style::empty().column().width(Length::Percent(100.0)));
+    ctx.bind_children(dir_host, move || {
+        let dir: EuvTextDirection = if rtl_sig.get() {
+            EuvTextDirection::Rtl
+        } else {
+            EuvTextDirection::Ltr
+        };
+        let mut bctx: BuildContext = current_build_context();
+        let sample: NodeId = bctx.text(
+            format!("Direction preview ({dir:?}): Unified layout alignment across LTR & RTL"),
+            Style::empty().font_size(13.0).color(p.get_foreground()),
+        );
+        vec![EuvDirection::new(dir, sample, tokens).mount(&mut bctx)]
+    });
+    let block_scroll: Signal<bool> = state.get_lab_block_scroll_chain();
+    let stop_bubble: Signal<bool> = state.get_lab_stop_click_bubble();
+    let parent_clicks: Signal<u32> = state.get_lab_parent_clicks();
+    let child_clicks: Signal<u32> = state.get_lab_child_clicks();
+    let preserve_cnt: Signal<u32> = state.get_lab_resize_preserve_count();
+    let modal_open: Signal<bool> = state.get_modal_open();
+    let drawer_open: Signal<bool> = state.get_drawer_open();
+    let nested_scroll_host: NodeId =
+        ctx.view(Style::empty().column().width(Length::Percent(100.0)));
+    ctx.bind_children(nested_scroll_host, move || {
+        let locked: bool = block_scroll.get();
+        let stop_clk: bool = stop_bubble.get();
+        let mut bctx: BuildContext = current_build_context();
+        let outer: NodeId = bctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .padding(Edges::all(SPACE_MD))
+                .gap(SPACE_SM)
+                .background(p.get_muted())
+                .border(g.get_border_width(), p.get_border())
+                .radius(g.get_radius_md()),
+        );
+        bctx.on_click(outer, move |_: &UiEvent| {
+            let _: bool = parent_clicks.update(|v: &mut u32| *v += 1);
+        });
+        let inner_scroll: NodeId = bctx.scroll_view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .height(Length::Px(110.0))
+                .padding(Edges::all(SPACE_SM))
+                .gap(SPACE_XS)
+                .background(p.get_card())
+                .border(g.get_border_width(), p.get_border())
+                .radius(g.get_radius_sm())
+                .stop_scroll_propagation(locked)
+                .stop_event_propagation(stop_clk),
+        );
+        for row_i in 1..=8 {
+            let line: NodeId = bctx.text(
+                format!(
+                    "Nested Scroll Row #{row_i} (scroll_lock={locked}, stop_bubble={stop_clk})"
+                ),
+                Style::empty().font_size(12.0).color(p.get_foreground()),
+            );
+            bctx.append(inner_scroll, line);
+        }
+        let inner_btn: NodeId = EuvButton::new("Click Inner Target".to_string(), tokens)
+            .secondary()
+            .sm()
+            .on_click(move |_: &UiEvent| {
+                let _: bool = child_clicks.update(|v: &mut u32| *v += 1);
+            })
+            .mount(&mut bctx);
+        bctx.append(outer, inner_scroll);
+        bctx.append(outer, inner_btn);
+        vec![outer]
+    });
+    let bubble_stats: NodeId = ctx.reactive_text(
+        Style::empty()
+            .font_size(12.0)
+            .color(p.get_muted_foreground()),
+        move || {
+            format!(
+                "Inner Clicks: {} | Outer Parent Clicks: {} | Resize-Preserved Counter: {} | Overlay Stack Depth: {}",
+                child_clicks.get(),
+                parent_clicks.get(),
+                preserve_cnt.get(),
+                EuvOverlayStack::active_count()
+            )
+        },
+    );
+    let edge_controls: NodeId = EuvActionRow::new()
+        .child(
+            EuvSwitch::new(block_scroll, "Lock Scroll Penetration".to_string(), tokens)
+                .mount_current(),
+        )
+        .child(
+            EuvSwitch::new(stop_bubble, "Stop Click Bubbling".to_string(), tokens).mount_current(),
+        )
+        .child(EuvSwitch::new(rtl_sig, "RTL Direction".to_string(), tokens).mount_current())
+        .child(
+            EuvButton::new("Increment Preserved Counter".to_string(), tokens)
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = preserve_cnt.update(|v: &mut u32| *v += 1);
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Open Stacked Modal + Drawer".to_string(), tokens)
+                .secondary()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = modal_open.set_if_changed(true);
+                    let _: bool = drawer_open.set_if_changed(true);
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Dismiss Top Overlay (Back)".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = EuvOverlayStack::dismiss_top();
+                })
+                .mount_current(),
+        )
+        .mount_current();
+    let shadcn_card: NodeId = EuvCard::new("Complete shadcn/ui Component Parity".to_string(), tokens)
+        .subtitle("Chart, Combobox, DataTable, DatePicker, InputGroup, Item, NativeSelect, NavigationMenu, Resizable, Separator, Direction")
+        .child(nav_menu)
+        .child(bar_chart)
+        .child(area_chart)
+        .child(combobox)
+        .child(date_picker)
+        .child(input_group)
+        .child(native_sel)
+        .child(data_table)
+        .child(resizable)
+        .child(item_row)
+        .mount_current();
+    let edge_card: NodeId = EuvCard::new("Boundary & Event Penetration Regression Lab".to_string(), tokens)
+        .subtitle("Verify scroll lock, flexible event bubbling, overlay back stack, RTL alignment, and zero-rebuild resize preservation")
+        .child(sep)
+        .child(dir_host)
+        .child(edge_controls)
+        .child(bubble_stats)
+        .child(nested_scroll_host)
+        .mount_current();
+    EuvPage::new(
+        "UI & Edge-Case Lab".to_string(),
+        "Full shadcn/ui component parity + production boundary, propagation, overlay stack, and resize-preservation tests".to_string(),
+        tokens,
+    )
+    .section(shadcn_card)
+    .section(edge_card)
+    .mount_current()
 }
 
 /// Mounts the comprehensive interactive forms showcase covering inputs, steppers, radios, sliders, ratings, toggles, switches, and checkboxes.
@@ -593,7 +1294,7 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             gap: SPACE_MD
             { EuvToggleGroup::new(vec!["Bold".to_string(), "Italic".to_string(), "Underline".to_string()], state.get_toggle_group_index(), tokens) }
             { EuvInputOtp::new(state.get_otp_code(), 6, tokens) }
-            { EuvCalendar::new("November 2026".to_string(), 30, state.get_calendar_day(), tokens) }
+            { EuvCalendar::new(LABEL_CALENDAR_MONTH.to_string(), 30, state.get_calendar_day(), tokens) }
             { EuvCollapsible::new(state.get_collapsible_open(), "Advanced Form Details".to_string(), collapsible_body, tokens) }
         }
     };
@@ -987,6 +1688,7 @@ pub fn mount_game3d_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let time_sig: Signal<f32> = state.get_engine3d_time_of_day();
     let import_sig: Signal<u64> = state.get_engine3d_import_queue();
     let status_sig: Signal<String> = state.get_engine3d_import_status();
+    let cam_mode_sig: Signal<u8> = state.get_engine3d_camera_mode();
     let viewport: NodeId = host.mount_viewport(
         Style::empty()
             .width(Length::Percent(100.0))
@@ -1023,6 +1725,16 @@ pub fn mount_game3d_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             false,
             tokens,
         ))
+        .child(
+            EuvButton::new("Switch Camera".to_string(), tokens)
+                .secondary()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let next: u8 = (cam_mode_sig.get_untracked() + 1) % 4;
+                    let _: bool = cam_mode_sig.set_if_changed(next);
+                })
+                .mount_current(),
+        )
         .child(
             EuvButton::new("Import .OBJ Monument".to_string(), tokens)
                 .secondary()
@@ -1634,14 +2346,298 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
     let mut page_card: EuvCard =
         EuvCard::new(DYNAMIC_PAGE_CARD_TITLE.to_string(), tokens).child(page_controls);
     page_card.set_subtitle(DYNAMIC_PAGE_CARD_SUB.to_string());
-    view! {
+    let wasm_mgr: WasmDynamicManager = state.get_wasm_manager().clone();
+    let wasm_reg: RegistryWasmFetcher = state.get_wasm_registry().clone();
+    let wasm_offline_sig: Signal<bool> = state.get_wasm_offline();
+    let wasm_status_sig: Signal<String> = state.get_wasm_fault_status();
+    let partial_scope: WasmDynamicScope = WasmDynamicScope::Partial {
+        slot_id: SLOT_WASM_WIDGET.to_string(),
+    };
+    let partial_state_sig: Signal<WasmLoadState> = wasm_mgr.state_signal(&partial_scope);
+    let global_state_sig: Signal<WasmLoadState> = wasm_mgr.state_signal(&WasmDynamicScope::Global);
+    let wasm_tel_sig: Signal<WasmDynamicTelemetry> = wasm_mgr.telemetry();
+    let m_p1: WasmDynamicManager = wasm_mgr.clone();
+    let s_p1: Signal<String> = wasm_status_sig;
+    let m_p2: WasmDynamicManager = wasm_mgr.clone();
+    let s_p2: Signal<String> = wasm_status_sig;
+    let m_prb: WasmDynamicManager = wasm_mgr.clone();
+    let s_prb: Signal<String> = wasm_status_sig;
+    let m_pun: WasmDynamicManager = wasm_mgr.clone();
+    let s_pun: Signal<String> = wasm_status_sig;
+    let r_off: RegistryWasmFetcher = wasm_reg.clone();
+    let s_off: Signal<String> = wasm_status_sig;
+    let m_g1: WasmDynamicManager = wasm_mgr.clone();
+    let s_g1: Signal<String> = wasm_status_sig;
+    let m_g2: WasmDynamicManager = wasm_mgr.clone();
+    let s_g2: Signal<String> = wasm_status_sig;
+    let m_gbad: WasmDynamicManager = wasm_mgr.clone();
+    let s_gbad: Signal<String> = wasm_status_sig;
+    let m_grb: WasmDynamicManager = wasm_mgr.clone();
+    let s_grb: Signal<String> = wasm_status_sig;
+    let m_f_retry: WasmDynamicManager = wasm_mgr.clone();
+    let s_f_retry: Signal<String> = wasm_status_sig;
+    let m_f_500: WasmDynamicManager = wasm_mgr.clone();
+    let s_f_500: Signal<String> = wasm_status_sig;
+    let m_f_corrupt: WasmDynamicManager = wasm_mgr.clone();
+    let s_f_corrupt: Signal<String> = wasm_status_sig;
+    let m_f_tamper: WasmDynamicManager = wasm_mgr.clone();
+    let s_f_tamper: Signal<String> = wasm_status_sig;
+    let m_f_sig: WasmDynamicManager = wasm_mgr.clone();
+    let s_f_sig: Signal<String> = wasm_status_sig;
+    let m_f_abi: WasmDynamicManager = wasm_mgr.clone();
+    let s_f_abi: Signal<String> = wasm_status_sig;
+    let m_f_exp: WasmDynamicManager = wasm_mgr.clone();
+    let s_f_exp: Signal<String> = wasm_status_sig;
+    let m_f_fuel: WasmDynamicManager = wasm_mgr.clone();
+    let s_f_fuel: Signal<String> = wasm_status_sig;
+    let m_f_trap: WasmDynamicManager = wasm_mgr.clone();
+    let s_f_trap: Signal<String> = wasm_status_sig;
+    let m_f_big: WasmDynamicManager = wasm_mgr.clone();
+    let s_f_big: Signal<String> = wasm_status_sig;
+    let m_f_cancel: WasmDynamicManager = wasm_mgr.clone();
+    let s_f_cancel: Signal<String> = wasm_status_sig;
+    let wasm_partial_body: NodeId = view! {
         column {
-            style: c_page_column()
-            { EuvHeader::new(DYNAMIC_TITLE.to_string(), DYNAMIC_SUBTITLE.to_string(), tokens) }
-            { comp_card }
-            { page_card }
+            gap: SPACE_MD
+            row {
+                style: c_action_row()
+                { EuvButton::new("Download Partial WASM v1".to_string(), tokens).on_click(move |_: &UiEvent| {
+                    let bytes: Vec<u8> = build_partial_widget_wasm(TITLE_WASM_PARTIAL_V1, 1, 0x2563EB);
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(
+                        URL_WASM_PARTIAL_V1.to_string(),
+                        SLOT_WASM_WIDGET.to_string(),
+                        1,
+                    )
+                    .with_checksum(compute_wasm_checksum(&bytes))
+                    .with_signature(compute_wasm_signature(&bytes, 1, WASM_SHOWCASE_SIGNING_KEY))
+                    .with_allow_downgrade(true);
+                    match m_p1.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
+                        Ok(v) => { let _: bool = s_p1.set(format!("Mounted Partial .wasm v{v} natively (verified checksum + signature)")); }
+                        Err(e) => { let _: bool = s_p1.set(format!("Partial v1 failed: {e}")); }
+                    }
+                }) }
+                { EuvButton::new("Hot-Swap Partial WASM v2".to_string(), tokens).secondary().on_click(move |_: &UiEvent| {
+                    let bytes: Vec<u8> = build_partial_widget_wasm("Hot-Swapped Partial WASM Widget v2", 2, 0x7C3AED);
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(
+                        URL_WASM_PARTIAL_V2.to_string(),
+                        SLOT_WASM_WIDGET.to_string(),
+                        2,
+                    )
+                    .with_checksum(compute_wasm_checksum(&bytes))
+                    .with_signature(compute_wasm_signature(&bytes, 2, WASM_SHOWCASE_SIGNING_KEY))
+                    .with_allow_downgrade(true);
+                    match m_p2.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
+                        Ok(v) => { let _: bool = s_p2.set(format!("Hot-swapped Partial .wasm v{v} natively (sibling UI untouched)")); }
+                        Err(e) => { let _: bool = s_p2.set(format!("Partial v2 failed: {e}")); }
+                    }
+                }) }
+                { EuvButton::new("Toggle Offline (Cache Hit)".to_string(), tokens).outline().on_click(move |_: &UiEvent| {
+                    let next: bool = !wasm_offline_sig.get_untracked();
+                    let _: bool = wasm_offline_sig.set(next);
+                    r_off.set_offline(next);
+                    let _: bool = s_off.set(if next {
+                        "Simulated OFFLINE enabled — re-downloading v1 will serve verified offline cache!".to_string()
+                    } else {
+                        "Simulated ONLINE restored — fetching live .wasm from CDN".to_string()
+                    });
+                }) }
+                { EuvButton::new("Rollback Partial".to_string(), tokens).outline().on_click(move |_: &UiEvent| {
+                    match m_prb.rollback_partial(SLOT_WASM_WIDGET, "manual rollback") {
+                        Ok(v) => { let _: bool = s_prb.set(format!("Rolled back partial WASM slot to v{v}")); }
+                        Err(e) => { let _: bool = s_prb.set(format!("Rollback: {e}")); }
+                    }
+                }) }
+                { EuvButton::new("Unmount Slot".to_string(), tokens).ghost().on_click(move |_: &UiEvent| {
+                    m_pun.unmount_partial(SLOT_WASM_WIDGET);
+                    let _: bool = s_pun.set("Unmounted partial WASM instance and restored compiled fallback".to_string());
+                }) }
+            }
+            slot {
+                id: SLOT_WASM_WIDGET
+                row {
+                    width: Length::Percent(100.0)
+                    padding: Edges::all(SPACE_MD)
+                    background: p.get_muted()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    text {
+                        font_size: 13.0
+                        color: p.get_muted_foreground()
+                        "Compiled Native Slot (v0) — click 'Download Partial WASM v1' to fetch, verify, execute .wasm in sandbox & render natively."
+                    }
+                }
+            }
+            text {
+                font_size: 12.0
+                color: p.get_muted_foreground()
+                { move || {
+                    let st: WasmLoadState = partial_state_sig.get();
+                    let gst: WasmLoadState = global_state_sig.get();
+                    let tel: WasmDynamicTelemetry = wasm_tel_sig.get();
+                    format!(
+                        "Partial={st:?} | Global={gst:?} | OK={}/{} Cache={} Retries={} Rollbacks={} Traps={} FuelStops={} Rejects={} Events={}",
+                        tel.get_downloads_succeeded(),
+                        tel.get_downloads_started(),
+                        tel.get_cache_hits(),
+                        tel.get_retries_performed(),
+                        tel.get_rollbacks_executed(),
+                        tel.get_sandbox_traps_caught(),
+                        tel.get_fuel_exhaustions_caught(),
+                        tel.get_integrity_rejections(),
+                        tel.get_events_handled()
+                    )
+                } }
+            }
         }
-    }
+    };
+    let wasm_partial_card: NodeId = EuvCard::new(
+        "Scoped / Partial Dynamic WASM Execution".to_string(),
+        tokens,
+    )
+    .subtitle("Download genuine .wasm binaries into a single native slot with checksum/signature verification, offline cache, interactive euv_on_event & rollback")
+    .child(wasm_partial_body)
+    .mount_current();
+    let wasm_global_body: NodeId = view! {
+        column {
+            gap: SPACE_MD
+            row {
+                style: c_action_row()
+                { EuvButton::new("Download Global WASM v1".to_string(), tokens).on_click(move |_: &UiEvent| {
+                    let bytes: Vec<u8> = build_global_app_wasm("Global Dynamic WASM App Shell v1", 1);
+                    let req: WasmDownloadRequest = WasmDownloadRequest::global(URL_WASM_GLOBAL_V1.to_string(), 1)
+                        .with_checksum(compute_wasm_checksum(&bytes))
+                        .with_signature(compute_wasm_signature(&bytes, 1, WASM_SHOWCASE_SIGNING_KEY))
+                        .with_allow_downgrade(true);
+                    match m_g1.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
+                        Ok(v) => { let _: bool = s_g1.set(format!("Global .wasm v{v} took over root shell natively!")); }
+                        Err(e) => { let _: bool = s_g1.set(format!("Global v1 failed: {e}")); }
+                    }
+                }) }
+                { EuvButton::new("Upgrade Global WASM v2".to_string(), tokens).secondary().on_click(move |_: &UiEvent| {
+                    let bytes: Vec<u8> = build_global_app_wasm("Global Dynamic WASM App Shell v2", 2);
+                    let req: WasmDownloadRequest = WasmDownloadRequest::global(URL_WASM_GLOBAL_V2.to_string(), 2)
+                        .with_checksum(compute_wasm_checksum(&bytes))
+                        .with_signature(compute_wasm_signature(&bytes, 2, WASM_SHOWCASE_SIGNING_KEY))
+                        .with_allow_downgrade(true);
+                    match m_g2.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
+                        Ok(v) => { let _: bool = s_g2.set(format!("Upgraded Global .wasm to v{v} atomically")); }
+                        Err(e) => { let _: bool = s_g2.set(format!("Global v2 failed: {e}")); }
+                    }
+                }) }
+                { EuvButton::new("Faulty Global (Auto LKG Rollback)".to_string(), tokens).destructive().on_click(move |_: &UiEvent| {
+                    let req: WasmDownloadRequest = WasmDownloadRequest::global(URL_WASM_TRAP.to_string(), 99);
+                    match m_gbad.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
+                        Ok(v) => { let _: bool = s_gbad.set(format!("Unexpected global mount v{v}")); }
+                        Err(e) => { let _: bool = s_gbad.set(format!("Global fault isolated & LKG preserved: {e}")); }
+                    }
+                }) }
+                { EuvButton::new("Restore Native Shell".to_string(), tokens).outline().on_click(move |_: &UiEvent| {
+                    m_grb.restore_native_global();
+                    let _: bool = s_grb.set("Restored built-in native dashboard shell".to_string());
+                }) }
+            }
+        }
+    };
+    let wasm_global_card: NodeId = EuvCard::new(
+        "Global / Full-App Dynamic WASM Takeover".to_string(),
+        tokens,
+    )
+    .subtitle("Atomically replace the entire native app shell from a downloaded .wasm release with automatic Last-Known-Good (LKG) rollback on any fault")
+    .child(wasm_global_body)
+    .mount_current();
+    let wasm_fault_body: NodeId = view! {
+        column {
+            gap: SPACE_MD
+            row {
+                style: c_action_row()
+                { EuvButton::new("Timeout -> Auto Retry".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_TIMEOUT_RETRY.to_string(), SLOT_WASM_WIDGET.to_string(), 10).with_allow_downgrade(true);
+                    match m_f_retry.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
+                        Ok(v) => { let _: bool = s_f_retry.set(format!("PASS Timeout->Retry recovered and mounted v{v}!")); }
+                        Err(e) => { let _: bool = s_f_retry.set(format!("Retry failed: {e}")); }
+                    }
+                }) }
+                { EuvButton::new("HTTP 500".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_HTTP_500.to_string(), SLOT_WASM_WIDGET.to_string(), 11).with_allow_downgrade(true);
+                    let res: String = format!("Handled HTTP 500 -> {:?}", m_f_500.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
+                    let _: bool = s_f_500.set(res);
+                }) }
+                { EuvButton::new("Corrupted Magic".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_CORRUPTED.to_string(), SLOT_WASM_WIDGET.to_string(), 12).with_allow_downgrade(true);
+                    let res: String = format!("Blocked Corrupted Magic -> {:?}", m_f_corrupt.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
+                    let _: bool = s_f_corrupt.set(res);
+                }) }
+                { EuvButton::new("Tampered Checksum".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let good: Vec<u8> = build_partial_widget_wasm(TITLE_WASM_PARTIAL_V1, 1, 0x2563EB);
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_TAMPERED.to_string(), SLOT_WASM_WIDGET.to_string(), 13)
+                        .with_checksum(compute_wasm_checksum(&good))
+                        .with_allow_downgrade(true);
+                    let res: String = format!("Blocked Tampered Checksum -> {:?}", m_f_tamper.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
+                    let _: bool = s_f_tamper.set(res);
+                }) }
+                { EuvButton::new("Invalid Signature".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_PARTIAL_V1.to_string(), SLOT_WASM_WIDGET.to_string(), 14)
+                        .with_signature("euv-sig-v1:forged".to_string())
+                        .with_allow_downgrade(true);
+                    let res: String = format!("Blocked Forged Signature -> {:?}", m_f_sig.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
+                    let _: bool = s_f_sig.set(res);
+                }) }
+                { EuvButton::new("ABI Mismatch".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_BAD_ABI.to_string(), SLOT_WASM_WIDGET.to_string(), 15).with_allow_downgrade(true);
+                    let res: String = format!("Blocked ABI Mismatch -> {:?}", m_f_abi.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
+                    let _: bool = s_f_abi.set(res);
+                }) }
+                { EuvButton::new("Missing Export".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_MISSING_EXPORT.to_string(), SLOT_WASM_WIDGET.to_string(), 16).with_allow_downgrade(true);
+                    let res: String = format!("Blocked Missing Export -> {:?}", m_f_exp.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
+                    let _: bool = s_f_exp.set(res);
+                }) }
+                { EuvButton::new("Infinite-Loop Fuel".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_FUEL_BOMB.to_string(), SLOT_WASM_WIDGET.to_string(), 17).with_allow_downgrade(true);
+                    let res: String = format!("Terminated Runaway Loop -> {:?}", m_f_fuel.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
+                    let _: bool = s_f_fuel.set(res);
+                }) }
+                { EuvButton::new("Runtime Trap".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_TRAP.to_string(), SLOT_WASM_WIDGET.to_string(), 18).with_allow_downgrade(true);
+                    let res: String = format!("Isolated Runtime Trap -> {:?}", m_f_trap.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
+                    let _: bool = s_f_trap.set(res);
+                }) }
+                { EuvButton::new("Oversized Binary".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_OVERSIZED.to_string(), SLOT_WASM_WIDGET.to_string(), 19).with_allow_downgrade(true);
+                    let res: String = format!("Blocked Oversized Binary -> {:?}", m_f_big.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
+                    let _: bool = s_f_big.set(res);
+                }) }
+                { EuvButton::new("Cancel / Stale Guard".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                    let gen_id: u64 = m_f_cancel.cancel_scope(&WasmDynamicScope::Partial { slot_id: SLOT_WASM_WIDGET.to_string() });
+                    let _: bool = s_f_cancel.set(format!("Cancelled scope request cleanly (generation #{gen_id} blocks stale responses)"));
+                }) }
+            }
+            text {
+                font_size: 12.5
+                font_weight: FontWeight::Medium
+                color: p.get_primary()
+                { move || wasm_status_sig.get() }
+            }
+        }
+    };
+    let wasm_fault_card: NodeId = EuvCard::new(
+        "All-Case Security, Fault & Sandbox Verification Matrix".to_string(),
+        tokens,
+    )
+    .subtitle("Verify every edge case live: auto-retry, offline cache, integrity rejection, ABI mismatch, infinite-loop fuel cutoff, trap isolation & stale cancel guard")
+    .child(wasm_fault_body)
+    .mount_current();
+    EuvPage::new(
+        DYNAMIC_TITLE.to_string(),
+        DYNAMIC_SUBTITLE.to_string(),
+        tokens,
+    )
+    .section(wasm_partial_card)
+    .section(wasm_global_card)
+    .section(wasm_fault_card)
+    .section(comp_card.mount_current())
+    .section(page_card.mount_current())
+    .mount_current()
 }
 
 /// Mounts the complete cross-platform Media Studio page demonstrating Image, SVG, GIF, LIVE Photo, Video, Audio, PDF, and native HTML5.
@@ -1687,19 +2683,76 @@ pub fn mount_media_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             { move || link_log.get() }
         }
     };
+    let media_grid_top: NodeId = mount_bento_pair(photo_card, svg_card);
+    let media_grid_mid: NodeId = mount_bento_pair(gif_card, live_card);
+    let media_grid_av: NodeId = mount_bento_pair(video_card, audio_card);
+    let media_grid_doc: NodeId = mount_bento_pair(pdf_card, html_card);
     EuvPage::new(
         "Full Cross-Platform Media Studio".to_string(),
-        "Pure-Rust Image, SVG, animated GIF, LIVE Photo, Video, WAV Audio waveform, multi-page PDF, and sanitized zero-JS HTML5.".to_string(),
+        "Pure-Rust aspect-preserving Image, SVG, animated GIF, LIVE Photo, Video, WAV Audio waveform, multi-page PDF, and sanitized zero-JS HTML5.".to_string(),
         tokens,
     )
-    .section(photo_card)
-    .section(svg_card)
-    .section(gif_card)
-    .section(live_card)
-    .section(video_card)
-    .section(audio_card)
-    .section(pdf_card)
-    .section(html_card)
+    .section(media_grid_top)
+    .section(media_grid_mid)
+    .section(media_grid_av)
+    .section(media_grid_doc)
     .section(link_status)
     .mount_current()
+}
+
+/// Mounts a responsive 2-column Bento card pair (2 columns on desktop `Expanded`, 1 column on tablet/mobile).
+///
+/// # Arguments
+///
+/// - `NodeId` - First card node.
+/// - `NodeId` - Second card node.
+///
+/// # Returns
+///
+/// - `NodeId` - Mounted responsive Bento container node.
+fn mount_bento_pair(left: NodeId, right: NodeId) -> NodeId {
+    let mut ctx: BuildContext = current_build_context();
+    let bp_sig: Signal<Breakpoint> = ctx.get_breakpoint();
+    let init_cols: u16 = if bp_sig.get_untracked() == Breakpoint::Expanded {
+        2
+    } else {
+        1
+    };
+    let grid: NodeId = ctx.view(
+        Style::empty()
+            .grid(init_cols)
+            .width(Length::Percent(100.0))
+            .gap(SPACE_MD),
+    );
+    ctx.append(grid, left);
+    ctx.append(grid, right);
+    let handle: SceneHandle = ctx.get_scene().clone();
+    let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+        Effect::new(move || {
+            let cols: u16 = if bp_sig.get() == Breakpoint::Expanded {
+                2
+            } else {
+                1
+            };
+            handle.with_write(
+                |tree: &mut SceneTree| {
+                    if let Some(node) = tree.get_node_mut(grid) {
+                        let mut st: Style = node.get_style();
+                        st.get_mut_layout().set_grid_columns(cols);
+                        node.set_style(st);
+                    }
+                    let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                    tree.mark_dirty(grid, dirty_l | DIRTY_PAINT);
+                },
+                (),
+            );
+        })
+    });
+    ctx.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            tree.attach_scope(grid, scope);
+        },
+        (),
+    );
+    grid
 }

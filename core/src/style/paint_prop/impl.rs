@@ -31,6 +31,8 @@ impl Default for PaintStyle {
             transform: Transform2D::default(),
             cursor: CursorIcon::Default,
             pointer_events: PointerEvents::Auto,
+            stop_scroll_propagation: false,
+            stop_event_propagation: false,
         }
     }
 }

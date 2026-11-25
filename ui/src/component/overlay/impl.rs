@@ -26,6 +26,7 @@ impl Mountable for EuvModal {
             .justify(JustifyContent::Center)
             .align(AlignItems::Center)
             .background(p.get_overlay())
+            .stop_scroll_propagation(true)
             .z_index(Z_INDEX_MODAL);
         let init_open: bool = open.get_untracked();
         let backdrop: NodeId = ctx.portal(backdrop_base.display(if init_open {
@@ -44,7 +45,7 @@ impl Mountable for EuvModal {
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_xl())
                 .overflow(Overflow::Hidden)
-                .shadow(Shadow::new(0.0, 12.0, 24.0, 0.0, Color::rgba(0, 0, 0, 72))),
+                .shadow(Shadow::new(0.0, 10.0, 18.0, 0.0, Color::rgba(0, 0, 0, 28))),
         );
         let heading: NodeId = ctx.text(
             title,
@@ -64,6 +65,7 @@ impl Mountable for EuvModal {
         let handle: SceneHandle = ctx.get_scene().clone();
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect = EuvOverlayStack::bind_signal(open, "EuvModal", Z_INDEX_MODAL);
             Effect::new(move || {
                 let is_open: bool = open.get();
                 let was_open: bool = prev_open.replace(is_open);
@@ -142,7 +144,7 @@ impl Mountable for EuvToast {
                 .padding(Edges::symmetric(SPACE_SM, SPACE_LG))
                 .background(bg)
                 .radius(g.get_radius_md())
-                .shadow(Shadow::new(0.0, 6.0, 16.0, 0.0, Color::rgba(0, 0, 0, 32)))
+                .shadow(Shadow::new(0.0, 4.0, 12.0, 0.0, Color::rgba(0, 0, 0, 22)))
                 .pointer_events(PointerEvents::None)
                 .z_index(Z_INDEX_TOAST),
         );

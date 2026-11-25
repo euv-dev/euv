@@ -646,6 +646,38 @@ impl Style {
         self.get_mut_text().set_overflow(overflow);
         self
     }
+
+    /// Configures whether scroll deltas stop at this node (`true`) or chain/penetrate to parent scrollables (`false`).
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source style.
+    /// - `bool` - `true` blocks scroll penetration to ancestors; `false` permits scroll chaining.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated style.
+    #[must_use]
+    pub fn stop_scroll_propagation(mut self, stop: bool) -> Self {
+        self.get_mut_paint().set_stop_scroll_propagation(stop);
+        self
+    }
+
+    /// Configures whether click/pointer events stop bubbling at this node (`true`) or bubble to ancestors (`false`).
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source style.
+    /// - `bool` - `true` blocks event bubbling; `false` permits bubbling.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated style.
+    #[must_use]
+    pub fn stop_event_propagation(mut self, stop: bool) -> Self {
+        self.get_mut_paint().set_stop_event_propagation(stop);
+        self
+    }
 }
 
 /// Resolution helpers for `ResponsiveStyle`.

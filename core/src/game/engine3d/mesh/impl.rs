@@ -257,20 +257,55 @@ impl Mesh3D {
     /// - `Self` - Composite vehicle mesh.
     #[must_use]
     pub fn sports_car(name: &str, material: PbrMaterial) -> Self {
-        let lower: Self = Self::box_mesh("lower", 2.2, 0.85, 4.6, true, material);
-        let cabin: Self = Self::box_mesh("cabin", 1.85, 0.72, 2.2, true, material);
-        let mut vertices: Vec<Vertex3D> = lower.get_vertices().clone();
-        let mut indices: Vec<[u32; 3]> = lower.get_indices().clone();
-        let offset: u32 = vertices.len() as u32;
+        let lower: Self = Self::box_mesh("lower", 2.2, 0.80, 4.6, true, material);
+        let cabin: Self = Self::box_mesh("cabin", 1.82, 0.72, 2.2, true, material);
+        let wheel: Self = Self::box_mesh("wheel", 0.34, 0.56, 0.62, true, material);
+        let mut vertices: Vec<Vertex3D> = Vec::with_capacity(144);
+        let mut indices: Vec<[u32; 3]> = Vec::with_capacity(72);
+        let lower_offset: u32 = vertices.len() as u32;
+        for v in lower.get_vertices().iter() {
+            let p: Vec3 = v.get_position();
+            vertices.push(Vertex3D::new(
+                Vec3::new(p.get_x(), p.get_y() + 0.24, p.get_z()),
+                v.get_normal(),
+            ));
+        }
+        for tri in lower.get_indices().iter() {
+            indices.push([
+                tri[0] + lower_offset,
+                tri[1] + lower_offset,
+                tri[2] + lower_offset,
+            ]);
+        }
+        let cabin_offset: u32 = vertices.len() as u32;
         for v in cabin.get_vertices().iter() {
             let p: Vec3 = v.get_position();
             vertices.push(Vertex3D::new(
-                Vec3::new(p.get_x(), p.get_y() + 0.82, p.get_z() - 0.15),
+                Vec3::new(p.get_x(), p.get_y() + 1.04, p.get_z() - 0.15),
                 v.get_normal(),
             ));
         }
         for tri in cabin.get_indices().iter() {
-            indices.push([tri[0] + offset, tri[1] + offset, tri[2] + offset]);
+            indices.push([
+                tri[0] + cabin_offset,
+                tri[1] + cabin_offset,
+                tri[2] + cabin_offset,
+            ]);
+        }
+        let wheel_offsets: [(f32, f32); 4] =
+            [(-1.12, -1.45), (1.12, -1.45), (-1.12, 1.45), (1.12, 1.45)];
+        for (wx, wz) in wheel_offsets.into_iter() {
+            let base: u32 = vertices.len() as u32;
+            for v in wheel.get_vertices().iter() {
+                let p: Vec3 = v.get_position();
+                vertices.push(Vertex3D::new(
+                    Vec3::new(p.get_x() + wx, p.get_y() + 0.02, p.get_z() + wz),
+                    v.get_normal(),
+                ));
+            }
+            for tri in wheel.get_indices().iter() {
+                indices.push([tri[0] + base, tri[1] + base, tri[2] + base]);
+            }
         }
         Self::from_parts(name.to_string(), vertices, indices, material)
     }

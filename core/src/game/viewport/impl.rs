@@ -336,9 +336,6 @@ impl<'a> GameRenderContext<'a> {
                     tile_px + 0.5,
                 );
                 self.fill_rect(tile_rect, entry.get_color());
-                if entry.get_border_color().get_a() > 0 {
-                    self.stroke_rect(tile_rect, 1.0, entry.get_border_color());
-                }
             }
         }
     }

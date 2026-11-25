@@ -33,6 +33,7 @@ impl Mountable for EuvDrawer {
                 .height(Length::Percent(100.0))
                 .justify(JustifyContent::End)
                 .background(p.get_overlay())
+                .stop_scroll_propagation(true)
                 .z_index(Z_INDEX_DRAWER),
         );
         let panel: NodeId = ctx.view(
@@ -65,6 +66,7 @@ impl Mountable for EuvDrawer {
         let handle: SceneHandle = ctx.get_scene().clone();
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect = EuvOverlayStack::bind_signal(open, "EuvDrawer", Z_INDEX_DRAWER);
             Effect::new(move || {
                 let is_open: bool = open.get();
                 let was_open: bool = prev_open.replace(is_open);
@@ -159,6 +161,7 @@ impl Mountable for EuvSheet {
                 .height(Length::Percent(100.0))
                 .justify(JustifyContent::End)
                 .background(p.get_overlay())
+                .stop_scroll_propagation(true)
                 .z_index(Z_INDEX_DRAWER),
         );
         let panel: NodeId = ctx.view(
@@ -189,6 +192,7 @@ impl Mountable for EuvSheet {
         let handle: SceneHandle = ctx.get_scene().clone();
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect = EuvOverlayStack::bind_signal(open, "EuvSheet", Z_INDEX_DRAWER);
             Effect::new(move || {
                 let is_open: bool = open.get();
                 let was_open: bool = prev_open.replace(is_open);
@@ -294,6 +298,8 @@ impl Mountable for EuvPopover {
         let handle: SceneHandle = ctx.get_scene().clone();
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect =
+                EuvOverlayStack::bind_signal(open, "EuvPopoverOrMenu", Z_INDEX_DRAWER - 10);
             Effect::new(move || {
                 let is_open: bool = open.get();
                 let was_open: bool = prev_open.replace(is_open);
@@ -446,6 +452,7 @@ impl Mountable for EuvDropdown {
         let handle: SceneHandle = ctx.get_scene().clone();
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect = EuvOverlayStack::bind_signal(open, "EuvDropdown", Z_INDEX_DRAWER - 10);
             Effect::new(move || {
                 let is_open: bool = open.get();
                 let was_open: bool = prev_open.replace(is_open);
@@ -618,6 +625,7 @@ impl Mountable for EuvLoading {
                 .align(AlignItems::Center)
                 .gap(SPACE_MD)
                 .background(p.get_overlay())
+                .stop_scroll_propagation(true)
                 .z_index(Z_INDEX_MODAL),
         );
         let spinner: NodeId = EuvSpinner::new(32.0, tokens).mount(ctx);
@@ -638,6 +646,7 @@ impl Mountable for EuvLoading {
         let handle: SceneHandle = ctx.get_scene().clone();
         let prev_active: Rc<Cell<bool>> = Rc::new(Cell::new(init_active));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect = EuvOverlayStack::bind_signal(active, "EuvLoading", Z_INDEX_MODAL);
             Effect::new(move || {
                 let is_on: bool = active.get();
                 let was_on: bool = prev_active.replace(is_on);

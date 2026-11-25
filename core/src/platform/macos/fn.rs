@@ -52,6 +52,58 @@ unsafe extern "C" {
     ///
     /// - `*const c_void` - CoreFoundation object pointer.
     fn CFRelease(cf: *const c_void);
+    /// Returns the current thread's `CFRunLoopRef`.
+    ///
+    /// # Returns
+    ///
+    /// - `*mut c_void` - Current `CFRunLoopRef`.
+    fn CFRunLoopGetCurrent() -> *mut c_void;
+    /// Returns current absolute CoreFoundation timestamp in seconds.
+    ///
+    /// # Returns
+    ///
+    /// - `f64` - Absolute time in seconds.
+    fn CFAbsoluteTimeGetCurrent() -> f64;
+    /// Creates a repeating `CFRunLoopTimerRef` capable of firing inside modal live-resize tracking loops.
+    ///
+    /// # Arguments
+    ///
+    /// - `*const c_void` - Allocator (`null`).
+    /// - `f64` - Initial fire date.
+    /// - `f64` - Repeat interval in seconds.
+    /// - `usize` - Flags (`0`).
+    /// - `isize` - Order (`0`).
+    /// - `unsafe extern "C" fn(*mut c_void, *mut c_void)` - Timer callback.
+    /// - `*mut CfRunLoopTimerContext` - Context carrying user info pointer.
+    ///
+    /// # Returns
+    ///
+    /// - `*mut c_void` - Retained `CFRunLoopTimerRef`.
+    fn CFRunLoopTimerCreate(
+        allocator: *const c_void,
+        fire_date: f64,
+        interval: f64,
+        flags: usize,
+        order: isize,
+        callout: unsafe extern "C" fn(*mut c_void, *mut c_void),
+        context: *mut CfRunLoopTimerContext,
+    ) -> *mut c_void;
+    /// Attaches a `CFRunLoopTimerRef` to `run_loop` under `mode` (e.g. `kCFRunLoopCommonModes`).
+    ///
+    /// # Arguments
+    ///
+    /// - `*mut c_void` - Target `CFRunLoopRef`.
+    /// - `*mut c_void` - Timer handle.
+    /// - `*const c_void` - Run-loop mode `CFStringRef`.
+    fn CFRunLoopAddTimer(run_loop: *mut c_void, timer: *mut c_void, mode: *const c_void);
+    /// Invalidates a `CFRunLoopTimerRef` and removes it from all run-loop modes.
+    ///
+    /// # Arguments
+    ///
+    /// - `*mut c_void` - Timer handle.
+    fn CFRunLoopTimerInvalidate(timer: *mut c_void);
+    /// Global CoreFoundation constant for `kCFRunLoopCommonModes` (includes `NSEventTrackingRunLoopMode`).
+    static kCFRunLoopCommonModes: *const c_void;
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -748,6 +800,78 @@ pub(crate) fn macos_ns_string(text: &str) -> *mut c_void {
     objc_send_ptr1(cls, sel, cstr.as_ptr().cast_mut().cast::<c_void>())
 }
 
+/// Queries the live backing scale factor for a specific `NSWindow` (or main screen fallback).
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Target `NSWindow*` pointer.
+///
+/// # Returns
+///
+/// - `f32` - Active Retina backing scale factor (`1.0`, `2.0`, etc.).
+#[must_use]
+pub(crate) fn macos_window_backing_scale(ns_window: *mut c_void) -> f32 {
+    if !ns_window.is_null() {
+        let scale: f64 = objc_send_f64_0(ns_window, objc_sel(OBJC_SEL_BACKING_SCALE));
+        if scale > 0.0 {
+            return scale as f32;
+        }
+    }
+    macos_backing_scale_factor()
+}
+
+/// Installs a 60Hz `CFRunLoopTimer` on `kCFRunLoopCommonModes` so live window border dragging repaints continuously.
+///
+/// # Arguments
+///
+/// - `unsafe extern "C" fn(*mut c_void, *mut c_void)` - Callback invoked during modal resize tracking.
+/// - `*mut c_void` - Opaque user context pointer passed to `callout`.
+///
+/// # Returns
+///
+/// - `*mut c_void` - Retained `CFRunLoopTimerRef` handle to be released via `macos_remove_live_resize_timer`.
+pub(crate) fn macos_install_live_resize_timer(
+    callout: unsafe extern "C" fn(*mut c_void, *mut c_void),
+    info: *mut c_void,
+) -> *mut c_void {
+    let mut ctx: CfRunLoopTimerContext = CfRunLoopTimerContext {
+        version: 0,
+        info,
+        retain: null(),
+        release: null(),
+        copy_description: null(),
+    };
+    // SAFETY: CoreFoundation run-loop timer APIs called on the main AppKit thread.
+    unsafe {
+        let fire_date: f64 = CFAbsoluteTimeGetCurrent() + 0.016;
+        let timer: *mut c_void =
+            CFRunLoopTimerCreate(null(), fire_date, 0.016, 0, 0, callout, &mut ctx);
+        if !timer.is_null() {
+            let rl: *mut c_void = CFRunLoopGetCurrent();
+            if !rl.is_null() {
+                CFRunLoopAddTimer(rl, timer, kCFRunLoopCommonModes);
+            }
+        }
+        timer
+    }
+}
+
+/// Invalidates and releases a `CFRunLoopTimerRef` created by `macos_install_live_resize_timer`.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Timer handle.
+pub(crate) fn macos_remove_live_resize_timer(timer: *mut c_void) {
+    if timer.is_null() {
+        return;
+    }
+    // SAFETY: Valid `CFRunLoopTimerRef` owned by caller.
+    unsafe {
+        CFRunLoopTimerInvalidate(timer);
+        CFRelease(timer.cast_const());
+    }
+}
+
 /// Queries the macOS main display backing scale factor via `NSScreen.mainScreen.backingScaleFactor`.
 ///
 /// # Returns
@@ -949,7 +1073,7 @@ pub(crate) fn macos_present_cg_image(
                 CG_BITMAP_INFO_RGBA8,
                 provider,
                 null(),
-                false,
+                true,
                 0,
             )
         };

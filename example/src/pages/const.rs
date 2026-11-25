@@ -1,3 +1,6 @@
+pub(crate) const LABEL_PLATFORM_ANDROID: &str = "Android";
+pub(crate) const LABEL_PLATFORM_MACOS: &str = "macOS";
+pub(crate) const LABEL_CALENDAR_MONTH: &str = "November 2026";
 pub(crate) const OVERVIEW_TITLE: &str = "Cross-Platform Native Runtime";
 pub(crate) const OVERVIEW_SUBTITLE: &str =
     "Unified retained scene graph and deterministic layout across 7 targets.";

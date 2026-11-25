@@ -178,14 +178,14 @@ impl EuvButton {
             EuvButtonVariant::Primary => style
                 .background(p.get_primary())
                 .color(p.get_primary_foreground())
-                .shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 20))),
+                .shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 13))),
             EuvButtonVariant::Secondary => style
                 .background(p.get_secondary())
                 .color(p.get_secondary_foreground()),
             EuvButtonVariant::Destructive => style
                 .background(p.get_destructive())
                 .color(p.get_destructive_foreground())
-                .shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 20))),
+                .shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 13))),
             EuvButtonVariant::Outline => style
                 .background(p.get_background())
                 .border(g.get_border_width(), p.get_border())

@@ -89,4 +89,10 @@ pub struct World3D {
     /// Total imported external 3D models (`.obj` / `.gltf`).
     #[get(type(copy))]
     pub(crate) imported_model_count: usize,
+    /// Active 3D camera mode (`0 = Chase`, `1 = Hood`, `2 = Orbit`, `3 = Aerial`).
+    #[get(type(copy))]
+    pub(crate) camera_mode: u8,
+    /// Continuous orbit angle in radians used when `camera_mode == 2`.
+    #[get(type(copy))]
+    pub(crate) camera_orbit_rad: f32,
 }

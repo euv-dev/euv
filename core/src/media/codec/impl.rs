@@ -26,18 +26,18 @@ impl MediaCodecRegistry {
         if bytes.len() >= 12 && &bytes[0..4] == MAGIC_RIFF && &bytes[8..12] == MAGIC_WEBP {
             return MediaKind::Image;
         }
-        if bytes.starts_with(&[0x89, b'P', b'N', b'G'])
+        if bytes.starts_with(MAGIC_PNG)
             || bytes.starts_with(&[0xFF, 0xD8, 0xFF])
-            || bytes.starts_with(b"BM")
+            || bytes.starts_with(MAGIC_BMP)
         {
             return MediaKind::Image;
         }
-        if bytes.starts_with(b"ID3")
+        if bytes.starts_with(MAGIC_ID3)
             || (bytes.len() >= 2 && bytes[0] == 0xFF && (bytes[1] & 0xE0) == 0xE0)
         {
             return MediaKind::Audio;
         }
-        if bytes.len() >= 8 && &bytes[4..8] == b"ftyp" {
+        if bytes.len() >= 8 && &bytes[4..8] == MAGIC_FTYP {
             return MediaKind::Video;
         }
         if let Ok(text) = from_utf8(bytes) {
@@ -99,7 +99,7 @@ impl MediaCodecRegistry {
     /// - `ImageFormat` - Resolved image format.
     #[must_use]
     pub fn detect_image_format(uri: &str, bytes: &[u8]) -> ImageFormat {
-        if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
+        if bytes.starts_with(MAGIC_PNG) {
             return ImageFormat::Png;
         }
         if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
@@ -108,7 +108,7 @@ impl MediaCodecRegistry {
         if bytes.starts_with(MAGIC_GIF87A) || bytes.starts_with(MAGIC_GIF89A) {
             return ImageFormat::Gif;
         }
-        if bytes.starts_with(b"BM") {
+        if bytes.starts_with(MAGIC_BMP) {
             return ImageFormat::Bmp;
         }
         if bytes.len() >= 12 && &bytes[0..4] == MAGIC_RIFF && &bytes[8..12] == MAGIC_WEBP {
@@ -145,7 +145,7 @@ impl MediaCodecRegistry {
     ///
     /// - `Result<ImageAsset, String>` - Decoded `ImageAsset` or format error message.
     pub fn decode_bmp(bytes: &[u8], alt_text: &str) -> Result<ImageAsset, String> {
-        if bytes.len() < 54 || &bytes[0..2] != b"BM" {
+        if bytes.len() < 54 || &bytes[0..2] != MAGIC_BMP {
             return Err("invalid BMP header".to_string());
         }
         let data_offset: usize =
@@ -371,7 +371,7 @@ impl MediaCodecRegistry {
             ]) as usize;
             let body_start: usize = cursor + 8;
             let body_end: usize = body_start.saturating_add(chunk_size).min(bytes.len());
-            if chunk_id == b"fmt " && body_end - body_start >= 16 {
+            if chunk_id == MAGIC_WAV_FMT && body_end - body_start >= 16 {
                 channels =
                     u16::from_le_bytes([bytes[body_start + 2], bytes[body_start + 3]]).max(1);
                 sample_rate = u32::from_le_bytes([
@@ -383,7 +383,7 @@ impl MediaCodecRegistry {
                 .max(8_000);
                 bits_per_sample =
                     u16::from_le_bytes([bytes[body_start + 14], bytes[body_start + 15]]);
-            } else if chunk_id == b"data" {
+            } else if chunk_id == MAGIC_WAV_DATA {
                 pcm_bytes = &bytes[body_start..body_end];
             }
             let padded: usize = chunk_size + (chunk_size & 1);
@@ -465,7 +465,7 @@ impl MediaCodecRegistry {
         let raw_bytes: &[u8] = text.as_bytes();
         let mut i: usize = 0;
         while i < raw_bytes.len() {
-            if raw_bytes[i] == b'(' {
+            if raw_bytes[i] == BYTE_PAREN_OPEN {
                 let start: usize = i + 1;
                 let mut j: usize = start;
                 let mut depth: i32 = 1;
@@ -474,9 +474,9 @@ impl MediaCodecRegistry {
                         j += 2;
                         continue;
                     }
-                    if raw_bytes[j] == b'(' {
+                    if raw_bytes[j] == BYTE_PAREN_OPEN {
                         depth += 1;
-                    } else if raw_bytes[j] == b')' {
+                    } else if raw_bytes[j] == BYTE_PAREN_CLOSE {
                         depth -= 1;
                         if depth == 0 {
                             break;
@@ -568,7 +568,7 @@ impl MediaCodecRegistry {
         let mut in_script_or_style: bool = false;
         let mut buf: String = String::new();
         while i < bytes.len() {
-            if bytes[i] == b'<' {
+            if bytes[i] == BYTE_ANGLE_OPEN {
                 let text_chunk: String = Self::decode_html_entities(buf.trim());
                 buf.clear();
                 if !text_chunk.is_empty() && !in_script_or_style {
@@ -997,20 +997,35 @@ impl MediaCodecRegistry {
     /// - `f32` - Circle radius.
     /// - `Color` - Fill color.
     fn fill_circle_rgba(pixels: &mut [u8], w: u32, h: u32, cx: f32, cy: f32, r: f32, color: Color) {
-        let r2: f32 = r * r;
-        let x0: u32 = ((cx - r).floor().max(0.0) as u32).min(w);
-        let y0: u32 = ((cy - r).floor().max(0.0) as u32).min(h);
-        let x1: u32 = ((cx + r).ceil().max(0.0) as u32).min(w);
-        let y1: u32 = ((cy + r).ceil().max(0.0) as u32).min(h);
+        let pad: f32 = r + 1.5;
+        let x0: u32 = ((cx - pad).floor().max(0.0) as u32).min(w);
+        let y0: u32 = ((cy - pad).floor().max(0.0) as u32).min(h);
+        let x1: u32 = ((cx + pad).ceil().max(0.0) as u32).min(w);
+        let y1: u32 = ((cy + pad).ceil().max(0.0) as u32).min(h);
         let rgba: [u8; 4] = color.to_rgba_bytes();
+        let src_a: f32 = (rgba[3] as f32) / 255.0;
         for py in y0..y1 {
             let dy: f32 = (py as f32) + 0.5 - cy;
             let row: usize = (py as usize) * (w as usize) * 4;
             for px in x0..x1 {
                 let dx: f32 = (px as f32) + 0.5 - cx;
-                if dx * dx + dy * dy <= r2 {
-                    let idx: usize = row + (px as usize) * 4;
+                let dist: f32 = (dx * dx + dy * dy).sqrt();
+                let cov: f32 = (r + 0.5 - dist).clamp(0.0, 1.0) * src_a;
+                if cov <= 0.0 {
+                    continue;
+                }
+                let idx: usize = row + (px as usize) * 4;
+                if cov >= 0.999 {
                     pixels[idx..idx + 4].copy_from_slice(&rgba);
+                } else {
+                    let inv: f32 = 1.0 - cov;
+                    pixels[idx] =
+                        ((rgba[0] as f32) * cov + (pixels[idx] as f32) * inv).round() as u8;
+                    pixels[idx + 1] =
+                        ((rgba[1] as f32) * cov + (pixels[idx + 1] as f32) * inv).round() as u8;
+                    pixels[idx + 2] =
+                        ((rgba[2] as f32) * cov + (pixels[idx + 2] as f32) * inv).round() as u8;
+                    pixels[idx + 3] = 255;
                 }
             }
         }

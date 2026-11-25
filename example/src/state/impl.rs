@@ -22,13 +22,23 @@ impl ShowcaseState {
         let engine3d_import_queue: Signal<u64> = Signal::new(0);
         let engine3d_import_status: Signal<String> =
             Signal::new("Ready: import .OBJ or .glTF models live into BVH".to_string());
+        let engine3d_camera_mode: Signal<u8> = Signal::new(0);
         let scene3d: DemoOpenWorld3DScene = DemoOpenWorld3DScene::create_city(
             engine3d_quality,
             engine3d_time_of_day,
             engine3d_import_queue,
             engine3d_import_status,
+            engine3d_camera_mode,
         );
         let game3d_host: GameEngineHost = GameEngineHost::new(scene3d, 1.0 / 60.0);
+        let dynamic_hub: DynamicUpdateHub = DynamicUpdateHub::new();
+        let wasm_registry: RegistryWasmFetcher = RegistryWasmFetcher::default();
+        Self::populate_wasm_registry(&wasm_registry);
+        let wasm_manager: WasmDynamicManager = WasmDynamicManager::new(
+            dynamic_hub.clone(),
+            Rc::new(wasm_registry.clone()),
+            WasmSandboxConfig::default(),
+        );
         Self {
             route: Signal::new(ROUTE_OVERVIEW.to_string()),
             counter,
@@ -76,7 +86,8 @@ impl ShowcaseState {
             engine3d_time_of_day,
             engine3d_import_queue,
             engine3d_import_status,
-            dynamic_hub: DynamicUpdateHub::new(),
+            engine3d_camera_mode,
+            dynamic_hub,
             sibling_counter: Signal::new(0),
             dynamic_action_log: Signal::new("None yet".to_string()),
             alert_dialog_open: Signal::new(false),
@@ -96,10 +107,166 @@ impl ShowcaseState {
             media_audio: Signal::new(AudioTrack::sample_synth_wav()),
             media_pdf: Signal::new(PdfDocument::sample_pdf()),
             media_html_link_log: Signal::new("Click any native HTML link below".to_string()),
+            os_target_platform_idx: Signal::new(0),
+            island_mode_idx: Signal::new(0),
+            system_notifications: Signal::new(vec![(
+                "euv System Ready".to_string(),
+                "Native notification bus active across all 7 targets".to_string(),
+            )]),
+            permission_statuses: Signal::new(vec![PermissionStatus::NotDetermined; 14]),
+            lab_combobox_query: Signal::new(String::new()),
+            lab_combobox_selected: Signal::new(0),
+            lab_combobox_open: Signal::new(false),
+            lab_table_filter: Signal::new(String::new()),
+            lab_table_sort_asc: Signal::new(true),
+            lab_table_selected: Signal::new(Some(0)),
+            lab_date_day: Signal::new(26),
+            lab_date_open: Signal::new(false),
+            lab_input_group_val: Signal::new("showcase".to_string()),
+            lab_native_select_idx: Signal::new(0),
+            lab_nav_menu_active: Signal::new(None),
+            lab_split_ratio: Signal::new(0.45),
+            lab_block_scroll_chain: Signal::new(true),
+            lab_stop_click_bubble: Signal::new(true),
+            lab_parent_clicks: Signal::new(0),
+            lab_child_clicks: Signal::new(0),
+            lab_resize_preserve_count: Signal::new(1),
+            lab_rtl_mode: Signal::new(false),
+            wasm_registry,
+            wasm_manager,
+            wasm_offline: Signal::new(false),
+            wasm_fault_status: Signal::new(
+                "Ready: test partial/global .wasm download, cache, retry, traps & rollback"
+                    .to_string(),
+            ),
+            cmd_palette_open: Signal::new(false),
+            cmd_palette_query: Signal::new(String::new()),
         }
     }
 
-    /// Binds `hub` from the active `App` and wires interactive dynamic actions to showcase state and routing.
+    /// Registers genuine executable partial, global, and fault-case `.wasm` binaries into `registry`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&RegistryWasmFetcher` - Target CDN registry fetcher.
+    pub fn populate_wasm_registry(registry: &RegistryWasmFetcher) {
+        let p_v1: Vec<u8> =
+            build_partial_widget_wasm("Downloaded Partial WASM Widget v1", 1, 0x2563EB);
+        let p_v2: Vec<u8> =
+            build_partial_widget_wasm("Hot-Swapped Partial WASM Widget v2", 2, 0x7C3AED);
+        let g_v1: Vec<u8> = build_global_app_wasm("Global Dynamic WASM App Shell v1", 1);
+        let g_v2: Vec<u8> = build_global_app_wasm("Global Dynamic WASM App Shell v2", 2);
+        registry.register(
+            URL_WASM_PARTIAL_V1.to_string(),
+            p_v1.clone(),
+            "etag-p-v1".to_string(),
+            WasmFaultKind::None,
+        );
+        registry.register(
+            URL_WASM_PARTIAL_V2.to_string(),
+            p_v2,
+            "etag-p-v2".to_string(),
+            WasmFaultKind::None,
+        );
+        registry.register(
+            URL_WASM_GLOBAL_V1.to_string(),
+            g_v1,
+            "etag-g-v1".to_string(),
+            WasmFaultKind::None,
+        );
+        registry.register(
+            URL_WASM_GLOBAL_V2.to_string(),
+            g_v2,
+            "etag-g-v2".to_string(),
+            WasmFaultKind::None,
+        );
+        registry.register(
+            URL_WASM_TIMEOUT_RETRY.to_string(),
+            p_v1.clone(),
+            "etag-retry".to_string(),
+            WasmFaultKind::TimeoutOnceThenSucceed,
+        );
+        registry.register(
+            URL_WASM_HTTP_500.to_string(),
+            p_v1.clone(),
+            "etag-500".to_string(),
+            WasmFaultKind::Http500,
+        );
+        registry.register(
+            URL_WASM_CORRUPTED.to_string(),
+            build_faulty_wasm(WasmFaultKind::CorruptedMagic),
+            "etag-corrupt".to_string(),
+            WasmFaultKind::None,
+        );
+        registry.register(
+            URL_WASM_TAMPERED.to_string(),
+            p_v1,
+            "etag-tamper".to_string(),
+            WasmFaultKind::TamperedChecksum,
+        );
+        registry.register(
+            URL_WASM_BAD_ABI.to_string(),
+            build_faulty_wasm(WasmFaultKind::AbiMismatch),
+            "etag-abi".to_string(),
+            WasmFaultKind::None,
+        );
+        registry.register(
+            URL_WASM_MISSING_EXPORT.to_string(),
+            build_faulty_wasm(WasmFaultKind::MissingExport),
+            "etag-noexp".to_string(),
+            WasmFaultKind::None,
+        );
+        registry.register(
+            URL_WASM_FUEL_BOMB.to_string(),
+            build_faulty_wasm(WasmFaultKind::InfiniteLoopOutOfFuel),
+            "etag-fuel".to_string(),
+            WasmFaultKind::None,
+        );
+        registry.register(
+            URL_WASM_TRAP.to_string(),
+            build_faulty_wasm(WasmFaultKind::ExecutionTrap),
+            "etag-trap".to_string(),
+            WasmFaultKind::None,
+        );
+        registry.register(
+            URL_WASM_OVERSIZED.to_string(),
+            build_faulty_wasm(WasmFaultKind::OversizedBinary),
+            "etag-big".to_string(),
+            WasmFaultKind::None,
+        );
+    }
+
+    /// Formats a clean Linear/Vercel-style top bar breadcrumb for `route`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Active route path.
+    ///
+    /// # Returns
+    ///
+    /// - `String` - Formatted breadcrumb path (`"euv Studio  /  Category  /  Page"`).
+    #[must_use]
+    pub fn breadcrumb_for_route(route: &str) -> String {
+        let (sec, title): (&str, &str) = match route {
+            ROUTE_OVERVIEW => (NAV_SEC_WORKSPACE, NAV_LABEL_OVERVIEW),
+            ROUTE_LAB => (NAV_SEC_WORKSPACE, NAV_LABEL_LAB),
+            ROUTE_FORMS => (NAV_SEC_DESIGN, NAV_LABEL_FORMS),
+            ROUTE_THEMES => (NAV_SEC_DESIGN, NAV_LABEL_THEMES),
+            ROUTE_OVERLAYS => (NAV_SEC_DESIGN, NAV_LABEL_OVERLAYS),
+            ROUTE_DATA => (NAV_SEC_DESIGN, NAV_LABEL_DATA),
+            ROUTE_GAME_3D => (NAV_SEC_ENGINE, NAV_LABEL_GAME_3D),
+            ROUTE_GAME => (NAV_SEC_ENGINE, NAV_LABEL_GAME),
+            ROUTE_MEDIA => (NAV_SEC_ENGINE, NAV_LABEL_MEDIA),
+            ROUTE_RENDER => (NAV_SEC_ENGINE, NAV_LABEL_RENDER),
+            ROUTE_DYNAMIC => (NAV_SEC_RUNTIME, NAV_LABEL_DYNAMIC),
+            ROUTE_WINDOW => (NAV_SEC_RUNTIME, NAV_LABEL_WINDOW),
+            ROUTE_REACTIVE => (NAV_SEC_RUNTIME, NAV_LABEL_REACTIVE),
+            other => (NAV_SEC_RUNTIME, other),
+        };
+        format!("{sec} / {title}")
+    }
+
+    /// Binds `hub` from the active `App` and wires interactive dynamic actions and WASM manager callbacks.
     ///
     /// # Arguments
     ///
@@ -108,6 +275,13 @@ impl ShowcaseState {
     pub fn attach_dynamic_hub(&mut self, hub: DynamicUpdateHub) {
         let route_sig: Signal<String> = self.get_route();
         let action_log: Signal<String> = self.get_dynamic_action_log();
+        let wasm_status: Signal<String> = self.get_wasm_fault_status();
+        let wasm_mgr: WasmDynamicManager = WasmDynamicManager::new(
+            hub.clone(),
+            Rc::new(self.get_wasm_registry().clone()),
+            WasmSandboxConfig::default(),
+        );
+        let mgr_act: WasmDynamicManager = wasm_mgr.clone();
         hub.on_action(move |ev: &DynamicActionEvent| {
             let summary: String = format!(
                 "{} from {} ({})",
@@ -120,32 +294,68 @@ impl ShowcaseState {
                 let _: bool = route_sig.set_if_changed(target_route.to_string());
             } else if ev.get_action().as_str() == "return_dynamic" {
                 let _: bool = route_sig.set_if_changed(ROUTE_DYNAMIC.to_string());
+            } else if ev.get_action().as_str() == "wasm_interact" {
+                let scope: WasmDynamicScope = WasmDynamicScope::Partial {
+                    slot_id: SLOT_WASM_WIDGET.to_string(),
+                };
+                match mgr_act.dispatch_wasm_event(&scope, 1) {
+                    Ok(next_st) => {
+                        let _: bool = wasm_status.set(format!(
+                            "WASM euv_on_event executed inside sandbox -> next_state={next_st} (native UI re-rendered)"
+                        ));
+                    }
+                    Err(err) => {
+                        let _: bool = wasm_status.set(format!("WASM event error: {err}"));
+                    }
+                }
+            } else if ev.get_action().as_str() == "global_wasm_restore" {
+                mgr_act.restore_native_global();
+                let _: bool = wasm_status.set("Restored built-in native dashboard shell".to_string());
             }
         });
-        let Self { dynamic_hub, .. } = self;
+        let Self {
+            dynamic_hub,
+            wasm_manager,
+            ..
+        } = self;
         *dynamic_hub = hub;
+        *wasm_manager = wasm_mgr;
     }
 
-    /// Returns the ordered sidebar navigation items for the showcase.
+    /// Returns the categorized sidebar navigation items grouped in Linear/Vercel/shadcn hierarchy.
     ///
     /// # Returns
     ///
-    /// - `Vec<EuvNavItem>` - Complete list of showcase routes.
+    /// - `Vec<EuvNavItem>` - Categorized list of showcase routes.
     #[must_use]
     pub fn nav_items() -> Vec<EuvNavItem> {
         vec![
-            EuvNavItem::new(ROUTE_OVERVIEW.to_string(), NAV_LABEL_OVERVIEW.to_string()),
-            EuvNavItem::new(ROUTE_REACTIVE.to_string(), NAV_LABEL_REACTIVE.to_string()),
-            EuvNavItem::new(ROUTE_RENDER.to_string(), NAV_LABEL_RENDER.to_string()),
-            EuvNavItem::new(ROUTE_WINDOW.to_string(), NAV_LABEL_WINDOW.to_string()),
-            EuvNavItem::new(ROUTE_FORMS.to_string(), NAV_LABEL_FORMS.to_string()),
-            EuvNavItem::new(ROUTE_THEMES.to_string(), NAV_LABEL_THEMES.to_string()),
-            EuvNavItem::new(ROUTE_DATA.to_string(), NAV_LABEL_DATA.to_string()),
-            EuvNavItem::new(ROUTE_GAME.to_string(), NAV_LABEL_GAME.to_string()),
-            EuvNavItem::new(ROUTE_GAME_3D.to_string(), NAV_LABEL_GAME_3D.to_string()),
-            EuvNavItem::new(ROUTE_MEDIA.to_string(), NAV_LABEL_MEDIA.to_string()),
-            EuvNavItem::new(ROUTE_OVERLAYS.to_string(), NAV_LABEL_OVERLAYS.to_string()),
-            EuvNavItem::new(ROUTE_DYNAMIC.to_string(), NAV_LABEL_DYNAMIC.to_string()),
+            EuvNavItem::new(ROUTE_OVERVIEW.to_string(), NAV_LABEL_OVERVIEW.to_string())
+                .section(NAV_SEC_WORKSPACE),
+            EuvNavItem::new(ROUTE_LAB.to_string(), NAV_LABEL_LAB.to_string())
+                .section(NAV_SEC_WORKSPACE),
+            EuvNavItem::new(ROUTE_FORMS.to_string(), NAV_LABEL_FORMS.to_string())
+                .section(NAV_SEC_DESIGN),
+            EuvNavItem::new(ROUTE_THEMES.to_string(), NAV_LABEL_THEMES.to_string())
+                .section(NAV_SEC_DESIGN),
+            EuvNavItem::new(ROUTE_OVERLAYS.to_string(), NAV_LABEL_OVERLAYS.to_string())
+                .section(NAV_SEC_DESIGN),
+            EuvNavItem::new(ROUTE_DATA.to_string(), NAV_LABEL_DATA.to_string())
+                .section(NAV_SEC_DESIGN),
+            EuvNavItem::new(ROUTE_GAME_3D.to_string(), NAV_LABEL_GAME_3D.to_string())
+                .section(NAV_SEC_ENGINE),
+            EuvNavItem::new(ROUTE_GAME.to_string(), NAV_LABEL_GAME.to_string())
+                .section(NAV_SEC_ENGINE),
+            EuvNavItem::new(ROUTE_MEDIA.to_string(), NAV_LABEL_MEDIA.to_string())
+                .section(NAV_SEC_ENGINE),
+            EuvNavItem::new(ROUTE_RENDER.to_string(), NAV_LABEL_RENDER.to_string())
+                .section(NAV_SEC_ENGINE),
+            EuvNavItem::new(ROUTE_DYNAMIC.to_string(), NAV_LABEL_DYNAMIC.to_string())
+                .section(NAV_SEC_RUNTIME),
+            EuvNavItem::new(ROUTE_WINDOW.to_string(), NAV_LABEL_WINDOW.to_string())
+                .section(NAV_SEC_RUNTIME),
+            EuvNavItem::new(ROUTE_REACTIVE.to_string(), NAV_LABEL_REACTIVE.to_string())
+                .section(NAV_SEC_RUNTIME),
         ]
     }
 
@@ -593,8 +803,8 @@ impl GameScene for DemoPhysicsScene {
     /// - `&InputState` - Current polled input snapshot.
     fn update(&mut self, dt: f32, _input: &InputState) {
         if dt > 0.0001 {
-            let inst_fps: f32 = (1.0 / dt).clamp(1.0, 240.0);
-            let next: f32 = self.get_smoothed_fps() * 0.9 + inst_fps * 0.1;
+            let inst_fps: f32 = (1.0 / dt).clamp(1.0, 9999.0);
+            let next: f32 = self.get_smoothed_fps() * 0.85 + inst_fps * 0.15;
             self.set_smoothed_fps(next);
         }
     }
@@ -681,6 +891,7 @@ impl DemoOpenWorld3DScene {
     /// - `Signal<f32>` - Live time-of-day sun hour signal.
     /// - `Signal<u64>` - Monotonic model import request signal.
     /// - `Signal<String>` - Live status feedback signal.
+    /// - `Signal<u8>` - Active 3D camera mode signal (`0=Chase, 1=Hood, 2=Orbit, 3=Aerial`).
     ///
     /// # Returns
     ///
@@ -691,6 +902,7 @@ impl DemoOpenWorld3DScene {
         time_signal: Signal<f32>,
         import_signal: Signal<u64>,
         status_signal: Signal<String>,
+        camera_mode_signal: Signal<u8>,
     ) -> Self {
         Self {
             world: World3D::create_open_world_city(),
@@ -701,6 +913,7 @@ impl DemoOpenWorld3DScene {
             import_signal,
             last_import_seq: 0,
             status_signal,
+            camera_mode_signal,
             smoothed_fps: 60.0,
         }
     }
@@ -755,6 +968,10 @@ impl GameScene for DemoOpenWorld3DScene {
             self.get_mut_world()
                 .set_sun(DirectionalLight3D::from_time_of_day(hour));
         }
+        let cam_mode: u8 = self.get_camera_mode_signal().get_untracked();
+        if cam_mode != self.get_world().get_camera_mode() {
+            self.get_mut_world().set_camera_mode(cam_mode);
+        }
         let actions: ActionMap = self.get_actions().clone();
         self.get_mut_world().step_simulation(dt, input, &actions);
     }
@@ -768,8 +985,8 @@ impl GameScene for DemoOpenWorld3DScene {
     /// - `&InputState` - Current polled input snapshot.
     fn update(&mut self, dt: f32, _input: &InputState) {
         if dt > 0.0001 {
-            let inst_fps: f32 = (1.0 / dt).clamp(1.0, 240.0);
-            let next: f32 = self.get_smoothed_fps() * 0.9 + inst_fps * 0.1;
+            let inst_fps: f32 = (1.0 / dt).clamp(1.0, 9999.0);
+            let next: f32 = self.get_smoothed_fps() * 0.85 + inst_fps * 0.15;
             self.set_smoothed_fps(next);
         }
     }
@@ -797,18 +1014,17 @@ impl GameScene for DemoOpenWorld3DScene {
             frame_img,
         );
         let stats: RenderStats3D = self.get_renderer().get_last_stats();
-        ctx.fill_rounded_rect(
-            Rect::new(
-                10.0,
-                10.0,
-                (size.get_width() - 20.0).clamp(200.0, 620.0),
-                28.0,
-            ),
-            Color::rgba(9, 13, 24, 210),
-            6.0,
-        );
-        ctx.draw_text(
-            Point::new(18.0, 16.0),
+        let compact_hud: bool = size.get_width() < 520.0;
+        let hud_text: String = if compact_hud {
+            format!(
+                "3D {:?} | {}x{} | {} tris | {} rays",
+                quality.get_preset(),
+                stats.get_render_width(),
+                stats.get_render_height(),
+                stats.get_triangles_drawn(),
+                stats.get_rays_traced()
+            )
+        } else {
             format!(
                 "3D {:?} | RT {:?} | {}x{} | Tris {} | Rays {} | BVH {} | Culled {}",
                 quality.get_preset(),
@@ -819,9 +1035,18 @@ impl GameScene for DemoOpenWorld3DScene {
                 stats.get_rays_traced(),
                 stats.get_bvh_nodes(),
                 stats.get_culled_objects()
+            )
+        };
+        ctx.fill_rounded_rect(
+            Rect::new(
+                10.0,
+                10.0,
+                (size.get_width() - 20.0).clamp(200.0, 620.0),
+                28.0,
             ),
-            11.0,
-            Color::hex(0xE2E8F0),
+            Color::rgba(9, 13, 24, 210),
+            6.0,
         );
+        ctx.draw_text(Point::new(18.0, 16.0), hud_text, 11.0, Color::hex(0xE2E8F0));
     }
 }

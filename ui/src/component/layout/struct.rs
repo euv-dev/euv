@@ -1,6 +1,6 @@
 use super::*;
 
-/// Adaptive cross-platform application shell (Desktop sidebar, iPadOS rail, Mobile header + safe-area insets).
+/// Adaptive cross-platform application shell (Desktop sidebar + top context bar, iPadOS rail, Mobile header + drawer).
 #[derive(Clone, Data, Debug, New)]
 pub struct EuvAppShell {
     /// Application brand title shown in sidebar or mobile top bar.
@@ -18,6 +18,18 @@ pub struct EuvAppShell {
     #[new(skip)]
     #[get(skip)]
     pub(crate) route_signal: Option<Signal<String>>,
+    /// Optional action controls rendered on the right side of the persistent top header bar.
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) top_bar_actions: Option<NodeId>,
+    /// Optional footer widget rendered at the bottom of the navigation sidebar / mobile drawer.
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) sidebar_footer: Option<NodeId>,
+    /// Optional live breadcrumb / page context label rendered in the desktop top header bar.
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) breadcrumb: Option<Signal<String>>,
 }
 
 /// Hairline horizontal or vertical structural divider.

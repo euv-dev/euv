@@ -49,7 +49,11 @@ impl WindowController for WebPlatform {
                     .ok_or(PlatformError::WindowNotFound(id.get_value()))?;
                 let w: u32 = width.max(1);
                 let h: u32 = height.max(1);
-                let dpr: f32 = rec.get_state().get_scale_factor();
+                let live_dpr: f32 = window()
+                    .map(|bw: Window| (bw.device_pixel_ratio() as f32).clamp(1.0, 4.0))
+                    .unwrap_or_else(|| rec.get_state().get_scale_factor().max(1.0));
+                rec.get_mut_state().set_scale_factor(live_dpr);
+                let dpr: f32 = live_dpr;
                 let phys_w: u32 = ((w as f32) * dpr).round().max(1.0) as u32;
                 let phys_h: u32 = ((h as f32) * dpr).round().max(1.0) as u32;
                 let WebWindowRecord { canvas, .. } = rec;

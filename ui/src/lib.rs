@@ -6,16 +6,18 @@
 
 mod component;
 mod hook;
+mod overlay_stack;
+mod router;
 mod theme;
 
 #[cfg(test)]
 #[path = "../tests/mod.rs"]
 mod tests;
 
-pub use {component::*, hook::*, theme::*};
+pub use {component::*, hook::*, overlay_stack::*, router::*, theme::*};
 
 use std::{
-    cell::{Cell, RefCell},
+    cell::{Cell, Ref, RefCell},
     collections::HashMap,
     rc::Rc,
 };
