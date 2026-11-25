@@ -86,9 +86,18 @@ pub fn rasterize_glyph(key: GlyphKey) -> RasterizedGlyph {
         return rasterize_unicode_deterministic(key);
     }
     let size_px: f32 = (key.get_size_tenths() as f32) * 0.1;
+    let mut prop_style: TextStyle = TextStyle::default();
+    prop_style
+        .set_font_size(size_px)
+        .set_weight(if key.get_bold() {
+            FontWeight::Bold
+        } else {
+            FontWeight::Normal
+        });
+    let target_adv: f32 = measure_char_advance(key.get_codepoint(), prop_style);
     let out_h: u32 = (size_px * 0.86).round().max(7.0) as u32;
-    let out_w: u32 = ((out_h as f32) * 0.62).round().max(5.0) as u32;
-    let advance: u32 = ((out_w as f32) + (size_px * 0.14).max(1.0)).round() as u32;
+    let advance: u32 = target_adv.ceil().max(4.0) as u32;
+    let out_w: u32 = (target_adv * 0.86).round().max(3.0).min(advance as f32) as u32;
     let rows: [u8; BITMAP_GLYPH_HEIGHT] = glyph_bitmap_rows(key.get_codepoint());
     let bold: bool = key.get_bold();
     let total_pixels: usize = (out_w as usize) * (out_h as usize);
