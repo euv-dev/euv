@@ -13,4 +13,21 @@ pub trait Mountable {
     ///
     /// - `NodeId` - Root scene node handle produced by mounting.
     fn mount(self, ctx: &mut BuildContext) -> NodeId;
+
+    /// Mounts this view or component into the active ambient `BuildContext` managed by `App::mount` or `view!`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Owned view or component instance.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Root scene node handle produced by mounting.
+    fn mount_current(self) -> NodeId
+    where
+        Self: Sized,
+    {
+        let mut ctx: BuildContext = current_build_context();
+        self.mount(&mut ctx)
+    }
 }

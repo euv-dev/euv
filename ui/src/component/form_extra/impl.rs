@@ -1,28 +1,5 @@
 use super::*;
 
-/// Builder methods for `EuvLabel`.
-impl EuvLabel {
-    /// Creates a new form label.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Label text.
-    /// - `bool` - Required flag.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed label.
-    #[must_use]
-    pub fn create(text: String, required: bool, tokens: ThemeTokens) -> Self {
-        Self {
-            text,
-            required,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvLabel`.
 impl Mountable for EuvLabel {
     /// Mounts the label text and optional required indicator into `ctx`.
@@ -64,23 +41,6 @@ impl Mountable for EuvLabel {
 
 /// Builder methods for `EuvForm`.
 impl EuvForm {
-    /// Creates a vertical form container.
-    ///
-    /// # Arguments
-    ///
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed form.
-    #[must_use]
-    pub fn create(tokens: ThemeTokens) -> Self {
-        Self {
-            fields: Vec::new(),
-            tokens,
-        }
-    }
-
     /// Appends a mounted field node to the form.
     ///
     /// # Arguments
@@ -122,36 +82,6 @@ impl Mountable for EuvForm {
             ctx.append(col, f);
         }
         col
-    }
-}
-
-/// Builder methods for `EuvTextarea`.
-impl EuvTextarea {
-    /// Creates a multi-line reactive text area.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<String>` - Bound value signal.
-    /// - `String` - Placeholder text.
-    /// - `f32` - Textarea height in pixels.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed textarea.
-    #[must_use]
-    pub fn create(
-        value: Signal<String>,
-        placeholder: String,
-        height: f32,
-        tokens: ThemeTokens,
-    ) -> Self {
-        Self {
-            value,
-            placeholder,
-            height: height.max(64.0),
-            tokens,
-        }
     }
 }
 
@@ -198,33 +128,6 @@ impl Mountable for EuvTextarea {
     }
 }
 
-/// Builder methods for `EuvNumberInput`.
-impl EuvNumberInput {
-    /// Creates a bounded numeric stepper control.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<i64>` - Bound integer value.
-    /// - `i64` - Minimum value.
-    /// - `i64` - Maximum value.
-    /// - `i64` - Step delta.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed number input.
-    #[must_use]
-    pub fn create(value: Signal<i64>, min: i64, max: i64, step: i64, tokens: ThemeTokens) -> Self {
-        Self {
-            value,
-            min,
-            max: max.max(min),
-            step: step.max(1),
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvNumberInput`.
 impl Mountable for EuvNumberInput {
     /// Mounts `-`, reactive numeric readout, and `+` stepper buttons.
@@ -246,13 +149,14 @@ impl Mountable for EuvNumberInput {
         let max_v: i64 = self.get_max();
         let step_v: i64 = self.get_step();
         let row: NodeId = ctx.view(Style::empty().row().align(AlignItems::Center).gap(SPACE_SM));
-        let dec: NodeId = EuvButton::create(STEP_MINUS.to_string(), tokens)
-            .variant(EuvButtonVariant::Outline)
-            .size(EuvButtonSize::Small)
-            .on_click(move |_: &UiEvent| {
+        let mut dec_btn: EuvButton =
+            EuvButton::new(STEP_MINUS.to_string(), tokens).on_click(move |_: &UiEvent| {
                 let _: bool = sig.update(|v: &mut i64| *v = (*v - step_v).clamp(min_v, max_v));
-            })
-            .mount(ctx);
+            });
+        dec_btn
+            .set_variant(EuvButtonVariant::Outline)
+            .set_size(EuvButtonSize::Small);
+        let dec: NodeId = dec_btn.mount(ctx);
         let display: NodeId = ctx.view(
             Style::empty()
                 .row()
@@ -272,40 +176,18 @@ impl Mountable for EuvNumberInput {
             move || sig.get().to_string(),
         );
         ctx.append(display, num_txt);
-        let inc: NodeId = EuvButton::create(STEP_PLUS.to_string(), tokens)
-            .variant(EuvButtonVariant::Outline)
-            .size(EuvButtonSize::Small)
-            .on_click(move |_: &UiEvent| {
+        let mut inc_btn: EuvButton =
+            EuvButton::new(STEP_PLUS.to_string(), tokens).on_click(move |_: &UiEvent| {
                 let _: bool = sig.update(|v: &mut i64| *v = (*v + step_v).clamp(min_v, max_v));
-            })
-            .mount(ctx);
+            });
+        inc_btn
+            .set_variant(EuvButtonVariant::Outline)
+            .set_size(EuvButtonSize::Small);
+        let inc: NodeId = inc_btn.mount(ctx);
         ctx.append(row, dec);
         ctx.append(row, display);
         ctx.append(row, inc);
         row
-    }
-}
-
-/// Builder methods for `EuvRadioGroup`.
-impl EuvRadioGroup {
-    /// Creates a mutually exclusive radio button group.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<String>` - Radio option labels.
-    /// - `Signal<usize>` - Selected index signal.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed radio group.
-    #[must_use]
-    pub fn create(options: Vec<String>, selected: Signal<usize>, tokens: ThemeTokens) -> Self {
-        Self {
-            options,
-            selected,
-            tokens,
-        }
     }
 }
 
@@ -370,31 +252,6 @@ impl Mountable for EuvRadioGroup {
             ctx.append(col, row);
         }
         col
-    }
-}
-
-/// Builder methods for `EuvSlider`.
-impl EuvSlider {
-    /// Creates a bounded range slider.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<f32>` - Bound value signal.
-    /// - `f32` - Minimum value.
-    /// - `f32` - Maximum value.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed slider.
-    #[must_use]
-    pub fn create(value: Signal<f32>, min: f32, max: f32, tokens: ThemeTokens) -> Self {
-        Self {
-            value,
-            min,
-            max: max.max(min + 0.001),
-            tokens,
-        }
     }
 }
 
@@ -467,36 +324,6 @@ impl Mountable for EuvSlider {
         ctx.append(row, track);
         ctx.append(row, readout);
         row
-    }
-}
-
-/// Builder methods for `EuvSelect`.
-impl EuvSelect {
-    /// Creates a reactive dropdown select control.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<String>` - Option labels.
-    /// - `Signal<usize>` - Selected option index.
-    /// - `Signal<bool>` - Menu open flag.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed select control.
-    #[must_use]
-    pub fn create(
-        options: Vec<String>,
-        selected: Signal<usize>,
-        open: Signal<bool>,
-        tokens: ThemeTokens,
-    ) -> Self {
-        Self {
-            options,
-            selected,
-            open,
-            tokens,
-        }
     }
 }
 
@@ -597,29 +424,6 @@ impl Mountable for EuvSelect {
         ctx.append(wrapper, trigger);
         ctx.append(wrapper, menu);
         wrapper
-    }
-}
-
-/// Builder methods for `EuvRating`.
-impl EuvRating {
-    /// Creates an interactive star rating bar.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<usize>` - Selected rating signal.
-    /// - `usize` - Total star count.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed rating control.
-    #[must_use]
-    pub fn create(value: Signal<usize>, max_stars: usize, tokens: ThemeTokens) -> Self {
-        Self {
-            value,
-            max_stars: max_stars.max(1),
-            tokens,
-        }
     }
 }
 

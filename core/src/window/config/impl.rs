@@ -70,121 +70,21 @@ impl SafeAreaInsets {
     }
 }
 
-/// Fluent builder and safe optional accessors for `WindowConfig`.
+/// Convenience setters and safe optional accessors for `WindowConfig`.
 impl WindowConfig {
-    /// Sets the window title.
+    /// Sets initial logical `(width, height)` clamped to at least `1x1`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Source config.
-    /// - `String` - New title.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated config.
-    #[must_use]
-    pub fn with_title(mut self, title: String) -> Self {
-        self.set_title(title);
-        self
-    }
-
-    /// Sets initial logical dimensions.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source config.
+    /// - `&Self` - Mutable window config.
     /// - `u32` - Logical width.
     /// - `u32` - Logical height.
     ///
     /// # Returns
     ///
-    /// - `Self` - Updated config.
-    #[must_use]
-    pub fn with_size(mut self, width: u32, height: u32) -> Self {
-        self.set_width(width.max(1));
-        self.set_height(height.max(1));
-        self
-    }
-
-    /// Sets minimum logical window dimensions.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source config.
-    /// - `u32` - Minimum width.
-    /// - `u32` - Minimum height.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated config.
-    #[must_use]
-    pub fn with_min_size(mut self, width: u32, height: u32) -> Self {
-        self.set_min_size(Some((width, height)));
-        self
-    }
-
-    /// Sets rendering mode and configuration.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source config.
-    /// - `RenderConfig` - Target render configuration.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated config.
-    #[must_use]
-    pub fn with_render(mut self, render: RenderConfig) -> Self {
-        self.set_render(render);
-        self
-    }
-
-    /// Sets fullscreen mode.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source config.
-    /// - `FullscreenMode` - Target fullscreen mode.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated config.
-    #[must_use]
-    pub fn with_fullscreen(mut self, fullscreen: FullscreenMode) -> Self {
-        self.set_fullscreen(fullscreen);
-        self
-    }
-
-    /// Sets whether OS window decorations are enabled.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source config.
-    /// - `bool` - Decorations visibility.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated config.
-    #[must_use]
-    pub fn with_decorations(mut self, decorations: bool) -> Self {
-        self.set_decorations(decorations);
-        self
-    }
-
-    /// Sets whether the window floats always-on-top.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source config.
-    /// - `bool` - Always-on-top flag.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated config.
-    #[must_use]
-    pub fn with_always_on_top(mut self, always_on_top: bool) -> Self {
-        self.set_always_on_top(always_on_top);
-        self
+    /// - `&mut Self` - Mutable reference for fluent setter chaining.
+    pub fn set_size(&mut self, width: u32, height: u32) -> &mut Self {
+        self.set_width(width.max(1)).set_height(height.max(1))
     }
 
     /// Returns the optional minimum size tuple.

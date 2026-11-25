@@ -1,28 +1,5 @@
 use super::*;
 
-/// Builder methods for `EuvTag`.
-impl EuvTag {
-    /// Creates a new `EuvTag`.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Tag text.
-    /// - `EuvTone` - Semantic tone.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed tag.
-    #[must_use]
-    pub fn create(label: String, tone: EuvTone, tokens: ThemeTokens) -> Self {
-        Self {
-            label,
-            tone,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvTag`.
 impl Mountable for EuvTag {
     /// Mounts the bordered tag chip into `ctx`.
@@ -58,29 +35,6 @@ impl Mountable for EuvTag {
         );
         ctx.append(box_node, txt);
         box_node
-    }
-}
-
-/// Builder methods for `EuvAvatar`.
-impl EuvAvatar {
-    /// Creates a circular avatar showing `initials`.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Initials string.
-    /// - `f32` - Diameter in logical pixels.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed avatar.
-    #[must_use]
-    pub fn create(initials: String, size: f32, tokens: ThemeTokens) -> Self {
-        Self {
-            initials,
-            size: size.max(20.0),
-            tokens,
-        }
     }
 }
 
@@ -122,29 +76,6 @@ impl Mountable for EuvAvatar {
     }
 }
 
-/// Builder methods for `EuvIcon`.
-impl EuvIcon {
-    /// Creates a compact symbolic icon box.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Symbolic glyph string.
-    /// - `f32` - Icon size in logical pixels.
-    /// - `Color` - Foreground color.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed icon.
-    #[must_use]
-    pub fn create(symbol: String, size: f32, color: Color) -> Self {
-        Self {
-            symbol,
-            size: size.max(12.0),
-            color,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvIcon`.
 impl Mountable for EuvIcon {
     /// Mounts the icon box into `ctx`.
@@ -181,24 +112,6 @@ impl Mountable for EuvIcon {
     }
 }
 
-/// Builder methods for `EuvKbd`.
-impl EuvKbd {
-    /// Creates a keycap indicator.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Shortcut label.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed keycap.
-    #[must_use]
-    pub fn create(key: String, tokens: ThemeTokens) -> Self {
-        Self { key, tokens }
-    }
-}
-
 /// `Mountable` implementation for `EuvKbd`.
 impl Mountable for EuvKbd {
     /// Mounts the monospace keycap surface into `ctx`.
@@ -232,29 +145,6 @@ impl Mountable for EuvKbd {
         );
         ctx.append(cap, txt);
         cap
-    }
-}
-
-/// Builder methods for `EuvTypography`.
-impl EuvTypography {
-    /// Creates a styled semantic typography node.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Text content.
-    /// - `EuvTypographyVariant` - Scale variant.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed typography node.
-    #[must_use]
-    pub fn create(text: String, variant: EuvTypographyVariant, tokens: ThemeTokens) -> Self {
-        Self {
-            text,
-            variant,
-            tokens,
-        }
     }
 }
 
@@ -296,29 +186,6 @@ impl Mountable for EuvTypography {
                 .color(p.get_muted_foreground()),
         };
         ctx.text(text, style)
-    }
-}
-
-/// Builder methods for `EuvEmpty`.
-impl EuvEmpty {
-    /// Creates an empty-state placeholder card.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Empty title.
-    /// - `String` - Guidance description.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed empty placeholder.
-    #[must_use]
-    pub fn create(title: String, description: String, tokens: ThemeTokens) -> Self {
-        Self {
-            title,
-            description,
-            tokens,
-        }
     }
 }
 
@@ -376,29 +243,6 @@ impl Mountable for EuvEmpty {
     }
 }
 
-/// Builder methods for `EuvSkeleton`.
-impl EuvSkeleton {
-    /// Creates a skeleton placeholder bar.
-    ///
-    /// # Arguments
-    ///
-    /// - `f32` - Width in logical pixels.
-    /// - `f32` - Height in logical pixels.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed skeleton block.
-    #[must_use]
-    pub fn create(width: f32, height: f32, tokens: ThemeTokens) -> Self {
-        Self {
-            width: width.max(8.0),
-            height: height.max(8.0),
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvSkeleton`.
 impl Mountable for EuvSkeleton {
     /// Mounts the rounded skeleton surface into `ctx`.
@@ -421,27 +265,6 @@ impl Mountable for EuvSkeleton {
                 .background(p.get_secondary())
                 .radius(g.get_radius_sm()),
         )
-    }
-}
-
-/// Builder methods for `EuvSpinner`.
-impl EuvSpinner {
-    /// Creates a circular activity spinner.
-    ///
-    /// # Arguments
-    ///
-    /// - `f32` - Diameter in logical pixels.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed spinner.
-    #[must_use]
-    pub fn create(size: f32, tokens: ThemeTokens) -> Self {
-        Self {
-            size: size.max(12.0),
-            tokens,
-        }
     }
 }
 
@@ -478,24 +301,6 @@ impl Mountable for EuvSpinner {
                 });
             },
         )
-    }
-}
-
-/// Builder methods for `EuvTimeline`.
-impl EuvTimeline {
-    /// Creates a vertical timeline from ordered `EuvTimelineItem` entries.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<EuvTimelineItem>` - Milestone items.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed timeline.
-    #[must_use]
-    pub fn create(items: Vec<EuvTimelineItem>, tokens: ThemeTokens) -> Self {
-        Self { items, tokens }
     }
 }
 
@@ -565,24 +370,6 @@ impl Mountable for EuvTimeline {
     }
 }
 
-/// Builder methods for `EuvList`.
-impl EuvList {
-    /// Creates a bordered vertical list of rows.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<String>` - Row strings.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed list.
-    #[must_use]
-    pub fn create(items: Vec<String>, tokens: ThemeTokens) -> Self {
-        Self { items, tokens }
-    }
-}
-
 /// `Mountable` implementation for `EuvList`.
 impl Mountable for EuvList {
     /// Mounts the bordered list rows into `ctx`.
@@ -628,21 +415,6 @@ impl Mountable for EuvList {
 
 /// Builder and recursive rendering methods for `EuvTree`.
 impl EuvTree {
-    /// Creates an indented tree viewer.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<EuvTreeNode>` - Root tree nodes.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed tree viewer.
-    #[must_use]
-    pub fn create(roots: Vec<EuvTreeNode>, tokens: ThemeTokens) -> Self {
-        Self { roots, tokens }
-    }
-
     /// Recursively appends indented tree rows into `parent`.
     ///
     /// # Arguments

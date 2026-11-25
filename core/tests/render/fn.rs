@@ -7,13 +7,13 @@ fn cross_platform_pixel_parity_across_all_seven_platforms_and_render_modes() {
     for platform in PlatformKind::all_targets().into_iter() {
         let backend: HeadlessPlatform =
             HeadlessPlatform::emulating(platform, 1.0, SafeAreaInsets::default());
-        let cfg: AppConfig = AppConfig::default().with_window(
-            WindowConfig::default()
-                .with_size(240, 140)
-                .with_render(RenderConfig::software()),
-        );
+        let mut win: WindowConfig = WindowConfig::default();
+        win.set_size(240, 140).set_render(RenderConfig::software());
+        let mut cfg: AppConfig = AppConfig::default();
+        cfg.set_window(win);
         let mut app: App = App::with_platform(cfg, Box::new(backend)).unwrap();
-        let _: NodeId = app.mount(|ctx: &mut BuildContext| {
+        let _: NodeId = app.mount(|| {
+            let mut ctx: BuildContext = current_build_context();
             let root: NodeId = ctx.view(
                 Style::empty()
                     .column()
@@ -82,7 +82,7 @@ fn hardware_renderer_batches_primitives_and_selects_native_shaders() {
     tree.append_child(root, box_b);
     let mut layout: LayoutEngine = LayoutEngine::default();
     let lstats: LayoutStats = layout.compute(&mut tree, Size::new(200.0, 120.0));
-    let mut renderer: Renderer = Renderer::create(
+    let mut renderer: Renderer = Renderer::new(
         PlatformKind::MacOs,
         PlatformCapabilities::for_platform(PlatformKind::MacOs),
         200,
@@ -102,6 +102,7 @@ fn hardware_renderer_batches_primitives_and_selects_native_shaders() {
     assert_eq!(stats.get_active_mode(), RenderMode::Hardware);
     assert_eq!(stats.get_active_backend(), GraphicsBackend::Metal);
     assert!(stats.get_draw_batches() >= 1);
+    assert_ne!(stats.get_frame_hash(), 0);
     assert!(
         renderer
             .get_hardware()
@@ -109,6 +110,28 @@ fn hardware_renderer_batches_primitives_and_selects_native_shaders() {
             .shader_source()
             .contains("metal_stdlib")
     );
+}
+
+#[test]
+fn app_run_frames_steps_multiple_frames_and_exits_on_close_event() {
+    reset_reactive_runtime();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(200, 120).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        let mut ctx: BuildContext = current_build_context();
+        ctx.text("Multi-frame loop".to_string(), Style::empty())
+    });
+    let stats: FrameStats = app.run_frames(Some(3)).unwrap();
+    assert_eq!(stats.get_frame_index(), 3);
+    assert_ne!(stats.get_frame_hash(), 0);
+    let wid: WindowId = app.get_window_state().get_id();
+    app.dispatch_window_event(WindowEvent::CloseRequested(wid));
+    assert!(!app.get_running());
+    let closed_stats: FrameStats = app.run_frames(None).unwrap();
+    assert_eq!(closed_stats.get_frame_index(), 0);
 }
 
 #[test]

@@ -1,7 +1,7 @@
 use super::*;
 
 /// Compact dismissible or labeled metadata tag.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvTag {
     /// Tag text label.
     pub(crate) label: String,
@@ -14,7 +14,7 @@ pub struct EuvTag {
 }
 
 /// Circular initials avatar surface.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvAvatar {
     /// Display initials (1-2 chars).
     pub(crate) initials: String,
@@ -27,7 +27,7 @@ pub struct EuvAvatar {
 }
 
 /// Crisp vector-rendered symbolic icon badge.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvIcon {
     /// Symbolic glyph string.
     pub(crate) symbol: String,
@@ -40,7 +40,7 @@ pub struct EuvIcon {
 }
 
 /// Keyboard shortcut keycap indicator (`Cmd`, `Ctrl`, `K`).
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvKbd {
     /// Keycap text.
     pub(crate) key: String,
@@ -50,7 +50,7 @@ pub struct EuvKbd {
 }
 
 /// Semantic typography text node across heading, body, and caption scales.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvTypography {
     /// Text string.
     pub(crate) text: String,
@@ -63,7 +63,7 @@ pub struct EuvTypography {
 }
 
 /// Empty-state placeholder card with title and explanation.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvEmpty {
     /// Empty-state heading.
     pub(crate) title: String,
@@ -75,7 +75,7 @@ pub struct EuvEmpty {
 }
 
 /// Shimmer-style skeleton loading placeholder rectangle.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvSkeleton {
     /// Width in logical pixels.
     #[get(type(copy))]
@@ -89,7 +89,7 @@ pub struct EuvSkeleton {
 }
 
 /// Vector circular activity spinner rendered via `Canvas`.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvSpinner {
     /// Diameter in logical pixels.
     #[get(type(copy))]
@@ -111,7 +111,7 @@ pub struct EuvTimelineItem {
 }
 
 /// Vertical chronological timeline component.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvTimeline {
     /// Ordered milestone entries.
     pub(crate) items: Vec<EuvTimelineItem>,
@@ -121,7 +121,7 @@ pub struct EuvTimeline {
 }
 
 /// Structured vertical list component with dividers.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvList {
     /// Ordered row text labels.
     pub(crate) items: Vec<String>,
@@ -140,7 +140,7 @@ pub struct EuvTreeNode {
 }
 
 /// Indented hierarchical tree viewer component.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvTree {
     /// Root tree nodes.
     pub(crate) roots: Vec<EuvTreeNode>,

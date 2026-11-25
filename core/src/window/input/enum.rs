@@ -123,4 +123,6 @@ pub enum WindowEvent {
     Lifecycle(LifecycleEvent),
     /// Platform requests a fresh rendered frame.
     RedrawRequested(WindowId),
+    /// Operating system delivered a custom-scheme or universal deep link URI.
+    DeepLink(DeepLinkEvent),
 }

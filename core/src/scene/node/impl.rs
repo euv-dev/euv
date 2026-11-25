@@ -14,7 +14,7 @@ impl SceneNode {
     ///
     /// - `Self` - Constructed scene node marked dirty for initial layout and paint.
     #[must_use]
-    pub fn create(generation: u32, kind: NodeKind, style: Style) -> Self {
+    pub fn new(generation: u32, kind: NodeKind, style: Style) -> Self {
         let focusable: bool = matches!(kind, NodeKind::Input(_));
         Self {
             generation,
@@ -32,6 +32,7 @@ impl SceneNode {
             handlers: EventHandlers::default(),
             scope: None,
             canvas_painter: None,
+            a11y: None,
         }
     }
 
@@ -93,6 +94,21 @@ impl SceneNode {
     pub fn canvas_callback(&self) -> Option<CanvasDrawCallback> {
         let Self { canvas_painter, .. } = self;
         canvas_painter.clone()
+    }
+
+    /// Returns the optional explicit semantic accessibility metadata attached to this node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene node reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<A11yProps>` - Cloned accessibility metadata if explicitly configured.
+    #[must_use]
+    pub fn a11y_props(&self) -> Option<A11yProps> {
+        let Self { a11y, .. } = self;
+        a11y.clone()
     }
 
     /// Returns the cached layout constraint if previously laid out.

@@ -1,9 +1,9 @@
 use super::*;
 
 #[test]
-fn showcase_mounts_and_renders_all_eight_routes_cleanly() {
+fn showcase_mounts_and_renders_all_nine_routes_cleanly() {
     reset_reactive_runtime();
-    let routes: [&str; 8] = [
+    let routes: [&str; 9] = [
         ROUTE_OVERVIEW,
         ROUTE_REACTIVE,
         ROUTE_RENDER,
@@ -11,6 +11,7 @@ fn showcase_mounts_and_renders_all_eight_routes_cleanly() {
         ROUTE_FORMS,
         ROUTE_THEMES,
         ROUTE_DATA,
+        ROUTE_GAME,
         ROUTE_OVERLAYS,
     ];
     let (mut app, state): (App, ShowcaseState) =
@@ -18,8 +19,7 @@ fn showcase_mounts_and_renders_all_eight_routes_cleanly() {
     for route in routes.iter() {
         let _: bool = state.get_route().set((*route).to_string());
         let mount_state: ShowcaseState = state.clone();
-        let _: NodeId =
-            app.mount(move |ctx: &mut BuildContext| mount_showcase_root(ctx, &mount_state));
+        let _: NodeId = app.mount(move || mount_showcase_root(&mount_state));
         let stats: FrameStats = app.step_frame().unwrap();
         assert_ne!(stats.get_frame_hash(), 0);
         assert!(stats.get_draw_commands() >= 4);
@@ -35,7 +35,7 @@ fn showcase_supports_render_mode_switching_and_theme_cycling() {
     assert_ne!(sw_stats.get_frame_hash(), 0);
     assert!(hw_stats.get_draw_batches() >= 1);
     assert_eq!(sw_stats.get_frame_hash(), hy_stats.get_frame_hash());
-    let state: ShowcaseState = ShowcaseState::create();
+    let state: ShowcaseState = ShowcaseState::new();
     let initial: DesignScheme = state.get_theme().get_scheme().get_untracked();
     state.next_scheme();
     assert_ne!(state.get_theme().get_scheme().get_untracked(), initial);

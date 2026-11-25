@@ -13,7 +13,7 @@ impl UiThemeState {
     ///
     /// - `Self` - Reactive theme controller.
     #[must_use]
-    pub fn create(initial_scheme: DesignScheme, initial_mode: ThemeMode) -> Self {
+    pub fn new(initial_scheme: DesignScheme, initial_mode: ThemeMode) -> Self {
         let scheme: Signal<DesignScheme> = Signal::new(initial_scheme);
         let mode: Signal<ThemeMode> = Signal::new(initial_mode);
         let tokens: Memo<ThemeTokens> =

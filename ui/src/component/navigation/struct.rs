@@ -10,7 +10,7 @@ pub struct EuvNavItem {
 }
 
 /// Vertical sidebar navigation list highlighting the active route reactively.
-#[derive(Clone, Data, Debug)]
+#[derive(Clone, Data, Debug, New)]
 pub struct EuvSidebarNav {
     /// Ordered navigation items.
     pub(crate) items: Vec<EuvNavItem>,
@@ -23,7 +23,7 @@ pub struct EuvSidebarNav {
 }
 
 /// Horizontal tab bar switching active tab index reactively.
-#[derive(Clone, Data, Debug)]
+#[derive(Clone, Data, Debug, New)]
 pub struct EuvTabs {
     /// Ordered tab labels.
     pub(crate) labels: Vec<String>,

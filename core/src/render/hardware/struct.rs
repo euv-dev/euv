@@ -61,10 +61,10 @@ pub struct RecordingGpuDriver {
 }
 
 /// Hardware GPU renderer compiling `DisplayList` streams into coalesced instanced `GpuBatch` calls.
-#[derive(Clone, Data, Debug, Default)]
+#[derive(Data, Debug, Default)]
 pub struct HardwareRenderer {
-    /// Active GPU driver handling batch submission.
-    pub(crate) driver: RecordingGpuDriver,
+    /// Active physical OS GPU driver handling shader compilation and batch submission.
+    pub(crate) driver: NativeGpuDriver,
     /// Reusable batch scratch buffer avoiding per-frame allocations.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]

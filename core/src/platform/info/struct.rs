@@ -33,4 +33,25 @@ pub struct PlatformCapabilities {
     /// Supports native IME / soft keyboard composition.
     #[get(type(copy))]
     pub(crate) ime: bool,
+    /// Supports Apple Dynamic Island hardware cutout presentation (`iOS`).
+    #[get(type(copy))]
+    pub(crate) dynamic_island: bool,
+    /// Supports native Live Activities / ongoing live status surfaces (`iOS`, `iPadOS`, `Android`).
+    #[get(type(copy))]
+    pub(crate) live_activities: bool,
+    /// Supports desktop system tray or menu bar status icons (`macOS`, `Windows`, `Linux`).
+    #[get(type(copy))]
+    pub(crate) system_tray: bool,
+    /// Supports OS biometric authentication (Face ID, Touch ID, BiometricPrompt, Windows Hello, Passkeys).
+    #[get(type(copy))]
+    pub(crate) biometrics: bool,
+    /// Supports tactile haptic feedback pulses.
+    #[get(type(copy))]
+    pub(crate) haptics: bool,
+    /// Supports custom URL protocol / deep link handler registration.
+    #[get(type(copy))]
+    pub(crate) protocol_handler: bool,
+    /// Supports native OS accessibility bridge (NSAccessibility, UIAccessibility, UIA, AT-SPI2, Android, ARIA).
+    #[get(type(copy))]
+    pub(crate) accessibility_bridge: bool,
 }

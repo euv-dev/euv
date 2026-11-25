@@ -1,32 +1,5 @@
 use super::*;
 
-/// Construction and mounting for `EuvSidebarNav`.
-impl EuvSidebarNav {
-    /// Creates a sidebar navigation list bound to `active_route`.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<EuvNavItem>` - Navigation destinations.
-    /// - `Signal<String>` - Active route path signal.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed sidebar nav.
-    #[must_use]
-    pub fn create(
-        items: Vec<EuvNavItem>,
-        active_route: Signal<String>,
-        tokens: ThemeTokens,
-    ) -> Self {
-        Self {
-            items,
-            active_route,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvSidebarNav`.
 impl Mountable for EuvSidebarNav {
     /// Mounts sidebar navigation items with reactive active highlighting.
@@ -91,29 +64,6 @@ impl Mountable for EuvSidebarNav {
             ctx.append(list, row);
         }
         list
-    }
-}
-
-/// Construction and mounting for `EuvTabs`.
-impl EuvTabs {
-    /// Creates a horizontal tab bar bound to `active`.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<String>` - Ordered tab titles.
-    /// - `Signal<usize>` - Active tab index signal.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed tab bar.
-    #[must_use]
-    pub fn create(labels: Vec<String>, active: Signal<usize>, tokens: ThemeTokens) -> Self {
-        Self {
-            labels,
-            active,
-            tokens,
-        }
     }
 }
 

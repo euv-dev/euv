@@ -18,10 +18,8 @@ pub(crate) struct ViewElement {
     pub(crate) children: Vec<ViewNode>,
 }
 
-/// Top-level `view!(ctx_expr, { root_node })` input.
+/// Top-level zero-context `view! { root_node }` macro input.
 pub(crate) struct ViewMacroInput {
-    /// Expression evaluating to `&mut BuildContext`.
-    pub(crate) ctx: Expr,
     /// Root view element or expression.
     pub(crate) root: ViewNode,
 }

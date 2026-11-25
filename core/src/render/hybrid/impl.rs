@@ -21,10 +21,40 @@ impl HybridRenderer {
         height: u32,
         config: RenderConfig,
     ) -> Self {
+        Self::with_backend_and_font(
+            gpu_backend,
+            width,
+            height,
+            config,
+            NativeSystemFont::deterministic(),
+        )
+    }
+
+    /// Creates a hybrid renderer targeting `gpu_backend` with an explicit font provider.
+    ///
+    /// # Arguments
+    ///
+    /// - `GraphicsBackend` - GPU backend used for quad compositing.
+    /// - `u32` - Initial physical width.
+    /// - `u32` - Initial physical height.
+    /// - `RenderConfig` - Rendering configuration.
+    /// - `NativeSystemFont` - Font provider used by the CPU tile rasterizer.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Initialized hybrid renderer.
+    #[must_use]
+    pub fn with_backend_and_font(
+        gpu_backend: GraphicsBackend,
+        width: u32,
+        height: u32,
+        config: RenderConfig,
+        font_provider: NativeSystemFont,
+    ) -> Self {
         let mut compositor: RecordingGpuDriver = RecordingGpuDriver::default();
         compositor.set_backend_kind(gpu_backend);
         Self {
-            software: SoftwareRenderer::with_config(width, height, config),
+            software: SoftwareRenderer::with_font_provider(width, height, config, font_provider),
             compositor,
         }
     }

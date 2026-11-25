@@ -23,14 +23,15 @@ fn pointer_click_input_typing_window_commands_and_router_work_end_to_end() {
     reset_reactive_runtime();
     let clicked: Signal<u32> = Signal::new(0);
     let typed: Signal<String> = Signal::new(String::new());
-    let cfg: AppConfig = AppConfig::default().with_window(
-        WindowConfig::default()
-            .with_title("euv test".to_string())
-            .with_size(400, 300)
-            .with_render(RenderConfig::software()),
-    );
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_title("euv test".to_string())
+        .set_size(400, 300)
+        .set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
-    let _: NodeId = app.mount(|ctx: &mut BuildContext| {
+    let _: NodeId = app.mount(|| {
+        let mut ctx: BuildContext = current_build_context();
         let root: NodeId = ctx.view(
             Style::empty()
                 .column()

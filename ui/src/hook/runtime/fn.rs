@@ -12,7 +12,7 @@ use super::*;
 /// - `UiThemeState` - Reactive theme state handle.
 #[must_use]
 pub fn use_theme(scheme: DesignScheme, mode: ThemeMode) -> UiThemeState {
-    UiThemeState::create(scheme, mode)
+    UiThemeState::new(scheme, mode)
 }
 
 /// Creates an `I18nCatalog` hook initialized with `locale`.
@@ -26,21 +26,17 @@ pub fn use_theme(scheme: DesignScheme, mode: ThemeMode) -> UiThemeState {
 /// - `I18nCatalog` - Reactive localization catalog.
 #[must_use]
 pub fn use_i18n(locale: String) -> I18nCatalog {
-    I18nCatalog::create(locale)
+    I18nCatalog::new(locale)
 }
 
-/// Returns the reactive `Signal<Breakpoint>` from `ctx`.
-///
-/// # Arguments
-///
-/// - `&BuildContext` - Active build context.
+/// Returns the reactive `Signal<Breakpoint>` from the ambient `BuildContext`.
 ///
 /// # Returns
 ///
 /// - `Signal<Breakpoint>` - Live responsive breakpoint signal.
 #[must_use]
-pub fn use_breakpoint(ctx: &BuildContext) -> Signal<Breakpoint> {
-    ctx.get_breakpoint()
+pub fn use_breakpoint() -> Signal<Breakpoint> {
+    current_build_context().get_breakpoint()
 }
 
 /// Creates a cross-platform reactive `Router` hook initialized at `initial_path`.
@@ -67,16 +63,13 @@ pub fn use_gesture() -> GestureRecognizer {
     GestureRecognizer::default()
 }
 
-/// Creates a reactive `(Signal<SafeAreaInsets>, Signal<ThemeMode>)` window-metrics hook pair from `ctx`.
-///
-/// # Arguments
-///
-/// - `&BuildContext` - Active build context.
+/// Returns the reactive `(Signal<SafeAreaInsets>, Signal<ThemeMode>)` window-metrics hook pair from the ambient `BuildContext`.
 ///
 /// # Returns
 ///
 /// - `(Signal<SafeAreaInsets>, Signal<ThemeMode>)` - Live window safe-area and OS theme signals.
 #[must_use]
-pub fn use_window(ctx: &BuildContext) -> (Signal<SafeAreaInsets>, Signal<ThemeMode>) {
+pub fn use_window() -> (Signal<SafeAreaInsets>, Signal<ThemeMode>) {
+    let ctx: BuildContext = current_build_context();
     (ctx.get_safe_area(), ctx.get_theme_mode())
 }

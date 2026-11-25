@@ -38,4 +38,34 @@ pub struct ShowcaseState {
     /// Controlled fullscreen window toggle state.
     #[get(type(copy))]
     pub(crate) fullscreen: Signal<bool>,
+    /// Reactive vertical scroll offset driving the 10,000-row virtualized list.
+    #[get(type(copy))]
+    pub(crate) list_scroll_y: Signal<f32>,
+    /// Embedded deterministic 2D physics game host rendered directly inside `euv`.
+    pub(crate) game_host: GameEngineHost,
+}
+
+/// Deterministic 2D physics scene showcasing `GameScene`, `FrameClock`, `InputState`, and HUD overlay.
+#[derive(Clone, Copy, Data, Debug, New, PartialEq)]
+pub struct DemoPhysicsScene {
+    /// Horizontal position of the bouncing physics orb.
+    #[get(type(copy))]
+    pub(crate) orb_x: f32,
+    /// Vertical position of the bouncing physics orb.
+    #[get(type(copy))]
+    pub(crate) orb_y: f32,
+    /// Horizontal velocity in logical pixels per second.
+    #[get(type(copy))]
+    pub(crate) vel_x: f32,
+    /// Vertical velocity in logical pixels per second.
+    #[get(type(copy))]
+    pub(crate) vel_y: f32,
+    /// Player-controlled paddle X coordinate.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) paddle_x: f32,
+    /// Total fixed physics ticks simulated.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) ticks: u64,
 }

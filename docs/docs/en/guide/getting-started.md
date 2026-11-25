@@ -2,7 +2,7 @@
 title: Getting Started
 order: 1
 section: guide
-tagline: Install euv, build a reactive native UI, and target all 7 platforms from one Rust codebase.
+tagline: Install euv, build a reactive native UI with zero-ctx macros, and target all 7 platforms from one Rust codebase.
 ---
 
 ## Install
@@ -14,27 +14,36 @@ cargo add euv euv-ui
 ## Minimal Cross-Platform App
 
 ```rust
-use euv::*;
-use euv_ui::*;
+use {euv::*, euv_ui::*};
 
 pub fn run() -> Result<(), PlatformError> {
-    let config = AppConfig::default().with_window(
-        WindowConfig::default()
-            .with_title("Hello euv".to_string())
-            .with_size(1024, 720)
-            .with_render(RenderConfig::default()),
-    );
-    let mut app = App::new(config)?;
-    let count = Signal::new(0);
-    let tokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
-    app.mount(|ctx| {
-        EuvButton::create("Increment".to_string(), tokens)
-            .on_click(move |_| {
-                count.update(|v| *v += 1);
-            })
-            .mount(ctx)
+    let mut window: WindowConfig = WindowConfig::default();
+    window
+        .set_title("Hello euv".to_string())
+        .set_size(1024, 720)
+        .set_render(RenderConfig::default());
+    let mut config: AppConfig = AppConfig::default();
+    config.set_window(window);
+    let mut app: App = App::new(config)?;
+    let count: Signal<i32> = Signal::new(0);
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let _: NodeId = app.mount(move || {
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                padding: Edges::all(SPACE_LG)
+                gap: SPACE_MD
+                text {
+                    font_size: 18.0
+                    { move || format!("Count: {}", count.get()) }
+                }
+                { EuvButton::new("Increment".to_string(), tokens).on_click(move |_: &UiEvent| {
+                    let _: bool = count.update(|v: &mut i32| *v += 1);
+                }) }
+            }
+        }
     });
-    let _ = app.step_frame()?;
+    let _: FrameStats = app.run_frames(Some(1))?;
     Ok(())
 }
 ```

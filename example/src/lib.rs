@@ -14,4 +14,8 @@ mod tests;
 
 pub use {app::*, pages::*, state::*};
 
-use {euv::*, euv_ui::*, lombok_macros::Getter};
+use {
+    euv::*,
+    euv_ui::*,
+    lombok_macros::{Data, Getter, New},
+};

@@ -13,7 +13,7 @@ exclude.workspace = true
 autotests = false
 
 [lib]
-crate-type = ["rlib"]
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "euv-example"

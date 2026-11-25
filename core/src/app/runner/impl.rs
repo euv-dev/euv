@@ -15,41 +15,6 @@ impl Default for AppConfig {
     }
 }
 
-/// Fluent configuration builders for `AppConfig`.
-impl AppConfig {
-    /// Replaces the primary window configuration.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source config.
-    /// - `WindowConfig` - Replacement window configuration.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated config.
-    #[must_use]
-    pub fn with_window(mut self, window: WindowConfig) -> Self {
-        self.set_window(window);
-        self
-    }
-
-    /// Sets the clear background color.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source config.
-    /// - `Color` - Clear background color.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated config.
-    #[must_use]
-    pub fn with_clear_color(mut self, color: Color) -> Self {
-        self.set_clear_color(color);
-        self
-    }
-}
-
 /// Core lifecycle, event dispatch, and frame rendering pipeline for `App`.
 impl App {
     /// Creates an `App` bound to the active native OS/Web platform backend.
@@ -98,7 +63,7 @@ impl App {
         let kind: PlatformKind = platform.kind();
         let caps: PlatformCapabilities = platform.capabilities();
         let scene: SceneHandle = SceneHandle::new_tree();
-        let build_context: BuildContext = BuildContext::create(scene.clone(), kind);
+        let build_context: BuildContext = BuildContext::new(scene.clone(), kind);
         let _: bool = build_context
             .get_breakpoint()
             .set(window_state.breakpoint());
@@ -108,7 +73,7 @@ impl App {
         let _: bool = build_context
             .get_safe_area()
             .set(window_state.get_safe_area());
-        let renderer: Renderer = Renderer::create(
+        let renderer: Renderer = Renderer::new(
             kind,
             caps,
             window_state.get_physical_width(),
@@ -127,29 +92,34 @@ impl App {
             storage: StorageStore::default(),
             running: true,
             pending_damage: DamageRegion::full(),
+            input_state: InputState::new(),
+            frame_clock: FrameClock::default(),
+            services: PlatformServiceHub::new(kind),
+            deep_link: Signal::new(None),
         })
     }
 
-    /// Mounts a root `Mountable` component or `NodeId` into the application's scene root.
+    /// Mounts a root `Mountable` component or `NodeId` into the application's scene root with an ambient `BuildContext`.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable application.
-    /// - `F` - Root builder closure receiving `&mut BuildContext` and returning a `Mountable`.
+    /// - `F` - Zero-argument root builder closure invoking `view!`, `ui!`, or components.
     ///
     /// # Returns
     ///
     /// - `NodeId` - Mounted root content node handle.
     pub fn mount<F, M>(&mut self, builder: F) -> NodeId
     where
-        F: FnOnce(&mut BuildContext) -> M,
+        F: FnOnce() -> M,
         M: Mountable,
     {
-        let root_child: NodeId = {
-            let ctx: &mut BuildContext = self.get_mut_build_context();
-            let mountable: M = builder(ctx);
-            mountable.mount(ctx)
-        };
+        let ctx: BuildContext = self.get_build_context().clone();
+        let root_child: NodeId = with_build_context(ctx.clone(), || {
+            let mountable: M = builder();
+            let mut mount_ctx: BuildContext = ctx;
+            mountable.mount(&mut mount_ctx)
+        });
         let scene: SceneHandle = self.get_scene().clone();
         scene.with_write(
             |tree: &mut SceneTree| {
@@ -211,6 +181,21 @@ impl App {
         platform.raw_window_handle(window_state.get_id())
     }
 
+    /// Compiles a fresh cross-platform `A11yTree` snapshot from the active retained `SceneTree`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - App reference.
+    ///
+    /// # Returns
+    ///
+    /// - `A11yTree` - Compiled accessibility tree with laid-out bounds and focus state.
+    #[must_use]
+    pub fn a11y_tree(&self) -> A11yTree {
+        self.get_scene()
+            .with_read(A11yTree::from_scene, A11yTree::default())
+    }
+
     /// Dynamically switches the rendering pipeline mode (`Auto`, `Software`, `Hardware`, `Hybrid`).
     ///
     /// # Arguments
@@ -244,6 +229,7 @@ impl App {
     /// - `&Self` - Mutable app.
     /// - `WindowEvent` - Event received from the OS or test harness.
     pub fn dispatch_window_event(&mut self, event: WindowEvent) {
+        self.get_mut_input_state().ingest(&event);
         match event {
             WindowEvent::Resized(_, width, height, scale) => {
                 let safe_scale: f32 = scale.max(0.5);
@@ -309,6 +295,9 @@ impl App {
             WindowEvent::RedrawRequested(_) => {
                 self.set_pending_damage(DamageRegion::full());
             }
+            WindowEvent::DeepLink(link) => {
+                let _: bool = self.get_deep_link().set(Some(link));
+            }
             WindowEvent::PointerCancel(_, _)
             | WindowEvent::KeyUp(_, _)
             | WindowEvent::Ime(_, _)
@@ -369,6 +358,55 @@ impl App {
         }
         self.set_pending_damage(DamageRegion::full());
         Ok(frame_stats)
+    }
+
+    /// Advances the internal `FrameClock` by `dt_secs`, executes one full UI/game frame, and resets transient input deltas.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `f32` - Elapsed seconds since the previous frame.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, PlatformError>` - Frame telemetry for the rendered frame.
+    pub fn step_game_frame(&mut self, dt_secs: f32) -> Result<FrameStats, PlatformError> {
+        let _: u32 = self.get_mut_frame_clock().tick(dt_secs);
+        let stats: FrameStats = self.step_frame()?;
+        self.get_mut_input_state().begin_frame();
+        Ok(stats)
+    }
+
+    /// Runs the interactive frame loop until `max_frames` is reached or the window closes.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `Option<u64>` - Optional frame limit (`None` loops until `CloseRequested` or termination).
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, PlatformError>` - Telemetry from the final rendered frame.
+    pub fn run_frames(&mut self, max_frames: Option<u64>) -> Result<FrameStats, PlatformError> {
+        let mut last_stats: FrameStats = FrameStats::default();
+        let mut rendered: u64 = 0;
+        while self.get_running() {
+            last_stats = self.step_frame()?;
+            rendered = rendered.saturating_add(1);
+            if let Some(limit) = max_frames
+                && rendered >= limit
+            {
+                break;
+            }
+            if !self.get_running() {
+                break;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if max_frames.is_none() {
+                sleep(Duration::from_millis(16));
+            }
+        }
+        Ok(last_stats)
     }
 
     /// Handles pointer motion, updating hovered node states and invoking enter/leave/move callbacks.
@@ -519,7 +557,7 @@ impl App {
         Self::invoke_callbacks(callbacks);
     }
 
-    /// Handles wheel/pan scroll deltas on the nearest scrollable ancestor under the hovered node.
+    /// Handles wheel/pan scroll deltas on the nearest scrollable ancestor, clamping bounds and invoking `on_scroll`.
     ///
     /// # Arguments
     ///
@@ -527,17 +565,30 @@ impl App {
     /// - `Point` - Logical scroll delta `(dx, dy)`.
     fn handle_scroll(&mut self, delta: Point) {
         let scene: SceneHandle = self.get_scene().clone();
-        scene.with_write(
+        let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
             |tree: &mut SceneTree| {
                 let mut cursor: Option<NodeId> = tree.get_focus().hovered_node();
+                let mut out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
                 while let Some(id) = cursor {
                     if let Some(node) = tree.get_node(id) {
                         if node.get_style().get_layout().get_overflow() == Overflow::Scroll {
-                            let cur: Point = node.get_layout_box().get_scroll_offset();
+                            let lbox: LayoutBox = node.get_layout_box();
+                            let cur: Point = lbox.get_scroll_offset();
+                            let max_x: f32 = (lbox.get_content_size().get_width()
+                                - lbox.get_bounds().get_width())
+                            .max(0.0);
+                            let max_y: f32 = (lbox.get_content_size().get_height()
+                                - lbox.get_bounds().get_height())
+                            .max(0.0);
                             let next: Point = Point::new(
-                                cur.get_x() + delta.get_x(),
-                                cur.get_y() + delta.get_y(),
+                                (cur.get_x() + delta.get_x()).clamp(0.0, max_x),
+                                (cur.get_y() + delta.get_y()).clamp(0.0, max_y),
                             );
+                            if let Some(h) =
+                                node.get_handlers().handler_for(&UiEventKind::Scroll(delta))
+                            {
+                                out.push((h, UiEvent::new(id, UiEventKind::Scroll(delta))));
+                            }
                             tree.set_scroll_offset(id, next);
                             break;
                         }
@@ -546,9 +597,11 @@ impl App {
                         break;
                     }
                 }
+                out
             },
-            (),
+            Vec::new(),
         );
+        Self::invoke_callbacks(callbacks);
     }
 
     /// Handles keyboard presses on the focused node, including Backspace on `NodeKind::Input`.

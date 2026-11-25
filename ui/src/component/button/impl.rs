@@ -1,77 +1,7 @@
 use super::*;
 
-/// Builder and mounting methods for `EuvButton`.
+/// Styling and click handler helpers for `EuvButton`.
 impl EuvButton {
-    /// Creates a new primary `EuvButton` with `label` and `tokens`.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Button label.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed button props.
-    #[must_use]
-    pub fn create(label: String, tokens: ThemeTokens) -> Self {
-        Self {
-            label,
-            variant: EuvButtonVariant::Primary,
-            size: EuvButtonSize::Default,
-            disabled: false,
-            tokens,
-            on_click: None,
-        }
-    }
-
-    /// Sets the visual button variant.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source button.
-    /// - `EuvButtonVariant` - Target variant.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated button.
-    #[must_use]
-    pub fn variant(mut self, variant: EuvButtonVariant) -> Self {
-        self.set_variant(variant);
-        self
-    }
-
-    /// Sets the button size preset.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source button.
-    /// - `EuvButtonSize` - Target size.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated button.
-    #[must_use]
-    pub fn size(mut self, size: EuvButtonSize) -> Self {
-        self.set_size(size);
-        self
-    }
-
-    /// Marks the button disabled.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source button.
-    /// - `bool` - Disabled flag.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated button.
-    #[must_use]
-    pub fn disabled(mut self, disabled: bool) -> Self {
-        self.set_disabled(disabled);
-        self
-    }
-
     /// Attaches a click callback invoked when the button is activated.
     ///
     /// # Arguments
@@ -173,6 +103,9 @@ impl Mountable for EuvButton {
             label, on_click, ..
         } = self;
         let btn_node: NodeId = ctx.view(style);
+        let mut a11y: A11yProps = A11yProps::new(A11yRole::Button, label.clone());
+        a11y.set_disabled(disabled);
+        ctx.set_a11y(btn_node, a11y);
         let label_node: NodeId = ctx.text(label, text_style);
         ctx.append(btn_node, label_node);
         if !disabled && let Some(handler) = on_click {

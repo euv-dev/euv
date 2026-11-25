@@ -1,43 +1,7 @@
 use super::*;
 
-/// Builder methods for `EuvCard`.
+/// Child composition helpers for `EuvCard`.
 impl EuvCard {
-    /// Creates a new `EuvCard` with title and design tokens.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Card title.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed card.
-    #[must_use]
-    pub fn create(title: String, tokens: ThemeTokens) -> Self {
-        Self {
-            title,
-            subtitle: String::new(),
-            tokens,
-            children: Vec::new(),
-        }
-    }
-
-    /// Sets the card subtitle.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source card.
-    /// - `String` - Subtitle text.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated card.
-    #[must_use]
-    pub fn subtitle(mut self, subtitle: String) -> Self {
-        self.set_subtitle(subtitle);
-        self
-    }
-
     /// Appends a child `NodeId` to the card body.
     ///
     /// # Arguments
@@ -104,29 +68,6 @@ impl Mountable for EuvCard {
     }
 }
 
-/// Construction and mounting for `EuvHeader`.
-impl EuvHeader {
-    /// Creates a new page header banner.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Page title.
-    /// - `String` - Subtitle description.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed header.
-    #[must_use]
-    pub fn create(title: String, subtitle: String, tokens: ThemeTokens) -> Self {
-        Self {
-            title,
-            subtitle,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvHeader`.
 impl Mountable for EuvHeader {
     /// Mounts the page title and subtitle block into `ctx`.
@@ -153,12 +94,15 @@ impl Mountable for EuvHeader {
                 .padding(Edges::new(0.0, 0.0, SPACE_MD, 0.0)),
         );
         let h1: NodeId = ctx.text(
-            title,
+            title.clone(),
             Style::empty()
                 .font_size(g.get_font_title())
                 .font_weight(FontWeight::Bold)
                 .color(p.get_foreground()),
         );
+        let mut a11y: A11yProps = A11yProps::new(A11yRole::Heading, title);
+        a11y.set_heading_level(1);
+        ctx.set_a11y(h1, a11y);
         ctx.append(container, h1);
         if !subtitle.is_empty() {
             let sub: NodeId = ctx.text(
@@ -170,31 +114,6 @@ impl Mountable for EuvHeader {
             ctx.append(container, sub);
         }
         container
-    }
-}
-
-/// Construction and mounting for `EuvStatCard`.
-impl EuvStatCard {
-    /// Creates a compact KPI statistic card.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Metric label.
-    /// - `String` - Metric value.
-    /// - `String` - Supporting caption.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed stat card.
-    #[must_use]
-    pub fn create(label: String, value: String, caption: String, tokens: ThemeTokens) -> Self {
-        Self {
-            label,
-            value,
-            caption,
-            tokens,
-        }
     }
 }
 

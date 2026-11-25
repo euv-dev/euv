@@ -77,7 +77,7 @@ pub fn bench_layout_cache(iterations: usize) -> BenchMetric {
     reset_reactive_runtime();
     let count: usize = iterations.max(1);
     let scene: SceneHandle = SceneHandle::new_tree();
-    let mut ctx: BuildContext = BuildContext::create(scene.clone(), PlatformKind::Headless);
+    let mut ctx: BuildContext = BuildContext::new(scene.clone(), PlatformKind::Headless);
     let container: NodeId = ctx.view(
         Style::empty()
             .column()
@@ -259,36 +259,30 @@ fn bench_render_pipeline(name: &str, render: RenderConfig, iterations: usize) ->
     reset_reactive_runtime();
     let count: usize = iterations.max(1);
     let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
-    let cfg: AppConfig = AppConfig::default().with_window(
-        WindowConfig::default()
-            .with_size(800, 600)
-            .with_render(render),
-    );
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(800, 600).set_render(render);
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
     let Ok(mut app) = App::headless(cfg) else {
         return build_metric(name, count, Duration::ZERO, String::new());
     };
-    let _: NodeId = app.mount(|ctx: &mut BuildContext| {
+    let _: NodeId = app.mount(|| {
         let badge: NodeId =
-            EuvBadge::create(BENCH_BADGE.to_string(), EuvTone::Primary, tokens).mount(ctx);
-        let prog: NodeId = EuvProgress::create(0.72, tokens).mount(ctx);
-        let header: NodeId =
-            EuvHeader::create(BENCH_TITLE.to_string(), BENCH_SUBTITLE.to_string(), tokens)
-                .mount(ctx);
-        let card: NodeId = EuvCard::create(BENCH_TITLE.to_string(), tokens)
-            .subtitle(BENCH_SUBTITLE.to_string())
+            EuvBadge::new(BENCH_BADGE.to_string(), EuvTone::Primary, tokens).mount_current();
+        let prog: NodeId = EuvProgress::new(0.72, tokens).mount_current();
+        let mut card: EuvCard = EuvCard::new(BENCH_TITLE.to_string(), tokens)
             .child(badge)
-            .child(prog)
-            .mount(ctx);
-        let root: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_LG))
-                .gap(SPACE_MD),
-        );
-        ctx.append(root, header);
-        ctx.append(root, card);
-        root
+            .child(prog);
+        card.set_subtitle(BENCH_SUBTITLE.to_string());
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                padding: Edges::all(SPACE_LG)
+                gap: SPACE_MD
+                { EuvHeader::new(BENCH_TITLE.to_string(), BENCH_SUBTITLE.to_string(), tokens) }
+                { card }
+            }
+        }
     });
     let start: Instant = Instant::now();
     let mut last_hash: u64 = 0;

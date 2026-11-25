@@ -86,4 +86,7 @@ pub struct SceneNode {
     #[debug(skip)]
     #[get(skip)]
     pub(crate) canvas_painter: Option<CanvasDrawCallback>,
+    /// Optional explicit semantic accessibility metadata for screen readers and ARIA bridges.
+    #[get(skip)]
+    pub(crate) a11y: Option<A11yProps>,
 }

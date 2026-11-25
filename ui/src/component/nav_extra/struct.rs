@@ -1,7 +1,7 @@
 use super::*;
 
 /// Horizontal breadcrumb trail separated by `/`.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvBreadcrumb {
     /// Ordered trail labels.
     pub(crate) segments: Vec<String>,
@@ -11,7 +11,7 @@ pub struct EuvBreadcrumb {
 }
 
 /// Interactive page navigation bar bound to `Signal<usize>`.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvPagination {
     /// Current 1-based page number signal.
     #[get(type(copy))]
@@ -25,7 +25,7 @@ pub struct EuvPagination {
 }
 
 /// Multi-step progress indicator bound to `Signal<usize>`.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvSteps {
     /// Step titles.
     pub(crate) labels: Vec<String>,
@@ -47,7 +47,7 @@ pub struct EuvAccordionItem {
 }
 
 /// Reactive accordion expanding one active section at a time.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvAccordion {
     /// Accordion entries.
     pub(crate) items: Vec<EuvAccordionItem>,
@@ -60,7 +60,7 @@ pub struct EuvAccordion {
 }
 
 /// Table-of-contents outline panel with active anchor selection.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvToc {
     /// Ordered section heading labels.
     pub(crate) headings: Vec<String>,

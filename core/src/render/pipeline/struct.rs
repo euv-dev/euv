@@ -1,7 +1,7 @@
 use super::*;
 
 /// Unified multi-mode rendering facade orchestrating Auto, Software, Hardware, and Hybrid execution.
-#[derive(Clone, Data, Debug)]
+#[derive(Data, Debug)]
 pub struct Renderer {
     /// Active render configuration.
     #[get(type(copy))]

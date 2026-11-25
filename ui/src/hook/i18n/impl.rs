@@ -12,7 +12,7 @@ impl I18nCatalog {
     ///
     /// - `Self` - Initialized translation catalog.
     #[must_use]
-    pub fn create(default_locale: String) -> Self {
+    pub fn new(default_locale: String) -> Self {
         Self {
             locale: Signal::new(default_locale.clone()),
             fallback_locale: default_locale,

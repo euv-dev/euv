@@ -91,14 +91,75 @@ impl HardwareRenderer {
         config: RenderConfig,
         enable_readback: bool,
     ) -> Self {
-        let mut driver: RecordingGpuDriver = RecordingGpuDriver::default();
-        driver.set_backend_kind(backend);
+        Self::with_backend_and_font(
+            backend,
+            width,
+            height,
+            config,
+            enable_readback,
+            NativeSystemFont::deterministic(),
+        )
+    }
+
+    /// Creates a hardware renderer bound to `backend` with an explicit font provider for readback.
+    ///
+    /// # Arguments
+    ///
+    /// - `GraphicsBackend` - Selected GPU backend.
+    /// - `u32` - Initial physical width.
+    /// - `u32` - Initial physical height.
+    /// - `RenderConfig` - Rendering configuration.
+    /// - `bool` - Whether software readback mirror is enabled.
+    /// - `NativeSystemFont` - Font provider used by the software readback mirror.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Configured hardware renderer.
+    #[must_use]
+    pub fn with_backend_and_font(
+        backend: GraphicsBackend,
+        width: u32,
+        height: u32,
+        config: RenderConfig,
+        enable_readback: bool,
+        font_provider: NativeSystemFont,
+    ) -> Self {
+        let driver: NativeGpuDriver = NativeGpuDriver::probe(backend);
         Self {
             driver,
             batches: Vec::with_capacity(16),
-            readback: SoftwareRenderer::with_config(width, height, config),
+            readback: SoftwareRenderer::with_font_provider(width, height, config, font_provider),
             enable_readback,
         }
+    }
+
+    /// Computes a deterministic 64-bit FNV-1a hash over all compiled GPU batch instances.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Hardware renderer reference.
+    ///
+    /// # Returns
+    ///
+    /// - `u64` - Deterministic batch geometry hash.
+    #[must_use]
+    pub fn batch_hash(&self) -> u64 {
+        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        for batch in self.get_batches().iter() {
+            for inst in batch.get_instances().iter() {
+                let rect: [f32; 4] = inst.get_rect();
+                let color: [f32; 4] = inst.get_color();
+                let radii: [f32; 4] = inst.get_radii();
+                for v in rect.iter().chain(color.iter()).chain(radii.iter()) {
+                    let bits: [u8; 4] = v.to_bits().to_le_bytes();
+                    for b in bits.iter() {
+                        hash ^= *b as u64;
+                        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+                    }
+                }
+            }
+        }
+        hash
     }
 
     /// Compiles `display_list` into coalesced GPU instanced batches and submits them to the GPU driver.

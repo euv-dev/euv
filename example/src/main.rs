@@ -3,8 +3,8 @@ use std::env;
 use {
     euv::{FrameStats, RenderMode},
     euv_example::{
-        FLAG_HARDWARE, FLAG_HEADLESS, FLAG_HYBRID, FLAG_SOFTWARE, create_showcase_app,
-        run_headless_smoke,
+        FLAG_HARDWARE, FLAG_HEADLESS, FLAG_HYBRID, FLAG_INTERACTIVE, FLAG_SOFTWARE,
+        create_showcase_app, run_headless_smoke,
     },
 };
 
@@ -12,6 +12,7 @@ use {
 fn main() {
     let args: Vec<String> = env::args().collect();
     let headless: bool = args.iter().any(|arg: &String| arg == FLAG_HEADLESS);
+    let interactive: bool = args.iter().any(|arg: &String| arg == FLAG_INTERACTIVE);
     let mode: RenderMode = if args.iter().any(|arg: &String| arg == FLAG_SOFTWARE) {
         RenderMode::Software
     } else if args.iter().any(|arg: &String| arg == FLAG_HARDWARE) {
@@ -33,7 +34,8 @@ fn main() {
     } else {
         match create_showcase_app(false, mode) {
             Ok((mut app, _)) => {
-                if let Ok(stats) = app.step_frame() {
+                let limit: Option<u64> = if interactive { None } else { Some(1) };
+                if let Ok(stats) = app.run_frames(limit) {
                     print_stats(&stats);
                 }
             }

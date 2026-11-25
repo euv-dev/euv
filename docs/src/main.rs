@@ -1,8 +1,8 @@
 use std::{env, path::Path};
 
 use euv_docs::{
-    DOCS_FLAG_GENERATE, DOCS_FLAG_HEADLESS, DocSite, GeneratedSiteReport, generate_static_docs,
-    load_doc_site, render_docs_smoke,
+    DOCS_FLAG_GENERATE, DOCS_FLAG_HEADLESS, DOCS_FLAG_INTERACTIVE, DocSite, GeneratedSiteReport,
+    generate_static_docs, load_doc_site, render_docs_app,
 };
 
 const DEFAULT_DOCS_DIR: &str = "docs/docs/en";
@@ -32,7 +32,8 @@ fn main() {
         return;
     }
     let headless: bool = args.iter().any(|arg: &String| arg == DOCS_FLAG_HEADLESS);
-    match render_docs_smoke(&site, headless) {
+    let interactive: bool = args.iter().any(|arg: &String| arg == DOCS_FLAG_INTERACTIVE);
+    match render_docs_app(&site, headless, interactive) {
         Ok(stats) => {
             println!(
                 "pages={} draw_commands={} frame_hash={:#018x}",

@@ -1,5 +1,17 @@
 use super::*;
 
+/// Default `NativeGpuDriver` targets headless recording fallback.
+impl Default for NativeGpuDriver {
+    /// Creates a headless `NativeGpuDriver`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Headless GPU driver.
+    fn default() -> Self {
+        Self::probe(GraphicsBackend::Headless)
+    }
+}
+
 /// Construction helpers for `NativeGpuDriver`.
 impl NativeGpuDriver {
     /// Probes the active OS GPU hardware, compiles native shaders, and returns a live `NativeGpuDriver`.
@@ -30,6 +42,19 @@ impl NativeGpuDriver {
             uploaded_instances: 0,
             fallback,
         }
+    }
+
+    /// Re-initializes the GPU driver for `backend`, releasing any previously retained OS handles.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable GPU driver.
+    /// - `GraphicsBackend` - Target graphics backend.
+    pub fn switch_backend(&mut self, backend: GraphicsBackend) {
+        if self.get_adapter().get_backend() == backend {
+            return;
+        }
+        *self = Self::probe(backend);
     }
 }
 

@@ -12,3 +12,5 @@ pub const FLAG_SOFTWARE: &str = "--software";
 pub const FLAG_HARDWARE: &str = "--hardware";
 /// Command-line flag selecting the hybrid compositor pipeline.
 pub const FLAG_HYBRID: &str = "--hybrid";
+/// Command-line flag keeping the native window open in an interactive event loop.
+pub const FLAG_INTERACTIVE: &str = "--interactive";

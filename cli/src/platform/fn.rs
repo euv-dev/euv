@@ -113,7 +113,7 @@ pub fn spec_for_platform(target: TargetArg) -> TargetSpec {
     };
     let caps: PlatformCapabilities = PlatformCapabilities::for_platform(kind);
     let gpu: GraphicsBackend =
-        Renderer::create(kind, caps, 1, 1, RenderConfig::hardware()).get_active_backend();
+        Renderer::new(kind, caps, 1, 1, RenderConfig::hardware()).get_active_backend();
     TargetSpec::new(
         name.to_string(),
         triple.to_string(),

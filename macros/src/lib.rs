@@ -24,11 +24,11 @@ use {
     },
 };
 
-/// Declarative zero-VDOM UI construction macro targeting `BuildContext` and `SceneTree`.
+/// Declarative zero-VDOM, zero-context UI construction macro managing `BuildContext` automatically.
 ///
 /// # Arguments
 ///
-/// - `TokenStream` - Invocation tokens `view!(ctx, { ... })`.
+/// - `TokenStream` - Invocation tokens `view! { ... }`.
 ///
 /// # Returns
 ///
@@ -39,11 +39,11 @@ pub fn view(input: TokenStream) -> TokenStream {
     expand_view(parsed).into()
 }
 
-/// Alias for `view!` providing concise UI DSL ergonomics.
+/// Alias for `view!` providing concise zero-context UI DSL ergonomics.
 ///
 /// # Arguments
 ///
-/// - `TokenStream` - Invocation tokens `ui!(ctx, { ... })`.
+/// - `TokenStream` - Invocation tokens `ui! { ... }`.
 ///
 /// # Returns
 ///

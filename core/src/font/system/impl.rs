@@ -1,5 +1,17 @@
 use super::*;
 
+/// Default `NativeSystemFont` uses deterministic cross-platform rasterization.
+impl Default for NativeSystemFont {
+    /// Creates a deterministic `NativeSystemFont`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Deterministic font provider.
+    fn default() -> Self {
+        Self::deterministic()
+    }
+}
+
 /// Construction and mode helpers for `NativeSystemFont`.
 impl NativeSystemFont {
     /// Creates a `NativeSystemFont` probing the active operating system's native font engine.

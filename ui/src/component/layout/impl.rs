@@ -1,35 +1,5 @@
 use super::*;
 
-/// Builder and adaptive mounting methods for `EuvAppShell`.
-impl EuvAppShell {
-    /// Creates an adaptive cross-platform `EuvAppShell`.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Application brand name.
-    /// - `NodeId` - Sidebar navigation node.
-    /// - `NodeId` - Main content node.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed app shell.
-    #[must_use]
-    pub fn create(
-        brand: String,
-        sidebar: NodeId,
-        main_content: NodeId,
-        tokens: ThemeTokens,
-    ) -> Self {
-        Self {
-            brand,
-            sidebar,
-            main_content,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation adapting shell layout to `Breakpoint` and `SafeAreaInsets`.
 impl Mountable for EuvAppShell {
     /// Mounts the adaptive shell respecting safe-area insets on mobile/tablet and sidebar on desktop.

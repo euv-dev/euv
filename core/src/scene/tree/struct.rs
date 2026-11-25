@@ -46,3 +46,10 @@ pub struct BuildContext {
     #[get(type(copy))]
     pub(crate) safe_area: Signal<SafeAreaInsets>,
 }
+
+/// RAII scope guard restoring the previous ambient `BuildContext` on drop.
+#[derive(CustomDebug, New)]
+pub(crate) struct BuildContextGuard {
+    /// Previously bound ambient context to restore when leaving scope.
+    pub(crate) previous: Option<BuildContext>,
+}

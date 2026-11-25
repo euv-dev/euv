@@ -610,56 +610,6 @@ impl Style {
 
 /// Resolution helpers for `ResponsiveStyle`.
 impl ResponsiveStyle {
-    /// Creates a responsive style with a base definition and no overrides.
-    ///
-    /// # Arguments
-    ///
-    /// - `Style` - Base style across all breakpoints.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed responsive style.
-    #[must_use]
-    pub fn from_base(base: Style) -> Self {
-        Self {
-            base,
-            compact: None,
-            medium: None,
-        }
-    }
-
-    /// Attaches a style override for compact viewports (`< 768px`).
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source responsive style.
-    /// - `Style` - Compact viewport style.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated responsive style.
-    #[must_use]
-    pub fn with_compact(mut self, style: Style) -> Self {
-        self.set_compact(Some(style));
-        self
-    }
-
-    /// Attaches a style override for medium viewports (`768px..1024px`).
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source responsive style.
-    /// - `Style` - Medium viewport style.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated responsive style.
-    #[must_use]
-    pub fn with_medium(mut self, style: Style) -> Self {
-        self.set_medium(Some(style));
-        self
-    }
-
     /// Resolves the active `Style` for the supplied `Breakpoint`.
     ///
     /// # Arguments

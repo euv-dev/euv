@@ -1,30 +1,5 @@
 use super::*;
 
-/// Builder methods for `EuvDrawer`.
-impl EuvDrawer {
-    /// Creates a right-edge slide-over drawer.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<bool>` - Reactive open flag.
-    /// - `String` - Drawer title.
-    /// - `NodeId` - Mounted body node.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed drawer.
-    #[must_use]
-    pub fn create(open: Signal<bool>, title: String, body: NodeId, tokens: ThemeTokens) -> Self {
-        Self {
-            open,
-            title,
-            body,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvDrawer`.
 impl Mountable for EuvDrawer {
     /// Mounts the fixed right-side drawer portal.
@@ -91,31 +66,6 @@ impl Mountable for EuvDrawer {
             (),
         );
         scrim
-    }
-}
-
-/// Builder methods for `EuvSheet`.
-impl EuvSheet {
-    /// Creates a bottom sheet overlay.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<bool>` - Reactive open flag.
-    /// - `String` - Sheet title.
-    /// - `NodeId` - Mounted body node.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed sheet.
-    #[must_use]
-    pub fn create(open: Signal<bool>, title: String, body: NodeId, tokens: ThemeTokens) -> Self {
-        Self {
-            open,
-            title,
-            body,
-            tokens,
-        }
     }
 }
 
@@ -188,36 +138,6 @@ impl Mountable for EuvSheet {
     }
 }
 
-/// Builder methods for `EuvPopover`.
-impl EuvPopover {
-    /// Creates a reactive popover attached to `trigger`.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<bool>` - Open visibility flag.
-    /// - `NodeId` - Trigger node handle.
-    /// - `NodeId` - Popover content handle.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed popover.
-    #[must_use]
-    pub fn create(
-        open: Signal<bool>,
-        trigger: NodeId,
-        content: NodeId,
-        tokens: ThemeTokens,
-    ) -> Self {
-        Self {
-            open,
-            trigger,
-            content,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvPopover`.
 impl Mountable for EuvPopover {
     /// Mounts the trigger and reactively shown popover card.
@@ -272,29 +192,6 @@ impl Mountable for EuvPopover {
     }
 }
 
-/// Builder methods for `EuvTooltip`.
-impl EuvTooltip {
-    /// Creates a tooltip container wrapping `trigger`.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Tooltip hint text.
-    /// - `NodeId` - Trigger node handle.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed tooltip.
-    #[must_use]
-    pub fn create(text: String, trigger: NodeId, tokens: ThemeTokens) -> Self {
-        Self {
-            text,
-            trigger,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvTooltip`.
 impl Mountable for EuvTooltip {
     /// Mounts the trigger and compact hint surface into `ctx`.
@@ -331,39 +228,6 @@ impl Mountable for EuvTooltip {
     }
 }
 
-/// Builder methods for `EuvDropdown`.
-impl EuvDropdown {
-    /// Creates a click-triggered dropdown action menu.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Menu button label.
-    /// - `Vec<String>` - Menu action labels.
-    /// - `Signal<bool>` - Reactive open state.
-    /// - `Signal<Option<usize>>` - Reactive selected action signal.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed dropdown menu.
-    #[must_use]
-    pub fn create(
-        label: String,
-        items: Vec<String>,
-        open: Signal<bool>,
-        last_selected: Signal<Option<usize>>,
-        tokens: ThemeTokens,
-    ) -> Self {
-        Self {
-            label,
-            items,
-            open,
-            last_selected,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvDropdown`.
 impl Mountable for EuvDropdown {
     /// Mounts the dropdown trigger button and collapsible action list.
@@ -384,12 +248,12 @@ impl Mountable for EuvDropdown {
         let last_selected: Signal<Option<usize>> = self.get_last_selected();
         let Self { label, items, .. } = self;
         let wrap: NodeId = ctx.view(Style::empty().column().gap(SPACE_XS));
-        let trigger: NodeId = EuvButton::create(label, tokens)
-            .variant(EuvButtonVariant::Outline)
-            .on_click(move |_: &UiEvent| {
+        let mut trigger_btn: EuvButton =
+            EuvButton::new(label, tokens).on_click(move |_: &UiEvent| {
                 let _: bool = open.update(|v: &mut bool| *v = !*v);
-            })
-            .mount(ctx);
+            });
+        trigger_btn.set_variant(EuvButtonVariant::Outline);
+        let trigger: NodeId = trigger_btn.mount(ctx);
         let menu: NodeId = ctx.view(Style::empty());
         for (idx, item_label) in items.into_iter().enumerate() {
             let row: NodeId = ctx.view(
@@ -435,39 +299,6 @@ impl Mountable for EuvDropdown {
         ctx.append(wrap, trigger);
         ctx.append(wrap, menu);
         wrap
-    }
-}
-
-/// Builder methods for `EuvNotification`.
-impl EuvNotification {
-    /// Creates a corner notification card.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<bool>` - Reactive visibility signal.
-    /// - `String` - Notification title.
-    /// - `String` - Notification detail message.
-    /// - `EuvTone` - Semantic tone.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed notification card.
-    #[must_use]
-    pub fn create(
-        visible: Signal<bool>,
-        title: String,
-        message: String,
-        tone: EuvTone,
-        tokens: ThemeTokens,
-    ) -> Self {
-        Self {
-            visible,
-            title,
-            message,
-            tone,
-            tokens,
-        }
     }
 }
 
@@ -537,29 +368,6 @@ impl Mountable for EuvNotification {
     }
 }
 
-/// Builder methods for `EuvLoading`.
-impl EuvLoading {
-    /// Creates a full-surface loading overlay.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<bool>` - Reactive active flag.
-    /// - `String` - Loading caption.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed loading overlay.
-    #[must_use]
-    pub fn create(active: Signal<bool>, label: String, tokens: ThemeTokens) -> Self {
-        Self {
-            active,
-            label,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvLoading`.
 impl Mountable for EuvLoading {
     /// Mounts the centered loading scrim and spinner portal.
@@ -578,7 +386,7 @@ impl Mountable for EuvLoading {
         let active: Signal<bool> = self.get_active();
         let Self { label, .. } = self;
         let portal: NodeId = ctx.portal(Style::empty());
-        let spinner: NodeId = EuvSpinner::create(32.0, tokens).mount(ctx);
+        let spinner: NodeId = EuvSpinner::new(32.0, tokens).mount(ctx);
         let txt: NodeId = ctx.text(
             label,
             Style::empty()

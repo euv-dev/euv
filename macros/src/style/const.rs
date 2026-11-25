@@ -49,5 +49,8 @@ pub(crate) const STYLE_KEY_BORDER: &str = "border";
 /// Style property key for grid column count.
 pub(crate) const STYLE_KEY_GRID: &str = "grid";
 
+/// Alias style property key for grid column count.
+pub(crate) const STYLE_KEY_COLUMNS: &str = "columns";
+
 /// Error message for unsupported style property inside `style!` / `class!`.
 pub(crate) const ERR_UNKNOWN_STYLE_PROP: &str = "unsupported property inside style! block";

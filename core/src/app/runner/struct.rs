@@ -41,4 +41,14 @@ pub struct App {
     /// Pending damage region for the next rendered frame.
     #[get(type(copy))]
     pub(crate) pending_damage: DamageRegion,
+    /// Real-time polled keyboard, pointer, and scroll state for game loops and interactive viewports.
+    pub(crate) input_state: InputState,
+    /// Fixed-timestep accumulator and FPS telemetry clock for real-time game rendering.
+    #[get(type(copy))]
+    pub(crate) frame_clock: FrameClock,
+    /// Platform-native services hub (permissions, protocol registration, Dynamic Island, haptics, tray, A11y).
+    pub(crate) services: PlatformServiceHub,
+    /// Reactive signal carrying the most recently received custom-scheme or universal deep link.
+    #[get(type(copy))]
+    pub(crate) deep_link: Signal<Option<DeepLinkEvent>>,
 }

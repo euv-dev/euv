@@ -1,7 +1,7 @@
 use super::*;
 
 /// Adaptive cross-platform application shell (Desktop sidebar, iPadOS rail, Mobile header + safe-area insets).
-#[derive(Clone, Data, Debug)]
+#[derive(Clone, Data, Debug, New)]
 pub struct EuvAppShell {
     /// Application brand title shown in sidebar or mobile top bar.
     pub(crate) brand: String,
@@ -17,7 +17,7 @@ pub struct EuvAppShell {
 }
 
 /// Hairline horizontal or vertical structural divider.
-#[derive(Clone, Copy, Data, Debug)]
+#[derive(Clone, Copy, Data, Debug, New)]
 pub struct EuvDivider {
     /// True for vertical divider; false for horizontal.
     #[get(type(copy))]

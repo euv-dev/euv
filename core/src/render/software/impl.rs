@@ -15,9 +15,32 @@ impl SoftwareRenderer {
     /// - `Self` - Ready-to-draw software renderer.
     #[must_use]
     pub fn with_config(width: u32, height: u32, config: RenderConfig) -> Self {
+        Self::with_font_provider(width, height, config, NativeSystemFont::deterministic())
+    }
+
+    /// Creates a software renderer configured with an explicit `NativeSystemFont` provider.
+    ///
+    /// # Arguments
+    ///
+    /// - `u32` - Physical width.
+    /// - `u32` - Physical height.
+    /// - `RenderConfig` - Rendering configuration.
+    /// - `NativeSystemFont` - Native OS or deterministic font provider.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Ready-to-draw software renderer.
+    #[must_use]
+    pub fn with_font_provider(
+        width: u32,
+        height: u32,
+        config: RenderConfig,
+        font_provider: NativeSystemFont,
+    ) -> Self {
         Self {
             framebuffer: Framebuffer::allocate(width, height),
             glyph_atlas: GlyphAtlas::default(),
+            font_provider,
             measurer: DeterministicTextMeasurer,
             clip_stack: Vec::with_capacity(8),
             antialiasing: config.get_antialiasing(),
@@ -534,8 +557,16 @@ impl SoftwareRenderer {
                 if ch != ' ' {
                     let key: GlyphKey =
                         GlyphKey::from_style(ch, phys_font_size, style.get_weight());
-                    let glyph: RasterizedGlyph =
-                        self.get_mut_glyph_atlas().get_or_rasterize(key).clone();
+                    let glyph: RasterizedGlyph = {
+                        let Self {
+                            glyph_atlas,
+                            font_provider,
+                            ..
+                        } = self;
+                        glyph_atlas
+                            .get_or_rasterize_with(key, font_provider)
+                            .clone()
+                    };
                     let gx0: i32 = pen_x.round() as i32;
                     let gy0: i32 =
                         (pen_y + (line_h_phys - (glyph.get_height() as f32)) * 0.5).round() as i32;

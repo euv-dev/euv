@@ -1,7 +1,7 @@
 use super::*;
 
 /// Accessible form control label.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvLabel {
     /// Label text.
     pub(crate) text: String,
@@ -14,9 +14,10 @@ pub struct EuvLabel {
 }
 
 /// Structured form wrapper stacking labeled fields with uniform vertical spacing.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvForm {
     /// Ordered form field nodes.
+    #[new(skip)]
     pub(crate) fields: Vec<NodeId>,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -24,7 +25,7 @@ pub struct EuvForm {
 }
 
 /// Multi-line text input surface bound to `Signal<String>`.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvTextarea {
     /// Bound string signal.
     #[get(type(copy))]
@@ -40,7 +41,7 @@ pub struct EuvTextarea {
 }
 
 /// Numeric stepper input bound to `Signal<i64>` with min/max bounds.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvNumberInput {
     /// Bound integer value signal.
     #[get(type(copy))]
@@ -60,7 +61,7 @@ pub struct EuvNumberInput {
 }
 
 /// Mutually exclusive radio button group bound to `Signal<usize>`.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvRadioGroup {
     /// Option labels.
     pub(crate) options: Vec<String>,
@@ -73,7 +74,7 @@ pub struct EuvRadioGroup {
 }
 
 /// Continuous range slider bound to `Signal<f32>` in `[min, max]`.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvSlider {
     /// Reactive numeric value signal.
     #[get(type(copy))]
@@ -90,7 +91,7 @@ pub struct EuvSlider {
 }
 
 /// Dropdown option selector bound to `Signal<usize>` with reactive menu toggle.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvSelect {
     /// Ordered selectable option labels.
     pub(crate) options: Vec<String>,
@@ -106,7 +107,7 @@ pub struct EuvSelect {
 }
 
 /// Interactive 1..=N star rating control bound to `Signal<usize>`.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvRating {
     /// Current rating value (`0..=max_stars`).
     #[get(type(copy))]

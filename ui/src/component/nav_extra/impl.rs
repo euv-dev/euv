@@ -1,23 +1,5 @@
 use super::*;
 
-/// Builder methods for `EuvBreadcrumb`.
-impl EuvBreadcrumb {
-    /// Creates a breadcrumb navigation trail.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<String>` - Ordered path labels.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed breadcrumb.
-    #[must_use]
-    pub fn create(segments: Vec<String>, tokens: ThemeTokens) -> Self {
-        Self { segments, tokens }
-    }
-}
-
 /// `Mountable` implementation for `EuvBreadcrumb`.
 impl Mountable for EuvBreadcrumb {
     /// Mounts the horizontal breadcrumb trail into `ctx`.
@@ -57,29 +39,6 @@ impl Mountable for EuvBreadcrumb {
     }
 }
 
-/// Builder methods for `EuvPagination`.
-impl EuvPagination {
-    /// Creates a reactive pagination bar.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<usize>` - 1-based current page signal.
-    /// - `usize` - Total page count.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed pagination bar.
-    #[must_use]
-    pub fn create(current: Signal<usize>, total_pages: usize, tokens: ThemeTokens) -> Self {
-        Self {
-            current,
-            total_pages: total_pages.max(1),
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvPagination`.
 impl Mountable for EuvPagination {
     /// Mounts Prev, page readout, and Next controls bound reactively to `current`.
@@ -98,13 +57,14 @@ impl Mountable for EuvPagination {
         let current: Signal<usize> = self.get_current();
         let total: usize = self.get_total_pages();
         let row: NodeId = ctx.view(Style::empty().row().align(AlignItems::Center).gap(SPACE_SM));
-        let prev_btn: NodeId = EuvButton::create(PAGE_PREV_LABEL.to_string(), tokens)
-            .variant(EuvButtonVariant::Outline)
-            .size(EuvButtonSize::Small)
-            .on_click(move |_: &UiEvent| {
+        let mut prev_cfg: EuvButton =
+            EuvButton::new(PAGE_PREV_LABEL.to_string(), tokens).on_click(move |_: &UiEvent| {
                 let _: bool = current.update(|v: &mut usize| *v = v.saturating_sub(1).max(1));
-            })
-            .mount(ctx);
+            });
+        prev_cfg
+            .set_variant(EuvButtonVariant::Outline)
+            .set_size(EuvButtonSize::Small);
+        let prev_btn: NodeId = prev_cfg.mount(ctx);
         let info: NodeId = ctx.reactive_text(
             Style::empty()
                 .font_size(13.0)
@@ -112,40 +72,18 @@ impl Mountable for EuvPagination {
                 .color(p.get_foreground()),
             move || format!("{} / {total}", current.get()),
         );
-        let next_btn: NodeId = EuvButton::create(PAGE_NEXT_LABEL.to_string(), tokens)
-            .variant(EuvButtonVariant::Outline)
-            .size(EuvButtonSize::Small)
-            .on_click(move |_: &UiEvent| {
+        let mut next_cfg: EuvButton =
+            EuvButton::new(PAGE_NEXT_LABEL.to_string(), tokens).on_click(move |_: &UiEvent| {
                 let _: bool = current.update(|v: &mut usize| *v = (*v + 1).min(total));
-            })
-            .mount(ctx);
+            });
+        next_cfg
+            .set_variant(EuvButtonVariant::Outline)
+            .set_size(EuvButtonSize::Small);
+        let next_btn: NodeId = next_cfg.mount(ctx);
         ctx.append(row, prev_btn);
         ctx.append(row, info);
         ctx.append(row, next_btn);
         row
-    }
-}
-
-/// Builder methods for `EuvSteps`.
-impl EuvSteps {
-    /// Creates a horizontal multi-step wizard bar.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<String>` - Ordered step titles.
-    /// - `Signal<usize>` - Active 0-based step signal.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed steps indicator.
-    #[must_use]
-    pub fn create(labels: Vec<String>, active: Signal<usize>, tokens: ThemeTokens) -> Self {
-        Self {
-            labels,
-            active,
-            tokens,
-        }
     }
 }
 
@@ -227,33 +165,6 @@ impl Mountable for EuvSteps {
             ctx.append(row, step_box);
         }
         row
-    }
-}
-
-/// Builder methods for `EuvAccordion`.
-impl EuvAccordion {
-    /// Creates a collapsible accordion.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<EuvAccordionItem>` - Accordion sections.
-    /// - `Signal<Option<usize>>` - Reactive expanded section index.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed accordion.
-    #[must_use]
-    pub fn create(
-        items: Vec<EuvAccordionItem>,
-        open_index: Signal<Option<usize>>,
-        tokens: ThemeTokens,
-    ) -> Self {
-        Self {
-            items,
-            open_index,
-            tokens,
-        }
     }
 }
 
@@ -343,29 +254,6 @@ impl Mountable for EuvAccordion {
             ctx.append(col, section);
         }
         col
-    }
-}
-
-/// Builder methods for `EuvToc`.
-impl EuvToc {
-    /// Creates a clickable table-of-contents panel.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<String>` - Heading labels.
-    /// - `Signal<usize>` - Active heading index.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed table of contents.
-    #[must_use]
-    pub fn create(headings: Vec<String>, active: Signal<usize>, tokens: ThemeTokens) -> Self {
-        Self {
-            headings,
-            active,
-            tokens,
-        }
     }
 }
 

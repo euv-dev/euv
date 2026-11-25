@@ -8,6 +8,8 @@ pub const DOCS_WINDOW_HEIGHT: u32 = 800;
 pub const DOCS_FLAG_HEADLESS: &str = "--headless";
 /// CLI flag triggering static HTML/JSON site generation.
 pub const DOCS_FLAG_GENERATE: &str = "--generate";
+/// CLI flag keeping the native documentation viewer open in an interactive event loop.
+pub const DOCS_FLAG_INTERACTIVE: &str = "--interactive";
 
 pub(crate) const SEARCH_PLACEHOLDER: &str = "Search documentation...";
 pub(crate) const TOC_CARD_TITLE: &str = "On This Page";

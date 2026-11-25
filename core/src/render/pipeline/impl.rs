@@ -16,7 +16,7 @@ impl Renderer {
     ///
     /// - `Self` - Initialized multi-mode renderer facade.
     #[must_use]
-    pub fn create(
+    pub fn new(
         platform: PlatformKind,
         capabilities: PlatformCapabilities,
         width: u32,
@@ -27,19 +27,36 @@ impl Renderer {
             Self::resolve_mode_and_backend(platform, capabilities, config);
         let readback_mirror: bool =
             platform == PlatformKind::Headless || active_backend == GraphicsBackend::Headless;
+        let font_provider: NativeSystemFont = if platform == PlatformKind::Headless {
+            NativeSystemFont::deterministic()
+        } else {
+            NativeSystemFont::system()
+        };
         Self {
             config,
             active_mode,
             active_backend,
-            software: SoftwareRenderer::with_config(width, height, config),
-            hardware: HardwareRenderer::with_backend(
+            software: SoftwareRenderer::with_font_provider(
+                width,
+                height,
+                config,
+                font_provider.clone(),
+            ),
+            hardware: HardwareRenderer::with_backend_and_font(
                 active_backend,
                 width,
                 height,
                 config,
                 readback_mirror,
+                font_provider.clone(),
             ),
-            hybrid: HybridRenderer::with_backend(active_backend, width, height, config),
+            hybrid: HybridRenderer::with_backend_and_font(
+                active_backend,
+                width,
+                height,
+                config,
+                font_provider,
+            ),
             display_list: DisplayList::default(),
             frame_index: 0,
             last_stats: FrameStats::default(),
@@ -118,7 +135,7 @@ impl Renderer {
         self.set_active_backend(resolved_backend);
         self.get_mut_hardware()
             .get_mut_driver()
-            .set_backend_kind(resolved_backend);
+            .switch_backend(resolved_backend);
         self.get_mut_hybrid()
             .get_mut_compositor()
             .set_backend_kind(resolved_backend);
@@ -181,7 +198,7 @@ impl Renderer {
                 let h: u64 = if hardware.get_enable_readback() {
                     hardware.get_readback().get_framebuffer().fnv1a_hash()
                 } else {
-                    0
+                    hardware.batch_hash()
                 };
                 (b, p, h)
             }

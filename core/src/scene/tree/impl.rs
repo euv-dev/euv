@@ -12,7 +12,7 @@ impl Default for SceneTree {
             .column()
             .width(Length::Percent(100.0))
             .height(Length::Percent(100.0));
-        let root_node: SceneNode = SceneNode::create(1, NodeKind::View, root_style);
+        let root_node: SceneNode = SceneNode::new(1, NodeKind::View, root_style);
         Self {
             nodes: vec![root_node],
             free_list: Vec::new(),
@@ -40,11 +40,11 @@ impl SceneTree {
         let id: NodeId = if let Some(index) = self.get_mut_free_list().pop() {
             let slot: &mut SceneNode = &mut self.get_mut_nodes()[index as usize];
             let next_gen: u32 = slot.get_generation().wrapping_add(1).max(1);
-            *slot = SceneNode::create(next_gen, kind, style);
+            *slot = SceneNode::new(next_gen, kind, style);
             NodeId::new(index, next_gen)
         } else {
             let index: u32 = self.get_nodes().len() as u32;
-            self.get_mut_nodes().push(SceneNode::create(1, kind, style));
+            self.get_mut_nodes().push(SceneNode::new(1, kind, style));
             NodeId::new(index, 1)
         };
         let next_rev: u64 = self.get_revision().wrapping_add(1);
@@ -632,7 +632,7 @@ impl BuildContext {
     ///
     /// - `Self` - Constructed build context.
     #[must_use]
-    pub fn create(scene: SceneHandle, platform: PlatformKind) -> Self {
+    pub fn new(scene: SceneHandle, platform: PlatformKind) -> Self {
         Self {
             scene,
             breakpoint: Signal::new(Breakpoint::Expanded),
@@ -861,23 +861,63 @@ impl BuildContext {
         );
     }
 
+    /// Attaches semantic accessibility properties to `node_id`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target scene node.
+    /// - `A11yProps` - Semantic role, label, hint, and state metadata.
+    pub fn set_a11y(&mut self, node_id: NodeId, props: A11yProps) {
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.set_a11y(Some(props));
+                }
+            },
+            (),
+        );
+    }
+
+    /// Registers a scroll handler on a scrollable container node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target scroll container node.
+    /// - `F` - Scroll callback closure receiving `UiEventKind::Scroll(delta)`.
+    pub fn on_scroll<F>(&mut self, node_id: NodeId, callback: F)
+    where
+        F: FnMut(&UiEvent) + 'static,
+    {
+        let handler: UiEventHandler = Rc::new(RefCell::new(callback));
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_handlers().set_on_scroll(Some(handler));
+                }
+            },
+            (),
+        );
+    }
+
     /// Mounts a reactive dynamic subtree whose children rebuild cleanly inside an isolated `Scope`.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Build context.
     /// - `NodeId` - Host container node.
-    /// - `F` - Reactive builder returning child `NodeId` values.
+    /// - `F` - Reactive zero-`ctx` builder returning child `NodeId` values.
     pub fn bind_children<F>(&mut self, host: NodeId, mut builder: F)
     where
-        F: FnMut(&mut Self) -> Vec<NodeId> + 'static,
+        F: FnMut() -> Vec<NodeId> + 'static,
     {
-        let mut ctx_clone: Self = self.clone();
+        let ctx_clone: Self = self.clone();
         let handle: SceneHandle = self.get_scene().clone();
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             Effect::new(move || {
                 let (child_scope, children): (Scope, Vec<NodeId>) =
-                    Scope::run(|_: Scope| builder(&mut ctx_clone));
+                    Scope::run(|_: Scope| with_build_context(ctx_clone.clone(), &mut builder));
                 handle.with_write(
                     |tree: &mut SceneTree| {
                         let first_opt: Option<NodeId> = children.first().copied();
@@ -896,6 +936,22 @@ impl BuildContext {
             },
             (),
         );
+    }
+}
+
+/// Restores the previously bound ambient `BuildContext` when leaving scope.
+impl Drop for BuildContextGuard {
+    /// Restores the saved thread-local `BuildContext`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scope guard being dropped.
+    fn drop(&mut self) {
+        let Self { previous } = self;
+        let restored: Option<BuildContext> = previous.take();
+        ACTIVE_BUILD_CONTEXT.with(|slot: &RefCell<Option<BuildContext>>| {
+            *slot.borrow_mut() = restored;
+        });
     }
 }
 

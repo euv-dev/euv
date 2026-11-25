@@ -27,29 +27,6 @@ impl EuvTone {
     }
 }
 
-/// Builder methods for `EuvBadge`.
-impl EuvBadge {
-    /// Creates a new `EuvBadge`.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Badge text.
-    /// - `EuvTone` - Semantic tone.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed badge.
-    #[must_use]
-    pub fn create(label: String, tone: EuvTone, tokens: ThemeTokens) -> Self {
-        Self {
-            label,
-            tone,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvBadge`.
 impl Mountable for EuvBadge {
     /// Mounts the pill badge into `ctx`.
@@ -84,31 +61,6 @@ impl Mountable for EuvBadge {
         );
         ctx.append(pill, txt);
         pill
-    }
-}
-
-/// Builder methods for `EuvAlert`.
-impl EuvAlert {
-    /// Creates a new `EuvAlert`.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Alert title.
-    /// - `String` - Alert message.
-    /// - `EuvTone` - Semantic tone.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed alert.
-    #[must_use]
-    pub fn create(title: String, description: String, tone: EuvTone, tokens: ThemeTokens) -> Self {
-        Self {
-            title,
-            description,
-            tone,
-            tokens,
-        }
     }
 }
 
@@ -160,28 +112,6 @@ impl Mountable for EuvAlert {
     }
 }
 
-/// Builder methods for `EuvProgress`.
-impl EuvProgress {
-    /// Creates a progress bar at `value` in `[0.0, 1.0]`.
-    ///
-    /// # Arguments
-    ///
-    /// - `f32` - Completion ratio.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed progress bar.
-    #[must_use]
-    pub fn create(value: f32, tokens: ThemeTokens) -> Self {
-        Self {
-            value: value.clamp(0.0, 1.0),
-            height: 8.0,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvProgress`.
 impl Mountable for EuvProgress {
     /// Mounts the progress track and filled indicator bar.
@@ -196,7 +126,11 @@ impl Mountable for EuvProgress {
     /// - `NodeId` - Mounted track node.
     fn mount(self, ctx: &mut BuildContext) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
-        let h: f32 = self.get_height().max(4.0);
+        let h: f32 = if self.get_height() > 0.0 {
+            self.get_height().max(4.0)
+        } else {
+            8.0
+        };
         let pct: f32 = self.get_value().clamp(0.0, 1.0) * 100.0;
         let track: NodeId = ctx.view(
             Style::empty()
@@ -216,24 +150,6 @@ impl Mountable for EuvProgress {
         );
         ctx.append(track, fill);
         track
-    }
-}
-
-/// Builder and mounting for `EuvCodeBlock`.
-impl EuvCodeBlock {
-    /// Creates a monospace code block.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Code text.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed code block.
-    #[must_use]
-    pub fn create(code: String, tokens: ThemeTokens) -> Self {
-        Self { code, tokens }
     }
 }
 
@@ -274,37 +190,33 @@ impl Mountable for EuvCodeBlock {
     }
 }
 
-/// Window calculation and mounting for `EuvVirtualList`.
+/// Window calculation, clamped scrolling, and reactive mounting for `EuvVirtualList`.
 impl EuvVirtualList {
-    /// Creates a virtualized list descriptor for `total_items` fixed-height rows.
+    /// Returns the maximum valid scroll Y offset in logical pixels.
     ///
     /// # Arguments
     ///
-    /// - `usize` - Total logical rows.
-    /// - `f32` - Row height in pixels.
-    /// - `f32` - Visible viewport height.
-    /// - `f32` - Current scroll Y offset.
-    /// - `ThemeTokens` - Active design tokens.
+    /// - `&Self` - Virtual list configuration.
     ///
     /// # Returns
     ///
-    /// - `Self` - Virtual list configuration.
+    /// - `f32` - Upper scroll bound `>= 0.0`.
     #[must_use]
-    pub fn create(
-        total_items: usize,
-        item_height: f32,
-        viewport_height: f32,
-        scroll_y: f32,
-        tokens: ThemeTokens,
-    ) -> Self {
-        Self {
-            total_items,
-            item_height: item_height.max(1.0),
-            viewport_height: viewport_height.max(1.0),
-            scroll_y: scroll_y.max(0.0),
-            overscan: 3,
-            tokens,
-        }
+    pub fn max_scroll_y(&self) -> f32 {
+        let total_h: f32 = (self.get_total_items() as f32) * self.get_item_height().max(1.0);
+        (total_h - self.get_viewport_height().max(1.0)).max(0.0)
+    }
+
+    /// Advances the reactive scroll offset by `delta_y`, clamped to `[0.0, max_scroll_y()]`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Virtual list configuration.
+    /// - `f32` - Incremental vertical scroll delta in logical pixels.
+    pub fn scroll_by(&self, delta_y: f32) {
+        let max_y: f32 = self.max_scroll_y();
+        let next: f32 = (self.get_scroll_y().get_untracked() + delta_y).clamp(0.0, max_y);
+        let _: bool = self.get_scroll_y().set_if_changed(next);
     }
 
     /// Computes the `(start_index, end_index_exclusive)` window of rows visible in the viewport.
@@ -322,81 +234,90 @@ impl EuvVirtualList {
         if total == 0 {
             return (0, 0);
         }
-        let first_vis: usize = (self.get_scroll_y() / self.get_item_height()).floor() as usize;
-        let vis_count: usize =
-            (self.get_viewport_height() / self.get_item_height()).ceil() as usize;
-        let start: usize = first_vis.saturating_sub(self.get_overscan());
-        let end: usize = (first_vis + vis_count + self.get_overscan()).min(total);
+        let item_h: f32 = self.get_item_height().max(1.0);
+        let view_h: f32 = self.get_viewport_height().max(1.0);
+        let scroll_y: f32 = self
+            .get_scroll_y()
+            .get_untracked()
+            .clamp(0.0, self.max_scroll_y());
+        let overscan: usize = if self.get_overscan() == 0 {
+            3
+        } else {
+            self.get_overscan()
+        };
+        let first_vis: usize = (scroll_y / item_h).floor() as usize;
+        let vis_count: usize = (view_h / item_h).ceil() as usize;
+        let start: usize = first_vis.saturating_sub(overscan);
+        let end: usize = (first_vis + vis_count + overscan).min(total);
         (start, end)
     }
 
-    /// Mounts only the visible window of rows using `row_builder` into a clipped scroll container.
+    /// Mounts a reactive clipped scrollable list materializing only the visible row window as `scroll_y` changes.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Virtual list configuration.
-    /// - `&mut BuildContext` - Active build context.
-    /// - `F` - Row builder closure taking `(&mut BuildContext, usize)` and returning `NodeId`.
+    /// - `F` - Zero-context row builder closure taking `usize` row index and returning `NodeId`.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted scroll viewport handle.
-    pub fn mount_with<F>(&self, ctx: &mut BuildContext, mut row_builder: F) -> NodeId
+    /// - `NodeId` - Mounted reactive scroll viewport handle.
+    pub fn mount_with<F>(&self, row_builder: F) -> NodeId
     where
-        F: FnMut(&mut BuildContext, usize) -> NodeId,
+        F: FnMut(usize) -> NodeId + 'static,
     {
+        let mut ctx: BuildContext = current_build_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let (start, end): (usize, usize) = self.visible_range();
+        let list_cfg: Self = self.clone();
+        let scroll_cfg: Self = self.clone();
+        let scroll_sig: Signal<f32> = self.get_scroll_y();
+        let view_h: f32 = self.get_viewport_height().max(1.0);
+        let builder_cell: Rc<RefCell<F>> = Rc::new(RefCell::new(row_builder));
         let container: NodeId = ctx.scroll_view(
             Style::empty()
                 .column()
                 .width(Length::Percent(100.0))
-                .height(Length::Px(self.get_viewport_height()))
+                .height(Length::Px(view_h))
                 .background(p.get_card())
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_md()),
         );
-        let top_spacer_h: f32 = (start as f32) * self.get_item_height();
-        if top_spacer_h > 0.0 {
-            let spacer: NodeId = ctx.view(Style::empty().height(Length::Px(top_spacer_h)));
-            ctx.append(container, spacer);
-        }
-        for idx in start..end {
-            let row_node: NodeId = row_builder(ctx, idx);
-            ctx.append(container, row_node);
-        }
-        let remaining: usize = self.get_total_items().saturating_sub(end);
-        if remaining > 0 {
-            let bottom_spacer: NodeId = ctx.view(
-                Style::empty().height(Length::Px((remaining as f32) * self.get_item_height())),
+        ctx.on_scroll(container, move |ev: &UiEvent| {
+            if let UiEventKind::Scroll(delta) = ev.get_kind() {
+                scroll_cfg.scroll_by(delta.get_y());
+            }
+        });
+        ctx.bind_children(container, move || {
+            let cur_scroll: f32 = scroll_sig.get().clamp(0.0, list_cfg.max_scroll_y());
+            let (start, end): (usize, usize) = list_cfg.visible_range();
+            let mut row_ctx: BuildContext = current_build_context();
+            let mut nodes: Vec<NodeId> = Vec::with_capacity((end - start) + 3);
+            let max_y: f32 = list_cfg.max_scroll_y().max(1.0);
+            let progress: f32 = (cur_scroll / max_y).clamp(0.0, 1.0);
+            let indicator_bar: NodeId = row_ctx.view(
+                Style::empty()
+                    .row()
+                    .width(Length::Percent(100.0))
+                    .height(Length::Px(3.0))
+                    .background(p.get_muted()),
             );
-            ctx.append(container, bottom_spacer);
-        }
+            let thumb: NodeId = row_ctx.view(
+                Style::empty()
+                    .width(Length::Percent((progress * 100.0).max(4.0)))
+                    .height(Length::Percent(100.0))
+                    .background(p.get_primary()),
+            );
+            row_ctx.append(indicator_bar, thumb);
+            nodes.push(indicator_bar);
+            if let Ok(mut build_row) = builder_cell.try_borrow_mut() {
+                for idx in start..end {
+                    nodes.push(build_row(idx));
+                }
+            }
+            nodes
+        });
         container
-    }
-}
-
-/// Builder and mounting for `EuvTable`.
-impl EuvTable {
-    /// Creates a cross-platform structured table.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<String>` - Column headers.
-    /// - `Vec<Vec<String>>` - Table rows.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed table.
-    #[must_use]
-    pub fn create(headers: Vec<String>, rows: Vec<Vec<String>>, tokens: ThemeTokens) -> Self {
-        Self {
-            headers,
-            rows,
-            tokens,
-        }
     }
 }
 

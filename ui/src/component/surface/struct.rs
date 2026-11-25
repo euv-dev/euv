@@ -1,12 +1,14 @@
 use super::*;
 
 /// Centered responsive page container with constrained maximum width.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvPageContainer {
-    /// Maximum logical content width in pixels.
+    /// Maximum logical content width in pixels (`0.0` defaults to `1160.0`).
+    #[new(skip)]
     #[get(type(copy))]
     pub(crate) max_width: f32,
     /// Ordered child node handles.
+    #[new(skip)]
     pub(crate) children: Vec<NodeId>,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -14,11 +16,12 @@ pub struct EuvPageContainer {
 }
 
 /// Bordered surface panel for grouped tools or inspector content.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvPanel {
     /// Optional panel heading.
     pub(crate) title: String,
     /// Ordered child nodes inside the panel.
+    #[new(skip)]
     pub(crate) children: Vec<NodeId>,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -26,7 +29,7 @@ pub struct EuvPanel {
 }
 
 /// Flex spacing helper arranging child nodes horizontally or vertically with uniform gap.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvSpace {
     /// When `true`, lays out children in a vertical column; otherwise horizontal row.
     #[get(type(copy))]
@@ -35,11 +38,12 @@ pub struct EuvSpace {
     #[get(type(copy))]
     pub(crate) gap: f32,
     /// Ordered child node handles.
+    #[new(skip)]
     pub(crate) children: Vec<NodeId>,
 }
 
 /// Responsive fixed-column CSS-Grid-equivalent container.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvGrid {
     /// Number of equal-width grid columns.
     #[get(type(copy))]
@@ -48,16 +52,18 @@ pub struct EuvGrid {
     #[get(type(copy))]
     pub(crate) gap: f32,
     /// Ordered child node handles.
+    #[new(skip)]
     pub(crate) children: Vec<NodeId>,
 }
 
 /// Clipped scrollable viewport wrapper with explicit height.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvScrollArea {
     /// Viewport height in logical pixels.
     #[get(type(copy))]
     pub(crate) height: f32,
     /// Ordered child nodes inside the scroll area.
+    #[new(skip)]
     pub(crate) children: Vec<NodeId>,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -65,7 +71,7 @@ pub struct EuvScrollArea {
 }
 
 /// Two-pane split layout with proportional primary ratio.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvSplitter {
     /// Primary pane percentage in `[15.0, 85.0]`.
     #[get(type(copy))]
@@ -82,11 +88,12 @@ pub struct EuvSplitter {
 }
 
 /// Top navigation bar displaying brand title and trailing action nodes.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvNavbar {
     /// Brand title text.
     pub(crate) brand: String,
     /// Trailing action nodes.
+    #[new(skip)]
     pub(crate) actions: Vec<NodeId>,
     /// Active theme tokens.
     #[get(type(copy))]
@@ -94,7 +101,7 @@ pub struct EuvNavbar {
 }
 
 /// Page footer strip with copyright or metadata text.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvFooter {
     /// Footer text content.
     pub(crate) text: String,
@@ -104,7 +111,7 @@ pub struct EuvFooter {
 }
 
 /// Contiguous horizontal group of button nodes.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvButtonGroup {
     /// Ordered button child handles.
     pub(crate) children: Vec<NodeId>,
@@ -114,7 +121,7 @@ pub struct EuvButtonGroup {
 }
 
 /// Pressable two-state toggle pill bound to a reactive `Signal<bool>`.
-#[derive(Clone, Data)]
+#[derive(Clone, Data, New)]
 pub struct EuvToggle {
     /// Reactive pressed state signal.
     #[get(type(copy))]

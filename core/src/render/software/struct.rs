@@ -7,6 +7,8 @@ pub struct SoftwareRenderer {
     pub(crate) framebuffer: Framebuffer,
     /// Shared glyph rasterization atlas.
     pub(crate) glyph_atlas: GlyphAtlas,
+    /// Native or deterministic font rasterization provider.
+    pub(crate) font_provider: NativeSystemFont,
     /// Deterministic text measurer matching `LayoutEngine` metrics.
     #[get(type(copy))]
     pub(crate) measurer: DeterministicTextMeasurer,

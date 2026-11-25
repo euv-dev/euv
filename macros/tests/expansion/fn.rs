@@ -17,8 +17,8 @@ style! {
 }
 
 #[component]
-fn demo_badge(ctx: &mut BuildContext) -> NodeId {
-    view!(ctx, {
+fn demo_badge() -> NodeId {
+    view! {
         row {
             padding: Edges::symmetric(4.0, 8.0)
             background: TEST_BG
@@ -28,7 +28,7 @@ fn demo_badge(ctx: &mut BuildContext) -> NodeId {
                 "Native"
             }
         }
-    })
+    }
 }
 
 #[test]
@@ -44,14 +44,13 @@ fn view_style_tokens_watch_and_computed_macros_work_end_to_end() {
     assert_eq!(observed.get(), 6);
     let _: bool = count.set(5);
     assert_eq!(observed.get(), 10);
-    let cfg: AppConfig = AppConfig::default().with_window(
-        WindowConfig::default()
-            .with_size(320, 200)
-            .with_render(RenderConfig::software()),
-    );
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(320, 200).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
-    let _: NodeId = app.mount(|ctx: &mut BuildContext| {
-        view!(ctx, {
+    let _: NodeId = app.mount(|| {
+        view! {
             column {
                 style: c_card()
                 width: Length::Px(300.0)
@@ -61,9 +60,62 @@ fn view_style_tokens_watch_and_computed_macros_work_end_to_end() {
                 }
                 demo_badge {}
             }
-        })
+        }
     });
     let stats: FrameStats = app.step_frame().unwrap();
     assert_ne!(stats.get_frame_hash(), 0);
     assert!(stats.get_draw_commands() >= 3);
+}
+
+class! {
+    c_alias_panel {
+        direction: column;
+        padding: Edges::all(12.0);
+        gap: 8.0;
+        radius: 8.0;
+        background: TEST_BG;
+        border: (1.0, TEST_FG);
+    }
+}
+
+#[test]
+fn ui_and_class_macro_aliases_compile_and_render_identically() {
+    reset_reactive_runtime();
+    let mut win_a: WindowConfig = WindowConfig::default();
+    win_a
+        .set_size(280, 160)
+        .set_render(RenderConfig::software());
+    let mut cfg_a: AppConfig = AppConfig::default();
+    cfg_a.set_window(win_a);
+    let cfg_b: AppConfig = cfg_a.clone();
+    let mut app_view: App = App::headless(cfg_a).unwrap();
+    let _: NodeId = app_view.mount(|| {
+        view! {
+            column {
+                style: c_card()
+                width: Length::Px(240.0)
+                text {
+                    color: TEST_FG
+                    "Alias Parity"
+                }
+            }
+        }
+    });
+    let mut app_ui: App = App::headless(cfg_b).unwrap();
+    let _: NodeId = app_ui.mount(|| {
+        ui! {
+            column {
+                style: c_alias_panel()
+                width: Length::Px(240.0)
+                text {
+                    color: TEST_FG
+                    "Alias Parity"
+                }
+            }
+        }
+    });
+    let stats_view: FrameStats = app_view.step_frame().unwrap();
+    let stats_ui: FrameStats = app_ui.step_frame().unwrap();
+    assert_ne!(stats_ui.get_frame_hash(), 0);
+    assert_eq!(stats_view.get_frame_hash(), stats_ui.get_frame_hash());
 }

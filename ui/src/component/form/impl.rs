@@ -1,46 +1,5 @@
 use super::*;
 
-/// Builder methods for `EuvInput`.
-impl EuvInput {
-    /// Creates a new reactive `EuvInput`.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<String>` - Bound value signal.
-    /// - `String` - Placeholder text.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed input props.
-    #[must_use]
-    pub fn create(value: Signal<String>, placeholder: String, tokens: ThemeTokens) -> Self {
-        Self {
-            value,
-            placeholder,
-            password: false,
-            disabled: false,
-            tokens,
-        }
-    }
-
-    /// Enables or disables password masking.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source input.
-    /// - `bool` - Password flag.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated input.
-    #[must_use]
-    pub fn password(mut self, password: bool) -> Self {
-        self.set_password(password);
-        self
-    }
-}
-
 /// `Mountable` implementation for `EuvInput`.
 impl Mountable for EuvInput {
     /// Mounts the input control and binds its `Change` events back to the reactive `Signal<String>`.
@@ -84,46 +43,6 @@ impl Mountable for EuvInput {
     }
 }
 
-/// Construction and mounting for `EuvField`.
-impl EuvField {
-    /// Creates a labeled form field wrapper.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Field label.
-    /// - `NodeId` - Mounted control node.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed field.
-    #[must_use]
-    pub fn create(label: String, control: NodeId, tokens: ThemeTokens) -> Self {
-        Self {
-            label,
-            error: String::new(),
-            control,
-            tokens,
-        }
-    }
-
-    /// Sets an inline validation error message.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Source field.
-    /// - `String` - Error text.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Updated field.
-    #[must_use]
-    pub fn error(mut self, error: String) -> Self {
-        self.set_error(error);
-        self
-    }
-}
-
 /// `Mountable` implementation for `EuvField`.
 impl Mountable for EuvField {
     /// Mounts label, control, and optional error text vertically.
@@ -163,29 +82,6 @@ impl Mountable for EuvField {
             ctx.append(col, err_node);
         }
         col
-    }
-}
-
-/// Construction and mounting for `EuvSwitch`.
-impl EuvSwitch {
-    /// Creates a reactive toggle switch bound to `checked`.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<bool>` - Reactive checked signal.
-    /// - `String` - Accompanying label.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed switch.
-    #[must_use]
-    pub fn create(checked: Signal<bool>, label: String, tokens: ThemeTokens) -> Self {
-        Self {
-            checked,
-            label,
-            tokens,
-        }
     }
 }
 
@@ -268,29 +164,6 @@ impl Mountable for EuvSwitch {
     }
 }
 
-/// Construction and mounting for `EuvCheckbox`.
-impl EuvCheckbox {
-    /// Creates a reactive checkbox bound to `checked`.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<bool>` - Reactive checked signal.
-    /// - `String` - Label text.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed checkbox.
-    #[must_use]
-    pub fn create(checked: Signal<bool>, label: String, tokens: ThemeTokens) -> Self {
-        Self {
-            checked,
-            label,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvCheckbox`.
 impl Mountable for EuvCheckbox {
     /// Mounts a clickable checkbox indicator and label.
@@ -368,29 +241,6 @@ impl Mountable for EuvCheckbox {
         ctx.append(row, indicator);
         ctx.append(row, txt);
         row
-    }
-}
-
-/// Construction and mounting for `EuvSegmented`.
-impl EuvSegmented {
-    /// Creates a mutually exclusive segmented control bound to `selected`.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<String>` - Option labels.
-    /// - `Signal<usize>` - Selected index signal.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed segmented control.
-    #[must_use]
-    pub fn create(options: Vec<String>, selected: Signal<usize>, tokens: ThemeTokens) -> Self {
-        Self {
-            options,
-            selected,
-            tokens,
-        }
     }
 }
 

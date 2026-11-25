@@ -23,13 +23,13 @@ fn all_seventeen_schemes_resolve_distinct_light_and_dark_tokens() {
 #[test]
 fn reactive_ui_theme_state_and_i18n_and_gesture_work() {
     reset_reactive_runtime();
-    let state: UiThemeState = UiThemeState::create(DesignScheme::Shadcn, ThemeMode::Light);
+    let state: UiThemeState = UiThemeState::new(DesignScheme::Shadcn, ThemeMode::Light);
     assert_eq!(state.current_tokens().get_mode(), ThemeMode::Light);
     state.toggle_mode();
     assert_eq!(state.current_tokens().get_mode(), ThemeMode::Dark);
     state.select_scheme(DesignScheme::Cupertino);
     assert_eq!(state.current_tokens().get_scheme(), DesignScheme::Cupertino);
-    let mut i18n: I18nCatalog = I18nCatalog::create("en".to_string());
+    let mut i18n: I18nCatalog = I18nCatalog::new("en".to_string());
     i18n.insert("en".to_string(), "hello".to_string(), "Hello".to_string());
     i18n.insert("zh".to_string(), "hello".to_string(), "你好".to_string());
     assert_eq!(i18n.t("hello"), "Hello");

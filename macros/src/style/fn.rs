@@ -41,7 +41,7 @@ pub(crate) fn expand_style(input: StyleBlockInput) -> proc_macro2::TokenStream {
                 STYLE_KEY_FONT_WEIGHT => stmts.push(quote! { __s = __s.font_weight(#val); }),
                 STYLE_KEY_OPACITY => stmts.push(quote! { __s = __s.opacity(#val); }),
                 STYLE_KEY_Z_INDEX => stmts.push(quote! { __s = __s.z_index(#val); }),
-                STYLE_KEY_GRID => stmts.push(quote! { __s = __s.grid(#val); }),
+                STYLE_KEY_GRID | STYLE_KEY_COLUMNS => stmts.push(quote! { __s = __s.grid(#val); }),
                 STYLE_KEY_BORDER => {
                     stmts.push(quote! {
                         let (__bw, __bc): (f32, ::euv::Color) = #val;

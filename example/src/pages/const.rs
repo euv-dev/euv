@@ -63,7 +63,7 @@ pub(crate) const WINDOW_CARD_TITLE: &str = "Runtime Platform Telemetry";
 pub(crate) const WINDOW_CARD_SUB: &str =
     "Identical API surface across desktop, tablet, mobile, and browser.";
 pub(crate) const SWITCH_FULLSCREEN: &str = "Request Fullscreen Mode";
-pub(crate) const CODE_WINDOW_SNIPPET: &str = "WindowConfig::default().with_title(\"euv\").with_size(1280, 800).with_render(RenderConfig::auto())";
+pub(crate) const CODE_WINDOW_SNIPPET: &str = "let mut w = WindowConfig::default(); w.set_title(\"euv\".into()).set_size(1280, 800).set_render(RenderConfig::default());";
 
 pub(crate) const FORMS_TITLE: &str = "Interactive Form Controls";
 pub(crate) const FORMS_SUBTITLE: &str =
@@ -102,6 +102,14 @@ pub(crate) const DATA_CARD_SUB: &str =
 pub(crate) const ROW_PREFIX: &str = "Virtual Row #";
 pub(crate) const BADGE_READY: &str = "Deterministic";
 pub(crate) const BADGE_LIVE: &str = "60-120 FPS";
+pub(crate) const BTN_SCROLL_DOWN: &str = "Scroll Down (+160px)";
+pub(crate) const BTN_SCROLL_TOP: &str = "Back to Top";
+
+pub(crate) const GAME_TITLE: &str = "Real-Time Game Engine & HUD";
+pub(crate) const GAME_SUBTITLE: &str = "Fixed-timestep FrameClock, InputState polling, GameScene viewport, and declarative HUD overlay.";
+pub(crate) const GAME_CARD_TITLE: &str = "Embedded 60Hz Physics Arena";
+pub(crate) const GAME_CARD_SUB: &str = "Step deterministic physics frames or overlay transparent euv HUD panels on top of any 2D/3D engine.";
+pub(crate) const BTN_STEP_PHYSICS: &str = "Step Physics (+3 Frames)";
 
 pub(crate) const OVERLAYS_TITLE: &str = "Overlays, Modals & Toasts";
 pub(crate) const OVERLAYS_SUBTITLE: &str =

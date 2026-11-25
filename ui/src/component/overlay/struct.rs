@@ -1,7 +1,7 @@
 use super::*;
 
 /// Mounted modal dialog overlay toggled reactively via `open` without unmounting its children.
-#[derive(Clone, Data, Debug)]
+#[derive(Clone, Data, Debug, New)]
 pub struct EuvModal {
     /// Reactive visibility signal.
     #[get(type(copy))]
@@ -17,7 +17,7 @@ pub struct EuvModal {
 }
 
 /// Floating toast notification banner rendered at `Z_INDEX_TOAST`.
-#[derive(Clone, Data, Debug)]
+#[derive(Clone, Data, Debug, New)]
 pub struct EuvToast {
     /// Reactive visibility signal.
     #[get(type(copy))]

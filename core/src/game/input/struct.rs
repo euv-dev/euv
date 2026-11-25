@@ -1,0 +1,30 @@
+use super::*;
+
+/// Real-time polled keyboard, pointer, and scroll input state for games and interactive viewports.
+#[derive(Clone, Data, Debug, Default, New)]
+pub struct InputState {
+    /// Set of keys currently held down.
+    #[new(skip)]
+    pub(crate) keys_down: HashSet<KeyCode>,
+    /// Set of keys pressed during the current frame.
+    #[new(skip)]
+    pub(crate) keys_just_pressed: HashSet<KeyCode>,
+    /// Set of keys released during the current frame.
+    #[new(skip)]
+    pub(crate) keys_just_released: HashSet<KeyCode>,
+    /// Set of pointer buttons currently held down.
+    #[new(skip)]
+    pub(crate) buttons_down: HashSet<PointerButton>,
+    /// Latest logical pointer coordinates.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) pointer_position: Point,
+    /// Accumulated logical pointer movement delta during the current frame.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) pointer_delta: Point,
+    /// Accumulated scroll delta during the current frame.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) scroll_delta: Point,
+}

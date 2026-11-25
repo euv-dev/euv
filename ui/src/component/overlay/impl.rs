@@ -1,30 +1,5 @@
 use super::*;
 
-/// Construction and mounting for `EuvModal`.
-impl EuvModal {
-    /// Creates a modal dialog overlay controlled by `open`.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<bool>` - Reactive open flag.
-    /// - `String` - Modal title.
-    /// - `NodeId` - Mounted body content node.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed modal.
-    #[must_use]
-    pub fn create(open: Signal<bool>, title: String, body: NodeId, tokens: ThemeTokens) -> Self {
-        Self {
-            open,
-            title,
-            body,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvModal`.
 impl Mountable for EuvModal {
     /// Mounts the fixed scrim backdrop and centered dialog surface, toggling `Display::Flex`/`None` reactively.
@@ -92,36 +67,6 @@ impl Mountable for EuvModal {
             (),
         );
         backdrop
-    }
-}
-
-/// Construction and mounting for `EuvToast`.
-impl EuvToast {
-    /// Creates a floating toast banner controlled by `visible`.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<bool>` - Reactive visibility signal.
-    /// - `String` - Toast message.
-    /// - `EuvTone` - Semantic tone.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed toast.
-    #[must_use]
-    pub fn create(
-        visible: Signal<bool>,
-        message: String,
-        tone: EuvTone,
-        tokens: ThemeTokens,
-    ) -> Self {
-        Self {
-            visible,
-            message,
-            tone,
-            tokens,
-        }
     }
 }
 

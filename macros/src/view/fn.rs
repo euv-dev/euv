@@ -10,10 +10,10 @@ use super::*;
 ///
 /// - `proc_macro2::TokenStream` - Generated Rust expression evaluating to `::euv::NodeId`.
 pub(crate) fn expand_view(input: ViewMacroInput) -> proc_macro2::TokenStream {
-    let ctx_expr: Expr = input.ctx;
     let body: proc_macro2::TokenStream = expand_node(&input.root);
     quote! {{
-        let __euv_ctx: &mut ::euv::BuildContext = #ctx_expr;
+        let mut __euv_ctx_owned: ::euv::BuildContext = ::euv::current_build_context();
+        let __euv_ctx: &mut ::euv::BuildContext = &mut __euv_ctx_owned;
         #body
     }}
 }
@@ -65,6 +65,10 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
     let mut style_mutations: Vec<proc_macro2::TokenStream> = Vec::new();
     let mut on_click: Option<&Expr> = None;
     let mut on_change: Option<&Expr> = None;
+    let mut on_scroll: Option<&Expr> = None;
+    let mut a11y_role: Option<&Expr> = None;
+    let mut a11y_label: Option<&Expr> = None;
+    let mut a11y_hint: Option<&Expr> = None;
     let mut input_value: Option<&Expr> = None;
     let mut input_placeholder: Option<&Expr> = None;
     let mut image_source: Option<&Expr> = None;
@@ -100,6 +104,24 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             PROP_RADIUS => {
                 style_mutations.push(quote! { __euv_style = __euv_style.radius(#val); });
             }
+            PROP_BORDER => {
+                style_mutations.push(quote! {
+                    let (__euv_bw, __euv_bc): (f32, ::euv::Color) = #val;
+                    __euv_style = __euv_style.border(__euv_bw, __euv_bc);
+                });
+            }
+            PROP_ALIGN => {
+                style_mutations.push(quote! { __euv_style = __euv_style.align(#val); });
+            }
+            PROP_JUSTIFY => {
+                style_mutations.push(quote! { __euv_style = __euv_style.justify(#val); });
+            }
+            PROP_FLEX_GROW => {
+                style_mutations.push(quote! { __euv_style = __euv_style.flex_grow(#val); });
+            }
+            PROP_OVERFLOW => {
+                style_mutations.push(quote! { __euv_style = __euv_style.overflow(#val); });
+            }
             PROP_FONT_SIZE => {
                 style_mutations.push(quote! { __euv_style = __euv_style.font_size(#val); });
             }
@@ -121,6 +143,9 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             PROP_ON_CHANGE => {
                 on_change = Some(val);
             }
+            PROP_ON_SCROLL => {
+                on_scroll = Some(val);
+            }
             PROP_VALUE => {
                 input_value = Some(val);
             }
@@ -132,6 +157,15 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             }
             PROP_PAINTER => {
                 canvas_painter = Some(val);
+            }
+            PROP_ROLE => {
+                a11y_role = Some(val);
+            }
+            PROP_A11Y_LABEL => {
+                a11y_label = Some(val);
+            }
+            PROP_A11Y_HINT => {
+                a11y_hint = Some(val);
             }
             _ => {
                 let err: proc_macro2::TokenStream =
@@ -206,7 +240,7 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         }
         _ => {
             let comp_ident: &Ident = &elem.tag;
-            quote! { #comp_ident(__euv_ctx) }
+            quote! { #comp_ident() }
         }
     };
     let click_stmt: proc_macro2::TokenStream = match on_click {
@@ -216,6 +250,34 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
     let change_stmt: proc_macro2::TokenStream = match on_change {
         Some(cb) => quote! { __euv_ctx.on_change(__euv_node, #cb); },
         None => quote! {},
+    };
+    let scroll_stmt: proc_macro2::TokenStream = match on_scroll {
+        Some(cb) => quote! { __euv_ctx.on_scroll(__euv_node, #cb); },
+        None => quote! {},
+    };
+    let a11y_stmt: proc_macro2::TokenStream = if a11y_role.is_some()
+        || a11y_label.is_some()
+        || a11y_hint.is_some()
+    {
+        let role_expr: proc_macro2::TokenStream = match a11y_role {
+            Some(r) => quote! { #r },
+            None => quote! { ::euv::A11yRole::Group },
+        };
+        let label_expr: proc_macro2::TokenStream = match a11y_label {
+            Some(l) => quote! { ::std::string::String::from(#l) },
+            None => quote! { ::std::string::String::new() },
+        };
+        let hint_stmt: proc_macro2::TokenStream = match a11y_hint {
+            Some(h) => quote! { __euv_a11y.set_hint(::std::string::String::from(#h)); },
+            None => quote! {},
+        };
+        quote! {
+            let mut __euv_a11y: ::euv::A11yProps = ::euv::A11yProps::new(#role_expr, #label_expr);
+            #hint_stmt
+            __euv_ctx.set_a11y(__euv_node, __euv_a11y);
+        }
+    } else {
+        quote! {}
     };
     let child_stmts: Vec<proc_macro2::TokenStream> = if tag_name == TAG_TEXT {
         Vec::new()
@@ -238,6 +300,8 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         let __euv_node: ::euv::NodeId = #node_creation;
         #click_stmt
         #change_stmt
+        #scroll_stmt
+        #a11y_stmt
         #(#child_stmts)*
         __euv_node
     }}

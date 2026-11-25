@@ -1,8 +1,8 @@
 use super::*;
 
-/// Parser for `ViewMacroInput`: `ctx_expr, { node }` or `ctx_expr, node`.
+/// Parser for `ViewMacroInput`: zero-context `{ node }` or `node`.
 impl Parse for ViewMacroInput {
-    /// Parses context expression and root view node.
+    /// Parses the root view node with ambient context management.
     ///
     /// # Arguments
     ///
@@ -12,8 +12,6 @@ impl Parse for ViewMacroInput {
     ///
     /// - `Result<Self>` - Parsed macro invocation.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let ctx: Expr = input.parse()?;
-        let _: Token![,] = input.parse()?;
         let root: ViewNode = if input.peek(Brace) {
             let content: ParseBuffer<'_>;
             braced!(content in input);
@@ -21,7 +19,7 @@ impl Parse for ViewMacroInput {
         } else {
             input.parse()?
         };
-        Ok(Self { ctx, root })
+        Ok(Self { root })
     }
 }
 

@@ -20,19 +20,21 @@ pub fn create_showcase_app(
         RenderMode::Hybrid => RenderConfig::hybrid(),
         RenderMode::Auto => RenderConfig::default(),
     };
-    let window_cfg: WindowConfig = WindowConfig::default()
-        .with_title(SHOWCASE_WINDOW_TITLE.to_string())
-        .with_size(SHOWCASE_WINDOW_WIDTH, SHOWCASE_WINDOW_HEIGHT)
-        .with_render(render_cfg);
-    let app_cfg: AppConfig = AppConfig::default().with_window(window_cfg);
+    let mut window_cfg: WindowConfig = WindowConfig::default();
+    window_cfg
+        .set_title(SHOWCASE_WINDOW_TITLE.to_string())
+        .set_size(SHOWCASE_WINDOW_WIDTH, SHOWCASE_WINDOW_HEIGHT)
+        .set_render(render_cfg);
+    let mut app_cfg: AppConfig = AppConfig::default();
+    app_cfg.set_window(window_cfg);
     let mut app: App = if headless {
         App::headless(app_cfg)?
     } else {
         App::new(app_cfg)?
     };
-    let state: ShowcaseState = ShowcaseState::create();
+    let state: ShowcaseState = ShowcaseState::new();
     let mount_state: ShowcaseState = state.clone();
-    let _: NodeId = app.mount(move |ctx: &mut BuildContext| mount_showcase_root(ctx, &mount_state));
+    let _: NodeId = app.mount(move || mount_showcase_root(&mount_state));
     Ok((app, state))
 }
 
@@ -48,4 +50,21 @@ pub fn create_showcase_app(
 pub fn run_headless_smoke(mode: RenderMode) -> Result<FrameStats, PlatformError> {
     let (mut app, _): (App, ShowcaseState) = create_showcase_app(true, mode)?;
     app.step_frame()
+}
+
+/// WebAssembly entry point mounting the showcase onto the browser canvas and rendering the first frame.
+///
+/// # Returns
+///
+/// - `u64` - Deterministic frame hash produced by the initial render, or `0` on startup failure.
+#[cfg(target_arch = "wasm32")]
+#[unsafe(no_mangle)]
+pub extern "C" fn euv_example_web_start() -> u64 {
+    match create_showcase_app(false, RenderMode::Auto) {
+        Ok((mut app, _)) => app
+            .step_frame()
+            .map(|stats: FrameStats| stats.get_frame_hash())
+            .unwrap_or(0),
+        Err(_) => 0,
+    }
 }

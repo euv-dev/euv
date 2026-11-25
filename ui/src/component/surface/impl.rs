@@ -2,24 +2,6 @@ use super::*;
 
 /// Builder and mounting methods for `EuvPageContainer`.
 impl EuvPageContainer {
-    /// Creates a responsive page container with default 1120px max width.
-    ///
-    /// # Arguments
-    ///
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed page container.
-    #[must_use]
-    pub fn create(tokens: ThemeTokens) -> Self {
-        Self {
-            max_width: 1120.0,
-            children: Vec::new(),
-            tokens,
-        }
-    }
-
     /// Appends a child node to the container.
     ///
     /// # Arguments
@@ -50,7 +32,11 @@ impl Mountable for EuvPageContainer {
     ///
     /// - `NodeId` - Mounted container handle.
     fn mount(self, ctx: &mut BuildContext) -> NodeId {
-        let max_w: f32 = self.get_max_width();
+        let max_w: f32 = if self.get_max_width() > 0.0 {
+            self.get_max_width()
+        } else {
+            1120.0
+        };
         let Self { children, .. } = self;
         let node: NodeId = ctx.view(
             Style::empty()
@@ -69,25 +55,6 @@ impl Mountable for EuvPageContainer {
 
 /// Builder and mounting methods for `EuvPanel`.
 impl EuvPanel {
-    /// Creates a bordered panel with title and active tokens.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Panel heading.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed panel.
-    #[must_use]
-    pub fn create(title: String, tokens: ThemeTokens) -> Self {
-        Self {
-            title,
-            children: Vec::new(),
-            tokens,
-        }
-    }
-
     /// Appends a child node to the panel.
     ///
     /// # Arguments
@@ -163,13 +130,8 @@ impl EuvSpace {
     /// - `Self` - Horizontal spacing container.
     #[must_use]
     pub fn row(gap: f32) -> Self {
-        Self {
-            vertical: false,
-            gap,
-            children: Vec::new(),
-        }
+        Self::new(false, gap)
     }
-
     /// Creates a vertical `EuvSpace` with `gap`.
     ///
     /// # Arguments
@@ -181,13 +143,8 @@ impl EuvSpace {
     /// - `Self` - Vertical spacing container.
     #[must_use]
     pub fn column(gap: f32) -> Self {
-        Self {
-            vertical: true,
-            gap,
-            children: Vec::new(),
-        }
+        Self::new(true, gap)
     }
-
     /// Appends a child node.
     ///
     /// # Arguments
@@ -235,25 +192,6 @@ impl Mountable for EuvSpace {
 
 /// Builder methods for `EuvGrid`.
 impl EuvGrid {
-    /// Creates an equal-column grid container.
-    ///
-    /// # Arguments
-    ///
-    /// - `u16` - Number of columns.
-    /// - `f32` - Grid gap in logical pixels.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed grid.
-    #[must_use]
-    pub fn create(columns: u16, gap: f32) -> Self {
-        Self {
-            columns: columns.max(1),
-            gap,
-            children: Vec::new(),
-        }
-    }
-
     /// Appends a child cell to the grid.
     ///
     /// # Arguments
@@ -302,25 +240,6 @@ impl Mountable for EuvGrid {
 
 /// Builder methods for `EuvScrollArea`.
 impl EuvScrollArea {
-    /// Creates a clipped scroll viewport with fixed `height`.
-    ///
-    /// # Arguments
-    ///
-    /// - `f32` - Viewport height in logical pixels.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed scroll area.
-    #[must_use]
-    pub fn create(height: f32, tokens: ThemeTokens) -> Self {
-        Self {
-            height: height.max(32.0),
-            children: Vec::new(),
-            tokens,
-        }
-    }
-
     /// Appends a child node into the scroll area.
     ///
     /// # Arguments
@@ -373,36 +292,6 @@ impl Mountable for EuvScrollArea {
     }
 }
 
-/// Builder methods for `EuvSplitter`.
-impl EuvSplitter {
-    /// Creates a two-pane horizontal splitter with clamped ratio.
-    ///
-    /// # Arguments
-    ///
-    /// - `f32` - Primary pane width percentage.
-    /// - `NodeId` - Left pane node.
-    /// - `NodeId` - Right pane node.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed splitter.
-    #[must_use]
-    pub fn create(
-        ratio_percent: f32,
-        primary: NodeId,
-        secondary: NodeId,
-        tokens: ThemeTokens,
-    ) -> Self {
-        Self {
-            ratio_percent: ratio_percent.clamp(15.0, 85.0),
-            primary,
-            secondary,
-            tokens,
-        }
-    }
-}
-
 /// `Mountable` implementation for `EuvSplitter`.
 impl Mountable for EuvSplitter {
     /// Mounts primary pane, divider handle, and secondary pane side-by-side.
@@ -449,25 +338,6 @@ impl Mountable for EuvSplitter {
 
 /// Builder methods for `EuvNavbar`.
 impl EuvNavbar {
-    /// Creates a top horizontal navigation bar.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Brand title text.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed navbar.
-    #[must_use]
-    pub fn create(brand: String, tokens: ThemeTokens) -> Self {
-        Self {
-            brand,
-            actions: Vec::new(),
-            tokens,
-        }
-    }
-
     /// Appends a trailing action node to the navbar.
     ///
     /// # Arguments
@@ -529,24 +399,6 @@ impl Mountable for EuvNavbar {
     }
 }
 
-/// Builder methods for `EuvFooter`.
-impl EuvFooter {
-    /// Creates a page footer bar.
-    ///
-    /// # Arguments
-    ///
-    /// - `String` - Footer label text.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed footer.
-    #[must_use]
-    pub fn create(text: String, tokens: ThemeTokens) -> Self {
-        Self { text, tokens }
-    }
-}
-
 /// `Mountable` implementation for `EuvFooter`.
 impl Mountable for EuvFooter {
     /// Mounts the bordered footer strip into `ctx`.
@@ -583,24 +435,6 @@ impl Mountable for EuvFooter {
     }
 }
 
-/// Builder methods for `EuvButtonGroup`.
-impl EuvButtonGroup {
-    /// Creates a horizontal button group.
-    ///
-    /// # Arguments
-    ///
-    /// - `Vec<NodeId>` - Button child handles.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed button group.
-    #[must_use]
-    pub fn create(children: Vec<NodeId>, tokens: ThemeTokens) -> Self {
-        Self { children, tokens }
-    }
-}
-
 /// `Mountable` implementation for `EuvButtonGroup`.
 impl Mountable for EuvButtonGroup {
     /// Mounts grouped buttons inside a shared rounded frame.
@@ -629,29 +463,6 @@ impl Mountable for EuvButtonGroup {
             ctx.append(grp, c);
         }
         grp
-    }
-}
-
-/// Builder methods for `EuvToggle`.
-impl EuvToggle {
-    /// Creates a two-state reactive toggle button.
-    ///
-    /// # Arguments
-    ///
-    /// - `Signal<bool>` - Reactive pressed flag.
-    /// - `String` - Button label.
-    /// - `ThemeTokens` - Active design tokens.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - Constructed toggle.
-    #[must_use]
-    pub fn create(pressed: Signal<bool>, label: String, tokens: ThemeTokens) -> Self {
-        Self {
-            pressed,
-            label,
-            tokens,
-        }
     }
 }
 
