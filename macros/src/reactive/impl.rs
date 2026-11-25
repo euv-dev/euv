@@ -13,8 +13,14 @@ impl Parse for WatchInput {
     /// - `Result<Self>` - Parsed `WatchInput`.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let content: ParseBuffer<'_>;
-        parenthesized!(content in input);
+        let paren: Paren = parenthesized!(content in input);
         let list: Punctuated<Expr, Token![,]> = content.parse_terminated(Expr::parse, Token![,])?;
+        if list.is_empty() {
+            return Err(Error::new(
+                paren.span.join(),
+                "watch! requires at least one signal, e.g. `watch!((count) => move |n: i32| { ... })`",
+            ));
+        }
         let _: Token![=>] = input.parse()?;
         let callback: Expr = input.parse()?;
         Ok(Self {
@@ -37,8 +43,14 @@ impl Parse for ComputedInput {
     /// - `Result<Self>` - Parsed `ComputedInput`.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let content: ParseBuffer<'_>;
-        parenthesized!(content in input);
+        let paren: Paren = parenthesized!(content in input);
         let list: Punctuated<Expr, Token![,]> = content.parse_terminated(Expr::parse, Token![,])?;
+        if list.is_empty() {
+            return Err(Error::new(
+                paren.span.join(),
+                "computed! requires at least one signal, e.g. `computed!((count) -> i32 => move |n: i32| n * 2)`",
+            ));
+        }
         let _: Token![->] = input.parse()?;
         let return_type: Type = input.parse()?;
         let _: Token![=>] = input.parse()?;

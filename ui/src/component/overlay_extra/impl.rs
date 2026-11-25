@@ -48,8 +48,8 @@ impl Mountable for EuvDrawer {
                     Display::None
                 };
                 Style::empty()
-                    .display(disp)
                     .row()
+                    .display(disp)
                     .position(Position::Fixed)
                     .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
                     .width(Length::Percent(100.0))
@@ -117,8 +117,8 @@ impl Mountable for EuvSheet {
                     Display::None
                 };
                 Style::empty()
-                    .display(disp)
                     .column()
+                    .display(disp)
                     .position(Position::Fixed)
                     .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
                     .width(Length::Percent(100.0))
@@ -168,8 +168,8 @@ impl Mountable for EuvPopover {
                     Display::None
                 };
                 Style::empty()
-                    .display(disp)
                     .column()
+                    .display(disp)
                     .padding(Edges::all(SPACE_MD))
                     .background(p.get_card())
                     .border(g.get_border_width(), p.get_border())
@@ -282,8 +282,8 @@ impl Mountable for EuvDropdown {
                     Display::None
                 };
                 Style::empty()
-                    .display(disp)
                     .column()
+                    .display(disp)
                     .background(p.get_card())
                     .border(g.get_border_width(), p.get_border())
                     .radius(g.get_radius_md())
@@ -345,8 +345,8 @@ impl Mountable for EuvNotification {
                     Display::None
                 };
                 Style::empty()
-                    .display(disp)
                     .column()
+                    .display(disp)
                     .position(Position::Fixed)
                     .inset(Some(SPACE_LG), Some(SPACE_LG), None, None)
                     .width(Length::Px(320.0))
@@ -405,8 +405,8 @@ impl Mountable for EuvLoading {
                     Display::None
                 };
                 Style::empty()
-                    .display(disp)
                     .column()
+                    .display(disp)
                     .position(Position::Fixed)
                     .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
                     .width(Length::Percent(100.0))

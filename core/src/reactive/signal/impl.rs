@@ -227,9 +227,11 @@ where
     /// - `bool` - True when the signal was alive and updated.
     pub fn set(&self, value: T) -> bool {
         let id: SignalId = self.id();
-        let updated: bool =
-            with_runtime(|rt: &mut ReactiveRuntime| rt.write_signal(id, value), false);
-        if updated {
+        let (updated, should_flush): (bool, bool) = with_runtime(
+            |rt: &mut ReactiveRuntime| rt.write_signal(id, value),
+            (false, false),
+        );
+        if should_flush {
             flush_effects();
         }
         updated
@@ -250,11 +252,11 @@ where
         T: PartialEq,
     {
         let id: SignalId = self.id();
-        let updated: bool = with_runtime(
+        let (updated, should_flush): (bool, bool) = with_runtime(
             |rt: &mut ReactiveRuntime| rt.write_signal_if_changed(id, value),
-            false,
+            (false, false),
         );
-        if updated {
+        if should_flush {
             flush_effects();
         }
         updated

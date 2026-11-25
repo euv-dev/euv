@@ -44,3 +44,6 @@ euv = { workspace = true }
 euv-ui = { workspace = true }
 
 lombok-macros = { workspace = true }
+
+[target.'cfg(target_arch="wasm32")'.dependencies]
+wasm-bindgen = { workspace = true }

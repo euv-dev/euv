@@ -12,6 +12,10 @@ impl Parse for ViewMacroInput {
     ///
     /// - `Result<Self>` - Parsed macro invocation.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
+        if input.peek(Ident) && input.peek2(Token![,]) {
+            let legacy_ctx: Ident = input.parse()?;
+            return Err(Error::new(legacy_ctx.span(), ERR_LEGACY_VIEW_CTX));
+        }
         let root: ViewNode = if input.peek(Brace) {
             let content: ParseBuffer<'_>;
             braced!(content in input);

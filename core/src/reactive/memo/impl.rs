@@ -87,14 +87,20 @@ where
     {
         let id: MemoId = with_runtime(
             |rt: &mut ReactiveRuntime| {
-                rt.create_memo(move |previous: Option<&dyn Any>| {
+                rt.create_memo(move |slot: &mut Option<Box<dyn Any>>| {
                     let next_val: T = compute();
-                    let changed: bool =
-                        match previous.and_then(|any: &dyn Any| any.downcast_ref::<T>()) {
-                            Some(prev_val) => *prev_val != next_val,
-                            None => true,
-                        };
-                    (Box::new(next_val), changed)
+                    if let Some(prev_val) = slot
+                        .as_mut()
+                        .and_then(|boxed: &mut Box<dyn Any>| boxed.downcast_mut::<T>())
+                    {
+                        if *prev_val == next_val {
+                            return false;
+                        }
+                        *prev_val = next_val;
+                        return true;
+                    }
+                    *slot = Some(Box::new(next_val));
+                    true
                 })
             },
             MemoId::default(),
@@ -118,8 +124,30 @@ where
     #[must_use]
     pub fn try_get(&self) -> Option<T> {
         let id: MemoId = self.id();
-        evaluate_memo(id);
         let slot: SlotId = id.slot();
+        let fast_hit: Option<Option<T>> = with_runtime(
+            |rt: &mut ReactiveRuntime| {
+                let entry: &MemoEntry = rt.get_memos().get(slot.as_usize())?;
+                if entry.get_generation() != slot.get_generation() {
+                    return Some(None);
+                }
+                if entry.get_state() != NodeState::Clean {
+                    return None;
+                }
+                let val: Option<T> = entry
+                    .value
+                    .as_ref()
+                    .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
+                    .cloned();
+                rt.track_dependency(DependencyId::Memo(id));
+                Some(val)
+            },
+            None,
+        );
+        if let Some(result) = fast_hit {
+            return result;
+        }
+        evaluate_memo(id);
         with_runtime(
             |rt: &mut ReactiveRuntime| {
                 rt.track_dependency(DependencyId::Memo(id));

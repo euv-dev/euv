@@ -48,7 +48,7 @@ impl Framebuffer {
         true
     }
 
-    /// Fills the entire framebuffer with solid `color`.
+    /// Fills the entire framebuffer with solid `color` using 64-bit wide stores.
     ///
     /// # Arguments
     ///
@@ -56,8 +56,69 @@ impl Framebuffer {
     /// - `Color` - Clear color.
     pub fn clear(&mut self, color: Color) {
         let rgba: [u8; 4] = color.to_rgba_bytes();
-        for chunk in self.get_mut_pixels().as_chunks_mut::<4>().0.iter_mut() {
+        let pair: [u8; 8] = [
+            rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3],
+        ];
+        let (wide, tail): (&mut [[u8; 8]], &mut [u8]) = self.get_mut_pixels().as_chunks_mut::<8>();
+        for chunk in wide.iter_mut() {
+            *chunk = pair;
+        }
+        for chunk in tail.as_chunks_mut::<4>().0.iter_mut() {
             *chunk = rgba;
+        }
+    }
+
+    /// Fills or composites a contiguous horizontal pixel span `[x0, x1)` on row `y`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable framebuffer.
+    /// - `u32` - Inclusive start X pixel coordinate.
+    /// - `u32` - Exclusive end X pixel coordinate.
+    /// - `u32` - Row Y pixel coordinate.
+    /// - `Color` - Foreground color to write or alpha-blend.
+    pub fn fill_span(&mut self, x0: u32, x1: u32, y: u32, color: Color) {
+        let sa: u8 = color.get_a();
+        let width: u32 = self.get_width();
+        let height: u32 = self.get_height();
+        if sa == 0 || y >= height || x0 >= x1 || x0 >= width {
+            return;
+        }
+        let end_x: u32 = x1.min(width);
+        let row_base: usize = (y as usize) * (width as usize);
+        let start_byte: usize = (row_base + (x0 as usize)) * 4;
+        let end_byte: usize = (row_base + (end_x as usize)) * 4;
+        let Some(span) = self.get_mut_pixels().get_mut(start_byte..end_byte) else {
+            return;
+        };
+        if sa == 255 {
+            let rgba: [u8; 4] = [color.get_r(), color.get_g(), color.get_b(), 255];
+            let pair: [u8; 8] = [
+                rgba[0], rgba[1], rgba[2], rgba[3], rgba[0], rgba[1], rgba[2], rgba[3],
+            ];
+            let (wide, tail): (&mut [[u8; 8]], &mut [u8]) = span.as_chunks_mut::<8>();
+            for chunk in wide.iter_mut() {
+                *chunk = pair;
+            }
+            for chunk in tail.as_chunks_mut::<4>().0.iter_mut() {
+                *chunk = rgba;
+            }
+            return;
+        }
+        let sr: u32 = color.get_r() as u32;
+        let sg: u32 = color.get_g() as u32;
+        let sb: u32 = color.get_b() as u32;
+        let sa_u32: u32 = sa as u32;
+        let inv_a: u32 = 255 - sa_u32;
+        for px in span.as_chunks_mut::<4>().0.iter_mut() {
+            let dr: u32 = px[0] as u32;
+            let dg: u32 = px[1] as u32;
+            let db: u32 = px[2] as u32;
+            let da: u32 = px[3] as u32;
+            px[0] = ((sr * sa_u32 + dr * inv_a + 127) / 255) as u8;
+            px[1] = ((sg * sa_u32 + dg * inv_a + 127) / 255) as u8;
+            px[2] = ((sb * sa_u32 + db * inv_a + 127) / 255) as u8;
+            px[3] = (sa_u32 + (da * inv_a + 127) / 255).min(255) as u8;
         }
     }
 
@@ -141,7 +202,7 @@ impl Framebuffer {
         out
     }
 
-    /// Computes a deterministic 64-bit FNV-1a hash of the framebuffer pixels for cross-platform parity verification.
+    /// Computes a deterministic 64-bit 4-lane word-folded FNV-1a hash of the framebuffer pixels.
     ///
     /// # Arguments
     ///
@@ -149,11 +210,36 @@ impl Framebuffer {
     ///
     /// # Returns
     ///
-    /// - `u64` - Deterministic pixel hash.
+    /// - `u64` - Deterministic endian-independent pixel hash.
     #[must_use]
     pub fn fnv1a_hash(&self) -> u64 {
-        let mut hash: u64 = FNV1A_OFFSET_BASIS;
-        for byte in self.get_pixels().iter().copied() {
+        let bytes: &[u8] = self.get_pixels().as_slice();
+        let mut h0: u64 = FNV1A_OFFSET_BASIS;
+        let mut h1: u64 = FNV1A_OFFSET_BASIS ^ 0x9E37_79B9_7F4A_7C15;
+        let mut h2: u64 = FNV1A_OFFSET_BASIS ^ 0xBF58_476D_1CE4_E5B9;
+        let mut h3: u64 = FNV1A_OFFSET_BASIS ^ 0x94D0_49BB_1331_11EB;
+        let (blocks, tail): (&[[u8; 32]], &[u8]) = bytes.as_chunks::<32>();
+        for blk in blocks.iter() {
+            let w0: u64 = u64::from_le_bytes([
+                blk[0], blk[1], blk[2], blk[3], blk[4], blk[5], blk[6], blk[7],
+            ]);
+            let w1: u64 = u64::from_le_bytes([
+                blk[8], blk[9], blk[10], blk[11], blk[12], blk[13], blk[14], blk[15],
+            ]);
+            let w2: u64 = u64::from_le_bytes([
+                blk[16], blk[17], blk[18], blk[19], blk[20], blk[21], blk[22], blk[23],
+            ]);
+            let w3: u64 = u64::from_le_bytes([
+                blk[24], blk[25], blk[26], blk[27], blk[28], blk[29], blk[30], blk[31],
+            ]);
+            h0 = (h0 ^ w0).wrapping_mul(FNV1A_PRIME);
+            h1 = (h1 ^ w1).wrapping_mul(FNV1A_PRIME);
+            h2 = (h2 ^ w2).wrapping_mul(FNV1A_PRIME);
+            h3 = (h3 ^ w3).wrapping_mul(FNV1A_PRIME);
+        }
+        let mut hash: u64 = h0 ^ h1.rotate_left(13) ^ h2.rotate_left(29) ^ h3.rotate_left(47);
+        hash = hash.wrapping_mul(FNV1A_PRIME);
+        for byte in tail.iter().copied() {
             hash ^= byte as u64;
             hash = hash.wrapping_mul(FNV1A_PRIME);
         }

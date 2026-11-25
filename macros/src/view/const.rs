@@ -118,11 +118,58 @@ pub(crate) const PROP_A11Y_LABEL: &str = "a11y_label";
 /// Property keyword for accessible screen-reader usage hint string.
 pub(crate) const PROP_A11Y_HINT: &str = "a11y_hint";
 
-/// Error message for unknown property inside `view!`.
-pub(crate) const ERR_UNKNOWN_VIEW_PROP: &str = "unsupported property inside view! element";
+/// Complete list of supported properties inside `view!` elements for typo diagnostics.
+pub(crate) const KNOWN_VIEW_PROPS: &[&str] = &[
+    PROP_STYLE,
+    PROP_WIDTH,
+    PROP_HEIGHT,
+    PROP_PADDING,
+    PROP_MARGIN,
+    PROP_GAP,
+    PROP_BACKGROUND,
+    PROP_COLOR,
+    PROP_RADIUS,
+    PROP_BORDER,
+    PROP_ALIGN,
+    PROP_JUSTIFY,
+    PROP_FLEX_GROW,
+    PROP_OVERFLOW,
+    PROP_FONT_SIZE,
+    PROP_FONT_WEIGHT,
+    PROP_Z_INDEX,
+    PROP_OPACITY,
+    PROP_COLUMNS,
+    PROP_ON_CLICK,
+    PROP_ON_CHANGE,
+    PROP_ON_SCROLL,
+    PROP_VALUE,
+    PROP_PLACEHOLDER,
+    PROP_SOURCE,
+    PROP_PAINTER,
+    PROP_ROLE,
+    PROP_A11Y_LABEL,
+    PROP_A11Y_HINT,
+];
+
+/// Error message when a caller passes a legacy explicit context argument to `view!(ctx, ...)`.
+pub(crate) const ERR_LEGACY_VIEW_CTX: &str = "view! manages BuildContext automatically; remove the explicit context argument and write `view! { ... }`";
 
 /// Error message when `image` lacks a `source` property.
-pub(crate) const ERR_IMAGE_MISSING_SOURCE: &str = "image element requires a `source:` ImageBuffer";
+pub(crate) const ERR_IMAGE_MISSING_SOURCE: &str =
+    "image element requires a `source:` ImageBuffer expression";
 
 /// Error message when `canvas` lacks a `painter` property.
-pub(crate) const ERR_CANVAS_MISSING_PAINTER: &str = "canvas element requires a `painter:` closure";
+pub(crate) const ERR_CANVAS_MISSING_PAINTER: &str =
+    "canvas element requires a `painter:` closure `|bounds: Rect, dl: &mut DisplayList| { ... }`";
+
+/// Error message when `source:` is placed on a non-`image` element.
+pub(crate) const ERR_SOURCE_ONLY_ON_IMAGE: &str =
+    "`source:` is only valid on `image { source: ... }` elements";
+
+/// Error message when `painter:` is placed on a non-`canvas` element.
+pub(crate) const ERR_PAINTER_ONLY_ON_CANVAS: &str =
+    "`painter:` is only valid on `canvas { painter: ... }` elements";
+
+/// Error message when `value:` or `placeholder:` is placed on a non-`input` element.
+pub(crate) const ERR_INPUT_PROP_ONLY_ON_INPUT: &str =
+    "`value:` and `placeholder:` are only valid on `input { ... }` elements";

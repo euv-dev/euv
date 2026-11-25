@@ -237,8 +237,8 @@ impl Mountable for EuvAccordion {
                         Display::None
                     };
                     Style::empty()
-                        .display(disp)
                         .column()
+                        .display(disp)
                         .width(Length::Percent(100.0))
                         .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
                 })

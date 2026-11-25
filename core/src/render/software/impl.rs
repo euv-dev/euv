@@ -273,26 +273,30 @@ impl SoftwareRenderer {
     ///
     /// - `usize` - Shaded pixel count.
     fn fill_rect_clipped(&mut self, rect: Rect, color: Color, clip: Rect) -> usize {
+        if color.get_a() == 0 {
+            return 0;
+        }
         let Some(vis) = rect.intersect(clip) else {
             return 0;
         };
-        let x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(self.get_framebuffer().get_width());
-        let y0: u32 =
-            (vis.get_y().floor().max(0.0) as u32).min(self.get_framebuffer().get_height());
-        let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(self.get_framebuffer().get_width());
-        let y1: u32 =
-            (vis.bottom().ceil().max(0.0) as u32).min(self.get_framebuffer().get_height());
-        let mut shaded: usize = 0;
-        for y in y0..y1 {
-            for x in x0..x1 {
-                self.get_mut_framebuffer().blend_pixel(x, y, color);
-                shaded += 1;
-            }
+        let fb_w: u32 = self.get_framebuffer().get_width();
+        let fb_h: u32 = self.get_framebuffer().get_height();
+        let x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(fb_w);
+        let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(fb_h);
+        let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
+        let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(fb_h);
+        if x0 >= x1 || y0 >= y1 {
+            return 0;
         }
-        shaded
+        let span_w: usize = (x1 - x0) as usize;
+        let fb: &mut Framebuffer = self.get_mut_framebuffer();
+        for y in y0..y1 {
+            fb.fill_span(x0, x1, y, color);
+        }
+        span_w.saturating_mul((y1 - y0) as usize)
     }
 
-    /// Analytical SDF rounded rectangle and border rasterizer.
+    /// Analytical SDF rounded rectangle and border rasterizer with 3-band interior span fast-path.
     ///
     /// # Arguments
     ///
@@ -317,7 +321,8 @@ impl SoftwareRenderer {
         let Some(vis) = rect.intersect(clip) else {
             return 0;
         };
-        if radius.max_radius() <= 0.0 && border.get_width() <= 0.0 {
+        let has_border: bool = border.get_width() > 0.0 && border.get_color().get_a() > 0;
+        if radius.max_radius() <= 0.0 && !has_border {
             return self.fill_rect_clipped(rect, color, clip);
         }
         let aa: AntialiasingMode = self.get_antialiasing();
@@ -326,59 +331,106 @@ impl SoftwareRenderer {
         let cx: f32 = rect.get_x() + half_w;
         let cy: f32 = rect.get_y() + half_h;
         let border_w: f32 = border.get_width();
-        let x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(self.get_framebuffer().get_width());
-        let y0: u32 =
-            (vis.get_y().floor().max(0.0) as u32).min(self.get_framebuffer().get_height());
-        let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(self.get_framebuffer().get_width());
-        let y1: u32 =
-            (vis.bottom().ceil().max(0.0) as u32).min(self.get_framebuffer().get_height());
+        let fb_w: u32 = self.get_framebuffer().get_width();
+        let fb_h: u32 = self.get_framebuffer().get_height();
+        let x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(fb_w);
+        let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(fb_h);
+        let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
+        let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(fb_h);
+        let safe_inset: f32 = radius.max_radius().max(border_w) + 1.5;
+        let edge_inset: f32 = border_w + 1.5;
+        let iy0: u32 = ((rect.get_y() + safe_inset).ceil().max(0.0) as u32).clamp(y0, y1);
+        let iy1: u32 = ((rect.bottom() - safe_inset).floor().max(0.0) as u32).clamp(y0, y1);
+        let ix0: u32 = ((rect.get_x() + edge_inset).ceil().max(0.0) as u32).clamp(x0, x1);
+        let ix1: u32 = ((rect.right() - edge_inset).floor().max(0.0) as u32).clamp(x0, x1);
+        let has_interior: bool = iy0 < iy1 && ix0 < ix1;
         let mut shaded: usize = 0;
+        let fb: &mut Framebuffer = self.get_mut_framebuffer();
         for y in y0..y1 {
             let py: f32 = (y as f32) + 0.5 - cy;
-            for x in x0..x1 {
-                let px: f32 = (x as f32) + 0.5 - cx;
-                let corner_r: f32 = if px < 0.0 {
-                    if py < 0.0 {
-                        radius.get_top_left()
-                    } else {
-                        radius.get_bottom_left()
-                    }
-                } else if py < 0.0 {
-                    radius.get_top_right()
-                } else {
-                    radius.get_bottom_right()
-                };
-                let dist: f32 = rounded_box_sdf(px, py, half_w, half_h, corner_r);
-                let outer_cov: f32 = sdf_coverage(dist, aa);
-                if outer_cov <= 0.0 {
-                    continue;
+            let box_geom: (f32, f32, f32, f32) = (cx, py, half_w, half_h);
+            if has_interior && y >= iy0 && y < iy1 {
+                for x in x0..ix0 {
+                    shaded +=
+                        Self::shade_rounded_pixel(fb, (x, y), box_geom, radius, color, border, aa);
                 }
-                if border_w > 0.0 && border.get_color().get_a() > 0 {
-                    let inner_cov: f32 = sdf_coverage(dist + border_w, aa);
-                    let border_cov: f32 = (outer_cov - inner_cov).clamp(0.0, 1.0);
-                    if inner_cov > 0.0 && color.get_a() > 0 {
-                        self.get_mut_framebuffer().blend_pixel(
-                            x,
-                            y,
-                            color.multiply_alpha(inner_cov),
-                        );
-                    }
-                    if border_cov > 0.0 {
-                        self.get_mut_framebuffer().blend_pixel(
-                            x,
-                            y,
-                            border.get_color().multiply_alpha(border_cov),
-                        );
-                    }
-                    shaded += 1;
-                } else if color.get_a() > 0 {
-                    self.get_mut_framebuffer()
-                        .blend_pixel(x, y, color.multiply_alpha(outer_cov));
-                    shaded += 1;
+                if color.get_a() > 0 {
+                    fb.fill_span(ix0, ix1, y, color);
+                    shaded += (ix1 - ix0) as usize;
+                }
+                for x in ix1..x1 {
+                    shaded +=
+                        Self::shade_rounded_pixel(fb, (x, y), box_geom, radius, color, border, aa);
+                }
+            } else {
+                for x in x0..x1 {
+                    shaded +=
+                        Self::shade_rounded_pixel(fb, (x, y), box_geom, radius, color, border, aa);
                 }
             }
         }
         shaded
+    }
+
+    /// Evaluates analytical SDF fill and border coverage for a single edge/corner pixel.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut Framebuffer` - Target framebuffer.
+    /// - `(u32, u32)` - Pixel `(x, y)` coordinates.
+    /// - `(f32, f32, f32, f32)` - Box geometry `(center_x, rel_py, half_w, half_h)`.
+    /// - `CornerRadius` - Physical corner radii.
+    /// - `Color` - Fill color.
+    /// - `Border` - Border width and color.
+    /// - `AntialiasingMode` - Active AA policy.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - `1` if the pixel was shaded, `0` otherwise.
+    fn shade_rounded_pixel(
+        fb: &mut Framebuffer,
+        pos: (u32, u32),
+        geom: (f32, f32, f32, f32),
+        radius: CornerRadius,
+        color: Color,
+        border: Border,
+        aa: AntialiasingMode,
+    ) -> usize {
+        let (x, y): (u32, u32) = pos;
+        let (cx, py, half_w, half_h): (f32, f32, f32, f32) = geom;
+        let px: f32 = (x as f32) + 0.5 - cx;
+        let corner_r: f32 = if px < 0.0 {
+            if py < 0.0 {
+                radius.get_top_left()
+            } else {
+                radius.get_bottom_left()
+            }
+        } else if py < 0.0 {
+            radius.get_top_right()
+        } else {
+            radius.get_bottom_right()
+        };
+        let dist: f32 = rounded_box_sdf(px, py, half_w, half_h, corner_r);
+        let outer_cov: f32 = sdf_coverage(dist, aa);
+        if outer_cov <= 0.0 {
+            return 0;
+        }
+        if border.get_width() > 0.0 && border.get_color().get_a() > 0 {
+            let inner_cov: f32 = sdf_coverage(dist + border.get_width(), aa);
+            let border_cov: f32 = (outer_cov - inner_cov).clamp(0.0, 1.0);
+            if inner_cov > 0.0 && color.get_a() > 0 {
+                fb.blend_pixel(x, y, color.multiply_alpha(inner_cov));
+            }
+            if border_cov > 0.0 {
+                fb.blend_pixel(x, y, border.get_color().multiply_alpha(border_cov));
+            }
+            return 1;
+        }
+        if color.get_a() > 0 {
+            fb.blend_pixel(x, y, color.multiply_alpha(outer_cov));
+            return 1;
+        }
+        0
     }
 
     /// Rasterizes a two-stop linear gradient inside an SDF rounded rectangle.
@@ -542,7 +594,19 @@ impl SoftwareRenderer {
         let line_h_phys: f32 = layout.get_line_height_px() * scale;
         let box_w_phys: f32 = rect.get_width() * scale;
         let color: Color = style.get_color();
+        let clip_x0: i32 = clip.get_x().ceil().max(0.0) as i32;
+        let clip_y0: i32 = clip.get_y().ceil().max(0.0) as i32;
+        let clip_x1: i32 =
+            (clip.right().floor().max(0.0) as i32).min(self.get_framebuffer().get_width() as i32);
+        let clip_y1: i32 =
+            (clip.bottom().floor().max(0.0) as i32).min(self.get_framebuffer().get_height() as i32);
         let mut shaded: usize = 0;
+        let Self {
+            framebuffer,
+            glyph_atlas,
+            font_provider,
+            ..
+        } = self;
         for (line_idx, line) in layout.get_lines().iter().enumerate() {
             let line_w_phys: f32 = line.get_width() * scale;
             let align_x: f32 = match style.get_align() {
@@ -557,42 +621,42 @@ impl SoftwareRenderer {
                 if ch != ' ' {
                     let key: GlyphKey =
                         GlyphKey::from_style(ch, phys_font_size, style.get_weight());
-                    let glyph: RasterizedGlyph = {
-                        let Self {
-                            glyph_atlas,
-                            font_provider,
-                            ..
-                        } = self;
-                        glyph_atlas
-                            .get_or_rasterize_with(key, font_provider)
-                            .clone()
-                    };
+                    let glyph: &RasterizedGlyph =
+                        glyph_atlas.get_or_rasterize_with(key, font_provider);
                     let gx0: i32 = pen_x.round() as i32;
                     let gy0: i32 =
                         (pen_y + (line_h_phys - (glyph.get_height() as f32)) * 0.5).round() as i32;
-                    let gw: u32 = glyph.get_width();
-                    let gh: u32 = glyph.get_height();
-                    let cov_bytes: &[u8] = glyph.get_coverage().as_slice();
-                    for py in 0..gh {
-                        let dy: i32 = gy0 + (py as i32);
-                        if dy < 0 || (dy as f32) < clip.get_y() || (dy as f32) >= clip.bottom() {
-                            continue;
-                        }
-                        for px in 0..gw {
-                            let dx: i32 = gx0 + (px as i32);
-                            if dx < 0 || (dx as f32) < clip.get_x() || (dx as f32) >= clip.right() {
-                                continue;
-                            }
-                            let alpha_byte: u8 =
-                                cov_bytes[(py as usize) * (gw as usize) + (px as usize)];
-                            if alpha_byte > 0 {
-                                let factor: f32 = (alpha_byte as f32) / 255.0;
-                                self.get_mut_framebuffer().blend_pixel(
-                                    dx as u32,
-                                    dy as u32,
-                                    color.multiply_alpha(factor),
-                                );
-                                shaded += 1;
+                    let gw: i32 = glyph.get_width() as i32;
+                    let gh: i32 = glyph.get_height() as i32;
+                    let py_start: i32 = (clip_y0 - gy0).max(0);
+                    let py_end: i32 = (clip_y1 - gy0).min(gh);
+                    let px_start: i32 = (clip_x0 - gx0).max(0);
+                    let px_end: i32 = (clip_x1 - gx0).min(gw);
+                    if py_start < py_end && px_start < px_end {
+                        let cov_bytes: &[u8] = glyph.get_coverage().as_slice();
+                        let gw_usize: usize = gw as usize;
+                        for py in py_start..py_end {
+                            let dy: u32 = (gy0 + py) as u32;
+                            let row_off: usize = (py as usize) * gw_usize;
+                            for px in px_start..px_end {
+                                let alpha_byte: u8 = cov_bytes[row_off + (px as usize)];
+                                if alpha_byte > 0 {
+                                    let eff_a: u8 = (((color.get_a() as u32) * (alpha_byte as u32)
+                                        + 127)
+                                        / 255)
+                                        as u8;
+                                    framebuffer.blend_pixel(
+                                        (gx0 + px) as u32,
+                                        dy,
+                                        Color::new(
+                                            color.get_r(),
+                                            color.get_g(),
+                                            color.get_b(),
+                                            eff_a,
+                                        ),
+                                    );
+                                    shaded += 1;
+                                }
                             }
                         }
                     }

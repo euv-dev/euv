@@ -31,6 +31,18 @@ pub(crate) const STYLE_KEY_COLOR: &str = "color";
 /// Style property key for corner radius.
 pub(crate) const STYLE_KEY_RADIUS: &str = "radius";
 
+/// Style property key for cross-axis item alignment.
+pub(crate) const STYLE_KEY_ALIGN: &str = "align";
+
+/// Style property key for main-axis content justification.
+pub(crate) const STYLE_KEY_JUSTIFY: &str = "justify";
+
+/// Style property key for flex grow weight.
+pub(crate) const STYLE_KEY_FLEX_GROW: &str = "flex_grow";
+
+/// Style property key for overflow clipping or scrolling.
+pub(crate) const STYLE_KEY_OVERFLOW: &str = "overflow";
+
 /// Style property key for font size.
 pub(crate) const STYLE_KEY_FONT_SIZE: &str = "font_size";
 
@@ -52,5 +64,26 @@ pub(crate) const STYLE_KEY_GRID: &str = "grid";
 /// Alias style property key for grid column count.
 pub(crate) const STYLE_KEY_COLUMNS: &str = "columns";
 
-/// Error message for unsupported style property inside `style!` / `class!`.
-pub(crate) const ERR_UNKNOWN_STYLE_PROP: &str = "unsupported property inside style! block";
+/// Exhaustive list of supported properties inside `style!` blocks for typo diagnostics.
+pub(crate) const KNOWN_STYLE_PROPS: &[&str] = &[
+    STYLE_KEY_DIRECTION,
+    STYLE_KEY_WIDTH,
+    STYLE_KEY_HEIGHT,
+    STYLE_KEY_PADDING,
+    STYLE_KEY_MARGIN,
+    STYLE_KEY_GAP,
+    STYLE_KEY_BACKGROUND,
+    STYLE_KEY_COLOR,
+    STYLE_KEY_RADIUS,
+    STYLE_KEY_ALIGN,
+    STYLE_KEY_JUSTIFY,
+    STYLE_KEY_FLEX_GROW,
+    STYLE_KEY_OVERFLOW,
+    STYLE_KEY_FONT_SIZE,
+    STYLE_KEY_FONT_WEIGHT,
+    STYLE_KEY_OPACITY,
+    STYLE_KEY_Z_INDEX,
+    STYLE_KEY_BORDER,
+    STYLE_KEY_GRID,
+    STYLE_KEY_COLUMNS,
+];

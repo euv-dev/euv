@@ -11,12 +11,22 @@ style! {
         padding: Edges::all(12.0);
         gap: 8.0;
         radius: 8.0;
+        align: AlignItems::Start;
+        justify: JustifyContent::Start;
+        background: TEST_BG;
+        border: (1.0, TEST_FG);
+    }
+    c_panel {
+        direction: column;
+        padding: Edges::all(12.0);
+        gap: 8.0;
+        radius: 8.0;
+        overflow: Overflow::Hidden;
         background: TEST_BG;
         border: (1.0, TEST_FG);
     }
 }
 
-#[component]
 fn demo_badge() -> NodeId {
     view! {
         row {
@@ -67,19 +77,8 @@ fn view_style_tokens_watch_and_computed_macros_work_end_to_end() {
     assert!(stats.get_draw_commands() >= 3);
 }
 
-class! {
-    c_alias_panel {
-        direction: column;
-        padding: Edges::all(12.0);
-        gap: 8.0;
-        radius: 8.0;
-        background: TEST_BG;
-        border: (1.0, TEST_FG);
-    }
-}
-
 #[test]
-fn ui_and_class_macro_aliases_compile_and_render_identically() {
+fn style_macro_supports_full_layout_rules_and_matches_builder_api() {
     reset_reactive_runtime();
     let mut win_a: WindowConfig = WindowConfig::default();
     win_a
@@ -88,34 +87,41 @@ fn ui_and_class_macro_aliases_compile_and_render_identically() {
     let mut cfg_a: AppConfig = AppConfig::default();
     cfg_a.set_window(win_a);
     let cfg_b: AppConfig = cfg_a.clone();
-    let mut app_view: App = App::headless(cfg_a).unwrap();
-    let _: NodeId = app_view.mount(|| {
+    let mut app_macro: App = App::headless(cfg_a).unwrap();
+    let _: NodeId = app_macro.mount(|| {
         view! {
             column {
-                style: c_card()
+                style: c_panel()
                 width: Length::Px(240.0)
                 text {
                     color: TEST_FG
-                    "Alias Parity"
+                    "Native Macro Parity"
                 }
             }
         }
     });
-    let mut app_ui: App = App::headless(cfg_b).unwrap();
-    let _: NodeId = app_ui.mount(|| {
-        ui! {
-            column {
-                style: c_alias_panel()
-                width: Length::Px(240.0)
-                text {
-                    color: TEST_FG
-                    "Alias Parity"
-                }
-            }
-        }
+    let mut app_builder: App = App::headless(cfg_b).unwrap();
+    let _: NodeId = app_builder.mount(|| {
+        let panel_style: Style = Style::empty()
+            .column()
+            .padding(Edges::all(12.0))
+            .gap(8.0)
+            .radius(8.0)
+            .overflow(Overflow::Hidden)
+            .background(TEST_BG)
+            .border(1.0, TEST_FG)
+            .width(Length::Px(240.0));
+        let mut ctx: BuildContext = current_build_context();
+        let col: NodeId = ctx.view(panel_style);
+        let txt: NodeId = ctx.text(
+            "Native Macro Parity".to_string(),
+            Style::empty().color(TEST_FG),
+        );
+        ctx.append(col, txt);
+        col
     });
-    let stats_view: FrameStats = app_view.step_frame().unwrap();
-    let stats_ui: FrameStats = app_ui.step_frame().unwrap();
-    assert_ne!(stats_ui.get_frame_hash(), 0);
-    assert_eq!(stats_view.get_frame_hash(), stats_ui.get_frame_hash());
+    let stats_macro: FrameStats = app_macro.step_frame().unwrap();
+    let stats_builder: FrameStats = app_builder.step_frame().unwrap();
+    assert_ne!(stats_macro.get_frame_hash(), 0);
+    assert_eq!(stats_macro.get_frame_hash(), stats_builder.get_frame_hash());
 }

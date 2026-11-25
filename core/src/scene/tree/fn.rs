@@ -5,7 +5,7 @@ use super::*;
 /// # Arguments
 ///
 /// - `BuildContext` - Build context to bind during `operation`.
-/// - `F` - Closure executing declarative UI construction (`view!`, `ui!`, components).
+/// - `F` - Closure executing declarative UI construction (`view!` or components).
 ///
 /// # Returns
 ///

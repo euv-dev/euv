@@ -79,6 +79,108 @@ pub(crate) const OBJC_SEL_TOGGLE_FULLSCREEN: &str = "toggleFullScreen:\0";
 /// Objective-C selector for `setContents:`.
 pub(crate) const OBJC_SEL_SET_CONTENTS: &str = "setContents:\0";
 
+/// Objective-C selector for `setContentsScale:`.
+pub(crate) const OBJC_SEL_SET_CONTENTS_SCALE: &str = "setContentsScale:\0";
+
+/// Objective-C selector for `setActivationPolicy:`.
+pub(crate) const OBJC_SEL_SET_ACTIVATION_POLICY: &str = "setActivationPolicy:\0";
+
+/// Objective-C selector for `finishLaunching`.
+pub(crate) const OBJC_SEL_FINISH_LAUNCHING: &str = "finishLaunching\0";
+
+/// Objective-C selector for `activateIgnoringOtherApps:`.
+pub(crate) const OBJC_SEL_ACTIVATE_IGNORING: &str = "activateIgnoringOtherApps:\0";
+
+/// Objective-C selector for `center`.
+pub(crate) const OBJC_SEL_CENTER: &str = "center\0";
+
+/// Objective-C selector for `updateWindows`.
+pub(crate) const OBJC_SEL_UPDATE_WINDOWS: &str = "updateWindows\0";
+
+/// Objective-C selector for `nextEventMatchingMask:untilDate:inMode:dequeue:`.
+pub(crate) const OBJC_SEL_NEXT_EVENT: &str = "nextEventMatchingMask:untilDate:inMode:dequeue:\0";
+
+/// Objective-C selector for `sendEvent:`.
+pub(crate) const OBJC_SEL_SEND_EVENT: &str = "sendEvent:\0";
+
+/// Objective-C selector for `isVisible`.
+pub(crate) const OBJC_SEL_IS_VISIBLE: &str = "isVisible\0";
+
+/// Objective-C selector for `setAcceptsMouseMovedEvents:`.
+pub(crate) const OBJC_SEL_SET_ACCEPTS_MOUSE_MOVED: &str = "setAcceptsMouseMovedEvents:\0";
+
+/// Objective-C selector for `type`.
+pub(crate) const OBJC_SEL_TYPE: &str = "type\0";
+
+/// Objective-C selector for `window`.
+pub(crate) const OBJC_SEL_WINDOW: &str = "window\0";
+
+/// Objective-C selector for `locationInWindow`.
+pub(crate) const OBJC_SEL_LOCATION_IN_WINDOW: &str = "locationInWindow\0";
+
+/// Objective-C selector for `scrollingDeltaX`.
+pub(crate) const OBJC_SEL_SCROLLING_DELTA_X: &str = "scrollingDeltaX\0";
+
+/// Objective-C selector for `scrollingDeltaY`.
+pub(crate) const OBJC_SEL_SCROLLING_DELTA_Y: &str = "scrollingDeltaY\0";
+
+/// Objective-C selector for `keyCode`.
+pub(crate) const OBJC_SEL_KEY_CODE: &str = "keyCode\0";
+
+/// Objective-C selector for `modifierFlags`.
+pub(crate) const OBJC_SEL_MODIFIER_FLAGS: &str = "modifierFlags\0";
+
+/// Objective-C selector for `characters`.
+pub(crate) const OBJC_SEL_CHARACTERS: &str = "characters\0";
+
+/// Objective-C selector for `bounds`.
+pub(crate) const OBJC_SEL_BOUNDS: &str = "bounds\0";
+
+/// AppKit `NSEventTypeLeftMouseDown` constant.
+pub(crate) const NS_EVENT_LEFT_MOUSE_DOWN: usize = 1;
+
+/// AppKit `NSEventTypeLeftMouseUp` constant.
+pub(crate) const NS_EVENT_LEFT_MOUSE_UP: usize = 2;
+
+/// AppKit `NSEventTypeRightMouseDown` constant.
+pub(crate) const NS_EVENT_RIGHT_MOUSE_DOWN: usize = 3;
+
+/// AppKit `NSEventTypeRightMouseUp` constant.
+pub(crate) const NS_EVENT_RIGHT_MOUSE_UP: usize = 4;
+
+/// AppKit `NSEventTypeMouseMoved` constant.
+pub(crate) const NS_EVENT_MOUSE_MOVED: usize = 5;
+
+/// AppKit `NSEventTypeLeftMouseDragged` constant.
+pub(crate) const NS_EVENT_LEFT_MOUSE_DRAGGED: usize = 6;
+
+/// AppKit `NSEventTypeKeyDown` constant.
+pub(crate) const NS_EVENT_KEY_DOWN: usize = 10;
+
+/// AppKit `NSEventTypeKeyUp` constant.
+pub(crate) const NS_EVENT_KEY_UP: usize = 11;
+
+/// AppKit `NSEventTypeScrollWheel` constant.
+pub(crate) const NS_EVENT_SCROLL_WHEEL: usize = 22;
+
+/// AppKit `NSEventModifierFlagShift` bit.
+pub(crate) const NS_MOD_SHIFT: usize = 1 << 17;
+
+/// AppKit `NSEventModifierFlagControl` bit.
+pub(crate) const NS_MOD_CTRL: usize = 1 << 18;
+
+/// AppKit `NSEventModifierFlagOption` bit.
+pub(crate) const NS_MOD_ALT: usize = 1 << 19;
+
+/// AppKit `NSEventModifierFlagCommand` bit.
+pub(crate) const NS_MOD_CMD: usize = 1 << 20;
+
+/// Objective-C default RunLoop mode name.
+pub(crate) const NS_DEFAULT_RUN_LOOP_MODE: &str = "kCFRunLoopDefaultMode";
+
+/// AppKit event mask matching any event (`NSEventMaskAny`).
+pub(crate) const NS_EVENT_MASK_ANY: usize = usize::MAX;
+
 /// Objective-C dark appearance name substring.
 pub(crate) const MACOS_DARK_APPEARANCE_MARKER: &str = "Dark";
 
@@ -106,8 +208,8 @@ pub(crate) const NS_FLOATING_WINDOW_LEVEL: isize = 3;
 /// AppKit normal window level (`NSNormalWindowLevel = 0`).
 pub(crate) const NS_NORMAL_WINDOW_LEVEL: isize = 0;
 
-/// CoreGraphics bitmap info flags for RGBA8 premultiplied-last (`kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast`).
-pub(crate) const CG_BITMAP_INFO_RGBA8: u32 = (4 << 12) | 1;
+/// CoreGraphics bitmap info flags for RGBA8 straight-alpha (`kCGBitmapByteOrder32Big | kCGImageAlphaLast`).
+pub(crate) const CG_BITMAP_INFO_RGBA8: u32 = (4 << 12) | 3;
 
 /// Error message when `objc_getClass` fails to resolve AppKit class.
 pub(crate) const ERR_MACOS_APPKIT_MISSING: &str = "AppKit class resolution failed";

@@ -42,6 +42,17 @@ impl LayoutEngine {
         space: AvailableSpace,
         stats: &mut LayoutStats,
     ) -> Size {
+        if let Some(node) = tree.get_node(node_id) {
+            if !node.get_dirty().intersects(DIRTY_LAYOUT_PASS_MASK)
+                && node.cached_constraint() == Some(space)
+            {
+                let prev_bounds: Rect = node.get_layout_box().get_bounds();
+                stats.set_subtrees_skipped(stats.get_subtrees_skipped() + 1);
+                return Size::new(prev_bounds.get_width(), prev_bounds.get_height());
+            }
+        } else {
+            return Size::default();
+        }
         let snapshot: Option<LayoutNodeSnapshot> =
             tree.get_node(node_id).map(|node: &SceneNode| {
                 (
@@ -53,13 +64,9 @@ impl LayoutEngine {
                     node.get_children().clone(),
                 )
             });
-        let Some((style, kind, dirty, cached, prev_bounds, children)) = snapshot else {
+        let Some((style, kind, _, _, _, children)) = snapshot else {
             return Size::default();
         };
-        if !dirty.intersects(DIRTY_LAYOUT_PASS_MASK) && cached == Some(space) {
-            stats.set_subtrees_skipped(stats.get_subtrees_skipped() + 1);
-            return Size::new(prev_bounds.get_width(), prev_bounds.get_height());
-        }
         stats.set_nodes_computed(stats.get_nodes_computed() + 1);
         let layout: LayoutStyle = style.get_layout();
         if layout.get_display() == Display::None {

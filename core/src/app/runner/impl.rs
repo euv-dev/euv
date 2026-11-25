@@ -104,7 +104,7 @@ impl App {
     /// # Arguments
     ///
     /// - `&Self` - Mutable application.
-    /// - `F` - Zero-argument root builder closure invoking `view!`, `ui!`, or components.
+    /// - `F` - Zero-argument root builder closure invoking `view!` or components.
     ///
     /// # Returns
     ///
@@ -351,10 +351,13 @@ impl App {
             Ok(FrameStats::default()),
         )?;
         let window_id: WindowId = self.get_window_state().get_id();
-        let fb_opt: Option<Framebuffer> = self.get_renderer().framebuffer().cloned();
-        if let Some(fb) = fb_opt {
-            let Self { platform, .. } = self;
-            platform.present_framebuffer(window_id, &fb)?;
+        {
+            let Self {
+                platform, renderer, ..
+            } = self;
+            if let Some(fb) = renderer.framebuffer() {
+                platform.present_framebuffer(window_id, fb)?;
+            }
         }
         self.set_pending_damage(DamageRegion::full());
         Ok(frame_stats)

@@ -32,6 +32,28 @@ unsafe extern "C" {}
 #[link(name = "QuartzCore", kind = "framework")]
 unsafe extern "C" {}
 
+#[link(name = "CoreFoundation", kind = "framework")]
+unsafe extern "C" {
+    /// Copies a byte slice into an immutable CoreFoundation `CFDataRef`.
+    ///
+    /// # Arguments
+    ///
+    /// - `*const c_void` - Optional allocator (`null` for default).
+    /// - `*const u8` - Source pixel byte pointer.
+    /// - `isize` - Byte length.
+    ///
+    /// # Returns
+    ///
+    /// - `*mut c_void` - Retained `CFDataRef` owning a copy of the pixels.
+    fn CFDataCreate(allocator: *const c_void, bytes: *const u8, length: isize) -> *mut c_void;
+    /// Releases a CoreFoundation object reference.
+    ///
+    /// # Arguments
+    ///
+    /// - `*const c_void` - CoreFoundation object pointer.
+    fn CFRelease(cf: *const c_void);
+}
+
 #[link(name = "CoreGraphics", kind = "framework")]
 unsafe extern "C" {
     /// Body of the `CGColorSpaceCreateDeviceRGB` free function.
@@ -46,24 +68,16 @@ unsafe extern "C" {
     ///
     /// - `*mut c_void` - A `*mut c_void` parameter.
     fn CGColorSpaceRelease(space: *mut c_void);
-    /// Body of the `CGDataProviderCreateWithData` free function.
+    /// Creates a `CGDataProviderRef` retaining `data` (`CFDataRef`) safely across asynchronous compositing.
     ///
     /// # Arguments
     ///
-    /// - `*mut c_void` - A `*mut c_void` parameter.
-    /// - `*const c_void` - A `*const c_void` parameter.
-    /// - `usize` - A non-negative integer (`usize`).
-    /// - `*const c_void` - A `*const c_void` parameter.
+    /// - `*mut c_void` - Source `CFDataRef`.
     ///
     /// # Returns
     ///
-    /// - `*mut c_void` - A `*mut c_void` value.
-    fn CGDataProviderCreateWithData(
-        info: *mut c_void,
-        data: *const c_void,
-        size: usize,
-        release_data: *const c_void,
-    ) -> *mut c_void;
+    /// - `*mut c_void` - Created `CGDataProviderRef`.
+    fn CGDataProviderCreateWithCFData(data: *mut c_void) -> *mut c_void;
     /// Body of the `CGDataProviderRelease` free function.
     ///
     /// # Arguments
@@ -266,6 +280,388 @@ pub(crate) fn objc_send_void_size(receiver: *mut c_void, sel: *mut c_void, size:
     }
 }
 
+/// Sends a single `f64` argument Objective-C message returning void.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Objective-C receiver.
+/// - `*mut c_void` - Objective-C selector.
+/// - `f64` - `CGFloat` argument.
+pub(crate) fn objc_send_void_f64(receiver: *mut c_void, sel: *mut c_void, value: f64) {
+    if receiver.is_null() {
+        return;
+    }
+    // SAFETY: `objc_msgSend` matches `void (id, SEL, CGFloat)` ABI on 64-bit Apple targets.
+    unsafe {
+        let func: unsafe extern "C" fn(*mut c_void, *mut c_void, f64) =
+            transmute(objc_msgSend as *const ());
+        func(receiver, sel, value);
+    }
+}
+
+/// Sends a zero-argument Objective-C message returning `bool`.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Objective-C receiver.
+/// - `*mut c_void` - Objective-C selector.
+///
+/// # Returns
+///
+/// - `bool` - Objective-C `BOOL` result.
+pub(crate) fn objc_send_bool0(receiver: *mut c_void, sel: *mut c_void) -> bool {
+    if receiver.is_null() {
+        return false;
+    }
+    // SAFETY: `objc_msgSend` matches `BOOL (id, SEL)` ABI.
+    unsafe {
+        let func: unsafe extern "C" fn(*mut c_void, *mut c_void) -> i8 =
+            transmute(objc_msgSend as *const ());
+        func(receiver, sel) != 0
+    }
+}
+
+/// Sends a zero-argument Objective-C message returning `usize`.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Objective-C receiver.
+/// - `*mut c_void` - Objective-C selector.
+///
+/// # Returns
+///
+/// - `usize` - Returned `NSUInteger`.
+pub(crate) fn objc_send_usize0(receiver: *mut c_void, sel: *mut c_void) -> usize {
+    if receiver.is_null() {
+        return 0;
+    }
+    // SAFETY: `objc_msgSend` matches `NSUInteger (id, SEL)` ABI.
+    unsafe {
+        let func: unsafe extern "C" fn(*mut c_void, *mut c_void) -> usize =
+            transmute(objc_msgSend as *const ());
+        func(receiver, sel)
+    }
+}
+
+/// Sends a zero-argument Objective-C message returning `u16`.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Objective-C receiver.
+/// - `*mut c_void` - Objective-C selector.
+///
+/// # Returns
+///
+/// - `u16` - Returned unsigned 16-bit hardware key code.
+pub(crate) fn objc_send_u16_0(receiver: *mut c_void, sel: *mut c_void) -> u16 {
+    if receiver.is_null() {
+        return 0;
+    }
+    // SAFETY: `objc_msgSend` matches `unsigned short (id, SEL)` ABI.
+    unsafe {
+        let func: unsafe extern "C" fn(*mut c_void, *mut c_void) -> u16 =
+            transmute(objc_msgSend as *const ());
+        func(receiver, sel)
+    }
+}
+
+/// Sends a zero-argument Objective-C message returning `CgPoint`.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Objective-C receiver.
+/// - `*mut c_void` - Objective-C selector.
+///
+/// # Returns
+///
+/// - `CgPoint` - Returned 2D point in window coordinates.
+pub(crate) fn objc_send_point0(receiver: *mut c_void, sel: *mut c_void) -> CgPoint {
+    if receiver.is_null() {
+        return CgPoint::default();
+    }
+    // SAFETY: `CGPoint` (16 bytes, two `f64`) is returned in floating-point registers on arm64 and x86_64.
+    unsafe {
+        let func: unsafe extern "C" fn(*mut c_void, *mut c_void) -> CgPoint =
+            transmute(objc_msgSend as *const ());
+        func(receiver, sel)
+    }
+}
+
+/// Queries an `NSView`'s logical bounds size on Apple Silicon.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - `NSView*` pointer.
+///
+/// # Returns
+///
+/// - `Option<(u32, u32)>` - Current logical `(width, height)` in points if measurable.
+#[cfg(target_arch = "aarch64")]
+pub(crate) fn macos_view_logical_size(ns_view: *mut c_void) -> Option<(u32, u32)> {
+    if ns_view.is_null() {
+        return None;
+    }
+    // SAFETY: On arm64 macOS, `objc_msgSend` returns `CGRect` directly in `d0..d3`.
+    let rect: CgRect = unsafe {
+        let func: unsafe extern "C" fn(*mut c_void, *mut c_void) -> CgRect =
+            transmute(objc_msgSend as *const ());
+        func(ns_view, objc_sel(OBJC_SEL_BOUNDS))
+    };
+    if rect.size.width >= 1.0 && rect.size.height >= 1.0 {
+        Some((
+            rect.size.width.round() as u32,
+            rect.size.height.round() as u32,
+        ))
+    } else {
+        None
+    }
+}
+
+/// Fallback logical size query for non-arm64 macOS hosts.
+///
+/// # Arguments
+///
+/// - `*mut c_void` - Unused `NSView*` pointer.
+///
+/// # Returns
+///
+/// - `Option<(u32, u32)>` - Always `None` on non-arm64 fallback.
+#[cfg(not(target_arch = "aarch64"))]
+pub(crate) fn macos_view_logical_size(_ns_view: *mut c_void) -> Option<(u32, u32)> {
+    None
+}
+
+/// Translates a macOS virtual key code and optional character into a cross-platform `KeyCode`.
+///
+/// # Arguments
+///
+/// - `u16` - AppKit virtual key code.
+/// - `&str` - UTF-8 characters reported by `NSEvent.characters`.
+///
+/// # Returns
+///
+/// - `KeyCode` - Normalized `euv` key code.
+pub(crate) fn macos_map_key_code(raw_code: u16, chars: &str) -> KeyCode {
+    match raw_code {
+        36 | 76 => KeyCode::Enter,
+        51 => KeyCode::Backspace,
+        117 => KeyCode::Delete,
+        53 => KeyCode::Escape,
+        48 => KeyCode::Tab,
+        49 => KeyCode::Space,
+        123 => KeyCode::ArrowLeft,
+        124 => KeyCode::ArrowRight,
+        125 => KeyCode::ArrowDown,
+        126 => KeyCode::ArrowUp,
+        115 => KeyCode::Home,
+        119 => KeyCode::End,
+        116 => KeyCode::PageUp,
+        121 => KeyCode::PageDown,
+        _ => chars
+            .chars()
+            .next()
+            .map(KeyCode::Character)
+            .unwrap_or(KeyCode::Unknown),
+    }
+}
+
+/// Decodes AppKit modifier flags into cross-platform `Modifiers`.
+///
+/// # Arguments
+///
+/// - `usize` - Raw `NSEventModifierFlags` bitmask.
+///
+/// # Returns
+///
+/// - `Modifiers` - Normalized modifier state.
+pub(crate) fn macos_map_modifiers(flags: usize) -> Modifiers {
+    Modifiers::new(
+        (flags & NS_MOD_SHIFT) != 0,
+        (flags & NS_MOD_CTRL) != 0,
+        (flags & NS_MOD_ALT) != 0,
+        (flags & NS_MOD_CMD) != 0,
+    )
+}
+
+/// Pumps pending AppKit `NSEvent`s non-blockingly and translates mouse, scroll, and keyboard input into `WindowEvent`s.
+///
+/// # Arguments
+///
+/// - `&HashMap<WindowId, MacOsWindowRecord>` - Open native macOS windows.
+/// - `&mut Vec<WindowEvent>` - Output event queue.
+pub(crate) fn macos_pump_events(
+    windows: &HashMap<WindowId, MacOsWindowRecord>,
+    out_events: &mut Vec<WindowEvent>,
+) {
+    let app_cls: *mut c_void = objc_class(OBJC_CLS_NS_APPLICATION);
+    let app: *mut c_void = objc_send_ptr0(app_cls, objc_sel(OBJC_SEL_SHARED_APP));
+    if app.is_null() {
+        return;
+    }
+    let mode_ns: *mut c_void = macos_ns_string(NS_DEFAULT_RUN_LOOP_MODE);
+    let next_sel: *mut c_void = objc_sel(OBJC_SEL_NEXT_EVENT);
+    let send_sel: *mut c_void = objc_sel(OBJC_SEL_SEND_EVENT);
+    let type_sel: *mut c_void = objc_sel(OBJC_SEL_TYPE);
+    let win_sel: *mut c_void = objc_sel(OBJC_SEL_WINDOW);
+    let loc_sel: *mut c_void = objc_sel(OBJC_SEL_LOCATION_IN_WINDOW);
+    let mod_sel: *mut c_void = objc_sel(OBJC_SEL_MODIFIER_FLAGS);
+    let key_sel: *mut c_void = objc_sel(OBJC_SEL_KEY_CODE);
+    let chars_sel: *mut c_void = objc_sel(OBJC_SEL_CHARACTERS);
+    let utf8_sel: *mut c_void = objc_sel(OBJC_SEL_UTF8_STRING);
+    let scroll_x_sel: *mut c_void = objc_sel(OBJC_SEL_SCROLLING_DELTA_X);
+    let scroll_y_sel: *mut c_void = objc_sel(OBJC_SEL_SCROLLING_DELTA_Y);
+    let mut processed: usize = 0;
+    while processed < 64 {
+        // SAFETY: Invokes `-[NSApplication nextEventMatchingMask:untilDate:inMode:dequeue:]` non-blockingly (`untilDate:nil`).
+        let event: *mut c_void = unsafe {
+            let next_fn: unsafe extern "C" fn(
+                *mut c_void,
+                *mut c_void,
+                usize,
+                *mut c_void,
+                *mut c_void,
+                i8,
+            ) -> *mut c_void = transmute(objc_msgSend as *const ());
+            next_fn(app, next_sel, NS_EVENT_MASK_ANY, null_mut(), mode_ns, 1)
+        };
+        if event.is_null() {
+            break;
+        }
+        let ev_type: usize = objc_send_usize0(event, type_sel);
+        let ev_win: usize = objc_send_ptr0(event, win_sel) as usize;
+        let mods: Modifiers = macos_map_modifiers(objc_send_usize0(event, mod_sel));
+        let matched: Option<(WindowId, f32)> = windows
+            .iter()
+            .find(|(_, rec): &(&WindowId, &MacOsWindowRecord)| {
+                rec.get_ns_window() == ev_win || ev_win == 0
+            })
+            .map(|(id, rec): (&WindowId, &MacOsWindowRecord)| {
+                (*id, rec.get_state().get_logical_height())
+            });
+        let mut forward_to_appkit: bool = true;
+        if let Some((wid, logical_h)) = matched {
+            let loc: CgPoint = objc_send_point0(event, loc_sel);
+            let ui_x: f32 = loc.x as f32;
+            let ui_y: f32 = logical_h - (loc.y as f32);
+            let inside_content: bool = ui_y >= 0.0 && ui_y <= logical_h && ui_x >= 0.0;
+            match ev_type {
+                NS_EVENT_LEFT_MOUSE_DOWN if inside_content => {
+                    out_events.push(WindowEvent::PointerDown(
+                        wid,
+                        PointerEvent::new(
+                            1,
+                            PointerDevice::Mouse,
+                            Point::new(ui_x, ui_y),
+                            PointerButton::Primary,
+                            1.0,
+                            mods,
+                        ),
+                    ));
+                }
+                NS_EVENT_LEFT_MOUSE_UP if inside_content => {
+                    out_events.push(WindowEvent::PointerUp(
+                        wid,
+                        PointerEvent::new(
+                            1,
+                            PointerDevice::Mouse,
+                            Point::new(ui_x, ui_y),
+                            PointerButton::Primary,
+                            0.0,
+                            mods,
+                        ),
+                    ));
+                }
+                NS_EVENT_RIGHT_MOUSE_DOWN if inside_content => {
+                    out_events.push(WindowEvent::PointerDown(
+                        wid,
+                        PointerEvent::new(
+                            1,
+                            PointerDevice::Mouse,
+                            Point::new(ui_x, ui_y),
+                            PointerButton::Secondary,
+                            1.0,
+                            mods,
+                        ),
+                    ));
+                }
+                NS_EVENT_RIGHT_MOUSE_UP if inside_content => {
+                    out_events.push(WindowEvent::PointerUp(
+                        wid,
+                        PointerEvent::new(
+                            1,
+                            PointerDevice::Mouse,
+                            Point::new(ui_x, ui_y),
+                            PointerButton::Secondary,
+                            0.0,
+                            mods,
+                        ),
+                    ));
+                }
+                NS_EVENT_MOUSE_MOVED | NS_EVENT_LEFT_MOUSE_DRAGGED if inside_content => {
+                    out_events.push(WindowEvent::PointerMove(
+                        wid,
+                        PointerEvent::new(
+                            1,
+                            PointerDevice::Mouse,
+                            Point::new(ui_x, ui_y),
+                            PointerButton::Primary,
+                            0.0,
+                            mods,
+                        ),
+                    ));
+                }
+                NS_EVENT_SCROLL_WHEEL if inside_content => {
+                    let dx: f32 = -(objc_send_f64_0(event, scroll_x_sel) as f32) * 4.0;
+                    let dy: f32 = -(objc_send_f64_0(event, scroll_y_sel) as f32) * 4.0;
+                    out_events.push(WindowEvent::Scroll(wid, Point::new(dx, dy)));
+                }
+                NS_EVENT_KEY_DOWN => {
+                    let raw_key: u16 = objc_send_u16_0(event, key_sel);
+                    let chars_ns: *mut c_void = objc_send_ptr0(event, chars_sel);
+                    let utf8_ptr: *const c_char =
+                        objc_send_ptr0(chars_ns, utf8_sel).cast::<c_char>();
+                    let text: String = if utf8_ptr.is_null() {
+                        String::new()
+                    } else {
+                        // SAFETY: `UTF8String` returns a valid null-terminated UTF-8 string when non-null.
+                        unsafe { CStr::from_ptr(utf8_ptr).to_str().unwrap_or("").to_string() }
+                    };
+                    let key_code: KeyCode = macos_map_key_code(raw_key, &text);
+                    out_events.push(WindowEvent::KeyDown(
+                        wid,
+                        KeyEvent::new(key_code, mods, false),
+                    ));
+                    if !mods.get_meta() && !mods.get_ctrl() {
+                        let printable: String =
+                            text.chars().filter(|c: &char| !c.is_control()).collect();
+                        if !printable.is_empty() {
+                            out_events.push(WindowEvent::TextInput(wid, printable));
+                        }
+                        forward_to_appkit = false;
+                    }
+                }
+                NS_EVENT_KEY_UP => {
+                    let raw_key: u16 = objc_send_u16_0(event, key_sel);
+                    let key_code: KeyCode = macos_map_key_code(raw_key, "");
+                    out_events.push(WindowEvent::KeyUp(
+                        wid,
+                        KeyEvent::new(key_code, mods, false),
+                    ));
+                    if !mods.get_meta() {
+                        forward_to_appkit = false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if forward_to_appkit {
+            let _: *mut c_void = objc_send_ptr1(app, send_sel, event);
+        }
+        processed += 1;
+    }
+    let _: *mut c_void = objc_send_ptr0(app, objc_sel(OBJC_SEL_UPDATE_WINDOWS));
+}
+
 /// Allocates an `NSString*` from a Rust `&str`.
 ///
 /// # Arguments
@@ -337,6 +733,12 @@ pub fn macos_system_theme() -> ThemeMode {
 pub(crate) fn macos_create_native_window(
     config: &WindowConfig,
 ) -> Result<(usize, usize, usize), PlatformError> {
+    let app_cls: *mut c_void = objc_class(OBJC_CLS_NS_APPLICATION);
+    let app: *mut c_void = objc_send_ptr0(app_cls, objc_sel(OBJC_SEL_SHARED_APP));
+    if !app.is_null() {
+        objc_send_void_isize(app, objc_sel(OBJC_SEL_SET_ACTIVATION_POLICY), 0);
+        let _: *mut c_void = objc_send_ptr0(app, objc_sel(OBJC_SEL_FINISH_LAUNCHING));
+    }
     let win_cls: *mut c_void = objc_class(OBJC_CLS_NS_WINDOW);
     if win_cls.is_null() {
         return Err(PlatformError::InitializationFailed(
@@ -391,6 +793,8 @@ pub(crate) fn macos_create_native_window(
     let layer_cls: *mut c_void = objc_class(OBJC_CLS_CA_METAL_LAYER);
     let metal_layer: *mut c_void = objc_send_ptr0(layer_cls, objc_sel(OBJC_SEL_LAYER));
     if !ns_view.is_null() && !metal_layer.is_null() {
+        let scale: f64 = macos_backing_scale_factor() as f64;
+        objc_send_void_f64(metal_layer, objc_sel(OBJC_SEL_SET_CONTENTS_SCALE), scale);
         objc_send_void_bool(ns_view, objc_sel(OBJC_SEL_SET_WANTS_LAYER), true);
         let _: *mut c_void = objc_send_ptr1(ns_view, objc_sel(OBJC_SEL_SET_LAYER), metal_layer);
     }
@@ -402,13 +806,18 @@ pub(crate) fn macos_create_native_window(
         );
     }
     if config.get_visible() {
+        objc_send_void_bool(ns_window, objc_sel(OBJC_SEL_SET_ACCEPTS_MOUSE_MOVED), true);
+        let _: *mut c_void = objc_send_ptr0(ns_window, objc_sel(OBJC_SEL_CENTER));
         let _: *mut c_void =
             objc_send_ptr1(ns_window, objc_sel(OBJC_SEL_MAKE_KEY_FRONT), null_mut());
+        if !app.is_null() {
+            objc_send_void_bool(app, objc_sel(OBJC_SEL_ACTIVATE_IGNORING), true);
+        }
     }
     Ok((ns_window as usize, ns_view as usize, metal_layer as usize))
 }
 
-/// Blits an RGBA8 `Framebuffer` directly into a `CALayer` / `CAMetalLayer` via `CGImageCreate` + `setContents:`.
+/// Blits an RGBA8 `Framebuffer` directly into a `CALayer` / `CAMetalLayer` via `CFData` + `CGImageCreate` + `setContents:`.
 ///
 /// # Arguments
 ///
@@ -428,28 +837,32 @@ pub(crate) fn macos_present_cg_image(
     let width: usize = framebuffer.get_width() as usize;
     let height: usize = framebuffer.get_height() as usize;
     let bytes: &[u8] = framebuffer.get_pixels().as_slice();
-    // SAFETY: CoreGraphics image wraps `bytes` synchronously during `setContents:` and releases objects cleanly.
+    // SAFETY: `CFDataCreate` copies `bytes` into Apple-owned storage retained safely by CoreAnimation.
     unsafe {
         let color_space: *mut c_void = CGColorSpaceCreateDeviceRGB();
-        let provider: *mut c_void = CGDataProviderCreateWithData(
-            null_mut(),
-            bytes.as_ptr().cast::<c_void>(),
-            bytes.len(),
-            null(),
-        );
-        let cg_image: *mut c_void = CGImageCreate(
-            width,
-            height,
-            8,
-            32,
-            width * 4,
-            color_space,
-            CG_BITMAP_INFO_RGBA8,
-            provider,
-            null(),
-            false,
-            0,
-        );
+        let cf_data: *mut c_void = CFDataCreate(null(), bytes.as_ptr(), bytes.len() as isize);
+        let provider: *mut c_void = if cf_data.is_null() {
+            null_mut()
+        } else {
+            CGDataProviderCreateWithCFData(cf_data)
+        };
+        let cg_image: *mut c_void = if provider.is_null() {
+            null_mut()
+        } else {
+            CGImageCreate(
+                width,
+                height,
+                8,
+                32,
+                width * 4,
+                color_space,
+                CG_BITMAP_INFO_RGBA8,
+                provider,
+                null(),
+                false,
+                0,
+            )
+        };
         if !cg_image.is_null() {
             let _: *mut c_void = objc_send_ptr1(
                 layer_ptr as *mut c_void,
@@ -460,6 +873,9 @@ pub(crate) fn macos_present_cg_image(
         }
         if !provider.is_null() {
             CGDataProviderRelease(provider);
+        }
+        if !cf_data.is_null() {
+            CFRelease(cf_data.cast_const());
         }
         if !color_space.is_null() {
             CGColorSpaceRelease(color_space);

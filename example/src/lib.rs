@@ -14,6 +14,10 @@ mod tests;
 
 pub use {app::*, pages::*, state::*};
 
+#[cfg(target_arch = "wasm32")]
+use std::cell::{RefCell, RefMut};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::wasm_bindgen;
 use {
     euv::*,
     euv_ui::*,

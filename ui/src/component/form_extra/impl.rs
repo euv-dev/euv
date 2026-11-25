@@ -406,8 +406,8 @@ impl Mountable for EuvSelect {
                     Display::None
                 };
                 Style::empty()
-                    .display(disp)
                     .column()
+                    .display(disp)
                     .width(Length::Percent(100.0))
                     .background(p.get_card())
                     .border(g.get_border_width(), p.get_border())

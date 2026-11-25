@@ -147,15 +147,14 @@ impl HardwareRenderer {
         let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
         for batch in self.get_batches().iter() {
             for inst in batch.get_instances().iter() {
-                let rect: [f32; 4] = inst.get_rect();
-                let color: [f32; 4] = inst.get_color();
-                let radii: [f32; 4] = inst.get_radii();
-                for v in rect.iter().chain(color.iter()).chain(radii.iter()) {
-                    let bits: [u8; 4] = v.to_bits().to_le_bytes();
-                    for b in bits.iter() {
-                        hash ^= *b as u64;
-                        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-                    }
+                for v in inst
+                    .get_rect()
+                    .iter()
+                    .chain(inst.get_color().iter())
+                    .chain(inst.get_radii().iter())
+                {
+                    hash ^= v.to_bits() as u64;
+                    hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
                 }
             }
         }

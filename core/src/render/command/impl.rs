@@ -259,28 +259,47 @@ impl PaintPass {
             scroll_offset.get_x() + node.get_layout_box().get_scroll_offset().get_x(),
             scroll_offset.get_y() + node.get_layout_box().get_scroll_offset().get_y(),
         );
-        let mut sorted_children: Vec<(i32, usize, NodeId)> = node
-            .get_children()
-            .iter()
-            .copied()
-            .enumerate()
-            .filter_map(|(idx, cid): (usize, NodeId)| {
+        let raw_children: &[NodeId] = node.get_children().as_slice();
+        let needs_z_sort: bool = raw_children.len() > 1
+            && raw_children.iter().copied().any(|cid: NodeId| {
                 tree.get_node(cid)
-                    .map(|c: &SceneNode| (c.get_style().get_layout().get_z_index(), idx, cid))
-            })
-            .collect();
-        sorted_children.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
-            a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
-        });
-        for (_, _, child_id) in sorted_children.into_iter() {
-            Self::emit_node(
-                tree,
-                child_id,
-                child_scroll,
-                opacity,
-                next_cull,
-                display_list,
-            );
+                    .map(|c: &SceneNode| c.get_style().get_layout().get_z_index() != 0)
+                    .unwrap_or(false)
+            });
+        if !needs_z_sort {
+            for child_id in raw_children.iter().copied() {
+                Self::emit_node(
+                    tree,
+                    child_id,
+                    child_scroll,
+                    opacity,
+                    next_cull,
+                    display_list,
+                );
+            }
+        } else {
+            let mut sorted_children: Vec<(i32, usize, NodeId)> = raw_children
+                .iter()
+                .copied()
+                .enumerate()
+                .filter_map(|(idx, cid): (usize, NodeId)| {
+                    tree.get_node(cid)
+                        .map(|c: &SceneNode| (c.get_style().get_layout().get_z_index(), idx, cid))
+                })
+                .collect();
+            sorted_children.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
+                a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
+            });
+            for (_, _, child_id) in sorted_children.into_iter() {
+                Self::emit_node(
+                    tree,
+                    child_id,
+                    child_scroll,
+                    opacity,
+                    next_cull,
+                    display_list,
+                );
+            }
         }
         if clipped {
             display_list.push(DrawCommand::PopClip);

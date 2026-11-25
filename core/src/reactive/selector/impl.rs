@@ -43,14 +43,21 @@ where
                     (old_s, new_s)
                 })
                 .unwrap_or((None, None));
-            batch(|| {
-                if let Some(sig) = old_sig {
-                    sig.set(false);
+            match (old_sig, new_sig) {
+                (Some(old_s), Some(new_s)) => {
+                    batch(|| {
+                        let _: bool = old_s.set(false);
+                        let _: bool = new_s.set(true);
+                    });
                 }
-                if let Some(sig) = new_sig {
-                    sig.set(true);
+                (Some(old_s), None) => {
+                    let _: bool = old_s.set(false);
                 }
-            });
+                (None, Some(new_s)) => {
+                    let _: bool = new_s.set(true);
+                }
+                (None, None) => {}
+            }
         });
         Self {
             active,

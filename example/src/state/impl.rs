@@ -21,13 +21,37 @@ impl ShowcaseState {
             render_mode_index: Signal::new(0),
             theme: UiThemeState::new(active_feature_scheme(), ThemeMode::Light),
             username: Signal::new(DEFAULT_USERNAME.to_string()),
+            bio: Signal::new("Zero-WebView native Rust UI".to_string()),
+            stepper_value: Signal::new(4),
+            radio_index: Signal::new(1),
+            slider_value: Signal::new(65.0),
+            select_index: Signal::new(0),
+            select_open: Signal::new(false),
+            rating_value: Signal::new(4),
+            pin_toggled: Signal::new(false),
             hardware_accel: Signal::new(true),
             agree_terms: Signal::new(true),
             modal_open: Signal::new(false),
+            drawer_open: Signal::new(false),
+            sheet_open: Signal::new(false),
+            popover_open: Signal::new(false),
+            dropdown_open: Signal::new(false),
+            dropdown_selected: Signal::new(None),
             toast_visible: Signal::new(false),
+            notif_visible: Signal::new(false),
+            loading_active: Signal::new(false),
             active_tab: Signal::new(0),
+            page_index: Signal::new(1),
+            step_index: Signal::new(1),
+            accordion_open: Signal::new(Some(0)),
             fullscreen: Signal::new(false),
             list_scroll_y: Signal::new(640.0),
+            island_active: Signal::new(false),
+            island_progress: Signal::new(25),
+            camera_perm_status: Signal::new("NotDetermined".to_string()),
+            protocol_status: Signal::new("Unregistered".to_string()),
+            a11y_announcements: Signal::new(0),
+            haptic_pulses: Signal::new(0),
             game_host,
         }
     }
@@ -71,7 +95,7 @@ impl ShowcaseState {
         }
     }
 
-    /// Cycles to the next `DesignScheme` in `ALL_DESIGN_SCHEMES`.
+    /// Cycles to the next `DesignScheme` in `DesignScheme::all()`.
     ///
     /// # Arguments
     ///

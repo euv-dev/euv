@@ -1,26 +1,29 @@
 //! euv-macros
 //!
-//! Zero-overhead procedural macros for the cross-platform euv UI framework,
-//! compiling declarative `view!`, `style!`, `class!`, `tokens!`, `watch!`,
-//! `computed!`, `#[component]`, and `euv_main!` directly into arena scene
-//! graph operations with zero VDOM overhead.
+//! Zero-overhead native procedural macros for the cross-platform euv UI framework,
+//! compiling declarative `view!`, `style!`, `tokens!`, `watch!`, `computed!`, and
+//! `euv_main!` directly into arena scene graph operations with span-preserving
+//! IDE completion and actionable compile-time diagnostics.
 
+mod diagnostic;
 mod entry;
 mod reactive;
 mod style;
 mod view;
 
-pub(crate) use {entry::*, reactive::*, style::*, view::*};
+pub(crate) use {diagnostic::*, entry::*, reactive::*, style::*, view::*};
 
 use {
     proc_macro::TokenStream,
-    quote::quote,
+    proc_macro2::Span,
+    quote::{quote, quote_spanned},
     syn::{
         Error, Expr, Ident, LitStr, Result, Token, Type, Visibility, braced, parenthesized,
         parse::{Parse, ParseBuffer, ParseStream},
         parse_macro_input,
         punctuated::Punctuated,
-        token::Brace,
+        spanned::Spanned,
+        token::{Brace, Paren},
     },
 };
 
@@ -39,22 +42,7 @@ pub fn view(input: TokenStream) -> TokenStream {
     expand_view(parsed).into()
 }
 
-/// Alias for `view!` providing concise zero-context UI DSL ergonomics.
-///
-/// # Arguments
-///
-/// - `TokenStream` - Invocation tokens `ui! { ... }`.
-///
-/// # Returns
-///
-/// - `TokenStream` - Expanded arena node construction tokens.
-#[proc_macro]
-pub fn ui(input: TokenStream) -> TokenStream {
-    let parsed: ViewMacroInput = parse_macro_input!(input as ViewMacroInput);
-    expand_view(parsed).into()
-}
-
-/// Compile-time style macro compiling declarative rules directly into `Style` constructor functions.
+/// Compile-time style macro compiling declarative rules directly into typed `Style` constructor functions.
 ///
 /// # Arguments
 ///
@@ -69,22 +57,7 @@ pub fn style(input: TokenStream) -> TokenStream {
     expand_style(parsed).into()
 }
 
-/// Alias for `style!` preserving familiar `class!` naming while compiling to native `Style` values.
-///
-/// # Arguments
-///
-/// - `TokenStream` - Style rule block tokens.
-///
-/// # Returns
-///
-/// - `TokenStream` - Expanded typed `Style` functions.
-#[proc_macro]
-pub fn class(input: TokenStream) -> TokenStream {
-    let parsed: StyleBlockInput = parse_macro_input!(input as StyleBlockInput);
-    expand_style(parsed).into()
-}
-
-/// Compile-time design token macro generating typed `pub const` values.
+/// Compile-time design token macro generating typed `const` items.
 ///
 /// # Arguments
 ///
@@ -142,19 +115,4 @@ pub fn computed(input: TokenStream) -> TokenStream {
 pub fn euv_main(input: TokenStream) -> TokenStream {
     let parsed: EntryInput = parse_macro_input!(input as EntryInput);
     expand_entry(parsed).into()
-}
-
-/// Attribute macro marking declarative cross-platform component functions.
-///
-/// # Arguments
-///
-/// - `TokenStream` - Optional attribute arguments.
-/// - `TokenStream` - Annotated component function item.
-///
-/// # Returns
-///
-/// - `TokenStream` - Component function item.
-#[proc_macro_attribute]
-pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    item
 }

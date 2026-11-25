@@ -89,10 +89,13 @@ impl GlyphAtlas {
     #[must_use]
     pub fn pack_rgba_atlas(&self) -> PackedGlyphAtlas {
         let atlas_w: u32 = ATLAS_DEFAULT_WIDTH;
+        let glyph_count: usize = self.get_glyphs().len();
         let mut cursor_x: u32 = 1;
         let mut cursor_y: u32 = 1;
         let mut shelf_h: u32 = 0;
-        let mut regions: HashMap<GlyphKey, (u32, u32, u32, u32)> = HashMap::new();
+        let mut regions: HashMap<GlyphKey, (u32, u32, u32, u32)> =
+            HashMap::with_capacity(glyph_count);
+        let mut placements: Vec<(&RasterizedGlyph, u32, u32)> = Vec::with_capacity(glyph_count);
         for (key, glyph) in self.get_glyphs().iter() {
             let gw: u32 = glyph.get_width();
             let gh: u32 = glyph.get_height();
@@ -102,25 +105,27 @@ impl GlyphAtlas {
                 shelf_h = 0;
             }
             regions.insert(*key, (cursor_x, cursor_y, gw, gh));
+            placements.push((glyph, cursor_x, cursor_y));
             cursor_x += gw + 1;
             shelf_h = shelf_h.max(gh);
         }
         let atlas_h: u32 = (cursor_y + shelf_h + 1).max(16);
-        let mut pixels: Vec<u8> = vec![0; (atlas_w as usize) * (atlas_h as usize) * 4];
-        for (key, (rx, ry, gw, gh)) in regions.iter() {
-            if let Some(glyph) = self.get_glyphs().get(key) {
-                let cov: &[u8] = glyph.get_coverage();
-                for py in 0..(*gh as usize) {
-                    for px in 0..(*gw as usize) {
-                        let alpha: u8 = cov[py * (*gw as usize) + px];
-                        let dst_idx: usize = (((*ry as usize) + py) * (atlas_w as usize)
-                            + ((*rx as usize) + px))
-                            * 4;
-                        pixels[dst_idx] = 255;
-                        pixels[dst_idx + 1] = 255;
-                        pixels[dst_idx + 2] = 255;
-                        pixels[dst_idx + 3] = alpha;
-                    }
+        let atlas_w_usize: usize = atlas_w as usize;
+        let mut pixels: Vec<u8> = vec![0; atlas_w_usize * (atlas_h as usize) * 4];
+        for (glyph, rx, ry) in placements.into_iter() {
+            let gw: usize = glyph.get_width() as usize;
+            let gh: usize = glyph.get_height() as usize;
+            let cov: &[u8] = glyph.get_coverage().as_slice();
+            for py in 0..gh {
+                let src_row: &[u8] = &cov[py * gw..(py + 1) * gw];
+                let dst_start: usize = (((ry as usize) + py) * atlas_w_usize + (rx as usize)) * 4;
+                let dst_row: &mut [u8] = &mut pixels[dst_start..dst_start + gw * 4];
+                for (alpha, dst_px) in src_row
+                    .iter()
+                    .copied()
+                    .zip(dst_row.as_chunks_mut::<4>().0.iter_mut())
+                {
+                    *dst_px = [255, 255, 255, alpha];
                 }
             }
         }

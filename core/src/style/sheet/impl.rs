@@ -55,7 +55,9 @@ impl Style {
     /// - `Self` - Updated style.
     #[must_use]
     pub fn row(mut self) -> Self {
-        self.get_mut_layout().set_display(Display::Flex);
+        if self.get_layout().get_display() != Display::None {
+            self.get_mut_layout().set_display(Display::Flex);
+        }
         self.get_mut_layout().set_flex_direction(FlexDirection::Row);
         self
     }
@@ -71,7 +73,9 @@ impl Style {
     /// - `Self` - Updated style.
     #[must_use]
     pub fn column(mut self) -> Self {
-        self.get_mut_layout().set_display(Display::Flex);
+        if self.get_layout().get_display() != Display::None {
+            self.get_mut_layout().set_display(Display::Flex);
+        }
         self.get_mut_layout()
             .set_flex_direction(FlexDirection::Column);
         self
@@ -89,7 +93,9 @@ impl Style {
     /// - `Self` - Updated style.
     #[must_use]
     pub fn grid(mut self, columns: u16) -> Self {
-        self.get_mut_layout().set_display(Display::Grid);
+        if self.get_layout().get_display() != Display::None {
+            self.get_mut_layout().set_display(Display::Grid);
+        }
         self.get_mut_layout().set_grid_columns(columns.max(1));
         self
     }

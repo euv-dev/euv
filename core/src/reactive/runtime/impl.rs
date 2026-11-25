@@ -20,6 +20,7 @@ impl Default for ReactiveRuntime {
             observer_stack: Vec::new(),
             scope_stack: Vec::new(),
             pending_effects: Vec::new(),
+            dirty_queue: Vec::with_capacity(INITIAL_SUBSCRIBER_CAPACITY),
             batch_depth: 0,
             flushing: false,
             clock: 0,
@@ -115,7 +116,7 @@ impl ReactiveRuntime {
         boxed.downcast_ref::<T>().cloned()
     }
 
-    /// Writes a new signal value and propagates dirty notifications to subscribers.
+    /// Writes a new signal value in place and propagates dirty notifications without heap allocations.
     ///
     /// # Arguments
     ///
@@ -125,29 +126,42 @@ impl ReactiveRuntime {
     ///
     /// # Returns
     ///
-    /// - `bool` - True when the signal was alive and updated.
-    pub(crate) fn write_signal<T>(&mut self, id: SignalId, value: T) -> bool
+    /// - `(bool, bool)` - Tuple `(updated, should_flush)` indicating whether the signal was alive and whether effects are pending.
+    pub(crate) fn write_signal<T>(&mut self, id: SignalId, value: T) -> (bool, bool)
     where
         T: 'static,
     {
         let slot: SlotId = id.slot();
-        let Some(entry) = self.get_mut_signals().get_mut(slot.as_usize()) else {
-            return false;
+        let idx: usize = slot.as_usize();
+        let Some(entry) = self.get_mut_signals().get_mut(idx) else {
+            return (false, false);
         };
         if entry.get_generation() != slot.get_generation() || entry.value.is_none() {
-            return false;
+            return (false, false);
         }
-        entry.set_value(Some(Box::new(value)));
+        if let Some(existing) = entry
+            .value
+            .as_mut()
+            .and_then(|boxed: &mut Box<dyn Any>| boxed.downcast_mut::<T>())
+        {
+            *existing = value;
+        } else {
+            entry.set_value(Some(Box::new(value)));
+        }
         let next_ver: u64 = entry.get_version().wrapping_add(1);
         entry.set_version(next_ver);
-        let subscribers: Vec<SubscriberId> = entry.get_subscribers().clone();
+        let has_subs: bool = !entry.get_subscribers().is_empty();
         let next_clock: u64 = self.get_clock().wrapping_add(1);
         self.set_clock(next_clock);
-        self.mark_subscribers_dirty(&subscribers);
-        true
+        if has_subs {
+            self.mark_signal_subscribers_dirty(idx);
+        }
+        let should_flush: bool =
+            self.get_batch_depth() == 0 && !self.get_pending_effects().is_empty();
+        (true, should_flush)
     }
 
-    /// Writes a new signal value only when it differs from the stored value.
+    /// Writes a new signal value in place only when it differs from the stored value.
     ///
     /// # Arguments
     ///
@@ -157,46 +171,56 @@ impl ReactiveRuntime {
     ///
     /// # Returns
     ///
-    /// - `bool` - True when the value changed and subscribers were notified.
-    pub(crate) fn write_signal_if_changed<T>(&mut self, id: SignalId, value: T) -> bool
+    /// - `(bool, bool)` - Tuple `(changed, should_flush)` indicating whether the value changed and whether effects are pending.
+    pub(crate) fn write_signal_if_changed<T>(&mut self, id: SignalId, value: T) -> (bool, bool)
     where
         T: PartialEq + 'static,
     {
         let slot: SlotId = id.slot();
-        let unchanged: bool = if let Some(entry) = self.get_signals().get(slot.as_usize()) {
-            if entry.get_generation() != slot.get_generation() {
-                return false;
-            }
-            match entry
-                .value
-                .as_ref()
-                .and_then(|boxed: &Box<dyn Any>| boxed.downcast_ref::<T>())
-            {
-                Some(current) => *current == value,
-                None => return false,
-            }
-        } else {
-            return false;
+        let idx: usize = slot.as_usize();
+        let Some(entry) = self.get_mut_signals().get_mut(idx) else {
+            return (false, false);
         };
-        if unchanged {
-            return false;
+        if entry.get_generation() != slot.get_generation() {
+            return (false, false);
         }
-        self.write_signal(id, value)
+        let Some(current) = entry
+            .value
+            .as_mut()
+            .and_then(|boxed: &mut Box<dyn Any>| boxed.downcast_mut::<T>())
+        else {
+            return (false, false);
+        };
+        if *current == value {
+            return (false, false);
+        }
+        *current = value;
+        let next_ver: u64 = entry.get_version().wrapping_add(1);
+        entry.set_version(next_ver);
+        let has_subs: bool = !entry.get_subscribers().is_empty();
+        let next_clock: u64 = self.get_clock().wrapping_add(1);
+        self.set_clock(next_clock);
+        if has_subs {
+            self.mark_signal_subscribers_dirty(idx);
+        }
+        let should_flush: bool =
+            self.get_batch_depth() == 0 && !self.get_pending_effects().is_empty();
+        (true, should_flush)
     }
 
-    /// Allocates a new memo slot with a type-erased computation closure.
+    /// Allocates a new memo slot with an in-place type-erased computation closure.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable reference to the reactive runtime.
-    /// - `F` - Memo computation closure returning `(Box<dyn Any>, bool)`.
+    /// - `F` - Memo computation closure mutating the cached value in place and returning `changed`.
     ///
     /// # Returns
     ///
     /// - `MemoId` - Handle for the newly created memo.
     pub(crate) fn create_memo<F>(&mut self, compute: F) -> MemoId
     where
-        F: FnMut(Option<&dyn Any>) -> (Box<dyn Any>, bool) + 'static,
+        F: FnMut(&mut Option<Box<dyn Any>>) -> bool + 'static,
     {
         let depth: u32 = (self.get_observer_stack().len() as u32).saturating_add(1);
         let compute_rc: MemoComputeFn = Rc::new(RefCell::new(compute));
@@ -395,81 +419,109 @@ impl ReactiveRuntime {
         }
     }
 
-    /// Propagates dirty flags downstream through memos and queues affected effects.
+    /// Propagates dirty flags downstream from signal slot `signal_idx` using the reusable scratch queue.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable reference to the reactive runtime.
-    /// - `&[SubscriberId]` - Direct subscribers of the mutated source.
-    pub(crate) fn mark_subscribers_dirty(&mut self, subscribers: &[SubscriberId]) {
-        let mut queue: Vec<(SubscriberId, bool)> = Vec::with_capacity(subscribers.len());
-        for subscriber in subscribers.iter().copied() {
-            queue.push((subscriber, true));
+    /// - `usize` - Signal arena slot index.
+    pub(crate) fn mark_signal_subscribers_dirty(&mut self, signal_idx: usize) {
+        let Self {
+            signals,
+            dirty_queue,
+            ..
+        } = self;
+        dirty_queue.clear();
+        if let Some(entry) = signals.get(signal_idx) {
+            for subscriber in entry.get_subscribers().iter().copied() {
+                dirty_queue.push((subscriber, true));
+            }
         }
-        while let Some((sub, is_direct)) = queue.pop() {
+        self.drain_dirty_queue();
+    }
+
+    /// Propagates dirty flags downstream from memo slot `memo_idx` using the reusable scratch queue.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `usize` - Memo arena slot index.
+    pub(crate) fn mark_memo_subscribers_dirty(&mut self, memo_idx: usize) {
+        let Self {
+            memos, dirty_queue, ..
+        } = self;
+        dirty_queue.clear();
+        if let Some(entry) = memos.get(memo_idx) {
+            for subscriber in entry.get_subscribers().iter().copied() {
+                dirty_queue.push((subscriber, true));
+            }
+        }
+        self.drain_dirty_queue();
+    }
+
+    /// Drains the reusable `dirty_queue`, marking downstream memos and scheduling effects with zero allocations.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    fn drain_dirty_queue(&mut self) {
+        let Self {
+            memos,
+            effects,
+            pending_effects,
+            dirty_queue,
+            ..
+        } = self;
+        while let Some((sub, is_direct)) = dirty_queue.pop() {
             match sub {
                 SubscriberId::Memo(memo_id) => {
                     let slot: SlotId = memo_id.slot();
-                    let next_subs: Vec<SubscriberId> =
-                        if let Some(entry) = self.get_mut_memos().get_mut(slot.as_usize()) {
-                            if entry.get_generation() != slot.get_generation()
-                                || entry.compute.is_none()
-                            {
-                                continue;
-                            }
-                            let target_state: NodeState = if is_direct {
-                                NodeState::Dirty
-                            } else {
-                                NodeState::Check
-                            };
-                            if entry.get_state() == NodeState::Dirty
-                                || (entry.get_state() == NodeState::Check
-                                    && target_state == NodeState::Check)
-                            {
-                                continue;
-                            }
-                            entry.set_state(target_state);
-                            entry.get_subscribers().clone()
-                        } else {
+                    if let Some(entry) = memos.get_mut(slot.as_usize()) {
+                        if entry.get_generation() != slot.get_generation()
+                            || entry.compute.is_none()
+                        {
                             continue;
+                        }
+                        let target_state: NodeState = if is_direct {
+                            NodeState::Dirty
+                        } else {
+                            NodeState::Check
                         };
-                    for child_sub in next_subs.into_iter() {
-                        queue.push((child_sub, false));
+                        if entry.get_state() == NodeState::Dirty
+                            || (entry.get_state() == NodeState::Check
+                                && target_state == NodeState::Check)
+                        {
+                            continue;
+                        }
+                        entry.set_state(target_state);
+                        for child_sub in entry.get_subscribers().iter().copied() {
+                            dirty_queue.push((child_sub, false));
+                        }
                     }
                 }
                 SubscriberId::Effect(effect_id) => {
-                    self.schedule_effect(effect_id);
+                    let slot: SlotId = effect_id.slot();
+                    if let Some(entry) = effects.get_mut(slot.as_usize())
+                        && entry.get_generation() == slot.get_generation()
+                        && entry.get_alive()
+                        && !entry.get_scheduled()
+                    {
+                        entry.set_scheduled(true);
+                        pending_effects.push(effect_id);
+                    }
                 }
             }
         }
     }
 
-    /// Marks an effect as scheduled and appends it to the pending flush queue.
-    ///
-    /// # Arguments
-    ///
-    /// - `&Self` - Mutable reference to the reactive runtime.
-    /// - `EffectId` - Effect identifier to enqueue.
-    pub(crate) fn schedule_effect(&mut self, effect_id: EffectId) {
-        let slot: SlotId = effect_id.slot();
-        if let Some(entry) = self.get_mut_effects().get_mut(slot.as_usize())
-            && entry.get_generation() == slot.get_generation()
-            && entry.get_alive()
-            && !entry.get_scheduled()
-        {
-            entry.set_scheduled(true);
-            self.get_mut_pending_effects().push(effect_id);
-        }
-    }
-
-    /// Detaches a subscriber from all of its previously tracked upstream dependencies.
+    /// Detaches a subscriber from all of its previously tracked upstream dependencies while preserving Vec capacity.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable reference to the reactive runtime.
     /// - `SubscriberId` - Subscriber whose dependency links should be cleared.
     pub(crate) fn clear_dependencies(&mut self, subscriber: SubscriberId) {
-        let deps: Vec<DependencyId> = match subscriber {
+        let mut deps: Vec<DependencyId> = match subscriber {
             SubscriberId::Memo(memo_id) => {
                 let slot: SlotId = memo_id.slot();
                 match self.get_mut_memos().get_mut(slot.as_usize()) {
@@ -489,7 +541,10 @@ impl ReactiveRuntime {
                 }
             }
         };
-        for dep in deps.into_iter() {
+        if deps.is_empty() {
+            return;
+        }
+        for dep in deps.drain(..) {
             match dep {
                 DependencyId::Signal(sig_id) => {
                     let slot: SlotId = sig_id.slot();
@@ -510,6 +565,24 @@ impl ReactiveRuntime {
                             .get_mut_subscribers()
                             .retain(|item: &SubscriberId| *item != subscriber);
                     }
+                }
+            }
+        }
+        match subscriber {
+            SubscriberId::Memo(memo_id) => {
+                let slot: SlotId = memo_id.slot();
+                if let Some(entry) = self.get_mut_memos().get_mut(slot.as_usize())
+                    && entry.get_generation() == slot.get_generation()
+                {
+                    entry.set_dependencies(deps);
+                }
+            }
+            SubscriberId::Effect(effect_id) => {
+                let slot: SlotId = effect_id.slot();
+                if let Some(entry) = self.get_mut_effects().get_mut(slot.as_usize())
+                    && entry.get_generation() == slot.get_generation()
+                {
+                    entry.set_dependencies(deps);
                 }
             }
         }

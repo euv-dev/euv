@@ -37,15 +37,21 @@ where
 /// - `bool` - True when the memo value changed during recomputation.
 pub(crate) fn evaluate_memo(id: MemoId) -> bool {
     let slot: SlotId = id.slot();
+    let idx: usize = slot.as_usize();
     let (state, deps): (NodeState, Vec<DependencyId>) = with_runtime(
         |rt: &mut ReactiveRuntime| {
-            let Some(entry) = rt.get_memos().get(slot.as_usize()) else {
+            let Some(entry) = rt.get_memos().get(idx) else {
                 return (NodeState::Clean, Vec::new());
             };
             if entry.get_generation() != slot.get_generation() || entry.compute.is_none() {
                 return (NodeState::Clean, Vec::new());
             }
-            (entry.get_state(), entry.get_dependencies().clone())
+            let cur_state: NodeState = entry.get_state();
+            if cur_state == NodeState::Check {
+                (cur_state, entry.get_dependencies().clone())
+            } else {
+                (cur_state, Vec::new())
+            }
         },
         (NodeState::Clean, Vec::new()),
     );
@@ -64,7 +70,7 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
         if !upstream_changed {
             with_runtime(
                 |rt: &mut ReactiveRuntime| {
-                    if let Some(entry) = rt.get_mut_memos().get_mut(slot.as_usize())
+                    if let Some(entry) = rt.get_mut_memos().get_mut(idx)
                         && entry.get_generation() == slot.get_generation()
                     {
                         entry.set_state(NodeState::Clean);
@@ -78,7 +84,7 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
     let staged: Option<StagedMemo> = with_runtime(
         |rt: &mut ReactiveRuntime| {
             rt.clear_dependencies(SubscriberId::Memo(id));
-            let entry: &mut MemoEntry = rt.get_mut_memos().get_mut(slot.as_usize())?;
+            let entry: &mut MemoEntry = rt.get_mut_memos().get_mut(idx)?;
             if entry.get_generation() != slot.get_generation() {
                 return None;
             }
@@ -90,19 +96,19 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
         },
         None,
     );
-    let Some((compute, prev_value)) = staged else {
+    let Some((compute, mut value_slot)) = staged else {
         return false;
     };
-    let (new_value, changed): (Box<dyn Any>, bool) = match compute.try_borrow_mut() {
-        Ok(mut func) => func(prev_value.as_deref()),
+    let changed: bool = match compute.try_borrow_mut() {
+        Ok(mut func) => func(&mut value_slot),
         Err(_) => {
             with_runtime(
                 |rt: &mut ReactiveRuntime| {
                     rt.get_mut_observer_stack().pop();
-                    if let Some(entry) = rt.get_mut_memos().get_mut(slot.as_usize())
+                    if let Some(entry) = rt.get_mut_memos().get_mut(idx)
                         && entry.get_generation() == slot.get_generation()
                     {
-                        entry.set_value(prev_value);
+                        entry.set_value(value_slot);
                     }
                 },
                 (),
@@ -113,25 +119,24 @@ pub(crate) fn evaluate_memo(id: MemoId) -> bool {
     with_runtime(
         |rt: &mut ReactiveRuntime| {
             rt.get_mut_observer_stack().pop();
-            let subscribers: Vec<SubscriberId> =
-                if let Some(entry) = rt.get_mut_memos().get_mut(slot.as_usize()) {
-                    if entry.get_generation() != slot.get_generation() {
-                        return;
-                    }
-                    entry.set_value(Some(new_value));
-                    entry.set_state(NodeState::Clean);
-                    if changed {
-                        let next_ver: u64 = entry.get_version().wrapping_add(1);
-                        entry.set_version(next_ver);
-                        entry.get_subscribers().clone()
-                    } else {
-                        Vec::new()
-                    }
+            let should_propagate: bool = if let Some(entry) = rt.get_mut_memos().get_mut(idx) {
+                if entry.get_generation() != slot.get_generation() {
+                    return;
+                }
+                entry.set_value(value_slot);
+                entry.set_state(NodeState::Clean);
+                if changed {
+                    let next_ver: u64 = entry.get_version().wrapping_add(1);
+                    entry.set_version(next_ver);
+                    !entry.get_subscribers().is_empty()
                 } else {
-                    Vec::new()
-                };
-            if changed && !subscribers.is_empty() {
-                rt.mark_subscribers_dirty(&subscribers);
+                    false
+                }
+            } else {
+                false
+            };
+            if should_propagate {
+                rt.mark_memo_subscribers_dirty(idx);
             }
         },
         (),
@@ -193,6 +198,21 @@ pub fn flush_effects() {
     }
     let mut iterations: usize = 0;
     while iterations < MAX_FLUSH_ITERATIONS {
+        let single_opt: Option<EffectId> = with_runtime(
+            |rt: &mut ReactiveRuntime| {
+                if rt.get_pending_effects().len() == 1 {
+                    rt.get_mut_pending_effects().pop()
+                } else {
+                    None
+                }
+            },
+            None,
+        );
+        if let Some(eff_id) = single_opt {
+            run_effect(eff_id);
+            iterations += 1;
+            continue;
+        }
         let mut batch_ids: Vec<(u32, EffectId)> = with_runtime(
             |rt: &mut ReactiveRuntime| {
                 let pending: Vec<EffectId> = take(rt.get_mut_pending_effects());

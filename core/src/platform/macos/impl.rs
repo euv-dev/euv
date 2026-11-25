@@ -311,7 +311,7 @@ impl PlatformBackend for MacOsPlatform {
         }
     }
 
-    /// Drains queued macOS window events.
+    /// Pumps pending AppKit events, detects closed windows, and drains queued macOS window events.
     ///
     /// # Arguments
     ///
@@ -321,6 +321,44 @@ impl PlatformBackend for MacOsPlatform {
     ///
     /// - `Vec<WindowEvent>` - Pending events.
     fn poll_events(&mut self) -> Vec<WindowEvent> {
+        let mut pumped: Vec<WindowEvent> = Vec::new();
+        macos_pump_events(self.get_windows(), &mut pumped);
+        let mut resized_events: Vec<(WindowId, u32, u32, f32)> = Vec::new();
+        let mut closed_ids: Vec<WindowId> = Vec::new();
+        for (id, rec) in self.get_mut_windows().iter_mut() {
+            let win_ptr: *mut c_void = rec.get_ns_window() as *mut c_void;
+            if rec.get_config().get_visible()
+                && !win_ptr.is_null()
+                && !objc_send_bool0(win_ptr, objc_sel(OBJC_SEL_IS_VISIBLE))
+            {
+                closed_ids.push(*id);
+                continue;
+            }
+            let view_ptr: *mut c_void = rec.get_ns_view() as *mut c_void;
+            if let Some((w, h)) = macos_view_logical_size(view_ptr) {
+                let prev_w: u32 = rec.get_state().get_logical_width().round() as u32;
+                let prev_h: u32 = rec.get_state().get_logical_height().round() as u32;
+                if w != prev_w || h != prev_h {
+                    let scale: f32 = rec.get_state().get_scale_factor();
+                    rec.get_mut_state().set_logical_width(w as f32);
+                    rec.get_mut_state().set_logical_height(h as f32);
+                    rec.get_mut_state()
+                        .set_physical_width(((w as f32) * scale).round() as u32);
+                    rec.get_mut_state()
+                        .set_physical_height(((h as f32) * scale).round() as u32);
+                    resized_events.push((*id, w, h, scale));
+                }
+            }
+        }
+        for (id, w, h, scale) in resized_events.into_iter() {
+            self.get_mut_pending_events()
+                .push(WindowEvent::Resized(id, w, h, scale));
+        }
+        self.get_mut_pending_events().extend(pumped);
+        for id in closed_ids.into_iter() {
+            self.get_mut_pending_events()
+                .push(WindowEvent::CloseRequested(id));
+        }
         take(self.get_mut_pending_events())
     }
 

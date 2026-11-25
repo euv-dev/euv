@@ -1,6 +1,6 @@
 use super::*;
 
-/// Single `key: expr;` rule inside a `style!` / `class!` definition.
+/// Single `key: expr;` rule inside a `style!` definition.
 pub(crate) struct StyleRule {
     /// Rule property name.
     pub(crate) key: Ident,

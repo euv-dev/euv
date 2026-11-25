@@ -65,6 +65,12 @@ pub(crate) fn web_create_canvas(
     let phys_h: u32 = ((config.get_height() as f32) * dpr).round().max(1.0) as u32;
     canvas.set_width(phys_w);
     canvas.set_height(phys_h);
+    let css_style: String = format!(
+        "width:{}px;height:{}px;display:block;margin:0 auto;",
+        config.get_width(),
+        config.get_height()
+    );
+    drop(canvas.set_attribute("style", &css_style));
     if let Some(body) = doc.body() {
         drop(body.append_child(&canvas));
     }
