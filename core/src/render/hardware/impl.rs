@@ -1,0 +1,398 @@
+use super::*;
+
+/// `GpuDriver` implementation for `RecordingGpuDriver`.
+impl GpuDriver for RecordingGpuDriver {
+    /// Returns the configured backend tag.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Driver reference.
+    ///
+    /// # Returns
+    ///
+    /// - `GraphicsBackend` - Active backend tag.
+    fn backend(&self) -> GraphicsBackend {
+        self.get_backend_kind()
+    }
+
+    /// Selects the canonical native shader source for this backend.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Driver reference.
+    ///
+    /// # Returns
+    ///
+    /// - `&'static str` - Native shader source string.
+    fn shader_source(&self) -> &'static str {
+        match self.get_backend_kind() {
+            GraphicsBackend::Metal => MSL_UI_SHADER,
+            GraphicsBackend::Direct3D12 | GraphicsBackend::Direct3D11 => HLSL_UI_SHADER,
+            GraphicsBackend::WebGl2 | GraphicsBackend::OpenGlEs => GLSL_ES3_UI_FRAGMENT_SHADER,
+            GraphicsBackend::WebGpu
+            | GraphicsBackend::Vulkan
+            | GraphicsBackend::SoftwareCpu
+            | GraphicsBackend::Canvas2d
+            | GraphicsBackend::Headless => WGSL_UI_SHADER,
+        }
+    }
+
+    /// Records submitted GPU batches and returns draw-call count.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable driver.
+    /// - `u32` - Surface width.
+    /// - `u32` - Surface height.
+    /// - `Color` - Clear color.
+    /// - `&[GpuBatch]` - Ordered batches.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<usize, PlatformError>` - Submitted batch count.
+    fn submit_batches(
+        &mut self,
+        _width: u32,
+        _height: u32,
+        clear_color: Color,
+        batches: &[GpuBatch],
+    ) -> Result<usize, PlatformError> {
+        let count: usize = batches.len();
+        let instances: usize = batches.iter().fold(0_usize, |acc: usize, b: &GpuBatch| {
+            acc + b.get_instances().len()
+        });
+        self.set_last_clear(clear_color);
+        self.set_last_instance_count(instances);
+        self.set_total_draw_calls(self.get_total_draw_calls().saturating_add(count));
+        Ok(count)
+    }
+}
+
+/// Instanced batch builder and execution methods for `HardwareRenderer`.
+impl HardwareRenderer {
+    /// Creates a hardware renderer bound to `backend` with optional deterministic pixel readback.
+    ///
+    /// # Arguments
+    ///
+    /// - `GraphicsBackend` - Selected GPU backend.
+    /// - `u32` - Initial physical width.
+    /// - `u32` - Initial physical height.
+    /// - `RenderConfig` - Rendering configuration.
+    /// - `bool` - Whether software readback mirror is enabled.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Configured hardware renderer.
+    #[must_use]
+    pub fn with_backend(
+        backend: GraphicsBackend,
+        width: u32,
+        height: u32,
+        config: RenderConfig,
+        enable_readback: bool,
+    ) -> Self {
+        let mut driver: RecordingGpuDriver = RecordingGpuDriver::default();
+        driver.set_backend_kind(backend);
+        Self {
+            driver,
+            batches: Vec::with_capacity(16),
+            readback: SoftwareRenderer::with_config(width, height, config),
+            enable_readback,
+        }
+    }
+
+    /// Compiles `display_list` into coalesced GPU instanced batches and submits them to the GPU driver.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable hardware renderer.
+    /// - `&DisplayList` - Backend-agnostic draw command stream.
+    /// - `DamageRegion` - Active damage region for readback mirroring.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<(usize, usize), PlatformError>` - Tuple of `(draw_batches, pixels_shaded)`.
+    pub fn render(
+        &mut self,
+        display_list: &DisplayList,
+        damage: DamageRegion,
+    ) -> Result<(usize, usize), PlatformError> {
+        let scale: f32 = display_list.get_scale_factor().max(0.5);
+        let phys_w: u32 = ((display_list.get_viewport().get_width() * scale).round() as u32).max(1);
+        let phys_h: u32 =
+            ((display_list.get_viewport().get_height() * scale).round() as u32).max(1);
+        let full_clip: Rect = Rect::new(0.0, 0.0, phys_w as f32, phys_h as f32);
+        let mut clip_stack: Vec<Rect> = vec![full_clip];
+        let mut clear_color: Color = COLOR_WHITE;
+        self.get_mut_batches().clear();
+        for cmd in display_list.get_commands().iter() {
+            let active_clip: Rect = clip_stack.last().copied().unwrap_or(full_clip);
+            match cmd {
+                DrawCommand::Clear(c) => {
+                    clear_color = *c;
+                }
+                DrawCommand::PushClip(rect) => {
+                    let phys: Rect = Rect::new(
+                        rect.get_x() * scale,
+                        rect.get_y() * scale,
+                        rect.get_width() * scale,
+                        rect.get_height() * scale,
+                    );
+                    clip_stack.push(active_clip.intersect(phys).unwrap_or_default());
+                }
+                DrawCommand::PopClip => {
+                    if clip_stack.len() > 1 {
+                        clip_stack.pop();
+                    }
+                }
+                DrawCommand::FillRoundedRect {
+                    rect,
+                    color,
+                    radius,
+                    border,
+                } => {
+                    let inst: GpuQuadInstance = GpuQuadInstance {
+                        rect: [
+                            rect.get_x() * scale,
+                            rect.get_y() * scale,
+                            rect.get_width() * scale,
+                            rect.get_height() * scale,
+                        ],
+                        clip: [
+                            active_clip.get_x(),
+                            active_clip.get_y(),
+                            active_clip.right(),
+                            active_clip.bottom(),
+                        ],
+                        color: color.to_f32_array(),
+                        secondary_color: border.get_color().to_f32_array(),
+                        radii: [
+                            radius.get_top_left() * scale,
+                            radius.get_top_right() * scale,
+                            radius.get_bottom_right() * scale,
+                            radius.get_bottom_left() * scale,
+                        ],
+                        stroke_or_blur: border.get_width() * scale,
+                        angle_rad: 0.0,
+                        kind: GpuPrimitiveKind::RoundedRect as u32,
+                        reserved: 0,
+                    };
+                    self.push_instance(active_clip, inst);
+                }
+                DrawCommand::LinearGradientRect {
+                    rect,
+                    gradient,
+                    radius,
+                } => {
+                    let inst: GpuQuadInstance = GpuQuadInstance {
+                        rect: [
+                            rect.get_x() * scale,
+                            rect.get_y() * scale,
+                            rect.get_width() * scale,
+                            rect.get_height() * scale,
+                        ],
+                        clip: [
+                            active_clip.get_x(),
+                            active_clip.get_y(),
+                            active_clip.right(),
+                            active_clip.bottom(),
+                        ],
+                        color: gradient.get_start_color().to_f32_array(),
+                        secondary_color: gradient.get_end_color().to_f32_array(),
+                        radii: [
+                            radius.get_top_left() * scale,
+                            radius.get_top_right() * scale,
+                            radius.get_bottom_right() * scale,
+                            radius.get_bottom_left() * scale,
+                        ],
+                        stroke_or_blur: 0.0,
+                        angle_rad: gradient.get_angle_deg().to_radians(),
+                        kind: GpuPrimitiveKind::Gradient as u32,
+                        reserved: 0,
+                    };
+                    self.push_instance(active_clip, inst);
+                }
+                DrawCommand::BoxShadow {
+                    rect,
+                    radius,
+                    shadow,
+                } => {
+                    let inst: GpuQuadInstance = GpuQuadInstance {
+                        rect: [
+                            (rect.get_x() + shadow.get_offset_x()) * scale,
+                            (rect.get_y() + shadow.get_offset_y()) * scale,
+                            rect.get_width() * scale,
+                            rect.get_height() * scale,
+                        ],
+                        clip: [
+                            active_clip.get_x(),
+                            active_clip.get_y(),
+                            active_clip.right(),
+                            active_clip.bottom(),
+                        ],
+                        color: shadow.get_color().to_f32_array(),
+                        secondary_color: [0.0; 4],
+                        radii: [
+                            radius.get_top_left() * scale,
+                            radius.get_top_right() * scale,
+                            radius.get_bottom_right() * scale,
+                            radius.get_bottom_left() * scale,
+                        ],
+                        stroke_or_blur: shadow.get_blur_radius() * scale,
+                        angle_rad: 0.0,
+                        kind: GpuPrimitiveKind::Shadow as u32,
+                        reserved: 0,
+                    };
+                    self.push_instance(active_clip, inst);
+                }
+                DrawCommand::TextRun { rect, text, style } => {
+                    let glyph_count: usize =
+                        text.chars().filter(|c: &char| *c != ' ').count().max(1);
+                    let inst: GpuQuadInstance = GpuQuadInstance {
+                        rect: [
+                            rect.get_x() * scale,
+                            rect.get_y() * scale,
+                            rect.get_width() * scale,
+                            rect.get_height() * scale,
+                        ],
+                        clip: [
+                            active_clip.get_x(),
+                            active_clip.get_y(),
+                            active_clip.right(),
+                            active_clip.bottom(),
+                        ],
+                        color: style.get_color().to_f32_array(),
+                        secondary_color: [0.0; 4],
+                        radii: [0.0; 4],
+                        stroke_or_blur: style.get_font_size() * scale,
+                        angle_rad: 0.0,
+                        kind: GpuPrimitiveKind::Glyph as u32,
+                        reserved: glyph_count as u32,
+                    };
+                    self.push_instance(active_clip, inst);
+                }
+                DrawCommand::Image { rect, radius, .. } => {
+                    let inst: GpuQuadInstance = GpuQuadInstance {
+                        rect: [
+                            rect.get_x() * scale,
+                            rect.get_y() * scale,
+                            rect.get_width() * scale,
+                            rect.get_height() * scale,
+                        ],
+                        clip: [
+                            active_clip.get_x(),
+                            active_clip.get_y(),
+                            active_clip.right(),
+                            active_clip.bottom(),
+                        ],
+                        color: [1.0, 1.0, 1.0, 1.0],
+                        secondary_color: [0.0; 4],
+                        radii: [
+                            radius.get_top_left() * scale,
+                            radius.get_top_right() * scale,
+                            radius.get_bottom_right() * scale,
+                            radius.get_bottom_left() * scale,
+                        ],
+                        stroke_or_blur: 0.0,
+                        angle_rad: 0.0,
+                        kind: GpuPrimitiveKind::TexturedQuad as u32,
+                        reserved: 0,
+                    };
+                    self.push_instance(active_clip, inst);
+                }
+                DrawCommand::Circle {
+                    center,
+                    radius,
+                    color,
+                } => {
+                    let r: f32 = radius * scale;
+                    let inst: GpuQuadInstance = GpuQuadInstance {
+                        rect: [
+                            center.get_x() * scale - r,
+                            center.get_y() * scale - r,
+                            r * 2.0,
+                            r * 2.0,
+                        ],
+                        clip: [
+                            active_clip.get_x(),
+                            active_clip.get_y(),
+                            active_clip.right(),
+                            active_clip.bottom(),
+                        ],
+                        color: color.to_f32_array(),
+                        secondary_color: [0.0; 4],
+                        radii: [r; 4],
+                        stroke_or_blur: 0.0,
+                        angle_rad: 0.0,
+                        kind: GpuPrimitiveKind::Circle as u32,
+                        reserved: 0,
+                    };
+                    self.push_instance(active_clip, inst);
+                }
+                DrawCommand::Line {
+                    from,
+                    to,
+                    color,
+                    width,
+                } => {
+                    let x0: f32 = from.get_x().min(to.get_x()) * scale;
+                    let y0: f32 = from.get_y().min(to.get_y()) * scale;
+                    let w: f32 = ((from.get_x() - to.get_x()).abs() * scale).max(width * scale);
+                    let h: f32 = ((from.get_y() - to.get_y()).abs() * scale).max(width * scale);
+                    let inst: GpuQuadInstance = GpuQuadInstance {
+                        rect: [x0, y0, w, h],
+                        clip: [
+                            active_clip.get_x(),
+                            active_clip.get_y(),
+                            active_clip.right(),
+                            active_clip.bottom(),
+                        ],
+                        color: color.to_f32_array(),
+                        secondary_color: [0.0; 4],
+                        radii: [0.0; 4],
+                        stroke_or_blur: width * scale,
+                        angle_rad: 0.0,
+                        kind: GpuPrimitiveKind::RoundedRect as u32,
+                        reserved: 0,
+                    };
+                    self.push_instance(active_clip, inst);
+                }
+            }
+        }
+        let Self {
+            driver,
+            batches,
+            readback,
+            enable_readback,
+        } = self;
+        let submitted: usize = driver.submit_batches(phys_w, phys_h, clear_color, batches)?;
+        let pixels: usize = if *enable_readback {
+            let (_, px): (usize, usize) = readback.render(display_list, damage);
+            px
+        } else {
+            (phys_w as usize) * (phys_h as usize)
+        };
+        Ok((submitted, pixels))
+    }
+
+    /// Appends `instance` to the tail `GpuBatch` if scissor matches and batch is below capacity.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable hardware renderer.
+    /// - `Rect` - Active scissor rectangle.
+    /// - `GpuQuadInstance` - Instance data to batch.
+    fn push_instance(&mut self, scissor: Rect, instance: GpuQuadInstance) {
+        if let Some(last) = self.get_mut_batches().last_mut()
+            && last.get_scissor() == scissor
+            && last.get_instances().len() < MAX_QUADS_PER_BATCH
+        {
+            last.get_mut_instances().push(instance);
+            return;
+        }
+        let mut batch: GpuBatch = GpuBatch::default();
+        batch.set_scissor(scissor);
+        batch.get_mut_instances().push(instance);
+        self.get_mut_batches().push(batch);
+    }
+}

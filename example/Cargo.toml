@@ -6,24 +6,18 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = """An example application demonstrating the euv UI framework with reactive signals, custom components, and WebAssembly."""
-keywords = ["cross-platform"]
-categories = ["network-programming", "web-programming"]
+description = """Cross-platform native showcase application demonstrating euv fine-grained reactivity, multi-mode rendering, window controls, and euv-ui components."""
+keywords = ["cross-platform", "example", "gui", "native", "ui"]
+categories = ["gui", "rendering", "wasm"]
 exclude.workspace = true
 autotests = false
 
-[dependencies]
-euv = { workspace = true }
-euv-ui = { workspace = true }
-euv-engine = { workspace = true }
+[lib]
+crate-type = ["rlib"]
 
-serde = { workspace = true }
-qrcode = { workspace = true }
-serde_json = { workspace = true }
-lombok-macros = { workspace = true }
-compare_version = { workspace = true }
-serde-wasm-bindgen = { workspace = true }
-console_error_panic_hook = { workspace = true }
+[[bin]]
+name = "euv-example"
+path = "src/main.rs"
 
 [features]
 default = []
@@ -45,11 +39,8 @@ theme-bootstrap = ["euv-ui/theme-bootstrap"]
 theme-cupertino = ["euv-ui/theme-cupertino"]
 theme-monochrome = ["euv-ui/theme-monochrome"]
 
-[build-dependencies]
-chrono = { workspace = true }
+[dependencies]
+euv = { workspace = true }
+euv-ui = { workspace = true }
 
-[dev-dependencies]
-euv-macros = { workspace = true }
-
-[lib]
-crate-type = ["cdylib"]
+lombok-macros = { workspace = true }

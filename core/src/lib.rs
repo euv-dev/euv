@@ -1,64 +1,66 @@
 //! euv-core
 //!
-//! A declarative, cross-platform UI framework for Rust with virtual DOM,
-//! reactive signals, and HTML macros for WebAssembly.
+//! Core cross-platform runtime for euv featuring arena-based fine-grained reactivity,
+//! deterministic Flexbox/Grid layout, flat retained scene graph, multi-mode rendering
+//! (Auto, Software, Hardware, Hybrid), unified window abstractions, and direct OS API
+//! backends for Web, Android, iOS, iPadOS, macOS, Windows, and Linux.
 
 mod app;
-mod event;
-#[cfg(target_arch = "wasm32")]
-mod fetch;
-mod noderef;
+mod font;
+mod layout;
+mod platform;
 mod reactive;
-mod renderer;
-mod vdom;
+mod render;
+mod scene;
+mod style;
+mod window;
 
 #[cfg(test)]
 #[path = "../tests/mod.rs"]
 mod tests;
 
-pub use {app::*, event::*, noderef::*, reactive::*, vdom::*};
-
-#[cfg(target_arch = "wasm32")]
-pub use fetch::*;
-
-pub use std::{
-    borrow::Cow,
-    collections::hash_map::DefaultHasher,
-    collections::{HashMap, HashSet, VecDeque},
-    fmt::{self, Debug, Display, Formatter},
-    hash::{Hash, Hasher},
-    iter::Iterator,
-    marker::PhantomData,
-    mem::{swap, take, zeroed},
-    ops::Deref,
-    panic::{AssertUnwindSafe, catch_unwind},
-    sync::{LazyLock, OnceLock, RwLock, RwLockReadGuard},
-    thread::LocalKey,
+pub use {
+    app::*, font::*, layout::*, platform::*, reactive::*, render::*, scene::*, style::*, window::*,
 };
 
-pub use {js_sys::*, lombok_macros::*, wasm_bindgen::prelude::*, web_sys::*};
-
-pub(crate) use bin_encode_decode::{Charset, EncodeError};
-
-/// The wall clock [`now_micros`] reads on a host build. On wasm the clock
-/// comes from JS instead, so importing this there is an `unused_imports`
-/// warning — the mirror of the dead-const warning the host build would give
-/// the other half of the same function.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) use std::time::{SystemTime, UNIX_EPOCH};
-
-pub(crate) use renderer::*;
-
+#[cfg(target_os = "macos")]
+use std::ffi::CStr;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use std::ffi::CString;
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux"))]
+use std::ffi::c_char;
+#[cfg(any(unix, windows))]
+use std::ffi::c_void;
+#[cfg(target_os = "windows")]
+use std::mem::size_of;
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux"))]
+use std::mem::transmute;
+#[cfg(target_os = "android")]
+use std::ptr::copy_nonoverlapping;
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux", windows))]
+use std::ptr::null;
+#[cfg(any(unix, windows))]
+use std::ptr::null_mut;
 use std::{
     any::Any,
-    cell::{Cell, Ref, RefCell, RefMut, UnsafeCell},
-    num::ParseIntError,
+    cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
+    error::Error,
+    fmt::{self, Formatter},
+    hash::{Hash, Hasher},
+    marker::PhantomData,
+    mem::take,
     rc::Rc,
-    str::from_utf8,
-    sync::{
-        PoisonError, RwLockWriteGuard,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+};
+
+use lombok_macros::{CustomDebug, Data, Getter, New};
+
+#[cfg(target_arch = "wasm32")]
+use {
+    js_sys::Object,
+    wasm_bindgen::{Clamped, JsCast, JsValue},
+    web_sys::{
+        CanvasRenderingContext2d, Document, Element, HtmlCanvasElement, ImageData, MediaQueryList,
+        Window, window,
     },
-    thread::AccessError,
-    vec::Vec,
 };

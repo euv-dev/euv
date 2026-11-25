@@ -1,15 +1,14 @@
-//! String constants for the crate root (rust-standards §1.3c).
-//!
-//! `lib.rs` is the crate root, so this module is declared from it as
-//! `mod r#const;` — the `r#` prefix is required because `const` is a Rust
-//! keyword. Every string literal that the §1.3c verifier flags in a
-//! function body lives here, verbatim and byte-identical to its original
-//! inline form.
-
-/// The CSS selector of the DOM element the example app mounts into.
-///
-/// Must match the container element declared by the host page's markup.
-pub(crate) const APP_MOUNT_SELECTOR: &str = "#app";
-
-/// Accessible name of the light/dark theme action in either navigation layout.
-pub(crate) const APP_THEME_TOGGLE_LABEL: &str = "Toggle color theme";
+/// Default window title for the native showcase binary.
+pub const SHOWCASE_WINDOW_TITLE: &str = "euv Cross-Platform Native Showcase";
+/// Default logical window width in pixels.
+pub const SHOWCASE_WINDOW_WIDTH: u32 = 1200;
+/// Default logical window height in pixels.
+pub const SHOWCASE_WINDOW_HEIGHT: u32 = 800;
+/// Command-line flag enabling deterministic headless execution.
+pub const FLAG_HEADLESS: &str = "--headless";
+/// Command-line flag selecting the software rasterizer.
+pub const FLAG_SOFTWARE: &str = "--software";
+/// Command-line flag selecting the hardware GPU pipeline.
+pub const FLAG_HARDWARE: &str = "--hardware";
+/// Command-line flag selecting the hybrid compositor pipeline.
+pub const FLAG_HYBRID: &str = "--hybrid";

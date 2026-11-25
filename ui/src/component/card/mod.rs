@@ -1,5 +1,6 @@
-mod view;
+mod r#impl;
+mod r#struct;
 
-pub use view::*;
+pub use r#struct::*;
 
 use super::*;

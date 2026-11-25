@@ -1,35 +1,3 @@
-mod bootstrap;
-mod build;
-mod build_args;
-mod bundle;
-mod cli_api;
-mod fmt;
-mod hmr;
-mod inline;
-mod mode_args;
-mod run_mode;
-mod server;
-mod serving_path;
-mod template_literals;
+mod cli;
 
 use super::*;
-
-use std::{
-    collections::HashSet,
-    env,
-    env::temp_dir,
-    fs,
-    fs::{create_dir_all, remove_dir_all, write},
-    io, mem,
-    path::{Path, PathBuf},
-    process,
-    string::FromUtf8Error,
-};
-
-use {
-    clap::Parser,
-    tokio::sync::{Mutex, MutexGuard, broadcast},
-};
-
-#[cfg(unix)]
-use std::os::unix::fs::symlink;

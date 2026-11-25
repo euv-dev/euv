@@ -1,0 +1,28 @@
+/// Route path for the overview dashboard page.
+pub const ROUTE_OVERVIEW: &str = "/";
+/// Route path for the fine-grained reactivity demo page.
+pub const ROUTE_REACTIVE: &str = "/reactive";
+/// Route path for the multi-mode rendering and vector canvas page.
+pub const ROUTE_RENDER: &str = "/render";
+/// Route path for the native window and platform inspector page.
+pub const ROUTE_WINDOW: &str = "/window";
+/// Route path for the interactive forms showcase page.
+pub const ROUTE_FORMS: &str = "/forms";
+/// Route path for the 17-scheme live theme gallery page.
+pub const ROUTE_THEMES: &str = "/themes";
+/// Route path for the virtualized list and table showcase page.
+pub const ROUTE_DATA: &str = "/data";
+/// Route path for the modal, toast, and alert overlay showcase page.
+pub const ROUTE_OVERLAYS: &str = "/overlays";
+/// Application brand title displayed in the shell chrome.
+pub const SHOWCASE_BRAND: &str = "euv Native Showcase";
+
+pub(crate) const NAV_LABEL_OVERVIEW: &str = "Overview";
+pub(crate) const NAV_LABEL_REACTIVE: &str = "Reactivity";
+pub(crate) const NAV_LABEL_RENDER: &str = "Rendering";
+pub(crate) const NAV_LABEL_WINDOW: &str = "Window & OS";
+pub(crate) const NAV_LABEL_FORMS: &str = "Forms";
+pub(crate) const NAV_LABEL_THEMES: &str = "Themes (17)";
+pub(crate) const NAV_LABEL_DATA: &str = "Data & List";
+pub(crate) const NAV_LABEL_OVERLAYS: &str = "Overlays";
+pub(crate) const DEFAULT_USERNAME: &str = "euv-developer";

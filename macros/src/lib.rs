@@ -1,228 +1,159 @@
 //! euv-macros
 //!
-//! Procedural macros for the euv UI framework, including the `html!` macro
-//! for declarative UI syntax, the `class!` macro for CSS class definitions,
-//! the `vars!` macro for CSS custom properties, the `watch!` macro for
-//! reactive side effects, the `computed!` macro for reactive computed signals,
-//! and the `component` attribute macro.
+//! Zero-overhead procedural macros for the cross-platform euv UI framework,
+//! compiling declarative `view!`, `style!`, `class!`, `tokens!`, `watch!`,
+//! `computed!`, `#[component]`, and `euv_main!` directly into arena scene
+//! graph operations with zero VDOM overhead.
 
-#[macro_use]
-extern crate syn;
+mod entry;
+mod reactive;
+mod style;
+mod view;
 
-mod class;
-mod computed;
-mod html;
-mod ident;
-mod raw_html;
-mod var;
-mod watch;
-
-#[cfg(test)]
-#[path = "../tests/mod.rs"]
-mod tests;
-
-pub(crate) use {class::*, computed::*, html::*, ident::*, raw_html::*, var::*, watch::*};
-
-pub(crate) use proc_macro2::TokenTree;
-pub(crate) use std::fmt::{Debug, Formatter};
-
-use std::{
-    collections::{HashMap, hash_map::DefaultHasher},
-    env::{self, VarError},
-    ffi::OsStr,
-    fmt::{self, Write},
-    fs::{create_dir_all, metadata, read_dir, read_to_string, write},
-    hash::{Hash, Hasher},
-    io,
-    iter::Peekable,
-    mem::MaybeUninit,
-    path::PathBuf,
-    result::Result,
-    time::UNIX_EPOCH,
-};
+pub(crate) use {entry::*, reactive::*, style::*, view::*};
 
 use {
-    lombok_macros::*,
     proc_macro::TokenStream,
-    proc_macro2::{Group, Span, token_stream::IntoIter},
-    quote::{ToTokens, quote, quote_spanned},
+    quote::quote,
     syn::{
-        Attribute, Block, Error, Expr, ExprPath, Field, File, FnArg, Generics, Ident, Item, ItemFn,
-        LitStr, Path, Stmt, Token, Type, Visibility, WhereClause, braced, parenthesized, parse,
+        Error, Expr, Ident, LitStr, Result, Token, Type, Visibility, braced, parenthesized,
         parse::{Parse, ParseBuffer, ParseStream},
-        parse_file, parse2,
+        parse_macro_input,
         punctuated::Punctuated,
-        token::{Brace, Colon, Paren, Semi},
+        token::Brace,
     },
-    toml::{Table, Value},
 };
 
-/// The `html!` macro for writing declarative UI in euv.
-///
-/// This macro accepts a syntax similar to Dioxus HTML:
+/// Declarative zero-VDOM UI construction macro targeting `BuildContext` and `SceneTree`.
 ///
 /// # Arguments
 ///
-/// - `TokenStream` - The `html! { ... }` invocation tokens.
+/// - `TokenStream` - Invocation tokens `view!(ctx, { ... })`.
 ///
 /// # Returns
 ///
-/// - `TokenStream` - The expanded virtual-DOM construction tokens.
+/// - `TokenStream` - Expanded arena node construction and reactive binding tokens.
 #[proc_macro]
-pub fn html(input: TokenStream) -> TokenStream {
-    parse_html(input)
+pub fn view(input: TokenStream) -> TokenStream {
+    let parsed: ViewMacroInput = parse_macro_input!(input as ViewMacroInput);
+    expand_view(parsed).into()
 }
 
-/// The `class!` macro for defining CSS classes with style properties.
-///
-/// Each class definition creates a `Css` function that can be used
-/// in `html!` via the `class:` attribute. Styles are automatically injected
-/// into the DOM on first use.
-///
-/// Parameterized classes keep the normal function-call syntax. Wrap a
-/// parameter reference in `{}` to make it part of the generated class name
-/// by value; parameters referenced without braces keep the default
-/// type-based class name.
+/// Alias for `view!` providing concise UI DSL ergonomics.
 ///
 /// # Arguments
 ///
-/// - `TokenStream` - The `class! { ... }` invocation tokens.
+/// - `TokenStream` - Invocation tokens `ui!(ctx, { ... })`.
 ///
 /// # Returns
 ///
-/// - `TokenStream` - The expanded `Css` function tokens.
+/// - `TokenStream` - Expanded arena node construction tokens.
+#[proc_macro]
+pub fn ui(input: TokenStream) -> TokenStream {
+    let parsed: ViewMacroInput = parse_macro_input!(input as ViewMacroInput);
+    expand_view(parsed).into()
+}
+
+/// Compile-time style macro compiling declarative rules directly into `Style` constructor functions.
+///
+/// # Arguments
+///
+/// - `TokenStream` - Style rule block tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - Expanded typed `Style` functions.
+#[proc_macro]
+pub fn style(input: TokenStream) -> TokenStream {
+    let parsed: StyleBlockInput = parse_macro_input!(input as StyleBlockInput);
+    expand_style(parsed).into()
+}
+
+/// Alias for `style!` preserving familiar `class!` naming while compiling to native `Style` values.
+///
+/// # Arguments
+///
+/// - `TokenStream` - Style rule block tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - Expanded typed `Style` functions.
 #[proc_macro]
 pub fn class(input: TokenStream) -> TokenStream {
-    parse_class(input)
+    let parsed: StyleBlockInput = parse_macro_input!(input as StyleBlockInput);
+    expand_style(parsed).into()
 }
 
-/// The `watch!` macro for creating reactive side effects.
-///
-/// Watches one or more signals and executes a closure whenever any of them changes.
-/// The closure is also executed once immediately with the current signal values
-/// during initialisation. This initial execution is wrapped in a suppressed-update
-/// scope so that any `.set()` calls inside the body do not trigger unnecessary
-/// DynamicNode re-renders.
-///
-/// The number of signal expressions must match the number of closure parameters.
-/// Each closure parameter receives the current value (via `.get()`) of the
-/// corresponding signal. Parameter types are optional and can be annotated
-/// after a colon.
+/// Compile-time design token macro generating typed `pub const` values.
 ///
 /// # Arguments
 ///
-/// - `TokenStream` - The `watch! { ... }` invocation tokens.
+/// - `TokenStream` - Token definition entries.
 ///
 /// # Returns
 ///
-/// - `TokenStream` - The expanded reactive-effect tokens.
+/// - `TokenStream` - Expanded constant declarations.
+#[proc_macro]
+pub fn tokens(input: TokenStream) -> TokenStream {
+    let parsed: TokenBlockInput = parse_macro_input!(input as TokenBlockInput);
+    expand_tokens(parsed).into()
+}
+
+/// Ergonomic reactive side-effect macro watching one or more signals.
+///
+/// # Arguments
+///
+/// - `TokenStream` - Signal list and effect closure tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - Expanded `Effect::new` expression.
 #[proc_macro]
 pub fn watch(input: TokenStream) -> TokenStream {
-    parse_watch(input)
+    let parsed: WatchInput = parse_macro_input!(input as WatchInput);
+    expand_watch(parsed).into()
 }
 
-/// The `computed!` macro for creating reactive computed signals.
-///
-/// Watches one or more signals and derives a new signal whose value is
-/// automatically computed from the closure return value whenever any input
-/// signal changes. The closure must return a value of the specified return type.
-///
-/// The number of signal expressions must match the number of closure parameters.
-/// Each closure parameter receives the current value (via `.get()`) of the
-/// corresponding signal. Parameter types are optional and can be annotated
-/// after a colon. The return type must be specified after `->`.
-///
-/// The result signal is created via `use_signal` and updated via `set()`
-/// to mark its dependents dirty precisely. The initial value is computed immediately
-/// during first render.
+/// Ergonomic memoized derived signal macro with equality short-circuiting.
 ///
 /// # Arguments
 ///
-/// - `TokenStream` - The `computed! { ... }` invocation tokens.
+/// - `TokenStream` - Signal list, return type, and computation closure tokens.
 ///
 /// # Returns
 ///
-/// - `TokenStream` - The expanded computed-signal tokens.
+/// - `TokenStream` - Expanded `Memo::new` expression.
 #[proc_macro]
 pub fn computed(input: TokenStream) -> TokenStream {
-    parse_computed(input)
+    let parsed: ComputedInput = parse_macro_input!(input as ComputedInput);
+    expand_computed(parsed).into()
 }
 
-/// The `vars!` macro for defining CSS custom properties.
-///
-/// Each variable block creates a `Css` function that, when called,
-/// injects the CSS custom properties into the DOM. Variable names are
-/// automatically prefixed with `--`.
-///
-/// Variable names can be written as unquoted kebab-case identifiers
-/// (e.g., `bg-primary`) or as quoted string literals (e.g., `"bg-primary"`).
+/// Cross-platform entry-point macro generating native desktop, mobile, and WebAssembly bootstraps.
 ///
 /// # Arguments
 ///
-/// - `TokenStream` - The `vars! { ... }` invocation tokens.
+/// - `TokenStream` - Application builder function identifier.
 ///
 /// # Returns
 ///
-/// - `TokenStream` - The expanded custom-property injection tokens.
+/// - `TokenStream` - Target-specific entry point declarations.
 #[proc_macro]
-pub fn vars(input: TokenStream) -> TokenStream {
-    parse_vars(input)
+pub fn euv_main(input: TokenStream) -> TokenStream {
+    let parsed: EntryInput = parse_macro_input!(input as EntryInput);
+    expand_entry(parsed).into()
 }
 
-/// The `var!` macro for referencing CSS custom properties defined via `vars!`.
-///
-/// The variable name can be written as an unquoted kebab-case identifier
-/// (e.g., `bg-primary`) or as a quoted string literal (e.g., `"bg-primary"`),
-/// and expands to the CSS string `"var(--bg-primary)"`.
+/// Attribute macro marking declarative cross-platform component functions.
 ///
 /// # Arguments
 ///
-/// - `TokenStream` - The `var! { ... }` invocation tokens.
+/// - `TokenStream` - Optional attribute arguments.
+/// - `TokenStream` - Annotated component function item.
 ///
 /// # Returns
 ///
-/// - `TokenStream` - The expanded `var(--name)` tokens.
-#[proc_macro]
-pub fn var(input: TokenStream) -> TokenStream {
-    parse_var(input)
-}
-
-/// The `unsafe_no_inline!` macro — escape hatch for raw HTML.
-///
-/// Accepts a string literal and emits a `euv::vdom::RawHtml` value
-/// constructed via `RawHtml::new`. The `unsafe_no_` prefix is a
-/// deliberately loud warning that the string is NOT escaped; treat
-/// it like `Element.innerHTML` in JavaScript.
-///
-/// # Arguments
-///
-/// - `TokenStream` - The `unsafe_no_inline!("...")` invocation tokens.
-///
-/// # Returns
-///
-/// - `TokenStream` - The expanded `RawHtml::new` construction tokens.
-#[proc_macro]
-pub fn unsafe_no_inline(input: TokenStream) -> TokenStream {
-    parse_unsafe_no_inline(input)
-}
-
-/// The `component` attribute macro for marking component functions.
-///
-/// Only functions annotated with `#[component]` are treated as components
-/// in the `html!` macro. All other identifier tags are treated as native
-/// HTML elements (with `Tag::Element`).
-///
-/// The `html!` macro scans the project source to find `#[component]`-annotated
-/// functions at compile time, so this attribute must be present for the
-/// `html!` macro to generate a component function call.
-///
-/// # Arguments
-///
-/// - `TokenStream` - The attribute arguments (unused).
-///
-/// # Returns
-///
-/// - `TokenStream` - The original item unchanged.
+/// - `TokenStream` - Component function item.
 #[proc_macro_attribute]
 pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item

@@ -6,9 +6,9 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = """Reusable UI component library for the euv framework, providing buttons, cards, modals, inputs, and more."""
-keywords = ["cross-platform", "ui", "components"]
-categories = ["web-programming", "gui"]
+description = """Cross-platform UI component library and 17-scheme design system for the euv framework with pixel-consistent rendering across Web, Android, iOS, iPadOS, macOS, Windows, and Linux."""
+keywords = ["components", "cross-platform", "design-system", "gui", "ui"]
+categories = ["gui", "rendering", "wasm"]
 exclude.workspace = true
 autotests = false
 
@@ -38,13 +38,4 @@ theme-monochrome = []
 [dependencies]
 euv = { workspace = true }
 
-js-sys = { workspace = true }
-wasm-bindgen = { workspace = true }
 lombok-macros = { workspace = true }
-wasm-bindgen-futures = { workspace = true }
-web-sys = { workspace = true, features = ["FocusOptions"] }
-
-[dev-dependencies]
-syn = { workspace = true }
-proc-macro2 = { workspace = true }
-wasm-bindgen-test = { workspace = true }

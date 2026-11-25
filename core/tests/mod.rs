@@ -1,35 +1,8 @@
-mod adapter;
-mod app;
-#[cfg(target_arch = "wasm32")]
-mod app_fetch;
-mod attribute;
-mod cache;
-mod hook;
-mod hook_context;
-mod inner;
-mod node;
-mod noderef;
-mod portal;
-mod raw;
-mod raw_html;
-mod registry;
-mod signal;
-mod signal_sub;
-mod vdom;
-mod vdom_cast;
-mod vdom_node;
-mod vdom_tree;
+mod layout;
+mod reactive;
+mod render;
+mod window_platform;
+
+use std::{cell::Cell, rc::Rc};
 
 use super::*;
-
-use std::{
-    borrow::Cow,
-    cell::{Cell, RefCell, UnsafeCell},
-    cmp::Ordering,
-    ptr,
-    rc::Rc,
-    slice,
-    sync::LazyLock,
-};
-
-use wasm_bindgen_test::*;

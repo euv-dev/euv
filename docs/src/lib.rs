@@ -1,65 +1,36 @@
 //! euv-docs
 //!
-//! The documentation-site crate for the euv UI framework, built by
-//! `docs/build.rs` from the example app's locale markdown so the
-//! generated pages stay in sync with the source tree.
+//! Cross-platform documentation viewer and static site generator powered by
+//! euv and euv-ui, parsing Markdown and YAML frontmatter into native UI scenes
+//! or static HTML/JSON bundles.
 
-mod app;
-mod component;
-mod data;
-mod description;
-mod highlight;
-mod locale;
-mod route;
-mod router;
+mod generator;
+mod model;
+mod parser;
+mod viewer;
 
 #[cfg(test)]
 #[path = "../tests/mod.rs"]
 mod tests;
 
-mod generated {
-    include!(concat!(env!("OUT_DIR"), "/docs_gen.rs"));
-}
+pub use {generator::*, model::*, parser::*, viewer::*};
 
-pub use {component::catalog::*, locale::*, route::*, router::*, std::rc::Rc};
-
-pub(crate) use {
-    app::*,
-    component::*,
-    data::*,
-    description::*,
-    highlight::*,
-    js_sys::Promise,
-    std::cell::{Cell, RefCell},
-    std::str::from_utf8,
-    {Event, HtmlInputElement, KeyboardEvent, Location},
+#[cfg(test)]
+use std::env;
+use std::{
+    ffi::OsStr,
+    fs::{self, DirEntry},
+    io::{self, Error, ErrorKind},
+    path::{Component, Path, PathBuf},
 };
 
 use {
-    euv::{wasm_bindgen::prelude::*, *},
+    chrono::Utc,
+    euv::*,
     euv_ui::*,
-    serde_json::{Error, Value},
-    wasm_bindgen_futures::{JsFuture, spawn_local},
+    lombok_macros::{Getter, New},
+    pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd},
+    serde::{Deserialize, Serialize},
+    serde_json::to_string_pretty,
+    serde_yaml::from_str,
 };
-
-/// Wasm entry point: injects the global stylesheet, mounts the docs
-/// shell into the host page, and installs the two DOM side effects the
-/// router cannot express declaratively (image load marking and the
-/// table-of-contents scroll spy).
-#[wasm_bindgen]
-pub fn main() {
-    console_error_panic_hook::set_once();
-    // Foreign-locale hash routes (old single-bundle links, legacy aliases)
-    // are redirected before any rendering work happens; a cross-bundle
-    // redirect replaces the page, so mounting is skipped entirely then.
-    if redirect_foreign_route() {
-        return;
-    }
-    inject_app_global_css();
-    Css::inject_css(euv_md_css());
-    Css::inject_css(APP_GLOBAL_CSS);
-    Css::inject_css(APP_SIDEBAR_CSS);
-    Css::inject_css(CODE_CSS);
-
-    App::mount(APP_MOUNT_SELECTOR, app);
-}

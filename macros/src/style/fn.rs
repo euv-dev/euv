@@ -1,0 +1,92 @@
+use super::*;
+
+/// Expands `StyleBlockInput` into zero-allocation `Style` builder functions.
+///
+/// # Arguments
+///
+/// - `StyleBlockInput` - Parsed style definitions.
+///
+/// # Returns
+///
+/// - `proc_macro2::TokenStream` - Generated Rust function items.
+pub(crate) fn expand_style(input: StyleBlockInput) -> proc_macro2::TokenStream {
+    let mut fns: Vec<proc_macro2::TokenStream> = Vec::with_capacity(input.defs.len());
+    for def in input.defs.iter() {
+        let vis: &Visibility = &def.vis;
+        let name: &Ident = &def.name;
+        let mut stmts: Vec<proc_macro2::TokenStream> = Vec::with_capacity(def.rules.len());
+        for rule in def.rules.iter() {
+            let key: String = rule.key.to_string();
+            let val: &Expr = &rule.value;
+            match key.as_str() {
+                STYLE_KEY_DIRECTION => {
+                    let dir_str: String = quote!(#val).to_string();
+                    if dir_str.trim() == STYLE_VAL_ROW {
+                        stmts.push(quote! { __s = __s.row(); });
+                    } else if dir_str.trim() == STYLE_VAL_COLUMN {
+                        stmts.push(quote! { __s = __s.column(); });
+                    } else {
+                        stmts.push(quote! { __s = __s.row(); });
+                    }
+                }
+                STYLE_KEY_WIDTH => stmts.push(quote! { __s = __s.width(#val); }),
+                STYLE_KEY_HEIGHT => stmts.push(quote! { __s = __s.height(#val); }),
+                STYLE_KEY_PADDING => stmts.push(quote! { __s = __s.padding(#val); }),
+                STYLE_KEY_MARGIN => stmts.push(quote! { __s = __s.margin(#val); }),
+                STYLE_KEY_GAP => stmts.push(quote! { __s = __s.gap(#val); }),
+                STYLE_KEY_BACKGROUND => stmts.push(quote! { __s = __s.background(#val); }),
+                STYLE_KEY_COLOR => stmts.push(quote! { __s = __s.color(#val); }),
+                STYLE_KEY_RADIUS => stmts.push(quote! { __s = __s.radius(#val); }),
+                STYLE_KEY_FONT_SIZE => stmts.push(quote! { __s = __s.font_size(#val); }),
+                STYLE_KEY_FONT_WEIGHT => stmts.push(quote! { __s = __s.font_weight(#val); }),
+                STYLE_KEY_OPACITY => stmts.push(quote! { __s = __s.opacity(#val); }),
+                STYLE_KEY_Z_INDEX => stmts.push(quote! { __s = __s.z_index(#val); }),
+                STYLE_KEY_GRID => stmts.push(quote! { __s = __s.grid(#val); }),
+                STYLE_KEY_BORDER => {
+                    stmts.push(quote! {
+                        let (__bw, __bc): (f32, ::euv::Color) = #val;
+                        __s = __s.border(__bw, __bc);
+                    });
+                }
+                _ => {
+                    return Error::new(rule.key.span(), ERR_UNKNOWN_STYLE_PROP).to_compile_error();
+                }
+            }
+        }
+        fns.push(quote! {
+            #[must_use]
+            #vis fn #name() -> ::euv::Style {
+                let mut __s: ::euv::Style = ::euv::Style::empty();
+                #(#stmts)*
+                __s
+            }
+        });
+    }
+    quote! { #(#fns)* }
+}
+
+/// Expands `TokenBlockInput` into typed `const` items.
+///
+/// # Arguments
+///
+/// - `TokenBlockInput` - Parsed design token entries.
+///
+/// # Returns
+///
+/// - `proc_macro2::TokenStream` - Generated constant declarations.
+pub(crate) fn expand_tokens(input: TokenBlockInput) -> proc_macro2::TokenStream {
+    let items: Vec<proc_macro2::TokenStream> = input
+        .entries
+        .iter()
+        .map(|entry: &TokenEntry| {
+            let vis: &Visibility = &entry.vis;
+            let name: &Ident = &entry.name;
+            let ty: &Type = &entry.ty;
+            let value: &Expr = &entry.value;
+            quote! {
+                #vis const #name: #ty = #value;
+            }
+        })
+        .collect();
+    quote! { #(#items)* }
+}
