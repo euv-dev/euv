@@ -23,18 +23,22 @@ pub use {
     app::*, font::*, layout::*, platform::*, reactive::*, render::*, scene::*, style::*, window::*,
 };
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use std::ffi::CStr;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[cfg(unix)]
 use std::ffi::CString;
-#[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux"))]
+#[cfg(unix)]
 use std::ffi::c_char;
 #[cfg(any(unix, windows))]
 use std::ffi::c_void;
 #[cfg(target_os = "windows")]
 use std::mem::size_of;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+use std::mem::size_of_val;
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux"))]
 use std::mem::transmute;
+#[cfg(any(target_os = "linux", target_os = "android"))]
+use std::path::Path;
 #[cfg(target_os = "android")]
 use std::ptr::copy_nonoverlapping;
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux", windows))]
@@ -61,6 +65,6 @@ use {
     wasm_bindgen::{Clamped, JsCast, JsValue},
     web_sys::{
         CanvasRenderingContext2d, Document, Element, HtmlCanvasElement, ImageData, MediaQueryList,
-        Window, window,
+        WebGl2RenderingContext, WebGlProgram, WebGlShader, Window, window,
     },
 };

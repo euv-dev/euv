@@ -32,10 +32,18 @@ pub fn glyph_bitmap_rows(ch: char) -> [u8; BITMAP_GLYPH_HEIGHT] {
 #[must_use]
 pub fn measure_char_advance(ch: char, style: TextStyle) -> f32 {
     let base_ratio: f32 = match style.get_family() {
-        FontFamily::Monospace => MONOSPACE_ADVANCE_RATIO,
-        FontFamily::Sans | FontFamily::Serif => {
-            if (ch as u32) > 0x7F {
+        FontFamily::Monospace => {
+            if is_wide_unicode(ch) {
                 1.0
+            } else {
+                MONOSPACE_ADVANCE_RATIO
+            }
+        }
+        FontFamily::Sans | FontFamily::Serif => {
+            if is_wide_unicode(ch) {
+                1.0
+            } else if (ch as u32) > 0x7F {
+                0.72
             } else {
                 match ch {
                     'i' | 'l' | '!' | '.' | ',' | ':' | ';' | '|' | '\'' => 0.36,
@@ -61,6 +69,10 @@ pub fn measure_char_advance(ch: char, style: TextStyle) -> f32 {
 /// - `RasterizedGlyph` - Coverage bitmap and pixel metrics.
 #[must_use]
 pub fn rasterize_glyph(key: GlyphKey) -> RasterizedGlyph {
+    let code: u32 = key.get_codepoint() as u32;
+    if code > ASCII_LAST_PRINTABLE {
+        return rasterize_unicode_deterministic(key);
+    }
     let size_px: f32 = (key.get_size_tenths() as f32) * 0.1;
     let out_h: u32 = (size_px * 0.86).round().max(7.0) as u32;
     let out_w: u32 = ((out_h as f32) * 0.62).round().max(5.0) as u32;

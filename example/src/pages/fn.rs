@@ -345,11 +345,18 @@ pub fn mount_window_page(
         tokens,
     )
     .mount(ctx);
+    let font_info: SystemFontInfo = NativeSystemFont::system().font_info();
+    let gpu_driver: NativeGpuDriver = NativeGpuDriver::probe(GraphicsBackend::Metal);
+    let gpu_info: &GpuAdapterInfo = gpu_driver.get_adapter();
     let platform_line: NodeId = ctx.text(
         format!(
-            "Platform: {:?} | Breakpoint: {:?}",
+            "Platform: {:?} | Breakpoint: {:?} | Font: {} ({:?}) | GPU: {} (shader_ok={})",
             ctx.get_platform(),
-            ctx.get_breakpoint().get_untracked()
+            ctx.get_breakpoint().get_untracked(),
+            font_info.get_family_name(),
+            font_info.get_backend(),
+            gpu_info.get_device_name(),
+            gpu_info.get_shader_compiled()
         ),
         Style::empty()
             .font_size(14.0)

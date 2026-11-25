@@ -18,5 +18,5 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use {
     euv::*,
-    lombok_macros::{CustomDebug, Data, New},
+    lombok_macros::{CustomDebug, Data, Getter, New},
 };

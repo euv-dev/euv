@@ -110,3 +110,60 @@ fn hardware_renderer_batches_primitives_and_selects_native_shaders() {
             .contains("metal_stdlib")
     );
 }
+
+#[test]
+fn native_system_font_and_unicode_cjk_atlas_packing_work() {
+    let sys_font: NativeSystemFont = NativeSystemFont::system();
+    let info: SystemFontInfo = sys_font.font_info();
+    assert!(!info.get_family_name().is_empty());
+    assert!(info.get_supports_unicode());
+    let mut atlas: GlyphAtlas = GlyphAtlas::default();
+    let key_ascii: GlyphKey = GlyphKey::new('A', 180, false);
+    let key_cjk_a: GlyphKey = GlyphKey::new('中', 180, false);
+    let key_cjk_b: GlyphKey = GlyphKey::new('国', 180, false);
+    let g_ascii: RasterizedGlyph = atlas.get_or_rasterize_with(key_ascii, &sys_font).clone();
+    let g_cjk_a: RasterizedGlyph = atlas.get_or_rasterize_with(key_cjk_a, &sys_font).clone();
+    let g_cjk_b: RasterizedGlyph = atlas.get_or_rasterize_with(key_cjk_b, &sys_font).clone();
+    assert!(g_ascii.get_coverage().iter().any(|px: &u8| *px > 0));
+    assert!(g_cjk_a.get_coverage().iter().any(|px: &u8| *px > 0));
+    assert!(g_cjk_b.get_coverage().iter().any(|px: &u8| *px > 0));
+    assert_ne!(g_cjk_a.get_coverage(), g_cjk_b.get_coverage());
+    let packed: PackedGlyphAtlas = atlas.pack_rgba_atlas();
+    assert_eq!(packed.get_regions().len(), 3);
+    assert!(packed.get_pixels().iter().any(|px: &u8| *px > 0));
+    assert!(is_wide_unicode('中'));
+    assert!(!is_wide_unicode('A'));
+}
+
+#[test]
+fn native_gpu_driver_probes_hardware_compiles_shaders_and_submits_batches() {
+    let mut driver: NativeGpuDriver = NativeGpuDriver::probe(GraphicsBackend::Metal);
+    let info: GpuAdapterInfo = driver.get_adapter().clone();
+    assert!(!info.get_device_name().is_empty());
+    let quad: GpuQuadInstance = GpuQuadInstance {
+        rect: [10.0, 10.0, 120.0, 48.0],
+        clip: [0.0, 0.0, 800.0, 600.0],
+        color: [0.2, 0.5, 0.95, 1.0],
+        secondary_color: [0.1, 0.2, 0.4, 1.0],
+        radii: [8.0, 8.0, 8.0, 8.0],
+        stroke_or_blur: 1.0,
+        angle_rad: 0.0,
+        kind: 0,
+        reserved: 0,
+    };
+    let mut batch: GpuBatch = GpuBatch::default();
+    batch.set_scissor(Rect::new(0.0, 0.0, 800.0, 600.0));
+    batch.set_instances(vec![quad]);
+    let calls: usize = driver
+        .submit_batches(800, 600, COLOR_WHITE, &[batch])
+        .unwrap();
+    assert_eq!(calls, 1);
+    assert_eq!(driver.get_submitted_frames(), 1);
+    assert_eq!(driver.get_uploaded_instances(), 1);
+    #[cfg(target_os = "macos")]
+    {
+        if info.get_hardware_verified() {
+            assert!(info.get_shader_compiled());
+        }
+    }
+}

@@ -154,7 +154,40 @@ pub fn bench_hardware_gpu_batching(iterations: usize) -> BenchMetric {
     bench_render_pipeline(BENCH_HW_BATCH_NAME, RenderConfig::hardware(), iterations)
 }
 
-/// Runs the complete reproducible benchmark suite across reactivity, layout, and rendering.
+/// Benchmarks Unicode + CJK glyph rasterization and GPU RGBA8 atlas shelf-packing.
+///
+/// # Arguments
+///
+/// - `usize` - Number of glyph-pack iterations to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured latency and packed glyph count.
+#[must_use]
+pub fn bench_unicode_glyph_atlas(iterations: usize) -> BenchMetric {
+    let count: usize = iterations.max(1);
+    let sample_chars: [char; 8] = ['A', 'g', '9', '跨', '端', '原', '生', '框'];
+    let provider: NativeSystemFont = NativeSystemFont::deterministic();
+    let start: Instant = Instant::now();
+    let mut packed_regions: usize = 0;
+    for _ in 0..count {
+        let mut atlas: GlyphAtlas = GlyphAtlas::default();
+        for ch in sample_chars.iter() {
+            let key: GlyphKey = GlyphKey::new(*ch, 160, false);
+            let _: &RasterizedGlyph = atlas.get_or_rasterize_with(key, &provider);
+        }
+        let packed: PackedGlyphAtlas = atlas.pack_rgba_atlas();
+        packed_regions = packed.get_regions().len();
+    }
+    build_metric(
+        BENCH_GLYPH_ATLAS_NAME,
+        count,
+        start.elapsed(),
+        format!("packed_glyphs={packed_regions}"),
+    )
+}
+
+/// Runs the complete reproducible benchmark suite across reactivity, layout, fonts, and rendering.
 ///
 /// # Returns
 ///
@@ -165,6 +198,7 @@ pub fn run_full_benchmark_suite() -> BenchReport {
         bench_reactive_signals_and_memos(10_000),
         bench_selector_o1(10_000),
         bench_layout_cache(1_000),
+        bench_unicode_glyph_atlas(100),
         bench_software_rasterizer(20),
         bench_hardware_gpu_batching(200),
     ];

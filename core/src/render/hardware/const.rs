@@ -28,10 +28,18 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
 }
 "#;
 
-/// Apple Metal Shading Language (MSL) SDF instanced UI quad shader for macOS, iOS, and iPadOS.
+/// Apple Metal Shading Language (MSL) SDF instanced UI vertex and fragment shaders for macOS, iOS, and iPadOS.
 pub const MSL_UI_SHADER: &str = r#"
 #include <metal_stdlib>
 using namespace metal;
+struct QuadInstance {
+    float4 rect;
+    float4 clip;
+    float4 color;
+    float4 border_color;
+    float4 radii;
+    float4 params;
+};
 struct QuadIn {
     float4 position [[position]];
     float2 local_pos;
@@ -41,6 +49,28 @@ struct QuadIn {
     float radius;
     float border_w;
 };
+vertex QuadIn euv_ui_vertex(
+    uint vid [[vertex_id]],
+    uint iid [[instance_id]],
+    const device QuadInstance* instances [[buffer(0)]]
+) {
+    float2 corners[6] = {
+        float2(0.0, 0.0), float2(1.0, 0.0), float2(0.0, 1.0),
+        float2(1.0, 0.0), float2(1.0, 1.0), float2(0.0, 1.0)
+    };
+    QuadInstance inst = instances[iid];
+    float2 uv = corners[vid % 6];
+    float2 half_sz = inst.rect.zw * 0.5;
+    QuadIn out;
+    out.position = float4(uv * 2.0 - 1.0, 0.0, 1.0);
+    out.local_pos = (uv - 0.5) * inst.rect.zw;
+    out.half_size = half_sz;
+    out.color = inst.color;
+    out.border_color = inst.border_color;
+    out.radius = inst.radii.x;
+    out.border_w = inst.params.x;
+    return out;
+}
 fragment float4 euv_ui_fragment(QuadIn in [[stage_in]]) {
     float2 q = abs(in.local_pos) - in.half_size + float2(in.radius);
     float dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - in.radius;
@@ -48,6 +78,31 @@ fragment float4 euv_ui_fragment(QuadIn in [[stage_in]]) {
     float inner = clamp(0.5 - (dist + in.border_w), 0.0, 1.0);
     float border_mix = clamp(alpha - inner, 0.0, 1.0);
     return float4(mix(in.color.rgb, in.border_color.rgb, border_mix), in.color.a * alpha);
+}
+"#;
+
+/// OpenGL ES 3.0 / WebGL 2 vertex shader paired with `GLSL_ES3_UI_FRAGMENT_SHADER`.
+pub const GLSL_ES3_UI_VERTEX_SHADER: &str = r#"#version 300 es
+precision highp float;
+layout(location = 0) in vec2 a_uv;
+layout(location = 1) in vec4 a_rect;
+layout(location = 2) in vec4 a_color;
+layout(location = 3) in vec4 a_border_color;
+layout(location = 4) in vec2 a_params;
+out vec2 v_local_pos;
+out vec2 v_half_size;
+out vec4 v_color;
+out vec4 v_border_color;
+out float v_radius;
+out float v_border_w;
+void main() {
+    v_half_size = a_rect.zw * 0.5;
+    v_local_pos = (a_uv - 0.5) * a_rect.zw;
+    v_color = a_color;
+    v_border_color = a_border_color;
+    v_radius = a_params.x;
+    v_border_w = a_params.y;
+    gl_Position = vec4(a_uv * 2.0 - 1.0, 0.0, 1.0);
 }
 "#;
 
