@@ -6,13 +6,13 @@
 
 mod args;
 mod command;
-mod target;
+mod platform;
 
 #[cfg(test)]
 #[path = "../tests/mod.rs"]
 mod tests;
 
-pub use {args::*, command::*, target::*};
+pub use {args::*, command::*, platform::*};
 
 use std::{
     env::{self, VarError},
