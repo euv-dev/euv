@@ -187,7 +187,146 @@ pub fn bench_unicode_glyph_atlas(iterations: usize) -> BenchMetric {
     )
 }
 
-/// Runs the complete reproducible benchmark suite across reactivity, layout, fonts, and rendering.
+/// Benchmarks full forced-redraw 800x600 software SDF tile rasterization frames.
+///
+/// # Arguments
+///
+/// - `usize` - Number of full raster frames to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured full-frame raster latency and FPS throughput.
+#[must_use]
+pub fn bench_software_full_redraw(iterations: usize) -> BenchMetric {
+    reset_reactive_runtime();
+    let count: usize = iterations.max(1);
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(800, 600).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let Ok(mut app) = App::headless(cfg) else {
+        return build_metric(BENCH_SW_FULL_NAME, count, Duration::ZERO, String::new());
+    };
+    let _: NodeId = app.mount(|| {
+        let badge: NodeId =
+            EuvBadge::new(BENCH_BADGE.to_string(), EuvTone::Primary, tokens).mount_current();
+        let prog: NodeId = EuvProgress::new(0.72, tokens).mount_current();
+        let mut card: EuvCard = EuvCard::new(BENCH_TITLE.to_string(), tokens)
+            .child(badge)
+            .child(prog);
+        card.set_subtitle(BENCH_SUBTITLE.to_string());
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                padding: Edges::all(SPACE_LG)
+                gap: SPACE_MD
+                { EuvHeader::new(BENCH_TITLE.to_string(), BENCH_SUBTITLE.to_string(), tokens) }
+                { card }
+            }
+        }
+    });
+    let wid: WindowId = app.get_window_state().get_id();
+    let start: Instant = Instant::now();
+    let mut last_hash: u64 = 0;
+    let mut last_batches: usize = 0;
+    for _ in 0..count {
+        app.dispatch_window_event(WindowEvent::RedrawRequested(wid));
+        if let Ok(stats) = app.step_frame() {
+            last_hash = stats.get_frame_hash();
+            last_batches = stats.get_draw_batches();
+        }
+    }
+    build_metric(
+        BENCH_SW_FULL_NAME,
+        count,
+        start.elapsed(),
+        format!("batches={last_batches} hash={last_hash:#018x}"),
+    )
+}
+
+/// Benchmarks 256 dynamic 2D rigid bodies stepping through spatial-hash broad-phase and narrow-phase collision resolution.
+///
+/// # Arguments
+///
+/// - `usize` - Number of fixed 60Hz physics ticks to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured physics tick latency and collision throughput.
+#[must_use]
+pub fn bench_game_ecs_physics(iterations: usize) -> BenchMetric {
+    let count: usize = iterations.max(1);
+    let mut world: GameWorld = GameWorld::with_capacity(256);
+    for idx in 0..256usize {
+        let col: f32 = (idx % 16) as f32;
+        let row: f32 = (idx / 16) as f32;
+        let eid: EntityId = world.spawn(
+            EntityTag::Enemy,
+            Point::new(40.0 + col * 52.0, 40.0 + row * 40.0),
+        );
+        if let Some(ent) = world.get_entity_mut(eid) {
+            ent.set_velocity(Velocity2D::new(
+                if idx % 2 == 0 { 110.0 } else { -95.0 },
+                if idx % 3 == 0 { 85.0 } else { -75.0 },
+                0.0,
+            ));
+            ent.set_body(Some(RigidBody2D::dynamic(1.0, 0.9, 0.02)));
+            ent.set_collider(Some(Collider2D::circle(
+                10.0,
+                COLLISION_LAYER_ENEMY,
+                COLLISION_LAYER_ALL,
+                false,
+            )));
+        }
+    }
+    let mut phys_cfg: PhysicsConfig = PhysicsConfig::default();
+    phys_cfg.set_arena_bounds(Some(Rect::new(0.0, 0.0, 960.0, 720.0)));
+    let mut physics: PhysicsWorld2D = PhysicsWorld2D::with_config(phys_cfg);
+    let start: Instant = Instant::now();
+    let mut total_collisions: usize = 0;
+    for _ in 0..count {
+        let evs: Vec<CollisionEvent> = physics.step(&mut world, 1.0 / 60.0);
+        total_collisions += evs.len();
+    }
+    build_metric(
+        BENCH_GAME_PHYSICS_NAME,
+        count,
+        start.elapsed(),
+        format!("entities=256 collisions={total_collisions}"),
+    )
+}
+
+/// Benchmarks updating 1,024 active zero-allocation pooled particles per frame.
+///
+/// # Arguments
+///
+/// - `usize` - Number of particle update steps to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured particle update latency and throughput.
+#[must_use]
+pub fn bench_game_particles(iterations: usize) -> BenchMetric {
+    let count: usize = iterations.max(1);
+    let mut system: ParticleSystem = ParticleSystem::with_capacity(1024);
+    let mut cfg: ParticleEmitterConfig = ParticleEmitterConfig::default();
+    cfg.set_min_life(10.0).set_max_life(20.0);
+    system.emit_burst(Point::new(400.0, 300.0), 1024, cfg);
+    let start: Instant = Instant::now();
+    let mut live: usize = 0;
+    for _ in 0..count {
+        live = system.update(1.0 / 60.0);
+    }
+    build_metric(
+        BENCH_GAME_PARTICLES_NAME,
+        count,
+        start.elapsed(),
+        format!("active_particles={live}"),
+    )
+}
+
+/// Runs the complete reproducible benchmark suite across reactivity, layout, fonts, rendering, and game physics.
 ///
 /// # Returns
 ///
@@ -199,8 +338,11 @@ pub fn run_full_benchmark_suite() -> BenchReport {
         bench_selector_o1(10_000),
         bench_layout_cache(1_000),
         bench_unicode_glyph_atlas(100),
+        bench_software_full_redraw(20),
         bench_software_rasterizer(20),
         bench_hardware_gpu_batching(200),
+        bench_game_ecs_physics(200),
+        bench_game_particles(1_000),
     ];
     BenchReport::new(metrics)
 }

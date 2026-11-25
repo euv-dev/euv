@@ -158,27 +158,46 @@ pub struct ShowcaseState {
     pub(crate) carousel_index: Signal<usize>,
 }
 
-/// Deterministic 2D physics scene showcasing `GameScene`, `FrameClock`, `InputState`, and HUD overlay.
-#[derive(Clone, Copy, Data, Debug, New, PartialEq)]
+/// Full-featured 2D arcade arena scene powered by `GameWorld`, `PhysicsWorld2D`, `Camera2D`, `ParticleSystem`, `TileMap`, `ActionMap`, and `AudioBus`.
+#[derive(Clone, Data, Debug)]
 pub struct DemoPhysicsScene {
-    /// Horizontal position of the bouncing physics orb.
+    /// Generational ECS entity arena holding player, drones, projectiles, and obstacles.
+    pub(crate) world: GameWorld,
+    /// Spatial-hash 2D rigid-body physics and raycast solver.
+    pub(crate) physics: PhysicsWorld2D,
+    /// 2D follow camera with trauma-based screen shake and frustum culling.
     #[get(type(copy))]
-    pub(crate) orb_x: f32,
-    /// Vertical position of the bouncing physics orb.
+    pub(crate) camera: Camera2D,
+    /// Zero-allocation pooled neon particle engine.
+    pub(crate) particles: ParticleSystem,
+    /// Frustum-culled tiled arena map with solid corner pillars.
+    pub(crate) tilemap: TileMap,
+    /// Declarative arcade input bindings (WASD, Arrows, Space/Click fire, E dash, R wave).
+    pub(crate) actions: ActionMap,
+    /// Deterministic cross-platform sound cue bus.
+    pub(crate) audio: AudioBus,
+    /// Player ship entity handle.
     #[get(type(copy))]
-    pub(crate) orb_y: f32,
-    /// Horizontal velocity in logical pixels per second.
+    pub(crate) player_id: EntityId,
+    /// Remaining weapon cooldown in seconds.
     #[get(type(copy))]
-    pub(crate) vel_x: f32,
-    /// Vertical velocity in logical pixels per second.
+    pub(crate) fire_cooldown: f32,
+    /// Remaining dash cooldown in seconds.
     #[get(type(copy))]
-    pub(crate) vel_y: f32,
-    /// Player-controlled paddle X coordinate.
-    #[new(skip)]
+    pub(crate) dash_cooldown: f32,
+    /// Current player arcade score.
     #[get(type(copy))]
-    pub(crate) paddle_x: f32,
+    pub(crate) score: u32,
+    /// Current wave counter.
+    #[get(type(copy))]
+    pub(crate) wave: u32,
+    /// Toggle for wireframe collider debug visualization.
+    #[get(type(copy))]
+    pub(crate) show_colliders: bool,
+    /// Smoothed real-time frames-per-second telemetry.
+    #[get(type(copy))]
+    pub(crate) smoothed_fps: f32,
     /// Total fixed physics ticks simulated.
-    #[new(skip)]
     #[get(type(copy))]
     pub(crate) ticks: u64,
 }

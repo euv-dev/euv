@@ -1,7 +1,15 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
-use std::{env, thread::sleep, time::Duration};
+use std::{
+    env,
+    thread::sleep,
+    time::{Duration, Instant},
+};
 
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+use euv_automation::{AiSchemaProtocol, DEV_AI_INSPECTOR_ADDR, DevAutomationBridge};
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+use euv_example::{FLAG_AI_QUERY, FLAG_AI_SCHEMA};
 #[cfg(not(target_arch = "wasm32"))]
 use euv_example::{FLAG_CAPTURE_DIR, capture_showcase_screenshots};
 use {
@@ -22,6 +30,24 @@ fn main() {
         match capture_showcase_screenshots(Path::new(dir)) {
             Ok(n) => println!("captured={n} dir={dir}"),
             Err(err) => eprintln!("{err}"),
+        }
+        return;
+    }
+    #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+    if args.iter().any(|arg: &String| arg == FLAG_AI_SCHEMA) {
+        if let Ok((mut app, _)) = create_showcase_app(true, RenderMode::Software) {
+            drop(app.step_frame());
+            println!("{}", AiSchemaProtocol::snapshot_pretty_json(&app));
+        }
+        return;
+    }
+    #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+    if let Some(pos) = args.iter().position(|arg: &String| arg == FLAG_AI_QUERY)
+        && let Some(query_json) = args.get(pos + 1)
+    {
+        if let Ok((mut app, _)) = create_showcase_app(true, RenderMode::Software) {
+            drop(app.step_frame());
+            println!("{}", AiSchemaProtocol::handle_json(&mut app, query_json));
         }
         return;
     }
@@ -49,19 +75,44 @@ fn main() {
         match create_showcase_app(false, mode) {
             Ok((mut app, state)) => {
                 if interactive {
+                    #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+                    let mut dev_bridge: DevAutomationBridge =
+                        DevAutomationBridge::start(DEV_AI_INSPECTOR_ADDR);
                     let mut last_stats: FrameStats = FrameStats::default();
+                    let mut prev_tick: Instant = Instant::now();
+                    let frame_budget: Duration = Duration::from_micros(8333);
                     while app.get_running() {
-                        if state.get_route().get_untracked() == ROUTE_GAME {
-                            let _: u32 = state.get_game_host().step(1.0 / 60.0);
+                        let frame_start: Instant = Instant::now();
+                        let dt: f32 = frame_start
+                            .duration_since(prev_tick)
+                            .as_secs_f32()
+                            .clamp(0.001, 0.05);
+                        prev_tick = frame_start;
+                        let on_game_route: bool = state.get_route().get_untracked() == ROUTE_GAME;
+                        if on_game_route {
+                            let _: u32 = state.get_game_host().step(dt);
                         }
-                        match app.step_game_frame(1.0 / 60.0) {
+                        match app.step_game_frame(dt) {
                             Ok(stats) => last_stats = stats,
                             Err(err) => {
                                 eprintln!("{err}");
                                 break;
                             }
                         }
-                        sleep(Duration::from_millis(8));
+                        #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+                        {
+                            let _: usize = dev_bridge.poll(&mut app);
+                        }
+                        let elapsed: Duration = frame_start.elapsed();
+                        let target: Duration =
+                            if on_game_route || last_stats.get_pixels_shaded() > 0 {
+                                frame_budget
+                            } else {
+                                Duration::from_millis(8)
+                            };
+                        if elapsed < target {
+                            sleep(target - elapsed);
+                        }
                     }
                     print_stats(&last_stats);
                 } else if let Ok(stats) = app.run_frames(Some(1)) {

@@ -64,4 +64,8 @@ pub struct MacOsPlatform {
     /// Local clipboard cache synchronized with pasteboard operations.
     #[get(skip)]
     pub(crate) clipboard_cache: Option<String>,
+    /// Cached `CGColorSpaceRef` reused across all frame presentations.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) cached_color_space: usize,
 }

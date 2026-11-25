@@ -40,3 +40,5 @@ pub(crate) const NAV_LABEL_GAME: &str = "Game Engine";
 pub(crate) const NAV_LABEL_OVERLAYS: &str = "Overlays";
 pub(crate) const NAV_LABEL_DYNAMIC: &str = "Dynamic OTA";
 pub(crate) const DEFAULT_USERNAME: &str = "euv-developer";
+pub(crate) const GAME_HUD_CONTROLS_HINT: &str =
+    "WASD/Arrows Move | Space/Click Fire | E Dash | R Wave";

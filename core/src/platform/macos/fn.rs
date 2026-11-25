@@ -599,24 +599,35 @@ pub(crate) fn macos_pump_events(
                     ));
                 }
                 NS_EVENT_MOUSE_MOVED | NS_EVENT_LEFT_MOUSE_DRAGGED if inside_content => {
-                    out_events.push(WindowEvent::PointerMove(
-                        wid,
-                        PointerEvent::new(
-                            1,
-                            PointerDevice::Mouse,
-                            Point::new(ui_x, ui_y),
-                            PointerButton::Primary,
-                            0.0,
-                            mods,
-                        ),
-                    ));
+                    let next_ptr: PointerEvent = PointerEvent::new(
+                        1,
+                        PointerDevice::Mouse,
+                        Point::new(ui_x, ui_y),
+                        PointerButton::Primary,
+                        0.0,
+                        mods,
+                    );
+                    if let Some(WindowEvent::PointerMove(prev_wid, prev_ptr)) =
+                        out_events.last_mut()
+                        && *prev_wid == wid
+                    {
+                        *prev_ptr = next_ptr;
+                    } else {
+                        out_events.push(WindowEvent::PointerMove(wid, next_ptr));
+                    }
                 }
                 NS_EVENT_SCROLL_WHEEL if inside_content => {
                     let is_precise: bool = objc_send_bool0(event, precise_scroll_sel);
                     let multiplier: f32 = if is_precise { 1.0 } else { 18.0 };
                     let dx: f32 = -(objc_send_f64_0(event, scroll_x_sel) as f32) * multiplier;
                     let dy: f32 = -(objc_send_f64_0(event, scroll_y_sel) as f32) * multiplier;
-                    out_events.push(WindowEvent::Scroll(wid, Point::new(dx, dy)));
+                    if let Some(WindowEvent::Scroll(prev_wid, prev_delta)) = out_events.last_mut()
+                        && *prev_wid == wid
+                    {
+                        *prev_delta = Point::new(prev_delta.get_x() + dx, prev_delta.get_y() + dy);
+                    } else {
+                        out_events.push(WindowEvent::Scroll(wid, Point::new(dx, dy)));
+                    }
                 }
                 NS_EVENT_KEY_DOWN => {
                     let raw_key: u16 = objc_send_u16_0(event, key_sel);
@@ -820,11 +831,22 @@ pub(crate) fn macos_create_native_window(
     Ok((ns_window as usize, ns_view as usize, metal_layer as usize))
 }
 
+/// Allocates a CoreGraphics device RGB color space pointer suitable for caching across frames.
+///
+/// # Returns
+///
+/// - `usize` - Raw `CGColorSpaceRef` pointer as `usize`.
+pub(crate) fn macos_create_device_rgb_space() -> usize {
+    // SAFETY: `CGColorSpaceCreateDeviceRGB` returns a retained `CGColorSpaceRef` valid for the process lifetime.
+    unsafe { CGColorSpaceCreateDeviceRGB() as usize }
+}
+
 /// Blits an RGBA8 `Framebuffer` directly into a `CALayer` / `CAMetalLayer` via `CFData` + `CGImageCreate` + `setContents:`.
 ///
 /// # Arguments
 ///
 /// - `usize` - Raw `CALayer*` pointer.
+/// - `usize` - Cached `CGColorSpaceRef` pointer.
 /// - `&Framebuffer` - Source RGBA8 pixel framebuffer.
 ///
 /// # Returns
@@ -832,6 +854,7 @@ pub(crate) fn macos_create_native_window(
 /// - `Result<(), PlatformError>` - Presentation status.
 pub(crate) fn macos_present_cg_image(
     layer_ptr: usize,
+    cached_space: usize,
     framebuffer: &Framebuffer,
 ) -> Result<(), PlatformError> {
     if layer_ptr == 0 {
@@ -842,7 +865,12 @@ pub(crate) fn macos_present_cg_image(
     let bytes: &[u8] = framebuffer.get_pixels().as_slice();
     // SAFETY: `CFDataCreate` copies `bytes` into Apple-owned storage retained safely by CoreAnimation.
     unsafe {
-        let color_space: *mut c_void = CGColorSpaceCreateDeviceRGB();
+        let owned_space: bool = cached_space == 0;
+        let color_space: *mut c_void = if owned_space {
+            CGColorSpaceCreateDeviceRGB()
+        } else {
+            cached_space as *mut c_void
+        };
         let cf_data: *mut c_void = CFDataCreate(null(), bytes.as_ptr(), bytes.len() as isize);
         let provider: *mut c_void = if cf_data.is_null() {
             null_mut()
@@ -880,7 +908,7 @@ pub(crate) fn macos_present_cg_image(
         if !cf_data.is_null() {
             CFRelease(cf_data.cast_const());
         }
-        if !color_space.is_null() {
+        if owned_space && !color_space.is_null() {
             CGColorSpaceRelease(color_space);
         }
     }

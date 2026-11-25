@@ -441,6 +441,118 @@ impl SceneTree {
         self.set_revision(next_rev);
     }
 
+    /// Computes accumulated ancestor scroll offset for `id` (zero for top-layer `Portal`/`Fixed` nodes).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    /// - `NodeId` - Target node handle.
+    ///
+    /// # Returns
+    ///
+    /// - `Point` - Total scroll offset applied to `id`.
+    fn ancestor_scroll_offset(&self, id: NodeId) -> Point {
+        let Some(start) = self.get_node(id) else {
+            return Point::default();
+        };
+        if matches!(start.get_kind(), NodeKind::Portal)
+            || start.get_style().get_layout().get_position() == Position::Fixed
+        {
+            return Point::default();
+        }
+        let mut sx: f32 = 0.0;
+        let mut sy: f32 = 0.0;
+        let mut cursor: Option<NodeId> = start.parent_id();
+        while let Some(pid) = cursor {
+            if let Some(pnode) = self.get_node(pid) {
+                let off: Point = pnode.get_layout_box().get_scroll_offset();
+                sx += off.get_x();
+                sy += off.get_y();
+                if matches!(pnode.get_kind(), NodeKind::Portal)
+                    || pnode.get_style().get_layout().get_position() == Position::Fixed
+                {
+                    break;
+                }
+                cursor = pnode.parent_id();
+            } else {
+                break;
+            }
+        }
+        Point::new(sx, sy)
+    }
+
+    /// Collects the tight physical damage region from dirty paint/scroll/canvas nodes and clears paint dirty flags.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `f32` - Active display scale factor.
+    ///
+    /// # Returns
+    ///
+    /// - `DamageRegion` - Minimal damaged region, full damage on structural/layout change, or clean when idle.
+    pub fn collect_paint_damage(&mut self, scale: f32) -> DamageRegion {
+        let mut full: bool = false;
+        let mut dirty_ids: Vec<(NodeId, Rect, f32)> = Vec::new();
+        for (idx, node) in self.get_nodes().iter().enumerate() {
+            if !node.get_alive() {
+                continue;
+            }
+            let bits: u16 = node.get_dirty().get_bits();
+            if (bits & DIRTY_FULL_DAMAGE_MASK) != 0 {
+                full = true;
+                break;
+            }
+            let is_canvas: bool = matches!(node.get_kind(), NodeKind::Canvas)
+                && node.get_style().get_layout().get_display() != Display::None;
+            if is_canvas || (bits & (DIRTY_PAINT | DIRTY_SCROLL)) != 0 {
+                let b: Rect = node.get_layout_box().get_bounds();
+                if b.get_width() > 0.0 && b.get_height() > 0.0 {
+                    let mut margin: f32 = 10.0;
+                    if let Some(shadow) = node.get_style().get_paint().box_shadow() {
+                        margin = margin.max(
+                            shadow.get_blur_radius()
+                                + shadow.get_spread_radius()
+                                + shadow.get_offset_x().abs().max(shadow.get_offset_y().abs())
+                                + 4.0,
+                        );
+                    }
+                    let nid: NodeId = NodeId::new(idx as u32, node.get_generation());
+                    dirty_ids.push((nid, b, margin));
+                } else if (bits & DIRTY_PAINT) != 0 {
+                    full = true;
+                    break;
+                }
+            }
+        }
+        let mut damage: DamageRegion = if full {
+            DamageRegion::full()
+        } else {
+            let mut region: DamageRegion = DamageRegion::default();
+            for (nid, raw_bounds, margin) in dirty_ids.into_iter() {
+                let off: Point = self.ancestor_scroll_offset(nid);
+                let phys: Rect = Rect::new(
+                    ((raw_bounds.get_x() - off.get_x() - margin) * scale).floor(),
+                    ((raw_bounds.get_y() - off.get_y() - margin) * scale).floor(),
+                    ((raw_bounds.get_width() + margin * 2.0) * scale).ceil(),
+                    ((raw_bounds.get_height() + margin * 2.0) * scale).ceil(),
+                );
+                region.add_rect(phys);
+            }
+            region
+        };
+        let clear_mask: u16 = DIRTY_PAINT_CLEAR_MASK;
+        for node in self.get_mut_nodes().iter_mut() {
+            if node.get_alive() && (node.get_dirty().get_bits() & clear_mask) != 0 {
+                node.get_mut_dirty().remove(clear_mask);
+            }
+        }
+        if full {
+            damage.set_full_damage(true);
+        }
+        damage
+    }
+
     /// Recursively removes and disposes `id`, recycling all arena slots and disposing scopes.
     ///
     /// # Arguments

@@ -101,7 +101,20 @@ impl App {
             services: PlatformServiceHub::new(kind),
             deep_link: Signal::new(None),
             dynamic_hub,
+            last_rendered_revision: 0,
+            last_cursor: CursorIcon::Default,
+            game_hosts: Vec::new(),
         })
+    }
+
+    /// Registers a `GameEngineHost` so all incoming OS/Web `WindowEvent`s are automatically forwarded to its `InputState`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `GameEngineHost` - Game engine host handle to attach.
+    pub fn attach_game_host(&mut self, host: GameEngineHost) {
+        self.get_mut_game_hosts().push(host);
     }
 
     /// Mounts a root `Mountable` component or `NodeId` into the application's scene root with an ambient `BuildContext`.
@@ -235,6 +248,9 @@ impl App {
     /// - `WindowEvent` - Event received from the OS or test harness.
     pub fn dispatch_window_event(&mut self, event: WindowEvent) {
         self.get_mut_input_state().ingest(&event);
+        for host in self.get_game_hosts().iter() {
+            host.ingest_event(&event);
+        }
         match event {
             WindowEvent::Resized(_, width, height, scale) => {
                 let safe_scale: f32 = scale.max(0.5);
@@ -352,12 +368,45 @@ impl App {
         let viewport: Size = self.get_window_state().logical_size();
         let scale: f32 = self.get_window_state().get_scale_factor();
         let clear: Color = self.get_config().get_clear_color();
-        let damage: DamageRegion = self.get_pending_damage();
+        let mut damage: DamageRegion = self.get_pending_damage();
         let scene: SceneHandle = self.get_scene().clone();
+        let (scene_rev, tree_damage): (u64, DamageRegion) = scene.with_write(
+            |tree: &mut SceneTree| {
+                let d: DamageRegion = tree.collect_paint_damage(scale);
+                (tree.get_revision(), d)
+            },
+            (0, DamageRegion::full()),
+        );
+        if tree_damage.get_full_damage() || scene_rev != self.get_last_rendered_revision() {
+            if tree_damage.get_full_damage() {
+                damage = DamageRegion::full();
+            } else if let Some(rect) = tree_damage.bounds_rect() {
+                damage.add_rect(rect);
+            } else if damage.resolve(1, 1).is_none() {
+                damage = DamageRegion::full();
+            }
+        } else if let Some(rect) = tree_damage.bounds_rect() {
+            damage.add_rect(rect);
+        }
+        let phys_w: u32 = ((viewport.get_width() * scale).round() as u32).max(1);
+        let phys_h: u32 = ((viewport.get_height() * scale).round() as u32).max(1);
+        if damage.resolve(phys_w, phys_h).is_none() {
+            return Ok(self.get_mut_renderer().record_skipped_frame());
+        }
+        if !self
+            .get_renderer()
+            .get_config()
+            .get_dirty_rect_optimization()
+        {
+            damage = DamageRegion::full();
+        }
         let layout_stats: LayoutStats = scene.with_write(
             |tree: &mut SceneTree| self.get_mut_layout_engine().compute(tree, viewport),
             LayoutStats::default(),
         );
+        if layout_stats.get_nodes_computed() > 0 {
+            damage = DamageRegion::full();
+        }
         let frame_stats: FrameStats = scene.with_read(
             |tree: &SceneTree| {
                 self.get_mut_renderer().render_frame(
@@ -377,10 +426,11 @@ impl App {
                 platform, renderer, ..
             } = self;
             if let Some(fb) = renderer.framebuffer() {
-                platform.present_framebuffer(window_id, fb)?;
+                platform.present_framebuffer_region(window_id, fb, damage)?;
             }
         }
-        self.set_pending_damage(DamageRegion::full());
+        self.set_last_rendered_revision(scene_rev);
+        self.set_pending_damage(DamageRegion::default());
         Ok(frame_stats)
     }
 
@@ -492,30 +542,54 @@ impl App {
                             if new_chain.contains(&old_id) {
                                 continue;
                             }
+                            let mut visual_hover: bool = false;
                             if let Some(node) = tree.get_node_mut(old_id) {
                                 node.get_mut_interaction().set_hovered(false);
+                                visual_hover = node.hover_paint().is_some()
+                                    || node.get_style().get_paint().get_cursor()
+                                        == CursorIcon::Pointer
+                                    || node.get_style().get_layout().get_overflow()
+                                        == Overflow::Scroll
+                                    || node
+                                        .get_handlers()
+                                        .handler_for(&UiEventKind::Click(Point::default()))
+                                        .is_some();
                                 if let Some(h) =
                                     node.get_handlers().handler_for(&UiEventKind::PointerLeave)
                                 {
                                     out.push((h, UiEvent::new(old_id, UiEventKind::PointerLeave)));
                                 }
                             }
-                            tree.mark_dirty(old_id, DIRTY_PAINT);
+                            if visual_hover {
+                                tree.mark_dirty(old_id, DIRTY_PAINT);
+                            }
                         }
                         tree.get_mut_focus().set_hovered(hit);
                         for new_id in new_chain.iter().copied() {
                             if old_chain.contains(&new_id) {
                                 continue;
                             }
+                            let mut visual_hover: bool = false;
                             if let Some(node) = tree.get_node_mut(new_id) {
                                 node.get_mut_interaction().set_hovered(true);
+                                visual_hover = node.hover_paint().is_some()
+                                    || node.get_style().get_paint().get_cursor()
+                                        == CursorIcon::Pointer
+                                    || node.get_style().get_layout().get_overflow()
+                                        == Overflow::Scroll
+                                    || node
+                                        .get_handlers()
+                                        .handler_for(&UiEventKind::Click(Point::default()))
+                                        .is_some();
                                 if let Some(h) =
                                     node.get_handlers().handler_for(&UiEventKind::PointerEnter)
                                 {
                                     out.push((h, UiEvent::new(new_id, UiEventKind::PointerEnter)));
                                 }
                             }
-                            tree.mark_dirty(new_id, DIRTY_PAINT);
+                            if visual_hover {
+                                tree.mark_dirty(new_id, DIRTY_PAINT);
+                            }
                         }
                     }
                     let mut resolved_cursor: CursorIcon = CursorIcon::Default;
@@ -544,8 +618,11 @@ impl App {
                 },
                 (Vec::new(), CursorIcon::Default),
             );
-        let wid: WindowId = self.get_window_state().get_id();
-        self.queue_window_command(WindowCommand::SetCursor(wid, next_cursor));
+        if next_cursor != self.get_last_cursor() {
+            self.set_last_cursor(next_cursor);
+            let wid: WindowId = self.get_window_state().get_id();
+            self.queue_window_command(WindowCommand::SetCursor(wid, next_cursor));
+        }
         Self::invoke_callbacks(callbacks);
     }
 

@@ -112,14 +112,48 @@ pub(crate) fn web_present_image_data(
     ctx2d: &CanvasRenderingContext2d,
     framebuffer: &Framebuffer,
 ) -> Result<(), PlatformError> {
+    web_present_image_data_region(ctx2d, framebuffer, DamageRegion::full())
+}
+
+/// Blits only the damaged physical rectangle of an RGBA8 `Framebuffer` onto a browser `CanvasRenderingContext2d`.
+///
+/// # Arguments
+///
+/// - `&CanvasRenderingContext2d` - Browser 2D rendering context.
+/// - `&Framebuffer` - Rendered RGBA8 framebuffer.
+/// - `DamageRegion` - Damaged pixel region to copy into the canvas.
+///
+/// # Returns
+///
+/// - `Result<(), PlatformError>` - Presentation status.
+pub(crate) fn web_present_image_data_region(
+    ctx2d: &CanvasRenderingContext2d,
+    framebuffer: &Framebuffer,
+    damage: DamageRegion,
+) -> Result<(), PlatformError> {
+    let fb_w: u32 = framebuffer.get_width();
+    let fb_h: u32 = framebuffer.get_height();
+    let Some(rect) = damage.resolve(fb_w, fb_h) else {
+        return Ok(());
+    };
     let clamped: Clamped<&[u8]> = Clamped(framebuffer.get_pixels().as_slice());
-    let img: ImageData = ImageData::new_with_u8_clamped_array_and_sh(
-        clamped,
-        framebuffer.get_width(),
-        framebuffer.get_height(),
-    )
-    .map_err(|_: JsValue| PlatformError::SurfaceError(ERR_WEB_PRESENT_FAILED.to_string()))?;
-    ctx2d
-        .put_image_data(&img, 0.0, 0.0)
-        .map_err(|_: JsValue| PlatformError::SurfaceError(ERR_WEB_PRESENT_FAILED.to_string()))
+    let img: ImageData = ImageData::new_with_u8_clamped_array_and_sh(clamped, fb_w, fb_h)
+        .map_err(|_: JsValue| PlatformError::SurfaceError(ERR_WEB_PRESENT_FAILED.to_string()))?;
+    if damage.get_full_damage() {
+        ctx2d
+            .put_image_data(&img, 0.0, 0.0)
+            .map_err(|_: JsValue| PlatformError::SurfaceError(ERR_WEB_PRESENT_FAILED.to_string()))
+    } else {
+        let dx: f64 = rect.get_x().floor().clamp(0.0, fb_w as f32) as f64;
+        let dy: f64 = rect.get_y().floor().clamp(0.0, fb_h as f32) as f64;
+        let rx1: f64 = rect.right().ceil().clamp(0.0, fb_w as f32) as f64;
+        let ry1: f64 = rect.bottom().ceil().clamp(0.0, fb_h as f32) as f64;
+        let dw: f64 = (rx1 - dx).max(1.0);
+        let dh: f64 = (ry1 - dy).max(1.0);
+        ctx2d
+            .put_image_data_with_dirty_x_and_dirty_y_and_dirty_width_and_dirty_height(
+                &img, 0.0, 0.0, dx, dy, dw, dh,
+            )
+            .map_err(|_: JsValue| PlatformError::SurfaceError(ERR_WEB_PRESENT_FAILED.to_string()))
+    }
 }

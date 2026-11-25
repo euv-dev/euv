@@ -417,6 +417,58 @@ impl HardwareRenderer {
                     };
                     self.push_instance(active_clip, inst);
                 }
+                DrawCommand::Triangle { p0, p1, p2, color } => {
+                    let min_x: f32 = p0.get_x().min(p1.get_x()).min(p2.get_x()) * scale;
+                    let min_y: f32 = p0.get_y().min(p1.get_y()).min(p2.get_y()) * scale;
+                    let max_x: f32 = p0.get_x().max(p1.get_x()).max(p2.get_x()) * scale;
+                    let max_y: f32 = p0.get_y().max(p1.get_y()).max(p2.get_y()) * scale;
+                    let inst: GpuQuadInstance = GpuQuadInstance {
+                        rect: [
+                            min_x,
+                            min_y,
+                            (max_x - min_x).max(1.0),
+                            (max_y - min_y).max(1.0),
+                        ],
+                        clip: [
+                            active_clip.get_x(),
+                            active_clip.get_y(),
+                            active_clip.right(),
+                            active_clip.bottom(),
+                        ],
+                        color: color.to_f32_array(),
+                        secondary_color: [0.0; 4],
+                        radii: [0.0; 4],
+                        stroke_or_blur: 0.0,
+                        angle_rad: 0.0,
+                        kind: GpuPrimitiveKind::RoundedRect as u32,
+                        reserved: 3,
+                    };
+                    self.push_instance(active_clip, inst);
+                }
+                DrawCommand::SpriteRegion { rect, tint, .. } => {
+                    let inst: GpuQuadInstance = GpuQuadInstance {
+                        rect: [
+                            rect.get_x() * scale,
+                            rect.get_y() * scale,
+                            rect.get_width() * scale,
+                            rect.get_height() * scale,
+                        ],
+                        clip: [
+                            active_clip.get_x(),
+                            active_clip.get_y(),
+                            active_clip.right(),
+                            active_clip.bottom(),
+                        ],
+                        color: tint.to_f32_array(),
+                        secondary_color: [0.0; 4],
+                        radii: [0.0; 4],
+                        stroke_or_blur: 0.0,
+                        angle_rad: 0.0,
+                        kind: GpuPrimitiveKind::TexturedQuad as u32,
+                        reserved: 1,
+                    };
+                    self.push_instance(active_clip, inst);
+                }
             }
         }
         let Self {

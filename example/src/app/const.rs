@@ -16,6 +16,12 @@ pub const FLAG_HYBRID: &str = "--hybrid";
 pub const FLAG_INTERACTIVE: &str = "--interactive";
 /// Command-line flag capturing raw RGBA screenshots of all showcase routes into the following directory.
 pub const FLAG_CAPTURE_DIR: &str = "--capture-dir";
+/// Dev-only CLI flag printing the live AI Schema v1 runtime & layout snapshot JSON.
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub const FLAG_AI_SCHEMA: &str = "--ai-schema";
+/// Dev-only CLI flag executing a single AI Schema v1 JSON request against the headless showcase.
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub const FLAG_AI_QUERY: &str = "--ai-query";
 /// DOM KeyboardEvent key name for Enter.
 #[cfg(target_arch = "wasm32")]
 pub(crate) const WEB_KEY_ENTER: &str = "Enter";

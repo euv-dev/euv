@@ -42,6 +42,7 @@ theme-monochrome = ["euv-ui/theme-monochrome"]
 [dependencies]
 euv = { workspace = true }
 euv-ui = { workspace = true }
+euv-automation = { workspace = true }
 
 lombok-macros = { workspace = true }
 

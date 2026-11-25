@@ -113,3 +113,175 @@ fn scroll_container_clamps_offset_and_dispatches_on_scroll_callback() {
     assert!((scrolled_dy.get() - 96.0).abs() < 0.01);
     assert_ne!(frame_top.get_frame_hash(), frame_scrolled.get_frame_hash());
 }
+
+#[test]
+fn game_world_ecs_physics_raycast_camera_particles_tilemap_and_audio_work_end_to_end() {
+    let mut world: GameWorld = GameWorld::with_capacity(64);
+    let a: EntityId = world.spawn(EntityTag::Player, Point::new(100.0, 100.0));
+    let b: EntityId = world.spawn(EntityTag::Enemy, Point::new(116.0, 100.0));
+    let temp: EntityId = world.spawn(EntityTag::Projectile, Point::new(200.0, 100.0));
+    if let Some(ent) = world.get_entity_mut(a) {
+        ent.set_velocity(Velocity2D::new(60.0, 0.0, 0.0));
+        ent.set_body(Some(RigidBody2D::dynamic(1.0, 1.0, 0.0)));
+        ent.set_collider(Some(Collider2D::circle(
+            12.0,
+            COLLISION_LAYER_PLAYER,
+            COLLISION_LAYER_ALL,
+            false,
+        )));
+        ent.set_sprite(Some(Sprite2D::new(
+            EntityVisualShape::Triangle,
+            Size::new(24.0, 24.0),
+            Color::hex(0x38BDF8),
+            COLOR_WHITE,
+            5,
+            0.0,
+            true,
+        )));
+    }
+    if let Some(ent) = world.get_entity_mut(b) {
+        ent.set_velocity(Velocity2D::new(-40.0, 0.0, 0.0));
+        ent.set_body(Some(RigidBody2D::dynamic(1.0, 1.0, 0.0)));
+        ent.set_collider(Some(Collider2D::aabb(
+            20.0,
+            20.0,
+            COLLISION_LAYER_ENEMY,
+            COLLISION_LAYER_ALL,
+            false,
+        )));
+        ent.set_sprite(Some(Sprite2D::new(
+            EntityVisualShape::Diamond,
+            Size::new(20.0, 20.0),
+            Color::hex(0xF43F5E),
+            COLOR_WHITE,
+            4,
+            0.0,
+            true,
+        )));
+    }
+    if let Some(ent) = world.get_entity_mut(temp) {
+        ent.set_ttl_secs(Some(0.01));
+    }
+    let mut cfg: PhysicsConfig = PhysicsConfig::default();
+    cfg.set_arena_bounds(Some(Rect::new(0.0, 0.0, 400.0, 300.0)));
+    let mut physics: PhysicsWorld2D = PhysicsWorld2D::with_config(cfg);
+    let contacts: Vec<CollisionEvent> = physics.step(&mut world, 1.0 / 60.0);
+    assert!(!contacts.is_empty());
+    let hit: Option<RaycastHit> = PhysicsWorld2D::raycast(
+        &world,
+        Point::new(40.0, 100.0),
+        Point::new(1.0, 0.0),
+        200.0,
+        COLLISION_LAYER_PLAYER | COLLISION_LAYER_ENEMY,
+    );
+    assert!(hit.is_some());
+    assert_eq!(world.tick_lifetimes(0.05), 1);
+    assert!(!world.is_alive(temp));
+    let recycled: EntityId = world.spawn(EntityTag::Pickup, Point::new(50.0, 50.0));
+    assert_eq!(recycled.get_index(), temp.get_index());
+    assert!(recycled.get_generation() > temp.get_generation());
+    let mut camera: Camera2D = Camera2D::at(Point::new(100.0, 100.0), 1.5);
+    camera.add_trauma(0.5);
+    camera.follow(
+        Point::new(140.0, 120.0),
+        8.0,
+        1.0 / 60.0,
+        Size::new(320.0, 200.0),
+    );
+    let vp: Size = Size::new(320.0, 200.0);
+    let world_pt: Point = Point::new(125.0, 110.0);
+    let screen_pt: Point = camera.world_to_screen(world_pt, vp);
+    let unproj: Point = camera.screen_to_world(screen_pt, vp);
+    assert!((unproj.get_x() - world_pt.get_x()).abs() < 20.0);
+    let mut particles: ParticleSystem = ParticleSystem::with_capacity(64);
+    particles.emit_burst(
+        Point::new(110.0, 100.0),
+        24,
+        ParticleEmitterConfig::default(),
+    );
+    assert_eq!(particles.update(1.0 / 60.0), 24);
+    let mut tilemap: TileMap = TileMap::empty(8, 6, 32.0);
+    let solid_id: u16 = tilemap.add_palette_entry(TilePaletteEntry::new(
+        Color::hex(0x1E293B),
+        Color::hex(0x38BDF8),
+        true,
+    ));
+    tilemap.set_tile(2, 2, solid_id);
+    assert!(tilemap.is_solid_at_world(Point::new(72.0, 72.0)));
+    assert!(!tilemap.is_solid_at_world(Point::new(12.0, 12.0)));
+    let sheet: SpriteSheet =
+        SpriteSheet::from_grid(ImageBuffer::new(16, 8, vec![255; 16 * 8 * 4]), 8, 8);
+    let mut animator: SpriteAnimator = SpriteAnimator::new(0, 2, 10.0, true, 0.0);
+    assert_eq!(animator.tick(0.15), 1);
+    let mut input: InputState = InputState::new();
+    input.ingest(&WindowEvent::KeyDown(
+        WindowId::new(1),
+        KeyEvent::new(KeyCode::Character('d'), Modifiers::default(), false),
+    ));
+    let actions: ActionMap = ActionMap::default();
+    assert!(actions.is_active(GameAction::MoveRight, &input));
+    assert!(actions.movement_vector(&input).get_x() > 0.5);
+    let mut audio: AudioBus = AudioBus::default();
+    audio.play(SoundCue::Explosion, 0.9, 0.0, 1.0);
+    assert_eq!(audio.drain().len(), 1);
+    assert_eq!(audio.get_total_played(), 1);
+    let mut list: DisplayList = DisplayList::default();
+    list.reset(vp, 1.0);
+    let mut ctx: GameRenderContext<'_> =
+        GameRenderContext::new(Rect::new(0.0, 0.0, 320.0, 200.0), &mut list);
+    ctx.render_tilemap(&tilemap, &camera);
+    let drawn_ent: usize = ctx.render_world(&world, &camera);
+    let drawn_part: usize = ctx.render_particles(&particles, &camera);
+    ctx.draw_sprite_frame(&sheet, 0, Rect::new(4.0, 4.0, 16.0, 16.0), COLOR_WHITE);
+    ctx.draw_debug_colliders(&world, &camera);
+    assert!(drawn_ent >= 2);
+    assert!(drawn_part >= 1);
+    let mut sw: SoftwareRenderer =
+        SoftwareRenderer::with_config(320, 200, RenderConfig::software());
+    let (_, shaded): (usize, usize) = sw.render(&list, DamageRegion::full());
+    assert!(shaded > 0);
+}
+
+#[test]
+fn idle_frames_skip_rasterization_and_hover_uses_partial_dirty_rect() {
+    reset_reactive_runtime();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(400, 300).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        let mut ctx: BuildContext = current_build_context();
+        let root: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Px(400.0))
+                .height(Length::Px(300.0))
+                .padding(Edges::all(16.0))
+                .background(COLOR_WHITE),
+        );
+        let btn: NodeId = ctx.view(
+            Style::empty()
+                .width(Length::Px(80.0))
+                .height(Length::Px(32.0))
+                .background(Color::hex(0xE4E4E7))
+                .cursor(CursorIcon::Pointer),
+        );
+        ctx.append(root, btn);
+        root
+    });
+    let first: FrameStats = app.step_frame().unwrap();
+    assert!(first.get_pixels_shaded() > 0);
+    let idle: FrameStats = app.step_frame().unwrap();
+    assert_eq!(idle.get_pixels_shaded(), 0);
+    assert_eq!(idle.get_frame_hash(), first.get_frame_hash());
+    let wid: WindowId = app.get_window_state().get_id();
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(40.0, 30.0),
+    ));
+    let hovered: FrameStats = app.step_frame().unwrap();
+    assert!(hovered.get_pixels_shaded() > 0);
+    assert!(hovered.get_pixels_shaded() < first.get_pixels_shaded());
+    assert_ne!(hovered.get_frame_hash(), first.get_frame_hash());
+}

@@ -28,3 +28,12 @@ pub struct InputState {
     #[get(type(copy))]
     pub(crate) scroll_delta: Point,
 }
+
+/// Declarative multi-key and pointer-button binding table mapping physical inputs to `GameAction`s.
+#[derive(Clone, Data, Debug)]
+pub struct ActionMap {
+    /// Keyboard bindings grouped by semantic `GameAction`.
+    pub(crate) key_bindings: HashMap<GameAction, Vec<KeyCode>>,
+    /// Pointer button bindings grouped by semantic `GameAction`.
+    pub(crate) button_bindings: HashMap<GameAction, Vec<PointerButton>>,
+}

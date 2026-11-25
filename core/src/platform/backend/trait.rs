@@ -88,6 +88,27 @@ pub trait PlatformBackend: WindowController {
         framebuffer: &Framebuffer,
     ) -> Result<(), PlatformError>;
 
+    /// Presents a damaged sub-region of a CPU-rendered RGBA8 `Framebuffer` when supported by the backend.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable platform backend.
+    /// - `WindowId` - Target window handle.
+    /// - `&Framebuffer` - Rendered RGBA8 framebuffer.
+    /// - `DamageRegion` - Damaged pixel region updated this frame.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<(), PlatformError>` - Presentation status.
+    fn present_framebuffer_region(
+        &mut self,
+        id: WindowId,
+        framebuffer: &Framebuffer,
+        _damage: DamageRegion,
+    ) -> Result<(), PlatformError> {
+        self.present_framebuffer(id, framebuffer)
+    }
+
     /// Reads the current system clipboard text if available.
     ///
     /// # Arguments

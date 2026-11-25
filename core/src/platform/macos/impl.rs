@@ -13,6 +13,7 @@ impl Default for MacOsPlatform {
             windows: HashMap::new(),
             pending_events: Vec::new(),
             clipboard_cache: None,
+            cached_color_space: 0,
         }
     }
 }
@@ -404,7 +405,12 @@ impl PlatformBackend for MacOsPlatform {
             .get(&id)
             .map(MacOsWindowRecord::get_metal_layer)
             .ok_or(PlatformError::WindowNotFound(id.get_value()))?;
-        macos_present_cg_image(layer_ptr, framebuffer)
+        let mut color_space: usize = self.get_cached_color_space();
+        if color_space == 0 {
+            color_space = macos_create_device_rgb_space();
+            self.set_cached_color_space(color_space);
+        }
+        macos_present_cg_image(layer_ptr, color_space, framebuffer)
     }
 
     /// Reads cached clipboard text.

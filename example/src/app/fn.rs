@@ -34,6 +34,7 @@ pub fn create_showcase_app(
     };
     let mut state: ShowcaseState = ShowcaseState::new();
     state.attach_dynamic_hub(app.get_dynamic_hub().clone());
+    app.attach_game_host(state.get_game_host().clone());
     let mount_state: ShowcaseState = state.clone();
     let _: NodeId = app.mount(move || mount_showcase_root(&mount_state));
     Ok((app, state))
@@ -315,7 +316,7 @@ pub fn euv_web_boot() {
         let rect: DomRect = canvas_move.get_bounding_client_rect();
         let x: f32 = (ev.client_x() as f64 - rect.left()) as f32;
         let y: f32 = (ev.client_y() as f64 - rect.top()) as f32;
-        let _: u64 = euv_web_pointer_move(x, y);
+        web_queue_pointer_move(x, y);
     })
         as Box<dyn FnMut(MouseEvent)>);
     drop(canvas.add_event_listener_with_callback("pointermove", on_move.as_ref().unchecked_ref()));
@@ -326,7 +327,7 @@ pub fn euv_web_boot() {
         let rect: DomRect = canvas_down.get_bounding_client_rect();
         let x: f32 = (ev.client_x() as f64 - rect.left()) as f32;
         let y: f32 = (ev.client_y() as f64 - rect.top()) as f32;
-        let _: u64 = euv_web_pointer_down(x, y);
+        web_queue_pointer_down(x, y);
     })
         as Box<dyn FnMut(MouseEvent)>);
     drop(canvas.add_event_listener_with_callback("pointerdown", on_down.as_ref().unchecked_ref()));
@@ -336,7 +337,7 @@ pub fn euv_web_boot() {
         let rect: DomRect = canvas_up.get_bounding_client_rect();
         let x: f32 = (ev.client_x() as f64 - rect.left()) as f32;
         let y: f32 = (ev.client_y() as f64 - rect.top()) as f32;
-        let _: u64 = euv_web_pointer_up(x, y);
+        web_queue_pointer_up(x, y);
     }) as Box<dyn FnMut(MouseEvent)>);
     drop(canvas.add_event_listener_with_callback("pointerup", on_up.as_ref().unchecked_ref()));
     on_up.forget();
@@ -347,7 +348,7 @@ pub fn euv_web_boot() {
             2 => 320.0,
             _ => 1.0,
         };
-        let _: u64 = euv_web_scroll((ev.delta_x() as f32) * mult, (ev.delta_y() as f32) * mult);
+        web_queue_scroll((ev.delta_x() as f32) * mult, (ev.delta_y() as f32) * mult);
     })
         as Box<dyn FnMut(WheelEvent)>);
     drop(canvas.add_event_listener_with_callback("wheel", on_wheel.as_ref().unchecked_ref()));
@@ -366,10 +367,17 @@ pub fn euv_web_boot() {
             ) {
                 ev.prevent_default();
             }
-            let _: u64 = euv_web_key_down(&key);
+            web_queue_key_down(&key);
         }) as Box<dyn FnMut(KeyboardEvent)>);
     drop(win.add_event_listener_with_callback("keydown", on_key.as_ref().unchecked_ref()));
     on_key.forget();
+    let on_key_up: Closure<dyn FnMut(KeyboardEvent)> =
+        Closure::wrap(Box::new(move |ev: KeyboardEvent| {
+            let key: String = ev.key();
+            web_queue_key_up(&key);
+        }) as Box<dyn FnMut(KeyboardEvent)>);
+    drop(win.add_event_listener_with_callback("keyup", on_key_up.as_ref().unchecked_ref()));
+    on_key_up.forget();
     let win_resize: Window = win.clone();
     let on_resize: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
         let lw: u32 = win_resize
@@ -387,7 +395,7 @@ pub fn euv_web_boot() {
             .unwrap_or(800)
             .max(320);
         let dpr: f32 = (win_resize.device_pixel_ratio() as f32).clamp(1.0, 2.0);
-        let _: u64 = euv_web_resize(lw, lh, dpr);
+        web_queue_resize(lw, lh, dpr);
     }) as Box<dyn FnMut(Event)>);
     drop(win.add_event_listener_with_callback("resize", on_resize.as_ref().unchecked_ref()));
     on_resize.forget();
@@ -404,8 +412,12 @@ pub fn euv_web_boot() {
                 }
                 *prev = ts;
             }
-            if euv_web_current_route() == ROUTE_GAME {
+            let on_game: bool = euv_web_current_route() == ROUTE_GAME;
+            let dirty: bool = WEB_NEEDS_FRAME.with(|flag: &Cell<bool>| flag.replace(false));
+            if on_game {
                 let _: u64 = euv_web_tick(dt);
+            } else if dirty {
+                let _: u64 = web_flush_frame();
             }
             if let Ok(cb_ref) = raf_loop.try_borrow()
                 && let Some(cb) = cb_ref.as_ref()
@@ -421,6 +433,212 @@ pub fn euv_web_boot() {
         let func: &Function = cb.as_ref().unchecked_ref();
         drop(win.request_animation_frame(func));
     }
+}
+
+/// Maps a browser `KeyboardEvent.key` string into a cross-platform `KeyCode`.
+///
+/// # Arguments
+///
+/// - `&str` - Browser DOM key name.
+///
+/// # Returns
+///
+/// - `KeyCode` - Normalized `euv` key code.
+#[cfg(target_arch = "wasm32")]
+fn web_map_key(key: &str) -> KeyCode {
+    match key {
+        WEB_KEY_ENTER => KeyCode::Enter,
+        WEB_KEY_BACKSPACE => KeyCode::Backspace,
+        WEB_KEY_DELETE => KeyCode::Delete,
+        WEB_KEY_ESCAPE => KeyCode::Escape,
+        WEB_KEY_TAB => KeyCode::Tab,
+        WEB_KEY_SPACE => KeyCode::Space,
+        WEB_KEY_ARROW_LEFT => KeyCode::ArrowLeft,
+        WEB_KEY_ARROW_RIGHT => KeyCode::ArrowRight,
+        WEB_KEY_ARROW_UP => KeyCode::ArrowUp,
+        WEB_KEY_ARROW_DOWN => KeyCode::ArrowDown,
+        other => other
+            .chars()
+            .next()
+            .map(KeyCode::Character)
+            .unwrap_or(KeyCode::Unknown),
+    }
+}
+
+/// Marks the coalesced Web animation-frame render flag so the next `requestAnimationFrame` flushes visual changes.
+#[cfg(target_arch = "wasm32")]
+fn web_mark_needs_frame() {
+    WEB_NEEDS_FRAME.with(|flag: &Cell<bool>| flag.set(true));
+}
+
+/// Enqueues a browser pointer move into the active WebAssembly runtime without synchronous full-frame rasterization.
+///
+/// # Arguments
+///
+/// - `f32` - Logical X coordinate.
+/// - `f32` - Logical Y coordinate.
+#[cfg(target_arch = "wasm32")]
+fn web_queue_pointer_move(x: f32, y: f32) {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            let wid: WindowId = app.get_window_state().get_id();
+            app.dispatch_window_event(WindowEvent::PointerMove(wid, PointerEvent::mouse(x, y)));
+            web_mark_needs_frame();
+        }
+    });
+}
+
+/// Enqueues a browser pointer press into the active WebAssembly runtime for the next animation frame.
+///
+/// # Arguments
+///
+/// - `f32` - Logical X coordinate.
+/// - `f32` - Logical Y coordinate.
+#[cfg(target_arch = "wasm32")]
+fn web_queue_pointer_down(x: f32, y: f32) {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            let wid: WindowId = app.get_window_state().get_id();
+            app.dispatch_window_event(WindowEvent::PointerDown(wid, PointerEvent::mouse(x, y)));
+            web_mark_needs_frame();
+        }
+    });
+}
+
+/// Enqueues a browser pointer release into the active WebAssembly runtime for the next animation frame.
+///
+/// # Arguments
+///
+/// - `f32` - Logical X coordinate.
+/// - `f32` - Logical Y coordinate.
+#[cfg(target_arch = "wasm32")]
+fn web_queue_pointer_up(x: f32, y: f32) {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            let wid: WindowId = app.get_window_state().get_id();
+            app.dispatch_window_event(WindowEvent::PointerUp(wid, PointerEvent::mouse(x, y)));
+            web_mark_needs_frame();
+        }
+    });
+}
+
+/// Enqueues a normalized browser wheel scroll delta for coalesced VSync rendering.
+///
+/// # Arguments
+///
+/// - `f32` - Horizontal scroll delta.
+/// - `f32` - Vertical scroll delta.
+#[cfg(target_arch = "wasm32")]
+fn web_queue_scroll(dx: f32, dy: f32) {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            let wid: WindowId = app.get_window_state().get_id();
+            app.dispatch_window_event(WindowEvent::Scroll(wid, Point::new(dx, dy)));
+            web_mark_needs_frame();
+        }
+    });
+}
+
+/// Enqueues a browser key-down and optional printable text event for the next animation frame.
+///
+/// # Arguments
+///
+/// - `&str` - DOM `KeyboardEvent.key` string.
+#[cfg(target_arch = "wasm32")]
+fn web_queue_key_down(key: &str) {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            let wid: WindowId = app.get_window_state().get_id();
+            let code: KeyCode = web_map_key(key);
+            let key_ev: WindowEvent =
+                WindowEvent::KeyDown(wid, KeyEvent::new(code, Modifiers::default(), false));
+            app.dispatch_window_event(key_ev);
+            if key.chars().count() == 1 {
+                app.dispatch_window_event(WindowEvent::TextInput(wid, key.to_string()));
+            }
+            web_mark_needs_frame();
+        }
+    });
+}
+
+/// Enqueues a browser key-up event into the active WebAssembly runtime and game host.
+///
+/// # Arguments
+///
+/// - `&str` - DOM `KeyboardEvent.key` string.
+#[cfg(target_arch = "wasm32")]
+fn web_queue_key_up(key: &str) {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            let wid: WindowId = app.get_window_state().get_id();
+            let code: KeyCode = web_map_key(key);
+            app.dispatch_window_event(WindowEvent::KeyUp(
+                wid,
+                KeyEvent::new(code, Modifiers::default(), false),
+            ));
+        }
+    });
+}
+
+/// Enqueues a browser resize event for immediate VSync coalesced redraw.
+///
+/// # Arguments
+///
+/// - `u32` - Logical viewport width.
+/// - `u32` - Logical viewport height.
+/// - `f32` - Active browser device pixel ratio.
+#[cfg(target_arch = "wasm32")]
+fn web_queue_resize(width: u32, height: u32, dpr: f32) {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            let w: u32 = width.max(320);
+            let h: u32 = height.max(320);
+            let scale: f32 = if dpr.is_finite() && dpr > 0.0 {
+                dpr
+            } else {
+                1.0
+            };
+            let wid: WindowId = app.get_window_state().get_id();
+            app.queue_window_command(WindowCommand::SetSize(wid, w, h));
+            app.dispatch_window_event(WindowEvent::Resized(wid, w, h, scale));
+            web_mark_needs_frame();
+        }
+    });
+}
+
+/// Steps one coalesced WebAssembly frame during `requestAnimationFrame`.
+///
+/// # Returns
+///
+/// - `u64` - Rendered frame hash.
+#[cfg(target_arch = "wasm32")]
+fn web_flush_frame() -> u64 {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        let mut borrow: RefMut<'_, Option<(App, ShowcaseState)>> = match slot.try_borrow_mut() {
+            Ok(guard) => guard,
+            Err(_) => return 0,
+        };
+        let Some((app, _)) = borrow.as_mut() else {
+            return 0;
+        };
+        app.step_frame()
+            .map(|stats: FrameStats| stats.get_frame_hash())
+            .unwrap_or(0)
+    })
 }
 
 /// Initializes the persistent WebAssembly showcase on the browser `<canvas>` and renders the first frame.
@@ -715,6 +933,30 @@ pub fn euv_web_resize(width: u32, height: u32, dpr: f32) -> u64 {
         app.step_frame()
             .map(|stats: FrameStats| stats.get_frame_hash())
             .unwrap_or(0)
+    })
+}
+
+/// Executes an AI Schema v1 JSON query against the live WebAssembly showcase in dev builds only (stripped in release).
+///
+/// # Arguments
+///
+/// - `&str` - Serialized `AiSchemaRequest` JSON string.
+///
+/// # Returns
+///
+/// - `String` - Serialized `AiSchemaResponse` JSON string.
+#[cfg(all(debug_assertions, target_arch = "wasm32"))]
+#[wasm_bindgen]
+pub fn euv_dev_ai_schema(request_json: &str) -> String {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        let mut borrow: RefMut<'_, Option<(App, ShowcaseState)>> = match slot.try_borrow_mut() {
+            Ok(guard) => guard,
+            Err(_) => return String::new(),
+        };
+        let Some((app, _)) = borrow.as_mut() else {
+            return String::new();
+        };
+        AiSchemaProtocol::handle_json(app, request_json)
     })
 }
 

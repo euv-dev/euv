@@ -290,6 +290,35 @@ impl PlatformBackend for WebPlatform {
         Ok(())
     }
 
+    /// Blits only the damaged physical rectangle of `framebuffer` onto the browser `CanvasRenderingContext2d`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable web platform.
+    /// - `WindowId` - Window handle.
+    /// - `&Framebuffer` - Rendered RGBA8 framebuffer.
+    /// - `DamageRegion` - Damaged physical pixel region.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<(), PlatformError>` - Presentation status.
+    fn present_framebuffer_region(
+        &mut self,
+        id: WindowId,
+        framebuffer: &Framebuffer,
+        damage: DamageRegion,
+    ) -> Result<(), PlatformError> {
+        let rec: &WebWindowRecord = self
+            .get_windows()
+            .get(&id)
+            .ok_or(PlatformError::WindowNotFound(id.get_value()))?;
+        let WebWindowRecord { ctx2d, .. } = rec;
+        if let Some(ctx) = ctx2d.as_ref() {
+            web_present_image_data_region(ctx, framebuffer, damage)?;
+        }
+        Ok(())
+    }
+
     /// Reads cached clipboard text.
     ///
     /// # Arguments

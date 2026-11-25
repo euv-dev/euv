@@ -187,6 +187,21 @@ impl SoftwareRenderer {
                 let c: Point = Point::new(center.get_x() * scale, center.get_y() * scale);
                 self.raster_circle(c, radius * scale, *color, active_clip)
             }
+            DrawCommand::Triangle { p0, p1, p2, color } => {
+                let v0: Point = Point::new(p0.get_x() * scale, p0.get_y() * scale);
+                let v1: Point = Point::new(p1.get_x() * scale, p1.get_y() * scale);
+                let v2: Point = Point::new(p2.get_x() * scale, p2.get_y() * scale);
+                self.raster_triangle(v0, v1, v2, *color, active_clip)
+            }
+            DrawCommand::SpriteRegion {
+                rect,
+                buffer,
+                src_rect,
+                tint,
+            } => {
+                let phys_rect: Rect = Self::scale_rect(*rect, scale);
+                self.raster_sprite_region(phys_rect, buffer, *src_rect, *tint, active_clip)
+            }
             DrawCommand::PushClip(rect) => {
                 let phys: Rect = Self::scale_rect(*rect, scale);
                 let next: Rect = active_clip.intersect(phys).unwrap_or_default();
@@ -343,7 +358,10 @@ impl SoftwareRenderer {
         let iy1: u32 = ((rect.bottom() - safe_inset).floor().max(0.0) as u32).clamp(y0, y1);
         let ix0: u32 = ((rect.get_x() + edge_inset).ceil().max(0.0) as u32).clamp(x0, x1);
         let ix1: u32 = ((rect.right() - edge_inset).floor().max(0.0) as u32).clamp(x0, x1);
+        let cx0: u32 = ((rect.get_x() + safe_inset).ceil().max(0.0) as u32).clamp(x0, x1);
+        let cx1: u32 = ((rect.right() - safe_inset).floor().max(0.0) as u32).clamp(x0, x1);
         let has_interior: bool = iy0 < iy1 && ix0 < ix1;
+        let has_center_band: bool = cx0 < cx1;
         let mut shaded: usize = 0;
         let fb: &mut Framebuffer = self.get_mut_framebuffer();
         for y in y0..y1 {
@@ -359,6 +377,38 @@ impl SoftwareRenderer {
                     shaded += (ix1 - ix0) as usize;
                 }
                 for x in ix1..x1 {
+                    shaded +=
+                        Self::shade_rounded_pixel(fb, (x, y), box_geom, radius, color, border, aa);
+                }
+            } else if has_center_band {
+                for x in x0..cx0 {
+                    shaded +=
+                        Self::shade_rounded_pixel(fb, (x, y), box_geom, radius, color, border, aa);
+                }
+                let dist_y: f32 = py.abs() - half_h;
+                let outer_cov: f32 = sdf_coverage(dist_y, aa);
+                if outer_cov > 0.0 {
+                    if has_border {
+                        let inner_cov: f32 = sdf_coverage(dist_y + border_w, aa);
+                        let border_cov: f32 = (outer_cov - inner_cov).clamp(0.0, 1.0);
+                        if inner_cov > 0.0 && color.get_a() > 0 {
+                            fb.fill_span(cx0, cx1, y, color.multiply_alpha(inner_cov));
+                        }
+                        if border_cov > 0.0 {
+                            fb.fill_span(
+                                cx0,
+                                cx1,
+                                y,
+                                border.get_color().multiply_alpha(border_cov),
+                            );
+                        }
+                        shaded += (cx1 - cx0) as usize;
+                    } else if color.get_a() > 0 {
+                        fb.fill_span(cx0, cx1, y, color.multiply_alpha(outer_cov));
+                        shaded += (cx1 - cx0) as usize;
+                    }
+                }
+                for x in cx1..x1 {
                     shaded +=
                         Self::shade_rounded_pixel(fb, (x, y), box_geom, radius, color, border, aa);
                 }
@@ -540,25 +590,115 @@ impl SoftwareRenderer {
         let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(self.get_framebuffer().get_width());
         let y1: u32 =
             (vis.bottom().ceil().max(0.0) as u32).min(self.get_framebuffer().get_height());
+        let r_max: f32 = radius.max_radius();
+        let inner_inset: f32 = blur + r_max;
+        let sy0: u32 = ((rect.get_y() + inner_inset).ceil().max(0.0) as u32).clamp(y0, y1);
+        let sy1: u32 = ((rect.bottom() - inner_inset).floor().max(0.0) as u32).clamp(y0, y1);
+        let sx0: u32 = ((rect.get_x() + inner_inset).ceil().max(0.0) as u32).clamp(x0, x1);
+        let sx1: u32 = ((rect.right() - inner_inset).floor().max(0.0) as u32).clamp(x0, x1);
+        let has_mid_band: bool = sx0 < sx1;
         let mut shaded: usize = 0;
+        let fb: &mut Framebuffer = self.get_mut_framebuffer();
         for y in y0..y1 {
             let py: f32 = (y as f32) + 0.5 - cy;
-            for x in x0..x1 {
-                let px: f32 = (x as f32) + 0.5 - cx;
-                let dist: f32 = rounded_box_sdf(px, py, inner_w, inner_h, radius.max_radius());
-                if dist >= blur {
-                    continue;
+            if has_mid_band && y >= sy0 && y < sy1 {
+                for x in x0..sx0 {
+                    let px: f32 = (x as f32) + 0.5 - cx;
+                    let dist: f32 = rounded_box_sdf(px, py, inner_w, inner_h, r_max);
+                    if dist < blur {
+                        let falloff: f32 = if dist <= 0.0 {
+                            1.0
+                        } else {
+                            let norm: f32 = 1.0 - (dist * inv_blur).clamp(0.0, 1.0);
+                            norm * norm
+                        };
+                        if falloff > 0.0 {
+                            fb.blend_pixel(x, y, color.multiply_alpha(falloff));
+                            shaded += 1;
+                        }
+                    }
                 }
-                let falloff: f32 = if dist <= 0.0 {
-                    1.0
-                } else {
-                    let norm: f32 = 1.0 - (dist * inv_blur).clamp(0.0, 1.0);
-                    norm * norm
-                };
-                if falloff > 0.0 {
-                    self.get_mut_framebuffer()
-                        .blend_pixel(x, y, color.multiply_alpha(falloff));
-                    shaded += 1;
+                fb.fill_span(sx0, sx1, y, color);
+                shaded += (sx1 - sx0) as usize;
+                for x in sx1..x1 {
+                    let px: f32 = (x as f32) + 0.5 - cx;
+                    let dist: f32 = rounded_box_sdf(px, py, inner_w, inner_h, r_max);
+                    if dist < blur {
+                        let falloff: f32 = if dist <= 0.0 {
+                            1.0
+                        } else {
+                            let norm: f32 = 1.0 - (dist * inv_blur).clamp(0.0, 1.0);
+                            norm * norm
+                        };
+                        if falloff > 0.0 {
+                            fb.blend_pixel(x, y, color.multiply_alpha(falloff));
+                            shaded += 1;
+                        }
+                    }
+                }
+            } else if has_mid_band {
+                for x in x0..sx0 {
+                    let px: f32 = (x as f32) + 0.5 - cx;
+                    let dist: f32 = rounded_box_sdf(px, py, inner_w, inner_h, r_max);
+                    if dist < blur {
+                        let falloff: f32 = if dist <= 0.0 {
+                            1.0
+                        } else {
+                            let norm: f32 = 1.0 - (dist * inv_blur).clamp(0.0, 1.0);
+                            norm * norm
+                        };
+                        if falloff > 0.0 {
+                            fb.blend_pixel(x, y, color.multiply_alpha(falloff));
+                            shaded += 1;
+                        }
+                    }
+                }
+                let dist_y: f32 = py.abs() - inner_h;
+                if dist_y < blur {
+                    let falloff: f32 = if dist_y <= 0.0 {
+                        1.0
+                    } else {
+                        let norm: f32 = 1.0 - (dist_y * inv_blur).clamp(0.0, 1.0);
+                        norm * norm
+                    };
+                    if falloff > 0.0 {
+                        fb.fill_span(sx0, sx1, y, color.multiply_alpha(falloff));
+                        shaded += (sx1 - sx0) as usize;
+                    }
+                }
+                for x in sx1..x1 {
+                    let px: f32 = (x as f32) + 0.5 - cx;
+                    let dist: f32 = rounded_box_sdf(px, py, inner_w, inner_h, r_max);
+                    if dist < blur {
+                        let falloff: f32 = if dist <= 0.0 {
+                            1.0
+                        } else {
+                            let norm: f32 = 1.0 - (dist * inv_blur).clamp(0.0, 1.0);
+                            norm * norm
+                        };
+                        if falloff > 0.0 {
+                            fb.blend_pixel(x, y, color.multiply_alpha(falloff));
+                            shaded += 1;
+                        }
+                    }
+                }
+            } else {
+                for x in x0..x1 {
+                    let px: f32 = (x as f32) + 0.5 - cx;
+                    let dist: f32 = rounded_box_sdf(px, py, inner_w, inner_h, r_max);
+                    if dist >= blur {
+                        continue;
+                    }
+                    let falloff: f32 = if dist <= 0.0 {
+                        1.0
+                    } else {
+                        let norm: f32 = 1.0 - (dist * inv_blur).clamp(0.0, 1.0);
+                        norm * norm
+                    };
+                    if falloff > 0.0 {
+                        fb.blend_pixel(x, y, color.multiply_alpha(falloff));
+                        shaded += 1;
+                    }
                 }
             }
         }
@@ -587,6 +727,20 @@ impl SoftwareRenderer {
         scale: f32,
         clip: Rect,
     ) -> usize {
+        if text.is_empty() || style.get_color().get_a() == 0 {
+            return 0;
+        }
+        let phys_rect: Rect = Self::scale_rect(rect, scale);
+        let pad: f32 = style.get_font_size() * scale * 0.5;
+        let expanded_bounds: Rect = Rect::new(
+            phys_rect.get_x() - pad,
+            phys_rect.get_y() - pad,
+            phys_rect.get_width() + pad * 2.0,
+            phys_rect.get_height() + pad * 2.0,
+        );
+        if expanded_bounds.intersect(clip).is_none() {
+            return 0;
+        }
         let layout: TextLayoutResult =
             self.get_measurer()
                 .measure(text, style, Some(rect.get_width().max(1.0)));
@@ -600,6 +754,11 @@ impl SoftwareRenderer {
             (clip.right().floor().max(0.0) as i32).min(self.get_framebuffer().get_width() as i32);
         let clip_y1: i32 =
             (clip.bottom().floor().max(0.0) as i32).min(self.get_framebuffer().get_height() as i32);
+        if clip_x0 >= clip_x1 || clip_y0 >= clip_y1 {
+            return 0;
+        }
+        let letter_sp: f32 = style.get_letter_spacing() * scale;
+        let space_adv: f32 = measure_char_advance(' ', style) * scale;
         let mut shaded: usize = 0;
         let Self {
             framebuffer,
@@ -608,31 +767,40 @@ impl SoftwareRenderer {
             ..
         } = self;
         for (line_idx, line) in layout.get_lines().iter().enumerate() {
-            let letter_sp: f32 = style.get_letter_spacing() * scale;
-            let space_adv: f32 = measure_char_advance(' ', style) * scale;
-            let mut line_w_phys: f32 = 0.0;
-            for ch in line.get_text().chars() {
-                if ch == ' ' {
-                    line_w_phys += space_adv + letter_sp;
-                } else {
-                    let key: GlyphKey =
-                        GlyphKey::from_style(ch, phys_font_size, style.get_weight());
-                    let glyph: &RasterizedGlyph =
-                        glyph_atlas.get_or_rasterize_with(key, font_provider);
-                    line_w_phys += (glyph.get_advance() as f32).max(1.0) + letter_sp;
-                }
+            let pen_y: f32 = rect.get_y() * scale + (line_idx as f32) * line_h_phys;
+            if (pen_y + line_h_phys) < (clip_y0 as f32) || pen_y > (clip_y1 as f32) {
+                continue;
             }
             let align_x: f32 = match style.get_align() {
                 TextAlign::Left => 0.0,
-                TextAlign::Center => ((box_w_phys - line_w_phys) * 0.5).max(0.0),
-                TextAlign::Right => (box_w_phys - line_w_phys).max(0.0),
+                TextAlign::Center | TextAlign::Right => {
+                    let mut line_w_phys: f32 = 0.0;
+                    for ch in line.get_text().chars() {
+                        if ch == ' ' {
+                            line_w_phys += space_adv + letter_sp;
+                        } else {
+                            let key: GlyphKey =
+                                GlyphKey::from_style(ch, phys_font_size, style.get_weight());
+                            let glyph: &RasterizedGlyph =
+                                glyph_atlas.get_or_rasterize_with(key, font_provider);
+                            line_w_phys += (glyph.get_advance() as f32).max(1.0) + letter_sp;
+                        }
+                    }
+                    if style.get_align() == TextAlign::Center {
+                        ((box_w_phys - line_w_phys) * 0.5).max(0.0)
+                    } else {
+                        (box_w_phys - line_w_phys).max(0.0)
+                    }
+                }
             };
             let mut pen_x: f32 = rect.get_x() * scale + align_x;
-            let pen_y: f32 = rect.get_y() * scale + (line_idx as f32) * line_h_phys;
             for ch in line.get_text().chars() {
                 if ch == ' ' {
                     pen_x += space_adv + letter_sp;
                     continue;
+                }
+                if pen_x > (clip_x1 as f32) {
+                    break;
                 }
                 let key: GlyphKey = GlyphKey::from_style(ch, phys_font_size, style.get_weight());
                 let glyph: &RasterizedGlyph = glyph_atlas.get_or_rasterize_with(key, font_provider);
@@ -649,23 +817,14 @@ impl SoftwareRenderer {
                 if py_start < py_end && px_start < px_end {
                     let cov_bytes: &[u8] = glyph.get_coverage().as_slice();
                     let gw_usize: usize = gw as usize;
+                    let dx: u32 = (gx0 + px_start) as u32;
+                    let start_u: usize = px_start as usize;
+                    let end_u: usize = px_end as usize;
                     for py in py_start..py_end {
                         let dy: u32 = (gy0 + py) as u32;
                         let row_off: usize = (py as usize) * gw_usize;
-                        for px in px_start..px_end {
-                            let alpha_byte: u8 = cov_bytes[row_off + (px as usize)];
-                            if alpha_byte > 0 {
-                                let eff_a: u8 = (((color.get_a() as u32) * (alpha_byte as u32)
-                                    + 127)
-                                    / 255) as u8;
-                                framebuffer.blend_pixel(
-                                    (gx0 + px) as u32,
-                                    dy,
-                                    Color::new(color.get_r(), color.get_g(), color.get_b(), eff_a),
-                                );
-                                shaded += 1;
-                            }
-                        }
+                        let row_slice: &[u8] = &cov_bytes[row_off + start_u..row_off + end_u];
+                        shaded += framebuffer.blend_glyph_row(dx, dy, row_slice, color);
                     }
                 }
                 pen_x += adv_phys;
@@ -828,7 +987,7 @@ impl SoftwareRenderer {
     ///
     /// - `usize` - Shaded pixel count.
     fn raster_circle(&mut self, center: Point, radius: f32, color: Color, clip: Rect) -> usize {
-        if radius <= 0.0 {
+        if radius <= 0.0 || color.get_a() == 0 {
             return 0;
         }
         let bounds: Rect = Rect::new(
@@ -841,22 +1000,220 @@ impl SoftwareRenderer {
             return 0;
         };
         let aa: AntialiasingMode = self.get_antialiasing();
-        let x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(self.get_framebuffer().get_width());
-        let y0: u32 =
-            (vis.get_y().floor().max(0.0) as u32).min(self.get_framebuffer().get_height());
-        let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(self.get_framebuffer().get_width());
-        let y1: u32 =
-            (vis.bottom().ceil().max(0.0) as u32).min(self.get_framebuffer().get_height());
+        let fb_w: u32 = self.get_framebuffer().get_width();
+        let fb_h: u32 = self.get_framebuffer().get_height();
+        let x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(fb_w);
+        let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(fb_h);
+        let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
+        let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(fb_h);
+        let outer_r: f32 = radius + 1.0;
+        let inner_r: f32 = (radius - 1.0).max(0.0);
+        let outer_r2: f32 = outer_r * outer_r;
+        let inner_r2: f32 = inner_r * inner_r;
+        let cx: f32 = center.get_x();
+        let cy: f32 = center.get_y();
         let mut shaded: usize = 0;
+        let fb: &mut Framebuffer = self.get_mut_framebuffer();
         for y in y0..y1 {
-            let dy: f32 = (y as f32) + 0.5 - center.get_y();
+            let dy: f32 = (y as f32) + 0.5 - cy;
+            let dy2: f32 = dy * dy;
+            if dy2 >= outer_r2 {
+                continue;
+            }
+            let out_dx: f32 = (outer_r2 - dy2).sqrt();
+            let row_x0: u32 = ((cx - out_dx).floor().max(0.0) as u32).clamp(x0, x1);
+            let row_x1: u32 = ((cx + out_dx).ceil().max(0.0) as u32).clamp(x0, x1);
+            if dy2 < inner_r2 && inner_r > 1.0 {
+                let in_dx: f32 = (inner_r2 - dy2).sqrt();
+                let in_x0: u32 = ((cx - in_dx).ceil().max(0.0) as u32).clamp(row_x0, row_x1);
+                let in_x1: u32 = ((cx + in_dx).floor().max(0.0) as u32).clamp(row_x0, row_x1);
+                for x in row_x0..in_x0 {
+                    let dx: f32 = (x as f32) + 0.5 - cx;
+                    let cov: f32 = sdf_coverage((dx * dx + dy2).sqrt() - radius, aa);
+                    if cov > 0.0 {
+                        fb.blend_pixel(x, y, color.multiply_alpha(cov));
+                        shaded += 1;
+                    }
+                }
+                if in_x0 < in_x1 {
+                    fb.fill_span(in_x0, in_x1, y, color);
+                    shaded += (in_x1 - in_x0) as usize;
+                }
+                for x in in_x1..row_x1 {
+                    let dx: f32 = (x as f32) + 0.5 - cx;
+                    let cov: f32 = sdf_coverage((dx * dx + dy2).sqrt() - radius, aa);
+                    if cov > 0.0 {
+                        fb.blend_pixel(x, y, color.multiply_alpha(cov));
+                        shaded += 1;
+                    }
+                }
+            } else {
+                for x in row_x0..row_x1 {
+                    let dx: f32 = (x as f32) + 0.5 - cx;
+                    let cov: f32 = sdf_coverage((dx * dx + dy2).sqrt() - radius, aa);
+                    if cov > 0.0 {
+                        fb.blend_pixel(x, y, color.multiply_alpha(cov));
+                        shaded += 1;
+                    }
+                }
+            }
+        }
+        shaded
+    }
+
+    /// Rasterizes a solid filled triangle using fast scanline edge-intersection spans.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable software renderer.
+    /// - `Point` - First physical vertex.
+    /// - `Point` - Second physical vertex.
+    /// - `Point` - Third physical vertex.
+    /// - `Color` - Fill color.
+    /// - `Rect` - Active clip bounds.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Shaded pixel count.
+    fn raster_triangle(
+        &mut self,
+        p0: Point,
+        p1: Point,
+        p2: Point,
+        color: Color,
+        clip: Rect,
+    ) -> usize {
+        if color.get_a() == 0 {
+            return 0;
+        }
+        let min_x: f32 = p0.get_x().min(p1.get_x()).min(p2.get_x());
+        let min_y: f32 = p0.get_y().min(p1.get_y()).min(p2.get_y());
+        let max_x: f32 = p0.get_x().max(p1.get_x()).max(p2.get_x());
+        let max_y: f32 = p0.get_y().max(p1.get_y()).max(p2.get_y());
+        let Some(vis) = Rect::new(min_x, min_y, max_x - min_x, max_y - min_y).intersect(clip)
+        else {
+            return 0;
+        };
+        let fb_w: u32 = self.get_framebuffer().get_width();
+        let fb_h: u32 = self.get_framebuffer().get_height();
+        let clip_x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(fb_w);
+        let clip_x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
+        let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(fb_h);
+        let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(fb_h);
+        let edges: [(Point, Point); 3] = [(p0, p1), (p1, p2), (p2, p0)];
+        let mut shaded: usize = 0;
+        let fb: &mut Framebuffer = self.get_mut_framebuffer();
+        for y in y0..y1 {
+            let py: f32 = (y as f32) + 0.5;
+            let mut min_ix: f32 = f32::INFINITY;
+            let mut max_ix: f32 = f32::NEG_INFINITY;
+            for (a, b) in edges.iter() {
+                let ay: f32 = a.get_y();
+                let by: f32 = b.get_y();
+                if (ay <= py && by > py) || (by <= py && ay > py) {
+                    let t: f32 = (py - ay) / (by - ay);
+                    let ix: f32 = a.get_x() + t * (b.get_x() - a.get_x());
+                    min_ix = min_ix.min(ix);
+                    max_ix = max_ix.max(ix);
+                }
+            }
+            if min_ix <= max_ix {
+                let sx0: u32 = (min_ix.floor().max(0.0) as u32).clamp(clip_x0, clip_x1);
+                let sx1: u32 = (max_ix.ceil().max(0.0) as u32).clamp(clip_x0, clip_x1);
+                if sx0 < sx1 {
+                    fb.fill_span(sx0, sx1, y, color);
+                    shaded += (sx1 - sx0) as usize;
+                }
+            }
+        }
+        shaded
+    }
+
+    /// Blits a cropped sub-rectangle of an `ImageBuffer` sprite sheet with optional color tint.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable software renderer.
+    /// - `Rect` - Physical destination bounds.
+    /// - `&ImageBuffer` - Source sprite-sheet RGBA8 buffer.
+    /// - `Rect` - Source pixel sub-rectangle.
+    /// - `Color` - Multiplicative tint color.
+    /// - `Rect` - Active clip bounds.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Shaded pixel count.
+    fn raster_sprite_region(
+        &mut self,
+        rect: Rect,
+        buffer: &ImageBuffer,
+        src_rect: Rect,
+        tint: Color,
+        clip: Rect,
+    ) -> usize {
+        if buffer.get_width() == 0
+            || buffer.get_height() == 0
+            || tint.get_a() == 0
+            || src_rect.get_width() <= 0.0
+            || src_rect.get_height() <= 0.0
+        {
+            return 0;
+        }
+        let Some(vis) = rect.intersect(clip) else {
+            return 0;
+        };
+        let fb_w: u32 = self.get_framebuffer().get_width();
+        let fb_h: u32 = self.get_framebuffer().get_height();
+        let x0: u32 = (vis.get_x().floor().max(0.0) as u32).min(fb_w);
+        let y0: u32 = (vis.get_y().floor().max(0.0) as u32).min(fb_h);
+        let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
+        let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).min(fb_h);
+        let buf_w: u32 = buffer.get_width();
+        let buf_h: u32 = buffer.get_height();
+        let src_bytes: &[u8] = buffer.get_pixels().as_slice();
+        let inv_w: f32 = 1.0 / rect.get_width().max(1.0);
+        let inv_h: f32 = 1.0 / rect.get_height().max(1.0);
+        let untinted: bool = tint == COLOR_WHITE;
+        let tr: u32 = tint.get_r() as u32;
+        let tg: u32 = tint.get_g() as u32;
+        let tb: u32 = tint.get_b() as u32;
+        let ta: u32 = tint.get_a() as u32;
+        let mut shaded: usize = 0;
+        let fb: &mut Framebuffer = self.get_mut_framebuffer();
+        for y in y0..y1 {
+            let v: f32 = (((y as f32) - rect.get_y()) * inv_h).clamp(0.0, 0.9999);
+            let sy: u32 = ((src_rect.get_y() + v * src_rect.get_height())
+                .floor()
+                .max(0.0) as u32)
+                .min(buf_h - 1);
+            let sy_row: usize = (sy as usize) * (buf_w as usize);
             for x in x0..x1 {
-                let dx: f32 = (x as f32) + 0.5 - center.get_x();
-                let dist: f32 = (dx * dx + dy * dy).sqrt() - radius;
-                let cov: f32 = sdf_coverage(dist, aa);
-                if cov > 0.0 {
-                    self.get_mut_framebuffer()
-                        .blend_pixel(x, y, color.multiply_alpha(cov));
+                let u: f32 = (((x as f32) - rect.get_x()) * inv_w).clamp(0.0, 0.9999);
+                let sx: u32 = ((src_rect.get_x() + u * src_rect.get_width())
+                    .floor()
+                    .max(0.0) as u32)
+                    .min(buf_w - 1);
+                let idx: usize = (sy_row + (sx as usize)) * 4;
+                if idx + 4 <= src_bytes.len() {
+                    let a: u8 = src_bytes[idx + 3];
+                    if a == 0 {
+                        continue;
+                    }
+                    let sample: Color = if untinted {
+                        Color::new(src_bytes[idx], src_bytes[idx + 1], src_bytes[idx + 2], a)
+                    } else {
+                        let rr: u32 = (src_bytes[idx] as u32) * tr + 128;
+                        let gg: u32 = (src_bytes[idx + 1] as u32) * tg + 128;
+                        let bb: u32 = (src_bytes[idx + 2] as u32) * tb + 128;
+                        let aa_v: u32 = (a as u32) * ta + 128;
+                        Color::new(
+                            ((rr + (rr >> 8)) >> 8) as u8,
+                            ((gg + (gg >> 8)) >> 8) as u8,
+                            ((bb + (bb >> 8)) >> 8) as u8,
+                            ((aa_v + (aa_v >> 8)) >> 8) as u8,
+                        )
+                    };
+                    fb.blend_pixel(x, y, sample);
                     shaded += 1;
                 }
             }

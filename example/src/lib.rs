@@ -14,9 +14,11 @@ mod tests;
 
 pub use {app::*, pages::*, state::*};
 
+#[cfg(all(debug_assertions, target_arch = "wasm32"))]
+use euv_automation::AiSchemaProtocol;
 #[cfg(target_arch = "wasm32")]
-use std::cell::{RefCell, RefMut};
-use std::rc::Rc;
+use std::cell::{Cell, RefCell, RefMut};
+use std::{f32::consts::PI, rc::Rc};
 #[cfg(not(target_arch = "wasm32"))]
 use std::{
     fs,
@@ -26,7 +28,7 @@ use std::{
 use {
     euv::*,
     euv_ui::*,
-    lombok_macros::{Data, Getter, New},
+    lombok_macros::{Data, Getter},
 };
 #[cfg(target_arch = "wasm32")]
 use {

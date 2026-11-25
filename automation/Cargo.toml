@@ -1,0 +1,23 @@
+[package]
+name = "euv-automation"
+version.workspace = true
+readme.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = """Dev-only UI automation testing framework and AI Schema v1 runtime/layout introspection protocol for euv, compiled out completely in release builds."""
+keywords = ["euv", "automation", "testing", "ai-schema", "ui"]
+categories = ["development-tools::testing"]
+exclude.workspace = true
+autotests = false
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+euv = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+lombok-macros = { workspace = true }

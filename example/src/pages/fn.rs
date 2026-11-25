@@ -773,21 +773,32 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let p: ThemePalette = tokens.get_palette();
     let host: GameEngineHost = state.get_game_host().clone();
     let host_btn: GameEngineHost = host.clone();
+    let host_wave: GameEngineHost = host.clone();
     let viewport: NodeId = host.mount_viewport(
         Style::empty()
             .width(Length::Percent(100.0))
-            .height(Length::Px(220.0))
+            .height(Length::Px(340.0))
             .border(g.get_border_width(), p.get_border())
             .radius(g.get_radius_md()),
     );
+    let mut wave_btn: EuvButton =
+        EuvButton::new("Spawn Enemy Wave".to_string(), tokens).on_click(move |_: &UiEvent| {
+            host_wave.ingest_event(&WindowEvent::KeyDown(
+                WindowId::new(1),
+                KeyEvent::new(KeyCode::Character('r'), Modifiers::default(), false),
+            ));
+            let _: u32 = host_wave.step(1.0 / 60.0);
+        });
+    wave_btn.set_variant(EuvButtonVariant::Outline);
     let body: NodeId = view! {
         column {
             gap: SPACE_MD
             row {
                 style: c_action_row()
-                { EuvBadge::new("60Hz Fixed Timestep".to_string(), EuvTone::Success, tokens) }
-                { EuvBadge::new("HUD Overlay Ready".to_string(), EuvTone::Primary, tokens) }
+                { EuvBadge::new("ECS + Physics 2D".to_string(), EuvTone::Success, tokens) }
+                { EuvBadge::new("Camera2D + Particles + TileMap".to_string(), EuvTone::Primary, tokens) }
                 { EuvButton::new(BTN_STEP_PHYSICS.to_string(), tokens).on_click(move |_: &UiEvent| { let _: u32 = host_btn.step(0.051); }) }
+                { wave_btn }
             }
             { viewport }
         }

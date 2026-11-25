@@ -23,6 +23,9 @@ pub struct Renderer {
     /// Monotonic frame counter.
     #[get(type(copy))]
     pub(crate) frame_index: u64,
+    /// Whether to compute full-framebuffer FNV-1a pixel hashes on each frame (enabled for headless parity tests).
+    #[get(type(copy))]
+    pub(crate) compute_pixel_hash: bool,
     /// Telemetry from the most recent frame.
     #[get(type(copy))]
     pub(crate) last_stats: FrameStats,

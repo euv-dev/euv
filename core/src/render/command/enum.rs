@@ -72,6 +72,28 @@ pub enum DrawCommand {
         /// Fill color.
         color: Color,
     },
+    /// Draws a filled triangle primitive (used by 2D game meshes, spaceships, lasers, and polygons).
+    Triangle {
+        /// First vertex in logical pixels.
+        p0: Point,
+        /// Second vertex in logical pixels.
+        p1: Point,
+        /// Third vertex in logical pixels.
+        p2: Point,
+        /// Fill color.
+        color: Color,
+    },
+    /// Blits a cropped sub-region of an `ImageBuffer` sprite sheet with optional tint color.
+    SpriteRegion {
+        /// Destination bounds in logical pixels.
+        rect: Rect,
+        /// Source sprite-sheet RGBA8 buffer.
+        buffer: ImageBuffer,
+        /// Source pixel sub-rectangle `(x, y, w, h)`.
+        src_rect: Rect,
+        /// Multiplicative tint color (`COLOR_WHITE` for untinted).
+        tint: Color,
+    },
     /// Pushes an axis-aligned clip rectangle onto the clip stack.
     PushClip(Rect),
     /// Pops the top clip rectangle from the clip stack.

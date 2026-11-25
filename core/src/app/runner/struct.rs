@@ -53,4 +53,13 @@ pub struct App {
     pub(crate) deep_link: Signal<Option<DeepLinkEvent>>,
     /// Shared dynamic update hub for live component-level and page-level OTA updates.
     pub(crate) dynamic_hub: DynamicUpdateHub,
+    /// Last scene revision that was rasterized and presented, enabling zero-cost idle frame skipping.
+    #[get(type(copy))]
+    pub(crate) last_rendered_revision: u64,
+    /// Most recently submitted OS/Web cursor icon to avoid redundant platform cursor calls.
+    #[get(type(copy))]
+    pub(crate) last_cursor: CursorIcon,
+    /// Attached real-time game engine hosts receiving automatic OS input forwarding.
+    #[debug(skip)]
+    pub(crate) game_hosts: Vec<GameEngineHost>,
 }
