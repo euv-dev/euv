@@ -639,6 +639,7 @@ impl BuildContext {
             theme_mode: Signal::new(ThemeMode::Light),
             platform,
             safe_area: Signal::new(SafeAreaInsets::default()),
+            dynamic_hub: DynamicUpdateHub::new(),
         }
     }
 

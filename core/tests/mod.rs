@@ -1,3 +1,4 @@
+mod dynamic;
 mod game;
 mod layout;
 mod reactive;

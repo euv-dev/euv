@@ -16,6 +16,8 @@ autotests = false
 crate-type = ["rlib"]
 
 [dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
 lombok-macros = { workspace = true }
 
 [target.'cfg(target_arch="wasm32")'.dependencies]

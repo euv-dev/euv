@@ -115,6 +115,14 @@ pub struct ShowcaseState {
     pub(crate) haptic_pulses: Signal<u32>,
     /// Embedded deterministic 2D physics game host rendered directly inside `euv`.
     pub(crate) game_host: GameEngineHost,
+    /// Shared hub managing live component-level and page-level dynamic OTA updates.
+    pub(crate) dynamic_hub: DynamicUpdateHub,
+    /// Sibling counter preserved untouched during surgical component-level dynamic updates.
+    #[get(type(copy))]
+    pub(crate) sibling_counter: Signal<i32>,
+    /// Human-readable log of the most recent action dispatched from a dynamically updated control.
+    #[get(type(copy))]
+    pub(crate) dynamic_action_log: Signal<String>,
 }
 
 /// Deterministic 2D physics scene showcasing `GameScene`, `FrameClock`, `InputState`, and HUD overlay.

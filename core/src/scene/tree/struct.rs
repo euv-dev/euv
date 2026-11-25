@@ -45,6 +45,8 @@ pub struct BuildContext {
     /// Active safe-area insets signal.
     #[get(type(copy))]
     pub(crate) safe_area: Signal<SafeAreaInsets>,
+    /// Shared dynamic update hub enabling ambient component-level and page-level live updates.
+    pub(crate) dynamic_hub: DynamicUpdateHub,
 }
 
 /// RAII scope guard restoring the previous ambient `BuildContext` on drop.

@@ -42,11 +42,35 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
     let mut ctx: BuildContext = current_build_context();
     ctx.bind_children(host, move || {
         let tokens: ThemeTokens = state_c.get_theme().get_tokens().get();
-        let active_route: String = state_c.get_route().get();
+        let hub: DynamicUpdateHub = state_c.get_dynamic_hub().clone();
+        let _: u64 = hub.routes_signal().get();
+        let mut nav_items: Vec<EuvNavItem> = ShowcaseState::nav_items();
+        for dyn_route in hub.registered_routes().into_iter() {
+            if dyn_route == ROUTE_DYNAMIC_PANEL {
+                continue;
+            }
+            if !nav_items
+                .iter()
+                .any(|item: &EuvNavItem| item.get_path().as_str() == dyn_route.as_str())
+            {
+                let label: String = hub
+                    .page_title(&dyn_route)
+                    .filter(|t: &String| !t.is_empty())
+                    .unwrap_or_else(|| dyn_route.clone());
+                nav_items.push(EuvNavItem::new(dyn_route, label));
+            }
+        }
         let nav: NodeId =
-            EuvSidebarNav::new(ShowcaseState::nav_items(), state_c.get_route(), tokens)
-                .mount_current();
-        let page_node: NodeId = mount_route_by_name(&active_route, &state_c, tokens);
+            EuvSidebarNav::new(nav_items, state_c.get_route(), tokens).mount_current();
+        let state_for_outlet: ShowcaseState = state_c.clone();
+        let mut outlet: DynamicPageOutlet = DynamicPageOutlet::new(
+            state_c.get_route(),
+            Rc::new(move |active_route: &str| {
+                mount_route_by_name(active_route, &state_for_outlet, tokens)
+            }),
+        );
+        outlet.set_hub(Some(hub));
+        let page_node: NodeId = outlet.mount_current();
         let shell: NodeId =
             EuvAppShell::new(SHOWCASE_BRAND.to_string(), nav, page_node, tokens).mount_current();
         vec![shell]
@@ -90,6 +114,7 @@ fn mount_route_by_name(route: &str, state: &ShowcaseState, tokens: ThemeTokens) 
         ROUTE_DATA => mount_data_page(state, tokens),
         ROUTE_GAME => mount_game_page(state, tokens),
         ROUTE_OVERLAYS => mount_overlays_page(state, tokens),
+        ROUTE_DYNAMIC => mount_dynamic_page(state, tokens),
         _ => mount_overview_page(state, tokens),
     }
 }
@@ -812,6 +837,343 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
             { EuvToast::new(toast_visible, TOAST_TEXT.to_string(), EuvTone::Success, tokens) }
             { EuvNotification::new(notif_visible, "Native Sync".to_string(), "All 7 targets active.".to_string(), EuvTone::Success, tokens) }
             { EuvLoading::new(state.get_loading_active(), "Syncing...".to_string(), tokens) }
+        }
+    }
+}
+
+/// Mounts the interactive component-level and page-level dynamic OTA updates showcase page.
+///
+/// # Arguments
+///
+/// - `&ShowcaseState` - Reactive showcase state.
+/// - `ThemeTokens` - Active design tokens.
+///
+/// # Returns
+///
+/// - `NodeId` - Mounted dynamic updates page node.
+pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
+    let p: ThemePalette = tokens.get_palette();
+    let g: ThemeGeometry = tokens.get_geometry();
+    let hub: DynamicUpdateHub = state.get_dynamic_hub().clone();
+    let sibling_counter: Signal<i32> = state.get_sibling_counter();
+    let action_log: Signal<String> = state.get_dynamic_action_log();
+    let route_sig: Signal<String> = state.get_route();
+    let tel_sig: Signal<DynamicTelemetry> = hub.telemetry();
+    let banner_rev: Signal<u64> = hub.component_revision_signal(SLOT_PROMO_BANNER);
+    let metrics_rev: Signal<u64> = hub.component_revision_signal(SLOT_METRICS_WIDGET);
+    let panel_rev: Signal<u64> = hub.page_revision_signal(ROUTE_DYNAMIC_PANEL);
+    let hub_v1: DynamicUpdateHub = hub.clone();
+    let hub_v2: DynamicUpdateHub = hub.clone();
+    let hub_rb: DynamicUpdateHub = hub.clone();
+    let hub_m1: DynamicUpdateHub = hub.clone();
+    let hub_mrb: DynamicUpdateHub = hub.clone();
+    let hub_p1: DynamicUpdateHub = hub.clone();
+    let hub_bundle: DynamicUpdateHub = hub.clone();
+    let hub_prb: DynamicUpdateHub = hub.clone();
+    let hub_inject: DynamicUpdateHub = hub.clone();
+    let hub_for_status: DynamicUpdateHub = hub.clone();
+    let mut btn_banner_v2: EuvButton =
+        EuvButton::new(BTN_PUSH_BANNER_V2.to_string(), tokens).on_click(move |_: &UiEvent| {
+            let next_v: u64 = hub_v2.component_version(SLOT_PROMO_BANNER).saturating_add(1).max(2);
+            let hub_act: DynamicUpdateHub = hub_v2.clone();
+            let _: Result<u64, DynamicUpdateError> = hub_v2.swap_component_builder(
+                SLOT_PROMO_BANNER.to_string(),
+                next_v,
+                move || {
+                    let hub_click: DynamicUpdateHub = hub_act.clone();
+                    view! {
+                        row {
+                            width: Length::Percent(100.0)
+                            padding: Edges::all(SPACE_MD)
+                            gap: SPACE_MD
+                            align: AlignItems::Center
+                            background: Color::hex(0x064E3B)
+                            radius: 8.0
+                            text {
+                                font_size: 14.0
+                                font_weight: FontWeight::Bold
+                                color: Color::hex(0xECFDF5)
+                                { format!("Native Hot-Swapped Banner v{next_v} (Zero Restart)") }
+                            }
+                            { EuvButton::new(BTN_CLAIM_OFFER.to_string(), tokens).on_click(move |_: &UiEvent| {
+                                hub_click.dispatch_action(DynamicActionEvent::new(
+                                    SLOT_PROMO_BANNER.to_string(),
+                                    "claim_offer".to_string(),
+                                    format!("native-v{next_v}"),
+                                ));
+                            }) }
+                        }
+                    }
+                },
+            );
+        });
+    btn_banner_v2.set_variant(EuvButtonVariant::Secondary);
+    let mut btn_banner_rb: EuvButton = EuvButton::new(BTN_ROLLBACK_BANNER.to_string(), tokens)
+        .on_click(move |_: &UiEvent| {
+            let _: Result<u64, DynamicUpdateError> = hub_rb.rollback_component(SLOT_PROMO_BANNER);
+        });
+    btn_banner_rb.set_variant(EuvButtonVariant::Outline);
+    let mut btn_metrics_rb: EuvButton = EuvButton::new(BTN_ROLLBACK_METRICS.to_string(), tokens)
+        .on_click(move |_: &UiEvent| {
+            let _: Result<u64, DynamicUpdateError> =
+                hub_mrb.rollback_component(SLOT_METRICS_WIDGET);
+        });
+    btn_metrics_rb.set_variant(EuvButtonVariant::Outline);
+    let mut btn_sibling: EuvButton =
+        EuvButton::new(BTN_INC_SIBLING.to_string(), tokens).on_click(move |_: &UiEvent| {
+            let _: bool = sibling_counter.update(|v: &mut i32| *v += 1);
+        });
+    btn_sibling.set_variant(EuvButtonVariant::Outline);
+    let comp_controls: NodeId = view! {
+        column {
+            gap: SPACE_MD
+            row {
+                style: c_action_row()
+                { btn_sibling }
+                text {
+                    font_size: 13.0
+                    font_weight: FontWeight::SemiBold
+                    color: p.get_primary()
+                    { move || format!("Sibling State Preserved: count={}", sibling_counter.get()) }
+                }
+            }
+            row {
+                style: c_action_row()
+                { EuvButton::new(BTN_PUSH_BANNER_V1.to_string(), tokens).on_click(move |_: &UiEvent| {
+                    let next_v: u64 = hub_v1.component_version(SLOT_PROMO_BANNER).saturating_add(1);
+                    let mut badge: DynamicNodeSpec = DynamicNodeSpec::badge(format!("OTA v{next_v}"));
+                    badge.get_mut_style().set_background_hex(Some(0x1D4ED8)).set_color_hex(Some(0xFFFFFF));
+                    let mut title: DynamicNodeSpec = DynamicNodeSpec::text(format!("Dynamic JSON Banner v{next_v}: Surgical Component Patch"));
+                    title.get_mut_style().set_bold(true).set_color_hex(Some(0x1E3A8A));
+                    let mut offer_btn: DynamicNodeSpec = DynamicNodeSpec::button(BTN_CLAIM_OFFER.to_string(), "claim_offer".to_string());
+                    offer_btn.set_payload(format!("json-v{next_v}"));
+                    let mut box_spec: DynamicNodeSpec = DynamicNodeSpec::row()
+                        .child(badge)
+                        .child(title)
+                        .child(offer_btn);
+                    box_spec
+                        .get_mut_style()
+                        .set_full_width(true)
+                        .set_padding(Some(12.0))
+                        .set_radius(Some(8.0))
+                        .set_background_hex(Some(0xEFF6FF))
+                        .set_border_width(Some(1.0))
+                        .set_border_hex(Some(0x93C5FD));
+                    let mut upd: DynamicComponentUpdate = DynamicComponentUpdate::new(
+                        SLOT_PROMO_BANNER.to_string(),
+                        next_v,
+                        box_spec,
+                    );
+                    upd.sign();
+                    if let Ok(json) = upd.to_json() {
+                        let _: Result<u64, DynamicUpdateError> = hub_v1.apply_component_json(&json);
+                    }
+                }) }
+                { btn_banner_v2 }
+                { btn_banner_rb }
+            }
+            slot {
+                id: SLOT_PROMO_BANNER
+                row {
+                    width: Length::Percent(100.0)
+                    padding: Edges::all(SPACE_MD)
+                    background: p.get_muted()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    text {
+                        font_size: 13.0
+                        color: p.get_foreground()
+                        "Compiled Fallback Banner (v0) — click a button above to hot-update only this component."
+                    }
+                }
+            }
+            row {
+                style: c_action_row()
+                { EuvButton::new(BTN_PATCH_METRICS.to_string(), tokens).on_click(move |_: &UiEvent| {
+                    let next_v: u64 = hub_m1.component_version(SLOT_METRICS_WIDGET).saturating_add(1);
+                    let mut card_spec: DynamicNodeSpec = DynamicNodeSpec::card(format!("Live Metrics Widget v{next_v}"))
+                        .child(DynamicNodeSpec::text(format!("Updated independently without touching promo_banner or sibling state (rev {next_v}).")));
+                    card_spec
+                        .get_mut_style()
+                        .set_background_hex(Some(0xFEFCE8))
+                        .set_border_width(Some(1.0))
+                        .set_border_hex(Some(0xFACC15));
+                    let mut upd: DynamicComponentUpdate = DynamicComponentUpdate::new(
+                        SLOT_METRICS_WIDGET.to_string(),
+                        next_v,
+                        card_spec,
+                    );
+                    upd.sign();
+                    let _: Result<u64, DynamicUpdateError> = hub_m1.apply_component(upd);
+                }) }
+                { btn_metrics_rb }
+            }
+            slot {
+                id: SLOT_METRICS_WIDGET
+                row {
+                    width: Length::Percent(100.0)
+                    padding: Edges::all(SPACE_MD)
+                    background: p.get_muted()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    text {
+                        font_size: 13.0
+                        color: p.get_muted_foreground()
+                        "Compiled Fallback Metrics Widget (v0) — independent surgical slot."
+                    }
+                }
+            }
+        }
+    };
+    let mut comp_card: EuvCard =
+        EuvCard::new(DYNAMIC_COMP_CARD_TITLE.to_string(), tokens).child(comp_controls);
+    comp_card.set_subtitle(DYNAMIC_COMP_CARD_SUB.to_string());
+    let mut btn_bundle: EuvButton =
+        EuvButton::new(BTN_APPLY_BUNDLE.to_string(), tokens).on_click(move |_: &UiEvent| {
+            let next_comp_v: u64 = hub_bundle
+                .component_version(SLOT_METRICS_WIDGET)
+                .saturating_add(1);
+            let next_page_v: u64 = hub_bundle
+                .page_version(ROUTE_DYNAMIC_PANEL)
+                .saturating_add(1);
+            let mut comp_upd: DynamicComponentUpdate = DynamicComponentUpdate::new(
+                SLOT_METRICS_WIDGET.to_string(),
+                next_comp_v,
+                DynamicNodeSpec::card(format!("Atomic Bundle Metrics v{next_comp_v}")).child(
+                    DynamicNodeSpec::text(
+                        "Committed together with page panel inside one atomic transaction."
+                            .to_string(),
+                    ),
+                ),
+            );
+            comp_upd.sign();
+            let mut page_upd: DynamicPageUpdate = DynamicPageUpdate::new(
+                ROUTE_DYNAMIC_PANEL.to_string(),
+                format!("Atomic Panel v{next_page_v}"),
+                next_page_v,
+                DynamicNodeSpec::card(format!("Atomic Bundle Page Panel v{next_page_v}")).child(
+                    DynamicNodeSpec::text(
+                        "Both component slot and page slot updated atomically via signed JSON."
+                            .to_string(),
+                    ),
+                ),
+            );
+            page_upd.sign();
+            let bundle: DynamicUpdateBundle =
+                DynamicUpdateBundle::new("ota-atomic-bundle".to_string(), next_page_v)
+                    .push_component(comp_upd)
+                    .push_page(page_upd);
+            if let Ok(json) = bundle.to_json() {
+                let _: Result<DynamicTelemetry, DynamicUpdateError> =
+                    hub_bundle.apply_bundle_json(&json);
+            }
+        });
+    btn_bundle.set_variant(EuvButtonVariant::Secondary);
+    let mut btn_page_rb: EuvButton = EuvButton::new(BTN_ROLLBACK_PAGE.to_string(), tokens)
+        .on_click(move |_: &UiEvent| {
+            let _: Result<u64, DynamicUpdateError> = hub_prb.rollback_page(ROUTE_DYNAMIC_PANEL);
+        });
+    btn_page_rb.set_variant(EuvButtonVariant::Outline);
+    let mut btn_inject: EuvButton =
+        EuvButton::new(BTN_INJECT_ROUTE.to_string(), tokens).on_click(move |_: &UiEvent| {
+            let next_v: u64 = hub_inject.page_version(ROUTE_PROMO_LIVE).saturating_add(1);
+            let mut back_btn: DynamicNodeSpec =
+                DynamicNodeSpec::button(BTN_RETURN_DYNAMIC.to_string(), "return_dynamic".to_string());
+            back_btn.set_payload(format!("from-promo-v{next_v}"));
+            let page_spec: DynamicNodeSpec = DynamicNodeSpec::column()
+                .child(
+                    DynamicNodeSpec::card(format!("Runtime-Injected Page /promo-live (v{next_v})"))
+                        .child(DynamicNodeSpec::badge("Zero Recompile Route".to_string()))
+                        .child(DynamicNodeSpec::text(
+                            "This entire route was injected dynamically at runtime via signed JSON manifest."
+                                .to_string(),
+                        ))
+                        .child(back_btn),
+                );
+            let mut upd: DynamicPageUpdate = DynamicPageUpdate::new(
+                ROUTE_PROMO_LIVE.to_string(),
+                "Flash Promo (OTA)".to_string(),
+                next_v,
+                page_spec,
+            );
+            upd.sign();
+            if let Ok(json) = upd.to_json()
+                && hub_inject.apply_page_json(&json).is_ok()
+            {
+                let _: bool = route_sig.set_if_changed(ROUTE_PROMO_LIVE.to_string());
+            }
+        });
+    btn_inject.set_variant(EuvButtonVariant::Secondary);
+    let page_controls: NodeId = view! {
+        column {
+            gap: SPACE_MD
+            row {
+                style: c_action_row()
+                { EuvButton::new(BTN_UPDATE_PAGE_V1.to_string(), tokens).on_click(move |_: &UiEvent| {
+                    let next_v: u64 = hub_p1.page_version(ROUTE_DYNAMIC_PANEL).saturating_add(1);
+                    let spec: DynamicNodeSpec = DynamicNodeSpec::card(format!("Hot-Updated Dynamic Page Panel v{next_v}"))
+                        .child(DynamicNodeSpec::badge(format!("Page Revision v{next_v}")))
+                        .child(DynamicNodeSpec::text("Page-level layout replaced live without restarting the application.".to_string()));
+                    let mut upd: DynamicPageUpdate = DynamicPageUpdate::new(
+                        ROUTE_DYNAMIC_PANEL.to_string(),
+                        format!("Dynamic Panel v{next_v}"),
+                        next_v,
+                        spec,
+                    );
+                    upd.sign();
+                    let _: Result<u64, DynamicUpdateError> = hub_p1.apply_page(upd);
+                }) }
+                { btn_bundle }
+                { btn_page_rb }
+                { btn_inject }
+            }
+            page_slot {
+                route: ROUTE_DYNAMIC_PANEL
+                column {
+                    width: Length::Percent(100.0)
+                    padding: Edges::all(SPACE_MD)
+                    background: p.get_muted()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    text {
+                        font_size: 13.0
+                        color: p.get_foreground()
+                        "Compiled Fallback Page Panel (v0) — click Hot-Update Page or Apply Atomic Bundle."
+                    }
+                }
+            }
+            text {
+                font_size: 12.0
+                color: p.get_muted_foreground()
+                { move || {
+                    let _: u64 = banner_rev.get();
+                    let _: u64 = metrics_rev.get();
+                    let _: u64 = panel_rev.get();
+                    let tel: DynamicTelemetry = tel_sig.get();
+                    format!(
+                        "Versions: banner=v{} metrics=v{} panel=v{} | Applied: comp={} page={} rollbacks={} rejected={} | Last Action: {}",
+                        hub_for_status.component_version(SLOT_PROMO_BANNER),
+                        hub_for_status.component_version(SLOT_METRICS_WIDGET),
+                        hub_for_status.page_version(ROUTE_DYNAMIC_PANEL),
+                        tel.get_components_applied(),
+                        tel.get_pages_applied(),
+                        tel.get_rollbacks(),
+                        tel.get_rejected(),
+                        action_log.get(),
+                    )
+                } }
+            }
+        }
+    };
+    let mut page_card: EuvCard =
+        EuvCard::new(DYNAMIC_PAGE_CARD_TITLE.to_string(), tokens).child(page_controls);
+    page_card.set_subtitle(DYNAMIC_PAGE_CARD_SUB.to_string());
+    view! {
+        column {
+            style: c_page_column()
+            { EuvHeader::new(DYNAMIC_TITLE.to_string(), DYNAMIC_SUBTITLE.to_string(), tokens) }
+            { comp_card }
+            { page_card }
         }
     }
 }

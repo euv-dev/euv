@@ -195,6 +195,65 @@ fn real_interactive_e2e_clicking_navigates_all_nine_routes_and_exercises_every_f
     assert!(state.get_sheet_open().get_untracked());
     let _: FrameStats = click_label(&mut app, "Close Sheet");
     assert!(!state.get_sheet_open().get_untracked());
+    let f_dyn_0: FrameStats = click_label(&mut app, "Dynamic OTA");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_DYNAMIC);
+    let _: FrameStats = click_label(&mut app, "Increment Sibling (+1)");
+    assert_eq!(state.get_sibling_counter().get_untracked(), 1);
+    let f_dyn_banner_v1: FrameStats = click_label(&mut app, "Push Banner v1 (JSON)");
+    assert_eq!(
+        state.get_dynamic_hub().component_version(SLOT_PROMO_BANNER),
+        1
+    );
+    assert_eq!(state.get_sibling_counter().get_untracked(), 1);
+    assert_ne!(f_dyn_banner_v1.get_frame_hash(), f_dyn_0.get_frame_hash());
+    let _: FrameStats = click_label(&mut app, "Claim Dynamic Offer");
+    assert!(
+        state
+            .get_dynamic_action_log()
+            .get_untracked()
+            .contains("claim_offer")
+    );
+    let f_dyn_banner_v2: FrameStats = click_label(&mut app, "Push Banner v2 (Native)");
+    assert_eq!(
+        state.get_dynamic_hub().component_version(SLOT_PROMO_BANNER),
+        2
+    );
+    assert_ne!(
+        f_dyn_banner_v2.get_frame_hash(),
+        f_dyn_banner_v1.get_frame_hash()
+    );
+    let _: FrameStats = click_label(&mut app, "Patch Metrics Widget");
+    assert_eq!(
+        state
+            .get_dynamic_hub()
+            .component_version(SLOT_METRICS_WIDGET),
+        1
+    );
+    let _: FrameStats = click_label(&mut app, "Rollback Banner");
+    assert_eq!(
+        state.get_dynamic_hub().component_version(SLOT_PROMO_BANNER),
+        1
+    );
+    let f_dyn_page_v1: FrameStats = click_label(&mut app, "Hot-Update Page (v1)");
+    assert_eq!(state.get_dynamic_hub().page_version(ROUTE_DYNAMIC_PANEL), 1);
+    assert_ne!(
+        f_dyn_page_v1.get_frame_hash(),
+        f_dyn_banner_v2.get_frame_hash()
+    );
+    let _: FrameStats = click_label(&mut app, "Apply Atomic Bundle");
+    assert_eq!(
+        state
+            .get_dynamic_hub()
+            .component_version(SLOT_METRICS_WIDGET),
+        2
+    );
+    assert_eq!(state.get_dynamic_hub().page_version(ROUTE_DYNAMIC_PANEL), 2);
+    let f_promo: FrameStats = click_label(&mut app, "Inject & Visit /promo-live");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_PROMO_LIVE);
+    assert!(state.get_dynamic_hub().has_dynamic_page(ROUTE_PROMO_LIVE));
+    assert_ne!(f_promo.get_frame_hash(), f_dyn_page_v1.get_frame_hash());
+    let _: FrameStats = click_label(&mut app, "Return to Dynamic OTA");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_DYNAMIC);
     let _: FrameStats = click_label(&mut app, "Overview");
     assert_eq!(state.get_route().get_untracked(), ROUTE_OVERVIEW);
 }

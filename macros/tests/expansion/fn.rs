@@ -125,3 +125,57 @@ fn style_macro_supports_full_layout_rules_and_matches_builder_api() {
     assert_ne!(stats_macro.get_frame_hash(), 0);
     assert_eq!(stats_macro.get_frame_hash(), stats_builder.get_frame_hash());
 }
+
+#[test]
+fn view_slot_and_page_slot_macros_support_live_component_and_page_updates() {
+    reset_reactive_runtime();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(400, 260).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let hub: DynamicUpdateHub = app.get_dynamic_hub().clone();
+    let _: NodeId = app.mount(|| {
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: 8.0
+                slot {
+                    id: "macro_banner"
+                    text {
+                        color: TEST_FG
+                        "Macro Fallback Banner"
+                    }
+                }
+                page_slot {
+                    route: "/macro-page"
+                    text {
+                        color: TEST_FG
+                        "Macro Fallback Page"
+                    }
+                }
+            }
+        }
+    });
+    let f0: FrameStats = app.step_frame().unwrap();
+    assert_ne!(f0.get_frame_hash(), 0);
+    let mut comp_upd: DynamicComponentUpdate = DynamicComponentUpdate::new(
+        "macro_banner".to_string(),
+        1,
+        DynamicNodeSpec::badge("Live Macro Banner v1".to_string()),
+    );
+    comp_upd.sign();
+    assert_eq!(hub.apply_component(comp_upd).unwrap(), 1);
+    let f1: FrameStats = app.step_frame().unwrap();
+    assert_ne!(f1.get_frame_hash(), f0.get_frame_hash());
+    let mut page_upd: DynamicPageUpdate = DynamicPageUpdate::new(
+        "/macro-page".to_string(),
+        "Macro Page v1".to_string(),
+        1,
+        DynamicNodeSpec::card("Live Macro Page v1".to_string()),
+    );
+    page_upd.sign();
+    assert_eq!(hub.apply_page(page_upd).unwrap(), 1);
+    let f2: FrameStats = app.step_frame().unwrap();
+    assert_ne!(f2.get_frame_hash(), f1.get_frame_hash());
+}

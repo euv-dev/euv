@@ -16,6 +16,7 @@ pub use {app::*, pages::*, state::*};
 
 #[cfg(target_arch = "wasm32")]
 use std::cell::{RefCell, RefMut};
+use std::rc::Rc;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::wasm_bindgen;
 use {

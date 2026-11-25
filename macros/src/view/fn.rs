@@ -102,6 +102,10 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
     let mut input_placeholder: Option<&Expr> = None;
     let mut image_source: Option<&Expr> = None;
     let mut canvas_painter: Option<&Expr> = None;
+    let mut slot_id: Option<&Expr> = None;
+    let mut slot_route: Option<&Expr> = None;
+    let mut slot_hub: Option<&Expr> = None;
+    let mut slot_fallback: Option<&Expr> = None;
     for prop in elem.props.iter() {
         let pname: String = prop.name.to_string();
         let val: &Expr = &prop.value;
@@ -226,6 +230,30 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             PROP_A11Y_HINT => {
                 a11y_hint = Some(val);
             }
+            PROP_ID => {
+                if tag_name != TAG_SLOT {
+                    return Error::new(pspan, ERR_ID_ONLY_ON_SLOT).to_compile_error();
+                }
+                slot_id = Some(val);
+            }
+            PROP_ROUTE => {
+                if tag_name != TAG_PAGE_SLOT {
+                    return Error::new(pspan, ERR_ROUTE_ONLY_ON_PAGE_SLOT).to_compile_error();
+                }
+                slot_route = Some(val);
+            }
+            PROP_HUB => {
+                if tag_name != TAG_SLOT && tag_name != TAG_PAGE_SLOT {
+                    return Error::new(pspan, ERR_HUB_ONLY_ON_DYNAMIC_SLOT).to_compile_error();
+                }
+                slot_hub = Some(val);
+            }
+            PROP_FALLBACK => {
+                if tag_name != TAG_SLOT && tag_name != TAG_PAGE_SLOT {
+                    return Error::new(pspan, ERR_HUB_ONLY_ON_DYNAMIC_SLOT).to_compile_error();
+                }
+                slot_fallback = Some(val);
+            }
             _ => {
                 let scope: String = format!("view! element `{tag_name}`");
                 return unknown_prop_error(&prop.name, &scope, KNOWN_VIEW_PROPS).to_compile_error();
@@ -297,6 +325,50 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             };
             quote_spanned! {painter.span()=> __euv_ctx.canvas(__euv_style, #painter) }
         }
+        TAG_SLOT => {
+            let Some(id_expr) = slot_id else {
+                return Error::new(tag_span, ERR_SLOT_MISSING_ID).to_compile_error();
+            };
+            let fb_expr: proc_macro2::TokenStream =
+                build_slot_fallback(slot_fallback, &elem.children);
+            let hub_stmt: proc_macro2::TokenStream = match slot_hub {
+                Some(h) => {
+                    quote_spanned! {h.span()=> __euv_slot.set_hub(::core::option::Option::Some(#h)); }
+                }
+                None => quote! {},
+            };
+            quote_spanned! {tag_span=> {
+                let mut __euv_slot: ::euv::DynamicComponentSlot = ::euv::DynamicComponentSlot::new(
+                    ::std::string::String::from(#id_expr),
+                    #fb_expr,
+                );
+                __euv_slot.set_style(__euv_style);
+                #hub_stmt
+                ::euv::Mountable::mount(__euv_slot, __euv_ctx)
+            }}
+        }
+        TAG_PAGE_SLOT => {
+            let Some(route_expr) = slot_route else {
+                return Error::new(tag_span, ERR_PAGE_SLOT_MISSING_ROUTE).to_compile_error();
+            };
+            let fb_expr: proc_macro2::TokenStream =
+                build_slot_fallback(slot_fallback, &elem.children);
+            let hub_stmt: proc_macro2::TokenStream = match slot_hub {
+                Some(h) => {
+                    quote_spanned! {h.span()=> __euv_slot.set_hub(::core::option::Option::Some(#h)); }
+                }
+                None => quote! {},
+            };
+            quote_spanned! {tag_span=> {
+                let mut __euv_slot: ::euv::DynamicPageSlot = ::euv::DynamicPageSlot::new(
+                    ::std::string::String::from(#route_expr),
+                    #fb_expr,
+                );
+                __euv_slot.set_style(__euv_style);
+                #hub_stmt
+                ::euv::Mountable::mount(__euv_slot, __euv_ctx)
+            }}
+        }
         _ => {
             let comp_ident: &Ident = &elem.tag;
             quote_spanned! {tag_span=> #comp_ident() }
@@ -340,20 +412,21 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
     } else {
         quote! {}
     };
-    let child_stmts: Vec<proc_macro2::TokenStream> = if tag_name == TAG_TEXT {
-        Vec::new()
-    } else {
-        elem.children
-            .iter()
-            .map(|child: &ViewNode| {
-                let child_expr: proc_macro2::TokenStream = expand_node(child);
-                quote! {
-                    let __euv_child: ::euv::NodeId = #child_expr;
-                    __euv_ctx.append(__euv_node, __euv_child);
-                }
-            })
-            .collect()
-    };
+    let child_stmts: Vec<proc_macro2::TokenStream> =
+        if tag_name == TAG_TEXT || tag_name == TAG_SLOT || tag_name == TAG_PAGE_SLOT {
+            Vec::new()
+        } else {
+            elem.children
+                .iter()
+                .map(|child: &ViewNode| {
+                    let child_expr: proc_macro2::TokenStream = expand_node(child);
+                    quote! {
+                        let __euv_child: ::euv::NodeId = #child_expr;
+                        __euv_ctx.append(__euv_node, __euv_child);
+                    }
+                })
+                .collect()
+        };
     quote! {{
         let mut __euv_style: ::euv::Style = #base_style;
         #direction_setup
@@ -366,4 +439,61 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         #(#child_stmts)*
         __euv_node
     }}
+}
+
+/// Builds the `::euv::DynamicBuilderFn` fallback closure for `slot` and `page_slot` elements.
+///
+/// # Arguments
+///
+/// - `Option<&Expr>` - Optional explicit `fallback:` closure expression.
+/// - `&[ViewNode]` - Inline fallback children declared inside the slot block.
+///
+/// # Returns
+///
+/// - `proc_macro2::TokenStream` - Expanded `Rc::new(...)` builder closure.
+fn build_slot_fallback(
+    explicit_fallback: Option<&Expr>,
+    children: &[ViewNode],
+) -> proc_macro2::TokenStream {
+    if let Some(fb) = explicit_fallback {
+        return quote_spanned! {fb.span()=> ::std::rc::Rc::new(#fb) };
+    }
+    if children.is_empty() {
+        return quote! {
+            ::std::rc::Rc::new(move || -> ::euv::NodeId {
+                let mut __euv_ctx_owned: ::euv::BuildContext = ::euv::current_build_context();
+                __euv_ctx_owned.view(::euv::Style::empty())
+            })
+        };
+    }
+    if children.len() == 1 {
+        let single: proc_macro2::TokenStream = expand_node(&children[0]);
+        return quote! {
+            ::std::rc::Rc::new(move || -> ::euv::NodeId {
+                let mut __euv_ctx_owned: ::euv::BuildContext = ::euv::current_build_context();
+                let __euv_ctx: &mut ::euv::BuildContext = &mut __euv_ctx_owned;
+                #single
+            })
+        };
+    }
+    let child_stmts: Vec<proc_macro2::TokenStream> = children
+        .iter()
+        .map(|child: &ViewNode| {
+            let child_expr: proc_macro2::TokenStream = expand_node(child);
+            quote! {
+                let __euv_child: ::euv::NodeId = #child_expr;
+                __euv_ctx.append(__euv_fb_root, __euv_child);
+            }
+        })
+        .collect();
+    quote! {
+        ::std::rc::Rc::new(move || -> ::euv::NodeId {
+            let mut __euv_ctx_owned: ::euv::BuildContext = ::euv::current_build_context();
+            let __euv_ctx: &mut ::euv::BuildContext = &mut __euv_ctx_owned;
+            let __euv_fb_root: ::euv::NodeId =
+                __euv_ctx.view(::euv::Style::empty().column().width(::euv::Length::Percent(100.0)));
+            #(#child_stmts)*
+            __euv_fb_root
+        })
+    }
 }

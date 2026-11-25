@@ -16,6 +16,16 @@ pub const ROUTE_DATA: &str = "/data";
 pub const ROUTE_GAME: &str = "/game";
 /// Route path for the modal, toast, and alert overlay showcase page.
 pub const ROUTE_OVERLAYS: &str = "/overlays";
+/// Route path for the component-level and page-level dynamic OTA updates showcase page.
+pub const ROUTE_DYNAMIC: &str = "/dynamic";
+/// Route path for the embedded page-level dynamic update preview slot.
+pub const ROUTE_DYNAMIC_PANEL: &str = "/dynamic/panel";
+/// Runtime-injected dynamic route path created on demand without recompiling.
+pub const ROUTE_PROMO_LIVE: &str = "/promo-live";
+/// Component slot identifier for the live-updatable promotional banner.
+pub const SLOT_PROMO_BANNER: &str = "promo_banner";
+/// Component slot identifier for the independent live-updatable metrics widget.
+pub const SLOT_METRICS_WIDGET: &str = "metrics_widget";
 /// Application brand title displayed in the shell chrome.
 pub const SHOWCASE_BRAND: &str = "euv Native Showcase";
 
@@ -28,4 +38,5 @@ pub(crate) const NAV_LABEL_THEMES: &str = "Themes (17)";
 pub(crate) const NAV_LABEL_DATA: &str = "Scroll List";
 pub(crate) const NAV_LABEL_GAME: &str = "Game Engine";
 pub(crate) const NAV_LABEL_OVERLAYS: &str = "Overlays";
+pub(crate) const NAV_LABEL_DYNAMIC: &str = "Dynamic OTA";
 pub(crate) const DEFAULT_USERNAME: &str = "euv-developer";

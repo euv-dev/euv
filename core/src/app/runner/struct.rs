@@ -51,4 +51,6 @@ pub struct App {
     /// Reactive signal carrying the most recently received custom-scheme or universal deep link.
     #[get(type(copy))]
     pub(crate) deep_link: Signal<Option<DeepLinkEvent>>,
+    /// Shared dynamic update hub for live component-level and page-level OTA updates.
+    pub(crate) dynamic_hub: DynamicUpdateHub,
 }

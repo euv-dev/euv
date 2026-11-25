@@ -64,6 +64,7 @@ impl App {
         let caps: PlatformCapabilities = platform.capabilities();
         let scene: SceneHandle = SceneHandle::new_tree();
         let build_context: BuildContext = BuildContext::new(scene.clone(), kind);
+        let dynamic_hub: DynamicUpdateHub = build_context.get_dynamic_hub().clone();
         let _: bool = build_context
             .get_breakpoint()
             .set(window_state.breakpoint());
@@ -96,6 +97,7 @@ impl App {
             frame_clock: FrameClock::default(),
             services: PlatformServiceHub::new(kind),
             deep_link: Signal::new(None),
+            dynamic_hub,
         })
     }
 

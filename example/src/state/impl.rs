@@ -53,7 +53,37 @@ impl ShowcaseState {
             a11y_announcements: Signal::new(0),
             haptic_pulses: Signal::new(0),
             game_host,
+            dynamic_hub: DynamicUpdateHub::new(),
+            sibling_counter: Signal::new(0),
+            dynamic_action_log: Signal::new("None yet".to_string()),
         }
+    }
+
+    /// Binds `hub` from the active `App` and wires interactive dynamic actions to showcase state and routing.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable showcase state.
+    /// - `DynamicUpdateHub` - Shared dynamic update hub owned by `App`.
+    pub fn attach_dynamic_hub(&mut self, hub: DynamicUpdateHub) {
+        let route_sig: Signal<String> = self.get_route();
+        let action_log: Signal<String> = self.get_dynamic_action_log();
+        hub.on_action(move |ev: &DynamicActionEvent| {
+            let summary: String = format!(
+                "{} from {} ({})",
+                ev.get_action(),
+                ev.get_source_id(),
+                ev.get_payload()
+            );
+            let _: bool = action_log.set_if_changed(summary);
+            if let Some(target_route) = ev.get_action().strip_prefix("navigate:") {
+                let _: bool = route_sig.set_if_changed(target_route.to_string());
+            } else if ev.get_action().as_str() == "return_dynamic" {
+                let _: bool = route_sig.set_if_changed(ROUTE_DYNAMIC.to_string());
+            }
+        });
+        let Self { dynamic_hub, .. } = self;
+        *dynamic_hub = hub;
     }
 
     /// Returns the ordered sidebar navigation items for the showcase.
@@ -73,6 +103,7 @@ impl ShowcaseState {
             EuvNavItem::new(ROUTE_DATA.to_string(), NAV_LABEL_DATA.to_string()),
             EuvNavItem::new(ROUTE_GAME.to_string(), NAV_LABEL_GAME.to_string()),
             EuvNavItem::new(ROUTE_OVERLAYS.to_string(), NAV_LABEL_OVERLAYS.to_string()),
+            EuvNavItem::new(ROUTE_DYNAMIC.to_string(), NAV_LABEL_DYNAMIC.to_string()),
         ]
     }
 

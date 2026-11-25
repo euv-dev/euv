@@ -6,6 +6,7 @@
 //! backends for Web, Android, iOS, iPadOS, macOS, Windows, and Linux.
 
 mod app;
+mod dynamic;
 mod font;
 mod game;
 mod layout;
@@ -22,8 +23,8 @@ mod window;
 mod tests;
 
 pub use {
-    app::*, font::*, game::*, layout::*, platform::*, reactive::*, render::*, scene::*, style::*,
-    system::*, window::*,
+    app::*, dynamic::*, font::*, game::*, layout::*, platform::*, reactive::*, render::*, scene::*,
+    style::*, system::*, window::*,
 };
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -65,7 +66,11 @@ use std::{
     str::Chars,
 };
 
-use lombok_macros::{CustomDebug, Data, Getter, New};
+use {
+    lombok_macros::{CustomDebug, Data, Getter, New},
+    serde::{Deserialize, Serialize},
+    serde_json::{from_str, to_string, to_string_pretty},
+};
 
 #[cfg(target_arch = "wasm32")]
 use {

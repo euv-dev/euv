@@ -31,6 +31,12 @@ pub(crate) const TAG_IMAGE: &str = "image";
 /// Tag keyword for a custom 2D canvas node.
 pub(crate) const TAG_CANVAS: &str = "canvas";
 
+/// Tag keyword for a surgically updatable component-level dynamic slot.
+pub(crate) const TAG_SLOT: &str = "slot";
+
+/// Tag keyword for a surgically updatable page-level dynamic slot.
+pub(crate) const TAG_PAGE_SLOT: &str = "page_slot";
+
 /// Property keyword for base style expression.
 pub(crate) const PROP_STYLE: &str = "style";
 
@@ -118,6 +124,18 @@ pub(crate) const PROP_A11Y_LABEL: &str = "a11y_label";
 /// Property keyword for accessible screen-reader usage hint string.
 pub(crate) const PROP_A11Y_HINT: &str = "a11y_hint";
 
+/// Property keyword for a component-level dynamic slot identifier (`slot { id: "..." }`).
+pub(crate) const PROP_ID: &str = "id";
+
+/// Property keyword for a page-level dynamic slot route (`page_slot { route: "/..." }`).
+pub(crate) const PROP_ROUTE: &str = "route";
+
+/// Property keyword for an optional explicit `DynamicUpdateHub` override on `slot` / `page_slot`.
+pub(crate) const PROP_HUB: &str = "hub";
+
+/// Property keyword for an explicit fallback builder closure `move || -> NodeId` on `slot` / `page_slot`.
+pub(crate) const PROP_FALLBACK: &str = "fallback";
+
 /// Complete list of supported properties inside `view!` elements for typo diagnostics.
 pub(crate) const KNOWN_VIEW_PROPS: &[&str] = &[
     PROP_STYLE,
@@ -149,6 +167,10 @@ pub(crate) const KNOWN_VIEW_PROPS: &[&str] = &[
     PROP_ROLE,
     PROP_A11Y_LABEL,
     PROP_A11Y_HINT,
+    PROP_ID,
+    PROP_ROUTE,
+    PROP_HUB,
+    PROP_FALLBACK,
 ];
 
 /// Error message when a caller passes a legacy explicit context argument to `view!(ctx, ...)`.
@@ -161,6 +183,26 @@ pub(crate) const ERR_IMAGE_MISSING_SOURCE: &str =
 /// Error message when `canvas` lacks a `painter` property.
 pub(crate) const ERR_CANVAS_MISSING_PAINTER: &str =
     "canvas element requires a `painter:` closure `|bounds: Rect, dl: &mut DisplayList| { ... }`";
+
+/// Error message when `slot` lacks an `id` property.
+pub(crate) const ERR_SLOT_MISSING_ID: &str =
+    "`slot` element requires an `id:` string identifying the dynamic component slot";
+
+/// Error message when `page_slot` lacks a `route` property.
+pub(crate) const ERR_PAGE_SLOT_MISSING_ROUTE: &str =
+    "`page_slot` element requires a `route:` string identifying the dynamic page route";
+
+/// Error message when `id:` is placed on a non-`slot` element.
+pub(crate) const ERR_ID_ONLY_ON_SLOT: &str =
+    "`id:` is only valid on `slot { id: \"...\" }` dynamic component slots";
+
+/// Error message when `route:` is placed on a non-`page_slot` element.
+pub(crate) const ERR_ROUTE_ONLY_ON_PAGE_SLOT: &str =
+    "`route:` is only valid on `page_slot { route: \"/...\" }` dynamic page slots";
+
+/// Error message when `hub:` or `fallback:` is placed on an element other than `slot` or `page_slot`.
+pub(crate) const ERR_HUB_ONLY_ON_DYNAMIC_SLOT: &str =
+    "`hub:` and `fallback:` are only valid on `slot` or `page_slot` dynamic elements";
 
 /// Error message when `source:` is placed on a non-`image` element.
 pub(crate) const ERR_SOURCE_ONLY_ON_IMAGE: &str =

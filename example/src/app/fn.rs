@@ -32,7 +32,8 @@ pub fn create_showcase_app(
     } else {
         App::new(app_cfg)?
     };
-    let state: ShowcaseState = ShowcaseState::new();
+    let mut state: ShowcaseState = ShowcaseState::new();
+    state.attach_dynamic_hub(app.get_dynamic_hub().clone());
     let mount_state: ShowcaseState = state.clone();
     let _: NodeId = app.mount(move || mount_showcase_root(&mount_state));
     Ok((app, state))
