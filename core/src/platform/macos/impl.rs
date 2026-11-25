@@ -283,6 +283,9 @@ impl PlatformBackend for MacOsPlatform {
         let scale: f32 = macos_backing_scale_factor();
         let mut state: WindowState = WindowState::from_config(id, config, scale);
         state.set_system_theme(macos_system_theme());
+        if config.get_decorations() {
+            state.set_safe_area(SafeAreaInsets::new(28.0, 0.0, 0.0, 0.0));
+        }
         self.get_mut_windows().insert(
             id,
             MacOsWindowRecord {

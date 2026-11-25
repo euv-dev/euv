@@ -134,6 +134,26 @@ impl InputState {
         }
         value
     }
+
+    /// Sets the normalized analog virtual stick vector `(dx, dy)` for mobile touch joysticks or gamepads.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable input state.
+    /// - `f32` - Horizontal axis in `[-1.0, 1.0]`.
+    /// - `f32` - Vertical axis in `[-1.0, 1.0]`.
+    pub fn set_virtual_stick(&mut self, dx: f32, dy: f32) {
+        self.set_virtual_axis(Point::new(dx.clamp(-1.0, 1.0), dy.clamp(-1.0, 1.0)));
+    }
+
+    /// Resets the virtual analog stick to neutral `(0.0, 0.0)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable input state.
+    pub fn clear_virtual_stick(&mut self) {
+        self.set_virtual_axis(Point::new(0.0, 0.0));
+    }
 }
 
 /// Default arcade action map binding WASD + Arrows, Space/Click fire, Shift/E dash, and P/Esc pause.
@@ -217,6 +237,12 @@ impl ActionMap {
     /// - `bool` - Whether `action` is currently active.
     #[must_use]
     pub fn is_active(&self, action: GameAction, input: &InputState) -> bool {
+        if action == GameAction::Fire && input.get_virtual_fire() {
+            return true;
+        }
+        if action == GameAction::Dash && input.get_virtual_dash() {
+            return true;
+        }
         let key_hit: bool = self
             .get_key_bindings()
             .get(&action)
@@ -270,8 +296,8 @@ impl ActionMap {
     /// - `Point` - Normalized movement vector with length `<= 1.0`.
     #[must_use]
     pub fn movement_vector(&self, input: &InputState) -> Point {
-        let mut dx: f32 = 0.0;
-        let mut dy: f32 = 0.0;
+        let mut dx: f32 = input.get_virtual_axis().get_x();
+        let mut dy: f32 = input.get_virtual_axis().get_y();
         if self.is_active(GameAction::MoveLeft, input) {
             dx -= 1.0;
         }

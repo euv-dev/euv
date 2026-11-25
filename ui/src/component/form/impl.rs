@@ -26,13 +26,13 @@ impl Mountable for EuvInput {
         let style: Style = Style::empty()
             .width(Length::Percent(100.0))
             .height(Length::Px(g.get_control_md()))
-            .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+            .padding(Edges::symmetric(0.0, SPACE_MD))
             .background(p.get_background())
             .border(g.get_border_width(), p.get_border())
             .radius(g.get_radius_md())
             .focus_ring(Border::new(g.get_ring_width(), p.get_ring()))
             .color(p.get_foreground())
-            .font_size(g.get_font_body());
+            .font_size(13.0);
         let node: NodeId = ctx.input(state, style);
         ctx.on_change(node, move |ev: &UiEvent| {
             if let UiEventKind::Change(val) = ev.get_kind() {
@@ -117,7 +117,7 @@ impl Mountable for EuvSwitch {
         let track: NodeId = ctx.view(
             Style::empty()
                 .row()
-                .width(Length::Px(42.0))
+                .width(Length::Px(44.0))
                 .height(Length::Px(24.0))
                 .padding(Edges::all(2.0))
                 .radius(12.0)
@@ -142,7 +142,7 @@ impl Mountable for EuvSwitch {
                 let is_on: bool = checked.get();
                 Style::empty()
                     .row()
-                    .width(Length::Px(42.0))
+                    .width(Length::Px(44.0))
                     .height(Length::Px(24.0))
                     .padding(Edges::all(2.0))
                     .justify(if is_on {
@@ -165,7 +165,10 @@ impl Mountable for EuvSwitch {
         });
         let txt: NodeId = ctx.text(
             label,
-            Style::empty().font_size(14.0).color(p.get_foreground()),
+            Style::empty()
+                .font_size(13.0)
+                .font_weight(FontWeight::Medium)
+                .color(p.get_foreground()),
         );
         ctx.append(row, track);
         ctx.append(row, txt);
@@ -316,16 +319,23 @@ impl Mountable for EuvSegmented {
             let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
                 handle.bind_style(pill, move || {
                     let active: bool = selected.get() == idx;
-                    Style::empty()
+                    let mut st: Style = Style::empty()
                         .row()
-                        .padding(Edges::symmetric(6.0, SPACE_MD))
+                        .height(Length::Px(g.get_control_sm()))
+                        .justify(JustifyContent::Center)
+                        .align(AlignItems::Center)
+                        .padding(Edges::symmetric(0.0, SPACE_MD))
                         .radius(g.get_radius_sm())
                         .background(if active {
                             p.get_card()
                         } else {
                             COLOR_TRANSPARENT
                         })
-                        .cursor(CursorIcon::Pointer)
+                        .cursor(CursorIcon::Pointer);
+                    if active {
+                        st = st.shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 16)));
+                    }
+                    st
                 })
             });
             ctx.get_scene().with_write(

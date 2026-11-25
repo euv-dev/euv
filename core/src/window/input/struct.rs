@@ -53,3 +53,32 @@ pub struct KeyEvent {
     #[get(type(copy))]
     pub(crate) repeat: bool,
 }
+
+/// Real-time cross-platform gesture payload emitted reactively through `BuildContext::get_gesture()`.
+#[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
+pub struct GestureEvent {
+    /// Monotonic gesture sequence counter ensuring back-to-back identical gestures trigger reactivity.
+    #[get(type(copy))]
+    pub(crate) sequence: u64,
+    /// Classified gesture kind (`Tap`, `DoubleTap`, `LongPress`, `Swipe*`, `Pan`, `Pinch`).
+    #[get(type(copy))]
+    pub(crate) kind: GestureEventKind,
+    /// Starting logical coordinates of the gesture.
+    #[get(type(copy))]
+    pub(crate) origin: Point,
+    /// Ending or current logical coordinates of the gesture.
+    #[get(type(copy))]
+    pub(crate) position: Point,
+    /// Net displacement `(dx, dy)` from `origin` to `position`.
+    #[get(type(copy))]
+    pub(crate) delta: Point,
+    /// Relative pinch scale factor (`1.0` for non-pinch gestures, `> 1.0` zoom in, `< 1.0` zoom out).
+    #[get(type(copy))]
+    pub(crate) scale: f32,
+    /// Number of active pointers/fingers involved in the gesture.
+    #[get(type(copy))]
+    pub(crate) pointer_count: u8,
+    /// Originating pointer device class (`Mouse`, `Touch`, `Stylus`).
+    #[get(type(copy))]
+    pub(crate) device: PointerDevice,
+}

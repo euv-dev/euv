@@ -46,8 +46,10 @@ impl Mountable for EuvBadge {
         let pill: NodeId = ctx.view(
             Style::empty()
                 .row()
+                .height(Length::Px(22.0))
+                .justify(JustifyContent::Center)
                 .align(AlignItems::Center)
-                .padding(Edges::symmetric(3.0, 10.0))
+                .padding(Edges::symmetric(0.0, 10.0))
                 .background(bg)
                 .radius(999.0),
         );
@@ -274,42 +276,37 @@ impl EuvVirtualList {
         let scroll_sig: Signal<f32> = self.get_scroll_y();
         let view_h: f32 = self.get_viewport_height().max(1.0);
         let builder_cell: Rc<RefCell<F>> = Rc::new(RefCell::new(row_builder));
+        let border_w: f32 = g.get_border_width();
+        let inner_view_h: f32 = (view_h - border_w * 2.0).max(1.0);
+        let item_h: f32 = self.get_item_height().max(1.0);
+        let total_h: f32 = (self.get_total_items() as f32) * item_h;
+        let max_scroll: f32 = (total_h - inner_view_h).max(0.0);
         let container: NodeId = ctx.scroll_view(
             Style::empty()
                 .column()
                 .width(Length::Percent(100.0))
                 .height(Length::Px(view_h))
                 .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
+                .border(border_w, p.get_border())
                 .radius(g.get_radius_md()),
         );
+        let init_scroll: f32 = scroll_sig.get_untracked().clamp(0.0, max_scroll);
+        ctx.set_virtual_scroll(container, init_scroll, total_h);
         ctx.on_scroll(container, move |ev: &UiEvent| {
             if let UiEventKind::Scroll(delta) = ev.get_kind() {
-                scroll_cfg.scroll_by(delta.get_y());
+                let next: f32 = (scroll_cfg.get_scroll_y().get_untracked() + delta.get_y())
+                    .clamp(0.0, max_scroll);
+                let _: bool = scroll_cfg.get_scroll_y().set_if_changed(next);
             }
         });
         ctx.bind_children(container, move || {
-            let cur_scroll: f32 = scroll_sig.get().clamp(0.0, list_cfg.max_scroll_y());
+            let cur_scroll: f32 = scroll_sig.get().clamp(0.0, max_scroll);
             let (start, end): (usize, usize) = list_cfg.visible_range();
+            let local_scroll_y: f32 = (cur_scroll - (start as f32) * item_h).max(0.0);
             let mut row_ctx: BuildContext = current_build_context();
-            let mut nodes: Vec<NodeId> = Vec::with_capacity((end - start) + 3);
-            let max_y: f32 = list_cfg.max_scroll_y().max(1.0);
-            let progress: f32 = (cur_scroll / max_y).clamp(0.0, 1.0);
-            let indicator_bar: NodeId = row_ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .height(Length::Px(3.0))
-                    .background(p.get_muted()),
-            );
-            let thumb: NodeId = row_ctx.view(
-                Style::empty()
-                    .width(Length::Percent((progress * 100.0).max(4.0)))
-                    .height(Length::Percent(100.0))
-                    .background(p.get_primary()),
-            );
-            row_ctx.append(indicator_bar, thumb);
-            nodes.push(indicator_bar);
+            row_ctx.set_virtual_scroll(container, cur_scroll, total_h);
+            row_ctx.set_scroll_offset(container, Point::new(0.0, local_scroll_y));
+            let mut nodes: Vec<NodeId> = Vec::with_capacity((end - start) + 1);
             if let Ok(mut build_row) = builder_cell.try_borrow_mut() {
                 for idx in start..end {
                     nodes.push(build_row(idx));

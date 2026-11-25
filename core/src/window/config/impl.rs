@@ -44,6 +44,8 @@ impl Default for WindowConfig {
             orientation: OrientationLock::Auto,
             status_bar: StatusBarStyle::Auto,
             preferred_theme: None,
+            icon: None,
+            icon_path: None,
         }
     }
 }
@@ -147,6 +149,36 @@ impl WindowConfig {
             preferred_theme, ..
         } = self;
         *preferred_theme
+    }
+
+    /// Returns the optional decoded RGBA8 application icon bitmap.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Window configuration.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<ImageBuffer>` - Configured RGBA8 icon buffer if set.
+    #[must_use]
+    pub fn icon_value(&self) -> Option<ImageBuffer> {
+        let Self { icon, .. } = self;
+        icon.clone()
+    }
+
+    /// Returns the optional application icon asset path.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Window configuration.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<String>` - Configured icon asset path if set.
+    #[must_use]
+    pub fn icon_path_value(&self) -> Option<String> {
+        let Self { icon_path, .. } = self;
+        icon_path.clone()
     }
 }
 

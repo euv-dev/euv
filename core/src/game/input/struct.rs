@@ -27,6 +27,18 @@ pub struct InputState {
     #[new(skip)]
     #[get(type(copy))]
     pub(crate) scroll_delta: Point,
+    /// Virtual analog movement stick `(-1.0..=1.0, -1.0..=1.0)` fed by touch drag-joysticks or gamepads.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) virtual_axis: Point,
+    /// Virtual touch/gamepad primary fire trigger state.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) virtual_fire: bool,
+    /// Virtual touch/gamepad dash/boost trigger state.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) virtual_dash: bool,
 }
 
 /// Declarative multi-key and pointer-button binding table mapping physical inputs to `GameAction`s.

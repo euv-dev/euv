@@ -110,6 +110,10 @@ pub(crate) const GAME_SUBTITLE: &str = "Fixed-timestep FrameClock, InputState po
 pub(crate) const GAME_CARD_TITLE: &str = "Embedded 60Hz Physics Arena";
 pub(crate) const GAME_CARD_SUB: &str = "Step deterministic physics frames or overlay transparent euv HUD panels on top of any 2D/3D engine.";
 pub(crate) const BTN_STEP_PHYSICS: &str = "Step Physics (+3 Frames)";
+pub(crate) const GAME3D_TITLE: &str = "AAA 3D Open-World Engine & Ray Tracing";
+pub(crate) const GAME3D_SUBTITLE: &str = "BVH ray-traced shadows, glossy reflections, GI, LOD streaming, .OBJ/.glTF model import, and live runtime quality tuning.";
+pub(crate) const GAME3D_CARD_TITLE: &str = "Vice Boulevard 3D Sandbox";
+pub(crate) const GAME3D_CARD_SUB: &str = "Drive with WASD/Arrows or mobile controls; adjust preset, ray tracing, resolution scale, sun hour, or import 3D models live.";
 
 pub(crate) const OVERLAYS_TITLE: &str = "Overlays, Modals & Toasts";
 pub(crate) const OVERLAYS_SUBTITLE: &str =

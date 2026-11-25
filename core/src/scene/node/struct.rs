@@ -89,4 +89,7 @@ pub struct SceneNode {
     /// Optional explicit semantic accessibility metadata for screen readers and ARIA bridges.
     #[get(skip)]
     pub(crate) a11y: Option<A11yProps>,
+    /// Optional virtualized scroll metrics `(scroll_y, total_content_height)` for overlay scrollbar thumb accuracy.
+    #[get(skip)]
+    pub(crate) virtual_scroll: Option<(f32, f32)>,
 }

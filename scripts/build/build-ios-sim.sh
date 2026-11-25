@@ -1,0 +1,436 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../env/common.sh
+source "${SCRIPT_DIR}/../env/common.sh"
+load_local_env
+
+SIM_UDID="${EUV_IOS_SIM_UDID:-$(xcrun simctl list devices booted | grep -oE '[0-9A-F-]{36}' | head -n 1 || true)}"
+if [ -z "${SIM_UDID}" ]; then
+  SIM_UDID="$(xcrun simctl list devices available | grep 'iPhone' | grep -oE '[0-9A-F-]{36}' | head -n 1)"
+fi
+BUILD_DIR="${REPO_ROOT}/target/mobile-hosts/ios-host"
+APP_BUNDLE="${REPO_ROOT}/dist/ios/EuvShowcase.app"
+SDK_PATH="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+CLANG="$(xcrun --sdk iphonesimulator --find clang)"
+
+mkdir -p "${BUILD_DIR}/src"
+cat > "${BUILD_DIR}/Cargo.toml" <<EOF
+[workspace]
+
+[package]
+name = "euv-ios-host"
+version = "0.38.0"
+edition = "2024"
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+euv = { path = "${REPO_ROOT}" }
+euv-example = { path = "${REPO_ROOT}/example" }
+EOF
+
+cat > "${BUILD_DIR}/src/lib.rs" <<'EOF'
+use euv::{
+    App, NativeSystemFont, PointerEvent, RenderMode, SafeAreaInsets, WindowCommand, WindowEvent,
+    WindowId,
+};
+use euv_example::{ShowcaseState, create_showcase_app};
+
+pub struct EuvIosHandle {
+    app: App,
+    _state: ShowcaseState,
+    wid: WindowId,
+    pixels: Vec<u8>,
+    width: u32,
+    height: u32,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn euv_ios_create(width: f32, height: f32, scale: f32) -> *mut EuvIosHandle {
+    let Ok((mut app, state)) = create_showcase_app(true, RenderMode::Software) else {
+        return std::ptr::null_mut();
+    };
+    app.get_mut_renderer()
+        .get_mut_software()
+        .set_font_provider(NativeSystemFont::system());
+    let wid: WindowId = app.get_window_state().get_id();
+    let w: u32 = width.max(320.0).round() as u32;
+    let h: u32 = height.max(480.0).round() as u32;
+    let s: f32 = scale.clamp(1.0, 3.0);
+    app.queue_window_command(WindowCommand::SetSize(wid, w, h));
+    app.dispatch_window_event(WindowEvent::Resized(wid, w, h, s));
+    let _ = app.step_game_frame(1.0 / 60.0);
+    let mut handle = Box::new(EuvIosHandle {
+        app,
+        _state: state,
+        wid,
+        pixels: Vec::new(),
+        width: 0,
+        height: 0,
+    });
+    if let Some(fb) = handle.app.get_renderer().framebuffer() {
+        handle.width = fb.get_width();
+        handle.height = fb.get_height();
+        handle.pixels = fb.get_pixels().clone();
+    }
+    Box::into_raw(handle)
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_resize(
+    handle: *mut EuvIosHandle,
+    width: f32,
+    height: f32,
+    scale: f32,
+) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    let w: u32 = width.max(320.0).round() as u32;
+    let ht: u32 = height.max(480.0).round() as u32;
+    let s: f32 = scale.clamp(1.0, 3.0);
+    h.app.queue_window_command(WindowCommand::SetSize(h.wid, w, ht));
+    h.app
+        .dispatch_window_event(WindowEvent::Resized(h.wid, w, ht, s));
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_set_safe_area(
+    handle: *mut EuvIosHandle,
+    top: f32,
+    right: f32,
+    bottom: f32,
+    left: f32,
+) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app.dispatch_window_event(WindowEvent::SafeAreaChanged(
+        h.wid,
+        SafeAreaInsets::new(top.max(0.0), right.max(0.0), bottom.max(0.0), left.max(0.0)),
+    ));
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_touch_down(handle: *mut EuvIosHandle, x: f32, y: f32) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app
+        .dispatch_window_event(WindowEvent::PointerDown(h.wid, PointerEvent::touch(1, x, y)));
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_touch_move(handle: *mut EuvIosHandle, x: f32, y: f32) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app
+        .dispatch_window_event(WindowEvent::PointerMove(h.wid, PointerEvent::touch(1, x, y)));
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_touch_up(handle: *mut EuvIosHandle, x: f32, y: f32) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app
+        .dispatch_window_event(WindowEvent::PointerUp(h.wid, PointerEvent::touch(1, x, y)));
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_step(
+    handle: *mut EuvIosHandle,
+    dt: f32,
+    out_ptr: *mut *const u8,
+    out_w: *mut u32,
+    out_h: *mut u32,
+) -> i32 {
+    if handle.is_null() {
+        return 0;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    let Ok(stats) = h.app.step_game_frame(dt.clamp(1.0 / 240.0, 0.05)) else {
+        return 0;
+    };
+    let changed: bool = stats.get_pixels_shaded() > 0 || h.pixels.is_empty();
+    if changed && let Some(fb) = h.app.get_renderer().framebuffer() {
+        h.width = fb.get_width();
+        h.height = fb.get_height();
+        h.pixels.clear();
+        h.pixels.extend_from_slice(fb.get_pixels().as_slice());
+    }
+    if !out_ptr.is_null() {
+        unsafe { *out_ptr = h.pixels.as_ptr() };
+    }
+    if !out_w.is_null() {
+        unsafe { *out_w = h.width };
+    }
+    if !out_h.is_null() {
+        unsafe { *out_h = h.height };
+    }
+    if changed { 1 } else { 0 }
+}
+EOF
+
+cat > "${BUILD_DIR}/main.m" <<'EOF'
+#import <UIKit/UIKit.h>
+#import <CoreGraphics/CoreGraphics.h>
+#import <QuartzCore/QuartzCore.h>
+#include <stdint.h>
+
+typedef struct EuvIosHandle EuvIosHandle;
+extern EuvIosHandle *euv_ios_create(float width, float height, float scale);
+extern void euv_ios_resize(EuvIosHandle *handle, float width, float height, float scale);
+extern void euv_ios_set_safe_area(EuvIosHandle *handle, float top, float right, float bottom, float left);
+extern void euv_ios_touch_down(EuvIosHandle *handle, float x, float y);
+extern void euv_ios_touch_move(EuvIosHandle *handle, float x, float y);
+extern void euv_ios_touch_up(EuvIosHandle *handle, float x, float y);
+extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_ptr, uint32_t *out_w, uint32_t *out_h);
+
+@interface EuvCanvasView : UIView
+@property (nonatomic, assign) EuvIosHandle *handle;
+@property (nonatomic, strong) CADisplayLink *displayLink;
+@property (nonatomic, assign) CFTimeInterval lastTimestamp;
+@property (nonatomic, assign) CGColorSpaceRef colorSpace;
+@end
+
+@implementation EuvCanvasView
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = [UIColor whiteColor];
+        self.multipleTouchEnabled = NO;
+        _colorSpace = CGColorSpaceCreateDeviceRGB();
+        CGFloat scale = UIScreen.mainScreen.scale;
+        self.layer.contentsScale = scale;
+        CGFloat w = frame.size.width > 0 ? frame.size.width : 393.0;
+        CGFloat h = frame.size.height > 0 ? frame.size.height : 852.0;
+        _handle = euv_ios_create((float)w, (float)h, (float)scale);
+        [self syncSafeArea];
+        [self presentFrameWithDt:1.0f / 60.0f force:YES];
+        _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(onDisplayLink:)];
+        [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    }
+    return self;
+}
+
+- (void)syncSafeArea {
+    if (!_handle) return;
+    UIEdgeInsets insets = self.safeAreaInsets;
+    euv_ios_set_safe_area(_handle, (float)insets.top, (float)insets.right, (float)insets.bottom, (float)insets.left);
+}
+
+- (void)safeAreaInsetsDidChange {
+    [super safeAreaInsetsDidChange];
+    [self syncSafeArea];
+    [self presentFrameWithDt:1.0f / 60.0f force:YES];
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    if (_handle && self.bounds.size.width > 0 && self.bounds.size.height > 0) {
+        CGFloat scale = self.window.screen.scale > 0 ? self.window.screen.scale : UIScreen.mainScreen.scale;
+        self.layer.contentsScale = scale;
+        euv_ios_resize(_handle, (float)self.bounds.size.width, (float)self.bounds.size.height, (float)scale);
+        [self syncSafeArea];
+        [self presentFrameWithDt:1.0f / 60.0f force:YES];
+    }
+}
+
+- (void)onDisplayLink:(CADisplayLink *)link {
+    CFTimeInterval now = link.timestamp;
+    float dt = (_lastTimestamp > 0.0) ? (float)(now - _lastTimestamp) : (1.0f / 60.0f);
+    _lastTimestamp = now;
+    [self presentFrameWithDt:dt force:NO];
+}
+
+- (void)presentFrameWithDt:(float)dt force:(BOOL)force {
+    if (!_handle) return;
+    const uint8_t *pixels = NULL;
+    uint32_t w = 0, h = 0;
+    int32_t changed = euv_ios_step(_handle, dt, &pixels, &w, &h);
+    if ((changed || force) && pixels && w > 0 && h > 0) {
+        size_t bytes = (size_t)w * (size_t)h * 4;
+        NSData *copyData = [NSData dataWithBytes:pixels length:bytes];
+        CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)copyData);
+        CGBitmapInfo info = kCGBitmapByteOrder32Big | kCGImageAlphaLast;
+        CGImageRef img = CGImageCreate(w, h, 8, 32, (size_t)w * 4, _colorSpace, info, provider, NULL, false, kCGRenderingIntentDefault);
+        if (img) {
+            self.layer.contents = (__bridge id)img;
+            self.layer.contentsGravity = kCAGravityResize;
+            CGImageRelease(img);
+        }
+        CGDataProviderRelease(provider);
+    }
+}
+
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    UITouch *t = [touches anyObject];
+    if (!t || !_handle) return;
+    CGPoint p = [t locationInView:self];
+    euv_ios_touch_down(_handle, (float)p.x, (float)p.y);
+    [self presentFrameWithDt:1.0f / 60.0f force:YES];
+}
+
+- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    UITouch *t = [touches anyObject];
+    if (!t || !_handle) return;
+    CGPoint p = [t locationInView:self];
+    euv_ios_touch_move(_handle, (float)p.x, (float)p.y);
+}
+
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    UITouch *t = [touches anyObject];
+    if (!t || !_handle) return;
+    CGPoint p = [t locationInView:self];
+    euv_ios_touch_up(_handle, (float)p.x, (float)p.y);
+    [self presentFrameWithDt:1.0f / 60.0f force:YES];
+}
+
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [self touchesEnded:touches withEvent:event];
+}
+
+@end
+
+@interface EuvViewController : UIViewController
+@end
+
+@implementation EuvViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    EuvCanvasView *canvas = [[EuvCanvasView alloc] initWithFrame:self.view.bounds];
+    canvas.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [self.view addSubview:canvas];
+}
+
+@end
+
+@interface EuvSceneDelegate : UIResponder <UIWindowSceneDelegate>
+@property (nonatomic, strong) UIWindow *window;
+@end
+
+@implementation EuvSceneDelegate
+
+- (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
+    if (![scene isKindOfClass:[UIWindowScene class]]) return;
+    UIWindowScene *windowScene = (UIWindowScene *)scene;
+    self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
+    self.window.rootViewController = [[EuvViewController alloc] init];
+    [self.window makeKeyAndVisible];
+}
+
+@end
+
+@interface EuvAppDelegate : UIResponder <UIApplicationDelegate>
+@end
+
+@implementation EuvAppDelegate
+
+- (UISceneConfiguration *)application:(UIApplication *)application
+    configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession
+    options:(UISceneConnectionOptions *)options {
+    UISceneConfiguration *cfg = [[UISceneConfiguration alloc] initWithName:@"Default Configuration"
+                                                              sessionRole:connectingSceneSession.role];
+    cfg.delegateClass = [EuvSceneDelegate class];
+    return cfg;
+}
+
+@end
+
+int main(int argc, char *argv[]) {
+    @autoreleasepool {
+        return UIApplicationMain(argc, argv, nil, NSStringFromClass([EuvAppDelegate class]));
+    }
+}
+EOF
+
+cat > "${BUILD_DIR}/Info.plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleDisplayName</key><string>euv Showcase</string>
+    <key>CFBundleExecutable</key><string>EuvShowcase</string>
+    <key>CFBundleIconFiles</key>
+    <array>
+        <string>AppIcon60x60@2x.png</string>
+        <string>AppIcon60x60@3x.png</string>
+        <string>AppIcon.png</string>
+    </array>
+    <key>CFBundleIcons</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <dict>
+            <key>CFBundleIconFiles</key>
+            <array>
+                <string>AppIcon60x60</string>
+            </array>
+        </dict>
+    </dict>
+    <key>CFBundleIdentifier</key><string>vip.ltpp.euv.showcase</string>
+    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <key>CFBundleName</key><string>EuvShowcase</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>0.38.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>LSRequiresIPhoneOS</key><true/>
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+        <key>UIApplicationSupportsMultipleScenes</key><false/>
+        <key>UISceneConfigurations</key>
+        <dict>
+            <key>UIWindowSceneSessionRoleApplication</key>
+            <array>
+                <dict>
+                    <key>UISceneConfigurationName</key><string>Default Configuration</string>
+                    <key>UISceneDelegateClassName</key><string>EuvSceneDelegate</string>
+                </dict>
+            </array>
+        </dict>
+    </dict>
+    <key>UIApplicationSupportsIndirectInputEvents</key><true/>
+    <key>UILaunchScreen</key><dict/>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+</dict>
+</plist>
+EOF
+
+cd "${BUILD_DIR}"
+log_info "Compiling Release aarch64-apple-ios-sim staticlib..."
+cargo build --release --target aarch64-apple-ios-sim
+STATIC_LIB="${BUILD_DIR}/target/aarch64-apple-ios-sim/release/libeuv_ios_host.a"
+
+rm -rf "${APP_BUNDLE}" && mkdir -p "${APP_BUNDLE}"
+cp "${BUILD_DIR}/Info.plist" "${APP_BUNDLE}/Info.plist"
+python3 "${REPO_ROOT}/scripts/env/generate-icon.py" "${APP_BUNDLE}/AppIcon60x60@2x.png" 120 "${EUV_APP_ICON:-}"
+python3 "${REPO_ROOT}/scripts/env/generate-icon.py" "${APP_BUNDLE}/AppIcon60x60@3x.png" 180 "${EUV_APP_ICON:-}"
+python3 "${REPO_ROOT}/scripts/env/generate-icon.py" "${APP_BUNDLE}/AppIcon.png" 1024 "${EUV_APP_ICON:-}"
+"${CLANG}" -arch arm64 -isysroot "${SDK_PATH}" -mios-simulator-version-min=17.0 -fobjc-arc \
+  "${BUILD_DIR}/main.m" "${STATIC_LIB}" \
+  -framework UIKit -framework Metal -framework CoreGraphics -framework QuartzCore -framework CoreText -framework CoreFoundation -framework Foundation \
+  -o "${APP_BUNDLE}/EuvShowcase"
+codesign --force --sign - "${APP_BUNDLE}"
+
+xcrun simctl boot "${SIM_UDID}" 2>/dev/null || true
+xcrun simctl terminate "${SIM_UDID}" vip.ltpp.euv.showcase 2>/dev/null || true
+xcrun simctl install "${SIM_UDID}" "${APP_BUNDLE}"
+xcrun simctl launch "${SIM_UDID}" vip.ltpp.euv.showcase
+log_info "Installed and launched immersive @3x EuvShowcase.app on Simulator ${SIM_UDID}."

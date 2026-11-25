@@ -3,7 +3,7 @@ use super::*;
 fn find_text_center(app: &App, label: &str) -> Point {
     app.get_scene().with_read(
         |tree: &SceneTree| {
-            for node in tree.get_nodes().iter() {
+            for (idx, node) in tree.get_nodes().iter().enumerate() {
                 if !node.get_alive() || node.get_style().get_layout().get_display() == Display::None
                 {
                     continue;
@@ -11,7 +11,10 @@ fn find_text_center(app: &App, label: &str) -> Point {
                 if let NodeKind::Text(text) = node.get_kind()
                     && text.as_str() == label
                 {
-                    let bounds: Rect = node.get_layout_box().get_bounds();
+                    let nid: NodeId = NodeId::new(idx as u32, node.get_generation());
+                    let bounds: Rect = tree
+                        .node_screen_bounds(nid)
+                        .unwrap_or_else(|| node.get_layout_box().get_bounds());
                     if bounds.get_width() > 0.0 && bounds.get_height() > 0.0 {
                         return Point::new(
                             bounds.get_x() + bounds.get_width() * 0.5,
@@ -71,6 +74,28 @@ fn click_label(app: &mut App, label: &str) -> FrameStats {
         pt.get_x() >= 0.0,
         "expected visible clickable label `{label}` in laid-out scene"
     );
+    click_at(app, pt)
+}
+
+fn scroll_and_click_label(app: &mut App, label: &str) -> FrameStats {
+    let mut pt: Point = find_text_center(app, label);
+    assert!(
+        pt.get_x() >= 0.0,
+        "expected clickable label `{label}` in laid-out scene"
+    );
+    if pt.get_y() > 740.0 || pt.get_y() < 40.0 {
+        let wid: WindowId = app.get_window_state().get_id();
+        app.dispatch_window_event(WindowEvent::PointerMove(
+            wid,
+            PointerEvent::mouse(600.0, 400.0),
+        ));
+        app.dispatch_window_event(WindowEvent::Scroll(
+            wid,
+            Point::new(0.0, pt.get_y() - 360.0),
+        ));
+        let _: FrameStats = app.step_frame().unwrap();
+        pt = find_text_center(app, label);
+    }
     click_at(app, pt)
 }
 
@@ -322,7 +347,7 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
     assert_ne!(f_menu_open.get_frame_hash(), f_mob.get_frame_hash());
     let _: FrameStats = click_label(&mut app, "Reactivity");
     assert_eq!(state.get_route().get_untracked(), ROUTE_REACTIVE);
-    let routes: [&str; 10] = [
+    let routes: [&str; 12] = [
         ROUTE_OVERVIEW,
         ROUTE_REACTIVE,
         ROUTE_RENDER,
@@ -331,6 +356,8 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
         ROUTE_THEMES,
         ROUTE_DATA,
         ROUTE_GAME,
+        ROUTE_GAME_3D,
+        ROUTE_MEDIA,
         ROUTE_OVERLAYS,
         ROUTE_DYNAMIC,
     ];
@@ -375,4 +402,312 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
             );
         }
     }
+}
+
+#[test]
+fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys_work_e2e() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: FrameStats = click_label(&mut app, "Scroll List");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_DATA);
+    assert!(app.has_active_animations());
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert!(!app.has_active_animations());
+    let vlist_rect: Rect = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if n.get_alive() && n.virtual_scroll_metrics().is_some() {
+                    let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                    if let Some(b) = tree.node_screen_bounds(nid) {
+                        return b;
+                    }
+                }
+            }
+            Rect::default()
+        },
+        Rect::default(),
+    );
+    assert!(vlist_rect.get_width() > 100.0 && vlist_rect.get_height() > 100.0);
+    let hover_pt: Point = Point::new(
+        vlist_rect.get_x() + vlist_rect.get_width() * 0.5,
+        vlist_rect.get_y() + vlist_rect.get_height() * 0.5,
+    );
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(hover_pt.get_x(), hover_pt.get_y()),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    let start_scroll: f32 = state.get_list_scroll_y().get_untracked();
+    for _ in 0..25 {
+        app.dispatch_window_event(WindowEvent::Scroll(wid, Point::new(0.0, 96.0)));
+        let _: FrameStats = app.step_frame().unwrap();
+    }
+    let end_scroll: f32 = state.get_list_scroll_y().get_untracked();
+    assert!(
+        end_scroll >= start_scroll + 2000.0,
+        "fast wheel scroll stalled: start={start_scroll} end={end_scroll}"
+    );
+    let synced_metrics: Option<(f32, f32)> = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().find_map(|n: &SceneNode| {
+                if n.get_alive() {
+                    n.virtual_scroll_metrics()
+                } else {
+                    None
+                }
+            })
+        },
+        None,
+    );
+    assert!(
+        synced_metrics
+            .map(|(vy, total_h): (f32, f32)| (vy - end_scroll).abs() < 1.0 && total_h > 100_000.0)
+            .unwrap_or(false)
+    );
+    let sb_x: f32 = vlist_rect.right() - 5.0;
+    let sb_mid_y: f32 = vlist_rect.get_y() + vlist_rect.get_height() * 0.5;
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::mouse(sb_x, sb_mid_y),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::mouse(sb_x, sb_mid_y),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    let mid_scroll: f32 = state.get_list_scroll_y().get_untracked();
+    assert!(
+        mid_scroll > 140_000.0 && mid_scroll < 180_000.0,
+        "virtual scrollbar mid-track click expected ~160k, got {mid_scroll}"
+    );
+    let _: FrameStats = click_label(&mut app, "Forms");
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let slider_bounds: Rect = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            for (idx, n) in tree.get_nodes().iter().enumerate() {
+                if n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Canvas)
+                    && n.get_handlers()
+                        .handler_for(&UiEventKind::PointerMove(Point::default()))
+                        .is_some()
+                {
+                    let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                    if let Some(b) = tree.node_screen_bounds(nid) {
+                        return b;
+                    }
+                }
+            }
+            Rect::default()
+        },
+        Rect::default(),
+    );
+    assert!(slider_bounds.get_width() > 80.0);
+    let drag_start_x: f32 = slider_bounds.get_x() + slider_bounds.get_width() * 0.15;
+    let drag_end_x: f32 = slider_bounds.get_x() + slider_bounds.get_width() * 0.88;
+    let slider_mid_y: f32 = slider_bounds.get_y() + slider_bounds.get_height() * 0.5;
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::mouse(drag_start_x, slider_mid_y),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    let val_after_down: f32 = state.get_slider_value().get_untracked();
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(drag_end_x, slider_mid_y + 42.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::mouse(drag_end_x, slider_mid_y + 42.0),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    let val_after_drag: f32 = state.get_slider_value().get_untracked();
+    assert!(
+        val_after_down < 25.0 && val_after_drag > 80.0,
+        "slider drag failed: down={val_after_down} drag={val_after_drag}"
+    );
+    let _: FrameStats = click_label(&mut app, "Overlays");
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let _: FrameStats = click_label(&mut app, "Open Dialog Modal");
+    assert!(app.has_active_animations());
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert!(!app.has_active_animations());
+    let _: FrameStats = click_at(&mut app, Point::new(12.0, 12.0));
+    assert!(!state.get_modal_open().get_untracked());
+    assert!(app.has_active_animations());
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert!(!app.has_active_animations());
+    let _: FrameStats = click_label(&mut app, "Alert Dialog");
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert!(state.get_alert_dialog_open().get_untracked());
+    let _: FrameStats = click_at(&mut app, Point::new(12.0, 12.0));
+    assert!(!state.get_alert_dialog_open().get_untracked());
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let _: FrameStats = click_label(&mut app, "Game Engine");
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Character('d'), Modifiers::default(), false),
+    ));
+    let f_game_a: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    let f_game_b: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    app.dispatch_window_event(WindowEvent::KeyUp(
+        wid,
+        KeyEvent::new(KeyCode::Character('d'), Modifiers::default(), false),
+    ));
+    assert_ne!(f_game_a.get_frame_hash(), f_game_b.get_frame_hash());
+    app.queue_window_command(WindowCommand::SetSize(wid, 390, 844));
+    app.dispatch_window_event(WindowEvent::Resized(wid, 390, 844, 3.0));
+    app.dispatch_window_event(WindowEvent::SafeAreaChanged(
+        wid,
+        SafeAreaInsets::new(59.0, 0.0, 34.0, 0.0),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: FrameStats = click_label(&mut app, "Menu");
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let _: FrameStats = click_label(&mut app, "Forms");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_FORMS);
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(1, 195.0, 320.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::touch(1, 195.0, 120.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(1, 195.0, 120.0),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    let mobile_scrolled: bool = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive() && n.get_layout_box().get_scroll_offset().get_y() > 50.0
+            })
+        },
+        false,
+    );
+    assert!(
+        mobile_scrolled,
+        "touch pan drag failed to scroll mobile viewport"
+    );
+    app.queue_window_command(WindowCommand::SetSize(wid, 1280, 800));
+    app.dispatch_window_event(WindowEvent::Resized(wid, 1280, 800, 1.0));
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: FrameStats = click_label(&mut app, "3D Engine (RT)");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_GAME_3D);
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let f3d_before: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    let _: FrameStats = click_label(&mut app, "Import .OBJ Monument");
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert!(
+        state
+            .get_engine3d_import_status()
+            .get_untracked()
+            .contains("Imported")
+    );
+    let _: FrameStats = click_label(&mut app, "Import .glTF Tower");
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    let _: FrameStats = click_label(&mut app, "RT Full GI");
+    let _: FrameStats = click_label(&mut app, "Ultra");
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Character('w'), Modifiers::default(), false),
+    ));
+    let f3d_after: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    app.dispatch_window_event(WindowEvent::KeyUp(
+        wid,
+        KeyEvent::new(KeyCode::Character('w'), Modifiers::default(), false),
+    ));
+    assert_eq!(
+        state
+            .get_engine3d_quality()
+            .get_untracked()
+            .get_ray_tracing(),
+        RayTracingMode::FullPathTracedGi
+    );
+    assert_ne!(f3d_before.get_frame_hash(), f3d_after.get_frame_hash());
+    let _: FrameStats = click_label(&mut app, "Media Studio");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_MEDIA);
+    for _ in 0..18 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let _: FrameStats = scroll_and_click_label(&mut app, "Next Frame");
+    assert_eq!(state.get_media_gif().get_untracked().get_current_frame(), 1);
+    let _: FrameStats = scroll_and_click_label(&mut app, "Trigger LIVE");
+    assert!(state.get_media_live().get_untracked().get_active_motion());
+    let _: FrameStats = scroll_and_click_label(&mut app, "Play Video");
+    assert_eq!(
+        state.get_media_video().get_untracked().get_state(),
+        PlaybackState::Playing
+    );
+    let _: FrameStats = scroll_and_click_label(&mut app, "Play Audio");
+    assert_eq!(
+        state.get_media_audio().get_untracked().get_state(),
+        PlaybackState::Playing
+    );
+    let _: FrameStats = scroll_and_click_label(&mut app, "Next Page");
+    assert_eq!(state.get_media_pdf().get_untracked().get_current_page(), 1);
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(10, 500.0, 400.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(11, 560.0, 400.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::touch(11, 660.0, 400.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(10, 500.0, 400.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(11, 660.0, 400.0),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(state.get_media_pdf().get_untracked().get_zoom() > 1.0);
+    assert_eq!(
+        app.get_build_context()
+            .get_gesture()
+            .get_untracked()
+            .map(|g: GestureEvent| g.get_kind()),
+        Some(GestureEventKind::Pinch)
+    );
+    let _: FrameStats = scroll_and_click_label(&mut app, "Open euv Media Engine Spec");
+    assert!(
+        state
+            .get_media_html_link_log()
+            .get_untracked()
+            .contains("euv://docs/media-engine")
+    );
 }

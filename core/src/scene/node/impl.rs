@@ -33,6 +33,7 @@ impl SceneNode {
             scope: None,
             canvas_painter: None,
             a11y: None,
+            virtual_scroll: None,
         }
     }
 
@@ -109,6 +110,21 @@ impl SceneNode {
     pub fn a11y_props(&self) -> Option<A11yProps> {
         let Self { a11y, .. } = self;
         a11y.clone()
+    }
+
+    /// Returns the optional virtualized scroll metrics `(scroll_y, total_content_height)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene node reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<(f32, f32)>` - Virtual scroll position and full content height when configured.
+    #[must_use]
+    pub fn virtual_scroll_metrics(&self) -> Option<(f32, f32)> {
+        let Self { virtual_scroll, .. } = self;
+        *virtual_scroll
     }
 
     /// Returns the cached layout constraint if previously laid out.

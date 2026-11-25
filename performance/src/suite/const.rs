@@ -10,6 +10,7 @@ pub(crate) const BENCH_HW_BATCH_NAME: &str = "render_hardware_gpu_batching";
 pub(crate) const BENCH_GLYPH_ATLAS_NAME: &str = "font_unicode_cjk_atlas_pack";
 pub(crate) const BENCH_GAME_PHYSICS_NAME: &str = "game_ecs_physics_256_bodies";
 pub(crate) const BENCH_GAME_PARTICLES_NAME: &str = "game_particles_1024_pool";
+pub(crate) const BENCH_GAME_3D_RT_NAME: &str = "game3d_pbr_bvh_raytrace";
 pub(crate) const BENCH_ROW_LABEL: &str = "Benchmark Item";
 pub(crate) const BENCH_TITLE: &str = "Benchmark Surface";
 pub(crate) const BENCH_SUBTITLE: &str = "Multi-mode rendering telemetry";

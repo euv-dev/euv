@@ -13,6 +13,22 @@ impl ShowcaseState {
         let doubled: Memo<i32> = computed!((counter) -> i32 => move |n: i32| n * 2);
         let arena: DemoPhysicsScene = DemoPhysicsScene::create_arena();
         let game_host: GameEngineHost = GameEngineHost::new(arena, 1.0 / 60.0);
+        let engine3d_quality: Signal<RenderQualityConfig> =
+            Signal::new(RenderQualityConfig::from_preset(QualityPreset::High));
+        let engine3d_preset_idx: Signal<usize> = Signal::new(2);
+        let engine3d_rt_idx: Signal<usize> = Signal::new(2);
+        let engine3d_res_scale: Signal<f32> = Signal::new(85.0);
+        let engine3d_time_of_day: Signal<f32> = Signal::new(17.2);
+        let engine3d_import_queue: Signal<u64> = Signal::new(0);
+        let engine3d_import_status: Signal<String> =
+            Signal::new("Ready: import .OBJ or .glTF models live into BVH".to_string());
+        let scene3d: DemoOpenWorld3DScene = DemoOpenWorld3DScene::create_city(
+            engine3d_quality,
+            engine3d_time_of_day,
+            engine3d_import_queue,
+            engine3d_import_status,
+        );
+        let game3d_host: GameEngineHost = GameEngineHost::new(scene3d, 1.0 / 60.0);
         Self {
             route: Signal::new(ROUTE_OVERVIEW.to_string()),
             counter,
@@ -52,6 +68,14 @@ impl ShowcaseState {
             a11y_announcements: Signal::new(0),
             haptic_pulses: Signal::new(0),
             game_host,
+            game3d_host,
+            engine3d_quality,
+            engine3d_preset_idx,
+            engine3d_rt_idx,
+            engine3d_res_scale,
+            engine3d_time_of_day,
+            engine3d_import_queue,
+            engine3d_import_status,
             dynamic_hub: DynamicUpdateHub::new(),
             sibling_counter: Signal::new(0),
             dynamic_action_log: Signal::new("None yet".to_string()),
@@ -66,6 +90,12 @@ impl ShowcaseState {
             calendar_day: Signal::new(25),
             menubar_active: Signal::new(None),
             carousel_index: Signal::new(0),
+            media_gif: Signal::new(GifAnimation::sample_neon_gif()),
+            media_live: Signal::new(LivePhotoAsset::sample_live_photo()),
+            media_video: Signal::new(VideoTrack::sample_hdr_video()),
+            media_audio: Signal::new(AudioTrack::sample_synth_wav()),
+            media_pdf: Signal::new(PdfDocument::sample_pdf()),
+            media_html_link_log: Signal::new("Click any native HTML link below".to_string()),
         }
     }
 
@@ -112,6 +142,8 @@ impl ShowcaseState {
             EuvNavItem::new(ROUTE_THEMES.to_string(), NAV_LABEL_THEMES.to_string()),
             EuvNavItem::new(ROUTE_DATA.to_string(), NAV_LABEL_DATA.to_string()),
             EuvNavItem::new(ROUTE_GAME.to_string(), NAV_LABEL_GAME.to_string()),
+            EuvNavItem::new(ROUTE_GAME_3D.to_string(), NAV_LABEL_GAME_3D.to_string()),
+            EuvNavItem::new(ROUTE_MEDIA.to_string(), NAV_LABEL_MEDIA.to_string()),
             EuvNavItem::new(ROUTE_OVERLAYS.to_string(), NAV_LABEL_OVERLAYS.to_string()),
             EuvNavItem::new(ROUTE_DYNAMIC.to_string(), NAV_LABEL_DYNAMIC.to_string()),
         ]
@@ -436,7 +468,7 @@ impl GameScene for DemoPhysicsScene {
         let mut dashed: bool = false;
         if let Some(player) = self.get_mut_world().get_entity_mut(player_id) {
             player_pos = player.get_transform().get_position();
-            let accel: f32 = 920.0;
+            let accel: f32 = 1650.0;
             let mut vel: Velocity2D = player.get_velocity();
             vel.set_vx(vel.get_vx() + move_vec.get_x() * accel * dt);
             vel.set_vy(vel.get_vy() + move_vec.get_y() * accel * dt);
@@ -635,6 +667,161 @@ impl GameScene for DemoPhysicsScene {
             GAME_HUD_CONTROLS_HINT.to_string(),
             11.0,
             Color::rgba(148, 163, 184, 220),
+        );
+    }
+}
+
+/// Construction and runtime-config helpers for `DemoOpenWorld3DScene`.
+impl DemoOpenWorld3DScene {
+    /// Creates the live Vice Boulevard 3D open-world scene bound to reactive runtime settings signals.
+    ///
+    /// # Arguments
+    ///
+    /// - `Signal<RenderQualityConfig>` - Live quality/RT/resolution configuration signal.
+    /// - `Signal<f32>` - Live time-of-day sun hour signal.
+    /// - `Signal<u64>` - Monotonic model import request signal.
+    /// - `Signal<String>` - Live status feedback signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Initialized 3D open-world scene.
+    #[must_use]
+    pub fn create_city(
+        quality_signal: Signal<RenderQualityConfig>,
+        time_signal: Signal<f32>,
+        import_signal: Signal<u64>,
+        status_signal: Signal<String>,
+    ) -> Self {
+        Self {
+            world: World3D::create_open_world_city(),
+            renderer: Renderer3D::default(),
+            actions: ActionMap::default(),
+            quality_signal,
+            time_signal,
+            import_signal,
+            last_import_seq: 0,
+            status_signal,
+            smoothed_fps: 60.0,
+        }
+    }
+}
+
+/// Deterministic 3D open-world simulation and PBR + BVH ray-traced rendering for `DemoOpenWorld3DScene`.
+impl GameScene for DemoOpenWorld3DScene {
+    /// Steps vehicle physics, camera follow, spinning imported models, time-of-day sun, and queued model imports.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable 3D scene.
+    /// - `f32` - Fixed simulation timestep in seconds.
+    /// - `&InputState` - Real-time polled keyboard/pointer state.
+    fn fixed_update(&mut self, dt: f32, input: &InputState) {
+        let req_seq: u64 = self.get_import_signal().get_untracked();
+        if req_seq != self.get_last_import_seq() {
+            self.set_last_import_seq(req_seq);
+            let is_obj: bool = req_seq % 2 == 1;
+            let z_pos: f32 = -4.0 - ((req_seq % 5) as f32) * 8.0;
+            let x_pos: f32 = if is_obj { -5.5 } else { 5.5 };
+            let import_res: Result<ImportedModel3D, String> = if is_obj {
+                self.get_mut_world().import_model(
+                    ModelFormat::Obj,
+                    SAMPLE_OBJ_MONUMENT,
+                    Transform3D::new(Vec3::new(x_pos, 0.0, z_pos), 0.0, Vec3::splat(1.0)),
+                    PbrMaterial::pbr(Color::hex(0xF59E0B), 0.9, 0.14, 0.72),
+                    0.85,
+                )
+            } else {
+                self.get_mut_world().import_model(
+                    ModelFormat::GltfJson,
+                    SAMPLE_GLTF_TOWER,
+                    Transform3D::new(Vec3::new(x_pos, 0.0, z_pos), 0.0, Vec3::splat(1.0)),
+                    PbrMaterial::pbr(Color::hex(0x38BDF8), 0.85, 0.12, 0.80),
+                    -0.70,
+                )
+            };
+            if let Ok(info) = import_res {
+                let msg: String = format!(
+                    "Imported {} ({:?}): {} verts, {} tris (LOD0+LOD1 + BVH rebuilt)",
+                    info.get_name(),
+                    info.get_format(),
+                    info.get_total_vertices(),
+                    info.get_total_triangles()
+                );
+                let _: bool = self.get_status_signal().set_if_changed(msg);
+            }
+        }
+        let hour: f32 = self.get_time_signal().get_untracked();
+        if (hour - self.get_world().get_sun().get_time_of_day()).abs() > 0.05 {
+            self.get_mut_world()
+                .set_sun(DirectionalLight3D::from_time_of_day(hour));
+        }
+        let actions: ActionMap = self.get_actions().clone();
+        self.get_mut_world().step_simulation(dt, input, &actions);
+    }
+
+    /// Updates smoothed FPS telemetry for the 3D HUD overlay.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable 3D scene.
+    /// - `f32` - Real frame delta time in seconds.
+    /// - `&InputState` - Current polled input snapshot.
+    fn update(&mut self, dt: f32, _input: &InputState) {
+        if dt > 0.0001 {
+            let inst_fps: f32 = (1.0 / dt).clamp(1.0, 240.0);
+            let next: f32 = self.get_smoothed_fps() * 0.9 + inst_fps * 0.1;
+            self.set_smoothed_fps(next);
+        }
+    }
+
+    /// Renders the 3D open-world city with live PBR + BVH ray tracing and overlays live telemetry HUD.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable 3D scene.
+    /// - `f32` - Interpolation alpha.
+    /// - `&mut GameRenderContext<'_>` - Immediate-mode viewport draw context.
+    fn render(&mut self, _alpha: f32, ctx: &mut GameRenderContext<'_>) {
+        let size: Size = ctx.viewport_size();
+        let quality: RenderQualityConfig = self.get_quality_signal().get_untracked();
+        let vw: u32 = (size.get_width().round() as u32).max(160);
+        let vh: u32 = (size.get_height().round() as u32).max(100);
+        let frame_img: ImageBuffer = {
+            let Self {
+                world, renderer, ..
+            } = self;
+            renderer.render_world(world, vw, vh, &quality)
+        };
+        ctx.draw_image(
+            Rect::new(0.0, 0.0, size.get_width(), size.get_height()),
+            frame_img,
+        );
+        let stats: RenderStats3D = self.get_renderer().get_last_stats();
+        ctx.fill_rounded_rect(
+            Rect::new(
+                10.0,
+                10.0,
+                (size.get_width() - 20.0).clamp(200.0, 620.0),
+                28.0,
+            ),
+            Color::rgba(9, 13, 24, 210),
+            6.0,
+        );
+        ctx.draw_text(
+            Point::new(18.0, 16.0),
+            format!(
+                "3D {:?} | RT {:?} | {}x{} | Tris {} | Rays {} | BVH {} | Culled {}",
+                quality.get_preset(),
+                quality.get_ray_tracing(),
+                stats.get_render_width(),
+                stats.get_render_height(),
+                stats.get_triangles_drawn(),
+                stats.get_rays_traced(),
+                stats.get_bvh_nodes(),
+                stats.get_culled_objects()
+            ),
+            11.0,
+            Color::hex(0xE2E8F0),
         );
     }
 }

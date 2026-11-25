@@ -544,19 +544,30 @@ impl PaintPass {
         }
         if layout.get_overflow() == Overflow::Scroll && bounds.get_height() > 24.0 {
             let lbox: LayoutBox = node.get_layout_box();
+            let border_w: f32 = paint.get_border().get_width();
+            let inner_x: f32 = bounds.get_x() + border_w;
+            let inner_y: f32 = bounds.get_y() + border_w;
+            let inner_w: f32 = (bounds.get_width() - border_w * 2.0).max(1.0);
+            let inner_h: f32 = (bounds.get_height() - border_w * 2.0).max(1.0);
             let view_h: f32 = lbox.get_content_bounds().get_height().max(1.0);
-            let total_h: f32 = lbox.get_content_size().get_height();
+            let (scroll_y, total_h): (f32, f32) = match node.virtual_scroll_metrics() {
+                Some((vy, vh)) => (vy, vh),
+                None => (
+                    lbox.get_scroll_offset().get_y(),
+                    lbox.get_content_size().get_height(),
+                ),
+            };
             let max_scroll_y: f32 = (total_h - view_h).max(0.0);
             if max_scroll_y > 1.0 {
-                let track_margin: f32 = 4.0;
+                let track_margin: f32 = 3.0;
                 let track_w: f32 = 6.0;
-                let track_x: f32 = (bounds.right() - track_w - 3.0).max(bounds.get_x());
-                let track_y: f32 = bounds.get_y() + track_margin;
-                let track_h: f32 = (bounds.get_height() - track_margin * 2.0).max(16.0);
-                let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.08, 1.0);
-                let thumb_h: f32 = (track_h * ratio).clamp(28.0, track_h);
-                let scroll_frac: f32 =
-                    (lbox.get_scroll_offset().get_y() / max_scroll_y).clamp(0.0, 1.0);
+                let track_x: f32 = (inner_x + inner_w - track_w - 2.0).max(inner_x);
+                let track_y: f32 = inner_y + track_margin;
+                let track_h: f32 = (inner_h - track_margin * 2.0).max(16.0);
+                let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
+                let min_thumb_h: f32 = 20.0_f32.min(track_h);
+                let thumb_h: f32 = (track_h * ratio).clamp(min_thumb_h, track_h);
+                let scroll_frac: f32 = (scroll_y / max_scroll_y).clamp(0.0, 1.0);
                 let thumb_y: f32 = track_y + (track_h - thumb_h) * scroll_frac;
                 display_list.push(DrawCommand::FillRoundedRect {
                     rect: Rect::new(track_x, track_y, track_w, track_h),
@@ -564,7 +575,7 @@ impl PaintPass {
                     radius: CornerRadius::all(3.0),
                     border: Border::default(),
                 });
-                let thumb_alpha: u8 = if hovered { 185 } else { 130 };
+                let thumb_alpha: u8 = if hovered { 190 } else { 136 };
                 display_list.push(DrawCommand::FillRoundedRect {
                     rect: Rect::new(track_x, thumb_y, track_w, thumb_h),
                     color: Color::rgba(113, 113, 122, thumb_alpha).multiply_alpha(opacity),

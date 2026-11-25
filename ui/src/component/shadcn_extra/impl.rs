@@ -25,7 +25,23 @@ impl Mountable for EuvAlertDialog {
             confirm_label,
             ..
         } = self;
-        let scrim: NodeId = ctx.portal(Style::empty());
+        let init_open: bool = open.get_untracked();
+        let scrim: NodeId = ctx.portal(
+            Style::empty()
+                .display(if init_open {
+                    Display::Flex
+                } else {
+                    Display::None
+                })
+                .position(Position::Fixed)
+                .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .justify(JustifyContent::Center)
+                .align(AlignItems::Center)
+                .background(p.get_overlay())
+                .z_index(Z_INDEX_MODAL),
+        );
         let card: NodeId = ctx.view(
             Style::empty()
                 .column()
@@ -80,24 +96,48 @@ impl Mountable for EuvAlertDialog {
         ctx.append(card, d_node);
         ctx.append(card, actions);
         ctx.append(scrim, card);
+        ctx.on_click(scrim, move |ev: &UiEvent| {
+            if ev.get_target() == scrim {
+                let _: bool = confirmed.set_if_changed(false);
+                let _: bool = open.set_if_changed(false);
+            }
+        });
         let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            handle.bind_style(scrim, move || {
-                let disp: Display = if open.get() {
-                    Display::Flex
+            Effect::new(move || {
+                let is_open: bool = open.get();
+                let was_open: bool = prev_open.replace(is_open);
+                if is_open == was_open {
+                    return;
+                }
+                if is_open {
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(scrim) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::fade(scrim, 0.0, 1.0, 0.20, false));
+                    handle.start_transition(NodeTransition::modal_enter(card));
                 } else {
-                    Display::None
-                };
-                Style::empty()
-                    .display(disp)
-                    .position(Position::Fixed)
-                    .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
-                    .width(Length::Percent(100.0))
-                    .height(Length::Percent(100.0))
-                    .justify(JustifyContent::Center)
-                    .align(AlignItems::Center)
-                    .background(p.get_overlay())
-                    .z_index(Z_INDEX_MODAL)
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(scrim) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::modal_exit(card));
+                    handle.start_transition(NodeTransition::fade(scrim, 1.0, 0.0, 0.18, true));
+                }
             })
         });
         ctx.get_scene().with_write(

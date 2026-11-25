@@ -115,6 +115,29 @@ pub struct ShowcaseState {
     pub(crate) haptic_pulses: Signal<u32>,
     /// Embedded deterministic 2D physics game host rendered directly inside `euv`.
     pub(crate) game_host: GameEngineHost,
+    /// Embedded AAA 3D open-world PBR + BVH ray-tracing game host.
+    pub(crate) game3d_host: GameEngineHost,
+    /// Shared mutable runtime 3D graphics/ray-tracing configuration adjusted live from UI controls.
+    #[get(type(copy))]
+    pub(crate) engine3d_quality: Signal<RenderQualityConfig>,
+    /// Reactive 3D quality preset index (`0=Low, 1=Medium, 2=High, 3=Ultra, 4=Cinematic`).
+    #[get(type(copy))]
+    pub(crate) engine3d_preset_idx: Signal<usize>,
+    /// Reactive 3D ray-tracing mode index (`0=Off, 1=Shadows, 2=Shadows+Refl, 3=Full GI`).
+    #[get(type(copy))]
+    pub(crate) engine3d_rt_idx: Signal<usize>,
+    /// Reactive 3D internal resolution scale percentage (`40.0..=125.0`).
+    #[get(type(copy))]
+    pub(crate) engine3d_res_scale: Signal<f32>,
+    /// Reactive 3D open-world time of day (`6.0..=23.0` hours).
+    #[get(type(copy))]
+    pub(crate) engine3d_time_of_day: Signal<f32>,
+    /// Pending live 3D model import request `(format, label, source)` consumed on the next 3D tick.
+    #[get(type(copy))]
+    pub(crate) engine3d_import_queue: Signal<u64>,
+    /// Human-readable status of the most recent 3D model import.
+    #[get(type(copy))]
+    pub(crate) engine3d_import_status: Signal<String>,
     /// Shared hub managing live component-level and page-level dynamic OTA updates.
     pub(crate) dynamic_hub: DynamicUpdateHub,
     /// Sibling counter preserved untouched during surgical component-level dynamic updates.
@@ -156,6 +179,24 @@ pub struct ShowcaseState {
     /// Controlled shadcn `EuvCarousel` active slide index.
     #[get(type(copy))]
     pub(crate) carousel_index: Signal<usize>,
+    /// Reactive animated GIF playback state for the Media Studio showcase.
+    #[get(type(copy))]
+    pub(crate) media_gif: Signal<GifAnimation>,
+    /// Reactive LIVE Photo motion state for the Media Studio showcase.
+    #[get(type(copy))]
+    pub(crate) media_live: Signal<LivePhotoAsset>,
+    /// Reactive cross-platform video track state for the Media Studio showcase.
+    #[get(type(copy))]
+    pub(crate) media_video: Signal<VideoTrack>,
+    /// Reactive WAV audio track and waveform state for the Media Studio showcase.
+    #[get(type(copy))]
+    pub(crate) media_audio: Signal<AudioTrack>,
+    /// Reactive multi-page PDF document state for the Media Studio showcase.
+    #[get(type(copy))]
+    pub(crate) media_pdf: Signal<PdfDocument>,
+    /// Most recently clicked native HTML hyperlink URI in the Media Studio showcase.
+    #[get(type(copy))]
+    pub(crate) media_html_link_log: Signal<String>,
 }
 
 /// Full-featured 2D arcade arena scene powered by `GameWorld`, `PhysicsWorld2D`, `Camera2D`, `ParticleSystem`, `TileMap`, `ActionMap`, and `AudioBus`.
@@ -200,4 +241,33 @@ pub struct DemoPhysicsScene {
     /// Total fixed physics ticks simulated.
     #[get(type(copy))]
     pub(crate) ticks: u64,
+}
+
+/// Interactive AAA 3D open-world city scene with PBR shading, BVH ray tracing, model importing, and runtime settings.
+#[derive(Clone, Data, Debug)]
+pub struct DemoOpenWorld3DScene {
+    /// Open-world 3D city scene graph with instanced towers, reflective wet boulevard, and drivable GT car.
+    pub(crate) world: World3D,
+    /// Zero-allocation PBR + BVH ray-tracing renderer.
+    pub(crate) renderer: Renderer3D,
+    /// Shared arcade action bindings for driving/flying the 3D scene.
+    pub(crate) actions: ActionMap,
+    /// Reactive runtime quality, resolution scale, and ray-tracing configuration.
+    #[get(type(copy))]
+    pub(crate) quality_signal: Signal<RenderQualityConfig>,
+    /// Reactive time-of-day sun slider signal.
+    #[get(type(copy))]
+    pub(crate) time_signal: Signal<f32>,
+    /// Monotonic import trigger signal (`odd = OBJ`, `even = glTF`).
+    #[get(type(copy))]
+    pub(crate) import_signal: Signal<u64>,
+    /// Last processed import counter.
+    #[get(type(copy))]
+    pub(crate) last_import_seq: u64,
+    /// Status text signal reporting imported vertices/triangles/BVH count.
+    #[get(type(copy))]
+    pub(crate) status_signal: Signal<String>,
+    /// Smoothed real-time FPS telemetry.
+    #[get(type(copy))]
+    pub(crate) smoothed_fps: f32,
 }

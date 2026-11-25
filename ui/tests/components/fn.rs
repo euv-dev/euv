@@ -558,3 +558,40 @@ fn hover_bubbling_and_hover_card_pointer_enter_leave_update_visual_state() {
     assert!(is_btn_hovered);
     assert_ne!(idle.get_frame_hash(), hovered.get_frame_hash());
 }
+
+#[test]
+fn full_media_component_suite_renders_image_svg_gif_live_video_audio_pdf_and_html() {
+    reset_reactive_runtime();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Dark);
+    let gif_sig: Signal<GifAnimation> = Signal::new(GifAnimation::sample_neon_gif());
+    let live_sig: Signal<LivePhotoAsset> = Signal::new(LivePhotoAsset::sample_live_photo());
+    let video_sig: Signal<VideoTrack> = Signal::new(VideoTrack::sample_hdr_video());
+    let audio_sig: Signal<AudioTrack> = Signal::new(AudioTrack::sample_synth_wav());
+    let pdf_sig: Signal<PdfDocument> = Signal::new(PdfDocument::sample_pdf());
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(960, 1400).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        EuvPage::new(
+            "Media Test".to_string(),
+            "All 8 media types".to_string(),
+            tokens,
+        )
+        .section(EuvImage::new(ImageAsset::sample_photo("Sample"), tokens).mount_current())
+        .section(
+            EuvSvgView::new(SvgDocument::sample_svg(), "SVG".to_string(), tokens).mount_current(),
+        )
+        .section(EuvGifPlayer::new(gif_sig, tokens).mount_current())
+        .section(EuvLivePhoto::new(live_sig, tokens).mount_current())
+        .section(EuvVideoPlayer::new(video_sig, tokens).mount_current())
+        .section(EuvAudioPlayer::new(audio_sig, tokens).mount_current())
+        .section(EuvPdfViewer::new(pdf_sig, tokens).mount_current())
+        .section(EuvHtmlView::new(HtmlDocument::sample_html(), tokens).mount_current())
+        .mount_current()
+    });
+    let stats: FrameStats = app.step_frame().unwrap();
+    assert_ne!(stats.get_frame_hash(), 0);
+    assert!(stats.get_draw_commands() >= 40);
+}

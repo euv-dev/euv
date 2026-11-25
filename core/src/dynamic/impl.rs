@@ -1758,6 +1758,8 @@ impl Mountable for DynamicPageOutlet {
             host_style
         };
         let host: NodeId = ctx.view(effective_style);
+        let scene_for_anim: SceneHandle = ctx.get_scene().clone();
+        let prev_route_cell: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
         ctx.bind_children(host, move || {
             let active_route: String = normalize_dynamic_route(&route_sig.get());
             let page_rev_sig: Signal<u64> = active_hub.page_revision_signal(&active_route);
@@ -1765,7 +1767,22 @@ impl Mountable for DynamicPageOutlet {
             let fallback_c: DynamicRouteFallbackFn = fallback.clone();
             let route_for_fb: String = active_route.clone();
             let fb: DynamicBuilderFn = Rc::new(move || fallback_c(&route_for_fb));
-            vec![active_hub.mount_page_or_fallback(&active_route, &fb)]
+            let page_node: NodeId = active_hub.mount_page_or_fallback(&active_route, &fb);
+            let should_animate: bool = match prev_route_cell.try_borrow_mut() {
+                Ok(mut slot) => {
+                    let changed: bool = slot
+                        .as_deref()
+                        .map(|prev: &str| prev != active_route.as_str())
+                        .unwrap_or(false);
+                    *slot = Some(active_route.clone());
+                    changed
+                }
+                Err(_) => false,
+            };
+            if should_animate {
+                scene_for_anim.start_transition(NodeTransition::route_enter(page_node));
+            }
+            vec![page_node]
         });
         host
     }

@@ -104,6 +104,18 @@ impl App {
             last_rendered_revision: 0,
             last_cursor: CursorIcon::Default,
             game_hosts: Vec::new(),
+            touch_drag_origin: None,
+            touch_drag_last: None,
+            touch_dragging: false,
+            scrollbar_dragging: false,
+            active_pointers: HashMap::new(),
+            gesture_origin: None,
+            pinch_base_dist: 0.0,
+            gesture_hold_secs: 0.0,
+            long_press_fired: false,
+            last_tap_pos: None,
+            last_tap_age_secs: 10.0,
+            gesture_seq: 0,
         })
     }
 
@@ -115,6 +127,20 @@ impl App {
     /// - `GameEngineHost` - Game engine host handle to attach.
     pub fn attach_game_host(&mut self, host: GameEngineHost) {
         self.get_mut_game_hosts().push(host);
+    }
+
+    /// Returns `true` when any node transition animation is actively running.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - App reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether animations need continuous frame stepping.
+    #[must_use]
+    pub fn has_active_animations(&self) -> bool {
+        self.get_scene().has_active_transitions()
     }
 
     /// Mounts a root `Mountable` component or `NodeId` into the application's scene root with an ambient `BuildContext`.
@@ -306,13 +332,13 @@ impl App {
                 self.set_running(false);
             }
             WindowEvent::PointerMove(_, ptr) => {
-                self.handle_pointer_move(ptr.get_position());
+                self.handle_pointer_move_event(ptr);
             }
             WindowEvent::PointerDown(_, ptr) => {
-                self.handle_pointer_down(ptr.get_position());
+                self.handle_pointer_down_event(ptr);
             }
             WindowEvent::PointerUp(_, ptr) => {
-                self.handle_pointer_up(ptr.get_position());
+                self.handle_pointer_up_event(ptr);
             }
             WindowEvent::Scroll(_, delta) => {
                 self.handle_scroll(delta);
@@ -365,11 +391,35 @@ impl App {
             self.dispatch_window_event(ev);
         }
         flush_effects();
+        let raw_dt: f32 = self.get_frame_clock().get_delta_secs();
+        let anim_dt: f32 = if raw_dt > 0.0001 {
+            raw_dt.clamp(1.0 / 240.0, 0.05)
+        } else {
+            1.0 / 60.0
+        };
+        let scene: SceneHandle = self.get_scene().clone();
+        let has_canvas: bool = scene.with_read(
+            |tree: &SceneTree| {
+                tree.get_nodes().iter().any(|n: &SceneNode| {
+                    n.get_alive()
+                        && matches!(n.get_kind(), NodeKind::Canvas)
+                        && n.get_style().get_layout().get_display() != Display::None
+                })
+            },
+            false,
+        );
+        if has_canvas && !self.get_game_hosts().is_empty() {
+            for host in self.get_game_hosts().iter() {
+                let _: u32 = host.step(anim_dt);
+            }
+        }
+        let _: bool =
+            scene.with_write(|tree: &mut SceneTree| tree.tick_transitions(anim_dt), false);
+        self.tick_gesture_timers(anim_dt);
         let viewport: Size = self.get_window_state().logical_size();
         let scale: f32 = self.get_window_state().get_scale_factor();
         let clear: Color = self.get_config().get_clear_color();
         let mut damage: DamageRegion = self.get_pending_damage();
-        let scene: SceneHandle = self.get_scene().clone();
         let (scene_rev, tree_damage): (u64, DamageRegion) = scene.with_write(
             |tree: &mut SceneTree| {
                 let d: DamageRegion = tree.collect_paint_damage(scale);
@@ -503,38 +553,249 @@ impl App {
         chain
     }
 
-    /// Handles pointer motion, bubbling hover across ancestors, updating OS cursor, and supporting scrollbar dragging.
+    /// Emits a recognized cross-platform `GestureEvent` into the reactive `BuildContext::get_gesture()` signal.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable app.
-    /// - `Point` - Logical pointer position.
-    fn handle_pointer_move(&mut self, pos: Point) {
+    /// - `GestureEventKind` - Classified gesture variant.
+    /// - `Point` - Starting gesture coordinates.
+    /// - `Point` - Current/ending gesture coordinates.
+    /// - `f32` - Relative pinch scale factor (`1.0` for non-pinch gestures).
+    /// - `u8` - Number of active pointers involved.
+    /// - `PointerDevice` - Originating input device class.
+    fn emit_gesture(
+        &mut self,
+        kind: GestureEventKind,
+        origin: Point,
+        position: Point,
+        scale: f32,
+        pointer_count: u8,
+        device: PointerDevice,
+    ) {
+        let next_seq: u64 = self.get_gesture_seq().wrapping_add(1);
+        self.set_gesture_seq(next_seq);
+        let ev: GestureEvent = GestureEvent {
+            sequence: next_seq,
+            kind,
+            origin,
+            position,
+            delta: Point::new(
+                position.get_x() - origin.get_x(),
+                position.get_y() - origin.get_y(),
+            ),
+            scale,
+            pointer_count,
+            device,
+        };
+        let _: bool = self.get_build_context().get_gesture().set(Some(ev));
+    }
+
+    /// Advances double-tap aging and stationary long-press gesture detection on every frame tick.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `f32` - Elapsed frame delta in seconds.
+    fn tick_gesture_timers(&mut self, dt_secs: f32) {
+        let age: f32 = (self.get_last_tap_age_secs() + dt_secs).min(10.0);
+        self.set_last_tap_age_secs(age);
+        let origin_opt: Option<Point> = {
+            let Self { gesture_origin, .. } = self;
+            *gesture_origin
+        };
+        if let Some(origin) = origin_opt
+            && !self.get_long_press_fired()
+            && self.get_active_pointers().len() == 1
+        {
+            let cur: Point = self.get_input_state().get_pointer_position();
+            let moved: f32 = (cur.get_x() - origin.get_x()).hypot(cur.get_y() - origin.get_y());
+            if moved <= 12.0 {
+                let held: f32 = self.get_gesture_hold_secs() + dt_secs;
+                self.set_gesture_hold_secs(held);
+                if held >= 0.45 {
+                    self.set_long_press_fired(true);
+                    self.emit_gesture(
+                        GestureEventKind::LongPress,
+                        origin,
+                        cur,
+                        1.0,
+                        1,
+                        PointerDevice::Touch,
+                    );
+                }
+            }
+        }
+    }
+
+    /// Computes distance between the first two active multi-touch pointers for pinch-to-zoom gestures.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - App reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<(f32, Point)>` - Distance and midpoint when `>= 2` pointers are active.
+    #[must_use]
+    fn active_pinch_span(&self) -> Option<(f32, Point)> {
+        let pts: Vec<Point> = self.get_active_pointers().values().copied().collect();
+        if pts.len() < 2 {
+            return None;
+        }
+        let a: Point = pts[0];
+        let b: Point = pts[1];
+        let dist: f32 = (b.get_x() - a.get_x()).hypot(b.get_y() - a.get_y());
+        let mid: Point = Point::new((a.get_x() + b.get_x()) * 0.5, (a.get_y() + b.get_y()) * 0.5);
+        Some((dist, mid))
+    }
+
+    /// Handles pointer motion with touch pan-to-scroll, multi-touch pinch, pointer capture for sliders, hover bubbling, cursor updates, and scrollbar dragging.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `PointerEvent` - Incoming pointer move event.
+    fn handle_pointer_move_event(&mut self, ptr: PointerEvent) {
+        let pos: Point = ptr.get_position();
+        if self
+            .get_active_pointers()
+            .contains_key(&ptr.get_pointer_id())
+        {
+            let _: Option<Point> = self
+                .get_mut_active_pointers()
+                .insert(ptr.get_pointer_id(), pos);
+            if self.get_active_pointers().len() >= 2
+                && let Some((cur_dist, mid)) = self.active_pinch_span()
+            {
+                let base: f32 = self.get_pinch_base_dist();
+                if base > 8.0 && (cur_dist - base).abs() > 6.0 {
+                    let scale: f32 = (cur_dist / base).clamp(0.4, 3.0);
+                    self.set_pinch_base_dist(cur_dist);
+                    self.emit_gesture(
+                        GestureEventKind::Pinch,
+                        mid,
+                        mid,
+                        scale,
+                        self.get_active_pointers().len().min(8) as u8,
+                        ptr.get_device(),
+                    );
+                    return;
+                }
+            }
+        }
+        let is_touch: bool = ptr.get_device() == PointerDevice::Touch;
+        let origin_opt: Option<Point> = {
+            let Self {
+                touch_drag_origin, ..
+            } = self;
+            *touch_drag_origin
+        };
+        let is_scrollbar_drag: bool = self.get_scrollbar_dragging();
+        if is_touch && let Some(origin) = origin_opt {
+            let captured_drag_control: bool = is_scrollbar_drag
+                || self.get_scene().with_read(
+                    |tree: &SceneTree| {
+                        tree.get_focus()
+                            .pressed_node()
+                            .and_then(|pid: NodeId| tree.get_node(pid))
+                            .map(|n: &SceneNode| {
+                                n.get_handlers()
+                                    .handler_for(&UiEventKind::PointerMove(pos))
+                                    .is_some()
+                            })
+                            .unwrap_or(false)
+                    },
+                    false,
+                );
+            if !captured_drag_control {
+                let total_dx: f32 = pos.get_x() - origin.get_x();
+                let total_dy: f32 = pos.get_y() - origin.get_y();
+                if !self.get_touch_dragging() && (total_dx.abs() > 10.0 || total_dy.abs() > 10.0) {
+                    self.set_touch_dragging(true);
+                }
+                if self.get_touch_dragging() {
+                    let prev_opt: Option<Point> = {
+                        let Self {
+                            touch_drag_last, ..
+                        } = self;
+                        *touch_drag_last
+                    };
+                    if let Some(prev) = prev_opt {
+                        let scroll_dx: f32 = prev.get_x() - pos.get_x();
+                        let scroll_dy: f32 = prev.get_y() - pos.get_y();
+                        self.handle_scroll(Point::new(scroll_dx, scroll_dy));
+                    }
+                    self.set_touch_drag_last(Some(pos));
+                    return;
+                }
+            }
+            self.set_touch_drag_last(Some(pos));
+        }
         let scene: SceneHandle = self.get_scene().clone();
         let (callbacks, next_cursor): (Vec<(UiEventHandler, UiEvent)>, CursorIcon) = scene
             .with_write(
                 |tree: &mut SceneTree| {
-                    if let Some(pressed_id) = tree.get_focus().pressed_node()
+                    let mut out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
+                    let pressed_opt: Option<NodeId> = tree.get_focus().pressed_node();
+                    if is_scrollbar_drag
+                        && let Some(pressed_id) = pressed_opt
                         && let Some(node) = tree.get_node(pressed_id)
                         && node.get_style().get_layout().get_overflow() == Overflow::Scroll
                     {
                         let lbox: LayoutBox = node.get_layout_box();
-                        let b: Rect = lbox.get_bounds();
-                        let max_y: f32 = (lbox.get_content_size().get_height()
-                            - lbox.get_content_bounds().get_height())
-                        .max(0.0);
-                        if max_y > 1.0 && b.get_height() > 16.0 {
-                            let frac: f32 =
-                                ((pos.get_y() - b.get_y()) / b.get_height()).clamp(0.0, 1.0);
-                            tree.set_scroll_offset(
-                                pressed_id,
-                                Point::new(lbox.get_scroll_offset().get_x(), frac * max_y),
-                            );
+                        let border_w: f32 = node.get_style().get_paint().get_border().get_width();
+                        let screen_outer: Rect = tree
+                            .node_screen_bounds(pressed_id)
+                            .unwrap_or_else(|| lbox.get_bounds());
+                        let view_h: f32 = lbox.get_content_bounds().get_height().max(1.0);
+                        let inner_h: f32 = (screen_outer.get_height() - border_w * 2.0).max(1.0);
+                        let track_margin: f32 = 3.0;
+                        let track_y: f32 = screen_outer.get_y() + border_w + track_margin;
+                        let track_h: f32 = (inner_h - track_margin * 2.0).max(16.0);
+                        if let Some((cur_vy, total_h)) = node.virtual_scroll_metrics() {
+                            let max_y: f32 = (total_h - view_h).max(0.0);
+                            if max_y > 1.0 && track_h > 16.0 {
+                                let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
+                                let thumb_h: f32 =
+                                    (track_h * ratio).clamp(20.0_f32.min(track_h), track_h);
+                                let travel: f32 = (track_h - thumb_h).max(1.0);
+                                let frac: f32 = ((pos.get_y() - track_y - thumb_h * 0.5) / travel)
+                                    .clamp(0.0, 1.0);
+                                let delta_y: f32 = frac * max_y - cur_vy;
+                                if delta_y.abs() > 0.1
+                                    && let Some(h) = node
+                                        .get_handlers()
+                                        .handler_for(&UiEventKind::Scroll(Point::new(0.0, delta_y)))
+                                {
+                                    out.push((
+                                        h,
+                                        UiEvent::new(
+                                            pressed_id,
+                                            UiEventKind::Scroll(Point::new(0.0, delta_y)),
+                                        ),
+                                    ));
+                                }
+                            }
+                        } else {
+                            let total_h: f32 = lbox.get_content_size().get_height();
+                            let max_y: f32 = (total_h - view_h).max(0.0);
+                            if max_y > 1.0 && track_h > 16.0 {
+                                let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
+                                let thumb_h: f32 =
+                                    (track_h * ratio).clamp(20.0_f32.min(track_h), track_h);
+                                let travel: f32 = (track_h - thumb_h).max(1.0);
+                                let frac: f32 = ((pos.get_y() - track_y - thumb_h * 0.5) / travel)
+                                    .clamp(0.0, 1.0);
+                                tree.set_scroll_offset(
+                                    pressed_id,
+                                    Point::new(lbox.get_scroll_offset().get_x(), frac * max_y),
+                                );
+                            }
                         }
                     }
                     let hit: Option<NodeId> = hit_test(tree, pos);
                     let prev: Option<NodeId> = tree.get_focus().hovered_node();
-                    let mut out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
                     if prev != hit {
                         let old_chain: Vec<NodeId> = Self::ancestor_chain(tree, prev);
                         let new_chain: Vec<NodeId> = Self::ancestor_chain(tree, hit);
@@ -606,7 +867,16 @@ impl App {
                             }
                         }
                     }
+                    if let Some(pid) = pressed_opt
+                        && let Some(node) = tree.get_node(pid)
+                        && let Some(h) = node
+                            .get_handlers()
+                            .handler_for(&UiEventKind::PointerMove(pos))
+                    {
+                        out.push((h, UiEvent::new(pid, UiEventKind::PointerMove(pos))));
+                    }
                     if let Some(target_id) = hit
+                        && pressed_opt != Some(target_id)
                         && let Some(node) = tree.get_node(target_id)
                         && let Some(h) = node
                             .get_handlers()
@@ -626,92 +896,234 @@ impl App {
         Self::invoke_callbacks(callbacks);
     }
 
-    /// Handles pointer press, propagating pressed state to interactive ancestors and supporting scrollbar thumb clicks.
+    /// Handles pointer press, propagating pressed state, capturing draggable controls, and supporting scrollbar thumb clicks.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable app.
-    /// - `Point` - Logical press coordinates.
-    fn handle_pointer_down(&mut self, pos: Point) {
+    /// - `PointerEvent` - Incoming pointer press event.
+    fn handle_pointer_down_event(&mut self, ptr: PointerEvent) {
+        let pos: Point = ptr.get_position();
+        let _: Option<Point> = self
+            .get_mut_active_pointers()
+            .insert(ptr.get_pointer_id(), pos);
+        if self.get_active_pointers().len() == 1 {
+            self.set_gesture_origin(Some(pos));
+            self.set_gesture_hold_secs(0.0);
+            self.set_long_press_fired(false);
+        } else if let Some((dist, _)) = self.active_pinch_span() {
+            self.set_gesture_origin(None);
+            self.set_pinch_base_dist(dist);
+        }
+        if ptr.get_device() == PointerDevice::Touch {
+            self.set_touch_drag_origin(Some(pos));
+            self.set_touch_drag_last(Some(pos));
+            self.set_touch_dragging(false);
+        } else {
+            self.set_touch_drag_origin(None);
+            self.set_touch_drag_last(None);
+            self.set_touch_dragging(false);
+        }
         let scene: SceneHandle = self.get_scene().clone();
-        let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
-            |tree: &mut SceneTree| {
-                let hit: Option<NodeId> = hit_test(tree, pos);
-                let mut scrollbar_target: Option<NodeId> = None;
-                for aid in Self::ancestor_chain(tree, hit).into_iter() {
-                    if let Some(node) = tree.get_node(aid)
-                        && node.get_style().get_layout().get_overflow() == Overflow::Scroll
-                    {
-                        let lbox: LayoutBox = node.get_layout_box();
-                        let b: Rect = lbox.get_bounds();
-                        let max_y: f32 = (lbox.get_content_size().get_height()
-                            - lbox.get_content_bounds().get_height())
-                        .max(0.0);
-                        if max_y > 1.0
-                            && pos.get_x() >= b.right() - 14.0
-                            && pos.get_x() <= b.right()
+        let (callbacks, grabbed_scrollbar): (Vec<(UiEventHandler, UiEvent)>, bool) = scene
+            .with_write(
+                |tree: &mut SceneTree| {
+                    let hit: Option<NodeId> = hit_test(tree, pos);
+                    tree.get_mut_focus().set_hovered(hit);
+                    let mut scrollbar_target: Option<NodeId> = None;
+                    let mut sb_callbacks: Vec<(UiEventHandler, UiEvent)> = Vec::new();
+                    for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                        if let Some(node) = tree.get_node(aid)
+                            && node.get_style().get_layout().get_overflow() == Overflow::Scroll
                         {
-                            let frac: f32 = ((pos.get_y() - b.get_y()) / b.get_height().max(1.0))
-                                .clamp(0.0, 1.0);
-                            tree.set_scroll_offset(
-                                aid,
-                                Point::new(lbox.get_scroll_offset().get_x(), frac * max_y),
-                            );
-                            scrollbar_target = Some(aid);
-                            break;
+                            let lbox: LayoutBox = node.get_layout_box();
+                            let border_w: f32 =
+                                node.get_style().get_paint().get_border().get_width();
+                            let screen_outer: Rect = tree
+                                .node_screen_bounds(aid)
+                                .unwrap_or_else(|| lbox.get_bounds());
+                            let inner_right: f32 = screen_outer.right() - border_w;
+                            let inner_h: f32 =
+                                (screen_outer.get_height() - border_w * 2.0).max(1.0);
+                            let view_h: f32 = lbox.get_content_bounds().get_height().max(1.0);
+                            let (cur_vy, total_h, is_virtual): (f32, f32, bool) =
+                                match node.virtual_scroll_metrics() {
+                                    Some((vy, vh)) => (vy, vh, true),
+                                    None => (
+                                        lbox.get_scroll_offset().get_y(),
+                                        lbox.get_content_size().get_height(),
+                                        false,
+                                    ),
+                                };
+                            let max_y: f32 = (total_h - view_h).max(0.0);
+                            if max_y > 1.0
+                                && pos.get_x() >= inner_right - 14.0
+                                && pos.get_x() <= screen_outer.right()
+                            {
+                                let track_margin: f32 = 3.0;
+                                let track_y: f32 = screen_outer.get_y() + border_w + track_margin;
+                                let track_h: f32 = (inner_h - track_margin * 2.0).max(16.0);
+                                let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
+                                let thumb_h: f32 =
+                                    (track_h * ratio).clamp(20.0_f32.min(track_h), track_h);
+                                let travel: f32 = (track_h - thumb_h).max(1.0);
+                                let frac: f32 = ((pos.get_y() - track_y - thumb_h * 0.5) / travel)
+                                    .clamp(0.0, 1.0);
+                                if is_virtual {
+                                    let delta_y: f32 = frac * max_y - cur_vy;
+                                    if let Some(h) = node
+                                        .get_handlers()
+                                        .handler_for(&UiEventKind::Scroll(Point::new(0.0, delta_y)))
+                                    {
+                                        sb_callbacks.push((
+                                            h,
+                                            UiEvent::new(
+                                                aid,
+                                                UiEventKind::Scroll(Point::new(0.0, delta_y)),
+                                            ),
+                                        ));
+                                    }
+                                } else {
+                                    tree.set_scroll_offset(
+                                        aid,
+                                        Point::new(lbox.get_scroll_offset().get_x(), frac * max_y),
+                                    );
+                                }
+                                scrollbar_target = Some(aid);
+                                break;
+                            }
                         }
                     }
-                }
-                if let Some(sb_id) = scrollbar_target {
-                    tree.get_mut_focus().set_pressed(Some(sb_id));
-                    return Vec::new();
-                }
-                let mut focus_target: Option<NodeId> = None;
-                let mut press_target: Option<NodeId> = hit;
-                for aid in Self::ancestor_chain(tree, hit).into_iter() {
-                    if let Some(node) = tree.get_node(aid) {
-                        if focus_target.is_none() && node.get_interaction().get_focusable() {
-                            focus_target = Some(aid);
-                        }
-                        if node
-                            .get_handlers()
-                            .handler_for(&UiEventKind::Click(pos))
-                            .is_some()
-                            || node.get_style().get_paint().get_cursor() == CursorIcon::Pointer
-                        {
-                            press_target = Some(aid);
-                            break;
+                    if let Some(sb_id) = scrollbar_target {
+                        tree.get_mut_focus().set_pressed(Some(sb_id));
+                        return (sb_callbacks, true);
+                    }
+                    let mut focus_target: Option<NodeId> = None;
+                    let mut press_target: Option<NodeId> = hit;
+                    for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                        if let Some(node) = tree.get_node(aid) {
+                            if focus_target.is_none() && node.get_interaction().get_focusable() {
+                                focus_target = Some(aid);
+                            }
+                            if node
+                                .get_handlers()
+                                .handler_for(&UiEventKind::PointerDown(pos))
+                                .is_some()
+                                || node
+                                    .get_handlers()
+                                    .handler_for(&UiEventKind::Click(pos))
+                                    .is_some()
+                                || node.get_style().get_paint().get_cursor() == CursorIcon::Pointer
+                            {
+                                press_target = Some(aid);
+                                break;
+                            }
                         }
                     }
-                }
-                let mut out: Vec<(UiEventHandler, UiEvent)> = tree.update_focus(focus_target);
-                tree.get_mut_focus().set_pressed(press_target);
-                if let Some(id) = press_target {
-                    if let Some(node) = tree.get_node_mut(id) {
-                        node.get_mut_interaction().set_pressed(true);
-                        if let Some(h) = node
-                            .get_handlers()
-                            .handler_for(&UiEventKind::PointerDown(pos))
-                        {
-                            out.push((h, UiEvent::new(id, UiEventKind::PointerDown(pos))));
+                    let mut out: Vec<(UiEventHandler, UiEvent)> = tree.update_focus(focus_target);
+                    tree.get_mut_focus().set_pressed(press_target);
+                    if let Some(id) = press_target {
+                        if let Some(node) = tree.get_node_mut(id) {
+                            node.get_mut_interaction().set_pressed(true);
+                            if let Some(h) = node
+                                .get_handlers()
+                                .handler_for(&UiEventKind::PointerDown(pos))
+                            {
+                                out.push((h, UiEvent::new(id, UiEventKind::PointerDown(pos))));
+                            }
                         }
+                        tree.mark_dirty(id, DIRTY_PAINT);
                     }
-                    tree.mark_dirty(id, DIRTY_PAINT);
-                }
-                out
-            },
-            Vec::new(),
-        );
+                    (out, false)
+                },
+                (Vec::new(), false),
+            );
+        self.set_scrollbar_dragging(grabbed_scrollbar);
         Self::invoke_callbacks(callbacks);
     }
 
-    /// Handles pointer release, firing `PointerUp` and bubbling `Click` up the ancestor chain.
+    /// Handles pointer release, firing `PointerUp` on captured targets and bubbling `Click` when not touch-scrolling.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable app.
-    /// - `Point` - Logical release coordinates.
-    fn handle_pointer_up(&mut self, pos: Point) {
+    /// - `PointerEvent` - Incoming pointer release event.
+    fn handle_pointer_up_event(&mut self, ptr: PointerEvent) {
+        let pos: Point = ptr.get_position();
+        let _: Option<Point> = self.get_mut_active_pointers().remove(&ptr.get_pointer_id());
+        if self.get_active_pointers().is_empty() {
+            let origin_opt: Option<Point> = {
+                let Self { gesture_origin, .. } = self;
+                *gesture_origin
+            };
+            self.set_gesture_origin(None);
+            self.set_pinch_base_dist(0.0);
+            self.set_gesture_hold_secs(0.0);
+            let long_fired: bool = self.get_long_press_fired();
+            self.set_long_press_fired(false);
+            if let Some(origin) = origin_opt
+                && !long_fired
+            {
+                let dx: f32 = pos.get_x() - origin.get_x();
+                let dy: f32 = pos.get_y() - origin.get_y();
+                let dist: f32 = dx.hypot(dy);
+                if dist <= 12.0 {
+                    let prev_tap: Option<Point> = {
+                        let Self { last_tap_pos, .. } = self;
+                        *last_tap_pos
+                    };
+                    let is_double: bool = self.get_last_tap_age_secs() <= 0.35
+                        && prev_tap
+                            .map(|p: Point| {
+                                (p.get_x() - pos.get_x()).hypot(p.get_y() - pos.get_y()) <= 28.0
+                            })
+                            .unwrap_or(false);
+                    if is_double {
+                        self.set_last_tap_pos(None);
+                        self.set_last_tap_age_secs(10.0);
+                        self.emit_gesture(
+                            GestureEventKind::DoubleTap,
+                            origin,
+                            pos,
+                            1.0,
+                            1,
+                            ptr.get_device(),
+                        );
+                    } else {
+                        self.set_last_tap_pos(Some(pos));
+                        self.set_last_tap_age_secs(0.0);
+                        self.emit_gesture(
+                            GestureEventKind::Tap,
+                            origin,
+                            pos,
+                            1.0,
+                            1,
+                            ptr.get_device(),
+                        );
+                    }
+                } else if dist >= 44.0 {
+                    let swipe_kind: GestureEventKind = if dx.abs() >= dy.abs() {
+                        if dx > 0.0 {
+                            GestureEventKind::SwipeRight
+                        } else {
+                            GestureEventKind::SwipeLeft
+                        }
+                    } else if dy > 0.0 {
+                        GestureEventKind::SwipeDown
+                    } else {
+                        GestureEventKind::SwipeUp
+                    };
+                    self.emit_gesture(swipe_kind, origin, pos, 1.0, 1, ptr.get_device());
+                } else {
+                    self.emit_gesture(GestureEventKind::Pan, origin, pos, 1.0, 1, ptr.get_device());
+                }
+            }
+        }
+        let suppress_click: bool = self.get_touch_dragging() || self.get_scrollbar_dragging();
+        self.set_touch_drag_origin(None);
+        self.set_touch_drag_last(None);
+        self.set_touch_dragging(false);
+        self.set_scrollbar_dragging(false);
         let scene: SceneHandle = self.get_scene().clone();
         let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
             |tree: &mut SceneTree| {
@@ -722,29 +1134,38 @@ impl App {
                 if let Some(prev_id) = pressed {
                     if let Some(node) = tree.get_node_mut(prev_id) {
                         node.get_mut_interaction().set_pressed(false);
+                        if let Some(h) = node
+                            .get_handlers()
+                            .handler_for(&UiEventKind::PointerUp(pos))
+                        {
+                            out.push((h, UiEvent::new(prev_id, UiEventKind::PointerUp(pos))));
+                        }
                     }
                     tree.mark_dirty(prev_id, DIRTY_PAINT);
                 }
                 if let Some(target_id) = hit {
-                    if let Some(node) = tree.get_node(target_id)
+                    if pressed != Some(target_id)
+                        && let Some(node) = tree.get_node(target_id)
                         && let Some(h) = node
                             .get_handlers()
                             .handler_for(&UiEventKind::PointerUp(pos))
                     {
                         out.push((h, UiEvent::new(target_id, UiEventKind::PointerUp(pos))));
                     }
-                    let mut bubble: Option<NodeId> = Some(target_id);
-                    while let Some(id) = bubble {
-                        if let Some(node) = tree.get_node(id) {
-                            if let Some(h) =
-                                node.get_handlers().handler_for(&UiEventKind::Click(pos))
-                            {
-                                out.push((h, UiEvent::new(id, UiEventKind::Click(pos))));
+                    if !suppress_click {
+                        let mut bubble: Option<NodeId> = Some(target_id);
+                        while let Some(id) = bubble {
+                            if let Some(node) = tree.get_node(id) {
+                                if let Some(h) =
+                                    node.get_handlers().handler_for(&UiEventKind::Click(pos))
+                                {
+                                    out.push((h, UiEvent::new(target_id, UiEventKind::Click(pos))));
+                                    break;
+                                }
+                                bubble = node.parent_id();
+                            } else {
                                 break;
                             }
-                            bubble = node.parent_id();
-                        } else {
-                            break;
                         }
                     }
                 }
@@ -755,26 +1176,38 @@ impl App {
         Self::invoke_callbacks(callbacks);
     }
 
-    /// Handles wheel/pan scroll deltas with content-bounds clamping, scroll chaining, and fallback scroll targeting.
+    /// Handles wheel/pan scroll deltas with live re-hit-testing (fixing fast virtual-list scroll freeze), clamping, and scroll chaining.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable app.
     /// - `Point` - Logical scroll delta `(dx, dy)`.
     fn handle_scroll(&mut self, delta: Point) {
+        let pointer_pos: Point = self.get_input_state().get_pointer_position();
         let scene: SceneHandle = self.get_scene().clone();
         let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
             |tree: &mut SceneTree| {
-                let mut cursor: Option<NodeId> = tree.get_focus().hovered_node();
+                let mut cursor: Option<NodeId> = tree
+                    .get_focus()
+                    .hovered_node()
+                    .filter(|id: &NodeId| tree.get_node(*id).is_some());
+                if cursor.is_none() {
+                    let fresh: Option<NodeId> = hit_test(tree, pointer_pos);
+                    if fresh.is_some() {
+                        tree.get_mut_focus().set_hovered(fresh);
+                        cursor = fresh;
+                    }
+                }
                 if cursor.is_none() {
                     for (idx, node) in tree.get_nodes().iter().enumerate() {
                         if node.get_alive()
                             && node.get_style().get_layout().get_overflow() == Overflow::Scroll
                         {
                             let lbox: LayoutBox = node.get_layout_box();
-                            if lbox.get_content_size().get_height()
-                                > lbox.get_content_bounds().get_height() + 1.0
-                            {
+                            let scrollable: bool = node.virtual_scroll_metrics().is_some()
+                                || lbox.get_content_size().get_height()
+                                    > lbox.get_content_bounds().get_height() + 1.0;
+                            if scrollable {
                                 cursor = Some(NodeId::new(idx as u32, node.get_generation()));
                                 break;
                             }
@@ -807,13 +1240,13 @@ impl App {
                                 {
                                     out.push((h, UiEvent::new(id, UiEventKind::Scroll(delta))));
                                 }
+                                if has_custom {
+                                    return out;
+                                }
                                 let moved: bool = (next.get_x() - cur.get_x()).abs() > 0.01
                                     || (next.get_y() - cur.get_y()).abs() > 0.01;
                                 if moved {
                                     tree.set_scroll_offset(id, next);
-                                    return out;
-                                }
-                                if has_custom {
                                     return out;
                                 }
                             }

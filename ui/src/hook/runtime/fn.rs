@@ -73,6 +73,16 @@ pub fn use_gesture() -> GestureRecognizer {
     GestureRecognizer::default()
 }
 
+/// Returns the reactive `Signal<Option<GestureEvent>>` stream from the ambient `BuildContext`.
+///
+/// # Returns
+///
+/// - `Signal<Option<GestureEvent>>` - Live cross-platform gesture stream (`Tap`, `DoubleTap`, `LongPress`, `Swipe*`, `Pan`, `Pinch`).
+#[must_use]
+pub fn use_gesture_events() -> Signal<Option<GestureEvent>> {
+    current_build_context().get_gesture()
+}
+
 /// Returns the reactive `(Signal<SafeAreaInsets>, Signal<ThemeMode>)` window-metrics hook pair from the ambient `BuildContext`.
 ///
 /// # Returns

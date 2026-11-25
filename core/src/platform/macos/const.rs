@@ -160,6 +160,15 @@ pub(crate) const OBJC_SEL_MODIFIER_FLAGS: &str = "modifierFlags\0";
 /// Objective-C selector for `characters`.
 pub(crate) const OBJC_SEL_CHARACTERS: &str = "characters\0";
 
+/// Objective-C selector for `charactersIgnoringModifiers`.
+pub(crate) const OBJC_SEL_CHARS_IGNORING_MODS: &str = "charactersIgnoringModifiers\0";
+
+/// Objective-C selector for `setTitlebarAppearsTransparent:`.
+pub(crate) const OBJC_SEL_SET_TITLEBAR_TRANSPARENT: &str = "setTitlebarAppearsTransparent:\0";
+
+/// Objective-C selector for `setTitleVisibility:`.
+pub(crate) const OBJC_SEL_SET_TITLE_VISIBILITY: &str = "setTitleVisibility:\0";
+
 /// Objective-C selector for `bounds`.
 pub(crate) const OBJC_SEL_BOUNDS: &str = "bounds\0";
 
@@ -222,6 +231,9 @@ pub(crate) const NS_WINDOW_STYLE_MINIATURIZABLE: usize = 1 << 2;
 
 /// AppKit style mask bit for resizable window.
 pub(crate) const NS_WINDOW_STYLE_RESIZABLE: usize = 1 << 3;
+
+/// AppKit style mask bit for immersive full-size content view behind transparent titlebar.
+pub(crate) const NS_WINDOW_STYLE_FULL_SIZE_CONTENT: usize = 1 << 15;
 
 /// AppKit style mask for borderless window.
 pub(crate) const NS_WINDOW_STYLE_BORDERLESS: usize = 0;

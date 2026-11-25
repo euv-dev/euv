@@ -223,9 +223,9 @@ impl Mountable for EuvRadioGroup {
                 handle.bind_style(ring, move || {
                     let active: bool = selected.get() == idx;
                     Style::empty()
-                        .width(Length::Px(16.0))
-                        .height(Length::Px(16.0))
-                        .radius(8.0)
+                        .width(Length::Px(18.0))
+                        .height(Length::Px(18.0))
+                        .radius(9.0)
                         .border(g.get_border_width(), p.get_primary())
                         .background(if active {
                             p.get_primary()
@@ -269,6 +269,7 @@ impl Mountable for EuvSlider {
     /// - `NodeId` - Mounted slider handle.
     fn mount(self, ctx: &mut BuildContext) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
+        let g: ThemeGeometry = self.get_tokens().get_geometry();
         let value: Signal<f32> = self.get_value();
         let min_v: f32 = self.get_min();
         let max_v: f32 = self.get_max();
@@ -277,19 +278,20 @@ impl Mountable for EuvSlider {
             Style::empty()
                 .row()
                 .width(Length::Percent(100.0))
+                .height(Length::Px(g.get_control_sm()))
                 .align(AlignItems::Center)
                 .gap(SPACE_SM),
         );
         let track: NodeId = ctx.canvas(
             Style::empty()
                 .flex_grow(1.0)
-                .height(Length::Px(20.0))
+                .height(Length::Px(g.get_control_sm()))
                 .cursor(CursorIcon::Pointer),
             move |bounds: Rect, dl: &mut DisplayList| {
                 let pct: f32 = ((value.get_untracked() - min_v) / span).clamp(0.0, 1.0);
                 let track_h: f32 = 6.0;
                 let track_y: f32 = bounds.get_y() + (bounds.get_height() - track_h) * 0.5;
-                let pad_x: f32 = 8.0;
+                let pad_x: f32 = 9.0;
                 let track_w: f32 = (bounds.get_width() - pad_x * 2.0).max(8.0);
                 let track_x: f32 = bounds.get_x() + pad_x;
                 dl.push(DrawCommand::FillRoundedRect {
@@ -311,7 +313,7 @@ impl Mountable for EuvSlider {
                 let thumb_cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
                 dl.push(DrawCommand::Circle {
                     center: Point::new(thumb_cx, thumb_cy),
-                    radius: 8.5,
+                    radius: 9.0,
                     color: p.get_primary(),
                 });
                 dl.push(DrawCommand::Circle {
@@ -321,21 +323,73 @@ impl Mountable for EuvSlider {
                 });
             },
         );
-        let step_amt: f32 = span * 0.1;
-        ctx.on_click(track, move |_: &UiEvent| {
-            let _: bool = value.update(|v: &mut f32| {
-                let next: f32 = *v + step_amt;
-                *v = if next > max_v { min_v } else { next };
-            });
+        let dragging: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+        let scene_down: SceneHandle = ctx.get_scene().clone();
+        let drag_down: Rc<Cell<bool>> = dragging.clone();
+        ctx.on_pointer_down(track, move |ev: &UiEvent| {
+            drag_down.set(true);
+            if let UiEventKind::PointerDown(pos) = ev.get_kind()
+                && let Some(bounds) = scene_down.node_screen_bounds(track)
+            {
+                let pad_x: f32 = 9.0;
+                let track_w: f32 = (bounds.get_width() - pad_x * 2.0).max(1.0);
+                let frac: f32 =
+                    ((pos.get_x() - (bounds.get_x() + pad_x)) / track_w).clamp(0.0, 1.0);
+                let next: f32 = (min_v + frac * span).clamp(min_v, max_v);
+                let _: bool = value.set_if_changed(next);
+            }
         });
+        let scene_move: SceneHandle = ctx.get_scene().clone();
+        let drag_move: Rc<Cell<bool>> = dragging.clone();
+        ctx.on_pointer_move(track, move |ev: &UiEvent| {
+            if !drag_move.get() {
+                return;
+            }
+            if let UiEventKind::PointerMove(pos) = ev.get_kind()
+                && let Some(bounds) = scene_move.node_screen_bounds(track)
+            {
+                let pad_x: f32 = 9.0;
+                let track_w: f32 = (bounds.get_width() - pad_x * 2.0).max(1.0);
+                let frac: f32 =
+                    ((pos.get_x() - (bounds.get_x() + pad_x)) / track_w).clamp(0.0, 1.0);
+                let next: f32 = (min_v + frac * span).clamp(min_v, max_v);
+                let _: bool = value.set_if_changed(next);
+            }
+        });
+        let drag_up: Rc<Cell<bool>> = dragging.clone();
+        ctx.on_pointer_up(track, move |_: &UiEvent| {
+            drag_up.set(false);
+        });
+        let scene_watch: SceneHandle = ctx.get_scene().clone();
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let _: f32 = value.get();
+                scene_watch.mark_dirty(track, DIRTY_PAINT);
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(track, scope);
+            },
+            (),
+        );
+        let readout_box: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .width(Length::Px(40.0))
+                .justify(JustifyContent::End)
+                .align(AlignItems::Center),
+        );
         let readout: NodeId = ctx.reactive_text(
             Style::empty()
                 .font_size(12.0)
+                .font_weight(FontWeight::Medium)
                 .color(p.get_muted_foreground()),
             move || format!("{:.1}", value.get()),
         );
+        ctx.append(readout_box, readout);
         ctx.append(row, track);
-        ctx.append(row, readout);
+        ctx.append(row, readout_box);
         row
     }
 }
@@ -432,21 +486,54 @@ impl Mountable for EuvSelect {
             ctx.append(menu, item);
         }
         let handle: SceneHandle = ctx.get_scene().clone();
-        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            handle.bind_style(menu, move || {
-                let disp: Display = if open.get() {
+        let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(open.get_untracked()));
+        let base_menu_style: Style = Style::empty()
+            .column()
+            .width(Length::Percent(100.0))
+            .background(p.get_card())
+            .border(g.get_border_width(), p.get_border())
+            .radius(g.get_radius_md())
+            .shadow(Shadow::new(0.0, 4.0, 12.0, 0.0, Color::rgba(0, 0, 0, 24)))
+            .z_index(Z_INDEX_FLOATING);
+        handle.with_write(
+            |tree: &mut SceneTree| {
+                let init_disp: Display = if open.get_untracked() {
                     Display::Flex
                 } else {
                     Display::None
                 };
-                Style::empty()
-                    .column()
-                    .display(disp)
-                    .width(Length::Percent(100.0))
-                    .background(p.get_card())
-                    .border(g.get_border_width(), p.get_border())
-                    .radius(g.get_radius_md())
-                    .z_index(Z_INDEX_FLOATING)
+                tree.set_style(menu, base_menu_style.display(init_disp));
+            },
+            (),
+        );
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let is_open: bool = open.get();
+                let was_open: bool = prev_open.replace(is_open);
+                if is_open == was_open {
+                    return;
+                }
+                if is_open {
+                    handle.start_transition(NodeTransition::slide_fade(
+                        menu,
+                        Point::new(0.0, -6.0),
+                        Point::new(0.0, 0.0),
+                        0.0,
+                        1.0,
+                        0.16,
+                        false,
+                    ));
+                } else {
+                    handle.start_transition(NodeTransition::slide_fade(
+                        menu,
+                        Point::new(0.0, 0.0),
+                        Point::new(0.0, -4.0),
+                        1.0,
+                        0.0,
+                        0.14,
+                        true,
+                    ));
+                }
             })
         });
         ctx.get_scene().with_write(

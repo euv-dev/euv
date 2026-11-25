@@ -98,6 +98,12 @@ pub struct WindowConfig {
     /// Preferred initial theme mode override.
     #[get(skip)]
     pub(crate) preferred_theme: Option<ThemeMode>,
+    /// Optional decoded RGBA8 application/window icon bitmap for native chrome and mobile bundles.
+    #[get(skip)]
+    pub(crate) icon: Option<ImageBuffer>,
+    /// Optional path to a PNG/SVG application icon asset consumed by desktop/iOS/Android packagers.
+    #[get(skip)]
+    pub(crate) icon_path: Option<String>,
 }
 
 /// Live runtime metrics and state of an active window.

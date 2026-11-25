@@ -2,6 +2,22 @@ use super::*;
 
 /// Child composition helpers for `EuvCard`.
 impl EuvCard {
+    /// Sets the card subtitle text fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source card.
+    /// - `impl Into<String>` - Muted subtitle string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated card.
+    #[must_use]
+    pub fn subtitle(mut self, subtitle: impl Into<String>) -> Self {
+        self.set_subtitle(subtitle.into());
+        self
+    }
+
     /// Appends a child `NodeId` to the card body.
     ///
     /// # Arguments

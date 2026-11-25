@@ -43,7 +43,9 @@ impl Mountable for EuvSidebarNav {
                     Style::empty()
                         .row()
                         .width(Length::Percent(100.0))
-                        .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+                        .height(Length::Px(g.get_control_md()))
+                        .align(AlignItems::Center)
+                        .padding(Edges::symmetric(0.0, SPACE_MD))
                         .radius(g.get_radius_md())
                         .background(if is_active {
                             p.get_accent()
@@ -112,7 +114,10 @@ impl Mountable for EuvTabs {
                     let selected: bool = active.get() == idx;
                     let mut st: Style = Style::empty()
                         .row()
-                        .padding(Edges::symmetric(6.0, SPACE_MD))
+                        .height(Length::Px(g.get_control_sm()))
+                        .justify(JustifyContent::Center)
+                        .align(AlignItems::Center)
+                        .padding(Edges::symmetric(0.0, SPACE_MD))
                         .radius(g.get_radius_sm())
                         .background(if selected {
                             p.get_card()

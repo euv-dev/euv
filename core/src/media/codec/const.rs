@@ -1,0 +1,10 @@
+pub(crate) const MAGIC_PDF: &[u8] = b"%PDF-";
+pub(crate) const PREFIX_PDF: &str = "%PDF-";
+pub(crate) const MAGIC_GIF87A: &[u8] = b"GIF87a";
+pub(crate) const MAGIC_GIF89A: &[u8] = b"GIF89a";
+pub(crate) const MAGIC_RIFF: &[u8] = b"RIFF";
+pub(crate) const MAGIC_WAVE: &[u8] = b"WAVE";
+pub(crate) const MAGIC_WEBP: &[u8] = b"WEBP";
+pub(crate) const EXT_GIF: &str = ".gif";
+pub(crate) const EXT_SVG: &str = ".svg";
+pub(crate) const TAG_SVG_OPEN: &str = "<svg";

@@ -126,3 +126,27 @@ pub enum WindowEvent {
     /// Operating system delivered a custom-scheme or universal deep link URI.
     DeepLink(DeepLinkEvent),
 }
+
+/// Cross-platform high-level pointer/touch gesture classification emitted by `App`.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum GestureEventKind {
+    /// Clean single tap or click within tap slop.
+    #[default]
+    Tap,
+    /// Two consecutive clean taps within the double-tap time and distance window.
+    DoubleTap,
+    /// Stationary press held past the long-press threshold (`>= 450ms`).
+    LongPress,
+    /// Fast directional horizontal swipe to the left.
+    SwipeLeft,
+    /// Fast directional horizontal swipe to the right.
+    SwipeRight,
+    /// Fast directional vertical swipe upward.
+    SwipeUp,
+    /// Fast directional vertical swipe downward.
+    SwipeDown,
+    /// Continuous single-finger pan or drag gesture.
+    Pan,
+    /// Two-finger pinch-to-zoom gesture carrying relative `scale`.
+    Pinch,
+}

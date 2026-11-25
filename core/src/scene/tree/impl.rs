@@ -19,6 +19,7 @@ impl Default for SceneTree {
             root: NodeId::new(0, 1),
             focus: FocusManager::default(),
             revision: 1,
+            transitions: Vec::new(),
         }
     }
 }
@@ -287,8 +288,10 @@ impl SceneTree {
             let next_anc: Option<NodeId> = match self.get_node_mut(aid) {
                 Some(node) => {
                     if node.get_style().get_layout().get_overflow() == Overflow::Scroll {
-                        node.get_mut_layout_box()
-                            .set_scroll_offset(Point::new(0.0, 0.0));
+                        if node.virtual_scroll_metrics().is_none() {
+                            node.get_mut_layout_box()
+                                .set_scroll_offset(Point::new(0.0, 0.0));
+                        }
                         None
                     } else {
                         node.parent_id()
@@ -387,6 +390,151 @@ impl SceneTree {
         if changed {
             self.mark_dirty(id, DIRTY_SCROLL | DIRTY_PAINT);
         }
+    }
+
+    /// Records virtualized scroll progress `(scroll_y, content_height)` on `id` for overlay scrollbar rendering.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeId` - Target virtualized scroll container.
+    /// - `f32` - Active virtual vertical scroll offset in logical pixels.
+    /// - `f32` - Full virtualized content height in logical pixels.
+    pub fn set_virtual_scroll(&mut self, id: NodeId, scroll_y: f32, content_height: f32) {
+        let changed: bool = match self.get_node_mut(id) {
+            Some(node) => {
+                let next: Option<(f32, f32)> = Some((scroll_y.max(0.0), content_height.max(1.0)));
+                if node.virtual_scroll_metrics() == next {
+                    false
+                } else {
+                    node.set_virtual_scroll(next);
+                    true
+                }
+            }
+            None => false,
+        };
+        if changed {
+            self.mark_dirty(id, DIRTY_SCROLL | DIRTY_PAINT);
+        }
+    }
+
+    /// Computes screen-space logical bounds for `id` after subtracting ancestor scroll offsets.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    /// - `NodeId` - Target node handle.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Rect>` - Screen-space rectangle if the node is alive.
+    #[must_use]
+    pub fn node_screen_bounds(&self, id: NodeId) -> Option<Rect> {
+        let node: &SceneNode = self.get_node(id)?;
+        let raw: Rect = node.get_layout_box().get_bounds();
+        let off: Point = self.ancestor_scroll_offset(id);
+        Some(Rect::new(
+            raw.get_x() - off.get_x(),
+            raw.get_y() - off.get_y(),
+            raw.get_width(),
+            raw.get_height(),
+        ))
+    }
+
+    /// Starts or replaces a smooth paint/transform transition on `transition.get_node()`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeTransition` - Transition specification to run.
+    pub fn start_transition(&mut self, transition: NodeTransition) {
+        let target: NodeId = transition.get_node();
+        self.get_mut_transitions()
+            .retain(|tr: &NodeTransition| tr.get_node() != target);
+        let (opacity, transform): (f32, Transform2D) = transition.sample();
+        let mut unhidden: bool = false;
+        if let Some(node) = self.get_node_mut(target) {
+            let mut style: Style = node.get_style();
+            if !transition.get_hide_on_complete()
+                && style.get_layout().get_display() == Display::None
+            {
+                style.get_mut_layout().set_display(Display::Flex);
+                unhidden = true;
+            }
+            style.get_mut_paint().set_opacity(opacity);
+            style.get_mut_paint().set_transform(transform);
+            node.set_style(style);
+        }
+        if unhidden {
+            self.mark_dirty(target, DIRTY_LAYOUT | DIRTY_PAINT);
+        } else {
+            self.mark_dirty(target, DIRTY_PAINT);
+        }
+        self.get_mut_transitions().push(transition);
+    }
+
+    /// Advances all active transitions by `dt_secs` and returns `true` if any node updated.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `f32` - Elapsed frame time in seconds.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether at least one transition ticked on this frame.
+    pub fn tick_transitions(&mut self, dt_secs: f32) -> bool {
+        if self.get_transitions().is_empty() {
+            return false;
+        }
+        let step: f32 = dt_secs.clamp(0.001, 0.05);
+        let mut active: Vec<NodeTransition> = take(self.get_mut_transitions());
+        let mut remaining: Vec<NodeTransition> = Vec::with_capacity(active.len());
+        let mut any_updated: bool = false;
+        for mut tr in active.drain(..) {
+            let target: NodeId = tr.get_node();
+            if self.get_node(target).is_none() {
+                continue;
+            }
+            tr.set_elapsed((tr.get_elapsed() + step).min(tr.get_duration()));
+            let (opacity, transform): (f32, Transform2D) = tr.sample();
+            let done: bool = tr.is_complete();
+            let hide: bool = done && tr.get_hide_on_complete();
+            if let Some(node) = self.get_node_mut(target) {
+                let mut style: Style = node.get_style();
+                style.get_mut_paint().set_opacity(opacity);
+                style.get_mut_paint().set_transform(transform);
+                if hide {
+                    style.get_mut_layout().set_display(Display::None);
+                }
+                node.set_style(style);
+            }
+            if hide {
+                self.mark_dirty(target, DIRTY_LAYOUT | DIRTY_PAINT);
+            } else {
+                self.mark_dirty(target, DIRTY_PAINT);
+            }
+            any_updated = true;
+            if !done {
+                remaining.push(tr);
+            }
+        }
+        self.set_transitions(remaining);
+        any_updated
+    }
+
+    /// Returns `true` while one or more node transitions are still running.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether animations are active.
+    #[must_use]
+    pub fn has_active_transitions(&self) -> bool {
+        !self.get_transitions().is_empty()
     }
 
     /// Attaches a reactive `Scope` to `id` so it automatically disposes when the node unmounts.
@@ -648,6 +796,83 @@ impl SceneHandle {
         }
     }
 
+    /// Updates virtualized scroll metrics `(scroll_y, content_height)` on `id` for accurate scrollbar thumbs.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Target virtualized scroll container.
+    /// - `f32` - Active virtual vertical scroll offset in logical pixels.
+    /// - `f32` - Total virtualized content height in logical pixels.
+    pub fn set_virtual_scroll(&self, id: NodeId, scroll_y: f32, content_height: f32) {
+        self.with_write(
+            |tree: &mut SceneTree| {
+                tree.set_virtual_scroll(id, scroll_y, content_height);
+            },
+            (),
+        );
+    }
+
+    /// Computes screen-space logical bounds for `id` subtracting ancestor scroll offsets.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Target node handle.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Rect>` - Screen-space bounds if the node is alive.
+    #[must_use]
+    pub fn node_screen_bounds(&self, id: NodeId) -> Option<Rect> {
+        self.with_read(|tree: &SceneTree| tree.node_screen_bounds(id), None)
+    }
+
+    /// Starts or replaces a smooth paint/transform transition on the target node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeTransition` - Transition specification to run.
+    pub fn start_transition(&self, transition: NodeTransition) {
+        self.with_write(
+            |tree: &mut SceneTree| {
+                tree.start_transition(transition);
+            },
+            (),
+        );
+    }
+
+    /// Marks `id` dirty with `mask` for incremental repainting.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Target node handle.
+    /// - `u16` - Dirty flag bits.
+    pub fn mark_dirty(&self, id: NodeId, mask: u16) {
+        self.with_write(
+            |tree: &mut SceneTree| {
+                tree.mark_dirty(id, mask);
+            },
+            (),
+        );
+    }
+
+    /// Returns `true` if any node transition is currently active.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether animations are running.
+    #[must_use]
+    pub fn has_active_transitions(&self) -> bool {
+        self.with_read(SceneTree::has_active_transitions, false)
+    }
+
     /// Executes `operation` with immutable access to the underlying `SceneTree`.
     ///
     /// # Arguments
@@ -768,6 +993,7 @@ impl BuildContext {
             theme_mode: Signal::new(ThemeMode::Light),
             platform,
             safe_area: Signal::new(SafeAreaInsets::default()),
+            gesture: Signal::new(None),
             dynamic_hub: DynamicUpdateHub::new(),
         }
     }
@@ -1029,6 +1255,114 @@ impl BuildContext {
             },
             (),
         );
+    }
+
+    /// Registers a pointer-down handler on `node_id` for draggable interactive controls.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - Pointer-down callback closure.
+    pub fn on_pointer_down<F>(&mut self, node_id: NodeId, callback: F)
+    where
+        F: FnMut(&UiEvent) + 'static,
+    {
+        let handler: UiEventHandler = Rc::new(RefCell::new(callback));
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_handlers().set_on_pointer_down(Some(handler));
+                    let mut style: Style = node.get_style();
+                    style.get_mut_paint().set_cursor(CursorIcon::Pointer);
+                    node.set_style(style);
+                }
+            },
+            (),
+        );
+    }
+
+    /// Registers a pointer-move handler on `node_id` receiving captured drag coordinates while pressed.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - Pointer-move callback closure.
+    pub fn on_pointer_move<F>(&mut self, node_id: NodeId, callback: F)
+    where
+        F: FnMut(&UiEvent) + 'static,
+    {
+        let handler: UiEventHandler = Rc::new(RefCell::new(callback));
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_handlers().set_on_pointer_move(Some(handler));
+                }
+            },
+            (),
+        );
+    }
+
+    /// Registers a pointer-up handler on `node_id` invoked when drag capture releases.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - Pointer-up callback closure.
+    pub fn on_pointer_up<F>(&mut self, node_id: NodeId, callback: F)
+    where
+        F: FnMut(&UiEvent) + 'static,
+    {
+        let handler: UiEventHandler = Rc::new(RefCell::new(callback));
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_handlers().set_on_pointer_up(Some(handler));
+                }
+            },
+            (),
+        );
+    }
+
+    /// Records virtualized scroll progress on `node_id` so the overlay scrollbar tracks accurately.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target virtualized scroll container.
+    /// - `f32` - Active virtual vertical scroll offset in logical pixels.
+    /// - `f32` - Full virtualized content height in logical pixels.
+    pub fn set_virtual_scroll(&mut self, node_id: NodeId, scroll_y: f32, content_height: f32) {
+        self.get_scene()
+            .set_virtual_scroll(node_id, scroll_y, content_height);
+    }
+
+    /// Sets the concrete inner pixel scroll offset on `node_id` (used by virtualized lists for sub-pixel alignment).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target scroll container.
+    /// - `Point` - Scroll offset `(x, y)` in logical pixels.
+    pub fn set_scroll_offset(&mut self, node_id: NodeId, offset: Point) {
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.set_scroll_offset(node_id, offset);
+            },
+            (),
+        );
+    }
+
+    /// Starts a smooth paint/transform transition on `transition.get_node()`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeTransition` - Transition specification.
+    pub fn start_transition(&mut self, transition: NodeTransition) {
+        self.get_scene().start_transition(transition);
     }
 
     /// Mounts a reactive dynamic subtree whose children rebuild cleanly inside an isolated `Scope`.

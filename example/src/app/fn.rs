@@ -35,6 +35,7 @@ pub fn create_showcase_app(
     let mut state: ShowcaseState = ShowcaseState::new();
     state.attach_dynamic_hub(app.get_dynamic_hub().clone());
     app.attach_game_host(state.get_game_host().clone());
+    app.attach_game_host(state.get_game3d_host().clone());
     let mount_state: ShowcaseState = state.clone();
     let _: NodeId = app.mount(move || mount_showcase_root(&mount_state));
     Ok((app, state))
@@ -76,6 +77,12 @@ fn dump_rgba_frame(
     count: &mut usize,
 ) -> Result<(), PlatformError> {
     let _: FrameStats = app.step_frame()?;
+    for _ in 0..20 {
+        if !app.has_active_animations() {
+            break;
+        }
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0)?;
+    }
     if let Some(fb) = app.get_renderer().framebuffer() {
         let file_name: String = format!("{name}.rgba");
         let file_path: PathBuf = out_dir.join(&file_name);
@@ -110,7 +117,7 @@ pub fn capture_showcase_screenshots(out_dir: &Path) -> Result<usize, PlatformErr
     let mut count: usize = 0;
     app.queue_window_command(WindowCommand::SetSize(wid, 1200, 800));
     app.dispatch_window_event(WindowEvent::Resized(wid, 1200, 800, 2.0));
-    let desktop_routes: [(&str, &str); 10] = [
+    let desktop_routes: [(&str, &str); 12] = [
         (ROUTE_OVERVIEW, "01_overview_desktop"),
         (ROUTE_REACTIVE, "02_reactive_desktop"),
         (ROUTE_RENDER, "03_render_desktop"),
@@ -119,6 +126,8 @@ pub fn capture_showcase_screenshots(out_dir: &Path) -> Result<usize, PlatformErr
         (ROUTE_THEMES, "06_themes_desktop"),
         (ROUTE_DATA, "07_data_desktop"),
         (ROUTE_GAME, "08_game_desktop"),
+        (ROUTE_GAME_3D, "08b_game3d_desktop"),
+        (ROUTE_MEDIA, "08c_media_desktop"),
         (ROUTE_OVERLAYS, "09_overlays_desktop"),
         (ROUTE_DYNAMIC, "10_dynamic_desktop"),
     ];
@@ -356,6 +365,7 @@ pub fn euv_web_boot() {
     let on_key: Closure<dyn FnMut(KeyboardEvent)> =
         Closure::wrap(Box::new(move |ev: KeyboardEvent| {
             let key: String = ev.key();
+            let code_str: String = ev.code();
             if matches!(
                 key.as_str(),
                 WEB_KEY_ARROW_UP
@@ -367,14 +377,15 @@ pub fn euv_web_boot() {
             ) {
                 ev.prevent_default();
             }
-            web_queue_key_down(&key);
+            web_queue_key_down(&key, &code_str);
         }) as Box<dyn FnMut(KeyboardEvent)>);
     drop(win.add_event_listener_with_callback("keydown", on_key.as_ref().unchecked_ref()));
     on_key.forget();
     let on_key_up: Closure<dyn FnMut(KeyboardEvent)> =
         Closure::wrap(Box::new(move |ev: KeyboardEvent| {
             let key: String = ev.key();
-            web_queue_key_up(&key);
+            let code_str: String = ev.code();
+            web_queue_key_up(&key, &code_str);
         }) as Box<dyn FnMut(KeyboardEvent)>);
     drop(win.add_event_listener_with_callback("keyup", on_key_up.as_ref().unchecked_ref()));
     on_key_up.forget();
@@ -412,9 +423,11 @@ pub fn euv_web_boot() {
                 }
                 *prev = ts;
             }
-            let on_game: bool = euv_web_current_route() == ROUTE_GAME;
+            let cur_route: String = euv_web_current_route();
+            let on_game: bool = cur_route == ROUTE_GAME || cur_route == ROUTE_GAME_3D;
+            let animating: bool = web_has_active_animations();
             let dirty: bool = WEB_NEEDS_FRAME.with(|flag: &Cell<bool>| flag.replace(false));
-            if on_game {
+            if on_game || animating {
                 let _: u64 = euv_web_tick(dt);
             } else if dirty {
                 let _: u64 = web_flush_frame();
@@ -435,17 +448,34 @@ pub fn euv_web_boot() {
     }
 }
 
-/// Maps a browser `KeyboardEvent.key` string into a cross-platform `KeyCode`.
+/// Maps a browser `KeyboardEvent.key` and physical `KeyboardEvent.code` into a cross-platform `KeyCode`.
 ///
 /// # Arguments
 ///
-/// - `&str` - Browser DOM key name.
+/// - `&str` - Browser DOM `KeyboardEvent.key` string.
+/// - `&str` - Browser DOM physical `KeyboardEvent.code` string (IME-independent).
 ///
 /// # Returns
 ///
 /// - `KeyCode` - Normalized `euv` key code.
 #[cfg(target_arch = "wasm32")]
-fn web_map_key(key: &str) -> KeyCode {
+fn web_map_key(key: &str, code_str: &str) -> KeyCode {
+    match code_str {
+        "KeyW" => return KeyCode::Character('w'),
+        "KeyA" => return KeyCode::Character('a'),
+        "KeyS" => return KeyCode::Character('s'),
+        "KeyD" => return KeyCode::Character('d'),
+        "KeyE" => return KeyCode::Character('e'),
+        "KeyR" => return KeyCode::Character('r'),
+        "KeyP" => return KeyCode::Character('p'),
+        "KeyJ" => return KeyCode::Character('j'),
+        "Space" => return KeyCode::Space,
+        "ArrowLeft" => return KeyCode::ArrowLeft,
+        "ArrowRight" => return KeyCode::ArrowRight,
+        "ArrowUp" => return KeyCode::ArrowUp,
+        "ArrowDown" => return KeyCode::ArrowDown,
+        _ => {}
+    }
     match key {
         WEB_KEY_ENTER => KeyCode::Enter,
         WEB_KEY_BACKSPACE => KeyCode::Backspace,
@@ -463,6 +493,24 @@ fn web_map_key(key: &str) -> KeyCode {
             .map(KeyCode::Character)
             .unwrap_or(KeyCode::Unknown),
     }
+}
+
+/// Returns `true` when the active WebAssembly app has running UI transition animations.
+///
+/// # Returns
+///
+/// - `bool` - Whether animation frames must continue ticking.
+#[cfg(target_arch = "wasm32")]
+fn web_has_active_animations() -> bool {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        match slot.try_borrow() {
+            Ok(guard) => guard
+                .as_ref()
+                .map(|(app, _): &(App, ShowcaseState)| app.has_active_animations())
+                .unwrap_or(false),
+            Err(_) => false,
+        }
+    })
 }
 
 /// Marks the coalesced Web animation-frame render flag so the next `requestAnimationFrame` flushes visual changes.
@@ -552,14 +600,15 @@ fn web_queue_scroll(dx: f32, dy: f32) {
 /// # Arguments
 ///
 /// - `&str` - DOM `KeyboardEvent.key` string.
+/// - `&str` - DOM physical `KeyboardEvent.code` string.
 #[cfg(target_arch = "wasm32")]
-fn web_queue_key_down(key: &str) {
+fn web_queue_key_down(key: &str, code_str: &str) {
     WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
         if let Ok(mut borrow) = slot.try_borrow_mut()
             && let Some((app, _)) = borrow.as_mut()
         {
             let wid: WindowId = app.get_window_state().get_id();
-            let code: KeyCode = web_map_key(key);
+            let code: KeyCode = web_map_key(key, code_str);
             let key_ev: WindowEvent =
                 WindowEvent::KeyDown(wid, KeyEvent::new(code, Modifiers::default(), false));
             app.dispatch_window_event(key_ev);
@@ -576,14 +625,15 @@ fn web_queue_key_down(key: &str) {
 /// # Arguments
 ///
 /// - `&str` - DOM `KeyboardEvent.key` string.
+/// - `&str` - DOM physical `KeyboardEvent.code` string.
 #[cfg(target_arch = "wasm32")]
-fn web_queue_key_up(key: &str) {
+fn web_queue_key_up(key: &str, code_str: &str) {
     WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
         if let Ok(mut borrow) = slot.try_borrow_mut()
             && let Some((app, _)) = borrow.as_mut()
         {
             let wid: WindowId = app.get_window_state().get_id();
-            let code: KeyCode = web_map_key(key);
+            let code: KeyCode = web_map_key(key, code_str);
             app.dispatch_window_event(WindowEvent::KeyUp(
                 wid,
                 KeyEvent::new(code, Modifiers::default(), false),
@@ -887,8 +937,9 @@ pub fn euv_web_tick(dt_secs: f32) -> u64 {
         let Some((app, state)) = borrow.as_mut() else {
             return 0;
         };
-        if state.get_route().get_untracked() == ROUTE_GAME {
-            let _: u32 = state.get_game_host().step(dt_secs);
+        let cur_route: String = state.get_route().get_untracked();
+        let on_game: bool = cur_route == ROUTE_GAME || cur_route == ROUTE_GAME_3D;
+        if on_game || app.has_active_animations() {
             return app
                 .step_game_frame(dt_secs)
                 .map(|stats: FrameStats| stats.get_frame_hash())

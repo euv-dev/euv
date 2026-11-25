@@ -18,7 +18,23 @@ impl Mountable for EuvDrawer {
         let open: Signal<bool> = self.get_open();
         let body: NodeId = self.get_body();
         let Self { title, .. } = self;
-        let scrim: NodeId = ctx.portal(Style::empty());
+        let init_open: bool = open.get_untracked();
+        let scrim: NodeId = ctx.portal(
+            Style::empty()
+                .row()
+                .display(if init_open {
+                    Display::Flex
+                } else {
+                    Display::None
+                })
+                .position(Position::Fixed)
+                .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .justify(JustifyContent::End)
+                .background(p.get_overlay())
+                .z_index(Z_INDEX_DRAWER),
+        );
         let panel: NodeId = ctx.view(
             Style::empty()
                 .column()
@@ -41,24 +57,63 @@ impl Mountable for EuvDrawer {
         ctx.append(panel, heading);
         ctx.append(panel, body);
         ctx.append(scrim, panel);
+        ctx.on_click(scrim, move |ev: &UiEvent| {
+            if ev.get_target() == scrim {
+                let _: bool = open.set_if_changed(false);
+            }
+        });
         let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            handle.bind_style(scrim, move || {
-                let disp: Display = if open.get() {
-                    Display::Flex
+            Effect::new(move || {
+                let is_open: bool = open.get();
+                let was_open: bool = prev_open.replace(is_open);
+                if is_open == was_open {
+                    return;
+                }
+                if is_open {
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(scrim) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::fade(scrim, 0.0, 1.0, 0.22, false));
+                    handle.start_transition(NodeTransition::slide_fade(
+                        panel,
+                        Point::new(360.0, 0.0),
+                        Point::new(0.0, 0.0),
+                        0.92,
+                        1.0,
+                        0.24,
+                        false,
+                    ));
                 } else {
-                    Display::None
-                };
-                Style::empty()
-                    .row()
-                    .display(disp)
-                    .position(Position::Fixed)
-                    .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
-                    .width(Length::Percent(100.0))
-                    .height(Length::Percent(100.0))
-                    .justify(JustifyContent::End)
-                    .background(p.get_overlay())
-                    .z_index(Z_INDEX_DRAWER)
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(scrim) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::slide_fade(
+                        panel,
+                        Point::new(0.0, 0.0),
+                        Point::new(360.0, 0.0),
+                        1.0,
+                        0.9,
+                        0.22,
+                        false,
+                    ));
+                    handle.start_transition(NodeTransition::fade(scrim, 1.0, 0.0, 0.22, true));
+                }
             })
         });
         ctx.get_scene().with_write(
@@ -89,7 +144,23 @@ impl Mountable for EuvSheet {
         let open: Signal<bool> = self.get_open();
         let body: NodeId = self.get_body();
         let Self { title, .. } = self;
-        let scrim: NodeId = ctx.portal(Style::empty());
+        let init_open: bool = open.get_untracked();
+        let scrim: NodeId = ctx.portal(
+            Style::empty()
+                .column()
+                .display(if init_open {
+                    Display::Flex
+                } else {
+                    Display::None
+                })
+                .position(Position::Fixed)
+                .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .justify(JustifyContent::End)
+                .background(p.get_overlay())
+                .z_index(Z_INDEX_DRAWER),
+        );
         let panel: NodeId = ctx.view(
             Style::empty()
                 .column()
@@ -110,24 +181,63 @@ impl Mountable for EuvSheet {
         ctx.append(panel, heading);
         ctx.append(panel, body);
         ctx.append(scrim, panel);
+        ctx.on_click(scrim, move |ev: &UiEvent| {
+            if ev.get_target() == scrim {
+                let _: bool = open.set_if_changed(false);
+            }
+        });
         let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            handle.bind_style(scrim, move || {
-                let disp: Display = if open.get() {
-                    Display::Flex
+            Effect::new(move || {
+                let is_open: bool = open.get();
+                let was_open: bool = prev_open.replace(is_open);
+                if is_open == was_open {
+                    return;
+                }
+                if is_open {
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(scrim) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::fade(scrim, 0.0, 1.0, 0.22, false));
+                    handle.start_transition(NodeTransition::slide_fade(
+                        panel,
+                        Point::new(0.0, 240.0),
+                        Point::new(0.0, 0.0),
+                        0.92,
+                        1.0,
+                        0.24,
+                        false,
+                    ));
                 } else {
-                    Display::None
-                };
-                Style::empty()
-                    .column()
-                    .display(disp)
-                    .position(Position::Fixed)
-                    .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
-                    .width(Length::Percent(100.0))
-                    .height(Length::Percent(100.0))
-                    .justify(JustifyContent::End)
-                    .background(p.get_overlay())
-                    .z_index(Z_INDEX_DRAWER)
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(scrim) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::slide_fade(
+                        panel,
+                        Point::new(0.0, 0.0),
+                        Point::new(0.0, 240.0),
+                        1.0,
+                        0.9,
+                        0.22,
+                        false,
+                    ));
+                    handle.start_transition(NodeTransition::fade(scrim, 1.0, 0.0, 0.22, true));
+                }
             })
         });
         ctx.get_scene().with_write(
@@ -164,24 +274,53 @@ impl Mountable for EuvPopover {
                 .align(AlignItems::Start)
                 .gap(SPACE_XS),
         );
-        let card: NodeId = ctx.view(Style::empty());
-        ctx.append(card, content);
-        let handle: SceneHandle = ctx.get_scene().clone();
-        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            handle.bind_style(card, move || {
-                let disp: Display = if open.get() {
+        let init_open: bool = open.get_untracked();
+        let card: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .display(if init_open {
                     Display::Flex
                 } else {
                     Display::None
-                };
-                Style::empty()
-                    .column()
-                    .display(disp)
-                    .padding(Edges::all(SPACE_MD))
-                    .background(p.get_card())
-                    .border(g.get_border_width(), p.get_border())
-                    .radius(g.get_radius_md())
-                    .z_index(Z_INDEX_FLOATING)
+                })
+                .padding(Edges::all(SPACE_MD))
+                .background(p.get_card())
+                .border(g.get_border_width(), p.get_border())
+                .radius(g.get_radius_md())
+                .shadow(Shadow::new(0.0, 4.0, 12.0, 0.0, Color::rgba(0, 0, 0, 22)))
+                .z_index(Z_INDEX_FLOATING),
+        );
+        ctx.append(card, content);
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let is_open: bool = open.get();
+                let was_open: bool = prev_open.replace(is_open);
+                if is_open == was_open {
+                    return;
+                }
+                if is_open {
+                    handle.start_transition(NodeTransition::slide_fade(
+                        card,
+                        Point::new(0.0, -6.0),
+                        Point::new(0.0, 0.0),
+                        0.0,
+                        1.0,
+                        0.16,
+                        false,
+                    ));
+                } else {
+                    handle.start_transition(NodeTransition::slide_fade(
+                        card,
+                        Point::new(0.0, 0.0),
+                        Point::new(0.0, -4.0),
+                        1.0,
+                        0.0,
+                        0.14,
+                        true,
+                    ));
+                }
             })
         });
         ctx.get_scene().with_write(
@@ -271,7 +410,21 @@ impl Mountable for EuvDropdown {
             });
         trigger_btn.set_variant(EuvButtonVariant::Outline);
         let trigger: NodeId = trigger_btn.mount(ctx);
-        let menu: NodeId = ctx.view(Style::empty());
+        let init_open: bool = open.get_untracked();
+        let menu: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .display(if init_open {
+                    Display::Flex
+                } else {
+                    Display::None
+                })
+                .background(p.get_card())
+                .border(g.get_border_width(), p.get_border())
+                .radius(g.get_radius_md())
+                .shadow(Shadow::new(0.0, 4.0, 12.0, 0.0, Color::rgba(0, 0, 0, 22)))
+                .z_index(Z_INDEX_FLOATING),
+        );
         for (idx, item_label) in items.into_iter().enumerate() {
             let row: NodeId = ctx.view(
                 Style::empty()
@@ -291,20 +444,35 @@ impl Mountable for EuvDropdown {
             ctx.append(menu, row);
         }
         let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            handle.bind_style(menu, move || {
-                let disp: Display = if open.get() {
-                    Display::Flex
+            Effect::new(move || {
+                let is_open: bool = open.get();
+                let was_open: bool = prev_open.replace(is_open);
+                if is_open == was_open {
+                    return;
+                }
+                if is_open {
+                    handle.start_transition(NodeTransition::slide_fade(
+                        menu,
+                        Point::new(0.0, -6.0),
+                        Point::new(0.0, 0.0),
+                        0.0,
+                        1.0,
+                        0.16,
+                        false,
+                    ));
                 } else {
-                    Display::None
-                };
-                Style::empty()
-                    .column()
-                    .display(disp)
-                    .background(p.get_card())
-                    .border(g.get_border_width(), p.get_border())
-                    .radius(g.get_radius_md())
-                    .z_index(Z_INDEX_FLOATING)
+                    handle.start_transition(NodeTransition::slide_fade(
+                        menu,
+                        Point::new(0.0, 0.0),
+                        Point::new(0.0, -4.0),
+                        1.0,
+                        0.0,
+                        0.14,
+                        true,
+                    ));
+                }
             })
         });
         ctx.get_scene().with_write(
@@ -337,7 +505,28 @@ impl Mountable for EuvNotification {
         let (accent, _): (Color, Color) = self.get_tone().colors(p);
         let visible: Signal<bool> = self.get_visible();
         let Self { title, message, .. } = self;
-        let card: NodeId = ctx.portal(Style::empty());
+        let init_vis: bool = visible.get_untracked();
+        let card: NodeId = ctx.portal(
+            Style::empty()
+                .column()
+                .display(if init_vis {
+                    Display::Flex
+                } else {
+                    Display::None
+                })
+                .position(Position::Fixed)
+                .inset(Some(SPACE_LG), Some(SPACE_LG), None, None)
+                .width(Length::Percent(90.0))
+                .max_width(Length::Px(340.0))
+                .padding(Edges::all(SPACE_MD))
+                .gap(SPACE_XS)
+                .background(p.get_card())
+                .border(g.get_border_width(), accent)
+                .radius(g.get_radius_lg())
+                .shadow(Shadow::new(0.0, 6.0, 16.0, 0.0, Color::rgba(0, 0, 0, 28)))
+                .overflow(Overflow::Hidden)
+                .z_index(Z_INDEX_TOAST),
+        );
         let t_node: NodeId = ctx.text(
             title,
             Style::empty()
@@ -354,27 +543,35 @@ impl Mountable for EuvNotification {
         ctx.append(card, t_node);
         ctx.append(card, m_node);
         let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_vis: Rc<Cell<bool>> = Rc::new(Cell::new(init_vis));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            handle.bind_style(card, move || {
-                let disp: Display = if visible.get() {
-                    Display::Flex
+            Effect::new(move || {
+                let is_vis: bool = visible.get();
+                let was_vis: bool = prev_vis.replace(is_vis);
+                if is_vis == was_vis {
+                    return;
+                }
+                if is_vis {
+                    handle.start_transition(NodeTransition::slide_fade(
+                        card,
+                        Point::new(24.0, 0.0),
+                        Point::new(0.0, 0.0),
+                        0.0,
+                        1.0,
+                        0.20,
+                        false,
+                    ));
                 } else {
-                    Display::None
-                };
-                Style::empty()
-                    .column()
-                    .display(disp)
-                    .position(Position::Fixed)
-                    .inset(Some(SPACE_LG), Some(SPACE_LG), None, None)
-                    .width(Length::Percent(90.0))
-                    .max_width(Length::Px(340.0))
-                    .padding(Edges::all(SPACE_MD))
-                    .gap(SPACE_XS)
-                    .background(p.get_card())
-                    .border(g.get_border_width(), accent)
-                    .radius(g.get_radius_md())
-                    .overflow(Overflow::Hidden)
-                    .z_index(Z_INDEX_TOAST)
+                    handle.start_transition(NodeTransition::slide_fade(
+                        card,
+                        Point::new(0.0, 0.0),
+                        Point::new(24.0, 0.0),
+                        1.0,
+                        0.0,
+                        0.18,
+                        true,
+                    ));
+                }
             })
         });
         ctx.get_scene().with_write(
@@ -404,7 +601,25 @@ impl Mountable for EuvLoading {
         let p: ThemePalette = tokens.get_palette();
         let active: Signal<bool> = self.get_active();
         let Self { label, .. } = self;
-        let portal: NodeId = ctx.portal(Style::empty());
+        let init_active: bool = active.get_untracked();
+        let portal: NodeId = ctx.portal(
+            Style::empty()
+                .column()
+                .display(if init_active {
+                    Display::Flex
+                } else {
+                    Display::None
+                })
+                .position(Position::Fixed)
+                .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .justify(JustifyContent::Center)
+                .align(AlignItems::Center)
+                .gap(SPACE_MD)
+                .background(p.get_overlay())
+                .z_index(Z_INDEX_MODAL),
+        );
         let spinner: NodeId = EuvSpinner::new(32.0, tokens).mount(ctx);
         let txt: NodeId = ctx.text(
             label,
@@ -415,26 +630,45 @@ impl Mountable for EuvLoading {
         );
         ctx.append(portal, spinner);
         ctx.append(portal, txt);
+        ctx.on_click(portal, move |ev: &UiEvent| {
+            if ev.get_target() == portal {
+                let _: bool = active.set_if_changed(false);
+            }
+        });
         let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_active: Rc<Cell<bool>> = Rc::new(Cell::new(init_active));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            handle.bind_style(portal, move || {
-                let disp: Display = if active.get() {
-                    Display::Flex
+            Effect::new(move || {
+                let is_on: bool = active.get();
+                let was_on: bool = prev_active.replace(is_on);
+                if is_on == was_on {
+                    return;
+                }
+                if is_on {
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(portal) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::fade(portal, 0.0, 1.0, 0.18, false));
                 } else {
-                    Display::None
-                };
-                Style::empty()
-                    .column()
-                    .display(disp)
-                    .position(Position::Fixed)
-                    .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
-                    .width(Length::Percent(100.0))
-                    .height(Length::Percent(100.0))
-                    .justify(JustifyContent::Center)
-                    .align(AlignItems::Center)
-                    .gap(SPACE_MD)
-                    .background(p.get_overlay())
-                    .z_index(Z_INDEX_MODAL)
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(portal) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::fade(portal, 1.0, 0.0, 0.18, true));
+                }
             })
         });
         ctx.get_scene().with_write(

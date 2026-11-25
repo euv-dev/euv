@@ -20,8 +20,10 @@ impl Mountable for EuvTag {
         let box_node: NodeId = ctx.view(
             Style::empty()
                 .row()
+                .height(Length::Px(24.0))
+                .justify(JustifyContent::Center)
                 .align(AlignItems::Center)
-                .padding(Edges::symmetric(2.0, SPACE_SM))
+                .padding(Edges::symmetric(0.0, SPACE_SM))
                 .background(p.get_muted())
                 .border(g.get_border_width(), accent)
                 .radius(g.get_radius_sm()),

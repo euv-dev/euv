@@ -285,3 +285,68 @@ fn idle_frames_skip_rasterization_and_hover_uses_partial_dirty_rect() {
     assert!(hovered.get_pixels_shaded() < first.get_pixels_shaded());
     assert_ne!(hovered.get_frame_hash(), first.get_frame_hash());
 }
+
+#[test]
+fn engine3d_model_import_bvh_raytracing_frustum_culling_lod_and_runtime_quality_work() {
+    let mut world: World3D = World3D::create_open_world_city();
+    assert!(world.get_objects().len() >= 30);
+    assert!(world.get_bvh().get_nodes().len() >= 3);
+    let obj_src: &str = "o crystal_arch\nv -1 0 -1\nv 1 0 -1\nv 1 0 1\nv -1 0 1\nv 0 3 0\nf 1 2 5\nf 2 3 5\nf 3 4 5\nf 4 1 5\n";
+    let imported_obj: ImportedModel3D = world
+        .import_model(
+            ModelFormat::Obj,
+            obj_src,
+            Transform3D::new(Vec3::new(0.0, 0.0, -8.0), 0.0, Vec3::splat(2.0)),
+            PbrMaterial::pbr(Color::hex(0x38BDF8), 0.85, 0.15, 0.7),
+            0.5,
+        )
+        .unwrap();
+    assert_eq!(imported_obj.get_name(), "crystal_arch");
+    assert_eq!(imported_obj.get_total_triangles(), 4);
+    let gltf_src: &str = r#"{"asset":{"version":"2.0"},"meshes":[{"name":"gltf_beacon","primitives":[{"positions":[0,0,0, 2,0,0, 1,4,0, 1,0,2],"indices":[0,1,2, 1,3,2, 3,0,2]}]}]}"#;
+    let imported_gltf: ImportedModel3D = world
+        .import_model(
+            ModelFormat::GltfJson,
+            gltf_src,
+            Transform3D::new(Vec3::new(4.0, 0.0, -10.0), 0.2, Vec3::splat(1.5)),
+            PbrMaterial::neon(Color::hex(0xA855F7), 1.6),
+            0.3,
+        )
+        .unwrap();
+    assert_eq!(imported_gltf.get_format(), ModelFormat::GltfJson);
+    assert_eq!(imported_gltf.get_total_triangles(), 3);
+    assert_eq!(world.get_imported_model_count(), 2);
+    let mut renderer: Renderer3D = Renderer3D::default();
+    let cfg_off: RenderQualityConfig = RenderQualityConfig::from_preset(QualityPreset::Low);
+    let img_off: ImageBuffer = renderer.render_world(&mut world, 360, 200, &cfg_off);
+    let stats_off: RenderStats3D = renderer.get_last_stats();
+    assert_eq!(stats_off.get_rays_traced(), 0);
+    assert!(stats_off.get_triangles_drawn() > 0);
+    let mut cfg_rt: RenderQualityConfig = RenderQualityConfig::from_preset(QualityPreset::Ultra);
+    cfg_rt.set_ray_tracing(RayTracingMode::FullPathTracedGi);
+    let img_rt: ImageBuffer = renderer.render_world(&mut world, 360, 200, &cfg_rt);
+    let stats_rt: RenderStats3D = renderer.get_last_stats();
+    assert!(stats_rt.get_rays_traced() > 0);
+    assert!(stats_rt.get_bvh_nodes() > 0);
+    assert!(stats_rt.get_instanced_batches() <= stats_rt.get_visible_objects());
+    assert_ne!(img_off.get_pixels(), img_rt.get_pixels());
+    let mut drs: RenderQualityConfig = RenderQualityConfig::from_preset(QualityPreset::High);
+    let before_scale: f32 = drs.get_resolution_scale();
+    drs.adjust_dynamic_resolution(28.0);
+    assert!(drs.get_resolution_scale() < before_scale);
+    let mut input: InputState = InputState::new();
+    input.ingest(&WindowEvent::KeyDown(
+        WindowId::new(1),
+        KeyEvent::new(KeyCode::Character('w'), Modifiers::default(), false),
+    ));
+    let before_z: f32 = world.get_objects()[world.vehicle_index().unwrap()]
+        .get_transform()
+        .get_position()
+        .get_z();
+    world.step_simulation(0.1, &input, &ActionMap::default());
+    let after_z: f32 = world.get_objects()[world.vehicle_index().unwrap()]
+        .get_transform()
+        .get_position()
+        .get_z();
+    assert!(after_z < before_z);
+}

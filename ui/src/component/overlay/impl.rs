@@ -18,7 +18,21 @@ impl Mountable for EuvModal {
         let open: Signal<bool> = self.get_open();
         let body: NodeId = self.get_body();
         let Self { title, .. } = self;
-        let backdrop: NodeId = ctx.portal(Style::empty());
+        let backdrop_base: Style = Style::empty()
+            .position(Position::Fixed)
+            .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+            .width(Length::Percent(100.0))
+            .height(Length::Percent(100.0))
+            .justify(JustifyContent::Center)
+            .align(AlignItems::Center)
+            .background(p.get_overlay())
+            .z_index(Z_INDEX_MODAL);
+        let init_open: bool = open.get_untracked();
+        let backdrop: NodeId = ctx.portal(backdrop_base.display(if init_open {
+            Display::Flex
+        } else {
+            Display::None
+        }));
         let dialog: NodeId = ctx.view(
             Style::empty()
                 .column()
@@ -42,24 +56,47 @@ impl Mountable for EuvModal {
         ctx.append(dialog, heading);
         ctx.append(dialog, body);
         ctx.append(backdrop, dialog);
+        ctx.on_click(backdrop, move |ev: &UiEvent| {
+            if ev.get_target() == backdrop {
+                let _: bool = open.set_if_changed(false);
+            }
+        });
         let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            handle.bind_style(backdrop, move || {
-                let disp: Display = if open.get() {
-                    Display::Flex
+            Effect::new(move || {
+                let is_open: bool = open.get();
+                let was_open: bool = prev_open.replace(is_open);
+                if is_open == was_open {
+                    return;
+                }
+                if is_open {
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(backdrop) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::fade(backdrop, 0.0, 1.0, 0.20, false));
+                    handle.start_transition(NodeTransition::modal_enter(dialog));
                 } else {
-                    Display::None
-                };
-                Style::empty()
-                    .display(disp)
-                    .position(Position::Fixed)
-                    .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
-                    .width(Length::Percent(100.0))
-                    .height(Length::Percent(100.0))
-                    .justify(JustifyContent::Center)
-                    .align(AlignItems::Center)
-                    .background(p.get_overlay())
-                    .z_index(Z_INDEX_MODAL)
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
+                            if let Some(n) = tree.get_node_mut(backdrop) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
+                                n.set_style(st);
+                            }
+                        },
+                        (),
+                    );
+                    handle.start_transition(NodeTransition::modal_exit(dialog));
+                    handle.start_transition(NodeTransition::fade(backdrop, 1.0, 0.0, 0.18, true));
+                }
             })
         });
         ctx.get_scene().with_write(
@@ -90,7 +127,25 @@ impl Mountable for EuvToast {
         let (bg, fg): (Color, Color) = self.get_tone().colors(p);
         let visible: Signal<bool> = self.get_visible();
         let Self { message, .. } = self;
-        let toast: NodeId = ctx.portal(Style::empty());
+        let init_vis: bool = visible.get_untracked();
+        let toast: NodeId = ctx.portal(
+            Style::empty()
+                .row()
+                .align(AlignItems::Center)
+                .display(if init_vis {
+                    Display::Flex
+                } else {
+                    Display::None
+                })
+                .position(Position::Fixed)
+                .inset(None, Some(SPACE_LG), Some(SPACE_LG), None)
+                .padding(Edges::symmetric(SPACE_SM, SPACE_LG))
+                .background(bg)
+                .radius(g.get_radius_md())
+                .shadow(Shadow::new(0.0, 6.0, 16.0, 0.0, Color::rgba(0, 0, 0, 32)))
+                .pointer_events(PointerEvents::None)
+                .z_index(Z_INDEX_TOAST),
+        );
         let txt: NodeId = ctx.text(
             message,
             Style::empty()
@@ -100,25 +155,35 @@ impl Mountable for EuvToast {
         );
         ctx.append(toast, txt);
         let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_vis: Rc<Cell<bool>> = Rc::new(Cell::new(init_vis));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            handle.bind_style(toast, move || {
-                let disp: Display = if visible.get() {
-                    Display::Flex
+            Effect::new(move || {
+                let is_vis: bool = visible.get();
+                let was_vis: bool = prev_vis.replace(is_vis);
+                if is_vis == was_vis {
+                    return;
+                }
+                if is_vis {
+                    handle.start_transition(NodeTransition::slide_fade(
+                        toast,
+                        Point::new(0.0, 16.0),
+                        Point::new(0.0, 0.0),
+                        0.0,
+                        1.0,
+                        0.20,
+                        false,
+                    ));
                 } else {
-                    Display::None
-                };
-                Style::empty()
-                    .row()
-                    .align(AlignItems::Center)
-                    .display(disp)
-                    .position(Position::Fixed)
-                    .inset(None, Some(SPACE_LG), Some(SPACE_LG), None)
-                    .padding(Edges::symmetric(SPACE_SM, SPACE_LG))
-                    .background(bg)
-                    .radius(g.get_radius_md())
-                    .shadow(Shadow::new(0.0, 6.0, 16.0, 0.0, Color::rgba(0, 0, 0, 32)))
-                    .pointer_events(PointerEvents::None)
-                    .z_index(Z_INDEX_TOAST)
+                    handle.start_transition(NodeTransition::slide_fade(
+                        toast,
+                        Point::new(0.0, 0.0),
+                        Point::new(0.0, 14.0),
+                        1.0,
+                        0.0,
+                        0.18,
+                        true,
+                    ));
+                }
             })
         });
         ctx.get_scene().with_write(

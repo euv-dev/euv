@@ -142,6 +142,31 @@ impl<'a> GameRenderContext<'a> {
         });
     }
 
+    /// Draws an RGBA8 `ImageBuffer` stretched into `rect` inside this game viewport (ideal for 3D render targets).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable render context.
+    /// - `Rect` - Local destination rectangle inside the viewport.
+    /// - `ImageBuffer` - Source RGBA8 pixel buffer.
+    pub fn draw_image(&mut self, rect: Rect, buffer: ImageBuffer) {
+        let Self {
+            bounds,
+            display_list,
+        } = self;
+        let world: Rect = Rect::new(
+            bounds.get_x() + rect.get_x(),
+            bounds.get_y() + rect.get_y(),
+            rect.get_width(),
+            rect.get_height(),
+        );
+        display_list.push(DrawCommand::Image {
+            rect: world,
+            buffer,
+            radius: CornerRadius::default(),
+        });
+    }
+
     /// Draws an anti-aliased line segment in viewport-local coordinates.
     ///
     /// # Arguments
@@ -567,7 +592,49 @@ impl GameEngineHost {
         steps
     }
 
+    /// Sets the virtual analog joystick vector `(dx, dy)` in `[-1.0, 1.0]` for mobile/tablet/gamepad play.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Engine host reference.
+    /// - `f32` - Horizontal axis.
+    /// - `f32` - Vertical axis.
+    pub fn set_virtual_stick(&self, dx: f32, dy: f32) {
+        if let Ok(mut input) = self.get_input().try_borrow_mut() {
+            input.set_virtual_stick(dx, dy);
+        }
+    }
+
+    /// Presses a virtual game key (ideal for holdable mobile touch D-pad buttons).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Engine host reference.
+    /// - `KeyCode` - Virtual key code to hold down.
+    pub fn press_key(&self, code: KeyCode) {
+        self.ingest_event(&WindowEvent::KeyDown(
+            WindowId::new(1),
+            KeyEvent::new(code, Modifiers::default(), false),
+        ));
+    }
+
+    /// Releases a previously pressed virtual game key.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Engine host reference.
+    /// - `KeyCode` - Virtual key code to release.
+    pub fn release_key(&self, code: KeyCode) {
+        self.ingest_event(&WindowEvent::KeyUp(
+            WindowId::new(1),
+            KeyEvent::new(code, Modifiers::default(), false),
+        ));
+    }
+
     /// Mounts a live `Canvas` viewport into the active ambient `BuildContext` backed by this `GameScene`.
+    ///
+    /// Supports multi-platform interaction automatically: keyboard/mouse on Desktop & Web plus
+    /// direct drag-to-steer virtual analog joystick on touch/mobile/tablet screens.
     ///
     /// # Arguments
     ///
@@ -583,7 +650,7 @@ impl GameEngineHost {
         let clock_c: Rc<RefCell<FrameClock>> = clock.clone();
         let scene_c: Rc<RefCell<dyn GameScene>> = scene.clone();
         let mut ctx: BuildContext = current_build_context();
-        ctx.canvas(
+        let node: NodeId = ctx.canvas(
             style,
             move |bounds: Rect, display_list: &mut DisplayList| {
                 let alpha: f32 = clock_c
@@ -596,6 +663,36 @@ impl GameEngineHost {
                     game.render(alpha, &mut render_ctx);
                 }
             },
-        )
+        );
+        let drag_origin: Rc<RefCell<Option<Point>>> = Rc::new(RefCell::new(None));
+        let origin_down: Rc<RefCell<Option<Point>>> = drag_origin.clone();
+        let origin_move: Rc<RefCell<Option<Point>>> = drag_origin.clone();
+        let origin_up: Rc<RefCell<Option<Point>>> = drag_origin;
+        let host_move: Self = self.clone();
+        let host_up: Self = self.clone();
+        ctx.on_pointer_down(node, move |ev: &UiEvent| {
+            if let UiEventKind::PointerDown(pt) = ev.get_kind()
+                && let Ok(mut guard) = origin_down.try_borrow_mut()
+            {
+                *guard = Some(*pt);
+            }
+        });
+        ctx.on_pointer_move(node, move |ev: &UiEvent| {
+            if let UiEventKind::PointerMove(pt) = ev.get_kind()
+                && let Ok(guard) = origin_move.try_borrow()
+                && let Some(orig) = *guard
+            {
+                let dx: f32 = ((pt.get_x() - orig.get_x()) / 48.0).clamp(-1.0, 1.0);
+                let dy: f32 = ((pt.get_y() - orig.get_y()) / 48.0).clamp(-1.0, 1.0);
+                host_move.set_virtual_stick(dx, dy);
+            }
+        });
+        ctx.on_pointer_up(node, move |_: &UiEvent| {
+            if let Ok(mut guard) = origin_up.try_borrow_mut() {
+                *guard = None;
+            }
+            host_up.set_virtual_stick(0.0, 0.0);
+        });
+        node
     }
 }

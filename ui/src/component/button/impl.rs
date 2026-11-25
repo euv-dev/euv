@@ -21,6 +21,122 @@ impl EuvButton {
         self
     }
 
+    /// Sets the visual emphasis variant fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    /// - `EuvButtonVariant` - Visual variant.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated button.
+    #[must_use]
+    pub fn variant(mut self, variant: EuvButtonVariant) -> Self {
+        self.set_variant(variant);
+        self
+    }
+
+    /// Sets the control size tier fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    /// - `EuvButtonSize` - Unified control size.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated button.
+    #[must_use]
+    pub fn size(mut self, size: EuvButtonSize) -> Self {
+        self.set_size(size);
+        self
+    }
+
+    /// Applies the `Secondary` button variant fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Secondary button.
+    #[must_use]
+    pub fn secondary(self) -> Self {
+        self.variant(EuvButtonVariant::Secondary)
+    }
+
+    /// Applies the `Outline` button variant fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Outline button.
+    #[must_use]
+    pub fn outline(self) -> Self {
+        self.variant(EuvButtonVariant::Outline)
+    }
+
+    /// Applies the `Ghost` button variant fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Ghost button.
+    #[must_use]
+    pub fn ghost(self) -> Self {
+        self.variant(EuvButtonVariant::Ghost)
+    }
+
+    /// Applies the `Destructive` button variant fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Destructive button.
+    #[must_use]
+    pub fn destructive(self) -> Self {
+        self.variant(EuvButtonVariant::Destructive)
+    }
+
+    /// Applies the `Small` unified control height fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Small button.
+    #[must_use]
+    pub fn sm(self) -> Self {
+        self.size(EuvButtonSize::Small)
+    }
+
+    /// Applies the `Large` unified control height fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Large button.
+    #[must_use]
+    pub fn lg(self) -> Self {
+        self.size(EuvButtonSize::Large)
+    }
+
     /// Resolves the deterministic compiled `Style` for this button.
     ///
     /// # Arguments
@@ -34,11 +150,11 @@ impl EuvButton {
     pub fn resolved_style(&self) -> Style {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let (height, pad_x, font_sz): (f32, f32, f32) = match self.get_size() {
-            EuvButtonSize::Small => (g.get_control_sm(), SPACE_MD, 12.0),
-            EuvButtonSize::Default => (g.get_control_md(), SPACE_LG, 13.0),
-            EuvButtonSize::Large => (g.get_control_lg(), SPACE_2XL, 14.0),
-            EuvButtonSize::Icon => (g.get_control_md(), SPACE_SM, 13.0),
+        let (height, pad_x, font_sz, radius): (f32, f32, f32, f32) = match self.get_size() {
+            EuvButtonSize::Small => (g.get_control_sm(), SPACE_MD, 12.0, g.get_radius_sm()),
+            EuvButtonSize::Default => (g.get_control_md(), SPACE_LG, 13.0, g.get_radius_md()),
+            EuvButtonSize::Large => (g.get_control_lg(), SPACE_XL, 14.0, g.get_radius_md()),
+            EuvButtonSize::Icon => (g.get_control_md(), 0.0, 13.0, g.get_radius_md()),
         };
         let mut style: Style = Style::empty()
             .row()
@@ -46,7 +162,7 @@ impl EuvButton {
             .align(AlignItems::Center)
             .height(Length::Px(height))
             .padding(Edges::symmetric(0.0, pad_x))
-            .radius(g.get_radius_md())
+            .radius(radius)
             .font_size(font_sz)
             .font_weight(FontWeight::Medium)
             .focus_ring(Border::new(g.get_ring_width(), p.get_ring()))
@@ -55,6 +171,9 @@ impl EuvButton {
             } else {
                 CursorIcon::Pointer
             });
+        if self.get_size() == EuvButtonSize::Icon {
+            style = style.width(Length::Px(height));
+        }
         style = match self.get_variant() {
             EuvButtonVariant::Primary => style
                 .background(p.get_primary())

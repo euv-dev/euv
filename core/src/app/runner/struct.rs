@@ -62,4 +62,39 @@ pub struct App {
     /// Attached real-time game engine hosts receiving automatic OS input forwarding.
     #[debug(skip)]
     pub(crate) game_hosts: Vec<GameEngineHost>,
+    /// Starting touch coordinate for mobile pan-to-scroll detection.
+    #[get(skip)]
+    pub(crate) touch_drag_origin: Option<Point>,
+    /// Previous touch coordinate for incremental mobile scroll deltas.
+    #[get(skip)]
+    pub(crate) touch_drag_last: Option<Point>,
+    /// Whether the active touch gesture has crossed tap slop into pan-scrolling.
+    #[get(type(copy))]
+    pub(crate) touch_dragging: bool,
+    /// Whether the active pointer press grabbed a right-edge scrollbar track for thumb dragging.
+    #[get(type(copy))]
+    pub(crate) scrollbar_dragging: bool,
+    /// Active multi-touch / pointer contact map keyed by `pointer_id` for pinch & swipe recognition.
+    pub(crate) active_pointers: HashMap<u64, Point>,
+    /// Initial contact point of the active single-pointer gesture stroke.
+    #[get(skip)]
+    pub(crate) gesture_origin: Option<Point>,
+    /// Baseline two-finger distance recorded when a pinch gesture starts.
+    #[get(type(copy))]
+    pub(crate) pinch_base_dist: f32,
+    /// Accumulated hold duration in seconds for long-press gesture detection.
+    #[get(type(copy))]
+    pub(crate) gesture_hold_secs: f32,
+    /// Whether `GestureEventKind::LongPress` has already fired for the current press.
+    #[get(type(copy))]
+    pub(crate) long_press_fired: bool,
+    /// Coordinates of the most recent completed clean tap for double-tap detection.
+    #[get(skip)]
+    pub(crate) last_tap_pos: Option<Point>,
+    /// Elapsed seconds since the most recent completed clean tap.
+    #[get(type(copy))]
+    pub(crate) last_tap_age_secs: f32,
+    /// Monotonic gesture event sequence counter.
+    #[get(type(copy))]
+    pub(crate) gesture_seq: u64,
 }

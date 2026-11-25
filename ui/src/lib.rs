@@ -14,7 +14,11 @@ mod tests;
 
 pub use {component::*, hook::*, theme::*};
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    rc::Rc,
+};
 
 use {
     euv::*,

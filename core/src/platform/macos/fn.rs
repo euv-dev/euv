@@ -457,6 +457,32 @@ pub(crate) fn macos_map_key_code(raw_code: u16, chars: &str) -> KeyCode {
         119 => KeyCode::End,
         116 => KeyCode::PageUp,
         121 => KeyCode::PageDown,
+        0 => KeyCode::Character('a'),
+        11 => KeyCode::Character('b'),
+        8 => KeyCode::Character('c'),
+        2 => KeyCode::Character('d'),
+        14 => KeyCode::Character('e'),
+        3 => KeyCode::Character('f'),
+        5 => KeyCode::Character('g'),
+        4 => KeyCode::Character('h'),
+        34 => KeyCode::Character('i'),
+        38 => KeyCode::Character('j'),
+        40 => KeyCode::Character('k'),
+        37 => KeyCode::Character('l'),
+        46 => KeyCode::Character('m'),
+        45 => KeyCode::Character('n'),
+        31 => KeyCode::Character('o'),
+        35 => KeyCode::Character('p'),
+        12 => KeyCode::Character('q'),
+        15 => KeyCode::Character('r'),
+        1 => KeyCode::Character('s'),
+        17 => KeyCode::Character('t'),
+        32 => KeyCode::Character('u'),
+        9 => KeyCode::Character('v'),
+        13 => KeyCode::Character('w'),
+        7 => KeyCode::Character('x'),
+        16 => KeyCode::Character('y'),
+        6 => KeyCode::Character('z'),
         _ => chars
             .chars()
             .next()
@@ -559,7 +585,7 @@ pub(crate) fn macos_pump_events(
                         ),
                     ));
                 }
-                NS_EVENT_LEFT_MOUSE_UP if inside_content => {
+                NS_EVENT_LEFT_MOUSE_UP => {
                     out_events.push(WindowEvent::PointerUp(
                         wid,
                         PointerEvent::new(
@@ -598,13 +624,31 @@ pub(crate) fn macos_pump_events(
                         ),
                     ));
                 }
-                NS_EVENT_MOUSE_MOVED | NS_EVENT_LEFT_MOUSE_DRAGGED if inside_content => {
+                NS_EVENT_MOUSE_MOVED if inside_content => {
                     let next_ptr: PointerEvent = PointerEvent::new(
                         1,
                         PointerDevice::Mouse,
                         Point::new(ui_x, ui_y),
                         PointerButton::Primary,
                         0.0,
+                        mods,
+                    );
+                    if let Some(WindowEvent::PointerMove(prev_wid, prev_ptr)) =
+                        out_events.last_mut()
+                        && *prev_wid == wid
+                    {
+                        *prev_ptr = next_ptr;
+                    } else {
+                        out_events.push(WindowEvent::PointerMove(wid, next_ptr));
+                    }
+                }
+                NS_EVENT_LEFT_MOUSE_DRAGGED => {
+                    let next_ptr: PointerEvent = PointerEvent::new(
+                        1,
+                        PointerDevice::Mouse,
+                        Point::new(ui_x, ui_y),
+                        PointerButton::Primary,
+                        1.0,
                         mods,
                     );
                     if let Some(WindowEvent::PointerMove(prev_wid, prev_ptr)) =
@@ -656,7 +700,17 @@ pub(crate) fn macos_pump_events(
                 }
                 NS_EVENT_KEY_UP => {
                     let raw_key: u16 = objc_send_u16_0(event, key_sel);
-                    let key_code: KeyCode = macos_map_key_code(raw_key, "");
+                    let chars_ns: *mut c_void =
+                        objc_send_ptr0(event, objc_sel(OBJC_SEL_CHARS_IGNORING_MODS));
+                    let utf8_ptr: *const c_char =
+                        objc_send_ptr0(chars_ns, utf8_sel).cast::<c_char>();
+                    let text: String = if utf8_ptr.is_null() {
+                        String::new()
+                    } else {
+                        // SAFETY: `UTF8String` returns a valid null-terminated C string when non-null.
+                        unsafe { CStr::from_ptr(utf8_ptr).to_str().unwrap_or("").to_string() }
+                    };
+                    let key_code: KeyCode = macos_map_key_code(raw_key, &text);
                     out_events.push(WindowEvent::KeyUp(
                         wid,
                         KeyEvent::new(key_code, mods, false),
@@ -762,7 +816,8 @@ pub(crate) fn macos_create_native_window(
     let allocated: *mut c_void = objc_send_ptr0(win_cls, objc_sel(OBJC_SEL_ALLOC));
     let mut style_mask: usize = if config.get_decorations() {
         let base_mask: usize = NS_WINDOW_STYLE_TITLED | NS_WINDOW_STYLE_CLOSABLE;
-        base_mask | NS_WINDOW_STYLE_MINIATURIZABLE
+        let chrome_mask: usize = base_mask | NS_WINDOW_STYLE_MINIATURIZABLE;
+        chrome_mask | NS_WINDOW_STYLE_FULL_SIZE_CONTENT
     } else {
         NS_WINDOW_STYLE_BORDERLESS
     };
@@ -802,6 +857,10 @@ pub(crate) fn macos_create_native_window(
     let title_ns: *mut c_void = macos_ns_string(config.get_title());
     if !title_ns.is_null() {
         let _: *mut c_void = objc_send_ptr1(ns_window, objc_sel(OBJC_SEL_SET_TITLE), title_ns);
+    }
+    if config.get_decorations() {
+        objc_send_void_bool(ns_window, objc_sel(OBJC_SEL_SET_TITLEBAR_TRANSPARENT), true);
+        objc_send_void_isize(ns_window, objc_sel(OBJC_SEL_SET_TITLE_VISIBILITY), 1);
     }
     let ns_view: *mut c_void = objc_send_ptr0(ns_window, objc_sel(OBJC_SEL_CONTENT_VIEW));
     let layer_cls: *mut c_void = objc_class(OBJC_CLS_CA_METAL_LAYER);

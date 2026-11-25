@@ -16,7 +16,7 @@ use {
     euv::{FrameStats, RenderMode},
     euv_example::{
         FLAG_HARDWARE, FLAG_HEADLESS, FLAG_HYBRID, FLAG_INTERACTIVE, FLAG_SOFTWARE, ROUTE_GAME,
-        create_showcase_app, run_headless_smoke,
+        ROUTE_GAME_3D, create_showcase_app, run_headless_smoke,
     },
 };
 
@@ -88,10 +88,10 @@ fn main() {
                             .as_secs_f32()
                             .clamp(0.001, 0.05);
                         prev_tick = frame_start;
-                        let on_game_route: bool = state.get_route().get_untracked() == ROUTE_GAME;
-                        if on_game_route {
-                            let _: u32 = state.get_game_host().step(dt);
-                        }
+                        let on_game_route: bool = {
+                            let cur: String = state.get_route().get_untracked();
+                            cur == ROUTE_GAME || cur == ROUTE_GAME_3D
+                        };
                         match app.step_game_frame(dt) {
                             Ok(stats) => last_stats = stats,
                             Err(err) => {
@@ -104,8 +104,10 @@ fn main() {
                             let _: usize = dev_bridge.poll(&mut app);
                         }
                         let elapsed: Duration = frame_start.elapsed();
+                        let active_anim: bool = app.has_active_animations();
+                        let busy_game_or_anim: bool = on_game_route || active_anim;
                         let target: Duration =
-                            if on_game_route || last_stats.get_pixels_shaded() > 0 {
+                            if busy_game_or_anim || last_stats.get_pixels_shaded() > 0 {
                                 frame_budget
                             } else {
                                 Duration::from_millis(8)

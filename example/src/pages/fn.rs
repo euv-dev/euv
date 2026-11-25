@@ -13,11 +13,6 @@ style! {
         align: AlignItems::Center;
         gap: SPACE_SM;
     }
-    c_stats_grid {
-        columns: 3;
-        width: Length::Percent(100.0);
-        gap: SPACE_MD;
-    }
     c_scheme_grid {
         columns: 4;
         width: Length::Percent(100.0);
@@ -78,8 +73,9 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
         );
         outlet.set_hub(Some(hub));
         let page_node: NodeId = outlet.mount_current();
-        let shell: NodeId =
-            EuvAppShell::new(SHOWCASE_BRAND.to_string(), nav, page_node, tokens).mount_current();
+        let shell: NodeId = EuvAppShell::new(SHOWCASE_BRAND.to_string(), nav, page_node, tokens)
+            .route(state_c.get_route())
+            .mount_current();
         vec![shell]
     });
     host
@@ -120,6 +116,8 @@ fn mount_route_by_name(route: &str, state: &ShowcaseState, tokens: ThemeTokens) 
         ROUTE_THEMES => mount_themes_page(state, tokens),
         ROUTE_DATA => mount_data_page(state, tokens),
         ROUTE_GAME => mount_game_page(state, tokens),
+        ROUTE_GAME_3D => mount_game3d_page(state, tokens),
+        ROUTE_MEDIA => mount_media_page(state, tokens),
         ROUTE_OVERLAYS => mount_overlays_page(state, tokens),
         ROUTE_DYNAMIC => mount_dynamic_page(state, tokens),
         _ => mount_overview_page(state, tokens),
@@ -179,48 +177,73 @@ pub fn mount_overview_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
         tokens,
     )
     .mount_current();
-    let mut game_btn: EuvButton =
-        EuvButton::new("Open Game Engine".to_string(), tokens).on_click(move |_: &UiEvent| {
-            let _: bool = route_sig.set_if_changed(ROUTE_GAME.to_string());
-        });
-    game_btn.set_variant(EuvButtonVariant::Secondary);
-    let mut os_btn: EuvButton =
-        EuvButton::new("Open OS Services".to_string(), tokens).on_click(move |_: &UiEvent| {
-            let _: bool = route_sig.set_if_changed(ROUTE_WINDOW.to_string());
-        });
-    os_btn.set_variant(EuvButtonVariant::Outline);
-    let quick_row: NodeId = view! {
-        row {
-            style: c_action_row()
-            { EuvButton::new("Try Reactivity".to_string(), tokens).on_click(move |_: &UiEvent| { let _: bool = route_sig.set_if_changed(ROUTE_REACTIVE.to_string()); }) }
-            { game_btn }
-            { os_btn }
-        }
-    };
-    let mut card: EuvCard = EuvCard::new(CARD_PLATFORMS_TITLE.to_string(), tokens)
+    let quick_row: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new("Try Reactivity".to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = route_sig.set_if_changed(ROUTE_REACTIVE.to_string());
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Open Game Engine".to_string(), tokens)
+                .secondary()
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = route_sig.set_if_changed(ROUTE_GAME.to_string());
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Open OS Services".to_string(), tokens)
+                .outline()
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = route_sig.set_if_changed(ROUTE_WINDOW.to_string());
+                })
+                .mount_current(),
+        )
+        .mount_current();
+    let card: NodeId = EuvCard::new(CARD_PLATFORMS_TITLE.to_string(), tokens)
+        .subtitle(CARD_PLATFORMS_SUB)
         .child(quick_row)
-        .child(table);
-    card.set_subtitle(CARD_PLATFORMS_SUB.to_string());
-    let bp: Breakpoint = use_breakpoint().get_untracked();
-    let stats_cols: u16 = match bp {
-        Breakpoint::Compact => 1,
-        Breakpoint::Medium => 2,
-        Breakpoint::Expanded => 3,
-    };
-    view! {
-        column {
-            style: c_page_column()
-            { EuvHeader::new(OVERVIEW_TITLE.to_string(), OVERVIEW_SUBTITLE.to_string(), tokens) }
-            grid {
-                style: c_stats_grid()
-                columns: stats_cols
-                { EuvStatCard::new(STAT_PLATFORMS_LABEL.to_string(), STAT_PLATFORMS_VAL.to_string(), STAT_PLATFORMS_CAP.to_string(), tokens) }
-                { EuvStatCard::new(STAT_SCHEMES_LABEL.to_string(), STAT_SCHEMES_VAL.to_string(), STAT_SCHEMES_CAP.to_string(), tokens) }
-                { EuvStatCard::new(STAT_RENDER_LABEL.to_string(), STAT_RENDER_VAL.to_string(), STAT_RENDER_CAP.to_string(), tokens) }
-            }
-            { card }
-        }
-    }
+        .child(table)
+        .mount_current();
+    let stats: NodeId = EuvStatGrid::new()
+        .card(
+            EuvStatCard::new(
+                STAT_PLATFORMS_LABEL.to_string(),
+                STAT_PLATFORMS_VAL.to_string(),
+                STAT_PLATFORMS_CAP.to_string(),
+                tokens,
+            )
+            .mount_current(),
+        )
+        .card(
+            EuvStatCard::new(
+                STAT_SCHEMES_LABEL.to_string(),
+                STAT_SCHEMES_VAL.to_string(),
+                STAT_SCHEMES_CAP.to_string(),
+                tokens,
+            )
+            .mount_current(),
+        )
+        .card(
+            EuvStatCard::new(
+                STAT_RENDER_LABEL.to_string(),
+                STAT_RENDER_VAL.to_string(),
+                STAT_RENDER_CAP.to_string(),
+                tokens,
+            )
+            .mount_current(),
+        )
+        .mount_current();
+    EuvPage::new(
+        OVERVIEW_TITLE.to_string(),
+        OVERVIEW_SUBTITLE.to_string(),
+        tokens,
+    )
+    .section(stats)
+    .section(card)
+    .mount_current()
 }
 
 /// Mounts the fine-grained reactivity showcase demonstrating `Signal`, `computed!`, `batch`, and `view!`.
@@ -774,6 +797,11 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let host: GameEngineHost = state.get_game_host().clone();
     let host_btn: GameEngineHost = host.clone();
     let host_wave: GameEngineHost = host.clone();
+    let host_left: GameEngineHost = host.clone();
+    let host_up: GameEngineHost = host.clone();
+    let host_down: GameEngineHost = host.clone();
+    let host_right: GameEngineHost = host.clone();
+    let host_dash: GameEngineHost = host.clone();
     let viewport: NodeId = host.mount_viewport(
         Style::empty()
             .width(Length::Percent(100.0))
@@ -781,37 +809,346 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             .border(g.get_border_width(), p.get_border())
             .radius(g.get_radius_md()),
     );
-    let mut wave_btn: EuvButton =
-        EuvButton::new("Spawn Enemy Wave".to_string(), tokens).on_click(move |_: &UiEvent| {
-            host_wave.ingest_event(&WindowEvent::KeyDown(
-                WindowId::new(1),
-                KeyEvent::new(KeyCode::Character('r'), Modifiers::default(), false),
-            ));
-            let _: u32 = host_wave.step(1.0 / 60.0);
-        });
-    wave_btn.set_variant(EuvButtonVariant::Outline);
+    let top_actions: NodeId = EuvActionRow::new()
+        .child(
+            EuvBadge::new("ECS + Physics 2D".to_string(), EuvTone::Success, tokens).mount_current(),
+        )
+        .child(
+            EuvBadge::new(
+                "Camera2D + Particles + TileMap".to_string(),
+                EuvTone::Primary,
+                tokens,
+            )
+            .mount_current(),
+        )
+        .child(
+            EuvButton::new(BTN_STEP_PHYSICS.to_string(), tokens)
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let _: u32 = host_btn.step(0.051);
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Spawn Enemy Wave".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    host_wave.ingest_event(&WindowEvent::KeyDown(
+                        WindowId::new(1),
+                        KeyEvent::new(KeyCode::Character('r'), Modifiers::default(), false),
+                    ));
+                    let _: u32 = host_wave.step(1.0 / 60.0);
+                    host_wave.ingest_event(&WindowEvent::KeyUp(
+                        WindowId::new(1),
+                        KeyEvent::new(KeyCode::Character('r'), Modifiers::default(), false),
+                    ));
+                })
+                .mount_current(),
+        )
+        .mount_current();
+    let touch_controls: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new("Left (A)".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    pulse_game_key(&host_left, KeyCode::ArrowLeft);
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Up (W)".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    pulse_game_key(&host_up, KeyCode::ArrowUp);
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Down (S)".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    pulse_game_key(&host_down, KeyCode::ArrowDown);
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Right (D)".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    pulse_game_key(&host_right, KeyCode::ArrowRight);
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Dash (E)".to_string(), tokens)
+                .secondary()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    pulse_game_key(&host_dash, KeyCode::Character('e'));
+                })
+                .mount_current(),
+        )
+        .mount_current();
     let body: NodeId = view! {
         column {
             gap: SPACE_MD
-            row {
-                style: c_action_row()
-                { EuvBadge::new("ECS + Physics 2D".to_string(), EuvTone::Success, tokens) }
-                { EuvBadge::new("Camera2D + Particles + TileMap".to_string(), EuvTone::Primary, tokens) }
-                { EuvButton::new(BTN_STEP_PHYSICS.to_string(), tokens).on_click(move |_: &UiEvent| { let _: u32 = host_btn.step(0.051); }) }
-                { wave_btn }
-            }
+            { top_actions }
             { viewport }
+            { touch_controls }
         }
     };
-    let mut card: EuvCard = EuvCard::new(GAME_CARD_TITLE.to_string(), tokens).child(body);
-    card.set_subtitle(GAME_CARD_SUB.to_string());
-    view! {
-        column {
-            style: c_page_column()
-            { EuvHeader::new(GAME_TITLE.to_string(), GAME_SUBTITLE.to_string(), tokens) }
-            { card }
-        }
+    let card: NodeId = EuvCard::new(GAME_CARD_TITLE.to_string(), tokens)
+        .subtitle(GAME_CARD_SUB)
+        .child(body)
+        .mount_current();
+    EuvPage::new(GAME_TITLE.to_string(), GAME_SUBTITLE.to_string(), tokens)
+        .section(card)
+        .mount_current()
+}
+
+/// Mounts a press-and-hold cross-platform touch/mouse game control button driving `code` on `host`.
+///
+/// # Arguments
+///
+/// - `&str` - Button label.
+/// - `&GameEngineHost` - Target game host.
+/// - `KeyCode` - Virtual key bound to this button.
+/// - `bool` - Whether to style as primary (`true`) or outline (`false`).
+/// - `ThemeTokens` - Active design tokens.
+///
+/// # Returns
+///
+/// - `NodeId` - Mounted holdable button node.
+fn mount_game_control_button(
+    label: &str,
+    host: &GameEngineHost,
+    code: KeyCode,
+    primary: bool,
+    tokens: ThemeTokens,
+) -> NodeId {
+    let host_down: GameEngineHost = host.clone();
+    let host_up: GameEngineHost = host.clone();
+    let host_click: GameEngineHost = host.clone();
+    let mut btn: EuvButton =
+        EuvButton::new(label.to_string(), tokens)
+            .sm()
+            .on_click(move |_: &UiEvent| {
+                pulse_game_key(&host_click, code);
+            });
+    if !primary {
+        btn = btn.outline();
     }
+    let node: NodeId = btn.mount_current();
+    let mut ctx: BuildContext = current_build_context();
+    ctx.on_pointer_down(node, move |_: &UiEvent| {
+        host_down.press_key(code);
+    });
+    ctx.on_pointer_up(node, move |_: &UiEvent| {
+        host_up.release_key(code);
+    });
+    node
+}
+
+/// Pulses a single directional or action key on `host` for mobile touch/button game controls.
+///
+/// # Arguments
+///
+/// - `&GameEngineHost` - Target game engine host.
+/// - `KeyCode` - Virtual key code to pulse.
+fn pulse_game_key(host: &GameEngineHost, code: KeyCode) {
+    host.press_key(code);
+    let _: u32 = host.step(0.08);
+    host.release_key(code);
+}
+
+/// Mounts the AAA 3D Open-World Engine page with live BVH ray tracing, runtime graphics settings, and `.obj`/`.gltf` model import.
+///
+/// # Arguments
+///
+/// - `&ShowcaseState` - Reactive showcase state.
+/// - `ThemeTokens` - Active design tokens.
+///
+/// # Returns
+///
+/// - `NodeId` - Mounted 3D engine showcase page handle.
+pub fn mount_game3d_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
+    let g: ThemeGeometry = tokens.get_geometry();
+    let p: ThemePalette = tokens.get_palette();
+    let host: GameEngineHost = state.get_game3d_host().clone();
+    let quality_sig: Signal<RenderQualityConfig> = state.get_engine3d_quality();
+    let preset_idx: Signal<usize> = state.get_engine3d_preset_idx();
+    let rt_idx: Signal<usize> = state.get_engine3d_rt_idx();
+    let res_scale: Signal<f32> = state.get_engine3d_res_scale();
+    let time_sig: Signal<f32> = state.get_engine3d_time_of_day();
+    let import_sig: Signal<u64> = state.get_engine3d_import_queue();
+    let status_sig: Signal<String> = state.get_engine3d_import_status();
+    let viewport: NodeId = host.mount_viewport(
+        Style::empty()
+            .width(Length::Percent(100.0))
+            .height(Length::Px(340.0))
+            .border(g.get_border_width(), p.get_border())
+            .radius(g.get_radius_md()),
+    );
+    let drive_controls: NodeId = EuvActionRow::new()
+        .child(mount_game_control_button(
+            "Steer Left (A)",
+            &host,
+            KeyCode::ArrowLeft,
+            false,
+            tokens,
+        ))
+        .child(mount_game_control_button(
+            "Drive Fwd (W)",
+            &host,
+            KeyCode::ArrowUp,
+            true,
+            tokens,
+        ))
+        .child(mount_game_control_button(
+            "Reverse (S)",
+            &host,
+            KeyCode::ArrowDown,
+            false,
+            tokens,
+        ))
+        .child(mount_game_control_button(
+            "Steer Right (D)",
+            &host,
+            KeyCode::ArrowRight,
+            false,
+            tokens,
+        ))
+        .child(
+            EuvButton::new("Import .OBJ Monument".to_string(), tokens)
+                .secondary()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let cur: u64 = import_sig.get_untracked();
+                    let next: u64 = if cur.is_multiple_of(2) {
+                        cur + 1
+                    } else {
+                        cur + 2
+                    };
+                    let _: bool = import_sig.set_if_changed(next);
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Import .glTF Tower".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let cur: u64 = import_sig.get_untracked();
+                    let next: u64 = if !cur.is_multiple_of(2) {
+                        cur + 1
+                    } else {
+                        cur + 2
+                    };
+                    let _: bool = import_sig.set_if_changed(next);
+                })
+                .mount_current(),
+        )
+        .mount_current();
+    let mut ctx: BuildContext = current_build_context();
+    let sync_host: NodeId = ctx.view(
+        Style::empty()
+            .column()
+            .width(Length::Percent(100.0))
+            .gap(SPACE_MD),
+    );
+    let (sync_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+        Effect::new(move || {
+            let p_idx: usize = preset_idx.get();
+            let preset: QualityPreset = match p_idx {
+                0 => QualityPreset::Low,
+                1 => QualityPreset::Medium,
+                3 => QualityPreset::Ultra,
+                4 => QualityPreset::Cinematic,
+                _ => QualityPreset::High,
+            };
+            let rt: RayTracingMode = match rt_idx.get() {
+                0 => RayTracingMode::Off,
+                1 => RayTracingMode::ShadowsOnly,
+                3 => RayTracingMode::FullPathTracedGi,
+                _ => RayTracingMode::ShadowsAndReflections,
+            };
+            let scale_pct: f32 = res_scale.get();
+            let mut cfg: RenderQualityConfig = RenderQualityConfig::from_preset(preset);
+            cfg.set_ray_tracing(rt);
+            cfg.set_resolution_scale((scale_pct / 100.0).clamp(0.40, 1.25));
+            let _: bool = quality_sig.set_if_changed(cfg);
+        })
+    });
+    ctx.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            tree.attach_scope(sync_host, sync_scope);
+        },
+        (),
+    );
+    let preset_seg: NodeId = EuvSegmented::new(
+        vec![
+            "Low".to_string(),
+            "Medium".to_string(),
+            "High".to_string(),
+            "Ultra".to_string(),
+            "Cinematic".to_string(),
+        ],
+        preset_idx,
+        tokens,
+    )
+    .mount_current();
+    let rt_seg: NodeId = EuvSegmented::new(
+        vec![
+            "RT Off".to_string(),
+            "RT Shadows".to_string(),
+            "RT Refl".to_string(),
+            "RT Full GI".to_string(),
+        ],
+        rt_idx,
+        tokens,
+    )
+    .mount_current();
+    let res_field: NodeId = EuvField::new(
+        "Runtime Render Resolution Scale (%)".to_string(),
+        EuvSlider::new(res_scale, 40.0, 125.0, tokens).mount_current(),
+        tokens,
+    )
+    .mount_current();
+    let sun_field: NodeId = EuvField::new(
+        "Time of Day / Sun Lighting (6h Dawn -> 17h Sunset -> 22h Night)".to_string(),
+        EuvSlider::new(time_sig, 6.0, 23.0, tokens).mount_current(),
+        tokens,
+    )
+    .mount_current();
+    let status_txt: NodeId = ctx.reactive_text(
+        Style::empty()
+            .font_size(12.0)
+            .color(p.get_muted_foreground()),
+        move || status_sig.get(),
+    );
+    ctx.append(sync_host, viewport);
+    ctx.append(sync_host, drive_controls);
+    ctx.append(sync_host, status_txt);
+    ctx.append(sync_host, preset_seg);
+    ctx.append(sync_host, rt_seg);
+    ctx.append(sync_host, res_field);
+    ctx.append(sync_host, sun_field);
+    let card: NodeId = EuvCard::new(GAME3D_CARD_TITLE.to_string(), tokens)
+        .subtitle(GAME3D_CARD_SUB)
+        .child(sync_host)
+        .mount_current();
+    EuvPage::new(
+        GAME3D_TITLE.to_string(),
+        GAME3D_SUBTITLE.to_string(),
+        tokens,
+    )
+    .section(card)
+    .mount_current()
 }
 
 /// Mounts the overlays page featuring interactive `EuvModal`, `EuvDrawer`, `EuvSheet`, `EuvPopover`, `EuvDropdown`, `EuvToast`, `EuvNotification`, and `EuvLoading`.
@@ -1305,4 +1642,64 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
             { page_card }
         }
     }
+}
+
+/// Mounts the complete cross-platform Media Studio page demonstrating Image, SVG, GIF, LIVE Photo, Video, Audio, PDF, and native HTML5.
+///
+/// # Arguments
+///
+/// - `&ShowcaseState` - Reactive showcase state.
+/// - `ThemeTokens` - Active design tokens.
+///
+/// # Returns
+///
+/// - `NodeId` - Mounted Media Studio page node.
+pub fn mount_media_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
+    let p: ThemePalette = tokens.get_palette();
+    let link_log: Signal<String> = state.get_media_html_link_log();
+    let link_log_cb: Signal<String> = link_log;
+    let photo_card: NodeId = EuvImage::new(
+        ImageAsset::sample_photo("Hero Raster Photo (PNG/BMP/WebP)"),
+        tokens,
+    )
+    .height(148.0)
+    .mount_current();
+    let svg_card: NodeId = EuvSvgView::new(
+        SvgDocument::sample_svg(),
+        "Vector SVG Badge".to_string(),
+        tokens,
+    )
+    .mount_current();
+    let gif_card: NodeId = EuvGifPlayer::new(state.get_media_gif(), tokens).mount_current();
+    let live_card: NodeId = EuvLivePhoto::new(state.get_media_live(), tokens).mount_current();
+    let video_card: NodeId = EuvVideoPlayer::new(state.get_media_video(), tokens).mount_current();
+    let audio_card: NodeId = EuvAudioPlayer::new(state.get_media_audio(), tokens).mount_current();
+    let pdf_card: NodeId = EuvPdfViewer::new(state.get_media_pdf(), tokens).mount_current();
+    let html_card: NodeId = EuvHtmlView::new(HtmlDocument::sample_html(), tokens)
+        .on_link(move |href: String| {
+            let _: bool = link_log_cb.set_if_changed(format!("Opened native link: {href}"));
+        })
+        .mount_current();
+    let link_status: NodeId = view! {
+        text {
+            font_size: 12.5
+            color: p.get_muted_foreground()
+            { move || link_log.get() }
+        }
+    };
+    EuvPage::new(
+        "Full Cross-Platform Media Studio".to_string(),
+        "Pure-Rust Image, SVG, animated GIF, LIVE Photo, Video, WAV Audio waveform, multi-page PDF, and sanitized zero-JS HTML5.".to_string(),
+        tokens,
+    )
+    .section(photo_card)
+    .section(svg_card)
+    .section(gif_card)
+    .section(live_card)
+    .section(video_card)
+    .section(audio_card)
+    .section(pdf_card)
+    .section(html_card)
+    .section(link_status)
+    .mount_current()
 }

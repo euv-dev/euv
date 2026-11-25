@@ -19,6 +19,8 @@ pub struct SceneTree {
     /// Monotonic structural/visual mutation counter.
     #[get(type(copy))]
     pub(crate) revision: u64,
+    /// Active paint/transform node transitions ticked on every frame until settled.
+    pub(crate) transitions: Vec<NodeTransition>,
 }
 
 /// Shared handle wrapping a `SceneTree` so reactive `Effect` closures can patch nodes directly.
@@ -48,6 +50,9 @@ pub struct BuildContext {
     /// Active safe-area insets signal.
     #[get(type(copy))]
     pub(crate) safe_area: Signal<SafeAreaInsets>,
+    /// Reactive stream of recognized cross-platform gestures (`Tap`, `DoubleTap`, `LongPress`, `Swipe*`, `Pan`, `Pinch`).
+    #[get(type(copy))]
+    pub(crate) gesture: Signal<Option<GestureEvent>>,
     /// Shared dynamic update hub enabling ambient component-level and page-level live updates.
     pub(crate) dynamic_hub: DynamicUpdateHub,
 }

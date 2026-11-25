@@ -326,6 +326,38 @@ pub fn bench_game_particles(iterations: usize) -> BenchMetric {
     )
 }
 
+/// Benchmarks the AAA 3D open-world PBR + BVH ray-traced shadows and reflections pipeline.
+///
+/// # Arguments
+///
+/// - `usize` - Number of 3D ray-traced frames to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured 3D frame latency, triangle throughput, and BVH ray count.
+#[must_use]
+pub fn bench_game3d_pbr_bvh_raytrace(iterations: usize) -> BenchMetric {
+    let count: usize = iterations.max(1);
+    let mut world: World3D = World3D::create_open_world_city();
+    let mut renderer: Renderer3D = Renderer3D::default();
+    let cfg: RenderQualityConfig = RenderQualityConfig::from_preset(QualityPreset::High);
+    let start: Instant = Instant::now();
+    let mut last_rays: usize = 0;
+    let mut last_tris: usize = 0;
+    for _ in 0..count {
+        let _: ImageBuffer = renderer.render_world(&mut world, 480, 270, &cfg);
+        let st: RenderStats3D = renderer.get_last_stats();
+        last_rays = st.get_rays_traced();
+        last_tris = st.get_triangles_drawn();
+    }
+    build_metric(
+        BENCH_GAME_3D_RT_NAME,
+        count,
+        start.elapsed(),
+        format!("tris={last_tris} rays={last_rays}"),
+    )
+}
+
 /// Runs the complete reproducible benchmark suite across reactivity, layout, fonts, rendering, and game physics.
 ///
 /// # Returns
@@ -343,6 +375,7 @@ pub fn run_full_benchmark_suite() -> BenchReport {
         bench_hardware_gpu_batching(200),
         bench_game_ecs_physics(200),
         bench_game_particles(1_000),
+        bench_game3d_pbr_bvh_raytrace(10),
     ];
     BenchReport::new(metrics)
 }

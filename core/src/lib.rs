@@ -10,6 +10,7 @@ mod dynamic;
 mod font;
 mod game;
 mod layout;
+mod media;
 mod platform;
 mod reactive;
 mod render;
@@ -23,8 +24,8 @@ mod window;
 mod tests;
 
 pub use {
-    app::*, dynamic::*, font::*, game::*, layout::*, platform::*, reactive::*, render::*, scene::*,
-    style::*, system::*, window::*,
+    app::*, dynamic::*, font::*, game::*, layout::*, media::*, platform::*, reactive::*, render::*,
+    scene::*, style::*, system::*, window::*,
 };
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -58,19 +59,20 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     collections::{HashMap, HashSet},
     error::Error,
-    f32::consts::TAU,
+    f32::consts::{FRAC_PI_2, PI, TAU},
     fmt::{self, Formatter},
     hash::{Hash, Hasher},
     marker::PhantomData,
     mem::{swap, take},
+    ops::{Add, Mul, Sub},
     rc::Rc,
-    str::Chars,
+    str::{Chars, from_utf8},
 };
 
 use {
     lombok_macros::{CustomDebug, Data, Getter, New},
     serde::{Deserialize, Serialize},
-    serde_json::{from_str, to_string, to_string_pretty},
+    serde_json::{Value, from_str, to_string, to_string_pretty},
 };
 
 #[cfg(target_arch = "wasm32")]
