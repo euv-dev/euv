@@ -1,5 +1,9 @@
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::Path;
 use std::{env, thread::sleep, time::Duration};
 
+#[cfg(not(target_arch = "wasm32"))]
+use euv_example::{FLAG_CAPTURE_DIR, capture_showcase_screenshots};
 use {
     euv::{FrameStats, RenderMode},
     euv_example::{
@@ -11,6 +15,16 @@ use {
 /// Body of the `main` free function.
 fn main() {
     let args: Vec<String> = env::args().collect();
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(pos) = args.iter().position(|arg: &String| arg == FLAG_CAPTURE_DIR)
+        && let Some(dir) = args.get(pos + 1)
+    {
+        match capture_showcase_screenshots(Path::new(dir)) {
+            Ok(n) => println!("captured={n} dir={dir}"),
+            Err(err) => eprintln!("{err}"),
+        }
+        return;
+    }
     let headless: bool = args.iter().any(|arg: &String| arg == FLAG_HEADLESS);
     let interactive: bool = args.iter().any(|arg: &String| arg == FLAG_INTERACTIVE);
     let mode: RenderMode = if args.iter().any(|arg: &String| arg == FLAG_SOFTWARE) {

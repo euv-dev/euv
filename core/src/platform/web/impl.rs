@@ -96,13 +96,40 @@ impl WindowController for WebPlatform {
                 }
                 Ok(())
             }
+            WindowCommand::SetCursor(id, cursor) => {
+                let rec: &WebWindowRecord = self
+                    .get_windows()
+                    .get(&id)
+                    .ok_or(PlatformError::WindowNotFound(id.get_value()))?;
+                let css_cursor: &str = match cursor {
+                    CursorIcon::Default => WEB_CURSOR_DEFAULT,
+                    CursorIcon::Pointer => WEB_CURSOR_POINTER,
+                    CursorIcon::Text => WEB_CURSOR_TEXT,
+                    CursorIcon::Crosshair => WEB_CURSOR_CROSSHAIR,
+                    CursorIcon::NotAllowed => WEB_CURSOR_NOT_ALLOWED,
+                    CursorIcon::Grab => WEB_CURSOR_GRAB,
+                    CursorIcon::Grabbing => WEB_CURSOR_GRABBING,
+                    CursorIcon::Move => WEB_CURSOR_MOVE,
+                    CursorIcon::EwResize => WEB_CURSOR_EW_RESIZE,
+                    CursorIcon::NsResize => WEB_CURSOR_NS_RESIZE,
+                };
+                let WebWindowRecord { canvas, .. } = rec;
+                if let Some(el) = canvas.as_ref() {
+                    let w: u32 = rec.get_config().get_width();
+                    let h: u32 = rec.get_config().get_height();
+                    let css_style: String = format!(
+                        "position:fixed;inset:0;width:{w}px;height:{h}px;display:block;outline:none;cursor:{css_cursor};margin:0;"
+                    );
+                    drop(el.set_attribute(WEB_ATTR_STYLE, &css_style));
+                }
+                Ok(())
+            }
             WindowCommand::SetPosition(id, _, _)
             | WindowCommand::SetResizable(id, _)
             | WindowCommand::SetDecorations(id, _)
             | WindowCommand::SetAlwaysOnTop(id, _)
             | WindowCommand::SetFullscreen(id, _)
             | WindowCommand::SetVisible(id, _)
-            | WindowCommand::SetCursor(id, _)
             | WindowCommand::SetIme(id, _, _)
             | WindowCommand::SetStatusBarStyle(id, _) => {
                 if !self.get_windows().contains_key(&id) {

@@ -493,7 +493,8 @@ impl Mountable for EuvToggle {
             Style::empty()
                 .font_size(13.0)
                 .font_weight(FontWeight::Medium)
-                .color(p.get_foreground()),
+                .color(p.get_foreground())
+                .text_overflow(TextOverflow::Clip),
         );
         ctx.append(btn, txt);
         let handle: SceneHandle = ctx.get_scene().clone();

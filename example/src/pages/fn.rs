@@ -698,11 +698,27 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         });
     top_btn.set_variant(EuvButtonVariant::Outline);
     let aspect_inner: NodeId = view! {
-        text {
-            font_size: 13.0
-            font_weight: FontWeight::Medium
-            color: p.get_foreground()
-            "16:9 shadcn AspectRatio Frame"
+        column {
+            align: AlignItems::Center
+            gap: SPACE_XS
+            text {
+                font_size: 14.0
+                font_weight: FontWeight::SemiBold
+                color: p.get_foreground()
+                "16:9 shadcn AspectRatio"
+            }
+            text {
+                font_size: 12.0
+                color: p.get_muted_foreground()
+                "Responsive container locked to 16:9 ratio"
+            }
+        }
+    };
+    let aspect_box: NodeId = view! {
+        column {
+            width: Length::Percent(100.0)
+            max_width: Length::Px(360.0)
+            { EuvAspectRatio::new(16.0 / 9.0, aspect_inner, tokens) }
         }
     };
     let body: NodeId = view! {
@@ -725,7 +741,7 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             { list_node }
             { EuvCommand::new(state.get_command_query(), "Search commands...".to_string(), vec!["Switch to Dark Mode".to_string(), "Open OTA Updates".to_string(), "Run Physics Tick".to_string()], state.get_command_selected(), tokens) }
             { EuvCarousel::new(vec!["Slide 1: Native Metal & Vulkan".to_string(), "Slide 2: Complete shadcn/ui Parity".to_string(), "Slide 3: Instant Responsive Resize".to_string()], state.get_carousel_index(), tokens) }
-            { EuvAspectRatio::new(16.0 / 9.0, aspect_inner, tokens) }
+            { aspect_box }
             { EuvPagination::new(state.get_page_index(), 12, tokens) }
             { EuvSteps::new(vec!["Layout".to_string(), "Paint".to_string(), "Present".to_string()], state.get_step_index(), tokens) }
             { EuvAccordion::new(vec![EuvAccordionItem::new("Virtualization".to_string(), "Only visible rows + overscan are materialized in O(visible).".to_string())], state.get_accordion_open(), tokens) }
@@ -869,13 +885,18 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
     card.set_subtitle(OVERLAYS_CARD_SUB.to_string());
     let modal_body: NodeId = view! {
         column {
+            width: Length::Percent(100.0)
             gap: SPACE_MD
             text {
                 font_size: 13.0
                 color: p.get_muted_foreground()
                 { MODAL_BODY_TEXT }
             }
-            { close_btn }
+            row {
+                width: Length::Percent(100.0)
+                justify: JustifyContent::End
+                { close_btn }
+            }
         }
     };
     let mut close_drawer_btn: EuvButton = EuvButton::new("Close Drawer".to_string(), tokens)
@@ -885,13 +906,18 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
     close_drawer_btn.set_variant(EuvButtonVariant::Outline);
     let drawer_body: NodeId = view! {
         column {
+            width: Length::Percent(100.0)
             gap: SPACE_MD
             text {
                 font_size: 13.0
                 color: p.get_muted_foreground()
                 "Native slide-over drawer surface"
             }
-            { close_drawer_btn }
+            row {
+                width: Length::Percent(100.0)
+                justify: JustifyContent::End
+                { close_drawer_btn }
+            }
         }
     };
     let mut close_sheet_btn: EuvButton = EuvButton::new("Close Sheet".to_string(), tokens)
@@ -901,13 +927,18 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
     close_sheet_btn.set_variant(EuvButtonVariant::Outline);
     let sheet_body: NodeId = view! {
         column {
+            width: Length::Percent(100.0)
             gap: SPACE_MD
             text {
                 font_size: 13.0
                 color: p.get_muted_foreground()
                 "Native bottom action sheet"
             }
-            { close_sheet_btn }
+            row {
+                width: Length::Percent(100.0)
+                justify: JustifyContent::End
+                { close_sheet_btn }
+            }
         }
     };
     view! {

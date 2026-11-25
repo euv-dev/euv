@@ -14,6 +14,8 @@ pub const FLAG_HARDWARE: &str = "--hardware";
 pub const FLAG_HYBRID: &str = "--hybrid";
 /// Command-line flag keeping the native window open in an interactive event loop.
 pub const FLAG_INTERACTIVE: &str = "--interactive";
+/// Command-line flag capturing raw RGBA screenshots of all showcase routes into the following directory.
+pub const FLAG_CAPTURE_DIR: &str = "--capture-dir";
 /// DOM KeyboardEvent key name for Enter.
 #[cfg(target_arch = "wasm32")]
 pub(crate) const WEB_KEY_ENTER: &str = "Enter";

@@ -32,7 +32,8 @@ impl Mountable for EuvSidebarNav {
                 Style::empty()
                     .font_size(14.0)
                     .font_weight(FontWeight::Medium)
-                    .color(p.get_foreground()),
+                    .color(p.get_foreground())
+                    .text_overflow(TextOverflow::Clip),
             );
             ctx.append(row, lbl);
             let handle: SceneHandle = ctx.get_scene().clone();
@@ -101,7 +102,8 @@ impl Mountable for EuvTabs {
                 Style::empty()
                     .font_size(13.0)
                     .font_weight(FontWeight::Medium)
-                    .color(p.get_foreground()),
+                    .color(p.get_foreground())
+                    .text_overflow(TextOverflow::Clip),
             );
             ctx.append(tab, txt);
             let handle: SceneHandle = ctx.get_scene().clone();

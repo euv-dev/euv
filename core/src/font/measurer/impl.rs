@@ -29,7 +29,8 @@ impl TextMeasurer for DeterministicTextMeasurer {
             TextOverflow::Clip | TextOverflow::Ellipsis => None,
         };
         for raw_line in text.split('\n') {
-            if let Some(limit) = wrap_limit {
+            if let Some(raw_limit) = wrap_limit {
+                let limit: f32 = raw_limit + 0.5;
                 let mut current: String = String::new();
                 let mut current_w: f32 = 0.0;
                 let mut word: String = String::new();

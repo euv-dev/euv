@@ -233,7 +233,8 @@ impl Mountable for EuvToggleGroup {
                 Style::empty()
                     .font_size(13.0)
                     .font_weight(FontWeight::Medium)
-                    .color(p.get_foreground()),
+                    .color(p.get_foreground())
+                    .text_overflow(TextOverflow::Clip),
             );
             ctx.append(item, txt);
             let handle: SceneHandle = ctx.get_scene().clone();
@@ -468,17 +469,32 @@ impl Mountable for EuvHoverCard {
         let wrap: NodeId = ctx.view(
             Style::empty()
                 .column()
-                .width(Length::Percent(100.0))
+                .align(AlignItems::Start)
                 .gap(SPACE_XS),
         );
         let mut trig_btn: EuvButton =
             EuvButton::new(trigger_label, tokens).on_click(move |_: &UiEvent| {
-                let _: bool = open.update(|v: &mut bool| *v = !*v);
+                let _: bool = open.set_if_changed(true);
             });
         trig_btn
             .set_variant(EuvButtonVariant::Link)
             .set_size(EuvButtonSize::Small);
         let trig_node: NodeId = trig_btn.mount(ctx);
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(wrap) {
+                    node.get_mut_handlers()
+                        .set_on_pointer_enter(Some(Rc::new(RefCell::new(move |_: &UiEvent| {
+                            let _: bool = open.set_if_changed(true);
+                        }))));
+                    node.get_mut_handlers()
+                        .set_on_pointer_leave(Some(Rc::new(RefCell::new(move |_: &UiEvent| {
+                            let _: bool = open.set_if_changed(false);
+                        }))));
+                }
+            },
+            (),
+        );
         let preview: NodeId = ctx.view(Style::empty());
         let h_node: NodeId = ctx.text(
             title,
@@ -721,7 +737,8 @@ impl Mountable for EuvMenubar {
                 Style::empty()
                     .font_size(13.0)
                     .font_weight(FontWeight::Medium)
-                    .color(p.get_foreground()),
+                    .color(p.get_foreground())
+                    .text_overflow(TextOverflow::Clip),
             );
             ctx.append(item, txt);
             let handle: SceneHandle = ctx.get_scene().clone();

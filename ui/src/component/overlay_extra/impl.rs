@@ -158,7 +158,12 @@ impl Mountable for EuvPopover {
         let open: Signal<bool> = self.get_open();
         let trigger: NodeId = self.get_trigger();
         let content: NodeId = self.get_content();
-        let wrap: NodeId = ctx.view(Style::empty().column().gap(SPACE_XS));
+        let wrap: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .align(AlignItems::Start)
+                .gap(SPACE_XS),
+        );
         let card: NodeId = ctx.view(Style::empty());
         ctx.append(card, content);
         let handle: SceneHandle = ctx.get_scene().clone();
@@ -211,7 +216,12 @@ impl Mountable for EuvTooltip {
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let trigger: NodeId = self.get_trigger();
         let Self { text, .. } = self;
-        let wrap: NodeId = ctx.view(Style::empty().column().gap(SPACE_XS));
+        let wrap: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .align(AlignItems::Start)
+                .gap(SPACE_XS),
+        );
         let tip: NodeId = ctx.view(
             Style::empty()
                 .row()
@@ -249,7 +259,12 @@ impl Mountable for EuvDropdown {
         let open: Signal<bool> = self.get_open();
         let last_selected: Signal<Option<usize>> = self.get_last_selected();
         let Self { label, items, .. } = self;
-        let wrap: NodeId = ctx.view(Style::empty().column().gap(SPACE_XS));
+        let wrap: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .align(AlignItems::Start)
+                .gap(SPACE_XS),
+        );
         let mut trigger_btn: EuvButton =
             EuvButton::new(label, tokens).on_click(move |_: &UiEvent| {
                 let _: bool = open.update(|v: &mut bool| *v = !*v);

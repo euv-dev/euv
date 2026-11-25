@@ -144,3 +144,66 @@ fn word_boundary_text_wrap_and_uniform_baseline_glyph_advances_prevent_overlap()
     assert!(g_cap.get_advance() >= 10);
     assert_eq!(g_cap.get_height(), g_desc.get_height());
 }
+
+#[test]
+fn top_layer_portal_hit_test_and_overlay_scrollbar_commands_work_when_scrolled() {
+    let mut tree: SceneTree = SceneTree::default();
+    let root: NodeId = tree.get_root();
+    let scroller: NodeId = tree.create_scroll_view(
+        Style::empty()
+            .column()
+            .width(Length::Px(400.0))
+            .height(Length::Px(200.0))
+            .padding(Edges::all(16.0)),
+    );
+    let tall_child: NodeId = tree.create_view(
+        Style::empty()
+            .width(Length::Percent(100.0))
+            .height(Length::Px(800.0)),
+    );
+    let portal: NodeId = tree.create_portal(
+        Style::empty()
+            .position(Position::Fixed)
+            .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+            .width(Length::Percent(100.0))
+            .height(Length::Percent(100.0))
+            .justify(JustifyContent::Center)
+            .align(AlignItems::Center)
+            .z_index(1000),
+    );
+    let dialog_btn: NodeId = tree.create_view(
+        Style::empty()
+            .width(Length::Px(120.0))
+            .height(Length::Px(40.0))
+            .background(Color::hex(0x18181B))
+            .cursor(CursorIcon::Pointer),
+    );
+    tree.append_child(portal, dialog_btn);
+    tree.append_child(scroller, tall_child);
+    tree.append_child(scroller, portal);
+    tree.append_child(root, scroller);
+    let mut engine: LayoutEngine = LayoutEngine::default();
+    let _: LayoutStats = engine.compute(&mut tree, Size::new(400.0, 200.0));
+    tree.set_scroll_offset(scroller, Point::new(0.0, 300.0));
+    assert_eq!(hit_test(&tree, Point::new(200.0, 100.0)), Some(dialog_btn));
+    let mut dl: DisplayList = DisplayList::default();
+    PaintPass::build(
+        &tree,
+        Size::new(400.0, 200.0),
+        1.0,
+        Color::hex(0xFFFFFF),
+        &mut dl,
+    );
+    let scrollbar_rects: usize = dl
+        .get_commands()
+        .iter()
+        .filter(|cmd: &&DrawCommand| {
+            matches!(
+                cmd,
+                DrawCommand::FillRoundedRect { rect, .. }
+                    if (rect.get_width() - 6.0).abs() < 0.1 && rect.get_x() > 380.0
+            )
+        })
+        .count();
+    assert!(scrollbar_rects >= 2);
+}

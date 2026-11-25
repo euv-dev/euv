@@ -99,9 +99,21 @@ impl Mountable for EuvSwitch {
     /// - `NodeId` - Mounted switch row handle.
     fn mount(self, ctx: &mut BuildContext) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
+        let is_dark: bool = self.get_tokens().get_mode() == ThemeMode::Dark;
         let checked: Signal<bool> = self.get_checked();
         let Self { label, .. } = self;
-        let row: NodeId = ctx.view(Style::empty().row().align(AlignItems::Center).gap(SPACE_SM));
+        let row: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .align(AlignItems::Center)
+                .gap(SPACE_SM)
+                .cursor(CursorIcon::Pointer),
+        );
+        let off_track: Color = if is_dark {
+            Color::hex(0x3F3F46)
+        } else {
+            Color::hex(0xD4D4D8)
+        };
         let track: NodeId = ctx.view(
             Style::empty()
                 .row()
@@ -112,7 +124,7 @@ impl Mountable for EuvSwitch {
                 .background(if checked.get_untracked() {
                     p.get_primary()
                 } else {
-                    p.get_secondary()
+                    off_track
                 }),
         );
         let thumb: NodeId = ctx.view(
@@ -120,7 +132,8 @@ impl Mountable for EuvSwitch {
                 .width(Length::Px(20.0))
                 .height(Length::Px(20.0))
                 .radius(10.0)
-                .background(Color::hex(0xFFFFFF)),
+                .background(Color::hex(0xFFFFFF))
+                .shadow(Shadow::new(0.0, 1.0, 3.0, 0.0, Color::rgba(0, 0, 0, 56))),
         );
         ctx.append(track, thumb);
         let handle: SceneHandle = ctx.get_scene().clone();
@@ -138,11 +151,7 @@ impl Mountable for EuvSwitch {
                         JustifyContent::Start
                     })
                     .radius(12.0)
-                    .background(if is_on {
-                        p.get_primary()
-                    } else {
-                        p.get_secondary()
-                    })
+                    .background(if is_on { p.get_primary() } else { off_track })
             })
         });
         ctx.get_scene().with_write(
@@ -181,7 +190,13 @@ impl Mountable for EuvCheckbox {
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let checked: Signal<bool> = self.get_checked();
         let Self { label, .. } = self;
-        let row: NodeId = ctx.view(Style::empty().row().align(AlignItems::Center).gap(SPACE_SM));
+        let row: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .align(AlignItems::Center)
+                .gap(SPACE_SM)
+                .cursor(CursorIcon::Pointer),
+        );
         let indicator: NodeId = ctx.view(
             Style::empty()
                 .row()
@@ -192,16 +207,31 @@ impl Mountable for EuvCheckbox {
                 .border(g.get_border_width(), p.get_primary())
                 .radius(g.get_radius_sm()),
         );
-        let mark: NodeId = ctx.reactive_text(
+        let check_fg: Color = p.get_primary_foreground();
+        let mark: NodeId = ctx.canvas(
             Style::empty()
-                .font_size(12.0)
-                .font_weight(FontWeight::Bold)
-                .color(p.get_primary_foreground()),
-            move || {
-                if checked.get() {
-                    CHECKBOX_MARK.to_string()
-                } else {
-                    String::new()
+                .width(Length::Px(12.0))
+                .height(Length::Px(12.0)),
+            move |bounds: Rect, dl: &mut DisplayList| {
+                if checked.get_untracked() {
+                    let x0: f32 = bounds.get_x() + 1.5;
+                    let y0: f32 = bounds.get_y() + 6.0;
+                    let xm: f32 = bounds.get_x() + 4.8;
+                    let ym: f32 = bounds.get_y() + 9.5;
+                    let x1: f32 = bounds.get_x() + 10.5;
+                    let y1: f32 = bounds.get_y() + 2.5;
+                    dl.push(DrawCommand::Line {
+                        from: Point::new(x0, y0),
+                        to: Point::new(xm, ym),
+                        color: check_fg,
+                        width: 2.0,
+                    });
+                    dl.push(DrawCommand::Line {
+                        from: Point::new(xm, ym),
+                        to: Point::new(x1, y1),
+                        color: check_fg,
+                        width: 2.0,
+                    });
                 }
             },
         );
@@ -278,7 +308,8 @@ impl Mountable for EuvSegmented {
                 Style::empty()
                     .font_size(13.0)
                     .font_weight(FontWeight::Medium)
-                    .color(p.get_foreground()),
+                    .color(p.get_foreground())
+                    .text_overflow(TextOverflow::Clip),
             );
             ctx.append(pill, txt);
             let handle: SceneHandle = ctx.get_scene().clone();

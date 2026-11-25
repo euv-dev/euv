@@ -17,6 +17,12 @@ pub use {app::*, pages::*, state::*};
 #[cfg(target_arch = "wasm32")]
 use std::cell::{RefCell, RefMut};
 use std::rc::Rc;
+#[cfg(not(target_arch = "wasm32"))]
+use std::{
+    fs,
+    io::Error,
+    path::{Path, PathBuf},
+};
 use {
     euv::*,
     euv_ui::*,

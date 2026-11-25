@@ -535,6 +535,22 @@ impl Style {
         self
     }
 
+    /// Sets pointer hit-test participation behavior.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source style.
+    /// - `PointerEvents` - Target pointer-events mode.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated style.
+    #[must_use]
+    pub fn pointer_events(mut self, pointer_events: PointerEvents) -> Self {
+        self.get_mut_paint().set_pointer_events(pointer_events);
+        self
+    }
+
     /// Sets foreground text color.
     ///
     /// # Arguments

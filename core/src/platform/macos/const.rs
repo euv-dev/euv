@@ -13,6 +13,33 @@ pub(crate) const OBJC_CLS_NS_STRING: &str = "NSString\0";
 /// Objective-C class name for `CAMetalLayer`.
 pub(crate) const OBJC_CLS_CA_METAL_LAYER: &str = "CAMetalLayer\0";
 
+/// Objective-C class name for `NSCursor`.
+pub(crate) const OBJC_CLS_NS_CURSOR: &str = "NSCursor\0";
+
+/// Objective-C selector for `arrowCursor`.
+pub(crate) const OBJC_SEL_ARROW_CURSOR: &str = "arrowCursor\0";
+
+/// Objective-C selector for `pointingHandCursor`.
+pub(crate) const OBJC_SEL_POINTING_HAND_CURSOR: &str = "pointingHandCursor\0";
+
+/// Objective-C selector for `IBeamCursor`.
+pub(crate) const OBJC_SEL_IBEAM_CURSOR: &str = "IBeamCursor\0";
+
+/// Objective-C selector for `openHandCursor`.
+pub(crate) const OBJC_SEL_OPEN_HAND_CURSOR: &str = "openHandCursor\0";
+
+/// Objective-C selector for `closedHandCursor`.
+pub(crate) const OBJC_SEL_CLOSED_HAND_CURSOR: &str = "closedHandCursor\0";
+
+/// Objective-C selector for `operationNotAllowedCursor`.
+pub(crate) const OBJC_SEL_NOT_ALLOWED_CURSOR: &str = "operationNotAllowedCursor\0";
+
+/// Objective-C selector for `set` on `NSCursor`.
+pub(crate) const OBJC_SEL_SET_CURSOR: &str = "set\0";
+
+/// Objective-C selector for `hasPreciseScrollingDeltas` on `NSEvent`.
+pub(crate) const OBJC_SEL_HAS_PRECISE_SCROLL: &str = "hasPreciseScrollingDeltas\0";
+
 /// Objective-C selector for `sharedApplication`.
 pub(crate) const OBJC_SEL_SHARED_APP: &str = "sharedApplication\0";
 

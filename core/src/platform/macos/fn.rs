@@ -510,6 +510,7 @@ pub(crate) fn macos_pump_events(
     let utf8_sel: *mut c_void = objc_sel(OBJC_SEL_UTF8_STRING);
     let scroll_x_sel: *mut c_void = objc_sel(OBJC_SEL_SCROLLING_DELTA_X);
     let scroll_y_sel: *mut c_void = objc_sel(OBJC_SEL_SCROLLING_DELTA_Y);
+    let precise_scroll_sel: *mut c_void = objc_sel(OBJC_SEL_HAS_PRECISE_SCROLL);
     let mut processed: usize = 0;
     while processed < 64 {
         // SAFETY: Invokes `-[NSApplication nextEventMatchingMask:untilDate:inMode:dequeue:]` non-blockingly (`untilDate:nil`).
@@ -611,8 +612,10 @@ pub(crate) fn macos_pump_events(
                     ));
                 }
                 NS_EVENT_SCROLL_WHEEL if inside_content => {
-                    let dx: f32 = -(objc_send_f64_0(event, scroll_x_sel) as f32) * 4.0;
-                    let dy: f32 = -(objc_send_f64_0(event, scroll_y_sel) as f32) * 4.0;
+                    let is_precise: bool = objc_send_bool0(event, precise_scroll_sel);
+                    let multiplier: f32 = if is_precise { 1.0 } else { 18.0 };
+                    let dx: f32 = -(objc_send_f64_0(event, scroll_x_sel) as f32) * multiplier;
+                    let dy: f32 = -(objc_send_f64_0(event, scroll_y_sel) as f32) * multiplier;
                     out_events.push(WindowEvent::Scroll(wid, Point::new(dx, dy)));
                 }
                 NS_EVENT_KEY_DOWN => {

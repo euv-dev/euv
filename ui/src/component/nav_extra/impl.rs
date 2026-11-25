@@ -132,16 +132,22 @@ impl Mountable for EuvSteps {
                     .cursor(CursorIcon::Pointer),
             );
             let badge: NodeId = ctx.view(Style::empty());
-            let num: NodeId = ctx.text(
-                (idx + 1).to_string(),
-                Style::empty()
-                    .font_size(12.0)
-                    .font_weight(FontWeight::Bold)
-                    .color(p.get_primary_foreground()),
-            );
+            let num: NodeId = ctx.text((idx + 1).to_string(), Style::empty());
             ctx.append(badge, num);
             let handle: SceneHandle = ctx.get_scene().clone();
+            let handle_txt: SceneHandle = handle.clone();
             let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                let _: Effect = handle_txt.bind_style(num, move || {
+                    let done: bool = active.get() >= idx;
+                    Style::empty()
+                        .font_size(12.0)
+                        .font_weight(FontWeight::Bold)
+                        .color(if done {
+                            p.get_primary_foreground()
+                        } else {
+                            p.get_muted_foreground()
+                        })
+                });
                 handle.bind_style(badge, move || {
                     let done: bool = active.get() >= idx;
                     Style::empty()
@@ -151,6 +157,7 @@ impl Mountable for EuvSteps {
                         .justify(JustifyContent::Center)
                         .align(AlignItems::Center)
                         .radius(12.0)
+                        .border(if done { 0.0 } else { 1.0 }, p.get_border())
                         .background(if done {
                             p.get_primary()
                         } else {

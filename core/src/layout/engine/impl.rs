@@ -262,14 +262,32 @@ impl LayoutEngine {
                 content_origin
             };
             let ref_size: Size = if is_fixed { viewport } else { inner_avail };
-            let child_w: f32 = child_layout
+            let resolved_w: Option<f32> = child_layout
                 .get_width()
-                .resolve(ref_size.get_width(), viewport)
-                .unwrap_or(ref_size.get_width());
-            let child_h: f32 = child_layout
+                .resolve(ref_size.get_width(), viewport);
+            let resolved_h: Option<f32> = child_layout
                 .get_height()
-                .resolve(ref_size.get_height(), viewport)
-                .unwrap_or(ref_size.get_height());
+                .resolve(ref_size.get_height(), viewport);
+            let needs_intrinsic: bool = (resolved_w.is_none()
+                && child_layout.left_offset().is_none()
+                && child_layout.right_offset().is_some())
+                || (resolved_h.is_none()
+                    && child_layout.top_offset().is_none()
+                    && child_layout.bottom_offset().is_some());
+            let probed: Size = if needs_intrinsic {
+                let probe_space: AvailableSpace = AvailableSpace::new(
+                    ref_size.get_width(),
+                    ref_size.get_height(),
+                    viewport,
+                    ref_origin.get_x(),
+                    ref_origin.get_y(),
+                );
+                self.layout_node(tree, abs_id, probe_space, stats)
+            } else {
+                Size::new(ref_size.get_width(), ref_size.get_height())
+            };
+            let child_w: f32 = resolved_w.unwrap_or(probed.get_width());
+            let child_h: f32 = resolved_h.unwrap_or(probed.get_height());
             let x: f32 = if let Some(left) = child_layout.left_offset() {
                 ref_origin.get_x() + left
             } else if let Some(right) = child_layout.right_offset() {
@@ -497,7 +515,8 @@ impl LayoutEngine {
                         };
                         acc.max(c)
                     });
-            let effective_line_cross: f32 = if line_count == 1 && !wrap_enabled {
+            let definite_cross: bool = !is_row || parent_layout.get_height() != Length::Auto;
+            let effective_line_cross: f32 = if line_count == 1 && !wrap_enabled && definite_cross {
                 line_cross.max(cross_avail)
             } else {
                 line_cross
@@ -675,6 +694,15 @@ impl LayoutEngine {
                     node.get_mut_layout_box().set_bounds(b);
                 }
                 row_h = row_h.max(child_size.get_height());
+            }
+            for child_id in children[idx..row_end].iter().copied() {
+                if let Some(node) = tree.get_node_mut(child_id) {
+                    let mut b: Rect = node.get_layout_box().get_bounds();
+                    if b.get_height() < row_h {
+                        b.set_height(row_h);
+                        node.get_mut_layout_box().set_bounds(b);
+                    }
+                }
             }
             y_cursor += row_h;
             if row_end < children.len() {

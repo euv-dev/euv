@@ -433,7 +433,27 @@ impl App {
         Ok(last_stats)
     }
 
-    /// Handles pointer motion, updating hovered node states and invoking enter/leave/move callbacks.
+    /// Collects the ancestor chain starting from `start` up to the root node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Retained scene tree.
+    /// - `Option<NodeId>` - Starting leaf node.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<NodeId>` - Ordered ancestor chain (leaf first).
+    fn ancestor_chain(tree: &SceneTree, start: Option<NodeId>) -> Vec<NodeId> {
+        let mut chain: Vec<NodeId> = Vec::new();
+        let mut cursor: Option<NodeId> = start;
+        while let Some(id) = cursor {
+            chain.push(id);
+            cursor = tree.get_node(id).and_then(SceneNode::parent_id);
+        }
+        chain
+    }
+
+    /// Handles pointer motion, bubbling hover across ancestors, updating OS cursor, and supporting scrollbar dragging.
     ///
     /// # Arguments
     ///
@@ -441,52 +461,95 @@ impl App {
     /// - `Point` - Logical pointer position.
     fn handle_pointer_move(&mut self, pos: Point) {
         let scene: SceneHandle = self.get_scene().clone();
-        let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
-            |tree: &mut SceneTree| {
-                let hit: Option<NodeId> = hit_test(tree, pos);
-                let prev: Option<NodeId> = tree.get_focus().hovered_node();
-                let mut out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
-                if prev != hit {
-                    if let Some(old_id) = prev {
-                        if let Some(node) = tree.get_node_mut(old_id) {
-                            node.get_mut_interaction().set_hovered(false);
-                            if let Some(h) =
-                                node.get_handlers().handler_for(&UiEventKind::PointerLeave)
-                            {
-                                out.push((h, UiEvent::new(old_id, UiEventKind::PointerLeave)));
+        let (callbacks, next_cursor): (Vec<(UiEventHandler, UiEvent)>, CursorIcon) = scene
+            .with_write(
+                |tree: &mut SceneTree| {
+                    if let Some(pressed_id) = tree.get_focus().pressed_node()
+                        && let Some(node) = tree.get_node(pressed_id)
+                        && node.get_style().get_layout().get_overflow() == Overflow::Scroll
+                    {
+                        let lbox: LayoutBox = node.get_layout_box();
+                        let b: Rect = lbox.get_bounds();
+                        let max_y: f32 = (lbox.get_content_size().get_height()
+                            - lbox.get_content_bounds().get_height())
+                        .max(0.0);
+                        if max_y > 1.0 && b.get_height() > 16.0 {
+                            let frac: f32 =
+                                ((pos.get_y() - b.get_y()) / b.get_height()).clamp(0.0, 1.0);
+                            tree.set_scroll_offset(
+                                pressed_id,
+                                Point::new(lbox.get_scroll_offset().get_x(), frac * max_y),
+                            );
+                        }
+                    }
+                    let hit: Option<NodeId> = hit_test(tree, pos);
+                    let prev: Option<NodeId> = tree.get_focus().hovered_node();
+                    let mut out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
+                    if prev != hit {
+                        let old_chain: Vec<NodeId> = Self::ancestor_chain(tree, prev);
+                        let new_chain: Vec<NodeId> = Self::ancestor_chain(tree, hit);
+                        for old_id in old_chain.iter().copied() {
+                            if new_chain.contains(&old_id) {
+                                continue;
+                            }
+                            if let Some(node) = tree.get_node_mut(old_id) {
+                                node.get_mut_interaction().set_hovered(false);
+                                if let Some(h) =
+                                    node.get_handlers().handler_for(&UiEventKind::PointerLeave)
+                                {
+                                    out.push((h, UiEvent::new(old_id, UiEventKind::PointerLeave)));
+                                }
+                            }
+                            tree.mark_dirty(old_id, DIRTY_PAINT);
+                        }
+                        tree.get_mut_focus().set_hovered(hit);
+                        for new_id in new_chain.iter().copied() {
+                            if old_chain.contains(&new_id) {
+                                continue;
+                            }
+                            if let Some(node) = tree.get_node_mut(new_id) {
+                                node.get_mut_interaction().set_hovered(true);
+                                if let Some(h) =
+                                    node.get_handlers().handler_for(&UiEventKind::PointerEnter)
+                                {
+                                    out.push((h, UiEvent::new(new_id, UiEventKind::PointerEnter)));
+                                }
+                            }
+                            tree.mark_dirty(new_id, DIRTY_PAINT);
+                        }
+                    }
+                    let mut resolved_cursor: CursorIcon = CursorIcon::Default;
+                    for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                        if let Some(node) = tree.get_node(aid) {
+                            if matches!(node.get_kind(), NodeKind::Input(_)) {
+                                resolved_cursor = CursorIcon::Text;
+                                break;
+                            }
+                            let c: CursorIcon = node.get_style().get_paint().get_cursor();
+                            if c != CursorIcon::Default {
+                                resolved_cursor = c;
+                                break;
                             }
                         }
-                        tree.mark_dirty(old_id, DIRTY_PAINT);
                     }
-                    tree.get_mut_focus().set_hovered(hit);
-                    if let Some(new_id) = hit {
-                        if let Some(node) = tree.get_node_mut(new_id) {
-                            node.get_mut_interaction().set_hovered(true);
-                            if let Some(h) =
-                                node.get_handlers().handler_for(&UiEventKind::PointerEnter)
-                            {
-                                out.push((h, UiEvent::new(new_id, UiEventKind::PointerEnter)));
-                            }
-                        }
-                        tree.mark_dirty(new_id, DIRTY_PAINT);
+                    if let Some(target_id) = hit
+                        && let Some(node) = tree.get_node(target_id)
+                        && let Some(h) = node
+                            .get_handlers()
+                            .handler_for(&UiEventKind::PointerMove(pos))
+                    {
+                        out.push((h, UiEvent::new(target_id, UiEventKind::PointerMove(pos))));
                     }
-                }
-                if let Some(target_id) = hit
-                    && let Some(node) = tree.get_node(target_id)
-                    && let Some(h) = node
-                        .get_handlers()
-                        .handler_for(&UiEventKind::PointerMove(pos))
-                {
-                    out.push((h, UiEvent::new(target_id, UiEventKind::PointerMove(pos))));
-                }
-                out
-            },
-            Vec::new(),
-        );
+                    (out, resolved_cursor)
+                },
+                (Vec::new(), CursorIcon::Default),
+            );
+        let wid: WindowId = self.get_window_state().get_id();
+        self.queue_window_command(WindowCommand::SetCursor(wid, next_cursor));
         Self::invoke_callbacks(callbacks);
     }
 
-    /// Handles pointer press, updating focus and pressed state and invoking `PointerDown` handlers.
+    /// Handles pointer press, propagating pressed state to interactive ancestors and supporting scrollbar thumb clicks.
     ///
     /// # Arguments
     ///
@@ -497,22 +560,56 @@ impl App {
         let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
             |tree: &mut SceneTree| {
                 let hit: Option<NodeId> = hit_test(tree, pos);
-                let mut focus_target: Option<NodeId> = None;
-                let mut cursor: Option<NodeId> = hit;
-                while let Some(id) = cursor {
-                    if let Some(node) = tree.get_node(id) {
-                        if node.get_interaction().get_focusable() {
-                            focus_target = Some(id);
+                let mut scrollbar_target: Option<NodeId> = None;
+                for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                    if let Some(node) = tree.get_node(aid)
+                        && node.get_style().get_layout().get_overflow() == Overflow::Scroll
+                    {
+                        let lbox: LayoutBox = node.get_layout_box();
+                        let b: Rect = lbox.get_bounds();
+                        let max_y: f32 = (lbox.get_content_size().get_height()
+                            - lbox.get_content_bounds().get_height())
+                        .max(0.0);
+                        if max_y > 1.0
+                            && pos.get_x() >= b.right() - 14.0
+                            && pos.get_x() <= b.right()
+                        {
+                            let frac: f32 = ((pos.get_y() - b.get_y()) / b.get_height().max(1.0))
+                                .clamp(0.0, 1.0);
+                            tree.set_scroll_offset(
+                                aid,
+                                Point::new(lbox.get_scroll_offset().get_x(), frac * max_y),
+                            );
+                            scrollbar_target = Some(aid);
                             break;
                         }
-                        cursor = node.parent_id();
-                    } else {
-                        break;
+                    }
+                }
+                if let Some(sb_id) = scrollbar_target {
+                    tree.get_mut_focus().set_pressed(Some(sb_id));
+                    return Vec::new();
+                }
+                let mut focus_target: Option<NodeId> = None;
+                let mut press_target: Option<NodeId> = hit;
+                for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                    if let Some(node) = tree.get_node(aid) {
+                        if focus_target.is_none() && node.get_interaction().get_focusable() {
+                            focus_target = Some(aid);
+                        }
+                        if node
+                            .get_handlers()
+                            .handler_for(&UiEventKind::Click(pos))
+                            .is_some()
+                            || node.get_style().get_paint().get_cursor() == CursorIcon::Pointer
+                        {
+                            press_target = Some(aid);
+                            break;
+                        }
                     }
                 }
                 let mut out: Vec<(UiEventHandler, UiEvent)> = tree.update_focus(focus_target);
-                tree.get_mut_focus().set_pressed(hit);
-                if let Some(id) = hit {
+                tree.get_mut_focus().set_pressed(press_target);
+                if let Some(id) = press_target {
                     if let Some(node) = tree.get_node_mut(id) {
                         node.get_mut_interaction().set_pressed(true);
                         if let Some(h) = node
@@ -581,7 +678,7 @@ impl App {
         Self::invoke_callbacks(callbacks);
     }
 
-    /// Handles wheel/pan scroll deltas on the nearest scrollable ancestor, clamping bounds and invoking `on_scroll`.
+    /// Handles wheel/pan scroll deltas with content-bounds clamping, scroll chaining, and fallback scroll targeting.
     ///
     /// # Arguments
     ///
@@ -592,34 +689,62 @@ impl App {
         let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
             |tree: &mut SceneTree| {
                 let mut cursor: Option<NodeId> = tree.get_focus().hovered_node();
+                if cursor.is_none() {
+                    for (idx, node) in tree.get_nodes().iter().enumerate() {
+                        if node.get_alive()
+                            && node.get_style().get_layout().get_overflow() == Overflow::Scroll
+                        {
+                            let lbox: LayoutBox = node.get_layout_box();
+                            if lbox.get_content_size().get_height()
+                                > lbox.get_content_bounds().get_height() + 1.0
+                            {
+                                cursor = Some(NodeId::new(idx as u32, node.get_generation()));
+                                break;
+                            }
+                        }
+                    }
+                }
                 let mut out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
                 while let Some(id) = cursor {
-                    if let Some(node) = tree.get_node(id) {
-                        if node.get_style().get_layout().get_overflow() == Overflow::Scroll {
-                            let lbox: LayoutBox = node.get_layout_box();
-                            let cur: Point = lbox.get_scroll_offset();
-                            let max_x: f32 = (lbox.get_content_size().get_width()
-                                - lbox.get_bounds().get_width())
-                            .max(0.0);
-                            let max_y: f32 = (lbox.get_content_size().get_height()
-                                - lbox.get_bounds().get_height())
-                            .max(0.0);
-                            let next: Point = Point::new(
-                                (cur.get_x() + delta.get_x()).clamp(0.0, max_x),
-                                (cur.get_y() + delta.get_y()).clamp(0.0, max_y),
-                            );
-                            if let Some(h) =
-                                node.get_handlers().handler_for(&UiEventKind::Scroll(delta))
-                            {
-                                out.push((h, UiEvent::new(id, UiEventKind::Scroll(delta))));
+                    let next_parent: Option<NodeId> = match tree.get_node(id) {
+                        Some(node) => {
+                            if node.get_style().get_layout().get_overflow() == Overflow::Scroll {
+                                let lbox: LayoutBox = node.get_layout_box();
+                                let cur: Point = lbox.get_scroll_offset();
+                                let max_x: f32 = (lbox.get_content_size().get_width()
+                                    - lbox.get_content_bounds().get_width())
+                                .max(0.0);
+                                let max_y: f32 = (lbox.get_content_size().get_height()
+                                    - lbox.get_content_bounds().get_height())
+                                .max(0.0);
+                                let next: Point = Point::new(
+                                    (cur.get_x() + delta.get_x()).clamp(0.0, max_x),
+                                    (cur.get_y() + delta.get_y()).clamp(0.0, max_y),
+                                );
+                                let has_custom: bool = node
+                                    .get_handlers()
+                                    .handler_for(&UiEventKind::Scroll(delta))
+                                    .is_some();
+                                if let Some(h) =
+                                    node.get_handlers().handler_for(&UiEventKind::Scroll(delta))
+                                {
+                                    out.push((h, UiEvent::new(id, UiEventKind::Scroll(delta))));
+                                }
+                                let moved: bool = (next.get_x() - cur.get_x()).abs() > 0.01
+                                    || (next.get_y() - cur.get_y()).abs() > 0.01;
+                                if moved {
+                                    tree.set_scroll_offset(id, next);
+                                    return out;
+                                }
+                                if has_custom {
+                                    return out;
+                                }
                             }
-                            tree.set_scroll_offset(id, next);
-                            break;
+                            node.parent_id()
                         }
-                        cursor = node.parent_id();
-                    } else {
-                        break;
-                    }
+                        None => None,
+                    };
+                    cursor = next_parent;
                 }
                 out
             },

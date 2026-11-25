@@ -56,7 +56,8 @@ impl Mountable for EuvBadge {
             Style::empty()
                 .font_size(11.0)
                 .font_weight(FontWeight::SemiBold)
-                .color(fg),
+                .color(fg)
+                .text_overflow(TextOverflow::Clip),
         );
         ctx.append(pill, txt);
         pill

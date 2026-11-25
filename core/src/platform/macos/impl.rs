@@ -203,9 +203,30 @@ impl WindowController for MacOsPlatform {
                     .push(WindowEvent::RedrawRequested(id));
                 Ok(())
             }
-            WindowCommand::SetCursor(id, _)
-            | WindowCommand::SetIme(id, _, _)
-            | WindowCommand::SetStatusBarStyle(id, _) => {
+            WindowCommand::SetCursor(id, cursor) => {
+                if !self.get_windows().contains_key(&id) {
+                    return Err(PlatformError::WindowNotFound(id.get_value()));
+                }
+                let cls: *mut c_void = objc_class(OBJC_CLS_NS_CURSOR);
+                if !cls.is_null() {
+                    let sel_name: &'static str = match cursor {
+                        CursorIcon::Pointer => OBJC_SEL_POINTING_HAND_CURSOR,
+                        CursorIcon::Text => OBJC_SEL_IBEAM_CURSOR,
+                        CursorIcon::Grab => OBJC_SEL_OPEN_HAND_CURSOR,
+                        CursorIcon::Grabbing => OBJC_SEL_CLOSED_HAND_CURSOR,
+                        CursorIcon::NotAllowed => OBJC_SEL_NOT_ALLOWED_CURSOR,
+                        CursorIcon::Default
+                        | CursorIcon::Crosshair
+                        | CursorIcon::Move
+                        | CursorIcon::EwResize
+                        | CursorIcon::NsResize => OBJC_SEL_ARROW_CURSOR,
+                    };
+                    let ns_cursor: *mut c_void = objc_send_ptr0(cls, objc_sel(sel_name));
+                    let _: *mut c_void = objc_send_ptr0(ns_cursor, objc_sel(OBJC_SEL_SET_CURSOR));
+                }
+                Ok(())
+            }
+            WindowCommand::SetIme(id, _, _) | WindowCommand::SetStatusBarStyle(id, _) => {
                 if !self.get_windows().contains_key(&id) {
                     return Err(PlatformError::WindowNotFound(id.get_value()));
                 }

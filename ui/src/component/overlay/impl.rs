@@ -108,12 +108,16 @@ impl Mountable for EuvToast {
                     Display::None
                 };
                 Style::empty()
+                    .row()
+                    .align(AlignItems::Center)
                     .display(disp)
                     .position(Position::Fixed)
                     .inset(None, Some(SPACE_LG), Some(SPACE_LG), None)
                     .padding(Edges::symmetric(SPACE_SM, SPACE_LG))
                     .background(bg)
                     .radius(g.get_radius_md())
+                    .shadow(Shadow::new(0.0, 6.0, 16.0, 0.0, Color::rgba(0, 0, 0, 32)))
+                    .pointer_events(PointerEvents::None)
                     .z_index(Z_INDEX_TOAST)
             })
         });

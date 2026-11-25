@@ -100,7 +100,8 @@ impl Mountable for EuvButton {
             .color(style.get_text().get_color())
             .font_size(style.get_text().get_font_size())
             .font_weight(style.get_text().get_weight())
-            .text_align(TextAlign::Center);
+            .text_align(TextAlign::Center)
+            .text_overflow(TextOverflow::Clip);
         let disabled: bool = self.get_disabled();
         let Self {
             label, on_click, ..

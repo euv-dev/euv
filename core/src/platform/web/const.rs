@@ -28,3 +28,33 @@ pub(crate) const ERR_WEB_CTX2D_MISSING: &str = "failed to acquire 2d canvas rend
 
 /// Error message when `ImageData` creation or `putImageData` fails.
 pub(crate) const ERR_WEB_PRESENT_FAILED: &str = "failed to blit ImageData to canvas";
+
+/// CSS cursor keyword for default arrow.
+pub(crate) const WEB_CURSOR_DEFAULT: &str = "default";
+
+/// CSS cursor keyword for clickable hand pointer.
+pub(crate) const WEB_CURSOR_POINTER: &str = "pointer";
+
+/// CSS cursor keyword for text selection I-beam.
+pub(crate) const WEB_CURSOR_TEXT: &str = "text";
+
+/// CSS cursor keyword for precision crosshair.
+pub(crate) const WEB_CURSOR_CROSSHAIR: &str = "crosshair";
+
+/// CSS cursor keyword for disabled control.
+pub(crate) const WEB_CURSOR_NOT_ALLOWED: &str = "not-allowed";
+
+/// CSS cursor keyword for open grab hand.
+pub(crate) const WEB_CURSOR_GRAB: &str = "grab";
+
+/// CSS cursor keyword for active grabbing hand.
+pub(crate) const WEB_CURSOR_GRABBING: &str = "grabbing";
+
+/// CSS cursor keyword for omnidirectional move.
+pub(crate) const WEB_CURSOR_MOVE: &str = "move";
+
+/// CSS cursor keyword for horizontal resize.
+pub(crate) const WEB_CURSOR_EW_RESIZE: &str = "ew-resize";
+
+/// CSS cursor keyword for vertical resize.
+pub(crate) const WEB_CURSOR_NS_RESIZE: &str = "ns-resize";

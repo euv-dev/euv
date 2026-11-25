@@ -280,33 +280,46 @@ impl Mountable for EuvSlider {
                 .align(AlignItems::Center)
                 .gap(SPACE_SM),
         );
-        let track: NodeId = ctx.view(
+        let track: NodeId = ctx.canvas(
             Style::empty()
-                .row()
                 .flex_grow(1.0)
-                .height(Length::Px(8.0))
-                .background(p.get_secondary())
-                .radius(4.0)
-                .overflow(Overflow::Hidden),
-        );
-        let fill: NodeId = ctx.view(Style::empty());
-        ctx.append(track, fill);
-        let handle: SceneHandle = ctx.get_scene().clone();
-        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            handle.bind_style(fill, move || {
-                let pct: f32 = ((value.get() - min_v) / span).clamp(0.0, 1.0) * 100.0;
-                Style::empty()
-                    .width(Length::Percent(pct))
-                    .height(Length::Percent(100.0))
-                    .background(p.get_primary())
-                    .radius(4.0)
-            })
-        });
-        ctx.get_scene().with_write(
-            |tree: &mut SceneTree| {
-                tree.attach_scope(fill, scope);
+                .height(Length::Px(20.0))
+                .cursor(CursorIcon::Pointer),
+            move |bounds: Rect, dl: &mut DisplayList| {
+                let pct: f32 = ((value.get_untracked() - min_v) / span).clamp(0.0, 1.0);
+                let track_h: f32 = 6.0;
+                let track_y: f32 = bounds.get_y() + (bounds.get_height() - track_h) * 0.5;
+                let pad_x: f32 = 8.0;
+                let track_w: f32 = (bounds.get_width() - pad_x * 2.0).max(8.0);
+                let track_x: f32 = bounds.get_x() + pad_x;
+                dl.push(DrawCommand::FillRoundedRect {
+                    rect: Rect::new(track_x, track_y, track_w, track_h),
+                    color: p.get_secondary(),
+                    radius: CornerRadius::all(3.0),
+                    border: Border::default(),
+                });
+                let fill_w: f32 = (track_w * pct).max(0.0);
+                if fill_w > 0.5 {
+                    dl.push(DrawCommand::FillRoundedRect {
+                        rect: Rect::new(track_x, track_y, fill_w, track_h),
+                        color: p.get_primary(),
+                        radius: CornerRadius::all(3.0),
+                        border: Border::default(),
+                    });
+                }
+                let thumb_cx: f32 = track_x + fill_w;
+                let thumb_cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
+                dl.push(DrawCommand::Circle {
+                    center: Point::new(thumb_cx, thumb_cy),
+                    radius: 8.5,
+                    color: p.get_primary(),
+                });
+                dl.push(DrawCommand::Circle {
+                    center: Point::new(thumb_cx, thumb_cy),
+                    radius: 6.5,
+                    color: p.get_background(),
+                });
             },
-            (),
         );
         let step_amt: f32 = span * 0.1;
         ctx.on_click(track, move |_: &UiEvent| {
@@ -369,11 +382,32 @@ impl Mountable for EuvSelect {
             Style::empty().font_size(14.0).color(p.get_foreground()),
             move || {
                 let idx: usize = selected.get();
-                let label: &str = opts_for_label.get(idx).map(String::as_str).unwrap_or("");
-                format!("{label}{SELECT_ARROW}")
+                opts_for_label.get(idx).cloned().unwrap_or_default()
+            },
+        );
+        let chevron: NodeId = ctx.canvas(
+            Style::empty()
+                .width(Length::Px(12.0))
+                .height(Length::Px(12.0)),
+            move |bounds: Rect, dl: &mut DisplayList| {
+                let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
+                let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
+                dl.push(DrawCommand::Line {
+                    from: Point::new(cx - 4.0, cy - 2.0),
+                    to: Point::new(cx, cy + 2.5),
+                    color: p.get_muted_foreground(),
+                    width: 1.6,
+                });
+                dl.push(DrawCommand::Line {
+                    from: Point::new(cx, cy + 2.5),
+                    to: Point::new(cx + 4.0, cy - 2.0),
+                    color: p.get_muted_foreground(),
+                    width: 1.6,
+                });
             },
         );
         ctx.append(trigger, current_txt);
+        ctx.append(trigger, chevron);
         ctx.on_click(trigger, move |_: &UiEvent| {
             let _: bool = open.update(|v: &mut bool| *v = !*v);
         });
@@ -448,23 +482,38 @@ impl Mountable for EuvRating {
             let cell: NodeId = ctx.view(
                 Style::empty()
                     .row()
-                    .padding(Edges::all(SPACE_XS))
+                    .padding(Edges::all(2.0))
+                    .radius(4.0)
                     .cursor(CursorIcon::Pointer),
             );
-            let txt: NodeId = ctx.reactive_text(
+            let badge: NodeId = ctx.canvas(
                 Style::empty()
-                    .font_size(16.0)
-                    .font_weight(FontWeight::Bold)
-                    .color(p.get_warning()),
-                move || {
-                    if value.get() >= star_idx {
-                        STAR_FILLED.to_string()
+                    .width(Length::Px(18.0))
+                    .height(Length::Px(18.0)),
+                move |bounds: Rect, dl: &mut DisplayList| {
+                    let active: bool = value.get_untracked() >= star_idx;
+                    let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
+                    let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
+                    let col: Color = if active {
+                        p.get_warning()
                     } else {
-                        STAR_EMPTY.to_string()
+                        p.get_border()
+                    };
+                    dl.push(DrawCommand::Circle {
+                        center: Point::new(cx, cy),
+                        radius: 6.5,
+                        color: col,
+                    });
+                    if !active {
+                        dl.push(DrawCommand::Circle {
+                            center: Point::new(cx, cy),
+                            radius: 4.5,
+                            color: p.get_card(),
+                        });
                     }
                 },
             );
-            ctx.append(cell, txt);
+            ctx.append(cell, badge);
             ctx.on_click(cell, move |_: &UiEvent| {
                 let _: bool = value.set_if_changed(star_idx);
             });

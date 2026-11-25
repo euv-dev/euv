@@ -494,3 +494,67 @@ fn shadcn_extra_components_and_responsive_shell_adapt_across_mobile_tablet_deskt
         );
     }
 }
+
+#[test]
+fn hover_bubbling_and_hover_card_pointer_enter_leave_update_visual_state() {
+    reset_reactive_runtime();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let hover_open: Signal<bool> = Signal::new(false);
+    let mut btn_node: NodeId = NodeId::new(0, 0);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(640, 480).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        btn_node = EuvButton::new("Hover Target".to_string(), tokens).mount_current();
+        let hc: NodeId = EuvHoverCard::new(
+            hover_open,
+            "@hover".to_string(),
+            "Preview".to_string(),
+            "Triggered on hover".to_string(),
+            tokens,
+        )
+        .mount_current();
+        view! {
+            column {
+                width: Length::Px(640.0)
+                height: Length::Px(480.0)
+                padding: Edges::all(24.0)
+                gap: 16.0
+                { btn_node }
+                { hc }
+            }
+        }
+    });
+    let idle: FrameStats = app.step_frame().unwrap();
+    let btn_center: Point = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let b: Rect = tree
+                .get_node(btn_node)
+                .map(|n: &SceneNode| n.get_layout_box().get_bounds())
+                .unwrap_or_default();
+            Point::new(
+                b.get_x() + b.get_width() * 0.5,
+                b.get_y() + b.get_height() * 0.5,
+            )
+        },
+        Point::default(),
+    );
+    let wid: WindowId = app.get_window_state().get_id();
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(btn_center.get_x(), btn_center.get_y()),
+    ));
+    let hovered: FrameStats = app.step_frame().unwrap();
+    let is_btn_hovered: bool = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(btn_node)
+                .map(|n: &SceneNode| n.get_interaction().get_hovered())
+                .unwrap_or(false)
+        },
+        false,
+    );
+    assert!(is_btn_hovered);
+    assert_ne!(idle.get_frame_hash(), hovered.get_frame_hash());
+}

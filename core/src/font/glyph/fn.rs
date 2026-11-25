@@ -32,37 +32,39 @@ pub fn glyph_bitmap_rows(ch: char) -> [u8; BITMAP_GLYPH_HEIGHT] {
 #[must_use]
 pub fn measure_char_advance(ch: char, style: TextStyle) -> f32 {
     let bold_factor: f32 = if style.get_weight().is_bold() {
-        1.06
+        1.08
+    } else if matches!(style.get_weight(), FontWeight::Medium) {
+        1.04
     } else {
         1.0
     };
     let base_ratio: f32 = match style.get_family() {
         FontFamily::Monospace => {
             if is_wide_unicode(ch) {
-                1.02
+                1.04
             } else {
                 MONOSPACE_ADVANCE_RATIO
             }
         }
         FontFamily::Sans | FontFamily::Serif => {
             if is_wide_unicode(ch) {
-                1.02
+                1.04
             } else if (ch as u32) > 0x7F {
-                0.76
+                0.80
             } else {
                 match ch {
-                    'i' | 'l' | 'j' | '!' | '.' | ',' | ':' | ';' | '|' | '\'' => 0.30,
-                    'I' | 'f' | 'r' | 't' | '(' | ')' | '[' | ']' | '/' => 0.38,
-                    ' ' => 0.30,
-                    '-' | '"' => 0.42,
-                    'J' | 'L' | 's' | 'c' | 'z' | 'v' | 'x' => 0.54,
-                    'm' | 'w' => 0.84,
-                    'M' | 'W' => 0.90,
+                    'i' | 'l' | 'j' | '!' | '.' | ',' | ':' | ';' | '|' | '\'' => 0.33,
+                    'I' | 'f' | 'r' | 't' | '(' | ')' | '[' | ']' | '/' => 0.42,
+                    ' ' => 0.32,
+                    '-' | '"' => 0.45,
+                    'J' | 'L' | 's' | 'c' | 'z' | 'v' | 'x' => 0.58,
+                    'm' | 'w' => 0.90,
+                    'M' | 'W' => 0.96,
                     'O' | 'Q' | 'G' | 'D' | 'H' | 'N' | 'U' | 'A' | 'B' | 'C' | 'K' | 'R' | 'V'
-                    | 'X' | 'Y' => 0.72,
-                    'E' | 'F' | 'P' | 'S' | 'T' | 'Z' => 0.64,
-                    '0'..='9' => 0.62,
-                    _ => PROPORTIONAL_ADVANCE_RATIO,
+                    | 'X' | 'Y' => 0.77,
+                    'E' | 'F' | 'P' | 'S' | 'T' | 'Z' => 0.69,
+                    '0'..='9' => 0.66,
+                    _ => PROPORTIONAL_ADVANCE_RATIO + 0.04,
                 }
             }
         }

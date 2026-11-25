@@ -53,6 +53,230 @@ pub fn run_headless_smoke(mode: RenderMode) -> Result<FrameStats, PlatformError>
     app.step_frame()
 }
 
+/// Steps one frame and writes the rendered RGBA framebuffer to `<out_dir>/<name>.rgba`.
+///
+/// # Arguments
+///
+/// - `&mut App` - Active headless application instance.
+/// - `&Path` - Output directory path.
+/// - `&str` - Frame file basename without extension.
+/// - `&mut String` - Manifest accumulator receiving `<name> <width> <height>` lines.
+/// - `&mut usize` - Running captured frame counter.
+///
+/// # Returns
+///
+/// - `Result<(), PlatformError>` - Success or platform/filesystem error.
+#[cfg(not(target_arch = "wasm32"))]
+fn dump_rgba_frame(
+    app: &mut App,
+    out_dir: &Path,
+    name: &str,
+    manifest: &mut String,
+    count: &mut usize,
+) -> Result<(), PlatformError> {
+    let _: FrameStats = app.step_frame()?;
+    if let Some(fb) = app.get_renderer().framebuffer() {
+        let file_name: String = format!("{name}.rgba");
+        let file_path: PathBuf = out_dir.join(&file_name);
+        fs::write(&file_path, fb.get_pixels().as_slice())
+            .map_err(|err: Error| PlatformError::SurfaceError(err.to_string()))?;
+        manifest.push_str(&format!("{name} {} {}\n", fb.get_width(), fb.get_height()));
+        *count += 1;
+    }
+    Ok(())
+}
+
+/// Renders all showcase routes, responsive viewports, dark mode, scroll positions, and overlays to raw RGBA files using native system fonts.
+///
+/// # Arguments
+///
+/// - `&Path` - Destination directory for captured `.rgba` frames and `manifest.txt`.
+///
+/// # Returns
+///
+/// - `Result<usize, PlatformError>` - Total number of captured frames.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn capture_showcase_screenshots(out_dir: &Path) -> Result<usize, PlatformError> {
+    reset_reactive_runtime();
+    fs::create_dir_all(out_dir)
+        .map_err(|err: Error| PlatformError::InitializationFailed(err.to_string()))?;
+    let (mut app, state): (App, ShowcaseState) = create_showcase_app(true, RenderMode::Software)?;
+    app.get_mut_renderer()
+        .get_mut_software()
+        .set_font_provider(NativeSystemFont::system());
+    let wid: WindowId = app.get_window_state().get_id();
+    let mut manifest: String = String::new();
+    let mut count: usize = 0;
+    app.queue_window_command(WindowCommand::SetSize(wid, 1200, 800));
+    app.dispatch_window_event(WindowEvent::Resized(wid, 1200, 800, 2.0));
+    let desktop_routes: [(&str, &str); 10] = [
+        (ROUTE_OVERVIEW, "01_overview_desktop"),
+        (ROUTE_REACTIVE, "02_reactive_desktop"),
+        (ROUTE_RENDER, "03_render_desktop"),
+        (ROUTE_WINDOW, "04_window_desktop"),
+        (ROUTE_FORMS, "05_forms_desktop"),
+        (ROUTE_THEMES, "06_themes_desktop"),
+        (ROUTE_DATA, "07_data_desktop"),
+        (ROUTE_GAME, "08_game_desktop"),
+        (ROUTE_OVERLAYS, "09_overlays_desktop"),
+        (ROUTE_DYNAMIC, "10_dynamic_desktop"),
+    ];
+    for (route, label) in desktop_routes.iter() {
+        let _: bool = state.get_route().set_if_changed((*route).to_string());
+        if *route == ROUTE_OVERVIEW {
+            app.dispatch_window_event(WindowEvent::PointerMove(
+                wid,
+                PointerEvent::mouse(100.0, 108.0),
+            ));
+        }
+        dump_rgba_frame(&mut app, out_dir, label, &mut manifest, &mut count)?;
+    }
+    let _: bool = state.get_route().set_if_changed(ROUTE_FORMS.to_string());
+    let _: FrameStats = app.step_frame()?;
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(600.0, 400.0),
+    ));
+    app.dispatch_window_event(WindowEvent::Scroll(wid, Point::new(0.0, 420.0)));
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "05b_forms_scrolled",
+        &mut manifest,
+        &mut count,
+    )?;
+    let _: bool = state.get_route().set_if_changed(ROUTE_DATA.to_string());
+    let _: FrameStats = app.step_frame()?;
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(600.0, 400.0),
+    ));
+    app.dispatch_window_event(WindowEvent::Scroll(wid, Point::new(0.0, 460.0)));
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "07b_data_vlist_scrolled",
+        &mut manifest,
+        &mut count,
+    )?;
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(320.0, 120.0),
+    ));
+    app.dispatch_window_event(WindowEvent::Scroll(wid, Point::new(0.0, 720.0)));
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "07c_data_bottom",
+        &mut manifest,
+        &mut count,
+    )?;
+    let _: bool = state.get_route().set_if_changed(ROUTE_OVERVIEW.to_string());
+    let _: FrameStats = app.step_frame()?;
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(100.0, 108.0),
+    ));
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "01b_overview_hovered",
+        &mut manifest,
+        &mut count,
+    )?;
+    let _: bool = state.get_route().set_if_changed(ROUTE_OVERLAYS.to_string());
+    let _: bool = state.get_modal_open().set_if_changed(true);
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "09b_overlays_modal",
+        &mut manifest,
+        &mut count,
+    )?;
+    let _: bool = state.get_modal_open().set_if_changed(false);
+    let _: bool = state.get_alert_dialog_open().set_if_changed(true);
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "09c_overlays_alert",
+        &mut manifest,
+        &mut count,
+    )?;
+    let _: bool = state.get_alert_dialog_open().set_if_changed(false);
+    let _: bool = state.get_hover_card_open().set_if_changed(true);
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "09d_overlays_hovercard",
+        &mut manifest,
+        &mut count,
+    )?;
+    let _: bool = state.get_hover_card_open().set_if_changed(false);
+    let _: bool = state.get_route().set_if_changed(ROUTE_THEMES.to_string());
+    state.toggle_theme_mode();
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "06b_themes_dark",
+        &mut manifest,
+        &mut count,
+    )?;
+    state.toggle_theme_mode();
+    let _: bool = state.get_route().set_if_changed(ROUTE_OVERVIEW.to_string());
+    app.queue_window_command(WindowCommand::SetSize(wid, 768, 1024));
+    app.dispatch_window_event(WindowEvent::Resized(wid, 768, 1024, 2.0));
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "11_overview_tablet",
+        &mut manifest,
+        &mut count,
+    )?;
+    app.queue_window_command(WindowCommand::SetSize(wid, 390, 844));
+    app.dispatch_window_event(WindowEvent::Resized(wid, 390, 844, 2.0));
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "12_overview_mobile",
+        &mut manifest,
+        &mut count,
+    )?;
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::mouse(350.0, 26.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::mouse(350.0, 26.0),
+    ));
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "12b_mobile_menu_open",
+        &mut manifest,
+        &mut count,
+    )?;
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::mouse(240.0, 26.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::mouse(240.0, 26.0),
+    ));
+    let _: bool = state.get_route().set_if_changed(ROUTE_FORMS.to_string());
+    dump_rgba_frame(
+        &mut app,
+        out_dir,
+        "13_forms_mobile",
+        &mut manifest,
+        &mut count,
+    )?;
+    fs::write(out_dir.join("manifest.txt"), manifest)
+        .map_err(|err: Error| PlatformError::SurfaceError(err.to_string()))?;
+    Ok(count)
+}
+
 /// Automatically boots the WebAssembly showcase and attaches all browser canvas, input, resize, and frame listeners in pure Rust.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(start)]
@@ -118,7 +342,12 @@ pub fn euv_web_boot() {
     on_up.forget();
     let on_wheel: Closure<dyn FnMut(WheelEvent)> = Closure::wrap(Box::new(move |ev: WheelEvent| {
         ev.prevent_default();
-        let _: u64 = euv_web_scroll(ev.delta_x() as f32, ev.delta_y() as f32);
+        let mult: f32 = match ev.delta_mode() {
+            1 => 20.0,
+            2 => 320.0,
+            _ => 1.0,
+        };
+        let _: u64 = euv_web_scroll((ev.delta_x() as f32) * mult, (ev.delta_y() as f32) * mult);
     })
         as Box<dyn FnMut(WheelEvent)>);
     drop(canvas.add_event_listener_with_callback("wheel", on_wheel.as_ref().unchecked_ref()));
