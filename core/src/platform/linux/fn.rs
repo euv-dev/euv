@@ -471,7 +471,23 @@ pub(crate) fn linux_x11_pump_events(
         > = if lookup_sym.is_null() {
             None
         } else {
-            Some(transmute(lookup_sym))
+            let func: unsafe extern "C" fn(
+                *mut X11KeyOrButtonEvent,
+                *mut c_char,
+                i32,
+                *mut u64,
+                *mut c_void,
+            ) -> i32 = transmute::<
+                *mut c_void,
+                unsafe extern "C" fn(
+                    *mut X11KeyOrButtonEvent,
+                    *mut c_char,
+                    i32,
+                    *mut u64,
+                    *mut c_void,
+                ) -> i32,
+            >(lookup_sym);
+            Some(func)
         };
         for disp_addr in displays.into_iter() {
             let disp: *mut c_void = disp_addr as *mut c_void;
