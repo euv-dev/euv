@@ -43,7 +43,7 @@ fn ui_components_render_deterministically_across_desktop_and_mobile_breakpoints(
         .mount_current();
         let prog: NodeId = EuvProgress::new(0.75, tokens).mount_current();
         let badge: NodeId =
-            EuvBadge::new("v0.38".to_string(), EuvTone::Primary, tokens).mount_current();
+            EuvBadge::new("v0.39".to_string(), EuvTone::Primary, tokens).mount_current();
         let mut card: EuvCard = EuvCard::new("Controls".to_string(), tokens)
             .child(badge)
             .child(btn.mount_current())
@@ -124,7 +124,7 @@ fn full_production_component_suite_and_hooks_mount_and_render_cleanly() {
         let nav: NodeId = EuvNavbar::new("euv Studio".to_string(), tokens)
             .action(EuvKbd::new("Cmd+K".to_string(), tokens).mount_current())
             .mount_current();
-        let footer: NodeId = EuvFooter::new("euv 0.38 Native".to_string(), tokens).mount_current();
+        let footer: NodeId = EuvFooter::new("euv 0.39 Native".to_string(), tokens).mount_current();
         let left_p: NodeId = EuvPanel::new("Inspector".to_string(), tokens)
             .child(EuvAvatar::new("EV".to_string(), 36.0, tokens).mount_current())
             .child(

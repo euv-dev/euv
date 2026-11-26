@@ -1198,7 +1198,7 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         .description(
             "Unified layout grammar across all 17 design schemes with per-theme surface/radius tokens",
         )
-        .trailing("v0.38")
+        .trailing("v0.39")
         .mount(&mut ctx);
     let sep: NodeId =
         EuvSeparator::new("EDGE-CASE REGRESSION SUITE".to_string(), tokens).mount(&mut ctx);
@@ -2562,7 +2562,7 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
     .mount_current();
     let hover_card: NodeId = EuvHoverCard::new(
         "@euv-dev".to_string(),
-        "euv 0.38 Native Engine".to_string(),
+        "euv 0.39 Native Engine".to_string(),
         tokens,
     )
     .open(state.get_hover_card_open())

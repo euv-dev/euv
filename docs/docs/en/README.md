@@ -5,9 +5,9 @@ order: 0
 tagline: High-performance cross-platform native Rust UI framework targeting Web, Android, iOS, iPadOS, macOS, Windows, and Linux via direct system APIs.
 ---
 
-## Why euv 0.38
+## Why euv 0.39
 
-euv 0.38 replaces Web-only DOM diffing with a unified native architecture:
+euv 0.39 replaces Web-only DOM diffing with a unified native architecture:
 
 - Direct OS API adapters across Web, Android, iOS, iPadOS, macOS, Windows, and Linux with zero WebView overhead.
 - Fine-grained push-pull reactivity (`Signal`, `Memo`, `Effect`, `Selector`, `Scope`, `batch`) patching scene nodes in O(1).

@@ -4,7 +4,7 @@ description: 'Canonical UI design system and engineering specification for euv a
 license: MIT
 metadata:
   euv:
-    version: "0.38.0"
+    version: "0.39.0"
     applies_to:
       - ui
       - example
