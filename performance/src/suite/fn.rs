@@ -358,6 +358,42 @@ pub fn bench_game3d_pbr_bvh_raytrace(iterations: usize) -> BenchMetric {
     )
 }
 
+/// Benchmarks maxed-out `Cinematic` + `FullPathTracedGi` + `125%` scale 3D ray tracing at HD resolution.
+///
+/// # Arguments
+///
+/// - `usize` - Number of max-settings 3D frames to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured frame latency, FPS throughput, resolution, and ray count.
+#[must_use]
+pub fn bench_game3d_cinematic_max_rt(iterations: usize) -> BenchMetric {
+    let count: usize = iterations.max(1);
+    let mut world: World3D = World3D::create_open_world_city();
+    let mut renderer: Renderer3D = Renderer3D::default();
+    let mut cfg: RenderQualityConfig = RenderQualityConfig::from_preset(QualityPreset::Cinematic);
+    cfg.set_ray_tracing(RayTracingMode::FullPathTracedGi)
+        .set_resolution_scale(1.25);
+    let start: Instant = Instant::now();
+    let mut last_rays: usize = 0;
+    let mut last_w: u32 = 0;
+    let mut last_h: u32 = 0;
+    for _ in 0..count {
+        let _: ImageBuffer = renderer.render_world(&mut world, 960, 480, &cfg);
+        let st: RenderStats3D = renderer.get_last_stats();
+        last_rays = st.get_rays_traced();
+        last_w = st.get_render_width();
+        last_h = st.get_render_height();
+    }
+    build_metric(
+        BENCH_GAME_3D_MAX_RT_NAME,
+        count,
+        start.elapsed(),
+        format!("res={last_w}x{last_h} rays={last_rays}"),
+    )
+}
+
 /// Runs the complete reproducible benchmark suite across reactivity, layout, fonts, rendering, and game physics.
 ///
 /// # Returns
@@ -376,6 +412,7 @@ pub fn run_full_benchmark_suite() -> BenchReport {
         bench_game_ecs_physics(200),
         bench_game_particles(1_000),
         bench_game3d_pbr_bvh_raytrace(10),
+        bench_game3d_cinematic_max_rt(10),
     ];
     BenchReport::new(metrics)
 }

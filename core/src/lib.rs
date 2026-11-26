@@ -28,7 +28,9 @@ pub use {
     scene::*, style::*, system::*, window::*,
 };
 
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(target_os = "linux")]
+use std::env;
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux"))]
 use std::ffi::CStr;
 #[cfg(unix)]
 use std::ffi::CString;
@@ -67,7 +69,8 @@ use std::{
     fs,
     io::{self, Read, Write},
     net::{SocketAddr, TcpStream, ToSocketAddrs},
-    thread::sleep,
+    slice::ChunksMut,
+    thread::{self, ScopedJoinHandle, available_parallelism, scope, sleep},
     time::{Duration, Instant},
 };
 #[cfg(all(test, not(target_arch = "wasm32")))]

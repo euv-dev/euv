@@ -86,6 +86,11 @@ impl PlatformServiceHub {
         self.get_mut_live_activities()
             .retain(|existing: &LiveActivityHandle| existing.get_activity_id() != &activity_id);
         self.get_mut_live_activities().push(handle.clone());
+        let _: bool = dispatch_native_action(
+            NATIVE_ACTION_ISLAND,
+            handle.get_content().get_title(),
+            handle.get_content().get_subtitle(),
+        );
         handle
     }
 
@@ -152,6 +157,7 @@ impl PlatformServiceHub {
         }
         let next: u64 = self.get_haptic_count().saturating_add(1);
         self.set_haptic_count(next);
+        let _: bool = dispatch_native_action(NATIVE_ACTION_HAPTIC, "impact", "");
         true
     }
 
@@ -220,6 +226,11 @@ impl PlatformServiceHub {
     /// - `&Self` - Mutable service hub.
     /// - `SystemNotification` - Notification payload.
     pub fn send_notification(&mut self, notification: SystemNotification) {
+        let _: bool = dispatch_native_action(
+            NATIVE_ACTION_NOTIFY,
+            notification.get_title(),
+            notification.get_body(),
+        );
         self.get_mut_notifications().push(notification);
     }
 

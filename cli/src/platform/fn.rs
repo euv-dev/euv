@@ -22,6 +22,28 @@ pub const fn host_native_target() -> TargetArg {
     }
 }
 
+/// Resolves the preferred Rust target triple for `target`, adapting native desktop triples to host CPU architecture.
+///
+/// # Arguments
+///
+/// - `TargetArg` - Concrete platform target.
+///
+/// # Returns
+///
+/// - `&'static str` - Host-aware Rust target triple.
+#[must_use]
+pub const fn target_triple_for_host(target: TargetArg) -> &'static str {
+    match target {
+        TargetArg::Web => TRIPLE_WEB,
+        TargetArg::Android => TRIPLE_ANDROID,
+        TargetArg::Ios | TargetArg::Ipad => TRIPLE_IOS,
+        TargetArg::Macos => HOST_MACOS_TRIPLE,
+        TargetArg::Windows => HOST_WINDOWS_TRIPLE,
+        TargetArg::Linux => HOST_LINUX_TRIPLE,
+        TargetArg::Native | TargetArg::All => target_triple_for_host(host_native_target()),
+    }
+}
+
 /// Returns the canonical `TargetSpec` list for a CLI `TargetArg`.
 ///
 /// # Arguments
@@ -59,56 +81,25 @@ pub fn resolve_target_specs(target: TargetArg) -> Vec<TargetSpec> {
 /// - `TargetSpec` - Platform specification with triple, system APIs, and GPU backend.
 #[must_use]
 pub fn spec_for_platform(target: TargetArg) -> TargetSpec {
-    let (name, triple, api, artifact, kind): (&str, &str, &str, &str, PlatformKind) = match target {
-        TargetArg::Web => (
-            NAME_WEB,
-            TRIPLE_WEB,
-            API_WEB,
-            ARTIFACT_WEB,
-            PlatformKind::Web,
-        ),
+    let triple: &str = target_triple_for_host(target);
+    let (name, api, artifact, kind): (&str, &str, &str, PlatformKind) = match target {
+        TargetArg::Web => (NAME_WEB, API_WEB, ARTIFACT_WEB, PlatformKind::Web),
         TargetArg::Android => (
             NAME_ANDROID,
-            TRIPLE_ANDROID,
             API_ANDROID,
             ARTIFACT_ANDROID,
             PlatformKind::Android,
         ),
-        TargetArg::Ios => (
-            NAME_IOS,
-            TRIPLE_IOS,
-            API_IOS,
-            ARTIFACT_IOS,
-            PlatformKind::Ios,
-        ),
-        TargetArg::Ipad => (
-            NAME_IPAD,
-            TRIPLE_IOS,
-            API_IPAD,
-            ARTIFACT_IPAD,
-            PlatformKind::IpadOs,
-        ),
-        TargetArg::Macos => (
-            NAME_MACOS,
-            TRIPLE_MACOS,
-            API_MACOS,
-            ARTIFACT_MACOS,
-            PlatformKind::MacOs,
-        ),
+        TargetArg::Ios => (NAME_IOS, API_IOS, ARTIFACT_IOS, PlatformKind::Ios),
+        TargetArg::Ipad => (NAME_IPAD, API_IPAD, ARTIFACT_IPAD, PlatformKind::IpadOs),
+        TargetArg::Macos => (NAME_MACOS, API_MACOS, ARTIFACT_MACOS, PlatformKind::MacOs),
         TargetArg::Windows => (
             NAME_WINDOWS,
-            TRIPLE_WINDOWS,
             API_WINDOWS,
             ARTIFACT_WINDOWS,
             PlatformKind::Windows,
         ),
-        TargetArg::Linux => (
-            NAME_LINUX,
-            TRIPLE_LINUX,
-            API_LINUX,
-            ARTIFACT_LINUX,
-            PlatformKind::Linux,
-        ),
+        TargetArg::Linux => (NAME_LINUX, API_LINUX, ARTIFACT_LINUX, PlatformKind::Linux),
         TargetArg::Native | TargetArg::All => return spec_for_platform(host_native_target()),
     };
     let caps: PlatformCapabilities = PlatformCapabilities::for_platform(kind);

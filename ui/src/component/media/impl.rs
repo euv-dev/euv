@@ -116,7 +116,7 @@ impl Mountable for EuvImage {
                 .height(Length::Px(h_px))
                 .justify(JustifyContent::Center)
                 .align(AlignItems::Center)
-                .background(Color::hex(0x0B1120))
+                .background(p.get_media_surface())
                 .radius(g.get_radius_md())
                 .border(g.get_border_width(), p.get_border())
                 .overflow(Overflow::Hidden),
@@ -222,7 +222,7 @@ impl Mountable for EuvSvgView {
                 .height(Length::Px(svg_h))
                 .justify(JustifyContent::Center)
                 .align(AlignItems::Center)
-                .background(Color::hex(0x0F172A))
+                .background(p.get_media_surface())
                 .radius(g.get_radius_md())
                 .border(g.get_border_width(), p.get_border())
                 .overflow(Overflow::Hidden),
@@ -336,7 +336,7 @@ impl Mountable for EuvGifPlayer {
                     .height(Length::Px(h_px))
                     .justify(JustifyContent::Center)
                     .align(AlignItems::Center)
-                    .background(Color::hex(0x0B1120))
+                    .background(p.get_media_surface())
                     .radius(g.get_radius_md())
                     .border(g.get_border_width(), p.get_border())
                     .overflow(Overflow::Hidden),
@@ -511,7 +511,7 @@ impl Mountable for EuvLivePhoto {
                     .height(Length::Px(h_px))
                     .justify(JustifyContent::Center)
                     .align(AlignItems::Center)
-                    .background(Color::hex(0x0B1120))
+                    .background(p.get_media_surface())
                     .radius(g.get_radius_md())
                     .border(
                         if active { 2.0 } else { g.get_border_width() },
@@ -688,7 +688,7 @@ impl Mountable for EuvVideoPlayer {
                     .height(Length::Px(h_px))
                     .justify(JustifyContent::Center)
                     .align(AlignItems::Center)
-                    .background(Color::hex(0x0B1120))
+                    .background(p.get_media_surface())
                     .radius(g.get_radius_md())
                     .border(g.get_border_width(), p.get_border())
                     .overflow(Overflow::Hidden),

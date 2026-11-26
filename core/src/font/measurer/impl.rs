@@ -57,7 +57,39 @@ impl TextMeasurer for DeterministicTextMeasurer {
                             current.push(' ');
                             current_w += ch_w;
                         }
+                    } else if is_wide_unicode(ch) {
+                        if !word.is_empty() {
+                            if !current.is_empty() && current_w + word_w > limit {
+                                while current.ends_with(' ') {
+                                    let _: Option<char> = current.pop();
+                                    current_w = (current_w - space_w).max(0.0);
+                                }
+                                lines.push(TextLine::new(take(&mut current), current_w));
+                                current_w = 0.0;
+                            }
+                            current.push_str(&word);
+                            current_w += word_w;
+                            word.clear();
+                            word_w = 0.0;
+                        }
+                        if !current.is_empty() && current_w + ch_w > limit {
+                            lines.push(TextLine::new(take(&mut current), current_w));
+                            current_w = 0.0;
+                        }
+                        current.push(ch);
+                        current_w += ch_w;
                     } else {
+                        if !current.is_empty()
+                            && current_w + word_w + ch_w > limit
+                            && word_w + ch_w > limit
+                        {
+                            while current.ends_with(' ') {
+                                let _: Option<char> = current.pop();
+                                current_w = (current_w - space_w).max(0.0);
+                            }
+                            lines.push(TextLine::new(take(&mut current), current_w));
+                            current_w = 0.0;
+                        }
                         if !word.is_empty() && current.is_empty() && word_w + ch_w > limit {
                             lines.push(TextLine::new(take(&mut word), word_w));
                             word_w = 0.0;
@@ -90,25 +122,30 @@ impl TextMeasurer for DeterministicTextMeasurer {
                 }
                 if style.get_overflow() == TextOverflow::Ellipsis
                     && let Some(limit) = max_width
-                    && width > limit
+                    && width > limit + 0.5
                     && limit > 0.0
+                    && raw_line.chars().count() > 2
                 {
                     let ellipsis_w: f32 = measure_char_advance('.', style) * 3.0;
-                    let target_w: f32 = (limit - ellipsis_w).max(0.0);
-                    let mut truncated: String = String::new();
-                    let mut acc: f32 = 0.0;
-                    for ch in raw_line.chars() {
-                        let ch_w: f32 = measure_char_advance(ch, style);
-                        if acc + ch_w > target_w {
-                            break;
+                    if width <= ellipsis_w + 1.0 {
+                        lines.push(TextLine::new(raw_line.to_string(), width));
+                    } else {
+                        let target_w: f32 = (limit - ellipsis_w).max(0.0);
+                        let mut truncated: String = String::new();
+                        let mut acc: f32 = 0.0;
+                        for ch in raw_line.chars() {
+                            let ch_w: f32 = measure_char_advance(ch, style);
+                            if acc + ch_w > target_w {
+                                break;
+                            }
+                            truncated.push(ch);
+                            acc += ch_w;
                         }
-                        truncated.push(ch);
-                        acc += ch_w;
+                        truncated.push('.');
+                        truncated.push('.');
+                        truncated.push('.');
+                        lines.push(TextLine::new(truncated, acc + ellipsis_w));
                     }
-                    truncated.push('.');
-                    truncated.push('.');
-                    truncated.push('.');
-                    lines.push(TextLine::new(truncated, acc + ellipsis_w));
                 } else {
                     lines.push(TextLine::new(raw_line.to_string(), width));
                 }

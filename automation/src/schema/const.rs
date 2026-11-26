@@ -7,22 +7,70 @@ pub const AI_SCHEMA_JSON_SPEC: &str = r#"{
   "title": "euv AI Runtime & Layout Schema v1",
   "protocol": "euv.ai.schema.v1",
   "devOnly": true,
+  "httpEndpoints": [
+    "GET /schema",
+    "GET /ai/schema",
+    "GET /snapshot",
+    "GET /ai/snapshot",
+    "GET /ai/a11y",
+    "GET /ai/health",
+    "POST /query",
+    "POST /ai/query",
+    "POST /ai/action",
+    "POST /ai/script"
+  ],
   "requests": [
     { "op": "DescribeSchema" },
     { "op": "Snapshot", "include_layout_tree": true },
+    { "op": "AccessibilityTree" },
     { "op": "QueryNodes", "selector": { "type": "ByText", "value": "Overview" } },
     { "op": "HitTest", "x": 100.0, "y": 108.0 },
     { "op": "ExecuteAction", "action": { "kind": "Click", "selector": { "type": "ByText", "value": "Forms" } } },
     { "op": "RunTestScript", "script": { "name": "smoke", "steps": [] } }
   ],
+  "selectors": [
+    "ByText",
+    "ByTextContains",
+    "ByPlaceholder",
+    "ByInputValue",
+    "ByA11yLabel",
+    "ByRole",
+    "ByKind",
+    "ByNodeIndex",
+    "Interactive",
+    "Nth",
+    "All"
+  ],
+  "actions": [
+    "Click",
+    "ClickAt",
+    "DoubleClick",
+    "Hover",
+    "Focus",
+    "TypeText",
+    "ClearInput",
+    "Drag",
+    "DragPoints",
+    "Gesture",
+    "Scroll",
+    "PressKey",
+    "Resize",
+    "StepFrames",
+    "StepGame",
+    "SetFpsLimit",
+    "Navigate",
+    "SetTheme",
+    "GameControl"
+  ],
   "snapshotFields": [
     "protocol_version",
     "window",
     "performance",
+    "reactive",
     "interaction",
-    "services",
-    "dynamic_ota",
-    "accessibility_nodes",
+    "runtime",
+    "game_stats",
+    "accessibility_tree",
     "layout_tree",
     "anomalies"
   ]
@@ -45,3 +93,6 @@ pub(crate) const ROLE_DIALOG: &str = "Dialog";
 pub(crate) const ROLE_IMAGE: &str = "Image";
 pub(crate) const ROLE_CONTAINER: &str = "Container";
 pub(crate) const ERR_INVALID_REQUEST_JSON: &str = "Invalid AI schema request JSON";
+pub(crate) const ERR_NO_NAVIGATE_HOOK: &str = "Navigate hook is not registered on this runtime";
+pub(crate) const ERR_NO_THEME_HOOK: &str = "Theme hook is not registered on this runtime";
+pub(crate) const ERR_NO_GAME_HOOK: &str = "GameControl hook is not registered on this runtime";

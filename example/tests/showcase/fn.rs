@@ -384,9 +384,9 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
             let _: bool = state.get_route().set_if_changed((*route).to_string());
             let stats: FrameStats = app.step_frame().unwrap();
             assert_ne!(stats.get_frame_hash(), 0);
-            let overflows: Vec<(f32, f32)> = app.get_scene().with_read(
+            let overflows: Vec<(f32, f32, String)> = app.get_scene().with_read(
                 |tree: &SceneTree| {
-                    let mut out: Vec<(f32, f32)> = Vec::new();
+                    let mut out: Vec<(f32, f32, String)> = Vec::new();
                     for node in tree.get_nodes().iter() {
                         if !node.get_alive()
                             || node.get_style().get_layout().get_display() == Display::None
@@ -395,7 +395,11 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
                         }
                         let b: Rect = node.get_layout_box().get_bounds();
                         if b.get_width() > 0.0 && b.right() > (vw as f32) + 1.5 {
-                            out.push((b.get_x(), b.right()));
+                            let tag: String = match node.get_kind() {
+                                NodeKind::Text(t) => format!("Text({t})"),
+                                other => format!("{other:?}"),
+                            };
+                            out.push((b.get_x(), b.right(), tag));
                         }
                     }
                     out
@@ -653,8 +657,8 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
     );
     let _: FrameStats = click_label(&mut app, "Import .glTF Tower");
     let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
-    let _: FrameStats = click_label(&mut app, "RT Full GI");
-    let _: FrameStats = click_label(&mut app, "Ultra");
+    let _: FrameStats = scroll_and_click_label(&mut app, "RT Full GI");
+    let _: FrameStats = scroll_and_click_label(&mut app, "Ultra");
     app.dispatch_window_event(WindowEvent::KeyDown(
         wid,
         KeyEvent::new(KeyCode::Character('w'), Modifiers::default(), false),
@@ -793,4 +797,179 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
         preserved_before,
         "Live viewport resize must update layout only without clearing data"
     );
+}
+
+#[test]
+fn global_wasm_takeover_responds_to_clicks_and_restores_native_shell() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: FrameStats = click_label(&mut app, "Dynamic WASM");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_DYNAMIC);
+    let _: FrameStats = scroll_and_click_label(&mut app, "Download Global WASM v1");
+    assert_eq!(
+        state
+            .get_wasm_manager()
+            .global_version_signal()
+            .get_untracked(),
+        1
+    );
+    let _: FrameStats = click_label(&mut app, "Invoke Global WASM Action (+1)");
+    assert!(
+        state
+            .get_wasm_fault_status()
+            .get_untracked()
+            .contains("state=1"),
+        "expected Global WASM click to update state=1, got: {}",
+        state.get_wasm_fault_status().get_untracked()
+    );
+    let has_state1: bool = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive() && matches!(n.get_kind(), NodeKind::Text(t) if t.contains("STATE #1"))
+            })
+        },
+        false,
+    );
+    assert!(
+        has_state1,
+        "expected Global WASM UI to re-render live STATE #1 after click"
+    );
+    let _: FrameStats = click_label(&mut app, "Return to Native Shell");
+    assert_eq!(
+        state
+            .get_wasm_manager()
+            .global_version_signal()
+            .get_untracked(),
+        0
+    );
+    let alive_texts: Vec<String> = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes()
+                .iter()
+                .filter(|n: &&SceneNode| n.get_alive())
+                .filter_map(|n: &SceneNode| match n.get_kind() {
+                    NodeKind::Text(t) => Some(t.clone()),
+                    _ => None,
+                })
+                .collect()
+        },
+        Vec::new(),
+    );
+    let has_brand: bool = alive_texts.iter().any(|t: &String| t == SHOWCASE_BRAND);
+    assert!(
+        has_brand,
+        "expected native EuvAppShell to be restored; alive_texts={alive_texts:?}"
+    );
+}
+
+#[test]
+fn responsive_five_widths_virtual_list_alignment_and_ai_schema_hooks_pass_zero_overflow() {
+    let viewports: [(u32, u32); 5] = [
+        (360, 800),
+        (390, 844),
+        (768, 1024),
+        (1280, 800),
+        (1440, 900),
+    ];
+    let routes: [&str; 13] = [
+        ROUTE_OVERVIEW,
+        ROUTE_LAB,
+        ROUTE_REACTIVE,
+        ROUTE_RENDER,
+        ROUTE_WINDOW,
+        ROUTE_FORMS,
+        ROUTE_THEMES,
+        ROUTE_DATA,
+        ROUTE_GAME,
+        ROUTE_GAME_3D,
+        ROUTE_MEDIA,
+        ROUTE_OVERLAYS,
+        ROUTE_DYNAMIC,
+    ];
+    for (vw, vh) in viewports.into_iter() {
+        reset_reactive_runtime();
+        let (mut app, state): (App, ShowcaseState) =
+            create_showcase_app(true, RenderMode::Software).unwrap();
+        let wid: WindowId = app.get_window_state().get_id();
+        app.dispatch_window_event(WindowEvent::Resized(wid, vw, vh, 2.0));
+        let _: FrameStats = app.step_frame().unwrap();
+        let hooks: AiAppHooks = state.build_ai_hooks();
+        for route in routes.into_iter() {
+            let nav: AiSchemaResponse = AiSchemaProtocol::handle_with_hooks(
+                &mut app,
+                AiSchemaRequest::ExecuteAction {
+                    action: AiAction::Navigate {
+                        route: route.to_string(),
+                    },
+                },
+                Some(&hooks),
+            );
+            assert!(nav.get_ok());
+            for _ in 0..8 {
+                if !app.has_active_animations() {
+                    break;
+                }
+                let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+            }
+            let snap: AiRuntimeSnapshot =
+                AiSchemaProtocol::snapshot_with_hooks(&app, true, Some(&hooks));
+            assert_eq!(snap.get_window().active_route_value(), Some(route));
+            assert!(snap.get_reactive().get_live_signals() > 0);
+            assert!(!snap.get_accessibility_tree().is_empty());
+            assert!(snap.game_stats_value().is_some());
+            let overflows: Vec<String> = snap
+                .get_anomalies()
+                .iter()
+                .filter(|a: &&AiLayoutAnomaly| a.get_kind() == AiAnomalyKind::HorizontalOverflow)
+                .map(|a: &AiLayoutAnomaly| a.get_message().clone())
+                .collect();
+            assert!(
+                overflows.is_empty(),
+                "Horizontal overflow at {vw}x{vh} route {route}: {overflows:?}"
+            );
+        }
+        if vw == 1440 {
+            let _: bool = state.get_route().set_if_changed(ROUTE_DATA.to_string());
+            let _: FrameStats = app.step_frame().unwrap();
+            let row20_y: f32 = find_text_center(&app, "Virtual Row #20").get_y();
+            let row17_y: f32 = find_text_center(&app, "Virtual Row #17").get_y();
+            assert!(
+                row20_y > row17_y && row20_y > 0.0,
+                "Expected Virtual Row #20 aligned inside viewport below clipped overscan"
+            );
+            let theme_resp: AiSchemaResponse = AiSchemaProtocol::handle_with_hooks(
+                &mut app,
+                AiSchemaRequest::ExecuteAction {
+                    action: AiAction::SetTheme {
+                        scheme: Some("Linear".to_string()),
+                        mode: Some("Dark".to_string()),
+                    },
+                },
+                Some(&hooks),
+            );
+            assert!(theme_resp.get_ok());
+            assert_eq!(
+                state.get_theme().get_scheme().get_untracked(),
+                DesignScheme::Linear
+            );
+            assert_eq!(
+                state.get_theme().get_mode().get_untracked(),
+                ThemeMode::Dark
+            );
+            let game_resp: AiSchemaResponse = AiSchemaProtocol::handle_with_hooks(
+                &mut app,
+                AiSchemaRequest::ExecuteAction {
+                    action: AiAction::GameControl {
+                        command: "camera_mode".to_string(),
+                        payload: AiSchemaProtocol::parse_json_value("2"),
+                    },
+                },
+                Some(&hooks),
+            );
+            assert!(game_resp.get_ok());
+            assert_eq!(state.get_engine3d_camera_mode().get_untracked(), 2);
+        }
+    }
 }

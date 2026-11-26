@@ -133,6 +133,44 @@ impl Mountable for EuvChart {
     }
 }
 
+/// Fluent search query and placeholder builders for `EuvCombobox`.
+impl EuvCombobox {
+    /// Sets the search input placeholder text fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source combobox.
+    /// - `S` - Search input placeholder string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated combobox.
+    #[must_use]
+    pub fn placeholder<S>(mut self, placeholder: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_placeholder(placeholder.into());
+        self
+    }
+
+    /// Binds an external reactive query signal fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source combobox.
+    /// - `Signal<String>` - Controlled search query signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated combobox.
+    #[must_use]
+    pub fn query(mut self, query: Signal<String>) -> Self {
+        self.set_query(Some(query));
+        self
+    }
+}
+
 /// `Mountable` implementation for `EuvCombobox`.
 impl Mountable for EuvCombobox {
     /// Mounts a searchable dropdown combobox with live query filtering and unified overlay stack dismissal.
@@ -149,14 +187,20 @@ impl Mountable for EuvCombobox {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
-        let query: Signal<String> = self.get_query();
         let selected: Signal<usize> = self.get_selected();
         let open: Signal<bool> = self.get_open();
         let Self {
             placeholder,
             options,
+            query: query_opt,
             ..
         } = self;
+        let query: Signal<String> = query_opt.unwrap_or_else(|| Signal::new(String::new()));
+        let resolved_ph: String = if placeholder.is_empty() {
+            COMBOBOX_DEFAULT_PLACEHOLDER.to_string()
+        } else {
+            placeholder
+        };
         let wrap: NodeId = ctx.view(
             Style::empty()
                 .column()
@@ -184,7 +228,7 @@ impl Mountable for EuvCombobox {
                 let lbl: String = opts_trigger
                     .get(idx)
                     .cloned()
-                    .unwrap_or_else(|| "Select option...".to_string());
+                    .unwrap_or_else(|| COMBOBOX_EMPTY_SELECTION.to_string());
                 format!("{lbl}  v")
             },
         );
@@ -201,9 +245,10 @@ impl Mountable for EuvCombobox {
                 .background(p.get_card())
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_md())
+                .shadow(g.get_shadow_md())
                 .stop_scroll_propagation(true),
         );
-        let search: NodeId = EuvInput::new(query, placeholder, tokens).mount(ctx);
+        let search: NodeId = EuvInput::new(query, resolved_ph, tokens).mount(ctx);
         let list_host: NodeId = ctx.view(
             Style::empty()
                 .column()
@@ -289,9 +334,60 @@ impl Mountable for EuvCombobox {
     }
 }
 
+/// Fluent controlled-state builders for `EuvDataTable`.
+impl EuvDataTable {
+    /// Binds a controlled search filter signal fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source data table.
+    /// - `Signal<String>` - Controlled filter text signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated data table.
+    #[must_use]
+    pub fn filter(mut self, filter: Signal<String>) -> Self {
+        self.set_filter(Some(filter));
+        self
+    }
+
+    /// Binds a controlled ascending/descending sort direction signal fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source data table.
+    /// - `Signal<bool>` - Controlled ascending sort flag signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated data table.
+    #[must_use]
+    pub fn sort_ascending(mut self, sort_ascending: Signal<bool>) -> Self {
+        self.set_sort_ascending(Some(sort_ascending));
+        self
+    }
+
+    /// Binds a controlled selected row index signal fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source data table.
+    /// - `Signal<Option<usize>>` - Controlled selected row signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated data table.
+    #[must_use]
+    pub fn selected_row(mut self, selected_row: Signal<Option<usize>>) -> Self {
+        self.set_selected_row(Some(selected_row));
+        self
+    }
+}
+
 /// `Mountable` implementation for `EuvDataTable`.
 impl Mountable for EuvDataTable {
-    /// Mounts a filterable, sortable, selectable production data table.
+    /// Mounts a filterable, sortable, selectable production data table with overflow-safe cells.
     ///
     /// # Arguments
     ///
@@ -305,10 +401,17 @@ impl Mountable for EuvDataTable {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
-        let filter: Signal<String> = self.get_filter();
-        let sort_asc: Signal<bool> = self.get_sort_ascending();
-        let sel_row: Signal<Option<usize>> = self.get_selected_row();
-        let Self { headers, rows, .. } = self;
+        let Self {
+            headers,
+            rows,
+            filter: filter_opt,
+            sort_ascending: sort_opt,
+            selected_row: sel_opt,
+            ..
+        } = self;
+        let filter: Signal<String> = filter_opt.unwrap_or_else(|| Signal::new(String::new()));
+        let sort_asc: Signal<bool> = sort_opt.unwrap_or_else(|| Signal::new(true));
+        let sel_row: Signal<Option<usize>> = sel_opt.unwrap_or_else(|| Signal::new(None));
         let wrap: NodeId = ctx.view(
             Style::empty()
                 .column()
@@ -325,14 +428,24 @@ impl Mountable for EuvDataTable {
                 .gap(SPACE_SM),
         );
         let search_box: NodeId =
-            EuvInput::new(filter, "Filter table rows...".to_string(), tokens).mount(ctx);
-        let sort_btn: NodeId = EuvButton::new("Toggle Sort (A-Z / Z-A)".to_string(), tokens)
+            EuvInput::new(filter, DATATABLE_FILTER_PLACEHOLDER.to_string(), tokens).mount(ctx);
+        let sort_btn: NodeId = EuvButton::new(DATATABLE_SORT_LABEL.to_string(), tokens)
             .outline()
             .sm()
             .on_click(move |_: &UiEvent| {
                 let _: bool = sort_asc.update(|v: &mut bool| *v = !*v);
             })
             .mount(ctx);
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(n) = tree.get_node_mut(sort_btn) {
+                    let mut st: Style = n.get_style();
+                    st.get_mut_layout().set_width(Length::Percent(100.0));
+                    n.set_style(st);
+                }
+            },
+            (),
+        );
         ctx.append(toolbar, search_box);
         ctx.append(toolbar, sort_btn);
         let body_host: NodeId = ctx.view(
@@ -370,18 +483,27 @@ impl Mountable for EuvDataTable {
                     .width(Length::Percent(100.0))
                     .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
                     .background(p.get_muted())
-                    .gap(SPACE_SM),
+                    .gap(SPACE_SM)
+                    .overflow(Overflow::Hidden),
             );
             for h in headers.iter() {
+                let cell_wrap: NodeId = bctx.view(
+                    Style::empty()
+                        .flex_grow(1.0)
+                        .min_width(Length::Px(0.0))
+                        .overflow(Overflow::Hidden),
+                );
                 let cell: NodeId = bctx.text(
                     h.clone(),
                     Style::empty()
-                        .flex_grow(1.0)
+                        .width(Length::Percent(100.0))
                         .font_size(12.0)
                         .font_weight(FontWeight::SemiBold)
-                        .color(p.get_muted_foreground()),
+                        .color(p.get_muted_foreground())
+                        .text_overflow(TextOverflow::Ellipsis),
                 );
-                bctx.append(head_row, cell);
+                bctx.append(cell_wrap, cell);
+                bctx.append(head_row, cell_wrap);
             }
             out.push(head_row);
             for (orig_idx, r) in filtered.into_iter() {
@@ -393,17 +515,26 @@ impl Mountable for EuvDataTable {
                         .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
                         .background(if is_sel { p.get_accent() } else { p.get_card() })
                         .gap(SPACE_SM)
+                        .overflow(Overflow::Hidden)
                         .cursor(CursorIcon::Pointer),
                 );
                 for cell_txt in r.into_iter() {
+                    let cell_wrap: NodeId = bctx.view(
+                        Style::empty()
+                            .flex_grow(1.0)
+                            .min_width(Length::Px(0.0))
+                            .overflow(Overflow::Hidden),
+                    );
                     let cell: NodeId = bctx.text(
                         cell_txt,
                         Style::empty()
-                            .flex_grow(1.0)
+                            .width(Length::Percent(100.0))
                             .font_size(13.0)
-                            .color(p.get_foreground()),
+                            .color(p.get_foreground())
+                            .text_overflow(TextOverflow::Ellipsis),
                     );
-                    bctx.append(row_node, cell);
+                    bctx.append(cell_wrap, cell);
+                    bctx.append(row_node, cell_wrap);
                 }
                 bctx.on_click(row_node, move |_: &UiEvent| {
                     let _: bool = sel_row.set_if_changed(Some(orig_idx));
@@ -494,9 +625,69 @@ impl Mountable for EuvDatePicker {
     }
 }
 
+/// Fluent addon builders for `EuvInputGroup`.
+impl EuvInputGroup {
+    /// Sets the leading prefix addon text fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source input group.
+    /// - `S` - Prefix text string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated input group.
+    #[must_use]
+    pub fn prefix<S>(mut self, prefix: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_prefix(prefix.into());
+        self
+    }
+
+    /// Sets the inner input placeholder text fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source input group.
+    /// - `S` - Placeholder text string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated input group.
+    #[must_use]
+    pub fn placeholder<S>(mut self, placeholder: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_placeholder(placeholder.into());
+        self
+    }
+
+    /// Sets the trailing suffix addon text fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source input group.
+    /// - `S` - Suffix text string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated input group.
+    #[must_use]
+    pub fn suffix<S>(mut self, suffix: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_suffix(suffix.into());
+        self
+    }
+}
+
 /// `Mountable` implementation for `EuvInputGroup`.
 impl Mountable for EuvInputGroup {
-    /// Mounts a unified prefix + input + suffix control group.
+    /// Mounts a unified prefix + borderless input + suffix control group with zero double borders.
     ///
     /// # Arguments
     ///
@@ -527,53 +718,116 @@ impl Mountable for EuvInputGroup {
                 .radius(g.get_radius_md())
                 .overflow(Overflow::Hidden),
         );
-        let pre: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .height(Length::Px(g.get_control_md()))
-                .padding(Edges::symmetric(0.0, SPACE_SM))
-                .align(AlignItems::Center)
-                .background(p.get_muted()),
-        );
-        let pre_txt: NodeId = ctx.text(
-            prefix,
-            Style::empty()
-                .font_size(12.0)
-                .color(p.get_muted_foreground()),
-        );
-        ctx.append(pre, pre_txt);
+        if !prefix.is_empty() {
+            let pre: NodeId = ctx.view(
+                Style::empty()
+                    .row()
+                    .height(Length::Px(g.get_control_md()))
+                    .padding(Edges::symmetric(0.0, SPACE_SM))
+                    .align(AlignItems::Center)
+                    .background(p.get_muted()),
+            );
+            let pre_txt: NodeId = ctx.text(
+                prefix,
+                Style::empty()
+                    .font_size(12.0)
+                    .color(p.get_muted_foreground()),
+            );
+            ctx.append(pre, pre_txt);
+            ctx.append(row, pre);
+        }
         let inp_wrap: NodeId = ctx.view(
             Style::empty()
                 .column()
                 .flex_grow(1.0)
                 .min_width(Length::Px(40.0)),
         );
-        let inp: NodeId = EuvInput::new(value, placeholder, tokens).mount(ctx);
+        let inp: NodeId = EuvInput::new(value, placeholder, tokens)
+            .borderless(true)
+            .mount(ctx);
         ctx.append(inp_wrap, inp);
-        let suf: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .height(Length::Px(g.get_control_md()))
-                .padding(Edges::symmetric(0.0, SPACE_SM))
-                .align(AlignItems::Center)
-                .background(p.get_muted()),
-        );
-        let suf_txt: NodeId = ctx.text(
-            suffix,
-            Style::empty()
-                .font_size(12.0)
-                .color(p.get_muted_foreground()),
-        );
-        ctx.append(suf, suf_txt);
-        ctx.append(row, pre);
         ctx.append(row, inp_wrap);
-        ctx.append(row, suf);
+        if !suffix.is_empty() {
+            let suf: NodeId = ctx.view(
+                Style::empty()
+                    .row()
+                    .height(Length::Px(g.get_control_md()))
+                    .padding(Edges::symmetric(0.0, SPACE_SM))
+                    .align(AlignItems::Center)
+                    .background(p.get_muted()),
+            );
+            let suf_txt: NodeId = ctx.text(
+                suffix,
+                Style::empty()
+                    .font_size(12.0)
+                    .color(p.get_muted_foreground()),
+            );
+            ctx.append(suf, suf_txt);
+            ctx.append(row, suf);
+        }
         row
     }
 }
 
 /// Builder helpers for `EuvItem`.
 impl EuvItem {
+    /// Sets the leading monogram or short tag fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source item.
+    /// - `S` - Leading text string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated item.
+    #[must_use]
+    pub fn leading<S>(mut self, leading: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_leading(leading.into());
+        self
+    }
+
+    /// Sets the secondary muted description line fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source item.
+    /// - `S` - Description string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated item.
+    #[must_use]
+    pub fn description<S>(mut self, description: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_description(description.into());
+        self
+    }
+
+    /// Sets the trailing metadata caption fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source item.
+    /// - `S` - Trailing label string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated item.
+    #[must_use]
+    pub fn trailing<S>(mut self, trailing: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_trailing(trailing.into());
+        self
+    }
+
     /// Attaches an interactive click handler to this item row.
     ///
     /// # Arguments
@@ -596,7 +850,7 @@ impl EuvItem {
 
 /// `Mountable` implementation for `EuvItem`.
 impl Mountable for EuvItem {
-    /// Mounts a structured shadcn Item row with leading monogram, title/description, and trailing badge.
+    /// Mounts a structured shadcn Item row with optional leading monogram, title/description, and trailing badge.
     ///
     /// # Arguments
     ///
@@ -627,52 +881,68 @@ impl Mountable for EuvItem {
                 .background(p.get_card())
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_md())
+                .overflow(Overflow::Hidden)
                 .cursor(CursorIcon::Pointer),
         );
-        let badge: NodeId = ctx.view(
+        if !leading.is_empty() {
+            let badge: NodeId = ctx.view(
+                Style::empty()
+                    .row()
+                    .width(Length::Px(32.0))
+                    .height(Length::Px(32.0))
+                    .justify(JustifyContent::Center)
+                    .align(AlignItems::Center)
+                    .background(p.get_secondary())
+                    .radius(g.get_radius_md()),
+            );
+            let badge_txt: NodeId = ctx.text(
+                leading,
+                Style::empty()
+                    .font_size(12.0)
+                    .font_weight(FontWeight::Bold)
+                    .color(p.get_secondary_foreground()),
+            );
+            ctx.append(badge, badge_txt);
+            ctx.append(row, badge);
+        }
+        let body: NodeId = ctx.view(
             Style::empty()
-                .row()
-                .width(Length::Px(32.0))
-                .height(Length::Px(32.0))
-                .justify(JustifyContent::Center)
-                .align(AlignItems::Center)
-                .background(p.get_secondary())
-                .radius(g.get_radius_md()),
+                .column()
+                .flex_grow(1.0)
+                .min_width(Length::Px(0.0))
+                .gap(2.0)
+                .overflow(Overflow::Hidden),
         );
-        let badge_txt: NodeId = ctx.text(
-            leading,
-            Style::empty()
-                .font_size(12.0)
-                .font_weight(FontWeight::Bold)
-                .color(p.get_secondary_foreground()),
-        );
-        ctx.append(badge, badge_txt);
-        let body: NodeId = ctx.view(Style::empty().column().flex_grow(1.0).gap(2.0));
         let t_node: NodeId = ctx.text(
             title,
             Style::empty()
+                .width(Length::Percent(100.0))
                 .font_size(13.0)
                 .font_weight(FontWeight::SemiBold)
                 .color(p.get_foreground()),
         );
-        let d_node: NodeId = ctx.text(
-            description,
-            Style::empty()
-                .font_size(12.0)
-                .color(p.get_muted_foreground()),
-        );
         ctx.append(body, t_node);
-        ctx.append(body, d_node);
-        let trail: NodeId = ctx.text(
-            trailing,
-            Style::empty()
-                .font_size(12.0)
-                .font_weight(FontWeight::Medium)
-                .color(p.get_muted_foreground()),
-        );
-        ctx.append(row, badge);
+        if !description.is_empty() {
+            let d_node: NodeId = ctx.text(
+                description,
+                Style::empty()
+                    .width(Length::Percent(100.0))
+                    .font_size(12.0)
+                    .color(p.get_muted_foreground()),
+            );
+            ctx.append(body, d_node);
+        }
         ctx.append(row, body);
-        ctx.append(row, trail);
+        if !trailing.is_empty() {
+            let trail: NodeId = ctx.text(
+                trailing,
+                Style::empty()
+                    .font_size(12.0)
+                    .font_weight(FontWeight::Medium)
+                    .color(p.get_muted_foreground()),
+            );
+            ctx.append(row, trail);
+        }
         if let Some(cb) = on_click {
             ctx.on_click(row, move |ev: &UiEvent| {
                 if let Ok(mut f) = cb.try_borrow_mut() {
@@ -1039,12 +1309,20 @@ impl Mountable for EuvSonner {
                         .background(p.get_card())
                         .border(g.get_border_width(), p.get_border())
                         .radius(g.get_radius_md())
-                        .shadow(Shadow::new(0.0, 4.0, 12.0, 0.0, Color::rgba(0, 0, 0, 24))),
+                        .shadow(g.get_shadow_md())
+                        .overflow(Overflow::Hidden),
                 );
-                let col: NodeId = bctx.view(Style::empty().column().flex_grow(1.0).gap(2.0));
+                let col: NodeId = bctx.view(
+                    Style::empty()
+                        .column()
+                        .flex_grow(1.0)
+                        .gap(2.0)
+                        .overflow(Overflow::Hidden),
+                );
                 let t: NodeId = bctx.text(
                     title,
                     Style::empty()
+                        .width(Length::Percent(100.0))
                         .font_size(13.0)
                         .font_weight(FontWeight::SemiBold)
                         .color(p.get_card_foreground()),
@@ -1052,6 +1330,7 @@ impl Mountable for EuvSonner {
                 let d: NodeId = bctx.text(
                     desc,
                     Style::empty()
+                        .width(Length::Percent(100.0))
                         .font_size(12.0)
                         .color(p.get_muted_foreground()),
                 );
@@ -1102,6 +1381,668 @@ impl Mountable for EuvDirection {
                 .align(align),
         );
         ctx.append(wrap, self.get_child());
+        wrap
+    }
+}
+
+/// `Mountable` implementation for `EuvTrace`.
+impl Mountable for EuvTrace {
+    /// Mounts a shadcn execution waterfall trace card with proportional timing bars.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Trace props.
+    /// - `&mut BuildContext` - Active build context.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted trace container handle.
+    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+        let p: ThemePalette = self.get_tokens().get_palette();
+        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let Self { title, spans, .. } = self;
+        let card: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .padding(Edges::all(SPACE_MD))
+                .gap(SPACE_SM)
+                .background(p.get_card())
+                .border(g.get_border_width(), p.get_border())
+                .radius(g.get_radius_md()),
+        );
+        let head: NodeId = ctx.text(
+            title,
+            Style::empty()
+                .font_size(13.5)
+                .font_weight(FontWeight::SemiBold)
+                .color(p.get_foreground()),
+        );
+        ctx.append(card, head);
+        for span in spans.into_iter() {
+            let (bar_bg, _): (Color, Color) = span.get_tone().colors(p);
+            let row: NodeId = ctx.view(
+                Style::empty()
+                    .column()
+                    .width(Length::Percent(100.0))
+                    .gap(4.0),
+            );
+            let meta: NodeId = ctx.view(
+                Style::empty()
+                    .row()
+                    .width(Length::Percent(100.0))
+                    .justify(JustifyContent::SpaceBetween)
+                    .align(AlignItems::Center),
+            );
+            let name_txt: NodeId = ctx.text(
+                span.get_name().clone(),
+                Style::empty()
+                    .font_size(12.0)
+                    .font_weight(FontWeight::Medium)
+                    .color(p.get_foreground()),
+            );
+            let dur_txt: NodeId = ctx.text(
+                format!("{:.2}ms", span.get_duration_ms()),
+                Style::empty()
+                    .font_size(11.5)
+                    .color(p.get_muted_foreground()),
+            );
+            ctx.append(meta, name_txt);
+            ctx.append(meta, dur_txt);
+            let track: NodeId = ctx.view(
+                Style::empty()
+                    .row()
+                    .width(Length::Percent(100.0))
+                    .height(Length::Px(8.0))
+                    .background(p.get_muted())
+                    .radius(4.0)
+                    .overflow(Overflow::Hidden),
+            );
+            let left_pct: f32 = (span.get_offset_frac().clamp(0.0, 0.9)) * 100.0;
+            let bar_pct: f32 = (span
+                .get_width_frac()
+                .clamp(0.05, 1.0 - span.get_offset_frac()))
+                * 100.0;
+            if left_pct > 0.5 {
+                let spacer: NodeId = ctx.view(
+                    Style::empty()
+                        .width(Length::Percent(left_pct))
+                        .height(Length::Percent(100.0)),
+                );
+                ctx.append(track, spacer);
+            }
+            let bar: NodeId = ctx.view(
+                Style::empty()
+                    .width(Length::Percent(bar_pct))
+                    .height(Length::Percent(100.0))
+                    .background(bar_bg)
+                    .radius(4.0),
+            );
+            ctx.append(track, bar);
+            ctx.append(row, meta);
+            ctx.append(row, track);
+            ctx.append(card, row);
+        }
+        card
+    }
+}
+
+/// `Mountable` implementation for `EuvAttachment`.
+impl Mountable for EuvAttachment {
+    /// Mounts a dismissible shadcn attachment chip with file metadata.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Attachment props.
+    /// - `&mut BuildContext` - Active build context.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted attachment chip handle.
+    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let visible: Signal<bool> = self.get_visible();
+        let Self { filename, meta, .. } = self;
+        let host: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .width(Length::Percent(100.0))
+                .justify(JustifyContent::SpaceBetween)
+                .align(AlignItems::Center)
+                .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+                .gap(SPACE_SM)
+                .background(p.get_muted())
+                .border(g.get_border_width(), p.get_border())
+                .radius(g.get_radius_md()),
+        );
+        let info: NodeId = ctx.view(Style::empty().column().flex_grow(1.0).gap(2.0));
+        let name_n: NodeId = ctx.text(
+            filename,
+            Style::empty()
+                .font_size(13.0)
+                .font_weight(FontWeight::Medium)
+                .color(p.get_foreground()),
+        );
+        let meta_n: NodeId = ctx.text(
+            meta,
+            Style::empty()
+                .font_size(11.5)
+                .color(p.get_muted_foreground()),
+        );
+        ctx.append(info, name_n);
+        ctx.append(info, meta_n);
+        let rm_btn: NodeId = EuvButton::new("Remove".to_string(), tokens)
+            .outline()
+            .sm()
+            .on_click(move |_: &UiEvent| {
+                let _: bool = visible.set_if_changed(false);
+            })
+            .mount(ctx);
+        ctx.append(host, info);
+        ctx.append(host, rm_btn);
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let show: bool = visible.get();
+                handle.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(node) = tree.get_node_mut(host) {
+                            let mut st: Style = node.get_style();
+                            st.get_mut_layout().set_display(if show {
+                                Display::Flex
+                            } else {
+                                Display::None
+                            });
+                            node.set_style(st);
+                        }
+                        tree.mark_dirty(host, DIRTY_LAYOUT | DIRTY_PAINT);
+                    },
+                    (),
+                );
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(host, scope);
+            },
+            (),
+        );
+        host
+    }
+}
+
+/// Fluent metadata and alignment builders for `EuvBubble`.
+impl EuvBubble {
+    /// Sets the message timestamp caption fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source bubble.
+    /// - `S` - Timestamp caption string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated bubble.
+    #[must_use]
+    pub fn timestamp<S>(mut self, timestamp: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_timestamp(timestamp.into());
+        self
+    }
+
+    /// Marks the bubble as outgoing (right-aligned primary surface) or incoming fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source bubble.
+    /// - `bool` - Whether this bubble represents an outgoing message.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated bubble.
+    #[must_use]
+    pub fn outgoing(mut self, outgoing: bool) -> Self {
+        self.set_outgoing(outgoing);
+        self
+    }
+}
+
+/// `Mountable` implementation for `EuvBubble`.
+impl Mountable for EuvBubble {
+    /// Mounts a shadcn chat/message bubble with role-aligned surface styling.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Bubble props.
+    /// - `&mut BuildContext` - Active build context.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted message bubble row handle.
+    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+        let p: ThemePalette = self.get_tokens().get_palette();
+        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let outgoing: bool = self.get_outgoing();
+        let Self {
+            author,
+            content,
+            timestamp,
+            ..
+        } = self;
+        let row: NodeId = ctx.view(Style::empty().row().width(Length::Percent(100.0)).justify(
+            if outgoing {
+                JustifyContent::End
+            } else {
+                JustifyContent::Start
+            },
+        ));
+        let card: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .max_width(Length::Percent(86.0))
+                .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+                .gap(4.0)
+                .background(if outgoing {
+                    p.get_primary()
+                } else {
+                    p.get_muted()
+                })
+                .border(
+                    if outgoing { 0.0 } else { g.get_border_width() },
+                    p.get_border(),
+                )
+                .radius(g.get_radius_lg()),
+        );
+        let fg: Color = if outgoing {
+            p.get_primary_foreground()
+        } else {
+            p.get_foreground()
+        };
+        let meta_fg: Color = if outgoing {
+            p.get_primary_foreground().multiply_alpha(0.75)
+        } else {
+            p.get_muted_foreground()
+        };
+        let header_line: String = if timestamp.is_empty() {
+            author
+        } else {
+            format!("{author} · {timestamp}")
+        };
+        let head: NodeId = ctx.text(
+            header_line,
+            Style::empty()
+                .font_size(11.0)
+                .font_weight(FontWeight::SemiBold)
+                .color(meta_fg),
+        );
+        let body: NodeId = ctx.text(content, Style::empty().font_size(13.0).color(fg));
+        ctx.append(card, head);
+        ctx.append(card, body);
+        ctx.append(row, card);
+        row
+    }
+}
+
+/// `Mountable` implementation for `EuvMarker`.
+impl Mountable for EuvMarker {
+    /// Mounts a compact numbered status marker pill.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Marker props.
+    /// - `&mut BuildContext` - Active build context.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted marker row handle.
+    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+        let p: ThemePalette = self.get_tokens().get_palette();
+        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let (dot_bg, dot_fg): (Color, Color) = self.get_tone().colors(p);
+        let Self { code, label, .. } = self;
+        let wrap: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .align(AlignItems::Center)
+                .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
+                .gap(SPACE_XS)
+                .background(p.get_card())
+                .border(g.get_border_width(), p.get_border())
+                .radius(999.0),
+        );
+        let circle: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .width(Length::Px(20.0))
+                .height(Length::Px(20.0))
+                .justify(JustifyContent::Center)
+                .align(AlignItems::Center)
+                .background(dot_bg)
+                .radius(10.0),
+        );
+        let code_txt: NodeId = ctx.text(
+            code,
+            Style::empty()
+                .font_size(10.5)
+                .font_weight(FontWeight::Bold)
+                .color(dot_fg),
+        );
+        let lbl_txt: NodeId = ctx.text(
+            label,
+            Style::empty()
+                .font_size(12.0)
+                .font_weight(FontWeight::Medium)
+                .color(p.get_foreground()),
+        );
+        ctx.append(circle, code_txt);
+        ctx.append(wrap, circle);
+        ctx.append(wrap, lbl_txt);
+        wrap
+    }
+}
+
+/// `Mountable` implementation for `EuvQuestionnaire`.
+impl Mountable for EuvQuestionnaire {
+    /// Mounts an interactive single-choice shadcn questionnaire card.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Questionnaire props.
+    /// - `&mut BuildContext` - Active build context.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted questionnaire card handle.
+    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+        let p: ThemePalette = self.get_tokens().get_palette();
+        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let selected: Signal<Option<usize>> = self.get_selected();
+        let Self {
+            prompt, options, ..
+        } = self;
+        let card: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .padding(Edges::all(SPACE_MD))
+                .gap(SPACE_SM)
+                .background(p.get_card())
+                .border(g.get_border_width(), p.get_border())
+                .radius(g.get_radius_md()),
+        );
+        let q_txt: NodeId = ctx.text(
+            prompt,
+            Style::empty()
+                .font_size(13.5)
+                .font_weight(FontWeight::SemiBold)
+                .color(p.get_foreground()),
+        );
+        ctx.append(card, q_txt);
+        for (idx, opt) in options.into_iter().enumerate() {
+            let item: NodeId = ctx.view(Style::empty());
+            let txt: NodeId = ctx.text(
+                opt,
+                Style::empty()
+                    .font_size(13.0)
+                    .font_weight(FontWeight::Medium)
+                    .color(p.get_foreground()),
+            );
+            ctx.append(item, txt);
+            let handle: SceneHandle = ctx.get_scene().clone();
+            let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                handle.bind_style(item, move || {
+                    let is_sel: bool = selected.get() == Some(idx);
+                    Style::empty()
+                        .row()
+                        .width(Length::Percent(100.0))
+                        .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+                        .align(AlignItems::Center)
+                        .background(if is_sel {
+                            p.get_accent()
+                        } else {
+                            p.get_background()
+                        })
+                        .border(
+                            g.get_border_width(),
+                            if is_sel {
+                                p.get_primary()
+                            } else {
+                                p.get_border()
+                            },
+                        )
+                        .radius(g.get_radius_sm())
+                        .cursor(CursorIcon::Pointer)
+                })
+            });
+            ctx.get_scene().with_write(
+                |tree: &mut SceneTree| {
+                    tree.attach_scope(item, scope);
+                },
+                (),
+            );
+            ctx.on_click(item, move |_: &UiEvent| {
+                let _: bool = selected.set_if_changed(Some(idx));
+            });
+            ctx.append(card, item);
+        }
+        card
+    }
+}
+
+/// Fluent controlled-state builders for `EuvContextMenu`.
+impl EuvContextMenu {
+    /// Binds a controlled menu open state signal fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source context menu.
+    /// - `Signal<bool>` - Controlled open flag signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated context menu.
+    #[must_use]
+    pub fn open(mut self, open: Signal<bool>) -> Self {
+        self.set_open(Some(open));
+        self
+    }
+
+    /// Binds a controlled selected action index signal fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source context menu.
+    /// - `Signal<Option<usize>>` - Controlled selected item index signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated context menu.
+    #[must_use]
+    pub fn selected(mut self, selected: Signal<Option<usize>>) -> Self {
+        self.set_selected(Some(selected));
+        self
+    }
+}
+
+/// `Mountable` implementation for `EuvContextMenu`.
+impl Mountable for EuvContextMenu {
+    /// Mounts the dashed context trigger zone and floating action menu registered in `EuvOverlayStack`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Context menu props.
+    /// - `&mut BuildContext` - Active build context.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted context menu wrapper handle.
+    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let gesture_sig: Signal<Option<GestureEvent>> = ctx.get_gesture();
+        let Self {
+            trigger_label,
+            items,
+            open: open_opt,
+            selected: sel_opt,
+            ..
+        } = self;
+        let open: Signal<bool> = open_opt.unwrap_or_else(|| Signal::new(false));
+        let selected: Signal<Option<usize>> = sel_opt.unwrap_or_else(|| Signal::new(None));
+        let wrap: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .gap(SPACE_XS),
+        );
+        let trigger: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .padding(Edges::symmetric(SPACE_MD, SPACE_LG))
+                .justify(JustifyContent::Center)
+                .align(AlignItems::Center)
+                .gap(SPACE_XS)
+                .background(p.get_muted())
+                .border(g.get_border_width(), p.get_border())
+                .radius(g.get_radius_md())
+                .cursor(CursorIcon::Pointer),
+        );
+        ctx.set_a11y(
+            trigger,
+            A11yProps::new(A11yRole::Button, trigger_label.clone()),
+        );
+        let trig_title: NodeId = ctx.text(
+            trigger_label,
+            Style::empty()
+                .font_size(13.0)
+                .font_weight(FontWeight::SemiBold)
+                .color(p.get_foreground())
+                .text_align(TextAlign::Center),
+        );
+        let trig_hint: NodeId = ctx.text(
+            CONTEXT_MENU_HINT_LABEL.to_string(),
+            Style::empty()
+                .font_size(11.5)
+                .color(p.get_muted_foreground())
+                .text_align(TextAlign::Center),
+        );
+        ctx.append(trigger, trig_title);
+        ctx.append(trigger, trig_hint);
+        ctx.on_click(trigger, move |_: &UiEvent| {
+            let _: bool = open.update(|v: &mut bool| *v = !*v);
+        });
+        let init_open: bool = open.get_untracked();
+        let menu: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .display(if init_open {
+                    Display::Flex
+                } else {
+                    Display::None
+                })
+                .width(Length::Percent(100.0))
+                .max_width(Length::Px(260.0))
+                .padding(Edges::all(SPACE_XS))
+                .gap(2.0)
+                .background(p.get_card())
+                .border(g.get_border_width(), p.get_border())
+                .radius(g.get_radius_md())
+                .shadow(g.get_shadow_md())
+                .z_index(Z_INDEX_FLOATING),
+        );
+        ctx.set_a11y(menu, A11yProps::new(A11yRole::Menu, String::new()));
+        for (idx, item_label) in items.into_iter().enumerate() {
+            let row: NodeId = ctx.view(
+                Style::empty()
+                    .row()
+                    .width(Length::Percent(100.0))
+                    .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+                    .radius(g.get_radius_sm())
+                    .cursor(CursorIcon::Pointer),
+            );
+            ctx.set_a11y(row, A11yProps::new(A11yRole::MenuItem, item_label.clone()));
+            let txt: NodeId = ctx.text(
+                item_label,
+                Style::empty().font_size(13.0).color(p.get_foreground()),
+            );
+            ctx.append(row, txt);
+            ctx.on_click(row, move |_: &UiEvent| {
+                let _: bool = selected.set_if_changed(Some(idx));
+                let _: bool = open.set_if_changed(false);
+            });
+            ctx.append(menu, row);
+        }
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
+        let last_seq: Rc<Cell<u64>> = Rc::new(Cell::new(
+            gesture_sig
+                .get_untracked()
+                .map(|ev: GestureEvent| ev.get_sequence())
+                .unwrap_or(0),
+        ));
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect =
+                EuvOverlayStack::bind_signal(open, "EuvContextMenu", Z_INDEX_DRAWER - 10);
+            let _: Effect = Effect::new(move || {
+                if let Some(ev) = gesture_sig.get()
+                    && ev.get_sequence() != last_seq.replace(ev.get_sequence())
+                    && ev.get_kind() == GestureEventKind::LongPress
+                    && let Some(bounds) = handle.node_screen_bounds(trigger)
+                {
+                    let pos: Point = ev.get_position();
+                    if pos.get_x() >= bounds.get_x()
+                        && pos.get_x() <= bounds.right()
+                        && pos.get_y() >= bounds.get_y()
+                        && pos.get_y() <= bounds.bottom()
+                    {
+                        let _: bool = open.set_if_changed(true);
+                    }
+                }
+            });
+            let handle_anim: SceneHandle = ctx.get_scene().clone();
+            Effect::new(move || {
+                let is_open: bool = open.get();
+                let was_open: bool = prev_open.replace(is_open);
+                if is_open == was_open {
+                    return;
+                }
+                if is_open {
+                    handle_anim.start_transition(NodeTransition::slide_fade(
+                        menu,
+                        Point::new(0.0, -6.0),
+                        Point::new(0.0, 0.0),
+                        0.0,
+                        1.0,
+                        0.16,
+                        false,
+                    ));
+                } else {
+                    handle_anim.start_transition(NodeTransition::slide_fade(
+                        menu,
+                        Point::new(0.0, 0.0),
+                        Point::new(0.0, -4.0),
+                        1.0,
+                        0.0,
+                        0.14,
+                        true,
+                    ));
+                }
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(menu, scope);
+            },
+            (),
+        );
+        ctx.append(wrap, trigger);
+        ctx.append(wrap, menu);
         wrap
     }
 }

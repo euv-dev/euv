@@ -21,6 +21,7 @@ path = "src/main.rs"
 
 [dependencies]
 euv-core = { workspace = true }
+euv-docs = { workspace = true }
 
 clap = { workspace = true }
 serde = { workspace = true }

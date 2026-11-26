@@ -1,10 +1,12 @@
+mod animation;
 mod bvh;
 mod math;
 mod mesh;
+mod physics;
 mod quality;
 mod renderer;
 mod world;
 
-pub use {bvh::*, math::*, mesh::*, quality::*, renderer::*, world::*};
+pub use {animation::*, bvh::*, math::*, mesh::*, physics::*, quality::*, renderer::*, world::*};
 
 use super::*;

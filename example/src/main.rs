@@ -7,7 +7,7 @@ use std::{
 };
 
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
-use euv_automation::{AiSchemaProtocol, DEV_AI_INSPECTOR_ADDR, DevAutomationBridge};
+use euv_automation::{AiAppHooks, AiSchemaProtocol, DEV_AI_INSPECTOR_ADDR, DevAutomationBridge};
 #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
 use euv_example::{FLAG_AI_QUERY, FLAG_AI_SCHEMA};
 #[cfg(not(target_arch = "wasm32"))]
@@ -35,9 +35,13 @@ fn main() {
     }
     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
     if args.iter().any(|arg: &String| arg == FLAG_AI_SCHEMA) {
-        if let Ok((mut app, _)) = create_showcase_app(true, RenderMode::Software) {
+        if let Ok((mut app, state)) = create_showcase_app(true, RenderMode::Software) {
             drop(app.step_frame());
-            println!("{}", AiSchemaProtocol::snapshot_pretty_json(&app));
+            let hooks: AiAppHooks = state.build_ai_hooks();
+            println!(
+                "{}",
+                AiSchemaProtocol::snapshot_pretty_json_with_hooks(&app, Some(&hooks))
+            );
         }
         return;
     }
@@ -45,9 +49,13 @@ fn main() {
     if let Some(pos) = args.iter().position(|arg: &String| arg == FLAG_AI_QUERY)
         && let Some(query_json) = args.get(pos + 1)
     {
-        if let Ok((mut app, _)) = create_showcase_app(true, RenderMode::Software) {
+        if let Ok((mut app, state)) = create_showcase_app(true, RenderMode::Software) {
             drop(app.step_frame());
-            println!("{}", AiSchemaProtocol::handle_json(&mut app, query_json));
+            let hooks: AiAppHooks = state.build_ai_hooks();
+            println!(
+                "{}",
+                AiSchemaProtocol::handle_json_with_hooks(&mut app, query_json, Some(&hooks))
+            );
         }
         return;
     }
@@ -77,10 +85,10 @@ fn main() {
                 if interactive {
                     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
                     let mut dev_bridge: DevAutomationBridge =
-                        DevAutomationBridge::start(DEV_AI_INSPECTOR_ADDR);
+                        DevAutomationBridge::start(DEV_AI_INSPECTOR_ADDR)
+                            .with_hooks(state.build_ai_hooks());
                     let mut last_stats: FrameStats = FrameStats::default();
                     let mut prev_tick: Instant = Instant::now();
-                    let frame_budget: Duration = Duration::from_micros(8333);
                     while app.get_running() {
                         let frame_start: Instant = Instant::now();
                         let dt: f32 = frame_start
@@ -106,14 +114,19 @@ fn main() {
                         let elapsed: Duration = frame_start.elapsed();
                         let active_anim: bool = app.has_active_animations();
                         let busy_game_or_anim: bool = on_game_route || active_anim;
-                        let target: Duration =
+                        let cap_budget: Option<Duration> = app.fps_limit().map(|fps: u32| {
+                            Duration::from_micros(1_000_000 / u64::from(fps.max(1)))
+                        });
+                        let target: Option<Duration> =
                             if busy_game_or_anim || last_stats.get_pixels_shaded() > 0 {
-                                frame_budget
+                                cap_budget
                             } else {
-                                Duration::from_millis(8)
+                                Some(cap_budget.unwrap_or(Duration::from_millis(8)))
                             };
-                        if elapsed < target {
-                            sleep(target - elapsed);
+                        if let Some(budget) = target
+                            && elapsed < budget
+                        {
+                            sleep(budget - elapsed);
                         }
                     }
                     print_stats(&last_stats);

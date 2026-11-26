@@ -601,9 +601,9 @@ impl DynamicUpdateHub {
             component_signals: HashMap::new(),
             pages: HashMap::new(),
             page_signals: HashMap::new(),
-            routes_signal: Signal::new(0),
-            telemetry_signal: Signal::new(DynamicTelemetry::default()),
-            last_action: Signal::new(None),
+            routes_signal: Signal::new_detached(0),
+            telemetry_signal: Signal::new_detached(DynamicTelemetry::default()),
+            last_action: Signal::new_detached(None),
             action_handlers: Vec::new(),
         };
         Self {
@@ -669,7 +669,7 @@ impl DynamicUpdateHub {
             let sig: Signal<u64> = *state
                 .component_signals
                 .entry(id)
-                .or_insert_with(|| Signal::new(0));
+                .or_insert_with(|| Signal::new_detached(0));
             let mut tel: DynamicTelemetry = state.telemetry_signal.get_untracked();
             tel.set_components_applied(tel.get_components_applied().saturating_add(1));
             Ok((sig, state.telemetry_signal, tel))
@@ -768,7 +768,7 @@ impl DynamicUpdateHub {
             let sig: Signal<u64> = *state
                 .component_signals
                 .entry(trimmed)
-                .or_insert_with(|| Signal::new(0));
+                .or_insert_with(|| Signal::new_detached(0));
             let mut tel: DynamicTelemetry = state.telemetry_signal.get_untracked();
             tel.set_components_applied(tel.get_components_applied().saturating_add(1));
             Ok((sig, state.telemetry_signal, tel))
@@ -821,7 +821,7 @@ impl DynamicUpdateHub {
             let sig: Signal<u64> = *state
                 .component_signals
                 .entry(key)
-                .or_insert_with(|| Signal::new(0));
+                .or_insert_with(|| Signal::new_detached(0));
             let mut tel: DynamicTelemetry = state.telemetry_signal.get_untracked();
             tel.set_rollbacks(tel.get_rollbacks().saturating_add(1));
             Ok((next_ver, sig, state.telemetry_signal, tel))
@@ -897,7 +897,7 @@ impl DynamicUpdateHub {
                 let page_sig: Signal<u64> = *state
                     .page_signals
                     .entry(route)
-                    .or_insert_with(|| Signal::new(0));
+                    .or_insert_with(|| Signal::new_detached(0));
                 let mut tel: DynamicTelemetry = state.telemetry_signal.get_untracked();
                 tel.set_pages_applied(tel.get_pages_applied().saturating_add(1));
                 Ok((
@@ -1010,7 +1010,7 @@ impl DynamicUpdateHub {
                 let page_sig: Signal<u64> = *state
                     .page_signals
                     .entry(normalized)
-                    .or_insert_with(|| Signal::new(0));
+                    .or_insert_with(|| Signal::new_detached(0));
                 let mut tel: DynamicTelemetry = state.telemetry_signal.get_untracked();
                 tel.set_pages_applied(tel.get_pages_applied().saturating_add(1));
                 Ok((
@@ -1071,7 +1071,7 @@ impl DynamicUpdateHub {
                 let page_sig: Signal<u64> = *state
                     .page_signals
                     .entry(normalized)
-                    .or_insert_with(|| Signal::new(0));
+                    .or_insert_with(|| Signal::new_detached(0));
                 let mut tel: DynamicTelemetry = state.telemetry_signal.get_untracked();
                 tel.set_rollbacks(tel.get_rollbacks().saturating_add(1));
                 Ok((
@@ -1191,7 +1191,7 @@ impl DynamicUpdateHub {
                     let sig: Signal<u64> = *state
                         .component_signals
                         .entry(id)
-                        .or_insert_with(|| Signal::new(0));
+                        .or_insert_with(|| Signal::new_detached(0));
                     dirty_signals.push(sig);
                     tel.set_components_applied(tel.get_components_applied().saturating_add(1));
                 }
@@ -1217,7 +1217,7 @@ impl DynamicUpdateHub {
                     let sig: Signal<u64> = *state
                         .page_signals
                         .entry(route)
-                        .or_insert_with(|| Signal::new(0));
+                        .or_insert_with(|| Signal::new_detached(0));
                     dirty_signals.push(sig);
                     tel.set_pages_applied(tel.get_pages_applied().saturating_add(1));
                 }
@@ -1336,7 +1336,7 @@ impl DynamicUpdateHub {
             *state
                 .component_signals
                 .entry(key)
-                .or_insert_with(|| Signal::new(0))
+                .or_insert_with(|| Signal::new_detached(0))
         })
     }
 
@@ -1357,7 +1357,7 @@ impl DynamicUpdateHub {
             *state
                 .page_signals
                 .entry(key)
-                .or_insert_with(|| Signal::new(0))
+                .or_insert_with(|| Signal::new_detached(0))
         })
     }
 
@@ -1504,7 +1504,7 @@ impl DynamicUpdateHub {
         inner
             .try_borrow()
             .map(|state: Ref<'_, DynamicHubState>| state.routes_signal)
-            .unwrap_or_else(|_| Signal::new(0))
+            .unwrap_or_else(|_| Signal::new_detached(0))
     }
 
     /// Returns the reactive telemetry snapshot signal.
@@ -1522,7 +1522,7 @@ impl DynamicUpdateHub {
         inner
             .try_borrow()
             .map(|state: Ref<'_, DynamicHubState>| state.telemetry_signal)
-            .unwrap_or_else(|_| Signal::new(DynamicTelemetry::default()))
+            .unwrap_or_else(|_| Signal::new_detached(DynamicTelemetry::default()))
     }
 
     /// Returns the reactive signal storing the most recently dispatched `DynamicActionEvent`.
@@ -1540,7 +1540,7 @@ impl DynamicUpdateHub {
         inner
             .try_borrow()
             .map(|state: Ref<'_, DynamicHubState>| state.last_action)
-            .unwrap_or_else(|_| Signal::new(None))
+            .unwrap_or_else(|_| Signal::new_detached(None))
     }
 
     /// Mounts the active dynamic payload for component slot `id`, or executes `fallback` if none is active.
@@ -1656,9 +1656,9 @@ impl DynamicUpdateHub {
             component_signals: HashMap::new(),
             pages: HashMap::new(),
             page_signals: HashMap::new(),
-            routes_signal: Signal::new(0),
-            telemetry_signal: Signal::new(DynamicTelemetry::default()),
-            last_action: Signal::new(None),
+            routes_signal: Signal::new_detached(0),
+            telemetry_signal: Signal::new_detached(DynamicTelemetry::default()),
+            last_action: Signal::new_detached(None),
             action_handlers: Vec::new(),
         };
         operation(&mut fallback)
@@ -1690,9 +1690,39 @@ impl Mountable for DynamicComponentSlot {
             host_style
         };
         let host: NodeId = ctx.view(effective_style);
+        let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
         ctx.bind_children(host, move || {
             let _: u64 = rev_sig.get();
-            vec![active_hub.mount_component_or_fallback(&id, &fallback)]
+            let mounted: NodeId = active_hub.mount_component_or_fallback(&id, &fallback);
+            if id == WASM_GLOBAL_ROOT_SLOT && active_hub.component_version(&id) > 0 {
+                let safe: SafeAreaInsets = safe_sig.get();
+                let mut sctx: BuildContext = current_build_context();
+                let scroller: NodeId = sctx.scroll_view(
+                    Style::empty()
+                        .column()
+                        .width(Length::Percent(100.0))
+                        .height(Length::Percent(100.0))
+                        .align(AlignItems::Center)
+                        .background(Color::hex(0xF8FAFC))
+                        .padding(Edges::new(
+                            safe.get_top() + 16.0,
+                            safe.get_right() + 16.0,
+                            safe.get_bottom() + 24.0,
+                            safe.get_left() + 16.0,
+                        )),
+                );
+                let container: NodeId = sctx.view(
+                    Style::empty()
+                        .column()
+                        .width(Length::Percent(100.0))
+                        .max_width(Length::Px(1040.0)),
+                );
+                sctx.append(container, mounted);
+                sctx.append(scroller, container);
+                vec![scroller]
+            } else {
+                vec![mounted]
+            }
         });
         host
     }

@@ -471,6 +471,41 @@ impl LayoutEngine {
                     }
                 }
             }
+            if !wrap_enabled {
+                for item in line.iter_mut() {
+                    let auto_cross: bool = item.2.get_flex_grow() > 0.0
+                        && if is_row {
+                            item.2.get_height() == Length::Auto
+                        } else {
+                            item.2.get_width() == Length::Auto
+                        };
+                    if auto_cross {
+                        let probe_w: f32 = if is_row {
+                            item.1.get_width()
+                        } else {
+                            cross_avail
+                        };
+                        let probe_h: f32 = if is_row {
+                            cross_avail
+                        } else {
+                            item.1.get_height()
+                        };
+                        let probe_sp: AvailableSpace = AvailableSpace::new(
+                            probe_w,
+                            probe_h,
+                            viewport,
+                            content_origin.get_x(),
+                            content_origin.get_y(),
+                        );
+                        let measured: Size = self.layout_node(tree, item.0, probe_sp, stats);
+                        if is_row {
+                            item.1.set_height(measured.get_height());
+                        } else {
+                            item.1.set_width(measured.get_width());
+                        }
+                    }
+                }
+            }
             let final_used_main: f32 =
                 line.iter()
                     .fold(0.0_f32, |acc: f32, item: &(NodeId, Size, LayoutStyle)| {
@@ -581,12 +616,16 @@ impl LayoutEngine {
                         content_origin.get_y() + main_cursor + margin.get_top(),
                     )
                 };
-                let space_w: f32 = if auto_cross_grow && !is_row {
+                let space_w: f32 = if matches!(child_layout.get_width(), Length::Percent(_)) {
+                    inner_avail.get_width()
+                } else if auto_cross_grow && !is_row {
                     cross_avail
                 } else {
                     target_w
                 };
-                let space_h: f32 = if auto_cross_grow && is_row {
+                let space_h: f32 = if matches!(child_layout.get_height(), Length::Percent(_)) {
+                    inner_avail.get_height()
+                } else if auto_cross_grow && is_row {
                     cross_avail
                 } else {
                     target_h

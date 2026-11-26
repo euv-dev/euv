@@ -144,7 +144,7 @@ impl SoftwareRenderer {
                 shadow,
             } => {
                 let spread: f32 = shadow.get_spread_radius() * scale;
-                let blur: f32 = shadow.get_blur_radius().max(1.0) * scale;
+                let blur: f32 = (shadow.get_blur_radius().max(1.0) * scale).min(24.0);
                 let phys_rect: Rect = Self::scale_rect(*rect, scale);
                 let shadow_rect: Rect = Rect::new(
                     phys_rect.get_x() + shadow.get_offset_x() * scale - spread - blur,
@@ -536,7 +536,18 @@ impl SoftwareRenderer {
             let ny: f32 = ((y as f32) - rect.get_y()) * inv_h;
             for x in x0..x1 {
                 let px: f32 = (x as f32) + 0.5 - cx;
-                let dist: f32 = rounded_box_sdf(px, py, half_w, half_h, radius.max_radius());
+                let corner_r: f32 = if px < 0.0 {
+                    if py < 0.0 {
+                        radius.get_top_left()
+                    } else {
+                        radius.get_bottom_left()
+                    }
+                } else if py < 0.0 {
+                    radius.get_top_right()
+                } else {
+                    radius.get_bottom_right()
+                };
+                let dist: f32 = rounded_box_sdf(px, py, half_w, half_h, corner_r);
                 let cov: f32 = sdf_coverage(dist, aa);
                 if cov <= 0.0 {
                     continue;
@@ -603,8 +614,7 @@ impl SoftwareRenderer {
             let py: f32 = (y as f32) + 0.5 - cy;
             if has_mid_band && y >= sy0 && y < sy1 {
                 for x in x0..sx0 {
-                    let px: f32 = (x as f32) + 0.5 - cx;
-                    let dist: f32 = rounded_box_sdf(px, py, inner_w, inner_h, r_max);
+                    let dist: f32 = ((x as f32) + 0.5 - cx).abs() - inner_w;
                     if dist < blur {
                         let falloff: f32 = if dist <= 0.0 {
                             1.0
@@ -618,11 +628,8 @@ impl SoftwareRenderer {
                         }
                     }
                 }
-                fb.fill_span(sx0, sx1, y, color);
-                shaded += (sx1 - sx0) as usize;
                 for x in sx1..x1 {
-                    let px: f32 = (x as f32) + 0.5 - cx;
-                    let dist: f32 = rounded_box_sdf(px, py, inner_w, inner_h, r_max);
+                    let dist: f32 = ((x as f32) + 0.5 - cx).abs() - inner_w;
                     if dist < blur {
                         let falloff: f32 = if dist <= 0.0 {
                             1.0
@@ -693,7 +700,7 @@ impl SoftwareRenderer {
                         1.0
                     } else {
                         let norm: f32 = 1.0 - (dist * inv_blur).clamp(0.0, 1.0);
-                        norm * norm
+                        norm * norm * (3.0 - 2.0 * norm)
                     };
                     if falloff > 0.0 {
                         fb.blend_pixel(x, y, color.multiply_alpha(falloff));
@@ -833,6 +840,101 @@ impl SoftwareRenderer {
         shaded
     }
 
+    /// Blits a single bilinear-filtered image scanline with fast opaque 4-tap bypass.
+    ///
+    /// # Arguments
+    ///
+    /// - `(usize, usize, f32, f32, f32)` - `(y, x0, rect_y, inv_dst_h, src_h_f)`.
+    /// - `(usize, usize)` - `(src_w_usize, max_sy)`.
+    /// - `&[(usize, usize, u32)]` - Precomputed horizontal bilinear LUT.
+    /// - `&[u8]` - Source RGBA8 pixels.
+    /// - `&mut [u8]` - Destination scanline RGBA8 slice.
+    fn blit_bilinear_row(
+        row_meta: (usize, usize, f32, f32, f32),
+        src_meta: (usize, usize),
+        x_lut: &[(usize, usize, u32)],
+        src_bytes: &[u8],
+        dst_row: &mut [u8],
+    ) {
+        let (y, x0_usize, rect_y, inv_dst_h, src_h_f): (usize, usize, f32, f32, f32) = row_meta;
+        let (src_w_usize, max_sy): (usize, usize) = src_meta;
+        let v: f32 = (((y as f32) + 0.5 - rect_y) * inv_dst_h).clamp(0.0, 1.0);
+        let fy: f32 = (v * src_h_f - 0.5).clamp(0.0, max_sy as f32);
+        let sy0: usize = (fy.floor() as usize).min(max_sy);
+        let sy1: usize = (sy0 + 1).min(max_sy);
+        let wy: u32 = ((fy - (sy0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
+        let iwy: u32 = 256 - wy;
+        let row0: usize = sy0 * src_w_usize;
+        let row1: usize = sy1 * src_w_usize;
+        for (dx, &(sx0, sx1, wx)) in x_lut.iter().enumerate() {
+            let iwx: u32 = 256 - wx;
+            let w00: u32 = iwx * iwy;
+            let w10: u32 = wx * iwy;
+            let w01: u32 = iwx * wy;
+            let w11: u32 = wx * wy;
+            let i00: usize = (row0 + sx0) * 4;
+            let i10: usize = (row0 + sx1) * 4;
+            let i01: usize = (row1 + sx0) * 4;
+            let i11: usize = (row1 + sx1) * 4;
+            let a00: u32 = src_bytes[i00 + 3] as u32;
+            let a10: u32 = src_bytes[i10 + 3] as u32;
+            let a01: u32 = src_bytes[i01 + 3] as u32;
+            let a11: u32 = src_bytes[i11 + 3] as u32;
+            let didx: usize = (x0_usize + dx) * 4;
+            if a00 == 255 && a10 == 255 && a01 == 255 && a11 == 255 {
+                dst_row[didx] = (((src_bytes[i00] as u32) * w00
+                    + (src_bytes[i10] as u32) * w10
+                    + (src_bytes[i01] as u32) * w01
+                    + (src_bytes[i11] as u32) * w11
+                    + 32768)
+                    >> 16) as u8;
+                dst_row[didx + 1] = (((src_bytes[i00 + 1] as u32) * w00
+                    + (src_bytes[i10 + 1] as u32) * w10
+                    + (src_bytes[i01 + 1] as u32) * w01
+                    + (src_bytes[i11 + 1] as u32) * w11
+                    + 32768)
+                    >> 16) as u8;
+                dst_row[didx + 2] = (((src_bytes[i00 + 2] as u32) * w00
+                    + (src_bytes[i10 + 2] as u32) * w10
+                    + (src_bytes[i01 + 2] as u32) * w01
+                    + (src_bytes[i11 + 2] as u32) * w11
+                    + 32768)
+                    >> 16) as u8;
+                dst_row[didx + 3] = 255;
+                continue;
+            }
+            let a_val: u32 = (a00 * w00 + a10 * w10 + a01 * w01 + a11 * w11 + 32768) >> 16;
+            if a_val == 0 {
+                continue;
+            }
+            let r: u32 = ((src_bytes[i00] as u32) * w00
+                + (src_bytes[i10] as u32) * w10
+                + (src_bytes[i01] as u32) * w01
+                + (src_bytes[i11] as u32) * w11
+                + 32768)
+                >> 16;
+            let g: u32 = ((src_bytes[i00 + 1] as u32) * w00
+                + (src_bytes[i10 + 1] as u32) * w10
+                + (src_bytes[i01 + 1] as u32) * w01
+                + (src_bytes[i11 + 1] as u32) * w11
+                + 32768)
+                >> 16;
+            let b: u32 = ((src_bytes[i00 + 2] as u32) * w00
+                + (src_bytes[i10 + 2] as u32) * w10
+                + (src_bytes[i01 + 2] as u32) * w01
+                + (src_bytes[i11 + 2] as u32) * w11
+                + 32768)
+                >> 16;
+            let inv_a: u32 = 255 - a_val;
+            dst_row[didx] = ((r * a_val + (dst_row[didx] as u32) * inv_a + 127) / 255) as u8;
+            dst_row[didx + 1] =
+                ((g * a_val + (dst_row[didx + 1] as u32) * inv_a + 127) / 255) as u8;
+            dst_row[didx + 2] =
+                ((b * a_val + (dst_row[didx + 2] as u32) * inv_a + 127) / 255) as u8;
+            dst_row[didx + 3] = 255;
+        }
+    }
+
     /// Blits a decoded `ImageBuffer` into `rect` with bilinear anti-aliased filtering and SDF rounded clip.
     ///
     /// # Arguments
@@ -898,72 +1000,61 @@ impl SoftwareRenderer {
             }
             let fb_w_usize: usize = fb_w as usize;
             let dst_pixels: &mut [u8] = fb.get_mut_pixels().as_mut_slice();
-            for y in y0..y1 {
-                let v: f32 = (((y as f32) + 0.5 - rect.get_y()) * inv_dst_h).clamp(0.0, 1.0);
-                let fy: f32 = (v * (src_h as f32) - 0.5).clamp(0.0, max_sy as f32);
-                let sy0: usize = (fy.floor() as usize).min(max_sy);
-                let sy1: usize = (sy0 + 1).min(max_sy);
-                let wy: u32 = ((fy - (sy0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
-                let iwy: u32 = 256 - wy;
-                let row0: usize = sy0 * src_w_usize;
-                let row1: usize = sy1 * src_w_usize;
-                let dst_row_base: usize = (y as usize) * fb_w_usize;
-                for (dx, &(sx0, sx1, wx)) in x_lut.iter().enumerate() {
-                    let iwx: u32 = 256 - wx;
-                    let w00: u32 = iwx * iwy;
-                    let w10: u32 = wx * iwy;
-                    let w01: u32 = iwx * wy;
-                    let w11: u32 = wx * wy;
-                    let i00: usize = (row0 + sx0) * 4;
-                    let i10: usize = (row0 + sx1) * 4;
-                    let i01: usize = (row1 + sx0) * 4;
-                    let i11: usize = (row1 + sx1) * 4;
-                    let a_val: u32 = ((src_bytes[i00 + 3] as u32) * w00
-                        + (src_bytes[i10 + 3] as u32) * w10
-                        + (src_bytes[i01 + 3] as u32) * w01
-                        + (src_bytes[i11 + 3] as u32) * w11
-                        + 32768)
-                        >> 16;
-                    if a_val == 0 {
-                        continue;
+            let span_h: usize = (y1 - y0) as usize;
+            let x_lut_ref: &[(usize, usize, u32)] = x_lut.as_slice();
+            let rect_y: f32 = rect.get_y();
+            let src_h_f: f32 = src_h as f32;
+            let x0_usize: usize = x0 as usize;
+            let y0_usize: usize = y0 as usize;
+            let row_stride: usize = fb_w_usize * 4;
+            let band_slice: &mut [u8] =
+                &mut dst_pixels[(y0_usize * row_stride)..((y1 as usize) * row_stride)];
+            #[cfg(not(target_arch = "wasm32"))]
+            if span_w * span_h >= 65_536 && span_h >= 32 {
+                let workers: usize = available_parallelism()
+                    .map(usize::from)
+                    .unwrap_or(4)
+                    .clamp(1, 8)
+                    .min(span_h / 16);
+                let rows_per: usize = span_h.div_ceil(workers);
+                scope(|s: &thread::Scope<'_, '_>| {
+                    for (idx, chunk) in band_slice.chunks_mut(rows_per * row_stride).enumerate() {
+                        let start_y: usize = y0_usize + idx * rows_per;
+                        let _: ScopedJoinHandle<'_, ()> = s.spawn(move || {
+                            for (ly, row_buf) in chunk.chunks_mut(row_stride).enumerate() {
+                                Self::blit_bilinear_row(
+                                    (start_y + ly, x0_usize, rect_y, inv_dst_h, src_h_f),
+                                    (src_w_usize, max_sy),
+                                    x_lut_ref,
+                                    src_bytes,
+                                    row_buf,
+                                );
+                            }
+                        });
                     }
-                    let r: u32 = ((src_bytes[i00] as u32) * w00
-                        + (src_bytes[i10] as u32) * w10
-                        + (src_bytes[i01] as u32) * w01
-                        + (src_bytes[i11] as u32) * w11
-                        + 32768)
-                        >> 16;
-                    let g: u32 = ((src_bytes[i00 + 1] as u32) * w00
-                        + (src_bytes[i10 + 1] as u32) * w10
-                        + (src_bytes[i01 + 1] as u32) * w01
-                        + (src_bytes[i11 + 1] as u32) * w11
-                        + 32768)
-                        >> 16;
-                    let b: u32 = ((src_bytes[i00 + 2] as u32) * w00
-                        + (src_bytes[i10 + 2] as u32) * w10
-                        + (src_bytes[i01 + 2] as u32) * w01
-                        + (src_bytes[i11 + 2] as u32) * w11
-                        + 32768)
-                        >> 16;
-                    let didx: usize = (dst_row_base + (x0 as usize) + dx) * 4;
-                    if a_val >= 255 {
-                        dst_pixels[didx] = r as u8;
-                        dst_pixels[didx + 1] = g as u8;
-                        dst_pixels[didx + 2] = b as u8;
-                        dst_pixels[didx + 3] = 255;
-                    } else {
-                        let inv_a: u32 = 255 - a_val;
-                        dst_pixels[didx] =
-                            ((r * a_val + (dst_pixels[didx] as u32) * inv_a + 127) / 255) as u8;
-                        dst_pixels[didx + 1] =
-                            ((g * a_val + (dst_pixels[didx + 1] as u32) * inv_a + 127) / 255) as u8;
-                        dst_pixels[didx + 2] =
-                            ((b * a_val + (dst_pixels[didx + 2] as u32) * inv_a + 127) / 255) as u8;
-                        dst_pixels[didx + 3] = 255;
-                    }
-                    shaded += 1;
+                });
+            } else {
+                for (ly, row_buf) in band_slice.chunks_mut(row_stride).enumerate() {
+                    Self::blit_bilinear_row(
+                        (y0_usize + ly, x0_usize, rect_y, inv_dst_h, src_h_f),
+                        (src_w_usize, max_sy),
+                        x_lut_ref,
+                        src_bytes,
+                        row_buf,
+                    );
                 }
             }
+            #[cfg(target_arch = "wasm32")]
+            for (ly, row_buf) in band_slice.chunks_mut(row_stride).enumerate() {
+                Self::blit_bilinear_row(
+                    (y0_usize + ly, x0_usize, rect_y, inv_dst_h, src_h_f),
+                    (src_w_usize, max_sy),
+                    x_lut_ref,
+                    src_bytes,
+                    row_buf,
+                );
+            }
+            shaded = span_w * span_h;
             return shaded;
         }
         for y in y0..y1 {

@@ -6,10 +6,29 @@ pub const TRIPLE_ANDROID: &str = "aarch64-linux-android";
 pub const TRIPLE_IOS: &str = "aarch64-apple-ios";
 /// Rust target triple for macOS Apple Silicon native builds.
 pub const TRIPLE_MACOS: &str = "aarch64-apple-darwin";
+/// Rust target triple for macOS Intel x86_64 native builds.
+pub const TRIPLE_MACOS_X64: &str = "x86_64-apple-darwin";
 /// Rust target triple for Windows x86_64 MSVC native builds.
 pub const TRIPLE_WINDOWS: &str = "x86_64-pc-windows-msvc";
+/// Rust target triple for Windows ARM64 MSVC native builds.
+pub const TRIPLE_WINDOWS_ARM64: &str = "aarch64-pc-windows-msvc";
 /// Rust target triple for Linux x86_64 GNU native builds.
 pub const TRIPLE_LINUX: &str = "x86_64-unknown-linux-gnu";
+/// Rust target triple for Linux ARM64 GNU native builds.
+pub const TRIPLE_LINUX_ARM64: &str = "aarch64-unknown-linux-gnu";
+
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+pub(crate) const HOST_MACOS_TRIPLE: &str = TRIPLE_MACOS_X64;
+#[cfg(not(all(target_os = "macos", target_arch = "x86_64")))]
+pub(crate) const HOST_MACOS_TRIPLE: &str = TRIPLE_MACOS;
+#[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+pub(crate) const HOST_WINDOWS_TRIPLE: &str = TRIPLE_WINDOWS_ARM64;
+#[cfg(not(all(target_os = "windows", target_arch = "aarch64")))]
+pub(crate) const HOST_WINDOWS_TRIPLE: &str = TRIPLE_WINDOWS;
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub(crate) const HOST_LINUX_TRIPLE: &str = TRIPLE_LINUX_ARM64;
+#[cfg(not(all(target_os = "linux", target_arch = "aarch64")))]
+pub(crate) const HOST_LINUX_TRIPLE: &str = TRIPLE_LINUX;
 
 pub(crate) const NAME_WEB: &str = "web";
 pub(crate) const NAME_ANDROID: &str = "android";

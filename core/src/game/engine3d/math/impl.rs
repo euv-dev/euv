@@ -234,7 +234,8 @@ impl Vec3 {
     fn aces_channel(v: f32) -> u8 {
         let x: f32 = v.max(0.0);
         let mapped: f32 = (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
-        (mapped.clamp(0.0, 1.0).powf(1.0 / 2.2) * 255.0).round() as u8
+        let idx: usize = ((mapped.clamp(0.0, 1.0) * 1024.0) + 0.5) as usize;
+        LINEAR_TO_SRGB_LUT[idx.min(1024)]
     }
 
     /// Applies ACES filmic tone mapping and converts linear radiance to RGBA8 `[r, g, b, 255]`.
@@ -485,6 +486,67 @@ impl Mat4 {
         }
     }
 
+    /// Builds a full 3D Euler TRS model matrix (`translate * rotate_y(yaw) * rotate_x(pitch) * rotate_z(roll) * scale`).
+    ///
+    /// # Arguments
+    ///
+    /// - `Vec3` - World translation.
+    /// - `f32` - Y-axis yaw rotation in radians.
+    /// - `f32` - X-axis pitch rotation in radians.
+    /// - `f32` - Z-axis roll rotation in radians.
+    /// - `Vec3` - Non-uniform scale.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Composed 3D model transform matrix.
+    #[must_use]
+    pub fn from_trs_euler(
+        position: Vec3,
+        yaw_rad: f32,
+        pitch_rad: f32,
+        roll_rad: f32,
+        scale: Vec3,
+    ) -> Self {
+        if pitch_rad.abs() < 1e-6 && roll_rad.abs() < 1e-6 {
+            return Self::from_trs(position, yaw_rad, scale);
+        }
+        let (cy, sy): (f32, f32) = (yaw_rad.cos(), yaw_rad.sin());
+        let (cp, sp): (f32, f32) = (pitch_rad.cos(), pitch_rad.sin());
+        let (cr, sr): (f32, f32) = (roll_rad.cos(), roll_rad.sin());
+        let r00: f32 = cy * cr + sy * sp * sr;
+        let r10: f32 = cp * sr;
+        let r20: f32 = -sy * cr + cy * sp * sr;
+        let r01: f32 = -cy * sr + sy * sp * cr;
+        let r11: f32 = cp * cr;
+        let r21: f32 = sy * sr + cy * sp * cr;
+        let r02: f32 = sy * cp;
+        let r12: f32 = -sp;
+        let r22: f32 = cy * cp;
+        let sx: f32 = scale.get_x();
+        let sy_sc: f32 = scale.get_y();
+        let sz: f32 = scale.get_z();
+        Self {
+            m: [
+                r00 * sx,
+                r10 * sx,
+                r20 * sx,
+                0.0,
+                r01 * sy_sc,
+                r11 * sy_sc,
+                r21 * sy_sc,
+                0.0,
+                r02 * sz,
+                r12 * sz,
+                r22 * sz,
+                0.0,
+                position.get_x(),
+                position.get_y(),
+                position.get_z(),
+                1.0,
+            ],
+        }
+    }
+
     /// Transforms a 3D point returning homogeneous clip coordinates `(x, y, z, w)`.
     ///
     /// # Arguments
@@ -576,6 +638,60 @@ impl Aabb3D {
         self.get_max().sub(self.get_min()).length() * 0.5
     }
 
+    /// Computes half surface area (`dx*dy + dy*dz + dz*dx`) for Surface Area Heuristic (SAH) BVH splits.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - AABB reference.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Non-negative half surface area.
+    #[must_use]
+    pub fn surface_area(&self) -> f32 {
+        let d: Vec3 = self.get_max().sub(self.get_min());
+        let dx: f32 = d.get_x().max(0.0);
+        let dy: f32 = d.get_y().max(0.0);
+        let dz: f32 = d.get_z().max(0.0);
+        dx * dy + dy * dz + dz * dx
+    }
+
+    /// Branchless slab Ray-AABB intersection returning entry distance `tmin` or `f32::INFINITY` on miss.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - AABB reference.
+    /// - `Vec3` - Ray origin.
+    /// - `Vec3` - Precomputed safe reciprocal ray direction.
+    /// - `f32` - Minimum valid distance.
+    /// - `f32` - Maximum valid distance.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Near intersection distance if hit, or `f32::INFINITY` if missed.
+    #[must_use]
+    pub fn intersect_ray_near(&self, origin: Vec3, inv_dir: Vec3, t_min: f32, t_max: f32) -> f32 {
+        let mn: Vec3 = self.get_min();
+        let mx: Vec3 = self.get_max();
+        let tx1: f32 = (mn.get_x() - origin.get_x()) * inv_dir.get_x();
+        let tx2: f32 = (mx.get_x() - origin.get_x()) * inv_dir.get_x();
+        let mut tmin: f32 = t_min.max(tx1.min(tx2));
+        let mut tmax: f32 = t_max.min(tx1.max(tx2));
+        let ty1: f32 = (mn.get_y() - origin.get_y()) * inv_dir.get_y();
+        let ty2: f32 = (mx.get_y() - origin.get_y()) * inv_dir.get_y();
+        tmin = tmin.max(ty1.min(ty2));
+        tmax = tmax.min(ty1.max(ty2));
+        let tz1: f32 = (mn.get_z() - origin.get_z()) * inv_dir.get_z();
+        let tz2: f32 = (mx.get_z() - origin.get_z()) * inv_dir.get_z();
+        tmin = tmin.max(tz1.min(tz2));
+        tmax = tmax.min(tz1.max(tz2));
+        if tmax >= tmin && tmax >= 0.0 {
+            tmin
+        } else {
+            f32::INFINITY
+        }
+    }
+
     /// Branchless slab Ray-AABB intersection returning `true` when `ray` hits within `[t_min, t_max]`.
     ///
     /// # Arguments
@@ -590,23 +706,8 @@ impl Aabb3D {
     /// - `bool` - Whether the ray intersects this box.
     #[must_use]
     pub fn intersects_ray(&self, ray: &Ray3D, t_min: f32, t_max: f32) -> bool {
-        let mn: Vec3 = self.get_min();
-        let mx: Vec3 = self.get_max();
-        let ro: Vec3 = ray.get_origin();
-        let inv: Vec3 = ray.get_inv_direction();
-        let tx1: f32 = (mn.get_x() - ro.get_x()) * inv.get_x();
-        let tx2: f32 = (mx.get_x() - ro.get_x()) * inv.get_x();
-        let mut tmin: f32 = t_min.max(tx1.min(tx2));
-        let mut tmax: f32 = t_max.min(tx1.max(tx2));
-        let ty1: f32 = (mn.get_y() - ro.get_y()) * inv.get_y();
-        let ty2: f32 = (mx.get_y() - ro.get_y()) * inv.get_y();
-        tmin = tmin.max(ty1.min(ty2));
-        tmax = tmax.min(ty1.max(ty2));
-        let tz1: f32 = (mn.get_z() - ro.get_z()) * inv.get_z();
-        let tz2: f32 = (mx.get_z() - ro.get_z()) * inv.get_z();
-        tmin = tmin.max(tz1.min(tz2));
-        tmax = tmax.min(tz1.max(tz2));
-        tmax >= tmin && tmax >= 0.0
+        self.intersect_ray_near(ray.get_origin(), ray.get_inv_direction(), t_min, t_max)
+            .is_finite()
     }
 }
 
@@ -628,6 +729,24 @@ impl Ray3D {
         } else {
             1.0 / v
         }
+    }
+
+    /// Computes safe reciprocal vector for an already-normalized ray direction.
+    ///
+    /// # Arguments
+    ///
+    /// - `Vec3` - Unit ray direction.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec3` - Reciprocal direction safe for slab ray-AABB intersection.
+    #[must_use]
+    pub fn safe_inv_vec(dir: Vec3) -> Vec3 {
+        Vec3::new(
+            Self::safe_inv(dir.get_x()),
+            Self::safe_inv(dir.get_y()),
+            Self::safe_inv(dir.get_z()),
+        )
     }
 
     /// Constructs a normalized `Ray3D` with safe reciprocal direction components.
@@ -776,6 +895,93 @@ impl Camera3D {
     #[must_use]
     pub fn right(&self) -> Vec3 {
         self.forward().cross(Vec3::new(0.0, 1.0, 0.0)).normalize()
+    }
+
+    /// Converts a physical camera focal length and full-frame sensor height in millimeters to vertical FOV degrees.
+    ///
+    /// # Arguments
+    ///
+    /// - `f32` - Lens focal length in millimeters (e.g., `24.0`, `35.0`, `50.0`, `85.0`).
+    /// - `f32` - Camera sensor height in millimeters (`24.0` for 35mm full-frame).
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Vertical field of view in degrees clamped to `[12.0, 120.0]`.
+    #[must_use]
+    pub fn focal_length_to_fov_deg(focal_length_mm: f32, sensor_height_mm: f32) -> f32 {
+        let f_mm: f32 = focal_length_mm.max(8.0);
+        let s_mm: f32 = sensor_height_mm.max(4.0);
+        (2.0 * (s_mm / (2.0 * f_mm)).atan().to_degrees()).clamp(12.0, 120.0)
+    }
+
+    /// Constructs a physically based 35mm full-frame `Camera3D` using lens focal length in millimeters.
+    ///
+    /// # Arguments
+    ///
+    /// - `Vec3` - World-space eye position.
+    /// - `f32` - Horizontal yaw angle in radians.
+    /// - `f32` - Vertical pitch angle in radians.
+    /// - `f32` - Lens focal length in millimeters.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Physically configured perspective camera.
+    #[must_use]
+    pub fn from_lens(position: Vec3, yaw: f32, pitch: f32, focal_length_mm: f32) -> Self {
+        Self {
+            position,
+            yaw,
+            pitch: pitch.clamp(-1.4, 1.4),
+            fov_deg: Self::focal_length_to_fov_deg(focal_length_mm, 24.0),
+            near: 0.25,
+            far: 480.0,
+        }
+    }
+
+    /// Computes physical exposure value `EV100` from lens aperture (f-stop), shutter speed (seconds), and ISO.
+    ///
+    /// # Arguments
+    ///
+    /// - `f32` - Aperture f-number (e.g., `2.8`, `4.0`, `8.0`).
+    /// - `f32` - Shutter exposure time in seconds (e.g., `1.0 / 125.0`).
+    /// - `f32` - Sensor ISO sensitivity (e.g., `100.0`).
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Physical exposure value `EV100`.
+    #[must_use]
+    pub fn ev100(aperture_fstop: f32, shutter_seconds: f32, iso: f32) -> f32 {
+        let n: f32 = aperture_fstop.max(0.7);
+        let t: f32 = shutter_seconds.max(1e-5);
+        let s: f32 = iso.max(25.0);
+        ((n * n) / t * (100.0 / s)).log2()
+    }
+
+    /// Converts an `EV100` exposure value into a linear HDR scene exposure multiplier.
+    ///
+    /// # Arguments
+    ///
+    /// - `f32` - Physical exposure value `EV100`.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Linear exposure multiplier clamped to `[0.05, 8.0]`.
+    #[must_use]
+    pub fn exposure_scale_from_ev100(ev100: f32) -> f32 {
+        let max_lum: f32 = 1.2 * 2.0_f32.powf(ev100);
+        (1.0 / max_lum.max(1e-4)).clamp(0.05, 8.0)
+    }
+
+    /// Orients this camera's yaw and pitch to aim directly at `target`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable camera reference.
+    /// - `Vec3` - World-space look target.
+    pub fn look_at(&mut self, target: Vec3) {
+        let dir: Vec3 = target.sub(self.get_position()).normalize();
+        self.set_yaw(dir.get_z().atan2(dir.get_x()));
+        self.set_pitch(dir.get_y().clamp(-0.98, 0.98).asin());
     }
 
     /// Computes the combined `projection * view` matrix for viewport `aspect`.

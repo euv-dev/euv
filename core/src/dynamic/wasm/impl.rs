@@ -351,6 +351,23 @@ impl WasmModuleBuilder {
         self
     }
 
+    /// Attaches an alternate global `DynamicUpdateBundle` JSON payload emitted when `euv_on_event` toggles state.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source builder.
+    /// - `&DynamicUpdateBundle` - Alternate global bundle for odd state ticks.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated builder.
+    #[must_use]
+    pub fn with_alt_bundle(mut self, bundle: &DynamicUpdateBundle) -> Self {
+        let json: String = bundle.to_json().unwrap_or_default();
+        self.set_alt_ui_payload_json(json);
+        self
+    }
+
     /// Attaches a diagnostic log message emitted via `env::euv_log` during render.
     ///
     /// # Arguments
@@ -700,6 +717,10 @@ impl WasmFetcher for RegistryWasmFetcher {
         if self.is_offline() {
             return Err(WasmDynamicError::NetworkOffline(request.get_url().clone()));
         }
+        let url_str: &str = request.get_url().as_str();
+        if url_str.starts_with(WASM_SCHEME_HTTP) || url_str.starts_with(WASM_SCHEME_FILE) {
+            return HttpWasmFetcher::default().fetch(request, attempt, on_progress);
+        }
         let Self { records, .. } = self;
         let rec: RegistryWasmRecord = records
             .try_borrow()
@@ -887,9 +908,9 @@ impl WasmDynamicManager {
                 partial_stacks: HashMap::new(),
                 global_stack: Vec::new(),
                 state_signals: HashMap::new(),
-                global_version_signal: Signal::new(0),
-                telemetry_signal: Signal::new(WasmDynamicTelemetry::default()),
-                last_logs: Signal::new(Vec::new()),
+                global_version_signal: Signal::new_detached(0),
+                telemetry_signal: Signal::new_detached(WasmDynamicTelemetry::default()),
+                last_logs: Signal::new_detached(Vec::new()),
             })),
         }
     }
@@ -912,9 +933,9 @@ impl WasmDynamicManager {
             return *guard
                 .state_signals
                 .entry(key)
-                .or_insert_with(|| Signal::new(WasmLoadState::Idle));
+                .or_insert_with(|| Signal::new_detached(WasmLoadState::Idle));
         }
-        Signal::new(WasmLoadState::Idle)
+        Signal::new_detached(WasmLoadState::Idle)
     }
 
     /// Returns the reactive global WASM active version signal (`0` = built-in native shell).
@@ -932,7 +953,7 @@ impl WasmDynamicManager {
         inner
             .try_borrow()
             .map(|g: Ref<'_, WasmDynamicManagerState>| g.global_version_signal)
-            .unwrap_or_else(|_| Signal::new(0))
+            .unwrap_or_else(|_| Signal::new_detached(0))
     }
 
     /// Returns the reactive `WasmDynamicTelemetry` signal.
@@ -950,7 +971,7 @@ impl WasmDynamicManager {
         inner
             .try_borrow()
             .map(|g: Ref<'_, WasmDynamicManagerState>| g.telemetry_signal)
-            .unwrap_or_else(|_| Signal::new(WasmDynamicTelemetry::default()))
+            .unwrap_or_else(|_| Signal::new_detached(WasmDynamicTelemetry::default()))
     }
 
     /// Returns the reactive signal carrying diagnostic logs from the last executed WASM module.
@@ -968,7 +989,7 @@ impl WasmDynamicManager {
         inner
             .try_borrow()
             .map(|g: Ref<'_, WasmDynamicManagerState>| g.last_logs)
-            .unwrap_or_else(|_| Signal::new(Vec::new()))
+            .unwrap_or_else(|_| Signal::new_detached(Vec::new()))
     }
 
     /// Returns the number of verified cached `.wasm` entries.
@@ -1264,8 +1285,16 @@ impl WasmDynamicManager {
             }
             WasmDynamicScope::Global => {
                 if let Some(bundle) = render_out.emitted_bundle() {
-                    let _: Result<DynamicTelemetry, DynamicUpdateError> =
-                        hub.apply_bundle(bundle.clone());
+                    let mut patched: DynamicUpdateBundle = bundle.clone();
+                    for comp in patched.get_mut_components().iter_mut() {
+                        comp.set_allow_downgrade(true);
+                        comp.sign();
+                    }
+                    for page in patched.get_mut_pages().iter_mut() {
+                        page.set_allow_downgrade(true);
+                        page.sign();
+                    }
+                    let _: Result<DynamicTelemetry, DynamicUpdateError> = hub.apply_bundle(patched);
                 }
             }
         }

@@ -40,19 +40,22 @@ pub struct EuvTextarea {
     pub(crate) tokens: ThemeTokens,
 }
 
-/// Numeric stepper input bound to `Signal<i64>` with min/max bounds.
+/// Numeric stepper input bound to `Signal<i64>` with optional min/max bounds and step size.
 #[derive(Clone, Data, New)]
 pub struct EuvNumberInput {
     /// Bound integer value signal.
     #[get(type(copy))]
     pub(crate) value: Signal<i64>,
-    /// Minimum allowed value.
-    #[get(type(copy))]
-    pub(crate) min: i64,
-    /// Maximum allowed value.
-    #[get(type(copy))]
-    pub(crate) max: i64,
-    /// Increment step size.
+    /// Optional minimum allowed value (`None` defaults to `i64::MIN / 2`).
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) min: Option<i64>,
+    /// Optional maximum allowed value (`None` defaults to `i64::MAX / 2`).
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) max: Option<i64>,
+    /// Increment step size (`<= 0` defaults to `1`).
+    #[new(skip)]
     #[get(type(copy))]
     pub(crate) step: i64,
     /// Active theme tokens.

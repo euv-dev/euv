@@ -11,6 +11,8 @@ impl Default for Transform3D {
         Self {
             position: Vec3::zero(),
             yaw_rad: 0.0,
+            pitch_rad: 0.0,
+            roll_rad: 0.0,
             scale: Vec3::splat(1.0),
         }
     }
@@ -18,6 +20,71 @@ impl Default for Transform3D {
 
 /// Matrix and point transformation helpers for `Transform3D`.
 impl Transform3D {
+    /// Constructs a `Transform3D` from position, Y-axis yaw, and non-uniform scale.
+    ///
+    /// # Arguments
+    ///
+    /// - `Vec3` - World-space translation.
+    /// - `f32` - Horizontal Y-axis yaw rotation in radians.
+    /// - `Vec3` - Non-uniform scale.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Constructed 3D transform.
+    #[must_use]
+    pub const fn new(position: Vec3, yaw_rad: f32, scale: Vec3) -> Self {
+        Self {
+            position,
+            yaw_rad,
+            pitch_rad: 0.0,
+            roll_rad: 0.0,
+            scale,
+        }
+    }
+
+    /// Returns a copy of this transform with full yaw, pitch, and roll Euler rotation in radians.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source transform.
+    /// - `f32` - Y-axis yaw in radians.
+    /// - `f32` - X-axis pitch in radians.
+    /// - `f32` - Z-axis roll in radians.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Rotated 3D transform.
+    #[must_use]
+    pub fn with_euler(mut self, yaw_rad: f32, pitch_rad: f32, roll_rad: f32) -> Self {
+        self.set_yaw_rad(yaw_rad);
+        self.set_pitch_rad(pitch_rad);
+        self.set_roll_rad(roll_rad);
+        self
+    }
+
+    /// Linearly interpolates position, Euler angles, and scale between `self` and `other`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Start transform.
+    /// - `Self` - End transform.
+    /// - `f32` - Interpolation factor in `[0.0, 1.0]`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Interpolated transform.
+    #[must_use]
+    pub fn lerp(self, other: Self, t: f32) -> Self {
+        let k: f32 = t.clamp(0.0, 1.0);
+        Self {
+            position: self.get_position().lerp(other.get_position(), k),
+            yaw_rad: self.get_yaw_rad() + (other.get_yaw_rad() - self.get_yaw_rad()) * k,
+            pitch_rad: self.get_pitch_rad() + (other.get_pitch_rad() - self.get_pitch_rad()) * k,
+            roll_rad: self.get_roll_rad() + (other.get_roll_rad() - self.get_roll_rad()) * k,
+            scale: self.get_scale().lerp(other.get_scale(), k),
+        }
+    }
+
     /// Converts this TRS transform into a column-major `Mat4`.
     ///
     /// # Arguments
@@ -29,7 +96,47 @@ impl Transform3D {
     /// - `Mat4` - Model matrix.
     #[must_use]
     pub fn to_mat4(&self) -> Mat4 {
-        Mat4::from_trs(self.get_position(), self.get_yaw_rad(), self.get_scale())
+        Mat4::from_trs_euler(
+            self.get_position(),
+            self.get_yaw_rad(),
+            self.get_pitch_rad(),
+            self.get_roll_rad(),
+            self.get_scale(),
+        )
+    }
+
+    /// Rotates vector `v` by this transform's `(yaw, pitch, roll)` Euler orientation.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Transform reference.
+    /// - `Vec3` - Input vector.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec3` - Rotated vector.
+    #[must_use]
+    fn rotate_vec(&self, v: Vec3) -> Vec3 {
+        let pitch: f32 = self.get_pitch_rad();
+        let roll: f32 = self.get_roll_rad();
+        let yaw: f32 = self.get_yaw_rad();
+        let (cy, sy): (f32, f32) = (yaw.cos(), yaw.sin());
+        if pitch.abs() < 1e-6 && roll.abs() < 1e-6 {
+            return Vec3::new(
+                v.get_x() * cy + v.get_z() * sy,
+                v.get_y(),
+                -v.get_x() * sy + v.get_z() * cy,
+            );
+        }
+        let (cr, sr): (f32, f32) = (roll.cos(), roll.sin());
+        let x1: f32 = v.get_x() * cr - v.get_y() * sr;
+        let y1: f32 = v.get_x() * sr + v.get_y() * cr;
+        let z1: f32 = v.get_z();
+        let (cp, sp): (f32, f32) = (pitch.cos(), pitch.sin());
+        let x2: f32 = x1;
+        let y2: f32 = y1 * cp - z1 * sp;
+        let z2: f32 = y1 * sp + z1 * cp;
+        Vec3::new(x2 * cy + z2 * sy, y2, -x2 * sy + z2 * cy)
     }
 
     /// Transforms a local-space 3D point into world space.
@@ -45,14 +152,12 @@ impl Transform3D {
     #[must_use]
     pub fn transform_point(&self, p: Vec3) -> Vec3 {
         let sc: Vec3 = self.get_scale();
-        let sx: f32 = p.get_x() * sc.get_x();
-        let sy: f32 = p.get_y() * sc.get_y();
-        let sz: f32 = p.get_z() * sc.get_z();
-        let c: f32 = self.get_yaw_rad().cos();
-        let s: f32 = self.get_yaw_rad().sin();
-        let rx: f32 = sx * c + sz * s;
-        let rz: f32 = -sx * s + sz * c;
-        Vec3::new(rx, sy, rz).add(self.get_position())
+        let scaled: Vec3 = Vec3::new(
+            p.get_x() * sc.get_x(),
+            p.get_y() * sc.get_y(),
+            p.get_z() * sc.get_z(),
+        );
+        self.rotate_vec(scaled).add(self.get_position())
     }
 
     /// Rotates a local-space surface normal into world space.
@@ -67,14 +172,7 @@ impl Transform3D {
     /// - `Vec3` - World-space unit normal.
     #[must_use]
     pub fn transform_normal(&self, n: Vec3) -> Vec3 {
-        let c: f32 = self.get_yaw_rad().cos();
-        let s: f32 = self.get_yaw_rad().sin();
-        Vec3::new(
-            n.get_x() * c + n.get_z() * s,
-            n.get_y(),
-            -n.get_x() * s + n.get_z() * c,
-        )
-        .normalize()
+        self.rotate_vec(n).normalize()
     }
 
     /// Transforms a local `Aabb3D` into an enclosing world-space `Aabb3D`.
@@ -106,6 +204,212 @@ impl Transform3D {
             out.expand_point(self.transform_point(c));
         }
         out
+    }
+}
+
+/// Conversion helpers for `CameraMode3D`.
+impl CameraMode3D {
+    /// Converts a numeric mode index (`0..=5`) into a typed `CameraMode3D`.
+    ///
+    /// # Arguments
+    ///
+    /// - `u8` - Numeric camera mode index.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Corresponding `CameraMode3D`.
+    #[must_use]
+    pub const fn from_u8(index: u8) -> Self {
+        match index {
+            1 => Self::Hood,
+            2 => Self::Orbit,
+            3 => Self::Aerial,
+            4 => Self::FreeFly,
+            5 => Self::CinematicDolly,
+            _ => Self::Chase,
+        }
+    }
+
+    /// Converts this `CameraMode3D` into its stable numeric index (`0..=5`).
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Camera mode variant.
+    ///
+    /// # Returns
+    ///
+    /// - `u8` - Numeric mode index.
+    #[must_use]
+    pub const fn as_u8(self) -> u8 {
+        match self {
+            Self::Chase => 0,
+            Self::Hood => 1,
+            Self::Orbit => 2,
+            Self::Aerial => 3,
+            Self::FreeFly => 4,
+            Self::CinematicDolly => 5,
+        }
+    }
+}
+
+/// Fluent builder helpers for `SpawnObjectDesc`.
+impl SpawnObjectDesc {
+    /// Creates an object spawn descriptor with identity transform, default PBR material, and BVH ray tracing enabled.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Human-readable object label.
+    /// - `usize` - Registered mesh identifier.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Ready spawn descriptor.
+    #[must_use]
+    pub fn new(name: &str, mesh_id: usize) -> Self {
+        Self {
+            name: name.to_string(),
+            mesh_id,
+            transform: Transform3D::default(),
+            material: PbrMaterial::default(),
+            ray_trace_caster: true,
+            spin_speed: 0.0,
+        }
+    }
+
+    /// Sets the world-space transform for the spawned object.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base descriptor.
+    /// - `Transform3D` - World-space transform.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated descriptor.
+    #[must_use]
+    pub fn with_transform(mut self, transform: Transform3D) -> Self {
+        self.set_transform(transform);
+        self
+    }
+
+    /// Sets the PBR surface material override for the spawned object.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base descriptor.
+    /// - `PbrMaterial` - PBR material.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated descriptor.
+    #[must_use]
+    pub fn with_material(mut self, material: PbrMaterial) -> Self {
+        self.set_material(material);
+        self
+    }
+
+    /// Sets whether this object casts BVH shadows and appears in reflections.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base descriptor.
+    /// - `bool` - Ray-trace caster toggle.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated descriptor.
+    #[must_use]
+    pub fn with_ray_trace(mut self, ray_trace_caster: bool) -> Self {
+        self.set_ray_trace_caster(ray_trace_caster);
+        self
+    }
+
+    /// Sets continuous Y-axis spin speed in radians per second.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base descriptor.
+    /// - `f32` - Spin speed in radians/sec.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated descriptor.
+    #[must_use]
+    pub fn with_spin(mut self, spin_speed: f32) -> Self {
+        self.set_spin_speed(spin_speed);
+        self
+    }
+}
+
+/// Fluent builder helpers for `ImportModelDesc`.
+impl ImportModelDesc {
+    /// Creates an external model import descriptor with identity transform and default PBR fallback material.
+    ///
+    /// # Arguments
+    ///
+    /// - `ModelFormat` - Interchange format (`Obj` or `GltfJson`).
+    /// - `&str` - Raw model source text.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Ready import descriptor.
+    #[must_use]
+    pub fn new(format: ModelFormat, source: &str) -> Self {
+        Self {
+            format,
+            source: source.to_string(),
+            transform: Transform3D::default(),
+            fallback_material: PbrMaterial::default(),
+            spin_speed: 0.0,
+        }
+    }
+
+    /// Sets the placement transform for the imported model.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base descriptor.
+    /// - `Transform3D` - Placement transform.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated descriptor.
+    #[must_use]
+    pub fn with_transform(mut self, transform: Transform3D) -> Self {
+        self.set_transform(transform);
+        self
+    }
+
+    /// Sets the fallback PBR material when source omits material metadata.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base descriptor.
+    /// - `PbrMaterial` - Fallback PBR material.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated descriptor.
+    #[must_use]
+    pub fn with_material(mut self, fallback_material: PbrMaterial) -> Self {
+        self.set_fallback_material(fallback_material);
+        self
+    }
+
+    /// Sets continuous Y-axis turntable spin speed in radians per second.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base descriptor.
+    /// - `f32` - Spin speed in radians/sec.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated descriptor.
+    #[must_use]
+    pub fn with_spin(mut self, spin_speed: f32) -> Self {
+        self.set_spin_speed(spin_speed);
+        self
     }
 }
 
@@ -301,6 +605,74 @@ impl World3D {
         Ok(imported)
     }
 
+    /// Spawns an object from a fluent `SpawnObjectDesc`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable world.
+    /// - `&SpawnObjectDesc` - Spawn descriptor.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Spawned object index.
+    pub fn spawn_with(&mut self, desc: &SpawnObjectDesc) -> usize {
+        let idx: usize = self.spawn_object(
+            desc.get_name(),
+            desc.get_mesh_id(),
+            desc.get_transform(),
+            desc.get_material(),
+            desc.get_ray_trace_caster(),
+        );
+        if let Some(obj) = self.get_mut_objects().get_mut(idx) {
+            obj.set_spin_speed(desc.get_spin_speed());
+        }
+        idx
+    }
+
+    /// Imports an external `.obj` or `.gltf` model using a fluent `ImportModelDesc`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable world.
+    /// - `&ImportModelDesc` - Import descriptor.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<ImportedModel3D, String>` - Imported model telemetry or parse error.
+    pub fn import_with(&mut self, desc: &ImportModelDesc) -> Result<ImportedModel3D, String> {
+        self.import_model(
+            desc.get_format(),
+            desc.get_source(),
+            desc.get_transform(),
+            desc.get_fallback_material(),
+            desc.get_spin_speed(),
+        )
+    }
+
+    /// Returns the typed `CameraMode3D` currently active in this world.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - World reference.
+    ///
+    /// # Returns
+    ///
+    /// - `CameraMode3D` - Active typed camera controller mode.
+    #[must_use]
+    pub fn active_camera_mode(&self) -> CameraMode3D {
+        CameraMode3D::from_u8(self.get_camera_mode())
+    }
+
+    /// Sets the active 3D camera controller using a typed `CameraMode3D`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable world.
+    /// - `CameraMode3D` - Desired camera controller mode.
+    pub fn set_camera_mode_enum(&mut self, mode: CameraMode3D) {
+        self.set_camera_mode(mode.as_u8());
+    }
+
     /// Rebuilds the world-space BVH acceleration structure when geometry or transforms are dirty.
     ///
     /// # Arguments
@@ -365,7 +737,8 @@ impl World3D {
     #[must_use]
     pub fn create_open_world_city() -> Self {
         let mut world: Self = Self::default();
-        let asphalt_mat: PbrMaterial = PbrMaterial::pbr(Color::hex(0x18202C), 0.25, 0.14, 0.58);
+        let asphalt_mat: PbrMaterial = PbrMaterial::pbr(Color::hex(0x18202C), 0.25, 0.14, 0.58)
+            .with_surface_detail(SurfaceDetailMode::RoadSurface);
         let road_mesh: usize = world.register_mesh(MeshLodChain::from_mesh(Mesh3D::ground_plane(
             "wet_asphalt_boulevard",
             220.0,
@@ -419,10 +792,14 @@ impl World3D {
             PbrMaterial::neon(Color::hex(0x38BDF8), 1.8),
         )));
         let tower_palettes: [PbrMaterial; 4] = [
-            PbrMaterial::pbr(Color::hex(0x1E293B), 0.72, 0.16, 0.65),
-            PbrMaterial::pbr(Color::hex(0x334155), 0.55, 0.24, 0.45),
-            PbrMaterial::pbr(Color::hex(0x0F172A), 0.85, 0.10, 0.78),
-            PbrMaterial::pbr(Color::hex(0x475569), 0.40, 0.35, 0.35),
+            PbrMaterial::pbr(Color::hex(0x1E293B), 0.72, 0.16, 0.65)
+                .with_surface_detail(SurfaceDetailMode::ArchitecturalFacade),
+            PbrMaterial::pbr(Color::hex(0x334155), 0.55, 0.24, 0.45)
+                .with_surface_detail(SurfaceDetailMode::ArchitecturalFacade),
+            PbrMaterial::pbr(Color::hex(0x0F172A), 0.85, 0.10, 0.78)
+                .with_surface_detail(SurfaceDetailMode::ArchitecturalFacade),
+            PbrMaterial::pbr(Color::hex(0x475569), 0.40, 0.35, 0.35)
+                .with_surface_detail(SurfaceDetailMode::ArchitecturalFacade),
         ];
         let neon_colors: [Color; 4] = [
             Color::hex(0x38BDF8),
@@ -627,6 +1004,27 @@ impl World3D {
                         car_pos.get_z() + yaw.cos() * 18.0,
                     );
                     (eye, Vec3::new(car_pos.get_x(), 1.2, car_pos.get_z()))
+                }
+                4 => {
+                    let cur_cam: Camera3D = self.get_camera();
+                    let fwd: Vec3 = cur_cam.forward();
+                    let right: Vec3 = cur_cam.right();
+                    let moved: Vec3 = cur_cam
+                        .get_position()
+                        .add(fwd.scale(throttle * 18.0 * dt))
+                        .add(right.scale(steer * 14.0 * dt));
+                    let eye: Vec3 = Vec3::new(moved.get_x(), moved.get_y().max(1.5), moved.get_z());
+                    (eye, eye.add(fwd.scale(16.0)))
+                }
+                5 => {
+                    let orbit: f32 = self.get_camera_orbit_rad() + dt * 0.28;
+                    self.set_camera_orbit_rad(orbit);
+                    let eye: Vec3 = Vec3::new(
+                        car_pos.get_x() + orbit.sin() * 7.8,
+                        3.6 + (orbit * 1.5).sin() * 1.4,
+                        car_pos.get_z() + orbit.cos() * 13.5,
+                    );
+                    (eye, Vec3::new(car_pos.get_x(), 1.8, car_pos.get_z() - 3.0))
                 }
                 _ => {
                     let eye: Vec3 = Vec3::new(

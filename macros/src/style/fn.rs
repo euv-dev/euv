@@ -34,14 +34,41 @@ pub(crate) fn expand_style(input: StyleBlockInput) -> proc_macro2::TokenStream {
                         return Error::new(val.span(), msg).to_compile_error();
                     }
                 }
+                STYLE_KEY_DISPLAY => stmts.push(quote_spanned! {kspan=> __s = __s.display(#val); }),
+                STYLE_KEY_POSITION => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.position(#val); });
+                }
                 STYLE_KEY_WIDTH => stmts.push(quote_spanned! {kspan=> __s = __s.width(#val); }),
                 STYLE_KEY_HEIGHT => stmts.push(quote_spanned! {kspan=> __s = __s.height(#val); }),
+                STYLE_KEY_MIN_WIDTH => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.min_width(#val); });
+                }
+                STYLE_KEY_MIN_HEIGHT => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.min_height(#val); });
+                }
+                STYLE_KEY_MAX_WIDTH => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.max_width(#val); });
+                }
+                STYLE_KEY_MAX_HEIGHT => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.max_height(#val); });
+                }
+                STYLE_KEY_ASPECT_RATIO => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.aspect_ratio(#val); });
+                }
                 STYLE_KEY_PADDING => stmts.push(quote_spanned! {kspan=> __s = __s.padding(#val); }),
                 STYLE_KEY_MARGIN => stmts.push(quote_spanned! {kspan=> __s = __s.margin(#val); }),
                 STYLE_KEY_GAP => stmts.push(quote_spanned! {kspan=> __s = __s.gap(#val); }),
                 STYLE_KEY_BACKGROUND => {
                     stmts.push(quote_spanned! {kspan=> __s = __s.background(#val); });
                 }
+                STYLE_KEY_GRADIENT => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.gradient(#val); });
+                }
+                STYLE_KEY_SHADOW => stmts.push(quote_spanned! {kspan=> __s = __s.shadow(#val); }),
+                STYLE_KEY_FOCUS_RING => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.focus_ring(#val); });
+                }
+                STYLE_KEY_CURSOR => stmts.push(quote_spanned! {kspan=> __s = __s.cursor(#val); }),
                 STYLE_KEY_COLOR => stmts.push(quote_spanned! {kspan=> __s = __s.color(#val); }),
                 STYLE_KEY_RADIUS => stmts.push(quote_spanned! {kspan=> __s = __s.radius(#val); }),
                 STYLE_KEY_ALIGN => stmts.push(quote_spanned! {kspan=> __s = __s.align(#val); }),
@@ -49,11 +76,11 @@ pub(crate) fn expand_style(input: StyleBlockInput) -> proc_macro2::TokenStream {
                 STYLE_KEY_FLEX_GROW => {
                     stmts.push(quote_spanned! {kspan=> __s = __s.flex_grow(#val); });
                 }
+                STYLE_KEY_FLEX_SHRINK => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.flex_shrink(#val); });
+                }
                 STYLE_KEY_FLEX_WRAP => {
                     stmts.push(quote_spanned! {kspan=> __s = __s.wrap(#val); });
-                }
-                STYLE_KEY_MAX_WIDTH => {
-                    stmts.push(quote_spanned! {kspan=> __s = __s.max_width(#val); });
                 }
                 STYLE_KEY_OVERFLOW => {
                     stmts.push(quote_spanned! {kspan=> __s = __s.overflow(#val); });
@@ -63,6 +90,15 @@ pub(crate) fn expand_style(input: StyleBlockInput) -> proc_macro2::TokenStream {
                 }
                 STYLE_KEY_FONT_WEIGHT => {
                     stmts.push(quote_spanned! {kspan=> __s = __s.font_weight(#val); });
+                }
+                STYLE_KEY_FONT_FAMILY => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.font_family(#val); });
+                }
+                STYLE_KEY_TEXT_ALIGN => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.text_align(#val); });
+                }
+                STYLE_KEY_TEXT_OVERFLOW => {
+                    stmts.push(quote_spanned! {kspan=> __s = __s.text_overflow(#val); });
                 }
                 STYLE_KEY_OPACITY => stmts.push(quote_spanned! {kspan=> __s = __s.opacity(#val); }),
                 STYLE_KEY_Z_INDEX => stmts.push(quote_spanned! {kspan=> __s = __s.z_index(#val); }),

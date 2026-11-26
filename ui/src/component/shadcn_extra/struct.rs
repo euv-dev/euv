@@ -9,10 +9,13 @@ pub struct EuvAlertDialog {
     /// Dialog heading text.
     pub(crate) title: String,
     /// Explanatory description text.
+    #[new(skip)]
     pub(crate) description: String,
-    /// Cancel button label.
+    /// Cancel button label (`"Cancel"` when omitted).
+    #[new(skip)]
     pub(crate) cancel_label: String,
-    /// Primary destructive/confirm button label.
+    /// Primary destructive/confirm button label (`"Continue"` when omitted).
+    #[new(skip)]
     pub(crate) confirm_label: String,
     /// Reactive flag set to `true` when the user confirms.
     #[get(type(copy))]
@@ -68,10 +71,12 @@ pub struct EuvInputOtp {
 /// Searchable command palette aligned with shadcn/ui `Command`.
 #[derive(Clone, Data, Debug, New)]
 pub struct EuvCommand {
-    /// Reactive search query string.
-    #[get(type(copy))]
-    pub(crate) query: Signal<String>,
-    /// Input placeholder prompt.
+    /// Optional controlled reactive search query string (creates internal state when omitted).
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) query: Option<Signal<String>>,
+    /// Input placeholder prompt (`"Type a command or search..."` when empty).
+    #[new(skip)]
     pub(crate) placeholder: String,
     /// Available command item labels.
     pub(crate) items: Vec<String>,
@@ -86,14 +91,16 @@ pub struct EuvCommand {
 /// Interactive preview card aligned with shadcn/ui `HoverCard`.
 #[derive(Clone, Data, Debug, New)]
 pub struct EuvHoverCard {
-    /// Reactive preview card visibility flag.
-    #[get(type(copy))]
-    pub(crate) open: Signal<bool>,
+    /// Optional controlled reactive preview card visibility flag (creates internal state when omitted).
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) open: Option<Signal<bool>>,
     /// Trigger link button label.
     pub(crate) trigger_label: String,
     /// Preview card heading.
     pub(crate) title: String,
-    /// Preview card body text.
+    /// Optional preview card body text.
+    #[new(skip)]
     pub(crate) description: String,
     /// Active theme tokens.
     #[get(type(copy))]

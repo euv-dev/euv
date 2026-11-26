@@ -34,6 +34,22 @@ impl EuvAppShell {
         self
     }
 
+    /// Attaches compact inline actions rendered beside the mobile header `Menu` button.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source app shell.
+    /// - `NodeId` - Mounted compact actions node.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated app shell.
+    #[must_use]
+    pub fn mobile_header_actions(mut self, actions: NodeId) -> Self {
+        self.set_mobile_header_actions(Some(actions));
+        self
+    }
+
     /// Attaches a footer widget (e.g. theme/DPI indicator) pinned below the sidebar navigation list.
     ///
     /// # Arguments
@@ -93,6 +109,7 @@ impl Mountable for EuvAppShell {
             main_content,
             route_signal,
             top_bar_actions,
+            mobile_header_actions,
             sidebar_footer,
             breadcrumb,
             ..
@@ -105,6 +122,11 @@ impl Mountable for EuvAppShell {
                 .background(p.get_background())
                 .overflow(Overflow::Hidden),
         );
+        let brand_initial: String = brand
+            .chars()
+            .next()
+            .map(|c: char| c.to_ascii_uppercase().to_string())
+            .unwrap_or_else(|| "E".to_string());
         let menu_open: Signal<bool> = Signal::new(false);
         let top_bar: NodeId = ctx.view(
             Style::empty()
@@ -113,7 +135,9 @@ impl Mountable for EuvAppShell {
                 .height(Length::Px(MOBILE_HEADER_HEIGHT))
                 .justify(JustifyContent::SpaceBetween)
                 .align(AlignItems::Center)
+                .gap(SPACE_XS)
                 .background(p.get_card())
+                .overflow(Overflow::Hidden)
                 .z_index(Z_INDEX_CHROME),
         );
         let top_bar_divider: NodeId = ctx.view(
@@ -125,9 +149,11 @@ impl Mountable for EuvAppShell {
         let title: NodeId = ctx.text(
             brand.clone(),
             Style::empty()
+                .flex_shrink(1.0)
                 .font_size(15.0)
                 .font_weight(FontWeight::Bold)
-                .color(p.get_foreground()),
+                .color(p.get_foreground())
+                .text_overflow(TextOverflow::Ellipsis),
         );
         let menu_btn_node: NodeId = EuvButton::new("Menu".to_string(), tokens)
             .outline()
@@ -136,8 +162,14 @@ impl Mountable for EuvAppShell {
                 let _: bool = menu_open.update(|v: &mut bool| *v = !*v);
             })
             .mount(ctx);
+        let mobile_right_row: NodeId =
+            ctx.view(Style::empty().row().align(AlignItems::Center).gap(SPACE_XS));
+        if let Some(mob_act) = mobile_header_actions {
+            ctx.append(mobile_right_row, mob_act);
+        }
+        ctx.append(mobile_right_row, menu_btn_node);
         ctx.append(top_bar, title);
-        ctx.append(top_bar, menu_btn_node);
+        ctx.append(top_bar, mobile_right_row);
         let body_row: NodeId = ctx.view(
             Style::empty()
                 .row()
@@ -180,7 +212,7 @@ impl Mountable for EuvAppShell {
                 .align(AlignItems::Center),
         );
         let brand_mark_txt: NodeId = ctx.text(
-            "e".to_string(),
+            brand_initial.clone(),
             Style::empty()
                 .font_size(13.0)
                 .font_weight(FontWeight::Bold)
@@ -238,6 +270,7 @@ impl Mountable for EuvAppShell {
                 .flex_grow(1.0)
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
+                .align(AlignItems::Center)
                 .gap(SPACE_LG),
         );
         ctx.append(main_area, main_content);
@@ -263,37 +296,48 @@ impl Mountable for EuvAppShell {
         let drawer_panel: NodeId = ctx.scroll_view(
             Style::empty()
                 .column()
-                .width(Length::Percent(82.0))
-                .max_width(Length::Px(280.0))
+                .width(Length::Percent(64.0))
+                .max_width(Length::Px(232.0))
                 .height(Length::Percent(100.0))
-                .gap(SPACE_MD)
+                .gap(SPACE_SM)
                 .background(p.get_card())
                 .border(g.get_border_width(), p.get_border())
-                .shadow(Shadow::new(4.0, 0.0, 18.0, 0.0, Color::rgba(0, 0, 0, 28))),
+                .shadow(g.get_shadow_lg()),
         );
         let drawer_head: NodeId = ctx.view(
             Style::empty()
                 .row()
                 .width(Length::Percent(100.0))
-                .justify(JustifyContent::SpaceBetween)
+                .align(AlignItems::Center)
+                .gap(SPACE_SM)
+                .padding(Edges::new(0.0, 0.0, SPACE_XS, 0.0)),
+        );
+        let drawer_mark: NodeId = ctx.view(
+            Style::empty()
+                .width(Length::Px(22.0))
+                .height(Length::Px(22.0))
+                .radius(6.0)
+                .background(p.get_primary())
+                .justify(JustifyContent::Center)
                 .align(AlignItems::Center),
         );
+        let drawer_mark_txt: NodeId = ctx.text(
+            brand_initial,
+            Style::empty()
+                .font_size(12.0)
+                .font_weight(FontWeight::Bold)
+                .color(p.get_primary_foreground()),
+        );
+        ctx.append(drawer_mark, drawer_mark_txt);
         let drawer_title: NodeId = ctx.text(
             brand,
             Style::empty()
-                .font_size(15.0)
+                .font_size(14.5)
                 .font_weight(FontWeight::Bold)
                 .color(p.get_foreground()),
         );
-        let close_node: NodeId = EuvButton::new("Close".to_string(), tokens)
-            .ghost()
-            .sm()
-            .on_click(move |_: &UiEvent| {
-                let _: bool = menu_open.set_if_changed(false);
-            })
-            .mount(ctx);
+        ctx.append(drawer_head, drawer_mark);
         ctx.append(drawer_head, drawer_title);
-        ctx.append(drawer_head, close_node);
         ctx.append(drawer_panel, drawer_head);
         ctx.append(drawer_portal, drawer_panel);
         ctx.on_click(drawer_portal, move |ev: &UiEvent| {
@@ -505,7 +549,8 @@ impl Mountable for EuvAppShell {
                     let seq: u64 = ev.get_sequence();
                     if seq != last_g_seq.replace(seq) && bp_sig.get_untracked().is_compact() {
                         if ev.get_kind() == GestureEventKind::SwipeRight
-                            && ev.get_origin().get_x() <= 48.0
+                            && !menu_open.get_untracked()
+                            && ev.get_origin().get_x() <= 72.0
                         {
                             let _: bool = menu_open.set_if_changed(true);
                         } else if ev.get_kind() == GestureEventKind::SwipeLeft
@@ -550,6 +595,12 @@ impl Mountable for EuvAppShell {
                                 st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
                                 n.set_style(st);
                             }
+                            let cur_y: f32 = tree
+                                .get_node(drawer_panel)
+                                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                                .unwrap_or(0.0);
+                            tree.set_scroll_offset(drawer_panel, Point::new(0.0, cur_y));
+                            drop(tree.update_focus(None));
                             let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                             let mask_all: u16 = dirty_l | DIRTY_PAINT;
                             tree.mark_dirty(drawer_panel, mask_all);
@@ -573,11 +624,11 @@ impl Mountable for EuvAppShell {
                     ));
                     handle.start_transition(NodeTransition::slide_fade(
                         drawer_panel,
-                        Point::new(-280.0, 0.0),
+                        Point::new(-232.0, 0.0),
                         Point::new(0.0, 0.0),
-                        0.92,
+                        0.94,
                         1.0,
-                        0.24,
+                        0.22,
                         false,
                     ));
                 } else {
@@ -594,10 +645,10 @@ impl Mountable for EuvAppShell {
                     handle.start_transition(NodeTransition::slide_fade(
                         drawer_panel,
                         Point::new(0.0, 0.0),
-                        Point::new(-280.0, 0.0),
+                        Point::new(-232.0, 0.0),
                         1.0,
-                        0.9,
-                        0.22,
+                        0.92,
+                        0.20,
                         false,
                     ));
                     handle.start_transition(NodeTransition::fade(
@@ -729,7 +780,7 @@ impl Mountable for EuvPage {
             Style::empty()
                 .column()
                 .width(Length::Percent(100.0))
-                .max_width(Length::Px(1120.0))
+                .max_width(Length::Px(1040.0))
                 .gap(SPACE_LG),
         );
         let header: NodeId = EuvHeader::new(title, subtitle, tokens).mount(ctx);
@@ -773,19 +824,170 @@ impl Mountable for EuvActionRow {
     ///
     /// - `NodeId` - Mounted action row handle.
     fn mount(self, ctx: &mut BuildContext) -> NodeId {
+        let bp_sig: Signal<Breakpoint> = ctx.get_breakpoint();
         let Self { children } = self;
-        let row: NodeId = ctx.view(
+        let root: NodeId = ctx.view(
             Style::empty()
-                .row()
-                .wrap(FlexWrap::Wrap)
+                .column()
                 .width(Length::Percent(100.0))
-                .align(AlignItems::Center)
                 .gap(SPACE_SM),
         );
-        for child in children.into_iter() {
-            ctx.append(row, child);
+        let (orig_widths, wide_flags): (Vec<Length>, Vec<bool>) = ctx.get_scene().with_read(
+            |tree: &SceneTree| {
+                let mut widths: Vec<Length> = Vec::with_capacity(children.len());
+                let mut wide: Vec<bool> = Vec::with_capacity(children.len());
+                for cid in children.iter().copied() {
+                    let w: Length = tree
+                        .get_node(cid)
+                        .map(|n: &SceneNode| n.get_style().get_layout().get_width())
+                        .unwrap_or(Length::Auto);
+                    let label_len: usize = tree
+                        .get_node(cid)
+                        .map(|n: &SceneNode| {
+                            let direct: usize = match n.get_kind() {
+                                NodeKind::Text(t) => t.chars().count(),
+                                _ => 0,
+                            };
+                            let child_max: usize = n
+                                .get_children()
+                                .iter()
+                                .filter_map(|sub: &NodeId| tree.get_node(*sub))
+                                .map(|sub_n: &SceneNode| match sub_n.get_kind() {
+                                    NodeKind::Text(t) => t.chars().count(),
+                                    _ => 0,
+                                })
+                                .max()
+                                .unwrap_or(0);
+                            direct.max(child_max)
+                        })
+                        .unwrap_or(0);
+                    widths.push(w);
+                    wide.push(label_len > 14);
+                }
+                (widths, wide)
+            },
+            (
+                vec![Length::Auto; children.len()],
+                vec![false; children.len()],
+            ),
+        );
+        let pair_count: usize = children.len() / 2;
+        let mut pair_rows: Vec<NodeId> = Vec::with_capacity(pair_count);
+        for _ in 0..pair_count {
+            let pr: NodeId = ctx.view(
+                Style::empty()
+                    .grid(2)
+                    .width(Length::Percent(100.0))
+                    .gap(SPACE_SM),
+            );
+            ctx.append(root, pr);
+            pair_rows.push(pr);
         }
-        row
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let children_c: Vec<NodeId> = children.clone();
+        let pair_rows_c: Vec<NodeId> = pair_rows.clone();
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let compact: bool = bp_sig.get().is_compact();
+                handle.with_write(
+                    |tree: &mut SceneTree| {
+                        if compact {
+                            if let Some(n) = tree.get_node_mut(root) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_layout()
+                                    .set_flex_direction(FlexDirection::Column)
+                                    .set_flex_wrap(FlexWrap::NoWrap)
+                                    .set_align_items(AlignItems::Stretch);
+                                n.set_style(st);
+                            }
+                            for pair_row in pair_rows_c.iter().copied() {
+                                if let Some(n) = tree.get_node_mut(pair_row) {
+                                    let mut st: Style = n.get_style();
+                                    st.get_mut_layout().set_display(Display::None);
+                                    n.set_style(st);
+                                }
+                            }
+                            let mut idx: usize = 0;
+                            let mut pair_slot: usize = 0;
+                            while idx < children_c.len() {
+                                let a: NodeId = children_c[idx];
+                                let a_wide: bool = wide_flags.get(idx).copied().unwrap_or(false);
+                                let can_pair: bool = !a_wide
+                                    && idx + 1 < children_c.len()
+                                    && !wide_flags.get(idx + 1).copied().unwrap_or(false)
+                                    && pair_slot < pair_rows_c.len();
+                                if can_pair {
+                                    let pair_row: NodeId = pair_rows_c[pair_slot];
+                                    pair_slot += 1;
+                                    if let Some(n) = tree.get_node_mut(pair_row) {
+                                        let mut st: Style = n.get_style();
+                                        st.get_mut_layout()
+                                            .set_display(Display::Grid)
+                                            .set_grid_columns(2);
+                                        n.set_style(st);
+                                    }
+                                    tree.append_child(root, pair_row);
+                                    let b: NodeId = children_c[idx + 1];
+                                    for item in [a, b].into_iter() {
+                                        if let Some(n) = tree.get_node_mut(item) {
+                                            let mut st: Style = n.get_style();
+                                            st.get_mut_layout().set_width(Length::Percent(100.0));
+                                            n.set_style(st);
+                                        }
+                                        tree.append_child(pair_row, item);
+                                    }
+                                    idx += 2;
+                                } else {
+                                    if let Some(n) = tree.get_node_mut(a) {
+                                        let mut st: Style = n.get_style();
+                                        st.get_mut_layout().set_width(Length::Percent(100.0));
+                                        n.set_style(st);
+                                    }
+                                    tree.append_child(root, a);
+                                    idx += 1;
+                                }
+                            }
+                        } else {
+                            if let Some(n) = tree.get_node_mut(root) {
+                                let mut st: Style = n.get_style();
+                                st.get_mut_layout()
+                                    .set_flex_direction(FlexDirection::Row)
+                                    .set_flex_wrap(FlexWrap::Wrap)
+                                    .set_align_items(AlignItems::Center);
+                                n.set_style(st);
+                            }
+                            for pair_row in pair_rows_c.iter().copied() {
+                                if let Some(n) = tree.get_node_mut(pair_row) {
+                                    let mut st: Style = n.get_style();
+                                    st.get_mut_layout().set_display(Display::None);
+                                    n.set_style(st);
+                                }
+                            }
+                            for (idx, cid) in children_c.iter().copied().enumerate() {
+                                if let Some(n) = tree.get_node_mut(cid) {
+                                    let mut st: Style = n.get_style();
+                                    let ow: Length =
+                                        orig_widths.get(idx).copied().unwrap_or(Length::Auto);
+                                    st.get_mut_layout().set_width(ow);
+                                    n.set_style(st);
+                                }
+                                tree.append_child(root, cid);
+                            }
+                        }
+                        let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                        tree.mark_dirty(root, dirty_l | DIRTY_PAINT);
+                    },
+                    (),
+                );
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(root, scope);
+            },
+            (),
+        );
+        root
     }
 }
 

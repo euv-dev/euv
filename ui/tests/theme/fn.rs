@@ -15,6 +15,16 @@ fn all_seventeen_schemes_resolve_distinct_light_and_dark_tokens() {
             light.get_palette().get_background(),
             light.get_palette().get_foreground()
         );
+        assert_ne!(
+            light.get_palette().get_background(),
+            light.get_palette().get_card()
+        );
+        assert_ne!(
+            dark.get_palette().get_background(),
+            dark.get_palette().get_card()
+        );
+        assert!(light.get_geometry().get_shadow_md().get_blur_radius() > 0.0);
+        assert!(dark.get_geometry().get_shadow_lg().get_blur_radius() > 0.0);
         assert!(light.get_geometry().get_control_md() >= 30.0);
         assert!(!scheme.as_str().is_empty());
     }

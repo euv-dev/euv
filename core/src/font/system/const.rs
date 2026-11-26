@@ -51,6 +51,25 @@ pub(crate) const WIN_FONT_NAME_UTF16: [u16; 9] = [
     b'I' as u16,
     0,
 ];
+#[cfg(target_os = "windows")]
+pub(crate) const WIN_FONT_CJK_UTF16: [u16; 16] = [
+    b'M' as u16,
+    b'i' as u16,
+    b'c' as u16,
+    b'r' as u16,
+    b'o' as u16,
+    b's' as u16,
+    b'o' as u16,
+    b'f' as u16,
+    b't' as u16,
+    b' ' as u16,
+    b'Y' as u16,
+    b'a' as u16,
+    b'H' as u16,
+    b'e' as u16,
+    b'i' as u16,
+    0,
+];
 
 #[cfg(target_os = "linux")]
 pub(crate) const LIB_FREETYPE_SONAME: &str = "libfreetype.so.6";
@@ -61,18 +80,60 @@ pub(crate) const SYM_FT_INIT: &str = "FT_Init_FreeType";
 #[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) const SYM_FT_DONE: &str = "FT_Done_FreeType";
 #[cfg(any(target_os = "linux", target_os = "android"))]
+pub(crate) const SYM_FT_NEW_FACE: &str = "FT_New_Face";
+#[cfg(any(target_os = "linux", target_os = "android"))]
+pub(crate) const SYM_FT_SET_PIXEL_SIZES: &str = "FT_Set_Pixel_Sizes";
+#[cfg(any(target_os = "linux", target_os = "android"))]
+pub(crate) const SYM_FT_GET_CHAR_INDEX: &str = "FT_Get_Char_Index";
+#[cfg(any(target_os = "linux", target_os = "android"))]
+pub(crate) const SYM_FT_LOAD_GLYPH: &str = "FT_Load_Glyph";
+#[cfg(any(target_os = "linux", target_os = "android"))]
+pub(crate) const FT_LOAD_RENDER: i32 = 4;
+#[cfg(any(target_os = "linux", target_os = "android"))]
+pub(crate) const FT_PIXEL_MODE_MONO: u8 = 1;
+#[cfg(any(target_os = "linux", target_os = "android"))]
+pub(crate) const FT_PIXEL_MODE_GRAY: u8 = 2;
+#[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) const RTLD_LAZY_FONT: i32 = 1;
 #[cfg(target_os = "linux")]
-pub(crate) const LINUX_FONT_CANDIDATES: [&str; 4] = [
+pub(crate) const LINUX_FONT_CANDIDATES: [&str; 6] = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/TTF/DejaVuSans.ttf",
     "/usr/share/fonts/noto/NotoSans-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+];
+#[cfg(target_os = "linux")]
+pub(crate) const LINUX_BOLD_FONT_CANDIDATES: [&str; 6] = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/noto/NotoSans-Bold.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+];
+#[cfg(target_os = "linux")]
+pub(crate) const LINUX_CJK_FONT_CANDIDATES: [&str; 4] = [
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+    "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
 ];
 #[cfg(target_os = "android")]
 pub(crate) const ANDROID_FONT_CANDIDATES: [&str; 2] = [
     "/system/fonts/Roboto-Regular.ttf",
     "/system/fonts/NotoSansCJK-Regular.ttc",
+];
+#[cfg(target_os = "android")]
+pub(crate) const ANDROID_BOLD_FONT_CANDIDATES: [&str; 2] = [
+    "/system/fonts/Roboto-Bold.ttf",
+    "/system/fonts/Roboto-Medium.ttf",
+];
+#[cfg(target_os = "android")]
+pub(crate) const ANDROID_CJK_FONT_CANDIDATES: [&str; 2] = [
+    "/system/fonts/NotoSansCJK-Regular.ttc",
+    "/system/fonts/DroidSansFallback.ttf",
 ];
 
 #[cfg(target_arch = "wasm32")]

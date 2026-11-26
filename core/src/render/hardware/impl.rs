@@ -211,12 +211,13 @@ impl HardwareRenderer {
                     radius,
                     border,
                 } => {
+                    let snapped: Rect = snap_physical_rect(*rect, scale);
                     let inst: GpuQuadInstance = GpuQuadInstance {
                         rect: [
-                            rect.get_x() * scale,
-                            rect.get_y() * scale,
-                            rect.get_width() * scale,
-                            rect.get_height() * scale,
+                            snapped.get_x(),
+                            snapped.get_y(),
+                            snapped.get_width(),
+                            snapped.get_height(),
                         ],
                         clip: [
                             active_clip.get_x(),
@@ -244,12 +245,13 @@ impl HardwareRenderer {
                     gradient,
                     radius,
                 } => {
+                    let snapped: Rect = snap_physical_rect(*rect, scale);
                     let inst: GpuQuadInstance = GpuQuadInstance {
                         rect: [
-                            rect.get_x() * scale,
-                            rect.get_y() * scale,
-                            rect.get_width() * scale,
-                            rect.get_height() * scale,
+                            snapped.get_x(),
+                            snapped.get_y(),
+                            snapped.get_width(),
+                            snapped.get_height(),
                         ],
                         clip: [
                             active_clip.get_x(),
@@ -332,12 +334,13 @@ impl HardwareRenderer {
                     self.push_instance(active_clip, inst);
                 }
                 DrawCommand::Image { rect, radius, .. } => {
+                    let snapped: Rect = snap_physical_rect(*rect, scale);
                     let inst: GpuQuadInstance = GpuQuadInstance {
                         rect: [
-                            rect.get_x() * scale,
-                            rect.get_y() * scale,
-                            rect.get_width() * scale,
-                            rect.get_height() * scale,
+                            snapped.get_x(),
+                            snapped.get_y(),
+                            snapped.get_width(),
+                            snapped.get_height(),
                         ],
                         clip: [
                             active_clip.get_x(),
@@ -395,10 +398,12 @@ impl HardwareRenderer {
                     color,
                     width,
                 } => {
+                    let dx: f32 = (to.get_x() - from.get_x()) * scale;
+                    let dy: f32 = (to.get_y() - from.get_y()) * scale;
                     let x0: f32 = from.get_x().min(to.get_x()) * scale;
                     let y0: f32 = from.get_y().min(to.get_y()) * scale;
-                    let w: f32 = ((from.get_x() - to.get_x()).abs() * scale).max(width * scale);
-                    let h: f32 = ((from.get_y() - to.get_y()).abs() * scale).max(width * scale);
+                    let w: f32 = dx.abs().max(width * scale);
+                    let h: f32 = dy.abs().max(width * scale);
                     let inst: GpuQuadInstance = GpuQuadInstance {
                         rect: [x0, y0, w, h],
                         clip: [
@@ -409,10 +414,15 @@ impl HardwareRenderer {
                         ],
                         color: color.to_f32_array(),
                         secondary_color: [0.0; 4],
-                        radii: [0.0; 4],
+                        radii: [
+                            from.get_x() * scale,
+                            from.get_y() * scale,
+                            to.get_x() * scale,
+                            to.get_y() * scale,
+                        ],
                         stroke_or_blur: width * scale,
-                        angle_rad: 0.0,
-                        kind: GpuPrimitiveKind::RoundedRect as u32,
+                        angle_rad: dy.atan2(dx),
+                        kind: GpuPrimitiveKind::Line as u32,
                         reserved: 0,
                     };
                     self.push_instance(active_clip, inst);
@@ -436,22 +446,28 @@ impl HardwareRenderer {
                             active_clip.bottom(),
                         ],
                         color: color.to_f32_array(),
-                        secondary_color: [0.0; 4],
-                        radii: [0.0; 4],
+                        secondary_color: [p0.get_x() * scale, p0.get_y() * scale, 0.0, 0.0],
+                        radii: [
+                            p1.get_x() * scale,
+                            p1.get_y() * scale,
+                            p2.get_x() * scale,
+                            p2.get_y() * scale,
+                        ],
                         stroke_or_blur: 0.0,
                         angle_rad: 0.0,
-                        kind: GpuPrimitiveKind::RoundedRect as u32,
+                        kind: GpuPrimitiveKind::Triangle as u32,
                         reserved: 3,
                     };
                     self.push_instance(active_clip, inst);
                 }
                 DrawCommand::SpriteRegion { rect, tint, .. } => {
+                    let snapped: Rect = snap_physical_rect(*rect, scale);
                     let inst: GpuQuadInstance = GpuQuadInstance {
                         rect: [
-                            rect.get_x() * scale,
-                            rect.get_y() * scale,
-                            rect.get_width() * scale,
-                            rect.get_height() * scale,
+                            snapped.get_x(),
+                            snapped.get_y(),
+                            snapped.get_width(),
+                            snapped.get_height(),
                         ],
                         clip: [
                             active_clip.get_x(),

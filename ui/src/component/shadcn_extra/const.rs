@@ -15,3 +15,12 @@ pub(crate) const COMMAND_EMPTY_LABEL: &str = "No results found.";
 
 /// Label shown in `EuvCarousel` when no slides are supplied.
 pub(crate) const CAROUSEL_EMPTY_LABEL: &str = "No slides";
+
+/// Default cancel button label in `EuvAlertDialog`.
+pub(crate) const ALERT_DEFAULT_CANCEL_LABEL: &str = "Cancel";
+
+/// Default confirm button label in `EuvAlertDialog`.
+pub(crate) const ALERT_DEFAULT_CONFIRM_LABEL: &str = "Continue";
+
+/// Default search prompt placeholder in `EuvCommand`.
+pub(crate) const COMMAND_DEFAULT_PLACEHOLDER: &str = "Type a command or search...";

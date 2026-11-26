@@ -190,3 +190,69 @@ fn native_gpu_driver_probes_hardware_compiles_shaders_and_submits_batches() {
         }
     }
 }
+
+#[test]
+fn transparent_canvas_hover_skips_gray_box_and_hardware_has_readback_framebuffer() {
+    reset_reactive_runtime();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(240, 120).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        let mut ctx: BuildContext = current_build_context();
+        let root: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Px(240.0))
+                .height(Length::Px(120.0))
+                .background(COLOR_WHITE),
+        );
+        let canvas_node: NodeId = ctx.canvas(
+            Style::empty()
+                .width(Length::Px(180.0))
+                .height(Length::Px(32.0))
+                .cursor(CursorIcon::Pointer),
+            |bounds: Rect, dl: &mut DisplayList| {
+                dl.push(DrawCommand::FillRoundedRect {
+                    rect: Rect::new(
+                        bounds.get_x(),
+                        bounds.get_y() + 14.0,
+                        bounds.get_width(),
+                        4.0,
+                    ),
+                    color: Color::hex(0x2563EB),
+                    radius: CornerRadius::all(2.0),
+                    border: Border::default(),
+                });
+            },
+        );
+        ctx.append(root, canvas_node);
+        root
+    });
+    let before: FrameStats = app.step_frame().unwrap();
+    let wid: WindowId = app.get_window_state().get_id();
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(40.0, 16.0),
+    ));
+    let after: FrameStats = app.step_frame().unwrap();
+    assert_eq!(before.get_frame_hash(), after.get_frame_hash());
+    let hw_renderer: Renderer = Renderer::new(
+        PlatformKind::Windows,
+        PlatformCapabilities::for_platform(PlatformKind::Windows),
+        240,
+        120,
+        RenderConfig::default(),
+    );
+    assert!(hw_renderer.framebuffer().is_some());
+    assert!(WGSL_UI_SHADER.contains("border_a"));
+    assert!(MSL_UI_SHADER.contains("border_a"));
+    assert!(GLSL_ES3_UI_FRAGMENT_SHADER.contains("border_a"));
+    assert!(HLSL_UI_SHADER.contains("border_a"));
+    let cov_sdf: f32 = sdf_coverage(0.25, AntialiasingMode::AnalyticalSdf);
+    let cov_msaa: f32 = sdf_coverage(0.25, AntialiasingMode::Msaa4x);
+    let cov_ssaa: f32 = sdf_coverage(0.25, AntialiasingMode::Ssaa2x);
+    assert!(cov_sdf > 0.0 && cov_msaa > 0.0 && cov_ssaa > 0.0);
+    assert_ne!(cov_sdf.to_bits(), cov_ssaa.to_bits());
+}

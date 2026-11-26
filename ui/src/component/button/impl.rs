@@ -109,6 +109,20 @@ impl EuvButton {
         self.variant(EuvButtonVariant::Destructive)
     }
 
+    /// Applies the `Link` button variant fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Link button.
+    #[must_use]
+    pub fn link(self) -> Self {
+        self.variant(EuvButtonVariant::Link)
+    }
+
     /// Applies the `Small` unified control height fluently.
     ///
     /// # Arguments
@@ -137,6 +151,36 @@ impl EuvButton {
         self.size(EuvButtonSize::Large)
     }
 
+    /// Applies the square `Icon` control preset fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Icon button.
+    #[must_use]
+    pub fn icon(self) -> Self {
+        self.size(EuvButtonSize::Icon)
+    }
+
+    /// Sets the disabled interaction state fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source button.
+    /// - `bool` - Whether the button is disabled.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated button.
+    #[must_use]
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.set_disabled(disabled);
+        self
+    }
+
     /// Resolves the deterministic compiled `Style` for this button.
     ///
     /// # Arguments
@@ -151,8 +195,8 @@ impl EuvButton {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let (height, pad_x, font_sz, radius): (f32, f32, f32, f32) = match self.get_size() {
-            EuvButtonSize::Small => (g.get_control_sm(), SPACE_MD, 12.0, g.get_radius_sm()),
-            EuvButtonSize::Default => (g.get_control_md(), SPACE_LG, 13.0, g.get_radius_md()),
+            EuvButtonSize::Small => (g.get_control_sm(), SPACE_SM, 12.0, g.get_radius_sm()),
+            EuvButtonSize::Default => (g.get_control_md(), SPACE_MD, 13.0, g.get_radius_md()),
             EuvButtonSize::Large => (g.get_control_lg(), SPACE_XL, 14.0, g.get_radius_md()),
             EuvButtonSize::Icon => (g.get_control_md(), 0.0, 13.0, g.get_radius_md()),
         };
@@ -162,6 +206,7 @@ impl EuvButton {
             .align(AlignItems::Center)
             .height(Length::Px(height))
             .padding(Edges::symmetric(0.0, pad_x))
+            .overflow(Overflow::Hidden)
             .radius(radius)
             .font_size(font_sz)
             .font_weight(FontWeight::Medium)
@@ -178,19 +223,19 @@ impl EuvButton {
             EuvButtonVariant::Primary => style
                 .background(p.get_primary())
                 .color(p.get_primary_foreground())
-                .shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 13))),
+                .shadow(g.get_shadow_xs()),
             EuvButtonVariant::Secondary => style
                 .background(p.get_secondary())
                 .color(p.get_secondary_foreground()),
             EuvButtonVariant::Destructive => style
                 .background(p.get_destructive())
                 .color(p.get_destructive_foreground())
-                .shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 13))),
+                .shadow(g.get_shadow_xs()),
             EuvButtonVariant::Outline => style
-                .background(p.get_background())
+                .background(p.get_card())
                 .border(g.get_border_width(), p.get_border())
                 .color(p.get_foreground())
-                .shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 10))),
+                .shadow(g.get_shadow_xs()),
             EuvButtonVariant::Ghost => style.color(p.get_foreground()),
             EuvButtonVariant::Link => style.color(p.get_primary()),
         };
@@ -216,11 +261,12 @@ impl Mountable for EuvButton {
     fn mount(self, ctx: &mut BuildContext) -> NodeId {
         let style: Style = self.resolved_style();
         let text_style: Style = Style::empty()
+            .max_width(Length::Percent(100.0))
             .color(style.get_text().get_color())
             .font_size(style.get_text().get_font_size())
             .font_weight(style.get_text().get_weight())
             .text_align(TextAlign::Center)
-            .text_overflow(TextOverflow::Clip);
+            .text_overflow(TextOverflow::Ellipsis);
         let disabled: bool = self.get_disabled();
         let Self {
             label, on_click, ..

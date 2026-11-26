@@ -69,6 +69,41 @@ impl ReactiveRuntime {
         id
     }
 
+    /// Allocates a new root-lifetime signal in the arena without binding it to the active transient `Scope`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reactive runtime.
+    /// - `T` - Initial signal value.
+    ///
+    /// # Returns
+    ///
+    /// - `SignalId` - Newly allocated detached signal identifier.
+    pub(crate) fn create_detached_signal<T>(&mut self, initial_value: T) -> SignalId
+    where
+        T: 'static,
+    {
+        let boxed: Box<dyn Any> = Box::new(initial_value);
+        if let Some(index) = self.get_mut_free_signals().pop() {
+            let entry: &mut SignalEntry = &mut self.get_mut_signals()[index as usize];
+            let next_gen: u32 = entry.get_generation().wrapping_add(1);
+            entry.set_generation(next_gen);
+            entry.set_version(0);
+            entry.set_value(Some(boxed));
+            entry.get_mut_subscribers().clear();
+            SignalId::from_slot(SlotId::new(index, next_gen))
+        } else {
+            let index: u32 = self.get_signals().len() as u32;
+            self.get_mut_signals().push(SignalEntry {
+                generation: 1,
+                version: 0,
+                value: Some(boxed),
+                subscribers: Vec::with_capacity(INITIAL_SUBSCRIBER_CAPACITY),
+            });
+            SignalId::from_slot(SlotId::new(index, 1))
+        }
+    }
+
     /// Reads a signal value via cloning inside the arena and records dependency tracking.
     ///
     /// # Arguments

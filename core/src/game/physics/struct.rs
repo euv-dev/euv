@@ -37,6 +37,23 @@ pub struct CollisionEvent {
     pub(crate) is_trigger: bool,
 }
 
+/// Fluent query descriptor for 2D physics raycasting against `PhysicsWorld2D`.
+#[derive(Clone, Copy, Data, Debug, PartialEq)]
+pub struct RaycastQuery2D {
+    /// Ray origin in world units.
+    #[get(type(copy))]
+    pub(crate) origin: Point,
+    /// Ray direction vector (normalized automatically during cast).
+    #[get(type(copy))]
+    pub(crate) direction: Point,
+    /// Maximum ray travel distance in world units.
+    #[get(type(copy))]
+    pub(crate) max_distance: f32,
+    /// Collision layer filter bitmask (defaults to `u32::MAX`).
+    #[get(type(copy))]
+    pub(crate) layer_mask: u32,
+}
+
 /// Result of a 2D physics raycast intersection query.
 #[derive(Clone, Copy, Data, Debug, New, PartialEq)]
 pub struct RaycastHit {

@@ -1,11 +1,6 @@
 use super::*;
 
 style! {
-    c_page_column {
-        direction: column;
-        width: Length::Percent(100.0);
-        gap: SPACE_LG;
-    }
     c_action_row {
         direction: row;
         width: Length::Percent(100.0);
@@ -40,114 +35,10 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
     let mut ctx: BuildContext = current_build_context();
     ctx.bind_children(host, move || {
         let tokens: ThemeTokens = state_c.get_theme().get_tokens().get();
-        let p: ThemePalette = tokens.get_palette();
-        let g: ThemeGeometry = tokens.get_geometry();
         let hub: DynamicUpdateHub = state_c.get_dynamic_hub().clone();
         let _: u64 = hub.routes_signal().get();
-        let mut nav_items: Vec<EuvNavItem> = ShowcaseState::nav_items();
-        for dyn_route in hub.registered_routes().into_iter() {
-            if dyn_route == ROUTE_DYNAMIC_PANEL {
-                continue;
-            }
-            if !nav_items
-                .iter()
-                .any(|item: &EuvNavItem| item.get_path().as_str() == dyn_route.as_str())
-            {
-                let label: String = hub
-                    .page_title(&dyn_route)
-                    .filter(|t: &String| !t.is_empty())
-                    .unwrap_or_else(|| dyn_route.clone());
-                nav_items.push(EuvNavItem::new(dyn_route, label).section(NAV_SEC_RUNTIME));
-            }
-        }
-        let nav: NodeId =
-            EuvSidebarNav::new(nav_items, state_c.get_route(), tokens).mount_current();
-        let state_for_outlet: ShowcaseState = state_c.clone();
-        let router: EuvRouter =
-            EuvRouter::new(&state_c.get_route().get_untracked()).with_dynamic_hub(hub.clone());
-        let route_sig: Signal<String> = state_c.get_route();
-        let breadcrumb_sig: Signal<String> = Signal::new(ShowcaseState::breadcrumb_for_route(
-            &route_sig.get_untracked(),
-        ));
-        let router_sync_in: EuvRouter = router.clone();
-        let router_path_sig: Signal<String> = router.get_current_path();
-        let mut rctx: BuildContext = current_build_context();
-        let (sync_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            let _: Effect = Effect::new(move || {
-                let target: String = route_sig.get();
-                let _: bool =
-                    breadcrumb_sig.set_if_changed(ShowcaseState::breadcrumb_for_route(&target));
-                if router_sync_in.get_current_path().get_untracked() != target {
-                    router_sync_in.push(&target);
-                }
-            });
-            Effect::new(move || {
-                let rp: String = router_path_sig.get();
-                if route_sig.get_untracked() != rp {
-                    let _: bool = route_sig.set_if_changed(rp);
-                }
-            })
-        });
-        let page_node: NodeId = router
-            .outlet(move |matched: &EuvRouteMatch| {
-                mount_route_by_name(matched.get_path(), &state_for_outlet, tokens)
-            })
-            .mount(&mut rctx);
-        rctx.get_scene().with_write(
-            |tree: &mut SceneTree| {
-                tree.attach_scope(page_node, sync_scope);
-            },
-            (),
-        );
         let cmd_open: Signal<bool> = state_c.get_cmd_palette_open();
         let cmd_query: Signal<String> = state_c.get_cmd_palette_query();
-        let st_dark_top: ShowcaseState = state_c.clone();
-        let st_scheme_top: ShowcaseState = state_c.clone();
-        let st_dark_foot: ShowcaseState = state_c.clone();
-        let mode_label: String = match state_c.get_theme().get_mode().get_untracked() {
-            ThemeMode::Dark => "Light".to_string(),
-            ThemeMode::Light => "Dark".to_string(),
-        };
-        let scheme_label: String = format!("{:?}", state_c.get_theme().get_scheme().get_untracked());
-        let top_actions: NodeId = view! {
-            row {
-                gap: SPACE_SM
-                align: AlignItems::Center
-                { EuvButton::new("Search  Cmd+K".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
-                    let _: bool = cmd_open.set_if_changed(true);
-                }) }
-                { EuvButton::new(scheme_label.clone(), tokens).secondary().sm().on_click(move |_: &UiEvent| {
-                    st_scheme_top.next_scheme();
-                }) }
-                { EuvButton::new(mode_label.clone(), tokens).outline().sm().on_click(move |_: &UiEvent| {
-                    st_dark_top.toggle_theme_mode();
-                }) }
-            }
-        };
-        let sidebar_footer: NodeId = view! {
-            column {
-                width: Length::Percent(100.0)
-                gap: SPACE_XS
-                padding: Edges::all(SPACE_SM)
-                radius: g.get_radius_md()
-                background: p.get_muted()
-                border: (g.get_border_width(), p.get_border())
-                text {
-                    font_size: 11.5
-                    font_weight: FontWeight::SemiBold
-                    color: p.get_foreground()
-                    { format!("Theme: {scheme_label}") }
-                }
-                text {
-                    font_size: 11.0
-                    color: p.get_muted_foreground()
-                    "Zero-WebView Native · 7 Targets"
-                }
-                { EuvButton::new(format!("Switch to {mode_label}"), tokens).outline().sm().on_click(move |_: &UiEvent| {
-                    st_dark_foot.toggle_theme_mode();
-                }) }
-            }
-        };
         let cmd_items: Vec<String> = vec![
             "Go to Overview (Workspace)".to_string(),
             "Go to UI & Edge Lab (Workspace)".to_string(),
@@ -161,14 +52,10 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
         let cmd_sel: Signal<Option<usize>> = Signal::new(None);
         let cmd_route: Signal<String> = state_c.get_route();
         let cmd_state: ShowcaseState = state_c.clone();
-        let cmd_list: NodeId = EuvCommand::new(
-            cmd_query,
-            "Type a route or action...".to_string(),
-            cmd_items,
-            cmd_sel,
-            tokens,
-        )
-        .mount_current();
+        let cmd_list: NodeId = EuvCommand::new(cmd_items, cmd_sel, tokens)
+            .query(cmd_query)
+            .placeholder("Type a route or action...")
+            .mount_current();
         let (cmd_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             Effect::new(move || {
                 if let Some(idx) = cmd_sel.get() {
@@ -210,21 +97,118 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
             tokens,
         )
         .mount_current();
+        let rctx: BuildContext = current_build_context();
         rctx.get_scene().with_write(
             |tree: &mut SceneTree| {
                 tree.attach_scope(cmd_modal, cmd_scope);
             },
             (),
         );
-        let shell: NodeId = EuvAppShell::new(SHOWCASE_BRAND.to_string(), nav, page_node, tokens)
-            .route(state_c.get_route())
-            .breadcrumb(breadcrumb_sig)
-            .top_bar_actions(top_actions)
-            .sidebar_footer(sidebar_footer)
-            .mount_current();
+        let state_shell: ShowcaseState = state_c.clone();
+        let hub_shell: DynamicUpdateHub = hub.clone();
         let mut global_slot_cfg: DynamicComponentSlot = DynamicComponentSlot::new(
             WASM_GLOBAL_ROOT_SLOT.to_string(),
-            Rc::new(move || shell),
+            Rc::new(move || {
+                let mut nav_items: Vec<EuvNavItem> = ShowcaseState::nav_items();
+                for dyn_route in hub_shell.registered_routes().into_iter() {
+                    if dyn_route == ROUTE_DYNAMIC_PANEL {
+                        continue;
+                    }
+                    if !nav_items
+                        .iter()
+                        .any(|item: &EuvNavItem| item.get_path().as_str() == dyn_route.as_str())
+                    {
+                        let label: String = hub_shell
+                            .page_title(&dyn_route)
+                            .filter(|t: &String| !t.is_empty())
+                            .unwrap_or_else(|| dyn_route.clone());
+                        nav_items.push(EuvNavItem::new(dyn_route, label).section(NAV_SEC_RUNTIME));
+                    }
+                }
+                let nav: NodeId =
+                    EuvSidebarNav::new(nav_items, state_shell.get_route(), tokens).mount_current();
+                let state_for_outlet: ShowcaseState = state_shell.clone();
+                let router: EuvRouter = EuvRouter::new(&state_shell.get_route().get_untracked())
+                    .with_dynamic_hub(hub_shell.clone());
+                let route_sig: Signal<String> = state_shell.get_route();
+                let breadcrumb_sig: Signal<String> =
+                    Signal::new(ShowcaseState::breadcrumb_for_route(
+                        &route_sig.get_untracked(),
+                    ));
+                let router_sync_in: EuvRouter = router.clone();
+                let router_path_sig: Signal<String> = router.get_current_path();
+                let mut sctx: BuildContext = current_build_context();
+                let (sync_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                    let _: Effect = Effect::new(move || {
+                        let target: String = route_sig.get();
+                        let _: bool = breadcrumb_sig
+                            .set_if_changed(ShowcaseState::breadcrumb_for_route(&target));
+                        if router_sync_in.get_current_path().get_untracked() != target {
+                            router_sync_in.push(&target);
+                        }
+                    });
+                    Effect::new(move || {
+                        let rp: String = router_path_sig.get();
+                        if route_sig.get_untracked() != rp {
+                            let _: bool = route_sig.set_if_changed(rp);
+                        }
+                    })
+                });
+                let page_node: NodeId = router
+                    .outlet(move |matched: &EuvRouteMatch| {
+                        mount_route_by_name(matched.get_path(), &state_for_outlet, tokens)
+                    })
+                    .mount(&mut sctx);
+                sctx.get_scene().with_write(
+                    |tree: &mut SceneTree| {
+                        tree.attach_scope(page_node, sync_scope);
+                    },
+                    (),
+                );
+                let st_dark_top: ShowcaseState = state_shell.clone();
+                let st_scheme_top: ShowcaseState = state_shell.clone();
+                let st_dark_mobile: ShowcaseState = state_shell.clone();
+                let mode_label: String =
+                    match state_shell.get_theme().get_mode().get_untracked() {
+                        ThemeMode::Dark => "Light".to_string(),
+                        ThemeMode::Light => "Dark".to_string(),
+                    };
+                let scheme_label: String =
+                    format!("{:?}", state_shell.get_theme().get_scheme().get_untracked());
+                let top_actions: NodeId = view! {
+                    row {
+                        gap: SPACE_SM
+                        align: AlignItems::Center
+                        { EuvButton::new("Search  Cmd+K".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                            let _: bool = cmd_open.set_if_changed(true);
+                        }) }
+                        { EuvButton::new(scheme_label, tokens).secondary().sm().on_click(move |_: &UiEvent| {
+                            st_scheme_top.next_scheme();
+                        }) }
+                        { EuvButton::new(mode_label.clone(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                            st_dark_top.toggle_theme_mode();
+                        }) }
+                    }
+                };
+                let mobile_actions: NodeId = view! {
+                    row {
+                        gap: SPACE_XS
+                        align: AlignItems::Center
+                        { EuvButton::new("Search".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                            let _: bool = cmd_open.set_if_changed(true);
+                        }) }
+                        { EuvButton::new(mode_label, tokens).ghost().sm().on_click(move |_: &UiEvent| {
+                            st_dark_mobile.toggle_theme_mode();
+                        }) }
+                    }
+                };
+                EuvAppShell::new(SHOWCASE_BRAND.to_string(), nav, page_node, tokens)
+                    .route(state_shell.get_route())
+                    .breadcrumb(breadcrumb_sig)
+                    .top_bar_actions(top_actions)
+                    .mobile_header_actions(mobile_actions)
+                    .mount_current()
+            }),
         );
         global_slot_cfg.set_hub(Some(hub)).set_style(
             Style::empty()
@@ -432,6 +416,17 @@ pub fn mount_reactive_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
             let _: bool = counter.set_if_changed(0);
         });
     reset_btn.set_variant(EuvButtonVariant::Outline);
+    let reactive_actions: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new(BTN_INCREMENT.to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = counter.update(|v: &mut i32| *v += 1);
+                })
+                .mount_current(),
+        )
+        .child(batch_btn.mount_current())
+        .child(reset_btn.mount_current())
+        .mount_current();
     let body: NodeId = view! {
         column {
             gap: SPACE_MD
@@ -446,23 +441,20 @@ pub fn mount_reactive_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
                 color: p.get_primary()
                 { move || format!("{PREFIX_DOUBLED}{}", doubled.get()) }
             }
-            row {
-                style: c_action_row()
-                { EuvButton::new(BTN_INCREMENT.to_string(), tokens).on_click(move |_: &UiEvent| { let _: bool = counter.update(|v: &mut i32| *v += 1); }) }
-                { batch_btn }
-                { reset_btn }
-            }
+            { reactive_actions }
         }
     };
-    let mut card: EuvCard = EuvCard::new(REACTIVE_CARD_TITLE.to_string(), tokens).child(body);
-    card.set_subtitle(REACTIVE_CARD_SUB.to_string());
-    view! {
-        column {
-            style: c_page_column()
-            { EuvHeader::new(REACTIVE_TITLE.to_string(), REACTIVE_SUBTITLE.to_string(), tokens) }
-            { card }
-        }
-    }
+    let card: NodeId = EuvCard::new(REACTIVE_CARD_TITLE.to_string(), tokens)
+        .subtitle(REACTIVE_CARD_SUB)
+        .child(body)
+        .mount_current();
+    EuvPage::new(
+        REACTIVE_TITLE.to_string(),
+        REACTIVE_SUBTITLE.to_string(),
+        tokens,
+    )
+    .section(card)
+    .mount_current()
 }
 
 /// Mounts the multi-mode rendering inspector with live mode switcher and vector `canvas` via `view!`.
@@ -539,17 +531,18 @@ pub fn mount_render_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             }
         }
     };
-    let mut card: EuvCard = EuvCard::new(RENDER_CARD_TITLE.to_string(), tokens)
+    let card: NodeId = EuvCard::new(RENDER_CARD_TITLE.to_string(), tokens)
+        .subtitle(RENDER_CARD_SUB)
         .child(seg)
-        .child(preview);
-    card.set_subtitle(RENDER_CARD_SUB.to_string());
-    view! {
-        column {
-            style: c_page_column()
-            { EuvHeader::new(RENDER_TITLE.to_string(), RENDER_SUBTITLE.to_string(), tokens) }
-            { card }
-        }
-    }
+        .child(preview)
+        .mount_current();
+    EuvPage::new(
+        RENDER_TITLE.to_string(),
+        RENDER_SUBTITLE.to_string(),
+        tokens,
+    )
+    .section(card)
+    .mount_current()
 }
 
 /// Mounts the OS capabilities page with interactive A11y, Protocol Registration, Dynamic Island, Permissions, and Haptics.
@@ -587,19 +580,25 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         gpu_info.get_device_name(),
         gpu_info.get_shader_compiled()
     );
+    let native_feedback: Signal<String> = Signal::new(
+        "Ready — tap any OS capability below to trigger native platform feedback".to_string(),
+    );
+    let fs_sig: Signal<bool> = state.get_fullscreen();
     let mut proto_btn: EuvButton = EuvButton::new("Register euv:// Protocol".to_string(), tokens)
         .on_click(move |_: &UiEvent| {
             let mut reg: ProtocolRegistry = ProtocolRegistry::new();
             let spec: ProtocolRegistration = ProtocolRegistration::new(
                 "euv".to_string(),
                 "euv Native Showcase".to_string(),
-                "dev.euv.showcase".to_string(),
+                SHOWCASE_BUNDLE_ID.to_string(),
             );
+            let native_ok: bool =
+                dispatch_native_action(NATIVE_ACTION_PROTOCOL, "euv", SHOWCASE_BUNDLE_ID);
             if let Ok(desc) = reg.register(spec, platform) {
-                let _: bool = proto_status.set_if_changed(format!(
-                    "Registered via {} | DeepLink Ready",
-                    desc.get_mechanism()
-                ));
+                let tag: &str = if native_ok { "OS Bridged" } else { "Verified" };
+                let msg: String = format!("Registered euv:// via {} ({tag})", desc.get_mechanism());
+                let _: bool = proto_status.set_if_changed(msg.clone());
+                let _: bool = native_feedback.set(msg);
             }
         });
     proto_btn.set_variant(EuvButtonVariant::Secondary);
@@ -611,24 +610,90 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 "Native camera preview".to_string(),
                 platform,
             );
-            let _: bool = cam_status.set_if_changed(format!(
-                "{:?} ({})",
-                desc.get_status(),
-                desc.get_native_key()
-            ));
+            let msg: String = format!("{:?} ({})", desc.get_status(), desc.get_native_key());
+            let _: bool = cam_status.set_if_changed(msg.clone());
+            let _: bool = native_feedback.set(format!("Permission requested: {msg}"));
         });
     perm_btn.set_variant(EuvButtonVariant::Outline);
     let mut a11y_btn: EuvButton = EuvButton::new("Announce A11y + Haptic".to_string(), tokens)
         .on_click(move |_: &UiEvent| {
+            let mut svc: PlatformServiceHub = PlatformServiceHub::new(platform);
+            let fired: bool = svc.trigger_haptic(HapticStyle::Medium);
+            svc.announce_a11y(
+                "euv native accessibility pulse".to_string(),
+                A11yLiveRegion::Polite,
+            );
             let _: bool = a11y_count.update(|v: &mut u32| *v += 1);
             let _: bool = haptic_count.update(|v: &mut u32| *v += 1);
+            let _: bool = native_feedback.set(format!(
+                "Dispatched Haptic pulse (ok={fired}) + A11y announcement #{}",
+                a11y_count.get_untracked()
+            ));
         });
     a11y_btn.set_variant(EuvButtonVariant::Outline);
+    let win_actions: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new("Toggle Dynamic Island".to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
+                    let next_active: bool = !island_active.get_untracked();
+                    let _: bool = island_active.set_if_changed(next_active);
+                    let next_pct: u8 = if next_active {
+                        let cur: u8 = island_progress.get_untracked();
+                        if cur >= 100 { 25 } else { (cur + 25).min(100) }
+                    } else {
+                        island_progress.get_untracked()
+                    };
+                    let _: bool = island_progress.set_if_changed(next_pct);
+                    let mut svc: PlatformServiceHub = PlatformServiceHub::new(platform);
+                    if next_active {
+                        let mut content: LiveActivityContent = LiveActivityContent::new(
+                            "Euv Live Activity".to_string(),
+                            format!("Active ({next_pct}%) on {platform:?}"),
+                        );
+                        content.set_progress_percent(Some(next_pct));
+                        let _ = svc.start_live_activity("euv-showcase-island".to_string(), content);
+                        let _: bool = native_feedback.set(format!(
+                            "Dynamic Island LIVE ({next_pct}%) dispatched to {platform:?}"
+                        ));
+                    } else {
+                        let _: bool = dispatch_native_action(
+                            NATIVE_ACTION_ISLAND,
+                            "stop",
+                            "Dynamic Island paused",
+                        );
+                        let _: bool =
+                            native_feedback.set("Dynamic Island session ended".to_string());
+                    }
+                })
+                .mount_current(),
+        )
+        .child(proto_btn.mount_current())
+        .child(perm_btn.mount_current())
+        .child(a11y_btn.mount_current())
+        .mount_current();
+    let ctx_fs: BuildContext = current_build_context();
+    let prev_fs: Rc<Cell<bool>> = Rc::new(Cell::new(fs_sig.get_untracked()));
+    let (fs_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+        Effect::new(move || {
+            let now_fs: bool = fs_sig.get();
+            if prev_fs.replace(now_fs) != now_fs {
+                let arg: &str = if now_fs { "on" } else { "off" };
+                let _: bool = dispatch_native_action(NATIVE_ACTION_FULLSCREEN, arg, "");
+                let _: bool = native_feedback.set(format!("Immersive fullscreen mode: {arg}"));
+            }
+        })
+    });
     let body: NodeId = view! {
         column {
             role: A11yRole::Region
             a11y_label: "Platform Telemetry"
             gap: SPACE_MD
+            text {
+                font_size: 13.0
+                font_weight: FontWeight::SemiBold
+                color: p.get_success()
+                { move || native_feedback.get() }
+            }
             text {
                 font_size: 14.0
                 font_weight: FontWeight::Medium
@@ -659,17 +724,17 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 color: p.get_muted_foreground()
                 { move || format!("A11y Bridge: {} (announcements={}) | Haptics: {} (pulses={})", caps.get_accessibility_bridge(), a11y_count.get(), caps.get_haptics(), haptic_count.get()) }
             }
-            row {
-                style: c_action_row()
-                { EuvButton::new("Toggle Dynamic Island".to_string(), tokens).on_click(move |_: &UiEvent| { let _: bool = island_active.update(|v: &mut bool| *v = !*v); let _: bool = island_progress.update(|p: &mut u8| *p = (*p + 25).min(100)); }) }
-                { proto_btn }
-                { perm_btn }
-                { a11y_btn }
-            }
-            { EuvSwitch::new(state.get_fullscreen(), SWITCH_FULLSCREEN.to_string(), tokens) }
+            { win_actions }
+            { EuvSwitch::new(fs_sig, SWITCH_FULLSCREEN.to_string(), tokens) }
             { EuvCodeBlock::new(CODE_WINDOW_SNIPPET.to_string(), tokens) }
         }
     };
+    ctx_fs.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            tree.attach_scope(body, fs_scope);
+        },
+        (),
+    );
     let target_plat_idx: Signal<usize> = state.get_os_target_platform_idx();
     let island_mode_idx: Signal<usize> = state.get_island_mode_idx();
     let sys_notifs: Signal<Vec<(String, String)>> = state.get_system_notifications();
@@ -834,12 +899,9 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             let native_key: &'static str = perm.native_key(tp);
             let row: NodeId = bctx.view(
                 Style::empty()
-                    .row()
-                    .wrap(FlexWrap::Wrap)
+                    .column()
                     .width(Length::Percent(100.0))
-                    .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
-                    .justify(JustifyContent::SpaceBetween)
-                    .align(AlignItems::Center)
+                    .padding(Edges::symmetric(SPACE_SM, SPACE_SM))
                     .gap(SPACE_XS)
                     .background(p.get_card())
                     .border(tokens.get_geometry().get_border_width(), p.get_border())
@@ -848,7 +910,7 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             let lbl: NodeId = bctx.text(
                 format!("{perm:?} [{st:?}] · {native_key}"),
                 Style::empty()
-                    .flex_grow(1.0)
+                    .width(Length::Percent(100.0))
                     .font_size(12.0)
                     .color(p.get_foreground()),
             );
@@ -858,16 +920,21 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 .on_click(move |_: &UiEvent| {
                     let mut mgr: PermissionManager = PermissionManager::new();
                     let desc: PermissionDescriptor =
-                        mgr.request(perm, format!("Test {perm:?} access"), tp);
+                        mgr.request(perm, format!("Test {perm:?} access"), platform);
                     let _: bool = perm_statuses.update(|vec: &mut Vec<PermissionStatus>| {
                         if let Some(slot) = vec.get_mut(idx) {
                             *slot = desc.get_status();
                         }
                     });
+                    let _: bool = native_feedback.set(format!(
+                        "Requested {perm:?} ({}) -> {:?}",
+                        perm.native_key(platform),
+                        desc.get_status()
+                    ));
                 })
                 .mount(&mut bctx);
             let deny_btn: NodeId = EuvButton::new("Deny".to_string(), tokens)
-                .ghost()
+                .destructive()
                 .sm()
                 .on_click(move |_: &UiEvent| {
                     let _: bool = perm_statuses.update(|vec: &mut Vec<PermissionStatus>| {
@@ -875,15 +942,84 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                             *slot = PermissionStatus::Denied;
                         }
                     });
+                    let _: bool = native_feedback.set(format!("Marked {perm:?} as Denied"));
                 })
                 .mount(&mut bctx);
+            let btn_pair: NodeId = EuvActionRow::new()
+                .child(req_btn)
+                .child(deny_btn)
+                .mount(&mut bctx);
             bctx.append(row, lbl);
-            bctx.append(row, req_btn);
-            bctx.append(row, deny_btn);
+            bctx.append(row, btn_pair);
             rows.push(row);
         }
         rows
     });
+    let fps_limit_sig: Signal<Option<u32>> = ctx_win.get_fps_limit();
+    let live_fps_sig: Signal<f32> = ctx_win.get_live_fps();
+    let fps_idx: Signal<usize> = Signal::new(match fps_limit_sig.get_untracked() {
+        Some(30) => 1,
+        Some(60) => 2,
+        Some(120) => 3,
+        Some(144) => 4,
+        Some(240) => 5,
+        _ => 0,
+    });
+    let fps_seg: NodeId = EuvSegmented::new(
+        vec![
+            "Unlimited".to_string(),
+            "30 FPS".to_string(),
+            "60 FPS".to_string(),
+            "120 FPS".to_string(),
+            "144 FPS".to_string(),
+            "240 FPS".to_string(),
+        ],
+        fps_idx,
+        tokens,
+    )
+    .mount_current();
+    let fps_readout: NodeId = ctx_win.reactive_text(
+        Style::empty()
+            .font_size(13.0)
+            .font_weight(FontWeight::SemiBold)
+            .color(p.get_primary()),
+        move || {
+            let cap_txt: String = match fps_limit_sig.get() {
+                None => "Unlimited (Max FPS)".to_string(),
+                Some(v) => format!("Capped at {v} FPS"),
+            };
+            format!(
+                "Frame Rate Policy: {cap_txt} | Live Measured: {:.1} FPS",
+                live_fps_sig.get()
+            )
+        },
+    );
+    let (fps_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+        Effect::new(move || {
+            let next_cap: Option<u32> = match fps_idx.get() {
+                1 => Some(30),
+                2 => Some(60),
+                3 => Some(120),
+                4 => Some(144),
+                5 => Some(240),
+                _ => None,
+            };
+            let _: bool = fps_limit_sig.set_if_changed(next_cap);
+        })
+    });
+    let fps_card: NodeId = EuvCard::new("Cross-Platform Frame Rate Limiter".to_string(), tokens)
+        .subtitle(
+            "Default Unlimited (Max FPS) on Desktop, Web, Android & iOS — adjust cap live anytime",
+        )
+        .child(fps_seg)
+        .child(fps_readout)
+        .mount_current();
+    ctx_win.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            tree.attach_scope(fps_card, fps_scope);
+        },
+        (),
+    );
     let island_card: NodeId = EuvCard::new(
         "Cross-Platform Dynamic Island & Notifications".to_string(),
         tokens,
@@ -902,17 +1038,20 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     .subtitle("Inspect per-platform native entitlement keys and test Grant / Deny flows")
     .child(perm_list_host)
     .mount_current();
-    let mut card: EuvCard = EuvCard::new(WINDOW_CARD_TITLE.to_string(), tokens).child(body);
-    card.set_subtitle(WINDOW_CARD_SUB.to_string());
-    view! {
-        column {
-            style: c_page_column()
-            { EuvHeader::new(WINDOW_TITLE.to_string(), WINDOW_SUBTITLE.to_string(), tokens) }
-            { card }
-            { island_card }
-            { perm_card }
-        }
-    }
+    let card: NodeId = EuvCard::new(WINDOW_CARD_TITLE.to_string(), tokens)
+        .subtitle(WINDOW_CARD_SUB)
+        .child(body)
+        .mount_current();
+    EuvPage::new(
+        WINDOW_TITLE.to_string(),
+        WINDOW_SUBTITLE.to_string(),
+        tokens,
+    )
+    .section(card)
+    .section(fps_card)
+    .section(island_card)
+    .section(perm_card)
+    .mount_current()
 }
 
 /// Mounts the complete shadcn/ui component showcase and production edge-case regression lab.
@@ -952,7 +1091,6 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     )
     .mount(&mut ctx);
     let combobox: NodeId = EuvCombobox::new(
-        "Filter frameworks...".to_string(),
         vec![
             "euv Native Rust".to_string(),
             "WebAssembly Zero-JS".to_string(),
@@ -960,11 +1098,12 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             "iOS CoreText Metal".to_string(),
             "macOS AppKit Retina".to_string(),
         ],
-        state.get_lab_combobox_query(),
         state.get_lab_combobox_selected(),
         state.get_lab_combobox_open(),
         tokens,
     )
+    .query(state.get_lab_combobox_query())
+    .placeholder("Filter frameworks...")
     .mount(&mut ctx);
     let date_picker: NodeId = EuvDatePicker::new(
         LABEL_CALENDAR_MONTH.to_string(),
@@ -973,14 +1112,11 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         tokens,
     )
     .mount(&mut ctx);
-    let input_group: NodeId = EuvInputGroup::new(
-        "https://".to_string(),
-        state.get_lab_input_group_val(),
-        "subdomain".to_string(),
-        ".euv.dev".to_string(),
-        tokens,
-    )
-    .mount(&mut ctx);
+    let input_group: NodeId = EuvInputGroup::new(state.get_lab_input_group_val(), tokens)
+        .prefix("https://")
+        .placeholder("subdomain")
+        .suffix(".euv.dev")
+        .mount(&mut ctx);
     let native_sel: NodeId = EuvNativeSelect::new(
         vec![
             "60 Hz Standard".to_string(),
@@ -1038,11 +1174,11 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 "Zero-JS".to_string(),
             ],
         ],
-        state.get_lab_table_filter(),
-        state.get_lab_table_sort_asc(),
-        state.get_lab_table_selected(),
         tokens,
     )
+    .filter(state.get_lab_table_filter())
+    .sort_ascending(state.get_lab_table_sort_asc())
+    .selected_row(state.get_lab_table_selected())
     .mount(&mut ctx);
     let left_split: NodeId = ctx.text(
         "Left Split Pane (Drag handle ->)".to_string(),
@@ -1057,15 +1193,13 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let resizable: NodeId =
         EuvResizable::new(left_split, right_split, state.get_lab_split_ratio(), tokens)
             .mount(&mut ctx);
-    let item_row: NodeId = EuvItem::new(
-        "EU".to_string(),
-        "Production shadcn/ui Alignment".to_string(),
-        "Unified layout grammar across all 17 design schemes with per-theme surface/radius tokens"
-            .to_string(),
-        "v0.38".to_string(),
-        tokens,
-    )
-    .mount(&mut ctx);
+    let item_row: NodeId = EuvItem::new("Production shadcn/ui Alignment".to_string(), tokens)
+        .leading("EU")
+        .description(
+            "Unified layout grammar across all 17 design schemes with per-theme surface/radius tokens",
+        )
+        .trailing("v0.38")
+        .mount(&mut ctx);
     let sep: NodeId =
         EuvSeparator::new("EDGE-CASE REGRESSION SUITE".to_string(), tokens).mount(&mut ctx);
     let rtl_sig: Signal<bool> = state.get_lab_rtl_mode();
@@ -1193,8 +1327,189 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 .mount_current(),
         )
         .mount_current();
+    let trace_view: NodeId = EuvTrace::new(
+        "Frame Pipeline Trace (1.42ms Total)".to_string(),
+        vec![
+            EuvTraceSpan::new(
+                "layout.compute".to_string(),
+                0.14,
+                0.0,
+                0.12,
+                EuvTone::Primary,
+            ),
+            EuvTraceSpan::new(
+                "bvh.raytrace_gi".to_string(),
+                0.88,
+                0.12,
+                0.60,
+                EuvTone::Success,
+            ),
+            EuvTraceSpan::new(
+                "fxaa.tonemap".to_string(),
+                0.24,
+                0.72,
+                0.16,
+                EuvTone::Warning,
+            ),
+            EuvTraceSpan::new(
+                "present.blit".to_string(),
+                0.16,
+                0.88,
+                0.12,
+                EuvTone::Neutral,
+            ),
+        ],
+        tokens,
+    )
+    .mount(&mut ctx);
+    let attach_vis: Signal<bool> = Signal::new(true);
+    let attach_view: NodeId = EuvAttachment::new(
+        "vice-boulevard-rt.wasm".to_string(),
+        "48.2 KB · application/wasm · SHA-verified".to_string(),
+        attach_vis,
+        tokens,
+    )
+    .mount(&mut ctx);
+    let bubble_in: NodeId = EuvBubble::new(
+        "Euv Runtime".to_string(),
+        "All 60+ shadcn/ui components rendered directly via Rust SceneTree with zero WebView."
+            .to_string(),
+        tokens,
+    )
+    .timestamp("09:41")
+    .mount(&mut ctx);
+    let bubble_out: NodeId = EuvBubble::new(
+        "Developer".to_string(),
+        "Verify multi-touch, text wrapping, blinking input caret & uncapped FPS live!".to_string(),
+        tokens,
+    )
+    .timestamp("09:42")
+    .outgoing(true)
+    .mount(&mut ctx);
+    let markers_row: NodeId = view! {
+        row {
+            style: c_action_row()
+            { EuvMarker::new("01".to_string(), "Zero WebView".to_string(), EuvTone::Primary, tokens) }
+            { EuvMarker::new("02".to_string(), "120+ FPS".to_string(), EuvTone::Success, tokens) }
+            { EuvMarker::new("03".to_string(), "Multi-Touch".to_string(), EuvTone::Warning, tokens) }
+            { EuvAvatar::new("EU".to_string(), 32.0, tokens) }
+            { EuvKbd::new("Cmd+K".to_string(), tokens) }
+            { EuvSpinner::new(18.0, tokens) }
+        }
+    };
+    let q_sel: Signal<Option<usize>> = Signal::new(Some(0));
+    let questionnaire: NodeId = EuvQuestionnaire::new(
+        "Preferred native target deployment pipeline?".to_string(),
+        vec![
+            "Universal Native (Android + iOS + Desktop + Web)".to_string(),
+            "Dynamic OTA .wasm Hot-Swap Modules".to_string(),
+            "Embedded 3D Ray-Traced Engine Viewport".to_string(),
+        ],
+        q_sel,
+        tokens,
+    )
+    .mount(&mut ctx);
+    let extra_primitives: NodeId = view! {
+        column {
+            width: Length::Percent(100.0)
+            gap: SPACE_SM
+            { EuvBreadcrumb::new(vec!["Euv Studio".to_string(), "Design System".to_string(), "Components".to_string()], tokens) }
+            { EuvTypography::new("Unified shadcn/ui Typography & Surface Tokens".to_string(), EuvTypographyVariant::H3, tokens) }
+            { EuvSkeleton::new(260.0, 18.0, tokens) }
+            { EuvEmpty::new("No Pending Warnings".to_string(), "All layout, scroll, shadow and typography checks passed.".to_string(), tokens) }
+        }
+    };
+    let touches_sig: Signal<Vec<(u64, Point)>> = ctx.get_active_touches();
+    let touch_pad: NodeId = ctx.canvas(
+        Style::empty()
+            .width(Length::Percent(100.0))
+            .height(Length::Px(170.0))
+            .background(p.get_muted())
+            .border(g.get_border_width(), p.get_border())
+            .radius(g.get_radius_md())
+            .stop_scroll_propagation(true)
+            .stop_event_propagation(true),
+        move |bounds: Rect, dl: &mut DisplayList| {
+            let pts: Vec<(u64, Point)> = touches_sig.get_untracked();
+            let palette: [Color; 5] = [
+                Color::hex(0x2563EB),
+                Color::hex(0x16A34A),
+                Color::hex(0xEA580C),
+                Color::hex(0x9333EA),
+                Color::hex(0xDC2626),
+            ];
+            for (idx, (_, pt)) in pts.iter().enumerate() {
+                if bounds.contains(*pt) {
+                    let col: Color = palette[idx % palette.len()];
+                    dl.push(DrawCommand::Circle {
+                        center: *pt,
+                        radius: 26.0,
+                        color: col.multiply_alpha(0.28),
+                    });
+                    dl.push(DrawCommand::Circle {
+                        center: *pt,
+                        radius: 10.0,
+                        color: col,
+                    });
+                }
+            }
+            if pts.len() >= 2 && bounds.contains(pts[0].1) && bounds.contains(pts[1].1) {
+                dl.push(DrawCommand::Line {
+                    from: pts[0].1,
+                    to: pts[1].1,
+                    color: p.get_primary(),
+                    width: 2.0,
+                });
+            }
+        },
+    );
+    let touch_stats: NodeId = ctx.reactive_text(
+        Style::empty()
+            .font_size(12.5)
+            .font_weight(FontWeight::Medium)
+            .color(p.get_primary()),
+        move || {
+            let pts: Vec<(u64, Point)> = touches_sig.get();
+            if pts.is_empty() {
+                "Multi-Touch Pad Ready: place 1, 2, or more fingers inside the pad (sidebar & scroll isolated)".to_string()
+            } else {
+                let coords: String = pts
+                    .iter()
+                    .map(|(id, pt): &(u64, Point)| {
+                        format!("#{id}({:.0},{:.0})", pt.get_x(), pt.get_y())
+                    })
+                    .collect::<Vec<String>>()
+                    .join("  ");
+                format!("Active Touches: {}  |  {coords}", pts.len())
+            }
+        },
+    );
+    let touch_handle: SceneHandle = ctx.get_scene().clone();
+    let (touch_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+        Effect::new(move || {
+            let _: Vec<(u64, Point)> = touches_sig.get();
+            touch_handle.mark_dirty(touch_pad, DIRTY_PAINT);
+        })
+    });
+    ctx.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            tree.attach_scope(touch_pad, touch_scope);
+        },
+        (),
+    );
+    let multitouch_card: NodeId = EuvCard::new("Multi-Touch & Gesture Isolation Pad".to_string(), tokens)
+        .subtitle("Simultaneous multi-finger tracking with pointer IDs, pinch distance line, and gesture non-penetration")
+        .child(touch_stats)
+        .child(touch_pad)
+        .mount_current();
     let shadcn_card: NodeId = EuvCard::new("Complete shadcn/ui Component Parity".to_string(), tokens)
-        .subtitle("Chart, Combobox, DataTable, DatePicker, InputGroup, Item, NativeSelect, NavigationMenu, Resizable, Separator, Direction")
+        .subtitle("Trace, Attachment, Bubble, Marker, Questionnaire, Chart, Combobox, DataTable, DatePicker, InputGroup, Item, NativeSelect, NavigationMenu, Resizable, Separator, Direction, Avatar, Kbd, Spinner, Skeleton, Breadcrumb, Empty")
+        .child(markers_row)
+        .child(trace_view)
+        .child(attach_view)
+        .child(bubble_in)
+        .child(bubble_out)
+        .child(questionnaire)
         .child(nav_menu)
         .child(bar_chart)
         .child(area_chart)
@@ -1205,6 +1520,7 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         .child(data_table)
         .child(resizable)
         .child(item_row)
+        .child(extra_primitives)
         .mount_current();
     let edge_card: NodeId = EuvCard::new("Boundary & Event Penetration Regression Lab".to_string(), tokens)
         .subtitle("Verify scroll lock, flexible event bubbling, overlay back stack, RTL alignment, and zero-rebuild resize preservation")
@@ -1214,11 +1530,71 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         .child(bubble_stats)
         .child(nested_scroll_host)
         .mount_current();
-    EuvPage::new(
-        "UI & Edge-Case Lab".to_string(),
-        "Full shadcn/ui component parity + production boundary, propagation, overlay stack, and resize-preservation tests".to_string(),
+    let ai_tick: Signal<u32> = Signal::new(0);
+    let ai_fps_sig: Signal<f32> = ctx.get_live_fps();
+    let ai_route_sig: Signal<String> = state.get_route();
+    let ai_scheme_sig: Signal<DesignScheme> = state.get_theme().get_scheme();
+    let ai_telemetry_txt: NodeId = ctx.reactive_text(
+        Style::empty()
+            .width(Length::Percent(100.0))
+            .font_size(12.5)
+            .color(p.get_foreground()),
+        move || {
+            let _: u32 = ai_tick.get();
+            let rs: ReactiveStats = reactive_stats();
+            #[cfg(debug_assertions)]
+            let proto_label: &str = AI_SCHEMA_PROTOCOL_VERSION;
+            #[cfg(not(debug_assertions))]
+            let proto_label: &str = AI_SCHEMA_RELEASE_STRIPPED;
+            let bridge_label: &str = if DevAutomationBridge::is_enabled() {
+                AI_BRIDGE_STATUS_ACTIVE
+            } else {
+                AI_BRIDGE_STATUS_OFF
+            };
+            format!(
+                "Protocol: {} ({}) | Route: {} | Scheme: {} | Live FPS: {:.1} | Signals: {} | Memos: {} | Effects: {} | Scopes: {} | Clock: {}",
+                proto_label,
+                bridge_label,
+                ai_route_sig.get(),
+                ai_scheme_sig.get().as_str(),
+                ai_fps_sig.get(),
+                rs.get_live_signals(),
+                rs.get_live_memos(),
+                rs.get_live_effects(),
+                rs.get_live_scopes(),
+                rs.get_clock()
+            )
+        },
+    );
+    let ai_actions: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new("Refresh AI Telemetry".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = ai_tick.update(|v: &mut u32| *v = v.wrapping_add(1));
+                })
+                .mount_current(),
+        )
+        .mount_current();
+    let ai_endpoints: NodeId = EuvCodeBlock::new(
+        "GET /ai/schema | /ai/snapshot | /ai/a11y | /ai/health\nPOST /ai/query | /ai/action | /ai/script (dev-only; 0B in release)".to_string(),
         tokens,
     )
+    .mount_current();
+    let ai_card: NodeId = EuvCard::new("AI Schema v1 & Reactive Telemetry Bridge".to_string(), tokens)
+        .subtitle("Live introspection of SceneTree bounds, A11y tree, reactive graph, FPS, and interactive agent actions")
+        .child(ai_telemetry_txt)
+        .child(ai_actions)
+        .child(ai_endpoints)
+        .mount_current();
+    EuvPage::new(
+        "UI & Edge-Case Lab".to_string(),
+        "Full shadcn/ui component parity + multi-touch, propagation, overlay stack, AI Schema v1, and resize-preservation tests".to_string(),
+        tokens,
+    )
+    .section(multitouch_card)
+    .section(ai_card)
     .section(shadcn_card)
     .section(edge_card)
     .mount_current()
@@ -1258,6 +1634,12 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             "shadcn/ui Collapsible disclosure panel adapts across Mobile, Tablet, and Desktop."
         }
     };
+    let form_btns: NodeId = EuvActionRow::new()
+        .child(EuvButton::new(BTN_PRIMARY_LABEL.to_string(), tokens).mount_current())
+        .child(b2.mount_current())
+        .child(b3.mount_current())
+        .child(b4.mount_current())
+        .mount_current();
     let body: NodeId = view! {
         column {
             gap: SPACE_MD
@@ -1266,7 +1648,7 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             { EuvTextarea::new(state.get_bio(), "Write notes...".to_string(), 54.0, tokens) }
             row {
                 style: c_action_row()
-                { EuvNumberInput::new(stepper, 0, 20, 1, tokens) }
+                { EuvNumberInput::new(stepper, tokens).range(0, 20).step(1) }
                 { EuvToggle::new(state.get_pin_toggled(), "Pin Config".to_string(), tokens) }
                 { EuvRating::new(rating, 5, tokens) }
             }
@@ -1280,13 +1662,7 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 color: p.get_muted_foreground()
                 { move || format!("Handle: {} | Stepper: {} | Stars: {}/5 | Day: {}", username.get(), stepper.get(), rating.get(), cal_day.get()) }
             }
-            row {
-                style: c_action_row()
-                { EuvButton::new(BTN_PRIMARY_LABEL.to_string(), tokens) }
-                { b2 }
-                { b3 }
-                { b4 }
-            }
+            { form_btns }
         }
     };
     let shadcn_body: NodeId = view! {
@@ -1298,19 +1674,18 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             { EuvCollapsible::new(state.get_collapsible_open(), "Advanced Form Details".to_string(), collapsible_body, tokens) }
         }
     };
-    let mut card: EuvCard = EuvCard::new(FORMS_CARD_TITLE.to_string(), tokens).child(body);
-    card.set_subtitle(FORMS_CARD_SUB.to_string());
-    let mut shadcn_card: EuvCard =
-        EuvCard::new("shadcn/ui Extended Form Controls".to_string(), tokens).child(shadcn_body);
-    shadcn_card.set_subtitle("ToggleGroup, InputOTP, Calendar, and Collapsible".to_string());
-    view! {
-        column {
-            style: c_page_column()
-            { EuvHeader::new(FORMS_TITLE.to_string(), FORMS_SUBTITLE.to_string(), tokens) }
-            { card }
-            { shadcn_card }
-        }
-    }
+    let card: NodeId = EuvCard::new(FORMS_CARD_TITLE.to_string(), tokens)
+        .subtitle(FORMS_CARD_SUB)
+        .child(body)
+        .mount_current();
+    let shadcn_card: NodeId = EuvCard::new("shadcn/ui Extended Form Controls".to_string(), tokens)
+        .subtitle("ToggleGroup, InputOTP, Calendar, and Collapsible")
+        .child(shadcn_body)
+        .mount_current();
+    EuvPage::new(FORMS_TITLE.to_string(), FORMS_SUBTITLE.to_string(), tokens)
+        .section(card)
+        .section(shadcn_card)
+        .mount_current()
 }
 
 /// Mounts the 17-scheme live design token gallery where every scheme button switches the active app theme live.
@@ -1356,6 +1731,16 @@ pub fn mount_themes_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         swatch.set_size(EuvButtonSize::Small);
         ctx.append(badges_grid, swatch.mount_current());
     }
+    let theme_actions: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new(BTN_NEXT_SCHEME.to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
+                    state_for_cycle.next_scheme();
+                })
+                .mount_current(),
+        )
+        .child(mode_btn.mount_current())
+        .mount_current();
     let body: NodeId = view! {
         column {
             gap: SPACE_MD
@@ -1365,23 +1750,21 @@ pub fn mount_themes_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 color: p.get_foreground()
                 { move || format!("{PREFIX_ACTIVE_SCHEME}{} ({:?})", scheme_sig.get().as_str(), mode_sig.get()) }
             }
-            row {
-                style: c_action_row()
-                { EuvButton::new(BTN_NEXT_SCHEME.to_string(), tokens).on_click(move |_: &UiEvent| { state_for_cycle.next_scheme(); }) }
-                { mode_btn }
-            }
+            { theme_actions }
             { badges_grid }
         }
     };
-    let mut card: EuvCard = EuvCard::new(THEMES_CARD_TITLE.to_string(), tokens).child(body);
-    card.set_subtitle(THEMES_CARD_SUB.to_string());
-    view! {
-        column {
-            style: c_page_column()
-            { EuvHeader::new(THEMES_TITLE.to_string(), THEMES_SUBTITLE.to_string(), tokens) }
-            { card }
-        }
-    }
+    let card: NodeId = EuvCard::new(THEMES_CARD_TITLE.to_string(), tokens)
+        .subtitle(THEMES_CARD_SUB)
+        .child(body)
+        .mount_current();
+    EuvPage::new(
+        THEMES_TITLE.to_string(),
+        THEMES_SUBTITLE.to_string(),
+        tokens,
+    )
+    .section(card)
+    .mount_current()
 }
 
 /// Mounts the reactive 10,000-row virtualized scrollable list plus pagination, steps, accordion, and progress.
@@ -1398,7 +1781,8 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let p: ThemePalette = tokens.get_palette();
     let g: ThemeGeometry = tokens.get_geometry();
     let scroll_y: Signal<f32> = state.get_list_scroll_y();
-    let vlist: EuvVirtualList = EuvVirtualList::new(10_000, 32.0, 224.0, scroll_y, tokens);
+    let vlist: EuvVirtualList =
+        EuvVirtualList::new(10_000, 32.0, scroll_y, tokens).viewport_height(224.0);
     let vlist_down: EuvVirtualList = vlist.clone();
     let list_node: NodeId = vlist.mount_with(move |idx: usize| {
         view! {
@@ -1445,6 +1829,16 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             { EuvAspectRatio::new(16.0 / 9.0, aspect_inner, tokens) }
         }
     };
+    let scroll_actions: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new(BTN_SCROLL_DOWN.to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
+                    vlist_down.scroll_by(160.0);
+                })
+                .mount_current(),
+        )
+        .child(top_btn.mount_current())
+        .mount_current();
     let body: NodeId = view! {
         column {
             gap: SPACE_MD
@@ -1453,9 +1847,8 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 style: c_action_row()
                 { EuvBadge::new(BADGE_READY.to_string(), EuvTone::Success, tokens) }
                 { EuvBadge::new(BADGE_LIVE.to_string(), EuvTone::Primary, tokens) }
-                { EuvButton::new(BTN_SCROLL_DOWN.to_string(), tokens).on_click(move |_: &UiEvent| { vlist_down.scroll_by(160.0); }) }
-                { top_btn }
             }
+            { scroll_actions }
             text {
                 font_size: 12.0
                 color: p.get_muted_foreground()
@@ -1463,7 +1856,7 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             }
             { EuvProgress::new(0.84, tokens) }
             { list_node }
-            { EuvCommand::new(state.get_command_query(), "Search commands...".to_string(), vec!["Switch to Dark Mode".to_string(), "Open OTA Updates".to_string(), "Run Physics Tick".to_string()], state.get_command_selected(), tokens) }
+            { EuvCommand::new(vec!["Switch to Dark Mode".to_string(), "Open OTA Updates".to_string(), "Run Physics Tick".to_string()], state.get_command_selected(), tokens).query(state.get_command_query()).placeholder("Search commands...") }
             { EuvCarousel::new(vec!["Slide 1: Native Metal & Vulkan".to_string(), "Slide 2: Complete shadcn/ui Parity".to_string(), "Slide 3: Instant Responsive Resize".to_string()], state.get_carousel_index(), tokens) }
             { aspect_box }
             { EuvPagination::new(state.get_page_index(), 12, tokens) }
@@ -1471,15 +1864,13 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             { EuvAccordion::new(vec![EuvAccordionItem::new("Virtualization".to_string(), "Only visible rows + overscan are materialized in O(visible).".to_string())], state.get_accordion_open(), tokens) }
         }
     };
-    let mut card: EuvCard = EuvCard::new(DATA_CARD_TITLE.to_string(), tokens).child(body);
-    card.set_subtitle(DATA_CARD_SUB.to_string());
-    view! {
-        column {
-            style: c_page_column()
-            { EuvHeader::new(DATA_TITLE.to_string(), DATA_SUBTITLE.to_string(), tokens) }
-            { card }
-        }
-    }
+    let card: NodeId = EuvCard::new(DATA_CARD_TITLE.to_string(), tokens)
+        .subtitle(DATA_CARD_SUB)
+        .child(body)
+        .mount_current();
+    EuvPage::new(DATA_TITLE.to_string(), DATA_SUBTITLE.to_string(), tokens)
+        .section(card)
+        .mount_current()
 }
 
 /// Mounts the embedded 2D physics game engine viewport and reactive HUD overlay page.
@@ -1512,17 +1903,6 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     );
     let top_actions: NodeId = EuvActionRow::new()
         .child(
-            EuvBadge::new("ECS + Physics 2D".to_string(), EuvTone::Success, tokens).mount_current(),
-        )
-        .child(
-            EuvBadge::new(
-                "Camera2D + Particles + TileMap".to_string(),
-                EuvTone::Primary,
-                tokens,
-            )
-            .mount_current(),
-        )
-        .child(
             EuvButton::new(BTN_STEP_PHYSICS.to_string(), tokens)
                 .sm()
                 .on_click(move |_: &UiEvent| {
@@ -1548,6 +1928,9 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 .mount_current(),
         )
         .mount_current();
+    let fs_2d_open: Signal<bool> = Signal::new(false);
+    let fs_2d_portal: NodeId =
+        mount_game_fullscreen_portal(fs_2d_open, &host, "2D Physics Arena", tokens);
     let touch_controls: NodeId = EuvActionRow::new()
         .child(
             EuvButton::new("Left (A)".to_string(), tokens)
@@ -1594,6 +1977,14 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 })
                 .mount_current(),
         )
+        .child(
+            EuvButton::new("Fullscreen".to_string(), tokens)
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = fs_2d_open.set_if_changed(true);
+                })
+                .mount_current(),
+        )
         .mount_current();
     let body: NodeId = view! {
         column {
@@ -1601,6 +1992,7 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             { top_actions }
             { viewport }
             { touch_controls }
+            { fs_2d_portal }
         }
     };
     let card: NodeId = EuvCard::new(GAME_CARD_TITLE.to_string(), tokens)
@@ -1610,6 +2002,124 @@ pub fn mount_game_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     EuvPage::new(GAME_TITLE.to_string(), GAME_SUBTITLE.to_string(), tokens)
         .section(card)
         .mount_current()
+}
+
+/// Mounts a reusable fullscreen portal overlay hosting any 2D/3D `GameEngineHost` with safe exit & Back support.
+///
+/// # Arguments
+///
+/// - `Signal<bool>` - Fullscreen visibility toggle signal.
+/// - `&GameEngineHost` - Target game engine host.
+/// - `&str` - Title shown in the fullscreen HUD bar.
+/// - `ThemeTokens` - Active design tokens.
+///
+/// # Returns
+///
+/// - `NodeId` - Mounted fullscreen portal handle.
+fn mount_game_fullscreen_portal(
+    open: Signal<bool>,
+    host: &GameEngineHost,
+    title: &str,
+    tokens: ThemeTokens,
+) -> NodeId {
+    let mut ctx: BuildContext = current_build_context();
+    let portal: NodeId = ctx.portal(
+        Style::empty()
+            .column()
+            .display(Display::None)
+            .position(Position::Fixed)
+            .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+            .width(Length::Percent(100.0))
+            .height(Length::Percent(100.0))
+            .background(Color::hex(0x09090B))
+            .stop_scroll_propagation(true)
+            .z_index(Z_INDEX_MODAL),
+    );
+    let top_bar: NodeId = ctx.view(
+        Style::empty()
+            .row()
+            .width(Length::Percent(100.0))
+            .justify(JustifyContent::SpaceBetween)
+            .align(AlignItems::Center)
+            .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+            .background(Color::rgba(9, 9, 11, 220)),
+    );
+    let title_n: NodeId = ctx.text(
+        format!("{title} · Fullscreen"),
+        Style::empty()
+            .font_size(14.0)
+            .font_weight(FontWeight::SemiBold)
+            .color(Color::hex(0xFAFAFA)),
+    );
+    let exit_btn: NodeId = EuvButton::new("Exit Fullscreen".to_string(), tokens)
+        .secondary()
+        .sm()
+        .on_click(move |_: &UiEvent| {
+            let _: bool = open.set_if_changed(false);
+        })
+        .mount(&mut ctx);
+    ctx.append(top_bar, title_n);
+    ctx.append(top_bar, exit_btn);
+    let fs_viewport: NodeId = host.mount_viewport(
+        Style::empty()
+            .flex_grow(1.0)
+            .width(Length::Percent(100.0))
+            .height(Length::Percent(100.0))
+            .stop_scroll_propagation(true)
+            .stop_event_propagation(true),
+    );
+    ctx.append(portal, top_bar);
+    ctx.append(portal, fs_viewport);
+    let handle: SceneHandle = ctx.get_scene().clone();
+    let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
+    let prev_fs: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+        let _: Effect = EuvOverlayStack::bind_signal(open, "GameFullscreenPortal", Z_INDEX_MODAL);
+        Effect::new(move || {
+            let is_open: bool = open.get();
+            let safe: SafeAreaInsets = safe_sig.get();
+            if is_open != prev_fs.replace(is_open) {
+                let _: bool = dispatch_native_action(
+                    NATIVE_ACTION_FULLSCREEN,
+                    if is_open { "on" } else { "off" },
+                    "",
+                );
+            }
+            handle.with_write(
+                |tree: &mut SceneTree| {
+                    if let Some(n) = tree.get_node_mut(portal) {
+                        let mut st: Style = n.get_style();
+                        st.get_mut_layout().set_display(if is_open {
+                            Display::Flex
+                        } else {
+                            Display::None
+                        });
+                        n.set_style(st);
+                    }
+                    if let Some(n) = tree.get_node_mut(top_bar) {
+                        let mut st: Style = n.get_style();
+                        st.get_mut_layout().set_padding(Edges::new(
+                            SPACE_SM + safe.get_top(),
+                            SPACE_MD + safe.get_right(),
+                            SPACE_SM,
+                            SPACE_MD + safe.get_left(),
+                        ));
+                        n.set_style(st);
+                    }
+                    let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                    tree.mark_dirty(portal, dirty_l | DIRTY_PAINT);
+                },
+                (),
+            );
+        })
+    });
+    ctx.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            tree.attach_scope(portal, scope);
+        },
+        (),
+    );
+    portal
 }
 
 /// Mounts a press-and-hold cross-platform touch/mouse game control button driving `code` on `host`.
@@ -1696,6 +2206,9 @@ pub fn mount_game3d_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             .border(g.get_border_width(), p.get_border())
             .radius(g.get_radius_md()),
     );
+    let fs_3d_open: Signal<bool> = Signal::new(false);
+    let fs_3d_portal: NodeId =
+        mount_game_fullscreen_portal(fs_3d_open, &host, "Vice Boulevard 3D RT", tokens);
     let drive_controls: NodeId = EuvActionRow::new()
         .child(mount_game_control_button(
             "Steer Left (A)",
@@ -1732,6 +2245,14 @@ pub fn mount_game3d_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 .on_click(move |_: &UiEvent| {
                     let next: u8 = (cam_mode_sig.get_untracked() + 1) % 4;
                     let _: bool = cam_mode_sig.set_if_changed(next);
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Fullscreen 3D".to_string(), tokens)
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = fs_3d_open.set_if_changed(true);
                 })
                 .mount_current(),
         )
@@ -1850,6 +2371,7 @@ pub fn mount_game3d_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     ctx.append(sync_host, rt_seg);
     ctx.append(sync_host, res_field);
     ctx.append(sync_host, sun_field);
+    ctx.append(sync_host, fs_3d_portal);
     let card: NodeId = EuvCard::new(GAME3D_CARD_TITLE.to_string(), tokens)
         .subtitle(GAME3D_CARD_SUB)
         .child(sync_host)
@@ -1911,37 +2433,61 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
             let _: bool = alert_open.set_if_changed(true);
         });
     alert_btn.set_variant(EuvButtonVariant::Destructive);
-    let actions: NodeId = view! {
-        row {
-            style: c_action_row()
-            { EuvButton::new(BTN_OPEN_MODAL.to_string(), tokens).on_click(move |_: &UiEvent| { let _: bool = modal_open.set_if_changed(true); }) }
-            { alert_btn }
-            { toast_btn }
-            { drawer_btn }
-            { sheet_btn }
-            { notif_btn }
-        }
-    };
+    let actions: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new(BTN_OPEN_MODAL.to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = modal_open.set_if_changed(true);
+                })
+                .mount_current(),
+        )
+        .child(alert_btn.mount_current())
+        .child(toast_btn.mount_current())
+        .child(drawer_btn.mount_current())
+        .child(sheet_btn.mount_current())
+        .child(notif_btn.mount_current())
+        .mount_current();
     let dropdown: NodeId = EuvDropdown::new(
         "Quick Actions".to_string(),
         vec!["Export PNG".to_string(), "Copy DeepLink".to_string()],
-        state.get_dropdown_open(),
-        state.get_dropdown_selected(),
         tokens,
     )
+    .open(state.get_dropdown_open())
+    .selected(state.get_dropdown_selected())
     .mount_current();
     let hover_card: NodeId = EuvHoverCard::new(
-        state.get_hover_card_open(),
         "@euv-dev".to_string(),
         "euv 0.38 Native Engine".to_string(),
-        "Full ui.shadcn.com component alignment across all 7 native targets.".to_string(),
         tokens,
     )
+    .open(state.get_hover_card_open())
+    .description("Full ui.shadcn.com component alignment across all 7 native targets.")
+    .mount_current();
+    let tip_btn: NodeId = EuvButton::new("Hover Tooltip".to_string(), tokens)
+        .outline()
+        .sm()
+        .mount_current();
+    let tooltip_demo: NodeId =
+        EuvTooltip::new("Zero-WebView floating tooltip".to_string(), tip_btn, tokens)
+            .mount_current();
+    let ctx_sel: Signal<Option<usize>> = Signal::new(None);
+    let ctx_menu_demo: NodeId = EuvContextMenu::new(
+        "Context Menu Surface".to_string(),
+        vec![
+            "Inspect Scene Node".to_string(),
+            "Copy AI Selector".to_string(),
+            "Capture Frame Hash".to_string(),
+        ],
+        tokens,
+    )
+    .selected(ctx_sel)
     .mount_current();
     let mut card: EuvCard = EuvCard::new(OVERLAYS_CARD_TITLE.to_string(), tokens)
         .child(actions)
         .child(dropdown)
-        .child(hover_card);
+        .child(hover_card)
+        .child(tooltip_demo)
+        .child(ctx_menu_demo);
     card.set_subtitle(OVERLAYS_CARD_SUB.to_string());
     let modal_body: NodeId = view! {
         column {
@@ -2001,21 +2547,28 @@ pub fn mount_overlays_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId
             }
         }
     };
-    view! {
+    let overlays_wrap: NodeId = view! {
         column {
-            style: c_page_column()
-            { EuvHeader::new(OVERLAYS_TITLE.to_string(), OVERLAYS_SUBTITLE.to_string(), tokens) }
+            width: Length::Percent(100.0)
+            gap: SPACE_LG
             { EuvAlert::new(ALERT_TITLE.to_string(), ALERT_DESC.to_string(), EuvTone::Primary, tokens) }
             { card }
             { EuvModal::new(modal_open, MODAL_TITLE.to_string(), modal_body, tokens) }
-            { EuvAlertDialog::new(alert_open, "Are you absolutely sure?".to_string(), "This shadcn AlertDialog confirms destructive operations cleanly.".to_string(), "Cancel".to_string(), "Continue".to_string(), state.get_alert_dialog_confirmed(), tokens) }
+            { EuvAlertDialog::new(alert_open, "Are you absolutely sure?".to_string(), state.get_alert_dialog_confirmed(), tokens).description("This shadcn AlertDialog confirms destructive operations cleanly.").labels("Cancel", "Continue") }
             { EuvDrawer::new(drawer_open, "Inspector Drawer".to_string(), drawer_body, tokens) }
             { EuvSheet::new(sheet_open, "Quick Sheet".to_string(), sheet_body, tokens) }
             { EuvToast::new(toast_visible, TOAST_TEXT.to_string(), EuvTone::Success, tokens) }
-            { EuvNotification::new(notif_visible, "Native Sync".to_string(), "All 7 targets active.".to_string(), EuvTone::Success, tokens) }
+            { EuvNotification::new(notif_visible, "Native Sync".to_string(), "All 7 targets active.".to_string(), tokens).tone(EuvTone::Success) }
             { EuvLoading::new(state.get_loading_active(), "Syncing...".to_string(), tokens) }
         }
-    }
+    };
+    EuvPage::new(
+        OVERLAYS_TITLE.to_string(),
+        OVERLAYS_SUBTITLE.to_string(),
+        tokens,
+    )
+    .section(overlays_wrap)
+    .mount_current()
 }
 
 /// Mounts the interactive component-level and page-level dynamic OTA updates showcase page.
@@ -2102,28 +2655,33 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
             let _: bool = sibling_counter.update(|v: &mut i32| *v += 1);
         });
     btn_sibling.set_variant(EuvButtonVariant::Outline);
-    let comp_controls: NodeId = view! {
-        column {
-            gap: SPACE_MD
-            row {
-                style: c_action_row()
-                { btn_sibling }
-                text {
-                    font_size: 13.0
-                    font_weight: FontWeight::SemiBold
-                    color: p.get_primary()
-                    { move || format!("Sibling State Preserved: count={}", sibling_counter.get()) }
-                }
-            }
-            row {
-                style: c_action_row()
-                { EuvButton::new(BTN_PUSH_BANNER_V1.to_string(), tokens).on_click(move |_: &UiEvent| {
-                    let next_v: u64 = hub_v1.component_version(SLOT_PROMO_BANNER).saturating_add(1);
-                    let mut badge: DynamicNodeSpec = DynamicNodeSpec::badge(format!("OTA v{next_v}"));
-                    badge.get_mut_style().set_background_hex(Some(0x1D4ED8)).set_color_hex(Some(0xFFFFFF));
-                    let mut title: DynamicNodeSpec = DynamicNodeSpec::text(format!("Dynamic JSON Banner v{next_v}: Surgical Component Patch"));
-                    title.get_mut_style().set_bold(true).set_color_hex(Some(0x1E3A8A));
-                    let mut offer_btn: DynamicNodeSpec = DynamicNodeSpec::button(BTN_CLAIM_OFFER.to_string(), "claim_offer".to_string());
+    let sibling_btn_row: NodeId = EuvActionRow::new()
+        .child(btn_sibling.mount_current())
+        .mount_current();
+    let banner_btn_row: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new(BTN_PUSH_BANNER_V1.to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
+                    let next_v: u64 = hub_v1
+                        .component_version(SLOT_PROMO_BANNER)
+                        .saturating_add(1);
+                    let mut badge: DynamicNodeSpec =
+                        DynamicNodeSpec::badge(format!("OTA v{next_v}"));
+                    badge
+                        .get_mut_style()
+                        .set_background_hex(Some(0x1D4ED8))
+                        .set_color_hex(Some(0xFFFFFF));
+                    let mut title: DynamicNodeSpec = DynamicNodeSpec::text(format!(
+                        "Dynamic JSON Banner v{next_v}: Surgical Component Patch"
+                    ));
+                    title
+                        .get_mut_style()
+                        .set_bold(true)
+                        .set_color_hex(Some(0x1E3A8A));
+                    let mut offer_btn: DynamicNodeSpec = DynamicNodeSpec::button(
+                        BTN_CLAIM_OFFER.to_string(),
+                        "claim_offer".to_string(),
+                    );
                     offer_btn.set_payload(format!("json-v{next_v}"));
                     let mut box_spec: DynamicNodeSpec = DynamicNodeSpec::row()
                         .child(badge)
@@ -2146,28 +2704,16 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                     if let Ok(json) = upd.to_json() {
                         let _: Result<u64, DynamicUpdateError> = hub_v1.apply_component_json(&json);
                     }
-                }) }
-                { btn_banner_v2 }
-                { btn_banner_rb }
-            }
-            slot {
-                id: SLOT_PROMO_BANNER
-                row {
-                    width: Length::Percent(100.0)
-                    padding: Edges::all(SPACE_MD)
-                    background: p.get_muted()
-                    border: (g.get_border_width(), p.get_border())
-                    radius: g.get_radius_md()
-                    text {
-                        font_size: 13.0
-                        color: p.get_foreground()
-                        "Compiled Fallback Banner (v0) — click a button above to hot-update only this component."
-                    }
-                }
-            }
-            row {
-                style: c_action_row()
-                { EuvButton::new(BTN_PATCH_METRICS.to_string(), tokens).on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(btn_banner_v2.mount_current())
+        .child(btn_banner_rb.mount_current())
+        .mount_current();
+    let metrics_btn_row: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new(BTN_PATCH_METRICS.to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
                     let next_v: u64 = hub_m1.component_version(SLOT_METRICS_WIDGET).saturating_add(1);
                     let mut card_spec: DynamicNodeSpec = DynamicNodeSpec::card(format!("Live Metrics Widget v{next_v}"))
                         .child(DynamicNodeSpec::text(format!("Updated independently without touching promo_banner or sibling state (rev {next_v}).")));
@@ -2183,9 +2729,38 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                     );
                     upd.sign();
                     let _: Result<u64, DynamicUpdateError> = hub_m1.apply_component(upd);
-                }) }
-                { btn_metrics_rb }
+                })
+                .mount_current(),
+        )
+        .child(btn_metrics_rb.mount_current())
+        .mount_current();
+    let comp_controls: NodeId = view! {
+        column {
+            gap: SPACE_MD
+            { sibling_btn_row }
+            text {
+                font_size: 13.0
+                font_weight: FontWeight::SemiBold
+                color: p.get_primary()
+                { move || format!("Sibling State Preserved: count={}", sibling_counter.get()) }
             }
+            { banner_btn_row }
+            slot {
+                id: SLOT_PROMO_BANNER
+                row {
+                    width: Length::Percent(100.0)
+                    padding: Edges::all(SPACE_MD)
+                    background: p.get_muted()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    text {
+                        font_size: 13.0
+                        color: p.get_foreground()
+                        "Compiled Fallback Banner (v0) — click a button above to hot-update only this component."
+                    }
+                }
+            }
+            { metrics_btn_row }
             slot {
                 id: SLOT_METRICS_WIDGET
                 row {
@@ -2282,16 +2857,19 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
             }
         });
     btn_inject.set_variant(EuvButtonVariant::Secondary);
-    let page_controls: NodeId = view! {
-        column {
-            gap: SPACE_MD
-            row {
-                style: c_action_row()
-                { EuvButton::new(BTN_UPDATE_PAGE_V1.to_string(), tokens).on_click(move |_: &UiEvent| {
+    let page_btn_row: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new(BTN_UPDATE_PAGE_V1.to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
                     let next_v: u64 = hub_p1.page_version(ROUTE_DYNAMIC_PANEL).saturating_add(1);
-                    let spec: DynamicNodeSpec = DynamicNodeSpec::card(format!("Hot-Updated Dynamic Page Panel v{next_v}"))
-                        .child(DynamicNodeSpec::badge(format!("Page Revision v{next_v}")))
-                        .child(DynamicNodeSpec::text("Page-level layout replaced live without restarting the application.".to_string()));
+                    let spec: DynamicNodeSpec = DynamicNodeSpec::card(format!(
+                        "Hot-Updated Dynamic Page Panel v{next_v}"
+                    ))
+                    .child(DynamicNodeSpec::badge(format!("Page Revision v{next_v}")))
+                    .child(DynamicNodeSpec::text(
+                        "Page-level layout replaced live without restarting the application."
+                            .to_string(),
+                    ));
                     let mut upd: DynamicPageUpdate = DynamicPageUpdate::new(
                         ROUTE_DYNAMIC_PANEL.to_string(),
                         format!("Dynamic Panel v{next_v}"),
@@ -2300,11 +2878,17 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                     );
                     upd.sign();
                     let _: Result<u64, DynamicUpdateError> = hub_p1.apply_page(upd);
-                }) }
-                { btn_bundle }
-                { btn_page_rb }
-                { btn_inject }
-            }
+                })
+                .mount_current(),
+        )
+        .child(btn_bundle.mount_current())
+        .child(btn_page_rb.mount_current())
+        .child(btn_inject.mount_current())
+        .mount_current();
+    let page_controls: NodeId = view! {
+        column {
+            gap: SPACE_MD
+            { page_btn_row }
             page_slot {
                 route: ROUTE_DYNAMIC_PANEL
                 column {
@@ -2396,12 +2980,92 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
     let s_f_big: Signal<String> = wasm_status_sig;
     let m_f_cancel: WasmDynamicManager = wasm_mgr.clone();
     let s_f_cancel: Signal<String> = wasm_status_sig;
-    let wasm_partial_body: NodeId = view! {
-        column {
-            gap: SPACE_MD
-            row {
-                style: c_action_row()
-                { EuvButton::new("Download Partial WASM v1".to_string(), tokens).on_click(move |_: &UiEvent| {
+    let m_http: WasmDynamicManager = wasm_mgr.clone();
+    let s_http: Signal<String> = wasm_status_sig;
+    let wasm_partial_actions: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new("Download Real HTTP .wasm".to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let bytes: Vec<u8> = build_partial_widget_wasm(
+                            "Live HTTP-Downloaded .wasm Module v3",
+                            3,
+                            0x059669,
+                        );
+                        let bytes_srv: Vec<u8> = bytes.clone();
+                        match TcpListener::bind("127.0.0.1:0") {
+                            Ok(listener) => {
+                                let port: u16 = listener
+                                    .local_addr()
+                                    .map(|addr: SocketAddr| addr.port())
+                                    .unwrap_or(0);
+                                drop(spawn(move || {
+                                    if let Ok((mut stream, _)) = listener.accept() {
+                                        let mut req_buf: [u8; 512] = [0; 512];
+                                        let _: Result<usize, Error> = stream.read(&mut req_buf);
+                                        let hdr: String = format!(
+                                            "HTTP/1.1 200 OK\r\nContent-Type: application/wasm\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                                            bytes_srv.len()
+                                        );
+                                        let _: Result<(), Error> = stream.write_all(hdr.as_bytes());
+                                        let _: Result<(), Error> = stream.write_all(&bytes_srv);
+                                        let _: Result<(), Error> = stream.flush();
+                                    }
+                                }));
+                                let url: String =
+                                    format!("http://127.0.0.1:{port}/live-module-v3.wasm");
+                                let req: WasmDownloadRequest = WasmDownloadRequest::partial(
+                                    url.clone(),
+                                    SLOT_WASM_WIDGET.to_string(),
+                                    3,
+                                )
+                                .with_checksum(compute_wasm_checksum(&bytes))
+                                .with_signature(compute_wasm_signature(
+                                    &bytes,
+                                    3,
+                                    WASM_SHOWCASE_SIGNING_KEY,
+                                ))
+                                .with_allow_downgrade(true);
+                                match m_http.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
+                                    Ok(v) => {
+                                        let _: bool = s_http.set(format!(
+                                            "Downloaded {} bytes over real HTTP ({url}) -> executed & mounted .wasm v{v} natively!",
+                                            bytes.len()
+                                        ));
+                                    }
+                                    Err(e) => {
+                                        let _: bool = s_http.set(format!("HTTP .wasm download failed: {e}"));
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                let _: bool = s_http.set(format!("Local HTTP server bind error: {err}"));
+                            }
+                        }
+                    }
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        let bytes: Vec<u8> = build_partial_widget_wasm(TITLE_WASM_PARTIAL_V1, 1, 0x2563EB);
+                        let req: WasmDownloadRequest = WasmDownloadRequest::partial(
+                            URL_WASM_PARTIAL_V1.to_string(),
+                            SLOT_WASM_WIDGET.to_string(),
+                            1,
+                        )
+                        .with_checksum(compute_wasm_checksum(&bytes))
+                        .with_signature(compute_wasm_signature(&bytes, 1, WASM_SHOWCASE_SIGNING_KEY))
+                        .with_allow_downgrade(true);
+                        match m_http.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
+                            Ok(v) => { let _: bool = s_http.set(format!("Fetched & executed .wasm v{v} natively in browser sandbox")); }
+                            Err(e) => { let _: bool = s_http.set(format!("WASM fetch failed: {e}")); }
+                        }
+                    }
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Download Partial WASM v1".to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
                     let bytes: Vec<u8> = build_partial_widget_wasm(TITLE_WASM_PARTIAL_V1, 1, 0x2563EB);
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(
                         URL_WASM_PARTIAL_V1.to_string(),
@@ -2415,8 +3079,13 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                         Ok(v) => { let _: bool = s_p1.set(format!("Mounted Partial .wasm v{v} natively (verified checksum + signature)")); }
                         Err(e) => { let _: bool = s_p1.set(format!("Partial v1 failed: {e}")); }
                     }
-                }) }
-                { EuvButton::new("Hot-Swap Partial WASM v2".to_string(), tokens).secondary().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Hot-Swap Partial WASM v2".to_string(), tokens)
+                .secondary()
+                .on_click(move |_: &UiEvent| {
                     let bytes: Vec<u8> = build_partial_widget_wasm("Hot-Swapped Partial WASM Widget v2", 2, 0x7C3AED);
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(
                         URL_WASM_PARTIAL_V2.to_string(),
@@ -2430,8 +3099,13 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                         Ok(v) => { let _: bool = s_p2.set(format!("Hot-swapped Partial .wasm v{v} natively (sibling UI untouched)")); }
                         Err(e) => { let _: bool = s_p2.set(format!("Partial v2 failed: {e}")); }
                     }
-                }) }
-                { EuvButton::new("Toggle Offline (Cache Hit)".to_string(), tokens).outline().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Toggle Offline (Cache Hit)".to_string(), tokens)
+                .outline()
+                .on_click(move |_: &UiEvent| {
                     let next: bool = !wasm_offline_sig.get_untracked();
                     let _: bool = wasm_offline_sig.set(next);
                     r_off.set_offline(next);
@@ -2440,18 +3114,34 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
                     } else {
                         "Simulated ONLINE restored — fetching live .wasm from CDN".to_string()
                     });
-                }) }
-                { EuvButton::new("Rollback Partial".to_string(), tokens).outline().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Rollback Partial".to_string(), tokens)
+                .outline()
+                .on_click(move |_: &UiEvent| {
                     match m_prb.rollback_partial(SLOT_WASM_WIDGET, "manual rollback") {
                         Ok(v) => { let _: bool = s_prb.set(format!("Rolled back partial WASM slot to v{v}")); }
                         Err(e) => { let _: bool = s_prb.set(format!("Rollback: {e}")); }
                     }
-                }) }
-                { EuvButton::new("Unmount Slot".to_string(), tokens).ghost().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Unmount Slot".to_string(), tokens)
+                .ghost()
+                .on_click(move |_: &UiEvent| {
                     m_pun.unmount_partial(SLOT_WASM_WIDGET);
                     let _: bool = s_pun.set("Unmounted partial WASM instance and restored compiled fallback".to_string());
-                }) }
-            }
+                })
+                .mount_current(),
+        )
+        .mount_current();
+    let wasm_partial_body: NodeId = view! {
+        column {
+            gap: SPACE_MD
+            { wasm_partial_actions }
             slot {
                 id: SLOT_WASM_WIDGET
                 row {
@@ -2497,45 +3187,92 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
     .subtitle("Download genuine .wasm binaries into a single native slot with checksum/signature verification, offline cache, interactive euv_on_event & rollback")
     .child(wasm_partial_body)
     .mount_current();
+    let wasm_global_actions: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new("Download Global WASM v1".to_string(), tokens)
+                .on_click(move |_: &UiEvent| {
+                    let bytes: Vec<u8> =
+                        build_global_app_wasm("Global Dynamic WASM App Shell v1", 1);
+                    let req: WasmDownloadRequest =
+                        WasmDownloadRequest::global(URL_WASM_GLOBAL_V1.to_string(), 1)
+                            .with_checksum(compute_wasm_checksum(&bytes))
+                            .with_signature(compute_wasm_signature(
+                                &bytes,
+                                1,
+                                WASM_SHOWCASE_SIGNING_KEY,
+                            ))
+                            .with_allow_downgrade(true);
+                    match m_g1.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
+                        Ok(v) => {
+                            let _: bool = s_g1
+                                .set(format!("Global .wasm v{v} took over root shell natively!"));
+                        }
+                        Err(e) => {
+                            let _: bool = s_g1.set(format!("Global v1 failed: {e}"));
+                        }
+                    }
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Upgrade Global WASM v2".to_string(), tokens)
+                .secondary()
+                .on_click(move |_: &UiEvent| {
+                    let bytes: Vec<u8> =
+                        build_global_app_wasm("Global Dynamic WASM App Shell v2", 2);
+                    let req: WasmDownloadRequest =
+                        WasmDownloadRequest::global(URL_WASM_GLOBAL_V2.to_string(), 2)
+                            .with_checksum(compute_wasm_checksum(&bytes))
+                            .with_signature(compute_wasm_signature(
+                                &bytes,
+                                2,
+                                WASM_SHOWCASE_SIGNING_KEY,
+                            ))
+                            .with_allow_downgrade(true);
+                    match m_g2.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
+                        Ok(v) => {
+                            let _: bool =
+                                s_g2.set(format!("Upgraded Global .wasm to v{v} atomically"));
+                        }
+                        Err(e) => {
+                            let _: bool = s_g2.set(format!("Global v2 failed: {e}"));
+                        }
+                    }
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Faulty Global (Auto LKG Rollback)".to_string(), tokens)
+                .destructive()
+                .on_click(move |_: &UiEvent| {
+                    let req: WasmDownloadRequest =
+                        WasmDownloadRequest::global(URL_WASM_TRAP.to_string(), 99);
+                    match m_gbad.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
+                        Ok(v) => {
+                            let _: bool = s_gbad.set(format!("Unexpected global mount v{v}"));
+                        }
+                        Err(e) => {
+                            let _: bool =
+                                s_gbad.set(format!("Global fault isolated & LKG preserved: {e}"));
+                        }
+                    }
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Restore Native Shell".to_string(), tokens)
+                .outline()
+                .on_click(move |_: &UiEvent| {
+                    m_grb.restore_native_global();
+                    let _: bool = s_grb.set(STATUS_RESTORED_NATIVE_SHELL.to_string());
+                })
+                .mount_current(),
+        )
+        .mount_current();
     let wasm_global_body: NodeId = view! {
         column {
             gap: SPACE_MD
-            row {
-                style: c_action_row()
-                { EuvButton::new("Download Global WASM v1".to_string(), tokens).on_click(move |_: &UiEvent| {
-                    let bytes: Vec<u8> = build_global_app_wasm("Global Dynamic WASM App Shell v1", 1);
-                    let req: WasmDownloadRequest = WasmDownloadRequest::global(URL_WASM_GLOBAL_V1.to_string(), 1)
-                        .with_checksum(compute_wasm_checksum(&bytes))
-                        .with_signature(compute_wasm_signature(&bytes, 1, WASM_SHOWCASE_SIGNING_KEY))
-                        .with_allow_downgrade(true);
-                    match m_g1.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
-                        Ok(v) => { let _: bool = s_g1.set(format!("Global .wasm v{v} took over root shell natively!")); }
-                        Err(e) => { let _: bool = s_g1.set(format!("Global v1 failed: {e}")); }
-                    }
-                }) }
-                { EuvButton::new("Upgrade Global WASM v2".to_string(), tokens).secondary().on_click(move |_: &UiEvent| {
-                    let bytes: Vec<u8> = build_global_app_wasm("Global Dynamic WASM App Shell v2", 2);
-                    let req: WasmDownloadRequest = WasmDownloadRequest::global(URL_WASM_GLOBAL_V2.to_string(), 2)
-                        .with_checksum(compute_wasm_checksum(&bytes))
-                        .with_signature(compute_wasm_signature(&bytes, 2, WASM_SHOWCASE_SIGNING_KEY))
-                        .with_allow_downgrade(true);
-                    match m_g2.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
-                        Ok(v) => { let _: bool = s_g2.set(format!("Upgraded Global .wasm to v{v} atomically")); }
-                        Err(e) => { let _: bool = s_g2.set(format!("Global v2 failed: {e}")); }
-                    }
-                }) }
-                { EuvButton::new("Faulty Global (Auto LKG Rollback)".to_string(), tokens).destructive().on_click(move |_: &UiEvent| {
-                    let req: WasmDownloadRequest = WasmDownloadRequest::global(URL_WASM_TRAP.to_string(), 99);
-                    match m_gbad.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
-                        Ok(v) => { let _: bool = s_gbad.set(format!("Unexpected global mount v{v}")); }
-                        Err(e) => { let _: bool = s_gbad.set(format!("Global fault isolated & LKG preserved: {e}")); }
-                    }
-                }) }
-                { EuvButton::new("Restore Native Shell".to_string(), tokens).outline().on_click(move |_: &UiEvent| {
-                    m_grb.restore_native_global();
-                    let _: bool = s_grb.set("Restored built-in native dashboard shell".to_string());
-                }) }
-            }
+            { wasm_global_actions }
         }
     };
     let wasm_global_card: NodeId = EuvCard::new(
@@ -2545,73 +3282,139 @@ pub fn mount_dynamic_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId 
     .subtitle("Atomically replace the entire native app shell from a downloaded .wasm release with automatic Last-Known-Good (LKG) rollback on any fault")
     .child(wasm_global_body)
     .mount_current();
-    let wasm_fault_body: NodeId = view! {
-        column {
-            gap: SPACE_MD
-            row {
-                style: c_action_row()
-                { EuvButton::new("Timeout -> Auto Retry".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+    let wasm_fault_actions: NodeId = EuvActionRow::new()
+        .child(
+            EuvButton::new("Timeout -> Auto Retry".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_TIMEOUT_RETRY.to_string(), SLOT_WASM_WIDGET.to_string(), 10).with_allow_downgrade(true);
                     match m_f_retry.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY) {
                         Ok(v) => { let _: bool = s_f_retry.set(format!("PASS Timeout->Retry recovered and mounted v{v}!")); }
                         Err(e) => { let _: bool = s_f_retry.set(format!("Retry failed: {e}")); }
                     }
-                }) }
-                { EuvButton::new("HTTP 500".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("HTTP 500".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_HTTP_500.to_string(), SLOT_WASM_WIDGET.to_string(), 11).with_allow_downgrade(true);
                     let res: String = format!("Handled HTTP 500 -> {:?}", m_f_500.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
                     let _: bool = s_f_500.set(res);
-                }) }
-                { EuvButton::new("Corrupted Magic".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Corrupted Magic".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_CORRUPTED.to_string(), SLOT_WASM_WIDGET.to_string(), 12).with_allow_downgrade(true);
                     let res: String = format!("Blocked Corrupted Magic -> {:?}", m_f_corrupt.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
                     let _: bool = s_f_corrupt.set(res);
-                }) }
-                { EuvButton::new("Tampered Checksum".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Tampered Checksum".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
                     let good: Vec<u8> = build_partial_widget_wasm(TITLE_WASM_PARTIAL_V1, 1, 0x2563EB);
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_TAMPERED.to_string(), SLOT_WASM_WIDGET.to_string(), 13)
                         .with_checksum(compute_wasm_checksum(&good))
                         .with_allow_downgrade(true);
                     let res: String = format!("Blocked Tampered Checksum -> {:?}", m_f_tamper.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
                     let _: bool = s_f_tamper.set(res);
-                }) }
-                { EuvButton::new("Invalid Signature".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Invalid Signature".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_PARTIAL_V1.to_string(), SLOT_WASM_WIDGET.to_string(), 14)
                         .with_signature("euv-sig-v1:forged".to_string())
                         .with_allow_downgrade(true);
                     let res: String = format!("Blocked Forged Signature -> {:?}", m_f_sig.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
                     let _: bool = s_f_sig.set(res);
-                }) }
-                { EuvButton::new("ABI Mismatch".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("ABI Mismatch".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_BAD_ABI.to_string(), SLOT_WASM_WIDGET.to_string(), 15).with_allow_downgrade(true);
                     let res: String = format!("Blocked ABI Mismatch -> {:?}", m_f_abi.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
                     let _: bool = s_f_abi.set(res);
-                }) }
-                { EuvButton::new("Missing Export".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Missing Export".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_MISSING_EXPORT.to_string(), SLOT_WASM_WIDGET.to_string(), 16).with_allow_downgrade(true);
                     let res: String = format!("Blocked Missing Export -> {:?}", m_f_exp.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
                     let _: bool = s_f_exp.set(res);
-                }) }
-                { EuvButton::new("Infinite-Loop Fuel".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Infinite-Loop Fuel".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_FUEL_BOMB.to_string(), SLOT_WASM_WIDGET.to_string(), 17).with_allow_downgrade(true);
                     let res: String = format!("Terminated Runaway Loop -> {:?}", m_f_fuel.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
                     let _: bool = s_f_fuel.set(res);
-                }) }
-                { EuvButton::new("Runtime Trap".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Runtime Trap".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_TRAP.to_string(), SLOT_WASM_WIDGET.to_string(), 18).with_allow_downgrade(true);
                     let res: String = format!("Isolated Runtime Trap -> {:?}", m_f_trap.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
                     let _: bool = s_f_trap.set(res);
-                }) }
-                { EuvButton::new("Oversized Binary".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Oversized Binary".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
                     let req: WasmDownloadRequest = WasmDownloadRequest::partial(URL_WASM_OVERSIZED.to_string(), SLOT_WASM_WIDGET.to_string(), 19).with_allow_downgrade(true);
                     let res: String = format!("Blocked Oversized Binary -> {:?}", m_f_big.load_and_mount(req, WASM_SHOWCASE_SIGNING_KEY));
                     let _: bool = s_f_big.set(res);
-                }) }
-                { EuvButton::new("Cancel / Stale Guard".to_string(), tokens).outline().sm().on_click(move |_: &UiEvent| {
+                })
+                .mount_current(),
+        )
+        .child(
+            EuvButton::new("Cancel / Stale Guard".to_string(), tokens)
+                .outline()
+                .sm()
+                .on_click(move |_: &UiEvent| {
                     let gen_id: u64 = m_f_cancel.cancel_scope(&WasmDynamicScope::Partial { slot_id: SLOT_WASM_WIDGET.to_string() });
                     let _: bool = s_f_cancel.set(format!("Cancelled scope request cleanly (generation #{gen_id} blocks stale responses)"));
-                }) }
-            }
+                })
+                .mount_current(),
+        )
+        .mount_current();
+    let wasm_fault_body: NodeId = view! {
+        column {
+            gap: SPACE_MD
+            { wasm_fault_actions }
             text {
                 font_size: 12.5
                 font_weight: FontWeight::Medium

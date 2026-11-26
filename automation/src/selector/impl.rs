@@ -44,6 +44,34 @@ impl UiSelector {
         Self::ByPlaceholder(hint.to_string())
     }
 
+    /// Creates an exact input value selector.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Exact input value text.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - `UiSelector::ByInputValue` variant.
+    #[must_use]
+    pub fn input_value(value: &str) -> Self {
+        Self::ByInputValue(value.to_string())
+    }
+
+    /// Creates an accessibility label selector.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Exact accessibility label text.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - `UiSelector::ByA11yLabel` variant.
+    #[must_use]
+    pub fn a11y_label(label: &str) -> Self {
+        Self::ByA11yLabel(label.to_string())
+    }
+
     /// Creates an accessibility role selector.
     ///
     /// # Arguments
@@ -119,8 +147,17 @@ impl UiSelector {
                         .placeholder_value()
                         .map(|t: &str| t.contains(sub.as_str()))
                         .unwrap_or(false)
+                    || node
+                        .a11y_label_value()
+                        .map(|t: &str| t.contains(sub.as_str()))
+                        .unwrap_or(false)
             }
             Self::ByPlaceholder(expected) => node.placeholder_value() == Some(expected.as_str()),
+            Self::ByInputValue(expected) => node.input_value() == Some(expected.as_str()),
+            Self::ByA11yLabel(expected) => node
+                .a11y_label_value()
+                .map(|lbl: &str| lbl.eq_ignore_ascii_case(expected))
+                .unwrap_or(false),
             Self::ByRole(role_name) => node.get_role().eq_ignore_ascii_case(role_name),
             Self::ByKind(kind_name) => node.get_kind().eq_ignore_ascii_case(kind_name),
             Self::ByNodeIndex(idx) => node.get_node_index() == *idx,

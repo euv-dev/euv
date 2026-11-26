@@ -170,7 +170,13 @@ pub fn mount_dynamic_spec(
             ctx.view(style)
         }
         DynamicNodeKind::Row => {
-            let mut style: Style = st.apply_to(Style::empty().row().align(AlignItems::Center));
+            let mut style: Style = st.apply_to(
+                Style::empty()
+                    .row()
+                    .wrap(FlexWrap::Wrap)
+                    .width(Length::Percent(100.0))
+                    .align(AlignItems::Center),
+            );
             if st.gap_px().is_none() {
                 style = style.gap(DYNAMIC_DEFAULT_CARD_GAP);
             }
@@ -216,6 +222,7 @@ pub fn mount_dynamic_spec(
         }
         DynamicNodeKind::Text => {
             let base: Style = Style::empty()
+                .max_width(Length::Percent(100.0))
                 .font_size(DYNAMIC_DEFAULT_FONT_SIZE)
                 .color(Color::hex(DYNAMIC_TEXT_FG_HEX));
             ctx.text(spec.get_text().clone(), st.apply_to(base))
@@ -223,6 +230,8 @@ pub fn mount_dynamic_spec(
         DynamicNodeKind::Button => {
             let base: Style = Style::empty()
                 .row()
+                .max_width(Length::Percent(100.0))
+                .overflow(Overflow::Hidden)
                 .justify(JustifyContent::Center)
                 .align(AlignItems::Center)
                 .height(Length::Px(DYNAMIC_DEFAULT_BUTTON_HEIGHT))
@@ -236,10 +245,12 @@ pub fn mount_dynamic_spec(
             let resolved: Style = st.apply_to(base);
             let btn: NodeId = ctx.view(resolved);
             let label_style: Style = Style::empty()
+                .max_width(Length::Percent(100.0))
                 .color(resolved.get_text().get_color())
                 .font_size(resolved.get_text().get_font_size())
                 .font_weight(resolved.get_text().get_weight())
-                .text_align(TextAlign::Center);
+                .text_align(TextAlign::Center)
+                .text_overflow(TextOverflow::Ellipsis);
             let lbl: NodeId = ctx.text(spec.get_text().clone(), label_style);
             ctx.append(btn, lbl);
             ctx.set_a11y(

@@ -14,4 +14,8 @@ pub enum GpuPrimitiveKind {
     TexturedQuad = 4,
     /// Filled SDF circle quad.
     Circle = 5,
+    /// Anti-aliased line segment quad.
+    Line = 6,
+    /// Filled triangle primitive quad.
+    Triangle = 7,
 }

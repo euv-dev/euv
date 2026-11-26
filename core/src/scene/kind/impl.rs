@@ -25,8 +25,94 @@ impl ImageBuffer {
     }
 }
 
-/// Text editing helpers for `InputNodeState`.
+/// Text editing and fluent construction helpers for `InputNodeState`.
 impl InputNodeState {
+    /// Creates an enabled single-line `InputNodeState` initialized with `value` and caret at the end.
+    ///
+    /// # Arguments
+    ///
+    /// - `S` - Initial input text value.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Ready `InputNodeState`.
+    #[must_use]
+    pub fn text<S>(value: S) -> Self
+    where
+        S: Into<String>,
+    {
+        let s: String = value.into();
+        let caret: usize = s.len();
+        Self::new(s, String::new(), caret, false, false, false)
+    }
+
+    /// Sets placeholder text displayed when the input value is empty.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source input state.
+    /// - `S` - Placeholder text.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated input state.
+    #[must_use]
+    pub fn with_placeholder<S>(mut self, placeholder: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_placeholder(placeholder.into());
+        self
+    }
+
+    /// Toggles masked password rendering.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source input state.
+    /// - `bool` - Password mode flag.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated input state.
+    #[must_use]
+    pub fn with_password(mut self, password: bool) -> Self {
+        self.set_password(password);
+        self
+    }
+
+    /// Toggles multi-line text editing.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source input state.
+    /// - `bool` - Multiline flag.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated input state.
+    #[must_use]
+    pub fn with_multiline(mut self, multiline: bool) -> Self {
+        self.set_multiline(multiline);
+        self
+    }
+
+    /// Toggles disabled state preventing user edits.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source input state.
+    /// - `bool` - Disabled flag.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated input state.
+    #[must_use]
+    pub fn with_disabled(mut self, disabled: bool) -> Self {
+        self.set_disabled(disabled);
+        self
+    }
+
     /// Inserts `text` at the current caret position and advances the caret.
     ///
     /// # Arguments

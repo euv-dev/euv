@@ -65,8 +65,10 @@ pub const URL_WASM_TRAP: &str = "euv-cdn://faults/trap.wasm";
 /// CDN URL serving an oversized binary exceeding sandbox limit.
 pub const URL_WASM_OVERSIZED: &str = "euv-cdn://faults/oversized.wasm";
 /// Application brand title displayed in the shell chrome.
-pub const SHOWCASE_BRAND: &str = "euv Studio";
+pub const SHOWCASE_BRAND: &str = "Euv Studio";
 
+pub(crate) const SHOWCASE_BUNDLE_ID: &str = "vip.ltpp.euv.showcase";
+pub(crate) const STATUS_RESTORED_NATIVE_SHELL: &str = "Restored built-in native dashboard shell";
 pub(crate) const NAV_SEC_WORKSPACE: &str = "WORKSPACE";
 pub(crate) const NAV_SEC_DESIGN: &str = "DESIGN SYSTEM";
 pub(crate) const NAV_SEC_ENGINE: &str = "ENGINE & MEDIA";

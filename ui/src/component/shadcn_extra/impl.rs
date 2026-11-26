@@ -1,5 +1,49 @@
 use super::*;
 
+/// Fluent configuration builders for `EuvAlertDialog`.
+impl EuvAlertDialog {
+    /// Sets the explanatory body description fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source alert dialog.
+    /// - `S` - Body description string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated alert dialog.
+    #[must_use]
+    pub fn description<S>(mut self, description: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_description(description.into());
+        self
+    }
+
+    /// Sets custom cancel and confirm button labels fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source alert dialog.
+    /// - `S1` - Cancel action label.
+    /// - `S2` - Confirm action label.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated alert dialog.
+    #[must_use]
+    pub fn labels<S1, S2>(mut self, cancel_label: S1, confirm_label: S2) -> Self
+    where
+        S1: Into<String>,
+        S2: Into<String>,
+    {
+        self.set_cancel_label(cancel_label.into());
+        self.set_confirm_label(confirm_label.into());
+        self
+    }
+}
+
 /// `Mountable` implementation for `EuvAlertDialog`.
 impl Mountable for EuvAlertDialog {
     /// Mounts the confirmation dialog portal with responsive width and Cancel/Confirm controls.
@@ -25,6 +69,16 @@ impl Mountable for EuvAlertDialog {
             confirm_label,
             ..
         } = self;
+        let resolved_cancel: String = if cancel_label.is_empty() {
+            ALERT_DEFAULT_CANCEL_LABEL.to_string()
+        } else {
+            cancel_label
+        };
+        let resolved_confirm: String = if confirm_label.is_empty() {
+            ALERT_DEFAULT_CONFIRM_LABEL.to_string()
+        } else {
+            confirm_label
+        };
         let init_open: bool = open.get_untracked();
         let scrim: NodeId = ctx.portal(
             Style::empty()
@@ -54,11 +108,13 @@ impl Mountable for EuvAlertDialog {
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_lg())
                 .overflow(Overflow::Hidden)
-                .shadow(Shadow::new(0.0, 10.0, 18.0, 0.0, Color::rgba(0, 0, 0, 28))),
+                .shadow(g.get_shadow_lg()),
         );
+        ctx.set_a11y(card, A11yProps::new(A11yRole::Dialog, title.clone()));
         let h_node: NodeId = ctx.text(
             title,
             Style::empty()
+                .width(Length::Percent(100.0))
                 .font_size(g.get_font_heading())
                 .font_weight(FontWeight::SemiBold)
                 .color(p.get_card_foreground()),
@@ -66,6 +122,7 @@ impl Mountable for EuvAlertDialog {
         let d_node: NodeId = ctx.text(
             description,
             Style::empty()
+                .width(Length::Percent(100.0))
                 .font_size(13.0)
                 .color(p.get_muted_foreground()),
         );
@@ -77,20 +134,20 @@ impl Mountable for EuvAlertDialog {
                 .justify(JustifyContent::End)
                 .gap(SPACE_SM),
         );
-        let mut cancel_btn: EuvButton =
-            EuvButton::new(cancel_label, tokens).on_click(move |_: &UiEvent| {
+        let cancel_node: NodeId = EuvButton::new(resolved_cancel, tokens)
+            .outline()
+            .on_click(move |_: &UiEvent| {
                 let _: bool = confirmed.set_if_changed(false);
                 let _: bool = open.set_if_changed(false);
-            });
-        cancel_btn.set_variant(EuvButtonVariant::Outline);
-        let mut confirm_btn: EuvButton =
-            EuvButton::new(confirm_label, tokens).on_click(move |_: &UiEvent| {
+            })
+            .mount(ctx);
+        let confirm_node: NodeId = EuvButton::new(resolved_confirm, tokens)
+            .destructive()
+            .on_click(move |_: &UiEvent| {
                 let _: bool = confirmed.set_if_changed(true);
                 let _: bool = open.set_if_changed(false);
-            });
-        confirm_btn.set_variant(EuvButtonVariant::Destructive);
-        let cancel_node: NodeId = cancel_btn.mount(ctx);
-        let confirm_node: NodeId = confirm_btn.mount(ctx);
+            })
+            .mount(ctx);
         ctx.append(actions, cancel_node);
         ctx.append(actions, confirm_node);
         ctx.append(card, h_node);
@@ -388,6 +445,44 @@ impl Mountable for EuvInputOtp {
     }
 }
 
+/// Fluent search query and placeholder builders for `EuvCommand`.
+impl EuvCommand {
+    /// Binds an external reactive query signal fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source command palette.
+    /// - `Signal<String>` - Controlled query signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated command palette.
+    #[must_use]
+    pub fn query(mut self, query: Signal<String>) -> Self {
+        self.set_query(Some(query));
+        self
+    }
+
+    /// Sets the search input placeholder text fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source command palette.
+    /// - `S` - Placeholder prompt string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated command palette.
+    #[must_use]
+    pub fn placeholder<S>(mut self, placeholder: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_placeholder(placeholder.into());
+        self
+    }
+}
+
 /// `Mountable` implementation for `EuvCommand`.
 impl Mountable for EuvCommand {
     /// Mounts the searchable shadcn command palette with reactive filtering.
@@ -404,11 +499,19 @@ impl Mountable for EuvCommand {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
-        let query: Signal<String> = self.get_query();
         let selected: Signal<Option<usize>> = self.get_selected();
         let Self {
-            placeholder, items, ..
+            query: query_opt,
+            placeholder,
+            items,
+            ..
         } = self;
+        let query: Signal<String> = query_opt.unwrap_or_else(|| Signal::new(String::new()));
+        let resolved_ph: String = if placeholder.is_empty() {
+            COMMAND_DEFAULT_PLACEHOLDER.to_string()
+        } else {
+            placeholder
+        };
         let palette_box: NodeId = ctx.view(
             Style::empty()
                 .column()
@@ -420,9 +523,9 @@ impl Mountable for EuvCommand {
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_lg())
                 .overflow(Overflow::Hidden)
-                .shadow(Shadow::new(0.0, 4.0, 12.0, 0.0, Color::rgba(0, 0, 0, 18))),
+                .shadow(g.get_shadow_md()),
         );
-        let search_input: NodeId = EuvInput::new(query, placeholder, tokens).mount(ctx);
+        let search_input: NodeId = EuvInput::new(query, resolved_ph, tokens).mount(ctx);
         let list_host: NodeId = ctx.view(
             Style::empty()
                 .column()
@@ -485,6 +588,44 @@ impl Mountable for EuvCommand {
     }
 }
 
+/// Fluent controlled-state and body builders for `EuvHoverCard`.
+impl EuvHoverCard {
+    /// Binds a controlled reactive open visibility signal fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source hover card.
+    /// - `Signal<bool>` - Controlled open flag signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated hover card.
+    #[must_use]
+    pub fn open(mut self, open: Signal<bool>) -> Self {
+        self.set_open(Some(open));
+        self
+    }
+
+    /// Sets the preview card description text fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source hover card.
+    /// - `S` - Preview description string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated hover card.
+    #[must_use]
+    pub fn description<S>(mut self, description: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_description(description.into());
+        self
+    }
+}
+
 /// `Mountable` implementation for `EuvHoverCard`.
 impl Mountable for EuvHoverCard {
     /// Mounts the trigger link and collapsible preview card surface.
@@ -501,36 +642,48 @@ impl Mountable for EuvHoverCard {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
-        let open: Signal<bool> = self.get_open();
         let Self {
+            open: open_opt,
             trigger_label,
             title,
             description,
             ..
         } = self;
+        let open: Signal<bool> = open_opt.unwrap_or_else(|| Signal::new(false));
+        let opened_by_hover: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+        let hover_click: Rc<Cell<bool>> = opened_by_hover.clone();
+        let hover_enter: Rc<Cell<bool>> = opened_by_hover.clone();
+        let hover_leave: Rc<Cell<bool>> = opened_by_hover;
         let wrap: NodeId = ctx.view(
             Style::empty()
                 .column()
                 .align(AlignItems::Start)
                 .gap(SPACE_XS),
         );
-        let mut trig_btn: EuvButton =
-            EuvButton::new(trigger_label, tokens).on_click(move |_: &UiEvent| {
-                let _: bool = open.set_if_changed(true);
-            });
-        trig_btn
-            .set_variant(EuvButtonVariant::Link)
-            .set_size(EuvButtonSize::Small);
-        let trig_node: NodeId = trig_btn.mount(ctx);
+        let trig_node: NodeId = EuvButton::new(trigger_label, tokens)
+            .link()
+            .sm()
+            .on_click(move |_: &UiEvent| {
+                if hover_click.replace(false) {
+                    let _: bool = open.set_if_changed(true);
+                } else {
+                    let _: bool = open.update(|v: &mut bool| *v = !*v);
+                }
+            })
+            .mount(ctx);
         ctx.get_scene().with_write(
             |tree: &mut SceneTree| {
                 if let Some(node) = tree.get_node_mut(wrap) {
                     node.get_mut_handlers()
                         .set_on_pointer_enter(Some(Rc::new(RefCell::new(move |_: &UiEvent| {
+                            if !open.get_untracked() {
+                                hover_enter.set(true);
+                            }
                             let _: bool = open.set_if_changed(true);
                         }))));
                     node.get_mut_handlers()
                         .set_on_pointer_leave(Some(Rc::new(RefCell::new(move |_: &UiEvent| {
+                            hover_leave.set(false);
                             let _: bool = open.set_if_changed(false);
                         }))));
                 }
@@ -541,18 +694,22 @@ impl Mountable for EuvHoverCard {
         let h_node: NodeId = ctx.text(
             title,
             Style::empty()
+                .width(Length::Percent(100.0))
                 .font_size(13.0)
                 .font_weight(FontWeight::SemiBold)
                 .color(p.get_card_foreground()),
         );
-        let d_node: NodeId = ctx.text(
-            description,
-            Style::empty()
-                .font_size(12.0)
-                .color(p.get_muted_foreground()),
-        );
         ctx.append(preview, h_node);
-        ctx.append(preview, d_node);
+        if !description.is_empty() {
+            let d_node: NodeId = ctx.text(
+                description,
+                Style::empty()
+                    .width(Length::Percent(100.0))
+                    .font_size(12.0)
+                    .color(p.get_muted_foreground()),
+            );
+            ctx.append(preview, d_node);
+        }
         let handle: SceneHandle = ctx.get_scene().clone();
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             handle.bind_style(preview, move || {
@@ -572,7 +729,7 @@ impl Mountable for EuvHoverCard {
                     .border(g.get_border_width(), p.get_border())
                     .radius(g.get_radius_lg())
                     .overflow(Overflow::Hidden)
-                    .shadow(Shadow::new(0.0, 6.0, 16.0, 0.0, Color::rgba(0, 0, 0, 24)))
+                    .shadow(g.get_shadow_lg())
                     .z_index(Z_INDEX_FLOATING)
             })
         });

@@ -350,3 +350,94 @@ fn engine3d_model_import_bvh_raytracing_frustum_culling_lod_and_runtime_quality_
         .get_z();
     assert!(after_z < before_z);
 }
+
+#[test]
+fn engine3d_ue5_animation_physics_spatial_audio_camera_lens_and_meshlets_work() {
+    let fov_50mm: f32 = Camera3D::focal_length_to_fov_deg(50.0, 24.0);
+    assert!(fov_50mm > 24.0 && fov_50mm < 30.0);
+    let cam: Camera3D = Camera3D::from_lens(Vec3::new(0.0, 4.0, 12.0), -FRAC_PI_2, -0.1, 35.0);
+    let ev: f32 = Camera3D::ev100(2.8, 1.0 / 125.0, 100.0);
+    assert!(ev > 9.0 && ev < 11.0);
+    let exp: f32 = Camera3D::exposure_scale_from_ev100(ev);
+    assert!(exp > 0.0 && exp <= 8.0);
+    let mat_chrome: PbrMaterial = PbrMaterial::metallic(Color::hex(0xE2E8F0), 0.08)
+        .with_surface_detail(SurfaceDetailMode::None);
+    let mesh_desc: BoxMeshDesc = BoxMeshDesc::new("cube_desc", Vec3::new(2.0, 2.0, 2.0))
+        .with_ground_pivot(true)
+        .with_material(mat_chrome);
+    let box_mesh: Mesh3D = Mesh3D::from_box_desc(&mesh_desc);
+    assert!(!box_mesh.get_meshlets().is_empty());
+    let ground_desc: GroundPlaneDesc = GroundPlaneDesc::new("ground_desc", 40.0, 40.0)
+        .with_subdivisions(6)
+        .with_material(PbrMaterial::dielectric(Color::hex(0x334155), 0.7));
+    let ground_mesh: Mesh3D = Mesh3D::from_ground_desc(&ground_desc);
+    assert!(ground_mesh.get_meshlets().len() >= 2);
+    let mut world: World3D = World3D::default();
+    let mid: usize = world.register_mesh(MeshLodChain::from_mesh(box_mesh));
+    let spawn_desc: SpawnObjectDesc = SpawnObjectDesc::new("hero_cube", mid)
+        .with_transform(Transform3D::default().with_euler(0.4, 0.2, 0.1))
+        .with_material(mat_chrome)
+        .with_spin(0.5);
+    let obj_idx: usize = world.spawn_with(&spawn_desc);
+    assert_eq!(obj_idx, 0);
+    world.set_camera_mode_enum(CameraMode3D::CinematicDolly);
+    assert_eq!(world.active_camera_mode(), CameraMode3D::CinematicDolly);
+    let mut rig: SkeletonRig3D = SkeletonRig3D::default();
+    let root_j: usize = rig.add_joint("root", None, Transform3D::default());
+    let arm_j: usize = rig.add_joint(
+        "arm",
+        Some(root_j),
+        Transform3D::new(Vec3::new(0.0, 2.0, 0.0), 0.0, Vec3::splat(1.0)),
+    );
+    let track: JointTrack3D = JointTrack3D::new(
+        arm_j,
+        vec![
+            Keyframe3D::new(
+                0.0,
+                Transform3D::new(Vec3::new(0.0, 2.0, 0.0), 0.0, Vec3::splat(1.0)),
+            ),
+            Keyframe3D::new(
+                1.0,
+                Transform3D::new(Vec3::new(2.0, 2.0, 0.0), 1.0, Vec3::splat(1.0)),
+            ),
+        ],
+    );
+    let clip: AnimationClip3D = AnimationClip3D::new("wave", 1.0, true).with_track(track);
+    let mats: Vec<Mat4> = rig.sample_world_matrices(&clip, 0.5, Transform3D::default());
+    assert_eq!(mats.len(), 2);
+    assert!((mats[1].get_m()[12] - 1.0).abs() < 0.05);
+    let mut phys3d: PhysicsWorld3D = PhysicsWorld3D::default();
+    let b_idx: usize = phys3d.add_body(RigidBody3D::dynamic_box(
+        Vec3::new(0.0, 2.0, 0.0),
+        Vec3::splat(0.5),
+        2.0,
+    ));
+    let mut hit_ground: bool = false;
+    for _ in 0..90 {
+        let _: usize = phys3d.step(1.0 / 60.0);
+        if phys3d.get_bodies()[b_idx].get_grounded() {
+            hit_ground = true;
+            break;
+        }
+    }
+    assert!(hit_ground);
+    let ray: Ray3D = Ray3D::new(Vec3::new(0.0, 5.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
+    let rhit: Option<RayHitPhysics3D> = phys3d.raycast(&ray, 20.0);
+    assert_eq!(
+        rhit.map(|h: RayHitPhysics3D| h.get_body_index()),
+        Some(b_idx)
+    );
+    let listener: AudioListener3D = AudioListener3D::from_camera(&cam, Vec3::zero());
+    let src: SpatialAudioSource3D = SpatialAudioSource3D::new(
+        SoundCue::Explosion,
+        cam.get_position().add(cam.right().scale(8.0)),
+    )
+    .with_velocity(Vec3::new(-15.0, 0.0, 0.0))
+    .with_range(0.9, 2.0, 60.0);
+    let mut bus: AudioBus = AudioBus::default();
+    bus.play_spatial_3d(&listener, &src);
+    let cmds: Vec<AudioCommand> = bus.drain();
+    assert_eq!(cmds.len(), 1);
+    assert!(cmds[0].get_pan() > 0.5);
+    assert!(cmds[0].get_volume() > 0.0 && cmds[0].get_volume() < 0.9);
+}

@@ -32,9 +32,9 @@ pub fn glyph_bitmap_rows(ch: char) -> [u8; BITMAP_GLYPH_HEIGHT] {
 #[must_use]
 pub fn measure_char_advance(ch: char, style: TextStyle) -> f32 {
     let bold_factor: f32 = if style.get_weight().is_bold() {
-        1.08
+        1.10
     } else if matches!(style.get_weight(), FontWeight::Medium) {
-        1.04
+        1.05
     } else {
         1.0
     };
@@ -108,23 +108,31 @@ pub fn rasterize_glyph(key: GlyphKey) -> RasterizedGlyph {
     let src_h: f32 = BITMAP_GLYPH_HEIGHT as f32;
     let dst_w: f32 = out_w as f32;
     let dst_h: f32 = out_h as f32;
+    let sub_offsets: [(f32, f32); 4] = [(0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75)];
     for py in 0..out_h {
-        let sy: f32 = ((py as f32) + 0.5) * src_h / dst_h;
-        let row_idx: usize = (sy.floor() as usize).min(BITMAP_GLYPH_HEIGHT - 1);
-        let row_bits: u8 = rows[row_idx];
+        let row_off: usize = (py as usize) * (out_w as usize);
         for px in 0..out_w {
-            let sx: f32 = ((px as f32) + 0.5) * src_w / dst_w;
-            let col_idx: usize = (sx.floor() as usize).min(BITMAP_GLYPH_WIDTH - 1);
-            let bit_pos: usize = BITMAP_GLYPH_WIDTH - 1 - col_idx;
-            let hit: bool = ((row_bits >> bit_pos) & 1) != 0;
-            let bold_hit: bool = if bold && col_idx > 0 {
-                let prev_bit: usize = BITMAP_GLYPH_WIDTH - col_idx;
-                ((row_bits >> prev_bit) & 1) != 0
-            } else {
-                false
-            };
-            if hit || bold_hit {
-                coverage[(py as usize) * (out_w as usize) + (px as usize)] = 255;
+            let mut hits: u16 = 0;
+            for (ox, oy) in sub_offsets.into_iter() {
+                let sy: f32 = ((py as f32) + oy) * src_h / dst_h;
+                let sx: f32 = ((px as f32) + ox) * src_w / dst_w;
+                let row_idx: usize = (sy.floor() as usize).min(BITMAP_GLYPH_HEIGHT - 1);
+                let col_idx: usize = (sx.floor() as usize).min(BITMAP_GLYPH_WIDTH - 1);
+                let row_bits: u8 = rows[row_idx];
+                let bit_pos: usize = BITMAP_GLYPH_WIDTH - 1 - col_idx;
+                let hit: bool = ((row_bits >> bit_pos) & 1) != 0;
+                let bold_hit: bool = if bold && col_idx > 0 {
+                    let prev_bit: usize = BITMAP_GLYPH_WIDTH - col_idx;
+                    ((row_bits >> prev_bit) & 1) != 0
+                } else {
+                    false
+                };
+                if hit || bold_hit {
+                    hits += 1;
+                }
+            }
+            if hits > 0 {
+                coverage[row_off + (px as usize)] = ((hits * 255) / 4) as u8;
             }
         }
     }

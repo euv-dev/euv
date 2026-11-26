@@ -33,11 +33,33 @@ euv-example = { path = "${REPO_ROOT}/example" }
 EOF
 
 cat > "${BUILD_DIR}/src/lib.rs" <<'EOF'
+use std::ffi::{CString, c_char};
 use euv::{
     App, NativeSystemFont, PlatformKind, PointerEvent, RenderMode, SafeAreaInsets, WindowEvent,
-    WindowId,
+    WindowId, register_native_action_bridge,
 };
 use euv_example::{ShowcaseState, create_showcase_app_for_platform};
+
+unsafe extern "C" {
+    fn euv_ios_invoke_native_action(
+        kind: *const c_char,
+        arg1: *const c_char,
+        arg2: *const c_char,
+    ) -> i32;
+}
+
+fn ios_native_action_bridge(kind: &str, arg1: &str, arg2: &str) -> bool {
+    let Ok(c_kind) = CString::new(kind) else {
+        return false;
+    };
+    let Ok(c_a1) = CString::new(arg1) else {
+        return false;
+    };
+    let Ok(c_a2) = CString::new(arg2) else {
+        return false;
+    };
+    unsafe { euv_ios_invoke_native_action(c_kind.as_ptr(), c_a1.as_ptr(), c_a2.as_ptr()) != 0 }
+}
 
 pub struct EuvIosHandle {
     app: App,
@@ -49,16 +71,27 @@ pub struct EuvIosHandle {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn euv_ios_create(width: f32, height: f32, scale: f32) -> *mut EuvIosHandle {
-    let Ok((mut app, state)) = create_showcase_app_for_platform(PlatformKind::Ios, RenderMode::Software) else {
+pub extern "C" fn euv_ios_create(
+    width: f32,
+    height: f32,
+    scale: f32,
+    is_ipad: i32,
+) -> *mut EuvIosHandle {
+    register_native_action_bridge(ios_native_action_bridge);
+    let platform: PlatformKind = if is_ipad != 0 {
+        PlatformKind::IpadOs
+    } else {
+        PlatformKind::Ios
+    };
+    let Ok((mut app, state)) = create_showcase_app_for_platform(platform, RenderMode::Software) else {
         return std::ptr::null_mut();
     };
     app.get_mut_renderer()
         .get_mut_software()
         .set_font_provider(NativeSystemFont::system());
     let wid: WindowId = app.get_window_state().get_id();
-    let w: u32 = width.max(320.0).round() as u32;
-    let h: u32 = height.max(480.0).round() as u32;
+    let w: u32 = width.max(200.0).round() as u32;
+    let h: u32 = height.max(200.0).round() as u32;
     let s: f32 = scale.clamp(1.0, 4.0);
     app.dispatch_window_event(WindowEvent::Resized(wid, w, h, s));
     let _ = app.step_game_frame(1.0 / 60.0);
@@ -89,8 +122,8 @@ pub unsafe extern "C" fn euv_ios_resize(
         return;
     }
     let h: &mut EuvIosHandle = unsafe { &mut *handle };
-    let w: u32 = width.max(320.0).round() as u32;
-    let ht: u32 = height.max(480.0).round() as u32;
+    let w: u32 = width.max(200.0).round() as u32;
+    let ht: u32 = height.max(200.0).round() as u32;
     let s: f32 = scale.clamp(1.0, 4.0);
     h.app
         .dispatch_window_event(WindowEvent::Resized(h.wid, w, ht, s));
@@ -204,10 +237,38 @@ cat > "${BUILD_DIR}/main.m" <<'EOF'
 #import <UIKit/UIKit.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <QuartzCore/QuartzCore.h>
+#import <UserNotifications/UserNotifications.h>
 #include <stdint.h>
 
+int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const char *arg2) {
+    NSString *k = kind ? [NSString stringWithUTF8String:kind] : @"";
+    NSString *a1 = arg1 ? [NSString stringWithUTF8String:arg1] : @"";
+    NSString *a2 = arg2 ? [NSString stringWithUTF8String:arg2] : @"";
+    NSLog(@"[euv-native] ios action kind=%@ arg1=%@ arg2=%@", k, a1, a2);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if ([k isEqualToString:@"haptic"]) {
+            UIImpactFeedbackGenerator *gen = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
+            [gen prepare];
+            [gen impactOccurred];
+        } else if ([k isEqualToString:@"notify"] || [k isEqualToString:@"island"]) {
+            UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+            [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge)
+                                  completionHandler:^(BOOL granted, NSError * _Nullable err) {
+                if (granted) {
+                    UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
+                    content.title = a1.length > 0 ? a1 : @"Euv Showcase";
+                    content.body = a2.length > 0 ? a2 : @"Native iOS notification dispatched";
+                    UNNotificationRequest *req = [UNNotificationRequest requestWithIdentifier:[[NSUUID UUID] UUIDString] content:content trigger:nil];
+                    [center addNotificationRequest:req withCompletionHandler:nil];
+                }
+            }];
+        }
+    });
+    return 1;
+}
+
 typedef struct EuvIosHandle EuvIosHandle;
-extern EuvIosHandle *euv_ios_create(float width, float height, float scale);
+extern EuvIosHandle *euv_ios_create(float width, float height, float scale, int32_t is_ipad);
 extern void euv_ios_resize(EuvIosHandle *handle, float width, float height, float scale);
 extern void euv_ios_set_safe_area(EuvIosHandle *handle, float top, float right, float bottom, float left);
 extern void euv_ios_touch_down(EuvIosHandle *handle, uint64_t pointer_id, float x, float y);
@@ -220,6 +281,9 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 @property (nonatomic, strong) CADisplayLink *displayLink;
 @property (nonatomic, assign) CFTimeInterval lastTimestamp;
 @property (nonatomic, assign) CGColorSpaceRef colorSpace;
+@property (nonatomic, assign) CGFloat lastLogicalW;
+@property (nonatomic, assign) CGFloat lastLogicalH;
+@property (nonatomic, assign) CGFloat lastScale;
 @property (nonatomic, assign) uint64_t renderedFrames;
 @property (nonatomic, assign) double accumRenderMs;
 @property (nonatomic, assign) double maxRenderMs;
@@ -234,13 +298,17 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         self.backgroundColor = [UIColor whiteColor];
         self.multipleTouchEnabled = YES;
         _colorSpace = CGColorSpaceCreateDeviceRGB();
-        CGFloat scale = UIScreen.mainScreen.scale;
+        CGFloat scale = fmin(4.0, UIScreen.mainScreen.scale);
         self.layer.contentsScale = scale;
         self.layer.magnificationFilter = kCAFilterLinear;
         self.layer.minificationFilter = kCAFilterTrilinear;
         CGFloat w = frame.size.width > 0 ? frame.size.width : 393.0;
         CGFloat h = frame.size.height > 0 ? frame.size.height : 852.0;
-        _handle = euv_ios_create((float)w, (float)h, (float)scale);
+        int32_t isIpad = (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) ? 1 : 0;
+        _handle = euv_ios_create((float)w, (float)h, (float)scale, isIpad);
+        if (@available(iOS 17.0, *)) {
+            [self registerForTraitChanges:@[UITraitDisplayScale.class] withTarget:self action:@selector(syncViewportScaleAndBounds)];
+        }
         [self syncSafeArea];
         [self presentFrameWithDt:1.0f / 60.0f force:YES];
         _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(onDisplayLink:)];
@@ -255,6 +323,17 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 - (void)syncSafeArea {
     if (!_handle) return;
     UIEdgeInsets insets = self.safeAreaInsets;
+    if (@available(iOS 26.0, *)) {
+        UIViewLayoutRegion *region = [UIViewLayoutRegion safeAreaLayoutRegionWithCornerAdaptation:UIViewLayoutRegionAdaptivityAxisVertical];
+        UIEdgeInsets adapted = [self edgeInsetsForLayoutRegion:region];
+        if (adapted.top > insets.top) insets.top = adapted.top;
+        if (adapted.right > insets.right) insets.right = adapted.right;
+        if (adapted.bottom > insets.bottom) insets.bottom = adapted.bottom;
+        if (adapted.left > insets.left) insets.left = adapted.left;
+    }
+    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad && insets.top < 40.0) {
+        insets.top = 40.0;
+    }
     euv_ios_set_safe_area(_handle, (float)insets.top, (float)insets.right, (float)insets.bottom, (float)insets.left);
 }
 
@@ -264,11 +343,27 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     [self presentFrameWithDt:1.0f / 60.0f force:YES];
 }
 
+- (void)didMoveToWindow {
+    [super didMoveToWindow];
+    [self syncViewportScaleAndBounds];
+}
+
 - (void)syncViewportScaleAndBounds {
-    if (!_handle || self.bounds.size.width <= 0 || self.bounds.size.height <= 0) return;
-    CGFloat scale = self.traitCollection.displayScale > 0
+    if (!_handle) return;
+    if (self.window) {
+        CGRect wb = self.window.bounds;
+        if (wb.size.width > 0 && wb.size.height > 0 && !CGRectEqualToRect(self.bounds, wb)) {
+            [super setFrame:wb];
+        }
+    }
+    if (self.bounds.size.width <= 0 || self.bounds.size.height <= 0) return;
+    CGFloat rawScale = self.traitCollection.displayScale > 0
         ? self.traitCollection.displayScale
         : (self.window.screen.scale > 0 ? self.window.screen.scale : UIScreen.mainScreen.scale);
+    CGFloat scale = fmin(4.0, rawScale);
+    _lastLogicalW = self.bounds.size.width;
+    _lastLogicalH = self.bounds.size.height;
+    _lastScale = scale;
     self.layer.contentsScale = scale;
     euv_ios_resize(_handle, (float)self.bounds.size.width, (float)self.bounds.size.height, (float)scale);
     [self syncSafeArea];
@@ -280,13 +375,13 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     [self syncViewportScaleAndBounds];
 }
 
-- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
-    [super traitCollectionDidChange:previousTraitCollection];
+- (void)setBounds:(CGRect)bounds {
+    [super setBounds:bounds];
     [self syncViewportScaleAndBounds];
 }
 
-- (void)setBounds:(CGRect)bounds {
-    [super setBounds:bounds];
+- (void)setFrame:(CGRect)frame {
+    [super setFrame:frame];
     [self syncViewportScaleAndBounds];
 }
 
@@ -294,6 +389,16 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     CFTimeInterval now = link.timestamp;
     float dt = (_lastTimestamp > 0.0) ? (float)(now - _lastTimestamp) : (1.0f / 60.0f);
     _lastTimestamp = now;
+    CGFloat curW = self.window && self.window.bounds.size.width > 0 ? self.window.bounds.size.width : self.bounds.size.width;
+    CGFloat curH = self.window && self.window.bounds.size.height > 0 ? self.window.bounds.size.height : self.bounds.size.height;
+    CGFloat rawScale = self.traitCollection.displayScale > 0
+        ? self.traitCollection.displayScale
+        : (self.window.screen.scale > 0 ? self.window.screen.scale : UIScreen.mainScreen.scale);
+    CGFloat curScale = fmin(4.0, rawScale);
+    if (fabs(curW - _lastLogicalW) > 0.5 || fabs(curH - _lastLogicalH) > 0.5 || fabs(curScale - _lastScale) > 0.01) {
+        [self syncViewportScaleAndBounds];
+        return;
+    }
     [self presentFrameWithDt:dt force:NO];
 }
 
@@ -361,15 +466,30 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 @end
 
 @interface EuvViewController : UIViewController
+@property (nonatomic, strong) EuvCanvasView *canvasView;
 @end
 
 @implementation EuvViewController
 
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    EuvCanvasView *canvas = [[EuvCanvasView alloc] initWithFrame:self.view.bounds];
-    canvas.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [self.view addSubview:canvas];
+- (void)loadView {
+    CGRect initialFrame = UIScreen.mainScreen.bounds;
+    self.canvasView = [[EuvCanvasView alloc] initWithFrame:initialFrame];
+    self.canvasView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    self.view = self.canvasView;
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    [self.canvasView syncViewportScaleAndBounds];
+}
+
+- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> ctx) {
+        [self.canvasView syncViewportScaleAndBounds];
+    } completion:^(id<UIViewControllerTransitionCoordinatorContext> ctx) {
+        [self.canvasView syncViewportScaleAndBounds];
+    }];
 }
 
 @end
@@ -380,12 +500,38 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 
 @implementation EuvSceneDelegate
 
+- (void)syncWindowGeometry:(UIWindowScene *)windowScene {
+    (void)windowScene;
+    if (!self.window) return;
+    [self.window layoutIfNeeded];
+    if ([self.window.rootViewController isKindOfClass:[EuvViewController class]]) {
+        EuvViewController *vc = (EuvViewController *)self.window.rootViewController;
+        [vc.canvasView syncViewportScaleAndBounds];
+    }
+}
+
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
     if (![scene isKindOfClass:[UIWindowScene class]]) return;
     UIWindowScene *windowScene = (UIWindowScene *)scene;
+    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad && windowScene.sizeRestrictions != nil) {
+        windowScene.sizeRestrictions.minimumSize = CGSizeMake(820.0, 680.0);
+        windowScene.sizeRestrictions.maximumSize = CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX);
+    }
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
+    self.window.backgroundColor = [UIColor whiteColor];
     self.window.rootViewController = [[EuvViewController alloc] init];
     [self.window makeKeyAndVisible];
+    [self syncWindowGeometry:windowScene];
+}
+
+- (void)sceneDidBecomeActive:(UIScene *)scene {
+    if ([scene isKindOfClass:[UIWindowScene class]]) {
+        [self syncWindowGeometry:(UIWindowScene *)scene];
+    }
+}
+
+- (void)windowScene:(UIWindowScene *)windowScene didUpdateEffectiveGeometry:(UIWindowSceneGeometry *)previousEffectiveGeometry {
+    [self syncWindowGeometry:windowScene];
 }
 
 @end
@@ -419,7 +565,7 @@ cat > "${BUILD_DIR}/Info.plist" <<'EOF'
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
-    <key>CFBundleDisplayName</key><string>euv Showcase</string>
+    <key>CFBundleDisplayName</key><string>Euv Showcase</string>
     <key>CFBundleExecutable</key><string>EuvShowcase</string>
     <key>CFBundleIconFiles</key>
     <array>
@@ -446,7 +592,7 @@ cat > "${BUILD_DIR}/Info.plist" <<'EOF'
     <key>LSRequiresIPhoneOS</key><true/>
     <key>UIApplicationSceneManifest</key>
     <dict>
-        <key>UIApplicationSupportsMultipleScenes</key><false/>
+        <key>UIApplicationSupportsMultipleScenes</key><true/>
         <key>UISceneConfigurations</key>
         <dict>
             <key>UIWindowSceneSessionRoleApplication</key>
@@ -464,7 +610,7 @@ cat > "${BUILD_DIR}/Info.plist" <<'EOF'
         <integer>1</integer>
         <integer>2</integer>
     </array>
-    <key>UIRequiresFullScreen</key><true/>
+    <key>UIRequiresFullScreen</key><false/>
     <key>UILaunchScreen</key><dict/>
     <key>UISupportedInterfaceOrientations</key>
     <array>
@@ -495,7 +641,7 @@ python3 "${REPO_ROOT}/scripts/env/generate-icon.py" "${APP_BUNDLE}/AppIcon60x60@
 python3 "${REPO_ROOT}/scripts/env/generate-icon.py" "${APP_BUNDLE}/AppIcon.png" 1024 "${EUV_APP_ICON:-}"
 "${CLANG}" -arch arm64 -isysroot "${SDK_PATH}" -mios-simulator-version-min=17.0 -fobjc-arc \
   "${BUILD_DIR}/main.m" "${STATIC_LIB}" \
-  -framework UIKit -framework Metal -framework CoreGraphics -framework QuartzCore -framework CoreText -framework CoreFoundation -framework Foundation \
+  -framework UIKit -framework UserNotifications -framework Metal -framework CoreGraphics -framework QuartzCore -framework CoreText -framework CoreFoundation -framework Foundation \
   -o "${APP_BUNDLE}/EuvShowcase"
 codesign --force --sign - "${APP_BUNDLE}"
 

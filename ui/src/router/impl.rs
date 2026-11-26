@@ -335,6 +335,7 @@ impl Mountable for EuvRouterOutlet {
             Style::empty()
                 .column()
                 .width(Length::Percent(100.0))
+                .align(AlignItems::Center)
                 .gap(SPACE_LG),
         );
         let Self { router, fallback } = self;

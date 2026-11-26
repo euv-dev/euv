@@ -1,7 +1,7 @@
 use super::*;
 
 /// Structured content block extracted from a Markdown documentation file.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum DocBlock {
     /// Section heading with level (1..=6), anchor slug, and text.
     Heading {
@@ -23,4 +23,22 @@ pub enum DocBlock {
     },
     /// Unordered or ordered list item text.
     ListItem(String),
+    /// Blockquote or callout note paragraph text.
+    BlockQuote(String),
+    /// GitHub-Flavored Markdown table with header cells and body rows.
+    Table {
+        /// Column header labels.
+        headers: Vec<String>,
+        /// Table body rows aligned with `headers`.
+        rows: Vec<Vec<String>>,
+    },
+    /// Embedded image with alt text and source URL.
+    Image {
+        /// Image alternative text description.
+        alt: String,
+        /// Image source URL or relative asset path.
+        src: String,
+    },
+    /// Thematic horizontal section divider (`---`).
+    HorizontalRule,
 }

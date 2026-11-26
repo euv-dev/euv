@@ -70,7 +70,8 @@ fn ui_components_render_deterministically_across_desktop_and_mobile_breakpoints(
     assert_ne!(stats.get_frame_hash(), 0);
     assert!(stats.get_draw_commands() >= 12);
     let scroll_y: Signal<f32> = Signal::new(3200.0);
-    let vlist: EuvVirtualList = EuvVirtualList::new(10_000, 32.0, 320.0, scroll_y, tokens);
+    let vlist: EuvVirtualList =
+        EuvVirtualList::new(10_000, 32.0, scroll_y, tokens).viewport_height(320.0);
     let (start, end): (usize, usize) = vlist.visible_range();
     assert_eq!(start, 97);
     assert_eq!(end, 113);
@@ -176,7 +177,12 @@ fn full_production_component_suite_and_hooks_mount_and_render_cleanly() {
         let form: NodeId = EuvForm::new(tokens)
             .field(EuvLabel::new("Bio".to_string(), true, tokens).mount_current())
             .field(EuvTextarea::new(text_sig, "Write...".to_string(), 72.0, tokens).mount_current())
-            .field(EuvNumberInput::new(num_sig, 0, 20, 1, tokens).mount_current())
+            .field(
+                EuvNumberInput::new(num_sig, tokens)
+                    .range(0, 20)
+                    .step(1)
+                    .mount_current(),
+            )
             .field(
                 EuvRadioGroup::new(
                     vec!["CPU".to_string(), "GPU".to_string()],
@@ -245,10 +251,10 @@ fn full_production_component_suite_and_hooks_mount_and_render_cleanly() {
                 EuvDropdown::new(
                     "Actions".to_string(),
                     vec!["Export".to_string(), "Share".to_string()],
-                    dd_open,
-                    dd_sel,
                     tokens,
                 )
+                .open(dd_open)
+                .selected(dd_sel)
                 .mount_current(),
             )
             .mount_current();
@@ -263,9 +269,9 @@ fn full_production_component_suite_and_hooks_mount_and_render_cleanly() {
             notif_vis,
             "Build OK".to_string(),
             "7 targets verified".to_string(),
-            EuvTone::Success,
             tokens,
         )
+        .tone(EuvTone::Success)
         .mount_current();
         let loading: NodeId =
             EuvLoading::new(loading_sig, "Syncing...".to_string(), tokens).mount_current();
@@ -317,7 +323,8 @@ fn interactive_widgets_and_virtual_scroll_list_respond_to_events_and_update_pixe
         chk_id = EuvCheckbox::new(check_on, "Enable telemetry".to_string(), tokens).mount_current();
         tog_id = EuvToggle::new(toggle_on, "Pin panel".to_string(), tokens).mount_current();
         inp_id = EuvInput::new(input_val, "Type here".to_string(), tokens).mount_current();
-        let vlist: EuvVirtualList = EuvVirtualList::new(10_000, 28.0, 140.0, scroll_y, tokens);
+        let vlist: EuvVirtualList =
+            EuvVirtualList::new(10_000, 28.0, scroll_y, tokens).viewport_height(140.0);
         list_id = vlist.mount_with(move |idx: usize| {
             view! {
                 row {
@@ -412,10 +419,12 @@ fn interactive_widgets_and_virtual_scroll_list_respond_to_events_and_update_pixe
 
 #[test]
 fn shadcn_extra_components_and_responsive_shell_adapt_across_mobile_tablet_desktop() {
-    let viewports: [(u32, u32, Breakpoint, ThemeMode); 3] = [
-        (390, 844, Breakpoint::Compact, ThemeMode::Light),
+    let viewports: [(u32, u32, Breakpoint, ThemeMode); 5] = [
+        (360, 800, Breakpoint::Compact, ThemeMode::Light),
+        (390, 844, Breakpoint::Compact, ThemeMode::Dark),
         (768, 1024, Breakpoint::Medium, ThemeMode::Dark),
         (1280, 800, Breakpoint::Expanded, ThemeMode::Light),
+        (1440, 900, Breakpoint::Expanded, ThemeMode::Dark),
     ];
     for (vw, vh, expected_bp, mode) in viewports.into_iter() {
         reset_reactive_runtime();
@@ -432,6 +441,8 @@ fn shadcn_extra_components_and_responsive_shell_adapt_across_mobile_tablet_deskt
         let cal_day: Signal<u32> = Signal::new(15);
         let menu_act: Signal<Option<usize>> = Signal::new(Some(0));
         let car_idx: Signal<usize> = Signal::new(0);
+        let ctx_open: Signal<bool> = Signal::new(true);
+        let ctx_sel: Signal<Option<usize>> = Signal::new(None);
         let mut win: WindowConfig = WindowConfig::default();
         win.set_size(vw, vh).set_render(RenderConfig::software());
         let mut cfg: AppConfig = AppConfig::default();
@@ -457,12 +468,13 @@ fn shadcn_extra_components_and_responsive_shell_adapt_across_mobile_tablet_deskt
                     { EuvToggleGroup::new(vec!["Left".to_string(), "Center".to_string(), "Right".to_string()], tg_sel, tokens) }
                     { EuvInputOtp::new(otp, 6, tokens) }
                     { EuvCollapsible::new(coll_open, "Details".to_string(), coll_body, tokens) }
-                    { EuvCommand::new(cmd_q, "Search...".to_string(), vec!["Build".to_string(), "Deploy".to_string()], cmd_sel, tokens) }
-                    { EuvHoverCard::new(hover_open, "@shadcn".to_string(), "shadcn/ui".to_string(), "Design system parity.".to_string(), tokens) }
+                    { EuvCommand::new(vec!["Build".to_string(), "Deploy".to_string()], cmd_sel, tokens).query(cmd_q).placeholder("Search...") }
+                    { EuvHoverCard::new("@shadcn".to_string(), "shadcn/ui".to_string(), tokens).open(hover_open).description("Design system parity.") }
+                    { EuvContextMenu::new("Canvas Surface".to_string(), vec!["Inspect".to_string(), "Duplicate".to_string()], tokens).open(ctx_open).selected(ctx_sel) }
                     { EuvCalendar::new("November 2026".to_string(), 30, cal_day, tokens) }
                     { EuvAspectRatio::new(16.0 / 9.0, aspect_child, tokens) }
                     { EuvCarousel::new(vec!["Slide A".to_string(), "Slide B".to_string()], car_idx, tokens) }
-                    { EuvAlertDialog::new(alert_open, "Confirm".to_string(), "Proceed?".to_string(), "Cancel".to_string(), "Continue".to_string(), alert_confirmed, tokens) }
+                    { EuvAlertDialog::new(alert_open, "Confirm".to_string(), alert_confirmed, tokens).description("Proceed?").labels("Cancel", "Continue") }
                 }
             };
             EuvAppShell::new("shadcn-euv".to_string(), nav, body, tokens)
@@ -508,14 +520,10 @@ fn hover_bubbling_and_hover_card_pointer_enter_leave_update_visual_state() {
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
         btn_node = EuvButton::new("Hover Target".to_string(), tokens).mount_current();
-        let hc: NodeId = EuvHoverCard::new(
-            hover_open,
-            "@hover".to_string(),
-            "Preview".to_string(),
-            "Triggered on hover".to_string(),
-            tokens,
-        )
-        .mount_current();
+        let hc: NodeId = EuvHoverCard::new("@hover".to_string(), "Preview".to_string(), tokens)
+            .open(hover_open)
+            .description("Triggered on hover")
+            .mount_current();
         view! {
             column {
                 width: Length::Px(640.0)
@@ -594,4 +602,66 @@ fn full_media_component_suite_renders_image_svg_gif_live_video_audio_pdf_and_htm
     let stats: FrameStats = app.step_frame().unwrap();
     assert_ne!(stats.get_frame_hash(), 0);
     assert!(stats.get_draw_commands() >= 40);
+}
+
+#[test]
+fn rating_tooltip_context_menu_and_input_external_sync_update_pixels() {
+    reset_reactive_runtime();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Dark);
+    let rating: Signal<usize> = Signal::new(1);
+    let text_sig: Signal<String> = Signal::new("init".to_string());
+    let ctx_open: Signal<bool> = Signal::new(false);
+    let ctx_sel: Signal<Option<usize>> = Signal::new(None);
+    let mut tip_wrap: NodeId = NodeId::new(0, 0);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(640, 480).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        let trig: NodeId = EuvButton::new("Tip Trigger".to_string(), tokens).mount_current();
+        tip_wrap = EuvTooltip::new("Hover Hint".to_string(), trig, tokens).mount_current();
+        view! {
+            column {
+                width: Length::Px(640.0)
+                height: Length::Px(480.0)
+                padding: Edges::all(20.0)
+                gap: 12.0
+                { EuvRating::new(rating, 5, tokens) }
+                { EuvInput::new(text_sig, "External sync".to_string(), tokens) }
+                { tip_wrap }
+                { EuvContextMenu::new("Target".to_string(), vec!["Copy".to_string(), "Paste".to_string()], tokens).open(ctx_open).selected(ctx_sel) }
+            }
+        }
+    });
+    let frame0: FrameStats = app.step_frame().unwrap();
+    let _: bool = rating.set(5);
+    let frame1: FrameStats = app.step_frame().unwrap();
+    assert_ne!(frame0.get_frame_hash(), frame1.get_frame_hash());
+    let _: bool = text_sig.set("synced_externally".to_string());
+    let frame2: FrameStats = app.step_frame().unwrap();
+    assert_ne!(frame1.get_frame_hash(), frame2.get_frame_hash());
+    let tip_center: Point = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let b: Rect = tree
+                .get_node(tip_wrap)
+                .map(|n: &SceneNode| n.get_layout_box().get_bounds())
+                .unwrap_or_default();
+            Point::new(
+                b.get_x() + b.get_width() * 0.5,
+                b.get_y() + b.get_height() * 0.5,
+            )
+        },
+        Point::default(),
+    );
+    let wid: WindowId = app.get_window_state().get_id();
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(tip_center.get_x(), tip_center.get_y()),
+    ));
+    let frame3: FrameStats = app.step_frame().unwrap();
+    assert_ne!(frame2.get_frame_hash(), frame3.get_frame_hash());
+    let _: bool = ctx_open.set(true);
+    let frame4: FrameStats = app.step_frame().unwrap();
+    assert_ne!(frame3.get_frame_hash(), frame4.get_frame_hash());
 }

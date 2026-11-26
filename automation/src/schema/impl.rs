@@ -114,6 +114,36 @@ impl AiLayoutNode {
         value.as_deref()
     }
 
+    /// Returns the explicit accessibility label when set on this node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Inspected layout node reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&str>` - Accessibility label slice when present.
+    #[must_use]
+    pub fn a11y_label_value(&self) -> Option<&str> {
+        let Self { a11y_label, .. } = self;
+        a11y_label.as_deref()
+    }
+
+    /// Returns the explicit accessibility hint when set on this node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Inspected layout node reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&str>` - Accessibility hint slice when present.
+    #[must_use]
+    pub fn a11y_hint_value(&self) -> Option<&str> {
+        let Self { a11y_hint, .. } = self;
+        a11y_hint.as_deref()
+    }
+
     /// Collects all visible nodes matching `selector` in pre-order traversal.
     ///
     /// # Arguments
@@ -151,7 +181,40 @@ impl AiLayoutNode {
     }
 }
 
-/// Optional layout tree accessor for `AiRuntimeSnapshot`.
+/// Optional telemetry accessors for `AiWindowInfo`.
+impl AiWindowInfo {
+    /// Returns the active application route string if registered via `AiAppHooks`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Window info reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&str>` - Active route string slice.
+    #[must_use]
+    pub fn active_route_value(&self) -> Option<&str> {
+        let Self { active_route, .. } = self;
+        active_route.as_deref()
+    }
+
+    /// Returns the active design scheme label if registered via `AiAppHooks`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Window info reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&str>` - Active scheme name slice.
+    #[must_use]
+    pub fn active_scheme_value(&self) -> Option<&str> {
+        let Self { active_scheme, .. } = self;
+        active_scheme.as_deref()
+    }
+}
+
+/// Optional layout tree and game telemetry accessors for `AiRuntimeSnapshot`.
 impl AiRuntimeSnapshot {
     /// Returns a reference to the root `AiLayoutNode` when `include_layout_tree` was requested.
     ///
@@ -166,6 +229,273 @@ impl AiRuntimeSnapshot {
     pub fn root_layout_node(&self) -> Option<&AiLayoutNode> {
         let Self { layout_tree, .. } = self;
         layout_tree.as_ref()
+    }
+
+    /// Returns a reference to structured 3D/2D game telemetry JSON when reported by `AiAppHooks`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Runtime snapshot reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<&Value>` - Game telemetry payload reference.
+    #[must_use]
+    pub fn game_stats_value(&self) -> Option<&Value> {
+        let Self { game_stats, .. } = self;
+        game_stats.as_ref()
+    }
+}
+
+/// Fluent registration and invocation helpers for `AiAppHooks`.
+impl AiAppHooks {
+    /// Registers a getter returning the active application route string.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source hooks builder.
+    /// - `F` - Closure returning current route string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated hooks builder.
+    #[must_use]
+    pub fn on_route<F>(mut self, getter: F) -> Self
+    where
+        F: Fn() -> String + 'static,
+    {
+        let Self { route_getter, .. } = &mut self;
+        *route_getter = Some(Rc::new(getter));
+        self
+    }
+
+    /// Registers a getter returning the active design scheme name.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source hooks builder.
+    /// - `F` - Closure returning active scheme name.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated hooks builder.
+    #[must_use]
+    pub fn on_scheme<F>(mut self, getter: F) -> Self
+    where
+        F: Fn() -> String + 'static,
+    {
+        let Self { scheme_getter, .. } = &mut self;
+        *scheme_getter = Some(Rc::new(getter));
+        self
+    }
+
+    /// Registers a getter returning structured 3D/2D game engine telemetry JSON.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source hooks builder.
+    /// - `F` - Closure returning structured JSON value.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated hooks builder.
+    #[must_use]
+    pub fn on_game_stats<F>(mut self, getter: F) -> Self
+    where
+        F: Fn() -> Value + 'static,
+    {
+        let Self {
+            game_stats_getter, ..
+        } = &mut self;
+        *game_stats_getter = Some(Rc::new(getter));
+        self
+    }
+
+    /// Registers a navigation handler invoked by `AiAction::Navigate`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source hooks builder.
+    /// - `F` - Closure accepting route string and returning `Result<(), String>`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated hooks builder.
+    #[must_use]
+    pub fn on_navigate<F>(mut self, handler: F) -> Self
+    where
+        F: FnMut(&str) -> Result<(), String> + 'static,
+    {
+        let Self {
+            navigate_handler, ..
+        } = &mut self;
+        *navigate_handler = Some(Rc::new(RefCell::new(handler)));
+        self
+    }
+
+    /// Registers a theme switcher invoked by `AiAction::SetTheme`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source hooks builder.
+    /// - `F` - Closure accepting `(Option<&str>, Option<&str>)` scheme and mode.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated hooks builder.
+    #[must_use]
+    pub fn on_set_theme<F>(mut self, handler: F) -> Self
+    where
+        F: FnMut(Option<&str>, Option<&str>) -> Result<(), String> + 'static,
+    {
+        let Self { theme_handler, .. } = &mut self;
+        *theme_handler = Some(Rc::new(RefCell::new(handler)));
+        self
+    }
+
+    /// Registers a custom game engine command handler invoked by `AiAction::GameControl`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source hooks builder.
+    /// - `F` - Closure accepting `(command, payload)` and returning `Result<Value, String>`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated hooks builder.
+    #[must_use]
+    pub fn on_game_control<F>(mut self, handler: F) -> Self
+    where
+        F: FnMut(&str, &Value) -> Result<Value, String> + 'static,
+    {
+        let Self {
+            game_control_handler,
+            ..
+        } = &mut self;
+        *game_control_handler = Some(Rc::new(RefCell::new(handler)));
+        self
+    }
+
+    /// Invokes the route getter if registered.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Hooks reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<String>` - Active route path when available.
+    #[must_use]
+    pub(crate) fn read_route(&self) -> Option<String> {
+        let Self { route_getter, .. } = self;
+        route_getter.as_ref().map(|f: &AiRouteGetter| f())
+    }
+
+    /// Invokes the scheme getter if registered.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Hooks reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<String>` - Active design scheme name when available.
+    #[must_use]
+    pub(crate) fn read_scheme(&self) -> Option<String> {
+        let Self { scheme_getter, .. } = self;
+        scheme_getter.as_ref().map(|f: &AiSchemeGetter| f())
+    }
+
+    /// Invokes the game telemetry getter if registered.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Hooks reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<Value>` - Structured 3D/2D game stats JSON when available.
+    #[must_use]
+    pub(crate) fn read_game_stats(&self) -> Option<Value> {
+        let Self {
+            game_stats_getter, ..
+        } = self;
+        game_stats_getter.as_ref().map(|f: &AiGameStatsGetter| f())
+    }
+
+    /// Executes the registered route navigation hook.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Hooks reference.
+    /// - `&str` - Target route string.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<(), String>` - Navigation status or error.
+    pub(crate) fn invoke_navigate(&self, route: &str) -> Result<(), String> {
+        let Self {
+            navigate_handler, ..
+        } = self;
+        let Some(handler) = navigate_handler.as_ref() else {
+            return Err(ERR_NO_NAVIGATE_HOOK.to_string());
+        };
+        handler
+            .try_borrow_mut()
+            .map_err(|err: BorrowMutError| err.to_string())?(route)
+    }
+
+    /// Executes the registered theme switching hook.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Hooks reference.
+    /// - `Option<&str>` - Optional design scheme name.
+    /// - `Option<&str>` - Optional theme mode label (`"Light"` / `"Dark"`).
+    ///
+    /// # Returns
+    ///
+    /// - `Result<(), String>` - Theme switch status or error.
+    pub(crate) fn invoke_set_theme(
+        &self,
+        scheme: Option<&str>,
+        mode: Option<&str>,
+    ) -> Result<(), String> {
+        let Self { theme_handler, .. } = self;
+        let Some(handler) = theme_handler.as_ref() else {
+            return Err(ERR_NO_THEME_HOOK.to_string());
+        };
+        handler
+            .try_borrow_mut()
+            .map_err(|err: BorrowMutError| err.to_string())?(scheme, mode)
+    }
+
+    /// Executes the registered game control command hook.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Hooks reference.
+    /// - `&str` - Command name.
+    /// - `&Value` - Structured JSON payload.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<Value, String>` - Structured command result JSON or error.
+    pub(crate) fn invoke_game_control(
+        &self,
+        command: &str,
+        payload: &Value,
+    ) -> Result<Value, String> {
+        let Self {
+            game_control_handler,
+            ..
+        } = self;
+        let Some(handler) = game_control_handler.as_ref() else {
+            return Err(ERR_NO_GAME_HOOK.to_string());
+        };
+        handler
+            .try_borrow_mut()
+            .map_err(|err: BorrowMutError| err.to_string())?(command, payload)
     }
 }
 
@@ -242,7 +572,7 @@ impl AiSchemaProtocol {
         )
     }
 
-    /// Infers a semantic AI role label from a `SceneNode`.
+    /// Infers a semantic AI role label from explicit `A11yProps` or fallback `SceneNode` heuristics.
     ///
     /// # Arguments
     ///
@@ -250,14 +580,17 @@ impl AiSchemaProtocol {
     ///
     /// # Returns
     ///
-    /// - `&'static str` - Role string (`"Button"`, `"TextField"`, `"Text"`, etc.).
-    fn infer_role(node: &SceneNode) -> &'static str {
+    /// - `String` - Role string (`"Button"`, `"Switch"`, `"Checkbox"`, `"TextInput"`, etc.).
+    fn infer_role(node: &SceneNode) -> String {
+        if let Some(a11y) = node.a11y_props() {
+            return format!("{:?}", a11y.get_role());
+        }
         let clickable: bool = node
             .get_handlers()
             .handler_for(&UiEventKind::Click(Point::default()))
             .is_some()
             || node.get_style().get_paint().get_cursor() == CursorIcon::Pointer;
-        match node.get_kind() {
+        let fallback: &'static str = match node.get_kind() {
             NodeKind::Input(_) => ROLE_TEXT_FIELD,
             NodeKind::Text(_) => {
                 if clickable {
@@ -277,7 +610,46 @@ impl AiSchemaProtocol {
                     ROLE_CONTAINER
                 }
             }
-        }
+        };
+        fallback.to_string()
+    }
+
+    /// Exports the full compiled semantic accessibility tree from `app`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&App` - Active application runtime.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<AiA11yNode>` - Flattened preorder list of serializable A11y nodes.
+    #[must_use]
+    pub fn accessibility_tree(app: &App) -> Vec<AiA11yNode> {
+        let a11y: A11yTree = app.a11y_tree();
+        a11y.get_nodes()
+            .iter()
+            .map(|n: &A11yNode| {
+                let props: &A11yProps = n.get_props();
+                let child_indices: Vec<u32> = n
+                    .get_children()
+                    .iter()
+                    .map(|cid: &NodeId| cid.get_index())
+                    .collect();
+                AiA11yNode {
+                    node_index: n.get_id().get_index(),
+                    role: format!("{:?}", props.get_role()),
+                    label: props.get_label().clone(),
+                    hint: props.get_hint().clone(),
+                    value: props.get_value().clone(),
+                    checked: props.checked_state(),
+                    disabled: props.get_disabled(),
+                    focused: n.get_focused(),
+                    heading_level: props.get_heading_level(),
+                    bounds: AiRect::from_rect(n.get_bounds()),
+                    children: child_indices,
+                }
+            })
+            .collect()
     }
 
     /// Recursively compiles `node_id` into an `AiLayoutNode` preserving scroll-adjusted screen coordinates.
@@ -318,6 +690,8 @@ impl AiSchemaProtocol {
             raw_b.get_height(),
         );
         let lbox: LayoutBox = node.get_layout_box();
+        let max_scroll_x: f32 =
+            (lbox.get_content_size().get_width() - lbox.get_content_bounds().get_width()).max(0.0);
         let max_scroll_y: f32 = (lbox.get_content_size().get_height()
             - lbox.get_content_bounds().get_height())
         .max(0.0);
@@ -332,6 +706,24 @@ impl AiSchemaProtocol {
                 .get_handlers()
                 .handler_for(&UiEventKind::Click(Point::default()))
                 .is_some();
+        let a11y_opt: Option<A11yProps> = node.a11y_props();
+        let a11y_label: Option<String> = a11y_opt
+            .as_ref()
+            .map(|a: &A11yProps| a.get_label().clone())
+            .filter(|s: &String| !s.is_empty());
+        let a11y_hint: Option<String> = a11y_opt
+            .as_ref()
+            .map(|a: &A11yProps| a.get_hint().clone())
+            .filter(|s: &String| !s.is_empty());
+        let input_disabled: bool = match node.get_kind() {
+            NodeKind::Input(inp) => inp.get_disabled(),
+            _ => false,
+        };
+        let disabled: bool = input_disabled
+            || a11y_opt
+                .as_ref()
+                .map(A11yProps::get_disabled)
+                .unwrap_or(false);
         let (kind_str, text, placeholder, value): (
             &'static str,
             Option<String>,
@@ -371,15 +763,22 @@ impl AiSchemaProtocol {
             z_index: layout.get_z_index(),
             opacity: paint.get_opacity(),
             background_hex: paint.background_color().map(Self::color_to_hex),
+            border_width: paint.get_border().get_width(),
+            border_hex: Self::color_to_hex(paint.get_border().get_color()),
+            radius: paint.get_radius().get_top_left(),
             text_color_hex: Self::color_to_hex(text_style.get_color()),
             font_size: text_style.get_font_size(),
+            font_weight: format!("{:?}", text_style.get_weight()),
             cursor: format!("{:?}", paint.get_cursor()),
         };
         Some(AiLayoutNode {
             node_index: node_id.get_index(),
             generation: node_id.get_generation(),
             kind: kind_str.to_string(),
-            role: Self::infer_role(node).to_string(),
+            role: Self::infer_role(node),
+            a11y_label,
+            a11y_hint,
+            disabled,
             text,
             placeholder,
             value,
@@ -393,6 +792,7 @@ impl AiSchemaProtocol {
             ),
             scroll_x: lbox.get_scroll_offset().get_x(),
             scroll_y: lbox.get_scroll_offset().get_y(),
+            max_scroll_x,
             max_scroll_y,
             visible,
             interactive,
@@ -404,15 +804,24 @@ impl AiSchemaProtocol {
         })
     }
 
-    /// Scans `node` recursively to detect horizontal viewport overflow and sibling text overlaps.
+    /// Scans `node` recursively to detect viewport overflow, negative bounds, zero-size visible content, and sibling text overlaps.
     ///
     /// # Arguments
     ///
     /// - `&AiLayoutNode` - Subtree root to audit.
     /// - `f32` - Active logical viewport width.
+    /// - `bool` - Whether all ancestors are displayed with non-zero opacity.
     /// - `&mut Vec<AiLayoutAnomaly>` - Output anomaly list.
-    fn detect_anomalies(node: &AiLayoutNode, viewport_w: f32, out: &mut Vec<AiLayoutAnomaly>) {
+    fn detect_anomalies(
+        node: &AiLayoutNode,
+        viewport_w: f32,
+        ancestor_displayed: bool,
+        out: &mut Vec<AiLayoutAnomaly>,
+    ) {
         let b: AiRect = node.get_screen_bounds();
+        let style: &AiStyleSummary = node.get_style();
+        let displayed: bool =
+            ancestor_displayed && style.get_display() != "None" && style.get_opacity() > 0.0;
         if node.get_visible() && b.right() > viewport_w + 2.0 {
             out.push(AiLayoutAnomaly::new(
                 AiAnomalyKind::HorizontalOverflow,
@@ -423,6 +832,41 @@ impl AiSchemaProtocol {
                     node.get_kind(),
                     b.right(),
                     viewport_w
+                ),
+                b,
+            ));
+        }
+        if node.get_visible() && b.get_x() < -2.0 {
+            out.push(AiLayoutAnomaly::new(
+                AiAnomalyKind::NegativeBounds,
+                node.get_node_index(),
+                format!(
+                    "Node #{} ({}) extends past viewport left edge (x={:.1})",
+                    node.get_node_index(),
+                    node.get_kind(),
+                    b.get_x()
+                ),
+                b,
+            ));
+        }
+        let is_content_node: bool = node.get_kind() == KIND_INPUT
+            || node.get_kind() == KIND_CANVAS
+            || node.get_kind() == KIND_IMAGE
+            || (node.get_kind() == KIND_TEXT
+                && node
+                    .text_value()
+                    .map(|t: &str| !t.trim().is_empty())
+                    .unwrap_or(false));
+        if displayed && is_content_node && (b.get_width() <= 0.0 || b.get_height() <= 0.0) {
+            out.push(AiLayoutAnomaly::new(
+                AiAnomalyKind::ZeroSizeVisible,
+                node.get_node_index(),
+                format!(
+                    "Displayed {} node #{} collapsed to {:.1}x{:.1}px",
+                    node.get_kind(),
+                    node.get_node_index(),
+                    b.get_width(),
+                    b.get_height()
                 ),
                 b,
             ));
@@ -457,11 +901,11 @@ impl AiSchemaProtocol {
             }
         }
         for child in node.get_children().iter() {
-            Self::detect_anomalies(child, viewport_w, out);
+            Self::detect_anomalies(child, viewport_w, displayed, out);
         }
     }
 
-    /// Captures a complete `AiRuntimeSnapshot` from a live `App`.
+    /// Captures a complete `AiRuntimeSnapshot` from a live `App` without custom host hooks.
     ///
     /// # Arguments
     ///
@@ -473,8 +917,31 @@ impl AiSchemaProtocol {
     /// - `AiRuntimeSnapshot` - Complete serializable runtime & layout snapshot.
     #[must_use]
     pub fn snapshot(app: &App, include_layout_tree: bool) -> AiRuntimeSnapshot {
+        Self::snapshot_with_hooks(app, include_layout_tree, None)
+    }
+
+    /// Captures a complete `AiRuntimeSnapshot` enriched with optional host `AiAppHooks` telemetry.
+    ///
+    /// # Arguments
+    ///
+    /// - `&App` - Active application runtime.
+    /// - `bool` - Whether to include the full recursive `layout_tree`.
+    /// - `Option<&AiAppHooks>` - Optional host route/theme/game telemetry hooks.
+    ///
+    /// # Returns
+    ///
+    /// - `AiRuntimeSnapshot` - Complete serializable runtime, reactive, A11y, game, & layout snapshot.
+    #[must_use]
+    pub fn snapshot_with_hooks(
+        app: &App,
+        include_layout_tree: bool,
+        hooks: Option<&AiAppHooks>,
+    ) -> AiRuntimeSnapshot {
         let ws: WindowState = app.get_window_state();
         let stats: FrameStats = app.get_renderer().get_last_stats();
+        let active_route: Option<String> = hooks.and_then(AiAppHooks::read_route);
+        let active_scheme: Option<String> = hooks.and_then(AiAppHooks::read_scheme);
+        let game_stats: Option<Value> = hooks.and_then(AiAppHooks::read_game_stats);
         let win_info: AiWindowInfo = AiWindowInfo {
             window_id: ws.get_id().get_value(),
             title: app.get_config().get_window().get_title().clone(),
@@ -488,6 +955,8 @@ impl AiSchemaProtocol {
                 "{:?}",
                 app.get_build_context().get_theme_mode().get_untracked()
             ),
+            active_route,
+            active_scheme,
             focused: ws.get_focused(),
         };
         let (live_count, rev, focus_mgr, root_tree): (
@@ -508,10 +977,20 @@ impl AiSchemaProtocol {
             },
             (0, 0, FocusManager::default(), None),
         );
+        let measured_fps: f32 = app.get_build_context().get_live_fps().get_untracked();
+        let frame_time_ms: f32 = if measured_fps > 0.1 {
+            (1000.0 / measured_fps * 100.0).round() * 0.01
+        } else {
+            (app.get_frame_clock().get_delta_secs() * 1000.0 * 100.0).round() * 0.01
+        };
         let perf_info: AiPerfInfo = AiPerfInfo {
             frame_index: stats.get_frame_index(),
             active_mode: format!("{:?}", stats.get_active_mode()),
             active_backend: format!("{:?}", stats.get_active_backend()),
+            measured_fps,
+            frame_time_ms,
+            fps_limit: app.fps_limit(),
+            has_active_animations: app.has_active_animations(),
             layout_nodes: stats.get_layout_nodes(),
             layout_skipped: stats.get_layout_skipped(),
             draw_commands: stats.get_draw_commands(),
@@ -521,6 +1000,14 @@ impl AiSchemaProtocol {
             live_node_count: live_count,
             scene_revision: rev,
         };
+        let rstats: ReactiveStats = reactive_stats();
+        let reactive_info: AiReactiveInfo = AiReactiveInfo::new(
+            rstats.get_live_signals(),
+            rstats.get_live_memos(),
+            rstats.get_live_effects(),
+            rstats.get_live_scopes(),
+            rstats.get_clock(),
+        );
         let ptr_pos: Point = app.get_input_state().get_pointer_position();
         let interaction: AiInteractionInfo = AiInteractionInfo::new(
             focus_mgr.hovered_node().map(|n: NodeId| n.get_index()),
@@ -531,7 +1018,7 @@ impl AiSchemaProtocol {
             ptr_pos.get_y(),
         );
         let caps: PlatformCapabilities = app.platform_capabilities();
-        let a11y: A11yTree = app.a11y_tree();
+        let a11y_nodes: Vec<AiA11yNode> = Self::accessibility_tree(app);
         let protocols: Vec<String> = app
             .get_services()
             .get_protocols()
@@ -544,21 +1031,24 @@ impl AiSchemaProtocol {
             caps.get_hardware_gpu(),
             caps.get_touch(),
             protocols,
-            a11y.get_nodes().len(),
+            a11y_nodes.len(),
         );
         let mut anomalies: Vec<AiLayoutAnomaly> = Vec::new();
         if let Some(root_ref) = root_tree.as_ref() {
-            Self::detect_anomalies(root_ref, ws.get_logical_width(), &mut anomalies);
+            Self::detect_anomalies(root_ref, ws.get_logical_width(), true, &mut anomalies);
         }
-        AiRuntimeSnapshot::new(
-            AI_SCHEMA_PROTOCOL_VERSION.to_string(),
-            win_info,
-            perf_info,
+        AiRuntimeSnapshot {
+            protocol_version: AI_SCHEMA_PROTOCOL_VERSION.to_string(),
+            window: win_info,
+            performance: perf_info,
+            reactive: reactive_info,
             interaction,
-            runtime_meta,
-            if include_layout_tree { root_tree } else { None },
+            runtime: runtime_meta,
+            game_stats,
+            accessibility_tree: a11y_nodes,
+            layout_tree: if include_layout_tree { root_tree } else { None },
             anomalies,
-        )
+        }
     }
 
     /// Executes a live hit test at logical coordinates `(x, y)` and returns the leaf + ancestor chain.
@@ -591,7 +1081,7 @@ impl AiSchemaProtocol {
                                 NodeKind::Input(i) => Some(i.get_value().clone()),
                                 _ => None,
                             };
-                            (Some(Self::infer_role(node).to_string()), txt)
+                            (Some(Self::infer_role(node)), txt)
                         }
                         None => (None, None),
                     };
@@ -601,7 +1091,7 @@ impl AiSchemaProtocol {
         )
     }
 
-    /// Dispatches a typed `AiSchemaRequest` against `app` and produces an `AiSchemaResponse`.
+    /// Dispatches a typed `AiSchemaRequest` against `app` without custom host hooks.
     ///
     /// # Arguments
     ///
@@ -612,6 +1102,25 @@ impl AiSchemaProtocol {
     ///
     /// - `AiSchemaResponse` - Structured protocol response.
     pub fn handle(app: &mut App, request: AiSchemaRequest) -> AiSchemaResponse {
+        Self::handle_with_hooks(app, request, None)
+    }
+
+    /// Dispatches a typed `AiSchemaRequest` against `app` with optional host `AiAppHooks`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut App` - Mutable application runtime.
+    /// - `AiSchemaRequest` - AI Schema v1 command.
+    /// - `Option<&AiAppHooks>` - Optional host route/theme/game control hooks.
+    ///
+    /// # Returns
+    ///
+    /// - `AiSchemaResponse` - Structured protocol response.
+    pub fn handle_with_hooks(
+        app: &mut App,
+        request: AiSchemaRequest,
+        hooks: Option<&AiAppHooks>,
+    ) -> AiSchemaResponse {
         match request {
             AiSchemaRequest::DescribeSchema => {
                 let spec: Value = from_str(AI_SCHEMA_JSON_SPEC).unwrap_or(Value::Null);
@@ -620,14 +1129,22 @@ impl AiSchemaProtocol {
             AiSchemaRequest::Snapshot {
                 include_layout_tree,
             } => {
-                let snap: AiRuntimeSnapshot = Self::snapshot(app, include_layout_tree);
+                let snap: AiRuntimeSnapshot =
+                    Self::snapshot_with_hooks(app, include_layout_tree, hooks);
                 match to_value(snap) {
                     Ok(v) => AiSchemaResponse::success(v),
                     Err(err) => AiSchemaResponse::failure(err.to_string()),
                 }
             }
+            AiSchemaRequest::AccessibilityTree => {
+                let nodes: Vec<AiA11yNode> = Self::accessibility_tree(app);
+                match to_value(nodes) {
+                    Ok(v) => AiSchemaResponse::success(v),
+                    Err(err) => AiSchemaResponse::failure(err.to_string()),
+                }
+            }
             AiSchemaRequest::QueryNodes { selector } => {
-                let snap: AiRuntimeSnapshot = Self::snapshot(app, true);
+                let snap: AiRuntimeSnapshot = Self::snapshot_with_hooks(app, true, hooks);
                 let matches: Vec<AiLayoutNode> = snap
                     .root_layout_node()
                     .map(|r: &AiLayoutNode| r.find_matches(&selector))
@@ -645,24 +1162,127 @@ impl AiSchemaProtocol {
                 }
             }
             AiSchemaRequest::ExecuteAction { action } => {
-                let mut auto: UiAutomator<'_> = UiAutomator::new(app);
-                let exec_res: Result<FrameStats, AutomationError> = match action {
-                    AiAction::Click { selector } => auto.click(&selector),
-                    AiAction::Hover { selector } => auto.hover(&selector),
-                    AiAction::TypeText { selector, text } => auto.type_text(&selector, &text),
-                    AiAction::Scroll { selector, dx, dy } => auto.scroll(&selector, dx, dy),
-                    AiAction::PressKey { key } => auto.press_key_name(&key),
+                let mut custom_result: Option<Value> = None;
+                let exec_res: Result<(), AutomationError> = match action {
+                    AiAction::Click { selector } => UiAutomator::new(app)
+                        .click(&selector)
+                        .map(|_: FrameStats| ()),
+                    AiAction::ClickAt { x, y } => {
+                        UiAutomator::new(app).click_at(x, y).map(|_: FrameStats| ())
+                    }
+                    AiAction::DoubleClick { selector } => UiAutomator::new(app)
+                        .double_click(&selector)
+                        .map(|_: FrameStats| ()),
+                    AiAction::Hover { selector } => UiAutomator::new(app)
+                        .hover(&selector)
+                        .map(|_: FrameStats| ()),
+                    AiAction::Focus { selector } => UiAutomator::new(app)
+                        .focus(&selector)
+                        .map(|_: FrameStats| ()),
+                    AiAction::TypeText { selector, text } => UiAutomator::new(app)
+                        .type_text(&selector, &text)
+                        .map(|_: FrameStats| ()),
+                    AiAction::ClearInput { selector } => UiAutomator::new(app)
+                        .clear_input(&selector)
+                        .map(|_: FrameStats| ()),
+                    AiAction::Drag { from, to } => UiAutomator::new(app)
+                        .drag(&from, &to)
+                        .map(|_: FrameStats| ()),
+                    AiAction::DragPoints {
+                        from_x,
+                        from_y,
+                        to_x,
+                        to_y,
+                    } => UiAutomator::new(app)
+                        .drag_points(from_x, from_y, to_x, to_y)
+                        .map(|_: FrameStats| ()),
+                    AiAction::Gesture {
+                        gesture,
+                        x,
+                        y,
+                        dx,
+                        dy,
+                        scale,
+                    } => UiAutomator::new(app)
+                        .gesture(gesture, x, y, dx, dy, scale)
+                        .map(|_: FrameStats| ()),
+                    AiAction::Scroll { selector, dx, dy } => UiAutomator::new(app)
+                        .scroll(&selector, dx, dy)
+                        .map(|_: FrameStats| ()),
+                    AiAction::PressKey { key } => UiAutomator::new(app)
+                        .press_key_name(&key)
+                        .map(|_: FrameStats| ()),
                     AiAction::Resize {
                         width,
                         height,
                         scale,
-                    } => auto.resize(width, height, scale),
+                    } => UiAutomator::new(app)
+                        .resize(width, height, scale)
+                        .map(|_: FrameStats| ()),
+                    AiAction::StepFrames { count } => UiAutomator::new(app)
+                        .step_frames(count)
+                        .map(|_: FrameStats| ()),
+                    AiAction::StepGame { dt_secs, frames } => UiAutomator::new(app)
+                        .step_game(dt_secs, frames)
+                        .map(|_: FrameStats| ()),
+                    AiAction::SetFpsLimit { fps } => UiAutomator::new(app)
+                        .set_fps_limit(fps)
+                        .map(|_: FrameStats| ()),
+                    AiAction::Navigate { route } => match hooks {
+                        Some(h) => h
+                            .invoke_navigate(&route)
+                            .map_err(AutomationError::RuntimeError)
+                            .and_then(|()| UiAutomator::new(app).step().map(|_: FrameStats| ())),
+                        None => Err(AutomationError::RuntimeError(
+                            ERR_NO_NAVIGATE_HOOK.to_string(),
+                        )),
+                    },
+                    AiAction::SetTheme { scheme, mode } => match hooks {
+                        Some(h) => h
+                            .invoke_set_theme(scheme.as_deref(), mode.as_deref())
+                            .map_err(AutomationError::RuntimeError)
+                            .and_then(|()| UiAutomator::new(app).step().map(|_: FrameStats| ())),
+                        None => {
+                            if let Some(m) = mode.as_deref() {
+                                let wid: WindowId = app.get_window_state().get_id();
+                                let parsed: ThemeMode = if m.eq_ignore_ascii_case("Dark") {
+                                    ThemeMode::Dark
+                                } else {
+                                    ThemeMode::Light
+                                };
+                                app.dispatch_window_event(WindowEvent::ThemeChanged(wid, parsed));
+                                UiAutomator::new(app).step().map(|_: FrameStats| ())
+                            } else {
+                                Err(AutomationError::RuntimeError(ERR_NO_THEME_HOOK.to_string()))
+                            }
+                        }
+                    },
+                    AiAction::GameControl { command, payload } => match hooks {
+                        Some(h) => h
+                            .invoke_game_control(&command, &payload)
+                            .map_err(AutomationError::RuntimeError)
+                            .and_then(|val: Value| {
+                                custom_result = Some(val);
+                                UiAutomator::new(app)
+                                    .step_game(1.0 / 60.0, 1)
+                                    .map(|_: FrameStats| ())
+                            }),
+                        None => Err(AutomationError::RuntimeError(ERR_NO_GAME_HOOK.to_string())),
+                    },
                 };
                 match exec_res {
-                    Ok(_) => {
-                        let snap: AiRuntimeSnapshot = Self::snapshot(auto.app_ref(), false);
+                    Ok(()) => {
+                        let snap: AiRuntimeSnapshot = Self::snapshot_with_hooks(app, false, hooks);
                         match to_value(snap) {
-                            Ok(v) => AiSchemaResponse::success(v),
+                            Ok(mut v) => {
+                                if let Some(extra) = custom_result
+                                    && let Some(obj) = v.as_object_mut()
+                                {
+                                    let _: Option<Value> =
+                                        obj.insert("control_result".to_string(), extra);
+                                }
+                                AiSchemaResponse::success(v)
+                            }
                             Err(err) => AiSchemaResponse::failure(err.to_string()),
                         }
                     }
@@ -691,11 +1311,44 @@ impl AiSchemaProtocol {
     ///
     /// - `String` - Serialized `AiSchemaResponse` JSON string.
     pub fn handle_json(app: &mut App, request_json: &str) -> String {
+        Self::handle_json_with_hooks(app, request_json, None)
+    }
+
+    /// Parses a raw JSON `AiSchemaRequest`, executes it against `app` with optional `AiAppHooks`, and returns JSON output.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut App` - Mutable application runtime.
+    /// - `&str` - Raw JSON request string.
+    /// - `Option<&AiAppHooks>` - Optional host telemetry and control hooks.
+    ///
+    /// # Returns
+    ///
+    /// - `String` - Serialized `AiSchemaResponse` JSON string.
+    pub fn handle_json_with_hooks(
+        app: &mut App,
+        request_json: &str,
+        hooks: Option<&AiAppHooks>,
+    ) -> String {
         let resp: AiSchemaResponse = match from_str::<AiSchemaRequest>(request_json) {
-            Ok(req) => Self::handle(app, req),
+            Ok(req) => Self::handle_with_hooks(app, req, hooks),
             Err(err) => AiSchemaResponse::failure(format!("{ERR_INVALID_REQUEST_JSON}: {err}")),
         };
         to_string(&resp).unwrap_or_default()
+    }
+
+    /// Parses a JSON string into a `serde_json::Value` (falling back to `Value::Null` on error).
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - JSON payload string.
+    ///
+    /// # Returns
+    ///
+    /// - `Value` - Parsed JSON value.
+    #[must_use]
+    pub fn parse_json_value(raw: &str) -> Value {
+        from_str(raw).unwrap_or(Value::Null)
     }
 
     /// Serializes a full pretty-printed `AiRuntimeSnapshot` JSON string for AI inspection.
@@ -709,7 +1362,22 @@ impl AiSchemaProtocol {
     /// - `String` - Pretty-printed JSON snapshot string.
     #[must_use]
     pub fn snapshot_pretty_json(app: &App) -> String {
-        let snap: AiRuntimeSnapshot = Self::snapshot(app, true);
+        Self::snapshot_pretty_json_with_hooks(app, None)
+    }
+
+    /// Serializes a full pretty-printed `AiRuntimeSnapshot` JSON string enriched with optional `AiAppHooks`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&App` - Active application runtime.
+    /// - `Option<&AiAppHooks>` - Optional host telemetry hooks.
+    ///
+    /// # Returns
+    ///
+    /// - `String` - Pretty-printed JSON snapshot string.
+    #[must_use]
+    pub fn snapshot_pretty_json_with_hooks(app: &App, hooks: Option<&AiAppHooks>) -> String {
+        let snap: AiRuntimeSnapshot = Self::snapshot_with_hooks(app, true, hooks);
         to_string_pretty(&snap).unwrap_or_default()
     }
 }

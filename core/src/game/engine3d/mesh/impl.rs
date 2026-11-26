@@ -14,11 +14,12 @@ impl Default for PbrMaterial {
             roughness: 0.55,
             emissive: Vec3::zero(),
             reflectivity: 0.12,
+            surface_detail: SurfaceDetailMode::None,
         }
     }
 }
 
-/// Material presets for urban architecture, reflective asphalt, glass towers, and vehicles.
+/// Material presets and fluent builders for metallic conductors, dielectrics, architectural glass, and neon signage.
 impl PbrMaterial {
     /// Creates a PBR material from an sRGB `Color`, `metallic`, `roughness`, and `reflectivity`.
     ///
@@ -40,7 +41,56 @@ impl PbrMaterial {
             roughness: roughness.clamp(0.04, 1.0),
             emissive: Vec3::zero(),
             reflectivity: reflectivity.clamp(0.0, 1.0),
+            surface_detail: SurfaceDetailMode::None,
         }
+    }
+
+    /// Creates a metallic conductor PBR material (chrome, painted car body, brushed steel).
+    ///
+    /// # Arguments
+    ///
+    /// - `Color` - Base metallic reflectance color.
+    /// - `f32` - Surface roughness in `[0.04, 1.0]`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Conductor PBR material.
+    #[must_use]
+    pub fn metallic(color: Color, roughness: f32) -> Self {
+        let r: f32 = roughness.clamp(0.04, 1.0);
+        Self::pbr(color, 0.92, r, (1.0 - r * 0.8).clamp(0.15, 0.96))
+    }
+
+    /// Creates a non-metallic dielectric PBR material (asphalt, concrete, matte plastic, cloth).
+    ///
+    /// # Arguments
+    ///
+    /// - `Color` - Base diffuse albedo color.
+    /// - `f32` - Surface roughness in `[0.04, 1.0]`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Dielectric PBR material.
+    #[must_use]
+    pub fn dielectric(color: Color, roughness: f32) -> Self {
+        let r: f32 = roughness.clamp(0.04, 1.0);
+        Self::pbr(color, 0.04, r, (0.35 * (1.0 - r)).clamp(0.04, 0.35))
+    }
+
+    /// Creates a highly reflective architectural glass PBR material.
+    ///
+    /// # Arguments
+    ///
+    /// - `Color` - Subtle glass tint color.
+    /// - `f32` - Surface roughness in `[0.04, 0.4]`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Reflective glass PBR material.
+    #[must_use]
+    pub fn glass(color: Color, roughness: f32) -> Self {
+        let r: f32 = roughness.clamp(0.04, 0.4);
+        Self::pbr(color, 0.12, r, 0.88)
     }
 
     /// Creates an emissive neon PBR material for city signage, vehicle tail-lights, and beacons.
@@ -62,13 +112,278 @@ impl PbrMaterial {
             roughness: 0.2,
             emissive: rgb.scale(intensity.max(0.2)),
             reflectivity: 0.3,
+            surface_detail: SurfaceDetailMode::None,
         }
+    }
+
+    /// Returns a copy of this material with custom linear HDR emissive radiance.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base material.
+    /// - `Vec3` - Emissive HDR RGB radiance.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated material.
+    #[must_use]
+    pub fn with_emissive(mut self, emissive: Vec3) -> Self {
+        self.set_emissive(emissive);
+        self
+    }
+
+    /// Returns a copy of this material with adjusted surface roughness.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base material.
+    /// - `f32` - Surface roughness clamped to `[0.04, 1.0]`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated material.
+    #[must_use]
+    pub fn with_roughness(mut self, roughness: f32) -> Self {
+        self.set_roughness(roughness.clamp(0.04, 1.0));
+        self
+    }
+
+    /// Returns a copy of this material with adjusted metallic factor.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base material.
+    /// - `f32` - Metallic factor clamped to `[0.0, 1.0]`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated material.
+    #[must_use]
+    pub fn with_metallic(mut self, metallic: f32) -> Self {
+        self.set_metallic(metallic.clamp(0.0, 1.0));
+        self
+    }
+
+    /// Returns a copy of this material with adjusted ray-traced reflectivity.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base material.
+    /// - `f32` - Reflectivity weight clamped to `[0.0, 1.0]`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated material.
+    #[must_use]
+    pub fn with_reflectivity(mut self, reflectivity: f32) -> Self {
+        self.set_reflectivity(reflectivity.clamp(0.0, 1.0));
+        self
+    }
+
+    /// Returns a copy of this material with the requested procedural surface detail overlay.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base material.
+    /// - `SurfaceDetailMode` - Procedural surface detail mode.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated material.
+    #[must_use]
+    pub fn with_surface_detail(mut self, mode: SurfaceDetailMode) -> Self {
+        self.set_surface_detail(mode);
+        self
     }
 }
 
-/// Mesh construction, bounding-box calculation, decimation, and procedural asset generators for `Mesh3D`.
+/// Fluent constructors for `BoxMeshDesc`.
+impl BoxMeshDesc {
+    /// Creates a box mesh descriptor with default ground pivot and neutral PBR material.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Asset name.
+    /// - `Vec3` - Box extents `(width, height, depth)`.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Ready descriptor.
+    #[must_use]
+    pub fn new(name: &str, size: Vec3) -> Self {
+        Self {
+            name: name.to_string(),
+            size,
+            ground_pivot: true,
+            material: PbrMaterial::default(),
+        }
+    }
+
+    /// Sets whether the box rests on `y = 0` or is centered at the origin.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base descriptor.
+    /// - `bool` - Ground pivot toggle.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated descriptor.
+    #[must_use]
+    pub fn with_ground_pivot(mut self, ground_pivot: bool) -> Self {
+        self.set_ground_pivot(ground_pivot);
+        self
+    }
+
+    /// Assigns the PBR material for the generated box mesh.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base descriptor.
+    /// - `PbrMaterial` - Surface material.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated descriptor.
+    #[must_use]
+    pub fn with_material(mut self, material: PbrMaterial) -> Self {
+        self.set_material(material);
+        self
+    }
+}
+
+/// Fluent constructors for `GroundPlaneDesc`.
+impl GroundPlaneDesc {
+    /// Creates a ground plane descriptor with default subdivisions and neutral PBR material.
+    ///
+    /// # Arguments
+    ///
+    /// - `&str` - Asset name.
+    /// - `f32` - Width along X.
+    /// - `f32` - Depth along Z.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Ready descriptor.
+    #[must_use]
+    pub fn new(name: &str, width: f32, depth: f32) -> Self {
+        Self {
+            name: name.to_string(),
+            width,
+            depth,
+            subdivisions: 8,
+            material: PbrMaterial::default(),
+        }
+    }
+
+    /// Sets the grid subdivision count along each axis.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base descriptor.
+    /// - `usize` - Subdivision count.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated descriptor.
+    #[must_use]
+    pub fn with_subdivisions(mut self, subdivisions: usize) -> Self {
+        self.set_subdivisions(subdivisions);
+        self
+    }
+
+    /// Assigns the PBR material for the generated ground plane.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base descriptor.
+    /// - `PbrMaterial` - Surface material.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated descriptor.
+    #[must_use]
+    pub fn with_material(mut self, material: PbrMaterial) -> Self {
+        self.set_material(material);
+        self
+    }
+}
+
+/// Mesh construction, Nanite-style meshlet clustering, decimation, and procedural asset generators for `Mesh3D`.
 impl Mesh3D {
-    /// Constructs a `Mesh3D` and computes its exact local-space `Aabb3D`.
+    /// Partitions indexed triangles into Nanite-style `Meshlet3D` clusters with tight AABBs and normal cones.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[Vertex3D]` - Source vertex buffer.
+    /// - `&[[u32; 3]]` - Source triangle indices.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<Meshlet3D>` - Contiguous cluster descriptors covering all triangles.
+    #[must_use]
+    pub fn build_meshlets_from_parts(
+        vertices: &[Vertex3D],
+        indices: &[[u32; 3]],
+    ) -> Vec<Meshlet3D> {
+        if indices.is_empty() {
+            return Vec::new();
+        }
+        let cluster_count: usize = indices.len().div_ceil(MESHLET_MAX_TRIS);
+        let mut out: Vec<Meshlet3D> = Vec::with_capacity(cluster_count);
+        let mut start: usize = 0;
+        while start < indices.len() {
+            let end: usize = (start + MESHLET_MAX_TRIS).min(indices.len());
+            let mut cluster_box: Aabb3D = Aabb3D::empty();
+            let mut avg_n: Vec3 = Vec3::zero();
+            let mut valid_tris: usize = 0;
+            for tri in &indices[start..end] {
+                let (i0, i1, i2): (usize, usize, usize) =
+                    (tri[0] as usize, tri[1] as usize, tri[2] as usize);
+                if i0 < vertices.len() && i1 < vertices.len() && i2 < vertices.len() {
+                    let p0: Vec3 = vertices[i0].get_position();
+                    let p1: Vec3 = vertices[i1].get_position();
+                    let p2: Vec3 = vertices[i2].get_position();
+                    cluster_box.expand_point(p0);
+                    cluster_box.expand_point(p1);
+                    cluster_box.expand_point(p2);
+                    let fn_vec: Vec3 = p1.sub(p0).cross(p2.sub(p0)).normalize();
+                    avg_n = avg_n.add(fn_vec);
+                    valid_tris += 1;
+                }
+            }
+            if valid_tris == 0 {
+                cluster_box = Aabb3D::new(Vec3::zero(), Vec3::zero());
+            }
+            let cone_axis: Vec3 = avg_n.normalize();
+            let mut min_dot: f32 = 1.0;
+            for tri in &indices[start..end] {
+                let (i0, i1, i2): (usize, usize, usize) =
+                    (tri[0] as usize, tri[1] as usize, tri[2] as usize);
+                if i0 < vertices.len() && i1 < vertices.len() && i2 < vertices.len() {
+                    let p0: Vec3 = vertices[i0].get_position();
+                    let p1: Vec3 = vertices[i1].get_position();
+                    let p2: Vec3 = vertices[i2].get_position();
+                    let fn_vec: Vec3 = p1.sub(p0).cross(p2.sub(p0)).normalize();
+                    min_dot = min_dot.min(fn_vec.dot(cone_axis));
+                }
+            }
+            let radius: f32 = cluster_box.radius().max(0.05);
+            let screen_error: f32 = radius / ((end - start).max(1) as f32).sqrt();
+            out.push(Meshlet3D::new(
+                start as u32,
+                (end - start) as u32,
+                cluster_box,
+                cone_axis,
+                min_dot,
+                screen_error,
+            ));
+            start = end;
+        }
+        out
+    }
+
+    /// Constructs a `Mesh3D`, computes its local `Aabb3D`, and partitions Nanite-style `Meshlet3D` clusters.
     ///
     /// # Arguments
     ///
@@ -79,7 +394,7 @@ impl Mesh3D {
     ///
     /// # Returns
     ///
-    /// - `Self` - Ready indexed mesh.
+    /// - `Self` - Ready indexed mesh with meshlets.
     #[must_use]
     pub fn from_parts(
         name: String,
@@ -94,12 +409,14 @@ impl Mesh3D {
         if vertices.is_empty() {
             bounds = Aabb3D::new(Vec3::zero(), Vec3::zero());
         }
+        let meshlets: Vec<Meshlet3D> = Self::build_meshlets_from_parts(&vertices, &indices);
         Self {
             name,
             vertices,
             indices,
             bounds,
             material,
+            meshlets,
         }
     }
 
@@ -257,9 +574,9 @@ impl Mesh3D {
     /// - `Self` - Composite vehicle mesh.
     #[must_use]
     pub fn sports_car(name: &str, material: PbrMaterial) -> Self {
-        let lower: Self = Self::box_mesh("lower", 2.2, 0.80, 4.6, true, material);
-        let cabin: Self = Self::box_mesh("cabin", 1.82, 0.72, 2.2, true, material);
-        let wheel: Self = Self::box_mesh("wheel", 0.34, 0.56, 0.62, true, material);
+        let lower: Self = Self::box_mesh(MESH_CAR_LOWER, 2.2, 0.80, 4.6, true, material);
+        let cabin: Self = Self::box_mesh(MESH_CAR_CABIN, 1.82, 0.72, 2.2, true, material);
+        let wheel: Self = Self::box_mesh(MESH_CAR_WHEEL, 0.34, 0.56, 0.62, true, material);
         let mut vertices: Vec<Vertex3D> = Vec::with_capacity(144);
         let mut indices: Vec<[u32; 3]> = Vec::with_capacity(72);
         let lower_offset: u32 = vertices.len() as u32;
@@ -310,11 +627,53 @@ impl Mesh3D {
         Self::from_parts(name.to_string(), vertices, indices, material)
     }
 
+    /// Builds a box mesh from a fluent `BoxMeshDesc`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&BoxMeshDesc` - Box mesh descriptor.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Indexed 12-triangle box mesh.
+    #[must_use]
+    pub fn from_box_desc(desc: &BoxMeshDesc) -> Self {
+        let size: Vec3 = desc.get_size();
+        Self::box_mesh(
+            desc.get_name(),
+            size.get_x(),
+            size.get_y(),
+            size.get_z(),
+            desc.get_ground_pivot(),
+            desc.get_material(),
+        )
+    }
+
+    /// Builds a subdivided ground plane from a fluent `GroundPlaneDesc`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&GroundPlaneDesc` - Ground plane descriptor.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Subdivided ground plane mesh.
+    #[must_use]
+    pub fn from_ground_desc(desc: &GroundPlaneDesc) -> Self {
+        Self::ground_plane(
+            desc.get_name(),
+            desc.get_width(),
+            desc.get_depth(),
+            desc.get_subdivisions(),
+            desc.get_material(),
+        )
+    }
+
     /// Builds a simplified proxy mesh enclosing this mesh's AABB for distant LOD tiers.
     ///
     /// # Arguments
     ///
-    /// - `&Self` - High-detail source mesh.
+    /// - `&Self` - Source mesh reference.
     /// - `&str` - LOD suffix label.
     ///
     /// # Returns
@@ -337,13 +696,60 @@ impl Mesh3D {
             v.set_position(v.get_position().add(center));
         }
         proxy.set_bounds(b);
+        let meshlets: Vec<Meshlet3D> =
+            Self::build_meshlets_from_parts(proxy.get_vertices(), proxy.get_indices());
+        proxy.set_meshlets(meshlets);
         proxy
+    }
+
+    /// Produces a mid-detail decimated mesh by retaining dominant triangles while preserving bounding silhouette.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Source mesh reference.
+    /// - `&str` - LOD suffix label.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Decimated intermediate LOD mesh.
+    #[must_use]
+    pub fn build_mid_lod(&self, suffix: &str) -> Self {
+        let verts: &[Vertex3D] = self.get_vertices().as_slice();
+        let tris: &[[u32; 3]] = self.get_indices().as_slice();
+        if tris.len() <= 24 {
+            return self.build_lod_proxy(suffix);
+        }
+        let mut scored: Vec<(f32, [u32; 3])> = Vec::with_capacity(tris.len());
+        for tri in tris.iter().copied() {
+            let (i0, i1, i2): (usize, usize, usize) =
+                (tri[0] as usize, tri[1] as usize, tri[2] as usize);
+            if i0 < verts.len() && i1 < verts.len() && i2 < verts.len() {
+                let p0: Vec3 = verts[i0].get_position();
+                let p1: Vec3 = verts[i1].get_position();
+                let p2: Vec3 = verts[i2].get_position();
+                let area2: f32 = p1.sub(p0).cross(p2.sub(p0)).length_sq();
+                scored.push((area2, tri));
+            }
+        }
+        scored.sort_unstable_by(|a: &(f32, [u32; 3]), b: &(f32, [u32; 3])| b.0.total_cmp(&a.0));
+        let keep: usize = (scored.len() / 2).max(12);
+        let reduced: Vec<[u32; 3]> = scored
+            .into_iter()
+            .take(keep)
+            .map(|(_, t): (f32, [u32; 3])| t)
+            .collect();
+        Self::from_parts(
+            format!("{}_{suffix}", self.get_name()),
+            self.get_vertices().clone(),
+            reduced,
+            self.get_material(),
+        )
     }
 }
 
-/// Multi-level LOD chain creation and distance-based selection for `MeshLodChain`.
+/// Multi-level continuous LOD chain creation and screen-error selection for `MeshLodChain`.
 impl MeshLodChain {
-    /// Builds a 2-tier LOD chain (`LOD0` full mesh + `LOD1` simplified bounding proxy) automatically.
+    /// Builds a continuous 3-tier Nanite-style LOD chain (`LOD0` full -> `LOD1` mid -> `LOD2` proxy) automatically.
     ///
     /// # Arguments
     ///
@@ -354,13 +760,23 @@ impl MeshLodChain {
     /// - `Self` - Ready LOD chain.
     #[must_use]
     pub fn from_mesh(mesh: Mesh3D) -> Self {
-        let lod1: Mesh3D = if mesh.get_indices().len() > 16 {
-            mesh.build_lod_proxy("lod1")
+        let tri_count: usize = mesh.get_indices().len();
+        if tri_count > 32 {
+            let lod1: Mesh3D = mesh.build_mid_lod(MESH_LOD1_SUFFIX);
+            let lod2: Mesh3D = mesh.build_lod_proxy(MESH_LOD2_SUFFIX);
+            Self {
+                levels: vec![mesh, lod1, lod2],
+            }
+        } else if tri_count > 16 {
+            let lod1: Mesh3D = mesh.build_lod_proxy(MESH_LOD1_SUFFIX);
+            Self {
+                levels: vec![mesh, lod1],
+            }
         } else {
-            mesh.clone()
-        };
-        Self {
-            levels: vec![mesh, lod1],
+            let clone_lod1: Mesh3D = mesh.clone();
+            Self {
+                levels: vec![mesh, clone_lod1],
+            }
         }
     }
 
@@ -379,7 +795,43 @@ impl MeshLodChain {
     pub fn select(&self, distance: f32, lod_bias: f32) -> (&Mesh3D, usize) {
         let levels: &[Mesh3D] = self.get_levels().as_slice();
         let effective_dist: f32 = distance * lod_bias.max(0.25);
-        if levels.len() > 1 && effective_dist > 85.0 {
+        if levels.len() > 2 && effective_dist > 135.0 {
+            (&levels[2], 2)
+        } else if levels.len() > 1 && effective_dist > 78.0 {
+            (&levels[1], 1)
+        } else {
+            (&levels[0], 0)
+        }
+    }
+
+    /// Nanite-style continuous LOD selection driven by projected screen-space pixel coverage.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - LOD chain reference.
+    /// - `f32` - Camera-to-object distance in meters.
+    /// - `f32` - World-space bounding sphere radius in meters.
+    /// - `f32` - Projected viewport focal length in pixels (`height / (2 * tan(fov/2))`).
+    /// - `f32` - Quality LOD bias multiplier (`< 1.0` higher detail, `> 1.0` aggressive simplification).
+    ///
+    /// # Returns
+    ///
+    /// - `(&Mesh3D, usize)` - Selected mesh reference and its LOD tier index.
+    #[must_use]
+    pub fn select_screen_error(
+        &self,
+        distance: f32,
+        bounds_radius: f32,
+        focal_px: f32,
+        lod_bias: f32,
+    ) -> (&Mesh3D, usize) {
+        let levels: &[Mesh3D] = self.get_levels().as_slice();
+        let safe_dist: f32 = distance.max(0.5);
+        let projected_px: f32 =
+            (bounds_radius.max(0.2) * focal_px) / (safe_dist * lod_bias.max(0.25));
+        if levels.len() > 2 && projected_px < 22.0 {
+            (&levels[2], 2)
+        } else if levels.len() > 1 && projected_px < 58.0 {
             (&levels[1], 1)
         } else {
             (&levels[0], 0)
@@ -426,7 +878,7 @@ impl ModelImporter3D {
         let mut normals: Vec<Vec3> = Vec::new();
         let mut vertices: Vec<Vertex3D> = Vec::new();
         let mut indices: Vec<[u32; 3]> = Vec::new();
-        let mut model_name: String = "imported_obj".to_string();
+        let mut model_name: String = MESH_OBJ_DEFAULT_NAME.to_string();
         for raw_line in source.lines() {
             let line: &str = raw_line.trim();
             if line.is_empty() || line.starts_with('#') {
@@ -505,7 +957,7 @@ impl ModelImporter3D {
             }
         }
         if indices.is_empty() {
-            return Err("OBJ source contained no valid triangles".to_string());
+            return Err(ERR_OBJ_EMPTY.to_string());
         }
         let total_vertices: usize = vertices.len();
         let total_triangles: usize = indices.len();
@@ -535,21 +987,21 @@ impl ModelImporter3D {
     ) -> Result<ImportedModel3D, String> {
         let root: Value = from_str::<Value>(source)
             .ok()
-            .ok_or_else(|| "invalid glTF JSON".to_string())?;
+            .ok_or_else(|| ERR_GLTF_JSON.to_string())?;
         let name: String = root
-            .get("asset")
-            .and_then(|a: &Value| a.get("generator"))
+            .get(GLTF_KEY_ASSET)
+            .and_then(|a: &Value| a.get(GLTF_KEY_GENERATOR))
             .and_then(Value::as_str)
-            .unwrap_or("imported_gltf")
+            .unwrap_or(MESH_GLTF_DEFAULT_NAME)
             .to_string();
         let mut mat: PbrMaterial = fallback_material;
         if let Some(pbr) = root
-            .get("materials")
+            .get(GLTF_KEY_MATERIALS)
             .and_then(Value::as_array)
             .and_then(|arr: &Vec<Value>| arr.first())
-            .and_then(|m: &Value| m.get("pbrMetallicRoughness"))
+            .and_then(|m: &Value| m.get(GLTF_KEY_PBR))
         {
-            if let Some(bc) = pbr.get("baseColorFactor").and_then(Value::as_array)
+            if let Some(bc) = pbr.get(GLTF_KEY_BASE_COLOR).and_then(Value::as_array)
                 && bc.len() >= 3
             {
                 let r: f32 = bc[0].as_f64().unwrap_or(0.8) as f32;
@@ -557,10 +1009,10 @@ impl ModelImporter3D {
                 let b: f32 = bc[2].as_f64().unwrap_or(0.8) as f32;
                 mat.set_base_color(Vec3::new(r, g, b));
             }
-            if let Some(met) = pbr.get("metallicFactor").and_then(Value::as_f64) {
+            if let Some(met) = pbr.get(GLTF_KEY_METALLIC).and_then(Value::as_f64) {
                 mat.set_metallic((met as f32).clamp(0.0, 1.0));
             }
-            if let Some(rough) = pbr.get("roughnessFactor").and_then(Value::as_f64) {
+            if let Some(rough) = pbr.get(GLTF_KEY_ROUGHNESS).and_then(Value::as_f64) {
                 mat.set_roughness((rough as f32).clamp(0.04, 1.0));
                 mat.set_reflectivity((1.0 - (rough as f32)).clamp(0.05, 0.95));
             }
@@ -568,20 +1020,20 @@ impl ModelImporter3D {
         let mut chains: Vec<MeshLodChain> = Vec::new();
         let mut total_vertices: usize = 0;
         let mut total_triangles: usize = 0;
-        if let Some(meshes_arr) = root.get("meshes").and_then(Value::as_array) {
+        if let Some(meshes_arr) = root.get(GLTF_KEY_MESHES).and_then(Value::as_array) {
             for (m_idx, m_val) in meshes_arr.iter().enumerate() {
                 let mesh_name: String = m_val
-                    .get("name")
+                    .get(GLTF_KEY_NAME)
                     .and_then(Value::as_str)
                     .map(str::to_string)
                     .unwrap_or_else(|| format!("{name}_mesh_{m_idx}"));
-                let Some(prims) = m_val.get("primitives").and_then(Value::as_array) else {
+                let Some(prims) = m_val.get(GLTF_KEY_PRIMITIVES).and_then(Value::as_array) else {
                     continue;
                 };
                 for prim in prims.iter() {
-                    let extras: &Value = prim.get("extras").unwrap_or(prim);
+                    let extras: &Value = prim.get(GLTF_KEY_EXTRAS).unwrap_or(prim);
                     let pos_vals: Vec<f32> = extras
-                        .get("positions")
+                        .get(GLTF_KEY_POSITIONS)
                         .and_then(Value::as_array)
                         .map(|a: &Vec<Value>| {
                             a.iter()
@@ -590,7 +1042,7 @@ impl ModelImporter3D {
                         })
                         .unwrap_or_default();
                     let idx_vals: Vec<u32> = extras
-                        .get("indices")
+                        .get(GLTF_KEY_INDICES)
                         .and_then(Value::as_array)
                         .map(|a: &Vec<Value>| {
                             a.iter()
@@ -629,7 +1081,7 @@ impl ModelImporter3D {
             }
         }
         if chains.is_empty() {
-            return Err("glTF 2.0 JSON contained no valid triangle primitives".to_string());
+            return Err(ERR_GLTF_EMPTY.to_string());
         }
         Ok(ImportedModel3D {
             name,

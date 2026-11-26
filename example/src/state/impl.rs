@@ -110,7 +110,7 @@ impl ShowcaseState {
             os_target_platform_idx: Signal::new(0),
             island_mode_idx: Signal::new(0),
             system_notifications: Signal::new(vec![(
-                "euv System Ready".to_string(),
+                "Euv System Ready".to_string(),
                 "Native notification bus active across all 7 targets".to_string(),
             )]),
             permission_statuses: Signal::new(vec![PermissionStatus::NotDetermined; 14]),
@@ -308,9 +308,32 @@ impl ShowcaseState {
                         let _: bool = wasm_status.set(format!("WASM event error: {err}"));
                     }
                 }
+            } else if ev.get_action().as_str() == "global_wasm_action" {
+                match mgr_act.dispatch_wasm_event(&WasmDynamicScope::Global, 1) {
+                    Ok(next_st) => {
+                        let _: bool = wasm_status.set(format!(
+                            "Global WASM euv_on_event executed live -> state={next_st} (full shell re-rendered)"
+                        ));
+                    }
+                    Err(err) => {
+                        let _: bool = wasm_status.set(format!("Global WASM event error: {err}"));
+                    }
+                }
+            } else if ev.get_action().as_str() == "global_wasm_rollback" {
+                match mgr_act.rollback_global("user rollback") {
+                    Ok(ver) => {
+                        let _: bool = wasm_status.set(format!(
+                            "Rolled back Global WASM shell to v{ver} (0 = native shell)"
+                        ));
+                    }
+                    Err(_) => {
+                        mgr_act.restore_native_global();
+                        let _: bool = wasm_status.set(STATUS_RESTORED_NATIVE_SHELL.to_string());
+                    }
+                }
             } else if ev.get_action().as_str() == "global_wasm_restore" {
                 mgr_act.restore_native_global();
-                let _: bool = wasm_status.set("Restored built-in native dashboard shell".to_string());
+                let _: bool = wasm_status.set(STATUS_RESTORED_NATIVE_SHELL.to_string());
             }
         });
         let Self {
@@ -320,6 +343,132 @@ impl ShowcaseState {
         } = self;
         *dynamic_hub = hub;
         *wasm_manager = wasm_mgr;
+    }
+
+    /// Builds `AiAppHooks` bridging route, theme, and 3D/2D game engine telemetry and controls to AI Schema v1.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reactive showcase state reference.
+    ///
+    /// # Returns
+    ///
+    /// - `AiAppHooks` - Configured AI automation hooks bound to this state.
+    #[cfg(any(debug_assertions, test))]
+    #[must_use]
+    pub fn build_ai_hooks(&self) -> AiAppHooks {
+        let route_get: Signal<String> = self.get_route();
+        let route_set: Signal<String> = self.get_route();
+        let theme_get: UiThemeState = self.get_theme().clone();
+        let theme_set: UiThemeState = self.get_theme().clone();
+        let preset_get: Signal<usize> = self.get_engine3d_preset_idx();
+        let preset_set: Signal<usize> = self.get_engine3d_preset_idx();
+        let rt_get: Signal<usize> = self.get_engine3d_rt_idx();
+        let rt_set: Signal<usize> = self.get_engine3d_rt_idx();
+        let res_get: Signal<f32> = self.get_engine3d_res_scale();
+        let res_set: Signal<f32> = self.get_engine3d_res_scale();
+        let time_get: Signal<f32> = self.get_engine3d_time_of_day();
+        let time_set: Signal<f32> = self.get_engine3d_time_of_day();
+        let cam_get: Signal<u8> = self.get_engine3d_camera_mode();
+        let cam_set: Signal<u8> = self.get_engine3d_camera_mode();
+        let import_set: Signal<u64> = self.get_engine3d_import_queue();
+        let status_get: Signal<String> = self.get_engine3d_import_status();
+        AiAppHooks::new()
+            .on_route(move || route_get.get_untracked())
+            .on_scheme(move || theme_get.get_scheme().get_untracked().as_str().to_string())
+            .on_game_stats(move || {
+                let raw: String = format!(
+                    "{{\"preset_idx\":{},\"rt_idx\":{},\"resolution_scale_pct\":{:.1},\"time_of_day\":{:.2},\"camera_mode\":{},\"import_status\":{:?}}}",
+                    preset_get.get_untracked(),
+                    rt_get.get_untracked(),
+                    res_get.get_untracked(),
+                    time_get.get_untracked(),
+                    cam_get.get_untracked(),
+                    status_get.get_untracked()
+                );
+                AiSchemaProtocol::parse_json_value(&raw)
+            })
+            .on_navigate(move |target: &str| {
+                let _: bool = route_set.set_if_changed(target.to_string());
+                Ok(())
+            })
+            .on_set_theme(move |scheme_opt: Option<&str>, mode_opt: Option<&str>| {
+                if let Some(s_name) = scheme_opt {
+                    let matched: Option<DesignScheme> = DesignScheme::all()
+                        .into_iter()
+                        .find(|ds: &DesignScheme| ds.as_str().eq_ignore_ascii_case(s_name));
+                    match matched {
+                        Some(ds) => theme_set.select_scheme(ds),
+                        None => return Err(format!("Unknown design scheme: {s_name}")),
+                    }
+                }
+                if let Some(m_name) = mode_opt {
+                    let next_mode: ThemeMode = if m_name.eq_ignore_ascii_case("Dark") {
+                        ThemeMode::Dark
+                    } else if m_name.eq_ignore_ascii_case("Light") {
+                        ThemeMode::Light
+                    } else {
+                        return Err(format!("Unknown theme mode: {m_name}"));
+                    };
+                    let _: bool = theme_set.get_mode().set_if_changed(next_mode);
+                }
+                Ok(())
+            })
+            .on_game_control(move |cmd: &str, payload: &AiJsonValue| {
+                let num_val: f64 = payload
+                    .as_f64()
+                    .or_else(|| {
+                        payload
+                            .get("value")
+                            .and_then(|v: &AiJsonValue| v.as_f64())
+                    })
+                    .unwrap_or(0.0);
+                match cmd {
+                    "camera_mode" => {
+                        let next_cam: u8 = (num_val.round() as u8).min(3);
+                        let _: bool = cam_set.set_if_changed(next_cam);
+                        Ok(AiSchemaProtocol::parse_json_value(&format!(
+                            "{{\"camera_mode\":{next_cam}}}"
+                        )))
+                    }
+                    "preset" => {
+                        let next_p: usize = (num_val.round() as usize).min(4);
+                        let _: bool = preset_set.set_if_changed(next_p);
+                        Ok(AiSchemaProtocol::parse_json_value(&format!(
+                            "{{\"preset_idx\":{next_p}}}"
+                        )))
+                    }
+                    "ray_tracing" => {
+                        let next_rt: usize = (num_val.round() as usize).min(3);
+                        let _: bool = rt_set.set_if_changed(next_rt);
+                        Ok(AiSchemaProtocol::parse_json_value(&format!(
+                            "{{\"rt_idx\":{next_rt}}}"
+                        )))
+                    }
+                    "resolution_scale" => {
+                        let next_s: f32 = (num_val as f32).clamp(40.0, 125.0);
+                        let _: bool = res_set.set_if_changed(next_s);
+                        Ok(AiSchemaProtocol::parse_json_value(&format!(
+                            "{{\"resolution_scale_pct\":{next_s:.1}}}"
+                        )))
+                    }
+                    "time_of_day" => {
+                        let next_t: f32 = (num_val as f32).clamp(6.0, 23.0);
+                        let _: bool = time_set.set_if_changed(next_t);
+                        Ok(AiSchemaProtocol::parse_json_value(&format!(
+                            "{{\"time_of_day\":{next_t:.2}}}"
+                        )))
+                    }
+                    "import_model" => {
+                        let next_q: u64 = import_set.get_untracked().saturating_add(1);
+                        let _: bool = import_set.set_if_changed(next_q);
+                        Ok(AiSchemaProtocol::parse_json_value(&format!(
+                            "{{\"import_queue\":{next_q}}}"
+                        )))
+                    }
+                    other => Err(format!("Unknown game control command: {other}")),
+                }
+            })
     }
 
     /// Returns the categorized sidebar navigation items grouped in Linear/Vercel/shadcn hierarchy.
@@ -1001,8 +1150,15 @@ impl GameScene for DemoOpenWorld3DScene {
     fn render(&mut self, _alpha: f32, ctx: &mut GameRenderContext<'_>) {
         let size: Size = ctx.viewport_size();
         let quality: RenderQualityConfig = self.get_quality_signal().get_untracked();
-        let vw: u32 = (size.get_width().round() as u32).max(160);
-        let vh: u32 = (size.get_height().round() as u32).max(100);
+        let dpi_boost: f32 = match quality.get_preset() {
+            QualityPreset::Low => 1.15,
+            QualityPreset::Medium => 1.45,
+            QualityPreset::High => 1.85,
+            QualityPreset::Ultra => 2.10,
+            QualityPreset::Cinematic => 2.35,
+        };
+        let vw: u32 = ((size.get_width() * dpi_boost).round() as u32).clamp(240, 1120);
+        let vh: u32 = ((size.get_height() * dpi_boost).round() as u32).clamp(180, 960);
         let frame_img: ImageBuffer = {
             let Self {
                 world, renderer, ..
@@ -1014,27 +1170,26 @@ impl GameScene for DemoOpenWorld3DScene {
             frame_img,
         );
         let stats: RenderStats3D = self.get_renderer().get_last_stats();
+        let fps: f32 = self.get_smoothed_fps();
         let compact_hud: bool = size.get_width() < 520.0;
         let hud_text: String = if compact_hud {
             format!(
-                "3D {:?} | {}x{} | {} tris | {} rays",
+                "{fps:.0} FPS | {:?} | {}x{} | {} rays",
                 quality.get_preset(),
                 stats.get_render_width(),
                 stats.get_render_height(),
-                stats.get_triangles_drawn(),
                 stats.get_rays_traced()
             )
         } else {
             format!(
-                "3D {:?} | RT {:?} | {}x{} | Tris {} | Rays {} | BVH {} | Culled {}",
+                "{fps:.0} FPS | 3D {:?} | RT {:?} | {}x{} | Tris {} | Rays {} | BVH {}",
                 quality.get_preset(),
                 quality.get_ray_tracing(),
                 stats.get_render_width(),
                 stats.get_render_height(),
                 stats.get_triangles_drawn(),
                 stats.get_rays_traced(),
-                stats.get_bvh_nodes(),
-                stats.get_culled_objects()
+                stats.get_bvh_nodes()
             )
         };
         ctx.fill_rounded_rect(

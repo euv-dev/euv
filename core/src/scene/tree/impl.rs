@@ -20,6 +20,7 @@ impl Default for SceneTree {
             focus: FocusManager::default(),
             revision: 1,
             transitions: Vec::new(),
+            caret_visible: true,
         }
     }
 }
@@ -981,6 +982,9 @@ impl BuildContext {
             gesture: Signal::new(None),
             system_back: Signal::new(0),
             dynamic_hub: DynamicUpdateHub::new(),
+            fps_limit: Signal::new(None),
+            live_fps: Signal::new(60.0),
+            active_touches: Signal::new(Vec::new()),
         }
     }
 
@@ -1306,6 +1310,54 @@ impl BuildContext {
             |tree: &mut SceneTree| {
                 if let Some(node) = tree.get_node_mut(node_id) {
                     node.get_mut_handlers().set_on_pointer_up(Some(handler));
+                }
+            },
+            (),
+        );
+    }
+
+    /// Registers a hover handler on `node_id` invoked on both `PointerEnter` and `PointerLeave`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - Hover callback closure receiving `UiEventKind::PointerEnter` or `PointerLeave`.
+    pub fn on_hover<F>(&mut self, node_id: NodeId, callback: F)
+    where
+        F: FnMut(&UiEvent) + 'static,
+    {
+        let handler: UiEventHandler = Rc::new(RefCell::new(callback));
+        let leave_handler: UiEventHandler = handler.clone();
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_handlers().set_on_pointer_enter(Some(handler));
+                    node.get_mut_handlers()
+                        .set_on_pointer_leave(Some(leave_handler));
+                }
+            },
+            (),
+        );
+    }
+
+    /// Registers a keyboard key-down handler on `node_id` and marks it focusable.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - Key-down callback closure receiving `UiEventKind::KeyDown`.
+    pub fn on_key<F>(&mut self, node_id: NodeId, callback: F)
+    where
+        F: FnMut(&UiEvent) + 'static,
+    {
+        let handler: UiEventHandler = Rc::new(RefCell::new(callback));
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_handlers().set_on_key_down(Some(handler));
+                    node.get_mut_interaction().set_focusable(true);
                 }
             },
             (),

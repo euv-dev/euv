@@ -62,7 +62,8 @@ pub struct EuvVirtualList {
     /// Fixed height of each row in logical pixels.
     #[get(type(copy))]
     pub(crate) item_height: f32,
-    /// Viewport height in logical pixels.
+    /// Viewport height in logical pixels (`0.0` defaults to `320.0`).
+    #[new(skip)]
     #[get(type(copy))]
     pub(crate) viewport_height: f32,
     /// Reactive scroll Y offset signal in logical pixels.

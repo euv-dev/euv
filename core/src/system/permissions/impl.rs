@@ -171,6 +171,7 @@ impl PermissionManager {
         platform: PlatformKind,
     ) -> PermissionDescriptor {
         let native_key: String = permission.native_key(platform).to_string();
+        let _: bool = dispatch_native_action(NATIVE_ACTION_PERMISSION, &native_key, &rationale);
         let _: Option<String> = self
             .get_mut_rationales()
             .insert(permission, rationale.clone());

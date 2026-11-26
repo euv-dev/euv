@@ -22,8 +22,25 @@ pub enum UiTestStep {
         /// Target locator.
         selector: UiSelector,
     },
+    /// Clicks exact logical coordinates `(x, y)`.
+    ClickAt {
+        /// Logical X coordinate.
+        x: f32,
+        /// Logical Y coordinate.
+        y: f32,
+    },
+    /// Double-clicks the node matching `selector`.
+    DoubleClick {
+        /// Target locator.
+        selector: UiSelector,
+    },
     /// Moves pointer hover over `selector`.
     Hover {
+        /// Target locator.
+        selector: UiSelector,
+    },
+    /// Focuses the node matching `selector`.
+    Focus {
         /// Target locator.
         selector: UiSelector,
     },
@@ -33,6 +50,36 @@ pub enum UiTestStep {
         selector: UiSelector,
         /// UTF-8 text payload.
         text: String,
+    },
+    /// Clears all text in the input matching `selector`.
+    ClearInput {
+        /// Target input locator.
+        selector: UiSelector,
+    },
+    /// Drags from the center of `from` to the center of `to`.
+    Drag {
+        /// Drag start locator.
+        from: UiSelector,
+        /// Drag end locator.
+        to: UiSelector,
+    },
+    /// Synthesizes a touch or multi-touch gesture.
+    Gesture {
+        /// Gesture classification.
+        gesture: AiGestureKind,
+        /// Logical anchor X coordinate.
+        x: f32,
+        /// Logical anchor Y coordinate.
+        y: f32,
+        /// Horizontal displacement delta.
+        #[serde(default)]
+        dx: f32,
+        /// Vertical displacement delta.
+        #[serde(default)]
+        dy: f32,
+        /// Pinch scale multiplier.
+        #[serde(default)]
+        scale: f32,
     },
     /// Dispatches a keyboard key press by name.
     PressKey {
@@ -57,10 +104,39 @@ pub enum UiTestStep {
         /// Display scale factor.
         scale: f32,
     },
+    /// Advances `count` rendered frames.
+    StepFrames {
+        /// Number of frames to render.
+        count: usize,
+    },
+    /// Steps game simulation for `frames` ticks of `dt_secs`.
+    StepGame {
+        /// Delta time per tick in seconds.
+        dt_secs: f32,
+        /// Number of ticks.
+        frames: usize,
+    },
+    /// Configures the active runtime FPS limiter.
+    SetFpsLimit {
+        /// Optional FPS cap (`None` = unlimited).
+        fps: Option<u32>,
+    },
     /// Asserts at least one visible node matches `selector`.
     AssertVisible {
         /// Expected visible node locator.
         selector: UiSelector,
+    },
+    /// Asserts no visible node matches `selector`.
+    AssertNotVisible {
+        /// Expected absent node locator.
+        selector: UiSelector,
+    },
+    /// Asserts the first matching node has exact text or input value `expected`.
+    AssertTextEquals {
+        /// Target node locator.
+        selector: UiSelector,
+        /// Expected exact string value.
+        expected: String,
     },
     /// Asserts no visible node overflows the viewport right edge.
     AssertNoHorizontalOverflow,

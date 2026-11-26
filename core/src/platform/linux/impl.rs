@@ -148,22 +148,25 @@ impl PlatformBackend for LinuxPlatform {
     ///
     /// - `Result<WindowState, PlatformError>` - Initial window state.
     fn create_window(&mut self, config: &WindowConfig) -> Result<WindowState, PlatformError> {
-        let (lib, is_wayland, display, window): (usize, bool, usize, u64) =
-            linux_create_native_window(config)?;
-        if !is_wayland {
-            self.set_x11_lib(lib);
+        let native: LinuxNativeWindowHandle = linux_create_native_window(config)?;
+        if !native.get_is_wayland() {
+            self.set_x11_lib(native.get_lib());
         }
         let id: WindowId = WindowId::new(self.get_next_id());
         self.set_next_id(self.get_next_id().wrapping_add(1));
-        let state: WindowState = WindowState::from_config(id, config, 1.0);
+        let state: WindowState = WindowState::from_config(id, config, native.get_scale_factor());
         self.get_mut_windows().insert(
             id,
             LinuxWindowRecord {
                 config: config.clone(),
                 state,
-                is_wayland,
-                display,
-                window,
+                is_wayland: native.get_is_wayland(),
+                display: native.get_display(),
+                window: native.get_window(),
+                gc: native.get_gc(),
+                visual: native.get_visual(),
+                depth: native.get_depth(),
+                wm_delete_atom: native.get_wm_delete_atom(),
             },
         );
         Ok(state)
@@ -214,7 +217,7 @@ impl PlatformBackend for LinuxPlatform {
         }
     }
 
-    /// Drains queued Linux events.
+    /// Pumps pending X11 events and drains queued Linux events.
     ///
     /// # Arguments
     ///
@@ -224,10 +227,17 @@ impl PlatformBackend for LinuxPlatform {
     ///
     /// - `Vec<WindowEvent>` - Pending events.
     fn poll_events(&mut self) -> Vec<WindowEvent> {
-        take(self.get_mut_pending_events())
+        let lib: usize = self.get_x11_lib();
+        let Self {
+            windows,
+            pending_events,
+            ..
+        } = self;
+        linux_x11_pump_events(lib, windows, pending_events);
+        take(pending_events)
     }
 
-    /// Presents `framebuffer` to the active Linux window surface.
+    /// Presents `framebuffer` to the active Linux window surface via X11 `XCreateImage` + `XPutImage`.
     ///
     /// # Arguments
     ///
@@ -241,12 +251,14 @@ impl PlatformBackend for LinuxPlatform {
     fn present_framebuffer(
         &mut self,
         id: WindowId,
-        _framebuffer: &Framebuffer,
+        framebuffer: &Framebuffer,
     ) -> Result<(), PlatformError> {
-        if !self.get_windows().contains_key(&id) {
-            return Err(PlatformError::WindowNotFound(id.get_value()));
-        }
-        Ok(())
+        let lib: usize = self.get_x11_lib();
+        let rec: &LinuxWindowRecord = self
+            .get_windows()
+            .get(&id)
+            .ok_or(PlatformError::WindowNotFound(id.get_value()))?;
+        linux_x11_present_framebuffer(lib, rec, framebuffer)
     }
 
     /// Reads cached clipboard text.

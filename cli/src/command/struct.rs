@@ -1,7 +1,7 @@
 use super::*;
 
 /// Installed toolchain status for a single Rust cross-compilation target.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Getter, New)]
+#[derive(Clone, Debug, Deserialize, Eq, Getter, New, PartialEq, Serialize)]
 pub struct TargetReadiness {
     /// Target platform label.
     pub(crate) name: String,
@@ -13,7 +13,7 @@ pub struct TargetReadiness {
 }
 
 /// Complete environment readiness report produced by `euv doctor`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Getter, New)]
+#[derive(Clone, Debug, Deserialize, Eq, Getter, New, PartialEq, Serialize)]
 pub struct DoctorReport {
     /// Host `rustc --version` output.
     pub(crate) rustc_version: String,
@@ -30,7 +30,7 @@ pub struct DoctorReport {
 }
 
 /// Result summary emitted after scaffolding a new euv project via `euv new`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Getter, New)]
+#[derive(Clone, Debug, Deserialize, Eq, Getter, New, PartialEq, Serialize)]
 pub struct ScaffoldReport {
     /// Absolute or relative root path of the created project.
     pub(crate) project_dir: String,

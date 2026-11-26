@@ -10,6 +10,10 @@ pub enum UiSelector {
     ByTextContains(String),
     /// Matches an input node whose placeholder equals the target string.
     ByPlaceholder(String),
+    /// Matches an input node whose current value equals the target string.
+    ByInputValue(String),
+    /// Matches a node whose explicit accessibility label equals the target string.
+    ByA11yLabel(String),
     /// Matches a node by its accessibility role name (e.g. `"Button"`, `"TextField"`, `"ScrollContainer"`).
     ByRole(String),
     /// Matches a node by its retained scene node kind (e.g. `"View"`, `"Text"`, `"Input"`, `"ScrollView"`, `"Canvas"`, `"Portal"`).

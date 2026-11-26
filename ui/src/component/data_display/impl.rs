@@ -263,6 +263,7 @@ impl Mountable for EuvSkeleton {
         ctx.view(
             Style::empty()
                 .width(Length::Px(self.get_width()))
+                .max_width(Length::Percent(100.0))
                 .height(Length::Px(self.get_height()))
                 .background(p.get_secondary())
                 .radius(g.get_radius_sm()),
@@ -272,7 +273,7 @@ impl Mountable for EuvSkeleton {
 
 /// `Mountable` implementation for `EuvSpinner`.
 impl Mountable for EuvSpinner {
-    /// Mounts a vector `Canvas` spinner ring into `ctx`.
+    /// Mounts a vector `Canvas` spinner ring with transparent center into `ctx`.
     ///
     /// # Arguments
     ///
@@ -290,17 +291,21 @@ impl Mountable for EuvSpinner {
             move |bounds: Rect, dl: &mut DisplayList| {
                 let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
                 let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
-                let r: f32 = (bounds.get_width().min(bounds.get_height()) * 0.45).max(4.0);
-                dl.push(DrawCommand::Circle {
-                    center: Point::new(cx, cy),
-                    radius: r,
-                    color: p.get_primary(),
-                });
-                dl.push(DrawCommand::Circle {
-                    center: Point::new(cx, cy),
-                    radius: (r * 0.62).max(2.0),
-                    color: p.get_background(),
-                });
+                let outer_r: f32 = (bounds.get_width().min(bounds.get_height()) * 0.42).max(4.0);
+                let inner_r: f32 = outer_r * 0.56;
+                let stroke_w: f32 = (outer_r * 0.24).clamp(1.6, 3.2);
+                let spokes: usize = 8;
+                for i in 0..spokes {
+                    let angle: f32 = (i as f32) * (TAU / (spokes as f32));
+                    let (sin_a, cos_a): (f32, f32) = angle.sin_cos();
+                    let alpha: f32 = 0.22 + 0.78 * ((i + 1) as f32 / (spokes as f32));
+                    dl.push(DrawCommand::Line {
+                        from: Point::new(cx + cos_a * inner_r, cy + sin_a * inner_r),
+                        to: Point::new(cx + cos_a * outer_r, cy + sin_a * outer_r),
+                        color: p.get_primary().multiply_alpha(alpha),
+                        width: stroke_w,
+                    });
+                }
             },
         )
     }

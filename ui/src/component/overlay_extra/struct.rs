@@ -57,6 +57,10 @@ pub struct EuvTooltip {
     /// Trigger child node.
     #[get(type(copy))]
     pub(crate) trigger: NodeId,
+    /// When `true`, keeps the tooltip permanently displayed instead of toggling on hover.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) always_visible: bool,
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
@@ -69,12 +73,14 @@ pub struct EuvDropdown {
     pub(crate) label: String,
     /// Action item labels.
     pub(crate) items: Vec<String>,
-    /// Reactive open flag.
-    #[get(type(copy))]
-    pub(crate) open: Signal<bool>,
-    /// Last chosen item index signal.
-    #[get(type(copy))]
-    pub(crate) last_selected: Signal<Option<usize>>,
+    /// Optional controlled reactive open flag (creates internal state when omitted).
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) open: Option<Signal<bool>>,
+    /// Optional controlled last-selected item index signal.
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) last_selected: Option<Signal<Option<usize>>>,
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
@@ -90,7 +96,8 @@ pub struct EuvNotification {
     pub(crate) title: String,
     /// Notification detail message.
     pub(crate) message: String,
-    /// Semantic tone.
+    /// Semantic tone (`Neutral` by default).
+    #[new(skip)]
     #[get(type(copy))]
     pub(crate) tone: EuvTone,
     /// Active theme tokens.

@@ -1,11 +1,11 @@
-mod r#effect;
-mod r#id;
-mod r#memo;
-mod r#runtime;
-mod r#scope;
-mod r#selector;
-mod r#signal;
+mod effect;
+mod id;
+mod memo;
+mod runtime;
+mod scope;
+mod selector;
+mod signal;
 
-pub use {r#effect::*, r#id::*, r#memo::*, r#runtime::*, r#scope::*, r#selector::*, r#signal::*};
+pub use {effect::*, id::*, memo::*, runtime::*, scope::*, selector::*, signal::*};
 
 use super::*;

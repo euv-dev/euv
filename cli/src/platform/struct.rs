@@ -1,7 +1,7 @@
 use super::*;
 
 /// Target platform metadata describing Rust triple, system APIs, and output bundle.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Getter, New)]
+#[derive(Clone, Debug, Deserialize, Eq, Getter, New, PartialEq, Serialize)]
 pub struct TargetSpec {
     /// Human-readable target key (`web`, `android`, `ios`, `ipad`, `macos`, `windows`, `linux`).
     pub(crate) name: String,
@@ -18,7 +18,7 @@ pub struct TargetSpec {
 }
 
 /// Single executable command step inside a cross-platform `BuildPlan`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Getter, New)]
+#[derive(Clone, Debug, Deserialize, Eq, Getter, New, PartialEq, Serialize)]
 pub struct BuildStep {
     /// Human-readable purpose of this step.
     pub(crate) description: String,
@@ -29,7 +29,7 @@ pub struct BuildStep {
 }
 
 /// Complete declarative build plan for one target platform.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Getter, New)]
+#[derive(Clone, Debug, Deserialize, Eq, Getter, New, PartialEq, Serialize)]
 pub struct BuildPlan {
     /// Target specification metadata.
     pub(crate) target: TargetSpec,

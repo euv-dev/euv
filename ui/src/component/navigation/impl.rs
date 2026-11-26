@@ -166,7 +166,7 @@ impl Mountable for EuvTabs {
             let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
                 handle.bind_style(tab, move || {
                     let selected: bool = active.get() == idx;
-                    let mut st: Style = Style::empty()
+                    Style::empty()
                         .row()
                         .height(Length::Px(g.get_control_sm()))
                         .justify(JustifyContent::Center)
@@ -178,11 +178,11 @@ impl Mountable for EuvTabs {
                         } else {
                             COLOR_TRANSPARENT
                         })
-                        .cursor(CursorIcon::Pointer);
-                    if selected {
-                        st = st.shadow(Shadow::new(0.0, 1.0, 2.0, 0.0, Color::rgba(0, 0, 0, 16)));
-                    }
-                    st
+                        .border(
+                            if selected { g.get_border_width() } else { 0.0 },
+                            p.get_border(),
+                        )
+                        .cursor(CursorIcon::Pointer)
                 })
             });
             ctx.get_scene().with_write(

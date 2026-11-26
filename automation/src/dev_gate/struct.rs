@@ -12,6 +12,9 @@ pub struct DevAutomationBridge {
     pub(crate) bound_addr: String,
     /// Total AI schema requests served during this dev session.
     pub(crate) requests_served: u64,
+    /// Optional host-application telemetry and control hooks.
+    #[debug(skip)]
+    pub(crate) hooks: Option<AiAppHooks>,
 }
 
 /// Zero-sized release stub for `DevAutomationBridge` guaranteeing zero memory or CPU overhead in release builds.

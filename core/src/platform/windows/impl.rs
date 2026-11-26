@@ -222,9 +222,13 @@ impl PlatformBackend for WindowsPlatform {
     ///
     /// - `Vec<WindowEvent>` - Pending events.
     fn poll_events(&mut self) -> Vec<WindowEvent> {
-        let primary: Option<WindowId> = self.get_windows().keys().next().copied();
-        win32_pump_messages(self.get_mut_pending_events(), primary);
-        take(self.get_mut_pending_events())
+        let Self {
+            windows,
+            pending_events,
+            ..
+        } = self;
+        win32_pump_messages(windows, pending_events);
+        take(pending_events)
     }
 
     /// Blits `framebuffer` directly to the Win32 `HWND` via GDI `StretchDIBits`.

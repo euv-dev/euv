@@ -1,17 +1,64 @@
 use super::*;
 
-/// 3D world-space transform (translation, Y-yaw rotation, non-uniform scale).
-#[derive(Clone, Copy, Data, Debug, New, PartialEq)]
+/// 3D world-space transform (translation, yaw/pitch/roll Euler rotation, and non-uniform scale).
+#[derive(Clone, Copy, Data, Debug, PartialEq)]
 pub struct Transform3D {
     /// World-space translation `(x, y, z)`.
     #[get(type(copy))]
     pub(crate) position: Vec3,
-    /// Horizontal Y-axis rotation in radians.
+    /// Horizontal Y-axis yaw rotation in radians.
     #[get(type(copy))]
     pub(crate) yaw_rad: f32,
+    /// Vertical X-axis pitch rotation in radians.
+    #[get(type(copy))]
+    pub(crate) pitch_rad: f32,
+    /// Longitudinal Z-axis roll rotation in radians.
+    #[get(type(copy))]
+    pub(crate) roll_rad: f32,
     /// Scale multiplier along `(x, y, z)`.
     #[get(type(copy))]
     pub(crate) scale: Vec3,
+}
+
+/// Fluent descriptor for spawning a `SceneObject3D` into `World3D`.
+#[derive(Clone, Data, Debug, PartialEq)]
+pub struct SpawnObjectDesc {
+    /// Human-readable object label.
+    pub(crate) name: String,
+    /// Registered mesh identifier from `World3D::register_mesh`.
+    #[get(type(copy))]
+    pub(crate) mesh_id: usize,
+    /// World-space TRS transform.
+    #[get(type(copy))]
+    pub(crate) transform: Transform3D,
+    /// Surface PBR material.
+    #[get(type(copy))]
+    pub(crate) material: PbrMaterial,
+    /// Whether this object casts ray-traced shadows and appears in BVH reflections.
+    #[get(type(copy))]
+    pub(crate) ray_trace_caster: bool,
+    /// Continuous spin speed in radians/sec.
+    #[get(type(copy))]
+    pub(crate) spin_speed: f32,
+}
+
+/// Fluent descriptor for importing a 3D `.obj` or `.gltf` model into `World3D`.
+#[derive(Clone, Data, Debug, PartialEq)]
+pub struct ImportModelDesc {
+    /// Source model interchange format.
+    #[get(type(copy))]
+    pub(crate) format: ModelFormat,
+    /// Raw `.obj` or `.gltf` text content.
+    pub(crate) source: String,
+    /// World-space placement transform.
+    #[get(type(copy))]
+    pub(crate) transform: Transform3D,
+    /// Fallback PBR material when source omits material definitions.
+    #[get(type(copy))]
+    pub(crate) fallback_material: PbrMaterial,
+    /// Optional continuous Y-spin speed in radians/sec.
+    #[get(type(copy))]
+    pub(crate) spin_speed: f32,
 }
 
 /// Instanced 3D scene object placed inside an open-world chunk.
@@ -89,10 +136,10 @@ pub struct World3D {
     /// Total imported external 3D models (`.obj` / `.gltf`).
     #[get(type(copy))]
     pub(crate) imported_model_count: usize,
-    /// Active 3D camera mode (`0 = Chase`, `1 = Hood`, `2 = Orbit`, `3 = Aerial`).
+    /// Active 3D camera mode index (`0=Chase`, `1=Hood`, `2=Orbit`, `3=Aerial`, `4=FreeFly`, `5=CinematicDolly`).
     #[get(type(copy))]
     pub(crate) camera_mode: u8,
-    /// Continuous orbit angle in radians used when `camera_mode == 2`.
+    /// Continuous orbit angle in radians used for `Orbit` and `CinematicDolly` modes.
     #[get(type(copy))]
     pub(crate) camera_orbit_rad: f32,
 }

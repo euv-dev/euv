@@ -1,5 +1,28 @@
 use super::*;
 
+/// Win32 `RECT` ABI struct for `AdjustWindowRectEx` and `GetClientRect`.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Win32Rect {
+    /// Left X coordinate.
+    pub(crate) left: i32,
+    /// Top Y coordinate.
+    pub(crate) top: i32,
+    /// Right X coordinate.
+    pub(crate) right: i32,
+    /// Bottom Y coordinate.
+    pub(crate) bottom: i32,
+}
+
+/// Queued Win32 window event tagging its source `HWND`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Win32QueuedEvent {
+    /// Originating Win32 `HWND`.
+    pub(crate) hwnd: usize,
+    /// Translated event payload.
+    pub(crate) payload: Win32EventPayload,
+}
+
 /// Win32 `WNDCLASSEXW` ABI struct.
 #[repr(C)]
 pub(crate) struct WndClassExW {

@@ -874,6 +874,7 @@ pub fn build_partial_widget_wasm(title: &str, version: u64, accent_hex: u32) -> 
         "Invoke WASM euv_on_event (+1)".to_string(),
         "wasm_interact".to_string(),
     );
+    btn_interact.get_mut_style().set_full_width(true);
     btn_interact.set_payload(format!("wasm-partial-v{version}"));
     let mut root_even: DynamicNodeSpec = DynamicNodeSpec::column()
         .child(
@@ -913,33 +914,41 @@ pub fn build_partial_widget_wasm(title: &str, version: u64, accent_hex: u32) -> 
         .build()
 }
 
-/// Builds a genuine global full-app `.wasm` binary emitting a complete `DynamicUpdateBundle` that atomically takes over the root shell.
+/// Builds one deterministic state bundle (`state_idx = 0 | 1`) embedded inside a global full-app `.wasm` release.
 ///
 /// # Arguments
 ///
 /// - `&str` - Global release title.
 /// - `u64` - Monotonic global release version.
+/// - `u8` - Interactive toggle state index (`0` or `1`).
 ///
 /// # Returns
 ///
-/// - `Vec<u8>` - Spec-compliant executable global `.wasm` binary bytes.
+/// - `DynamicUpdateBundle` - Signed bundle targeting both global root component and page routes.
 #[must_use]
-pub fn build_global_app_wasm(title: &str, version: u64) -> Vec<u8> {
-    let mut badge: DynamicNodeSpec = DynamicNodeSpec::badge(format!("GLOBAL WASM APP v{version}"));
+fn build_global_state_bundle(title: &str, version: u64, state_idx: u8) -> DynamicUpdateBundle {
+    let mut badge: DynamicNodeSpec =
+        DynamicNodeSpec::badge(format!("GLOBAL WASM APP v{version} · STATE #{state_idx}"));
     badge
         .get_mut_style()
-        .set_background_hex(Some(0x0F766E))
+        .set_background_hex(Some(if state_idx == 0 { 0x0F766E } else { 0x1D4ED8 }))
         .set_color_hex(Some(0xFFFFFF));
     let mut hero_title: DynamicNodeSpec = DynamicNodeSpec::text(title.to_string());
     hero_title
         .get_mut_style()
         .set_bold(true)
-        .set_font_size(Some(22.0));
-    let hero_sub: DynamicNodeSpec = DynamicNodeSpec::text(format!(
-        "Entire native UI shell hot-replaced atomically from downloaded global .wasm release v{version}. Zero WebView, instant LKG rollback ready."
-    ));
-    let mut kpi_grid: DynamicNodeSpec =
-        DynamicNodeSpec::grid(3)
+        .set_font_size(Some(20.0));
+    let hero_sub: DynamicNodeSpec = DynamicNodeSpec::text(if state_idx == 0 {
+        format!(
+            "Entire native UI shell hot-replaced atomically from downloaded global .wasm release v{version}. Tap any button below to invoke sandboxed WASM events or return."
+        )
+    } else {
+        format!(
+            "Global WASM euv_on_event executed live inside sandbox (v{version}, active pulse state=1)! Zero restart — tap Restore Native Shell anytime to roll back."
+        )
+    });
+    let mut kpi_col: DynamicNodeSpec =
+        DynamicNodeSpec::column()
             .child(DynamicNodeSpec::card("Execution Mode".to_string()).child(
                 DynamicNodeSpec::text("Sandboxed WASM -> Native SceneTree".to_string()),
             ))
@@ -952,42 +961,65 @@ pub fn build_global_app_wasm(title: &str, version: u64) -> Vec<u8> {
                     "Fuel + Memory + Atomic LKG Rollback".to_string(),
                 )),
             );
-    kpi_grid
+    kpi_col
         .get_mut_style()
         .set_full_width(true)
-        .set_gap(Some(12.0));
+        .set_gap(Some(10.0));
     let mut btn_action: DynamicNodeSpec = DynamicNodeSpec::button(
-        "Trigger Global WASM Action".to_string(),
+        "Invoke Global WASM Action (+1)".to_string(),
         "global_wasm_action".to_string(),
     );
-    btn_action.set_payload(format!("global-v{version}"));
+    btn_action.get_mut_style().set_full_width(true);
+    btn_action.set_payload(format!("global-v{version}-state-{state_idx}"));
+    let mut btn_rollback: DynamicNodeSpec = DynamicNodeSpec::button(
+        "Rollback Previous Version".to_string(),
+        "global_wasm_rollback".to_string(),
+    );
+    btn_rollback
+        .get_mut_style()
+        .set_full_width(true)
+        .set_background_hex(Some(0x334155))
+        .set_color_hex(Some(0xFFFFFF));
+    btn_rollback.set_payload("rollback-global".to_string());
     let mut btn_restore: DynamicNodeSpec = DynamicNodeSpec::button(
-        "Restore Built-in Native Shell".to_string(),
+        "Return to Native Shell".to_string(),
         "global_wasm_restore".to_string(),
     );
+    btn_restore
+        .get_mut_style()
+        .set_full_width(true)
+        .set_background_hex(Some(0x0F766E))
+        .set_color_hex(Some(0xFFFFFF));
     btn_restore.set_payload("restore-native".to_string());
-    let mut action_row: DynamicNodeSpec =
-        DynamicNodeSpec::row().child(btn_action).child(btn_restore);
-    action_row.get_mut_style().set_gap(Some(10.0));
+    let mut action_row: DynamicNodeSpec = DynamicNodeSpec::column()
+        .child(btn_action)
+        .child(btn_rollback)
+        .child(btn_restore);
+    action_row
+        .get_mut_style()
+        .set_full_width(true)
+        .set_gap(Some(10.0));
     let mut root_spec: DynamicNodeSpec = DynamicNodeSpec::column()
         .child(badge)
         .child(hero_title)
         .child(hero_sub)
-        .child(kpi_grid)
-        .child(action_row);
+        .child(action_row)
+        .child(kpi_col);
     root_spec
         .get_mut_style()
         .set_full_width(true)
         .set_padding(Some(20.0))
         .set_gap(Some(14.0))
         .set_radius(Some(12.0))
+        .set_background_hex(Some(if state_idx == 0 { 0xFFFFFF } else { 0xEFF6FF }))
         .set_border_width(Some(1.0))
-        .set_border_hex(Some(0x14B8A6));
+        .set_border_hex(Some(if state_idx == 0 { 0x14B8A6 } else { 0x2563EB }));
     let mut global_comp: DynamicComponentUpdate = DynamicComponentUpdate::new(
         WASM_GLOBAL_ROOT_SLOT.to_string(),
         version,
         root_spec.clone(),
     );
+    global_comp.set_allow_downgrade(true);
     global_comp.sign();
     let mut global_page: DynamicPageUpdate = DynamicPageUpdate::new(
         "/wasm-global-live".to_string(),
@@ -995,12 +1027,31 @@ pub fn build_global_app_wasm(title: &str, version: u64) -> Vec<u8> {
         version,
         root_spec,
     );
+    global_page.set_allow_downgrade(true);
     global_page.sign();
     let mut bundle: DynamicUpdateBundle =
         DynamicUpdateBundle::new(format!("global-wasm-v{version}"), version);
     bundle.get_mut_components().push(global_comp);
     bundle.get_mut_pages().push(global_page);
-    WasmModuleBuilder::global_bundle(&bundle)
+    bundle
+}
+
+/// Builds a genuine global full-app `.wasm` binary emitting a complete `DynamicUpdateBundle` that atomically takes over the root shell.
+///
+/// # Arguments
+///
+/// - `&str` - Global release title.
+/// - `u64` - Monotonic global release version.
+///
+/// # Returns
+///
+/// - `Vec<u8>` - Spec-compliant executable global `.wasm` binary bytes.
+#[must_use]
+pub fn build_global_app_wasm(title: &str, version: u64) -> Vec<u8> {
+    let bundle_even: DynamicUpdateBundle = build_global_state_bundle(title, version, 0);
+    let bundle_odd: DynamicUpdateBundle = build_global_state_bundle(title, version, 1);
+    WasmModuleBuilder::global_bundle(&bundle_even)
+        .with_alt_bundle(&bundle_odd)
         .with_log(format!("global wasm bundle v{version} mounted natively"))
         .build()
 }

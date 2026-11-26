@@ -17,13 +17,32 @@ impl EuvTone {
         match *self {
             Self::Neutral => (palette.get_secondary(), palette.get_secondary_foreground()),
             Self::Primary => (palette.get_primary(), palette.get_primary_foreground()),
-            Self::Success => (palette.get_success(), Color::hex(0xFFFFFF)),
-            Self::Warning => (palette.get_warning(), Color::hex(0x09090B)),
+            Self::Success => (palette.get_success(), palette.get_success_foreground()),
+            Self::Warning => (palette.get_warning(), palette.get_warning_foreground()),
             Self::Destructive => (
                 palette.get_destructive(),
                 palette.get_destructive_foreground(),
             ),
         }
+    }
+}
+
+/// Fluent tone builder for `EuvBadge`.
+impl EuvBadge {
+    /// Overrides the semantic tone fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source badge.
+    /// - `EuvTone` - Target semantic tone.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated badge.
+    #[must_use]
+    pub fn tone(mut self, tone: EuvTone) -> Self {
+        self.set_tone(tone);
+        self
     }
 }
 
@@ -114,6 +133,25 @@ impl Mountable for EuvAlert {
     }
 }
 
+/// Fluent height configuration for `EuvProgress`.
+impl EuvProgress {
+    /// Sets the progress bar track height in logical pixels.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source progress bar.
+    /// - `f32` - Desired track height in logical pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated progress bar.
+    #[must_use]
+    pub fn height(mut self, height: f32) -> Self {
+        self.set_height(height);
+        self
+    }
+}
+
 /// `Mountable` implementation for `EuvProgress`.
 impl Mountable for EuvProgress {
     /// Mounts the progress track and filled indicator bar.
@@ -194,6 +232,53 @@ impl Mountable for EuvCodeBlock {
 
 /// Window calculation, clamped scrolling, and reactive mounting for `EuvVirtualList`.
 impl EuvVirtualList {
+    /// Sets the visible scroll viewport height in logical pixels fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source virtual list.
+    /// - `f32` - Viewport height in logical pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated virtual list.
+    #[must_use]
+    pub fn viewport_height(mut self, height: f32) -> Self {
+        self.set_viewport_height(height);
+        self
+    }
+
+    /// Sets the overscan row count mounted above and below the viewport fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source virtual list.
+    /// - `usize` - Number of extra rows to mount per edge.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated virtual list.
+    #[must_use]
+    pub fn overscan(mut self, overscan: usize) -> Self {
+        self.set_overscan(overscan);
+        self
+    }
+
+    /// Resolves effective viewport height (defaulting to `320.0` when unset).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Virtual list configuration.
+    ///
+    /// # Returns
+    ///
+    /// - `f32` - Resolved viewport height in logical pixels.
+    #[must_use]
+    fn resolved_viewport_height(&self) -> f32 {
+        let h: f32 = self.get_viewport_height();
+        if h > 0.0 { h } else { 320.0 }
+    }
+
     /// Returns the maximum valid scroll Y offset in logical pixels.
     ///
     /// # Arguments
@@ -206,7 +291,7 @@ impl EuvVirtualList {
     #[must_use]
     pub fn max_scroll_y(&self) -> f32 {
         let total_h: f32 = (self.get_total_items() as f32) * self.get_item_height().max(1.0);
-        (total_h - self.get_viewport_height().max(1.0)).max(0.0)
+        (total_h - self.resolved_viewport_height().max(1.0)).max(0.0)
     }
 
     /// Advances the reactive scroll offset by `delta_y`, clamped to `[0.0, max_scroll_y()]`.
@@ -237,7 +322,7 @@ impl EuvVirtualList {
             return (0, 0);
         }
         let item_h: f32 = self.get_item_height().max(1.0);
-        let view_h: f32 = self.get_viewport_height().max(1.0);
+        let view_h: f32 = self.resolved_viewport_height().max(1.0);
         let scroll_y: f32 = self
             .get_scroll_y()
             .get_untracked()
@@ -274,7 +359,7 @@ impl EuvVirtualList {
         let list_cfg: Self = self.clone();
         let scroll_cfg: Self = self.clone();
         let scroll_sig: Signal<f32> = self.get_scroll_y();
-        let view_h: f32 = self.get_viewport_height().max(1.0);
+        let view_h: f32 = self.resolved_viewport_height().max(1.0);
         let builder_cell: Rc<RefCell<F>> = Rc::new(RefCell::new(row_builder));
         let border_w: f32 = g.get_border_width();
         let inner_view_h: f32 = (view_h - border_w * 2.0).max(1.0);
@@ -288,7 +373,8 @@ impl EuvVirtualList {
                 .height(Length::Px(view_h))
                 .background(p.get_card())
                 .border(border_w, p.get_border())
-                .radius(g.get_radius_md()),
+                .radius(g.get_radius_md())
+                .stop_scroll_propagation(true),
         );
         let init_scroll: f32 = scroll_sig.get_untracked().clamp(0.0, max_scroll);
         ctx.set_virtual_scroll(container, init_scroll, total_h);
@@ -305,14 +391,20 @@ impl EuvVirtualList {
             let local_scroll_y: f32 = (cur_scroll - (start as f32) * item_h).max(0.0);
             let mut row_ctx: BuildContext = current_build_context();
             row_ctx.set_virtual_scroll(container, cur_scroll, total_h);
-            row_ctx.set_scroll_offset(container, Point::new(0.0, local_scroll_y));
-            let mut nodes: Vec<NodeId> = Vec::with_capacity((end - start) + 1);
+            row_ctx.set_scroll_offset(container, Point::new(0.0, 0.0));
+            let rows_host: NodeId = row_ctx.view(
+                Style::empty()
+                    .column()
+                    .width(Length::Percent(100.0))
+                    .margin(Edges::new(-local_scroll_y, 0.0, 0.0, 0.0)),
+            );
             if let Ok(mut build_row) = builder_cell.try_borrow_mut() {
                 for idx in start..end {
-                    nodes.push(build_row(idx));
+                    let row_node: NodeId = build_row(idx);
+                    row_ctx.append(rows_host, row_node);
                 }
             }
-            nodes
+            vec![rows_host]
         });
         container
     }

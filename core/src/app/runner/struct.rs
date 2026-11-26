@@ -103,7 +103,25 @@ pub struct App {
     /// Pointer coordinates where inertial touch-scroll fling originated for hit-target resolution.
     #[get(type(copy))]
     pub(crate) scroll_fling_pos: Point,
+    /// Locked innermost scrollable node captured at touch-down to prevent nested scroll penetration.
+    #[get(skip)]
+    pub(crate) touch_scroll_target: Option<NodeId>,
     /// Re-entrancy guard preventing nested `step_frame` execution during macOS live-resize callbacks.
     #[get(type(copy))]
     pub(crate) in_step_frame: bool,
+    /// Accumulated blink phase timer in seconds for the focused `NodeKind::Input` caret.
+    #[get(type(copy))]
+    pub(crate) caret_blink_secs: f32,
+    /// When `true`, global swipe gestures are suppressed because the active stroke started in a canvas, slider, or isolated region.
+    #[get(type(copy))]
+    pub(crate) gesture_suppressed: bool,
+    /// Elapsed seconds accumulated for smoothed live FPS telemetry publication.
+    #[get(type(copy))]
+    pub(crate) fps_accum_secs: f32,
+    /// Rendered frame count accumulated inside the current FPS sampling window.
+    #[get(type(copy))]
+    pub(crate) fps_accum_frames: u32,
+    /// Accumulated frame time in seconds used to pace frames when an explicit FPS cap is configured.
+    #[get(type(copy))]
+    pub(crate) fps_budget_accum: f32,
 }

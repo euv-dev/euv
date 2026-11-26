@@ -112,6 +112,50 @@ pub fn mount_doc_page(page: &DocPage, tokens: ThemeTokens) -> NodeId {
                     { format!("{LIST_BULLET_PREFIX}{text}") }
                 }
             },
+            DocBlock::BlockQuote(text) => view! {
+                column {
+                    width: Length::Percent(100.0)
+                    padding: Edges::all(SPACE_SM)
+                    background: p.get_muted()
+                    radius: 8.0
+                    text {
+                        font_size: 13.5
+                        color: p.get_muted_foreground()
+                        { text.clone() }
+                    }
+                }
+            },
+            DocBlock::Table { headers, rows } => {
+                let summary: String = format!("{} ({} rows)", headers.join(" | "), rows.len());
+                view! {
+                    text {
+                        font_size: 13.0
+                        color: p.get_muted_foreground()
+                        { summary }
+                    }
+                }
+            }
+            DocBlock::Image { alt, src } => {
+                let caption: String = if alt.is_empty() {
+                    src.clone()
+                } else {
+                    alt.clone()
+                };
+                view! {
+                    text {
+                        font_size: 13.0
+                        color: p.get_muted_foreground()
+                        { caption }
+                    }
+                }
+            }
+            DocBlock::HorizontalRule => view! {
+                view {
+                    width: Length::Percent(100.0)
+                    height: Length::Px(1.0)
+                    background: p.get_border()
+                }
+            },
             DocBlock::Code { code, .. } => EuvCodeBlock::new(code.clone(), tokens).mount_current(),
         };
         ctx.append(col, block_node);

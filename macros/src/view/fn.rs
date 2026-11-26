@@ -95,6 +95,11 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
     let mut on_click: Option<&Expr> = None;
     let mut on_change: Option<&Expr> = None;
     let mut on_scroll: Option<&Expr> = None;
+    let mut on_pointer_down: Option<&Expr> = None;
+    let mut on_pointer_move: Option<&Expr> = None;
+    let mut on_pointer_up: Option<&Expr> = None;
+    let mut on_hover: Option<&Expr> = None;
+    let mut on_key: Option<&Expr> = None;
     let mut a11y_role: Option<&Expr> = None;
     let mut a11y_label: Option<&Expr> = None;
     let mut a11y_hint: Option<&Expr> = None;
@@ -114,6 +119,14 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             PROP_STYLE => {
                 base_style = quote_spanned! {val.span()=> #val };
             }
+            PROP_DISPLAY => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.display(#val); });
+            }
+            PROP_POSITION => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.position(#val); });
+            }
             PROP_WIDTH => {
                 style_mutations
                     .push(quote_spanned! {pspan=> __euv_style = __euv_style.width(#val); });
@@ -121,6 +134,26 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             PROP_HEIGHT => {
                 style_mutations
                     .push(quote_spanned! {pspan=> __euv_style = __euv_style.height(#val); });
+            }
+            PROP_MIN_WIDTH => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.min_width(#val); });
+            }
+            PROP_MIN_HEIGHT => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.min_height(#val); });
+            }
+            PROP_MAX_WIDTH => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.max_width(#val); });
+            }
+            PROP_MAX_HEIGHT => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.max_height(#val); });
+            }
+            PROP_ASPECT_RATIO => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.aspect_ratio(#val); });
             }
             PROP_PADDING => {
                 style_mutations
@@ -137,6 +170,22 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             PROP_BACKGROUND => {
                 style_mutations
                     .push(quote_spanned! {pspan=> __euv_style = __euv_style.background(#val); });
+            }
+            PROP_GRADIENT => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.gradient(#val); });
+            }
+            PROP_SHADOW => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.shadow(#val); });
+            }
+            PROP_FOCUS_RING => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.focus_ring(#val); });
+            }
+            PROP_CURSOR => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.cursor(#val); });
             }
             PROP_COLOR => {
                 style_mutations
@@ -164,13 +213,13 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
                 style_mutations
                     .push(quote_spanned! {pspan=> __euv_style = __euv_style.flex_grow(#val); });
             }
+            PROP_FLEX_SHRINK => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.flex_shrink(#val); });
+            }
             PROP_FLEX_WRAP => {
                 style_mutations
                     .push(quote_spanned! {pspan=> __euv_style = __euv_style.wrap(#val); });
-            }
-            PROP_MAX_WIDTH => {
-                style_mutations
-                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.max_width(#val); });
             }
             PROP_OVERFLOW => {
                 style_mutations
@@ -183,6 +232,18 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             PROP_FONT_WEIGHT => {
                 style_mutations
                     .push(quote_spanned! {pspan=> __euv_style = __euv_style.font_weight(#val); });
+            }
+            PROP_FONT_FAMILY => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.font_family(#val); });
+            }
+            PROP_TEXT_ALIGN => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.text_align(#val); });
+            }
+            PROP_TEXT_OVERFLOW => {
+                style_mutations
+                    .push(quote_spanned! {pspan=> __euv_style = __euv_style.text_overflow(#val); });
             }
             PROP_Z_INDEX => {
                 style_mutations
@@ -204,6 +265,21 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
             }
             PROP_ON_SCROLL => {
                 on_scroll = Some(val);
+            }
+            PROP_ON_POINTER_DOWN => {
+                on_pointer_down = Some(val);
+            }
+            PROP_ON_POINTER_MOVE => {
+                on_pointer_move = Some(val);
+            }
+            PROP_ON_POINTER_UP => {
+                on_pointer_up = Some(val);
+            }
+            PROP_ON_HOVER => {
+                on_hover = Some(val);
+            }
+            PROP_ON_KEY => {
+                on_key = Some(val);
             }
             PROP_VALUE => {
                 if tag_name != TAG_INPUT {
@@ -379,7 +455,7 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         }
         _ => {
             let comp_ident: &Ident = &elem.tag;
-            quote_spanned! {tag_span=> #comp_ident() }
+            quote_spanned! {tag_span=> ::euv::Mountable::mount(#comp_ident(), __euv_ctx) }
         }
     };
     let click_stmt: proc_macro2::TokenStream = match on_click {
@@ -392,6 +468,26 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
     };
     let scroll_stmt: proc_macro2::TokenStream = match on_scroll {
         Some(cb) => quote_spanned! {cb.span()=> __euv_ctx.on_scroll(__euv_node, #cb); },
+        None => quote! {},
+    };
+    let pointer_down_stmt: proc_macro2::TokenStream = match on_pointer_down {
+        Some(cb) => quote_spanned! {cb.span()=> __euv_ctx.on_pointer_down(__euv_node, #cb); },
+        None => quote! {},
+    };
+    let pointer_move_stmt: proc_macro2::TokenStream = match on_pointer_move {
+        Some(cb) => quote_spanned! {cb.span()=> __euv_ctx.on_pointer_move(__euv_node, #cb); },
+        None => quote! {},
+    };
+    let pointer_up_stmt: proc_macro2::TokenStream = match on_pointer_up {
+        Some(cb) => quote_spanned! {cb.span()=> __euv_ctx.on_pointer_up(__euv_node, #cb); },
+        None => quote! {},
+    };
+    let hover_stmt: proc_macro2::TokenStream = match on_hover {
+        Some(cb) => quote_spanned! {cb.span()=> __euv_ctx.on_hover(__euv_node, #cb); },
+        None => quote! {},
+    };
+    let key_stmt: proc_macro2::TokenStream = match on_key {
+        Some(cb) => quote_spanned! {cb.span()=> __euv_ctx.on_key(__euv_node, #cb); },
         None => quote! {},
     };
     let a11y_stmt: proc_macro2::TokenStream = if a11y_role.is_some()
@@ -443,6 +539,11 @@ fn expand_element(elem: &ViewElement) -> proc_macro2::TokenStream {
         #click_stmt
         #change_stmt
         #scroll_stmt
+        #pointer_down_stmt
+        #pointer_move_stmt
+        #pointer_up_stmt
+        #hover_stmt
+        #key_stmt
         #a11y_stmt
         #(#child_stmts)*
         __euv_node

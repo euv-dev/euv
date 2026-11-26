@@ -45,9 +45,24 @@ pub struct ThemePalette {
     /// Positive / success semantic color.
     #[get(type(copy))]
     pub(crate) success: Color,
+    /// Foreground text color atop `success`.
+    #[get(type(copy))]
+    pub(crate) success_foreground: Color,
     /// Warning semantic color.
     #[get(type(copy))]
     pub(crate) warning: Color,
+    /// Foreground text color atop `warning`.
+    #[get(type(copy))]
+    pub(crate) warning_foreground: Color,
+    /// Inactive toggle switch track color.
+    #[get(type(copy))]
+    pub(crate) switch_track_off: Color,
+    /// Toggle switch thumb fill color when inactive.
+    #[get(type(copy))]
+    pub(crate) switch_thumb: Color,
+    /// Dark cinema surface color used behind media, video, and canvas frames.
+    #[get(type(copy))]
+    pub(crate) media_surface: Color,
     /// Standard 1px structural hairline border color.
     #[get(type(copy))]
     pub(crate) border: Color,
@@ -59,7 +74,7 @@ pub struct ThemePalette {
     pub(crate) overlay: Color,
 }
 
-/// Geometry, radius, control height, and typography ramp owned by a design scheme.
+/// Geometry, radius, control height, shadow ramp, and typography scale owned by a design scheme.
 #[derive(Clone, Copy, Data, Debug, PartialEq)]
 pub struct ThemeGeometry {
     /// Small corner radius (badges, kbd).
@@ -98,6 +113,18 @@ pub struct ThemeGeometry {
     /// Page title font size.
     #[get(type(copy))]
     pub(crate) font_title: f32,
+    /// Subtle control elevation shadow (buttons, switches, active pills).
+    #[get(type(copy))]
+    pub(crate) shadow_xs: Shadow,
+    /// Standard surface elevation shadow (cards, panels).
+    #[get(type(copy))]
+    pub(crate) shadow_sm: Shadow,
+    /// Floating surface elevation shadow (popovers, dropdowns, tooltips, toasts).
+    #[get(type(copy))]
+    pub(crate) shadow_md: Shadow,
+    /// High-elevation overlay shadow (modals, dialogs, drawers, hover cards).
+    #[get(type(copy))]
+    pub(crate) shadow_lg: Shadow,
 }
 
 /// Complete compiled cross-platform design token bundle passed across all UI components.

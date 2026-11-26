@@ -33,6 +33,18 @@ pub fn create_showcase_app(
         App::new(app_cfg)?
     };
     let mut state: ShowcaseState = ShowcaseState::new();
+    let host_plat_idx: usize = match app.platform_kind() {
+        PlatformKind::Ios => 0,
+        PlatformKind::IpadOs => 1,
+        PlatformKind::Android => 2,
+        PlatformKind::MacOs => 3,
+        PlatformKind::Windows => 4,
+        PlatformKind::Linux => 5,
+        PlatformKind::Web | PlatformKind::Headless => 6,
+    };
+    let _: bool = state
+        .get_os_target_platform_idx()
+        .set_if_changed(host_plat_idx);
     state.attach_dynamic_hub(app.get_dynamic_hub().clone());
     app.attach_game_host(state.get_game_host().clone());
     app.attach_game_host(state.get_game3d_host().clone());
@@ -75,6 +87,18 @@ pub fn create_showcase_app_for_platform(
     ));
     let mut app: App = App::with_platform(app_cfg, backend)?;
     let mut state: ShowcaseState = ShowcaseState::new();
+    let host_plat_idx: usize = match app.platform_kind() {
+        PlatformKind::Ios => 0,
+        PlatformKind::IpadOs => 1,
+        PlatformKind::Android => 2,
+        PlatformKind::MacOs => 3,
+        PlatformKind::Windows => 4,
+        PlatformKind::Linux => 5,
+        PlatformKind::Web | PlatformKind::Headless => 6,
+    };
+    let _: bool = state
+        .get_os_target_platform_idx()
+        .set_if_changed(host_plat_idx);
     state.attach_dynamic_hub(app.get_dynamic_hub().clone());
     app.attach_game_host(state.get_game_host().clone());
     app.attach_game_host(state.get_game3d_host().clone());
@@ -150,14 +174,31 @@ pub fn capture_showcase_screenshots(out_dir: &Path) -> Result<usize, PlatformErr
     reset_reactive_runtime();
     fs::create_dir_all(out_dir)
         .map_err(|err: Error| PlatformError::InitializationFailed(err.to_string()))?;
-    let (mut app, state): (App, ShowcaseState) = create_showcase_app(true, RenderMode::Software)?;
+    let mut window_cfg: WindowConfig = WindowConfig::default();
+    window_cfg
+        .set_title(SHOWCASE_WINDOW_TITLE.to_string())
+        .set_size(1200, 800)
+        .set_render(RenderConfig::software());
+    let mut app_cfg: AppConfig = AppConfig::default();
+    app_cfg.set_window(window_cfg);
+    let backend: Box<dyn PlatformBackend> = Box::new(HeadlessPlatform::emulating(
+        PlatformKind::Headless,
+        2.0,
+        SafeAreaInsets::default(),
+    ));
+    let mut app: App = App::with_platform(app_cfg, backend)?;
+    let mut state: ShowcaseState = ShowcaseState::new();
+    state.attach_dynamic_hub(app.get_dynamic_hub().clone());
+    app.attach_game_host(state.get_game_host().clone());
+    app.attach_game_host(state.get_game3d_host().clone());
+    let mount_state: ShowcaseState = state.clone();
+    let _: NodeId = app.mount(move || mount_showcase_root(&mount_state));
     app.get_mut_renderer()
         .get_mut_software()
         .set_font_provider(NativeSystemFont::system());
     let wid: WindowId = app.get_window_state().get_id();
     let mut manifest: String = String::new();
     let mut count: usize = 0;
-    app.queue_window_command(WindowCommand::SetSize(wid, 1200, 800));
     app.dispatch_window_event(WindowEvent::Resized(wid, 1200, 800, 2.0));
     let desktop_routes: [(&str, &str); 12] = [
         (ROUTE_OVERVIEW, "01_overview_desktop"),
@@ -275,7 +316,6 @@ pub fn capture_showcase_screenshots(out_dir: &Path) -> Result<usize, PlatformErr
     )?;
     state.toggle_theme_mode();
     let _: bool = state.get_route().set_if_changed(ROUTE_OVERVIEW.to_string());
-    app.queue_window_command(WindowCommand::SetSize(wid, 768, 1024));
     app.dispatch_window_event(WindowEvent::Resized(wid, 768, 1024, 2.0));
     dump_rgba_frame(
         &mut app,
@@ -284,7 +324,6 @@ pub fn capture_showcase_screenshots(out_dir: &Path) -> Result<usize, PlatformErr
         &mut manifest,
         &mut count,
     )?;
-    app.queue_window_command(WindowCommand::SetSize(wid, 390, 844));
     app.dispatch_window_event(WindowEvent::Resized(wid, 390, 844, 2.0));
     dump_rgba_frame(
         &mut app,
@@ -778,6 +817,35 @@ pub fn euv_example_web_start() -> u64 {
     reset_reactive_runtime();
     match create_showcase_app(false, RenderMode::Software) {
         Ok((mut app, state)) => {
+            if let Some(win) = window()
+                && let Ok(hash_str) = win.location().hash()
+            {
+                let cleaned: &str = hash_str.trim_start_matches('#');
+                if cleaned.starts_with('/') {
+                    let _: bool = state.get_route().set_if_changed(cleaned.to_string());
+                }
+            }
+            let route_watch: Signal<String> = state.get_route();
+            let (hash_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                Effect::new(move || {
+                    let r: String = route_watch.get();
+                    if let Some(win) = window() {
+                        let target_hash: String = format!("#{r}");
+                        if win.location().hash().ok().as_deref() != Some(target_hash.as_str()) {
+                            let _: Result<(), JsValue> = win.location().set_hash(&target_hash);
+                        }
+                    }
+                })
+            });
+            let root_id: NodeId = app
+                .get_scene()
+                .with_read(SceneTree::get_root, NodeId::default());
+            app.get_scene().with_write(
+                |tree: &mut SceneTree| {
+                    tree.attach_scope(root_id, hash_scope);
+                },
+                (),
+            );
             let hash: u64 = app
                 .step_frame()
                 .map(|stats: FrameStats| stats.get_frame_hash())
@@ -1080,10 +1148,11 @@ pub fn euv_dev_ai_schema(request_json: &str) -> String {
             Ok(guard) => guard,
             Err(_) => return String::new(),
         };
-        let Some((app, _)) = borrow.as_mut() else {
+        let Some((app, state)) = borrow.as_mut() else {
             return String::new();
         };
-        AiSchemaProtocol::handle_json(app, request_json)
+        let hooks: AiAppHooks = state.build_ai_hooks();
+        AiSchemaProtocol::handle_json_with_hooks(app, request_json, Some(&hooks))
     })
 }
 

@@ -16,6 +16,10 @@ pub struct EuvInput {
     #[new(skip)]
     #[get(type(copy))]
     pub(crate) disabled: bool,
+    /// Removes outer border and background for seamless embedding inside `EuvInputGroup`.
+    #[new(skip)]
+    #[get(type(copy))]
+    pub(crate) borderless: bool,
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,

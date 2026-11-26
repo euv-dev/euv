@@ -323,7 +323,13 @@ impl PaintPass {
                 .get_handlers()
                 .handler_for(&UiEventKind::Click(Point::default()))
                 .is_some();
-        if is_interactive && node.hover_paint().is_none() && (hovered || pressed) {
+        let is_transparent_canvas: bool =
+            matches!(node.get_kind(), NodeKind::Canvas) && paint.background_color().is_none();
+        if is_interactive
+            && !is_transparent_canvas
+            && node.hover_paint().is_none()
+            && (hovered || pressed)
+        {
             paint.set_background(Self::interactive_tint(
                 paint.background_color(),
                 hovered,
@@ -336,10 +342,9 @@ impl PaintPass {
         }
         let raw_bounds: Rect = node.get_layout_box().get_bounds();
         let transform: Transform2D = paint.get_transform();
-        let press_dy: f32 = if is_interactive && pressed { 0.5 } else { 0.0 };
         let bounds: Rect = Rect::new(
             raw_bounds.get_x() - scroll_offset.get_x() + transform.get_translate_x(),
-            raw_bounds.get_y() - scroll_offset.get_y() + transform.get_translate_y() + press_dy,
+            raw_bounds.get_y() - scroll_offset.get_y() + transform.get_translate_y(),
             raw_bounds.get_width() * transform.get_scale_x(),
             raw_bounds.get_height() * transform.get_scale_y(),
         );
@@ -437,17 +442,33 @@ impl PaintPass {
                     };
                     let content_b: Rect = node.get_layout_box().get_content_bounds();
                     let shifted_content: Rect = Rect::new(
-                        content_b.get_x() - scroll_offset.get_x(),
-                        content_b.get_y() - scroll_offset.get_y(),
+                        content_b.get_x() - scroll_offset.get_x() + transform.get_translate_x(),
+                        content_b.get_y() - scroll_offset.get_y() + transform.get_translate_y(),
                         content_b.get_width(),
                         content_b.get_height(),
                     );
+                    let line_h: f32 =
+                        (text_style.get_font_size() * text_style.get_line_height()).max(1.0);
+                    let text_rect: Rect = if input_state.get_multiline() {
+                        shifted_content
+                    } else {
+                        text_style.set_overflow(TextOverflow::Clip);
+                        let text_y: f32 = shifted_content.get_y()
+                            + ((shifted_content.get_height() - line_h) * 0.5).max(0.0);
+                        Rect::new(
+                            shifted_content.get_x(),
+                            text_y,
+                            shifted_content.get_width(),
+                            line_h,
+                        )
+                    };
+                    display_list.push(DrawCommand::PushClip(shifted_content));
                     display_list.push(DrawCommand::TextRun {
-                        rect: shifted_content,
+                        rect: text_rect,
                         text: rendered_text.clone(),
                         style: text_style,
                     });
-                    if node.get_interaction().get_focused() {
+                    if node.get_interaction().get_focused() && tree.get_caret_visible() {
                         let meas: TextLayoutResult = DeterministicTextMeasurer.measure(
                             if input_state.get_value().is_empty() {
                                 ""
@@ -455,15 +476,38 @@ impl PaintPass {
                                 rendered_text.as_str()
                             },
                             text_style,
-                            None,
+                            if input_state.get_multiline() {
+                                Some(shifted_content.get_width().max(1.0))
+                            } else {
+                                None
+                            },
                         );
-                        let caret_x: f32 =
-                            (shifted_content.get_x() + meas.get_size().get_width() + 1.0)
-                                .min(shifted_content.right() - 2.0);
                         let caret_h: f32 = (text_style.get_font_size() * 1.15)
                             .min(shifted_content.get_height().max(12.0));
-                        let caret_y: f32 = shifted_content.get_y()
-                            + ((shifted_content.get_height() - caret_h) * 0.5).max(0.0);
+                        let (caret_x, caret_y): (f32, f32) = if input_state.get_multiline() {
+                            let last_w: f32 = meas
+                                .get_lines()
+                                .last()
+                                .map(TextLine::get_width)
+                                .unwrap_or(0.0);
+                            let line_idx: usize = meas.get_lines().len().saturating_sub(1);
+                            let cy: f32 = shifted_content.get_y()
+                                + (line_idx as f32) * meas.get_line_height_px()
+                                + ((meas.get_line_height_px() - caret_h) * 0.5).max(0.0);
+                            (
+                                (shifted_content.get_x() + last_w + 1.0)
+                                    .min(shifted_content.right() - 2.0),
+                                cy.min(shifted_content.bottom() - caret_h)
+                                    .max(shifted_content.get_y()),
+                            )
+                        } else {
+                            (
+                                (shifted_content.get_x() + meas.get_size().get_width() + 1.0)
+                                    .min(shifted_content.right() - 2.0),
+                                shifted_content.get_y()
+                                    + ((shifted_content.get_height() - caret_h) * 0.5).max(0.0),
+                            )
+                        };
                         display_list.push(DrawCommand::FillRoundedRect {
                             rect: Rect::new(caret_x, caret_y, 1.5, caret_h),
                             color: style.get_text().get_color().multiply_alpha(opacity),
@@ -471,6 +515,7 @@ impl PaintPass {
                             border: Border::default(),
                         });
                     }
+                    display_list.push(DrawCommand::PopClip);
                 }
                 NodeKind::Image(buffer) => {
                     display_list.push(DrawCommand::Image {
@@ -542,7 +587,8 @@ impl PaintPass {
                 );
             }
         }
-        let show_scrollbar: bool = display_list.get_viewport().get_width() >= 640.0;
+        let vp: Size = display_list.get_viewport();
+        let show_scrollbar: bool = vp.get_width().min(vp.get_height()) >= 540.0;
         if show_scrollbar && layout.get_overflow() == Overflow::Scroll && bounds.get_height() > 24.0
         {
             let lbox: LayoutBox = node.get_layout_box();

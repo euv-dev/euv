@@ -67,8 +67,31 @@ pub fn execute_cli(cli: &Cli) -> io::Result<String> {
             render,
             release,
             package,
+            watch,
+            port,
             plan,
         } => {
+            if *watch {
+                let dev_target: DevTargetArg = match target {
+                    TargetArg::Web => DevTargetArg::Web,
+                    _ => DevTargetArg::Native,
+                };
+                let src_dir: PathBuf = env::current_dir()?;
+                let mut cfg: DevServerConfig = DevServerConfig::default();
+                cfg.set_target(dev_target)
+                    .set_render(*render)
+                    .set_release(*release)
+                    .set_src_dir(src_dir)
+                    .set_out_dir(PathBuf::from(OUT_DIR_WEB))
+                    .set_package(package.clone())
+                    .set_port(*port)
+                    .set_enable_ota(true);
+                if *plan {
+                    return serialize_json(&cfg);
+                }
+                let report: DevServerReport = run_dev_blocking(cfg)?;
+                return serialize_json(&report);
+            }
             let step: BuildStep = resolve_run_step(*target, *render, *release, package.as_deref());
             if *plan {
                 serialize_json(&step)
@@ -77,6 +100,66 @@ pub fn execute_cli(cli: &Cli) -> io::Result<String> {
                 serialize_json(&step)
             }
         }
+        Commands::Dev {
+            target,
+            render,
+            release,
+            path,
+            out,
+            package,
+            server,
+            ota,
+            plan,
+        } => {
+            let src_dir: PathBuf = match path {
+                Some(p) => p.clone(),
+                None => env::current_dir()?,
+            };
+            let out_dir: PathBuf = match out {
+                Some(o) => o.clone(),
+                None => match target {
+                    DevTargetArg::Docs => PathBuf::from(DEFAULT_DOCS_OUT_DIR),
+                    DevTargetArg::Web | DevTargetArg::Native => PathBuf::from(OUT_DIR_WEB),
+                },
+            };
+            let mut cfg: DevServerConfig = DevServerConfig::default();
+            cfg.set_target(*target)
+                .set_render(*render)
+                .set_release(*release)
+                .set_src_dir(src_dir)
+                .set_out_dir(out_dir)
+                .set_package(package.clone())
+                .set_host(server.get_host().clone())
+                .set_port(server.get_port())
+                .set_poll_ms(server.get_poll_ms())
+                .set_enable_ota(*ota)
+                .set_once(server.get_once());
+            if *plan {
+                serialize_json(&cfg)
+            } else {
+                let report: DevServerReport = run_dev_blocking(cfg)?;
+                serialize_json(&report)
+            }
+        }
+        Commands::Docs {
+            action,
+            build,
+            watch,
+            server,
+        } => match action {
+            Some(DocsAction::Build { build: sub_build }) => run_docs_build_args(sub_build),
+            Some(DocsAction::Dev {
+                build: sub_build,
+                server: sub_server,
+            }) => run_docs_dev_args(sub_build, sub_server),
+            None => {
+                if *watch {
+                    run_docs_dev_args(build, server)
+                } else {
+                    run_docs_build_args(build)
+                }
+            }
+        },
         Commands::Fmt { check } => {
             let mut args: Vec<String> = vec![ARG_FMT.to_string()];
             if *check {
@@ -94,6 +177,58 @@ pub fn execute_cli(cli: &Cli) -> io::Result<String> {
             serialize_json(&report)
         }
     }
+}
+
+/// Builds static Markdown documentation from shared `DocsBuildArgs` and serializes the JSON report.
+///
+/// # Arguments
+///
+/// - `&DocsBuildArgs` - Source, output, title, and base URL CLI arguments.
+///
+/// # Returns
+///
+/// - `io::Result<String>` - JSON-serialized `GeneratedSiteReport` or I/O error.
+fn run_docs_build_args(args: &DocsBuildArgs) -> io::Result<String> {
+    let root: PathBuf = match args.try_get_src() {
+        Some(p) => p.clone(),
+        None => env::current_dir()?,
+    };
+    let mut opts: DocsBuildOptions = DocsBuildOptions::default();
+    opts.set_title(args.try_get_title().clone())
+        .set_base_url(args.get_base().clone())
+        .set_clean_urls(true);
+    let report: GeneratedSiteReport = build_docs_site(&root, args.get_out(), &opts)?;
+    serialize_json(&report)
+}
+
+/// Runs the live hot-reload documentation server from shared `DocsBuildArgs` and `ServerBindArgs`.
+///
+/// # Arguments
+///
+/// - `&DocsBuildArgs` - Source, output, title, and base URL CLI arguments.
+/// - `&ServerBindArgs` - Host, port, poll interval, and smoke-run CLI arguments.
+///
+/// # Returns
+///
+/// - `io::Result<String>` - JSON-serialized `DevServerReport` or I/O error.
+fn run_docs_dev_args(build: &DocsBuildArgs, server: &ServerBindArgs) -> io::Result<String> {
+    let root: PathBuf = match build.try_get_src() {
+        Some(p) => p.clone(),
+        None => env::current_dir()?,
+    };
+    let mut cfg: DevServerConfig = DevServerConfig::default();
+    cfg.set_target(DevTargetArg::Docs)
+        .set_src_dir(root)
+        .set_out_dir(build.get_out().clone())
+        .set_title(build.try_get_title().clone())
+        .set_base_url(build.get_base().clone())
+        .set_host(server.get_host().clone())
+        .set_port(server.get_port())
+        .set_poll_ms(server.get_poll_ms())
+        .set_enable_ota(true)
+        .set_once(server.get_once());
+    let report: DevServerReport = run_dev_blocking(cfg)?;
+    serialize_json(&report)
 }
 
 /// Inspects the local Rust toolchain, installed 7-platform targets, and SDKs.
@@ -229,8 +364,9 @@ pub fn scaffold_project(parent_dir: &Path, name: &str) -> io::Result<ScaffoldRep
     let cargo_toml_path: PathBuf = project_dir.join(CARGO_TOML_NAME);
     let main_rs_path: PathBuf = src_dir.join(MAIN_RS_NAME);
     let readme_path: PathBuf = project_dir.join(README_NAME);
+    let pkg_version: &str = env!("CARGO_PKG_VERSION");
     let cargo_toml: String = format!(
-        "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\neuv = \"0.38.0\"\neuv-ui = \"0.38.0\"\n"
+        "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\neuv = \"{pkg_version}\"\neuv-ui = \"{pkg_version}\"\n"
     );
     let readme: String = format!("# {name}{TEMPLATE_README_SUFFIX}");
     fs::write(&cargo_toml_path, cargo_toml)?;
@@ -261,20 +397,21 @@ pub fn package_zero_js_web_bundle(out_dir: &Path, title: &str) -> io::Result<Pat
     let mut loader_path: Option<PathBuf> = None;
     let mut removable: Vec<PathBuf> = Vec::new();
     for entry_res in fs::read_dir(out_dir)? {
-        let entry: fs::DirEntry = entry_res?;
+        let entry: DirEntry = entry_res?;
         let path: PathBuf = entry.path();
         if !path.is_file() {
             continue;
         }
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name.ends_with(".wasm") && wasm_name.is_none() {
+        if name.ends_with(SUFFIX_WASM) && wasm_name.is_none() {
             wasm_name = Some(name);
-        } else if name.ends_with(".js") {
+        } else if name.ends_with(SUFFIX_JS) {
             if loader_path.is_none() {
                 loader_path = Some(path.clone());
             }
             removable.push(path);
-        } else if name.ends_with(".d.ts") || name == "package.json" || name == ".gitignore" {
+        } else if name.ends_with(SUFFIX_DTS) || name == PACKAGE_JSON_NAME || name == GITIGNORE_NAME
+        {
             removable.push(path);
         }
     }
@@ -283,22 +420,26 @@ pub fn package_zero_js_web_bundle(out_dir: &Path, title: &str) -> io::Result<Pat
     let mut inline_runtime: String = if let Some(js_file) = loader_path {
         fs::read_to_string(&js_file)?
     } else {
-        "async function __wbg_init(p){await WebAssembly.instantiateStreaming(fetch(p));}"
-            .to_string()
+        FALLBACK_WBG_INIT.to_string()
     };
-    let url_expr: String = format!("new URL('{wasm_file}', import.meta.url)");
-    inline_runtime = inline_runtime.replace(&url_expr, &format!("'./{wasm_file}'"));
+    let single_url_expr: String = format!("new URL('{wasm_file}', import.meta.url)");
+    let double_url_expr: String = format!("new URL(\"{wasm_file}\", import.meta.url)");
+    let local_wasm_expr: String = format!("'./{wasm_file}'");
+    inline_runtime = inline_runtime
+        .replace(&single_url_expr, &local_wasm_expr)
+        .replace(&double_url_expr, &local_wasm_expr);
     let cleaned_lines: Vec<String> = inline_runtime
         .lines()
         .filter(|line: &&str| {
             let trimmed: &str = line.trim_start();
-            !trimmed.starts_with("export {") && !trimmed.starts_with("export default ")
+            !trimmed.starts_with(EXPORT_BRACE_PREFIX) && !trimmed.starts_with(EXPORT_DEFAULT_PREFIX)
         })
-        .map(|line: &str| line.strip_prefix("export ").unwrap_or(line).to_string())
+        .map(|line: &str| line.strip_prefix(EXPORT_PREFIX).unwrap_or(line).to_string())
         .collect();
     let cleaned_loader: String = cleaned_lines.join("\n");
+    let safe_title: String = escape_html_text(title);
     let html: String = format!(
-        "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\"/>\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/>\n<title>{title}</title>\n<style>html,body{{margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#09090b;}}</style>\n</head>\n<body>\n<script type=\"module\">\n{cleaned_loader}\n__wbg_init('./{wasm_file}');\n</script>\n</body>\n</html>\n"
+        "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\"/>\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/>\n<title>{safe_title}</title>\n<style>html,body{{margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#09090b;}}</style>\n</head>\n<body>\n<script type=\"module\">\n{cleaned_loader}\n__wbg_init({{ module_or_path: './{wasm_file}' }});\n</script>\n</body>\n</html>\n"
     );
     let index_path: PathBuf = out_dir.join(INDEX_HTML_NAME);
     fs::write(&index_path, html)?;
@@ -329,7 +470,7 @@ pub fn format_doctor_report(report: &DoctorReport) -> String {
     );
     for t in report.get_targets().iter() {
         let mark: &str = if t.get_installed() {
-            "ok"
+            STATUS_OK
         } else {
             STATUS_MISSING
         };
@@ -339,6 +480,29 @@ pub fn format_doctor_report(report: &DoctorReport) -> String {
             t.get_triple(),
             mark
         ));
+    }
+    out
+}
+
+/// Escapes special HTML characters in text interpolated into generated HTML documents.
+///
+/// # Arguments
+///
+/// - `&str` - Raw UTF-8 text.
+///
+/// # Returns
+///
+/// - `String` - Escaped HTML-safe text.
+fn escape_html_text(input: &str) -> String {
+    let mut out: String = String::with_capacity(input.len());
+    for ch in input.chars() {
+        match ch {
+            '&' => out.push_str(HTML_ESC_AMP),
+            '<' => out.push_str(HTML_ESC_LT),
+            '>' => out.push_str(HTML_ESC_GT),
+            '"' => out.push_str(HTML_ESC_QUOT),
+            _ => out.push(ch),
+        }
     }
     out
 }

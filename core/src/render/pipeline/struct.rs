@@ -1,5 +1,25 @@
 use super::*;
 
+/// Fluent per-frame parameter bundle for `Renderer::render_with`.
+#[derive(Clone, Copy, Data, Debug, PartialEq)]
+pub struct FrameRenderParams {
+    /// Logical viewport size.
+    #[get(type(copy))]
+    pub(crate) viewport: Size,
+    /// Active physical DPI scale factor.
+    #[get(type(copy))]
+    pub(crate) scale_factor: f32,
+    /// Surface background clear color.
+    #[get(type(copy))]
+    pub(crate) clear_color: Color,
+    /// Layout pass telemetry from the current frame.
+    #[get(type(copy))]
+    pub(crate) layout_stats: LayoutStats,
+    /// Damaged screen region requiring rasterization.
+    #[get(type(copy))]
+    pub(crate) damage: DamageRegion,
+}
+
 /// Unified multi-mode rendering facade orchestrating Auto, Software, Hardware, and Hybrid execution.
 #[derive(Data, Debug)]
 pub struct Renderer {

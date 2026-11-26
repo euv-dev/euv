@@ -113,18 +113,57 @@ impl Mountable for EuvTextarea {
                 .width(Length::Percent(100.0))
                 .height(Length::Px(h))
                 .padding(Edges::all(SPACE_SM))
-                .background(p.get_background())
+                .background(p.get_card())
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_md())
+                .focus_ring(Border::new(g.get_ring_width(), p.get_ring()))
                 .color(p.get_foreground())
                 .font_size(g.get_font_body()),
         );
+        ctx.set_a11y(node, A11yProps::new(A11yRole::TextInput, String::new()));
         ctx.on_change(node, move |ev: &UiEvent| {
             if let UiEventKind::Change(val) = ev.get_kind() {
                 let _: bool = sig.set_if_changed(val.clone());
             }
         });
         node
+    }
+}
+
+/// Fluent range and step builders for `EuvNumberInput`.
+impl EuvNumberInput {
+    /// Configures inclusive `[min, max]` clamp bounds fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source number input.
+    /// - `i64` - Inclusive minimum value.
+    /// - `i64` - Inclusive maximum value.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated number input.
+    #[must_use]
+    pub fn range(mut self, min: i64, max: i64) -> Self {
+        self.set_min(Some(min));
+        self.set_max(Some(max));
+        self
+    }
+
+    /// Configures the increment/decrement step size fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source number input.
+    /// - `i64` - Positive step delta.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated number input.
+    #[must_use]
+    pub fn step(mut self, step: i64) -> Self {
+        self.set_step(step.max(1));
+        self
     }
 }
 
@@ -145,18 +184,22 @@ impl Mountable for EuvNumberInput {
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
         let sig: Signal<i64> = self.get_value();
-        let min_v: i64 = self.get_min();
-        let max_v: i64 = self.get_max();
-        let step_v: i64 = self.get_step();
+        let step_v: i64 = if self.get_step() > 0 {
+            self.get_step()
+        } else {
+            1
+        };
+        let Self { min, max, .. } = self;
+        let min_v: i64 = min.unwrap_or(i64::MIN / 2);
+        let max_v: i64 = max.unwrap_or(i64::MAX / 2);
         let row: NodeId = ctx.view(Style::empty().row().align(AlignItems::Center).gap(SPACE_SM));
-        let mut dec_btn: EuvButton =
-            EuvButton::new(STEP_MINUS.to_string(), tokens).on_click(move |_: &UiEvent| {
+        let dec: NodeId = EuvButton::new(STEP_MINUS.to_string(), tokens)
+            .outline()
+            .sm()
+            .on_click(move |_: &UiEvent| {
                 let _: bool = sig.update(|v: &mut i64| *v = (*v - step_v).clamp(min_v, max_v));
-            });
-        dec_btn
-            .set_variant(EuvButtonVariant::Outline)
-            .set_size(EuvButtonSize::Small);
-        let dec: NodeId = dec_btn.mount(ctx);
+            })
+            .mount(ctx);
         let display: NodeId = ctx.view(
             Style::empty()
                 .row()
@@ -164,7 +207,7 @@ impl Mountable for EuvNumberInput {
                 .height(Length::Px(g.get_control_sm()))
                 .justify(JustifyContent::Center)
                 .align(AlignItems::Center)
-                .background(p.get_background())
+                .background(p.get_card())
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_sm()),
         );
@@ -176,14 +219,13 @@ impl Mountable for EuvNumberInput {
             move || sig.get().to_string(),
         );
         ctx.append(display, num_txt);
-        let mut inc_btn: EuvButton =
-            EuvButton::new(STEP_PLUS.to_string(), tokens).on_click(move |_: &UiEvent| {
+        let inc: NodeId = EuvButton::new(STEP_PLUS.to_string(), tokens)
+            .outline()
+            .sm()
+            .on_click(move |_: &UiEvent| {
                 let _: bool = sig.update(|v: &mut i64| *v = (*v + step_v).clamp(min_v, max_v));
-            });
-        inc_btn
-            .set_variant(EuvButtonVariant::Outline)
-            .set_size(EuvButtonSize::Small);
-        let inc: NodeId = inc_btn.mount(ctx);
+            })
+            .mount(ctx);
         ctx.append(row, dec);
         ctx.append(row, display);
         ctx.append(row, inc);
@@ -214,6 +256,8 @@ impl Mountable for EuvRadioGroup {
                 Style::empty()
                     .row()
                     .align(AlignItems::Center)
+                    .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
+                    .radius(g.get_radius_sm())
                     .gap(SPACE_SM)
                     .cursor(CursorIcon::Pointer),
             );
@@ -245,7 +289,10 @@ impl Mountable for EuvRadioGroup {
             });
             let txt: NodeId = ctx.text(
                 opt,
-                Style::empty().font_size(14.0).color(p.get_foreground()),
+                Style::empty()
+                    .flex_grow(1.0)
+                    .font_size(14.0)
+                    .color(p.get_foreground()),
             );
             ctx.append(row, ring);
             ctx.append(row, txt);
@@ -269,7 +316,6 @@ impl Mountable for EuvSlider {
     /// - `NodeId` - Mounted slider handle.
     fn mount(self, ctx: &mut BuildContext) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
         let value: Signal<f32> = self.get_value();
         let min_v: f32 = self.get_min();
         let max_v: f32 = self.get_max();
@@ -278,14 +324,18 @@ impl Mountable for EuvSlider {
             Style::empty()
                 .row()
                 .width(Length::Percent(100.0))
-                .height(Length::Px(g.get_control_sm()))
+                .height(Length::Px(42.0))
                 .align(AlignItems::Center)
-                .gap(SPACE_SM),
+                .gap(SPACE_SM)
+                .stop_scroll_propagation(true)
+                .stop_event_propagation(true),
         );
         let track: NodeId = ctx.canvas(
             Style::empty()
                 .flex_grow(1.0)
-                .height(Length::Px(g.get_control_sm()))
+                .height(Length::Px(42.0))
+                .stop_scroll_propagation(true)
+                .stop_event_propagation(true)
                 .cursor(CursorIcon::Pointer),
             move |bounds: Rect, dl: &mut DisplayList| {
                 let pct: f32 = ((value.get_untracked() - min_v) / span).clamp(0.0, 1.0);
@@ -490,10 +540,12 @@ impl Mountable for EuvSelect {
         let base_menu_style: Style = Style::empty()
             .column()
             .width(Length::Percent(100.0))
+            .padding(Edges::all(SPACE_XS))
+            .gap(2.0)
             .background(p.get_card())
             .border(g.get_border_width(), p.get_border())
             .radius(g.get_radius_md())
-            .shadow(Shadow::new(0.0, 4.0, 12.0, 0.0, Color::rgba(0, 0, 0, 24)))
+            .shadow(g.get_shadow_md())
             .z_index(Z_INDEX_FLOATING);
         handle.with_write(
             |tree: &mut SceneTree| {
@@ -563,8 +615,9 @@ impl Mountable for EuvRating {
     fn mount(self, ctx: &mut BuildContext) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let value: Signal<usize> = self.get_value();
-        let max_s: usize = self.get_max_stars();
-        let row: NodeId = ctx.view(Style::empty().row().gap(SPACE_XS));
+        let max_s: usize = self.get_max_stars().max(1);
+        let row: NodeId = ctx.view(Style::empty().row().align(AlignItems::Center).gap(SPACE_XS));
+        let mut badges: Vec<NodeId> = Vec::with_capacity(max_s);
         for star_idx in 1..=max_s {
             let cell: NodeId = ctx.view(
                 Style::empty()
@@ -573,39 +626,70 @@ impl Mountable for EuvRating {
                     .radius(4.0)
                     .cursor(CursorIcon::Pointer),
             );
+            ctx.set_a11y(
+                cell,
+                A11yProps::new(A11yRole::Button, format!("Rate {star_idx} of {max_s}")),
+            );
             let badge: NodeId = ctx.canvas(
                 Style::empty()
-                    .width(Length::Px(18.0))
-                    .height(Length::Px(18.0)),
+                    .width(Length::Px(20.0))
+                    .height(Length::Px(20.0)),
                 move |bounds: Rect, dl: &mut DisplayList| {
                     let active: bool = value.get_untracked() >= star_idx;
                     let cx: f32 = bounds.get_x() + bounds.get_width() * 0.5;
                     let cy: f32 = bounds.get_y() + bounds.get_height() * 0.5;
+                    let outer_r: f32 =
+                        (bounds.get_width().min(bounds.get_height()) * 0.44).max(4.0);
+                    let inner_r: f32 = outer_r * 0.44;
                     let col: Color = if active {
                         p.get_warning()
                     } else {
                         p.get_border()
                     };
-                    dl.push(DrawCommand::Circle {
-                        center: Point::new(cx, cy),
-                        radius: 6.5,
-                        color: col,
-                    });
-                    if !active {
-                        dl.push(DrawCommand::Circle {
-                            center: Point::new(cx, cy),
-                            radius: 4.5,
-                            color: p.get_card(),
+                    let center: Point = Point::new(cx, cy);
+                    for i in 0..10 {
+                        let a0: f32 = (i as f32) * (TAU / 10.0) - FRAC_PI_2;
+                        let a1: f32 = ((i + 1) as f32) * (TAU / 10.0) - FRAC_PI_2;
+                        let r0: f32 = if i % 2 == 0 { outer_r } else { inner_r };
+                        let r1: f32 = if i % 2 == 0 { inner_r } else { outer_r };
+                        let (s0, c0): (f32, f32) = a0.sin_cos();
+                        let (s1, c1): (f32, f32) = a1.sin_cos();
+                        dl.push(DrawCommand::Triangle {
+                            p0: center,
+                            p1: Point::new(cx + c0 * r0, cy + s0 * r0),
+                            p2: Point::new(cx + c1 * r1, cy + s1 * r1),
+                            color: col,
                         });
                     }
                 },
             );
+            badges.push(badge);
             ctx.append(cell, badge);
             ctx.on_click(cell, move |_: &UiEvent| {
                 let _: bool = value.set_if_changed(star_idx);
             });
             ctx.append(row, cell);
         }
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let _: usize = value.get();
+                handle.with_write(
+                    |tree: &mut SceneTree| {
+                        for b in badges.iter().copied() {
+                            tree.mark_dirty(b, DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(row, scope);
+            },
+            (),
+        );
         row
     }
 }

@@ -118,8 +118,43 @@ impl App {
             gesture_seq: 0,
             scroll_velocity: Point::default(),
             scroll_fling_pos: Point::default(),
+            touch_scroll_target: None,
             in_step_frame: false,
+            caret_blink_secs: 0.0,
+            gesture_suppressed: false,
+            fps_accum_secs: 0.0,
+            fps_accum_frames: 0,
+            fps_budget_accum: 0.0,
         })
+    }
+
+    /// Configures the cross-platform maximum frame rate (`None` = unlimited maximum FPS, the default).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `Option<u32>` - Target FPS cap (`Some(1..=1000)` or `None` for uncapped maximum FPS).
+    pub fn set_fps_limit(&mut self, limit: Option<u32>) {
+        let normalized: Option<u32> = limit.map(|v: u32| v.clamp(1, 1000));
+        let _: bool = self
+            .get_build_context()
+            .get_fps_limit()
+            .set_if_changed(normalized);
+        self.set_fps_budget_accum(0.0);
+    }
+
+    /// Returns the active cross-platform FPS limit (`None` = unlimited maximum FPS).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<u32>` - Active frame rate cap, or `None` when uncapped.
+    #[must_use]
+    pub fn fps_limit(&self) -> Option<u32> {
+        self.get_build_context().get_fps_limit().get_untracked()
     }
 
     /// Registers a `GameEngineHost` so all incoming OS/Web `WindowEvent`s are automatically forwarded to its `InputState`.
@@ -132,7 +167,7 @@ impl App {
         self.get_mut_game_hosts().push(host);
     }
 
-    /// Returns `true` when any node transition animation is actively running.
+    /// Returns `true` when any node transition animation, inertial scroll, or blinking text caret is actively running.
     ///
     /// # Arguments
     ///
@@ -143,7 +178,23 @@ impl App {
     /// - `bool` - Whether animations need continuous frame stepping.
     #[must_use]
     pub fn has_active_animations(&self) -> bool {
-        self.get_scene().has_active_transitions()
+        if self.get_scene().has_active_transitions() {
+            return true;
+        }
+        let vel: Point = self.get_scroll_velocity();
+        if vel.get_x().abs() > 1.0 || vel.get_y().abs() > 1.0 {
+            return true;
+        }
+        self.get_scene().with_read(
+            |tree: &SceneTree| {
+                tree.get_focus()
+                    .focused_node()
+                    .and_then(|id: NodeId| tree.get_node(id))
+                    .map(|n: &SceneNode| matches!(n.get_kind(), NodeKind::Input(_)))
+                    .unwrap_or(false)
+            },
+            false,
+        )
     }
 
     /// Mounts a root `Mountable` component or `NodeId` into the application's scene root with an ambient `BuildContext`.
@@ -364,10 +415,18 @@ impl App {
             WindowEvent::DeepLink(link) => {
                 let _: bool = self.get_deep_link().set(Some(link));
             }
-            WindowEvent::PointerCancel(_, _)
-            | WindowEvent::KeyUp(_, _)
-            | WindowEvent::Ime(_, _)
-            | WindowEvent::Lifecycle(_) => {}
+            WindowEvent::PointerCancel(_, pointer_id) => {
+                let _: Option<Point> = self.get_mut_active_pointers().remove(&pointer_id);
+                self.publish_active_touches();
+                if self.get_active_pointers().is_empty() {
+                    self.set_gesture_origin(None);
+                    self.set_gesture_suppressed(false);
+                    self.set_touch_drag_origin(None);
+                    self.set_touch_drag_last(None);
+                    self.set_touch_dragging(false);
+                }
+            }
+            WindowEvent::KeyUp(_, _) | WindowEvent::Ime(_, _) | WindowEvent::Lifecycle(_) => {}
         }
     }
 
@@ -400,24 +459,74 @@ impl App {
         } else {
             1.0 / 60.0
         };
+        if let Some(fps_cap) = self.fps_limit() {
+            let min_dt: f32 = 1.0 / (fps_cap.max(1) as f32);
+            let accum: f32 = self.get_fps_budget_accum() + anim_dt;
+            if accum + 0.0005 < min_dt
+                && self.get_last_rendered_revision() > 0
+                && !self.get_pending_damage().get_full_damage()
+            {
+                self.set_fps_budget_accum(accum);
+                return Ok(self.get_mut_renderer().record_skipped_frame());
+            }
+            self.set_fps_budget_accum(0.0);
+        } else {
+            self.set_fps_budget_accum(0.0);
+        }
         let scene: SceneHandle = self.get_scene().clone();
-        let canvas_damage_rects: Vec<Rect> = scene.with_read(
+        let focused_input: Option<NodeId> = scene.with_read(
+            |tree: &SceneTree| {
+                tree.get_focus().focused_node().filter(|id: &NodeId| {
+                    tree.get_node(*id)
+                        .map(|n: &SceneNode| matches!(n.get_kind(), NodeKind::Input(_)))
+                        .unwrap_or(false)
+                })
+            },
+            None,
+        );
+        if let Some(inp_id) = focused_input {
+            let next_phase: f32 = (self.get_caret_blink_secs() + anim_dt) % 1.06;
+            self.set_caret_blink_secs(next_phase);
+            let vis: bool = next_phase < 0.56;
+            scene.with_write(
+                |tree: &mut SceneTree| {
+                    if tree.get_caret_visible() != vis {
+                        tree.set_caret_visible(vis);
+                        tree.mark_dirty(inp_id, DIRTY_PAINT);
+                    }
+                },
+                (),
+            );
+        } else if self.get_caret_blink_secs() > 0.0 {
+            self.set_caret_blink_secs(0.0);
+        }
+        let (canvas_damage_rects, has_visible_portal): (Vec<Rect>, bool) = scene.with_read(
             |tree: &SceneTree| {
                 let mut rects: Vec<Rect> = Vec::new();
+                let mut portal_vis: bool = false;
                 for n in tree.get_nodes().iter() {
-                    if n.get_alive()
-                        && matches!(n.get_kind(), NodeKind::Canvas)
-                        && n.get_style().get_layout().get_display() != Display::None
+                    if !n.get_alive() {
+                        continue;
+                    }
+                    let disp: Display = n.get_style().get_layout().get_display();
+                    if disp == Display::None {
+                        continue;
+                    }
+                    if matches!(n.get_kind(), NodeKind::Portal)
+                        || n.get_style().get_layout().get_position() == Position::Fixed
                     {
+                        portal_vis = true;
+                    }
+                    if matches!(n.get_kind(), NodeKind::Canvas) {
                         let b: Rect = n.get_layout_box().get_bounds();
                         if b.get_width() > 0.0 && b.get_height() > 0.0 {
                             rects.push(b);
                         }
                     }
                 }
-                rects
+                (rects, portal_vis)
             },
-            Vec::new(),
+            (Vec::new(), false),
         );
         let has_canvas: bool = !canvas_damage_rects.is_empty();
         if has_canvas && !self.get_game_hosts().is_empty() {
@@ -425,7 +534,7 @@ impl App {
                 let _: u32 = host.step(anim_dt);
             }
         }
-        let _: bool =
+        let anim_ticked: bool =
             scene.with_write(|tree: &mut SceneTree| tree.tick_transitions(anim_dt), false);
         self.tick_gesture_timers(anim_dt);
         self.tick_scroll_inertia(anim_dt);
@@ -466,10 +575,14 @@ impl App {
         if damage.resolve(phys_w, phys_h).is_none() {
             return Ok(self.get_mut_renderer().record_skipped_frame());
         }
-        if !self
-            .get_renderer()
-            .get_config()
-            .get_dirty_rect_optimization()
+        let animated_or_canvas: bool = anim_ticked || has_canvas;
+        let portal_dirty: bool =
+            has_visible_portal && (animated_or_canvas || damage.resolve(phys_w, phys_h).is_some());
+        if portal_dirty
+            || !self
+                .get_renderer()
+                .get_config()
+                .get_dirty_rect_optimization()
         {
             damage = DamageRegion::full();
         }
@@ -504,6 +617,20 @@ impl App {
         }
         self.set_last_rendered_revision(scene_rev);
         self.set_pending_damage(DamageRegion::default());
+        let next_fps_secs: f32 = self.get_fps_accum_secs() + anim_dt;
+        let next_fps_frames: u32 = self.get_fps_accum_frames().saturating_add(1);
+        if next_fps_secs >= 0.25 {
+            let measured: f32 = ((next_fps_frames as f32) / next_fps_secs).clamp(1.0, 999.0);
+            let _: bool = self
+                .get_build_context()
+                .get_live_fps()
+                .set_if_changed((measured * 10.0).round() * 0.1);
+            self.set_fps_accum_secs(0.0);
+            self.set_fps_accum_frames(0);
+        } else {
+            self.set_fps_accum_secs(next_fps_secs);
+            self.set_fps_accum_frames(next_fps_frames);
+        }
         Ok(frame_stats)
     }
 
@@ -592,31 +719,14 @@ impl App {
                 break;
             }
             #[cfg(not(target_arch = "wasm32"))]
-            if max_frames.is_none() {
-                let active_game: bool = !self.get_game_hosts().is_empty()
-                    && self.get_scene().with_read(
-                        |tree: &SceneTree| {
-                            tree.get_nodes().iter().any(|n: &SceneNode| {
-                                n.get_alive()
-                                    && matches!(n.get_kind(), NodeKind::Canvas)
-                                    && n.get_style().get_layout().get_display() != Display::None
-                            })
-                        },
-                        false,
-                    );
-                if !active_game {
-                    let target_budget: Duration = if self.has_active_animations()
-                        || self.get_scroll_velocity().get_x().abs() > 1.0
-                        || self.get_scroll_velocity().get_y().abs() > 1.0
-                    {
-                        Duration::from_micros(4_000)
-                    } else {
-                        Duration::from_micros(16_666)
-                    };
-                    let elapsed: Duration = frame_start.elapsed();
-                    if let Some(remaining) = target_budget.checked_sub(elapsed) {
-                        sleep(remaining);
-                    }
+            if max_frames.is_none()
+                && let Some(fps_cap) = self.fps_limit()
+            {
+                let target_budget: Duration =
+                    Duration::from_secs_f64(1.0 / (fps_cap.max(1) as f64));
+                let elapsed: Duration = frame_start.elapsed();
+                if let Some(remaining) = target_budget.checked_sub(elapsed) {
+                    sleep(remaining);
                 }
             }
         }
@@ -650,16 +760,24 @@ impl App {
         }
         let dx: f32 = vel.get_x() * dt_secs;
         let dy: f32 = vel.get_y() * dt_secs;
+        let locked_target: Option<NodeId> = {
+            let Self {
+                touch_scroll_target,
+                ..
+            } = self;
+            *touch_scroll_target
+        };
         let prev_ptr: Point = self.get_input_state().get_pointer_position();
         let fling_pos: Point = self.get_scroll_fling_pos();
         self.get_mut_input_state().set_pointer_position(fling_pos);
-        self.handle_scroll(Point::new(dx, dy));
+        self.handle_scroll_on_target(Point::new(dx, dy), locked_target);
         self.get_mut_input_state().set_pointer_position(prev_ptr);
-        let decay: f32 = (-5.2 * dt_secs).exp();
+        let decay: f32 = (-2.85 * dt_secs).exp();
         let next_vx: f32 = vel.get_x() * decay;
         let next_vy: f32 = vel.get_y() * decay;
-        if next_vx.hypot(next_vy) < 14.0 {
+        if next_vx.hypot(next_vy) < 16.0 {
             self.set_scroll_velocity(Point::default());
+            self.set_touch_scroll_target(None);
         } else {
             self.set_scroll_velocity(Point::new(next_vx, next_vy));
         }
@@ -825,6 +943,21 @@ impl App {
         }
     }
 
+    /// Publishes the live multi-touch contact map into `BuildContext::get_active_touches()`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    fn publish_active_touches(&mut self) {
+        let mut pts: Vec<(u64, Point)> = self
+            .get_active_pointers()
+            .iter()
+            .map(|(id, pt): (&u64, &Point)| (*id, *pt))
+            .collect();
+        pts.sort_by_key(|item: &(u64, Point)| item.0);
+        let _: bool = self.get_build_context().get_active_touches().set(pts);
+    }
+
     /// Computes distance between the first two active multi-touch pointers for pinch-to-zoom gestures.
     ///
     /// # Arguments
@@ -862,6 +995,7 @@ impl App {
             let _: Option<Point> = self
                 .get_mut_active_pointers()
                 .insert(ptr.get_pointer_id(), pos);
+            self.publish_active_touches();
             if self.get_active_pointers().len() >= 2
                 && let Some((cur_dist, mid)) = self.active_pinch_span()
             {
@@ -908,7 +1042,7 @@ impl App {
             if !captured_drag_control {
                 let total_dx: f32 = pos.get_x() - origin.get_x();
                 let total_dy: f32 = pos.get_y() - origin.get_y();
-                if !self.get_touch_dragging() && (total_dx.abs() > 4.0 || total_dy.abs() > 4.0) {
+                if !self.get_touch_dragging() && (total_dx.abs() > 3.0 || total_dy.abs() > 3.0) {
                     self.set_touch_dragging(true);
                 }
                 if self.get_touch_dragging() {
@@ -919,17 +1053,38 @@ impl App {
                         *touch_drag_last
                     };
                     if let Some(prev) = prev_opt {
-                        let scroll_dx: f32 = prev.get_x() - pos.get_x();
-                        let scroll_dy: f32 = prev.get_y() - pos.get_y();
-                        self.handle_scroll(Point::new(scroll_dx, scroll_dy));
+                        let raw_dx: f32 = prev.get_x() - pos.get_x();
+                        let raw_dy: f32 = prev.get_y() - pos.get_y();
+                        let step_dist: f32 = raw_dx.hypot(raw_dy);
+                        let friendly_mult: f32 =
+                            (1.0 + ((step_dist - 4.0).max(0.0) * 0.032)).clamp(1.0, 1.55);
+                        let (scroll_dx, scroll_dy): (f32, f32) =
+                            if raw_dy.abs() >= raw_dx.abs() * 1.25 {
+                                (0.0, raw_dy * friendly_mult)
+                            } else if raw_dx.abs() >= raw_dy.abs() * 1.5 {
+                                (raw_dx * friendly_mult, 0.0)
+                            } else {
+                                (raw_dx * friendly_mult, raw_dy * friendly_mult)
+                            };
+                        let locked_target: Option<NodeId> = {
+                            let Self {
+                                touch_scroll_target,
+                                ..
+                            } = self;
+                            *touch_scroll_target
+                        };
+                        self.handle_scroll_on_target(
+                            Point::new(scroll_dx, scroll_dy),
+                            locked_target,
+                        );
                         let dt_est: f32 =
-                            self.get_frame_clock().get_delta_secs().clamp(0.008, 0.033);
-                        let inst_vx: f32 = (scroll_dx / dt_est).clamp(-3200.0, 3200.0);
-                        let inst_vy: f32 = (scroll_dy / dt_est).clamp(-3200.0, 3200.0);
+                            self.get_frame_clock().get_delta_secs().clamp(0.006, 0.025);
+                        let inst_vx: f32 = ((scroll_dx / dt_est) * 1.25).clamp(-4800.0, 4800.0);
+                        let inst_vy: f32 = ((scroll_dy / dt_est) * 1.25).clamp(-4800.0, 4800.0);
                         let cur_v: Point = self.get_scroll_velocity();
                         self.set_scroll_velocity(Point::new(
-                            cur_v.get_x() * 0.45 + inst_vx * 0.55,
-                            cur_v.get_y() * 0.45 + inst_vy * 0.55,
+                            cur_v.get_x() * 0.35 + inst_vx * 0.65,
+                            cur_v.get_y() * 0.35 + inst_vy * 0.65,
                         ));
                         self.set_scroll_fling_pos(pos);
                     }
@@ -1054,15 +1209,47 @@ impl App {
     /// - `PointerEvent` - Incoming pointer press event.
     fn handle_pointer_down_event(&mut self, ptr: PointerEvent) {
         let pos: Point = ptr.get_position();
+        self.set_caret_blink_secs(0.0);
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.set_caret_visible(true);
+            },
+            (),
+        );
         let _: Option<Point> = self
             .get_mut_active_pointers()
             .insert(ptr.get_pointer_id(), pos);
+        self.publish_active_touches();
         if self.get_active_pointers().len() == 1 {
+            let suppress_gest: bool = self.get_scene().with_read(
+                |tree: &SceneTree| {
+                    let hit: Option<NodeId> = hit_test(tree, pos);
+                    for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                        if let Some(node) = tree.get_node(aid) {
+                            let is_canvas: bool = matches!(node.get_kind(), NodeKind::Canvas);
+                            let has_drag_move: bool = node
+                                .get_handlers()
+                                .handler_for(&UiEventKind::PointerMove(pos))
+                                .is_some();
+                            if is_canvas
+                                || has_drag_move
+                                || node.get_style().get_paint().get_stop_event_propagation()
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                    false
+                },
+                false,
+            );
+            self.set_gesture_suppressed(suppress_gest);
             self.set_gesture_origin(Some(pos));
             self.set_gesture_hold_secs(0.0);
             self.set_long_press_fired(false);
         } else if let Some((dist, _)) = self.active_pinch_span() {
             self.set_gesture_origin(None);
+            self.set_gesture_suppressed(true);
             self.set_pinch_base_dist(dist);
         }
         if ptr.get_device() == PointerDevice::Touch {
@@ -1071,11 +1258,33 @@ impl App {
             self.set_touch_dragging(false);
             self.set_scroll_velocity(Point::default());
             self.set_scroll_fling_pos(pos);
+            let locked: Option<NodeId> = self.get_scene().with_read(
+                |tree: &SceneTree| {
+                    let hit: Option<NodeId> = hit_test(tree, pos);
+                    for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                        if let Some(node) = tree.get_node(aid) {
+                            if node.get_style().get_layout().get_overflow() == Overflow::Scroll {
+                                return Some(aid);
+                            }
+                            if node.get_style().get_paint().get_stop_scroll_propagation()
+                                || matches!(node.get_kind(), NodeKind::Portal)
+                                || node.get_style().get_layout().get_position() == Position::Fixed
+                            {
+                                return Some(aid);
+                            }
+                        }
+                    }
+                    None
+                },
+                None,
+            );
+            self.set_touch_scroll_target(locked);
         } else {
             self.set_touch_drag_origin(None);
             self.set_touch_drag_last(None);
             self.set_touch_dragging(false);
             self.set_scroll_velocity(Point::default());
+            self.set_touch_scroll_target(None);
         }
         let scene: SceneHandle = self.get_scene().clone();
         let (callbacks, grabbed_scrollbar): (Vec<(UiEventHandler, UiEvent)>, bool) = scene
@@ -1214,18 +1423,22 @@ impl App {
     fn handle_pointer_up_event(&mut self, ptr: PointerEvent) {
         let pos: Point = ptr.get_position();
         let _: Option<Point> = self.get_mut_active_pointers().remove(&ptr.get_pointer_id());
+        self.publish_active_touches();
         if self.get_active_pointers().is_empty() {
             let origin_opt: Option<Point> = {
                 let Self { gesture_origin, .. } = self;
                 *gesture_origin
             };
+            let suppressed: bool = self.get_gesture_suppressed();
             self.set_gesture_origin(None);
+            self.set_gesture_suppressed(false);
             self.set_pinch_base_dist(0.0);
             self.set_gesture_hold_secs(0.0);
             let long_fired: bool = self.get_long_press_fired();
             self.set_long_press_fired(false);
             if let Some(origin) = origin_opt
                 && !long_fired
+                && !suppressed
             {
                 let dx: f32 = pos.get_x() - origin.get_x();
                 let dy: f32 = pos.get_y() - origin.get_y();
@@ -1352,14 +1565,28 @@ impl App {
     /// - `&Self` - Mutable app.
     /// - `Point` - Logical scroll delta `(dx, dy)`.
     fn handle_scroll(&mut self, delta: Point) {
+        self.handle_scroll_on_target(delta, None);
+    }
+
+    /// Routes scroll delta to an optional locked touch target or hovered node with strict scroll-isolation support.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `Point` - Logical scroll delta `(dx, dy)`.
+    /// - `Option<NodeId>` - Optional locked scroll target captured at touch-down.
+    fn handle_scroll_on_target(&mut self, delta: Point, locked_target: Option<NodeId>) {
         let pointer_pos: Point = self.get_input_state().get_pointer_position();
         let scene: SceneHandle = self.get_scene().clone();
         let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
             |tree: &mut SceneTree| {
-                let mut cursor: Option<NodeId> = tree
-                    .get_focus()
-                    .hovered_node()
-                    .filter(|id: &NodeId| tree.get_node(*id).is_some());
+                let mut cursor: Option<NodeId> = locked_target
+                    .filter(|id: &NodeId| tree.get_node(*id).is_some())
+                    .or_else(|| {
+                        tree.get_focus()
+                            .hovered_node()
+                            .filter(|id: &NodeId| tree.get_node(*id).is_some())
+                    });
                 if cursor.is_none() {
                     let fresh: Option<NodeId> = hit_test(tree, pointer_pos);
                     if fresh.is_some() {
@@ -1387,7 +1614,9 @@ impl App {
                 while let Some(id) = cursor {
                     let next_parent: Option<NodeId> = match tree.get_node(id) {
                         Some(node) => {
-                            if node.get_style().get_layout().get_overflow() == Overflow::Scroll {
+                            let is_scroll_box: bool =
+                                node.get_style().get_layout().get_overflow() == Overflow::Scroll;
+                            if is_scroll_box {
                                 let lbox: LayoutBox = node.get_layout_box();
                                 let cur: Point = lbox.get_scroll_offset();
                                 let max_x: f32 = (lbox.get_content_size().get_width()
@@ -1396,10 +1625,15 @@ impl App {
                                 let max_y: f32 = (lbox.get_content_size().get_height()
                                     - lbox.get_content_bounds().get_height())
                                 .max(0.0);
-                                let next: Point = Point::new(
-                                    (cur.get_x() + delta.get_x()).clamp(0.0, max_x),
-                                    (cur.get_y() + delta.get_y()).clamp(0.0, max_y),
-                                );
+                                let allow_x: bool =
+                                    max_x > 2.0 && delta.get_x().abs() > delta.get_y().abs() * 1.25;
+                                let next_x: f32 = if allow_x {
+                                    (cur.get_x() + delta.get_x()).clamp(0.0, max_x)
+                                } else {
+                                    cur.get_x().min(max_x)
+                                };
+                                let next_y: f32 = (cur.get_y() + delta.get_y()).clamp(0.0, max_y);
+                                let next: Point = Point::new(next_x, next_y);
                                 let is_virtual: bool = node.virtual_scroll_metrics().is_some();
                                 if let Some(h) =
                                     node.get_handlers().handler_for(&UiEventKind::Scroll(delta))
@@ -1444,6 +1678,7 @@ impl App {
     /// - `&Self` - Mutable app.
     /// - `KeyEvent` - Keyboard event payload.
     fn handle_key_down(&mut self, key: KeyEvent) {
+        self.set_caret_blink_secs(0.0);
         if matches!(key.get_code(), KeyCode::Back | KeyCode::Escape) {
             let _: bool = self
                 .get_build_context()
@@ -1453,6 +1688,7 @@ impl App {
         let scene: SceneHandle = self.get_scene().clone();
         let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
             |tree: &mut SceneTree| {
+                tree.set_caret_visible(true);
                 let Some(focused_id) = tree.get_focus().focused_node() else {
                     return Vec::new();
                 };
@@ -1506,9 +1742,11 @@ impl App {
         if text.is_empty() {
             return;
         }
+        self.set_caret_blink_secs(0.0);
         let scene: SceneHandle = self.get_scene().clone();
         let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
             |tree: &mut SceneTree| {
+                tree.set_caret_visible(true);
                 let Some(focused_id) = tree.get_focus().focused_node() else {
                     return Vec::new();
                 };

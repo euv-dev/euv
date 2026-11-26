@@ -1,5 +1,92 @@
 use super::*;
 
+/// Fluent builder helpers for `FrameRenderParams`.
+impl FrameRenderParams {
+    /// Creates frame render parameters for `viewport` with `1.0` scale, white clear color, and full damage.
+    ///
+    /// # Arguments
+    ///
+    /// - `Size` - Logical viewport size.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Ready render parameters.
+    #[must_use]
+    pub fn new(viewport: Size) -> Self {
+        Self {
+            viewport,
+            scale_factor: 1.0,
+            clear_color: COLOR_WHITE,
+            layout_stats: LayoutStats::default(),
+            damage: DamageRegion::full(),
+        }
+    }
+
+    /// Sets the active DPI scale factor.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base parameters.
+    /// - `f32` - Scale factor.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated parameters.
+    #[must_use]
+    pub fn with_scale(mut self, scale_factor: f32) -> Self {
+        self.set_scale_factor(scale_factor.max(0.5));
+        self
+    }
+
+    /// Sets the surface clear color.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base parameters.
+    /// - `Color` - Clear color.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated parameters.
+    #[must_use]
+    pub fn with_clear(mut self, clear_color: Color) -> Self {
+        self.set_clear_color(clear_color);
+        self
+    }
+
+    /// Attaches layout telemetry from the current frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base parameters.
+    /// - `LayoutStats` - Layout pass statistics.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated parameters.
+    #[must_use]
+    pub fn with_layout_stats(mut self, layout_stats: LayoutStats) -> Self {
+        self.set_layout_stats(layout_stats);
+        self
+    }
+
+    /// Sets the active dirty damage region.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base parameters.
+    /// - `DamageRegion` - Damage region.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated parameters.
+    #[must_use]
+    pub fn with_damage(mut self, damage: DamageRegion) -> Self {
+        self.set_damage(damage);
+        self
+    }
+}
+
 /// Multi-mode pipeline construction, live mode switching, and frame rendering for `Renderer`.
 impl Renderer {
     /// Creates a `Renderer` resolving the optimal backend for `platform` and `config`.
@@ -25,7 +112,8 @@ impl Renderer {
     ) -> Self {
         let (active_mode, active_backend): (RenderMode, GraphicsBackend) =
             Self::resolve_mode_and_backend(platform, capabilities, config);
-        let readback_mirror: bool =
+        let readback_mirror: bool = true;
+        let compute_pixel_hash: bool =
             platform == PlatformKind::Headless || active_backend == GraphicsBackend::Headless;
         let font_provider: NativeSystemFont = if platform == PlatformKind::Headless {
             NativeSystemFont::deterministic()
@@ -59,7 +147,7 @@ impl Renderer {
             ),
             display_list: DisplayList::default(),
             frame_index: 0,
-            compute_pixel_hash: readback_mirror,
+            compute_pixel_hash,
             last_stats: FrameStats::default(),
         }
     }
@@ -233,6 +321,32 @@ impl Renderer {
         };
         *last_stats = stats;
         Ok(stats)
+    }
+
+    /// Renders `tree` using a compact `FrameRenderParams` descriptor and returns `FrameStats`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable renderer.
+    /// - `&SceneTree` - Laid-out scene tree.
+    /// - `&FrameRenderParams` - Viewport, DPI, clear color, layout stats, and damage bundle.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, PlatformError>` - Frame performance and pixel-hash telemetry.
+    pub fn render_with(
+        &mut self,
+        tree: &SceneTree,
+        params: &FrameRenderParams,
+    ) -> Result<FrameStats, PlatformError> {
+        self.render_frame(
+            tree,
+            params.get_viewport(),
+            params.get_scale_factor(),
+            params.get_clear_color(),
+            params.get_layout_stats(),
+            params.get_damage(),
+        )
     }
 
     /// Advances the frame counter for an undamaged idle frame without rasterizing or hashing pixels.

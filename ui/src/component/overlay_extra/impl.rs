@@ -291,7 +291,7 @@ impl Mountable for EuvPopover {
                 .background(p.get_card())
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_md())
-                .shadow(Shadow::new(0.0, 4.0, 12.0, 0.0, Color::rgba(0, 0, 0, 22)))
+                .shadow(g.get_shadow_md())
                 .z_index(Z_INDEX_FLOATING),
         );
         ctx.append(card, content);
@@ -344,9 +344,28 @@ impl Mountable for EuvPopover {
     }
 }
 
+/// Fluent configuration builders for `EuvTooltip`.
+impl EuvTooltip {
+    /// Controls whether the tooltip stays permanently visible or toggles reactively on pointer hover.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source tooltip.
+    /// - `bool` - When `true`, renders permanently visible.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated tooltip.
+    #[must_use]
+    pub fn always_visible(mut self, always_visible: bool) -> Self {
+        self.set_always_visible(always_visible);
+        self
+    }
+}
+
 /// `Mountable` implementation for `EuvTooltip`.
 impl Mountable for EuvTooltip {
-    /// Mounts the trigger and compact hint surface into `ctx`.
+    /// Mounts the trigger and hover-reactive compact hint surface into `ctx`.
     ///
     /// # Arguments
     ///
@@ -360,28 +379,117 @@ impl Mountable for EuvTooltip {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let trigger: NodeId = self.get_trigger();
+        let pinned: bool = self.get_always_visible();
         let Self { text, .. } = self;
+        let hovered: Signal<bool> = Signal::new(pinned);
         let wrap: NodeId = ctx.view(
             Style::empty()
                 .column()
                 .align(AlignItems::Start)
                 .gap(SPACE_XS),
         );
+        if !pinned {
+            ctx.get_scene().with_write(
+                |tree: &mut SceneTree| {
+                    if let Some(node) = tree.get_node_mut(wrap) {
+                        node.get_mut_handlers()
+                            .set_on_pointer_enter(Some(Rc::new(RefCell::new(
+                                move |_: &UiEvent| {
+                                    let _: bool = hovered.set_if_changed(true);
+                                },
+                            ))));
+                        node.get_mut_handlers()
+                            .set_on_pointer_leave(Some(Rc::new(RefCell::new(
+                                move |_: &UiEvent| {
+                                    let _: bool = hovered.set_if_changed(false);
+                                },
+                            ))));
+                    }
+                },
+                (),
+            );
+        }
         let tip: NodeId = ctx.view(
             Style::empty()
                 .row()
+                .display(if pinned { Display::Flex } else { Display::None })
                 .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
                 .background(p.get_foreground())
-                .radius(g.get_radius_sm()),
+                .radius(g.get_radius_sm())
+                .shadow(g.get_shadow_md())
+                .pointer_events(PointerEvents::None)
+                .z_index(Z_INDEX_TOOLTIP),
         );
         let txt: NodeId = ctx.text(
             text,
             Style::empty().font_size(11.0).color(p.get_background()),
         );
         ctx.append(tip, txt);
+        if !pinned {
+            let handle: SceneHandle = ctx.get_scene().clone();
+            let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                handle.bind_style(tip, move || {
+                    let vis: Display = if hovered.get() {
+                        Display::Flex
+                    } else {
+                        Display::None
+                    };
+                    Style::empty()
+                        .row()
+                        .display(vis)
+                        .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
+                        .background(p.get_foreground())
+                        .radius(g.get_radius_sm())
+                        .shadow(g.get_shadow_md())
+                        .pointer_events(PointerEvents::None)
+                        .z_index(Z_INDEX_TOOLTIP)
+                })
+            });
+            ctx.get_scene().with_write(
+                |tree: &mut SceneTree| {
+                    tree.attach_scope(tip, scope);
+                },
+                (),
+            );
+        }
         ctx.append(wrap, trigger);
         ctx.append(wrap, tip);
         wrap
+    }
+}
+
+/// Fluent controlled-state builders for `EuvDropdown`.
+impl EuvDropdown {
+    /// Binds a controlled reactive open flag signal fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source dropdown.
+    /// - `Signal<bool>` - Controlled open state signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated dropdown.
+    #[must_use]
+    pub fn open(mut self, open: Signal<bool>) -> Self {
+        self.set_open(Some(open));
+        self
+    }
+
+    /// Binds a reactive signal capturing the index of the most recently clicked menu item.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source dropdown.
+    /// - `Signal<Option<usize>>` - Controlled selected item index signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated dropdown.
+    #[must_use]
+    pub fn selected(mut self, last_selected: Signal<Option<usize>>) -> Self {
+        self.set_last_selected(Some(last_selected));
+        self
     }
 }
 
@@ -401,21 +509,27 @@ impl Mountable for EuvDropdown {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
-        let open: Signal<bool> = self.get_open();
-        let last_selected: Signal<Option<usize>> = self.get_last_selected();
-        let Self { label, items, .. } = self;
+        let Self {
+            label,
+            items,
+            open: open_opt,
+            last_selected: sel_opt,
+            ..
+        } = self;
+        let open: Signal<bool> = open_opt.unwrap_or_else(|| Signal::new(false));
+        let last_selected: Signal<Option<usize>> = sel_opt.unwrap_or_else(|| Signal::new(None));
         let wrap: NodeId = ctx.view(
             Style::empty()
                 .column()
                 .align(AlignItems::Start)
                 .gap(SPACE_XS),
         );
-        let mut trigger_btn: EuvButton =
-            EuvButton::new(label, tokens).on_click(move |_: &UiEvent| {
+        let trigger: NodeId = EuvButton::new(label, tokens)
+            .outline()
+            .on_click(move |_: &UiEvent| {
                 let _: bool = open.update(|v: &mut bool| *v = !*v);
-            });
-        trigger_btn.set_variant(EuvButtonVariant::Outline);
-        let trigger: NodeId = trigger_btn.mount(ctx);
+            })
+            .mount(ctx);
         let init_open: bool = open.get_untracked();
         let menu: NodeId = ctx.view(
             Style::empty()
@@ -425,19 +539,24 @@ impl Mountable for EuvDropdown {
                 } else {
                     Display::None
                 })
+                .padding(Edges::all(SPACE_XS))
+                .gap(2.0)
                 .background(p.get_card())
                 .border(g.get_border_width(), p.get_border())
                 .radius(g.get_radius_md())
-                .shadow(Shadow::new(0.0, 4.0, 12.0, 0.0, Color::rgba(0, 0, 0, 22)))
+                .shadow(g.get_shadow_md())
                 .z_index(Z_INDEX_FLOATING),
         );
+        ctx.set_a11y(menu, A11yProps::new(A11yRole::Menu, String::new()));
         for (idx, item_label) in items.into_iter().enumerate() {
             let row: NodeId = ctx.view(
                 Style::empty()
                     .row()
                     .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+                    .radius(g.get_radius_sm())
                     .cursor(CursorIcon::Pointer),
             );
+            ctx.set_a11y(row, A11yProps::new(A11yRole::MenuItem, item_label.clone()));
             let txt: NodeId = ctx.text(
                 item_label,
                 Style::empty().font_size(13.0).color(p.get_foreground()),
@@ -494,6 +613,25 @@ impl Mountable for EuvDropdown {
     }
 }
 
+/// Fluent tone builder for `EuvNotification`.
+impl EuvNotification {
+    /// Sets the semantic tone accent border fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source notification.
+    /// - `EuvTone` - Target semantic tone.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated notification.
+    #[must_use]
+    pub fn tone(mut self, tone: EuvTone) -> Self {
+        self.set_tone(tone);
+        self
+    }
+}
+
 /// `Mountable` implementation for `EuvNotification`.
 impl Mountable for EuvNotification {
     /// Mounts the top-right notification portal into `ctx`.
@@ -530,10 +668,11 @@ impl Mountable for EuvNotification {
                 .background(p.get_card())
                 .border(g.get_border_width(), accent)
                 .radius(g.get_radius_lg())
-                .shadow(Shadow::new(0.0, 6.0, 16.0, 0.0, Color::rgba(0, 0, 0, 28)))
+                .shadow(g.get_shadow_lg())
                 .overflow(Overflow::Hidden)
                 .z_index(Z_INDEX_TOAST),
         );
+        ctx.set_a11y(card, A11yProps::new(A11yRole::Alert, title.clone()));
         let t_node: NodeId = ctx.text(
             title,
             Style::empty()

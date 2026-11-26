@@ -29,6 +29,61 @@ impl Default for PhysicsWorld2D {
     }
 }
 
+/// Fluent query builder for `RaycastQuery2D`.
+impl RaycastQuery2D {
+    /// Creates a 2D raycast query from `origin` along `direction` with default `1000.0` distance and all layers enabled.
+    ///
+    /// # Arguments
+    ///
+    /// - `Point` - Ray origin.
+    /// - `Point` - Ray direction vector.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Ready raycast query.
+    #[must_use]
+    pub const fn new(origin: Point, direction: Point) -> Self {
+        Self {
+            origin,
+            direction,
+            max_distance: 1000.0,
+            layer_mask: u32::MAX,
+        }
+    }
+
+    /// Sets maximum travel distance for the raycast.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source query.
+    /// - `f32` - Maximum distance in world units.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated query.
+    #[must_use]
+    pub fn with_max_distance(mut self, max_distance: f32) -> Self {
+        self.set_max_distance(max_distance.max(0.0));
+        self
+    }
+
+    /// Sets the collision layer filter bitmask for the raycast.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source query.
+    /// - `u32` - Collision layer bitmask.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated query.
+    #[must_use]
+    pub fn with_layer_mask(mut self, layer_mask: u32) -> Self {
+        self.set_layer_mask(layer_mask);
+        self
+    }
+}
+
 /// Broad-phase spatial hashing, narrow-phase contact resolution, and raycasting for `PhysicsWorld2D`.
 impl PhysicsWorld2D {
     /// Creates a `PhysicsWorld2D` configured with `config`.
@@ -351,6 +406,27 @@ impl PhysicsWorld2D {
             }
         }
         closest
+    }
+
+    /// Casts a 2D ray defined by a fluent `RaycastQuery2D` against `world`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&GameWorld` - Game world to query.
+    /// - `&RaycastQuery2D` - Raycast query descriptor.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<RaycastHit>` - Closest ray intersection hit, if any.
+    #[must_use]
+    pub fn raycast_query(world: &GameWorld, query: &RaycastQuery2D) -> Option<RaycastHit> {
+        Self::raycast(
+            world,
+            query.get_origin(),
+            query.get_direction(),
+            query.get_max_distance(),
+            query.get_layer_mask(),
+        )
     }
 
     /// Evaluates narrow-phase overlap between two shapes returning `(normal_a_to_b, penetration)`.

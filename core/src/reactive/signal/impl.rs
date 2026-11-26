@@ -90,6 +90,27 @@ where
         }
     }
 
+    /// Allocates a new reactive signal detached from any enclosing transient `Scope` so hub/store state survives UI rebuilds.
+    ///
+    /// # Arguments
+    ///
+    /// - `T` - Initial signal value.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Copyable handle to the created detached signal.
+    #[must_use]
+    pub fn new_detached(initial_value: T) -> Self {
+        let id: SignalId = with_runtime(
+            |rt: &mut ReactiveRuntime| rt.create_detached_signal(initial_value),
+            SignalId::default(),
+        );
+        Self {
+            id,
+            marker: PhantomData,
+        }
+    }
+
     /// Returns the underlying `SignalId`.
     ///
     /// # Arguments

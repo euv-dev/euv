@@ -44,6 +44,12 @@ pub struct AiWindowInfo {
     pub(crate) breakpoint: String,
     /// Active OS/app theme mode label (`"Light"`, `"Dark"`).
     pub(crate) theme_mode: String,
+    /// Optional active application route reported via `AiAppHooks`.
+    #[get(skip)]
+    pub(crate) active_route: Option<String>,
+    /// Optional active design scheme reported via `AiAppHooks`.
+    #[get(skip)]
+    pub(crate) active_scheme: Option<String>,
     /// Window focus state.
     #[get(type(copy))]
     pub(crate) focused: bool,
@@ -59,6 +65,18 @@ pub struct AiPerfInfo {
     pub(crate) active_mode: String,
     /// Active resolved graphics backend.
     pub(crate) active_backend: String,
+    /// Live measured frames-per-second telemetry.
+    #[get(type(copy))]
+    pub(crate) measured_fps: f32,
+    /// Most recent frame delta duration in milliseconds.
+    #[get(type(copy))]
+    pub(crate) frame_time_ms: f32,
+    /// Active optional runtime FPS limiter (`None` = unlimited).
+    #[get(skip)]
+    pub(crate) fps_limit: Option<u32>,
+    /// Whether animations, inertial scrolling, or blinking carets are currently active.
+    #[get(type(copy))]
+    pub(crate) has_active_animations: bool,
     /// Scene nodes laid out in the previous frame.
     #[get(type(copy))]
     pub(crate) layout_nodes: usize,
@@ -83,6 +101,59 @@ pub struct AiPerfInfo {
     /// Current retained scene mutation revision.
     #[get(type(copy))]
     pub(crate) scene_revision: u64,
+}
+
+/// Serializable reactive graph telemetry exported from `euv::reactive_stats()`.
+#[derive(Clone, Copy, Data, Debug, Default, Deserialize, Eq, New, PartialEq, Serialize)]
+pub struct AiReactiveInfo {
+    /// Active signal count in the current thread runtime.
+    #[get(type(copy))]
+    pub(crate) live_signals: usize,
+    /// Active memo count in the current thread runtime.
+    #[get(type(copy))]
+    pub(crate) live_memos: usize,
+    /// Active effect count in the current thread runtime.
+    #[get(type(copy))]
+    pub(crate) live_effects: usize,
+    /// Active reactive ownership scope count.
+    #[get(type(copy))]
+    pub(crate) live_scopes: usize,
+    /// Monotonic global reactive write clock.
+    #[get(type(copy))]
+    pub(crate) clock: u64,
+}
+
+/// Serializable semantic accessibility node exported from `App::a11y_tree()`.
+#[derive(Clone, Data, Debug, Deserialize, PartialEq, Serialize)]
+pub struct AiA11yNode {
+    /// Corresponding scene node arena index.
+    #[get(type(copy))]
+    pub(crate) node_index: u32,
+    /// Semantic assistive role name (e.g. `"Button"`, `"Switch"`, `"TextInput"`).
+    pub(crate) role: String,
+    /// Primary accessible label spoken by screen readers.
+    pub(crate) label: String,
+    /// Supplemental assistive hint string.
+    pub(crate) hint: String,
+    /// Current human-readable control value.
+    pub(crate) value: String,
+    /// Optional checked/toggled state for switches and checkboxes.
+    #[get(skip)]
+    pub(crate) checked: Option<bool>,
+    /// Whether the control is disabled.
+    #[get(type(copy))]
+    pub(crate) disabled: bool,
+    /// Whether this node holds keyboard focus.
+    #[get(type(copy))]
+    pub(crate) focused: bool,
+    /// Heading level (`1..=6`) for heading roles, or `0`.
+    #[get(type(copy))]
+    pub(crate) heading_level: u8,
+    /// Logical screen-space bounds.
+    #[get(type(copy))]
+    pub(crate) bounds: AiRect,
+    /// Ordered accessible child scene node indices.
+    pub(crate) children: Vec<u32>,
 }
 
 /// Serializable pointer, focus, hover, and cursor interaction snapshot.
@@ -143,11 +214,21 @@ pub struct AiStyleSummary {
     /// Optional hex RGBA background color string (`"#RRGGBBAA"`).
     #[get(skip)]
     pub(crate) background_hex: Option<String>,
+    /// Structural border stroke width in logical pixels.
+    #[get(type(copy))]
+    pub(crate) border_width: f32,
+    /// Structural border color hex string (`"#RRGGBBAA"`).
+    pub(crate) border_hex: String,
+    /// Top-left corner radius in logical pixels.
+    #[get(type(copy))]
+    pub(crate) radius: f32,
     /// Foreground text hex color string (`"#RRGGBBAA"`).
     pub(crate) text_color_hex: String,
     /// Font size in logical pixels.
     #[get(type(copy))]
     pub(crate) font_size: f32,
+    /// Font weight label (`"Normal"`, `"Medium"`, `"SemiBold"`, `"Bold"`).
+    pub(crate) font_weight: String,
     /// Cursor icon name.
     pub(crate) cursor: String,
 }
@@ -163,8 +244,17 @@ pub struct AiLayoutNode {
     pub(crate) generation: u32,
     /// Retained node kind (`"View"`, `"Text"`, `"Input"`, `"ScrollView"`, `"Canvas"`, `"Portal"`).
     pub(crate) kind: String,
-    /// Inferred semantic accessibility role.
+    /// Semantic accessibility role (explicit `A11yProps` role when present, otherwise inferred).
     pub(crate) role: String,
+    /// Explicit accessibility label when set on the node.
+    #[get(skip)]
+    pub(crate) a11y_label: Option<String>,
+    /// Explicit accessibility hint when set on the node.
+    #[get(skip)]
+    pub(crate) a11y_hint: Option<String>,
+    /// Whether the control is marked disabled in accessibility or input state.
+    #[get(type(copy))]
+    pub(crate) disabled: bool,
     /// Optional static text content.
     #[get(skip)]
     pub(crate) text: Option<String>,
@@ -189,6 +279,9 @@ pub struct AiLayoutNode {
     /// Active scroll offset Y.
     #[get(type(copy))]
     pub(crate) scroll_y: f32,
+    /// Maximum horizontal scroll extent.
+    #[get(type(copy))]
+    pub(crate) max_scroll_x: f32,
     /// Maximum vertical scroll extent.
     #[get(type(copy))]
     pub(crate) max_scroll_y: f32,
@@ -230,23 +323,60 @@ pub struct AiLayoutAnomaly {
 }
 
 /// Complete AI Schema v1 (`euv.ai.schema.v1`) runtime snapshot.
-#[derive(Clone, Data, Debug, Deserialize, New, PartialEq, Serialize)]
+#[derive(Clone, Data, Debug, Deserialize, PartialEq, Serialize)]
 pub struct AiRuntimeSnapshot {
     /// Protocol version tag (`"euv.ai.schema.v1"`).
     pub(crate) protocol_version: String,
     /// Window and viewport metrics.
     pub(crate) window: AiWindowInfo,
-    /// Rendering and layout telemetry.
+    /// Rendering, FPS, and layout telemetry.
     pub(crate) performance: AiPerfInfo,
+    /// Live reactive signal/memo/effect/scope telemetry.
+    #[get(type(copy))]
+    pub(crate) reactive: AiReactiveInfo,
     /// Pointer, focus, hover, and cursor state.
     pub(crate) interaction: AiInteractionInfo,
     /// Platform capabilities and accessibility counts.
     pub(crate) runtime: AiRuntimeMeta,
+    /// Optional structured 3D/2D game engine telemetry reported via `AiAppHooks`.
+    #[get(skip)]
+    pub(crate) game_stats: Option<Value>,
+    /// Full semantic accessibility tree compiled from `App::a11y_tree()`.
+    pub(crate) accessibility_tree: Vec<AiA11yNode>,
     /// Optional hierarchical scene & layout tree.
     #[get(skip)]
     pub(crate) layout_tree: Option<AiLayoutNode>,
     /// Automatically detected layout/visual anomalies.
     pub(crate) anomalies: Vec<AiLayoutAnomaly>,
+}
+
+/// Optional host-application telemetry and interactive control hooks bound to `AiSchemaProtocol` or `DevAutomationBridge`.
+#[derive(Clone, CustomDebug, Default, New)]
+pub struct AiAppHooks {
+    /// Callback returning active route path.
+    #[new(skip)]
+    #[debug(skip)]
+    pub(crate) route_getter: Option<AiRouteGetter>,
+    /// Callback returning active design scheme label.
+    #[new(skip)]
+    #[debug(skip)]
+    pub(crate) scheme_getter: Option<AiSchemeGetter>,
+    /// Callback returning structured 3D/2D game engine telemetry JSON.
+    #[new(skip)]
+    #[debug(skip)]
+    pub(crate) game_stats_getter: Option<AiGameStatsGetter>,
+    /// Callback navigating to a requested route string.
+    #[new(skip)]
+    #[debug(skip)]
+    pub(crate) navigate_handler: Option<AiNavigateHandler>,
+    /// Callback updating active scheme and/or mode.
+    #[new(skip)]
+    #[debug(skip)]
+    pub(crate) theme_handler: Option<AiThemeHandler>,
+    /// Callback dispatching structured game engine controls.
+    #[new(skip)]
+    #[debug(skip)]
+    pub(crate) game_control_handler: Option<AiGameControlHandler>,
 }
 
 /// Result of an AI Schema `HitTest` query at logical coordinates `(x, y)`.

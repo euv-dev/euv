@@ -43,8 +43,21 @@ pub fn sdf_coverage(distance: f32, aa: AntialiasingMode) -> f32 {
                 0.0
             }
         }
-        AntialiasingMode::AnalyticalSdf | AntialiasingMode::Msaa4x | AntialiasingMode::Ssaa2x => {
+        AntialiasingMode::AnalyticalSdf => {
             let t: f32 = (0.5 - distance / 1.15).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        }
+        AntialiasingMode::Msaa4x => {
+            let offsets: [f32; 4] = [-0.375, -0.125, 0.125, 0.375];
+            let mut sum: f32 = 0.0;
+            for off in offsets.into_iter() {
+                let t: f32 = (0.5 - (distance + off) / 0.85).clamp(0.0, 1.0);
+                sum += t * t * (3.0 - 2.0 * t);
+            }
+            sum * 0.25
+        }
+        AntialiasingMode::Ssaa2x => {
+            let t: f32 = (0.5 - distance / 0.72).clamp(0.0, 1.0);
             t * t * (3.0 - 2.0 * t)
         }
     }

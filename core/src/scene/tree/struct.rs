@@ -21,6 +21,9 @@ pub struct SceneTree {
     pub(crate) revision: u64,
     /// Active paint/transform node transitions ticked on every frame until settled.
     pub(crate) transitions: Vec<NodeTransition>,
+    /// Blinking visibility state of the focused text input caret (`true` = visible phase).
+    #[get(type(copy))]
+    pub(crate) caret_visible: bool,
 }
 
 /// Shared handle wrapping a `SceneTree` so reactive `Effect` closures can patch nodes directly.
@@ -58,6 +61,15 @@ pub struct BuildContext {
     pub(crate) system_back: Signal<u64>,
     /// Shared dynamic update hub enabling ambient component-level and page-level live updates.
     pub(crate) dynamic_hub: DynamicUpdateHub,
+    /// Optional target FPS cap across all platforms (`None` = unlimited maximum FPS by default).
+    #[get(type(copy))]
+    pub(crate) fps_limit: Signal<Option<u32>>,
+    /// Smoothed live rendered frames-per-second telemetry signal.
+    #[get(type(copy))]
+    pub(crate) live_fps: Signal<f32>,
+    /// Live snapshot of all currently active touch/pointer contacts `(pointer_id, position)` for multi-touch UIs.
+    #[get(type(copy))]
+    pub(crate) active_touches: Signal<Vec<(u64, Point)>>,
 }
 
 /// RAII scope guard restoring the previous ambient `BuildContext` on drop.

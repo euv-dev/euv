@@ -22,6 +22,10 @@ pub struct EuvAppShell {
     #[new(skip)]
     #[get(skip)]
     pub(crate) top_bar_actions: Option<NodeId>,
+    /// Optional compact inline actions rendered beside the mobile header Menu button.
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) mobile_header_actions: Option<NodeId>,
     /// Optional footer widget rendered at the bottom of the navigation sidebar / mobile drawer.
     #[new(skip)]
     #[get(skip)]

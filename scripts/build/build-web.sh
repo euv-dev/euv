@@ -18,7 +18,7 @@ out_dir = Path("dist/web")
 wasm_file = "euv_example_bg.wasm"
 js_file = out_dir / "euv_example.js"
 inline_runtime = js_file.read_text(encoding="utf-8")
-inline_runtime = inline_runtime.replace(f"new URL('{wasm_file}', import.meta.url)", f"'./{wasm_file}'")
+inline_runtime = inline_runtime.replace(f"new URL('{wasm_file}', import.meta.url)", f"'./{wasm_file}'").replace(f'new URL("{wasm_file}", import.meta.url)', f"'./{wasm_file}'")
 cleaned = []
 for line in inline_runtime.splitlines():
     t = line.lstrip()
@@ -31,10 +31,11 @@ cleaned_loader = "\n".join(cleaned)
 html = (
     '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8"/>\n'
     '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>\n'
+    '<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' rx=\'8\' fill=\'%2318181b\'/%3E%3Ctext x=\'16\' y=\'22\' text-anchor=\'middle\' font-family=\'sans-serif\' font-weight=\'800\' font-size=\'18\' fill=\'%23fafafa\'%3EE%3C/text%3E%3C/svg%3E"/>\n'
     '<title>euv 0.38 — Cross-Platform Native Showcase</title>\n'
     '<style>html,body{margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#09090b;touch-action:none;}</style>\n'
     '</head>\n<body>\n<script type="module">\n'
-    f'{cleaned_loader}\n__wbg_init(\'./{wasm_file}\');\n'
+    f'{cleaned_loader}\n__wbg_init({{ module_or_path: \'./{wasm_file}\' }});\n'
     '</script>\n</body>\n</html>\n'
 )
 (out_dir / "index.html").write_text(html, encoding="utf-8")

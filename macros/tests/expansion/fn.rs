@@ -179,3 +179,59 @@ fn view_slot_and_page_slot_macros_support_live_component_and_page_updates() {
     let f2: FrameStats = app.step_frame().unwrap();
     assert_ne!(f2.get_frame_hash(), f1.get_frame_hash());
 }
+
+style! {
+    c_extended {
+        direction: row;
+        min_width: Length::Px(120.0);
+        min_height: Length::Px(40.0);
+        max_height: Length::Px(160.0);
+        flex_shrink: 0.0;
+        aspect_ratio: 2.0;
+        cursor: CursorIcon::Pointer;
+        text_align: TextAlign::Center;
+        font_family: FontFamily::Monospace;
+        gradient: LinearGradient::new(90.0, TEST_BG, TEST_FG);
+        shadow: Shadow::new(0.0, 2.0, 6.0, 0.0, Color::rgba(0, 0, 0, 40));
+    }
+}
+
+#[test]
+fn reactive_shorthand_and_extended_view_style_macros_work() {
+    reset_reactive_runtime();
+    let count: Signal<i32> = Signal::new(4);
+    let tripled: Memo<i32> = computed!(move || count.get() * 3);
+    let seen: Rc<Cell<i32>> = Rc::new(Cell::new(0));
+    let seen_c: Rc<Cell<i32>> = seen.clone();
+    let _eff: Effect = watch!(move || {
+        seen_c.set(tripled.get());
+    });
+    assert_eq!(seen.get(), 12);
+    let _: bool = count.set(7);
+    assert_eq!(seen.get(), 21);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(320, 180).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        view! {
+            column {
+                style: c_extended()
+                min_width: Length::Px(160.0)
+                flex_shrink: 0.0
+                cursor: CursorIcon::Pointer
+                on_hover: |_ev: &UiEvent| {}
+                on_key: |_ev: &UiEvent| {}
+                text {
+                    font_family: FontFamily::Monospace
+                    text_align: TextAlign::Center
+                    color: TEST_FG
+                    "Shorthand Ready"
+                }
+            }
+        }
+    });
+    let stats: FrameStats = app.step_frame().unwrap();
+    assert_ne!(stats.get_frame_hash(), 0);
+}

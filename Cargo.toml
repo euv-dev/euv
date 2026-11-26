@@ -55,6 +55,7 @@ crate-type = ["rlib"]
 euv = { path = ".", version = "0.38.0" }
 euv-ui = { path = "ui", version = "0.38.0" }
 euv-core = { path = "core", version = "0.38.0" }
+euv-docs = { path = "docs", version = "0.38.0" }
 euv-macros = { path = "macros", version = "0.38.0" }
 euv-automation = { path = "automation", version = "0.38.0" }
 

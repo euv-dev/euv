@@ -209,10 +209,33 @@ fn top_layer_portal_hit_test_and_overlay_scrollbar_commands_work_when_scrolled()
         mobile_scrollbars, 0,
         "mobile compact viewports (< 640px) must hide scrollbars"
     );
+    let mut dl_land_phone: DisplayList = DisplayList::default();
+    PaintPass::build(
+        &tree,
+        Size::new(900.0, 411.0),
+        1.0,
+        Color::hex(0xFFFFFF),
+        &mut dl_land_phone,
+    );
+    let land_phone_scrollbars: usize = dl_land_phone
+        .get_commands()
+        .iter()
+        .filter(|cmd: &&DrawCommand| {
+            matches!(
+                cmd,
+                DrawCommand::FillRoundedRect { rect, .. }
+                    if rect.get_width() <= 6.5 && rect.get_x() > 380.0
+            )
+        })
+        .count();
+    assert_eq!(
+        land_phone_scrollbars, 0,
+        "landscape phone viewports must hide scrollbars"
+    );
     let mut dl: DisplayList = DisplayList::default();
     PaintPass::build(
         &tree,
-        Size::new(800.0, 200.0),
+        Size::new(800.0, 640.0),
         1.0,
         Color::hex(0xFFFFFF),
         &mut dl,
@@ -229,4 +252,50 @@ fn top_layer_portal_hit_test_and_overlay_scrollbar_commands_work_when_scrolled()
         })
         .count();
     assert!(scrollbar_rects >= 1);
+}
+
+#[test]
+fn percent_width_flex_child_does_not_resolve_percentage_twice() {
+    let mut tree: SceneTree = SceneTree::default();
+    let root: NodeId = tree.create_node(
+        NodeKind::View,
+        Style::empty()
+            .row()
+            .width(Length::Percent(100.0))
+            .height(Length::Percent(100.0)),
+    );
+    tree.set_root(root);
+    let drawer: NodeId = tree.create_node(
+        NodeKind::ScrollView,
+        Style::empty()
+            .column()
+            .width(Length::Percent(64.0))
+            .max_width(Length::Px(232.0))
+            .height(Length::Percent(100.0))
+            .padding(Edges::all(16.0)),
+    );
+    let item: NodeId = tree.create_node(
+        NodeKind::View,
+        Style::empty()
+            .width(Length::Percent(100.0))
+            .height(Length::Px(36.0)),
+    );
+    tree.append_child(drawer, item);
+    tree.append_child(root, drawer);
+    let mut engine: LayoutEngine = LayoutEngine::default();
+    let _: LayoutStats = engine.compute(&mut tree, Size::new(411.0, 914.0));
+    let drawer_w: f32 = tree
+        .get_node(drawer)
+        .expect("drawer node")
+        .get_layout_box()
+        .get_bounds()
+        .get_width();
+    let item_w: f32 = tree
+        .get_node(item)
+        .expect("item node")
+        .get_layout_box()
+        .get_bounds()
+        .get_width();
+    assert!((drawer_w - 232.0).abs() < 1.0, "drawer_w={drawer_w}");
+    assert!((item_w - 200.0).abs() < 1.0, "item_w={item_w}");
 }

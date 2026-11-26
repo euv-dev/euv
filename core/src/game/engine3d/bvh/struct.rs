@@ -63,11 +63,45 @@ pub struct RayHit3D {
     pub(crate) material: PbrMaterial,
 }
 
+/// Cache-compact 36-byte hot geometry triangle for L1-dense Möller–Trumbore ray intersections.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct BvhGeomTri {
+    /// First vertex `(x, y, z)`.
+    pub(crate) v0: [f32; 3],
+    /// First edge `(v1 - v0)`.
+    pub(crate) e1: [f32; 3],
+    /// Second edge `(v2 - v0)`.
+    pub(crate) e2: [f32; 3],
+}
+
+/// L1-cache-aligned 32-byte DFS pre-order BVH node (2 nodes per 64-byte cache line; left child is `idx + 1`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct BvhFlatNode {
+    /// Minimum AABB corner `(x, y, z)`.
+    pub(crate) min: [f32; 3],
+    /// Right child node index when `tri_count == 0`, or first triangle index when `tri_count > 0`.
+    pub(crate) right_or_first: u32,
+    /// Maximum AABB corner `(x, y, z)`.
+    pub(crate) max: [f32; 3],
+    /// Leaf triangle count (`0` for interior nodes).
+    pub(crate) tri_count: u32,
+}
+
 /// Flat-array Bounding Volume Hierarchy accelerating ray-traced shadows, reflections, and GI in O(log N).
 #[derive(Clone, Data, Debug, Default)]
 pub struct Bvh3D {
     /// Contiguous BVH nodes with root at index `0`.
     pub(crate) nodes: Vec<BvhNode3D>,
-    /// Partitioned world-space triangle storage.
+    /// Partitioned world-space triangle metadata and shading materials.
     pub(crate) triangles: Vec<BvhTriangle>,
+    /// Hot 36-byte packed geometry mirror aligned 1:1 with `triangles` for fast ray intersection.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) geom: Vec<BvhGeomTri>,
+    /// Hot 32-byte DFS-ordered BVH mirror for branchless cache-dense traversal.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) flat_nodes: Vec<BvhFlatNode>,
 }

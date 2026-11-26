@@ -165,6 +165,27 @@ impl<'a> UiAutomator<'a> {
         self.step()
     }
 
+    /// Clicks exact logical coordinates `(x, y)` (move + down + up) and steps a frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable automator.
+    /// - `f32` - Logical X coordinate.
+    /// - `f32` - Logical Y coordinate.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, AutomationError>` - Rendered frame telemetry.
+    pub fn click_at(&mut self, x: f32, y: f32) -> Result<FrameStats, AutomationError> {
+        let Self { app } = self;
+        let wid: WindowId = app.get_window_state().get_id();
+        let ev: PointerEvent = PointerEvent::mouse(x, y);
+        app.dispatch_window_event(WindowEvent::PointerMove(wid, ev));
+        app.dispatch_window_event(WindowEvent::PointerDown(wid, ev));
+        app.dispatch_window_event(WindowEvent::PointerUp(wid, ev));
+        self.step()
+    }
+
     /// Clicks the center of `selector` (move + down + up) and steps a frame.
     ///
     /// # Arguments
@@ -178,13 +199,21 @@ impl<'a> UiAutomator<'a> {
     pub fn click(&mut self, selector: &UiSelector) -> Result<FrameStats, AutomationError> {
         let target: AiLayoutNode = self.query(selector)?;
         let center: Point = target.get_screen_bounds().center();
-        let Self { app } = self;
-        let wid: WindowId = app.get_window_state().get_id();
-        let ev: PointerEvent = PointerEvent::mouse(center.get_x(), center.get_y());
-        app.dispatch_window_event(WindowEvent::PointerMove(wid, ev));
-        app.dispatch_window_event(WindowEvent::PointerDown(wid, ev));
-        app.dispatch_window_event(WindowEvent::PointerUp(wid, ev));
-        self.step()
+        self.click_at(center.get_x(), center.get_y())
+    }
+
+    /// Moves focus onto the first visible node matching `selector` and steps a frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable automator.
+    /// - `&UiSelector` - Target focusable node selector.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, AutomationError>` - Rendered frame telemetry.
+    pub fn focus(&mut self, selector: &UiSelector) -> Result<FrameStats, AutomationError> {
+        self.click(selector)
     }
 
     /// Performs two consecutive clicks on `selector`.
@@ -225,6 +254,78 @@ impl<'a> UiAutomator<'a> {
         self.step()
     }
 
+    /// Clicks `selector` to focus it, clears all existing characters via Backspace, and steps a frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable automator.
+    /// - `&UiSelector` - Target input selector.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, AutomationError>` - Rendered frame telemetry.
+    pub fn clear_input(&mut self, selector: &UiSelector) -> Result<FrameStats, AutomationError> {
+        let target: AiLayoutNode = self.query(selector)?;
+        let char_count: usize = target
+            .input_value()
+            .map(|v: &str| v.chars().count())
+            .unwrap_or(0);
+        let _: FrameStats = self.click(selector)?;
+        let Self { app } = self;
+        let wid: WindowId = app.get_window_state().get_id();
+        for _ in 0..char_count {
+            app.dispatch_window_event(WindowEvent::KeyDown(
+                wid,
+                KeyEvent::new(KeyCode::Backspace, Modifiers::default(), false),
+            ));
+            app.dispatch_window_event(WindowEvent::KeyUp(
+                wid,
+                KeyEvent::new(KeyCode::Backspace, Modifiers::default(), false),
+            ));
+        }
+        self.step()
+    }
+
+    /// Drags between explicit logical coordinates `(from_x, from_y) -> (to_x, to_y)` and steps a frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable automator.
+    /// - `f32` - Start X coordinate.
+    /// - `f32` - Start Y coordinate.
+    /// - `f32` - End X coordinate.
+    /// - `f32` - End Y coordinate.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, AutomationError>` - Rendered frame telemetry.
+    pub fn drag_points(
+        &mut self,
+        from_x: f32,
+        from_y: f32,
+        to_x: f32,
+        to_y: f32,
+    ) -> Result<FrameStats, AutomationError> {
+        let Self { app } = self;
+        let wid: WindowId = app.get_window_state().get_id();
+        app.dispatch_window_event(WindowEvent::PointerMove(
+            wid,
+            PointerEvent::mouse(from_x, from_y),
+        ));
+        app.dispatch_window_event(WindowEvent::PointerDown(
+            wid,
+            PointerEvent::mouse(from_x, from_y),
+        ));
+        for step_idx in 1..=4 {
+            let t: f32 = (step_idx as f32) * 0.25;
+            let px: f32 = from_x + (to_x - from_x) * t;
+            let py: f32 = from_y + (to_y - from_y) * t;
+            app.dispatch_window_event(WindowEvent::PointerMove(wid, PointerEvent::mouse(px, py)));
+        }
+        app.dispatch_window_event(WindowEvent::PointerUp(wid, PointerEvent::mouse(to_x, to_y)));
+        self.step()
+    }
+
     /// Drags from the center of `from` to the center of `to` and steps a frame.
     ///
     /// # Arguments
@@ -243,24 +344,198 @@ impl<'a> UiAutomator<'a> {
     ) -> Result<FrameStats, AutomationError> {
         let start_pt: Point = self.query(from)?.get_screen_bounds().center();
         let end_pt: Point = self.query(to)?.get_screen_bounds().center();
+        self.drag_points(
+            start_pt.get_x(),
+            start_pt.get_y(),
+            end_pt.get_x(),
+            end_pt.get_y(),
+        )
+    }
+
+    /// Builds a touch `PointerEvent` for gesture synthesis.
+    ///
+    /// # Arguments
+    ///
+    /// - `u64` - Stable touch pointer identifier.
+    /// - `f32` - Logical X coordinate.
+    /// - `f32` - Logical Y coordinate.
+    ///
+    /// # Returns
+    ///
+    /// - `PointerEvent` - Constructed touch pointer event.
+    #[must_use]
+    fn make_touch_event(pid: u64, px: f32, py: f32) -> PointerEvent {
+        PointerEvent::new(
+            pid,
+            PointerDevice::Touch,
+            Point::new(px, py),
+            PointerButton::Primary,
+            1.0,
+            Modifiers::default(),
+        )
+    }
+
+    /// Synthesizes a cross-platform touch or multi-touch gesture at `(x, y)` and steps a frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable automator.
+    /// - `AiGestureKind` - Gesture kind (`Tap`, `DoubleTap`, `Swipe`, `Pinch`, `LongPress`).
+    /// - `f32` - Anchor X coordinate.
+    /// - `f32` - Anchor Y coordinate.
+    /// - `f32` - Swipe X displacement.
+    /// - `f32` - Swipe Y displacement.
+    /// - `f32` - Pinch scale factor (`<= 0.0` defaults to `1.25`).
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, AutomationError>` - Rendered frame telemetry.
+    pub fn gesture(
+        &mut self,
+        kind: AiGestureKind,
+        x: f32,
+        y: f32,
+        dx: f32,
+        dy: f32,
+        scale: f32,
+    ) -> Result<FrameStats, AutomationError> {
         let Self { app } = self;
         let wid: WindowId = app.get_window_state().get_id();
-        app.dispatch_window_event(WindowEvent::PointerMove(
-            wid,
-            PointerEvent::mouse(start_pt.get_x(), start_pt.get_y()),
-        ));
-        app.dispatch_window_event(WindowEvent::PointerDown(
-            wid,
-            PointerEvent::mouse(start_pt.get_x(), start_pt.get_y()),
-        ));
-        app.dispatch_window_event(WindowEvent::PointerMove(
-            wid,
-            PointerEvent::mouse(end_pt.get_x(), end_pt.get_y()),
-        ));
-        app.dispatch_window_event(WindowEvent::PointerUp(
-            wid,
-            PointerEvent::mouse(end_pt.get_x(), end_pt.get_y()),
-        ));
+        match kind {
+            AiGestureKind::Tap => {
+                let ev: PointerEvent = Self::make_touch_event(1, x, y);
+                app.dispatch_window_event(WindowEvent::PointerDown(wid, ev));
+                app.dispatch_window_event(WindowEvent::PointerUp(wid, ev));
+                self.step()
+            }
+            AiGestureKind::DoubleTap => {
+                let ev: PointerEvent = Self::make_touch_event(1, x, y);
+                app.dispatch_window_event(WindowEvent::PointerDown(wid, ev));
+                app.dispatch_window_event(WindowEvent::PointerUp(wid, ev));
+                app.dispatch_window_event(WindowEvent::PointerDown(wid, ev));
+                app.dispatch_window_event(WindowEvent::PointerUp(wid, ev));
+                self.step()
+            }
+            AiGestureKind::Swipe => {
+                app.dispatch_window_event(WindowEvent::PointerDown(
+                    wid,
+                    Self::make_touch_event(1, x, y),
+                ));
+                for step_idx in 1..=4 {
+                    let t: f32 = (step_idx as f32) * 0.25;
+                    app.dispatch_window_event(WindowEvent::PointerMove(
+                        wid,
+                        Self::make_touch_event(1, x + dx * t, y + dy * t),
+                    ));
+                }
+                app.dispatch_window_event(WindowEvent::PointerUp(
+                    wid,
+                    Self::make_touch_event(1, x + dx, y + dy),
+                ));
+                self.step()
+            }
+            AiGestureKind::Pinch => {
+                let factor: f32 = if scale > 0.05 { scale } else { 1.25 };
+                let half_start: f32 = 40.0;
+                let half_end: f32 = (half_start * factor).clamp(8.0, 240.0);
+                app.dispatch_window_event(WindowEvent::PointerDown(
+                    wid,
+                    Self::make_touch_event(1, x - half_start, y),
+                ));
+                app.dispatch_window_event(WindowEvent::PointerDown(
+                    wid,
+                    Self::make_touch_event(2, x + half_start, y),
+                ));
+                app.dispatch_window_event(WindowEvent::PointerMove(
+                    wid,
+                    Self::make_touch_event(1, x - half_end, y),
+                ));
+                app.dispatch_window_event(WindowEvent::PointerMove(
+                    wid,
+                    Self::make_touch_event(2, x + half_end, y),
+                ));
+                app.dispatch_window_event(WindowEvent::PointerUp(
+                    wid,
+                    Self::make_touch_event(1, x - half_end, y),
+                ));
+                app.dispatch_window_event(WindowEvent::PointerUp(
+                    wid,
+                    Self::make_touch_event(2, x + half_end, y),
+                ));
+                self.step()
+            }
+            AiGestureKind::LongPress => {
+                let ev: PointerEvent = Self::make_touch_event(1, x, y);
+                app.dispatch_window_event(WindowEvent::PointerDown(wid, ev));
+                let _: FrameStats = app
+                    .step_game_frame(0.5)
+                    .map_err(|err: PlatformError| AutomationError::RuntimeError(err.to_string()))?;
+                app.dispatch_window_event(WindowEvent::PointerUp(wid, ev));
+                self.step()
+            }
+        }
+    }
+
+    /// Advances `count` UI render frames (`1..=120`) and returns the latest frame telemetry.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable automator.
+    /// - `usize` - Number of frames to render.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, AutomationError>` - Latest rendered frame telemetry.
+    pub fn step_frames(&mut self, count: usize) -> Result<FrameStats, AutomationError> {
+        let clamped: usize = count.clamp(1, 120);
+        let mut last: FrameStats = FrameStats::default();
+        for _ in 0..clamped {
+            last = self.step()?;
+        }
+        Ok(last)
+    }
+
+    /// Advances game physics and animation simulation for `frames` ticks of `dt_secs`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable automator.
+    /// - `f32` - Per-frame delta time in seconds.
+    /// - `usize` - Number of simulation frames (`1..=120`).
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, AutomationError>` - Latest rendered frame telemetry.
+    pub fn step_game(
+        &mut self,
+        dt_secs: f32,
+        frames: usize,
+    ) -> Result<FrameStats, AutomationError> {
+        let clamped: usize = frames.clamp(1, 120);
+        let dt: f32 = dt_secs.clamp(0.001, 0.1);
+        let Self { app } = self;
+        let mut last: FrameStats = FrameStats::default();
+        for _ in 0..clamped {
+            last = app
+                .step_game_frame(dt)
+                .map_err(|err: PlatformError| AutomationError::RuntimeError(err.to_string()))?;
+        }
+        Ok(last)
+    }
+
+    /// Configures the active runtime FPS cap (`None` = unlimited) and steps a frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable automator.
+    /// - `Option<u32>` - Target FPS cap.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<FrameStats, AutomationError>` - Rendered frame telemetry.
+    pub fn set_fps_limit(&mut self, fps: Option<u32>) -> Result<FrameStats, AutomationError> {
+        let Self { app } = self;
+        app.set_fps_limit(fps);
         self.step()
     }
 
@@ -435,6 +710,54 @@ impl<'a> UiAutomator<'a> {
         }
     }
 
+    /// Asserts that no visible node matches `selector`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Automator reference.
+    /// - `&UiSelector` - Selector expected to be absent.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<(), AutomationError>` - Ok when absent, `AssertionFailed` otherwise.
+    pub fn assert_not_visible(&self, selector: &UiSelector) -> Result<(), AutomationError> {
+        if !self.exists(selector) {
+            Ok(())
+        } else {
+            Err(AutomationError::AssertionFailed(format!(
+                "Expected no visible node matching {selector:?}"
+            )))
+        }
+    }
+
+    /// Asserts that the first visible node matching `selector` has text or input value equal to `expected`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Automator reference.
+    /// - `&UiSelector` - Target node selector.
+    /// - `&str` - Expected exact string value.
+    ///
+    /// # Returns
+    ///
+    /// - `Result<(), AutomationError>` - Ok when text matches, `AssertionFailed` otherwise.
+    pub fn assert_text_equals(
+        &self,
+        selector: &UiSelector,
+        expected: &str,
+    ) -> Result<(), AutomationError> {
+        let node: AiLayoutNode = self.query(selector)?;
+        let actual: Option<&str> = node.text_value().or_else(|| node.input_value());
+        if actual == Some(expected) {
+            Ok(())
+        } else {
+            Err(AutomationError::AssertionFailed(format!(
+                "Expected text {:?}, got {:?}",
+                expected, actual
+            )))
+        }
+    }
+
     /// Executes every step in `script` sequentially and produces a structured `UiTestReport`.
     ///
     /// # Arguments
@@ -454,10 +777,29 @@ impl<'a> UiAutomator<'a> {
             let started: Instant = Instant::now();
             let outcome: Result<(), AutomationError> = match step {
                 UiTestStep::Click { selector } => self.click(selector).map(|_: FrameStats| ()),
+                UiTestStep::ClickAt { x, y } => self.click_at(*x, *y).map(|_: FrameStats| ()),
+                UiTestStep::DoubleClick { selector } => {
+                    self.double_click(selector).map(|_: FrameStats| ())
+                }
                 UiTestStep::Hover { selector } => self.hover(selector).map(|_: FrameStats| ()),
+                UiTestStep::Focus { selector } => self.focus(selector).map(|_: FrameStats| ()),
                 UiTestStep::TypeText { selector, text } => {
                     self.type_text(selector, text).map(|_: FrameStats| ())
                 }
+                UiTestStep::ClearInput { selector } => {
+                    self.clear_input(selector).map(|_: FrameStats| ())
+                }
+                UiTestStep::Drag { from, to } => self.drag(from, to).map(|_: FrameStats| ()),
+                UiTestStep::Gesture {
+                    gesture,
+                    x,
+                    y,
+                    dx,
+                    dy,
+                    scale,
+                } => self
+                    .gesture(*gesture, *x, *y, *dx, *dy, *scale)
+                    .map(|_: FrameStats| ()),
                 UiTestStep::PressKey { key } => self.press_key_name(key).map(|_: FrameStats| ()),
                 UiTestStep::Scroll { selector, dx, dy } => {
                     self.scroll(selector, *dx, *dy).map(|_: FrameStats| ())
@@ -467,7 +809,18 @@ impl<'a> UiAutomator<'a> {
                     height,
                     scale,
                 } => self.resize(*width, *height, *scale).map(|_: FrameStats| ()),
+                UiTestStep::StepFrames { count } => {
+                    self.step_frames(*count).map(|_: FrameStats| ())
+                }
+                UiTestStep::StepGame { dt_secs, frames } => {
+                    self.step_game(*dt_secs, *frames).map(|_: FrameStats| ())
+                }
+                UiTestStep::SetFpsLimit { fps } => self.set_fps_limit(*fps).map(|_: FrameStats| ()),
                 UiTestStep::AssertVisible { selector } => self.assert_visible(selector),
+                UiTestStep::AssertNotVisible { selector } => self.assert_not_visible(selector),
+                UiTestStep::AssertTextEquals { selector, expected } => {
+                    self.assert_text_equals(selector, expected)
+                }
                 UiTestStep::AssertNoHorizontalOverflow => self.assert_no_horizontal_overflow(),
                 UiTestStep::AssertNoTextOverlap => self.assert_no_text_overlap(),
             };

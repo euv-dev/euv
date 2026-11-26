@@ -62,6 +62,7 @@ impl Mountable for EuvCard {
             let title_node: NodeId = ctx.text(
                 title,
                 Style::empty()
+                    .width(Length::Percent(100.0))
                     .font_size(g.get_font_heading())
                     .font_weight(FontWeight::SemiBold)
                     .color(p.get_card_foreground()),
@@ -72,6 +73,7 @@ impl Mountable for EuvCard {
             let sub_node: NodeId = ctx.text(
                 subtitle,
                 Style::empty()
+                    .width(Length::Percent(100.0))
                     .font_size(13.0)
                     .color(p.get_muted_foreground()),
             );

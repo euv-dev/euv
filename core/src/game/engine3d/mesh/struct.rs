@@ -29,9 +29,70 @@ pub struct PbrMaterial {
     /// Reflectivity multiplier used for ray-traced reflection blending (`0.0..=1.0`).
     #[get(type(copy))]
     pub(crate) reflectivity: f32,
+    /// Optional procedural surface detail overlay evaluated during deferred shading.
+    #[get(type(copy))]
+    pub(crate) surface_detail: SurfaceDetailMode,
 }
 
-/// Indexed triangle mesh with local AABB and default PBR material.
+/// Ergonomic descriptor for constructing an axis-aligned box `Mesh3D`.
+#[derive(Clone, Data, Debug, PartialEq)]
+pub struct BoxMeshDesc {
+    /// Human-readable mesh name.
+    pub(crate) name: String,
+    /// Box extents `(width, height, depth)` along `(X, Y, Z)`.
+    #[get(type(copy))]
+    pub(crate) size: Vec3,
+    /// When `true`, base rests on `y = 0`; otherwise centered at the origin.
+    #[get(type(copy))]
+    pub(crate) ground_pivot: bool,
+    /// Surface PBR material.
+    #[get(type(copy))]
+    pub(crate) material: PbrMaterial,
+}
+
+/// Ergonomic descriptor for constructing a subdivided ground plane `Mesh3D`.
+#[derive(Clone, Data, Debug, PartialEq)]
+pub struct GroundPlaneDesc {
+    /// Human-readable mesh name.
+    pub(crate) name: String,
+    /// Plane width along X.
+    #[get(type(copy))]
+    pub(crate) width: f32,
+    /// Plane depth along Z.
+    #[get(type(copy))]
+    pub(crate) depth: f32,
+    /// Grid subdivisions per axis (clamped to `1..=16`).
+    #[get(type(copy))]
+    pub(crate) subdivisions: usize,
+    /// Surface PBR material.
+    #[get(type(copy))]
+    pub(crate) material: PbrMaterial,
+}
+
+/// Nanite-style virtualized geometry cluster storing tight bounds, normal cone, and triangle slice.
+#[derive(Clone, Copy, Data, Debug, New, PartialEq)]
+pub struct Meshlet3D {
+    /// First triangle index inside `Mesh3D::indices`.
+    #[get(type(copy))]
+    pub(crate) first_tri: u32,
+    /// Number of triangles belonging to this meshlet cluster (`<= 64`).
+    #[get(type(copy))]
+    pub(crate) tri_count: u32,
+    /// Tight local-space bounding box enclosing all cluster vertices.
+    #[get(type(copy))]
+    pub(crate) bounds: Aabb3D,
+    /// Average outward normal cone axis for backface cluster culling.
+    #[get(type(copy))]
+    pub(crate) cone_axis: Vec3,
+    /// Minimum dot product between member face normals and `cone_axis`.
+    #[get(type(copy))]
+    pub(crate) cone_cutoff: f32,
+    /// Geometric screen-space error metric used for continuous LOD transitions.
+    #[get(type(copy))]
+    pub(crate) screen_error: f32,
+}
+
+/// Indexed triangle mesh with local AABB, Nanite-style meshlet clusters, and default PBR material.
 #[derive(Clone, Data, Debug, PartialEq)]
 pub struct Mesh3D {
     /// Human-readable asset name.
@@ -46,6 +107,8 @@ pub struct Mesh3D {
     /// Default PBR surface material.
     #[get(type(copy))]
     pub(crate) material: PbrMaterial,
+    /// Partitioned Nanite-style meshlet clusters for hierarchical culling and LOD streaming.
+    pub(crate) meshlets: Vec<Meshlet3D>,
 }
 
 /// Multi-level Level-of-Detail (LOD) mesh chain (`LOD0` full detail through `LOD2` distant proxy).
