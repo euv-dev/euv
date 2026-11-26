@@ -1,10 +1,14 @@
 use super::*;
 
-/// Horizontal breadcrumb trail separated by `/`.
+/// Horizontal breadcrumb trail separated by `/` with optional reactive active segment selection.
 #[derive(Clone, Data, New)]
 pub struct EuvBreadcrumb {
     /// Ordered trail labels.
     pub(crate) segments: Vec<String>,
+    /// Optional reactive active segment index updated when clicking breadcrumb items.
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) active: Option<Signal<usize>>,
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,

@@ -41,6 +41,13 @@ crate-type = ["cdylib"]
 [dependencies]
 euv = { path = "${REPO_ROOT}" }
 euv-example = { path = "${REPO_ROOT}/example" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
 EOF
 
 cat > "${BUILD_DIR}/rust/src/lib.rs" <<'EOF'
@@ -187,9 +194,89 @@ pub struct EuvAndroidHandle {
     app: App,
     _state: ShowcaseState,
     wid: WindowId,
+    native_window: *mut ANativeWindow,
+    surface_w: u32,
+    surface_h: u32,
     argb: Vec<i32>,
     width: u32,
     height: u32,
+    last_step_us: u64,
+    last_blit_us: u64,
+}
+
+#[repr(C)]
+pub struct ANativeWindow {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+pub struct ANativeWindowBuffer {
+    pub width: i32,
+    pub height: i32,
+    pub stride: i32,
+    pub format: i32,
+    pub bits: *mut c_void,
+    pub reserved: [u32; 6],
+}
+
+const WINDOW_FORMAT_RGBA_8888: i32 = 1;
+
+#[link(name = "android")]
+unsafe extern "C" {
+    fn ANativeWindow_fromSurface(env: JniEnv, surface: JObject) -> *mut ANativeWindow;
+    fn ANativeWindow_release(window: *mut ANativeWindow);
+    fn ANativeWindow_setBuffersGeometry(
+        window: *mut ANativeWindow,
+        width: i32,
+        height: i32,
+        format: i32,
+    ) -> i32;
+    fn ANativeWindow_lock(
+        window: *mut ANativeWindow,
+        out_buffer: *mut ANativeWindowBuffer,
+        in_out_dirty_bounds: *mut c_void,
+    ) -> i32;
+    fn ANativeWindow_unlockAndPost(window: *mut ANativeWindow) -> i32;
+}
+
+impl Drop for EuvAndroidHandle {
+    fn drop(&mut self) {
+        if !self.native_window.is_null() {
+            unsafe { ANativeWindow_release(self.native_window) };
+            self.native_window = std::ptr::null_mut();
+        }
+    }
+}
+
+fn copy_rgba_to_native_window(src: &[u8], w: usize, h: usize, buf: &ANativeWindowBuffer) {
+    if buf.bits.is_null() || buf.width <= 0 || buf.height <= 0 || buf.stride <= 0 {
+        return;
+    }
+    let copy_w: usize = w.min(buf.width as usize);
+    let copy_h: usize = h.min(buf.height as usize);
+    let src_stride: usize = w * 4;
+    let dst_stride: usize = (buf.stride as usize) * 4;
+    let row_bytes: usize = copy_w * 4;
+    if copy_w == 0 || copy_h == 0 || src.len() < copy_h * src_stride {
+        return;
+    }
+    let dst_ptr: *mut u8 = buf.bits.cast::<u8>();
+    if src_stride == dst_stride && copy_w == w {
+        let total_bytes: usize = copy_h * row_bytes;
+        unsafe {
+            std::ptr::copy_nonoverlapping(src.as_ptr(), dst_ptr, total_bytes);
+        }
+        return;
+    }
+    for y in 0..copy_h {
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                src.as_ptr().add(y * src_stride),
+                dst_ptr.add(y * dst_stride),
+                row_bytes,
+            );
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -250,11 +337,158 @@ pub extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeCreate(
         app,
         _state: state,
         wid,
+        native_window: std::ptr::null_mut(),
+        surface_w: 0,
+        surface_h: 0,
         argb: Vec::new(),
         width: 0,
         height: 0,
+        last_step_us: 0,
+        last_blit_us: 0,
     });
     Box::into_raw(handle) as i64
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeSetSurface(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    surface: JObject,
+    phys_width: i32,
+    phys_height: i32,
+    scale: f32,
+) {
+    if ptr == 0 {
+        return;
+    }
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    if !h.native_window.is_null() {
+        unsafe { ANativeWindow_release(h.native_window) };
+        h.native_window = std::ptr::null_mut();
+        h.surface_w = 0;
+        h.surface_h = 0;
+    }
+    if !surface.is_null() && phys_width > 0 && phys_height > 0 {
+        let win: *mut ANativeWindow = unsafe { ANativeWindow_fromSurface(env, surface) };
+        if !win.is_null() {
+            let pw: u32 = phys_width.max(200) as u32;
+            let ph: u32 = phys_height.max(200) as u32;
+            let s: f32 = scale.clamp(1.0, 4.5);
+            unsafe {
+                let _ = ANativeWindow_setBuffersGeometry(
+                    win,
+                    pw as i32,
+                    ph as i32,
+                    WINDOW_FORMAT_RGBA_8888,
+                );
+            }
+            h.native_window = win;
+            h.surface_w = pw;
+            h.surface_h = ph;
+            h.app.set_exact_physical_viewport(pw, ph, s);
+        }
+    }
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeStepSurface(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    dt: f32,
+    force_present: i32,
+) -> i32 {
+    if ptr == 0 {
+        return 0;
+    }
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    let t_step = std::time::Instant::now();
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let step_res = h.app.step_game_frame(dt.clamp(1.0 / 240.0, 0.05));
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+    h.last_step_us = t_step.elapsed().as_micros() as u64;
+    let Ok(stats) = step_res else {
+        return 0;
+    };
+    let changed: bool = stats.get_pixels_shaded() > 0 || h.width == 0 || force_present != 0;
+    if !changed || h.native_window.is_null() {
+        h.last_blit_us = 0;
+        return 0;
+    }
+    let t_blit = std::time::Instant::now();
+    if let Some(fb) = h.app.get_renderer().framebuffer() {
+        let w: u32 = fb.get_width();
+        let ht: u32 = fb.get_height();
+        h.width = w;
+        h.height = ht;
+        if w > 0 && ht > 0 {
+            if h.surface_w != w || h.surface_h != ht {
+                unsafe {
+                    let _ = ANativeWindow_setBuffersGeometry(
+                        h.native_window,
+                        w as i32,
+                        ht as i32,
+                        WINDOW_FORMAT_RGBA_8888,
+                    );
+                }
+                h.surface_w = w;
+                h.surface_h = ht;
+            }
+            let mut buf: ANativeWindowBuffer = ANativeWindowBuffer {
+                width: 0,
+                height: 0,
+                stride: 0,
+                format: 0,
+                bits: std::ptr::null_mut(),
+                reserved: [0; 6],
+            };
+            let lock_rc: i32 = unsafe {
+                ANativeWindow_lock(h.native_window, &mut buf, std::ptr::null_mut())
+            };
+            if lock_rc == 0 {
+                copy_rgba_to_native_window(
+                    fb.get_pixels().as_slice(),
+                    w as usize,
+                    ht as usize,
+                    &buf,
+                );
+                unsafe {
+                    let _ = ANativeWindow_unlockAndPost(h.native_window);
+                }
+            }
+        }
+    }
+    h.last_blit_us = t_blit.elapsed().as_micros() as u64;
+    1
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeGetLastStepUs(
+    _env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+) -> i64 {
+    if ptr == 0 {
+        return 0;
+    }
+    let h: &EuvAndroidHandle = unsafe { &*(ptr as *const EuvAndroidHandle) };
+    h.last_step_us as i64
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeGetLastBlitUs(
+    _env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+) -> i64 {
+    if ptr == 0 {
+        return 0;
+    }
+    let h: &EuvAndroidHandle = unsafe { &*(ptr as *const EuvAndroidHandle) };
+    h.last_blit_us as i64
 }
 
 #[unsafe(no_mangle)]
@@ -594,6 +828,7 @@ import android.os.Build;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.util.Log;
+import android.view.Surface;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.widget.Toast;
@@ -739,6 +974,10 @@ public final class EuvNativeBridge {
 
     public static native long nativeCreate(int physWidth, int physHeight, float scale);
     public static native void nativeResize(long handle, int physWidth, int physHeight, float scale);
+    public static native void nativeSetSurface(long handle, Surface surface, int physWidth, int physHeight, float scale);
+    public static native int nativeStepSurface(long handle, float dt, int forcePresent);
+    public static native long nativeGetLastStepUs(long handle);
+    public static native long nativeGetLastBlitUs(long handle);
     public static native void nativeSetSafeArea(long handle, float top, float right, float bottom, float left);
     public static native void nativeTouchDown(long handle, int pointerId, float x, float y);
     public static native void nativeTouchMove(long handle, int pointerId, float x, float y);
@@ -760,25 +999,48 @@ package vip.ltpp.euv.showcase;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.Configuration;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Insets;
-import android.graphics.Paint;
-import android.graphics.Rect;
+import android.graphics.PixelFormat;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Choreographer;
+import android.view.Display;
 import android.view.MotionEvent;
-import android.view.View;
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
-import java.nio.ByteBuffer;
 
 public final class EuvActivity extends Activity {
     private EuvCanvasView canvasView;
+    private float targetRefreshHz = 60.0f;
+
+    private void selectHighestRefreshMode(Window win) {
+        try {
+            Display display = getDisplay();
+            if (display == null) return;
+            Display.Mode current = display.getMode();
+            Display.Mode best = current;
+            for (Display.Mode m : display.getSupportedModes()) {
+                if (m.getPhysicalWidth() == current.getPhysicalWidth()
+                    && m.getPhysicalHeight() == current.getPhysicalHeight()
+                    && m.getRefreshRate() > best.getRefreshRate()) {
+                    best = m;
+                }
+            }
+            targetRefreshHz = Math.max(60.0f, best.getRefreshRate());
+            WindowManager.LayoutParams lp = win.getAttributes();
+            lp.preferredDisplayModeId = best.getModeId();
+            win.setAttributes(lp);
+        } catch (Throwable t) {
+            Log.w("euv-fps", "refresh mode hint skipped: " + t.getMessage());
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -791,7 +1053,8 @@ public final class EuvActivity extends Activity {
         WindowManager.LayoutParams lp = win.getAttributes();
         lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         win.setAttributes(lp);
-        canvasView = new EuvCanvasView(this);
+        selectHighestRefreshMode(win);
+        canvasView = new EuvCanvasView(this, targetRefreshHz);
         setContentView(canvasView);
         canvasView.post(() -> {
             WindowInsetsController ctrl = win.getInsetsController();
@@ -853,25 +1116,31 @@ public final class EuvActivity extends Activity {
         }
     }
 
-    private static final class EuvCanvasView extends View implements Choreographer.FrameCallback {
+    private static final class EuvCanvasView extends SurfaceView implements SurfaceHolder.Callback, Choreographer.FrameCallback {
         private long handle = 0;
         private float displayDensity = 2.0f;
         private float renderScale = 2.0f;
-        private ByteBuffer pixelBuf = ByteBuffer.allocateDirect(4);
-        private Bitmap bitmap = null;
+        private final float targetFps;
+        private boolean surfaceReady = false;
+        private int surfaceW = 0;
+        private int surfaceH = 0;
         private long lastNanos = 0;
-        private long lastBlitNanos = 0;
         private boolean running = false;
-        private final Rect dstRect = new Rect();
-        private final Paint blitPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
         private long renderedFrames = 0;
-        private double accumRenderMs = 0.0;
+        private double accumTotalMs = 0.0;
+        private double accumStepMs = 0.0;
+        private double accumBlitMs = 0.0;
         private double maxRenderMs = 0.0;
         private long droppedFrames = 0;
 
-        EuvCanvasView(Context ctx) {
+        EuvCanvasView(Context ctx, float preferredHz) {
             super(ctx);
+            targetFps = Math.max(60.0f, preferredHz);
             refreshDensity(ctx);
+            getHolder().setFormat(PixelFormat.RGBA_8888);
+            getHolder().addCallback(this);
+            setFocusable(true);
+            setFocusableInTouchMode(true);
             setOnApplyWindowInsetsListener((v, insets) -> {
                 Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
                 if (handle != 0) {
@@ -892,51 +1161,60 @@ public final class EuvActivity extends Activity {
             renderScale = Math.max(1.0f, Math.min(4.5f, displayDensity));
         }
 
-        void syncDisplayScaleAndResize() {
-            refreshDensity(getContext());
-            int w = getWidth();
-            int h = getHeight();
-            if (handle != 0 && w > 0 && h > 0) {
-                EuvNativeBridge.nativeResize(handle, w, h, renderScale);
-                requestApplyInsets();
-                stepAndBlit(1.0f / 60.0f);
-                invalidate();
-            }
-        }
-
-        private void ensurePixelBuffer(int neededPixels) {
-            int neededBytes = Math.max(4, neededPixels * 4);
-            if (pixelBuf == null || pixelBuf.capacity() < neededBytes) {
-                pixelBuf = ByteBuffer.allocateDirect(neededBytes);
-            }
-        }
-
-        private void ensureBitmap(int bw, int bh) {
-            if (bitmap == null || bitmap.getWidth() != bw || bitmap.getHeight() != bh) {
-                bitmap = Bitmap.createBitmap(Math.max(1, bw), Math.max(1, bh), Bitmap.Config.ARGB_8888);
+        private void applySurfaceFrameRate(Surface surface) {
+            if (surface != null && Build.VERSION.SDK_INT >= 30) {
+                try {
+                    surface.setFrameRate(targetFps, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT);
+                } catch (Throwable ignored) {
+                }
             }
         }
 
         @Override
-        protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-            super.onSizeChanged(w, h, oldw, oldh);
-            if (w <= 0 || h <= 0) return;
+        public void surfaceCreated(SurfaceHolder holder) {
+            applySurfaceFrameRate(holder.getSurface());
+        }
+
+        @Override
+        public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+            if (width <= 0 || height <= 0) return;
             refreshDensity(getContext());
+            surfaceW = width;
+            surfaceH = height;
+            Surface surface = holder.getSurface();
+            applySurfaceFrameRate(surface);
             if (handle == 0) {
-                handle = EuvNativeBridge.nativeCreate(w, h, renderScale);
-            } else {
-                EuvNativeBridge.nativeResize(handle, w, h, renderScale);
+                handle = EuvNativeBridge.nativeCreate(width, height, renderScale);
             }
+            EuvNativeBridge.nativeSetSurface(handle, surface, width, height, renderScale);
+            surfaceReady = true;
             requestApplyInsets();
-            ensurePixelBuffer(w * h);
-            stepAndBlit(1.0f / 60.0f);
-            invalidate();
+            stepAndPresent(1.0f / targetFps, true);
+        }
+
+        @Override
+        public void surfaceDestroyed(SurfaceHolder holder) {
+            surfaceReady = false;
+            if (handle != 0) {
+                EuvNativeBridge.nativeSetSurface(handle, null, 0, 0, renderScale);
+            }
+        }
+
+        void syncDisplayScaleAndResize() {
+            refreshDensity(getContext());
+            int w = surfaceW > 0 ? surfaceW : getWidth();
+            int h = surfaceH > 0 ? surfaceH : getHeight();
+            if (handle != 0 && surfaceReady && w > 0 && h > 0) {
+                EuvNativeBridge.nativeSetSurface(handle, getHolder().getSurface(), w, h, renderScale);
+                requestApplyInsets();
+                stepAndPresent(1.0f / targetFps, true);
+            }
         }
 
         boolean dispatchSystemBack() {
             if (handle == 0) return false;
             EuvNativeBridge.nativeSystemBack(handle);
-            stepAndBlit(1.0f / 60.0f);
+            stepAndPresent(1.0f / targetFps, false);
             return true;
         }
 
@@ -956,59 +1234,46 @@ public final class EuvActivity extends Activity {
         @Override
         public void doFrame(long frameTimeNanos) {
             if (!running) return;
-            float dt = (lastNanos > 0) ? ((frameTimeNanos - lastNanos) / 1_000_000_000.0f) : (1.0f / 60.0f);
+            float dt = (lastNanos > 0) ? ((frameTimeNanos - lastNanos) / 1_000_000_000.0f) : (1.0f / targetFps);
             lastNanos = frameTimeNanos;
-            stepAndBlit(dt);
+            stepAndPresent(dt, false);
             Choreographer.getInstance().postFrameCallback(this);
         }
 
-        private void stepAndBlit(float dt) {
-            if (handle == 0 || getWidth() <= 0 || getHeight() <= 0) return;
+        private void stepAndPresent(float dt, boolean force) {
+            if (handle == 0 || !surfaceReady) return;
             long t0 = System.nanoTime();
-            ensurePixelBuffer(getWidth() * getHeight());
-            int changed = EuvNativeBridge.nativeStepFrameDirect(handle, dt, pixelBuf, pixelBuf.capacity());
-            if (changed != 0) {
-                int bw = EuvNativeBridge.nativeGetWidth(handle);
-                int bh = EuvNativeBridge.nativeGetHeight(handle);
-                int byteLen = bw * bh * 4;
-                if (bw > 0 && bh > 0 && byteLen > pixelBuf.capacity()) {
-                    ensurePixelBuffer(bw * bh + 1024);
-                    EuvNativeBridge.nativeCopyFramebufferDirect(handle, pixelBuf, pixelBuf.capacity());
-                }
-                if (bw > 0 && bh > 0 && byteLen <= pixelBuf.capacity()) {
-                    ensureBitmap(bw, bh);
-                    pixelBuf.rewind();
-                    pixelBuf.limit(byteLen);
-                    bitmap.copyPixelsFromBuffer(pixelBuf);
-                    pixelBuf.clear();
-                    lastBlitNanos = System.nanoTime();
-                    invalidate();
-                    double renderMs = (lastBlitNanos - t0) / 1_000_000.0;
-                    renderedFrames += 1;
-                    accumRenderMs += renderMs;
-                    if (renderMs > maxRenderMs) maxRenderMs = renderMs;
-                    if (renderMs > 16.67) droppedFrames += 1;
-                    if (renderedFrames % 60 == 0) {
-                        Log.i("euv-fps", String.format(
-                            "android rendered=%d avg=%.2fms max=%.2fms dropped=%d res=%dx%d",
-                            renderedFrames, accumRenderMs / 60.0, maxRenderMs, droppedFrames, bw, bh
-                        ));
-                        accumRenderMs = 0.0;
-                        maxRenderMs = 0.0;
-                    }
-                }
-            }
-        }
-
-        @Override
-        protected void onDraw(Canvas canvas) {
-            super.onDraw(canvas);
-            if (bitmap != null) {
-                if (bitmap.getWidth() == getWidth() && bitmap.getHeight() == getHeight()) {
-                    canvas.drawBitmap(bitmap, 0.0f, 0.0f, null);
-                } else {
-                    dstRect.set(0, 0, getWidth(), getHeight());
-                    canvas.drawBitmap(bitmap, null, dstRect, blitPaint);
+            int presented = EuvNativeBridge.nativeStepSurface(handle, dt, force ? 1 : 0);
+            if (presented != 0) {
+                double totalMs = (System.nanoTime() - t0) / 1_000_000.0;
+                double stepMs = EuvNativeBridge.nativeGetLastStepUs(handle) / 1000.0;
+                double blitMs = EuvNativeBridge.nativeGetLastBlitUs(handle) / 1000.0;
+                renderedFrames += 1;
+                accumTotalMs += totalMs;
+                accumStepMs += stepMs;
+                accumBlitMs += blitMs;
+                if (totalMs > maxRenderMs) maxRenderMs = totalMs;
+                double budgetMs = 1000.0 / targetFps;
+                if (totalMs > budgetMs) droppedFrames += 1;
+                if (renderedFrames % 60 == 0) {
+                    int bw = EuvNativeBridge.nativeGetWidth(handle);
+                    int bh = EuvNativeBridge.nativeGetHeight(handle);
+                    Log.i("euv-fps", String.format(
+                        "android rendered=%d avg=%.2fms (step=%.2fms blit=%.2fms) max=%.2fms dropped=%d target=%.0fHz res=%dx%d",
+                        renderedFrames,
+                        accumTotalMs / 60.0,
+                        accumStepMs / 60.0,
+                        accumBlitMs / 60.0,
+                        maxRenderMs,
+                        droppedFrames,
+                        targetFps,
+                        bw,
+                        bh
+                    ));
+                    accumTotalMs = 0.0;
+                    accumStepMs = 0.0;
+                    accumBlitMs = 0.0;
+                    maxRenderMs = 0.0;
                 }
             }
         }

@@ -141,6 +141,15 @@ impl ShowcaseState {
             ),
             cmd_palette_open: Signal::new(false),
             cmd_palette_query: Signal::new(String::new()),
+            picker_color: Signal::new(Color::hex(0x2563EB)),
+            picker_time: Signal::new((14, 30)),
+            tag_items: Signal::new(vec![
+                DEFAULT_TAG_RUST.to_string(),
+                DEFAULT_TAG_NATIVE.to_string(),
+                DEFAULT_TAG_WASM.to_string(),
+            ]),
+            tree_selected: Signal::new(None),
+            breadcrumb_active: Signal::new(2),
         }
     }
 

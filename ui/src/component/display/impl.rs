@@ -385,7 +385,10 @@ impl EuvVirtualList {
                 let _: bool = scroll_cfg.get_scroll_y().set_if_changed(next);
             }
         });
-        let range_memo: Memo<(usize, usize)> = Memo::new(move || list_cfg.visible_range());
+        let range_memo: Memo<(usize, usize)> = Memo::new(move || {
+            let _: f32 = scroll_sig.get();
+            list_cfg.visible_range()
+        });
         let range_for_scroll: Memo<(usize, usize)> = range_memo;
         let scene_for_scroll: SceneHandle = ctx.get_scene().clone();
         let scene_for_rows: SceneHandle = ctx.get_scene().clone();

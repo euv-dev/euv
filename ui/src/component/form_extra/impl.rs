@@ -693,3 +693,394 @@ impl Mountable for EuvRating {
         row
     }
 }
+
+/// Fluent swatch preset builder for `EuvColorPicker`.
+impl EuvColorPicker {
+    /// Overrides the clickable color swatch presets fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source color picker.
+    /// - `Vec<Color>` - Custom swatch palette colors.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated color picker.
+    #[must_use]
+    pub fn presets(mut self, presets: Vec<Color>) -> Self {
+        self.set_presets(presets);
+        self
+    }
+}
+
+/// `Mountable` implementation for `EuvColorPicker`.
+impl Mountable for EuvColorPicker {
+    /// Mounts the live color preview pill, hex readout, and clickable swatch grid.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Color picker props.
+    /// - `&mut BuildContext` - Active build context.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted color picker container handle.
+    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+        let p: ThemePalette = self.get_tokens().get_palette();
+        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let sig: Signal<Color> = self.get_value();
+        let Self { presets, .. } = self;
+        let swatches: Vec<Color> = if presets.is_empty() {
+            COLOR_PICKER_DEFAULTS
+                .iter()
+                .copied()
+                .map(Color::hex)
+                .collect()
+        } else {
+            presets
+        };
+        let root: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .gap(SPACE_SM),
+        );
+        let header: NodeId = ctx.view(Style::empty().row().align(AlignItems::Center).gap(SPACE_SM));
+        let preview: NodeId = ctx.view(Style::empty());
+        let hex_readout: NodeId = ctx.reactive_text(
+            Style::empty()
+                .font_family(FontFamily::Monospace)
+                .font_size(13.0)
+                .font_weight(FontWeight::Medium)
+                .color(p.get_foreground()),
+            move || {
+                let c: Color = sig.get();
+                format!("#{:02X}{:02X}{:02X}", c.get_r(), c.get_g(), c.get_b())
+            },
+        );
+        let handle_prev: SceneHandle = ctx.get_scene().clone();
+        let (prev_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            handle_prev.bind_style(preview, move || {
+                Style::empty()
+                    .width(Length::Px(24.0))
+                    .height(Length::Px(24.0))
+                    .radius(g.get_radius_sm())
+                    .background(sig.get())
+                    .border(g.get_border_width(), p.get_border())
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(preview, prev_scope);
+            },
+            (),
+        );
+        ctx.append(header, preview);
+        ctx.append(header, hex_readout);
+        let palette_row: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .wrap(FlexWrap::Wrap)
+                .width(Length::Percent(100.0))
+                .gap(SPACE_XS),
+        );
+        for swatch_color in swatches.into_iter() {
+            let dot: NodeId = ctx.view(Style::empty());
+            let handle_dot: SceneHandle = ctx.get_scene().clone();
+            let (dot_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                handle_dot.bind_style(dot, move || {
+                    let active: bool = sig.get() == swatch_color;
+                    Style::empty()
+                        .width(Length::Px(26.0))
+                        .height(Length::Px(26.0))
+                        .radius(g.get_radius_sm())
+                        .background(swatch_color)
+                        .border(
+                            if active { 2.0 } else { g.get_border_width() },
+                            if active {
+                                p.get_foreground()
+                            } else {
+                                p.get_border()
+                            },
+                        )
+                        .cursor(CursorIcon::Pointer)
+                })
+            });
+            ctx.get_scene().with_write(
+                |tree: &mut SceneTree| {
+                    tree.attach_scope(dot, dot_scope);
+                },
+                (),
+            );
+            ctx.on_click(dot, move |_: &UiEvent| {
+                let _: bool = sig.set_if_changed(swatch_color);
+            });
+            ctx.append(palette_row, dot);
+        }
+        ctx.append(root, header);
+        ctx.append(root, palette_row);
+        root
+    }
+}
+
+/// `Mountable` implementation for `EuvTimePicker`.
+impl Mountable for EuvTimePicker {
+    /// Mounts 24-hour `HH : MM` steppers and quick time presets bound reactively to `value`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Time picker props.
+    /// - `&mut BuildContext` - Active build context.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted time picker container handle.
+    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let sig: Signal<(u8, u8)> = self.get_value();
+        let root: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .gap(SPACE_SM),
+        );
+        let controls: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .wrap(FlexWrap::Wrap)
+                .align(AlignItems::Center)
+                .gap(SPACE_XS),
+        );
+        let h_dec: NodeId = EuvButton::new(STEP_MINUS.to_string(), tokens)
+            .outline()
+            .sm()
+            .on_click(move |_: &UiEvent| {
+                let _: bool = sig.update(|v: &mut (u8, u8)| {
+                    v.0 = if v.0 == 0 { 23 } else { v.0 - 1 };
+                });
+            })
+            .mount(ctx);
+        let h_inc: NodeId = EuvButton::new(STEP_PLUS.to_string(), tokens)
+            .outline()
+            .sm()
+            .on_click(move |_: &UiEvent| {
+                let _: bool = sig.update(|v: &mut (u8, u8)| {
+                    v.0 = (v.0 + 1) % 24;
+                });
+            })
+            .mount(ctx);
+        let readout: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .height(Length::Px(g.get_control_sm()))
+                .padding(Edges::symmetric(0.0, SPACE_MD))
+                .justify(JustifyContent::Center)
+                .align(AlignItems::Center)
+                .background(p.get_card())
+                .border(g.get_border_width(), p.get_border())
+                .radius(g.get_radius_sm()),
+        );
+        let readout_txt: NodeId = ctx.reactive_text(
+            Style::empty()
+                .font_family(FontFamily::Monospace)
+                .font_size(14.0)
+                .font_weight(FontWeight::SemiBold)
+                .color(p.get_foreground()),
+            move || {
+                let (hh, mm): (u8, u8) = sig.get();
+                format!("{:02}:{:02}", hh % 24, mm % 60)
+            },
+        );
+        ctx.append(readout, readout_txt);
+        let m_dec: NodeId = EuvButton::new(STEP_MINUS.to_string(), tokens)
+            .outline()
+            .sm()
+            .on_click(move |_: &UiEvent| {
+                let _: bool = sig.update(|v: &mut (u8, u8)| {
+                    v.1 = (v.1 + 55) % 60;
+                });
+            })
+            .mount(ctx);
+        let m_inc: NodeId = EuvButton::new(STEP_PLUS.to_string(), tokens)
+            .outline()
+            .sm()
+            .on_click(move |_: &UiEvent| {
+                let _: bool = sig.update(|v: &mut (u8, u8)| {
+                    v.1 = (v.1 + 5) % 60;
+                });
+            })
+            .mount(ctx);
+        let h_lbl: NodeId = ctx.text(
+            TIME_HOUR_LABEL.to_string(),
+            Style::empty()
+                .font_size(11.0)
+                .color(p.get_muted_foreground()),
+        );
+        let m_lbl: NodeId = ctx.text(
+            TIME_MIN_LABEL.to_string(),
+            Style::empty()
+                .font_size(11.0)
+                .color(p.get_muted_foreground()),
+        );
+        ctx.append(controls, h_lbl);
+        ctx.append(controls, h_dec);
+        ctx.append(controls, h_inc);
+        ctx.append(controls, readout);
+        ctx.append(controls, m_dec);
+        ctx.append(controls, m_inc);
+        ctx.append(controls, m_lbl);
+        let presets_row: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .wrap(FlexWrap::Wrap)
+                .width(Length::Percent(100.0))
+                .gap(SPACE_XS),
+        );
+        for (ph, pm) in TIME_PRESETS.iter().copied() {
+            let btn: NodeId = EuvButton::new(format!("{ph:02}:{pm:02}"), tokens)
+                .secondary()
+                .sm()
+                .on_click(move |_: &UiEvent| {
+                    let _: bool = sig.set_if_changed((ph, pm));
+                })
+                .mount(ctx);
+            ctx.append(presets_row, btn);
+        }
+        ctx.append(root, controls);
+        ctx.append(root, presets_row);
+        root
+    }
+}
+
+/// Fluent placeholder builder for `EuvTagInput`.
+impl EuvTagInput {
+    /// Sets the tag input field placeholder text fluently.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source tag input.
+    /// - `S` - Placeholder string.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated tag input.
+    #[must_use]
+    pub fn placeholder<S>(mut self, placeholder: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.set_placeholder(placeholder.into());
+        self
+    }
+}
+
+/// `Mountable` implementation for `EuvTagInput`.
+impl Mountable for EuvTagInput {
+    /// Mounts removable tag chips paired with an inline input and add button.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Tag input props.
+    /// - `&mut BuildContext` - Active build context.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Mounted tag input container handle.
+    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+        let tokens: ThemeTokens = self.get_tokens();
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let tags_sig: Signal<Vec<String>> = self.get_tags();
+        let Self { placeholder, .. } = self;
+        let resolved_ph: String = if placeholder.is_empty() {
+            TAG_DEFAULT_PLACEHOLDER.to_string()
+        } else {
+            placeholder
+        };
+        let draft: Signal<String> = Signal::new(String::new());
+        let root: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .gap(SPACE_SM),
+        );
+        let chips_host: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .wrap(FlexWrap::Wrap)
+                .width(Length::Percent(100.0))
+                .gap(SPACE_XS),
+        );
+        ctx.bind_children(chips_host, move || {
+            let items: Vec<String> = tags_sig.get();
+            let mut bctx: BuildContext = current_build_context();
+            let mut out: Vec<NodeId> = Vec::with_capacity(items.len());
+            for (idx, tag) in items.into_iter().enumerate() {
+                let chip: NodeId = bctx.view(
+                    Style::empty()
+                        .row()
+                        .align(AlignItems::Center)
+                        .padding(Edges::symmetric(4.0, SPACE_SM))
+                        .gap(6.0)
+                        .background(p.get_secondary())
+                        .border(g.get_border_width(), p.get_border())
+                        .radius(999.0)
+                        .cursor(CursorIcon::Pointer),
+                );
+                let txt: NodeId = bctx.text(
+                    format!("{tag}  x"),
+                    Style::empty()
+                        .font_size(12.0)
+                        .font_weight(FontWeight::Medium)
+                        .color(p.get_secondary_foreground()),
+                );
+                bctx.append(chip, txt);
+                bctx.on_click(chip, move |_: &UiEvent| {
+                    let _: bool = tags_sig.update(|list: &mut Vec<String>| {
+                        if idx < list.len() {
+                            let _: String = list.remove(idx);
+                        }
+                    });
+                });
+                out.push(chip);
+            }
+            out
+        });
+        let entry_row: NodeId = ctx.view(
+            Style::empty()
+                .row()
+                .width(Length::Percent(100.0))
+                .align(AlignItems::Center)
+                .gap(SPACE_XS),
+        );
+        let inp_wrap: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .flex_grow(1.0)
+                .min_width(Length::Px(80.0)),
+        );
+        let inp: NodeId = EuvInput::new(draft, resolved_ph, tokens).mount(ctx);
+        ctx.append(inp_wrap, inp);
+        let add_btn: NodeId = EuvButton::new(TAG_ADD_LABEL.to_string(), tokens)
+            .outline()
+            .on_click(move |_: &UiEvent| {
+                let raw: String = draft.get_untracked().trim().to_string();
+                if !raw.is_empty() {
+                    let _: bool = tags_sig.update(|list: &mut Vec<String>| {
+                        if !list.iter().any(|existing: &String| existing == &raw) {
+                            list.push(raw.clone());
+                        }
+                    });
+                    let _: bool = draft.set_if_changed(String::new());
+                }
+            })
+            .mount(ctx);
+        ctx.append(entry_row, inp_wrap);
+        ctx.append(entry_row, add_btn);
+        ctx.append(root, chips_host);
+        ctx.append(root, entry_row);
+        root
+    }
+}

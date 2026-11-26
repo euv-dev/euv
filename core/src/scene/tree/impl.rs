@@ -358,7 +358,7 @@ impl SceneTree {
                     && layout_box.get_content_size().get_height() <= 0.0
                     && layout_box.get_content_bounds().get_width() <= 0.0
                     && layout_box.get_content_bounds().get_height() <= 0.0;
-                let clamped: Point = if unlaid_out {
+                let clamped: Point = if unlaid_out || node.virtual_scroll_metrics().is_some() {
                     Point::new(offset.get_x().max(0.0), offset.get_y().max(0.0))
                 } else {
                     let max_x: f32 = (layout_box.get_content_size().get_width()

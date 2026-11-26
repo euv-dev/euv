@@ -74,9 +74,14 @@ pub struct App {
     /// Whether the active touch gesture has crossed tap slop into pan-scrolling.
     #[get(type(copy))]
     pub(crate) touch_dragging: bool,
+    /// Locked scroll axis for the active touch drag (`0` = unlocked, `1` = vertical, `2` = horizontal, `3` = free).
+    #[get(type(copy))]
+    pub(crate) touch_scroll_axis: u8,
     /// Touch pan displacement accumulated during the current frame for jitter-free velocity estimation.
     #[get(type(copy))]
     pub(crate) touch_vel_accum_delta: Point,
+    /// Rolling window of recent `(dt_secs, dx, dy)` frame samples preventing thumb-lift backward fling reversals.
+    pub(crate) touch_vel_samples: Vec<(f32, f32, f32)>,
     /// Elapsed idle seconds since the last touch pan movement while a finger remains held down.
     #[get(type(copy))]
     pub(crate) touch_vel_idle_secs: f32,

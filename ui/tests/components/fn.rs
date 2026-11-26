@@ -665,3 +665,46 @@ fn rating_tooltip_context_menu_and_input_external_sync_update_pixels() {
     let frame4: FrameStats = app.step_frame().unwrap();
     assert_ne!(frame3.get_frame_hash(), frame4.get_frame_hash());
 }
+
+#[test]
+fn color_picker_time_picker_tag_input_interactive_tree_and_breadcrumb_work() {
+    reset_reactive_runtime();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let color_sig: Signal<Color> = Signal::new(Color::hex(0x2563EB));
+    let time_sig: Signal<(u8, u8)> = Signal::new((9, 30));
+    let tags_sig: Signal<Vec<String>> = Signal::new(vec!["rust".to_string(), "native".to_string()]);
+    let tree_sel: Signal<Option<String>> = Signal::new(None);
+    let crumb_active: Signal<usize> = Signal::new(2);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(800, 900).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        view! {
+            column {
+                width: Length::Px(800.0)
+                height: Length::Px(900.0)
+                padding: Edges::all(16.0)
+                gap: 12.0
+                background: tokens.get_palette().get_background()
+                { EuvBreadcrumb::new(vec!["Home".to_string(), "Forms".to_string(), "Pickers".to_string()], tokens).active(crumb_active) }
+                { EuvColorPicker::new(color_sig, tokens) }
+                { EuvTimePicker::new(time_sig, tokens) }
+                { EuvTagInput::new(tags_sig, tokens).placeholder("Add tag...") }
+                { EuvTree::new(vec![EuvTreeNode::new("Root".to_string(), vec![EuvTreeNode::new("Child".to_string(), Vec::new())])], tokens).selected(tree_sel) }
+            }
+        }
+    });
+    let frame0: FrameStats = app.step_frame().unwrap();
+    assert_ne!(frame0.get_frame_hash(), 0);
+    let _: bool = color_sig.set(Color::hex(0x16A34A));
+    let _: bool = time_sig.set((14, 45));
+    let _: bool = tags_sig.update(|items: &mut Vec<String>| items.push("gpu".to_string()));
+    let _: bool = tree_sel.set(Some("Child".to_string()));
+    let _: bool = crumb_active.set(1);
+    let frame1: FrameStats = app.step_frame().unwrap();
+    assert_ne!(frame0.get_frame_hash(), frame1.get_frame_hash());
+    assert_eq!(tags_sig.get_untracked().len(), 3);
+    assert_eq!(time_sig.get_untracked(), (14, 45));
+}

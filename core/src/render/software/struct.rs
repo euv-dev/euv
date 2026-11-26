@@ -1,5 +1,110 @@
 use super::*;
 
+/// Single disjoint horizontal framebuffer strip dispatched to a persistent rasterization worker thread.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone, Copy, Data, Debug, Default)]
+pub(crate) struct BandTaskSlice {
+    /// Raw mutable pixel buffer base address encoded as `usize` for `Send` transfer.
+    #[get(type(copy))]
+    pub(crate) pixels_ptr: usize,
+    /// Byte length of the disjoint horizontal pixel strip.
+    #[get(type(copy))]
+    pub(crate) pixels_len: usize,
+    /// Full framebuffer physical width in pixels.
+    #[get(type(copy))]
+    pub(crate) width: u32,
+    /// Inclusive top physical Y row of this strip.
+    #[get(type(copy))]
+    pub(crate) y_start: u32,
+    /// Number of physical rows inside this strip.
+    #[get(type(copy))]
+    pub(crate) height: u32,
+}
+
+/// Shared read-only frame dispatch state consumed lock-free by persistent band workers during a single `render` call.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub(crate) struct BandJob {
+    /// Base address of the caller-owned `BandTaskSlice` slice.
+    pub(crate) tasks_ptr: usize,
+    /// Number of horizontal strips in the frame job.
+    pub(crate) tasks_len: usize,
+    /// Base address of `DisplayList::commands`.
+    pub(crate) commands_ptr: usize,
+    /// Length of `DisplayList::commands`.
+    pub(crate) commands_len: usize,
+    /// Base address of the pre-processed `PreppedCommand` slice.
+    pub(crate) prepped_ptr: usize,
+    /// Length of the pre-processed `PreppedCommand` slice.
+    pub(crate) prepped_len: usize,
+    /// Base address of the pre-measured `TextLayoutResult` slice.
+    pub(crate) layouts_ptr: usize,
+    /// Length of the pre-measured `TextLayoutResult` slice.
+    pub(crate) layouts_len: usize,
+    /// Base address of the shared read-only `GlyphAtlas`.
+    pub(crate) atlas_ptr: usize,
+    /// Active physical DPI scale factor.
+    pub(crate) scale: f32,
+    /// Active anti-aliasing policy.
+    pub(crate) aa: AntialiasingMode,
+    /// Atomic work-stealing strip cursor shared by the caller and all worker threads.
+    pub(crate) next_idx: AtomicUsize,
+    /// Atomic count of worker threads that finished observing this epoch.
+    pub(crate) workers_done: AtomicUsize,
+    /// Atomic accumulated shaded pixel count across all strips.
+    pub(crate) total_shaded: AtomicUsize,
+}
+
+/// Synchronized dispatch generation and active job pointer shared between the caller and persistent band workers.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone, Copy, Data, Debug, Default)]
+pub(crate) struct BandPoolState {
+    /// Monotonically increasing dispatch epoch counter.
+    #[get(type(copy))]
+    pub(crate) epoch: u64,
+    /// Raw pointer address of the active `BandJob` (`0` while idle).
+    #[get(type(copy))]
+    pub(crate) active_job: usize,
+}
+
+/// Persistent native worker pool eliminating per-frame `pthread_create` overhead on high-refresh mobile and desktop targets.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub(crate) struct BandWorkerPool {
+    /// Number of background worker threads (excluding the calling main thread).
+    pub(crate) worker_count: usize,
+    /// Non-blocking guard ensuring only one frame dispatches through the pool at a time.
+    pub(crate) dispatch_lock: Mutex<()>,
+    /// Shared dispatch state mutex and worker/caller condition variables.
+    pub(crate) shared: Arc<(Mutex<BandPoolState>, Condvar, Condvar)>,
+}
+
+/// Preprocessed draw-command metadata computed once on the main thread before parallel band rasterization.
+#[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
+pub(crate) struct PreppedCommand {
+    /// Original index inside `DisplayList::commands`.
+    #[get(type(copy))]
+    pub(crate) cmd_index: usize,
+    /// Active intersected physical clip rectangle for this command.
+    #[get(type(copy))]
+    pub(crate) active_clip: Rect,
+    /// Inclusive top physical Y row affected by this command.
+    #[get(type(copy))]
+    pub(crate) y0: u32,
+    /// Exclusive bottom physical Y row affected by this command.
+    #[get(type(copy))]
+    pub(crate) y1: u32,
+    /// Optional opaque inner vertical-span cutout for a `BoxShadow` followed immediately by an opaque `FillRoundedRect`.
+    #[get(type(copy))]
+    pub(crate) opaque_cutout_h: Rect,
+    /// Optional opaque inner horizontal-span cutout for a `BoxShadow` followed immediately by an opaque `FillRoundedRect`.
+    #[get(type(copy))]
+    pub(crate) opaque_cutout_v: Rect,
+    /// Optional index into the per-frame pre-resolved `TextLayoutResult` slice (`u32::MAX` when unused).
+    #[get(type(copy))]
+    pub(crate) text_layout_idx: u32,
+}
+
 /// High-performance CPU tile and analytical-SDF software rasterizer with zero GPU dependencies.
 #[derive(Clone, Data, Debug, Default)]
 pub struct SoftwareRenderer {
@@ -12,6 +117,10 @@ pub struct SoftwareRenderer {
     /// Deterministic text measurer matching `LayoutEngine` metrics.
     #[get(type(copy))]
     pub(crate) measurer: DeterministicTextMeasurer,
+    /// Cached word-wrapped `TextLayoutResult` map eliminating per-frame text layout allocations during scrolling.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    pub(crate) text_layout_cache: HashMap<(u64, u32), TextLayoutResult>,
     /// Active physical clip-rectangle stack.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]

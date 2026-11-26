@@ -159,3 +159,14 @@ pub(crate) const AI_BRIDGE_STATUS_OFF: &str = "0B-release";
 pub(crate) const TOUCH_PAD_READY_TEXT: &str =
     "Multi-Touch Pad Ready: place 1, 2, or more fingers inside the pad (sidebar & scroll isolated)";
 pub(crate) const TOUCH_PAD_CANVAS_HINT: &str = "Touch or drag with 1-5 fingers here";
+pub(crate) const FORMS_EXT_CARD_SUB: &str =
+    "ToggleGroup, InputOTP, ColorPicker, TimePicker, TagInput, Calendar, and Collapsible";
+pub(crate) const TAG_INPUT_PLACEHOLDER: &str = "Add feature tag...";
+pub(crate) const TREE_NODE_WORKSPACE: &str = "Workspace";
+pub(crate) const TREE_NODE_CORE: &str = "euv-core";
+pub(crate) const TREE_NODE_UI: &str = "euv-ui";
+pub(crate) const TREE_NODE_PERF: &str = "euv-performance";
+pub(crate) const TREE_NODE_RENDER: &str = "Renderer (SW/GPU)";
+pub(crate) const TREE_NODE_REACTIVE: &str = "Reactive Signals";
+pub(crate) const TREE_NONE_SELECTED: &str = "None";
+pub(crate) const TREE_SELECTED_PREFIX: &str = "Selected Tree Node";

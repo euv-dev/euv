@@ -1,5 +1,24 @@
 use super::*;
 
+/// Fluent interactive selection builder for `EuvBreadcrumb`.
+impl EuvBreadcrumb {
+    /// Binds a reactive signal capturing the selected breadcrumb segment index when clicked.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source breadcrumb.
+    /// - `Signal<usize>` - Active segment index signal.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Interactive breadcrumb trail.
+    #[must_use]
+    pub fn active(mut self, active: Signal<usize>) -> Self {
+        self.set_active(Some(active));
+        self
+    }
+}
+
 /// `Mountable` implementation for `EuvBreadcrumb`.
 impl Mountable for EuvBreadcrumb {
     /// Mounts the horizontal breadcrumb trail into `ctx`.
@@ -14,7 +33,10 @@ impl Mountable for EuvBreadcrumb {
     /// - `NodeId` - Mounted breadcrumb row handle.
     fn mount(self, ctx: &mut BuildContext) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
-        let Self { segments, .. } = self;
+        let g: ThemeGeometry = self.get_tokens().get_geometry();
+        let Self {
+            segments, active, ..
+        } = self;
         let last_idx: usize = segments.len().saturating_sub(1);
         let row: NodeId = ctx.view(
             Style::empty()
@@ -25,13 +47,53 @@ impl Mountable for EuvBreadcrumb {
                 .gap(SPACE_XS),
         );
         for (idx, seg) in segments.into_iter().enumerate() {
-            let color: Color = if idx == last_idx {
-                p.get_foreground()
+            if let Some(active_sig) = active {
+                let item: NodeId = ctx.view(
+                    Style::empty()
+                        .row()
+                        .padding(Edges::symmetric(2.0, 6.0))
+                        .radius(g.get_radius_sm())
+                        .cursor(CursorIcon::Pointer),
+                );
+                let txt: NodeId = ctx.text(seg, Style::empty());
+                ctx.append(item, txt);
+                let handle: SceneHandle = ctx.get_scene().clone();
+                let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+                    handle.bind_style(txt, move || {
+                        let is_cur: bool = active_sig.get() == idx;
+                        Style::empty()
+                            .font_size(13.0)
+                            .font_weight(if is_cur {
+                                FontWeight::SemiBold
+                            } else {
+                                FontWeight::Normal
+                            })
+                            .color(if is_cur {
+                                p.get_foreground()
+                            } else {
+                                p.get_muted_foreground()
+                            })
+                    })
+                });
+                ctx.get_scene().with_write(
+                    |tree: &mut SceneTree| {
+                        tree.attach_scope(item, scope);
+                    },
+                    (),
+                );
+                ctx.on_click(item, move |_: &UiEvent| {
+                    let _: bool = active_sig.set_if_changed(idx);
+                });
+                ctx.append(row, item);
             } else {
-                p.get_muted_foreground()
-            };
-            let txt: NodeId = ctx.text(seg, Style::empty().font_size(13.0).color(color));
-            ctx.append(row, txt);
+                let color: Color = if idx == last_idx {
+                    p.get_foreground()
+                } else {
+                    p.get_muted_foreground()
+                };
+                let txt: NodeId = ctx.text(seg, Style::empty().font_size(13.0).color(color));
+                ctx.append(row, txt);
+            }
             if idx < last_idx {
                 let sep: NodeId = ctx.text(
                     BREADCRUMB_SEP.to_string(),

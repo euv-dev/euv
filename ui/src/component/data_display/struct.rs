@@ -139,11 +139,15 @@ pub struct EuvTreeNode {
     pub(crate) children: Vec<Self>,
 }
 
-/// Indented hierarchical tree viewer component.
+/// Indented hierarchical tree viewer component with interactive branch folding and optional node selection.
 #[derive(Clone, Data, New)]
 pub struct EuvTree {
     /// Root tree nodes.
     pub(crate) roots: Vec<EuvTreeNode>,
+    /// Optional controlled selected node label signal.
+    #[new(skip)]
+    #[get(skip)]
+    pub(crate) selected: Option<Signal<Option<String>>>,
     /// Active theme tokens.
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,

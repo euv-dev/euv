@@ -209,13 +209,14 @@ impl PaintPass {
         display_list.reset(viewport, scale_factor);
         display_list.push(DrawCommand::Clear(clear_color));
         let viewport_rect: Rect = Rect::new(0.0, 0.0, viewport.get_width(), viewport.get_height());
+        let active_hover_target: Option<NodeId> = Self::resolve_active_hover_target(tree);
         let mut portals: Vec<(i32, usize, NodeId)> = Vec::new();
         Self::emit_node(
             tree,
             tree.get_root(),
-            Point::new(0.0, 0.0),
-            1.0,
+            (Point::new(0.0, 0.0), 1.0),
             viewport_rect,
+            active_hover_target,
             Some(&mut portals),
             display_list,
         );
@@ -226,13 +227,48 @@ impl PaintPass {
             Self::emit_node(
                 tree,
                 portal_id,
-                Point::new(0.0, 0.0),
-                1.0,
+                (Point::new(0.0, 0.0), 1.0),
                 viewport_rect,
+                active_hover_target,
                 None,
                 display_list,
             );
         }
+    }
+
+    /// Resolves the single innermost interactive non-scrim node along the active hover chain so nested controls never stack duplicate hover fills.
+    ///
+    /// # Arguments
+    ///
+    /// - `&SceneTree` - Retained scene tree.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<NodeId>` - Innermost interactive node eligible for hover tinting.
+    #[must_use]
+    fn resolve_active_hover_target(tree: &SceneTree) -> Option<NodeId> {
+        let mut cursor: Option<NodeId> = tree.get_focus().hovered_node();
+        while let Some(id) = cursor {
+            let Some(node) = tree.get_node(id) else {
+                break;
+            };
+            let style: Style = node.get_style();
+            let paint: PaintStyle = style.get_paint();
+            let is_scrim: bool = matches!(node.get_kind(), NodeKind::Portal)
+                || style.get_layout().get_position() == Position::Fixed;
+            let is_transparent_canvas: bool =
+                matches!(node.get_kind(), NodeKind::Canvas) && paint.background_color().is_none();
+            let is_interactive: bool = paint.get_cursor() == CursorIcon::Pointer
+                || node
+                    .get_handlers()
+                    .handler_for(&UiEventKind::Click(Point::default()))
+                    .is_some();
+            if !is_scrim && !is_transparent_canvas && is_interactive {
+                return Some(id);
+            }
+            cursor = node.parent_id();
+        }
+        None
     }
 
     /// Computes subtle shadcn-aligned hover/pressed color tinting for interactive controls.
@@ -282,20 +318,21 @@ impl PaintPass {
     ///
     /// - `&SceneTree` - Scene tree reference.
     /// - `NodeId` - Node to paint.
-    /// - `Point` - Accumulated ancestor scroll offset.
-    /// - `f32` - Accumulated ancestor opacity.
+    /// - `(Point, f32)` - Accumulated ancestor scroll offset and opacity.
     /// - `Rect` - Active cull clip rectangle.
+    /// - `Option<NodeId>` - Innermost hovered interactive node eligible for automatic hover tinting.
     /// - `Option<&mut Vec<(i32, usize, NodeId)>>` - Optional deferred top-layer portal queue (`None` when painting top layer).
     /// - `&mut DisplayList` - Output command list.
     fn emit_node(
         tree: &SceneTree,
         node_id: NodeId,
-        scroll_offset: Point,
-        parent_opacity: f32,
+        scroll_and_opacity: (Point, f32),
         cull_rect: Rect,
+        active_hover_target: Option<NodeId>,
         mut portals: Option<&mut Vec<(i32, usize, NodeId)>>,
         display_list: &mut DisplayList,
     ) {
+        let (scroll_offset, parent_opacity): (Point, f32) = scroll_and_opacity;
         let Some(node) = tree.get_node(node_id) else {
             return;
         };
@@ -318,6 +355,8 @@ impl PaintPass {
         } else {
             style.get_paint()
         };
+        let is_scrim: bool =
+            matches!(node.get_kind(), NodeKind::Portal) || layout.get_position() == Position::Fixed;
         let is_interactive: bool = paint.get_cursor() == CursorIcon::Pointer
             || node
                 .get_handlers()
@@ -325,14 +364,16 @@ impl PaintPass {
                 .is_some();
         let is_transparent_canvas: bool =
             matches!(node.get_kind(), NodeKind::Canvas) && paint.background_color().is_none();
+        let hover_visual: bool = hovered && active_hover_target == Some(node_id);
         if is_interactive
+            && !is_scrim
             && !is_transparent_canvas
             && node.hover_paint().is_none()
-            && (hovered || pressed)
+            && (hover_visual || pressed)
         {
             paint.set_background(Self::interactive_tint(
                 paint.background_color(),
-                hovered,
+                hover_visual,
                 pressed,
             ));
         }
@@ -555,9 +596,13 @@ impl PaintPass {
         if clipped {
             display_list.push(DrawCommand::PushClip(bounds));
         }
+        let scale: f32 = display_list.get_scale_factor().max(0.5);
+        let raw_node_scroll: Point = node.get_layout_box().get_scroll_offset();
+        let snap_scroll_x: f32 = (raw_node_scroll.get_x() * scale).round() / scale;
+        let snap_scroll_y: f32 = (raw_node_scroll.get_y() * scale).round() / scale;
         let child_scroll: Point = Point::new(
-            scroll_offset.get_x() + node.get_layout_box().get_scroll_offset().get_x(),
-            scroll_offset.get_y() + node.get_layout_box().get_scroll_offset().get_y(),
+            scroll_offset.get_x() + snap_scroll_x,
+            scroll_offset.get_y() + snap_scroll_y,
         );
         let raw_children: &[NodeId] = node.get_children().as_slice();
         let needs_z_sort: bool = raw_children.len() > 1
@@ -571,9 +616,9 @@ impl PaintPass {
                 Self::emit_node(
                     tree,
                     child_id,
-                    child_scroll,
-                    opacity,
+                    (child_scroll, opacity),
                     next_cull,
+                    active_hover_target,
                     portals.as_deref_mut(),
                     display_list,
                 );
@@ -595,9 +640,9 @@ impl PaintPass {
                 Self::emit_node(
                     tree,
                     child_id,
-                    child_scroll,
-                    opacity,
+                    (child_scroll, opacity),
                     next_cull,
+                    active_hover_target,
                     portals.as_deref_mut(),
                     display_list,
                 );

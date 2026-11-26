@@ -26,17 +26,93 @@ jobs:
         include:
           - platform: linux
             os: ubuntu-latest
+            ext: ''
           - platform: macos
             os: macos-latest
+            ext: ''
           - platform: windows
             os: windows-latest
+            ext: '.exe'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      - name: Build native showcase and CLI
+
+      - name: Build release native showcase and CLI
+        shell: bash
         run: |
-          cargo build -p euv-example -p euv-cli
-          cargo run -p euv-example -- --headless --software
-          cargo run -p euv-cli -- doctor
+          set -euo pipefail
+          cargo build --release -p euv-example -p euv-cli
+          "./target/release/euv-example${{ matrix.ext }}" --headless --software
+          "./target/release/euv${{ matrix.ext }}" doctor
+          mkdir -p "dist/client-${{ matrix.platform }}"
+          cp "target/release/euv-example${{ matrix.ext }}" "dist/client-${{ matrix.platform }}/"
+          cp "target/release/euv${{ matrix.ext }}" "dist/client-${{ matrix.platform }}/"
+          ls -lh "dist/client-${{ matrix.platform }}"
+
+      - name: Upload ${{ matrix.platform }} client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: euv-client-${{ matrix.platform }}
+          path: dist/client-${{ matrix.platform }}
+          if-no-files-found: error
+
+  build-web-wasm:
+    name: Build Web WASM client
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust WebAssembly target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - name: Build release Web WASM module
+        run: |
+          set -euo pipefail
+          cargo build --release --target wasm32-unknown-unknown --lib -p euv-example
+          mkdir -p dist/web
+          cp target/wasm32-unknown-unknown/release/euv_example.wasm dist/web/euv_example.wasm
+          cargo run -p euv-cli -- build --target web --release --plan > dist/web/build-plan.json
+          ls -lh dist/web
+
+      - name: Upload Web WASM client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: euv-client-web-wasm
+          path: dist/web
+          if-no-files-found: error
+
+  build-ios-sim:
+    name: Build iOS and iPadOS Simulator client
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust iOS Simulator target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios-sim
+
+      - name: Build signed Release EuvShowcase.app bundle
+        run: |
+          set -euo pipefail
+          EUV_IOS_SKIP_LAUNCH=1 bash scripts/build/build-ios-sim.sh
+          tar -czf dist/ios/EuvShowcase-ios-sim.tar.gz -C dist/ios EuvShowcase.app
+          ls -lh dist/ios/EuvShowcase-ios-sim.tar.gz
+
+      - name: Upload iOS Simulator client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: euv-client-ios-sim
+          path: dist/ios/EuvShowcase-ios-sim.tar.gz
+          if-no-files-found: error

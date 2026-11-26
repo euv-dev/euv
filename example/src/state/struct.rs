@@ -282,6 +282,21 @@ pub struct ShowcaseState {
     /// Controlled global `⌘K` Command Palette filter query.
     #[get(type(copy))]
     pub(crate) cmd_palette_query: Signal<String>,
+    /// Controlled accent color selection for `EuvColorPicker`.
+    #[get(type(copy))]
+    pub(crate) picker_color: Signal<Color>,
+    /// Controlled 24-hour `(hour, minute)` selection for `EuvTimePicker`.
+    #[get(type(copy))]
+    pub(crate) picker_time: Signal<(u8, u8)>,
+    /// Controlled dynamic tag list for `EuvTagInput`.
+    #[get(type(copy))]
+    pub(crate) tag_items: Signal<Vec<String>>,
+    /// Controlled selected node label for interactive `EuvTree`.
+    #[get(type(copy))]
+    pub(crate) tree_selected: Signal<Option<String>>,
+    /// Controlled active breadcrumb index for interactive `EuvBreadcrumb`.
+    #[get(type(copy))]
+    pub(crate) breadcrumb_active: Signal<usize>,
 }
 
 /// Full-featured 2D arcade arena scene powered by `GameWorld`, `PhysicsWorld2D`, `Camera2D`, `ParticleSystem`, `TileMap`, `ActionMap`, and `AudioBus`.

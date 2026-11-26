@@ -6,9 +6,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../env/common.sh"
 load_local_env
 
-SIM_UDID="${EUV_IOS_SIM_UDID:-$(xcrun simctl list devices booted | grep -oE '[0-9A-F-]{36}' | head -n 1 || true)}"
-if [ -z "${SIM_UDID}" ]; then
-  SIM_UDID="$(xcrun simctl list devices available | grep 'iPhone' | grep -oE '[0-9A-F-]{36}' | head -n 1)"
+SIM_UDID=""
+if [ "${EUV_IOS_SKIP_LAUNCH:-0}" != "1" ]; then
+  SIM_UDID="${EUV_IOS_SIM_UDID:-$(xcrun simctl list devices booted | grep -oE '[0-9A-F-]{36}' | head -n 1 || true)}"
+  if [ -z "${SIM_UDID}" ]; then
+    SIM_UDID="$(xcrun simctl list devices available | grep 'iPhone' | grep -oE '[0-9A-F-]{36}' | head -n 1)"
+  fi
 fi
 BUILD_DIR="${REPO_ROOT}/target/mobile-hosts/ios-host"
 APP_BUNDLE="${REPO_ROOT}/dist/ios/EuvShowcase.app"
@@ -30,6 +33,12 @@ crate-type = ["staticlib"]
 [dependencies]
 euv = { path = "${REPO_ROOT}" }
 euv-example = { path = "${REPO_ROOT}/example" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
 EOF
 
 cat > "${BUILD_DIR}/src/lib.rs" <<'EOF'
@@ -712,8 +721,12 @@ python3 "${REPO_ROOT}/scripts/env/generate-icon.py" "${APP_BUNDLE}/AppIcon.png" 
   -o "${APP_BUNDLE}/EuvShowcase"
 codesign --force --sign - "${APP_BUNDLE}"
 
-xcrun simctl boot "${SIM_UDID}" 2>/dev/null || true
-xcrun simctl terminate "${SIM_UDID}" vip.ltpp.euv.showcase 2>/dev/null || true
-xcrun simctl install "${SIM_UDID}" "${APP_BUNDLE}"
-xcrun simctl launch "${SIM_UDID}" vip.ltpp.euv.showcase
-log_info "Installed and launched immersive @3x EuvShowcase.app on Simulator ${SIM_UDID}."
+if [ "${EUV_IOS_SKIP_LAUNCH:-0}" != "1" ]; then
+  xcrun simctl boot "${SIM_UDID}" 2>/dev/null || true
+  xcrun simctl terminate "${SIM_UDID}" vip.ltpp.euv.showcase 2>/dev/null || true
+  xcrun simctl install "${SIM_UDID}" "${APP_BUNDLE}"
+  xcrun simctl launch "${SIM_UDID}" vip.ltpp.euv.showcase
+  log_info "Installed and launched immersive @3x EuvShowcase.app on Simulator ${SIM_UDID}."
+else
+  log_info "Signed iOS Simulator bundle ready: ${APP_BUNDLE}"
+fi

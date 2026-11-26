@@ -394,7 +394,508 @@ pub fn bench_game3d_cinematic_max_rt(iterations: usize) -> BenchMetric {
     )
 }
 
-/// Runs the complete reproducible benchmark suite across reactivity, layout, fonts, rendering, and game physics.
+/// Stress-benchmarks continuous scrolling of a 100,000-row `EuvVirtualList` through full layout and software rasterization.
+///
+/// # Arguments
+///
+/// - `usize` - Number of scrolled frames to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured frame latency, throughput, and final virtual scroll offset.
+#[must_use]
+pub fn bench_stress_long_list_100k(iterations: usize) -> BenchMetric {
+    reset_reactive_runtime();
+    let count: usize = iterations.max(1);
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let p: ThemePalette = tokens.get_palette();
+    let g: ThemeGeometry = tokens.get_geometry();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(400, 720).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let Ok(mut app) = App::headless(cfg) else {
+        return build_metric(
+            BENCH_STRESS_LONG_LIST_NAME,
+            count,
+            Duration::ZERO,
+            String::new(),
+        );
+    };
+    let scroll_y: Signal<f32> = Signal::new(0.0);
+    let _: NodeId = app.mount(|| {
+        let vlist: EuvVirtualList =
+            EuvVirtualList::new(100_000, 36.0, scroll_y, tokens).viewport_height(680.0);
+        vlist.mount_with(move |idx: usize| {
+            let mut ctx: BuildContext = current_build_context();
+            let row: NodeId = ctx.view(
+                Style::empty()
+                    .row()
+                    .width(Length::Percent(100.0))
+                    .height(Length::Px(36.0))
+                    .padding(Edges::symmetric(SPACE_XS, SPACE_MD))
+                    .align(AlignItems::Center)
+                    .border(g.get_border_width(), p.get_border()),
+            );
+            let txt: NodeId = ctx.text(
+                format!("{BENCH_ROW_LABEL} #{idx}"),
+                Style::empty().font_size(13.0).color(p.get_foreground()),
+            );
+            ctx.append(row, txt);
+            row
+        })
+    });
+    let _: Result<FrameStats, PlatformError> = app.step_frame();
+    let start: Instant = Instant::now();
+    let mut last_shaded: usize = 0;
+    for step in 1..=count {
+        let next_y: f32 = ((step as f32) * 144.0) % 3_500_000.0;
+        let _: bool = scroll_y.set_if_changed(next_y);
+        if let Ok(stats) = app.step_frame() {
+            last_shaded = stats.get_pixels_shaded();
+        }
+    }
+    build_metric(
+        BENCH_STRESS_LONG_LIST_NAME,
+        count,
+        start.elapsed(),
+        format!(
+            "rows=100000 scroll_y={:.0}px shaded={last_shaded}",
+            scroll_y.get_untracked()
+        ),
+    )
+}
+
+/// Stress-benchmarks a deeply nested 2,000-node Flex/Grid layout tree under repeated full and dirty-subtree layout passes.
+///
+/// # Arguments
+///
+/// - `usize` - Number of layout passes to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured per-pass layout latency and node count.
+#[must_use]
+pub fn bench_stress_complex_layout_2000(iterations: usize) -> BenchMetric {
+    reset_reactive_runtime();
+    let count: usize = iterations.max(1);
+    let scene: SceneHandle = SceneHandle::new_tree();
+    let mut ctx: BuildContext = BuildContext::new(scene.clone(), PlatformKind::Headless);
+    let page: NodeId = ctx.view(
+        Style::empty()
+            .column()
+            .width(Length::Px(1280.0))
+            .padding(Edges::all(SPACE_MD))
+            .gap(SPACE_SM),
+    );
+    let mut leaf_nodes: Vec<NodeId> = Vec::with_capacity(50);
+    for section_idx in 0..50usize {
+        let grid: NodeId = ctx.view(
+            Style::empty()
+                .grid(4)
+                .width(Length::Percent(100.0))
+                .gap(SPACE_SM),
+        );
+        for card_idx in 0..8usize {
+            let card: NodeId = ctx.view(
+                Style::empty()
+                    .column()
+                    .width(Length::Percent(100.0))
+                    .padding(Edges::all(SPACE_SM))
+                    .gap(SPACE_XS),
+            );
+            let head: NodeId = ctx.view(
+                Style::empty()
+                    .row()
+                    .width(Length::Percent(100.0))
+                    .justify(JustifyContent::SpaceBetween),
+            );
+            let title: NodeId = ctx.text(
+                format!("{BENCH_CELL_LABEL} {section_idx}-{card_idx}"),
+                Style::empty().font_size(13.0),
+            );
+            let sub: NodeId = ctx.text(format!("{section_idx}"), Style::empty().font_size(11.0));
+            ctx.append(head, title);
+            ctx.append(head, sub);
+            ctx.append(card, head);
+            ctx.append(grid, card);
+            if card_idx == 0 {
+                leaf_nodes.push(title);
+            }
+        }
+        ctx.append(page, grid);
+    }
+    scene.with_write(
+        |tree: &mut SceneTree| {
+            let root: NodeId = tree.get_root();
+            tree.replace_children(root, vec![page]);
+        },
+        (),
+    );
+    let mut engine: LayoutEngine = LayoutEngine::default();
+    let viewport: Size = Size::new(1280.0, 800.0);
+    let init_stats: LayoutStats = scene.with_write(
+        |tree: &mut SceneTree| engine.compute(tree, viewport),
+        LayoutStats::default(),
+    );
+    let start: Instant = Instant::now();
+    let mut total_computed: usize = 0;
+    let mut total_skipped: usize = 0;
+    for step in 0..count {
+        let target: NodeId = leaf_nodes[step % leaf_nodes.len()];
+        scene.with_write(
+            |tree: &mut SceneTree| {
+                tree.set_text(target, format!("{BENCH_CELL_LABEL} #{step}"));
+                let stats: LayoutStats = engine.compute(tree, viewport);
+                total_computed += stats.get_nodes_computed();
+                total_skipped += stats.get_subtrees_skipped();
+            },
+            (),
+        );
+    }
+    build_metric(
+        BENCH_STRESS_COMPLEX_LAYOUT_NAME,
+        count,
+        start.elapsed(),
+        format!(
+            "initial_nodes={} avg_computed={} avg_skipped={}",
+            init_stats.get_nodes_computed(),
+            total_computed / count,
+            total_skipped / count
+        ),
+    )
+}
+
+/// Stress-benchmarks bulk batched updates across 1,000 live reactive UI components with subscribed signals and memos.
+///
+/// # Arguments
+///
+/// - `usize` - Number of full 1,000-component batch update ticks to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured batch update + reactive flush + scene patch latency.
+#[must_use]
+pub fn bench_stress_bulk_reactive_1000(iterations: usize) -> BenchMetric {
+    reset_reactive_runtime();
+    let count: usize = iterations.max(1);
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let p: ThemePalette = tokens.get_palette();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(800, 600).set_render(RenderConfig::hardware());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let Ok(mut app) = App::headless(cfg) else {
+        return build_metric(
+            BENCH_STRESS_BULK_REACTIVE_NAME,
+            count,
+            Duration::ZERO,
+            String::new(),
+        );
+    };
+    let mut signals: Vec<Signal<u32>> = Vec::with_capacity(1_000);
+    for idx in 0..1_000u32 {
+        signals.push(Signal::new(idx));
+    }
+    let signals_mount: Vec<Signal<u32>> = signals.clone();
+    let _: NodeId = app.mount(move || {
+        let mut ctx: BuildContext = current_build_context();
+        let list: NodeId = ctx.scroll_view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .gap(2.0),
+        );
+        for sig in signals_mount.into_iter() {
+            let derived: Memo<u32> = Memo::new(move || sig.get().wrapping_mul(3).wrapping_add(1));
+            let row: NodeId = ctx.reactive_text(
+                Style::empty().font_size(12.0).color(p.get_foreground()),
+                move || format!("{BENCH_CELL_LABEL} {}", derived.get()),
+            );
+            ctx.append(list, row);
+        }
+        list
+    });
+    let _: Result<FrameStats, PlatformError> = app.step_frame();
+    let start: Instant = Instant::now();
+    let mut last_rev: u64 = 0;
+    for tick in 1..=(count as u32) {
+        batch(|| {
+            for (idx, sig) in signals.iter().enumerate() {
+                let _: bool = sig.set_if_changed(tick.wrapping_add(idx as u32));
+            }
+        });
+        flush_effects();
+        if app.step_frame().is_ok() {
+            last_rev = app.get_last_rendered_revision();
+        }
+    }
+    build_metric(
+        BENCH_STRESS_BULK_REACTIVE_NAME,
+        count,
+        start.elapsed(),
+        format!("components=1000 final_rev={last_rev}"),
+    )
+}
+
+/// Stress-benchmarks end-to-end dynamic `.wasm` binary verification, sandbox execution, hot-swap, and rollback cycles.
+///
+/// # Arguments
+///
+/// - `usize` - Number of v1 -> v2 -> rollback hot-swap cycles to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured latency per full dynamic WASM hot-swap cycle.
+#[must_use]
+pub fn bench_stress_wasm_dynamic_hotswap(iterations: usize) -> BenchMetric {
+    reset_reactive_runtime();
+    let count: usize = iterations.max(1);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(640, 480).set_render(RenderConfig::hardware());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let Ok(mut app) = App::headless(cfg) else {
+        return build_metric(
+            BENCH_STRESS_WASM_LOAD_NAME,
+            count,
+            Duration::ZERO,
+            String::new(),
+        );
+    };
+    let hub: DynamicUpdateHub = app.get_dynamic_hub().clone();
+    let registry: RegistryWasmFetcher = RegistryWasmFetcher::default();
+    let wasm_v1: Vec<u8> = build_partial_widget_wasm(BENCH_WASM_TITLE_V1, 1, 0x2563EB);
+    let wasm_v2: Vec<u8> = build_partial_widget_wasm(BENCH_WASM_TITLE_V2, 2, 0x7C3AED);
+    let csum_v1: u64 = compute_wasm_checksum(&wasm_v1);
+    let csum_v2: u64 = compute_wasm_checksum(&wasm_v2);
+    registry.register(
+        BENCH_WASM_URL_V1.to_string(),
+        wasm_v1,
+        BENCH_WASM_ETAG_V1.to_string(),
+        WasmFaultKind::None,
+    );
+    registry.register(
+        BENCH_WASM_URL_V2.to_string(),
+        wasm_v2,
+        BENCH_WASM_ETAG_V2.to_string(),
+        WasmFaultKind::None,
+    );
+    let manager: WasmDynamicManager =
+        WasmDynamicManager::new(hub.clone(), Rc::new(registry), WasmSandboxConfig::default());
+    let hub_slot: DynamicUpdateHub = hub;
+    let _: NodeId = app.mount(move || {
+        let mut slot: DynamicComponentSlot = DynamicComponentSlot::new(
+            BENCH_WASM_SLOT.to_string(),
+            Rc::new(|| {
+                let mut ctx: BuildContext = current_build_context();
+                ctx.text(BENCH_TITLE.to_string(), Style::empty().font_size(14.0))
+            }),
+        );
+        slot.set_hub(Some(hub_slot));
+        slot.mount_current()
+    });
+    let _: Result<FrameStats, PlatformError> = app.step_frame();
+    let start: Instant = Instant::now();
+    let mut completed: usize = 0;
+    for cycle in 0..count {
+        let base_ver: u64 = ((cycle as u64) * 2) + 1;
+        let req_v1: WasmDownloadRequest = WasmDownloadRequest::partial(
+            BENCH_WASM_URL_V1.to_string(),
+            BENCH_WASM_SLOT.to_string(),
+            base_ver,
+        )
+        .with_checksum(csum_v1)
+        .with_allow_downgrade(true);
+        let req_v2: WasmDownloadRequest = WasmDownloadRequest::partial(
+            BENCH_WASM_URL_V2.to_string(),
+            BENCH_WASM_SLOT.to_string(),
+            base_ver + 1,
+        )
+        .with_checksum(csum_v2)
+        .with_allow_downgrade(true);
+        if manager.load_and_mount(req_v1, BENCH_WASM_SIGN_KEY).is_ok()
+            && manager.load_and_mount(req_v2, BENCH_WASM_SIGN_KEY).is_ok()
+            && manager
+                .rollback_partial(BENCH_WASM_SLOT, BENCH_WASM_ROLLBACK_REASON)
+                .is_ok()
+        {
+            let _: Result<FrameStats, PlatformError> = app.step_frame();
+            completed += 1;
+        }
+    }
+    build_metric(
+        BENCH_STRESS_WASM_LOAD_NAME,
+        count,
+        start.elapsed(),
+        format!("cycles={completed} cache={}", manager.cache_len()),
+    )
+}
+
+/// Stress-benchmarks flagship mobile `1440x3168 @ 4.0x` multi-card shadowed UI scrolling in the multi-core software rasterizer.
+///
+/// # Arguments
+///
+/// - `usize` - Number of full scrolled 4x-DPI frames to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured frame latency and FPS throughput at `1440x3168`.
+#[must_use]
+pub fn bench_stress_hidpi_4x_1440x3168(iterations: usize) -> BenchMetric {
+    reset_reactive_runtime();
+    let count: usize = iterations.max(1);
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(360, 792).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let Ok(mut app) = App::headless(cfg) else {
+        return build_metric(
+            BENCH_STRESS_HIDPI_4X_NAME,
+            count,
+            Duration::ZERO,
+            String::new(),
+        );
+    };
+    let mut scroll_id: NodeId = NodeId::default();
+    let _: NodeId = app.mount(|| {
+        let mut ctx: BuildContext = current_build_context();
+        let sc: NodeId = ctx.scroll_view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .padding(Edges::all(SPACE_MD))
+                .gap(SPACE_MD)
+                .background(tokens.get_palette().get_background()),
+        );
+        for idx in 0..16usize {
+            let badge: NodeId =
+                EuvBadge::new(BENCH_BADGE.to_string(), EuvTone::Primary, tokens).mount(&mut ctx);
+            let prog: NodeId =
+                EuvProgress::new(((idx % 9) as f32 + 1.0) * 0.1, tokens).mount(&mut ctx);
+            let card: NodeId = EuvCard::new(format!("{BENCH_TITLE} #{idx}"), tokens)
+                .subtitle(BENCH_CARD_CAPTION)
+                .child(badge)
+                .child(prog)
+                .mount(&mut ctx);
+            ctx.append(sc, card);
+        }
+        scroll_id = sc;
+        sc
+    });
+    app.set_exact_physical_viewport(1440, 3168, 4.0);
+    let _: Result<FrameStats, PlatformError> = app.step_frame();
+    let start: Instant = Instant::now();
+    let mut last_shaded: usize = 0;
+    for step in 1..=count {
+        let offset_y: f32 = ((step as f32) * 18.5) % 800.0;
+        app.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.set_scroll_offset(scroll_id, Point::new(0.0, offset_y));
+            },
+            (),
+        );
+        if let Ok(stats) = app.step_frame() {
+            last_shaded = stats.get_pixels_shaded();
+        }
+    }
+    build_metric(
+        BENCH_STRESS_HIDPI_4X_NAME,
+        count,
+        start.elapsed(),
+        format!("res=1440x3168@4x shaded={last_shaded}"),
+    )
+}
+
+/// Stress-benchmarks 240Hz touch-pan scroll physics, thumb-lift anti-reversal filtering, and 1,000-node scene hit-testing.
+///
+/// # Arguments
+///
+/// - `usize` - Number of 240Hz input/hit-test ticks to measure.
+///
+/// # Returns
+///
+/// - `BenchMetric` - Measured input + hit-test latency and throughput.
+#[must_use]
+pub fn bench_stress_scroll_physics_and_hittest(iterations: usize) -> BenchMetric {
+    reset_reactive_runtime();
+    let count: usize = iterations.max(1);
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(360, 792).set_render(RenderConfig::hardware());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let Ok(mut app) = App::headless(cfg) else {
+        return build_metric(
+            BENCH_STRESS_INPUT_HITTEST_NAME,
+            count,
+            Duration::ZERO,
+            String::new(),
+        );
+    };
+    let _: NodeId = app.mount(|| {
+        let mut ctx: BuildContext = current_build_context();
+        let sc: NodeId = ctx.scroll_view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .gap(4.0),
+        );
+        for idx in 0..1_000usize {
+            let row: NodeId = ctx.view(
+                Style::empty()
+                    .row()
+                    .width(Length::Percent(100.0))
+                    .height(Length::Px(32.0))
+                    .cursor(CursorIcon::Pointer),
+            );
+            let txt: NodeId = ctx.text(format!("{BENCH_ROW_LABEL} {idx}"), Style::empty());
+            ctx.append(row, txt);
+            ctx.append(sc, row);
+        }
+        sc
+    });
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: Result<FrameStats, PlatformError> = app.step_game_frame(1.0 / 120.0);
+    let start: Instant = Instant::now();
+    let mut hits: usize = 0;
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(1, 180.0, 620.0),
+    ));
+    for step in 0..count {
+        let y: f32 = 620.0 - ((step % 48) as f32) * 8.0;
+        app.dispatch_window_event(WindowEvent::PointerMove(
+            wid,
+            PointerEvent::touch(1, 180.0, y),
+        ));
+        let found: bool = app.get_scene().with_read(
+            |tree: &SceneTree| hit_test(tree, Point::new(180.0, 320.0)).is_some(),
+            false,
+        );
+        if found {
+            hits += 1;
+        }
+        if step % 2 == 0 {
+            let _: Result<FrameStats, PlatformError> = app.step_game_frame(1.0 / 240.0);
+        }
+    }
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(1, 180.0, 240.0),
+    ));
+    build_metric(
+        BENCH_STRESS_INPUT_HITTEST_NAME,
+        count,
+        start.elapsed(),
+        format!("nodes=1000 hits={hits}"),
+    )
+}
+
+/// Runs the complete reproducible benchmark and stress-test suite across reactivity, layout, virtual lists, WASM OTA, high-DPI rendering, input, and game physics.
 ///
 /// # Returns
 ///
@@ -413,6 +914,12 @@ pub fn run_full_benchmark_suite() -> BenchReport {
         bench_game_particles(1_000),
         bench_game3d_pbr_bvh_raytrace(10),
         bench_game3d_cinematic_max_rt(10),
+        bench_stress_long_list_100k(30),
+        bench_stress_complex_layout_2000(40),
+        bench_stress_bulk_reactive_1000(20),
+        bench_stress_wasm_dynamic_hotswap(30),
+        bench_stress_hidpi_4x_1440x3168(15),
+        bench_stress_scroll_physics_and_hittest(240),
     ];
     BenchReport::new(metrics)
 }

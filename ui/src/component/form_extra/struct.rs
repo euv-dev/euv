@@ -122,3 +122,42 @@ pub struct EuvRating {
     #[get(type(copy))]
     pub(crate) tokens: ThemeTokens,
 }
+
+/// Interactive swatch palette color selector bound to `Signal<Color>`.
+#[derive(Clone, Data, New)]
+pub struct EuvColorPicker {
+    /// Bound reactive selected color signal.
+    #[get(type(copy))]
+    pub(crate) value: Signal<Color>,
+    /// Optional custom swatch presets (empty falls back to the built-in curated palette).
+    #[new(skip)]
+    pub(crate) presets: Vec<Color>,
+    /// Active theme tokens.
+    #[get(type(copy))]
+    pub(crate) tokens: ThemeTokens,
+}
+
+/// Interactive 24-hour `HH:MM` time picker with steppers and quick presets bound to `Signal<(u8, u8)>`.
+#[derive(Clone, Data, New)]
+pub struct EuvTimePicker {
+    /// Bound reactive `(hour, minute)` tuple signal (`hour` in `0..=23`, `minute` in `0..=59`).
+    #[get(type(copy))]
+    pub(crate) value: Signal<(u8, u8)>,
+    /// Active theme tokens.
+    #[get(type(copy))]
+    pub(crate) tokens: ThemeTokens,
+}
+
+/// Interactive multi-tag chip input supporting live tag addition and removal bound to `Signal<Vec<String>>`.
+#[derive(Clone, Data, New)]
+pub struct EuvTagInput {
+    /// Bound reactive list of active tag strings.
+    #[get(type(copy))]
+    pub(crate) tags: Signal<Vec<String>>,
+    /// Input field placeholder text.
+    #[new(skip)]
+    pub(crate) placeholder: String,
+    /// Active theme tokens.
+    #[get(type(copy))]
+    pub(crate) tokens: ThemeTokens,
+}

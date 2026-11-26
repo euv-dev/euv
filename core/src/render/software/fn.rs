@@ -1,5 +1,127 @@
 use super::*;
 
+/// Computes a compile-time approximation of `exp(-x)` for non-negative `x` using range-reduced Taylor series.
+///
+/// # Arguments
+///
+/// - `f32` - Non-negative exponent magnitude `x`.
+///
+/// # Returns
+///
+/// - `f32` - Accurate `exp(-x)` value in `(0.0, 1.0]`.
+#[must_use]
+pub(crate) const fn const_exp_neg_f32(x: f32) -> f32 {
+    if x <= 0.0 {
+        return 1.0;
+    }
+    let reduced: f32 = -x * 0.0625;
+    let mut sum: f32 = 1.0;
+    let mut term: f32 = 1.0;
+    let mut k: usize = 1;
+    while k <= 10 {
+        term = term * reduced / (k as f32);
+        sum += term;
+        k += 1;
+    }
+    let p2: f32 = sum * sum;
+    let p4: f32 = p2 * p2;
+    let p8: f32 = p4 * p4;
+    p8 * p8
+}
+
+/// Builds the 513-entry compile-time analytical Gaussian `0.5 * erfc(u / sqrt(2))` lookup table for `u` in `[-3.2, +3.2]`.
+///
+/// # Returns
+///
+/// - `[f32; 513]` - Precomputed Gaussian falloff samples.
+#[must_use]
+pub(crate) const fn build_gaussian_erfc_lut() -> [f32; 513] {
+    let mut table: [f32; 513] = [0.0; 513];
+    let step: f32 = (GAUSSIAN_LUT_RANGE * 2.0) / (GAUSSIAN_LUT_SEGMENTS as f32);
+    let mut idx: usize = 0;
+    while idx <= GAUSSIAN_LUT_SEGMENTS {
+        let u: f32 = -GAUSSIAN_LUT_RANGE + (idx as f32) * step;
+        let x: f32 = u / SQRT_2;
+        let abs_x: f32 = if x < 0.0 { -x } else { x };
+        let t: f32 = 1.0 / (1.0 + 0.327_591_1 * abs_x);
+        let poly: f32 = t
+            * (0.254_829_6
+                + t * (-0.284_496_72 + t * (1.421_413_7 + t * (-1.453_152 + t * 1.061_405_4))));
+        let erfc_abs: f32 = poly * const_exp_neg_f32(abs_x * abs_x);
+        let val: f32 = if x >= 0.0 {
+            0.5 * erfc_abs
+        } else {
+            1.0 - 0.5 * erfc_abs
+        };
+        table[idx] = if val < 0.0 {
+            0.0
+        } else if val > 1.0 {
+            1.0
+        } else {
+            val
+        };
+        idx += 1;
+    }
+    table
+}
+
+/// Evaluates the true 2D analytical Gaussian shadow falloff via a 513-entry L1-cached linear-interpolated `erfc` LUT (zero per-pixel `exp()`).
+///
+/// # Arguments
+///
+/// - `f32` - Signed distance from the shadow caster box in physical pixels.
+/// - `f32` - Inverse Gaussian standard deviation `1.0 / sigma.max(0.5)`.
+///
+/// # Returns
+///
+/// - `f32` - Smooth $C^\infty$ shadow opacity multiplier in `[0.0, 1.0]`.
+#[must_use]
+pub fn fast_gaussian_shadow_falloff(dist: f32, inv_sigma: f32) -> f32 {
+    let u: f32 = dist * inv_sigma;
+    if u >= GAUSSIAN_LUT_RANGE {
+        return 0.0;
+    }
+    if u <= -GAUSSIAN_LUT_RANGE {
+        return 1.0;
+    }
+    let pos: f32 = (u + GAUSSIAN_LUT_RANGE) * GAUSSIAN_LUT_STEP_INV;
+    let idx: usize = (pos as usize).min(GAUSSIAN_LUT_SEGMENTS - 1);
+    let frac: f32 = pos - (idx as f32);
+    let a: f32 = GAUSSIAN_ERFC_LUT[idx];
+    let b: f32 = GAUSSIAN_ERFC_LUT[idx + 1];
+    a + (b - a) * frac
+}
+
+/// Computes a deterministic 64-bit hash key for caching `TextLayoutResult` entries across frames.
+///
+/// # Arguments
+///
+/// - `&str` - Source text content.
+/// - `TextStyle` - Typography metrics affecting line wrapping.
+///
+/// # Returns
+///
+/// - `u64` - Deterministic layout cache key hash.
+#[must_use]
+pub(crate) fn hash_text_layout_key(text: &str, style: TextStyle) -> u64 {
+    let mut hash: u64 = FNV1A_OFFSET_BASIS;
+    for byte in text.as_bytes().iter().copied() {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(FNV1A_PRIME);
+    }
+    let fields: [u32; 4] = [
+        style.get_font_size().to_bits(),
+        style.get_line_height().to_bits(),
+        style.get_letter_spacing().to_bits(),
+        (style.get_weight() as u32) | ((style.get_align() as u32) << 8),
+    ];
+    for word in fields.into_iter() {
+        hash ^= word as u64;
+        hash = hash.wrapping_mul(FNV1A_PRIME);
+    }
+    hash
+}
+
 /// Evaluates Interleaved Gradient Noise (IGN) in `[-0.5, 0.5]` to dither 8-bit shadows and gradients without visible banding.
 ///
 /// # Arguments
@@ -308,19 +430,69 @@ pub fn composite_fill_and_border(
         return COLOR_TRANSPARENT;
     }
     let inv_a: f32 = 1.0 / total_a;
-    let inv_255_sq: f32 = 1.0 / 65_025.0;
-    let fr: f32 = (fill.get_r() as f32) * (fill.get_r() as f32) * inv_255_sq;
-    let fg: f32 = (fill.get_g() as f32) * (fill.get_g() as f32) * inv_255_sq;
-    let fb: f32 = (fill.get_b() as f32) * (fill.get_b() as f32) * inv_255_sq;
-    let br: f32 = (border.get_r() as f32) * (border.get_r() as f32) * inv_255_sq;
-    let bg: f32 = (border.get_g() as f32) * (border.get_g() as f32) * inv_255_sq;
-    let bb: f32 = (border.get_b() as f32) * (border.get_b() as f32) * inv_255_sq;
-    let lr: f32 = ((fr * fill_a + br * border_a) * inv_a).clamp(0.0, 1.0);
-    let lg: f32 = ((fg * fill_a + bg * border_a) * inv_a).clamp(0.0, 1.0);
-    let lb: f32 = ((fb * fill_a + bb * border_a) * inv_a).clamp(0.0, 1.0);
-    let r: u8 = (lr.sqrt() * 255.0).round().clamp(0.0, 255.0) as u8;
-    let g: u8 = (lg.sqrt() * 255.0).round().clamp(0.0, 255.0) as u8;
-    let b: u8 = (lb.sqrt() * 255.0).round().clamp(0.0, 255.0) as u8;
+    let fr: f32 = SRGB_TO_LIN_LUT[fill.get_r() as usize];
+    let fg: f32 = SRGB_TO_LIN_LUT[fill.get_g() as usize];
+    let fb: f32 = SRGB_TO_LIN_LUT[fill.get_b() as usize];
+    let br: f32 = SRGB_TO_LIN_LUT[border.get_r() as usize];
+    let bg: f32 = SRGB_TO_LIN_LUT[border.get_g() as usize];
+    let bb: f32 = SRGB_TO_LIN_LUT[border.get_b() as usize];
+    let ir: usize = (((fr * fill_a + br * border_a) * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ig: usize = (((fg * fill_a + bg * border_a) * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ib: usize = (((fb * fill_a + bb * border_a) * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let r: u8 = ((LIN_TO_SRGB_Q4_LUT[ir] + 8) >> 4).min(255) as u8;
+    let g: u8 = ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8;
+    let b: u8 = ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8;
     let a: u8 = (total_a * 255.0).round().clamp(0.0, 255.0) as u8;
     Color::new(r, g, b, a)
+}
+
+/// Returns the process-wide persistent horizontal-band rasterizer worker pool, lazily spawning warm threads once.
+///
+/// # Returns
+///
+/// - `&'static BandWorkerPool` - Shared persistent band worker pool reference.
+#[cfg(not(target_arch = "wasm32"))]
+#[must_use]
+pub(crate) fn global_band_worker_pool() -> &'static BandWorkerPool {
+    BAND_WORKER_POOL.get_or_init(BandWorkerPool::new)
+}
+
+/// Executes dynamic work-stealing horizontal band rasterization for `job` until all strips are claimed.
+///
+/// # Arguments
+///
+/// - `&BandJob` - Active frame dispatch descriptor pointing to caller-pinned slices.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn run_band_job_loop(job: &BandJob) {
+    let tasks: &[BandTaskSlice] =
+        unsafe { from_raw_parts(job.tasks_ptr as *const BandTaskSlice, job.tasks_len) };
+    let commands: &[DrawCommand] =
+        unsafe { from_raw_parts(job.commands_ptr as *const DrawCommand, job.commands_len) };
+    let prepped: &[PreppedCommand] =
+        unsafe { from_raw_parts(job.prepped_ptr as *const PreppedCommand, job.prepped_len) };
+    let layouts: &[TextLayoutResult] =
+        unsafe { from_raw_parts(job.layouts_ptr as *const TextLayoutResult, job.layouts_len) };
+    let atlas: &GlyphAtlas = unsafe { &*(job.atlas_ptr as *const GlyphAtlas) };
+    let mut local_shaded: usize = 0;
+    loop {
+        let idx: usize = job.next_idx.fetch_add(1, Ordering::AcqRel);
+        if idx >= tasks.len() {
+            break;
+        }
+        let task: BandTaskSlice = tasks[idx];
+        let pixels: &mut [u8] =
+            unsafe { from_raw_parts_mut(task.get_pixels_ptr() as *mut u8, task.get_pixels_len()) };
+        let mut band: PixelBand<'_> = PixelBand {
+            pixels,
+            width: task.get_width(),
+            y_offset: task.get_y_start(),
+            height: task.get_height(),
+        };
+        local_shaded += SoftwareRenderer::render_band(
+            &mut band, commands, prepped, layouts, atlas, job.scale, job.aa,
+        );
+    }
+    if local_shaded > 0 {
+        let _: usize = job.total_shaded.fetch_add(local_shaded, Ordering::AcqRel);
+    }
 }

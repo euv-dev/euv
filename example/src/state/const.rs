@@ -87,6 +87,9 @@ pub(crate) const NAV_LABEL_LAB: &str = "UI & Edge Lab";
 pub(crate) const NAV_LABEL_OVERLAYS: &str = "Overlays";
 pub(crate) const NAV_LABEL_DYNAMIC: &str = "Dynamic WASM";
 pub(crate) const DEFAULT_USERNAME: &str = "euv-developer";
+pub(crate) const DEFAULT_TAG_RUST: &str = "Rust";
+pub(crate) const DEFAULT_TAG_NATIVE: &str = "Native";
+pub(crate) const DEFAULT_TAG_WASM: &str = "WASM";
 pub(crate) const GAME_HUD_CONTROLS_HINT: &str =
     "WASD/Arrows Move | Space/Click Fire | E Dash | R Wave";
 pub(crate) const SAMPLE_OBJ_MONUMENT: &str = "o CyberObelisk\nv -1.4 0.0 -1.4\nv 1.4 0.0 -1.4\nv 1.4 0.0 1.4\nv -1.4 0.0 1.4\nv 0.0 7.5 0.0\nf 1 2 5\nf 2 3 5\nf 3 4 5\nf 4 1 5\nf 1 4 3 2\n";

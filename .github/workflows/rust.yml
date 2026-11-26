@@ -121,13 +121,22 @@ jobs:
             echo "=== TARGET: $target ==="
             RUSTFLAGS="-D warnings" cargo check -p euv-core -p euv -p euv-ui --target "$target"
           done
-      - name: Run headless smoke and CLI verification
+      - name: Run headless smoke, CLI verification, and stress benchmark suite
         run: |
           cargo run -p euv-example -- --headless --software
           cargo run -p euv-docs -- --headless
           cargo run -p euv-cli -- doctor
           cargo run -p euv-cli -- build --target all --plan
-          cargo run -p euv-performance
+          bash scripts/bench/stress-bench.sh
+          mkdir -p dist/bench
+          cargo run --release -p euv-performance -- --json > dist/bench/stress-report.json
+
+      - name: Upload stress benchmark report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: euv-stress-benchmark-report
+          path: dist/bench/stress-report.json
+          if-no-files-found: error
 
   publish:
     permissions:
@@ -188,6 +197,7 @@ jobs:
             "euv-macros"
             "euv"
             "euv-ui"
+            "euv-automation"
             "euv-cli"
             "euv-docs"
             "euv-example"

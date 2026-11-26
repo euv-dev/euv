@@ -11,7 +11,10 @@ mod tests;
 
 pub use suite::*;
 
-use std::time::{Duration, Instant};
+use std::{
+    rc::Rc,
+    time::{Duration, Instant},
+};
 
 use {
     euv::*,

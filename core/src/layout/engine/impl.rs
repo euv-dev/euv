@@ -44,11 +44,26 @@ impl LayoutEngine {
     ) -> Size {
         if let Some(node) = tree.get_node(node_id) {
             if !node.get_dirty().intersects(DIRTY_LAYOUT_PASS_MASK)
-                && node.cached_constraint() == Some(space)
+                && let Some(prev_space) = node.cached_constraint()
             {
-                let prev_bounds: Rect = node.get_layout_box().get_bounds();
-                stats.set_subtrees_skipped(stats.get_subtrees_skipped() + 1);
-                return Size::new(prev_bounds.get_width(), prev_bounds.get_height());
+                let same_size: bool = (prev_space.get_width() - space.get_width()).abs() <= 0.01
+                    && (prev_space.get_height() - space.get_height()).abs() <= 0.01
+                    && (prev_space.get_viewport().get_width() - space.get_viewport().get_width())
+                        .abs()
+                        <= 0.01
+                    && (prev_space.get_viewport().get_height() - space.get_viewport().get_height())
+                        .abs()
+                        <= 0.01;
+                if same_size {
+                    let dx: f32 = space.get_origin_x() - prev_space.get_origin_x();
+                    let dy: f32 = space.get_origin_y() - prev_space.get_origin_y();
+                    let prev_bounds: Rect = node.get_layout_box().get_bounds();
+                    if dx.abs() > 0.001 || dy.abs() > 0.001 {
+                        self.translate_subtree(tree, node_id, dx, dy);
+                    }
+                    stats.set_subtrees_skipped(stats.get_subtrees_skipped() + 1);
+                    return Size::new(prev_bounds.get_width(), prev_bounds.get_height());
+                }
             }
         } else {
             return Size::default();
@@ -87,10 +102,10 @@ impl LayoutEngine {
         let border_w: f32 = style.get_paint().get_border().get_width();
         let chrome_h: f32 = padding.horizontal() + border_w * 2.0;
         let chrome_v: f32 = padding.vertical() + border_w * 2.0;
-        let resolved_w: Option<f32> = layout
+        let mut resolved_w: Option<f32> = layout
             .get_width()
             .resolve(space.get_width(), space.get_viewport());
-        let resolved_h: Option<f32> = layout
+        let mut resolved_h: Option<f32> = layout
             .get_height()
             .resolve(space.get_height(), space.get_viewport());
         let min_w: f32 = layout
@@ -109,6 +124,19 @@ impl LayoutEngine {
             .get_max_height()
             .resolve(space.get_height(), space.get_viewport())
             .unwrap_or(f32::INFINITY);
+        if let Some(ratio) = layout.aspect_ratio_value()
+            && ratio > 0.0
+        {
+            if let Some(w) = resolved_w
+                && resolved_h.is_none()
+            {
+                resolved_h = Some(w.clamp(min_w, max_w) / ratio);
+            } else if let Some(h) = resolved_h
+                && resolved_w.is_none()
+            {
+                resolved_w = Some(h.clamp(min_h, max_h) * ratio);
+            }
+        }
         let inner_avail_w: f32 =
             (resolved_w.unwrap_or(space.get_width()).min(max_w) - chrome_h).max(0.0);
         let inner_avail_h: f32 =
@@ -369,6 +397,158 @@ impl LayoutEngine {
             ordered.reverse();
         }
         let wrap_enabled: bool = parent_layout.get_flex_wrap() == FlexWrap::Wrap;
+        if !wrap_enabled
+            && !is_reverse
+            && parent_layout.get_justify_content() == JustifyContent::Start
+        {
+            let mut single_pass_ok: bool = true;
+            let mut has_stretched_auto: bool = false;
+            for child_id in ordered.iter().copied() {
+                let child_layout: LayoutStyle = tree
+                    .get_node(child_id)
+                    .map(|node: &SceneNode| node.get_style().get_layout())
+                    .unwrap_or_default();
+                if child_layout.get_flex_grow() > 0.0 {
+                    single_pass_ok = false;
+                    break;
+                }
+                let align: AlignItems = match child_layout.get_align_self() {
+                    AlignSelf::Auto => parent_layout.get_align_items(),
+                    AlignSelf::Stretch => AlignItems::Stretch,
+                    AlignSelf::Start => AlignItems::Start,
+                    AlignSelf::Center => AlignItems::Center,
+                    AlignSelf::End => AlignItems::End,
+                };
+                if matches!(align, AlignItems::Center | AlignItems::End) {
+                    single_pass_ok = false;
+                    break;
+                }
+                if align == AlignItems::Stretch {
+                    if is_row {
+                        if child_layout.get_height() == Length::Auto
+                            && parent_layout.get_height() == Length::Auto
+                        {
+                            single_pass_ok = false;
+                            break;
+                        }
+                    } else if child_layout.get_width() == Length::Auto {
+                        has_stretched_auto = true;
+                    }
+                }
+            }
+            if single_pass_ok {
+                let mut main_cursor: f32 = 0.0;
+                let mut max_cross: f32 = 0.0;
+                let count: usize = ordered.len();
+                let mut child_records: Vec<(NodeId, LayoutStyle, Size)> = if has_stretched_auto {
+                    Vec::with_capacity(count)
+                } else {
+                    Vec::new()
+                };
+                for (idx, child_id) in ordered.iter().copied().enumerate() {
+                    let child_layout: LayoutStyle = tree
+                        .get_node(child_id)
+                        .map(|node: &SceneNode| node.get_style().get_layout())
+                        .unwrap_or_default();
+                    let margin: Edges = child_layout.get_margin();
+                    let align: AlignItems = match child_layout.get_align_self() {
+                        AlignSelf::Auto => parent_layout.get_align_items(),
+                        AlignSelf::Stretch => AlignItems::Stretch,
+                        AlignSelf::Start => AlignItems::Start,
+                        AlignSelf::Center => AlignItems::Center,
+                        AlignSelf::End => AlignItems::End,
+                    };
+                    let (x, y): (f32, f32) = if is_row {
+                        (
+                            content_origin.get_x() + main_cursor + margin.get_left(),
+                            content_origin.get_y() + margin.get_top(),
+                        )
+                    } else {
+                        (
+                            content_origin.get_x() + margin.get_left(),
+                            content_origin.get_y() + main_cursor + margin.get_top(),
+                        )
+                    };
+                    let stretch_w: bool = !is_row
+                        && align == AlignItems::Stretch
+                        && child_layout.get_width() == Length::Auto;
+                    let stretch_h: bool = is_row
+                        && align == AlignItems::Stretch
+                        && child_layout.get_height() == Length::Auto;
+                    let space_w: f32 = if stretch_w {
+                        (inner_avail.get_width() - margin.horizontal()).max(0.0)
+                    } else {
+                        inner_avail.get_width()
+                    };
+                    let space_h: f32 = if stretch_h {
+                        (inner_avail.get_height() - margin.vertical()).max(0.0)
+                    } else {
+                        inner_avail.get_height()
+                    };
+                    let final_space: AvailableSpace =
+                        AvailableSpace::new(space_w, space_h, viewport, x, y);
+                    let placed: Size = self.layout_node(tree, child_id, final_space, stats);
+                    let target_w: f32 = if stretch_w {
+                        space_w.max(placed.get_width())
+                    } else {
+                        placed.get_width()
+                    };
+                    let target_h: f32 = if stretch_h {
+                        space_h.max(placed.get_height())
+                    } else {
+                        placed.get_height()
+                    };
+                    if ((stretch_w && target_w > placed.get_width() + 0.01)
+                        || (stretch_h && target_h > placed.get_height() + 0.01))
+                        && let Some(node) = tree.get_node_mut(child_id)
+                    {
+                        let mut b: Rect = node.get_layout_box().get_bounds();
+                        b.set_width(target_w);
+                        b.set_height(target_h);
+                        node.get_mut_layout_box().set_bounds(b);
+                    }
+                    if has_stretched_auto {
+                        child_records.push((child_id, child_layout, Size::new(target_w, target_h)));
+                    }
+                    if is_row {
+                        main_cursor += target_w + margin.horizontal();
+                        max_cross = max_cross.max(target_h + margin.vertical());
+                    } else {
+                        main_cursor += target_h + margin.vertical();
+                        max_cross = max_cross.max(target_w + margin.horizontal());
+                    }
+                    if idx + 1 < count {
+                        main_cursor += main_gap;
+                    }
+                }
+                if has_stretched_auto && max_cross > cross_avail + 0.5 {
+                    for (child_id, child_layout, child_size) in child_records.into_iter() {
+                        let align: AlignItems = match child_layout.get_align_self() {
+                            AlignSelf::Auto => parent_layout.get_align_items(),
+                            AlignSelf::Stretch => AlignItems::Stretch,
+                            AlignSelf::Start => AlignItems::Start,
+                            AlignSelf::Center => AlignItems::Center,
+                            AlignSelf::End => AlignItems::End,
+                        };
+                        if align == AlignItems::Stretch && child_layout.get_width() == Length::Auto
+                        {
+                            let widened: f32 = (max_cross - child_layout.get_margin().horizontal())
+                                .max(child_size.get_width());
+                            if let Some(node) = tree.get_node_mut(child_id) {
+                                let mut b: Rect = node.get_layout_box().get_bounds();
+                                b.set_width(widened);
+                                node.get_mut_layout_box().set_bounds(b);
+                            }
+                        }
+                    }
+                }
+                return if is_row {
+                    Size::new(main_cursor, max_cross)
+                } else {
+                    Size::new(max_cross, main_cursor)
+                };
+            }
+        }
         let mut total_grow: f32 = 0.0;
         for child_id in ordered.iter().copied() {
             let child_layout: LayoutStyle = tree
@@ -457,7 +637,23 @@ impl LayoutEngine {
                         acc + sz
                     })
                     + gaps_total;
-            let free_main: f32 = (main_avail - used_main).max(0.0);
+            let effective_main_avail: f32 = if is_row {
+                main_avail
+            } else {
+                let definite_col_h: bool = parent_layout.get_height() != Length::Auto
+                    || (parent_layout.aspect_ratio_value().is_some()
+                        && parent_layout.get_width() != Length::Auto);
+                if definite_col_h {
+                    main_avail
+                } else {
+                    parent_layout
+                        .get_min_height()
+                        .resolve(viewport.get_height(), viewport)
+                        .map(|mh: f32| (mh - parent_layout.get_padding().vertical()).max(0.0))
+                        .unwrap_or(0.0)
+                }
+            };
+            let free_main: f32 = (effective_main_avail - used_main).max(0.0);
             if total_grow > 0.0 && free_main > 0.0 && !wrap_enabled {
                 for item in line.iter_mut() {
                     let grow: f32 = item.2.get_flex_grow();
@@ -517,7 +713,7 @@ impl LayoutEngine {
                         acc + sz
                     })
                     + gaps_total;
-            let rem: f32 = (main_avail - final_used_main).max(0.0);
+            let rem: f32 = (effective_main_avail - final_used_main).max(0.0);
             let (mut main_cursor, extra_step): (f32, f32) =
                 match parent_layout.get_justify_content() {
                     JustifyContent::Start => (0.0, 0.0),
@@ -749,5 +945,49 @@ impl LayoutEngine {
             idx = row_end;
         }
         Size::new(inner_avail.get_width(), y_cursor)
+    }
+
+    /// Translates the cached layout geometry of `root_id` and all non-fixed descendants by `(dx, dy)` in O(subtree) without re-running layout or text measurement.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Layout engine reference.
+    /// - `&mut SceneTree` - Mutable retained scene tree.
+    /// - `NodeId` - Root node of the clean subtree being shifted.
+    /// - `f32` - Horizontal translation delta in logical pixels.
+    /// - `f32` - Vertical translation delta in logical pixels.
+    fn translate_subtree(&self, tree: &mut SceneTree, root_id: NodeId, dx: f32, dy: f32) {
+        let mut stack: Vec<(NodeId, bool)> = vec![(root_id, true)];
+        while let Some((nid, is_root)) = stack.pop() {
+            let children_to_visit: Vec<NodeId> = {
+                let Some(node) = tree.get_node_mut(nid) else {
+                    continue;
+                };
+                let layout: LayoutStyle = node.get_style().get_layout();
+                if !is_root && layout.get_position() == Position::Fixed {
+                    continue;
+                }
+                if let Some(mut c) = node.cached_constraint() {
+                    c.set_origin_x(c.get_origin_x() + dx);
+                    c.set_origin_y(c.get_origin_y() + dy);
+                    node.set_last_constraint(Some(c));
+                }
+                if layout.get_display() == Display::None {
+                    continue;
+                }
+                let mut bounds: Rect = node.get_layout_box().get_bounds();
+                bounds.set_x(bounds.get_x() + dx);
+                bounds.set_y(bounds.get_y() + dy);
+                node.get_mut_layout_box().set_bounds(bounds);
+                let mut content: Rect = node.get_layout_box().get_content_bounds();
+                content.set_x(content.get_x() + dx);
+                content.set_y(content.get_y() + dy);
+                node.get_mut_layout_box().set_content_bounds(content);
+                node.get_children().clone()
+            };
+            for child_id in children_to_visit.into_iter() {
+                stack.push((child_id, false));
+            }
+        }
     }
 }

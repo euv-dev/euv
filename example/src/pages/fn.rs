@@ -1413,7 +1413,7 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         column {
             width: Length::Percent(100.0)
             gap: SPACE_SM
-            { EuvBreadcrumb::new(vec!["Euv Studio".to_string(), "Design System".to_string(), "Components".to_string()], tokens) }
+            { EuvBreadcrumb::new(vec!["Euv Studio".to_string(), "Design System".to_string(), "Components".to_string()], tokens).active(state.get_breadcrumb_active()) }
             { EuvTypography::new("Unified shadcn/ui Typography & Surface Tokens".to_string(), EuvTypographyVariant::H3, tokens) }
             { EuvSkeleton::new(260.0, 18.0, tokens) }
             { EuvEmpty::new("No Pending Warnings".to_string(), "All layout, scroll, shadow and typography checks passed.".to_string(), tokens) }
@@ -1717,11 +1717,34 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             { form_btns }
         }
     };
+    let picker_color: Signal<Color> = state.get_picker_color();
+    let picker_time: Signal<(u8, u8)> = state.get_picker_time();
+    let tag_items: Signal<Vec<String>> = state.get_tag_items();
     let shadcn_body: NodeId = view! {
         column {
             gap: SPACE_MD
             { EuvToggleGroup::new(vec!["Bold".to_string(), "Italic".to_string(), "Underline".to_string()], state.get_toggle_group_index(), tokens) }
             { EuvInputOtp::new(state.get_otp_code(), 6, tokens) }
+            { EuvColorPicker::new(picker_color, tokens) }
+            { EuvTimePicker::new(picker_time, tokens) }
+            { EuvTagInput::new(tag_items, tokens).placeholder(TAG_INPUT_PLACEHOLDER) }
+            text {
+                font_size: 12.0
+                color: p.get_muted_foreground()
+                { move || {
+                    let c: Color = picker_color.get();
+                    let (hh, mm): (u8, u8) = picker_time.get();
+                    format!(
+                        "Color: #{:02X}{:02X}{:02X} | Time: {:02}:{:02} | Tags: {}",
+                        c.get_r(),
+                        c.get_g(),
+                        c.get_b(),
+                        hh,
+                        mm,
+                        tag_items.get().len()
+                    )
+                } }
+            }
             { EuvCalendar::new(LABEL_CALENDAR_MONTH.to_string(), 30, state.get_calendar_day(), tokens) }
             { EuvCollapsible::new(state.get_collapsible_open(), "Advanced Form Details".to_string(), collapsible_body, tokens) }
         }
@@ -1731,7 +1754,7 @@ pub fn mount_forms_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         .child(body)
         .mount_current();
     let shadcn_card: NodeId = EuvCard::new("shadcn/ui Extended Form Controls".to_string(), tokens)
-        .subtitle("ToggleGroup, InputOTP, Calendar, and Collapsible")
+        .subtitle(FORMS_EXT_CARD_SUB)
         .child(shadcn_body)
         .mount_current();
     EuvPage::new(FORMS_TITLE.to_string(), FORMS_SUBTITLE.to_string(), tokens)
@@ -1891,6 +1914,7 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
         )
         .child(top_btn.mount_current())
         .mount_current();
+    let tree_sel: Signal<Option<String>> = state.get_tree_selected();
     let body: NodeId = view! {
         column {
             gap: SPACE_MD
@@ -1913,6 +1937,35 @@ pub fn mount_data_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             { aspect_box }
             { EuvPagination::new(state.get_page_index(), 12, tokens) }
             { EuvSteps::new(vec!["Layout".to_string(), "Paint".to_string(), "Present".to_string()], state.get_step_index(), tokens) }
+            { EuvTree::new(
+                vec![EuvTreeNode::new(
+                    TREE_NODE_WORKSPACE.to_string(),
+                    vec![
+                        EuvTreeNode::new(
+                            TREE_NODE_CORE.to_string(),
+                            vec![
+                                EuvTreeNode::new(TREE_NODE_RENDER.to_string(), Vec::new()),
+                                EuvTreeNode::new(TREE_NODE_REACTIVE.to_string(), Vec::new()),
+                            ],
+                        ),
+                        EuvTreeNode::new(TREE_NODE_UI.to_string(), Vec::new()),
+                        EuvTreeNode::new(TREE_NODE_PERF.to_string(), Vec::new()),
+                    ],
+                )],
+                tokens,
+            ).selected(state.get_tree_selected()) }
+            text {
+                font_size: 12.0
+                color: p.get_muted_foreground()
+                {
+                    move || {
+                        let cur: String = tree_sel
+                            .get()
+                            .unwrap_or_else(|| TREE_NONE_SELECTED.to_string());
+                        format!("{TREE_SELECTED_PREFIX}: {cur}")
+                    }
+                }
+            }
             { EuvAccordion::new(vec![EuvAccordionItem::new("Virtualization".to_string(), "Only visible rows + overscan are materialized in O(visible).".to_string())], state.get_accordion_open(), tokens) }
         }
     };
