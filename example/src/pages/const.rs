@@ -170,3 +170,160 @@ pub(crate) const TREE_NODE_RENDER: &str = "Renderer (SW/GPU)";
 pub(crate) const TREE_NODE_REACTIVE: &str = "Reactive Signals";
 pub(crate) const TREE_NONE_SELECTED: &str = "None";
 pub(crate) const TREE_SELECTED_PREFIX: &str = "Selected Tree Node";
+pub(crate) const HERO_BADGE_VER: &str = "euv 0.40";
+pub(crate) const HERO_BADGE_ZERO_WV: &str = "Zero WebView";
+pub(crate) const HERO_BADGE_EVA: &str = "VS Code Eva Bold";
+pub(crate) const HERO_BADGE_FREEZE: &str = "Freeze Router";
+pub(crate) const HERO_HEADLINE: &str =
+    "Build Native Apps, 3D Worlds & Markdown Studios in Pure Rust";
+pub(crate) const HERO_DESCRIPTION: &str = "Zero-context view! & style! macros, spring animations, lazy PageRetention::Freeze routing, cross-component events, and bit-identical rendering across 7 targets.";
+pub(crate) const CARD_LIFECYCLE_TITLE: &str = "Live Page Lifecycle & Global State Monitor";
+pub(crate) const CARD_LIFECYCLE_SUB: &str = "Every route mounts lazily on first visit and freezes on leave (PageRetention::Freeze) with cross-page coalesced sync.";
+pub(crate) const BTN_OPEN_MARKDOWN: &str = "Markdown & Code (Eva)";
+pub(crate) const BTN_OPEN_3D_RT: &str = "3D Engine (Full GI)";
+pub(crate) const BTN_EMIT_PULSE: &str = "Emit Custom Event";
+pub(crate) const BTN_LOCAL_INC: &str = "Local State (+1)";
+pub(crate) const MD_STUDIO_TITLE: &str = "Markdown & Code Studio";
+pub(crate) const MD_STUDIO_SUBTITLE: &str = "Full GitHub-Flavored Markdown suite paired with exact VS Code Eva Light Bold / Eva Dark Bold syntax highlighting.";
+pub(crate) const MD_THEME_CARD_TITLE: &str = "VS Code Eva Bold Theme Alignment";
+pub(crate) const MD_THEME_CARD_SUB: &str = "Toggle Light / Dark to flip verbatim between Eva Light Bold (#EBEEF5) and Eva Dark Bold (#282C34).";
+pub(crate) const BTN_TOGGLE_EVA_MODE: &str = "Switch Eva Light / Dark Bold";
+pub(crate) const MD_CODE_CARD_TITLE: &str = "EuvCodeBlock Multi-Language Inspector";
+pub(crate) const MD_CODE_CARD_SUB: &str = "Line numbers, highlighted lines, filename chrome, Eva Bold token colors, and interactive Copy callback.";
+pub(crate) const MD_DOC_CARD_TITLE: &str = "Complete Native GFM Markdown Document";
+pub(crate) const MD_DOC_CARD_SUB: &str = "Headings, rich inline text, GitHub Alerts, interactive checklists, aligned tables, images, and collapsible disclosures.";
+pub(crate) const MD_SAMPLE_RUST: &str = r#"#[component(retention = Freeze)]
+impl MarkdownStudioPage {
+    fn on_freeze(&self, _node: NodeId) {
+        emit!(ShowcasePulseEvent { source: "markdown".into(), seq: 1 });
+    }
+    fn render(&self) -> NodeId {
+        let count: LocalState<i32> = local_state!(42);
+        let box_style: Style = style! { AlignItems::Center; Overflow::Hidden; };
+        view! {
+            EuvCodeBlock(source, tokens) {
+                language: "rust"
+                line_numbers: true
+            }
+        }
+    }
+}"#;
+pub(crate) const MD_SAMPLE_TS: &str = r#"// VS Code Eva Light Bold / Eva Dark Bold TypeScript sample
+interface RenderPipeline {
+  readonly target: "metal" | "vulkan" | "webgpu";
+  maxFps: number;
+  rayTracing: boolean;
+}
+export function createPipeline(fps: number): RenderPipeline {
+  return { target: "metal", maxFps: fps, rayTracing: true };
+}"#;
+pub(crate) const MD_SAMPLE_JSON: &str = r##"{
+  "theme": "Eva Light Bold / Eva Dark Bold",
+  "background_light": "#EBEEF5",
+  "background_dark": "#282C34",
+  "retention": "Freeze",
+  "ray_tracing": "FullPathTracedGi"
+}"##;
+pub(crate) const MD_SAMPLE_DIFF: &str = r##"@@ -1,4 +1,5 @@
+-let style = Style::empty().align(AlignItems::Center).overflow(Overflow::Hidden);
++let style = style! { AlignItems::Center; Overflow::Hidden; };
+-impl Mountable for MyPage { fn mount(self, ctx: &mut BuildContext) -> NodeId { ... } }
++#[component(retention = Freeze)]
++impl MyPage { fn render(&self) -> NodeId { view! { ... } } }"##;
+pub(crate) const MD_FULL_DOCUMENT: &str = r##"# Native Rust Markdown Architecture
+
+Welcome to **Euv Markdown Studio** — featuring *zero WebView*, ~~DOM bloat~~, exact `Eva Bold` syntax colors, keyboard shortcuts like <kbd>Cmd+K</kbd>, and interactive [Documentation Links](https://euv.ltpp.vip/docs/markdown).
+
+> [!NOTE]
+> Every Markdown block below compiles directly to native `euv` scene nodes with bit-identical rendering across all 7 platforms.
+
+> [!TIP]
+> Tap **Switch Eva Light / Dark Bold** above to compare `Eva Light Bold` (`#EBEEF5`) and `Eva Dark Bold` (`#282C34`) live!
+
+> [!IMPORTANT]
+> Inactive showcase routes use `PageRetention::Freeze` — reactive effects and 3D engines suspend at 0% CPU until resumed.
+
+> [!WARNING]
+> Always terminate statements inside `style! { AlignItems::Center; Overflow::Hidden; }` with `;` for strict syntax uniformity.
+
+> [!CAUTION]
+> Legacy `Mountable` and `Style::empty()` APIs have been removed in favor of `Component`, `Lifecycle`, and `Style::default()`.
+
+## Interactive GFM Checklist
+
+- [x] Standalone `Lifecycle` + `Component` traits and `#[component(retention = Freeze)]`
+- [x] Exact VS Code `Eva Light Bold` & `Eva Dark Bold` code highlighting
+- [x] Full-screen gesture swipe area with game/canvas exclusion
+- [ ] Tap any checkbox row to toggle completion state live
+
+### Ordered Architecture Layers
+
+1. Fine-grained `Signal`, `LocalState`, `GlobalState`, and `EventBus`
+2. Declarative `view!` & `style!` proc macros formatted by `euv fmt`
+3. Persistent multi-core software + 3D BVH ray-traced renderer
+
+## Cross-Platform Target Matrix
+
+| Target | Graphics API | Retention Policy |
+| :--- | :---: | ---: |
+| iOS & macOS | Metal / CoreGraphics | Freeze |
+| Android | Vulkan / NDK ANativeWindow | Freeze |
+| WebAssembly | WebGPU / Canvas2D | Freeze |
+
+```rust
+let global = global_state!(ShowcaseGlobalBanner = ShowcaseGlobalBanner::default());
+let _sub = on_event!(ShowcasePulseEvent => move |ev: &ShowcasePulseEvent| {
+    let _ = global.update(|g: &mut ShowcaseGlobalBanner| g.set_pulses(g.get_pulses() + ev.get_seq()));
+});
+```
+
+![Euv Unified Scene & BVH Pipeline](https://euv.ltpp.vip/assets/pipeline-2026.svg)
+
+<details>
+<summary>Expand Lifecycle & Cross-Page Sync Details</summary>
+When leaving a route, `Scope::freeze()` suspends effects while marking dirty cross-page writes.
+Upon returning, `Scope::resume()` coalesces all pending updates into a single atomic flush.
+</details>
+
+---
+
+> "Fast, lossless, and idiomatic — native Rust UI from mobile touchscreens to 4K desktop displays."
+"##;
+pub(crate) const BTN_OPEN_STRESS_LAB: &str = "Open Stress Lab";
+pub(crate) const BTN_TRY_REACTIVITY: &str = "Try Reactivity";
+pub(crate) const BTN_OPEN_GAME_ENGINE: &str = "Open Game Engine";
+pub(crate) const BTN_OPEN_OS_SERVICES: &str = "Open OS Services";
+pub(crate) const LIFECYCLE_ACTIVE_DEFAULT: &str = "Active Cache: / = Active";
+pub(crate) const SOURCE_NONE: &str = "none";
+pub(crate) const MD_THEME_DESC_LIGHT: &str =
+    "Active VS Code Theme: Eva Light Bold (bg #EBEEF5 | kw #7C4DFF | fn #437AED | num #FF6D12)";
+pub(crate) const MD_THEME_DESC_DARK: &str =
+    "Active VS Code Theme: Eva Dark Bold (bg #282C34 | kw #A78CFA | fn #6495EE | num #FF9070)";
+pub(crate) const MD_TAB_RUST: &str = "Rust";
+pub(crate) const MD_TAB_TS: &str = "TypeScript";
+pub(crate) const MD_TAB_JSON: &str = "JSON";
+pub(crate) const MD_TAB_DIFF: &str = "Diff";
+pub(crate) const MD_LANG_RUST: &str = "rust";
+pub(crate) const MD_LANG_TS: &str = "ts";
+pub(crate) const MD_LANG_JSON: &str = "json";
+pub(crate) const MD_LANG_DIFF: &str = "diff";
+pub(crate) const MD_FILE_RUST: &str = "src/pages/markdown.rs";
+pub(crate) const MD_FILE_TS: &str = "src/pipeline.ts";
+pub(crate) const MD_FILE_JSON: &str = "eva-theme.json";
+pub(crate) const MD_FILE_DIFF: &str = "refactor.patch";
+pub(crate) const CMD_ITEM_OVERVIEW: &str = "Go to Overview (Workspace)";
+pub(crate) const CMD_ITEM_MARKDOWN: &str = "Go to Markdown & Code (Eva Bold)";
+pub(crate) const CMD_ITEM_LAB: &str = "Go to UI & Edge Lab (Workspace)";
+pub(crate) const CMD_ITEM_GAME_3D: &str = "Go to 3D Engine (Full GI)";
+pub(crate) const CMD_ITEM_MEDIA: &str = "Go to Media Studio (Engine)";
+pub(crate) const CMD_ITEM_DYNAMIC: &str = "Go to Dynamic WASM (OTA)";
+pub(crate) const CMD_ITEM_STRESS: &str = "Go to Stress Lab (Benchmarks)";
+pub(crate) const CMD_ITEM_WINDOW: &str = "Go to Window & OS (Runtime)";
+pub(crate) const CMD_ITEM_THEMES: &str = "Go to Themes (17 Schemes)";
+pub(crate) const CMD_ITEM_TOGGLE_MODE: &str = "Toggle Dark / Light Mode";
+pub(crate) const CMD_PLACEHOLDER: &str = "Type a route or action...";
+pub(crate) const CMD_MODAL_TITLE: &str = "Command Palette";
+pub(crate) const BTN_SEARCH_DESKTOP: &str = "Search  Cmd+K";
+pub(crate) const BTN_SEARCH_MOBILE: &str = "Search";
+pub(crate) const LABEL_MODE_LIGHT: &str = "Light";
+pub(crate) const LABEL_MODE_DARK: &str = "Dark";

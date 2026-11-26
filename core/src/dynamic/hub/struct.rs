@@ -212,11 +212,11 @@ pub(crate) struct DynamicHubState {
 /// Shared cross-platform hub orchestrating surgical component-level and page-level dynamic updates.
 #[derive(Clone, CustomDebug)]
 pub struct DynamicUpdateHub {
-    /// Interior-mutable registry state shared across `App`, `BuildContext`, and live UI slots.
+    /// Interior-mutable registry state shared across `App`, `Context`, and live UI slots.
     pub(crate) inner: Rc<RefCell<DynamicHubState>>,
 }
 
-/// Declarative `Mountable` slot supporting surgical component-level dynamic updates and rollbacks.
+/// Declarative `Component` slot supporting surgical component-level dynamic updates and rollbacks.
 #[derive(CustomDebug, Data, New)]
 pub struct DynamicComponentSlot {
     /// Unique component slot identifier targeted by `DynamicUpdateHub::apply_component`.
@@ -225,7 +225,7 @@ pub struct DynamicComponentSlot {
     #[debug(skip)]
     #[get(skip)]
     pub(crate) fallback: DynamicBuilderFn,
-    /// Optional explicit `DynamicUpdateHub` override (defaults to the ambient `BuildContext` hub).
+    /// Optional explicit `DynamicUpdateHub` override (defaults to the ambient `Context` hub).
     #[new(skip)]
     #[get(skip)]
     pub(crate) hub: Option<DynamicUpdateHub>,
@@ -235,7 +235,7 @@ pub struct DynamicComponentSlot {
     pub(crate) style: Style,
 }
 
-/// Declarative `Mountable` slot supporting surgical page-level dynamic updates for a single route.
+/// Declarative `Component` slot supporting surgical page-level dynamic updates for a single route.
 #[derive(CustomDebug, Data, New)]
 pub struct DynamicPageSlot {
     /// Route path targeted by `DynamicUpdateHub::apply_page` (e.g. `"/dynamic/live"`).
@@ -244,7 +244,7 @@ pub struct DynamicPageSlot {
     #[debug(skip)]
     #[get(skip)]
     pub(crate) fallback: DynamicBuilderFn,
-    /// Optional explicit `DynamicUpdateHub` override (defaults to the ambient `BuildContext` hub).
+    /// Optional explicit `DynamicUpdateHub` override (defaults to the ambient `Context` hub).
     #[new(skip)]
     #[get(skip)]
     pub(crate) hub: Option<DynamicUpdateHub>,
@@ -264,7 +264,7 @@ pub struct DynamicPageOutlet {
     #[debug(skip)]
     #[get(skip)]
     pub(crate) fallback: DynamicRouteFallbackFn,
-    /// Optional explicit `DynamicUpdateHub` override (defaults to the ambient `BuildContext` hub).
+    /// Optional explicit `DynamicUpdateHub` override (defaults to the ambient `Context` hub).
     #[new(skip)]
     #[get(skip)]
     pub(crate) hub: Option<DynamicUpdateHub>,

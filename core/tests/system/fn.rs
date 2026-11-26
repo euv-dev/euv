@@ -11,22 +11,22 @@ fn accessibility_tree_compiles_scene_and_maps_roles_across_all_seven_platforms()
     let mut btn_id: NodeId = NodeId::default();
     let mut hidden_id: NodeId = NodeId::default();
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let root: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .column()
                 .width(Length::Px(400.0))
                 .height(Length::Px(240.0)),
         );
         btn_id = ctx.view(
-            Style::empty()
+            Style::default()
                 .width(Length::Px(120.0))
                 .height(Length::Px(40.0)),
         );
         let mut btn_a11y: A11yProps = A11yProps::new(A11yRole::Button, "Save File".to_string());
         btn_a11y.set_hint("Saves active workspace".to_string());
         ctx.set_a11y(btn_id, btn_a11y);
-        hidden_id = ctx.text("Decorative".to_string(), Style::empty());
+        hidden_id = ctx.text("Decorative".to_string(), Style::default());
         let mut hidden_a11y: A11yProps = A11yProps::new(A11yRole::Text, "Decorative".to_string());
         hidden_a11y.set_hidden(true);
         ctx.set_a11y(hidden_id, hidden_a11y);

@@ -482,6 +482,12 @@ pub(crate) fn run_band_job_loop(job: &BandJob) {
         let task: BandTaskSlice = tasks[idx];
         let pixels: &mut [u8] =
             unsafe { from_raw_parts_mut(task.get_pixels_ptr() as *mut u8, task.get_pixels_len()) };
+        if task.get_base_src_ptr() != 0 {
+            let src_slice: &[u8] = unsafe {
+                from_raw_parts(task.get_base_src_ptr() as *const u8, task.get_pixels_len())
+            };
+            pixels.copy_from_slice(src_slice);
+        }
         let mut band: PixelBand<'_> = PixelBand {
             pixels,
             width: task.get_width(),

@@ -34,6 +34,7 @@ impl SceneNode {
             canvas_painter: None,
             a11y: None,
             virtual_scroll: None,
+            lifecycles: Vec::new(),
         }
     }
 
@@ -142,5 +143,43 @@ impl SceneNode {
             last_constraint, ..
         } = self;
         *last_constraint
+    }
+
+    /// Registers a `Lifecycle` observer on this scene node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene node.
+    /// - `Rc<dyn Lifecycle>` - Shared lifecycle hook observer.
+    pub fn add_lifecycle(&mut self, hook: Rc<dyn Lifecycle>) {
+        self.get_mut_lifecycles().push(hook);
+    }
+
+    /// Returns cloned handles to all `Lifecycle` observers attached to this node.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene node reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<Rc<dyn Lifecycle>>` - Attached lifecycle observers.
+    #[must_use]
+    pub fn lifecycle_observers(&self) -> Vec<Rc<dyn Lifecycle>> {
+        let Self { lifecycles, .. } = self;
+        lifecycles.clone()
+    }
+
+    /// Removes and returns all `Lifecycle` observers attached to this node during disposal.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene node.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<Rc<dyn Lifecycle>>` - Drained lifecycle observers.
+    pub(crate) fn take_lifecycles(&mut self) -> Vec<Rc<dyn Lifecycle>> {
+        take(self.get_mut_lifecycles())
     }
 }

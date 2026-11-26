@@ -726,6 +726,17 @@ impl<'a> PixelBand<'a> {
         let Some(span) = pixels.get_mut(start_byte..end_byte) else {
             return;
         };
+        if end_x - x0 >= 128 {
+            let (lut_r, lut_g, lut_b, lut_a): ([u8; 256], [u8; 256], [u8; 256], [u8; 256]) =
+                build_linear_blend_luts(color);
+            for px in span.as_chunks_mut::<4>().0.iter_mut() {
+                px[0] = lut_r[px[0] as usize];
+                px[1] = lut_g[px[1] as usize];
+                px[2] = lut_b[px[2] as usize];
+                px[3] = lut_a[px[3] as usize];
+            }
+            return;
+        }
         let a: f32 = (sa as f32) * (1.0 / 255.0);
         let inv_a: f32 = 1.0 - a;
         let sr_a: f32 = SRGB_TO_LIN_LUT[color.get_r() as usize] * a;
@@ -745,6 +756,47 @@ impl<'a> PixelBand<'a> {
             px[1] = ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8;
             px[2] = ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8;
             px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+        }
+    }
+
+    /// Composites horizontal span `[x0, x1)` on global row `y` using precomputed bit-exact 256-entry linear-light channel LUTs.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable pixel band.
+    /// - `u32` - Inclusive start X coordinate.
+    /// - `u32` - Exclusive end X coordinate.
+    /// - `u32` - Global physical Y coordinate.
+    /// - `&([u8; 256], [u8; 256], [u8; 256], [u8; 256])` - Precomputed per-channel lookup tables.
+    pub fn fill_span_linear_luts(
+        &mut self,
+        x0: u32,
+        x1: u32,
+        y: u32,
+        luts: &([u8; 256], [u8; 256], [u8; 256], [u8; 256]),
+    ) {
+        let Self {
+            width,
+            y_offset,
+            height,
+            pixels,
+        } = self;
+        if y < *y_offset || y >= *y_offset + *height || x0 >= x1 || x0 >= *width {
+            return;
+        }
+        let end_x: u32 = x1.min(*width);
+        let row_base: usize = ((y - *y_offset) as usize) * (*width as usize);
+        let start_byte: usize = (row_base + (x0 as usize)) * 4;
+        let end_byte: usize = (row_base + (end_x as usize)) * 4;
+        let Some(span) = pixels.get_mut(start_byte..end_byte) else {
+            return;
+        };
+        let (lut_r, lut_g, lut_b, lut_a): &([u8; 256], [u8; 256], [u8; 256], [u8; 256]) = luts;
+        for px in span.as_chunks_mut::<4>().0.iter_mut() {
+            px[0] = lut_r[px[0] as usize];
+            px[1] = lut_g[px[1] as usize];
+            px[2] = lut_b[px[2] as usize];
+            px[3] = lut_a[px[3] as usize];
         }
     }
 

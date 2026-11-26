@@ -511,6 +511,7 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
     let mut active_code: Option<(String, String)> = None;
     let mut active_image: Option<(String, String, String)> = None;
     let mut table_alignments: Vec<Alignment> = Vec::new();
+    let mut blockquote_alerts: Vec<bool> = Vec::new();
     let mut in_table_head: bool = false;
     let mut cell_index: usize = 0;
     for event in parser {
@@ -570,13 +571,7 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
                 Event::End(TagEnd::CodeBlock) => {
                     if let Some((lang, code)) = active_code.take() {
                         let trimmed: &str = code.trim_end_matches('\n');
-                        state.out.push_str(HTML_CODE_WRAP_OPEN);
-                        state.out.push_str(&escape_html(&lang));
-                        state.out.push_str(HTML_CODE_HEAD_MID);
-                        state.out.push_str(&escape_html(&lang));
-                        state.out.push_str(HTML_LINK_MID);
-                        state.out.push_str(&escape_html(trimmed));
-                        state.out.push_str(HTML_CODE_CLOSE);
+                        render_highlighted_code_html(&lang, trimmed, state.out);
                     }
                 }
                 Event::Text(text) | Event::Code(text) => code_buf.push_str(&text),
@@ -625,8 +620,33 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
             }
             Event::Start(Tag::Paragraph) => state.out.push_str(HTML_P_OPEN),
             Event::End(TagEnd::Paragraph) => state.out.push_str(HTML_P_CLOSE),
-            Event::Start(Tag::BlockQuote(_)) => state.out.push_str(HTML_QUOTE_OPEN),
-            Event::End(TagEnd::BlockQuote(_)) => state.out.push_str(HTML_QUOTE_CLOSE),
+            Event::Start(Tag::BlockQuote(kind_opt)) => {
+                if let Some(kind) = kind_opt {
+                    let (cls, title): (&str, &str) = match kind {
+                        BlockQuoteKind::Note => (CALLOUT_KIND_NOTE, CALLOUT_TITLE_NOTE),
+                        BlockQuoteKind::Tip => (CALLOUT_KIND_TIP, CALLOUT_TITLE_TIP),
+                        BlockQuoteKind::Important => {
+                            (CALLOUT_KIND_IMPORTANT, CALLOUT_TITLE_IMPORTANT)
+                        }
+                        BlockQuoteKind::Warning => (CALLOUT_KIND_WARNING, CALLOUT_TITLE_WARNING),
+                        BlockQuoteKind::Caution => (CALLOUT_KIND_CAUTION, CALLOUT_TITLE_CAUTION),
+                    };
+                    state.out.push_str(&format!(
+                        "<div class=\"callout callout-{cls}\"><div class=\"callout-title\">{title}</div>"
+                    ));
+                    blockquote_alerts.push(true);
+                } else {
+                    state.out.push_str(HTML_QUOTE_OPEN);
+                    blockquote_alerts.push(false);
+                }
+            }
+            Event::End(TagEnd::BlockQuote(_)) => {
+                if blockquote_alerts.pop().unwrap_or(false) {
+                    state.out.push_str(HTML_DIV_CLOSE);
+                } else {
+                    state.out.push_str(HTML_QUOTE_CLOSE);
+                }
+            }
             Event::Start(Tag::List(None)) => state.out.push_str(HTML_UL_OPEN),
             Event::Start(Tag::List(Some(start))) => {
                 if start == 1 {
@@ -650,6 +670,12 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
             Event::End(TagEnd::Emphasis) => state.out.push_str(HTML_EM_CLOSE),
             Event::Start(Tag::Strikethrough) => state.out.push_str(HTML_DEL_OPEN),
             Event::End(TagEnd::Strikethrough) => state.out.push_str(HTML_DEL_CLOSE),
+            Event::Start(Tag::DefinitionList) => state.out.push_str(HTML_DL_OPEN),
+            Event::End(TagEnd::DefinitionList) => state.out.push_str(HTML_DL_CLOSE),
+            Event::Start(Tag::DefinitionListTitle) => state.out.push_str(HTML_DT_OPEN),
+            Event::End(TagEnd::DefinitionListTitle) => state.out.push_str(HTML_DT_CLOSE),
+            Event::Start(Tag::DefinitionListDefinition) => state.out.push_str(HTML_DD_OPEN),
+            Event::End(TagEnd::DefinitionListDefinition) => state.out.push_str(HTML_DD_CLOSE),
             Event::Start(Tag::CodeBlock(kind)) => {
                 let lang: String = match kind {
                     CodeBlockKind::Fenced(tag) => {
@@ -765,6 +791,16 @@ fn render_markdown_chunk(chunk: &str, state: &mut MarkdownRenderState<'_>) {
             }
             Event::SoftBreak => state.out.push(' '),
             Event::HardBreak => state.out.push_str(HTML_BR),
+            Event::InlineMath(math) => {
+                state.out.push_str(HTML_MATH_INLINE_OPEN);
+                state.out.push_str(&escape_html(&math));
+                state.out.push_str(HTML_MATH_INLINE_CLOSE);
+            }
+            Event::DisplayMath(math) => {
+                state.out.push_str(HTML_MATH_DISPLAY_OPEN);
+                state.out.push_str(&escape_html(&math));
+                state.out.push_str(HTML_MATH_DISPLAY_CLOSE);
+            }
             Event::Html(raw_html) | Event::InlineHtml(raw_html) => {
                 if is_safe_raw_html(&raw_html) {
                     state.out.push_str(&raw_html);
@@ -827,13 +863,7 @@ fn render_fallback_blocks_html(page: &DocPage, out: &mut String) {
             }
             DocBlock::HorizontalRule => out.push_str(HTML_HR),
             DocBlock::Code { language, code } => {
-                out.push_str(HTML_CODE_WRAP_OPEN);
-                out.push_str(&escape_html(language));
-                out.push_str(HTML_CODE_HEAD_MID);
-                out.push_str(&escape_html(language));
-                out.push_str(HTML_LINK_MID);
-                out.push_str(&escape_html(code));
-                out.push_str(HTML_CODE_CLOSE);
+                render_highlighted_code_html(language, code, out);
             }
             DocBlock::Table { headers, rows } => {
                 out.push_str(HTML_TABLE_OPEN);
@@ -1264,6 +1294,55 @@ fn clean_html_path_for_route(out_dir: &Path, route: &str) -> PathBuf {
     } else {
         out_dir.join(trimmed).join(INDEX_HTML_NAME)
     }
+}
+
+/// Renders a fenced code block with line numbers and exact VS Code Eva Light/Dark Bold syntax classes.
+///
+/// # Arguments
+///
+/// - `&str` - Language label from the fenced code info string.
+/// - `&str` - Trimmed source code body.
+/// - `&mut String` - HTML output buffer.
+fn render_highlighted_code_html(language: &str, code: &str, out: &mut String) {
+    out.push_str(HTML_CODE_WRAP_OPEN);
+    out.push_str(&escape_html(language));
+    out.push_str(HTML_CODE_HEAD_MID);
+    out.push_str(&escape_html(language));
+    out.push_str(HTML_LINK_MID);
+    for (idx, line) in code.split('\n').enumerate() {
+        out.push_str(HTML_CODE_LINE_OPEN);
+        out.push_str(&(idx + 1).to_string());
+        out.push_str(HTML_CODE_LINE_MID);
+        let spans: Vec<CodeSpan> = tokenize_code_line(line, language);
+        for span in spans.iter() {
+            let class_opt: Option<&str> = match span.get_kind() {
+                CodeTokenKind::Keyword => Some(TOK_CLASS_KW),
+                CodeTokenKind::Function => Some(TOK_CLASS_FN),
+                CodeTokenKind::Type => Some(TOK_CLASS_TY),
+                CodeTokenKind::String => Some(TOK_CLASS_STR),
+                CodeTokenKind::Number => Some(TOK_CLASS_NUM),
+                CodeTokenKind::Comment => Some(TOK_CLASS_CMT),
+                CodeTokenKind::Macro => Some(TOK_CLASS_MAC),
+                CodeTokenKind::Property => Some(TOK_CLASS_PROP),
+                CodeTokenKind::Constant => Some(TOK_CLASS_CONST),
+                CodeTokenKind::Punctuation => Some(TOK_CLASS_PUNC),
+                CodeTokenKind::DiffAdd => Some(TOK_CLASS_ADD),
+                CodeTokenKind::DiffDel => Some(TOK_CLASS_DEL),
+                CodeTokenKind::Plain => None,
+            };
+            if let Some(cls) = class_opt {
+                out.push_str(&format!(
+                    "<span class=\"{cls}\">{}",
+                    escape_html(span.get_text())
+                ));
+                out.push_str(HTML_SPAN_CLOSE);
+            } else {
+                out.push_str(&escape_html(span.get_text()));
+            }
+        }
+        out.push_str(HTML_CODE_LINE_CLOSE);
+    }
+    out.push_str(HTML_CODE_CLOSE);
 }
 
 /// Escapes special HTML characters in text content.

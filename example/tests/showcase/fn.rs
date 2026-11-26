@@ -329,14 +329,14 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
     let wid: WindowId = app.get_window_state().get_id();
     let f_desk: FrameStats = app.step_frame().unwrap();
     assert_eq!(
-        app.get_build_context().get_breakpoint().get_untracked(),
+        app.get_context().get_breakpoint().get_untracked(),
         Breakpoint::Expanded
     );
     app.queue_window_command(WindowCommand::SetSize(wid, 768, 1024));
     app.dispatch_window_event(WindowEvent::Resized(wid, 768, 1024, 1.0));
     let f_tab: FrameStats = app.step_frame().unwrap();
     assert_eq!(
-        app.get_build_context().get_breakpoint().get_untracked(),
+        app.get_context().get_breakpoint().get_untracked(),
         Breakpoint::Medium
     );
     assert_ne!(f_tab.get_frame_hash(), f_desk.get_frame_hash());
@@ -344,7 +344,7 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
     app.dispatch_window_event(WindowEvent::Resized(wid, 390, 844, 1.0));
     let f_mob: FrameStats = app.step_frame().unwrap();
     assert_eq!(
-        app.get_build_context().get_breakpoint().get_untracked(),
+        app.get_context().get_breakpoint().get_untracked(),
         Breakpoint::Compact
     );
     assert_ne!(f_mob.get_frame_hash(), f_tab.get_frame_hash());
@@ -352,8 +352,9 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
     assert_ne!(f_menu_open.get_frame_hash(), f_mob.get_frame_hash());
     let _: FrameStats = click_label(&mut app, "Reactivity");
     assert_eq!(state.get_route().get_untracked(), ROUTE_REACTIVE);
-    let routes: [&str; 13] = [
+    let routes: [&str; 15] = [
         ROUTE_OVERVIEW,
+        ROUTE_MARKDOWN,
         ROUTE_REACTIVE,
         ROUTE_RENDER,
         ROUTE_WINDOW,
@@ -366,6 +367,7 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
         ROUTE_LAB,
         ROUTE_OVERLAYS,
         ROUTE_DYNAMIC,
+        ROUTE_STRESS,
     ];
     let sizes: [(u32, u32, Breakpoint); 3] = [
         (390, 844, Breakpoint::Compact),
@@ -377,7 +379,7 @@ fn instant_responsive_resize_adapts_shell_and_all_ten_pages_without_horizontal_o
         app.dispatch_window_event(WindowEvent::Resized(wid, vw, vh, 1.0));
         let _: FrameStats = app.step_frame().unwrap();
         assert_eq!(
-            app.get_build_context().get_breakpoint().get_untracked(),
+            app.get_context().get_breakpoint().get_untracked(),
             expected_bp
         );
         for route in routes.iter() {
@@ -720,7 +722,7 @@ fn fast_wheel_scroll_scrollbar_slider_drag_animations_touch_scroll_and_game_keys
     let _: FrameStats = app.step_frame().unwrap();
     assert!(state.get_media_pdf().get_untracked().get_zoom() > 1.0);
     assert_eq!(
-        app.get_build_context()
+        app.get_context()
             .get_gesture()
             .get_untracked()
             .map(|g: GestureEvent| g.get_kind()),
@@ -873,8 +875,9 @@ fn responsive_five_widths_virtual_list_alignment_and_ai_schema_hooks_pass_zero_o
         (1280, 800),
         (1440, 900),
     ];
-    let routes: [&str; 13] = [
+    let routes: [&str; 15] = [
         ROUTE_OVERVIEW,
+        ROUTE_MARKDOWN,
         ROUTE_LAB,
         ROUTE_REACTIVE,
         ROUTE_RENDER,
@@ -887,6 +890,7 @@ fn responsive_five_widths_virtual_list_alignment_and_ai_schema_hooks_pass_zero_o
         ROUTE_MEDIA,
         ROUTE_OVERLAYS,
         ROUTE_DYNAMIC,
+        ROUTE_STRESS,
     ];
     for (vw, vh) in viewports.into_iter() {
         reset_reactive_runtime();
@@ -983,7 +987,7 @@ fn multitouch_lifecycle_stale_cleanup_and_smooth_scroll_inertia_never_freeze() {
     let _: FrameStats = app.step_frame().unwrap();
     let _: bool = state.get_route().set_if_changed(ROUTE_LAB.to_string());
     let _: FrameStats = app.step_frame().unwrap();
-    let touches_sig: Signal<Vec<(u64, Point)>> = app.get_build_context().get_active_touches();
+    let touches_sig: Signal<Vec<(u64, Point)>> = app.get_context().get_active_touches();
     app.dispatch_window_event(WindowEvent::PointerDown(
         wid,
         PointerEvent::touch(1, 500.0, 360.0),
@@ -1113,4 +1117,86 @@ fn multitouch_lifecycle_stale_cleanup_and_smooth_scroll_inertia_never_freeze() {
         !app.has_active_animations(),
         "holding finger stationary before lift should cancel accidental fling"
     );
+}
+
+#[test]
+fn interactive_stress_lab_buttons_execute_live_benchmarks_and_update_telemetry() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: FrameStats = click_label(&mut app, "Stress Lab");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_STRESS);
+    assert_eq!(state.get_stress_results().get_untracked().len(), 10);
+    let _: FrameStats = scroll_and_click_label(&mut app, "Run 100k List");
+    let _: FrameStats = scroll_and_click_label(&mut app, "Run 2k Layout");
+    let _: FrameStats = scroll_and_click_label(&mut app, "Run Drawer Anim");
+    let _: FrameStats = scroll_and_click_label(&mut app, "Run 240Hz Touch");
+    let results: Vec<StressCaseResult> = state.get_stress_results().get_untracked();
+    let ran_count: usize = results
+        .iter()
+        .filter(|r: &&StressCaseResult| r.get_runs() > 0 && r.get_iterations() > 0)
+        .count();
+    assert_eq!(ran_count, 4);
+    assert!(
+        state
+            .get_stress_summary()
+            .get_untracked()
+            .contains("tap_drift=0.00px")
+    );
+    let _: FrameStats = scroll_and_click_label(&mut app, "Reset Telemetry");
+    let reset_rows: Vec<StressCaseResult> = state.get_stress_results().get_untracked();
+    assert!(
+        reset_rows
+            .iter()
+            .all(|r: &StressCaseResult| r.get_runs() == 0)
+    );
+}
+
+#[test]
+fn showcase_freeze_lifecycle_markdown_studio_3d_max_defaults_and_double_back_exit_work() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    let q3d: RenderQualityConfig = state.get_engine3d_quality().get_untracked();
+    assert_eq!(q3d.get_preset(), QualityPreset::Cinematic);
+    assert_eq!(q3d.get_ray_tracing(), RayTracingMode::FullPathTracedGi);
+    assert!((q3d.get_resolution_scale() - 1.0).abs() < 0.01);
+    assert!(state.get_game3d_host().get_paused().get());
+    assert!(state.get_game_host().get_paused().get());
+    let _: FrameStats = click_label(&mut app, "Markdown & Code");
+    assert_eq!(state.get_route().get_untracked(), ROUTE_MARKDOWN);
+    assert!(state.get_lifecycle_freezes().get_untracked() >= 1);
+    assert!(state.get_router().get_frozen_count().get_untracked() >= 1);
+    let _: FrameStats = click_label(&mut app, "Switch Eva Light / Dark Bold");
+    assert_eq!(
+        state.get_theme().get_mode().get_untracked(),
+        ThemeMode::Dark
+    );
+    let _: FrameStats = click_label(&mut app, "Emit Custom Event");
+    let banner: ShowcaseGlobalBanner = GlobalState::get::<ShowcaseGlobalBanner>().unwrap();
+    assert_eq!(banner.get_pulses(), 1);
+    assert_eq!(banner.get_last_source(), ROUTE_MARKDOWN);
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Back, Modifiers::default(), false),
+    ));
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(state.get_route().get_untracked(), ROUTE_OVERVIEW);
+    assert!(app.get_running());
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Back, Modifiers::default(), false),
+    ));
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert!(app.get_running());
+    assert!(!app.get_context().get_exit_requested().get_untracked());
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Back, Modifiers::default(), false),
+    ));
+    assert!(app.get_context().get_exit_requested().get_untracked());
+    assert!(!app.get_running());
 }

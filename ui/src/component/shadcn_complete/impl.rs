@@ -1,135 +1,136 @@
 use super::*;
 
-/// `Mountable` implementation for `EuvChart`.
-impl Mountable for EuvChart {
-    /// Mounts a vector-drawn bar, line, or area chart using theme colors and horizontal gridlines.
+/// Declarative `#[component]` implementation for `EuvChart`.
+#[component]
+/// Inherent implementation of [`EuvChart`].
+impl EuvChart {
+    /// Renders `EuvChart` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Chart props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted chart card.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let kind: EuvChartKind = self.get_kind();
-        let Self { title, data, .. } = self;
-        let card: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_LG))
-                .gap(SPACE_SM)
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_lg()),
-        );
-        let head: NodeId = ctx.text(
-            title,
-            Style::empty()
-                .font_size(14.0)
-                .font_weight(FontWeight::SemiBold)
-                .color(p.get_card_foreground()),
-        );
-        let plot_data: Vec<EuvChartPoint> = data.clone();
+        let Self { title, data, .. } = self.clone();
+        let plot_data: Vec<EuvChartPoint> = data;
         let bar_color: Color = p.get_primary();
         let grid_color: Color = p.get_border();
         let label_color: Color = p.get_muted_foreground();
         let radius_sm: f32 = g.get_radius_sm();
-        let canvas: NodeId = ctx.canvas(
-            Style::empty()
-                .width(Length::Percent(100.0))
-                .height(Length::Px(150.0)),
-            move |bounds: Rect, dl: &mut DisplayList| {
-                if plot_data.is_empty() {
-                    return;
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                padding: Edges::all(SPACE_LG)
+                gap: SPACE_SM
+                background: p.get_card()
+                border: (g.get_border_width(), p.get_border())
+                radius: g.get_radius_lg()
+                text {
+                    font_size: 14.0
+                    font_weight: FontWeight::SemiBold
+                    color: p.get_card_foreground()
+                    { title }
                 }
-                let max_val: f32 = plot_data
-                    .iter()
-                    .map(EuvChartPoint::get_value)
-                    .fold(1.0_f32, f32::max);
-                let pad_x: f32 = 12.0;
-                let pad_top: f32 = 10.0;
-                let pad_bottom: f32 = 24.0;
-                let plot_w: f32 = (bounds.get_width() - pad_x * 2.0).max(40.0);
-                let plot_h: f32 = (bounds.get_height() - pad_top - pad_bottom).max(30.0);
-                for step in 0..=3 {
-                    let gy: f32 = bounds.get_y() + pad_top + plot_h * (step as f32) / 3.0;
-                    dl.push(DrawCommand::Line {
-                        from: Point::new(bounds.get_x() + pad_x, gy),
-                        to: Point::new(bounds.get_x() + pad_x + plot_w, gy),
-                        color: grid_color.multiply_alpha(0.6),
-                        width: 1.0,
-                    });
-                }
-                let count: usize = plot_data.len();
-                let slot_w: f32 = plot_w / (count as f32);
-                let mut prev_pt: Option<Point> = None;
-                for (i, pt) in plot_data.iter().enumerate() {
-                    let frac: f32 = (pt.get_value() / max_val).clamp(0.0, 1.0);
-                    let cx: f32 = bounds.get_x() + pad_x + slot_w * ((i as f32) + 0.5);
-                    let cy: f32 = bounds.get_y() + pad_top + plot_h * (1.0 - frac);
-                    let base_y: f32 = bounds.get_y() + pad_top + plot_h;
-                    match kind {
-                        EuvChartKind::Bar => {
-                            let bw: f32 = (slot_w * 0.56).clamp(6.0, 36.0);
-                            let bh: f32 = (base_y - cy).max(3.0);
-                            dl.push(DrawCommand::FillRoundedRect {
-                                rect: Rect::new(cx - bw * 0.5, cy, bw, bh),
-                                color: bar_color,
-                                radius: CornerRadius::new(radius_sm, radius_sm, 0.0, 0.0),
-                                border: Border::default(),
+                canvas {
+                    width: Length::Percent(100.0)
+                    height: Length::Px(150.0)
+                    painter: move |bounds: Rect, dl: &mut DisplayList| {
+                        if plot_data.is_empty() {
+                            return;
+                        }
+                        let max_val: f32 = plot_data
+                        .iter()
+                        .map(EuvChartPoint::get_value)
+                        .fold(1.0_f32, f32::max);
+                        let pad_x: f32 = 12.0;
+                        let pad_top: f32 = 10.0;
+                        let pad_bottom: f32 = 24.0;
+                        let plot_w: f32 = (bounds.get_width() - pad_x * 2.0).max(40.0);
+                        let plot_h: f32 = (bounds.get_height() - pad_top - pad_bottom).max(30.0);
+                        for step in 0..=3 {
+                            let gy: f32 = bounds.get_y() + pad_top + plot_h * (step as f32) / 3.0;
+                            dl.push(DrawCommand::Line {
+                                    from: Point::new(bounds.get_x() + pad_x, gy),
+                                    to: Point::new(bounds.get_x() + pad_x + plot_w, gy),
+                                    color: grid_color.multiply_alpha(0.6),
+                                    width: 1.0,
                             });
                         }
-                        EuvChartKind::Line | EuvChartKind::Area => {
-                            let cur: Point = Point::new(cx, cy);
-                            if let Some(prev) = prev_pt {
-                                if kind == EuvChartKind::Area {
-                                    let area_col: Color = bar_color.multiply_alpha(0.22);
-                                    dl.push(DrawCommand::Triangle {
-                                        p0: prev,
-                                        p1: cur,
-                                        p2: Point::new(cur.get_x(), base_y),
-                                        color: area_col,
-                                    });
-                                    dl.push(DrawCommand::Triangle {
-                                        p0: prev,
-                                        p1: Point::new(cur.get_x(), base_y),
-                                        p2: Point::new(prev.get_x(), base_y),
-                                        color: area_col,
+                        let count: usize = plot_data.len();
+                        let slot_w: f32 = plot_w / (count as f32);
+                        let mut prev_pt: Option<Point> = None;
+                        for (i, pt) in plot_data.iter().enumerate() {
+                            let frac: f32 = (pt.get_value() / max_val).clamp(0.0, 1.0);
+                            let cx: f32 = bounds.get_x() + pad_x + slot_w * ((i as f32) + 0.5);
+                            let cy: f32 = bounds.get_y() + pad_top + plot_h * (1.0 - frac);
+                            let base_y: f32 = bounds.get_y() + pad_top + plot_h;
+                            match kind {
+                                EuvChartKind::Bar => {
+                                    let bw: f32 = (slot_w * 0.56).clamp(6.0, 36.0);
+                                    let bh: f32 = (base_y - cy).max(3.0);
+                                    dl.push(DrawCommand::FillRoundedRect {
+                                            rect: Rect::new(cx - bw * 0.5, cy, bw, bh),
+                                            color: bar_color,
+                                            radius: CornerRadius::new(radius_sm, radius_sm, 0.0, 0.0),
+                                            border: Border::default(),
                                     });
                                 }
-                                dl.push(DrawCommand::Line {
-                                    from: prev,
-                                    to: cur,
-                                    color: bar_color,
-                                    width: 2.5,
-                                });
+                                EuvChartKind::Line | EuvChartKind::Area => {
+                                    let cur: Point = Point::new(cx, cy);
+                                    if let Some(prev) = prev_pt {
+                                        if kind == EuvChartKind::Area {
+                                            let area_col: Color = bar_color.multiply_alpha(0.22);
+                                            dl.push(DrawCommand::Triangle {
+                                                    p0: prev,
+                                                    p1: cur,
+                                                    p2: Point::new(cur.get_x(), base_y),
+                                                    color: area_col,
+                                            });
+                                            dl.push(DrawCommand::Triangle {
+                                                    p0: prev,
+                                                    p1: Point::new(cur.get_x(), base_y),
+                                                    p2: Point::new(prev.get_x(), base_y),
+                                                    color: area_col,
+                                            });
+                                        }
+                                        dl.push(DrawCommand::Line {
+                                                from: prev,
+                                                to: cur,
+                                                color: bar_color,
+                                                width: 2.5,
+                                        });
+                                    }
+                                    dl.push(DrawCommand::Circle {
+                                            center: cur,
+                                            radius: 3.5,
+                                            color: bar_color,
+                                    });
+                                    prev_pt = Some(cur);
+                                }
                             }
-                            dl.push(DrawCommand::Circle {
-                                center: cur,
-                                radius: 3.5,
-                                color: bar_color,
+                            let mut lbl_st: TextStyle = TextStyle::default();
+                            lbl_st.set_font_size(10.0).set_color(label_color);
+                            dl.push(DrawCommand::TextRun {
+                                    rect: Rect::new(
+                                        cx - slot_w * 0.45,
+                                        base_y + 6.0,
+                                        slot_w * 0.9,
+                                        14.0,
+                                    ),
+                                    text: pt.get_label().clone(),
+                                    style: lbl_st,
                             });
-                            prev_pt = Some(cur);
                         }
                     }
-                    let mut lbl_st: TextStyle = TextStyle::default();
-                    lbl_st.set_font_size(10.0).set_color(label_color);
-                    dl.push(DrawCommand::TextRun {
-                        rect: Rect::new(cx - slot_w * 0.45, base_y + 6.0, slot_w * 0.9, 14.0),
-                        text: pt.get_label().clone(),
-                        style: lbl_st,
-                    });
                 }
-            },
-        );
-        ctx.append(card, head);
-        ctx.append(card, canvas);
-        card
+            }
+        }
     }
 }
 
@@ -171,19 +172,21 @@ impl EuvCombobox {
     }
 }
 
-/// `Mountable` implementation for `EuvCombobox`.
-impl Mountable for EuvCombobox {
-    /// Mounts a searchable dropdown combobox with live query filtering and unified overlay stack dismissal.
+/// Declarative `#[component]` implementation for `EuvCombobox`.
+#[component]
+/// Inherent implementation of [`EuvCombobox`].
+impl EuvCombobox {
+    /// Renders `EuvCombobox` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Combobox props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted combobox root.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
@@ -194,133 +197,115 @@ impl Mountable for EuvCombobox {
             options,
             query: query_opt,
             ..
-        } = self;
+        } = self.clone();
         let query: Signal<String> = query_opt.unwrap_or_else(|| Signal::new(String::new()));
         let resolved_ph: String = if placeholder.is_empty() {
             COMBOBOX_DEFAULT_PLACEHOLDER.to_string()
         } else {
             placeholder
         };
-        let wrap: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .gap(SPACE_XS),
-        );
         let opts_trigger: Vec<String> = options.clone();
-        let trigger: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .width(Length::Percent(100.0))
-                .height(Length::Px(g.get_control_md()))
-                .padding(Edges::symmetric(0.0, SPACE_MD))
-                .justify(JustifyContent::SpaceBetween)
-                .align(AlignItems::Center)
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md())
-                .cursor(CursorIcon::Pointer),
-        );
-        let trigger_txt: NodeId = ctx.reactive_text(
-            Style::empty().font_size(13.0).color(p.get_foreground()),
-            move || {
-                let idx: usize = selected.get();
-                let lbl: String = opts_trigger
-                    .get(idx)
-                    .cloned()
-                    .unwrap_or_else(|| COMBOBOX_EMPTY_SELECTION.to_string());
-                format!("{lbl}  v")
-            },
-        );
-        ctx.append(trigger, trigger_txt);
-        ctx.on_click(trigger, move |_: &UiEvent| {
-            let _: bool = open.update(|v: &mut bool| *v = !*v);
-        });
-        let panel: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_SM))
-                .gap(SPACE_XS)
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md())
-                .shadow(g.get_shadow_md())
-                .stop_scroll_propagation(true),
-        );
-        let search: NodeId = EuvInput::new(query, resolved_ph, tokens).mount(ctx);
-        let list_host: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .gap(2.0),
-        );
         let opts_filter: Vec<String> = options;
-        ctx.bind_children(list_host, move || {
-            let q: String = query.get().to_ascii_lowercase();
-            let cur_sel: usize = selected.get();
-            let mut nodes: Vec<NodeId> = Vec::new();
-            let mut bctx: BuildContext = current_build_context();
-            for (idx, opt) in opts_filter.iter().enumerate() {
-                if !q.is_empty() && !opt.to_ascii_lowercase().contains(&q) {
-                    continue;
+        let mut panel: NodeId = NodeId::default();
+        let wrap: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_XS
+                row {
+                    width: Length::Percent(100.0)
+                    height: Length::Px(g.get_control_md())
+                    padding: Edges::symmetric(0.0, SPACE_MD)
+                    justify: JustifyContent::SpaceBetween
+                    align: AlignItems::Center
+                    background: p.get_card()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    cursor: CursorIcon::Pointer
+                    on_click: move |_: &UiEvent| {
+                        let _: bool = open.update(|v: &mut bool| *v = !*v);
+                    }
+                    text {
+                        font_size: 13.0
+                        color: p.get_foreground()
+                        { move || {
+                                let idx: usize = selected.get();
+                                let lbl: String = opts_trigger
+                                .get(idx)
+                                .cloned()
+                                .unwrap_or_else(|| COMBOBOX_EMPTY_SELECTION.to_string());
+                                format!("{lbl}  v")
+                        } }
+                    }
                 }
-                let is_sel: bool = idx == cur_sel;
-                let row: NodeId = bctx.view(
-                    Style::empty()
-                        .row()
-                        .width(Length::Percent(100.0))
-                        .height(Length::Px(g.get_control_sm()))
-                        .padding(Edges::symmetric(0.0, SPACE_SM))
-                        .align(AlignItems::Center)
-                        .radius(g.get_radius_sm())
-                        .background(if is_sel {
-                            p.get_accent()
-                        } else {
-                            COLOR_TRANSPARENT
+                column {
+                    node_ref: panel
+                    bind_style: move || {
+                        Style::default()
+                        .column()
+                        .display(if open.get() {
+                                Display::Flex
+                            } else {
+                                Display::None
                         })
-                        .cursor(CursorIcon::Pointer),
-                );
-                let txt: NodeId = bctx.text(
-                    if is_sel {
-                        format!("* {opt}")
-                    } else {
-                        opt.clone()
-                    },
-                    Style::empty().font_size(13.0).color(p.get_foreground()),
-                );
-                bctx.append(row, txt);
-                bctx.on_click(row, move |_: &UiEvent| {
-                    let _: bool = selected.set_if_changed(idx);
-                    let _: bool = open.set_if_changed(false);
-                });
-                nodes.push(row);
-            }
-            nodes
-        });
-        ctx.append(panel, search);
-        ctx.append(panel, list_host);
-        let handle: SceneHandle = ctx.get_scene().clone();
-        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            let _: Effect = EuvOverlayStack::bind_signal(open, "EuvCombobox", Z_INDEX_DRAWER - 10);
-            Effect::new(move || {
-                let vis: Display = if open.get() {
-                    Display::Flex
-                } else {
-                    Display::None
-                };
-                handle.with_write(
-                    |tree: &mut SceneTree| {
-                        if let Some(n) = tree.get_node_mut(panel) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_display(vis);
-                            n.set_style(st);
+                        .width(Length::Percent(100.0))
+                        .padding(Edges::all(SPACE_SM))
+                        .gap(SPACE_XS)
+                        .background(p.get_card())
+                        .border(g.get_border_width(), p.get_border())
+                        .radius(g.get_radius_md())
+                        .shadow(g.get_shadow_md())
+                        .stop_scroll_propagation(true)
+                    }
+                    EuvInput(query, resolved_ph, tokens)
+                    column {
+                        width: Length::Percent(100.0)
+                        gap: 2.0
+                        bind_children: move || {
+                            let q: String = query.get().to_ascii_lowercase();
+                            let cur_sel: usize = selected.get();
+                            let mut nodes: Vec<NodeId> = Vec::new();
+                            for (idx, opt) in opts_filter.iter().enumerate() {
+                                if !q.is_empty() && !opt.to_ascii_lowercase().contains(&q) {
+                                    continue;
+                                }
+                                let is_sel: bool = idx == cur_sel;
+                                nodes.push(view! {
+                                        row {
+                                            width: Length::Percent(100.0)
+                                            height: Length::Px(g.get_control_sm())
+                                            padding: Edges::symmetric(0.0, SPACE_SM)
+                                            align: AlignItems::Center
+                                            radius: g.get_radius_sm()
+                                            background: if is_sel {
+                                                p.get_accent()
+                                            } else {
+                                                COLOR_TRANSPARENT
+                                            }
+                                            cursor: CursorIcon::Pointer
+                                            on_click: move |_: &UiEvent| {
+                                                let _: bool = selected.set_if_changed(idx);
+                                                let _: bool = open.set_if_changed(false);
+                                            }
+                                            text {
+                                                font_size: 13.0
+                                                color: p.get_foreground()
+                                                { if is_sel {
+                                                        format!("* {opt}")
+                                                    } else {
+                                                        opt.clone()
+                                                } }
+                                            }
+                                        }
+                                });
+                            }
+                            nodes
                         }
-                        tree.mark_dirty(panel, DIRTY_LAYOUT | DIRTY_PAINT);
-                    },
-                    (),
-                );
-            })
+                    }
+                }
+            }
+        };
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            EuvOverlayStack::bind_signal(open, COMBOBOX_OVERLAY_NAME, Z_INDEX_DRAWER - 10)
         });
         ctx.get_scene().with_write(
             |tree: &mut SceneTree| {
@@ -328,8 +313,6 @@ impl Mountable for EuvCombobox {
             },
             (),
         );
-        ctx.append(wrap, trigger);
-        ctx.append(wrap, panel);
         wrap
     }
 }
@@ -385,19 +368,21 @@ impl EuvDataTable {
     }
 }
 
-/// `Mountable` implementation for `EuvDataTable`.
-impl Mountable for EuvDataTable {
-    /// Mounts a filterable, sortable, selectable production data table with overflow-safe cells.
+/// Declarative `#[component]` implementation for `EuvDataTable`.
+#[component]
+/// Inherent implementation of [`EuvDataTable`].
+impl EuvDataTable {
+    /// Renders `EuvDataTable` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Data table props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted data table container.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
@@ -408,34 +393,115 @@ impl Mountable for EuvDataTable {
             sort_ascending: sort_opt,
             selected_row: sel_opt,
             ..
-        } = self;
+        } = self.clone();
         let filter: Signal<String> = filter_opt.unwrap_or_else(|| Signal::new(String::new()));
         let sort_asc: Signal<bool> = sort_opt.unwrap_or_else(|| Signal::new(true));
         let sel_row: Signal<Option<usize>> = sel_opt.unwrap_or_else(|| Signal::new(None));
-        let wrap: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .gap(SPACE_SM),
-        );
-        let toolbar: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .wrap(FlexWrap::Wrap)
-                .width(Length::Percent(100.0))
-                .justify(JustifyContent::SpaceBetween)
-                .align(AlignItems::Center)
-                .gap(SPACE_SM),
-        );
-        let search_box: NodeId =
-            EuvInput::new(filter, DATATABLE_FILTER_PLACEHOLDER.to_string(), tokens).mount(ctx);
-        let sort_btn: NodeId = EuvButton::new(DATATABLE_SORT_LABEL.to_string(), tokens)
-            .outline()
-            .sm()
-            .on_click(move |_: &UiEvent| {
-                let _: bool = sort_asc.update(|v: &mut bool| *v = !*v);
-            })
-            .mount(ctx);
+        let mut sort_btn: NodeId = NodeId::default();
+        let wrap: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_SM
+                row {
+                    flex_wrap: FlexWrap::Wrap
+                    width: Length::Percent(100.0)
+                    justify: JustifyContent::SpaceBetween
+                    align: AlignItems::Center
+                    gap: SPACE_SM
+                    EuvInput(filter, DATATABLE_FILTER_PLACEHOLDER.to_string(), tokens)
+                    EuvButton(DATATABLE_SORT_LABEL.to_string(), tokens) {
+                        outline()
+                        sm()
+                        node_ref: sort_btn
+                        on_click: move |_: &UiEvent| {
+                            let _: bool = sort_asc.update(|v: &mut bool| *v = !*v);
+                        }
+                    }
+                }
+                column {
+                    width: Length::Percent(100.0)
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    overflow: Overflow::Hidden
+                    bind_children: move || {
+                        let q: String = filter.get().to_ascii_lowercase();
+                        let asc: bool = sort_asc.get();
+                        let active_sel: Option<usize> = sel_row.get();
+                        let mut filtered: Vec<(usize, Vec<String>)> = rows
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, r): &(usize, &Vec<String>)| {
+                                q.is_empty()
+                                || r.iter()
+                                .any(|cell: &String| cell.to_ascii_lowercase().contains(&q))
+                        })
+                        .map(|(i, r): (usize, &Vec<String>)| (i, r.clone()))
+                        .collect();
+                        filtered.sort_by(|a: &(usize, Vec<String>), b: &(usize, Vec<String>)| {
+                                let ka: &str = a.1.first().map(String::as_str).unwrap_or("");
+                                let kb: &str = b.1.first().map(String::as_str).unwrap_or("");
+                                if asc { ka.cmp(kb) } else { kb.cmp(ka) }
+                        });
+                        let mut out: Vec<NodeId> = Vec::with_capacity(filtered.len() + 1);
+                        out.push(view! {
+                                row {
+                                    width: Length::Percent(100.0)
+                                    padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                                    background: p.get_muted()
+                                    gap: SPACE_SM
+                                    overflow: Overflow::Hidden
+                                    for h in headers.iter() {
+                                        view {
+                                            flex_grow: 1.0
+                                            min_width: Length::Px(0.0)
+                                            overflow: Overflow::Hidden
+                                            text {
+                                                width: Length::Percent(100.0)
+                                                font_size: 12.0
+                                                font_weight: FontWeight::SemiBold
+                                                color: p.get_muted_foreground()
+                                                text_overflow: TextOverflow::Ellipsis
+                                                { h.clone() }
+                                            }
+                                        }
+                                    }
+                                }
+                        });
+                        for (orig_idx, r) in filtered.into_iter() {
+                            let is_sel: bool = active_sel == Some(orig_idx);
+                            out.push(view! {
+                                    row {
+                                        width: Length::Percent(100.0)
+                                        padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                                        background: if is_sel { p.get_accent() } else { p.get_card() }
+                                        gap: SPACE_SM
+                                        overflow: Overflow::Hidden
+                                        cursor: CursorIcon::Pointer
+                                        on_click: move |_: &UiEvent| {
+                                            let _: bool = sel_row.set_if_changed(Some(orig_idx));
+                                        }
+                                        for cell_txt in r.into_iter() {
+                                            view {
+                                                flex_grow: 1.0
+                                                min_width: Length::Px(0.0)
+                                                overflow: Overflow::Hidden
+                                                text {
+                                                    width: Length::Percent(100.0)
+                                                    font_size: 13.0
+                                                    color: p.get_foreground()
+                                                    text_overflow: TextOverflow::Ellipsis
+                                                    { cell_txt }
+                                                }
+                                            }
+                                        }
+                                    }
+                            });
+                        }
+                        out
+                    }
+                }
+            }
+        };
         ctx.get_scene().with_write(
             |tree: &mut SceneTree| {
                 if let Some(n) = tree.get_node_mut(sort_btn) {
@@ -446,171 +512,65 @@ impl Mountable for EuvDataTable {
             },
             (),
         );
-        ctx.append(toolbar, search_box);
-        ctx.append(toolbar, sort_btn);
-        let body_host: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md())
-                .overflow(Overflow::Hidden),
-        );
-        ctx.bind_children(body_host, move || {
-            let q: String = filter.get().to_ascii_lowercase();
-            let asc: bool = sort_asc.get();
-            let active_sel: Option<usize> = sel_row.get();
-            let mut filtered: Vec<(usize, Vec<String>)> = rows
-                .iter()
-                .enumerate()
-                .filter(|(_, r): &(usize, &Vec<String>)| {
-                    q.is_empty()
-                        || r.iter()
-                            .any(|cell: &String| cell.to_ascii_lowercase().contains(&q))
-                })
-                .map(|(i, r): (usize, &Vec<String>)| (i, r.clone()))
-                .collect();
-            filtered.sort_by(|a: &(usize, Vec<String>), b: &(usize, Vec<String>)| {
-                let ka: &str = a.1.first().map(String::as_str).unwrap_or("");
-                let kb: &str = b.1.first().map(String::as_str).unwrap_or("");
-                if asc { ka.cmp(kb) } else { kb.cmp(ka) }
-            });
-            let mut out: Vec<NodeId> = Vec::new();
-            let mut bctx: BuildContext = current_build_context();
-            let head_row: NodeId = bctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                    .background(p.get_muted())
-                    .gap(SPACE_SM)
-                    .overflow(Overflow::Hidden),
-            );
-            for h in headers.iter() {
-                let cell_wrap: NodeId = bctx.view(
-                    Style::empty()
-                        .flex_grow(1.0)
-                        .min_width(Length::Px(0.0))
-                        .overflow(Overflow::Hidden),
-                );
-                let cell: NodeId = bctx.text(
-                    h.clone(),
-                    Style::empty()
-                        .width(Length::Percent(100.0))
-                        .font_size(12.0)
-                        .font_weight(FontWeight::SemiBold)
-                        .color(p.get_muted_foreground())
-                        .text_overflow(TextOverflow::Ellipsis),
-                );
-                bctx.append(cell_wrap, cell);
-                bctx.append(head_row, cell_wrap);
-            }
-            out.push(head_row);
-            for (orig_idx, r) in filtered.into_iter() {
-                let is_sel: bool = active_sel == Some(orig_idx);
-                let row_node: NodeId = bctx.view(
-                    Style::empty()
-                        .row()
-                        .width(Length::Percent(100.0))
-                        .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                        .background(if is_sel { p.get_accent() } else { p.get_card() })
-                        .gap(SPACE_SM)
-                        .overflow(Overflow::Hidden)
-                        .cursor(CursorIcon::Pointer),
-                );
-                for cell_txt in r.into_iter() {
-                    let cell_wrap: NodeId = bctx.view(
-                        Style::empty()
-                            .flex_grow(1.0)
-                            .min_width(Length::Px(0.0))
-                            .overflow(Overflow::Hidden),
-                    );
-                    let cell: NodeId = bctx.text(
-                        cell_txt,
-                        Style::empty()
-                            .width(Length::Percent(100.0))
-                            .font_size(13.0)
-                            .color(p.get_foreground())
-                            .text_overflow(TextOverflow::Ellipsis),
-                    );
-                    bctx.append(cell_wrap, cell);
-                    bctx.append(row_node, cell_wrap);
-                }
-                bctx.on_click(row_node, move |_: &UiEvent| {
-                    let _: bool = sel_row.set_if_changed(Some(orig_idx));
-                });
-                out.push(row_node);
-            }
-            out
-        });
-        ctx.append(wrap, toolbar);
-        ctx.append(wrap, body_host);
         wrap
     }
 }
 
-/// `Mountable` implementation for `EuvDatePicker`.
-impl Mountable for EuvDatePicker {
-    /// Mounts a trigger button toggling an inline `EuvCalendar` picker registered in `EuvOverlayStack`.
+/// Declarative `#[component]` implementation for `EuvDatePicker`.
+#[component]
+/// Inherent implementation of [`EuvDatePicker`].
+impl EuvDatePicker {
+    /// Renders `EuvDatePicker` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Date picker props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted date picker container.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let tokens: ThemeTokens = self.get_tokens();
         let selected_day: Signal<u32> = self.get_selected_day();
         let open: Signal<bool> = self.get_open();
-        let Self { month_label, .. } = self;
-        let wrap: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .gap(SPACE_XS),
-        );
+        let Self { month_label, .. } = self.clone();
         let lbl_clone: String = month_label.clone();
-        let trigger: NodeId = EuvButton::new("Pick Date".to_string(), tokens)
-            .outline()
-            .sm()
-            .on_click(move |_: &UiEvent| {
-                let _: bool = open.update(|v: &mut bool| *v = !*v);
-            })
-            .mount(ctx);
-        let summary: NodeId = ctx.reactive_text(
-            Style::empty()
-                .font_size(12.0)
-                .color(tokens.get_palette().get_muted_foreground()),
-            move || format!("Selected date: {lbl_clone} {}", selected_day.get()),
-        );
-        let cal_wrap: NodeId = ctx.view(Style::empty().width(Length::Percent(100.0)));
-        let cal_node: NodeId = EuvCalendar::new(month_label, 30, selected_day, tokens).mount(ctx);
-        ctx.append(cal_wrap, cal_node);
-        let handle: SceneHandle = ctx.get_scene().clone();
+        let mut cal_wrap: NodeId = NodeId::default();
+        let wrap: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                max_width: Length::Px(320.0)
+                gap: SPACE_XS
+                EuvButton(DATEPICKER_TRIGGER_LABEL.to_string(), tokens) {
+                    outline()
+                    sm()
+                    on_click: move |_: &UiEvent| {
+                        let _: bool = open.update(|v: &mut bool| *v = !*v);
+                    }
+                }
+                text {
+                    font_size: 12.0
+                    color: tokens.get_palette().get_muted_foreground()
+                    { move || format!("Selected date: {lbl_clone} {}", selected_day.get()) }
+                }
+                view {
+                    node_ref: cal_wrap
+                    bind_style: move || {
+                        Style::default()
+                        .width(Length::Percent(100.0))
+                        .display(if open.get() {
+                                Display::Flex
+                            } else {
+                                Display::None
+                        })
+                    }
+                    EuvCalendar(month_label, 30, selected_day, tokens)
+                }
+            }
+        };
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            let _: Effect =
-                EuvOverlayStack::bind_signal(open, "EuvDatePicker", Z_INDEX_DRAWER - 10);
-            Effect::new(move || {
-                let vis: Display = if open.get() {
-                    Display::Flex
-                } else {
-                    Display::None
-                };
-                handle.with_write(
-                    |tree: &mut SceneTree| {
-                        if let Some(n) = tree.get_node_mut(cal_wrap) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_display(vis);
-                            n.set_style(st);
-                        }
-                        tree.mark_dirty(cal_wrap, DIRTY_LAYOUT | DIRTY_PAINT);
-                    },
-                    (),
-                );
-            })
+            EuvOverlayStack::bind_signal(open, DATEPICKER_OVERLAY_NAME, Z_INDEX_DRAWER - 10)
         });
         ctx.get_scene().with_write(
             |tree: &mut SceneTree| {
@@ -618,9 +578,6 @@ impl Mountable for EuvDatePicker {
             },
             (),
         );
-        ctx.append(wrap, trigger);
-        ctx.append(wrap, summary);
-        ctx.append(wrap, cal_wrap);
         wrap
     }
 }
@@ -685,19 +642,20 @@ impl EuvInputGroup {
     }
 }
 
-/// `Mountable` implementation for `EuvInputGroup`.
-impl Mountable for EuvInputGroup {
-    /// Mounts a unified prefix + borderless input + suffix control group with zero double borders.
+/// Declarative `#[component]` implementation for `EuvInputGroup`.
+#[component]
+/// Inherent implementation of [`EuvInputGroup`].
+impl EuvInputGroup {
+    /// Renders `EuvInputGroup` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Input group props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted input group node.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
@@ -707,65 +665,50 @@ impl Mountable for EuvInputGroup {
             placeholder,
             suffix,
             ..
-        } = self;
-        let row: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .width(Length::Percent(100.0))
-                .align(AlignItems::Center)
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md())
-                .overflow(Overflow::Hidden),
-        );
-        if !prefix.is_empty() {
-            let pre: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .height(Length::Px(g.get_control_md()))
-                    .padding(Edges::symmetric(0.0, SPACE_SM))
-                    .align(AlignItems::Center)
-                    .background(p.get_muted()),
-            );
-            let pre_txt: NodeId = ctx.text(
-                prefix,
-                Style::empty()
-                    .font_size(12.0)
-                    .color(p.get_muted_foreground()),
-            );
-            ctx.append(pre, pre_txt);
-            ctx.append(row, pre);
+        } = self.clone();
+        view! {
+            row {
+                width: Length::Percent(100.0)
+                align: AlignItems::Center
+                background: p.get_card()
+                border: (g.get_border_width(), p.get_border())
+                radius: g.get_radius_md()
+                overflow: Overflow::Hidden
+                if !prefix.is_empty() {
+                    row {
+                        height: Length::Px(g.get_control_md())
+                        padding: Edges::symmetric(0.0, SPACE_SM)
+                        align: AlignItems::Center
+                        background: p.get_muted()
+                        text {
+                            font_size: 12.0
+                            color: p.get_muted_foreground()
+                            { prefix }
+                        }
+                    }
+                }
+                column {
+                    flex_grow: 1.0
+                    min_width: Length::Px(40.0)
+                    EuvInput(value, placeholder, tokens) {
+                        borderless: true
+                    }
+                }
+                if !suffix.is_empty() {
+                    row {
+                        height: Length::Px(g.get_control_md())
+                        padding: Edges::symmetric(0.0, SPACE_SM)
+                        align: AlignItems::Center
+                        background: p.get_muted()
+                        text {
+                            font_size: 12.0
+                            color: p.get_muted_foreground()
+                            { suffix }
+                        }
+                    }
+                }
+            }
         }
-        let inp_wrap: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .flex_grow(1.0)
-                .min_width(Length::Px(40.0)),
-        );
-        let inp: NodeId = EuvInput::new(value, placeholder, tokens)
-            .borderless(true)
-            .mount(ctx);
-        ctx.append(inp_wrap, inp);
-        ctx.append(row, inp_wrap);
-        if !suffix.is_empty() {
-            let suf: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .height(Length::Px(g.get_control_md()))
-                    .padding(Edges::symmetric(0.0, SPACE_SM))
-                    .align(AlignItems::Center)
-                    .background(p.get_muted()),
-            );
-            let suf_txt: NodeId = ctx.text(
-                suffix,
-                Style::empty()
-                    .font_size(12.0)
-                    .color(p.get_muted_foreground()),
-            );
-            ctx.append(suf, suf_txt);
-            ctx.append(row, suf);
-        }
-        row
     }
 }
 
@@ -848,19 +791,21 @@ impl EuvItem {
     }
 }
 
-/// `Mountable` implementation for `EuvItem`.
-impl Mountable for EuvItem {
-    /// Mounts a structured shadcn Item row with optional leading monogram, title/description, and trailing badge.
+/// Declarative `#[component]` implementation for `EuvItem`.
+#[component]
+/// Inherent implementation of [`EuvItem`].
+impl EuvItem {
+    /// Renders `EuvItem` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Item props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted item row.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let Self {
@@ -870,79 +815,65 @@ impl Mountable for EuvItem {
             trailing,
             on_click,
             ..
-        } = self;
-        let row: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .width(Length::Percent(100.0))
-                .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                .gap(SPACE_MD)
-                .align(AlignItems::Center)
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md())
-                .overflow(Overflow::Hidden)
-                .cursor(CursorIcon::Pointer),
-        );
-        if !leading.is_empty() {
-            let badge: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Px(32.0))
-                    .height(Length::Px(32.0))
-                    .justify(JustifyContent::Center)
-                    .align(AlignItems::Center)
-                    .background(p.get_secondary())
-                    .radius(g.get_radius_md()),
-            );
-            let badge_txt: NodeId = ctx.text(
-                leading,
-                Style::empty()
-                    .font_size(12.0)
-                    .font_weight(FontWeight::Bold)
-                    .color(p.get_secondary_foreground()),
-            );
-            ctx.append(badge, badge_txt);
-            ctx.append(row, badge);
-        }
-        let body: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .flex_grow(1.0)
-                .min_width(Length::Px(0.0))
-                .gap(2.0)
-                .overflow(Overflow::Hidden),
-        );
-        let t_node: NodeId = ctx.text(
-            title,
-            Style::empty()
-                .width(Length::Percent(100.0))
-                .font_size(13.0)
-                .font_weight(FontWeight::SemiBold)
-                .color(p.get_foreground()),
-        );
-        ctx.append(body, t_node);
-        if !description.is_empty() {
-            let d_node: NodeId = ctx.text(
-                description,
-                Style::empty()
-                    .width(Length::Percent(100.0))
-                    .font_size(12.0)
-                    .color(p.get_muted_foreground()),
-            );
-            ctx.append(body, d_node);
-        }
-        ctx.append(row, body);
-        if !trailing.is_empty() {
-            let trail: NodeId = ctx.text(
-                trailing,
-                Style::empty()
-                    .font_size(12.0)
-                    .font_weight(FontWeight::Medium)
-                    .color(p.get_muted_foreground()),
-            );
-            ctx.append(row, trail);
-        }
+        } = self.clone();
+        let row: NodeId = view! {
+            row {
+                width: Length::Percent(100.0)
+                padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                gap: SPACE_MD
+                align: AlignItems::Center
+                background: p.get_card()
+                border: (g.get_border_width(), p.get_border())
+                radius: g.get_radius_md()
+                overflow: Overflow::Hidden
+                cursor: CursorIcon::Pointer
+                if !leading.is_empty() {
+                    row {
+                        width: Length::Px(32.0)
+                        height: Length::Px(32.0)
+                        justify: JustifyContent::Center
+                        align: AlignItems::Center
+                        background: p.get_secondary()
+                        radius: g.get_radius_md()
+                        text {
+                            font_size: 12.0
+                            font_weight: FontWeight::Bold
+                            color: p.get_secondary_foreground()
+                            { leading }
+                        }
+                    }
+                }
+                column {
+                    flex_grow: 1.0
+                    min_width: Length::Px(0.0)
+                    gap: 2.0
+                    overflow: Overflow::Hidden
+                    text {
+                        width: Length::Percent(100.0)
+                        font_size: 13.0
+                        font_weight: FontWeight::SemiBold
+                        color: p.get_foreground()
+                        { title }
+                    }
+                    if !description.is_empty() {
+                        text {
+                            width: Length::Percent(100.0)
+                            font_size: 12.0
+                            color: p.get_muted_foreground()
+                            { description }
+                        }
+                    }
+                }
+                if !trailing.is_empty() {
+                    text {
+                        font_size: 12.0
+                        font_weight: FontWeight::Medium
+                        color: p.get_muted_foreground()
+                        { trailing }
+                    }
+                }
+            }
+        };
         if let Some(cb) = on_click {
             ctx.on_click(row, move |ev: &UiEvent| {
                 if let Ok(mut f) = cb.try_borrow_mut() {
@@ -954,208 +885,185 @@ impl Mountable for EuvItem {
     }
 }
 
-/// `Mountable` implementation for `EuvNativeSelect`.
-impl Mountable for EuvNativeSelect {
-    /// Mounts a compact single-tap native selector cycling options deterministically.
+/// Declarative `#[component]` implementation for `EuvNativeSelect`.
+#[component]
+/// Inherent implementation of [`EuvNativeSelect`].
+impl EuvNativeSelect {
+    /// Renders `EuvNativeSelect` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Native select props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted native select control.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let selected: Signal<usize> = self.get_selected();
-        let Self { options, .. } = self;
+        let Self { options, .. } = self.clone();
         let total: usize = options.len().max(1);
-        let box_node: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .height(Length::Px(g.get_control_md()))
-                .padding(Edges::symmetric(0.0, SPACE_MD))
-                .align(AlignItems::Center)
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md())
-                .cursor(CursorIcon::Pointer),
-        );
-        let txt: NodeId = ctx.reactive_text(
-            Style::empty().font_size(13.0).color(p.get_foreground()),
-            move || {
-                let idx: usize = selected.get() % total;
-                let lbl: String = options
-                    .get(idx)
-                    .cloned()
-                    .unwrap_or_else(|| "Default".to_string());
-                format!("{lbl}  <>")
-            },
-        );
-        ctx.append(box_node, txt);
-        ctx.on_click(box_node, move |_: &UiEvent| {
-            let _: bool = selected.update(|v: &mut usize| *v = (*v + 1) % total);
-        });
-        box_node
+        view! {
+            row {
+                height: Length::Px(g.get_control_md())
+                padding: Edges::symmetric(0.0, SPACE_MD)
+                align: AlignItems::Center
+                background: p.get_card()
+                border: (g.get_border_width(), p.get_border())
+                radius: g.get_radius_md()
+                cursor: CursorIcon::Pointer
+                on_click: move |_: &UiEvent| {
+                    let _: bool = selected.update(|v: &mut usize| *v = (*v + 1) % total);
+                }
+                text {
+                    font_size: 13.0
+                    color: p.get_foreground()
+                    { move || {
+                            let idx: usize = selected.get() % total;
+                            let lbl: String = options
+                            .get(idx)
+                            .cloned()
+                            .unwrap_or_else(|| NATIVE_SELECT_DEFAULT_LABEL.to_string());
+                            format!("{lbl}  <>")
+                    } }
+                }
+            }
+        }
     }
 }
 
-/// `Mountable` implementation for `EuvNavigationMenu`.
-impl Mountable for EuvNavigationMenu {
-    /// Mounts a top-level horizontal navigation menu with expandable panel detail.
+/// Declarative `#[component]` implementation for `EuvNavigationMenu`.
+#[component]
+/// Inherent implementation of [`EuvNavigationMenu`].
+impl EuvNavigationMenu {
+    /// Renders `EuvNavigationMenu` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Navigation menu props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted navigation menu container.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
         let active: Signal<Option<usize>> = self.get_active();
-        let Self { items, .. } = self;
-        let wrap: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .gap(SPACE_XS),
-        );
-        let bar: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .wrap(FlexWrap::Wrap)
-                .width(Length::Percent(100.0))
-                .gap(SPACE_XS),
-        );
+        let Self { items, .. } = self.clone();
         let summaries: Vec<String> = items
             .iter()
             .map(|(_, s): &(String, String)| s.clone())
             .collect();
-        for (idx, (label, _)) in items.into_iter().enumerate() {
-            let btn: NodeId = EuvButton::new(label, tokens)
-                .ghost()
-                .sm()
-                .on_click(move |_: &UiEvent| {
-                    let cur: Option<usize> = active.get_untracked();
-                    let next: Option<usize> = if cur == Some(idx) { None } else { Some(idx) };
-                    let _: bool = active.set_if_changed(next);
-                })
-                .mount(ctx);
-            ctx.append(bar, btn);
-        }
-        let panel: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_MD))
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md()),
-        );
-        let panel_txt: NodeId = ctx.reactive_text(
-            Style::empty()
-                .font_size(13.0)
-                .color(p.get_muted_foreground()),
-            move || {
-                active
-                    .get()
-                    .and_then(|i: usize| summaries.get(i).cloned())
-                    .unwrap_or_default()
-            },
-        );
-        ctx.append(panel, panel_txt);
-        let handle: SceneHandle = ctx.get_scene().clone();
-        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            Effect::new(move || {
-                let vis: Display = if active.get().is_some() {
-                    Display::Flex
-                } else {
-                    Display::None
-                };
-                handle.with_write(
-                    |tree: &mut SceneTree| {
-                        if let Some(n) = tree.get_node_mut(panel) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_display(vis);
-                            n.set_style(st);
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_XS
+                row {
+                    flex_wrap: FlexWrap::Wrap
+                    width: Length::Percent(100.0)
+                    gap: SPACE_XS
+                    for (idx, (label, _)) in items.into_iter().enumerate() {
+                        EuvButton(label, tokens) {
+                            ghost()
+                            sm()
+                            on_click: move |_: &UiEvent| {
+                                let cur: Option<usize> = active.get_untracked();
+                                let next: Option<usize> = if cur == Some(idx) { None } else { Some(idx) };
+                                let _: bool = active.set_if_changed(next);
+                            }
                         }
-                        tree.mark_dirty(panel, DIRTY_LAYOUT | DIRTY_PAINT);
-                    },
-                    (),
-                );
-            })
-        });
-        ctx.get_scene().with_write(
-            |tree: &mut SceneTree| {
-                tree.attach_scope(panel, scope);
-            },
-            (),
-        );
-        ctx.append(wrap, bar);
-        ctx.append(wrap, panel);
-        wrap
+                    }
+                }
+                column {
+                    bind_style: move || {
+                        Style::default()
+                        .column()
+                        .display(if active.get().is_some() {
+                                Display::Flex
+                            } else {
+                                Display::None
+                        })
+                        .width(Length::Percent(100.0))
+                        .padding(Edges::all(SPACE_MD))
+                        .background(p.get_card())
+                        .border(g.get_border_width(), p.get_border())
+                        .radius(g.get_radius_md())
+                    }
+                    text {
+                        font_size: 13.0
+                        color: p.get_muted_foreground()
+                        { move || {
+                                active
+                                .get()
+                                .and_then(|i: usize| summaries.get(i).cloned())
+                                .unwrap_or_default()
+                        } }
+                    }
+                }
+            }
+        }
     }
 }
 
-/// `Mountable` implementation for `EuvResizable`.
-impl Mountable for EuvResizable {
-    /// Mounts a draggable split-pane container with pointer-captured handle resizing.
+/// Declarative `#[component]` implementation for `EuvResizable`.
+#[component]
+/// Inherent implementation of [`EuvResizable`].
+impl EuvResizable {
+    /// Renders `EuvResizable` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Resizable panel group props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted resizable split container.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let ratio: Signal<f32> = self.get_split_ratio();
-        let container: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .width(Length::Percent(100.0))
-                .height(Length::Px(132.0))
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md())
-                .overflow(Overflow::Hidden),
-        );
-        let left_pane: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .height(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_MD))
-                .overflow(Overflow::Hidden),
-        );
-        let grip: NodeId = ctx.view(
-            Style::empty()
-                .width(Length::Px(8.0))
-                .height(Length::Percent(100.0))
-                .background(p.get_border())
-                .cursor(CursorIcon::EwResize),
-        );
-        let right_pane: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .flex_grow(1.0)
-                .height(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_MD))
-                .overflow(Overflow::Hidden),
-        );
-        ctx.append(left_pane, self.get_left());
-        ctx.append(right_pane, self.get_right());
-        ctx.append(container, left_pane);
-        ctx.append(container, grip);
-        ctx.append(container, right_pane);
+        let left: NodeId = self.get_left();
+        let right: NodeId = self.get_right();
+        let mut grip: NodeId = NodeId::default();
+        let container: NodeId = view! {
+            row {
+                width: Length::Percent(100.0)
+                height: Length::Px(132.0)
+                background: p.get_card()
+                border: (g.get_border_width(), p.get_border())
+                radius: g.get_radius_md()
+                overflow: Overflow::Hidden
+                column {
+                    bind_style: move || {
+                        let pct: f32 = (ratio.get().clamp(0.25, 0.75)) * 100.0;
+                        Style::default()
+                        .column()
+                        .width(Length::Percent(pct))
+                        .height(Length::Percent(100.0))
+                        .padding(Edges::all(SPACE_MD))
+                        .overflow(Overflow::Hidden)
+                    }
+                    { left }
+                }
+                view {
+                    node_ref: grip
+                    width: Length::Px(8.0)
+                    height: Length::Percent(100.0)
+                    background: p.get_border()
+                    cursor: CursorIcon::EwResize
+                }
+                column {
+                    flex_grow: 1.0
+                    height: Length::Percent(100.0)
+                    padding: Edges::all(SPACE_MD)
+                    overflow: Overflow::Hidden
+                    { right }
+                }
+            }
+        };
         let dragging: Rc<Cell<bool>> = Rc::new(Cell::new(false));
         let drag_down: Rc<Cell<bool>> = Rc::clone(&dragging);
         ctx.on_pointer_down(grip, move |_: &UiEvent| {
@@ -1188,388 +1096,326 @@ impl Mountable for EuvResizable {
                 }
             }
         });
-        let handle: SceneHandle = ctx.get_scene().clone();
-        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            Effect::new(move || {
-                let pct: f32 = (ratio.get().clamp(0.25, 0.75)) * 100.0;
-                handle.with_write(
-                    |tree: &mut SceneTree| {
-                        if let Some(n) = tree.get_node_mut(left_pane) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_width(Length::Percent(pct));
-                            n.set_style(st);
-                        }
-                        tree.mark_dirty(container, DIRTY_LAYOUT | DIRTY_PAINT);
-                    },
-                    (),
-                );
-            })
-        });
-        ctx.get_scene().with_write(
-            |tree: &mut SceneTree| {
-                tree.attach_scope(container, scope);
-            },
-            (),
-        );
         container
     }
 }
 
-/// `Mountable` implementation for `EuvSeparator`.
-impl Mountable for EuvSeparator {
-    /// Mounts a horizontal hairline separator with optional centered text caption.
+/// Declarative `#[component]` implementation for `EuvSeparator`.
+#[component]
+/// Inherent implementation of [`EuvSeparator`].
+impl EuvSeparator {
+    /// Renders `EuvSeparator` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Separator props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted separator node.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
-        let Self { label, .. } = self;
+        let Self { label, .. } = self.clone();
         if label.is_empty() {
-            return ctx.view(
-                Style::empty()
-                    .width(Length::Percent(100.0))
-                    .height(Length::Px(1.0))
-                    .background(p.get_border()),
-            );
+            return view! {
+                view {
+                    width: Length::Percent(100.0)
+                    height: Length::Px(1.0)
+                    background: p.get_border()
+                }
+            };
         }
-        let row: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .width(Length::Percent(100.0))
-                .align(AlignItems::Center)
-                .gap(SPACE_SM),
-        );
-        let left_line: NodeId = ctx.view(
-            Style::empty()
-                .flex_grow(1.0)
-                .height(Length::Px(1.0))
-                .background(p.get_border()),
-        );
-        let txt: NodeId = ctx.text(
-            label,
-            Style::empty()
-                .font_size(11.0)
-                .color(p.get_muted_foreground()),
-        );
-        let right_line: NodeId = ctx.view(
-            Style::empty()
-                .flex_grow(1.0)
-                .height(Length::Px(1.0))
-                .background(p.get_border()),
-        );
-        ctx.append(row, left_line);
-        ctx.append(row, txt);
-        ctx.append(row, right_line);
-        row
+        view! {
+            row {
+                width: Length::Percent(100.0)
+                align: AlignItems::Center
+                gap: SPACE_SM
+                view {
+                    flex_grow: 1.0
+                    height: Length::Px(1.0)
+                    background: p.get_border()
+                }
+                text {
+                    font_size: 11.0
+                    color: p.get_muted_foreground()
+                    { label }
+                }
+                view {
+                    flex_grow: 1.0
+                    height: Length::Px(1.0)
+                    background: p.get_border()
+                }
+            }
+        }
     }
 }
 
-/// `Mountable` implementation for `EuvSonner`.
-impl Mountable for EuvSonner {
-    /// Mounts a stacking toast deck rendering live notifications with individual dismiss buttons.
+/// Declarative `#[component]` implementation for `EuvSonner`.
+#[component]
+/// Inherent implementation of [`EuvSonner`].
+impl EuvSonner {
+    /// Renders `EuvSonner` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Sonner props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted toast stack container.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
         let messages: Signal<Vec<(String, String)>> = self.get_messages();
-        let deck: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .gap(SPACE_XS),
-        );
-        ctx.bind_children(deck, move || {
-            let list: Vec<(String, String)> = messages.get();
-            let mut out: Vec<NodeId> = Vec::new();
-            let mut bctx: BuildContext = current_build_context();
-            for (idx, (title, desc)) in list.into_iter().enumerate() {
-                let toast: NodeId = bctx.view(
-                    Style::empty()
-                        .row()
-                        .width(Length::Percent(100.0))
-                        .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                        .justify(JustifyContent::SpaceBetween)
-                        .align(AlignItems::Center)
-                        .gap(SPACE_SM)
-                        .background(p.get_card())
-                        .border(g.get_border_width(), p.get_border())
-                        .radius(g.get_radius_md())
-                        .shadow(g.get_shadow_md())
-                        .overflow(Overflow::Hidden),
-                );
-                let col: NodeId = bctx.view(
-                    Style::empty()
-                        .column()
-                        .flex_grow(1.0)
-                        .gap(2.0)
-                        .overflow(Overflow::Hidden),
-                );
-                let t: NodeId = bctx.text(
-                    title,
-                    Style::empty()
-                        .width(Length::Percent(100.0))
-                        .font_size(13.0)
-                        .font_weight(FontWeight::SemiBold)
-                        .color(p.get_card_foreground()),
-                );
-                let d: NodeId = bctx.text(
-                    desc,
-                    Style::empty()
-                        .width(Length::Percent(100.0))
-                        .font_size(12.0)
-                        .color(p.get_muted_foreground()),
-                );
-                bctx.append(col, t);
-                bctx.append(col, d);
-                let dismiss: NodeId = EuvButton::new("Dismiss".to_string(), tokens)
-                    .ghost()
-                    .sm()
-                    .on_click(move |_: &UiEvent| {
-                        let _: bool = messages.update(|v: &mut Vec<(String, String)>| {
-                            if idx < v.len() {
-                                let _: (String, String) = v.remove(idx);
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_XS
+                bind_children: move || {
+                    messages
+                    .get()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(idx, (title, desc)): (usize, (String, String))| {
+                            view! {
+                                row {
+                                    width: Length::Percent(100.0)
+                                    padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                                    justify: JustifyContent::SpaceBetween
+                                    align: AlignItems::Center
+                                    gap: SPACE_SM
+                                    background: p.get_card()
+                                    border: (g.get_border_width(), p.get_border())
+                                    radius: g.get_radius_md()
+                                    shadow: g.get_shadow_md()
+                                    overflow: Overflow::Hidden
+                                    column {
+                                        flex_grow: 1.0
+                                        gap: 2.0
+                                        overflow: Overflow::Hidden
+                                        text {
+                                            width: Length::Percent(100.0)
+                                            font_size: 13.0
+                                            font_weight: FontWeight::SemiBold
+                                            color: p.get_card_foreground()
+                                            { title }
+                                        }
+                                        text {
+                                            width: Length::Percent(100.0)
+                                            font_size: 12.0
+                                            color: p.get_muted_foreground()
+                                            { desc }
+                                        }
+                                    }
+                                    EuvButton(SONNER_DISMISS_LABEL.to_string(), tokens) {
+                                        ghost()
+                                        sm()
+                                        on_click: move |_: &UiEvent| {
+                                            let _: bool =
+                                            messages.update(|v: &mut Vec<(String, String)>| {
+                                                    if idx < v.len() {
+                                                        let _: (String, String) = v.remove(idx);
+                                                    }
+                                            });
+                                        }
+                                    }
+                                }
                             }
-                        });
                     })
-                    .mount(&mut bctx);
-                bctx.append(toast, col);
-                bctx.append(toast, dismiss);
-                out.push(toast);
+                    .collect()
+                }
             }
-            out
-        });
-        deck
+        }
     }
 }
 
-/// `Mountable` implementation for `EuvDirection`.
-impl Mountable for EuvDirection {
-    /// Mounts a direction-aware wrapper aligning content start/end cleanly for LTR or RTL locales.
+/// Declarative `#[component]` implementation for `EuvDirection`.
+#[component]
+/// Inherent implementation of [`EuvDirection`].
+impl EuvDirection {
+    /// Renders `EuvDirection` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Direction props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted direction container.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let align: AlignItems = match self.get_direction() {
             EuvTextDirection::Ltr => AlignItems::Start,
             EuvTextDirection::Rtl => AlignItems::End,
         };
-        let wrap: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .align(align),
-        );
-        ctx.append(wrap, self.get_child());
-        wrap
+        let child: NodeId = self.get_child();
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                align: align
+                { child }
+            }
+        }
     }
 }
 
-/// `Mountable` implementation for `EuvTrace`.
-impl Mountable for EuvTrace {
-    /// Mounts a shadcn execution waterfall trace card with proportional timing bars.
+/// Declarative `#[component]` implementation for `EuvTrace`.
+#[component]
+/// Inherent implementation of [`EuvTrace`].
+impl EuvTrace {
+    /// Renders `EuvTrace` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Trace props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted trace container handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let Self { title, spans, .. } = self;
-        let card: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_MD))
-                .gap(SPACE_SM)
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md()),
-        );
-        let head: NodeId = ctx.text(
-            title,
-            Style::empty()
-                .font_size(13.5)
-                .font_weight(FontWeight::SemiBold)
-                .color(p.get_foreground()),
-        );
-        ctx.append(card, head);
-        for span in spans.into_iter() {
-            let (bar_bg, _): (Color, Color) = span.get_tone().colors(p);
-            let row: NodeId = ctx.view(
-                Style::empty()
-                    .column()
-                    .width(Length::Percent(100.0))
-                    .gap(4.0),
-            );
-            let meta: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .justify(JustifyContent::SpaceBetween)
-                    .align(AlignItems::Center),
-            );
-            let name_txt: NodeId = ctx.text(
-                span.get_name().clone(),
-                Style::empty()
-                    .font_size(12.0)
-                    .font_weight(FontWeight::Medium)
-                    .color(p.get_foreground()),
-            );
-            let dur_txt: NodeId = ctx.text(
-                format!("{:.2}ms", span.get_duration_ms()),
-                Style::empty()
-                    .font_size(11.5)
-                    .color(p.get_muted_foreground()),
-            );
-            ctx.append(meta, name_txt);
-            ctx.append(meta, dur_txt);
-            let track: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .height(Length::Px(8.0))
-                    .background(p.get_muted())
-                    .radius(4.0)
-                    .overflow(Overflow::Hidden),
-            );
-            let left_pct: f32 = (span.get_offset_frac().clamp(0.0, 0.9)) * 100.0;
-            let bar_pct: f32 = (span
-                .get_width_frac()
-                .clamp(0.05, 1.0 - span.get_offset_frac()))
-                * 100.0;
-            if left_pct > 0.5 {
-                let spacer: NodeId = ctx.view(
-                    Style::empty()
-                        .width(Length::Percent(left_pct))
-                        .height(Length::Percent(100.0)),
-                );
-                ctx.append(track, spacer);
+        let Self { title, spans, .. } = self.clone();
+        let rows_data: Vec<(String, f32, Color, f32, f32)> = spans
+            .into_iter()
+            .map(|span: EuvTraceSpan| {
+                let (bar_bg, _): (Color, Color) = span.get_tone().colors(p);
+                let left_pct: f32 = (span.get_offset_frac().clamp(0.0, 0.9)) * 100.0;
+                let bar_pct: f32 = (span
+                    .get_width_frac()
+                    .clamp(0.05, 1.0 - span.get_offset_frac()))
+                    * 100.0;
+                (
+                    span.get_name().clone(),
+                    span.get_duration_ms(),
+                    bar_bg,
+                    left_pct,
+                    bar_pct,
+                )
+            })
+            .collect();
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                padding: Edges::all(SPACE_MD)
+                gap: SPACE_SM
+                background: p.get_card()
+                border: (g.get_border_width(), p.get_border())
+                radius: g.get_radius_md()
+                text {
+                    font_size: 13.5
+                    font_weight: FontWeight::SemiBold
+                    color: p.get_foreground()
+                    { title }
+                }
+                for (name, dur_ms, bar_bg, left_pct, bar_pct) in rows_data.into_iter() {
+                    column {
+                        width: Length::Percent(100.0)
+                        gap: 4.0
+                        row {
+                            width: Length::Percent(100.0)
+                            justify: JustifyContent::SpaceBetween
+                            align: AlignItems::Center
+                            text {
+                                font_size: 12.0
+                                font_weight: FontWeight::Medium
+                                color: p.get_foreground()
+                                { name }
+                            }
+                            text {
+                                font_size: 11.5
+                                color: p.get_muted_foreground()
+                                { format!("{dur_ms:.2}ms") }
+                            }
+                        }
+                        row {
+                            width: Length::Percent(100.0)
+                            height: Length::Px(8.0)
+                            background: p.get_muted()
+                            radius: 4.0
+                            overflow: Overflow::Hidden
+                            if left_pct > 0.5 {
+                                view {
+                                    width: Length::Percent(left_pct)
+                                    height: Length::Percent(100.0)
+                                }
+                            }
+                            view {
+                                width: Length::Percent(bar_pct)
+                                height: Length::Percent(100.0)
+                                background: bar_bg
+                                radius: 4.0
+                            }
+                        }
+                    }
+                }
             }
-            let bar: NodeId = ctx.view(
-                Style::empty()
-                    .width(Length::Percent(bar_pct))
-                    .height(Length::Percent(100.0))
-                    .background(bar_bg)
-                    .radius(4.0),
-            );
-            ctx.append(track, bar);
-            ctx.append(row, meta);
-            ctx.append(row, track);
-            ctx.append(card, row);
         }
-        card
     }
 }
 
-/// `Mountable` implementation for `EuvAttachment`.
-impl Mountable for EuvAttachment {
-    /// Mounts a dismissible shadcn attachment chip with file metadata.
+/// Declarative `#[component]` implementation for `EuvAttachment`.
+#[component]
+/// Inherent implementation of [`EuvAttachment`].
+impl EuvAttachment {
+    /// Renders `EuvAttachment` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Attachment props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted attachment chip handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
         let visible: Signal<bool> = self.get_visible();
-        let Self { filename, meta, .. } = self;
-        let host: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .width(Length::Percent(100.0))
-                .justify(JustifyContent::SpaceBetween)
-                .align(AlignItems::Center)
-                .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                .gap(SPACE_SM)
-                .background(p.get_muted())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md()),
-        );
-        let info: NodeId = ctx.view(Style::empty().column().flex_grow(1.0).gap(2.0));
-        let name_n: NodeId = ctx.text(
-            filename,
-            Style::empty()
-                .font_size(13.0)
-                .font_weight(FontWeight::Medium)
-                .color(p.get_foreground()),
-        );
-        let meta_n: NodeId = ctx.text(
-            meta,
-            Style::empty()
-                .font_size(11.5)
-                .color(p.get_muted_foreground()),
-        );
-        ctx.append(info, name_n);
-        ctx.append(info, meta_n);
-        let rm_btn: NodeId = EuvButton::new("Remove".to_string(), tokens)
-            .outline()
-            .sm()
-            .on_click(move |_: &UiEvent| {
-                let _: bool = visible.set_if_changed(false);
-            })
-            .mount(ctx);
-        ctx.append(host, info);
-        ctx.append(host, rm_btn);
-        let handle: SceneHandle = ctx.get_scene().clone();
-        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            Effect::new(move || {
-                let show: bool = visible.get();
-                handle.with_write(
-                    |tree: &mut SceneTree| {
-                        if let Some(node) = tree.get_node_mut(host) {
-                            let mut st: Style = node.get_style();
-                            st.get_mut_layout().set_display(if show {
-                                Display::Flex
-                            } else {
-                                Display::None
-                            });
-                            node.set_style(st);
-                        }
-                        tree.mark_dirty(host, DIRTY_LAYOUT | DIRTY_PAINT);
-                    },
-                    (),
-                );
-            })
-        });
-        ctx.get_scene().with_write(
-            |tree: &mut SceneTree| {
-                tree.attach_scope(host, scope);
-            },
-            (),
-        );
-        host
+        let Self { filename, meta, .. } = self.clone();
+        view! {
+            row {
+                bind_style: move || {
+                    Style::default()
+                    .row()
+                    .display(if visible.get() {
+                            Display::Flex
+                        } else {
+                            Display::None
+                    })
+                    .width(Length::Percent(100.0))
+                    .justify(JustifyContent::SpaceBetween)
+                    .align(AlignItems::Center)
+                    .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+                    .gap(SPACE_SM)
+                    .background(p.get_muted())
+                    .border(g.get_border_width(), p.get_border())
+                    .radius(g.get_radius_md())
+                }
+                column {
+                    flex_grow: 1.0
+                    gap: 2.0
+                    text {
+                        font_size: 13.0
+                        font_weight: FontWeight::Medium
+                        color: p.get_foreground()
+                        { filename }
+                    }
+                    text {
+                        font_size: 11.5
+                        color: p.get_muted_foreground()
+                        { meta }
+                    }
+                }
+                EuvButton(ATTACHMENT_REMOVE_LABEL.to_string(), tokens) {
+                    outline()
+                    sm()
+                    on_click: move |_: &UiEvent| {
+                        let _: bool = visible.set_if_changed(false);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1611,19 +1457,20 @@ impl EuvBubble {
     }
 }
 
-/// `Mountable` implementation for `EuvBubble`.
-impl Mountable for EuvBubble {
-    /// Mounts a shadcn chat/message bubble with role-aligned surface styling.
+/// Declarative `#[component]` implementation for `EuvBubble`.
+#[component]
+/// Inherent implementation of [`EuvBubble`].
+impl EuvBubble {
+    /// Renders `EuvBubble` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Bubble props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted message bubble row handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let outgoing: bool = self.get_outgoing();
@@ -1632,31 +1479,7 @@ impl Mountable for EuvBubble {
             content,
             timestamp,
             ..
-        } = self;
-        let row: NodeId = ctx.view(Style::empty().row().width(Length::Percent(100.0)).justify(
-            if outgoing {
-                JustifyContent::End
-            } else {
-                JustifyContent::Start
-            },
-        ));
-        let card: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .max_width(Length::Percent(86.0))
-                .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                .gap(4.0)
-                .background(if outgoing {
-                    p.get_primary()
-                } else {
-                    p.get_muted()
-                })
-                .border(
-                    if outgoing { 0.0 } else { g.get_border_width() },
-                    p.get_border(),
-                )
-                .radius(g.get_radius_lg()),
-        );
+        } = self.clone();
         let fg: Color = if outgoing {
             p.get_primary_foreground()
         } else {
@@ -1672,164 +1495,161 @@ impl Mountable for EuvBubble {
         } else {
             format!("{author} · {timestamp}")
         };
-        let head: NodeId = ctx.text(
-            header_line,
-            Style::empty()
-                .font_size(11.0)
-                .font_weight(FontWeight::SemiBold)
-                .color(meta_fg),
-        );
-        let body: NodeId = ctx.text(content, Style::empty().font_size(13.0).color(fg));
-        ctx.append(card, head);
-        ctx.append(card, body);
-        ctx.append(row, card);
-        row
+        view! {
+            row {
+                width: Length::Percent(100.0)
+                justify: if outgoing { JustifyContent::End } else { JustifyContent::Start }
+                column {
+                    max_width: Length::Percent(86.0)
+                    padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                    gap: 4.0
+                    background: if outgoing { p.get_primary() } else { p.get_muted() }
+                    border: (
+                        if outgoing { 0.0 } else { g.get_border_width() },
+                        p.get_border(),
+                    )
+                    radius: g.get_radius_lg()
+                    text {
+                        font_size: 11.0
+                        font_weight: FontWeight::SemiBold
+                        color: meta_fg
+                        { header_line }
+                    }
+                    text {
+                        font_size: 13.0
+                        color: fg
+                        { content }
+                    }
+                }
+            }
+        }
     }
 }
 
-/// `Mountable` implementation for `EuvMarker`.
-impl Mountable for EuvMarker {
-    /// Mounts a compact numbered status marker pill.
+/// Declarative `#[component]` implementation for `EuvMarker`.
+#[component]
+/// Inherent implementation of [`EuvMarker`].
+impl EuvMarker {
+    /// Renders `EuvMarker` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Marker props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted marker row handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let (dot_bg, dot_fg): (Color, Color) = self.get_tone().colors(p);
-        let Self { code, label, .. } = self;
-        let wrap: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .align(AlignItems::Center)
-                .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
-                .gap(SPACE_XS)
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(999.0),
-        );
-        let circle: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .width(Length::Px(20.0))
-                .height(Length::Px(20.0))
-                .justify(JustifyContent::Center)
-                .align(AlignItems::Center)
-                .background(dot_bg)
-                .radius(10.0),
-        );
-        let code_txt: NodeId = ctx.text(
-            code,
-            Style::empty()
-                .font_size(10.5)
-                .font_weight(FontWeight::Bold)
-                .color(dot_fg),
-        );
-        let lbl_txt: NodeId = ctx.text(
-            label,
-            Style::empty()
-                .font_size(12.0)
-                .font_weight(FontWeight::Medium)
-                .color(p.get_foreground()),
-        );
-        ctx.append(circle, code_txt);
-        ctx.append(wrap, circle);
-        ctx.append(wrap, lbl_txt);
-        wrap
+        let Self { code, label, .. } = self.clone();
+        view! {
+            row {
+                align: AlignItems::Center
+                padding: Edges::symmetric(SPACE_XS, SPACE_SM)
+                gap: SPACE_XS
+                background: p.get_card()
+                border: (g.get_border_width(), p.get_border())
+                radius: 999.0
+                row {
+                    width: Length::Px(20.0)
+                    height: Length::Px(20.0)
+                    justify: JustifyContent::Center
+                    align: AlignItems::Center
+                    background: dot_bg
+                    radius: 10.0
+                    text {
+                        font_size: 10.5
+                        font_weight: FontWeight::Bold
+                        color: dot_fg
+                        text_align: TextAlign::Center
+                        { code }
+                    }
+                }
+                text {
+                    font_size: 12.0
+                    font_weight: FontWeight::Medium
+                    color: p.get_foreground()
+                    { label }
+                }
+            }
+        }
     }
 }
 
-/// `Mountable` implementation for `EuvQuestionnaire`.
-impl Mountable for EuvQuestionnaire {
-    /// Mounts an interactive single-choice shadcn questionnaire card.
+/// Declarative `#[component]` implementation for `EuvQuestionnaire`.
+#[component]
+/// Inherent implementation of [`EuvQuestionnaire`].
+impl EuvQuestionnaire {
+    /// Renders `EuvQuestionnaire` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Questionnaire props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted questionnaire card handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let selected: Signal<Option<usize>> = self.get_selected();
         let Self {
             prompt, options, ..
-        } = self;
-        let card: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_MD))
-                .gap(SPACE_SM)
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md()),
-        );
-        let q_txt: NodeId = ctx.text(
-            prompt,
-            Style::empty()
-                .font_size(13.5)
-                .font_weight(FontWeight::SemiBold)
-                .color(p.get_foreground()),
-        );
-        ctx.append(card, q_txt);
-        for (idx, opt) in options.into_iter().enumerate() {
-            let item: NodeId = ctx.view(Style::empty());
-            let txt: NodeId = ctx.text(
-                opt,
-                Style::empty()
-                    .font_size(13.0)
-                    .font_weight(FontWeight::Medium)
-                    .color(p.get_foreground()),
-            );
-            ctx.append(item, txt);
-            let handle: SceneHandle = ctx.get_scene().clone();
-            let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-                handle.bind_style(item, move || {
-                    let is_sel: bool = selected.get() == Some(idx);
-                    Style::empty()
-                        .row()
-                        .width(Length::Percent(100.0))
-                        .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                        .align(AlignItems::Center)
-                        .background(if is_sel {
-                            p.get_accent()
-                        } else {
-                            p.get_background()
-                        })
-                        .border(
-                            g.get_border_width(),
-                            if is_sel {
-                                p.get_primary()
-                            } else {
-                                p.get_border()
-                            },
-                        )
-                        .radius(g.get_radius_sm())
-                        .cursor(CursorIcon::Pointer)
-                })
-            });
-            ctx.get_scene().with_write(
-                |tree: &mut SceneTree| {
-                    tree.attach_scope(item, scope);
-                },
-                (),
-            );
-            ctx.on_click(item, move |_: &UiEvent| {
-                let _: bool = selected.set_if_changed(Some(idx));
-            });
-            ctx.append(card, item);
+        } = self.clone();
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                padding: Edges::all(SPACE_MD)
+                gap: SPACE_SM
+                background: p.get_card()
+                border: (g.get_border_width(), p.get_border())
+                radius: g.get_radius_md()
+                text {
+                    font_size: 13.5
+                    font_weight: FontWeight::SemiBold
+                    color: p.get_foreground()
+                    { prompt }
+                }
+                for (idx, opt) in options.into_iter().enumerate() {
+                    row {
+                        bind_style: move || {
+                            let is_sel: bool = selected.get() == Some(idx);
+                            Style::default()
+                            .row()
+                            .width(Length::Percent(100.0))
+                            .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+                            .align(AlignItems::Center)
+                            .background(if is_sel {
+                                    p.get_accent()
+                                } else {
+                                    p.get_background()
+                            })
+                            .border(
+                                g.get_border_width(),
+                                if is_sel {
+                                    p.get_primary()
+                                } else {
+                                    p.get_border()
+                                },
+                            )
+                            .radius(g.get_radius_sm())
+                            .cursor(CursorIcon::Pointer)
+                        }
+                        on_click: move |_: &UiEvent| {
+                            let _: bool = selected.set_if_changed(Some(idx));
+                        }
+                        text {
+                            font_size: 13.0
+                            font_weight: FontWeight::Medium
+                            color: p.get_foreground()
+                            { opt }
+                        }
+                    }
+                }
+            }
         }
-        card
     }
 }
 
@@ -1868,19 +1688,21 @@ impl EuvContextMenu {
     }
 }
 
-/// `Mountable` implementation for `EuvContextMenu`.
-impl Mountable for EuvContextMenu {
-    /// Mounts the dashed context trigger zone and floating action menu registered in `EuvOverlayStack`.
+/// Declarative `#[component]` implementation for `EuvContextMenu`.
+#[component]
+/// Inherent implementation of [`EuvContextMenu`].
+impl EuvContextMenu {
+    /// Renders `EuvContextMenu` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Context menu props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted context menu wrapper handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
@@ -1891,93 +1713,80 @@ impl Mountable for EuvContextMenu {
             open: open_opt,
             selected: sel_opt,
             ..
-        } = self;
+        } = self.clone();
         let open: Signal<bool> = open_opt.unwrap_or_else(|| Signal::new(false));
         let selected: Signal<Option<usize>> = sel_opt.unwrap_or_else(|| Signal::new(None));
-        let wrap: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .gap(SPACE_XS),
-        );
-        let trigger: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .padding(Edges::symmetric(SPACE_MD, SPACE_LG))
-                .justify(JustifyContent::Center)
-                .align(AlignItems::Center)
-                .gap(SPACE_XS)
-                .background(p.get_muted())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md())
-                .cursor(CursorIcon::Pointer),
-        );
-        ctx.set_a11y(
-            trigger,
-            A11yProps::new(A11yRole::Button, trigger_label.clone()),
-        );
-        let trig_title: NodeId = ctx.text(
-            trigger_label,
-            Style::empty()
-                .font_size(13.0)
-                .font_weight(FontWeight::SemiBold)
-                .color(p.get_foreground())
-                .text_align(TextAlign::Center),
-        );
-        let trig_hint: NodeId = ctx.text(
-            CONTEXT_MENU_HINT_LABEL.to_string(),
-            Style::empty()
-                .font_size(11.5)
-                .color(p.get_muted_foreground())
-                .text_align(TextAlign::Center),
-        );
-        ctx.append(trigger, trig_title);
-        ctx.append(trigger, trig_hint);
-        ctx.on_click(trigger, move |_: &UiEvent| {
-            let _: bool = open.update(|v: &mut bool| *v = !*v);
-        });
         let init_open: bool = open.get_untracked();
-        let menu: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .display(if init_open {
-                    Display::Flex
-                } else {
-                    Display::None
-                })
-                .width(Length::Percent(100.0))
-                .max_width(Length::Px(260.0))
-                .padding(Edges::all(SPACE_XS))
-                .gap(2.0)
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md())
-                .shadow(g.get_shadow_md())
-                .z_index(Z_INDEX_FLOATING),
-        );
-        ctx.set_a11y(menu, A11yProps::new(A11yRole::Menu, String::new()));
-        for (idx, item_label) in items.into_iter().enumerate() {
-            let row: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                    .radius(g.get_radius_sm())
-                    .cursor(CursorIcon::Pointer),
-            );
-            ctx.set_a11y(row, A11yProps::new(A11yRole::MenuItem, item_label.clone()));
-            let txt: NodeId = ctx.text(
-                item_label,
-                Style::empty().font_size(13.0).color(p.get_foreground()),
-            );
-            ctx.append(row, txt);
-            ctx.on_click(row, move |_: &UiEvent| {
-                let _: bool = selected.set_if_changed(Some(idx));
-                let _: bool = open.set_if_changed(false);
-            });
-            ctx.append(menu, row);
-        }
+        let mut trigger: NodeId = NodeId::default();
+        let mut menu: NodeId = NodeId::default();
+        let wrap: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_XS
+                column {
+                    node_ref: trigger
+                    width: Length::Percent(100.0)
+                    padding: Edges::symmetric(SPACE_MD, SPACE_LG)
+                    justify: JustifyContent::Center
+                    align: AlignItems::Center
+                    gap: SPACE_XS
+                    background: p.get_muted()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    cursor: CursorIcon::Pointer
+                    role: A11yRole::Button
+                    a11y_label: trigger_label.clone()
+                    on_click: move |_: &UiEvent| {
+                        let _: bool = open.update(|v: &mut bool| *v = !*v);
+                    }
+                    text {
+                        font_size: 13.0
+                        font_weight: FontWeight::SemiBold
+                        color: p.get_foreground()
+                        text_align: TextAlign::Center
+                        { trigger_label }
+                    }
+                    text {
+                        font_size: 11.5
+                        color: p.get_muted_foreground()
+                        text_align: TextAlign::Center
+                        { CONTEXT_MENU_HINT_LABEL }
+                    }
+                }
+                column {
+                    node_ref: menu
+                    display: if init_open { Display::Flex } else { Display::None }
+                    width: Length::Percent(100.0)
+                    padding: Edges::all(SPACE_XS)
+                    gap: 2.0
+                    background: p.get_card()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    shadow: g.get_shadow_md()
+                    z_index: Z_INDEX_FLOATING
+                    role: A11yRole::Menu
+                    for (idx, item_label) in items.into_iter().enumerate() {
+                        row {
+                            width: Length::Percent(100.0)
+                            padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                            radius: g.get_radius_sm()
+                            cursor: CursorIcon::Pointer
+                            role: A11yRole::MenuItem
+                            a11y_label: item_label.clone()
+                            on_click: move |_: &UiEvent| {
+                                let _: bool = selected.set_if_changed(Some(idx));
+                                let _: bool = open.set_if_changed(false);
+                            }
+                            text {
+                                font_size: 13.0
+                                color: p.get_foreground()
+                                { item_label }
+                            }
+                        }
+                    }
+                }
+            }
+        };
         let handle: SceneHandle = ctx.get_scene().clone();
         let prev_open: Rc<Cell<bool>> = Rc::new(Cell::new(init_open));
         let last_seq: Rc<Cell<u64>> = Rc::new(Cell::new(
@@ -1988,7 +1797,7 @@ impl Mountable for EuvContextMenu {
         ));
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             let _: Effect =
-                EuvOverlayStack::bind_signal(open, "EuvContextMenu", Z_INDEX_DRAWER - 10);
+                EuvOverlayStack::bind_signal(open, CONTEXT_MENU_OVERLAY_NAME, Z_INDEX_DRAWER - 10);
             let _: Effect = Effect::new(move || {
                 if let Some(ev) = gesture_sig.get()
                     && ev.get_sequence() != last_seq.replace(ev.get_sequence())
@@ -2041,8 +1850,6 @@ impl Mountable for EuvContextMenu {
             },
             (),
         );
-        ctx.append(wrap, trigger);
-        ctx.append(wrap, menu);
         wrap
     }
 }

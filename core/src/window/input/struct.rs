@@ -54,7 +54,7 @@ pub struct KeyEvent {
     pub(crate) repeat: bool,
 }
 
-/// Real-time cross-platform gesture payload emitted reactively through `BuildContext::get_gesture()`.
+/// Real-time cross-platform gesture payload emitted reactively through `Context::get_gesture()`.
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub struct GestureEvent {
     /// Monotonic gesture sequence counter ensuring back-to-back identical gestures trigger reactivity.

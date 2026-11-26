@@ -160,13 +160,29 @@ pub fn execute_cli(cli: &Cli) -> io::Result<String> {
                 }
             }
         },
-        Commands::Fmt { check } => {
-            let mut args: Vec<String> = vec![ARG_FMT.to_string()];
-            if *check {
-                args.push(ARG_FMT_CHECK.to_string());
+        Commands::Fmt {
+            check,
+            path,
+            macros_only,
+        } => {
+            let target_root: PathBuf = match path {
+                Some(p) => p.clone(),
+                None => env::current_dir()?,
+            };
+            if !*macros_only {
+                let mut args: Vec<String> = vec![ARG_FMT.to_string(), ARG_FMT_ALL.to_string()];
+                if *check {
+                    args.push(ARG_DOUBLE_DASH.to_string());
+                    args.push(ARG_FMT_CHECK.to_string());
+                }
+                run_external_command(BIN_CARGO, &args)?;
             }
-            run_external_command(BIN_CARGO, &args)?;
-            Ok(args.join(" "))
+            let report: FmtReport = format_workspace_macros(&target_root, *check)?;
+            if !*macros_only && !*check && report.get_files_formatted() > 0 {
+                let args: Vec<String> = vec![ARG_FMT.to_string(), ARG_FMT_ALL.to_string()];
+                run_external_command(BIN_CARGO, &args)?;
+            }
+            serialize_json(&report)
         }
         Commands::New { name, path } => {
             let base: PathBuf = match path {

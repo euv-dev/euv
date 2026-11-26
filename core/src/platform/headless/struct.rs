@@ -16,6 +16,12 @@ pub struct HeadlessWindowRecord {
     /// Count of frames presented to this window.
     #[get(type(copy))]
     pub(crate) present_count: u64,
+    /// Whether the system soft keyboard / IME is currently active for this window.
+    #[get(type(copy))]
+    pub(crate) ime_active: bool,
+    /// Logical screen rectangle of the active IME input anchor.
+    #[get(type(copy))]
+    pub(crate) ime_rect: Rect,
 }
 
 /// Deterministic offscreen platform backend available on all targets for CI and pixel-parity testing.

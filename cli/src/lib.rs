@@ -7,6 +7,7 @@
 
 mod args;
 mod command;
+mod fmt;
 mod hot;
 mod platform;
 
@@ -14,7 +15,7 @@ mod platform;
 #[path = "../tests/mod.rs"]
 mod tests;
 
-pub use {args::*, command::*, hot::*, platform::*};
+pub use {args::*, command::*, fmt::*, hot::*, platform::*};
 
 use std::{
     collections::BTreeMap,

@@ -15,4 +15,3 @@ pub(crate) const SEARCH_PLACEHOLDER: &str = "Search documentation...";
 pub(crate) const TOC_CARD_TITLE: &str = "On This Page";
 pub(crate) const EMPTY_PAGE_TITLE: &str = "Welcome to euv";
 pub(crate) const EMPTY_PAGE_MSG: &str = "Select a page from the sidebar to begin reading.";
-pub(crate) const LIST_BULLET_PREFIX: &str = "- ";

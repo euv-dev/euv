@@ -7,12 +7,13 @@
 mod app;
 mod pages;
 mod state;
+mod stress;
 
 #[cfg(test)]
 #[path = "../tests/mod.rs"]
 mod tests;
 
-pub use {app::*, pages::*, state::*};
+pub use {app::*, pages::*, state::*, stress::*};
 
 #[cfg(debug_assertions)]
 use euv_automation::AI_SCHEMA_PROTOCOL_VERSION;
@@ -32,6 +33,7 @@ use std::{
     net::{SocketAddr, TcpListener},
     path::{Path, PathBuf},
     thread::spawn,
+    time::Instant,
 };
 use {
     euv::*,
@@ -41,9 +43,10 @@ use {
 };
 #[cfg(target_arch = "wasm32")]
 use {
-    js_sys::Function,
+    js_sys::{Function, Reflect},
     wasm_bindgen::{JsCast, JsValue, closure::Closure, prelude::wasm_bindgen},
     web_sys::{
-        Document, DomRect, Event, HtmlCanvasElement, KeyboardEvent, WheelEvent, Window, window,
+        Document, DomRect, Element, Event, HtmlCanvasElement, HtmlElement, KeyboardEvent,
+        Performance, WheelEvent, Window, window,
     },
 };

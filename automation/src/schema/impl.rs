@@ -951,10 +951,7 @@ impl AiSchemaProtocol {
             physical_height: ws.get_physical_height(),
             scale_factor: ws.get_scale_factor(),
             breakpoint: format!("{:?}", ws.breakpoint()),
-            theme_mode: format!(
-                "{:?}",
-                app.get_build_context().get_theme_mode().get_untracked()
-            ),
+            theme_mode: format!("{:?}", app.get_context().get_theme_mode().get_untracked()),
             active_route,
             active_scheme,
             focused: ws.get_focused(),
@@ -977,7 +974,7 @@ impl AiSchemaProtocol {
             },
             (0, 0, FocusManager::default(), None),
         );
-        let measured_fps: f32 = app.get_build_context().get_live_fps().get_untracked();
+        let measured_fps: f32 = app.get_context().get_live_fps().get_untracked();
         let frame_time_ms: f32 = if measured_fps > 0.1 {
             (1000.0 / measured_fps * 100.0).round() * 0.01
         } else {

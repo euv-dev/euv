@@ -43,16 +43,6 @@ pub struct EuvProgress {
     pub(crate) tokens: ThemeTokens,
 }
 
-/// Monospace code block display component.
-#[derive(Clone, Data, Debug, New)]
-pub struct EuvCodeBlock {
-    /// Source code text.
-    pub(crate) code: String,
-    /// Active theme tokens.
-    #[get(type(copy))]
-    pub(crate) tokens: ThemeTokens,
-}
-
 /// High-performance reactive virtualized scrollable list rendering only the visible window of `total_items`.
 #[derive(Clone, CustomDebug, Data, New)]
 pub struct EuvVirtualList {

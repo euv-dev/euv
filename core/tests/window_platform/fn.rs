@@ -31,16 +31,16 @@ fn pointer_click_input_typing_window_commands_and_router_work_end_to_end() {
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let root: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .column()
                 .width(Length::Px(400.0))
                 .height(Length::Px(300.0))
                 .gap(8.0),
         );
         let btn: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .width(Length::Px(120.0))
                 .height(Length::Px(40.0))
                 .background(Color::hex(0x111827)),
@@ -50,7 +50,7 @@ fn pointer_click_input_typing_window_commands_and_router_work_end_to_end() {
         });
         let input: NodeId = ctx.input(
             InputNodeState::new(String::new(), "Type...".to_string(), 0, false, false, false),
-            Style::empty()
+            Style::default()
                 .width(Length::Px(200.0))
                 .height(Length::Px(36.0)),
         );

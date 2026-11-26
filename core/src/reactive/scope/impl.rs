@@ -95,4 +95,48 @@ impl Scope {
             cleanup();
         }
     }
+
+    /// Freezes all effects owned by this scope and its descendant scopes while tracking cross-page signal dirtiness.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scope handle to freeze.
+    pub fn freeze(&self) {
+        let id: ScopeId = self.id();
+        let _: bool = with_runtime(
+            |rt: &mut ReactiveRuntime| rt.set_scope_frozen(id, true),
+            false,
+        );
+    }
+
+    /// Resumes this scope and all descendant scopes, atomically flushing any coalesced cross-page updates once.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scope handle to resume.
+    pub fn resume(&self) {
+        let id: ScopeId = self.id();
+        let should_flush: bool = with_runtime(
+            |rt: &mut ReactiveRuntime| rt.set_scope_frozen(id, false),
+            false,
+        );
+        if should_flush {
+            flush_effects();
+        }
+    }
+
+    /// Returns `true` when this scope is currently suspended via `Scope::freeze`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scope handle to inspect.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether this scope is frozen.
+    #[must_use]
+    pub fn is_frozen(&self) -> bool {
+        let id: ScopeId = self.id();
+        with_runtime(|rt: &mut ReactiveRuntime| rt.is_scope_frozen(id), false)
+    }
 }

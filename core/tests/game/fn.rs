@@ -45,7 +45,7 @@ fn game_engine_host_fixed_timestep_input_and_viewport_rendering_work() {
     let host_mount: GameEngineHost = host.clone();
     let _: NodeId = app.mount(move || {
         host_mount.mount_viewport(
-            Style::empty()
+            Style::default()
                 .width(Length::Px(320.0))
                 .height(Length::Px(200.0)),
         )
@@ -79,9 +79,9 @@ fn scroll_container_clamps_offset_and_dispatches_on_scroll_callback() {
     let mut app: App = App::headless(cfg).unwrap();
     let mut scroll_id: NodeId = NodeId::default();
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         scroll_id = ctx.scroll_view(
-            Style::empty()
+            Style::default()
                 .column()
                 .width(Length::Px(300.0))
                 .height(Length::Px(120.0)),
@@ -94,7 +94,7 @@ fn scroll_container_clamps_offset_and_dispatches_on_scroll_callback() {
         for i in 0..20_u32 {
             let row: NodeId = ctx.text(
                 format!("Row #{i}"),
-                Style::empty()
+                Style::default()
                     .width(Length::Px(280.0))
                     .height(Length::Px(24.0)),
             );
@@ -251,9 +251,9 @@ fn idle_frames_skip_rasterization_and_hover_uses_partial_dirty_rect() {
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let root: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .column()
                 .width(Length::Px(400.0))
                 .height(Length::Px(300.0))
@@ -261,7 +261,7 @@ fn idle_frames_skip_rasterization_and_hover_uses_partial_dirty_rect() {
                 .background(COLOR_WHITE),
         );
         let btn: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .width(Length::Px(80.0))
                 .height(Length::Px(32.0))
                 .background(Color::hex(0xE4E4E7))

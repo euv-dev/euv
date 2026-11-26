@@ -11,6 +11,9 @@ pub struct DisplayList {
     /// Scale factor mapping logical coordinates to physical pixels.
     #[get(type(copy))]
     pub(crate) scale_factor: f32,
+    /// Command index separating base-scene commands `[0..portal_split_index]` from top-layer portal/fixed overlays.
+    #[get(type(copy))]
+    pub(crate) portal_split_index: usize,
 }
 
 /// Stateless scene-to-display-list compiler supporting z-order sorting, scroll clipping, and frustum culling.

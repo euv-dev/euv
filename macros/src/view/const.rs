@@ -19,6 +19,9 @@ pub(crate) const TAG_SCROLL: &str = "scroll";
 /// Tag keyword for a top-layer portal container.
 pub(crate) const TAG_PORTAL: &str = "portal";
 
+/// Tag keyword for a transparent sibling fragment grouping container.
+pub(crate) const TAG_FRAGMENT: &str = "fragment";
+
 /// Tag keyword for a text run node.
 pub(crate) const TAG_TEXT: &str = "text";
 
@@ -40,11 +43,23 @@ pub(crate) const TAG_PAGE_SLOT: &str = "page_slot";
 /// Property keyword for base style expression.
 pub(crate) const PROP_STYLE: &str = "style";
 
+/// Property keyword for reactive style binding closure `move || -> Style`.
+pub(crate) const PROP_BIND_STYLE: &str = "bind_style";
+
+/// Property keyword for reactive children builder closure `move || -> Vec<NodeId>`.
+pub(crate) const PROP_BIND_CHILDREN: &str = "bind_children";
+
+/// Property keyword for capturing the created `NodeId` into a mutable local binding.
+pub(crate) const PROP_NODE_REF: &str = "node_ref";
+
 /// Property keyword for box display mode.
 pub(crate) const PROP_DISPLAY: &str = "display";
 
 /// Property keyword for positioning mode.
 pub(crate) const PROP_POSITION: &str = "position";
+
+/// Property keyword for absolute/fixed `(top, right, bottom, left)` inset tuple.
+pub(crate) const PROP_INSET: &str = "inset";
 
 /// Property keyword for explicit width.
 pub(crate) const PROP_WIDTH: &str = "width";
@@ -90,6 +105,18 @@ pub(crate) const PROP_FOCUS_RING: &str = "focus_ring";
 
 /// Property keyword for cursor icon.
 pub(crate) const PROP_CURSOR: &str = "cursor";
+
+/// Property keyword for pointer hit-test participation mode.
+pub(crate) const PROP_POINTER_EVENTS: &str = "pointer_events";
+
+/// Property keyword for blocking scroll propagation to ancestor scroll views.
+pub(crate) const PROP_STOP_SCROLL_PROPAGATION: &str = "stop_scroll_propagation";
+
+/// Property keyword for blocking pointer/click event bubbling to ancestors.
+pub(crate) const PROP_STOP_EVENT_PROPAGATION: &str = "stop_event_propagation";
+
+/// Property keyword for keyboard focus participation boolean.
+pub(crate) const PROP_FOCUSABLE: &str = "focusable";
 
 /// Property keyword for foreground text color.
 pub(crate) const PROP_COLOR: &str = "color";
@@ -160,11 +187,23 @@ pub(crate) const PROP_ON_POINTER_MOVE: &str = "on_pointer_move";
 /// Property keyword for pointer-up callback.
 pub(crate) const PROP_ON_POINTER_UP: &str = "on_pointer_up";
 
+/// Property keyword for pointer-enter callback.
+pub(crate) const PROP_ON_POINTER_ENTER: &str = "on_pointer_enter";
+
+/// Property keyword for pointer-leave callback.
+pub(crate) const PROP_ON_POINTER_LEAVE: &str = "on_pointer_leave";
+
 /// Property keyword for pointer hover enter/leave callback.
 pub(crate) const PROP_ON_HOVER: &str = "on_hover";
 
 /// Property keyword for keyboard key-down callback.
 pub(crate) const PROP_ON_KEY: &str = "on_key";
+
+/// Property keyword for focus-gained callback.
+pub(crate) const PROP_ON_FOCUS: &str = "on_focus";
+
+/// Property keyword for focus-lost callback.
+pub(crate) const PROP_ON_BLUR: &str = "on_blur";
 
 /// Property keyword for input initial value.
 pub(crate) const PROP_VALUE: &str = "value";
@@ -172,11 +211,26 @@ pub(crate) const PROP_VALUE: &str = "value";
 /// Property keyword for input placeholder text.
 pub(crate) const PROP_PLACEHOLDER: &str = "placeholder";
 
+/// Property keyword for input password masking boolean.
+pub(crate) const PROP_PASSWORD: &str = "password";
+
+/// Property keyword for input multiline boolean.
+pub(crate) const PROP_MULTILINE: &str = "multiline";
+
+/// Property keyword for input disabled boolean.
+pub(crate) const PROP_DISABLED: &str = "disabled";
+
+/// Property keyword for input initial caret offset.
+pub(crate) const PROP_CARET: &str = "caret";
+
 /// Property keyword for image buffer expression.
 pub(crate) const PROP_SOURCE: &str = "source";
 
 /// Property keyword for canvas painter closure.
 pub(crate) const PROP_PAINTER: &str = "painter";
+
+/// Property keyword for complete `A11yProps` expression.
+pub(crate) const PROP_A11Y: &str = "a11y";
 
 /// Property keyword for semantic accessibility role (`A11yRole`).
 pub(crate) const PROP_ROLE: &str = "role";
@@ -186,6 +240,15 @@ pub(crate) const PROP_A11Y_LABEL: &str = "a11y_label";
 
 /// Property keyword for accessible screen-reader usage hint string.
 pub(crate) const PROP_A11Y_HINT: &str = "a11y_hint";
+
+/// Property keyword for accessible current value string.
+pub(crate) const PROP_A11Y_VALUE: &str = "a11y_value";
+
+/// Property keyword for accessible disabled boolean.
+pub(crate) const PROP_A11Y_DISABLED: &str = "a11y_disabled";
+
+/// Property keyword for accessible checked state `Option<bool>`.
+pub(crate) const PROP_A11Y_CHECKED: &str = "a11y_checked";
 
 /// Property keyword for a component-level dynamic slot identifier (`slot { id: "..." }`).
 pub(crate) const PROP_ID: &str = "id";
@@ -199,11 +262,42 @@ pub(crate) const PROP_HUB: &str = "hub";
 /// Property keyword for an explicit fallback builder closure `move || -> NodeId` on `slot` / `page_slot`.
 pub(crate) const PROP_FALLBACK: &str = "fallback";
 
+/// Component type name whose nested children map to `.section(...)`.
+pub(crate) const COMP_EUV_PAGE: &str = "EuvPage";
+
+/// Component type name whose nested children map to `.field(...)`.
+pub(crate) const COMP_EUV_FORM: &str = "EuvForm";
+
+/// Component type name whose nested children map to `.action(...)`.
+pub(crate) const COMP_EUV_NAVBAR: &str = "EuvNavbar";
+
+/// Component type name whose nested children map to `.card(...)`.
+pub(crate) const COMP_EUV_STAT_GRID: &str = "EuvStatGrid";
+
+/// Component fluent method name for page section children.
+pub(crate) const METHOD_SECTION: &str = "section";
+
+/// Component fluent method name for form field children.
+pub(crate) const METHOD_FIELD: &str = "field";
+
+/// Component fluent method name for navbar action children.
+pub(crate) const METHOD_ACTION: &str = "action";
+
+/// Component fluent method name for stat grid card children.
+pub(crate) const METHOD_CARD: &str = "card";
+
+/// Default component fluent method name for generic nested children.
+pub(crate) const METHOD_CHILD: &str = "child";
+
 /// Complete list of supported properties inside `view!` elements for typo diagnostics.
 pub(crate) const KNOWN_VIEW_PROPS: &[&str] = &[
     PROP_STYLE,
+    PROP_BIND_STYLE,
+    PROP_BIND_CHILDREN,
+    PROP_NODE_REF,
     PROP_DISPLAY,
     PROP_POSITION,
+    PROP_INSET,
     PROP_WIDTH,
     PROP_HEIGHT,
     PROP_MIN_WIDTH,
@@ -219,6 +313,10 @@ pub(crate) const KNOWN_VIEW_PROPS: &[&str] = &[
     PROP_SHADOW,
     PROP_FOCUS_RING,
     PROP_CURSOR,
+    PROP_POINTER_EVENTS,
+    PROP_STOP_SCROLL_PROPAGATION,
+    PROP_STOP_EVENT_PROPAGATION,
+    PROP_FOCUSABLE,
     PROP_COLOR,
     PROP_RADIUS,
     PROP_BORDER,
@@ -242,23 +340,35 @@ pub(crate) const KNOWN_VIEW_PROPS: &[&str] = &[
     PROP_ON_POINTER_DOWN,
     PROP_ON_POINTER_MOVE,
     PROP_ON_POINTER_UP,
+    PROP_ON_POINTER_ENTER,
+    PROP_ON_POINTER_LEAVE,
     PROP_ON_HOVER,
     PROP_ON_KEY,
+    PROP_ON_FOCUS,
+    PROP_ON_BLUR,
     PROP_VALUE,
     PROP_PLACEHOLDER,
+    PROP_PASSWORD,
+    PROP_MULTILINE,
+    PROP_DISABLED,
+    PROP_CARET,
     PROP_SOURCE,
     PROP_PAINTER,
+    PROP_A11Y,
     PROP_ROLE,
     PROP_A11Y_LABEL,
     PROP_A11Y_HINT,
+    PROP_A11Y_VALUE,
+    PROP_A11Y_DISABLED,
+    PROP_A11Y_CHECKED,
     PROP_ID,
     PROP_ROUTE,
     PROP_HUB,
     PROP_FALLBACK,
 ];
 
-/// Error message when a caller passes a legacy explicit context argument to `view!(ctx, ...)`.
-pub(crate) const ERR_LEGACY_VIEW_CTX: &str = "view! manages BuildContext automatically; remove the explicit context argument and write `view! { ... }`";
+/// Error message when a caller passes a legacy explicit context argument to `view!(ctx, ...)` or `view!(in ctx, ...)`.
+pub(crate) const ERR_LEGACY_VIEW_CTX: &str = "view! manages Context automatically; remove explicit `ctx` / `in ctx,` and wrap external scenes in `with_context(ctx, || view! { ... })`";
 
 /// Error message when `image` lacks a `source` property.
 pub(crate) const ERR_IMAGE_MISSING_SOURCE: &str =
@@ -296,6 +406,75 @@ pub(crate) const ERR_SOURCE_ONLY_ON_IMAGE: &str =
 pub(crate) const ERR_PAINTER_ONLY_ON_CANVAS: &str =
     "`painter:` is only valid on `canvas { painter: ... }` elements";
 
-/// Error message when `value:` or `placeholder:` is placed on a non-`input` element.
-pub(crate) const ERR_INPUT_PROP_ONLY_ON_INPUT: &str =
-    "`value:` and `placeholder:` are only valid on `input { ... }` elements";
+/// Error message when input-only properties are placed on a non-`input` element.
+pub(crate) const ERR_INPUT_PROP_ONLY_ON_INPUT: &str = "`value:`, `placeholder:`, `password:`, `multiline:`, `disabled:`, and `caret:` are only valid on `input { ... }` elements";
+
+/// Error message when child nodes are declared inside a leaf element (`input`, `image`, or `canvas`).
+pub(crate) const ERR_LEAF_CHILDREN_FORBIDDEN: &str =
+    "leaf elements (`input`, `image`, `canvas`) cannot contain child nodes";
+
+/// Error message when `bind_children:` is combined with static children on the same element.
+pub(crate) const ERR_BIND_CHILDREN_CONFLICT: &str = "`bind_children:` cannot be combined with inline static children because reactive updates replace all children";
+
+/// Error message when `a11y:` is combined with individual `role:`/`a11y_*` properties.
+pub(crate) const ERR_A11Y_CONFLICT: &str =
+    "`a11y:` cannot be combined with individual `role:` or `a11y_*` properties on the same element";
+
+/// Error message when `text` receives unsupported control-flow or multiple children.
+pub(crate) const ERR_TEXT_CHILD_INVALID: &str =
+    "`text` element accepts at most one string literal or `{ expr }` text expression";
+
+/// Error message when `if` / `for` / `match` / `..spread` is used where a single root node is required without a container.
+pub(crate) const ERR_SPREAD_IN_EXPR_CONTEXT: &str =
+    "`..spread` can only appear inside a container, `fragment`, or component children block";
+
+/// Error message prefix for duplicate property declarations on the same element.
+pub(crate) const ERR_DUPLICATE_PROP_PREFIX: &str = "duplicate property";
+
+/// Generated internal identifier for multi-root fragment container.
+pub(crate) const IDENT_ROOT: &str = "__euv_root";
+
+/// Generated internal identifier for control-flow fragment container.
+pub(crate) const IDENT_FRAG: &str = "__euv_frag";
+
+/// Generated internal identifier for mutable component builder local.
+pub(crate) const IDENT_COMP: &str = "__euv_comp";
+
+/// Generated internal identifier for newly constructed primitive node.
+pub(crate) const IDENT_NODE: &str = "__euv_node";
+
+/// Generated internal identifier for slot fallback root container.
+pub(crate) const IDENT_FB_ROOT: &str = "__euv_fb_root";
+
+/// Error message when an element tag has neither `{ ... }` body nor `(args...)`.
+pub(crate) const ERR_EXPECTED_BODY_OR_ARGS: &str =
+    "expected `{ ... }` body or `(args...)` after element tag";
+
+/// Legacy Web/HTML container tags rejected with native migration guidance.
+pub(crate) const HTML_CONTAINER_TAGS: &[&str] = &[
+    "div", "section", "main", "header", "footer", "nav", "article", "aside", "ul", "ol", "li",
+    "form",
+];
+
+/// Legacy Web/HTML text tags rejected with native migration guidance.
+pub(crate) const HTML_TEXT_TAGS: &[&str] = &[
+    "span", "p", "h1", "h2", "h3", "h4", "h5", "h6", "label", "strong", "code",
+];
+
+/// Legacy Web/HTML interactive button/link tags rejected with native migration guidance.
+pub(crate) const HTML_BUTTON_TAGS: &[&str] = &["button", "a"];
+
+/// Legacy Web/HTML image tag rejected with native migration guidance.
+pub(crate) const HTML_IMAGE_TAGS: &[&str] = &["img"];
+
+/// Error message suffix for legacy HTML container tags.
+pub(crate) const HTML_REPLACE_CONTAINER: &str = "`column`, `row`, `view`, or `grid`";
+
+/// Error message suffix for legacy HTML text tags.
+pub(crate) const HTML_REPLACE_TEXT: &str = "`text`";
+
+/// Error message suffix for legacy HTML button/link tags.
+pub(crate) const HTML_REPLACE_BUTTON: &str = "`EuvButton(...)` or `view { on_click: ... }`";
+
+/// Error message suffix for legacy HTML image tag.
+pub(crate) const HTML_REPLACE_IMAGE: &str = "`image { source: ... }`";

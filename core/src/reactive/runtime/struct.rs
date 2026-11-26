@@ -107,6 +107,16 @@ pub(crate) struct EffectEntry {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) depth: u32,
+    /// Active freeze nesting depth (`> 0` suspends execution while tracking dirty notifications).
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) frozen_depth: u32,
+    /// Whether upstream signals or memos dirtied this effect while frozen.
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) pending_while_frozen: bool,
 }
 
 /// Ownership scope entry that disposes all owned reactive resources together.
@@ -122,6 +132,11 @@ pub(crate) struct ScopeEntry {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) alive: bool,
+    /// Whether this scope is currently frozen (`PageRetention::Freeze`).
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) frozen: bool,
     /// Signals owned by this scope.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
@@ -228,6 +243,21 @@ pub struct ReactiveRuntime {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) clock: u64,
+    /// Type-keyed root-lifetime global state signal registry.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) global_states: HashMap<TypeId, SignalId>,
+    /// String-keyed root-lifetime named global state signal registry.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) named_global_states: HashMap<String, SignalId>,
+    /// Type-keyed cross-component custom event channel signals.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) event_channels: HashMap<TypeId, SignalId>,
 }
 
 /// Snapshot of runtime diagnostic statistics for telemetry and benchmarking.

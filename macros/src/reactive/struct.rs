@@ -1,10 +1,12 @@
 use super::*;
 
-/// Parsed input for `watch!((sig1, sig2) => closure)` or auto-tracked `watch!(|| { ... })`.
+/// Parsed input for `watch!((sig1, sig2) => closure)`, `watch!(global Type => closure)`, or auto-tracked `watch!(|| { ... })`.
 pub(crate) struct WatchInput {
-    /// Watched reactive signal expressions (empty for auto-tracked shorthand).
+    /// Watched reactive signal expressions (empty for auto-tracked or global shorthand).
     pub(crate) signals: Vec<Expr>,
-    /// Callback closure invoked with cloned signal values or zero args when auto-tracked.
+    /// Optional global state type watched via `watch!(global MyState => |prev, next| { ... })`.
+    pub(crate) global_type: Option<Type>,
+    /// Callback closure invoked with cloned signal values, `(prev, next)`, or zero args when auto-tracked.
     pub(crate) callback: Expr,
 }
 

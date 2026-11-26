@@ -111,6 +111,23 @@ where
         }
     }
 
+    /// Reconstructs a typed `Signal<T>` handle from an arena `SignalId`.
+    ///
+    /// # Arguments
+    ///
+    /// - `SignalId` - Arena signal identifier.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Lightweight copyable signal handle.
+    #[must_use]
+    pub(crate) fn from_raw_id(id: SignalId) -> Self {
+        Self {
+            id,
+            marker: PhantomData,
+        }
+    }
+
     /// Returns the underlying `SignalId`.
     ///
     /// # Arguments

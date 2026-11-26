@@ -19,394 +19,336 @@ impl EuvBreadcrumb {
     }
 }
 
-/// `Mountable` implementation for `EuvBreadcrumb`.
-impl Mountable for EuvBreadcrumb {
-    /// Mounts the horizontal breadcrumb trail into `ctx`.
+/// Declarative `#[component]` implementation for `EuvBreadcrumb`.
+#[component]
+/// Inherent implementation of [`EuvBreadcrumb`].
+impl EuvBreadcrumb {
+    /// Renders `EuvBreadcrumb` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Breadcrumb props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted breadcrumb row handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let Self {
             segments, active, ..
-        } = self;
+        } = self.clone();
         let last_idx: usize = segments.len().saturating_sub(1);
-        let row: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .wrap(FlexWrap::Wrap)
-                .width(Length::Percent(100.0))
-                .align(AlignItems::Center)
-                .gap(SPACE_XS),
-        );
-        for (idx, seg) in segments.into_iter().enumerate() {
-            if let Some(active_sig) = active {
-                let item: NodeId = ctx.view(
-                    Style::empty()
-                        .row()
-                        .padding(Edges::symmetric(2.0, 6.0))
-                        .radius(g.get_radius_sm())
-                        .cursor(CursorIcon::Pointer),
-                );
-                let txt: NodeId = ctx.text(seg, Style::empty());
-                ctx.append(item, txt);
-                let handle: SceneHandle = ctx.get_scene().clone();
-                let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-                    handle.bind_style(txt, move || {
-                        let is_cur: bool = active_sig.get() == idx;
-                        Style::empty()
-                            .font_size(13.0)
-                            .font_weight(if is_cur {
-                                FontWeight::SemiBold
-                            } else {
-                                FontWeight::Normal
-                            })
-                            .color(if is_cur {
+        view! {
+            row {
+                flex_wrap: FlexWrap::Wrap
+                width: Length::Percent(100.0)
+                align: AlignItems::Center
+                gap: SPACE_XS
+                for (idx, seg) in segments.into_iter().enumerate() {
+                    if let Some(active_sig) = active {
+                        row {
+                            padding: Edges::symmetric(2.0, 6.0)
+                            radius: g.get_radius_sm()
+                            cursor: CursorIcon::Pointer
+                            on_click: move |_: &UiEvent| {
+                                let _: bool = active_sig.set_if_changed(idx);
+                            }
+                            text {
+                                bind_style: move || {
+                                    let is_cur: bool = active_sig.get() == idx;
+                                    Style::default()
+                                    .font_size(13.0)
+                                    .font_weight(if is_cur {
+                                            FontWeight::SemiBold
+                                        } else {
+                                            FontWeight::Normal
+                                    })
+                                    .color(if is_cur {
+                                            p.get_foreground()
+                                        } else {
+                                            p.get_muted_foreground()
+                                    })
+                                }
+                                { seg }
+                            }
+                        }
+                    } else {
+                        text {
+                            font_size: 13.0
+                            color: if idx == last_idx {
                                 p.get_foreground()
                             } else {
                                 p.get_muted_foreground()
-                            })
-                    })
-                });
-                ctx.get_scene().with_write(
-                    |tree: &mut SceneTree| {
-                        tree.attach_scope(item, scope);
-                    },
-                    (),
-                );
-                ctx.on_click(item, move |_: &UiEvent| {
-                    let _: bool = active_sig.set_if_changed(idx);
-                });
-                ctx.append(row, item);
-            } else {
-                let color: Color = if idx == last_idx {
-                    p.get_foreground()
-                } else {
-                    p.get_muted_foreground()
-                };
-                let txt: NodeId = ctx.text(seg, Style::empty().font_size(13.0).color(color));
-                ctx.append(row, txt);
-            }
-            if idx < last_idx {
-                let sep: NodeId = ctx.text(
-                    BREADCRUMB_SEP.to_string(),
-                    Style::empty()
-                        .font_size(12.0)
-                        .color(p.get_muted_foreground()),
-                );
-                ctx.append(row, sep);
+                            }
+                            { seg }
+                        }
+                    }
+                    if idx < last_idx {
+                        text {
+                            font_size: 12.0
+                            color: p.get_muted_foreground()
+                            { BREADCRUMB_SEP }
+                        }
+                    }
+                }
             }
         }
-        row
     }
 }
 
-/// `Mountable` implementation for `EuvPagination`.
-impl Mountable for EuvPagination {
-    /// Mounts Prev, page readout, and Next controls bound reactively to `current`.
+/// Declarative `#[component]` implementation for `EuvPagination`.
+#[component]
+/// Inherent implementation of [`EuvPagination`].
+impl EuvPagination {
+    /// Renders `EuvPagination` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Pagination props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted pagination row handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let tokens: ThemeTokens = self.get_tokens();
         let p: ThemePalette = tokens.get_palette();
         let current: Signal<usize> = self.get_current();
         let total: usize = self.get_total_pages();
-        let row: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .wrap(FlexWrap::Wrap)
-                .align(AlignItems::Center)
-                .gap(SPACE_SM),
-        );
-        let mut prev_cfg: EuvButton =
-            EuvButton::new(PAGE_PREV_LABEL.to_string(), tokens).on_click(move |_: &UiEvent| {
-                let _: bool = current.update(|v: &mut usize| *v = v.saturating_sub(1).max(1));
-            });
-        prev_cfg
-            .set_variant(EuvButtonVariant::Outline)
-            .set_size(EuvButtonSize::Small);
-        let prev_btn: NodeId = prev_cfg.mount(ctx);
-        let info: NodeId = ctx.reactive_text(
-            Style::empty()
-                .font_size(13.0)
-                .font_weight(FontWeight::Medium)
-                .color(p.get_foreground()),
-            move || format!("{} / {total}", current.get()),
-        );
-        let mut next_cfg: EuvButton =
-            EuvButton::new(PAGE_NEXT_LABEL.to_string(), tokens).on_click(move |_: &UiEvent| {
-                let _: bool = current.update(|v: &mut usize| *v = (*v + 1).min(total));
-            });
-        next_cfg
-            .set_variant(EuvButtonVariant::Outline)
-            .set_size(EuvButtonSize::Small);
-        let next_btn: NodeId = next_cfg.mount(ctx);
-        ctx.append(row, prev_btn);
-        ctx.append(row, info);
-        ctx.append(row, next_btn);
-        row
+        view! {
+            row {
+                flex_wrap: FlexWrap::Wrap
+                align: AlignItems::Center
+                gap: SPACE_SM
+                EuvButton(PAGE_PREV_LABEL.to_string(), tokens) {
+                    outline()
+                    sm()
+                    on_click: move |_: &UiEvent| {
+                        let _: bool = current.update(|v: &mut usize| *v = v.saturating_sub(1).max(1));
+                    }
+                }
+                text {
+                    font_size: 13.0
+                    font_weight: FontWeight::Medium
+                    color: p.get_foreground()
+                    { move || format!("{} / {total}", current.get()) }
+                }
+                EuvButton(PAGE_NEXT_LABEL.to_string(), tokens) {
+                    outline()
+                    sm()
+                    on_click: move |_: &UiEvent| {
+                        let _: bool = current.update(|v: &mut usize| *v = (*v + 1).min(total));
+                    }
+                }
+            }
+        }
     }
 }
 
-/// `Mountable` implementation for `EuvSteps`.
-impl Mountable for EuvSteps {
-    /// Mounts numbered step indicators updating highlight styles reactively.
+/// Declarative `#[component]` implementation for `EuvSteps`.
+#[component]
+/// Inherent implementation of [`EuvSteps`].
+impl EuvSteps {
+    /// Renders `EuvSteps` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Steps props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted steps row handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let active: Signal<usize> = self.get_active();
-        let Self { labels, .. } = self;
-        let row: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .wrap(FlexWrap::Wrap)
-                .width(Length::Percent(100.0))
-                .gap(SPACE_MD),
-        );
-        for (idx, lbl) in labels.into_iter().enumerate() {
-            let step_box: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .align(AlignItems::Center)
-                    .gap(SPACE_SM)
-                    .cursor(CursorIcon::Pointer),
-            );
-            let badge: NodeId = ctx.view(Style::empty());
-            let num: NodeId = ctx.text((idx + 1).to_string(), Style::empty());
-            ctx.append(badge, num);
-            let handle: SceneHandle = ctx.get_scene().clone();
-            let handle_txt: SceneHandle = handle.clone();
-            let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-                let _: Effect = handle_txt.bind_style(num, move || {
-                    let done: bool = active.get() >= idx;
-                    Style::empty()
-                        .font_size(12.0)
-                        .font_weight(FontWeight::Bold)
-                        .color(if done {
-                            p.get_primary_foreground()
-                        } else {
-                            p.get_muted_foreground()
-                        })
-                });
-                handle.bind_style(badge, move || {
-                    let done: bool = active.get() >= idx;
-                    Style::empty()
-                        .row()
-                        .width(Length::Px(24.0))
-                        .height(Length::Px(24.0))
-                        .justify(JustifyContent::Center)
-                        .align(AlignItems::Center)
-                        .radius(12.0)
-                        .border(if done { 0.0 } else { 1.0 }, p.get_border())
-                        .background(if done {
-                            p.get_primary()
-                        } else {
-                            p.get_secondary()
-                        })
-                })
-            });
-            ctx.get_scene().with_write(
-                |tree: &mut SceneTree| {
-                    tree.attach_scope(badge, scope);
-                },
-                (),
-            );
-            ctx.on_click(step_box, move |_: &UiEvent| {
-                let _: bool = active.set_if_changed(idx);
-            });
-            let txt: NodeId = ctx.text(
-                lbl,
-                Style::empty()
-                    .font_size(13.0)
-                    .font_weight(FontWeight::Medium)
-                    .color(p.get_foreground()),
-            );
-            ctx.append(step_box, badge);
-            ctx.append(step_box, txt);
-            ctx.append(row, step_box);
+        let Self { labels, .. } = self.clone();
+        view! {
+            row {
+                flex_wrap: FlexWrap::Wrap
+                width: Length::Percent(100.0)
+                gap: SPACE_MD
+                for (idx, lbl) in labels.into_iter().enumerate() {
+                    row {
+                        align: AlignItems::Center
+                        gap: SPACE_SM
+                        cursor: CursorIcon::Pointer
+                        on_click: move |_: &UiEvent| {
+                            let _: bool = active.set_if_changed(idx);
+                        }
+                        row {
+                            bind_style: move || {
+                                let done: bool = active.get() >= idx;
+                                Style::default()
+                                .row()
+                                .width(Length::Px(24.0))
+                                .height(Length::Px(24.0))
+                                .justify(JustifyContent::Center)
+                                .align(AlignItems::Center)
+                                .radius(12.0)
+                                .border(if done { 0.0 } else { 1.0 }, p.get_border())
+                                .background(if done {
+                                        p.get_primary()
+                                    } else {
+                                        p.get_secondary()
+                                })
+                            }
+                            text {
+                                bind_style: move || {
+                                    let done: bool = active.get() >= idx;
+                                    Style::default()
+                                    .font_size(12.0)
+                                    .font_weight(FontWeight::Bold)
+                                    .color(if done {
+                                            p.get_primary_foreground()
+                                        } else {
+                                            p.get_muted_foreground()
+                                    })
+                                }
+                                { (idx + 1).to_string() }
+                            }
+                        }
+                        text {
+                            font_size: 13.0
+                            font_weight: FontWeight::Medium
+                            color: p.get_foreground()
+                            { lbl }
+                        }
+                    }
+                }
+            }
         }
-        row
     }
 }
 
-/// `Mountable` implementation for `EuvAccordion`.
-impl Mountable for EuvAccordion {
-    /// Mounts accordion headers and reactively toggled content panels.
+/// Declarative `#[component]` implementation for `EuvAccordion`.
+#[component]
+/// Inherent implementation of [`EuvAccordion`].
+impl EuvAccordion {
+    /// Renders `EuvAccordion` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Accordion props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted accordion handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let open_index: Signal<Option<usize>> = self.get_open_index();
-        let Self { items, .. } = self;
-        let col: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .gap(SPACE_XS),
-        );
-        for (idx, item) in items.into_iter().enumerate() {
-            let section: NodeId = ctx.view(
-                Style::empty()
-                    .column()
-                    .width(Length::Percent(100.0))
-                    .background(p.get_card())
-                    .border(g.get_border_width(), p.get_border())
-                    .radius(g.get_radius_md()),
-            );
-            let header: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                    .cursor(CursorIcon::Pointer),
-            );
-            let title: NodeId = ctx.text(
-                item.get_title().clone(),
-                Style::empty()
-                    .font_size(14.0)
-                    .font_weight(FontWeight::SemiBold)
-                    .color(p.get_foreground()),
-            );
-            ctx.append(header, title);
-            ctx.on_click(header, move |_: &UiEvent| {
-                let _: bool = open_index.update(|cur: &mut Option<usize>| {
-                    *cur = if *cur == Some(idx) { None } else { Some(idx) };
-                });
-            });
-            let body: NodeId = ctx.view(Style::empty());
-            let body_txt: NodeId = ctx.text(
-                item.get_content().clone(),
-                Style::empty()
-                    .font_size(13.0)
-                    .color(p.get_muted_foreground()),
-            );
-            ctx.append(body, body_txt);
-            let handle: SceneHandle = ctx.get_scene().clone();
-            let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-                handle.bind_style(body, move || {
-                    let disp: Display = if open_index.get() == Some(idx) {
-                        Display::Flex
-                    } else {
-                        Display::None
-                    };
-                    Style::empty()
-                        .column()
-                        .display(disp)
-                        .width(Length::Percent(100.0))
-                        .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                })
-            });
-            ctx.get_scene().with_write(
-                |tree: &mut SceneTree| {
-                    tree.attach_scope(body, scope);
-                },
-                (),
-            );
-            ctx.append(section, header);
-            ctx.append(section, body);
-            ctx.append(col, section);
+        let Self { items, .. } = self.clone();
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_XS
+                for (idx, item) in items.into_iter().enumerate() {
+                    column {
+                        width: Length::Percent(100.0)
+                        background: p.get_card()
+                        border: (g.get_border_width(), p.get_border())
+                        radius: g.get_radius_md()
+                        row {
+                            width: Length::Percent(100.0)
+                            padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                            cursor: CursorIcon::Pointer
+                            on_click: move |_: &UiEvent| {
+                                let _: bool = open_index.update(|cur: &mut Option<usize>| {
+                                        *cur = if *cur == Some(idx) { None } else { Some(idx) };
+                                });
+                            }
+                            text {
+                                font_size: 14.0
+                                font_weight: FontWeight::SemiBold
+                                color: p.get_foreground()
+                                { item.get_title().clone() }
+                            }
+                        }
+                        column {
+                            bind_style: move || {
+                                let disp: Display = if open_index.get() == Some(idx) {
+                                    Display::Flex
+                                } else {
+                                    Display::None
+                                };
+                                Style::default()
+                                .column()
+                                .display(disp)
+                                .width(Length::Percent(100.0))
+                                .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+                            }
+                            text {
+                                font_size: 13.0
+                                color: p.get_muted_foreground()
+                                { item.get_content().clone() }
+                            }
+                        }
+                    }
+                }
+            }
         }
-        col
     }
 }
 
-/// `Mountable` implementation for `EuvToc`.
-impl Mountable for EuvToc {
-    /// Mounts the TOC heading list with reactive active highlighting.
+/// Declarative `#[component]` implementation for `EuvToc`.
+#[component]
+/// Inherent implementation of [`EuvToc`].
+impl EuvToc {
+    /// Renders `EuvToc` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - TOC props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted TOC panel handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let active: Signal<usize> = self.get_active();
-        let Self { headings, .. } = self;
-        let box_node: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_MD))
-                .gap(SPACE_XS)
-                .background(p.get_muted())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md()),
-        );
-        let title: NodeId = ctx.text(
-            TOC_HEADING_DEFAULT.to_string(),
-            Style::empty()
-                .font_size(12.0)
-                .font_weight(FontWeight::Bold)
-                .color(p.get_muted_foreground()),
-        );
-        ctx.append(box_node, title);
-        for (idx, h) in headings.into_iter().enumerate() {
-            let item: NodeId = ctx.view(Style::empty());
-            let txt: NodeId = ctx.text(h, Style::empty().font_size(13.0).color(p.get_foreground()));
-            ctx.append(item, txt);
-            let handle: SceneHandle = ctx.get_scene().clone();
-            let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-                handle.bind_style(item, move || {
-                    let is_cur: bool = active.get() == idx;
-                    Style::empty()
-                        .row()
-                        .width(Length::Percent(100.0))
-                        .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
-                        .radius(g.get_radius_sm())
-                        .background(if is_cur {
-                            p.get_accent()
-                        } else {
-                            COLOR_TRANSPARENT
-                        })
-                        .cursor(CursorIcon::Pointer)
-                })
-            });
-            ctx.get_scene().with_write(
-                |tree: &mut SceneTree| {
-                    tree.attach_scope(item, scope);
-                },
-                (),
-            );
-            ctx.on_click(item, move |_: &UiEvent| {
-                let _: bool = active.set_if_changed(idx);
-            });
-            ctx.append(box_node, item);
+        let Self { headings, .. } = self.clone();
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                padding: Edges::all(SPACE_MD)
+                gap: SPACE_XS
+                background: p.get_muted()
+                border: (g.get_border_width(), p.get_border())
+                radius: g.get_radius_md()
+                text {
+                    font_size: 12.0
+                    font_weight: FontWeight::Bold
+                    color: p.get_muted_foreground()
+                    { TOC_HEADING_DEFAULT }
+                }
+                for (idx, h) in headings.into_iter().enumerate() {
+                    row {
+                        bind_style: move || {
+                            let is_cur: bool = active.get() == idx;
+                            Style::default()
+                            .row()
+                            .width(Length::Percent(100.0))
+                            .padding(Edges::symmetric(SPACE_XS, SPACE_SM))
+                            .radius(g.get_radius_sm())
+                            .background(if is_cur {
+                                    p.get_accent()
+                                } else {
+                                    COLOR_TRANSPARENT
+                            })
+                            .cursor(CursorIcon::Pointer)
+                        }
+                        on_click: move |_: &UiEvent| {
+                            let _: bool = active.set_if_changed(idx);
+                        }
+                        text {
+                            font_size: 13.0
+                            color: p.get_foreground()
+                            { h }
+                        }
+                    }
+                }
+            }
         }
-        box_node
     }
 }

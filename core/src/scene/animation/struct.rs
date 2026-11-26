@@ -9,6 +9,9 @@ pub struct NodeTransition {
     /// Elapsed animation time in seconds.
     #[get(type(copy))]
     pub(crate) elapsed: f32,
+    /// Optional delay in seconds before interpolation starts (holds `from_*` values).
+    #[get(type(copy))]
+    pub(crate) delay: f32,
     /// Total transition duration in seconds.
     #[get(type(copy))]
     pub(crate) duration: f32,

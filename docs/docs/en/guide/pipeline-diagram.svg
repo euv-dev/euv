@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#282C34"/>
+      <stop offset="100%" stop-color="#1E222A"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7C4DFF"/>
+      <stop offset="100%" stop-color="#437AED"/>
+    </linearGradient>
+  </defs>
+  <rect width="760" height="220" rx="14" fill="url(#bg)"/>
+  <rect x="24" y="24" width="712" height="36" rx="8" fill="url(#accent)" opacity="0.92"/>
+  <text x="380" y="47" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14" font-weight="700" fill="#FFFFFF">euv Unified Native Scene, Reactivity &amp; Docs Rendering Pipeline</text>
+  <rect x="28" y="84" width="156" height="104" rx="10" fill="#21252B" stroke="#A78CFA" stroke-width="1.5"/>
+  <text x="106" y="114" text-anchor="middle" font-family="ui-monospace,monospace" font-size="13" font-weight="700" fill="#A78CFA">Macros &amp; State</text>
+  <text x="106" y="138" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">view! / style!</text>
+  <text x="106" y="156" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">#[component]</text>
+  <text x="106" y="174" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">GlobalState + Event</text>
+  <path d="M188 136 L216 136" stroke="#6495EE" stroke-width="2" marker-end="none"/>
+  <polygon points="216,131 224,136 216,141" fill="#6495EE"/>
+  <rect x="226" y="84" width="156" height="104" rx="10" fill="#21252B" stroke="#6495EE" stroke-width="1.5"/>
+  <text x="304" y="114" text-anchor="middle" font-family="ui-monospace,monospace" font-size="13" font-weight="700" fill="#6495EE">Lifecycle &amp; Tree</text>
+  <text x="304" y="138" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">PageRetention::Freeze</text>
+  <text x="304" y="156" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">O(1) Dirty Layout</text>
+  <text x="304" y="174" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">Coalesced Resume</text>
+  <path d="M386 136 L414 136" stroke="#56B7C3" stroke-width="2"/>
+  <polygon points="414,131 422,136 414,141" fill="#56B7C3"/>
+  <rect x="424" y="84" width="156" height="104" rx="10" fill="#21252B" stroke="#56B7C3" stroke-width="1.5"/>
+  <text x="502" y="114" text-anchor="middle" font-family="ui-monospace,monospace" font-size="13" font-weight="700" fill="#56B7C3">2D + 3D RT</text>
+  <text x="502" y="138" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">Analytical SDF AA</text>
+  <text x="502" y="156" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">FXAA 3.11 + MLAA</text>
+  <text x="502" y="174" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">Persistent Pool</text>
+  <path d="M584 136 L612 136" stroke="#98C379" stroke-width="2"/>
+  <polygon points="612,131 620,136 612,141" fill="#98C379"/>
+  <rect x="622" y="84" width="114" height="104" rx="10" fill="#21252B" stroke="#98C379" stroke-width="1.5"/>
+  <text x="679" y="114" text-anchor="middle" font-family="ui-monospace,monospace" font-size="13" font-weight="700" fill="#98C379">7 Targets</text>
+  <text x="679" y="138" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">Web / iOS</text>
+  <text x="679" y="156" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">Android / Mac</text>
+  <text x="679" y="174" text-anchor="middle" font-family="ui-sans-serif,sans-serif" font-size="11.5" fill="#9DA5B4">Win / Linux</text>
+</svg>

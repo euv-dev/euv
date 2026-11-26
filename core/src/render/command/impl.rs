@@ -13,6 +13,7 @@ impl DisplayList {
         self.get_mut_commands().clear();
         self.set_viewport(viewport);
         self.set_scale_factor(scale_factor.max(0.5));
+        self.set_portal_split_index(0);
     }
 
     /// Appends a single `DrawCommand` to the list.
@@ -186,6 +187,191 @@ impl DisplayList {
         }
         hash
     }
+
+    /// Computes a full collision-resistant 64-bit FNV-1a digest over the base-scene slice `commands[..portal_split_index]` for lossless portal backdrop caching.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Display list reference.
+    ///
+    /// # Returns
+    ///
+    /// - `u64` - Complete base-scene digest (guaranteed non-zero when commands are present).
+    #[must_use]
+    pub fn base_layer_hash(&self) -> u64 {
+        let split: usize = self.get_portal_split_index().min(self.get_commands().len());
+        let mut hash: u64 = FNV1A_OFFSET_BASIS;
+        Self::mix_hash(&mut hash, split as u64);
+        Self::mix_hash(&mut hash, self.get_viewport().get_width().to_bits() as u64);
+        Self::mix_hash(&mut hash, self.get_viewport().get_height().to_bits() as u64);
+        Self::mix_hash(&mut hash, self.get_scale_factor().to_bits() as u64);
+        for cmd in self.get_commands()[..split].iter() {
+            match cmd {
+                DrawCommand::Clear(c) => {
+                    Self::mix_hash(&mut hash, 1);
+                    Self::mix_hash(&mut hash, u32::from_le_bytes(c.to_rgba_bytes()) as u64);
+                }
+                DrawCommand::FillRoundedRect {
+                    rect,
+                    color,
+                    radius,
+                    border,
+                } => {
+                    Self::mix_hash(&mut hash, 2);
+                    Self::mix_hash(&mut hash, rect.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_width().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_height().to_bits() as u64);
+                    Self::mix_hash(&mut hash, u32::from_le_bytes(color.to_rgba_bytes()) as u64);
+                    Self::mix_hash(&mut hash, radius.get_top_left().to_bits() as u64);
+                    Self::mix_hash(&mut hash, radius.get_top_right().to_bits() as u64);
+                    Self::mix_hash(&mut hash, radius.get_bottom_right().to_bits() as u64);
+                    Self::mix_hash(&mut hash, radius.get_bottom_left().to_bits() as u64);
+                    Self::mix_hash(&mut hash, border.get_width().to_bits() as u64);
+                    Self::mix_hash(
+                        &mut hash,
+                        u32::from_le_bytes(border.get_color().to_rgba_bytes()) as u64,
+                    );
+                }
+                DrawCommand::LinearGradientRect {
+                    rect,
+                    gradient,
+                    radius,
+                } => {
+                    Self::mix_hash(&mut hash, 3);
+                    Self::mix_hash(&mut hash, rect.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_width().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_height().to_bits() as u64);
+                    Self::mix_hash(&mut hash, gradient.get_angle_deg().to_bits() as u64);
+                    Self::mix_hash(
+                        &mut hash,
+                        u32::from_le_bytes(gradient.get_start_color().to_rgba_bytes()) as u64,
+                    );
+                    Self::mix_hash(
+                        &mut hash,
+                        u32::from_le_bytes(gradient.get_end_color().to_rgba_bytes()) as u64,
+                    );
+                    Self::mix_hash(&mut hash, radius.max_radius().to_bits() as u64);
+                }
+                DrawCommand::BoxShadow {
+                    rect,
+                    radius,
+                    shadow,
+                } => {
+                    Self::mix_hash(&mut hash, 4);
+                    Self::mix_hash(&mut hash, rect.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_width().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_height().to_bits() as u64);
+                    Self::mix_hash(&mut hash, radius.max_radius().to_bits() as u64);
+                    Self::mix_hash(&mut hash, shadow.get_offset_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, shadow.get_offset_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, shadow.get_blur_radius().to_bits() as u64);
+                    Self::mix_hash(&mut hash, shadow.get_spread_radius().to_bits() as u64);
+                    Self::mix_hash(
+                        &mut hash,
+                        u32::from_le_bytes(shadow.get_color().to_rgba_bytes()) as u64,
+                    );
+                }
+                DrawCommand::TextRun { rect, text, style } => {
+                    Self::mix_hash(&mut hash, 5);
+                    Self::mix_hash(&mut hash, rect.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_width().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_height().to_bits() as u64);
+                    Self::mix_hash(&mut hash, style.get_font_size().to_bits() as u64);
+                    Self::mix_hash(&mut hash, style.get_weight() as u64);
+                    Self::mix_hash(&mut hash, style.get_align() as u64);
+                    Self::mix_hash(
+                        &mut hash,
+                        u32::from_le_bytes(style.get_color().to_rgba_bytes()) as u64,
+                    );
+                    Self::mix_hash(&mut hash, text.len() as u64);
+                    for byte in text.as_bytes().iter().copied() {
+                        Self::mix_hash(&mut hash, byte as u64);
+                    }
+                }
+                DrawCommand::Image {
+                    rect,
+                    buffer,
+                    radius,
+                } => {
+                    Self::mix_hash(&mut hash, 6);
+                    Self::mix_hash(&mut hash, rect.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_width().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_height().to_bits() as u64);
+                    Self::mix_hash(&mut hash, buffer.get_width() as u64);
+                    Self::mix_hash(&mut hash, buffer.get_height() as u64);
+                    Self::mix_hash(&mut hash, buffer.get_pixels().as_ptr() as usize as u64);
+                    Self::mix_hash(&mut hash, radius.max_radius().to_bits() as u64);
+                }
+                DrawCommand::Line {
+                    from,
+                    to,
+                    color,
+                    width,
+                } => {
+                    Self::mix_hash(&mut hash, 7);
+                    Self::mix_hash(&mut hash, from.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, from.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, to.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, to.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, u32::from_le_bytes(color.to_rgba_bytes()) as u64);
+                    Self::mix_hash(&mut hash, width.to_bits() as u64);
+                }
+                DrawCommand::Circle {
+                    center,
+                    radius,
+                    color,
+                } => {
+                    Self::mix_hash(&mut hash, 8);
+                    Self::mix_hash(&mut hash, center.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, center.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, radius.to_bits() as u64);
+                    Self::mix_hash(&mut hash, u32::from_le_bytes(color.to_rgba_bytes()) as u64);
+                }
+                DrawCommand::Triangle { p0, p1, p2, color } => {
+                    Self::mix_hash(&mut hash, 9);
+                    Self::mix_hash(&mut hash, p0.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, p0.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, p1.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, p1.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, p2.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, p2.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, u32::from_le_bytes(color.to_rgba_bytes()) as u64);
+                }
+                DrawCommand::SpriteRegion {
+                    rect,
+                    buffer,
+                    src_rect,
+                    tint,
+                } => {
+                    Self::mix_hash(&mut hash, 10);
+                    Self::mix_hash(&mut hash, rect.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_width().to_bits() as u64);
+                    Self::mix_hash(&mut hash, rect.get_height().to_bits() as u64);
+                    Self::mix_hash(&mut hash, buffer.get_pixels().as_ptr() as usize as u64);
+                    Self::mix_hash(&mut hash, src_rect.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, src_rect.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, u32::from_le_bytes(tint.to_rgba_bytes()) as u64);
+                }
+                DrawCommand::PushClip(r) => {
+                    Self::mix_hash(&mut hash, 11);
+                    Self::mix_hash(&mut hash, r.get_x().to_bits() as u64);
+                    Self::mix_hash(&mut hash, r.get_y().to_bits() as u64);
+                    Self::mix_hash(&mut hash, r.get_width().to_bits() as u64);
+                    Self::mix_hash(&mut hash, r.get_height().to_bits() as u64);
+                }
+                DrawCommand::PopClip => {
+                    Self::mix_hash(&mut hash, 12);
+                }
+            }
+        }
+        if hash == 0 { 1 } else { hash }
+    }
 }
 
 /// Scene-to-display-list compilation pass.
@@ -220,6 +406,7 @@ impl PaintPass {
             Some(&mut portals),
             display_list,
         );
+        display_list.set_portal_split_index(display_list.len());
         portals.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
             a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1))
         });

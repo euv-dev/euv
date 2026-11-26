@@ -66,9 +66,9 @@ fn component_level_dynamic_update_is_surgical_preserves_siblings_and_rolls_back(
         }
     });
     let _: NodeId = app.mount(move || {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let root: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .column()
                 .width(Length::Percent(100.0))
                 .padding(Edges::all(12.0))
@@ -78,21 +78,21 @@ fn component_level_dynamic_update_is_surgical_preserves_siblings_and_rolls_back(
             "slot_a".to_string(),
             Rc::new(move || {
                 mounts_a_fb.set(mounts_a_fb.get() + 1);
-                let mut c: BuildContext = current_build_context();
-                c.text("Fallback A".to_string(), Style::empty().font_size(14.0))
+                let mut c: Context = current_context();
+                c.text("Fallback A".to_string(), Style::default().font_size(14.0))
             }),
         )
-        .mount(&mut ctx);
+        .mount();
         let slot_b: NodeId = DynamicComponentSlot::new(
             "slot_b".to_string(),
             Rc::new(move || {
                 mounts_b_fb.set(mounts_b_fb.get() + 1);
-                let mut c: BuildContext = current_build_context();
-                c.text("Fallback B".to_string(), Style::empty().font_size(14.0))
+                let mut c: Context = current_context();
+                c.text("Fallback B".to_string(), Style::default().font_size(14.0))
             }),
         )
-        .mount(&mut ctx);
-        let sib: NodeId = ctx.reactive_text(Style::empty().font_size(13.0), move || {
+        .mount();
+        let sib: NodeId = ctx.reactive_text(Style::default().font_size(13.0), move || {
             format!("Sibling={}", sibling_state.get())
         });
         ctx.append(root, slot_a);
@@ -132,10 +132,10 @@ fn component_level_dynamic_update_is_surgical_preserves_siblings_and_rolls_back(
     assert_eq!(last.get_payload().as_str(), "tier-1");
     let applied_v2: u64 = hub
         .swap_component_builder("slot_a".to_string(), 2, || {
-            let mut c: BuildContext = current_build_context();
+            let mut c: Context = current_context();
             c.text(
                 "Native Hot-Swap v2".to_string(),
-                Style::empty().font_size(16.0).color(Color::hex(0x059669)),
+                Style::default().font_size(16.0).color(Color::hex(0x059669)),
             )
         })
         .unwrap();
@@ -167,18 +167,17 @@ fn page_level_dynamic_update_swaps_active_page_and_injects_new_runtime_routes() 
     let mut router: Router = Router::at("/home".to_string());
     let route_sig: Signal<String> = router.get_current();
     let _: NodeId = app.mount(move || {
-        let mut ctx: BuildContext = current_build_context();
         DynamicPageOutlet::new(
             route_sig,
             Rc::new(|path: &str| {
-                let mut c: BuildContext = current_build_context();
+                let mut c: Context = current_context();
                 c.text(
                     format!("Compiled Fallback Route: {path}"),
-                    Style::empty().font_size(15.0),
+                    Style::default().font_size(15.0),
                 )
             }),
         )
-        .mount(&mut ctx)
+        .mount()
     });
     let f_home_0: FrameStats = app.step_frame().unwrap();
     let mut home_v1: DynamicPageUpdate = DynamicPageUpdate::new(
@@ -227,10 +226,10 @@ fn page_level_dynamic_update_swaps_active_page_and_injects_new_runtime_routes() 
             "Autumn Campaign v2".to_string(),
             2,
             || {
-                let mut c: BuildContext = current_build_context();
+                let mut c: Context = current_context();
                 c.text(
                     "Native Campaign v2".to_string(),
-                    Style::empty().font_size(18.0).color(Color::hex(0xDC2626)),
+                    Style::default().font_size(18.0).color(Color::hex(0xDC2626)),
                 )
             },
         )
@@ -313,7 +312,6 @@ fn dynamic_slot_disposes_previous_reactive_scope_and_cleanups_on_swap() {
     let cleanups: Rc<Cell<u32>> = Rc::new(Cell::new(0));
     let cleanups_fb: Rc<Cell<u32>> = cleanups.clone();
     let _: NodeId = app.mount(move || {
-        let mut ctx: BuildContext = current_build_context();
         DynamicComponentSlot::new(
             "scoped_widget".to_string(),
             Rc::new(move || {
@@ -321,11 +319,11 @@ fn dynamic_slot_disposes_previous_reactive_scope_and_cleanups_on_swap() {
                 on_cleanup(move || {
                     c_flag.set(c_flag.get() + 1);
                 });
-                let mut c: BuildContext = current_build_context();
-                c.text("Scoped Fallback".to_string(), Style::empty())
+                let mut c: Context = current_context();
+                c.text("Scoped Fallback".to_string(), Style::default())
             }),
         )
-        .mount(&mut ctx)
+        .mount()
     });
     let _: FrameStats = app.step_frame().unwrap();
     assert_eq!(cleanups.get(), 0);
@@ -336,8 +334,8 @@ fn dynamic_slot_disposes_previous_reactive_scope_and_cleanups_on_swap() {
             on_cleanup(move || {
                 c_flag.set(c_flag.get() + 1);
             });
-            let mut c: BuildContext = current_build_context();
-            c.text("Scoped v1".to_string(), Style::empty())
+            let mut c: Context = current_context();
+            c.text("Scoped v1".to_string(), Style::default())
         })
         .unwrap(),
         1
@@ -449,22 +447,21 @@ fn dynamic_wasm_partial_and_global_cover_all_production_cases() {
     );
     let hub_mount: DynamicUpdateHub = hub.clone();
     let _: NodeId = app.mount(move || {
-        let mut ctx: BuildContext = current_build_context();
         let mut partial_cfg: DynamicComponentSlot = DynamicComponentSlot::new(
             "slot_a".to_string(),
             Rc::new(|| {
-                let mut c: BuildContext = current_build_context();
-                c.text("Native Fallback A".to_string(), Style::empty())
+                let mut c: Context = current_context();
+                c.text("Native Fallback A".to_string(), Style::default())
             }),
         );
         partial_cfg.set_hub(Some(hub_mount.clone()));
-        let partial_slot: NodeId = partial_cfg.mount(&mut ctx);
+        let partial_slot: NodeId = partial_cfg.mount();
         let mut global_cfg: DynamicComponentSlot = DynamicComponentSlot::new(
             WASM_GLOBAL_ROOT_SLOT.to_string(),
             Rc::new(move || partial_slot),
         );
         global_cfg.set_hub(Some(hub_mount));
-        global_cfg.mount(&mut ctx)
+        global_cfg.mount()
     });
     let _: FrameStats = app.step_frame().unwrap();
     let req_p1: WasmDownloadRequest =

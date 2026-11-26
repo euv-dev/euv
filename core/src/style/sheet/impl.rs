@@ -2,14 +2,41 @@ use super::*;
 
 /// Fluent zero-allocation builder methods for `Style`.
 impl Style {
-    /// Returns a new empty style initialized with defaults.
+    /// Applies any strongly-typed `StyleApply` value (e.g. `AlignItems::Center`, `Overflow::Hidden`, `Shadow`) to this style.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source style.
+    /// - `T` - Typed property implementing `StyleApply`.
     ///
     /// # Returns
     ///
-    /// - `Self` - Default `Style`.
+    /// - `Self` - Updated style.
     #[must_use]
-    pub fn empty() -> Self {
-        Self::default()
+    pub fn apply<T>(self, prop: T) -> Self
+    where
+        T: StyleApply,
+    {
+        prop.apply_to(self)
+    }
+
+    /// Sets the flex container axis direction (`FlexDirection::Row` or `FlexDirection::Column`).
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source style.
+    /// - `FlexDirection` - Target flex axis direction.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated style.
+    #[must_use]
+    pub fn direction(mut self, direction: FlexDirection) -> Self {
+        if self.get_layout().get_display() != Display::None {
+            self.get_mut_layout().set_display(Display::Flex);
+        }
+        self.get_mut_layout().set_flex_direction(direction);
+        self
     }
 
     /// Sets the box display mode.
@@ -704,5 +731,296 @@ impl ResponsiveStyle {
             Breakpoint::Medium => medium.unwrap_or(base),
             Breakpoint::Expanded => base,
         }
+    }
+}
+
+/// `StyleApply` implementation for `Display`.
+impl StyleApply for Display {
+    /// Applies `Display` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target display mode.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.display(self)
+    }
+}
+
+/// `StyleApply` implementation for `Position`.
+impl StyleApply for Position {
+    /// Applies `Position` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target positioning mode.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.position(self)
+    }
+}
+
+/// `StyleApply` implementation for `FlexDirection`.
+impl StyleApply for FlexDirection {
+    /// Applies `FlexDirection` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target flex axis direction.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.direction(self)
+    }
+}
+
+/// `StyleApply` implementation for `FlexWrap`.
+impl StyleApply for FlexWrap {
+    /// Applies `FlexWrap` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target flex wrap mode.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.wrap(self)
+    }
+}
+
+/// `StyleApply` implementation for `JustifyContent`.
+impl StyleApply for JustifyContent {
+    /// Applies `JustifyContent` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target main-axis justification.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.justify(self)
+    }
+}
+
+/// `StyleApply` implementation for `AlignItems`.
+impl StyleApply for AlignItems {
+    /// Applies `AlignItems` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target cross-axis alignment.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.align(self)
+    }
+}
+
+/// `StyleApply` implementation for `Overflow`.
+impl StyleApply for Overflow {
+    /// Applies `Overflow` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target overflow behavior.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.overflow(self)
+    }
+}
+
+/// `StyleApply` implementation for `CursorIcon`.
+impl StyleApply for CursorIcon {
+    /// Applies `CursorIcon` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target cursor hint.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.cursor(self)
+    }
+}
+
+/// `StyleApply` implementation for `PointerEvents`.
+impl StyleApply for PointerEvents {
+    /// Applies `PointerEvents` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target pointer-events mode.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.pointer_events(self)
+    }
+}
+
+/// `StyleApply` implementation for `FontWeight`.
+impl StyleApply for FontWeight {
+    /// Applies `FontWeight` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target font weight.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.font_weight(self)
+    }
+}
+
+/// `StyleApply` implementation for `FontFamily`.
+impl StyleApply for FontFamily {
+    /// Applies `FontFamily` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target font family.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.font_family(self)
+    }
+}
+
+/// `StyleApply` implementation for `TextAlign`.
+impl StyleApply for TextAlign {
+    /// Applies `TextAlign` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target horizontal text alignment.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.text_align(self)
+    }
+}
+
+/// `StyleApply` implementation for `TextOverflow`.
+impl StyleApply for TextOverflow {
+    /// Applies `TextOverflow` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Target text overflow strategy.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.text_overflow(self)
+    }
+}
+
+/// `StyleApply` implementation for `Shadow`.
+impl StyleApply for Shadow {
+    /// Applies `Shadow` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Drop shadow specification.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.shadow(self)
+    }
+}
+
+/// `StyleApply` implementation for `LinearGradient`.
+impl StyleApply for LinearGradient {
+    /// Applies `LinearGradient` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Linear gradient fill.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        style.gradient(self)
+    }
+}
+
+/// `StyleApply` implementation for `CornerRadius`.
+impl StyleApply for CornerRadius {
+    /// Applies `CornerRadius` to `style`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Corner radius specification.
+    /// - `Style` - Style accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Updated style.
+    fn apply_to(self, style: Style) -> Style {
+        let mut out: Style = style;
+        out.get_mut_paint().set_radius(self);
+        out
+    }
+}
+
+/// `StyleApply` implementation for `Style` allowing base-style merging inside `style! { base_style; ... }`.
+impl StyleApply for Style {
+    /// Replaces `style` with `self` as a base preset inside `style!`.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Base style preset.
+    /// - `Style` - Previous accumulator.
+    ///
+    /// # Returns
+    ///
+    /// - `Style` - Base style value.
+    fn apply_to(self, _style: Style) -> Style {
+        self
     }
 }

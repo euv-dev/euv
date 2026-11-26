@@ -13,6 +13,9 @@ pub(crate) const STYLE_KEY_DISPLAY: &str = "display";
 /// Style property key for position mode.
 pub(crate) const STYLE_KEY_POSITION: &str = "position";
 
+/// Style property key for absolute/fixed `(top, right, bottom, left)` inset tuple.
+pub(crate) const STYLE_KEY_INSET: &str = "inset";
+
 /// Style property key for width.
 pub(crate) const STYLE_KEY_WIDTH: &str = "width";
 
@@ -57,6 +60,15 @@ pub(crate) const STYLE_KEY_FOCUS_RING: &str = "focus_ring";
 
 /// Style property key for cursor icon.
 pub(crate) const STYLE_KEY_CURSOR: &str = "cursor";
+
+/// Style property key for pointer hit-test participation mode.
+pub(crate) const STYLE_KEY_POINTER_EVENTS: &str = "pointer_events";
+
+/// Style property key for blocking scroll propagation.
+pub(crate) const STYLE_KEY_STOP_SCROLL_PROPAGATION: &str = "stop_scroll_propagation";
+
+/// Style property key for blocking pointer/click event bubbling.
+pub(crate) const STYLE_KEY_STOP_EVENT_PROPAGATION: &str = "stop_event_propagation";
 
 /// Style property key for foreground color.
 pub(crate) const STYLE_KEY_COLOR: &str = "color";
@@ -112,11 +124,18 @@ pub(crate) const STYLE_KEY_GRID: &str = "grid";
 /// Alias style property key for grid column count.
 pub(crate) const STYLE_KEY_COLUMNS: &str = "columns";
 
+/// Error message prefix for duplicate style rule declarations.
+pub(crate) const ERR_STYLE_DUPLICATE_KEY: &str = "duplicate style property";
+
+/// Error message when a `style!` rule or shorthand expression is missing a trailing semicolon.
+pub(crate) const ERR_STYLE_MISSING_SEMI: &str = "expected `;` at end of `style!` statement — every rule and value shorthand must terminate with `;`";
+
 /// Exhaustive list of supported properties inside `style!` blocks for typo diagnostics.
 pub(crate) const KNOWN_STYLE_PROPS: &[&str] = &[
     STYLE_KEY_DIRECTION,
     STYLE_KEY_DISPLAY,
     STYLE_KEY_POSITION,
+    STYLE_KEY_INSET,
     STYLE_KEY_WIDTH,
     STYLE_KEY_HEIGHT,
     STYLE_KEY_MIN_WIDTH,
@@ -132,6 +151,9 @@ pub(crate) const KNOWN_STYLE_PROPS: &[&str] = &[
     STYLE_KEY_SHADOW,
     STYLE_KEY_FOCUS_RING,
     STYLE_KEY_CURSOR,
+    STYLE_KEY_POINTER_EVENTS,
+    STYLE_KEY_STOP_SCROLL_PROPAGATION,
+    STYLE_KEY_STOP_EVENT_PROPAGATION,
     STYLE_KEY_COLOR,
     STYLE_KEY_RADIUS,
     STYLE_KEY_ALIGN,

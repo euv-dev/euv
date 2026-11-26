@@ -2,7 +2,7 @@ use super::*;
 
 /// Parser for `StyleBlockInput`.
 impl Parse for StyleBlockInput {
-    /// Parses one or more `vis name { key: val; ... }` definitions.
+    /// Parses either named `vis name[(params...)] { stmt; ... }` definitions or an inline `style! { stmt; ... }` expression.
     ///
     /// # Arguments
     ///
@@ -10,27 +10,40 @@ impl Parse for StyleBlockInput {
     ///
     /// # Returns
     ///
-    /// - `Result<Self>` - Parsed style block.
+    /// - `Result<Self>` - Parsed style block with mandatory semicolons enforced.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let mut defs: Vec<StyleDef> = Vec::new();
-        while !input.is_empty() {
-            let vis: Visibility = input.parse()?;
-            let _: Option<Token![const]> = input.parse()?;
-            let name: Ident = input.parse()?;
-            let body: ParseBuffer<'_>;
-            braced!(body in input);
-            let mut rules: Vec<StyleRule> = Vec::new();
-            while !body.is_empty() {
-                let key: Ident = body.parse()?;
-                let _: Token![:] = body.parse()?;
-                let value: Expr = body.parse()?;
-                let _: Option<Token![;]> = body.parse()?;
-                let _: Option<Token![,]> = body.parse()?;
-                rules.push(StyleRule { key, value });
-            }
-            defs.push(StyleDef { vis, name, rules });
+        if input.is_empty() {
+            return Ok(Self::Inline(Vec::new()));
         }
-        Ok(Self { defs })
+        if is_named_style_def(input) {
+            let mut defs: Vec<StyleDef> = Vec::new();
+            while !input.is_empty() {
+                let vis: Visibility = input.parse()?;
+                let _: Option<Token![const]> = input.parse()?;
+                let name: Ident = input.parse()?;
+                let params: Vec<FnArg> = if input.peek(Paren) {
+                    let param_buf: ParseBuffer<'_>;
+                    parenthesized!(param_buf in input);
+                    let parsed: Punctuated<FnArg, Token![,]> =
+                        param_buf.parse_terminated(FnArg::parse, Token![,])?;
+                    parsed.into_iter().collect()
+                } else {
+                    Vec::new()
+                };
+                let body: ParseBuffer<'_>;
+                braced!(body in input);
+                let stmts: Vec<StyleStmt> = parse_style_stmts(&body)?;
+                defs.push(StyleDef {
+                    vis,
+                    name,
+                    params,
+                    stmts,
+                });
+            }
+            return Ok(Self::Defs(defs));
+        }
+        let stmts: Vec<StyleStmt> = parse_style_stmts(input)?;
+        Ok(Self::Inline(stmts))
     }
 }
 

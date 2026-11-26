@@ -24,8 +24,8 @@ pub struct App {
     pub(crate) window_state: WindowState,
     /// Shared scene tree handle.
     pub(crate) scene: SceneHandle,
-    /// Build context carrying reactive breakpoint, theme, and safe-area signals.
-    pub(crate) build_context: BuildContext,
+    /// Framework context carrying reactive breakpoint, theme, gesture, and safe-area signals.
+    pub(crate) context: Context,
     /// Deterministic cross-platform layout engine.
     #[get(type(copy))]
     pub(crate) layout_engine: LayoutEngine,
@@ -74,6 +74,9 @@ pub struct App {
     /// Whether the active touch gesture has crossed tap slop into pan-scrolling.
     #[get(type(copy))]
     pub(crate) touch_dragging: bool,
+    /// Cumulative post-slop drag displacement in logical pixels for the active touch scroll gesture.
+    #[get(type(copy))]
+    pub(crate) touch_drag_travel: f32,
     /// Locked scroll axis for the active touch drag (`0` = unlocked, `1` = vertical, `2` = horizontal, `3` = free).
     #[get(type(copy))]
     pub(crate) touch_scroll_axis: u8,
@@ -149,4 +152,13 @@ pub struct App {
     /// Accumulated frame time in seconds used to pace frames when an explicit FPS cap is configured.
     #[get(type(copy))]
     pub(crate) fps_budget_accum: f32,
+    /// Whether an editable `NodeKind::Input` currently holds focus and requests the system IME keyboard.
+    #[get(type(copy))]
+    pub(crate) last_ime_active: bool,
+    /// Handle of the `NodeKind::Input` that most recently activated the system IME keyboard.
+    #[get(skip)]
+    pub(crate) last_ime_node: Option<NodeId>,
+    /// Damage region rasterized during the most recent rendered frame for partial native surface presentation.
+    #[get(type(copy))]
+    pub(crate) last_frame_damage: DamageRegion,
 }

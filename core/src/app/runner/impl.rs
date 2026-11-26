@@ -63,20 +63,14 @@ impl App {
         let kind: PlatformKind = platform.kind();
         let caps: PlatformCapabilities = platform.capabilities();
         let scene: SceneHandle = SceneHandle::new_tree();
-        let build_context: BuildContext = BuildContext::new(scene.clone(), kind);
-        let dynamic_hub: DynamicUpdateHub = build_context.get_dynamic_hub().clone();
-        let _: bool = build_context
-            .get_breakpoint()
-            .set(window_state.breakpoint());
-        let _: bool = build_context
-            .get_viewport_size()
-            .set(window_state.logical_size());
-        let _: bool = build_context
+        let context: Context = Context::new(scene.clone(), kind);
+        let dynamic_hub: DynamicUpdateHub = context.get_dynamic_hub().clone();
+        let _: bool = context.get_breakpoint().set(window_state.breakpoint());
+        let _: bool = context.get_viewport_size().set(window_state.logical_size());
+        let _: bool = context
             .get_theme_mode()
             .set(window_state.get_system_theme());
-        let _: bool = build_context
-            .get_safe_area()
-            .set(window_state.get_safe_area());
+        let _: bool = context.get_safe_area().set(window_state.get_safe_area());
         let renderer: Renderer = Renderer::new(
             kind,
             caps,
@@ -89,7 +83,7 @@ impl App {
             platform,
             window_state,
             scene,
-            build_context,
+            context,
             layout_engine: LayoutEngine::default(),
             renderer,
             command_queue: WindowCommandQueue::default(),
@@ -108,6 +102,7 @@ impl App {
             touch_drag_origin: None,
             touch_drag_last: None,
             touch_dragging: false,
+            touch_drag_travel: 0.0,
             touch_scroll_axis: 0,
             touch_vel_accum_delta: Point::default(),
             touch_vel_samples: Vec::with_capacity(16),
@@ -134,7 +129,104 @@ impl App {
             fps_accum_secs: 0.0,
             fps_accum_frames: 0,
             fps_budget_accum: 0.0,
+            last_ime_active: false,
+            last_ime_node: None,
+            last_frame_damage: DamageRegion::default(),
         })
+    }
+
+    /// Returns whether an editable input node currently requests the system soft keyboard / IME.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True when an enabled `NodeKind::Input` holds keyboard focus.
+    #[must_use]
+    pub fn is_ime_active(&self) -> bool {
+        self.get_last_ime_active()
+    }
+
+    /// Returns the damage region rasterized during the most recent rendered frame.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Application reference.
+    ///
+    /// # Returns
+    ///
+    /// - `DamageRegion` - Last rendered damage region.
+    #[must_use]
+    pub fn last_frame_damage(&self) -> DamageRegion {
+        self.get_last_frame_damage()
+    }
+
+    /// Synchronizes OS soft-keyboard / IME visibility with the currently focused `NodeKind::Input`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    fn sync_ime_focus(&mut self) {
+        let (active_node, input_rect): (Option<NodeId>, Rect) = self.get_scene().with_read(
+            |tree: &SceneTree| {
+                let Some(fid) = tree.get_focus().focused_node() else {
+                    return (None, Rect::default());
+                };
+                if !tree.is_node_visible(fid) {
+                    return (None, Rect::default());
+                }
+                let Some(node) = tree.get_node(fid) else {
+                    return (None, Rect::default());
+                };
+                if let NodeKind::Input(inp) = node.get_kind()
+                    && !inp.get_disabled()
+                {
+                    let rect: Rect = tree
+                        .node_screen_bounds(fid)
+                        .unwrap_or_else(|| node.get_layout_box().get_bounds());
+                    return (Some(fid), rect);
+                }
+                (None, Rect::default())
+            },
+            (None, Rect::default()),
+        );
+        let next_active: bool = active_node.is_some();
+        let prev_active: bool = self.get_last_ime_active();
+        let prev_node: Option<NodeId> = {
+            let Self { last_ime_node, .. } = self;
+            *last_ime_node
+        };
+        if next_active == prev_active && (!next_active || active_node == prev_node) {
+            return;
+        }
+        self.set_last_ime_active(next_active);
+        self.set_last_ime_node(active_node);
+        let wid: WindowId = self.get_window_state().get_id();
+        let cmd: WindowCommand = WindowCommand::SetIme(wid, next_active, input_rect);
+        let Self { platform, .. } = self;
+        let _: Result<(), PlatformError> = platform.apply_command(cmd);
+        let rect_csv: String = if next_active {
+            format!(
+                "{:.1},{:.1},{:.1},{:.1}",
+                input_rect.get_x(),
+                input_rect.get_y(),
+                input_rect.get_width(),
+                input_rect.get_height()
+            )
+        } else {
+            String::new()
+        };
+        let _: bool = dispatch_native_action(
+            NATIVE_ACTION_IME,
+            if next_active {
+                IME_ACTION_SHOW
+            } else {
+                IME_ACTION_HIDE
+            },
+            &rect_csv,
+        );
     }
 
     /// Configures the cross-platform maximum frame rate (`None` = unlimited maximum FPS, the default).
@@ -146,7 +238,7 @@ impl App {
     pub fn set_fps_limit(&mut self, limit: Option<u32>) {
         let normalized: Option<u32> = limit.map(|v: u32| v.clamp(1, 1000));
         let _: bool = self
-            .get_build_context()
+            .get_context()
             .get_fps_limit()
             .set_if_changed(normalized);
         self.set_fps_budget_accum(0.0);
@@ -163,7 +255,7 @@ impl App {
     /// - `Option<u32>` - Active frame rate cap, or `None` when uncapped.
     #[must_use]
     pub fn fps_limit(&self) -> Option<u32> {
-        self.get_build_context().get_fps_limit().get_untracked()
+        self.get_context().get_fps_limit().get_untracked()
     }
 
     /// Registers a `GameEngineHost` so all incoming OS/Web `WindowEvent`s are automatically forwarded to its `InputState`.
@@ -210,7 +302,7 @@ impl App {
         )
     }
 
-    /// Mounts a root `Mountable` component or `NodeId` into the application's scene root with an ambient `BuildContext`.
+    /// Mounts a root `Component` or `NodeId` into the application's scene root with an ambient `Context`.
     ///
     /// # Arguments
     ///
@@ -220,25 +312,20 @@ impl App {
     /// # Returns
     ///
     /// - `NodeId` - Mounted root content node handle.
-    pub fn mount<F, M>(&mut self, builder: F) -> NodeId
+    pub fn mount<F, C>(&mut self, builder: F) -> NodeId
     where
-        F: FnOnce() -> M,
-        M: Mountable,
+        F: FnOnce() -> C,
+        C: Component,
     {
-        let ctx: BuildContext = self.get_build_context().clone();
-        let root_child: NodeId = with_build_context(ctx.clone(), || {
-            let mountable: M = builder();
-            let mut mount_ctx: BuildContext = ctx;
-            mountable.mount(&mut mount_ctx)
+        let ctx: Context = self.get_context().clone();
+        let root_child: NodeId = with_context(ctx, || {
+            let component: C = builder();
+            component.mount()
         });
         let scene: SceneHandle = self.get_scene().clone();
-        scene.with_write(
-            |tree: &mut SceneTree| {
-                let root: NodeId = tree.get_root();
-                tree.replace_children(root, vec![root_child]);
-            },
-            (),
-        );
+        let root: NodeId = scene.with_read(SceneTree::get_root, NodeId::default());
+        scene.replace_children_safe(root, vec![root_child]);
+        scene.activate_subtree(root_child);
         self.set_pending_damage(DamageRegion::full());
         root_child
     }
@@ -359,9 +446,9 @@ impl App {
         let bp: Breakpoint = self.get_window_state().breakpoint();
         let next_size: Size = self.get_window_state().logical_size();
         batch(|| {
-            let _: bool = self.get_build_context().get_breakpoint().set_if_changed(bp);
+            let _: bool = self.get_context().get_breakpoint().set_if_changed(bp);
             let _: bool = self
-                .get_build_context()
+                .get_context()
                 .get_viewport_size()
                 .set_if_changed(next_size);
         });
@@ -423,9 +510,9 @@ impl App {
                     let bp: Breakpoint = self.get_window_state().breakpoint();
                     let next_size: Size = self.get_window_state().logical_size();
                     batch(|| {
-                        let _: bool = self.get_build_context().get_breakpoint().set_if_changed(bp);
+                        let _: bool = self.get_context().get_breakpoint().set_if_changed(bp);
                         let _: bool = self
-                            .get_build_context()
+                            .get_context()
                             .get_viewport_size()
                             .set_if_changed(next_size);
                     });
@@ -443,18 +530,12 @@ impl App {
             }
             WindowEvent::SafeAreaChanged(_, insets) => {
                 self.get_mut_window_state().set_safe_area(insets);
-                let _: bool = self
-                    .get_build_context()
-                    .get_safe_area()
-                    .set_if_changed(insets);
+                let _: bool = self.get_context().get_safe_area().set_if_changed(insets);
                 self.set_pending_damage(DamageRegion::full());
             }
             WindowEvent::ThemeChanged(_, mode) => {
                 self.get_mut_window_state().set_system_theme(mode);
-                let _: bool = self
-                    .get_build_context()
-                    .get_theme_mode()
-                    .set_if_changed(mode);
+                let _: bool = self.get_context().get_theme_mode().set_if_changed(mode);
                 self.set_pending_damage(DamageRegion::full());
             }
             WindowEvent::Focused(_, focused) => {
@@ -577,6 +658,7 @@ impl App {
         } else if self.get_caret_blink_secs() > 0.0 {
             self.set_caret_blink_secs(0.0);
         }
+        self.sync_ime_focus();
         let (game_damage_rects, visible_portals, active_host_indices): (
             Vec<Rect>,
             Vec<(bool, Rect)>,
@@ -622,6 +704,13 @@ impl App {
         }
         let anim_ticked: bool =
             scene.with_write(|tree: &mut SceneTree| tree.tick_transitions(anim_dt), false);
+        self.get_context()
+            .advance_clock_ms(((anim_dt.max(0.0)) * 1000.0).round() as u64);
+        if self.get_context().get_exit_requested().get_untracked() && self.get_running() {
+            let wid: WindowId = self.get_window_state().get_id();
+            self.queue_window_command(WindowCommand::Close(wid));
+            self.set_running(false);
+        }
         self.tick_gesture_timers(anim_dt);
         self.sample_touch_drag_velocity(anim_dt);
         self.tick_smooth_scroll(anim_dt);
@@ -721,6 +810,7 @@ impl App {
                 platform.present_framebuffer_region(window_id, fb, damage)?;
             }
         }
+        self.set_last_frame_damage(damage);
         self.set_last_rendered_revision(scene_rev);
         self.set_pending_damage(DamageRegion::default());
         let next_fps_secs: f32 = self.get_fps_accum_secs() + anim_dt;
@@ -728,7 +818,7 @@ impl App {
         if next_fps_secs >= 0.25 {
             let measured: f32 = ((next_fps_frames as f32) / next_fps_secs).clamp(1.0, 999.0);
             let _: bool = self
-                .get_build_context()
+                .get_context()
                 .get_live_fps()
                 .set_if_changed((measured * 10.0).round() * 0.1);
             self.set_fps_accum_secs(0.0);
@@ -878,6 +968,7 @@ impl App {
         self.set_touch_drag_origin(None);
         self.set_touch_drag_last(None);
         self.set_touch_dragging(false);
+        self.set_touch_drag_travel(0.0);
         self.set_touch_scroll_axis(0);
         self.set_touch_vel_accum_delta(Point::default());
         self.get_mut_touch_vel_samples().clear();
@@ -922,6 +1013,7 @@ impl App {
             self.set_touch_drag_origin(None);
             self.set_touch_drag_last(None);
             self.set_touch_dragging(false);
+            self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
             self.set_touch_vel_accum_delta(Point::default());
             self.get_mut_touch_vel_samples().clear();
@@ -976,6 +1068,7 @@ impl App {
             self.set_touch_drag_origin(None);
             self.set_touch_drag_last(None);
             self.set_touch_dragging(false);
+            self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
             self.set_touch_vel_accum_delta(Point::default());
             self.get_mut_touch_vel_samples().clear();
@@ -1003,6 +1096,7 @@ impl App {
             self.set_touch_drag_origin(None);
             self.set_touch_drag_last(None);
             self.set_touch_dragging(false);
+            self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
             self.get_mut_touch_vel_samples().clear();
             return;
@@ -1195,7 +1289,7 @@ impl App {
         }
         let (ax_vx, ax_vy): (f32, f32) = self.project_touch_scroll_delta(vx, vy);
         let speed: f32 = ax_vx.hypot(ax_vy);
-        if speed < 65.0 {
+        if speed < TOUCH_MIN_FLING_SPEED_DP_S {
             Point::default()
         } else if speed >= 220.0 {
             Point::new(
@@ -1424,7 +1518,7 @@ impl App {
         }
     }
 
-    /// Emits a recognized cross-platform `GestureEvent` into the reactive `BuildContext::get_gesture()` signal.
+    /// Emits a recognized cross-platform `GestureEvent` into the reactive `Context::get_gesture()` signal.
     ///
     /// # Arguments
     ///
@@ -1459,7 +1553,7 @@ impl App {
             pointer_count,
             device,
         };
-        let _: bool = self.get_build_context().get_gesture().set(Some(ev));
+        let _: bool = self.get_context().get_gesture().set(Some(ev));
     }
 
     /// Advances double-tap aging and stationary long-press gesture detection on every frame tick.
@@ -1499,7 +1593,7 @@ impl App {
         }
     }
 
-    /// Publishes the live multi-touch contact map into `BuildContext::get_active_touches()`.
+    /// Publishes the live multi-touch contact map into `Context::get_active_touches()`.
     ///
     /// # Arguments
     ///
@@ -1511,7 +1605,7 @@ impl App {
             .map(|(id, pt): (&u64, &Point)| (*id, *pt))
             .collect();
         pts.sort_by_key(|item: &(u64, Point)| item.0);
-        let _: bool = self.get_build_context().get_active_touches().set(pts);
+        let _: bool = self.get_context().get_active_touches().set(pts);
     }
 
     /// Computes deterministic distance between the first two active touch pointers for pinch-to-zoom gestures.
@@ -1633,7 +1727,8 @@ impl App {
             if !captured_drag_control {
                 let total_dx: f32 = pos.get_x() - origin.get_x();
                 let total_dy: f32 = pos.get_y() - origin.get_y();
-                if !self.get_touch_dragging() && total_dx.hypot(total_dy) > 4.0 {
+                let total_dist: f32 = total_dx.hypot(total_dy);
+                if !self.get_touch_dragging() && total_dist > TOUCH_SLOP_DP {
                     let axis: u8 = if total_dy.abs() >= total_dx.abs() * 1.15 {
                         1
                     } else if total_dx.abs() >= total_dy.abs() * 1.35 {
@@ -1642,27 +1737,37 @@ impl App {
                         3
                     };
                     self.set_touch_dragging(true);
+                    self.set_touch_drag_travel(0.0);
                     self.set_touch_scroll_axis(axis);
-                    self.set_touch_drag_last(Some(pos));
                     self.set_touch_vel_accum_delta(Point::default());
                     self.get_mut_touch_vel_samples().clear();
                     self.set_touch_vel_idle_secs(0.0);
                     self.clear_pressed_node();
-                    let raw_dx: f32 = origin.get_x() - pos.get_x();
-                    let raw_dy: f32 = origin.get_y() - pos.get_y();
+                    self.set_scroll_fling_pos(pos);
+                    let slop_scale: f32 = TOUCH_SLOP_DP / total_dist;
+                    let anchor_x: f32 = origin.get_x() + total_dx * slop_scale;
+                    let anchor_y: f32 = origin.get_y() + total_dy * slop_scale;
+                    let raw_dx: f32 = anchor_x - pos.get_x();
+                    let raw_dy: f32 = anchor_y - pos.get_y();
                     let (scroll_dx, scroll_dy): (f32, f32) =
                         self.project_touch_scroll_delta(raw_dx, raw_dy);
-                    let locked_target: Option<NodeId> = {
-                        let Self {
-                            touch_scroll_target,
-                            ..
-                        } = self;
-                        *touch_scroll_target
-                    };
-                    let _: bool = self
-                        .handle_scroll_on_target(Point::new(scroll_dx, scroll_dy), locked_target);
-                    self.set_touch_vel_accum_delta(Point::new(scroll_dx, scroll_dy));
-                    self.set_scroll_fling_pos(pos);
+                    let excess_dist: f32 = scroll_dx.hypot(scroll_dy);
+                    if excess_dist >= 0.35 {
+                        let locked_target: Option<NodeId> = {
+                            let Self {
+                                touch_scroll_target,
+                                ..
+                            } = self;
+                            *touch_scroll_target
+                        };
+                        let _: bool = self.handle_scroll_on_target(
+                            Point::new(scroll_dx, scroll_dy),
+                            locked_target,
+                        );
+                        self.set_touch_drag_travel(excess_dist);
+                        self.set_touch_vel_accum_delta(Point::new(scroll_dx, scroll_dy));
+                    }
+                    self.set_touch_drag_last(Some(pos));
                     return;
                 }
                 if self.get_touch_dragging() {
@@ -1677,7 +1782,8 @@ impl App {
                         let raw_dy: f32 = prev.get_y() - pos.get_y();
                         let (scroll_dx, scroll_dy): (f32, f32) =
                             self.project_touch_scroll_delta(raw_dx, raw_dy);
-                        if scroll_dx.hypot(scroll_dy) < 0.35 {
+                        let step_dist: f32 = scroll_dx.hypot(scroll_dy);
+                        if step_dist < 0.35 {
                             return;
                         }
                         let locked_target: Option<NodeId> = {
@@ -1691,6 +1797,7 @@ impl App {
                             Point::new(scroll_dx, scroll_dy),
                             locked_target,
                         );
+                        self.set_touch_drag_travel(self.get_touch_drag_travel() + step_dist);
                         let cur_accum: Point = self.get_touch_vel_accum_delta();
                         self.set_touch_vel_accum_delta(Point::new(
                             cur_accum.get_x() + scroll_dx,
@@ -1848,8 +1955,14 @@ impl App {
                                 .get_handlers()
                                 .handler_for(&UiEventKind::PointerMove(pos))
                                 .is_some();
+                            let has_horiz_scroll: bool =
+                                node.get_style().get_layout().get_overflow() == Overflow::Scroll
+                                    && node.get_layout_box().get_content_size().get_width()
+                                        > node.get_layout_box().get_content_bounds().get_width()
+                                            + 2.0;
                             if is_canvas
                                 || has_drag_move
+                                || has_horiz_scroll
                                 || node.get_style().get_paint().get_stop_event_propagation()
                             {
                                 return true;
@@ -1876,6 +1989,7 @@ impl App {
             self.set_touch_drag_origin(None);
             self.set_touch_drag_last(None);
             self.set_touch_dragging(false);
+            self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
             self.set_touch_vel_accum_delta(Point::default());
             self.get_mut_touch_vel_samples().clear();
@@ -1889,6 +2003,7 @@ impl App {
             self.set_touch_drag_origin(Some(pos));
             self.set_touch_drag_last(Some(pos));
             self.set_touch_dragging(false);
+            self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
             self.set_touch_vel_accum_delta(Point::default());
             self.get_mut_touch_vel_samples().clear();
@@ -1902,6 +2017,7 @@ impl App {
             self.set_touch_drag_origin(None);
             self.set_touch_drag_last(None);
             self.set_touch_dragging(false);
+            self.set_touch_drag_travel(0.0);
             self.set_touch_scroll_axis(0);
             self.set_touch_vel_accum_delta(Point::default());
             self.get_mut_touch_vel_samples().clear();
@@ -1926,65 +2042,71 @@ impl App {
                     );
                     let mut scrollbar_target: Option<NodeId> = None;
                     let mut sb_callbacks: Vec<(UiEventHandler, UiEvent)> = hover_out;
-                    for aid in Self::ancestor_chain(tree, hit).into_iter() {
-                        if let Some(node) = tree.get_node(aid)
-                            && node.get_style().get_layout().get_overflow() == Overflow::Scroll
-                        {
-                            let lbox: LayoutBox = node.get_layout_box();
-                            let border_w: f32 =
-                                node.get_style().get_paint().get_border().get_width();
-                            let screen_outer: Rect = tree
-                                .node_screen_bounds(aid)
-                                .unwrap_or_else(|| lbox.get_bounds());
-                            let inner_right: f32 = screen_outer.right() - border_w;
-                            let inner_h: f32 =
-                                (screen_outer.get_height() - border_w * 2.0).max(1.0);
-                            let view_h: f32 = lbox.get_content_bounds().get_height().max(1.0);
-                            let (cur_vy, total_h, is_virtual): (f32, f32, bool) =
-                                match node.virtual_scroll_metrics() {
-                                    Some((vy, vh)) => (vy, vh, true),
-                                    None => (
-                                        lbox.get_scroll_offset().get_y(),
-                                        lbox.get_content_size().get_height(),
-                                        false,
-                                    ),
-                                };
-                            let max_y: f32 = (total_h - view_h).max(0.0);
-                            if max_y > 1.0
-                                && pos.get_x() >= inner_right - 14.0
-                                && pos.get_x() <= screen_outer.right()
+                    if ptr.get_device() != PointerDevice::Touch {
+                        for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                            if let Some(node) = tree.get_node(aid)
+                                && node.get_style().get_layout().get_overflow() == Overflow::Scroll
                             {
-                                let track_margin: f32 = 3.0;
-                                let track_y: f32 = screen_outer.get_y() + border_w + track_margin;
-                                let track_h: f32 = (inner_h - track_margin * 2.0).max(16.0);
-                                let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
-                                let thumb_h: f32 =
-                                    (track_h * ratio).clamp(20.0_f32.min(track_h), track_h);
-                                let travel: f32 = (track_h - thumb_h).max(1.0);
-                                let frac: f32 = ((pos.get_y() - track_y - thumb_h * 0.5) / travel)
-                                    .clamp(0.0, 1.0);
-                                if is_virtual {
-                                    let delta_y: f32 = frac * max_y - cur_vy;
-                                    if let Some(h) = node
-                                        .get_handlers()
-                                        .handler_for(&UiEventKind::Scroll(Point::new(0.0, delta_y)))
-                                    {
-                                        sb_callbacks.push((
-                                            h,
-                                            UiEvent::new(
-                                                aid,
-                                                UiEventKind::Scroll(Point::new(0.0, delta_y)),
+                                let lbox: LayoutBox = node.get_layout_box();
+                                let border_w: f32 =
+                                    node.get_style().get_paint().get_border().get_width();
+                                let screen_outer: Rect = tree
+                                    .node_screen_bounds(aid)
+                                    .unwrap_or_else(|| lbox.get_bounds());
+                                let inner_right: f32 = screen_outer.right() - border_w;
+                                let inner_h: f32 =
+                                    (screen_outer.get_height() - border_w * 2.0).max(1.0);
+                                let view_h: f32 = lbox.get_content_bounds().get_height().max(1.0);
+                                let (cur_vy, total_h, is_virtual): (f32, f32, bool) =
+                                    match node.virtual_scroll_metrics() {
+                                        Some((vy, vh)) => (vy, vh, true),
+                                        None => (
+                                            lbox.get_scroll_offset().get_y(),
+                                            lbox.get_content_size().get_height(),
+                                            false,
+                                        ),
+                                    };
+                                let max_y: f32 = (total_h - view_h).max(0.0);
+                                if max_y > 1.0
+                                    && pos.get_x() >= inner_right - 14.0
+                                    && pos.get_x() <= screen_outer.right()
+                                {
+                                    let track_margin: f32 = 3.0;
+                                    let track_y: f32 =
+                                        screen_outer.get_y() + border_w + track_margin;
+                                    let track_h: f32 = (inner_h - track_margin * 2.0).max(16.0);
+                                    let ratio: f32 = (view_h / total_h.max(view_h)).clamp(0.0, 1.0);
+                                    let thumb_h: f32 =
+                                        (track_h * ratio).clamp(20.0_f32.min(track_h), track_h);
+                                    let travel: f32 = (track_h - thumb_h).max(1.0);
+                                    let frac: f32 = ((pos.get_y() - track_y - thumb_h * 0.5)
+                                        / travel)
+                                        .clamp(0.0, 1.0);
+                                    if is_virtual {
+                                        let delta_y: f32 = frac * max_y - cur_vy;
+                                        if let Some(h) = node.get_handlers().handler_for(
+                                            &UiEventKind::Scroll(Point::new(0.0, delta_y)),
+                                        ) {
+                                            sb_callbacks.push((
+                                                h,
+                                                UiEvent::new(
+                                                    aid,
+                                                    UiEventKind::Scroll(Point::new(0.0, delta_y)),
+                                                ),
+                                            ));
+                                        }
+                                    } else {
+                                        tree.set_scroll_offset(
+                                            aid,
+                                            Point::new(
+                                                lbox.get_scroll_offset().get_x(),
+                                                frac * max_y,
                                             ),
-                                        ));
+                                        );
                                     }
-                                } else {
-                                    tree.set_scroll_offset(
-                                        aid,
-                                        Point::new(lbox.get_scroll_offset().get_x(), frac * max_y),
-                                    );
+                                    scrollbar_target = Some(aid);
+                                    break;
                                 }
-                                scrollbar_target = Some(aid);
-                                break;
                             }
                         }
                     }
@@ -2041,6 +2163,7 @@ impl App {
                 (Vec::new(), false),
             );
         self.set_scrollbar_dragging(grabbed_scrollbar);
+        self.sync_ime_focus();
         Self::invoke_callbacks(callbacks);
     }
 
@@ -2123,7 +2246,8 @@ impl App {
             }
         }
         let was_touch_dragging: bool = self.get_touch_dragging();
-        if was_touch_dragging {
+        let drag_travel: f32 = self.get_touch_drag_travel();
+        if was_touch_dragging && drag_travel >= TOUCH_MIN_FLING_DRAG_DP {
             let pending_accum: Point = self.get_touch_vel_accum_delta();
             let release_vel: Point = self.compute_touch_release_velocity(pending_accum);
             self.set_scroll_velocity(release_vel);
@@ -2139,6 +2263,7 @@ impl App {
         self.set_touch_drag_origin(None);
         self.set_touch_drag_last(None);
         self.set_touch_dragging(false);
+        self.set_touch_drag_travel(0.0);
         self.set_touch_scroll_axis(0);
         self.set_touch_vel_accum_delta(Point::default());
         self.get_mut_touch_vel_samples().clear();
@@ -2199,6 +2324,7 @@ impl App {
             },
             Vec::new(),
         );
+        self.sync_ime_focus();
         Self::invoke_callbacks(callbacks);
     }
 
@@ -2385,12 +2511,6 @@ impl App {
     /// - `KeyEvent` - Keyboard event payload.
     fn handle_key_down(&mut self, key: KeyEvent) {
         self.set_caret_blink_secs(0.0);
-        if matches!(key.get_code(), KeyCode::Back | KeyCode::Escape) {
-            let _: bool = self
-                .get_build_context()
-                .get_system_back()
-                .update(|v: &mut u64| *v = v.wrapping_add(1));
-        }
         let scene: SceneHandle = self.get_scene().clone();
         if key.get_code() == KeyCode::Tab {
             let focus_callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
@@ -2419,6 +2539,7 @@ impl App {
                 },
                 Vec::new(),
             );
+            self.sync_ime_focus();
             Self::invoke_callbacks(focus_callbacks);
             return;
         }
@@ -2432,6 +2553,24 @@ impl App {
             },
             false,
         );
+        if focused_is_input && matches!(key.get_code(), KeyCode::Back | KeyCode::Escape) {
+            let blur_cbs: Vec<(UiEventHandler, UiEvent)> =
+                scene.with_write(|tree: &mut SceneTree| tree.update_focus(None), Vec::new());
+            self.sync_ime_focus();
+            Self::invoke_callbacks(blur_cbs);
+            return;
+        }
+        if matches!(key.get_code(), KeyCode::Back | KeyCode::Escape) {
+            let _: bool = self
+                .get_context()
+                .get_system_back()
+                .update(|v: &mut u64| *v = v.wrapping_add(1));
+            if self.get_context().get_exit_requested().get_untracked() && self.get_running() {
+                let wid: WindowId = self.get_window_state().get_id();
+                self.queue_window_command(WindowCommand::Close(wid));
+                self.set_running(false);
+            }
+        }
         if !focused_is_input {
             let key_scroll_y: f32 = match key.get_code() {
                 KeyCode::ArrowDown => 48.0,
@@ -2452,6 +2591,7 @@ impl App {
                 };
                 let mut out: Vec<(UiEventHandler, UiEvent)> = Vec::new();
                 let mut dirty_input: bool = false;
+                let mut blur_single_line: bool = false;
                 if let Some(node) = tree.get_node_mut(focused_id) {
                     if let Some(h) = node
                         .get_handlers()
@@ -2480,16 +2620,22 @@ impl App {
                         }
                     } else if key.get_code() == KeyCode::Enter
                         && let NodeKind::Input(state) = node.get_mut_kind()
-                        && state.get_multiline()
                     {
-                        state.insert_str("\n");
-                        let updated: String = state.get_value().clone();
-                        dirty_input = true;
-                        if let Some(h) = node
-                            .get_handlers()
-                            .handler_for(&UiEventKind::Change(String::new()))
-                        {
-                            out.push((h, UiEvent::new(focused_id, UiEventKind::Change(updated))));
+                        if state.get_multiline() {
+                            state.insert_str("\n");
+                            let updated: String = state.get_value().clone();
+                            dirty_input = true;
+                            if let Some(h) = node
+                                .get_handlers()
+                                .handler_for(&UiEventKind::Change(String::new()))
+                            {
+                                out.push((
+                                    h,
+                                    UiEvent::new(focused_id, UiEventKind::Change(updated)),
+                                ));
+                            }
+                        } else {
+                            blur_single_line = true;
                         }
                     } else if !is_input
                         && matches!(key.get_code(), KeyCode::Enter | KeyCode::Space)
@@ -2505,7 +2651,9 @@ impl App {
                         out.push((h, UiEvent::new(focused_id, UiEventKind::Click(center))));
                     }
                 }
-                if dirty_input {
+                if blur_single_line {
+                    out.extend(tree.update_focus(None));
+                } else if dirty_input {
                     let mask: u16 = DIRTY_LAYOUT | DIRTY_PAINT;
                     tree.mark_dirty(focused_id, mask | DIRTY_TEXT);
                 }
@@ -2513,6 +2661,7 @@ impl App {
             },
             Vec::new(),
         );
+        self.sync_ime_focus();
         Self::invoke_callbacks(callbacks);
     }
 
@@ -2557,6 +2706,7 @@ impl App {
             },
             Vec::new(),
         );
+        self.sync_ime_focus();
         Self::invoke_callbacks(callbacks);
     }
 

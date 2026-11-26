@@ -18,6 +18,14 @@ pub struct AvailableSpace {
     /// Origin Y coordinate where this node is placed.
     #[get(type(copy))]
     pub(crate) origin_y: f32,
+    /// Whether the parent stretched this node's width to fill `width` when its declared width is `Length::Auto`.
+    #[get(type(copy))]
+    #[new(skip)]
+    pub(crate) stretch_width: bool,
+    /// Whether the parent stretched this node's height to fill `height` when its declared height is `Length::Auto`.
+    #[get(type(copy))]
+    #[new(skip)]
+    pub(crate) stretch_height: bool,
 }
 
 /// Internal container constraint bundle passed to child layout solvers.
@@ -43,6 +51,16 @@ pub(crate) struct ContainerFrame {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) content_origin: Point,
+    /// Whether the container's outer width is definite (explicit length, aspect ratio, or parent stretch).
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) definite_width: bool,
+    /// Whether the container's outer height is definite (explicit length, aspect ratio, or parent stretch).
+    #[get(pub(crate), type(copy))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) definite_height: bool,
 }
 
 /// Telemetry counters recorded per layout pass.

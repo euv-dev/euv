@@ -1,5 +1,7 @@
 /// Route path for the overview dashboard page.
 pub const ROUTE_OVERVIEW: &str = "/";
+/// Route path for the Eva-themed CodeBlock and complete GitHub-Flavored Markdown showcase page.
+pub const ROUTE_MARKDOWN: &str = "/markdown";
 /// Route path for the fine-grained reactivity demo page.
 pub const ROUTE_REACTIVE: &str = "/reactive";
 /// Route path for the multi-mode rendering and vector canvas page.
@@ -74,6 +76,7 @@ pub(crate) const NAV_SEC_DESIGN: &str = "DESIGN SYSTEM";
 pub(crate) const NAV_SEC_ENGINE: &str = "ENGINE & MEDIA";
 pub(crate) const NAV_SEC_RUNTIME: &str = "RUNTIME & OTA";
 pub(crate) const NAV_LABEL_OVERVIEW: &str = "Overview";
+pub(crate) const NAV_LABEL_MARKDOWN: &str = "Markdown & Code";
 pub(crate) const NAV_LABEL_REACTIVE: &str = "Reactivity";
 pub(crate) const NAV_LABEL_RENDER: &str = "Rendering";
 pub(crate) const NAV_LABEL_WINDOW: &str = "Window & OS";

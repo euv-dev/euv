@@ -1,72 +1,72 @@
 use super::*;
 
-/// Runs `operation` with `ctx` bound as the active ambient `BuildContext`, restoring any previous context on exit.
+/// Runs `operation` with `ctx` bound as the active ambient `Context`, restoring any previous context on exit.
 ///
 /// # Arguments
 ///
-/// - `BuildContext` - Build context to bind during `operation`.
+/// - `Context` - Framework context to bind during `operation`.
 /// - `F` - Closure executing declarative UI construction (`view!` or components).
 ///
 /// # Returns
 ///
 /// - `R` - Value returned by `operation`.
-pub fn with_build_context<F, R>(ctx: BuildContext, operation: F) -> R
+pub fn with_context<F, R>(ctx: Context, operation: F) -> R
 where
     F: FnOnce() -> R,
 {
-    let previous: Option<BuildContext> = ACTIVE_BUILD_CONTEXT
-        .with(|slot: &RefCell<Option<BuildContext>>| slot.borrow_mut().replace(ctx));
-    let _guard: BuildContextGuard = BuildContextGuard::new(previous);
+    let previous: Option<Context> =
+        ACTIVE_CONTEXT.with(|slot: &RefCell<Option<Context>>| slot.borrow_mut().replace(ctx));
+    let _guard: ContextGuard = ContextGuard::new(previous);
     operation()
 }
 
-/// Returns a cloned handle to the active ambient `BuildContext`.
+/// Returns a cloned handle to the active ambient `Context`.
 ///
 /// # Returns
 ///
-/// - `BuildContext` - Currently bound ambient build context.
+/// - `Context` - Currently bound ambient framework context.
 #[must_use]
-pub fn current_build_context() -> BuildContext {
-    ACTIVE_BUILD_CONTEXT.with(|slot: &RefCell<Option<BuildContext>>| {
+pub fn current_context() -> Context {
+    ACTIVE_CONTEXT.with(|slot: &RefCell<Option<Context>>| {
         slot.borrow()
             .clone()
-            .unwrap_or_else(|| BuildContext::new(SceneHandle::new_tree(), PlatformKind::Headless))
+            .unwrap_or_else(|| Context::new(SceneHandle::new_tree(), PlatformKind::Headless))
     })
 }
 
-/// Returns `true` when an ambient `BuildContext` is currently bound on this thread.
+/// Returns `true` when an ambient `Context` is currently bound on this thread.
 ///
 /// # Returns
 ///
-/// - `bool` - Whether `with_build_context` or `App::mount` is active.
+/// - `bool` - Whether `with_context` or `App::mount` is active.
 #[must_use]
-pub fn has_build_context() -> bool {
-    ACTIVE_BUILD_CONTEXT.with(|slot: &RefCell<Option<BuildContext>>| slot.borrow().is_some())
+pub fn has_context() -> bool {
+    ACTIVE_CONTEXT.with(|slot: &RefCell<Option<Context>>| slot.borrow().is_some())
 }
 
-/// Returns the active `PlatformKind` from the ambient `BuildContext`.
+/// Returns the active `PlatformKind` from the ambient `Context`.
 ///
 /// # Returns
 ///
 /// - `PlatformKind` - Execution platform kind.
 #[must_use]
 pub fn current_platform() -> PlatformKind {
-    current_build_context().get_platform()
+    current_context().get_platform()
 }
 
-/// Mounts any `Mountable` component or node into the active ambient `BuildContext`.
+/// Converts any string-like value into an owned `String` for declarative `view!` macro expansion.
 ///
 /// # Arguments
 ///
-/// - `M` - Mountable UI component or node handle.
+/// - `T` - String-like text value implementing `Into<String>`.
 ///
 /// # Returns
 ///
-/// - `NodeId` - Mounted root scene node handle.
-pub fn mount_current<M>(mountable: M) -> NodeId
+/// - `String` - Owned UTF-8 text string.
+#[must_use]
+pub fn into_text<T>(value: T) -> String
 where
-    M: Mountable,
+    T: Into<String>,
 {
-    let mut ctx: BuildContext = current_build_context();
-    mountable.mount(&mut ctx)
+    value.into()
 }

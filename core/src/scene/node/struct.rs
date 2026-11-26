@@ -92,4 +92,8 @@ pub struct SceneNode {
     /// Optional virtualized scroll metrics `(scroll_y, total_content_height)` for overlay scrollbar thumb accuracy.
     #[get(skip)]
     pub(crate) virtual_scroll: Option<(f32, f32)>,
+    /// Registered `Lifecycle` observers receiving mount, activate, freeze, resume, unmount, and destroy hooks.
+    #[debug(skip)]
+    #[get(skip)]
+    pub(crate) lifecycles: Vec<Rc<dyn Lifecycle>>,
 }

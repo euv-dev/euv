@@ -282,6 +282,44 @@ fn cli_dev_server_supports_live_file_watch_sse_hot_reload_and_dynamic_wasm_ota()
     drop(fs::remove_dir_all(&base));
 }
 
+#[test]
+fn cli_fmt_normalizes_euv_macros_and_is_double_idempotent() {
+    let messy: &str = "fn demo() -> NodeId {\n    view! {\ncolumn {\nwidth: Length::Percent(100.0)\ntext {\n\"Hi\"\n}\n}\n    }\n}\n";
+    let (once, hits1): (String, usize) = format_euv_macros_in_source(messy);
+    assert_eq!(hits1, 1);
+    assert!(once.contains("        column {\n            width: Length::Percent(100.0)\n"));
+    let (twice, hits2): (String, usize) = format_euv_macros_in_source(&once);
+    assert_eq!(hits2, 0);
+    assert_eq!(once, twice);
+    let tmp: PathBuf = env::temp_dir().join("euv_cli_fmt_test_dir");
+    drop(fs::remove_dir_all(&tmp));
+    fs::create_dir_all(&tmp).unwrap();
+    let sample_rs: PathBuf = tmp.join("sample.rs");
+    fs::write(&sample_rs, messy).unwrap();
+    let parsed_write: Cli = Cli::try_parse_from([
+        "euv",
+        "fmt",
+        "--macros-only",
+        "--path",
+        tmp.to_str().unwrap(),
+    ])
+    .unwrap();
+    let out1: String = execute_cli(&parsed_write).unwrap();
+    assert!(out1.contains("\"files_formatted\": 1"));
+    let parsed_check: Cli = Cli::try_parse_from([
+        "euv",
+        "fmt",
+        "--macros-only",
+        "--check",
+        "--path",
+        tmp.to_str().unwrap(),
+    ])
+    .unwrap();
+    let out2: String = execute_cli(&parsed_check).unwrap();
+    assert!(out2.contains("\"files_formatted\": 0"));
+    drop(fs::remove_dir_all(&tmp));
+}
+
 fn http_request_bytes(addr: SocketAddr, method: &str, path: &str) -> Vec<u8> {
     let mut stream: TcpStream = TcpStream::connect(addr).unwrap();
     stream

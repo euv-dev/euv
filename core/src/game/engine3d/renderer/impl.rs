@@ -1,6 +1,72 @@
 use super::*;
 
-/// High-FPS UE5-class Deferred GGX PBR + Multi-Threaded 32B SAH BVH + Lumen GI + Volumetric Fog + Bloom + TAA/FXAA renderer.
+/// Persistent work-stealing multi-core thread pool for `Engine3dWorkerPool`.
+#[cfg(not(target_arch = "wasm32"))]
+/// Inherent implementation of [`Engine3dWorkerPool`].
+impl Engine3dWorkerPool {
+    /// Creates a warm persistent worker pool sized to host CPU cores (`1..=8` total threads including caller).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Initialized worker pool with zero per-frame thread spawn overhead.
+    #[must_use]
+    pub(crate) fn new() -> Self {
+        let total: usize = available_parallelism()
+            .map(usize::from)
+            .unwrap_or(4)
+            .clamp(1, 8);
+        let worker_count: usize = total.saturating_sub(1);
+        let shared: Arc<(Mutex<Engine3dPoolState>, Condvar, Condvar)> = Arc::new((
+            Mutex::new(Engine3dPoolState::default()),
+            Condvar::new(),
+            Condvar::new(),
+        ));
+        for idx in 0..worker_count {
+            let shared_clone: Arc<(Mutex<Engine3dPoolState>, Condvar, Condvar)> =
+                Arc::clone(&shared);
+            let name: String = format!("{ENGINE3D_WORKER_PREFIX}-{idx}");
+            let _: io::Result<JoinHandle<()>> = Builder::new().name(name).spawn(move || {
+                let mut seen_epoch: u64 = 0;
+                loop {
+                    let job_ptr: usize = {
+                        let (lock, wake_workers, _): &(Mutex<Engine3dPoolState>, Condvar, Condvar) =
+                            &shared_clone;
+                        let Ok(mut state) = lock.lock() else {
+                            break;
+                        };
+                        while state.get_epoch() == seen_epoch || state.get_active_job() == 0 {
+                            let Ok(next_guard) = wake_workers.wait(state) else {
+                                return;
+                            };
+                            state = next_guard;
+                        }
+                        seen_epoch = state.get_epoch();
+                        state.get_active_job()
+                    };
+                    let job: &Engine3dJob = unsafe { &*(job_ptr as *const Engine3dJob) };
+                    run_engine3d_job_loop(job);
+                    let finished: usize = job.workers_done.fetch_add(1, Ordering::AcqRel) + 1;
+                    if finished >= worker_count {
+                        let (lock, _, wake_caller): &(Mutex<Engine3dPoolState>, Condvar, Condvar) =
+                            &shared_clone;
+                        let _guard: Result<
+                            MutexGuard<'_, Engine3dPoolState>,
+                            PoisonError<MutexGuard<'_, Engine3dPoolState>>,
+                        > = lock.lock();
+                        wake_caller.notify_one();
+                    }
+                }
+            });
+        }
+        Self {
+            worker_count,
+            dispatch_lock: Mutex::new(()),
+            shared,
+        }
+    }
+}
+
+/// High-FPS UE5-class Deferred GGX PBR + Persistent Multi-Core 32B SAH BVH + Lumen GI + Volumetric Fog + Bilinear Bloom + Geometry-Aware Morphological AA/TAA renderer.
 impl Renderer3D {
     /// Evaluates physically inspired Rayleigh + Mie atmospheric sky and HDR solar disk radiance along `dir`.
     ///
@@ -32,33 +98,6 @@ impl Renderer3D {
             col = col.add(sun.get_color().scale(mie * 0.58 + h2 * 0.08));
         }
         col
-    }
-
-    /// Computes active worker thread count for parallel native ray tracing, shading, and post-processing.
-    ///
-    /// # Arguments
-    ///
-    /// - `usize` - Total row count to split.
-    ///
-    /// # Returns
-    ///
-    /// - `usize` - Worker thread count (`1` on `wasm32`).
-    #[must_use]
-    fn worker_count(rows: usize) -> usize {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let max_workers: usize = if rows >= 240 { 16 } else { 8 };
-            let cores: usize = available_parallelism()
-                .map(usize::from)
-                .unwrap_or(4)
-                .clamp(1, max_workers);
-            cores.min((rows / 8).max(1))
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
-            let _: usize = rows;
-            1
-        }
     }
 
     /// Reconstructs exact world-space position for pixel `(px, py)` at camera depth `depth`.
@@ -205,7 +244,7 @@ impl Renderer3D {
                         s_dir,
                         s_inv,
                         0.05,
-                        160.0,
+                        140.0,
                         &mut shadow_cache,
                     ) {
                         shadow = 0.22;
@@ -215,45 +254,51 @@ impl Renderer3D {
                 if tri.do_refl {
                     let view_in: Vec3 = ray_vec.normalize();
                     let refl_dir: Vec3 = view_in.reflect(tri.shade_n).normalize();
-                    let inv_refl: Vec3 = Ray3D::safe_inv_vec(refl_dir);
-                    rays += 1;
-                    refl = match bvh.trace_closest_raw(origin, refl_dir, inv_refl, 0.08, 120.0) {
-                        Some((hit_t, hit_idx)) => {
-                            let mut hit_rad: Vec3 =
-                                Self::shade_bvh_hit(bvh, hit_idx, &fctx.sun, use_soft_shadows);
-                            if multi_bounce_refl && hit_t < 38.0 {
-                                let hit_tri: &BvhTriangle = &bvh.get_triangles()[hit_idx];
-                                let hit_mat: PbrMaterial = hit_tri.get_material();
-                                if hit_mat.get_reflectivity() > 0.55 {
-                                    let p2: Vec3 = origin
-                                        .add(refl_dir.scale(hit_t))
-                                        .add(hit_tri.get_normal().scale(0.08));
-                                    let r2: Vec3 =
-                                        refl_dir.reflect(hit_tri.get_normal()).normalize();
-                                    let inv_r2: Vec3 = Ray3D::safe_inv_vec(r2);
-                                    rays += 1;
-                                    let bounce2: Vec3 =
-                                        match bvh.trace_closest_raw(p2, r2, inv_r2, 0.08, 72.0) {
+                    if depth > 64.0 {
+                        refl = Self::sample_sky(refl_dir, &fctx.sun);
+                    } else {
+                        let inv_refl: Vec3 = Ray3D::safe_inv_vec(refl_dir);
+                        rays += 1;
+                        refl = match bvh.trace_closest_raw(origin, refl_dir, inv_refl, 0.08, 100.0)
+                        {
+                            Some((hit_t, hit_idx)) => {
+                                let mut hit_rad: Vec3 =
+                                    Self::shade_bvh_hit(bvh, hit_idx, &fctx.sun, use_soft_shadows);
+                                if multi_bounce_refl && hit_t < 30.0 && depth < 32.0 {
+                                    let hit_tri: &BvhTriangle = &bvh.get_triangles()[hit_idx];
+                                    let hit_mat: PbrMaterial = hit_tri.get_material();
+                                    if hit_mat.get_reflectivity() > 0.55 {
+                                        let p2: Vec3 = origin
+                                            .add(refl_dir.scale(hit_t))
+                                            .add(hit_tri.get_normal().scale(0.08));
+                                        let r2: Vec3 =
+                                            refl_dir.reflect(hit_tri.get_normal()).normalize();
+                                        let inv_r2: Vec3 = Ray3D::safe_inv_vec(r2);
+                                        rays += 1;
+                                        let bounce2: Vec3 = match bvh
+                                            .trace_closest_raw(p2, r2, inv_r2, 0.08, 56.0)
+                                        {
                                             Some((_, idx2)) => {
                                                 Self::shade_bvh_hit(bvh, idx2, &fctx.sun, false)
                                             }
                                             None => Self::sample_sky(r2, &fctx.sun),
                                         };
-                                    hit_rad = hit_rad.lerp(
-                                        bounce2,
-                                        (hit_mat.get_reflectivity() * 0.45).clamp(0.0, 0.5),
-                                    );
+                                        hit_rad = hit_rad.lerp(
+                                            bounce2,
+                                            (hit_mat.get_reflectivity() * 0.45).clamp(0.0, 0.5),
+                                        );
+                                    }
                                 }
+                                hit_rad
                             }
-                            hit_rad
-                        }
-                        None => Self::sample_sky(refl_dir, &fctx.sun),
-                    };
+                            None => Self::sample_sky(refl_dir, &fctx.sun),
+                        };
+                    }
                 }
                 let mut gi_col: Vec3 = Vec3::zero();
                 let mut ao: f32 = 1.0;
                 if use_soft_shadows {
-                    if depth > 68.0 {
+                    if depth > 52.0 {
                         gi_col = fctx.sun.get_sky_horizon().scale(0.18);
                         ao = 0.88;
                     } else {
@@ -264,11 +309,11 @@ impl Renderer3D {
                         let gi_dir: Vec3 = tri.shade_n.add(jit).normalize();
                         let inv_gi: Vec3 = Ray3D::safe_inv_vec(gi_dir);
                         rays += 1;
-                        match bvh.trace_closest_raw(origin, gi_dir, inv_gi, 0.06, 22.0) {
+                        match bvh.trace_closest_raw(origin, gi_dir, inv_gi, 0.06, 20.0) {
                             Some((dist, hit_idx)) => {
                                 let bounce: Vec3 =
                                     Self::shade_bvh_hit(bvh, hit_idx, &fctx.sun, true);
-                                let falloff: f32 = (1.0 - dist / 22.0).clamp(0.14, 1.0);
+                                let falloff: f32 = (1.0 - dist / 20.0).clamp(0.14, 1.0);
                                 gi_col = bounce.scale(0.36 * falloff);
                                 ao = 0.42 + 0.58 * (dist / 14.0).clamp(0.0, 1.0);
                             }
@@ -299,23 +344,33 @@ impl Renderer3D {
         rays
     }
 
-    /// Runs a 3x3 depth- and normal-aware joint bilateral denoiser on coarse Lumen GI and soft-shadow probes.
+    /// Runs a 3x3 depth- and normal-aware joint bilateral denoiser on a horizontal band of coarse Lumen GI probes.
     ///
     /// # Arguments
     ///
     /// - `usize` - Coarse probe grid width.
     /// - `usize` - Coarse probe grid height.
-    /// - `&[RtProbeSample]` - Noisy input probe grid.
-    /// - `&mut [RtProbeSample]` - Edge-preserving denoised output probe grid.
-    fn denoise_gi_probes(gw: usize, gh: usize, src: &[RtProbeSample], dst: &mut [RtProbeSample]) {
-        for gy in 0..gh {
+    /// - `&[RtProbeSample]` - Full noisy input probe grid.
+    /// - `usize` - Inclusive starting probe row `gy_start`.
+    /// - `&mut [RtProbeSample]` - Disjoint denoised output band slice.
+    fn denoise_gi_probes_band(
+        gw: usize,
+        gh: usize,
+        src: &[RtProbeSample],
+        gy_start: usize,
+        dst_band: &mut [RtProbeSample],
+    ) {
+        let band_rows: usize = dst_band.len() / gw.max(1);
+        for local_gy in 0..band_rows {
+            let gy: usize = gy_start + local_gy;
             let y0: usize = gy.saturating_sub(1);
             let y1: usize = (gy + 1).min(gh - 1);
+            let dst_row: usize = local_gy * gw;
             for gx in 0..gw {
                 let idx: usize = gy * gw + gx;
                 let center: RtProbeSample = src[idx];
                 if center.valid == 0 {
-                    dst[idx] = center;
+                    dst_band[dst_row + gx] = center;
                     continue;
                 }
                 let x0: usize = gx.saturating_sub(1);
@@ -323,6 +378,9 @@ impl Renderer3D {
                 let depth_tol: f32 = center.depth * 0.22 + 0.75;
                 let mut w_sum: f32 = 0.0;
                 let mut s_sum: f32 = 0.0;
+                let mut rr_sum: f32 = 0.0;
+                let mut rg_sum: f32 = 0.0;
+                let mut rb_sum: f32 = 0.0;
                 let mut gi_r: f32 = 0.0;
                 let mut gi_g: f32 = 0.0;
                 let mut gi_b: f32 = 0.0;
@@ -343,15 +401,18 @@ impl Renderer3D {
                             continue;
                         }
                         let spatial: f32 = if nx == gx && ny == gy {
-                            2.0
+                            1.8
                         } else if nx == gx || ny == gy {
                             1.0
                         } else {
-                            0.5
+                            0.6
                         };
                         let w: f32 = spatial * (1.0 - d_diff / depth_tol);
                         w_sum += w;
                         s_sum += nb.shadow * w;
+                        rr_sum += nb.refl_r * w;
+                        rg_sum += nb.refl_g * w;
+                        rb_sum += nb.refl_b * w;
                         gi_r += nb.gi_r * w;
                         gi_g += nb.gi_g * w;
                         gi_b += nb.gi_b * w;
@@ -362,12 +423,15 @@ impl Renderer3D {
                 if w_sum > 1e-4 {
                     let inv_w: f32 = 1.0 / w_sum;
                     out.shadow = s_sum * inv_w;
+                    out.refl_r = rr_sum * inv_w;
+                    out.refl_g = rg_sum * inv_w;
+                    out.refl_b = rb_sum * inv_w;
                     out.gi_r = gi_r * inv_w;
                     out.gi_g = gi_g * inv_w;
                     out.gi_b = gi_b * inv_w;
                     out.ao = ao_sum * inv_w;
                 }
-                dst[idx] = out;
+                dst_band[dst_row + gx] = out;
             }
         }
     }
@@ -430,7 +494,7 @@ impl Renderer3D {
         }
     }
 
-    /// Shades a horizontal pixel band with Cook-Torrance GGX PBR, bilateral Lumen GI, volumetric sun-shafts, and HDR bloom extraction.
+    /// Shades a horizontal pixel band with Cook-Torrance GGX PBR, analytically anti-aliased facades/roads, bilateral Lumen GI, volumetric fog, and HDR bloom extraction.
     ///
     /// # Arguments
     ///
@@ -599,13 +663,13 @@ impl Renderer3D {
                             continue;
                         }
                         let ndot: f32 = snx * pr.nx + sny * pr.ny + snz * pr.nz;
-                        if ndot < 0.80 {
+                        if ndot < 0.78 {
                             continue;
                         }
-                        let depth_tol: f32 = if ndot > 0.96 {
-                            depth * 0.55 + 2.2
+                        let depth_tol: f32 = if ndot > 0.95 {
+                            depth * 0.58 + 2.4
                         } else {
-                            depth * 0.18 + 0.65
+                            depth * 0.20 + 0.75
                         };
                         let d_diff: f32 = (depth - pr.depth).abs();
                         if d_diff > depth_tol {
@@ -627,7 +691,8 @@ impl Renderer3D {
                     }
                     let inv_ws: f32 = if w_sum > 1e-5 { 1.0 / w_sum } else { 0.0 };
                     let need_exact_shadow: bool = tri.n_dot_l > 0.02
-                        && (valid_matches == 0 || (!gi_active && (s_max - s_min) > 0.08));
+                        && depth < 42.0
+                        && (valid_matches == 0 || (!gi_active && (s_max - s_min) > 0.12));
                     if need_exact_shadow {
                         let origin: Vec3 = world_p_px.add(tri.shade_n.scale(0.08));
                         edge_rays += 1;
@@ -636,7 +701,7 @@ impl Renderer3D {
                             sun_dir,
                             inv_sun,
                             0.05,
-                            160.0,
+                            140.0,
                             &mut shadow_cache,
                         ) {
                             0.22
@@ -649,20 +714,24 @@ impl Renderer3D {
                     if tri.do_refl {
                         if valid_matches > 0 {
                             refl = Vec3::new(rr_sum * inv_ws, rg_sum * inv_ws, rb_sum * inv_ws);
-                        } else if depth < 48.0 {
+                        } else if depth < 32.0 {
                             let origin: Vec3 = world_p_px.add(tri.shade_n.scale(0.08));
                             let refl_dir: Vec3 =
                                 raw_ray.normalize().reflect(tri.shade_n).normalize();
                             let inv_refl: Vec3 = Ray3D::safe_inv_vec(refl_dir);
                             edge_rays += 1;
                             refl = match bvh
-                                .trace_closest_raw(origin, refl_dir, inv_refl, 0.08, 120.0)
+                                .trace_closest_raw(origin, refl_dir, inv_refl, 0.08, 96.0)
                             {
                                 Some((_, hit_idx)) => {
                                     Self::shade_bvh_hit(bvh, hit_idx, &fctx.sun, gi_active)
                                 }
                                 None => Self::sample_sky(refl_dir, &fctx.sun),
                             };
+                        } else {
+                            let refl_dir: Vec3 =
+                                raw_ray.normalize().reflect(tri.shade_n).normalize();
+                            refl = Self::sample_sky(refl_dir, &fctx.sun);
                         }
                     }
                     if gi_active && valid_matches > 0 {
@@ -687,6 +756,7 @@ impl Renderer3D {
                 let mut surf_base: Vec3 = tri.mat_base;
                 let mut surf_emissive: Vec3 = tri.mat_emissive;
                 let mut surf_refl: f32 = tri.mat_refl;
+                let world_px_size: f32 = depth * fctx.inv_h_f * 1.85;
                 match tri.surface_detail {
                     SurfaceDetailMode::ArchitecturalFacade
                         if tri.shade_n.get_y().abs() < 0.25
@@ -700,9 +770,16 @@ impl Renderer3D {
                         };
                         let fx_win: f32 = (u_coord * 0.45).rem_euclid(1.0);
                         let fy_win: f32 = (world_p_px.get_y() * 0.32).rem_euclid(1.0);
-                        let in_pane: bool =
-                            fx_win > 0.16 && fx_win < 0.84 && fy_win > 0.20 && fy_win < 0.82;
-                        if in_pane {
+                        let aa_u: f32 = (world_px_size * 0.45).clamp(0.02, 0.34);
+                        let aa_v: f32 = (world_px_size * 0.32).clamp(0.02, 0.34);
+                        let pane_u: f32 = smoothstep_f32(0.16 - aa_u, 0.16 + aa_u, fx_win)
+                            * (1.0 - smoothstep_f32(0.84 - aa_u, 0.84 + aa_u, fx_win));
+                        let pane_v: f32 = smoothstep_f32(0.20 - aa_v, 0.20 + aa_v, fy_win)
+                            * (1.0 - smoothstep_f32(0.82 - aa_v, 0.82 + aa_v, fy_win));
+                        let dist_fade: f32 = 1.0 - smoothstep_f32(48.0, 125.0, depth);
+                        let pane_w: f32 = (pane_u * pane_v * dist_fade).clamp(0.0, 1.0);
+                        let wall_base: Vec3 = surf_base.scale(0.84);
+                        if pane_w > 0.01 {
                             let cell_x: i32 = (u_coord * 0.45).floor() as i32;
                             let cell_y: i32 = (world_p_px.get_y() * 0.32).floor() as i32;
                             let h_bits: u32 = ((cell_x.wrapping_mul(73856093))
@@ -710,33 +787,40 @@ impl Renderer3D {
                                 as u32;
                             let lit_bucket: u32 = h_bits % 11;
                             if lit_bucket == 0 {
-                                surf_emissive = surf_emissive.add(Vec3::new(1.15, 0.92, 0.48));
+                                surf_base = wall_base.lerp(surf_base, pane_w);
+                                surf_emissive =
+                                    surf_emissive.add(Vec3::new(1.15, 0.92, 0.48).scale(pane_w));
                             } else if lit_bucket == 1 {
-                                surf_emissive = surf_emissive.add(Vec3::new(0.32, 0.85, 1.25));
+                                surf_base = wall_base.lerp(surf_base, pane_w);
+                                surf_emissive =
+                                    surf_emissive.add(Vec3::new(0.32, 0.85, 1.25).scale(pane_w));
                             } else {
-                                surf_base = surf_base.scale(0.62);
-                                surf_refl = (surf_refl + 0.22).min(0.95);
+                                surf_base = wall_base.lerp(surf_base.scale(0.62), pane_w);
+                                surf_refl = (surf_refl + 0.22 * pane_w).min(0.95);
                             }
                         } else {
-                            surf_base = surf_base.scale(0.84);
+                            surf_base = wall_base;
                         }
                     }
                     SurfaceDetailMode::RoadSurface
                         if tri.shade_n.get_y() > 0.92 && world_p_px.get_y().abs() < 0.15 =>
                     {
                         let abs_x: f32 = world_p_px.get_x().abs();
-                        if abs_x > 10.6 {
-                            surf_base = Vec3::new(0.26, 0.28, 0.32);
-                            surf_refl = 0.12;
-                        } else if abs_x > 9.9 {
-                            surf_base = Vec3::new(0.55, 0.57, 0.60);
-                            surf_refl = 0.18;
-                        } else {
-                            let micro: f32 = (((world_p_px.get_x() * 3.1).floor() as i32
-                                ^ (world_p_px.get_z() * 3.1).floor() as i32)
-                                & 3) as f32;
-                            surf_base = surf_base.scale(0.94 + micro * 0.03);
-                        }
+                        let edge_aa: f32 = (world_px_size * 1.4).clamp(0.05, 0.42);
+                        let curb_w: f32 = smoothstep_f32(9.9 - edge_aa, 9.9 + edge_aa, abs_x);
+                        let walk_w: f32 = smoothstep_f32(10.6 - edge_aa, 10.6 + edge_aa, abs_x);
+                        let micro_fade: f32 = 1.0 - smoothstep_f32(18.0, 58.0, depth);
+                        let micro: f32 = (((world_p_px.get_x() * 3.1).floor() as i32
+                            ^ (world_p_px.get_z() * 3.1).floor() as i32)
+                            & 3) as f32;
+                        let road_col: Vec3 =
+                            surf_base.scale(1.0 + (micro * 0.03 - 0.045) * micro_fade);
+                        let curb_col: Vec3 = Vec3::new(0.55, 0.57, 0.60);
+                        let walk_col: Vec3 = Vec3::new(0.26, 0.28, 0.32);
+                        surf_base = road_col.lerp(curb_col, curb_w).lerp(walk_col, walk_w);
+                        surf_refl = surf_refl * (1.0 - curb_w)
+                            + 0.18 * curb_w * (1.0 - walk_w)
+                            + 0.12 * walk_w;
                     }
                     _ => {}
                 }
@@ -789,12 +873,56 @@ impl Renderer3D {
         edge_rays
     }
 
-    /// Fused post-process pass applying HDR Bloom composite, luma-cached FXAA, and optional variance-clamped TAA directly into output pixels.
+    /// Samples the quarter-resolution HDR bloom buffer with smooth bilinear filtering to eliminate 4x4 blocky bloom halos.
+    ///
+    /// # Arguments
+    ///
+    /// - `&[[f32; 3]]` - Blurred quarter-resolution HDR bloom slice.
+    /// - `usize` - Bloom grid width `bw`.
+    /// - `usize` - Bloom grid height `bh`.
+    /// - `usize` - Full-resolution pixel X.
+    /// - `usize` - Full-resolution pixel Y.
+    ///
+    /// # Returns
+    ///
+    /// - `[f32; 3]` - Bilinearly filtered bloom RGB radiance.
+    #[must_use]
+    fn sample_bloom_bilinear(
+        bloom: &[[f32; 3]],
+        bw: usize,
+        bh: usize,
+        x: usize,
+        y: usize,
+    ) -> [f32; 3] {
+        let fx: f32 = ((x as f32) * 0.25).clamp(0.0, (bw.saturating_sub(1)) as f32);
+        let fy: f32 = ((y as f32) * 0.25).clamp(0.0, (bh.saturating_sub(1)) as f32);
+        let x0: usize = (fx as usize).min(bw.saturating_sub(1));
+        let y0: usize = (fy as usize).min(bh.saturating_sub(1));
+        let x1: usize = (x0 + 1).min(bw.saturating_sub(1));
+        let y1: usize = (y0 + 1).min(bh.saturating_sub(1));
+        let tx: f32 = fx - (x0 as f32);
+        let ty: f32 = fy - (y0 as f32);
+        let c00: [f32; 3] = bloom[y0 * bw + x0];
+        let c10: [f32; 3] = bloom[y0 * bw + x1];
+        let c01: [f32; 3] = bloom[y1 * bw + x0];
+        let c11: [f32; 3] = bloom[y1 * bw + x1];
+        let w00: f32 = (1.0 - tx) * (1.0 - ty);
+        let w10: f32 = tx * (1.0 - ty);
+        let w01: f32 = (1.0 - tx) * ty;
+        let w11: f32 = tx * ty;
+        [
+            c00[0] * w00 + c10[0] * w10 + c01[0] * w01 + c11[0] * w11,
+            c00[1] * w00 + c10[1] * w10 + c01[1] * w01 + c11[1] * w11,
+            c00[2] * w00 + c10[2] * w10 + c01[2] * w01 + c11[2] * w11,
+        ]
+    }
+
+    /// Fused post-process pass applying Geometry-Aware FXAA 3.11 + 8-step Morphological Silhouette Edge-Walking AA, 9-tap variance-clamped TAA, and smooth bilinear HDR Bloom.
     ///
     /// # Arguments
     ///
     /// - `(usize, usize, usize, usize)` - Dimensions `(w, h, bloom_w, bloom_h)`.
-    /// - `PostProcessInputs<'_>` - Read-only `(color_src, luma, bloom, taa_history)`.
+    /// - `PostProcessInputs<'_>` - Read-only `(color_src, luma, g_tri_idx, bloom, taa_history)`.
     /// - `(bool, bool, bool)` - Flags `(use_fxaa, use_taa, use_bloom)`.
     /// - `(usize, &mut [u8])` - `(y_start, mutable RGBA output band)`.
     fn post_process_band(
@@ -804,15 +932,15 @@ impl Renderer3D {
         band: (usize, &mut [u8]),
     ) {
         let (w, h, bw, bh): (usize, usize, usize, usize) = dims;
-        let (src, luma, bloom, history): PostProcessInputs<'_> = inputs;
+        let (src, luma, g_tri_idx, bloom, history): PostProcessInputs<'_> = inputs;
         let (use_fxaa, use_taa, use_bloom): (bool, bool, bool) = flags;
         let (y_start, dst_band): (usize, &mut [u8]) = band;
         let row_bytes: usize = w * 4;
         let band_rows: usize = dst_band.len() / row_bytes.max(1);
-        let max_bx: usize = bw.saturating_sub(1);
-        let max_by: usize = bh.saturating_sub(1);
         let has_bloom: bool = use_bloom && bw > 0 && bh > 0 && bloom.len() >= bw * bh;
         let has_taa: bool = use_taa && history.len() == src.len();
+        let w_i32: i32 = w as i32;
+        let h_i32: i32 = h as i32;
         for local_y in 0..band_rows {
             let y: usize = y_start + local_y;
             let src_off: usize = y * row_bytes;
@@ -822,8 +950,6 @@ impl Renderer3D {
                     .copy_from_slice(&src[src_off..(src_off + row_bytes)]);
                 continue;
             }
-            let by: usize = (y >> 2).min(max_by);
-            let bloom_row: usize = by * bw;
             if !use_fxaa || y == 0 || y + 1 >= h || w < 3 {
                 for x in 0..w {
                     let sc: usize = src_off + x * 4;
@@ -832,10 +958,10 @@ impl Renderer3D {
                     let mut g: i32 = src[sc + 1] as i32;
                     let mut b: i32 = src[sc + 2] as i32;
                     if has_bloom {
-                        let bl: [f32; 3] = bloom[bloom_row + (x >> 2).min(max_bx)];
-                        r = (r + (bl[0] * 68.0) as i32).min(255);
-                        g = (g + (bl[1] * 68.0) as i32).min(255);
-                        b = (b + (bl[2] * 68.0) as i32).min(255);
+                        let bl: [f32; 3] = Self::sample_bloom_bilinear(bloom, bw, bh, x, y);
+                        r = (r + (bl[0] * 64.0) as i32).min(255);
+                        g = (g + (bl[1] * 64.0) as i32).min(255);
+                        b = (b + (bl[2] * 64.0) as i32).min(255);
                     }
                     dst_band[dc] = r as u8;
                     dst_band[dc + 1] = g as u8;
@@ -851,6 +977,7 @@ impl Renderer3D {
             let row: usize = y * w;
             let row_up: usize = (y - 1) * w;
             let row_dn: usize = (y + 1) * w;
+            let y_i32: i32 = y as i32;
             for x in 1..(w - 1) {
                 let lc: i32 = luma[row + x] as i32;
                 let ln: i32 = luma[row_up + x] as i32;
@@ -860,51 +987,159 @@ impl Renderer3D {
                 let lmax: i32 = lc.max(ln).max(ls).max(le).max(lw);
                 let lmin: i32 = lc.min(ln).min(ls).min(le).min(lw);
                 let contrast: i32 = lmax - lmin;
+                let tid_c: u32 = g_tri_idx[row + x];
+                let geom_edge: bool = tid_c != g_tri_idx[row_up + x]
+                    || tid_c != g_tri_idx[row_dn + x]
+                    || tid_c != g_tri_idx[row + x - 1]
+                    || tid_c != g_tri_idx[row + x + 1];
                 let sc: usize = (row + x) * 4;
                 let dc: usize = dst_off + x * 4;
                 let mut rgb: [i32; 3] = [src[sc] as i32, src[sc + 1] as i32, src[sc + 2] as i32];
-                if contrast >= 10 {
-                    let grad_h: i32 = (ln - ls).abs();
-                    let grad_v: i32 = (lw - le).abs();
-                    let (p1, p2): (usize, usize) = if grad_h >= grad_v {
-                        ((row_up + x) * 4, (row_dn + x) * 4)
+                if contrast >= 7 || (geom_edge && contrast >= 3) {
+                    let lnw: i32 = luma[row_up + x - 1] as i32;
+                    let lne: i32 = luma[row_up + x + 1] as i32;
+                    let lsw: i32 = luma[row_dn + x - 1] as i32;
+                    let lse: i32 = luma[row_dn + x + 1] as i32;
+                    let edge_h: i32 = (lnw + lne - 2 * ln).abs()
+                        + 2 * (lw + le - 2 * lc).abs()
+                        + (lsw + lse - 2 * ls).abs();
+                    let edge_v: i32 = (lnw + lsw - 2 * lw).abs()
+                        + 2 * (ln + ls - 2 * lc).abs()
+                        + (lne + lse - 2 * le).abs();
+                    let is_horiz: bool = edge_h >= edge_v;
+                    let (l_neg, l_pos): (i32, i32) = if is_horiz { (ln, ls) } else { (lw, le) };
+                    let grad_neg: i32 = (l_neg - lc).abs();
+                    let grad_pos: i32 = (l_pos - lc).abs();
+                    let step_sign: i32 = if grad_neg >= grad_pos { -1 } else { 1 };
+                    let grad_steep: i32 = grad_neg.max(grad_pos);
+                    let l_other: i32 = if step_sign < 0 { l_neg } else { l_pos };
+                    let edge_avg_2: i32 = lc + l_other;
+                    let grad_thresh_2: i32 = (grad_steep >> 1).max(3);
+                    let (perp_dx, perp_dy, tan_dx, tan_dy): (i32, i32, i32, i32) = if is_horiz {
+                        (0, step_sign, 1, 0)
                     } else {
-                        ((row + x - 1) * 4, (row + x + 1) * 4)
+                        (step_sign, 0, 0, 1)
                     };
-                    let blend_num: i32 = ((contrast - 10) * 2).clamp(24, 176);
-                    let keep_num: i32 = 256 - blend_num;
-                    for ch in 0..3 {
-                        let avg_nb: i32 = ((src[p1 + ch] as i32) + (src[p2 + ch] as i32)) >> 1;
-                        rgb[ch] =
-                            ((rgb[ch] * keep_num + avg_nb * blend_num + 128) >> 8).clamp(0, 255);
+                    let x_i32: i32 = x as i32;
+                    let mut dist_neg: i32 = MLAA_MAX_WALK_STEPS as i32;
+                    let mut end_neg_delta: i32 = 0;
+                    for s in 1..=(MLAA_MAX_WALK_STEPS as i32) {
+                        let sx: i32 = x_i32 - tan_dx * s;
+                        let sy: i32 = y_i32 - tan_dy * s;
+                        let ox: i32 = sx + perp_dx;
+                        let oy: i32 = sy + perp_dy;
+                        if sx < 0
+                            || sx >= w_i32
+                            || sy < 0
+                            || sy >= h_i32
+                            || ox < 0
+                            || ox >= w_i32
+                            || oy < 0
+                            || oy >= h_i32
+                        {
+                            dist_neg = s;
+                            break;
+                        }
+                        let pair_sum: i32 = (luma[(sy as usize) * w + (sx as usize)] as i32)
+                            + (luma[(oy as usize) * w + (ox as usize)] as i32);
+                        let delta: i32 = pair_sum - edge_avg_2;
+                        if delta.abs() >= grad_thresh_2 {
+                            dist_neg = s;
+                            end_neg_delta = delta;
+                            break;
+                        }
+                    }
+                    let mut dist_pos: i32 = MLAA_MAX_WALK_STEPS as i32;
+                    let mut end_pos_delta: i32 = 0;
+                    for s in 1..=(MLAA_MAX_WALK_STEPS as i32) {
+                        let sx: i32 = x_i32 + tan_dx * s;
+                        let sy: i32 = y_i32 + tan_dy * s;
+                        let ox: i32 = sx + perp_dx;
+                        let oy: i32 = sy + perp_dy;
+                        if sx < 0
+                            || sx >= w_i32
+                            || sy < 0
+                            || sy >= h_i32
+                            || ox < 0
+                            || ox >= w_i32
+                            || oy < 0
+                            || oy >= h_i32
+                        {
+                            dist_pos = s;
+                            break;
+                        }
+                        let pair_sum: i32 = (luma[(sy as usize) * w + (sx as usize)] as i32)
+                            + (luma[(oy as usize) * w + (ox as usize)] as i32);
+                        let delta: i32 = pair_sum - edge_avg_2;
+                        if delta.abs() >= grad_thresh_2 {
+                            dist_pos = s;
+                            end_pos_delta = delta;
+                            break;
+                        }
+                    }
+                    let center_lt_avg: bool = (lc * 2) < edge_avg_2;
+                    let (closer_dist, closer_delta): (i32, i32) = if dist_neg <= dist_pos {
+                        (dist_neg, end_neg_delta)
+                    } else {
+                        (dist_pos, end_pos_delta)
+                    };
+                    let good_span: bool = (closer_delta < 0) != center_lt_avg;
+                    let span_total: f32 = ((dist_neg + dist_pos).max(1)) as f32;
+                    let morph_blend: f32 = if good_span {
+                        (0.5 - ((closer_dist as f32) - 0.5).max(0.0) / span_total).clamp(0.0, 0.5)
+                    } else {
+                        0.0
+                    };
+                    let avg_8: i32 = ((ln + ls + le + lw) * 2 + lnw + lne + lsw + lse + 6) / 12;
+                    let subpix_raw: f32 =
+                        (((avg_8 - lc).abs() as f32) / (contrast.max(1) as f32)).clamp(0.0, 1.0);
+                    let subpix_s: f32 = subpix_raw * subpix_raw * (3.0 - 2.0 * subpix_raw);
+                    let subpix_blend: f32 =
+                        subpix_s * subpix_s * if geom_edge { 0.78 } else { 0.52 };
+                    let final_blend: f32 = morph_blend.max(subpix_blend).clamp(0.0, 0.78);
+                    let blend_q8: i32 = (final_blend * 256.0).round() as i32;
+                    if blend_q8 > 0 {
+                        let nx: usize = (x_i32 + perp_dx).clamp(0, w_i32 - 1) as usize;
+                        let ny: usize = (y_i32 + perp_dy).clamp(0, h_i32 - 1) as usize;
+                        let n_sc: usize = (ny * w + nx) * 4;
+                        let keep_q8: i32 = 256 - blend_q8;
+                        for ch in 0..3 {
+                            rgb[ch] =
+                                ((rgb[ch] * keep_q8 + (src[n_sc + ch] as i32) * blend_q8 + 128)
+                                    >> 8)
+                                    .clamp(0, 255);
+                        }
                     }
                 }
                 if has_taa {
-                    let pn: usize = (row_up + x) * 4;
-                    let ps: usize = (row_dn + x) * 4;
-                    let pw: usize = (row + x - 1) * 4;
-                    let pe: usize = (row + x + 1) * 4;
+                    let offsets: [usize; 8] = [
+                        (row_up + x - 1) * 4,
+                        (row_up + x) * 4,
+                        (row_up + x + 1) * 4,
+                        (row + x - 1) * 4,
+                        (row + x + 1) * 4,
+                        (row_dn + x - 1) * 4,
+                        (row_dn + x) * 4,
+                        (row_dn + x + 1) * 4,
+                    ];
                     for ch in 0..3 {
                         let c0: i32 = rgb[ch];
-                        let n_min: i32 = c0
-                            .min(src[pn + ch] as i32)
-                            .min(src[ps + ch] as i32)
-                            .min(src[pw + ch] as i32)
-                            .min(src[pe + ch] as i32);
-                        let n_max: i32 = c0
-                            .max(src[pn + ch] as i32)
-                            .max(src[ps + ch] as i32)
-                            .max(src[pw + ch] as i32)
-                            .max(src[pe + ch] as i32);
+                        let mut n_min: i32 = c0;
+                        let mut n_max: i32 = c0;
+                        for off in offsets.into_iter() {
+                            let v: i32 = src[off + ch] as i32;
+                            n_min = n_min.min(v);
+                            n_max = n_max.max(v);
+                        }
                         let hist_clamped: i32 = (history[sc + ch] as i32).clamp(n_min, n_max);
-                        rgb[ch] = ((c0 * 204 + hist_clamped * 52 + 128) >> 8).clamp(0, 255);
+                        rgb[ch] = ((c0 * 164 + hist_clamped * 92 + 128) >> 8).clamp(0, 255);
                     }
                 }
                 if has_bloom {
-                    let bl: [f32; 3] = bloom[bloom_row + (x >> 2).min(max_bx)];
-                    rgb[0] = (rgb[0] + (bl[0] * 68.0) as i32).min(255);
-                    rgb[1] = (rgb[1] + (bl[1] * 68.0) as i32).min(255);
-                    rgb[2] = (rgb[2] + (bl[2] * 68.0) as i32).min(255);
+                    let bl: [f32; 3] = Self::sample_bloom_bilinear(bloom, bw, bh, x, y);
+                    rgb[0] = (rgb[0] + (bl[0] * 64.0) as i32).min(255);
+                    rgb[1] = (rgb[1] + (bl[1] * 64.0) as i32).min(255);
+                    rgb[2] = (rgb[2] + (bl[2] * 64.0) as i32).min(255);
                 }
                 dst_band[dc] = rgb[0] as u8;
                 dst_band[dc + 1] = rgb[1] as u8;
@@ -914,7 +1149,7 @@ impl Renderer3D {
         }
     }
 
-    /// Renders `world` at runtime-configured `quality` into an `ImageBuffer` with zero steady-state scratch allocations.
+    /// Renders `world` at runtime-configured `quality` into an `ImageBuffer` using the persistent zero-spawn multi-core worker pool.
     ///
     /// # Arguments
     ///
@@ -984,6 +1219,7 @@ impl Renderer3D {
         let frustum_on: bool = quality.get_frustum_culling();
         let chunk_on: bool = quality.get_chunk_streaming();
         let lod_bias: f32 = quality.get_lod_bias();
+        let aa_mode: AntiAliasingMode = quality.get_anti_aliasing();
         let mut visible_objects: usize = 0;
         let mut culled_objects: usize = 0;
         let mut triangles_drawn: usize = 0;
@@ -1013,11 +1249,19 @@ impl Renderer3D {
             bloom_a,
             bloom_b,
             visible_scratch,
+            cluster_ranges_scratch,
             unique_meshes_scratch,
             has_taa_history,
             prev_vp_m0,
+            frame_index,
             ..
         } = self;
+        let (jitter_x, jitter_y): (f32, f32) = if aa_mode == AntiAliasingMode::Taa {
+            HALTON_JITTER_8[(*frame_index as usize) & 7]
+        } else {
+            (0.0, 0.0)
+        };
+        *frame_index = frame_index.wrapping_add(1);
         visible_scratch.clear();
         unique_meshes_scratch.clear();
         for (obj_idx, obj) in objects.iter().enumerate() {
@@ -1066,8 +1310,8 @@ impl Renderer3D {
             let verts: &[Vertex3D] = mesh.get_vertices().as_slice();
             let indices: &[[u32; 3]] = mesh.get_indices().as_slice();
             let meshlets: &[Meshlet3D] = mesh.get_meshlets().as_slice();
-            let cluster_ranges: Vec<(usize, usize)> = if meshlets.len() > 1 && frustum_on {
-                let mut ranges: Vec<(usize, usize)> = Vec::with_capacity(meshlets.len());
+            cluster_ranges_scratch.clear();
+            if meshlets.len() > 1 && frustum_on {
                 for mlet in meshlets.iter() {
                     let wb: Aabb3D = tr.transform_aabb(mlet.get_bounds());
                     if !frustum.intersects_aabb(&wb) {
@@ -1077,14 +1321,13 @@ impl Renderer3D {
                     meshlets_drawn += 1;
                     let s0: usize = mlet.get_first_tri() as usize;
                     let s1: usize = (s0 + (mlet.get_tri_count() as usize)).min(indices.len());
-                    ranges.push((s0, s1));
+                    cluster_ranges_scratch.push((s0, s1));
                 }
-                ranges
             } else {
                 meshlets_drawn += meshlets.len().max(1);
-                vec![(0, indices.len())]
-            };
-            for (tri_start, tri_end) in cluster_ranges.into_iter() {
+                cluster_ranges_scratch.push((0, indices.len()));
+            }
+            for &(tri_start, tri_end) in cluster_ranges_scratch.iter() {
                 for tri in indices[tri_start..tri_end].iter() {
                     let (i0, i1, i2): (usize, usize, usize) =
                         (tri[0] as usize, tri[1] as usize, tri[2] as usize);
@@ -1110,12 +1353,12 @@ impl Renderer3D {
                         let inv_w0: f32 = 1.0 / tc0[3];
                         let inv_w1: f32 = 1.0 / tc1[3];
                         let inv_w2: f32 = 1.0 / tc2[3];
-                        let sx0: f32 = (tc0[0] * inv_w0 * 0.5 + 0.5) * (w as f32);
-                        let sy0: f32 = (0.5 - tc0[1] * inv_w0 * 0.5) * (h as f32);
-                        let sx1: f32 = (tc1[0] * inv_w1 * 0.5 + 0.5) * (w as f32);
-                        let sy1: f32 = (0.5 - tc1[1] * inv_w1 * 0.5) * (h as f32);
-                        let sx2: f32 = (tc2[0] * inv_w2 * 0.5 + 0.5) * (w as f32);
-                        let sy2: f32 = (0.5 - tc2[1] * inv_w2 * 0.5) * (h as f32);
+                        let sx0: f32 = (tc0[0] * inv_w0 * 0.5 + 0.5) * (w as f32) + jitter_x;
+                        let sy0: f32 = (0.5 - tc0[1] * inv_w0 * 0.5) * (h as f32) + jitter_y;
+                        let sx1: f32 = (tc1[0] * inv_w1 * 0.5 + 0.5) * (w as f32) + jitter_x;
+                        let sy1: f32 = (0.5 - tc1[1] * inv_w1 * 0.5) * (h as f32) + jitter_y;
+                        let sx2: f32 = (tc2[0] * inv_w2 * 0.5 + 0.5) * (w as f32) + jitter_x;
+                        let sy2: f32 = (0.5 - tc2[1] * inv_w2 * 0.5) * (h as f32) + jitter_y;
                         let area: f32 = (sx1 - sx0) * (sy2 - sy0) - (sy1 - sy0) * (sx2 - sx0);
                         if area.abs() < 0.25 {
                             continue;
@@ -1216,9 +1459,11 @@ impl Renderer3D {
         }
         let rt_step: usize = if rt_mode == RayTracingMode::Off {
             0
-        } else if w_usize >= 880 {
+        } else if w_usize >= 780 {
             6
-        } else if w_usize >= 360 {
+        } else if w_usize >= 460 {
+            5
+        } else if w_usize >= 300 {
             4
         } else {
             2
@@ -1259,216 +1504,134 @@ impl Renderer3D {
             exposure_scale: 1.0,
             bloom_on,
         };
-        let mut rays_traced: usize = 0;
+        let rays_atom: AtomicUsize = AtomicUsize::new(0);
         if rt_step > 0 {
             let probe_count: usize = gw * gh;
             if rt_probes.len() != probe_count {
                 rt_probes.resize(probe_count, RtProbeSample::default());
             }
-            let workers: usize = Self::worker_count(gh);
-            #[cfg(not(target_arch = "wasm32"))]
-            if workers > 1 {
-                let rows_per: usize = gh.div_ceil(workers);
-                let chunk_len: usize = rows_per * gw;
-                let depth_ref: &[f32] = depth_buffer.as_slice();
-                let gtri_ref: &[u32] = g_tri_idx.as_slice();
-                let stri_ref: &[GShadeTri] = shaded_tris.as_slice();
-                let band_rays: Vec<usize> = scope(|s: &thread::Scope<'_, '_>| {
-                    let mut handles: Vec<ScopedJoinHandle<'_, usize>> = Vec::with_capacity(workers);
-                    for (idx, slice) in rt_probes.chunks_mut(chunk_len).enumerate() {
-                        let gy_start: usize = idx * rows_per;
-                        handles.push(s.spawn(move || {
-                            Self::trace_probe_band(
-                                &fctx,
-                                depth_ref,
-                                gtri_ref,
-                                stri_ref,
-                                bvh,
-                                (gy_start, slice),
-                            )
-                        }));
-                    }
-                    handles
-                        .into_iter()
-                        .map(|jh: ScopedJoinHandle<'_, usize>| jh.join().unwrap_or(0))
-                        .collect()
-                });
-                for r in band_rays.into_iter() {
-                    rays_traced += r;
+            let depth_ref: &[f32] = depth_buffer.as_slice();
+            let gtri_ref: &[u32] = g_tri_idx.as_slice();
+            let stri_ref: &[GShadeTri] = shaded_tris.as_slice();
+            let probes_base: usize = rt_probes.as_mut_ptr() as usize;
+            let probe_grain: usize = (gh / 16).clamp(4, 16);
+            parallel_for_ranges(gh, probe_grain, |gy0: usize, gy1: usize| {
+                let slice: &mut [RtProbeSample] = unsafe {
+                    from_raw_parts_mut(
+                        (probes_base as *mut RtProbeSample).add(gy0 * gw),
+                        (gy1 - gy0) * gw,
+                    )
+                };
+                let r: usize =
+                    Self::trace_probe_band(&fctx, depth_ref, gtri_ref, stri_ref, bvh, (gy0, slice));
+                if r > 0 {
+                    let _: usize = rays_atom.fetch_add(r, Ordering::Relaxed);
                 }
-            } else {
-                rays_traced += Self::trace_probe_band(
-                    &fctx,
-                    depth_buffer.as_slice(),
-                    g_tri_idx.as_slice(),
-                    shaded_tris.as_slice(),
-                    bvh,
-                    (0, rt_probes.as_mut_slice()),
-                );
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                let _: usize = workers;
-                rays_traced += Self::trace_probe_band(
-                    &fctx,
-                    depth_buffer.as_slice(),
-                    g_tri_idx.as_slice(),
-                    shaded_tris.as_slice(),
-                    bvh,
-                    (0, rt_probes.as_mut_slice()),
-                );
-            }
-            if rt_mode == RayTracingMode::FullPathTracedGi {
+            });
+            let need_denoise: bool = matches!(
+                rt_mode,
+                RayTracingMode::ShadowsAndReflections | RayTracingMode::FullPathTracedGi
+            );
+            if need_denoise {
                 if rt_probes_denoised.len() != probe_count {
                     rt_probes_denoised.resize(probe_count, RtProbeSample::default());
                 }
-                Self::denoise_gi_probes(
-                    gw,
-                    gh,
-                    rt_probes.as_slice(),
-                    rt_probes_denoised.as_mut_slice(),
-                );
+                let src_probes: &[RtProbeSample] = rt_probes.as_slice();
+                let dst_base: usize = rt_probes_denoised.as_mut_ptr() as usize;
+                parallel_for_ranges(gh, probe_grain, |gy0: usize, gy1: usize| {
+                    let dst_slice: &mut [RtProbeSample] = unsafe {
+                        from_raw_parts_mut(
+                            (dst_base as *mut RtProbeSample).add(gy0 * gw),
+                            (gy1 - gy0) * gw,
+                        )
+                    };
+                    Self::denoise_gi_probes_band(gw, gh, src_probes, gy0, dst_slice);
+                });
             }
         }
         let active_probes: &[RtProbeSample] = if rt_step == 0 {
             &[]
-        } else if rt_mode == RayTracingMode::FullPathTracedGi {
+        } else if matches!(
+            rt_mode,
+            RayTracingMode::ShadowsAndReflections | RayTracingMode::FullPathTracedGi
+        ) {
             rt_probes_denoised.as_slice()
         } else {
             rt_probes.as_slice()
         };
-        let shade_workers: usize = Self::worker_count(h_usize);
-        #[cfg(not(target_arch = "wasm32"))]
-        if shade_workers > 1 {
-            let rows_per_raw: usize = h_usize.div_ceil(shade_workers);
-            let rows_per: usize = rows_per_raw.div_ceil(4) * 4;
-            let bloom_rows_per: usize = rows_per / 4;
+        {
             let depth_ref: &[f32] = depth_buffer.as_slice();
             let gtri_ref: &[u32] = g_tri_idx.as_slice();
             let stri_ref: &[GShadeTri] = shaded_tris.as_slice();
-            let band_rays: Vec<usize> = scope(|s: &thread::Scope<'_, '_>| {
-                let mut handles: Vec<ScopedJoinHandle<'_, usize>> =
-                    Vec::with_capacity(shade_workers);
-                let color_chunks: ChunksMut<'_, u8> =
-                    color_buffer.chunks_mut(rows_per * w_usize * 4);
-                let luma_chunks: ChunksMut<'_, u8> = luma_buffer.chunks_mut(rows_per * w_usize);
-                let bloom_chunks: ChunksMut<'_, [f32; 3]> =
-                    bloom_a.chunks_mut((bloom_rows_per * bw).max(1));
-                for (idx, ((c_band, l_band), b_band)) in
-                    color_chunks.zip(luma_chunks).zip(bloom_chunks).enumerate()
-                {
-                    let py_start: usize = idx * rows_per;
-                    handles.push(s.spawn(move || {
-                        Self::shade_deferred_band(
-                            &fctx,
-                            (depth_ref, gtri_ref, stri_ref, active_probes, bvh),
-                            (py_start, c_band, l_band, b_band),
+            let color_base: usize = color_buffer.as_mut_ptr() as usize;
+            let luma_base: usize = luma_buffer.as_mut_ptr() as usize;
+            let bloom_base: usize = bloom_a.as_mut_ptr() as usize;
+            let bloom_total_len: usize = bloom_a.len();
+            let shade_grain: usize = ((h_usize / 16).div_ceil(4) * 4).clamp(16, 48);
+            parallel_for_ranges(h_usize, shade_grain, |y0: usize, y1: usize| {
+                let rows: usize = y1 - y0;
+                let c_band: &mut [u8] = unsafe {
+                    from_raw_parts_mut(
+                        (color_base as *mut u8).add(y0 * w_usize * 4),
+                        rows * w_usize * 4,
+                    )
+                };
+                let l_band: &mut [u8] = unsafe {
+                    from_raw_parts_mut((luma_base as *mut u8).add(y0 * w_usize), rows * w_usize)
+                };
+                let b_start: usize = (y0 / 4) * bw;
+                let b_end: usize = ((y1.div_ceil(4)) * bw).min(bloom_total_len);
+                let b_band: &mut [[f32; 3]] = if b_start < b_end {
+                    unsafe {
+                        from_raw_parts_mut(
+                            (bloom_base as *mut [f32; 3]).add(b_start),
+                            b_end - b_start,
                         )
-                    }));
+                    }
+                } else {
+                    &mut []
+                };
+                let r: usize = Self::shade_deferred_band(
+                    &fctx,
+                    (depth_ref, gtri_ref, stri_ref, active_probes, bvh),
+                    (y0, c_band, l_band, b_band),
+                );
+                if r > 0 {
+                    let _: usize = rays_atom.fetch_add(r, Ordering::Relaxed);
                 }
-                handles
-                    .into_iter()
-                    .map(|jh: ScopedJoinHandle<'_, usize>| jh.join().unwrap_or(0))
-                    .collect()
             });
-            for r in band_rays.into_iter() {
-                rays_traced += r;
-            }
-        } else {
-            rays_traced += Self::shade_deferred_band(
-                &fctx,
-                (
-                    depth_buffer.as_slice(),
-                    g_tri_idx.as_slice(),
-                    shaded_tris.as_slice(),
-                    active_probes,
-                    bvh,
-                ),
-                (
-                    0,
-                    color_buffer.as_mut_slice(),
-                    luma_buffer.as_mut_slice(),
-                    bloom_a.as_mut_slice(),
-                ),
-            );
         }
-        #[cfg(target_arch = "wasm32")]
-        {
-            let _: usize = shade_workers;
-            rays_traced += Self::shade_deferred_band(
-                &fctx,
-                (
-                    depth_buffer.as_slice(),
-                    g_tri_idx.as_slice(),
-                    shaded_tris.as_slice(),
-                    active_probes,
-                    bvh,
-                ),
-                (
-                    0,
-                    color_buffer.as_mut_slice(),
-                    luma_buffer.as_mut_slice(),
-                    bloom_a.as_mut_slice(),
-                ),
-            );
-        }
+        let rays_traced: usize = rays_atom.load(Ordering::Relaxed);
         if bloom_on {
             Self::blur_bloom_separable(bw, bh, bloom_a.as_mut_slice(), bloom_b.as_mut_slice());
         }
-        let aa_mode: AntiAliasingMode = quality.get_anti_aliasing();
         let use_fxaa: bool = aa_mode != AntiAliasingMode::Off;
         let vp_m0: f32 = vp.get_m()[0] + vp.get_m()[12] * 0.01 + vp.get_m()[14] * 0.01;
-        let cam_stable: bool = (*prev_vp_m0 - vp_m0).abs() < 0.25;
+        let cam_stable: bool = (*prev_vp_m0 - vp_m0).abs() < 0.35;
         let use_taa: bool = aa_mode == AntiAliasingMode::Taa && *has_taa_history && cam_stable;
         let mut out_pixels: Vec<u8> = vec![0; pixel_count * 4];
-        let post_workers: usize = Self::worker_count(h_usize);
-        #[cfg(not(target_arch = "wasm32"))]
-        if post_workers > 1 {
-            let rows_per: usize = h_usize.div_ceil(post_workers);
+        {
             let src_ref: &[u8] = color_buffer.as_slice();
             let luma_ref: &[u8] = luma_buffer.as_slice();
+            let gtri_ref: &[u32] = g_tri_idx.as_slice();
             let bloom_ref: &[[f32; 3]] = bloom_a.as_slice();
             let hist_ref: &[u8] = aa_buffer.as_slice();
-            scope(|s: &thread::Scope<'_, '_>| {
-                for (idx, dst_band) in out_pixels.chunks_mut(rows_per * w_usize * 4).enumerate() {
-                    let y_start: usize = idx * rows_per;
-                    let _: ScopedJoinHandle<'_, ()> = s.spawn(move || {
-                        Self::post_process_band(
-                            (w_usize, h_usize, bw, bh),
-                            (src_ref, luma_ref, bloom_ref, hist_ref),
-                            (use_fxaa, use_taa, bloom_on),
-                            (y_start, dst_band),
-                        );
-                    });
-                }
+            let out_base: usize = out_pixels.as_mut_ptr() as usize;
+            let post_grain: usize = (h_usize / 16).clamp(16, 48);
+            parallel_for_ranges(h_usize, post_grain, |y0: usize, y1: usize| {
+                let dst_band: &mut [u8] = unsafe {
+                    from_raw_parts_mut(
+                        (out_base as *mut u8).add(y0 * w_usize * 4),
+                        (y1 - y0) * w_usize * 4,
+                    )
+                };
+                Self::post_process_band(
+                    (w_usize, h_usize, bw, bh),
+                    (src_ref, luma_ref, gtri_ref, bloom_ref, hist_ref),
+                    (use_fxaa, use_taa, bloom_on),
+                    (y0, dst_band),
+                );
             });
-        } else {
-            Self::post_process_band(
-                (w_usize, h_usize, bw, bh),
-                (
-                    color_buffer.as_slice(),
-                    luma_buffer.as_slice(),
-                    bloom_a.as_slice(),
-                    aa_buffer.as_slice(),
-                ),
-                (use_fxaa, use_taa, bloom_on),
-                (0, out_pixels.as_mut_slice()),
-            );
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
-            let _: usize = post_workers;
-            Self::post_process_band(
-                (w_usize, h_usize, bw, bh),
-                (
-                    color_buffer.as_slice(),
-                    luma_buffer.as_slice(),
-                    bloom_a.as_slice(),
-                    aa_buffer.as_slice(),
-                ),
-                (use_fxaa, use_taa, bloom_on),
-                (0, out_pixels.as_mut_slice()),
-            );
         }
         if aa_mode == AntiAliasingMode::Taa {
             swap(aa_buffer, color_buffer);

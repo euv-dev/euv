@@ -385,6 +385,8 @@ pub fn euv_web_boot() {
     let Ok(canvas) = el.dyn_into::<HtmlCanvasElement>() else {
         return;
     };
+    web_attach_ime_proxy(&doc);
+    register_native_action_bridge(web_native_action_bridge);
     let _: bool = web_sync_exact_viewport(&win, &canvas);
     let canvas_move: HtmlCanvasElement = canvas.clone();
     let on_move: Closure<dyn FnMut(web_sys::PointerEvent)> =
@@ -478,15 +480,28 @@ pub fn euv_web_boot() {
         Closure::wrap(Box::new(move |ev: KeyboardEvent| {
             let key: String = ev.key();
             let code_str: String = ev.code();
-            if matches!(
-                key.as_str(),
-                WEB_KEY_ARROW_UP
-                    | WEB_KEY_ARROW_DOWN
-                    | WEB_KEY_ARROW_LEFT
-                    | WEB_KEY_ARROW_RIGHT
-                    | WEB_KEY_BACKSPACE
-                    | WEB_KEY_SPACE
-            ) {
+            let ime_active: bool = WEB_IME_ACTIVE.with(Cell::get);
+            let should_prevent: bool = if ime_active {
+                matches!(
+                    key.as_str(),
+                    WEB_KEY_ARROW_UP
+                        | WEB_KEY_ARROW_DOWN
+                        | WEB_KEY_ARROW_LEFT
+                        | WEB_KEY_ARROW_RIGHT
+                        | WEB_KEY_BACKSPACE
+                )
+            } else {
+                matches!(
+                    key.as_str(),
+                    WEB_KEY_ARROW_UP
+                        | WEB_KEY_ARROW_DOWN
+                        | WEB_KEY_ARROW_LEFT
+                        | WEB_KEY_ARROW_RIGHT
+                        | WEB_KEY_BACKSPACE
+                        | WEB_KEY_SPACE
+                )
+            };
+            if should_prevent {
                 ev.prevent_default();
             }
             web_queue_key_down(&key, &code_str);
@@ -783,6 +798,10 @@ fn web_queue_scroll(dx: f32, dy: f32) {
 /// - `&str` - DOM physical `KeyboardEvent.code` string.
 #[cfg(target_arch = "wasm32")]
 fn web_queue_key_down(key: &str, code_str: &str) {
+    if WEB_IME_COMPOSING.with(Cell::get) {
+        return;
+    }
+    let ime_active: bool = WEB_IME_ACTIVE.with(Cell::get);
     WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
         if let Ok(mut borrow) = slot.try_borrow_mut()
             && let Some((app, _)) = borrow.as_mut()
@@ -792,12 +811,160 @@ fn web_queue_key_down(key: &str, code_str: &str) {
             let key_ev: WindowEvent =
                 WindowEvent::KeyDown(wid, KeyEvent::new(code, Modifiers::default(), false));
             app.dispatch_window_event(key_ev);
-            if key.chars().count() == 1 {
+            if !ime_active && key.chars().count() == 1 {
                 app.dispatch_window_event(WindowEvent::TextInput(wid, key.to_string()));
             }
             web_mark_needs_frame();
         }
     });
+}
+
+/// Dispatches committed browser IME or virtual keyboard text into the active WebAssembly runtime.
+///
+/// # Arguments
+///
+/// - `String` - Committed UTF-8 text from the hidden IME proxy input.
+#[cfg(target_arch = "wasm32")]
+fn web_queue_text_input(text: String) {
+    if text.is_empty() {
+        return;
+    }
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            let wid: WindowId = app.get_window_state().get_id();
+            app.dispatch_window_event(WindowEvent::TextInput(wid, text));
+            web_mark_needs_frame();
+        }
+    });
+}
+
+/// Reads and clears the hidden browser IME proxy `<input>` value, dispatching any pending text into `euv`.
+///
+/// # Arguments
+///
+/// - `&HtmlElement` - Hidden browser IME proxy element.
+#[cfg(target_arch = "wasm32")]
+fn web_flush_ime_element(el: &HtmlElement) {
+    let key: JsValue = JsValue::from_str(WEB_PROP_VALUE);
+    if let Ok(val) = Reflect::get(el.as_ref(), &key)
+        && let Some(text) = val.as_string()
+        && !text.is_empty()
+    {
+        let _: Result<bool, JsValue> = Reflect::set(el.as_ref(), &key, &JsValue::from_str(""));
+        web_queue_text_input(text);
+    }
+}
+
+/// Attaches a visually hidden DOM `<input>` element so mobile browsers and CJK IMEs open native keyboards on input focus.
+///
+/// # Arguments
+///
+/// - `&Document` - Active browser DOM document.
+#[cfg(target_arch = "wasm32")]
+fn web_attach_ime_proxy(doc: &Document) {
+    let Ok(raw_el) = doc.create_element(WEB_IME_INPUT_TAG) else {
+        return;
+    };
+    let el: Element = raw_el;
+    drop(el.set_attribute(WEB_IME_ATTR_ID, WEB_IME_INPUT_ID));
+    drop(el.set_attribute(WEB_IME_ATTR_TYPE, WEB_IME_ATTR_TEXT));
+    drop(el.set_attribute(WEB_IME_ATTR_AUTOCOMPLETE, WEB_IME_ATTR_OFF));
+    drop(el.set_attribute(WEB_IME_ATTR_AUTOCORRECT, WEB_IME_ATTR_OFF));
+    drop(el.set_attribute(WEB_IME_ATTR_AUTOCAPITALIZE, WEB_IME_ATTR_OFF));
+    drop(el.set_attribute(WEB_IME_ATTR_SPELLCHECK, WEB_IME_ATTR_FALSE));
+    drop(el.set_attribute(WEB_IME_ATTR_ARIA_LABEL, WEB_IME_ARIA_LABEL));
+    drop(el.set_attribute(WEB_IME_ATTR_STYLE, WEB_IME_STYLE));
+    let Ok(html_el) = el.dyn_into::<HtmlElement>() else {
+        return;
+    };
+    if let Some(body) = doc.body() {
+        drop(body.append_child(&html_el));
+    }
+    let comp_start: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        WEB_IME_COMPOSING.with(|c: &Cell<bool>| c.set(true));
+    }) as Box<dyn FnMut(Event)>);
+    drop(html_el.add_event_listener_with_callback(
+        WEB_EVENT_COMPOSITION_START,
+        comp_start.as_ref().unchecked_ref(),
+    ));
+    comp_start.forget();
+    let comp_el: HtmlElement = html_el.clone();
+    let comp_end: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        WEB_IME_COMPOSING.with(|c: &Cell<bool>| c.set(false));
+        web_flush_ime_element(&comp_el);
+    }) as Box<dyn FnMut(Event)>);
+    drop(html_el.add_event_listener_with_callback(
+        WEB_EVENT_COMPOSITION_END,
+        comp_end.as_ref().unchecked_ref(),
+    ));
+    comp_end.forget();
+    let inp_el: HtmlElement = html_el.clone();
+    let on_input: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        if !WEB_IME_COMPOSING.with(Cell::get) {
+            web_flush_ime_element(&inp_el);
+        }
+    }) as Box<dyn FnMut(Event)>);
+    drop(
+        html_el
+            .add_event_listener_with_callback(WEB_EVENT_INPUT, on_input.as_ref().unchecked_ref()),
+    );
+    on_input.forget();
+    let on_ime_blur: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        WEB_IME_ACTIVE.with(|a: &Cell<bool>| a.set(false));
+        WEB_IME_COMPOSING.with(|c: &Cell<bool>| c.set(false));
+    }) as Box<dyn FnMut(Event)>);
+    drop(
+        html_el
+            .add_event_listener_with_callback(WEB_EVENT_BLUR, on_ime_blur.as_ref().unchecked_ref()),
+    );
+    on_ime_blur.forget();
+    WEB_IME_ELEMENT.with(|slot: &RefCell<Option<HtmlElement>>| {
+        if let Ok(mut guard) = slot.try_borrow_mut() {
+            *guard = Some(html_el);
+        }
+    });
+}
+
+/// Handles `euv` native action requests in the browser, focusing or blurring the hidden IME proxy input.
+///
+/// # Arguments
+///
+/// - `&str` - Action category (e.g. `NATIVE_ACTION_IME`).
+/// - `&str` - Action subcommand (`"show"` or `"hide"`).
+/// - `&str` - Secondary payload argument.
+///
+/// # Returns
+///
+/// - `bool` - `true` when handled by the browser bridge.
+#[cfg(target_arch = "wasm32")]
+fn web_native_action_bridge(kind: &str, arg1: &str, _arg2: &str) -> bool {
+    if kind != NATIVE_ACTION_IME {
+        return false;
+    }
+    WEB_IME_ELEMENT.with(|slot: &RefCell<Option<HtmlElement>>| {
+        let Ok(guard) = slot.try_borrow() else {
+            return false;
+        };
+        let Some(el) = guard.as_ref() else {
+            return false;
+        };
+        if arg1 == WEB_IME_ACTION_SHOW {
+            WEB_IME_ACTIVE.with(|a: &Cell<bool>| a.set(true));
+            drop(el.focus());
+            true
+        } else if arg1 == WEB_IME_ACTION_HIDE {
+            WEB_IME_ACTIVE.with(|a: &Cell<bool>| a.set(false));
+            WEB_IME_COMPOSING.with(|c: &Cell<bool>| c.set(false));
+            let key: JsValue = JsValue::from_str(WEB_PROP_VALUE);
+            let _: Result<bool, JsValue> = Reflect::set(el.as_ref(), &key, &JsValue::from_str(""));
+            drop(el.blur());
+            true
+        } else {
+            false
+        }
+    })
 }
 
 /// Enqueues a browser key-up event into the active WebAssembly runtime and game host.

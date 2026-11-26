@@ -13,9 +13,9 @@ fn cross_platform_pixel_parity_across_all_seven_platforms_and_render_modes() {
         cfg.set_window(win);
         let mut app: App = App::with_platform(cfg, Box::new(backend)).unwrap();
         let _: NodeId = app.mount(|| {
-            let mut ctx: BuildContext = current_build_context();
+            let mut ctx: Context = current_context();
             let root: NodeId = ctx.view(
-                Style::empty()
+                Style::default()
                     .column()
                     .width(Length::Px(240.0))
                     .height(Length::Px(140.0))
@@ -24,7 +24,7 @@ fn cross_platform_pixel_parity_across_all_seven_platforms_and_render_modes() {
                     .background(Color::hex(0xF8FAFC)),
             );
             let card: NodeId = ctx.view(
-                Style::empty()
+                Style::default()
                     .column()
                     .padding(Edges::all(10.0))
                     .background(Color::hex(0xFFFFFF))
@@ -33,7 +33,7 @@ fn cross_platform_pixel_parity_across_all_seven_platforms_and_render_modes() {
             );
             let label: NodeId = ctx.text(
                 "Cross-Platform Parity".to_string(),
-                Style::empty()
+                Style::default()
                     .font_size(14.0)
                     .font_weight(FontWeight::Bold)
                     .color(Color::hex(0x0F172A)),
@@ -62,14 +62,14 @@ fn hardware_renderer_batches_primitives_and_selects_native_shaders() {
     let mut tree: SceneTree = SceneTree::default();
     let root: NodeId = tree.get_root();
     let box_a: NodeId = tree.create_view(
-        Style::empty()
+        Style::default()
             .width(Length::Px(80.0))
             .height(Length::Px(40.0))
             .background(Color::hex(0x2563EB))
             .radius(6.0),
     );
     let box_b: NodeId = tree.create_view(
-        Style::empty()
+        Style::default()
             .width(Length::Px(80.0))
             .height(Length::Px(40.0))
             .gradient(LinearGradient::new(
@@ -121,8 +121,8 @@ fn app_run_frames_steps_multiple_frames_and_exits_on_close_event() {
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
-        ctx.text("Multi-frame loop".to_string(), Style::empty())
+        let mut ctx: Context = current_context();
+        ctx.text("Multi-frame loop".to_string(), Style::default())
     });
     let stats: FrameStats = app.run_frames(Some(3)).unwrap();
     assert_eq!(stats.get_frame_index(), 3);
@@ -200,16 +200,16 @@ fn transparent_canvas_hover_skips_gray_box_and_hardware_has_readback_framebuffer
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let root: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .column()
                 .width(Length::Px(240.0))
                 .height(Length::Px(120.0))
                 .background(COLOR_WHITE),
         );
         let canvas_node: NodeId = ctx.canvas(
-            Style::empty()
+            Style::default()
                 .width(Length::Px(180.0))
                 .height(Length::Px(32.0))
                 .cursor(CursorIcon::Pointer),
@@ -266,9 +266,9 @@ fn lossless_multi_dpi_viewport_gaussian_shadow_and_supersampled_edges() {
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let root: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .column()
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
@@ -276,7 +276,7 @@ fn lossless_multi_dpi_viewport_gaussian_shadow_and_supersampled_edges() {
                 .background(Color::hex(0xF8FAFC)),
         );
         let card: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .width(Length::Px(220.0))
                 .height(Length::Px(96.0))
                 .background(Color::hex(0xFFFFFF))
@@ -380,15 +380,15 @@ fn translucent_rounded_rect_has_uniform_interior_and_no_nested_hover_tint() {
     let mut ids: (NodeId, NodeId, NodeId) =
         (NodeId::default(), NodeId::default(), NodeId::default());
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let root: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
                 .background(COLOR_WHITE),
         );
         let scrim: NodeId = ctx.portal(
-            Style::empty()
+            Style::default()
                 .position(Position::Fixed)
                 .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
                 .width(Length::Percent(100.0))
@@ -397,7 +397,7 @@ fn translucent_rounded_rect_has_uniform_interior_and_no_nested_hover_tint() {
         );
         ctx.on_click(scrim, |_: &UiEvent| {});
         let outer: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .width(Length::Px(220.0))
                 .height(Length::Px(120.0))
                 .padding(Edges::all(16.0))
@@ -405,7 +405,7 @@ fn translucent_rounded_rect_has_uniform_interior_and_no_nested_hover_tint() {
         );
         ctx.on_click(outer, |_: &UiEvent| {});
         let inner: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .width(Length::Px(160.0))
                 .height(Length::Px(40.0))
                 .radius(6.0)
@@ -446,9 +446,9 @@ fn touch_scroll_thumb_lift_reversal_never_flings_backward() {
     let mut app: App = App::headless(cfg).unwrap();
     let mut scroll_id: NodeId = NodeId::default();
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let sc: NodeId = ctx.scroll_view(
-            Style::empty()
+            Style::default()
                 .column()
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
@@ -457,7 +457,7 @@ fn touch_scroll_thumb_lift_reversal_never_flings_backward() {
         );
         for _ in 0..40 {
             let item: NodeId = ctx.view(
-                Style::empty()
+                Style::default()
                     .width(Length::Percent(100.0))
                     .height(Length::Px(56.0))
                     .background(Color::hex(0xF1F5F9)),
@@ -523,9 +523,9 @@ fn keyboard_tab_cycling_and_enter_activation_drive_focus_and_scroll() {
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let sc: NodeId = ctx.scroll_view(
-            Style::empty()
+            Style::default()
                 .column()
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
@@ -533,7 +533,7 @@ fn keyboard_tab_cycling_and_enter_activation_drive_focus_and_scroll() {
                 .background(COLOR_WHITE),
         );
         let btn_a: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .width(Length::Px(120.0))
                 .height(Length::Px(36.0))
                 .cursor(CursorIcon::Pointer),
@@ -542,7 +542,7 @@ fn keyboard_tab_cycling_and_enter_activation_drive_focus_and_scroll() {
             let _: bool = clicks_a.update(|v: &mut u32| *v += 1);
         });
         let btn_b: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .width(Length::Px(120.0))
                 .height(Length::Px(36.0))
                 .cursor(CursorIcon::Pointer),
@@ -554,7 +554,7 @@ fn keyboard_tab_cycling_and_enter_activation_drive_focus_and_scroll() {
         ctx.append(sc, btn_b);
         for _ in 0..20 {
             let filler: NodeId = ctx.view(
-                Style::empty()
+                Style::default()
                     .width(Length::Percent(100.0))
                     .height(Length::Px(48.0)),
             );
@@ -603,9 +603,9 @@ fn keyboard_tab_cycling_and_enter_activation_drive_focus_and_scroll() {
 fn layout_single_pass_and_translation_cache_skip_clean_sibling_subtrees() {
     reset_reactive_runtime();
     let scene: SceneHandle = SceneHandle::new_tree();
-    let mut ctx: BuildContext = BuildContext::new(scene.clone(), PlatformKind::Headless);
+    let mut ctx: Context = Context::new(scene.clone(), PlatformKind::Headless);
     let page: NodeId = ctx.view(
-        Style::empty()
+        Style::default()
             .column()
             .width(Length::Px(960.0))
             .padding(Edges::all(12.0))
@@ -614,14 +614,14 @@ fn layout_single_pass_and_translation_cache_skip_clean_sibling_subtrees() {
     let mut target_leaf: NodeId = NodeId::default();
     for g_idx in 0..20usize {
         let grid: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .grid(4)
                 .width(Length::Percent(100.0))
                 .gap(8.0),
         );
         for c_idx in 0..4usize {
             let card: NodeId = ctx.view(
-                Style::empty()
+                Style::default()
                     .column()
                     .width(Length::Percent(100.0))
                     .padding(Edges::all(8.0))
@@ -629,7 +629,7 @@ fn layout_single_pass_and_translation_cache_skip_clean_sibling_subtrees() {
             );
             let txt: NodeId = ctx.text(
                 format!("Card {g_idx}-{c_idx}"),
-                Style::empty().font_size(13.0),
+                Style::default().font_size(13.0),
             );
             ctx.append(card, txt);
             ctx.append(grid, card);
@@ -668,16 +668,16 @@ fn layout_single_pass_and_translation_cache_skip_clean_sibling_subtrees() {
 fn aspect_ratio_and_auto_height_centered_column_keep_children_visible_inside_bounds() {
     reset_reactive_runtime();
     let scene: SceneHandle = SceneHandle::new_tree();
-    let mut ctx: BuildContext = BuildContext::new(scene.clone(), PlatformKind::Headless);
+    let mut ctx: Context = Context::new(scene.clone(), PlatformKind::Headless);
     let page: NodeId = ctx.view(
-        Style::empty()
+        Style::default()
             .column()
             .width(Length::Px(360.0))
             .padding(Edges::all(16.0))
             .gap(12.0),
     );
     let auto_stage: NodeId = ctx.view(
-        Style::empty()
+        Style::default()
             .column()
             .width(Length::Percent(100.0))
             .padding(Edges::all(20.0))
@@ -685,10 +685,10 @@ fn aspect_ratio_and_auto_height_centered_column_keep_children_visible_inside_bou
             .align(AlignItems::Center)
             .overflow(Overflow::Hidden),
     );
-    let stage_txt: NodeId = ctx.text("Slide 1".to_string(), Style::empty().font_size(14.0));
+    let stage_txt: NodeId = ctx.text("Slide 1".to_string(), Style::default().font_size(14.0));
     ctx.append(auto_stage, stage_txt);
     let aspect: NodeId = ctx.view(
-        Style::empty()
+        Style::default()
             .column()
             .width(Length::Percent(100.0))
             .aspect_ratio(16.0 / 9.0)
@@ -696,7 +696,7 @@ fn aspect_ratio_and_auto_height_centered_column_keep_children_visible_inside_bou
             .align(AlignItems::Center)
             .overflow(Overflow::Hidden),
     );
-    let aspect_txt: NodeId = ctx.text("16:9 Ratio".to_string(), Style::empty().font_size(14.0));
+    let aspect_txt: NodeId = ctx.text("16:9 Ratio".to_string(), Style::default().font_size(14.0));
     ctx.append(aspect, aspect_txt);
     ctx.append(page, auto_stage);
     ctx.append(page, aspect);
@@ -740,4 +740,298 @@ fn aspect_ratio_and_auto_height_centered_column_keep_children_visible_inside_bou
     assert!(stb.get_y() >= sb.get_y() && stb.bottom() <= sb.bottom() + 1.0);
     assert!(atb.get_y() >= ab.get_y() && atb.bottom() <= ab.bottom() + 1.0);
     assert!((ab.get_height() - ab.get_width() / (16.0 / 9.0)).abs() < 1.5);
+}
+
+#[test]
+fn tap_jitter_and_right_edge_touch_cause_zero_scroll_drift_and_ime_focus_syncs() {
+    reset_reactive_runtime();
+    let clicks: Signal<u32> = Signal::new(0);
+    let mut scroll_id: NodeId = NodeId::default();
+    let mut btn_id: NodeId = NodeId::default();
+    let mut inp_id: NodeId = NodeId::default();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(360, 640).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        let mut ctx: Context = current_context();
+        let sc: NodeId = ctx.scroll_view(
+            Style::default()
+                .column()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .padding(Edges::all(16.0))
+                .gap(12.0)
+                .background(COLOR_WHITE),
+        );
+        let inp: NodeId = ctx.input(
+            InputNodeState::new(
+                String::new(),
+                "Enter text...".to_string(),
+                0,
+                false,
+                false,
+                false,
+            ),
+            Style::default()
+                .width(Length::Percent(100.0))
+                .height(Length::Px(40.0)),
+        );
+        let btn: NodeId = ctx.view(
+            Style::default()
+                .width(Length::Percent(100.0))
+                .height(Length::Px(44.0))
+                .cursor(CursorIcon::Pointer)
+                .background(Color::hex(0x2563EB)),
+        );
+        ctx.on_click(btn, move |_: &UiEvent| {
+            let _: bool = clicks.update(|c: &mut u32| *c += 1);
+        });
+        ctx.append(sc, inp);
+        ctx.append(sc, btn);
+        for _ in 0..25 {
+            let row: NodeId = ctx.view(
+                Style::default()
+                    .width(Length::Percent(100.0))
+                    .height(Length::Px(56.0))
+                    .background(Color::hex(0xF1F5F9)),
+            );
+            ctx.append(sc, row);
+        }
+        scroll_id = sc;
+        btn_id = btn;
+        inp_id = inp;
+        sc
+    });
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: FrameStats = app.step_frame().unwrap();
+    let btn_rect: Rect = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(btn_id)
+                .map(|n: &SceneNode| n.get_layout_box().get_bounds())
+                .unwrap_or_default()
+        },
+        Rect::default(),
+    );
+    let bx: f32 = btn_rect.get_x() + btn_rect.get_width() * 0.5;
+    let by: f32 = btn_rect.get_y() + btn_rect.get_height() * 0.5;
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(1, bx, by),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::touch(1, bx + 4.0, by + 6.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(1, bx + 4.0, by + 6.0),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    let scroll_after_tap: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(scroll_id)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                .unwrap_or(-1.0)
+        },
+        -1.0,
+    );
+    assert_eq!(clicks.get_untracked(), 1);
+    assert!(
+        scroll_after_tap.abs() < 0.01,
+        "tap with 7.2dp jitter must cause 0px drift, got {scroll_after_tap}"
+    );
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(2, 355.0, 420.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(2, 355.0, 420.0),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    let scroll_after_edge_tap: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(scroll_id)
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                .unwrap_or(-1.0)
+        },
+        -1.0,
+    );
+    assert!(
+        scroll_after_edge_tap.abs() < 0.01,
+        "right-edge touch tap must not teleport scroll offset, got {scroll_after_edge_tap}"
+    );
+    let inp_rect: Rect = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_node(inp_id)
+                .map(|n: &SceneNode| n.get_layout_box().get_bounds())
+                .unwrap_or_default()
+        },
+        Rect::default(),
+    );
+    let ix: f32 = inp_rect.get_x() + inp_rect.get_width() * 0.5;
+    let iy: f32 = inp_rect.get_y() + inp_rect.get_height() * 0.5;
+    assert!(!app.is_ime_active());
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(3, ix, iy),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(wid, PointerEvent::touch(3, ix, iy)));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(app.is_ime_active());
+    app.dispatch_window_event(WindowEvent::TextInput(wid, "ok".to_string()));
+    let _: FrameStats = app.step_frame().unwrap();
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(4, bx, by),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(wid, PointerEvent::touch(4, bx, by)));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!app.is_ime_active());
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(5, ix, iy),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(wid, PointerEvent::touch(5, ix, iy)));
+    assert!(app.is_ime_active());
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Escape, Modifiers::default(), false),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!app.is_ime_active());
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(6, ix, iy),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(wid, PointerEvent::touch(6, ix, iy)));
+    assert!(app.is_ime_active());
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Enter, Modifiers::default(), false),
+    ));
+    let _: FrameStats = app.step_frame().unwrap();
+    assert!(!app.is_ime_active());
+}
+
+#[test]
+fn portal_base_scene_cache_matches_uncached_full_redraw_bit_identically() {
+    reset_reactive_runtime();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(320, 480).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let mut panel_id: NodeId = NodeId::default();
+    let _: NodeId = app.mount(|| {
+        let mut ctx: Context = current_context();
+        let root: NodeId = ctx.view(
+            Style::default()
+                .column()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .padding(Edges::all(16.0))
+                .gap(12.0)
+                .background(Color::hex(0xF8FAFC)),
+        );
+        for idx in 0..4usize {
+            let card: NodeId = ctx.view(
+                Style::default()
+                    .column()
+                    .width(Length::Percent(100.0))
+                    .height(Length::Px(72.0))
+                    .padding(Edges::all(12.0))
+                    .background(COLOR_WHITE)
+                    .radius(12.0)
+                    .shadow(Shadow::new(
+                        0.0,
+                        4.0,
+                        12.0,
+                        0.0,
+                        Color::rgba(15, 23, 42, 32),
+                    )),
+            );
+            let txt: NodeId = ctx.text(
+                format!("Base Card #{idx}"),
+                Style::default().font_size(14.0).color(Color::hex(0x0F172A)),
+            );
+            ctx.append(card, txt);
+            ctx.append(root, card);
+        }
+        let scrim: NodeId = ctx.portal(
+            Style::default()
+                .position(Position::Fixed)
+                .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .z_index(100)
+                .background(Color::rgba(15, 23, 42, 110)),
+        );
+        let panel: NodeId = ctx.view(
+            Style::default()
+                .column()
+                .width(Length::Px(220.0))
+                .height(Length::Percent(100.0))
+                .background(COLOR_WHITE)
+                .shadow(Shadow::new(
+                    4.0,
+                    0.0,
+                    16.0,
+                    0.0,
+                    Color::rgba(15, 23, 42, 45),
+                )),
+        );
+        let ptxt: NodeId = ctx.text(
+            "Drawer Panel".to_string(),
+            Style::default().font_size(15.0).color(Color::hex(0x0F172A)),
+        );
+        ctx.append(panel, ptxt);
+        ctx.append(scrim, panel);
+        ctx.append(root, scrim);
+        panel_id = panel;
+        root
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    app.get_scene().with_write(
+        |tree: &mut SceneTree| {
+            tree.start_transition(
+                NodeTransition::slide_fade(
+                    panel_id,
+                    Point::new(-220.0, 0.0),
+                    Point::default(),
+                    1.0,
+                    1.0,
+                    0.24,
+                    false,
+                )
+                .with_easing(Easing::EaseOutQuint),
+            );
+        },
+        (),
+    );
+    let cached_stats: FrameStats = app.step_game_frame(0.08).unwrap();
+    let mut fresh_list: DisplayList = DisplayList::default();
+    app.get_scene().with_read(
+        |tree: &SceneTree| {
+            PaintPass::build(
+                tree,
+                Size::new(320.0, 480.0),
+                1.0,
+                COLOR_WHITE,
+                &mut fresh_list,
+            );
+        },
+        (),
+    );
+    let mut fresh_sw: SoftwareRenderer =
+        SoftwareRenderer::with_config(320, 480, RenderConfig::software());
+    let _: (usize, usize) = fresh_sw.render(&fresh_list, DamageRegion::full());
+    let fresh_hash: u64 = fresh_sw.get_framebuffer().fnv1a_hash();
+    assert_eq!(
+        cached_stats.get_frame_hash(),
+        fresh_hash,
+        "portal base-scene backdrop cache must remain 100% bit-identical to uncached rasterization"
+    );
 }
