@@ -40,10 +40,10 @@ members = [
     "core",
     "macros",
     "ui",
-    "cli",
     "automation",
-    "example",
     "docs",
+    "cli",
+    "example",
     "performance",
 ]
 resolver = "3"
