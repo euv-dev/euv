@@ -6,13 +6,13 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = """A declarative, cross-platform UI framework for Rust with virtual DOM, reactive signals, and HTML macros for WebAssembly."""
-keywords = ["cross-platform"]
-categories = ["network-programming", "web-programming"]
+description = """A high-performance cross-platform native UI framework for Rust targeting Web, Android, iOS, iPadOS, macOS, Windows, and Linux with direct system APIs, fine-grained reactivity, and multi-mode rendering."""
+keywords = ["cross-platform", "gui", "native", "reactive", "ui"]
+categories = ["gui", "rendering", "wasm"]
 exclude.workspace = true
 
 [workspace.package]
-version = "0.37.15"
+version = "0.38.0"
 readme = "README.md"
 edition = "2024"
 authors = ["root@devhub.vip"]
@@ -21,7 +21,6 @@ repository = "https://github.com/euv-dev/euv.git"
 exclude = [
     "target",
     "performance",
-    "automation",
     "Cargo.lock",
     "sh",
     ".github",
@@ -34,22 +33,18 @@ exclude = [
     "**/.DS_Store",
     "www",
     "dist",
-    "native",
 ]
 
 [workspace]
-exclude = ["native/tauri/src-tauri"]
 members = [
     "core",
     "macros",
-    "cli",
     "ui",
-    "engine",
-    "chart",
+    "cli",
+    "automation",
     "example",
     "docs",
     "performance",
-    "automation",
 ]
 resolver = "3"
 
@@ -57,281 +52,74 @@ resolver = "3"
 crate-type = ["rlib"]
 
 [workspace.dependencies]
-euv = { path = ".", version = "0.37.15" }
-euv-ui = { path = "ui", version = "0.37.15" }
-euv-core = { path = "core", version = "0.37.15" }
-euv-chart = { path = "chart", version = "0.37.15" }
-euv-engine = { path = "engine", version = "0.37.15" }
-euv-macros = { path = "macros", version = "0.37.15" }
+euv = { path = ".", version = "0.38.0" }
+euv-ui = { path = "ui", version = "0.38.0" }
+euv-core = { path = "core", version = "0.38.0" }
+euv-docs = { path = "docs", version = "0.38.0" }
+euv-macros = { path = "macros", version = "0.38.0" }
+euv-automation = { path = "automation", version = "0.38.0" }
 
-log = "0.4.34"
-toml = "0.9.8"
 quote = "1.0.47"
 chrono = "0.4.45"
-ignore = "0.4.33"
 js-sys = "0.3.106"
 serde_yaml = "0.9"
-if-addrs = "0.15.0"
-hyperlane = "22.8.1"
 serde_json = "1.0.154"
-color-output = "10.3.0"
 pulldown-cmark = "0.12"
 lombok-macros = "10.3.0"
 wasm-bindgen = "0.2.129"
-http-constant = "21.12.0"
-compare_version = "10.3.0"
-bin-encode-decode = "10.3.0"
-serde-wasm-bindgen = "0.6.5"
-wasm-bindgen-test = "0.3.79"
 wasm-bindgen-futures = "0.4.79"
 console_error_panic_hook = "0.1.7"
 clap = { version = "4.6.7", features = ["derive"] }
 serde = { version = "1.0.229", features = ["derive"] }
 proc-macro2 = { version = "1.0.107", features = ["span-locations"] }
 syn = { version = "3.0.9", features = ["full", "visit", "extra-traits"] }
-qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
-notify = { version = "8.2.0", default-features = false, features = [
-    "macos_fsevent",
-] }
-tokio = { version = "1.54.1", features = [
-    "fs",
-    "sync",
-    "time",
-    "macros",
-    "process",
-    "rt-multi-thread",
-] }
-merman = { version = "0.11.0", default-features = false, features = ["svg", "diagram-sequence", "diagram-flowchart"] }
 web-sys = { version = "0.3.106", features = [
     "Gpu",
-    "Blob",
-    "File",
-    "Node",
-    "Text",
     "Event",
-    "Touch",
-    "Screen",
     "Window",
     "DomRect",
     "Element",
-    "Gamepad",
-    "Headers",
     "History",
-    "Request",
     "Storage",
+    "UiEvent",
     "console",
     "Document",
-    "FileList",
-    "GainNode",
-    "GpuError",
-    "GpuQueue",
     "Location",
-    "NodeList",
-    "Response",
     "Clipboard",
-    "DragEvent",
-    "EventInit",
-    "GpuBuffer",
     "GpuDevice",
-    "GpuLoadOp",
     "ImageData",
     "Navigator",
-    "TouchList",
-    "WebSocket",
-    "AudioParam",
-    "FileReader",
-    "FocusEvent",
     "GpuAdapter",
-    "GpuSampler",
-    "GpuStoreOp",
-    "GpuTexture",
-    "InputEvent",
     "MouseEvent",
-    "TouchEvent",
     "WheelEvent",
-    "AudioBuffer",
-    "EventSource",
     "EventTarget",
-    "GpuCullMode",
-    "GpuQuerySet",
     "HtmlElement",
-    "MediaStream",
     "Performance",
-    "RequestInit",
-    "RequestMode",
-    "SubmitEvent",
     "TextMetrics",
     "WebGlBuffer",
     "WebGlShader",
-    "AudioContext",
-    "DataTransfer",
-    "GamepadEvent",
-    "GpuBindGroup",
-    "GpuColorDict",
-    "GpuFrontFace",
-    "GpuQueryType",
-    "MediaDevices",
-    "MessageEvent",
+    "PointerEvent",
     "WebGlProgram",
-    "WebGlTexture",
-    "gpu_map_mode",
-    "AudioListener",
-    "GamepadButton",
-    "GpuBlendState",
-    "GpuFilterMode",
     "KeyboardEvent",
-    "AnimationEvent",
-    "CanvasGradient",
-    "ClipboardEvent",
-    "GpuAdapterInfo",
-    "GpuAddressMode",
-    "GpuBlendFactor",
-    "GpuErrorFilter",
-    "GpuFeatureName",
-    "GpuIndexFormat",
-    "GpuTextureView",
-    "GpuVertexState",
-    "HtmlCollection",
     "MediaQueryList",
-    "ResizeObserver",
-    "ScrollBehavior",
-    "VisualViewport",
-    "DomRectReadOnly",
-    "GpuExtent3dDict",
-    "GpuOrigin2dDict",
-    "GpuOrigin3dDict",
-    "GpuRenderBundle",
-    "GpuShaderModule",
-    "GpuVertexFormat",
-    "HashChangeEvent",
-    "HtmlFormElement",
-    "HtmlHeadElement",
-    "HtmlMetaElement",
-    "TransitionEvent",
-    "gpu_color_write",
-    "DocumentFragment",
-    "GpuBufferBinding",
     "GpuCanvasContext",
-    "GpuCommandBuffer",
-    "GpuFragmentState",
-    "GpuTextureAspect",
-    "GpuTextureFormat",
-    "HtmlImageElement",
-    "HtmlInputElement",
-    "HtmlMediaElement",
-    "HtmlStyleElement",
-    "HtmlVideoElement",
-    "MediaStreamTrack",
-    "WebGlFramebuffer",
-    "gpu_buffer_usage",
-    "gpu_shader_stage",
-    "BeforeUnloadEvent",
-    "GpuAutoLayoutMode",
-    "GpuBindGroupEntry",
-    "GpuBlendComponent",
-    "GpuBlendOperation",
-    "GpuCommandEncoder",
-    "GpuDeviceLostInfo",
-    "GpuPipelineLayout",
-    "GpuPrimitiveState",
-    "GpuRenderPipeline",
-    "GpuVertexStepMode",
-    "HtmlButtonElement",
     "HtmlCanvasElement",
-    "HtmlOptionElement",
-    "HtmlSelectElement",
-    "WebGlRenderbuffer",
-    "gpu_texture_usage",
-    "GpuBindGroupLayout",
-    "GpuCanvasAlphaMode",
-    "GpuCompareFunction",
-    "GpuCompilationInfo",
-    "GpuComputePipeline",
-    "GpuPowerPreference",
-    "GpuSupportedLimits",
-    "GpuValidationError",
-    "GpuVertexAttribute",
-    "RequestCredentials",
-    "CssStyleDeclaration",
-    "GpuBufferDescriptor",
-    "GpuColorTargetState",
-    "GpuDeviceDescriptor",
-    "GpuDeviceLostReason",
-    "GpuMultisampleState",
-    "GpuOutOfMemoryError",
-    "GpuRenderPassLayout",
-    "GpuStencilFaceState",
-    "GpuStencilOperation",
-    "GpuTextureDimension",
-    "HtmlOptGroupElement",
-    "HtmlTextAreaElement",
-    "ResizeObserverEntry",
-    "AudioDestinationNode",
-    "GpuBufferBindingType",
-    "GpuDepthStencilState",
-    "GpuPrimitiveTopology",
-    "GpuProgrammableStage",
-    "GpuRenderPassEncoder",
-    "GpuSamplerDescriptor",
-    "GpuSupportedFeatures",
-    "GpuTextureDescriptor",
-    "GpuTextureSampleType",
-    "IntersectionObserver",
     "WebGlUniformLocation",
-    "AudioBufferSourceNode",
-    "GpuCompilationMessage",
-    "GpuComputePassEncoder",
-    "GpuQuerySetDescriptor",
-    "GpuVertexBufferLayout",
-    "ScrollIntoViewOptions",
-    "ScrollLogicalPosition",
-    "GpuBindGroupDescriptor",
-    "GpuBufferBindingLayout",
-    "GpuCanvasConfiguration",
-    "GpuRenderBundleEncoder",
-    "GpuTexelCopyBufferInfo",
-    "MediaStreamConstraints",
     "WebGl2RenderingContext",
-    "WebGlContextAttributes",
     "WebGlVertexArrayObject",
-    "GpuBindGroupLayoutEntry",
-    "GpuObjectDescriptorBase",
-    "GpuRenderPassDescriptor",
-    "GpuSamplerBindingLayout",
-    "GpuTexelCopyTextureInfo",
-    "GpuTextureBindingLayout",
-    "GpuTextureViewDimension",
-    "GpuUncapturedErrorEvent",
-    "AudioScheduledSourceNode",
     "CanvasRenderingContext2d",
-    "GpuComputePassDescriptor",
-    "GpuRequestAdapterOptions",
-    "GpuTextureViewDescriptor",
-    "IntersectionObserverInit",
-    "GpuRenderBundleDescriptor",
-    "GpuShaderModuleDescriptor",
-    "IntersectionObserverEntry",
-    "GpuCommandBufferDescriptor",
-    "GpuCommandEncoderDescriptor",
-    "GpuPipelineLayoutDescriptor",
-    "GpuRenderPipelineDescriptor",
-    "GpuUncapturedErrorEventInit",
-    "GpuBindGroupLayoutDescriptor",
-    "GpuComputePipelineDescriptor",
-    "GpuRenderPassColorAttachment",
-    "GpuStorageTextureBindingLayout",
-    "GpuRenderBundleEncoderDescriptor",
-    "GpuRenderPassDepthStencilAttachment",
- ] }
+] }
 
 [dependencies]
 euv-core = { workspace = true }
 euv-macros = { workspace = true }
 
+lombok-macros = { workspace = true }
+
+[target.'cfg(target_arch="wasm32")'.dependencies]
 js-sys = { workspace = true }
 web-sys = { workspace = true }
 wasm-bindgen = { workspace = true }
-lombok-macros = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 console_error_panic_hook = { workspace = true }
 
@@ -340,26 +128,10 @@ euv = { path = "." }
 euv-ui = { path = "ui" }
 euv-cli = { path = "cli" }
 euv-core = { path = "core" }
-euv-chart = { path = "chart" }
-euv-engine = { path = "engine" }
+euv-docs = { path = "docs" }
 euv-macros = { path = "macros" }
 euv-example = { path = "example" }
-
-[package.metadata.wasm-pack.profile.dev]
-wasm-opt = [
-    "-Oz",
-    "--enable-mutable-globals",
-    "--enable-bulk-memory",
-    "--enable-nontrapping-float-to-int",
-]
-
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = [
-    "-Oz",
-    "--enable-mutable-globals",
-    "--enable-bulk-memory",
-    "--enable-nontrapping-float-to-int",
-]
+euv-automation = { path = "automation" }
 
 [profile.dev]
 incremental = false
@@ -367,6 +139,7 @@ opt-level = 3
 lto = true
 panic = "unwind"
 debug = false
+debug-assertions = true
 codegen-units = 1
 strip = "debuginfo"
 
@@ -376,11 +149,6 @@ opt-level = 3
 lto = true
 panic = "unwind"
 debug = false
+debug-assertions = false
 codegen-units = 1
 strip = "debuginfo"
-
-[profile.dev.package.euv-example]
-opt-level = "z"
-
-[profile.release.package.euv-example]
-opt-level = "z"

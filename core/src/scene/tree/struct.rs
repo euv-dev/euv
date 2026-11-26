@@ -1,0 +1,80 @@
+use super::*;
+
+/// Flat generation-indexed arena holding the entire retained UI scene graph.
+#[derive(CustomDebug, Data)]
+pub struct SceneTree {
+    /// Contiguous node storage vector.
+    pub(crate) nodes: Vec<SceneNode>,
+    /// Recycled slot indices for O(1) node allocation.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) free_list: Vec<u32>,
+    /// Root scene node handle.
+    #[get(type(copy))]
+    pub(crate) root: NodeId,
+    /// Focus, hover, and pointer-press tracking state.
+    #[get(type(copy))]
+    pub(crate) focus: FocusManager,
+    /// Monotonic structural/visual mutation counter.
+    #[get(type(copy))]
+    pub(crate) revision: u64,
+    /// Active paint/transform node transitions ticked on every frame until settled.
+    pub(crate) transitions: Vec<NodeTransition>,
+    /// Blinking visibility state of the focused text input caret (`true` = visible phase).
+    #[get(type(copy))]
+    pub(crate) caret_visible: bool,
+}
+
+/// Shared handle wrapping a `SceneTree` so reactive `Effect` closures can patch nodes directly.
+#[derive(Clone, CustomDebug)]
+pub struct SceneHandle {
+    /// Shared interior-mutable reference to the thread-local scene tree.
+    pub(crate) inner: Rc<RefCell<SceneTree>>,
+}
+
+/// Mounting context passed to declarative components and `view!` macro expansions.
+#[derive(Clone, CustomDebug, Data)]
+pub struct BuildContext {
+    /// Shared scene tree handle for creating and binding nodes.
+    pub(crate) scene: SceneHandle,
+    /// Current viewport logical breakpoint signal for responsive layouts.
+    #[get(type(copy))]
+    pub(crate) breakpoint: Signal<Breakpoint>,
+    /// Current logical viewport dimensions signal updated immediately on window resize.
+    #[get(type(copy))]
+    pub(crate) viewport_size: Signal<Size>,
+    /// Current OS/app theme mode signal (`Light` / `Dark`).
+    #[get(type(copy))]
+    pub(crate) theme_mode: Signal<ThemeMode>,
+    /// Active platform kind for capability-aware adaptation.
+    #[get(type(copy))]
+    pub(crate) platform: PlatformKind,
+    /// Active safe-area insets signal.
+    #[get(type(copy))]
+    pub(crate) safe_area: Signal<SafeAreaInsets>,
+    /// Reactive stream of recognized cross-platform gestures (`Tap`, `DoubleTap`, `LongPress`, `Swipe*`, `Pan`, `Pinch`).
+    #[get(type(copy))]
+    pub(crate) gesture: Signal<Option<GestureEvent>>,
+    /// Monotonic counter incremented on OS Back button / Escape / edge-back triggers for unified overlay & router stack dismissal.
+    #[get(type(copy))]
+    pub(crate) system_back: Signal<u64>,
+    /// Shared dynamic update hub enabling ambient component-level and page-level live updates.
+    pub(crate) dynamic_hub: DynamicUpdateHub,
+    /// Optional target FPS cap across all platforms (`None` = unlimited maximum FPS by default).
+    #[get(type(copy))]
+    pub(crate) fps_limit: Signal<Option<u32>>,
+    /// Smoothed live rendered frames-per-second telemetry signal.
+    #[get(type(copy))]
+    pub(crate) live_fps: Signal<f32>,
+    /// Live snapshot of all currently active touch/pointer contacts `(pointer_id, position)` for multi-touch UIs.
+    #[get(type(copy))]
+    pub(crate) active_touches: Signal<Vec<(u64, Point)>>,
+}
+
+/// RAII scope guard restoring the previous ambient `BuildContext` on drop.
+#[derive(CustomDebug, New)]
+pub(crate) struct BuildContextGuard {
+    /// Previously bound ambient context to restore when leaving scope.
+    pub(crate) previous: Option<BuildContext>,
+}

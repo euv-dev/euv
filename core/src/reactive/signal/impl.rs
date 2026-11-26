@@ -1,722 +1,322 @@
 use super::*;
 
-/// Implementation of reactive signal operations.
-impl<T> Signal<T>
-where
-    T: Clone + PartialEq + 'static,
-{
-    /// Runs `operation` with a mutable borrow of this thread's signal slab.
-    ///
-    /// The borrow is released before this returns, so no caller can hold slab
-    /// access across a call that re-enters it. `try_borrow_mut` rather than
-    /// `borrow_mut` means a re-entrant call degrades to `fallback` instead of
-    /// panicking mid-update and leaving the slab half-mutated.
-    ///
-    /// # Arguments
-    ///
-    /// - `F` - Closure receiving `&mut SignalSlab`.
-    /// - `R` - Value returned when the slab is already mutably borrowed.
-    ///
-    /// # Returns
-    ///
-    /// - `R` - The operation's result, or `fallback` if the borrow was refused.
-    fn with_slab<F, R>(operation: F, fallback: R) -> R
-    where
-        F: FnOnce(&mut SignalSlab) -> R,
-    {
-        // The fallback is parked in a `Cell` rather than moved into the
-        // closure: both failure paths (slab already mutably borrowed, thread
-        // local destroyed) need it, and `R` is not required to be `Copy` or
-        // `Clone`. `Cell::set` takes `&self`, so the closure can still write
-        // the operation's result back out through a shared borrow.
-        let result: Cell<Option<R>> = Cell::new(Some(fallback));
-        SIGNAL_SLAB
-            .try_with(|cell: &RefCell<SignalSlab>| {
-                if let Ok(mut guard) = cell.try_borrow_mut() {
-                    result.set(Some(operation(&mut guard)));
-                }
-            })
-            .ok();
-        match result.take() {
-            Some(value) => value,
-            None => unreachable!("with_slab always leaves a result in the cell"),
-        }
-    }
-
-    /// Creates a new `Signal` with the given initial value.
-    ///
-    /// Stores the `SignalInner<T>` in the global slab ([`SIGNAL_SLAB`]) and
-    /// returns a `Signal<T>` handle carrying the slot index. The slab is
-    /// append-only: a slot always belongs to the `Signal` that created it,
-    /// so stale handles can never observe a recycled slot of a different
-    /// type.
-    ///
-    /// # Arguments
-    ///
-    /// - `T` - The initial value of the signal.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - A handle to the newly created reactive signal.
-    pub fn create(value: T) -> Self {
-        let inner: SignalInner<T> = SignalInner::new(Rc::new(value), Vec::new(), true);
-        // `usize::MAX` is out of bounds for the append-only slab, so a refused
-        // borrow can never be mistaken for a real slot. Falling back to `0`
-        // would silently alias whatever signal happens to own the first slot.
-        let idx: usize = Self::with_slab(|slab: &mut SignalSlab| slab.insert(inner), usize::MAX);
-        if idx == usize::MAX {
-            unreachable!("Signal handle does not resolve to a slab slot");
-        }
-        let mut signal: Self = Self::new(0, PhantomData);
-        signal.set_inner(idx);
-        signal
-    }
-
-    /// Returns the current value of the signal.
-    ///
-    /// Directly reads the value from the slot stored in the global slab.
-    ///
-    /// If the signal has been marked inactive (`alive == false`), returns the
-    /// last stored value without registering tracking dependencies. This
-    /// ensures that stale async callbacks (e.g., orphaned `setInterval`)
-    /// holding a `Signal` copy can still call `.get()` safely without
-    /// triggering side effects or panics.
-    ///
-    /// If a tracking context is active (i.e., a DynamicNode is being rendered),
-    /// automatically registers the current dynamic node as a dependent of
-    /// this signal for precise reactive updates.
-    ///
-    /// # Returns
-    ///
-    /// - `T` - The current value of the signal.
-    pub fn get(&self) -> T {
-        let idx: usize = self.get_inner();
-        Self::with_slab::<_, Option<T>>(
-            |slab: &mut SignalSlab| {
-                let Some(inner) = slab.get_mut::<T>(idx) else {
-                    // Unresolvable handle: the slot index was never issued by
-                    // this slab or belongs to a different concrete `T` (a
-                    // corrupted or forged handle). Slots are never freed or
-                    // recycled, so any handle produced by `Signal::create`
-                    // always resolves; a `None` here is a program bug, and
-                    // panicking is strictly better than vending a
-                    // zero-initialized `T` (unsound for non-zeroable types
-                    // such as `String` / `Vec`).
-                    unreachable!("Signal handle does not resolve to a slab slot");
-                };
-                if !inner.get_alive() {
-                    return Some(inner.get_value().as_ref().clone());
-                }
-                let tracking_id: usize = CURRENT_TRACKING_DYNAMIC_ID.load(Ordering::Relaxed);
-                if tracking_id != usize::MAX {
-                    Self::push_dependent(inner, tracking_id);
-                }
-                Some(inner.get_value().as_ref().clone())
-            },
-            None,
-        )
-        .unwrap_or_else(|| {
-            unreachable!("Signal handle does not resolve to a slab slot");
-        })
-    }
-
-    /// Read-only access to the signal value without cloning.
-    ///
-    /// OPT 17: callers that only need to inspect the value (e.g. format!, eq
-    /// check, debug print, length) can borrow via `with(|v| ...)` and avoid
-    /// one `T::clone` per call. The closure runs under the same tracking
-    /// rules as `get` (still registers `CURRENT_TRACKING_DYNAMIC_ID` if a
-    /// DynamicNode is rendering). The `T: Clone` bound stays on the impl
-    /// because `get` is required by the existing public API; `with` is the
-    /// zero-copy alternative for new code.
-    ///
-    /// The closure runs in a second phase, AFTER the slab borrow has been
-    /// released. That ordering is load-bearing: the closure is arbitrary
-    /// caller code and may read other signals — `I18n::t` nests a
-    /// `fallback_locale.with(..)` inside its `locale.with(..)`. A `RefCell`
-    /// is not reentrant, so invoking the closure under the borrow made the
-    /// inner call hit `try_borrow_mut`, get refused, and fall through to
-    /// the `unreachable!` below — aborting the test binary on a plain
-    /// nested read.
-    ///
-    /// # Arguments
-    ///
-    /// - `F` - Closure receiving `&T`.
-    ///
-    /// # Returns
-    ///
-    /// - `R` - Whatever the closure returns.
-    pub fn with<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(&T) -> R,
-    {
-        let idx: usize = self.get_inner();
-        // Phase 1: retain a shared value snapshot, releasing the
-        // borrow before any caller code runs. An inactive slot still yields
-        // its last stored value and skips dependency registration.
-        let staged: Option<Rc<T>> = Self::with_slab(
-            |slab: &mut SignalSlab| {
-                let Some(inner) = slab.get_mut::<T>(idx) else {
-                    // Unresolvable handle: unreachable for slab-issued handles
-                    // (see `get`). Return `None` rather than a zeroed `T`,
-                    // which would be unsound for non-zeroable types.
-                    return None;
-                };
-                if inner.get_alive() {
-                    let tracking_id: usize = CURRENT_TRACKING_DYNAMIC_ID.load(Ordering::Relaxed);
-                    if tracking_id != usize::MAX {
-                        Self::push_dependent(inner, tracking_id);
-                    }
-                }
-                Some(Rc::clone(inner.get_value()))
-            },
-            None,
-        );
-        let Some(value) = staged else {
-            unreachable!("Signal handle does not resolve to a slab slot");
-        };
-        // Phase 2: caller code runs with no slab borrow held.
-        f(value.as_ref())
-    }
-
-    /// Subscribes a callback to be invoked when the signal changes.
-    ///
-    /// Returns the subscription id, which can later be passed to
-    /// [`Signal::unsubscribe`] to detach exactly this listener. Framework
-    /// DOM bindings use the id to tear down a binding when its element is
-    /// removed; macro-generated `watch!` / `computed!` subscriptions keep
-    /// the id unused because their lifetime is the enclosing hook context.
-    ///
-    /// # Arguments
-    ///
-    /// - `F` - The callback to invoke when the signal changes.
-    ///
-    /// # Returns
-    ///
-    /// - `usize` - The subscription id. `usize::MAX` when the handle is stale
-    ///   (out-of-bounds slot); such an id is a safe no-op for `unsubscribe`.
-    pub fn subscribe<F>(&self, callback: F) -> usize
-    where
-        F: FnMut() + 'static,
-    {
-        let slot: usize = self.get_inner();
-        Self::with_slab(
-            |slab: &mut SignalSlab| {
-                let Some(inner) = slab.get_mut::<T>(slot) else {
-                    // Stale handle: no slot to register against — the
-                    // subscription is silently dropped, matching the previous
-                    // no-op semantics.
-                    return usize::MAX;
-                };
-                let id: usize = inner.get_next_listener_id();
-                inner.set_next_listener_id(id.wrapping_add(1));
-                inner.get_mut_listeners().push((id, Box::new(callback)));
-                id
-            },
-            usize::MAX,
-        )
-    }
-
-    /// Detaches a single listener previously registered by [`Signal::subscribe`].
-    ///
-    /// When called while the signal is mid-notification (a listener callback
-    /// triggered this call re-entrantly), the removal is deferred: the id is
-    /// recorded and filtered out during `update`'s merge-back pass, so the
-    /// detached listener cannot be resurrected into the live list.
-    ///
-    /// # Arguments
-    ///
-    /// - `usize` - The subscription id returned by `subscribe`.
-    pub fn unsubscribe(&self, id: usize) {
-        let slot: usize = self.get_inner();
-        Self::with_slab(
-            |slab: &mut SignalSlab| {
-                let Some(inner) = slab.get_mut::<T>(slot) else {
-                    return;
-                };
-                if inner.get_notifying() {
-                    inner.get_mut_removed_listener_ids().push(id);
-                    return;
-                }
-                inner
-                    .get_mut_listeners()
-                    .retain(|(listener_id, _): &ListenerEntry| *listener_id != id);
-            },
-            (),
-        );
-    }
-
-    /// Detaches this signal from the reactive system without freeing memory.
-    ///
-    /// Marks the signal inactive and clears its listeners and dependents, but
-    /// intentionally keeps the slab slot alive.
-    ///
-    /// This is the only supported teardown path for a signal, and is used by
-    /// the `use_signal` hook cleanup (when a component unmounts or a `match`
-    /// arm switches). The slot is deliberately never freed or recycled because
-    /// `Signal<T>` is `Copy` (just a `usize` slot index): async callbacks
-    /// (`spawn_local` futures, `setTimeout` / `setInterval` closures, Promise
-    /// continuations) may still hold copies of the signal, and recycling would
-    /// turn their later `.get()` / `.set()` calls into reads of an unrelated
-    /// signal. Deactivating instead makes those stale calls safe no-ops.
-    pub(crate) fn deactivate(&self) {
-        let idx: usize = self.get_inner();
-        Self::with_slab(
-            |slab: &mut SignalSlab| {
-                let Some(inner) = slab.get_mut::<T>(idx) else {
-                    // Out-of-bounds handle — treat as no-op. Mirrors the
-                    // "deactivate on already-deactivated signal is a safe
-                    // no-op" semantic.
-                    return;
-                };
-                inner.set_alive(false);
-                inner.get_mut_listeners().clear();
-                inner.get_mut_dependents().clear();
-                inner.get_mut_removed_listener_ids().clear();
-            },
-            (),
-        );
-    }
-
-    /// Core implementation of value update and listener notification.
-    ///
-    /// Returns `true` if the value was updated and listeners were notified.
-    /// Returns `false` if the signal is inactive or the value is unchanged.
-    ///
-    /// Uses a swap-out pattern for listeners: moves all listeners into a local
-    /// `Vec`, drops the mutable reference to inner state, then invokes each
-    /// listener. After invocation, listeners are moved back. This prevents
-    /// issues with re-entrant access during listener callbacks. Listeners
-    /// detached via `unsubscribe` mid-notification are filtered out during
-    /// the merge-back pass via `removed_listener_ids`.
-    ///
-    /// # Arguments
-    ///
-    /// - `T` - The new value to assign to the signal.
-    ///
-    /// # Returns
-    ///
-    /// - `bool` - `true` when the value changed and listeners were notified.
-    fn update(&self, value: T) -> bool {
-        let idx: usize = self.get_inner();
-        // Phase 1: publish the new value and take ownership of the listener
-        // list. The slab borrow MUST be released before any listener runs: a
-        // listener is free to call `get` / `set` on any signal (including this
-        // one), and a `RefCell` is not reentrant, so invoking them under the
-        // borrow would panic mid-update and leave the slot half-mutated.
-        let mut listeners: Vec<ListenerEntry> = Vec::new();
-        let started: bool = Self::with_slab(
-            |slab: &mut SignalSlab| {
-                let Some(inner) = slab.get_mut::<T>(idx) else {
-                    // Stale handle — treat as no-op.
-                    return false;
-                };
-                if !inner.get_alive() {
-                    return false;
-                }
-                if *inner.get_value().as_ref() == value {
-                    return false;
-                }
-                if let Some(current) = Rc::get_mut(inner.get_mut_value()) {
-                    *current = value;
-                } else {
-                    inner.set_value(Rc::new(value));
-                }
-                inner.set_notifying(true);
-                swap(inner.get_mut_listeners(), &mut listeners);
-                true
-            },
-            false,
-        );
-        if !started {
-            return false;
-        }
-        // Phase 2: listeners run with no slab borrow held.
-        for (_id, listener) in listeners.iter_mut() {
-            listener();
-        }
-        // Phase 3: merge the surviving listeners back into the slot.
-        Self::with_slab(
-            |slab: &mut SignalSlab| {
-                let Some(inner) = slab.get_mut::<T>(idx) else {
-                    return;
-                };
-                if !inner.get_alive() {
-                    // The signal was deactivated by a listener mid-notification.
-                    // Nothing should be merged back into a dead slot; clear the
-                    // notification state so a later `unsubscribe` cannot pile up
-                    // deferred removals that will never be drained.
-                    inner.set_notifying(false);
-                    inner.get_mut_removed_listener_ids().clear();
-                    return;
-                }
-                let removed: Vec<usize> = take(inner.get_mut_removed_listener_ids());
-                if !removed.is_empty() {
-                    listeners
-                        .retain(|(listener_id, _): &ListenerEntry| !removed.contains(listener_id));
-                }
-                let new_listeners: &mut Vec<ListenerEntry> = inner.get_mut_listeners();
-                if new_listeners.is_empty() {
-                    swap(new_listeners, &mut listeners);
-                } else {
-                    listeners.append(new_listeners);
-                    swap(new_listeners, &mut listeners);
-                }
-                inner.set_notifying(false);
-            },
-            (),
-        );
-        true
-    }
-
-    /// Registers a dynamic node ID as a dependent of the signal whose inner
-    /// state is already mutably borrowed by the caller.
-    ///
-    /// Fused form of the former `add_dependent` - `get` / `with` already hold
-    /// the slab borrow for the value read, so the dependent push happens on
-    /// the same borrow instead of resolving the slot a second time.
-    ///
-    /// OPT 9: the common rendering case is "this dependent was just added
-    /// (last element of the list)". A `deps.last() == Some(&dynamic_id)`
-    /// check short-circuits the `Vec::contains` linear scan, turning the
-    /// typical append-into-existing-list call from O(N) to O(1). Only the
-    /// rare cases (first add, or `dynamic_id` re-added after a previous
-    /// unsubscription) fall back to the full scan + push.
-    ///
-    /// # Arguments
-    ///
-    /// - `&mut SignalInner<T>` - The already-borrowed inner state owning
-    ///   the dependent list.
-    /// - `usize` - The dynamic node ID to record as a dependent.
-    fn push_dependent(inner: &mut SignalInner<T>, dynamic_id: usize) {
-        let deps: &mut Vec<usize> = inner.get_mut_dependents();
-        if let Some(last) = deps.last() {
-            if *last == dynamic_id {
-                return;
-            }
-            if !deps.contains(&dynamic_id) {
-                deps.push(dynamic_id);
-            }
-        } else {
-            deps.push(dynamic_id);
-        }
-    }
-
-    /// Takes the dependent dynamic node ID list out of the slot, leaving an
-    /// empty list behind.
-    ///
-    /// Move semantics are sound here because every dependent re-registers
-    /// itself via `get` / `with` when its dynamic node re-renders, and the
-    /// dirty marking of the taken IDs has already happened by the time the
-    /// list is drained (see `set`). Stale IDs of unmounted nodes are dropped
-    /// instead of accumulating in the slot.
-    ///
-    /// # Returns
-    ///
-    /// - `Vec<usize>` - The drained dependents list.
-    pub(crate) fn take_dependents(&self) -> Vec<usize> {
-        let idx: usize = self.get_inner();
-        Self::with_slab(
-            |slab: &mut SignalSlab| {
-                slab.get_mut::<T>(idx)
-                    .map(|inner: &mut SignalInner<T>| take(inner.get_mut_dependents()))
-                    .unwrap_or_default()
-            },
-            Vec::new(),
-        )
-    }
-
-    /// Sets the value of the signal and notifies listeners.
-    ///
-    /// Uses precise dirty marking: only dynamic nodes that depend on
-    /// this signal are marked dirty, avoiding full broadcast.
-    ///
-    /// When called inside `batch`, the dispatch is
-    /// deferred (dirty slots are still marked precisely), and the
-    /// outermost `set()` call outside the suppressed scope will
-    /// trigger the actual dispatch cycle.
-    ///
-    /// # Arguments
-    ///
-    /// - `T` - The new value to assign to the signal.
-    pub fn set(&self, value: T) {
-        if self.update(value) {
-            let dependents: Vec<usize> = self.take_dependents();
-            App::schedule_update(&dependents);
-        }
-    }
-}
-
-/// Provides a safe default for `Signal<T>` by creating a valid signal
-/// initialized with `T::default()`.
-///
-/// This prevents the creation of invalid signals with `inner = 0` (null
-/// pointer), which would cause a panic when `.get()` is called.
-///
-/// # Returns
-///
-/// - `Self` - A valid signal initialized with `T::default()`.
-impl<T> Default for Signal<T>
-where
-    T: Clone + Default + PartialEq + 'static,
-{
-    /// Constructs a default [`Signal`] value.
-    fn default() -> Self {
-        Self::create(T::default())
-    }
-}
-
-/// Clones the signal, sharing the same inner state.
-///
-/// Since `Signal` is `Copy`, this simply returns `*self`.
-///
-/// # Returns
-///
-/// - `Self` - A copy of the signal handle sharing the same inner state.
+/// Manual `Clone` implementation so `Signal<T>` is always `Copy` regardless of `T`.
 impl<T> Clone for Signal<T>
 where
-    T: Clone + PartialEq + 'static,
+    T: 'static,
 {
-    /// Clones the [`Signal`] by reusing shared, cheap-to-clone state where possible.
+    /// Copies the lightweight 8-byte signal handle.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to copy.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Identical signal handle.
     fn clone(&self) -> Self {
         *self
     }
 }
 
-/// Copies the signal, sharing the same inner state.
-///
-/// Safe because only the inner address (a `usize`) is copied;
-/// the actual heap allocation is owned by the global signal registry.
-impl<T> Copy for Signal<T> where T: Clone + PartialEq + 'static {}
+/// Marker `Copy` implementation for `Signal<T>`.
+impl<T> Copy for Signal<T> where T: 'static {}
 
-/// Marks `SignalCell` as `Sync` for single-threaded WASM contexts.
-///
-/// SAFETY: `SignalCell` is only used in single-threaded WASM contexts.
-/// Concurrent access from multiple threads would be undefined behavior.
-unsafe impl<T> Sync for SignalCell<T> where T: Clone + PartialEq + 'static {}
-
-/// Implementation of SignalCell construction and access.
-impl<T> SignalCell<T>
+/// Equality comparison by underlying `SignalId`.
+impl<T> PartialEq for Signal<T>
 where
-    T: Clone + PartialEq + 'static,
+    T: 'static,
 {
-    /// Creates a new `SignalCell` with no signal stored.
+    /// Compares two signal handles by arena identifier.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Left-hand signal handle.
+    /// - `&Self` - Right-hand signal handle.
     ///
     /// # Returns
     ///
-    /// - `Self` - An empty `SignalCell` with `None` stored in the inner `UnsafeCell`.
-    pub const fn none() -> Self {
+    /// - `bool` - True if both handles reference the same arena slot and generation.
+    fn eq(&self, other: &Self) -> bool {
+        self.id() == other.id()
+    }
+}
+
+/// Reflexive equality for `Signal<T>`.
+impl<T> Eq for Signal<T> where T: 'static {}
+
+/// Hash implementation based on underlying `SignalId`.
+impl<T> Hash for Signal<T>
+where
+    T: 'static,
+{
+    /// Hashes the underlying arena signal identifier.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to hash.
+    /// - `&mut H` - Hasher state.
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        self.id().hash(state);
+    }
+}
+
+/// Core reactive operations for `Signal<T>`.
+impl<T> Signal<T>
+where
+    T: 'static,
+{
+    /// Allocates a new reactive signal initialized with `initial_value`.
+    ///
+    /// # Arguments
+    ///
+    /// - `T` - Initial signal value.
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Copyable handle to the created signal.
+    #[must_use]
+    pub fn new(initial_value: T) -> Self {
+        let id: SignalId = with_runtime(
+            |rt: &mut ReactiveRuntime| rt.create_signal(initial_value),
+            SignalId::default(),
+        );
         Self {
-            inner: UnsafeCell::new(None),
+            id,
+            marker: PhantomData,
         }
     }
 
-    /// Stores a signal into the cell.
-    ///
-    /// First write wins: if a signal has already been stored, the new
-    /// signal is dropped and the existing one is kept.
+    /// Allocates a new reactive signal detached from any enclosing transient `Scope` so hub/store state survives UI rebuilds.
     ///
     /// # Arguments
     ///
-    /// - `Signal<T>` - The signal to store.
-    pub fn set(&self, signal: Signal<T>) {
-        unsafe {
-            let ptr: &mut Option<Signal<T>> = &mut *self.get_inner().get();
-            if ptr.is_none() {
-                *ptr = Some(signal);
-            }
-        }
-    }
-
-    /// Returns the signal stored in the cell, if any.
+    /// - `T` - Initial signal value.
     ///
     /// # Returns
     ///
-    /// - `Option<Signal<T>>` - The stored signal, or `None` when no signal
-    ///   has been stored via `set` yet.
-    pub fn loaded(&self) -> Option<Signal<T>> {
-        unsafe {
-            let ptr: &Option<Signal<T>> = &*self.get_inner().get();
-            *ptr
-        }
-    }
-}
-
-/// Provides a default empty `SignalCell`.
-///
-/// Creates a `SignalCell` with `None` stored in the inner `UnsafeCell`.
-///
-/// # Returns
-///
-/// - `Self` - An empty `SignalCell` with no signal stored.
-impl<T> Default for SignalCell<T>
-where
-    T: Clone + PartialEq + 'static,
-{
-    /// Constructs a default [`SignalCell`] value.
-    fn default() -> Self {
-        Self::new(UnsafeCell::new(None))
-    }
-}
-
-/// Implementation of `FireHandle` construction, invocation, and conversions.
-impl FireHandle {
-    /// Leaks the given closure and returns a handle pointing to its heap address.
-    ///
-    /// The closure is double-boxed (`Box<Box<dyn FnMut()>>`) and leaked so the
-    /// inner box's address remains stable for the lifetime of the program.
-    /// The address is captured as a `usize` and wrapped in a `FireHandle`.
-    ///
-    /// # Arguments
-    ///
-    /// - `F` - The fire closure to leak.
-    ///
-    /// # Returns
-    ///
-    /// - `Self` - A handle holding the leaked closure's address.
-    pub fn new<F>(fire: F) -> Self
-    where
-        F: FnMut() + 'static,
-    {
-        let leaked: &'static mut Box<dyn FnMut()> =
-            Box::leak(Box::new(Box::new(fire) as Box<dyn FnMut()>));
-        let addr: usize = leaked as *mut Box<dyn FnMut()> as usize;
-        let mut handle: Self = Self { inner: 0 };
-        handle.set_inner(addr);
-        handle
-    }
-
-    /// Invokes the closure pointed to by this handle.
-    ///
-    /// Takes `self` by value because `FireHandle: Copy` — repeated invocations
-    /// on a single captured handle each copy the address and operate on the
-    /// same underlying closure.
-    ///
-    /// # Safety
-    ///
-    /// The handle must come from `FireHandle::new` (or `From`) and the
-    /// underlying boxed closure must still be live.
-    pub unsafe fn fire(self) {
-        unsafe { Self::fire_at(self.get_inner()) };
-    }
-
-    /// Invokes the closure stored at the given address.
-    ///
-    /// This is the static counterpart of `fire` for call sites that have
-    /// only the raw `usize` address (e.g., macro-generated code that
-    /// captures the address by `move` into a subscribe closure).
-    ///
-    /// # Arguments
-    ///
-    /// - `usize` - The address of a leaked `Box<dyn FnMut()>`.
-    ///
-    /// # Safety
-    ///
-    /// `addr` must come from a valid `FireHandle` produced by `new` (or
-    /// `From`) and the underlying boxed closure must still be live.
-    pub unsafe fn fire_at(addr: usize) {
-        let ptr: *mut Box<dyn FnMut()> = addr as *mut Box<dyn FnMut()>;
-        unsafe { (&mut *ptr)() };
-    }
-}
-
-/// Leaks a fire closure into a `FireHandle`.
-///
-/// This is the canonical `Into` path used by `watch!`/`computed!` macros
-/// and the virtual list component to obtain a `FireHandle` from a closure.
-impl<F> From<F> for FireHandle
-where
-    F: FnMut() + 'static,
-{
-    /// Leaks this closure and stores its address in the returned handle.
-    ///
-    /// # Returns
-    ///
-    /// - `FireHandle` - A handle holding the leaked closure's address.
-    ///
-    /// # Arguments
-    ///
-    /// - `F` - Input value to convert from.
-    fn from(fire: F) -> Self {
-        Self::new(fire)
-    }
-}
-
-/// Extracts the raw address from a `FireHandle`.
-///
-/// This is used by macro-generated code that needs to capture the address
-/// (a `Copy` type) into `FnMut() + 'static` subscribe closures.
-impl From<FireHandle> for usize {
-    /// Returns the leaked closure's heap address.
-    ///
-    /// # Returns
-    ///
-    /// - `usize` - The address held by this handle.
-    ///
-    /// # Arguments
-    ///
-    /// - `FireHandle` - Input value to convert from.
-    fn from(handle: FireHandle) -> Self {
-        handle.get_inner()
-    }
-}
-
-/// Implementation of the typed signal slab allocator.
-impl SignalSlab {
-    /// Creates an empty slab.
-    pub(crate) fn new() -> Self {
+    /// - `Self` - Copyable handle to the created detached signal.
+    #[must_use]
+    pub fn new_detached(initial_value: T) -> Self {
+        let id: SignalId = with_runtime(
+            |rt: &mut ReactiveRuntime| rt.create_detached_signal(initial_value),
+            SignalId::default(),
+        );
         Self {
-            entries: Vec::new(),
+            id,
+            marker: PhantomData,
         }
     }
 
-    /// Inserts a new typed `SignalInner<T>` and returns its slot index.
-    ///
-    /// Append-only: the slot index issued here is never reused for another
-    /// signal, which is what makes stale-handle reads sound (they always
-    /// resolve to this slot's original, possibly deactivated, inner state).
+    /// Returns the underlying `SignalId`.
     ///
     /// # Arguments
     ///
-    /// - `SignalInner<T>` - The typed inner state to store in a new slot.
+    /// - `&Self` - Signal handle.
     ///
     /// # Returns
     ///
-    /// - `usize` - The freshly issued slot index.
-    pub(crate) fn insert<T>(&mut self, inner: SignalInner<T>) -> usize
-    where
-        T: Clone + PartialEq + 'static,
-    {
-        let boxed: Box<dyn AnySignalInner> = Box::new(inner);
-        let idx: usize = self.get_entries().len();
-        self.get_mut_entries().push(boxed);
-        idx
+    /// - `SignalId` - Underlying arena identifier.
+    #[must_use]
+    pub fn id(&self) -> SignalId {
+        let Self { id, .. } = *self;
+        id
     }
 
-    /// Returns a typed `&mut SignalInner<T>` view of the slot at `idx`.
-    ///
-    /// Returns `None` when the index is out of bounds or was issued for a
-    /// different concrete `T` (defensive TypeId check). Slots are never
-    /// freed, so `None` means the caller is holding a corrupted handle —
-    /// surfaced as `None` rather than panicking so that stale handles
-    /// degrade into safe no-ops (matching the `alive == false` semantics).
+    /// Records a dependency on this signal in the active observer without cloning its value.
     ///
     /// # Arguments
     ///
-    /// - `usize` - The slot index previously issued by
-    ///   [`SignalSlab::insert`].
+    /// - `&Self` - Signal handle to track.
+    pub fn track(&self) {
+        let id: SignalId = self.id();
+        with_runtime(
+            |rt: &mut ReactiveRuntime| {
+                rt.track_dependency(DependencyId::Signal(id));
+            },
+            (),
+        );
+    }
+
+    /// Reads the current value by cloning and tracks the active observer dependency.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to read.
     ///
     /// # Returns
     ///
-    /// - `Option<&mut SignalInner<T>>` - The typed view of the slot, or
-    ///   `None` when the index is out of bounds or belongs to another `T`.
-    pub(crate) fn get_mut<T>(&mut self, idx: usize) -> Option<&mut SignalInner<T>>
+    /// - `Option<T>` - Current value if the signal is still alive.
+    #[must_use]
+    pub fn try_get(&self) -> Option<T>
     where
-        T: Clone + PartialEq + 'static,
+        T: Clone,
     {
-        self.get_mut_entries()
-            .get_mut(idx)?
-            .as_any_mut()
-            .downcast_mut::<SignalInner<T>>()
+        let id: SignalId = self.id();
+        with_runtime(
+            |rt: &mut ReactiveRuntime| rt.read_signal_cloned::<T>(id),
+            None,
+        )
+    }
+
+    /// Reads the current value, returning `T::default()` if the signal was disposed.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to read.
+    ///
+    /// # Returns
+    ///
+    /// - `T` - Current value or default fallback.
+    #[must_use]
+    pub fn get(&self) -> T
+    where
+        T: Clone + Default,
+    {
+        self.try_get().unwrap_or_default()
+    }
+
+    /// Reads the current value without tracking any reactive dependency.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to inspect.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<T>` - Current value if alive.
+    #[must_use]
+    pub fn try_get_untracked(&self) -> Option<T>
+    where
+        T: Clone,
+    {
+        let id: SignalId = self.id();
+        with_runtime(
+            |rt: &mut ReactiveRuntime| rt.read_signal_untracked::<T>(id),
+            None,
+        )
+    }
+
+    /// Reads the current value untracked, returning `T::default()` if disposed.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to inspect.
+    ///
+    /// # Returns
+    ///
+    /// - `T` - Current value or default fallback.
+    #[must_use]
+    pub fn get_untracked(&self) -> T
+    where
+        T: Clone + Default,
+    {
+        self.try_get_untracked().unwrap_or_default()
+    }
+
+    /// Applies `reader` to a cloned snapshot outside any `RefCell` borrow so nested reads remain safe.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to read.
+    /// - `F` - Reader closure receiving `&T`.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<R>` - Closure return value if the signal is alive.
+    pub fn with<F, R>(&self, reader: F) -> Option<R>
+    where
+        T: Clone,
+        F: FnOnce(&T) -> R,
+    {
+        let snapshot: T = self.try_get()?;
+        Some(reader(&snapshot))
+    }
+
+    /// Replaces the stored value and flushes downstream reactive effects.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to write.
+    /// - `T` - Replacement value.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True when the signal was alive and updated.
+    pub fn set(&self, value: T) -> bool {
+        let id: SignalId = self.id();
+        let (updated, should_flush): (bool, bool) = with_runtime(
+            |rt: &mut ReactiveRuntime| rt.write_signal(id, value),
+            (false, false),
+        );
+        if should_flush {
+            flush_effects();
+        }
+        updated
+    }
+
+    /// Replaces the stored value only when `value` differs from the current stored value.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to write.
+    /// - `T` - Candidate value.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True when the value changed and downstream effects were scheduled.
+    pub fn set_if_changed(&self, value: T) -> bool
+    where
+        T: PartialEq,
+    {
+        let id: SignalId = self.id();
+        let (updated, should_flush): (bool, bool) = with_runtime(
+            |rt: &mut ReactiveRuntime| rt.write_signal_if_changed(id, value),
+            (false, false),
+        );
+        if should_flush {
+            flush_effects();
+        }
+        updated
+    }
+
+    /// Mutates the signal value using `updater` outside the runtime borrow and flushes effects.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to update.
+    /// - `F` - Mutation closure receiving `&mut T`.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True when the signal was alive and updated.
+    pub fn update<F>(&self, updater: F) -> bool
+    where
+        T: Clone,
+        F: FnOnce(&mut T),
+    {
+        let Some(mut current) = self.try_get_untracked() else {
+            return false;
+        };
+        updater(&mut current);
+        self.set(current)
+    }
+
+    /// Disposes this signal and reclaims its arena slot.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Signal handle to dispose.
+    pub fn dispose(&self) {
+        let id: SignalId = self.id();
+        with_runtime(
+            |rt: &mut ReactiveRuntime| {
+                rt.dispose_signal(id);
+            },
+            (),
+        );
     }
 }

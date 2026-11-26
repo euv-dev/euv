@@ -6,30 +6,24 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = """The official CLI tool for the euv UI framework, providing dev/release profiles with run/build modes, hot reload, and wasm-pack integration."""
-keywords = ["cross-platform"]
-categories = ["network-programming", "web-programming"]
+description = """Cross-platform CLI tool for the euv native UI framework supporting run, build, check, fmt, doctor, and new across Web, Android, iOS, iPadOS, macOS, Windows, and Linux."""
+keywords = ["cli", "cross-platform", "gui", "native", "ui"]
+categories = ["command-line-utilities", "development-tools", "gui"]
 exclude.workspace = true
 autotests = false
+
+[lib]
+crate-type = ["rlib"]
 
 [[bin]]
 name = "euv"
 path = "src/main.rs"
 
 [dependencies]
-log = { workspace = true }
+euv-core = { workspace = true }
+euv-docs = { workspace = true }
+
 clap = { workspace = true }
 serde = { workspace = true }
-tokio = { workspace = true }
-ignore = { workspace = true }
-notify = { workspace = true }
-qrcode = { workspace = true }
-if-addrs = { workspace = true }
-hyperlane = { workspace = true }
 serde_json = { workspace = true }
-color-output = { workspace = true }
 lombok-macros = { workspace = true }
-
-[dev-dependencies]
-clap = { workspace = true }
-tokio = { workspace = true }

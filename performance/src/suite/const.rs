@@ -1,0 +1,36 @@
+/// CLI flag to emit JSON benchmark report output.
+pub const BENCH_FLAG_JSON: &str = "--json";
+
+pub(crate) const BENCH_REACTIVE_NAME: &str = "reactive_signal_memo_diamond";
+pub(crate) const BENCH_SELECTOR_NAME: &str = "reactive_selector_o1_switch";
+pub(crate) const BENCH_LAYOUT_CACHE_NAME: &str = "layout_clean_subtree_cache";
+pub(crate) const BENCH_SW_RASTER_NAME: &str = "render_software_sdf_800x600";
+pub(crate) const BENCH_SW_FULL_NAME: &str = "render_software_full_redraw";
+pub(crate) const BENCH_HW_BATCH_NAME: &str = "render_hardware_gpu_batching";
+pub(crate) const BENCH_GLYPH_ATLAS_NAME: &str = "font_unicode_cjk_atlas_pack";
+pub(crate) const BENCH_GAME_PHYSICS_NAME: &str = "game_ecs_physics_256_bodies";
+pub(crate) const BENCH_GAME_PARTICLES_NAME: &str = "game_particles_1024_pool";
+pub(crate) const BENCH_GAME_3D_RT_NAME: &str = "game3d_pbr_bvh_raytrace";
+pub(crate) const BENCH_GAME_3D_MAX_RT_NAME: &str = "game3d_cinematic_max_rt_125pct";
+pub(crate) const BENCH_STRESS_LONG_LIST_NAME: &str = "stress_long_list_virtual_100k";
+pub(crate) const BENCH_STRESS_COMPLEX_LAYOUT_NAME: &str = "stress_complex_layout_2000_nodes";
+pub(crate) const BENCH_STRESS_BULK_REACTIVE_NAME: &str = "stress_bulk_reactive_1000_nodes";
+pub(crate) const BENCH_STRESS_WASM_LOAD_NAME: &str = "stress_wasm_dynamic_load_hotswap";
+pub(crate) const BENCH_STRESS_HIDPI_4X_NAME: &str = "stress_hidpi_4x_1440x3168_scroll";
+pub(crate) const BENCH_STRESS_INPUT_HITTEST_NAME: &str = "stress_240hz_scroll_and_hittest";
+pub(crate) const BENCH_ROW_LABEL: &str = "Benchmark Item";
+pub(crate) const BENCH_TITLE: &str = "Benchmark Surface";
+pub(crate) const BENCH_SUBTITLE: &str = "Multi-mode rendering telemetry";
+pub(crate) const BENCH_BADGE: &str = "PERF";
+pub(crate) const BENCH_WASM_SLOT: &str = "bench_wasm_slot";
+pub(crate) const BENCH_WASM_URL_V1: &str = "euv-cdn://bench/widget-v1.wasm";
+pub(crate) const BENCH_WASM_URL_V2: &str = "euv-cdn://bench/widget-v2.wasm";
+pub(crate) const BENCH_WASM_ETAG_V1: &str = "bench-v1";
+pub(crate) const BENCH_WASM_ETAG_V2: &str = "bench-v2";
+pub(crate) const BENCH_WASM_TITLE_V1: &str = "Bench Dynamic WASM Widget v1";
+pub(crate) const BENCH_WASM_TITLE_V2: &str = "Bench Dynamic WASM Widget v2";
+pub(crate) const BENCH_WASM_SIGN_KEY: &str = "bench-signing-key";
+pub(crate) const BENCH_WASM_ROLLBACK_REASON: &str = "bench-cycle";
+pub(crate) const BENCH_CELL_LABEL: &str = "Cell";
+pub(crate) const BENCH_CARD_CAPTION: &str = "Multi-DPI lossless shadow card";
+pub(crate) const REPORT_HEADER: &str = "euv Cross-Platform Native Benchmark & Stress Suite\n-------------------------------------------------------------------------------\n";

@@ -1,0 +1,37 @@
+/// Default localhost address for the dev-only AI Schema v1 HTTP/JSON inspector server.
+pub const DEV_AI_INSPECTOR_ADDR: &str = "127.0.0.1:4174";
+
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_METHOD_OPTIONS: &str = "OPTIONS";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_SCHEMA: &str = "/schema";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_AI_SCHEMA: &str = "/ai/schema";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_SNAPSHOT: &str = "/snapshot";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_AI_SNAPSHOT: &str = "/ai/snapshot";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_AI_A11Y: &str = "/ai/a11y";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_AI_HEALTH: &str = "/ai/health";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_QUERY: &str = "/query";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_AI_QUERY: &str = "/ai/query";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_AI_ACTION: &str = "/ai/action";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_PATH_AI_SCRIPT: &str = "/ai/script";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_HEADER_CONTENT_LENGTH: &str = "content-length";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_HEADER_SEP_BYTES: &[u8] = b"\r\n\r\n";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const HTTP_OPTIONS_RESPONSE: &str = "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const ERR_INVALID_ACTION_JSON: &str = "Invalid AI action JSON";
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+pub(crate) const ERR_INVALID_SCRIPT_JSON: &str = "Invalid AI test script JSON";

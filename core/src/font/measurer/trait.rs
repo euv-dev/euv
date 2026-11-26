@@ -1,0 +1,18 @@
+use super::*;
+
+/// Pluggable text measurement interface enabling deterministic cross-platform text layout.
+pub trait TextMeasurer {
+    /// Measures and wraps `text` under `style` within an optional `max_width` constraint.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Text measurer reference.
+    /// - `&str` - UTF-8 text to lay out.
+    /// - `TextStyle` - Typography style parameters.
+    /// - `Option<f32>` - Optional maximum line width in logical pixels.
+    ///
+    /// # Returns
+    ///
+    /// - `TextLayoutResult` - Wrapped lines and aggregate bounding box.
+    fn measure(&self, text: &str, style: TextStyle, max_width: Option<f32>) -> TextLayoutResult;
+}

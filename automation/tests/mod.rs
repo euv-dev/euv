@@ -1,5 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
-mod contract;
+mod automation;
 
-#[cfg(not(target_arch = "wasm32"))]
 use super::*;

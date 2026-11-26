@@ -1,52 +1,29 @@
 //! euv-ui
 //!
-//! Reusable UI component library for the euv framework,
-//! providing buttons, cards, modals, inputs, theme management, and more.
+//! Cross-platform UI component library and 17-scheme design system for euv,
+//! rendering pixel-consistently across Web, Android, iOS, iPadOS, macOS,
+//! Windows, and Linux with zero CSS runtime overhead.
 
 mod component;
-mod dom;
 mod hook;
-mod style;
+mod overlay_stack;
+mod router;
+mod theme;
 
 #[cfg(test)]
 #[path = "../tests/mod.rs"]
 mod tests;
 
-pub use {component::*, hook::*, style::*};
-
-pub(crate) use hook::use_form_reset;
-
-use dom::*;
-
-use euv::*;
+pub use {component::*, hook::*, overlay_stack::*, router::*, theme::*};
 
 use std::{
-    any::Any,
-    cell::{Cell, Ref, RefCell, RefMut, UnsafeCell},
-    collections::{HashMap, HashSet},
-    fmt::{self, Debug, Display, Formatter},
-    hash::Hash,
-    ops::Deref,
-    panic::{AssertUnwindSafe, UnwindSafe, catch_unwind},
-    ptr::addr_of_mut,
+    cell::{Cell, Ref, RefCell},
+    collections::HashMap,
+    f32::consts::{FRAC_PI_2, TAU},
     rc::Rc,
-    sync::{
-        LazyLock, OnceLock, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-    },
 };
 
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
-// The weak handle the splitter's drag teardown uses to reach its own
-// slot without keeping it alive. Only the browser build has a drag.
-#[cfg(target_arch = "wasm32")]
-use std::rc::Weak;
-
-use wasm_bindgen_futures::*;
-
-#[cfg(test)]
-use proc_macro2::{Delimiter, TokenStream, TokenTree};
-#[cfg(test)]
-use syn::LitStr;
+use {
+    euv::*,
+    lombok_macros::{CustomDebug, Data, Getter, New},
+};

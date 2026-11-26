@@ -6,19 +6,18 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = """A documentation site generator powered by euv + euv-ui (Rust/WASM)."""
-keywords = ["docs", "static-site", "wasm", "euv"]
-categories = ["web-programming"]
+description = """Cross-platform documentation viewer and static site generator powered by euv and euv-ui."""
+keywords = ["cross-platform", "docs", "gui", "markdown", "ui"]
+categories = ["gui", "text-processing", "wasm"]
 exclude.workspace = true
 autotests = false
 
-[dependencies]
-euv = { workspace = true }
-euv-ui = { workspace = true }
+[lib]
+crate-type = ["rlib"]
 
-chrono = { workspace = true }
-serde_json = { workspace = true }
-lombok-macros = { workspace = true }
+[[bin]]
+name = "euv-docs"
+path = "src/main.rs"
 
 [features]
 default = []
@@ -27,28 +26,26 @@ theme-geist = ["euv-ui/theme-geist"]
 theme-radix = ["euv-ui/theme-radix"]
 theme-fluent = ["euv-ui/theme-fluent"]
 theme-heroui = ["euv-ui/theme-heroui"]
+theme-linear = ["euv-ui/theme-linear"]
+theme-notion = ["euv-ui/theme-notion"]
 theme-shadcn = ["euv-ui/theme-shadcn"]
+theme-stripe = ["euv-ui/theme-stripe"]
 theme-daisyui = ["euv-ui/theme-daisyui"]
 theme-mantine = ["euv-ui/theme-mantine"]
 theme-material = ["euv-ui/theme-material"]
+theme-supabase = ["euv-ui/theme-supabase"]
 theme-antdesign = ["euv-ui/theme-antdesign"]
 theme-bootstrap = ["euv-ui/theme-bootstrap"]
 theme-cupertino = ["euv-ui/theme-cupertino"]
 theme-monochrome = ["euv-ui/theme-monochrome"]
 
-[build-dependencies]
-merman = { workspace = true }
+[dependencies]
+euv = { workspace = true }
+euv-ui = { workspace = true }
+
+serde = { workspace = true }
+chrono = { workspace = true }
+serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-http-constant = { workspace = true }
+lombok-macros = { workspace = true }
 pulldown-cmark = { workspace = true }
-
-[dev-dependencies]
-merman = { workspace = true }
-
-[lib]
-crate-type = ["cdylib", "rlib"]
-
-[[bin]]
-name = "euv-docs"
-path = "src/bin/docs/main.rs"
-required-features = []

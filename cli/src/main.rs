@@ -1,33 +1,20 @@
-use euv_cli::*;
+use std::process::exit;
 
-use clap::Parser;
+use {
+    clap::Parser,
+    euv_cli::{Cli, execute_cli},
+};
 
-/// Entry point for the euv CLI.
-///
-/// Parses command-line arguments and dispatches to the appropriate
-/// mode (run/build/fmt).
-///
-/// - `run` — build + file watcher + dev server
-/// - `build` — build only
-/// - `fmt` — format euv macro invocations
-///
-/// # Returns
-///
-/// - `Result<(), EuvError>` - `Ok(())` after the selected mode finished.
-#[tokio::main]
-pub async fn main() -> Result<(), EuvError> {
-    Logger::init(log::LevelFilter::Info);
+/// Body of the `main` free function.
+fn main() {
     let cli: Cli = Cli::parse();
-    match cli.get_command() {
-        Mode::Run(mode_args) => {
-            run_mode(mode_args.clone()).await?;
+    match execute_cli(&cli) {
+        Ok(output) => {
+            println!("{output}");
         }
-        Mode::Build(build_args) => {
-            dispatch_build_mode(build_args.clone()).await?;
-        }
-        Mode::Fmt(fmt_args) => {
-            fmt_mode(fmt_args.clone()).await?;
+        Err(err) => {
+            eprintln!("{err}");
+            exit(1);
         }
     }
-    Ok(())
 }

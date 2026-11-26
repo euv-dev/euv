@@ -1,40 +1,25 @@
 //! euv-performance
 //!
-//! Reproducible CPU and allocation benchmarks for the complete euv runtime.
+//! Reproducible CPU, reactive propagation, retained layout cache, and
+//! multi-mode rendering benchmark suite for the cross-platform euv runtime.
 
-mod config;
-mod load;
-mod memory;
-mod runner;
+mod suite;
+
 #[cfg(test)]
 #[path = "../tests/mod.rs"]
 mod tests;
 
-pub use runner::*;
+pub use suite::*;
 
-pub(crate) use {config::*, load::*, memory::*};
-
-#[cfg(feature = "allocation-tracking")]
 use std::{
-    alloc::{GlobalAlloc, Layout, System},
-    thread::AccessError,
-};
-use std::{
-    cell::Cell,
-    env::{
-        self,
-        consts::{ARCH, OS},
-    },
-    error::Error,
-    fs,
-    hint::black_box,
-    mem::{replace, take},
-    num::NonZeroUsize,
-    path::PathBuf,
-    process::{Command, Output},
     rc::Rc,
-    thread::available_parallelism,
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
-use {euv::*, euv_chart::*, euv_engine::*, serde::Serialize, serde_json::to_string_pretty};
+use {
+    euv::*,
+    euv_ui::*,
+    lombok_macros::{Getter, New},
+    serde::{Deserialize, Serialize},
+    serde_json::to_string_pretty,
+};

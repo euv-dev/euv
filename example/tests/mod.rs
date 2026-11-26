@@ -1,6 +1,3 @@
-mod animation;
-mod color;
-mod mobile_theme_header;
-mod navigation;
+mod showcase;
 
 use super::*;

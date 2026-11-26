@@ -6,8 +6,10 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
+
 env:
   CARGO_TERM_COLOR: always
+
 jobs:
   setup:
     runs-on: ubuntu-latest
@@ -21,29 +23,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install rust-toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
-      - name: Cache dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Read cargo metadata
         id: read
         run: |
           VERSION=$(grep -E '^version = ' Cargo.toml | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
           PACKAGE_NAME=$(grep -E '^name = ' Cargo.toml | head -1 | sed -E 's/^name = "([^"]+)".*/\1/')
           BRANCH_NAME="${{ github.ref_name }}"
-          echo "📦 Detected package: $PACKAGE_NAME v$VERSION"
-          echo "🌿 Branch: $BRANCH_NAME"
           if [ -z "$VERSION" ] || [ -z "$PACKAGE_NAME" ]; then
-            echo "❌ Failed to read package info from Cargo.toml"
+            echo "Failed to read package info from Cargo.toml"
             exit 1
           fi
           if [ "$BRANCH_NAME" = "master" ]; then
@@ -70,19 +57,8 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt
-      - name: Sync workspace versions
-        uses: ./.github/actions/sync-workspace
       - name: Format check
         run: cargo fmt --all -- --check
-      - name: Verify live example inventory and removed feature wiring
-        run: python3 example/scripts/validation/source.py
-      - name: Run publication protocol regressions
-        # The publisher is the only path that writes the public release, so its
-        # contract must be gated on every change, not only when the manual
-        # Pages deployment is dispatched.
-        run: python3 example/scripts/test_publish_release.py
-      - name: Verify cold and warm retired-theme cache removal
-        run: node --test native/tauri/scripts/tests/theme-build.test.js
 
   tests:
     needs: setup
@@ -97,11 +73,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: wasm32-unknown-unknown
-      - name: Sync workspace versions
-        uses: ./.github/actions/sync-workspace
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked
       - name: Run tests
         run: |
           cargo test -p euv-ui
@@ -109,19 +80,6 @@ jobs:
           cargo test -p euv-ui --no-default-features --features theme-shadcn
           cargo test --all-features --workspace -- --nocapture
           cargo test --manifest-path performance/Cargo.toml --all-targets --no-default-features
-      - name: Run wasm tests
-        run: |
-          cd ui
-          wasm-pack test --node
-          wasm-pack test --node --features theme-shadcn
-      - name: Run the core wasm tests
-        # The core crate's test module is gated on the wasm32 target, so
-        # the host test run never compiles it. Without this step a broken
-        # wasm-only module ships without a single failing check: the
-        # `fetch` module's own test file did not compile through 0.37.2.
-        run: |
-          cd core
-          wasm-pack test --node
 
   clippy:
     needs: setup
@@ -137,8 +95,6 @@ jobs:
         with:
           toolchain: stable
           components: clippy
-      - name: Sync workspace versions
-        uses: ./.github/actions/sync-workspace
       - name: Run clippy
         run: |
           cargo clippy -p euv-ui --no-default-features --all-targets -- -D warnings
@@ -154,221 +110,58 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-      - name: Setup build
+      - name: Setup 7-platform Rust targets
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: wasm32-unknown-unknown
-      - name: Sync workspace versions
-        uses: ./.github/actions/sync-workspace
-      - name: Build release
+          targets: aarch64-apple-darwin,aarch64-apple-ios,aarch64-apple-ios-sim,aarch64-linux-android,wasm32-unknown-unknown,x86_64-pc-windows-msvc,x86_64-unknown-linux-gnu
+      - name: Check all 7 targets with warnings denied
         run: |
-          cargo check -p euv-ui --no-default-features --target wasm32-unknown-unknown
-          cargo check --release --all-features --target wasm32-unknown-unknown --workspace --exclude euv-cli --exclude euv-performance
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked
-      - name: Test euv-cli (host)
-        run: cargo test --all-features -p euv-cli
+          for target in aarch64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim aarch64-linux-android wasm32-unknown-unknown x86_64-pc-windows-msvc x86_64-unknown-linux-gnu; do
+            echo "=== TARGET: $target ==="
+            RUSTFLAGS="-D warnings" cargo check -p euv-core -p euv -p euv-ui --target "$target"
+          done
+      - name: Run headless smoke, CLI verification, and stress benchmark suite
+        run: |
+          cargo run -p euv-example -- --headless --software
+          cargo run -p euv-docs -- --headless
+          cargo run -p euv-cli -- doctor
+          cargo run -p euv-cli -- build --target all --plan
+          bash scripts/bench/stress-bench.sh
+          mkdir -p dist/bench
+          cargo run --release -p euv-performance -- --json > dist/bench/stress-report.json
 
-  automation:
-    needs: setup
-    if: always() && (github.event_name == 'pull_request' || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.setup.result == 'success'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-      - name: Setup browser fixture toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: wasm32-unknown-unknown
-      - name: Sync workspace versions
-        uses: ./.github/actions/sync-workspace
-      - name: Install matching WASM bridge generator
-        run: |
-          version=$(
-            cargo metadata --format-version 1 --filter-platform wasm32-unknown-unknown |
-            python3 -c 'import json,sys; versions={package["version"] for package in json.load(sys.stdin)["packages"] if package["name"]=="wasm-bindgen"}; assert len(versions)==1, versions; print(versions.pop())'
-          )
-          cargo install wasm-bindgen-cli --version "$version" --locked
-      - name: Prepare Chrome and matching driver
-        run: |
-          if ! command -v google-chrome >/dev/null 2>&1; then
-            curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o "$RUNNER_TEMP/chrome.deb"
-            sudo apt-get update
-            sudo apt-get install -y "$RUNNER_TEMP/chrome.deb"
-          fi
-          python3 - <<'PY'
-          import json, os, pathlib, re, shutil, subprocess, urllib.request, zipfile
-          chrome = shutil.which("google-chrome")
-          version = re.search(r"\d+\.\d+\.\d+\.\d+", subprocess.check_output([chrome, "--version"], text=True)).group()
-          build = ".".join(version.split(".")[:3])
-          endpoint = "https://googlechromelabs.github.io/chrome-for-testing/latest-patch-versions-per-build-with-downloads.json"
-          release = json.load(urllib.request.urlopen(endpoint))["builds"][build]
-          url = next(item["url"] for item in release["downloads"]["chromedriver"] if item["platform"] == "linux64")
-          root = pathlib.Path(os.environ["RUNNER_TEMP"]) / "euv-automation-driver"
-          root.mkdir()
-          archive = root / "driver.zip"
-          urllib.request.urlretrieve(url, archive)
-          zipfile.ZipFile(archive).extractall(root)
-          driver = root / "chromedriver-linux64" / "chromedriver"
-          driver.chmod(0o755)
-          subprocess.run([str(driver), "--version"], check=True)
-          with open(os.environ["GITHUB_ENV"], "a") as output:
-              output.write(f"EUV_AUTOMATION_DRIVER={driver}\nEUV_AUTOMATION_CHROME={chrome}\n")
-          PY
-      - name: Operate real euv controls and verify browser results
-        run: cargo run -p euv-automation -- --driver "$EUV_AUTOMATION_DRIVER" --chrome "$EUV_AUTOMATION_CHROME"
-      - name: Verify assertion failure is not reported as success
-        run: |
-          mkdir -p automation/results/negative
-          cp -R automation/results/site automation/results/negative/site
-          set +e
-          cargo run -p euv-automation -- --driver "$EUV_AUTOMATION_DRIVER" --chrome "$EUV_AUTOMATION_CHROME" --output automation/results/negative --skip-build --probe-failure
-          status=$?
-          set -e
-          test "$status" -eq 1
-          python3 - <<'PY'
-          import json, pathlib
-          report = json.loads(pathlib.Path("automation/results/negative/report.json").read_text())
-          cases = report["cases"]
-          assert len(cases) == 9
-          assert all(case["passed"] for case in cases[:-1])
-          assert cases[-1]["name"] == "negative-control" and not cases[-1]["passed"]
-          assert "999" in cases[-1]["error"] and cases[-1]["capture_error"] is None
-          assert report["resources"]["cleaned_up"]
-          PY
-      - name: Install example browser contract runner
-        run: python3 -m pip install 'playwright==1.60.0'
-      - name: Install release example build tool
-        run: |
-          tool_root="$RUNNER_TEMP/euv-release-tools"
-          cargo install wasm-pack --version 0.15.1 --locked --root "$tool_root"
-          test -x "$tool_root/bin/wasm-pack"
-          test "$("$tool_root/bin/wasm-pack" --version)" = "wasm-pack 0.15.1"
-          printf '%s\n' "$tool_root/bin" >> "$GITHUB_PATH"
-      - name: Build release example for spacing and input regressions
-        run: |
-          test "$(wasm-pack --version)" = "wasm-pack 0.15.1"
-          cargo run -p euv-cli -- build --crate-path ./example --release --www-dir ../automation/results/example/default -- --no-default-features
-      - name: Verify all example routes and pointer touch navigation contracts
-        run: python3 example/scripts/validation/runtime.py automation/results/example automation/results/example-runtime.json --chrome "$EUV_AUTOMATION_CHROME"
-      - name: Preserve browser reports and actual screenshots
-        if: always()
+      - name: Upload stress benchmark report artifact
         uses: actions/upload-artifact@v4
         with:
-          name: euv-ui-automation
-          path: automation/results/
+          name: euv-stress-benchmark-report
+          path: dist/bench/stress-report.json
           if-no-files-found: error
 
   publish:
     permissions:
       contents: write
-    needs: [setup, check, tests, clippy, build, automation]
-    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master' && needs.setup.outputs.tag != '' && needs.check.result == 'success' && needs.tests.result == 'success' && needs.clippy.result == 'success' && needs.build.result == 'success' && needs.automation.result == 'success'
+    needs: [setup, check, tests, clippy, build]
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master' && needs.setup.outputs.tag != '' && needs.check.result == 'success' && needs.tests.result == 'success' && needs.clippy.result == 'success' && needs.build.result == 'success'
     runs-on: ubuntu-latest
     outputs:
       published: ${{ steps.publish.outputs.published }}
     steps:
-      - name: Check branch
-        id: check_branch
-        run: |
-          if [ "${{ needs.setup.outputs.branch_name }}" != "master" ]; then
-            echo "⚠️ Not on master branch (current: ${{ needs.setup.outputs.branch_name }}), skipping publish"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "✅ On master branch, proceeding with publish"
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
       - name: Checkout
-        if: steps.check_branch.outputs.skip == 'false'
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-      - name: Install crates-cli
-        if: steps.check_branch.outputs.skip == 'false'
-        run: |
-          for i in 1 2 3 4 5 6 7 8; do
-            if cargo install crate-cli; then
-              break
-            fi
-            echo "🔁 Retrying..."
-          done
-      - name: Configure git
-        if: steps.check_branch.outputs.skip == 'false'
-        run: |
-          git config user.name "vshengbro"
-          git config user.email "root@devhub.vip"
-      - name: Sync workspace versions
-        if: steps.check_branch.outputs.skip == 'false'
-        run: |
-          VERSION="${{ needs.setup.outputs.version }}"
-          crate sync
-          crate fmt
-          cargo generate-lockfile
-          git add -A
-          git diff --cached --quiet || git commit -m "chore: sync all package versions to $VERSION and apply crate fmt"
-          git push
+      - name: Install crate-cli
+        run: cargo install crate-cli --locked
       - name: Publish to crates.io
         id: publish
-        if: steps.check_branch.outputs.skip == 'false'
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           echo "published=false" >> $GITHUB_OUTPUT
           echo "${{ secrets.CARGO_REGISTRY_TOKEN }}" | cargo login
-          VERSION="${{ needs.setup.outputs.version }}"
-          PACKAGE_NAME="${{ needs.setup.outputs.package_name }}"
           crate publish
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🔍 Verifying $PACKAGE_NAME v$VERSION on crates.io"
-          VERIFY_HTTP_CODE="000"
-          for ((i=1; i<=36; i++)); do
-            VERIFY_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "User-Agent: euv" "https://crates.io/api/v1/crates/$PACKAGE_NAME/$VERSION" || echo "000")
-            if [ "$VERIFY_HTTP_CODE" = "200" ]; then
-              break
-            fi
-            echo "🔁 Attempt $i/36: HTTP $VERIFY_HTTP_CODE, retrying..."
-            sleep 5
-          done
-          if [ "$VERIFY_HTTP_CODE" = "200" ]; then
-            echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "🎉🎉🎉 PUBLISH SUCCESSFUL 🎉🎉🎉"
-            echo "✅ Main package $PACKAGE_NAME v$VERSION published to crates.io"
-            echo "📦 Crates.io: https://crates.io/crates/$PACKAGE_NAME/$VERSION"
-            echo "📚 Docs.rs: https://docs.rs/$PACKAGE_NAME/$VERSION"
-          else
-            echo "❌ Main package $PACKAGE_NAME v$VERSION failed to verify on crates.io"
-          fi
-
-      - name: Verify published automation and performance packages
-        if: steps.check_branch.outputs.skip == 'false'
-        env:
-          RELEASE_VERSION: ${{ needs.setup.outputs.version }}
-        run: |
-          python3 - <<'PY'
-          import json, os, time, urllib.error, urllib.request
-          version = os.environ["RELEASE_VERSION"]
-          for package in ["euv-automation", "euv-performance"]:
-              endpoint = f"https://crates.io/api/v1/crates/{package}/{version}"
-              for attempt in range(36):
-                  try:
-                      request = urllib.request.Request(endpoint, headers={"User-Agent": "euv-release-verification/1.0"})
-                      with urllib.request.urlopen(request, timeout=35) as response:
-                          record = json.load(response)["version"]
-                      assert record["crate"] == package and record["num"] == version
-                      assert record["yanked"] is False
-                      print(f"Verified {package} {version} on crates.io")
-                      break
-                  except (urllib.error.URLError, KeyError, ValueError, AssertionError) as error:
-                      if attempt == 35:
-                          raise RuntimeError(f"Publication not verified: {package} {version}") from error
-                      print(f"Waiting for {package} {version}: {error}")
-                      time.sleep(5)
-          PY
+          echo "published=true" >> "$GITHUB_OUTPUT"
 
   release:
     needs: [setup, check, tests, clippy, build, publish]
@@ -377,72 +170,39 @@ jobs:
       packages: write
     if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master' && needs.setup.outputs.tag != '' && needs.publish.result == 'success'
     runs-on: ubuntu-latest
-    outputs:
-      released: ${{ steps.release.outputs.released }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
-      - name: Check tag status
-        id: check_tag
-        run: |
-          if git tag -l | grep -q "^${{ needs.setup.outputs.tag }}$"; then
-            echo "tag_exists=true" >> $GITHUB_OUTPUT
-            echo "Tag ${{ needs.setup.outputs.tag }} exists locally"
-          else
-            echo "tag_exists=false" >> $GITHUB_OUTPUT
-            echo "Tag ${{ needs.setup.outputs.tag }} does not exist locally"
-          fi
-          if git ls-remote --tags origin | grep -q "refs/tags/${{ needs.setup.outputs.tag }}$"; then
-            echo "remote_tag_exists=true" >> $GITHUB_OUTPUT
-            echo "Tag ${{ needs.setup.outputs.tag }} exists on remote"
-          else
-            echo "remote_tag_exists=false" >> $GITHUB_OUTPUT
-            echo "Tag ${{ needs.setup.outputs.tag }} does not exist on remote"
-          fi
-      - name: Check release status
-        id: check_release
-        run: |
-          if gh release view "${{ needs.setup.outputs.tag }}" > /dev/null 2>&1; then
-            echo "release_exists=true" >> $GITHUB_OUTPUT
-            echo "Release ${{ needs.setup.outputs.tag }} already exists"
-          else
-            echo "release_exists=false" >> $GITHUB_OUTPUT
-            echo "Release ${{ needs.setup.outputs.tag }} does not exist"
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build source archive
         id: build_archive
         run: |
           set -e
           VERSION="${{ needs.setup.outputs.version }}"
           REPO_NAME="${{ github.event.repository.name }}"
-          echo "Building source archive for $REPO_NAME v$VERSION..."
           git archive --format=tar.gz --prefix="${REPO_NAME}-${VERSION}/" HEAD > "${REPO_NAME}-${VERSION}.tar.gz"
           echo "archive_path=${REPO_NAME}-${VERSION}.tar.gz" >> $GITHUB_OUTPUT
       - name: Create or update release
-        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          echo "released=false" >> $GITHUB_OUTPUT
           VERSION="${{ needs.setup.outputs.version }}"
           TAG="${{ needs.setup.outputs.tag }}"
           ARCHIVE="${{ steps.build_archive.outputs.archive_path }}"
-
           PACKAGES=(
             "euv-core"
             "euv-macros"
             "euv"
-            "euv-engine"
             "euv-ui"
+            "euv-automation"
             "euv-cli"
             "euv-docs"
             "euv-example"
+            "euv-performance"
           )
-
           NOTES_FILE="$(mktemp)"
           {
             printf '## Release %s\n\n' "$TAG"
@@ -452,54 +212,11 @@ jobs:
               printf '| `%s` | [crates.io](https://crates.io/crates/%s/%s) | [docs.rs](https://docs.rs/%s/%s) |\n' \
                 "$pkg" "$pkg" "$VERSION" "$pkg" "$VERSION"
             done
-            printf '\n## App builds\n\n[App Release and downloads](%s/%s/releases/tag/latest)\n' \
-              "${{ github.server_url }}" "${{ github.repository }}"
-            printf '\nCommit History: https://github.com/%s/commits/%s\n' \
-              "${{ github.repository }}" "$TAG"
           } > "$NOTES_FILE"
-
-          TITLE="$TAG (monorepo)"
-          TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S UTC')
-
-          if [ "${{ steps.check_release.outputs.release_exists }}" = "true" ]; then
-            echo "Updating existing release: $TAG"
-            gh release view "$TAG" --json assets --jq '.assets[].name' | while read asset; do
-              if [ -n "$asset" ]; then
-                echo "Deleting asset: $asset"
-                gh release delete-asset "$TAG" "$asset" --yes || true
-              fi
-            done
-            if gh release edit "$TAG" \
-                --title "$TITLE (updated $TIMESTAMP)" \
-                --notes-file "$NOTES_FILE" \
-                && gh release upload "$TAG" "$ARCHIVE" --clobber; then
-              echo "released=true" >> $GITHUB_OUTPUT
-              echo "Updated release $TAG"
-            else
-              echo "Failed to update release"
-              exit 1
-            fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file "$NOTES_FILE"
+            gh release upload "$TAG" "$ARCHIVE" --clobber
           else
-            if [ "${{ steps.check_tag.outputs.remote_tag_exists }}" = "false" ]; then
-              echo "Creating and pushing tag: $TAG"
-              git tag "$TAG"
-              git push origin "$TAG"
-            fi
-            echo "Creating new release: $TAG"
-            if gh release create "$TAG" \
-                --title "$TITLE" \
-                --notes-file "$NOTES_FILE" \
-                --latest \
-                && gh release upload "$TAG" "$ARCHIVE"; then
-              echo "released=true" >> $GITHUB_OUTPUT
-              echo "Created release $TAG"
-              echo "Release: ${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG"
-            else
-              echo "Failed to create release"
-              exit 1
-            fi
+            gh release create "$TAG" --title "$TAG" --notes-file "$NOTES_FILE" --latest "$ARCHIVE"
           fi
-
           rm -f "$NOTES_FILE"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

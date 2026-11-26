@@ -6,29 +6,18 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Real-browser UI automation and assertions for euv components."
-keywords = ["euv", "testing", "automation", "webdriver"]
+description = """Dev-only UI automation testing framework and AI Schema v1 runtime/layout introspection protocol for euv, compiled out completely in release builds."""
+keywords = ["euv", "automation", "testing", "ai-schema", "ui"]
 categories = ["development-tools::testing"]
 exclude.workspace = true
-publish = true
 autotests = false
 
 [lib]
-crate-type = ["cdylib", "rlib"]
-
-[[bin]]
-name = "euv-automation"
-path = "src/main.rs"
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { workspace = true }
-hyperlane = { workspace = true }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-euv-ui = { workspace = true }
+crate-type = ["rlib"]
 
 [dependencies]
 euv = { workspace = true }
 
 serde = { workspace = true }
 serde_json = { workspace = true }
+lombok-macros = { workspace = true }

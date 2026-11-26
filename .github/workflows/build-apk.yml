@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Android Native
 
 on:
   push:
@@ -9,113 +9,90 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: apk-${{ github.ref }}
+  group: android-native-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-apk:
+  android-native-apk:
+    name: Build Release Android APK (arm64-v8a)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    env:
-      EUV_WEB_DIST: ${{ github.workspace }}/example/www
-      CARGO_TARGET_DIR: ${{ github.workspace }}/native/tauri/src-tauri/target
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: native/tauri/package-lock.json
-
-      - uses: actions/setup-java@v4
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-
-      - name: Install Android SDK and NDK
-        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.0.13004108' 'platform-tools'
-
-      - name: Install Rust targets
+      - name: Install Android Rust target
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown, aarch64-linux-android
+          toolchain: stable
+          targets: aarch64-linux-android
 
-      - name: Cache Rust dependencies and build output
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.cache/.wasm-pack
-            target
-            native/tauri/src-tauri/target
-          key: apk-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'native/tauri/src-tauri/Cargo.lock') }}
-          restore-keys: apk-${{ runner.os }}-
-
-      - name: Cache fingerprinted release themes
-        uses: actions/cache@v4
-        with:
-          path: |
-            Cargo.lock
-            example/www/themes
-            native/tauri/.cache/themes
-          key: apk-themes-${{ runner.os }}-${{ github.sha }}
-          restore-keys: apk-themes-${{ runner.os }}-
-
-      - name: Sync workspace versions
-        uses: ./.github/actions/sync-workspace
-      - name: Install client dependencies and run tests
-        working-directory: native/tauri
+      - name: Configure Android SDK and NDK toolchain
         run: |
-          npm ci
-          npm test
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          API_LEVEL="35"
+          BUILD_TOOLS="35.0.0"
+          SDKMANAGER=""
+          for candidate in \
+            "${SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
+            "${SDK_ROOT}/cmdline-tools/bin/sdkmanager" \
+            "${SDK_ROOT}/tools/bin/sdkmanager"; do
+            if [ -x "$candidate" ]; then
+              SDKMANAGER="$candidate"
+              break
+            fi
+          done
+          if [ -n "$SDKMANAGER" ]; then
+            set +o pipefail
+            yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null 2>&1 || true
+            set -o pipefail
+            if [ ! -f "${SDK_ROOT}/platforms/android-${API_LEVEL}/android.jar" ] || [ ! -x "${SDK_ROOT}/build-tools/${BUILD_TOOLS}/aapt2" ]; then
+              "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-${API_LEVEL}" "build-tools;${BUILD_TOOLS}"
+            fi
+          fi
+          NDK_DIR="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-}}"
+          if [ -z "$NDK_DIR" ] || [ ! -d "$NDK_DIR" ]; then
+            NDK_DIR="$(find "${SDK_ROOT}/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          fi
+          NDK_LLVM_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          LINKER="${NDK_LLVM_BIN}/aarch64-linux-android${API_LEVEL}-clang"
+          if [ ! -x "$LINKER" ]; then
+            LINKER="$(find "${NDK_LLVM_BIN}" -maxdepth 1 -name 'aarch64-linux-android*-clang' | sort -V | tail -n 1)"
+          fi
+          {
+            echo "ANDROID_HOME=${SDK_ROOT}"
+            echo "ANDROID_SDK_ROOT=${SDK_ROOT}"
+            echo "ANDROID_NDK_HOME=${NDK_DIR}"
+            echo "ANDROID_API_LEVEL=${API_LEVEL}"
+            echo "ANDROID_BUILD_TOOLS=${BUILD_TOOLS}"
+            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=${LINKER}"
+            echo "CC_aarch64_linux_android=${LINKER}"
+            echo "AR_aarch64_linux_android=${NDK_LLVM_BIN}/llvm-ar"
+          } >> "$GITHUB_ENV"
+          echo "${NDK_LLVM_BIN}" >> "$GITHUB_PATH"
+          echo "${SDK_ROOT}/platform-tools" >> "$GITHUB_PATH"
+          echo "${SDK_ROOT}/build-tools/${BUILD_TOOLS}" >> "$GITHUB_PATH"
 
-      - name: Install wasm-pack
-        run: cargo install wasm-pack --locked
+      - name: Verify Android NDK target compilation and build signed Release APK
+        run: |
+          set -euo pipefail
+          RUSTFLAGS="-D warnings" cargo check -p euv-core -p euv -p euv-ui --target aarch64-linux-android
+          cargo run -p euv-cli -- build --target android --plan
+          bash scripts/build/build-android-apk.sh
+          ls -lh dist/android/EuvShowcase.apk
 
-      - name: Build web and signed APK through euv CLI
-        env:
-          CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: cargo run -p euv-cli -- build --platforms android --release --crate-path ./example
-
-      - name: Verify local pages inside the APK
-        working-directory: native/tauri
-        run: node scripts/validation/verify-apk.js artifacts/android/euv.apk
-
-      - name: Upload APK and local page provenance
+      - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: euv-android-apk
-          path: |
-            native/tauri/artifacts/android/euv.apk
-            native/tauri/src-tauri/bundled-cache/__euv_local_bundle__.json
+          path: dist/android/EuvShowcase.apk
           if-no-files-found: error
-
-      - name: Publish rolling APK release
-        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master'
-        working-directory: native/tauri
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag -f latest
-          git push -f origin latest
-          TITLE="Latest APK (build ${{ github.run_number }})"
-          NOTES="Local example pages built from commit ${{ github.sha }}."
-          if gh release view latest >/dev/null 2>&1; then
-            gh release edit latest --title "$TITLE" --notes "$NOTES" --prerelease
-          else
-            gh release create latest --title "$TITLE" --notes "$NOTES" --prerelease
-          fi
-          gh release upload latest artifacts/android/euv.apk --clobber
-          RELEASE_URL="$(gh release view latest --json url --jq '.url')"
-          printf '## App release\n\n[Download Android app](%s)\n' "$RELEASE_URL" >> "$GITHUB_STEP_SUMMARY"

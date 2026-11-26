@@ -1,64 +1,49 @@
 //! euv-example
 //!
-//! A demonstration application showcasing the euv component system,
-//! reactive signals, routing, and HTML macros.
+//! Cross-platform native showcase application built with euv and euv-ui,
+//! demonstrating fine-grained reactivity, multi-mode rendering, window settings,
+//! 17 design schemes, virtualized lists, and overlays.
 
 mod app;
-mod component;
-mod page;
-mod style;
+mod pages;
+mod state;
 
 #[cfg(test)]
 #[path = "../tests/mod.rs"]
 mod tests;
 
-pub(crate) use {app::*, component::*, page::*, style::*};
+pub use {app::*, pages::*, state::*};
 
-pub(crate) use std::{
-    cell::RefMut,
-    cmp::Ordering,
-    collections::HashSet,
-    f64::consts::{FRAC_PI_2, PI, TAU},
-    fmt::{self, Debug, Display, Formatter},
-    ops::Range,
+#[cfg(debug_assertions)]
+use euv_automation::AI_SCHEMA_PROTOCOL_VERSION;
+#[cfg(test)]
+use euv_automation::{
+    AiAction, AiAnomalyKind, AiLayoutAnomaly, AiRuntimeSnapshot, AiSchemaRequest, AiSchemaResponse,
 };
-
+#[cfg(any(debug_assertions, test))]
+use euv_automation::{AiAppHooks, AiJsonValue, AiSchemaProtocol};
+#[cfg(target_arch = "wasm32")]
+use std::cell::{RefCell, RefMut};
+use std::{cell::Cell, f32::consts::PI, rc::Rc};
+#[cfg(not(target_arch = "wasm32"))]
 use std::{
-    cell::{Cell, RefCell},
-    collections::HashMap,
-    iter::Iterator,
-    rc::Rc,
+    fs,
+    io::{Error, Read, Write},
+    net::{SocketAddr, TcpListener},
+    path::{Path, PathBuf},
+    thread::spawn,
 };
-
 use {
-    compare_version::*,
-    euv::{
-        js_sys::*,
-        wasm_bindgen::{Clamped, prelude::*},
-        wasm_bindgen_futures::*,
-        *,
-    },
-    euv_engine::*,
+    euv::*,
+    euv_automation::DevAutomationBridge,
     euv_ui::*,
+    lombok_macros::{Data, Getter},
 };
-
+#[cfg(target_arch = "wasm32")]
 use {
-    qrcode::{QrCode, render::svg, types::QrError},
-    serde::{
-        Deserialize, Deserializer, Serialize,
-        de::{self, Visitor},
+    js_sys::Function,
+    wasm_bindgen::{JsCast, JsValue, closure::Closure, prelude::wasm_bindgen},
+    web_sys::{
+        Document, DomRect, Event, HtmlCanvasElement, KeyboardEvent, WheelEvent, Window, window,
     },
-    serde_json::Error,
 };
-
-/// Mounts the demo application into the page.
-///
-/// This is the wasm entry point: the engine calls it on load, so it is
-/// never invoked by a test and is not a function anything can name.
-#[wasm_bindgen]
-pub fn main() {
-    console_error_panic_hook::set_once();
-    inject_app_global_css();
-
-    App::mount(APP_MOUNT_SELECTOR, app);
-}

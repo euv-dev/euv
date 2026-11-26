@@ -1,70 +1,42 @@
 //! euv-automation
 //!
-//! Real-browser UI operations, assertions and a reproducible euv component fixture.
+//! Dev-only UI automation testing driver and AI Schema v1 (`euv.ai.schema.v1`)
+//! runtime/layout introspection protocol for euv. All live dev bridge hooks compile
+//! to zero-cost no-ops under release builds (`#[cfg(not(debug_assertions))]`).
 
-mod contract;
+mod dev_gate;
+mod driver;
+mod schema;
+mod selector;
 
-#[cfg(not(target_arch = "wasm32"))]
-mod browser;
-#[cfg(not(target_arch = "wasm32"))]
-mod config;
-#[cfg(target_arch = "wasm32")]
-mod fixture;
-#[cfg(not(target_arch = "wasm32"))]
-mod host;
-#[cfg(not(target_arch = "wasm32"))]
-mod report;
-#[cfg(target_arch = "wasm32")]
-mod style;
 #[cfg(test)]
 #[path = "../tests/mod.rs"]
 mod tests;
-#[cfg(not(target_arch = "wasm32"))]
-mod workflow;
 
-#[cfg(target_arch = "wasm32")]
-pub use fixture::mount_fixture;
-#[cfg(not(target_arch = "wasm32"))]
-pub use {browser::*, config::*, workflow::run};
-
-pub(crate) use contract::*;
-#[cfg(target_arch = "wasm32")]
-pub(crate) use style::*;
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) use {host::*, report::*};
-
-#[cfg(all(test, not(target_arch = "wasm32")))]
-use workflow::Scenario;
-
-#[cfg(target_arch = "wasm32")]
-use euv::*;
-#[cfg(not(target_arch = "wasm32"))]
-use euv::{Data, Getter, New};
-
-#[cfg(target_arch = "wasm32")]
-use euv_ui::*;
-#[cfg(target_arch = "wasm32")]
-use std::rc::Rc;
+pub use {dev_gate::*, driver::*, schema::*, selector::*};
 
 #[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 use std::{
-    env,
-    fs::{self, File},
-    io::{self, Read, Write},
-    net::TcpListener,
-    num::ParseIntError,
-    path::{Path, PathBuf},
-    process::{Child, ChildStdin, Command, Output, Stdio},
-    sync::OnceLock,
-    thread::sleep,
-    time::{Duration, Instant},
+    cell::{BorrowMutError, RefCell},
+    fmt::{self, Formatter},
+    rc::Rc,
 };
-#[cfg(not(target_arch = "wasm32"))]
-use {
-    hyperlane::*,
-    serde::Serialize,
-    serde_json::{Error, Value, from_slice, json, to_string_pretty, to_vec},
+#[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
+use std::{
+    io::{Error, ErrorKind, Read, Write},
+    net::{SocketAddr, TcpListener, TcpStream},
+    str::SplitWhitespace,
+    time::Duration,
 };
 
-#[cfg(not(target_arch = "wasm32"))]
-use tokio::task::{JoinError, spawn_blocking};
+#[cfg(test)]
+use serde_json::from_value;
+#[cfg(any(test, all(debug_assertions, not(target_arch = "wasm32"))))]
+use serde_json::json;
+use {
+    euv::*,
+    lombok_macros::{CustomDebug, Data, New},
+    serde::{Deserialize, Serialize},
+    serde_json::{Value, from_str, to_string, to_string_pretty, to_value},
+};

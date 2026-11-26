@@ -10,3 +10,6 @@ dist
 /performance/RESULTS.md
 /automation/results/
 .DS_Store
+.codegraph/
+.worktrees/
+scripts/env/env.sh

@@ -1,6 +1,6 @@
-mod hook;
-mod view;
+mod r#impl;
+mod r#struct;
 
-pub use {hook::*, view::*};
+pub use r#struct::*;
 
 use super::*;

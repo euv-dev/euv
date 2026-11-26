@@ -1,5 +1,7 @@
-mod view;
+mod r#enum;
+mod r#impl;
+mod r#struct;
 
-pub use view::*;
+pub use {r#enum::*, r#struct::*};
 
 use super::*;

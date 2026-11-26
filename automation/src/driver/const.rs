@@ -1,0 +1,10 @@
+pub(crate) const KEY_NAME_ENTER: &str = "Enter";
+pub(crate) const KEY_NAME_BACKSPACE: &str = "Backspace";
+pub(crate) const KEY_NAME_DELETE: &str = "Delete";
+pub(crate) const KEY_NAME_ESCAPE: &str = "Escape";
+pub(crate) const KEY_NAME_TAB: &str = "Tab";
+pub(crate) const KEY_NAME_SPACE: &str = "Space";
+pub(crate) const KEY_NAME_ARROW_LEFT: &str = "ArrowLeft";
+pub(crate) const KEY_NAME_ARROW_RIGHT: &str = "ArrowRight";
+pub(crate) const KEY_NAME_ARROW_UP: &str = "ArrowUp";
+pub(crate) const KEY_NAME_ARROW_DOWN: &str = "ArrowDown";
