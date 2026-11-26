@@ -126,6 +126,55 @@ impl Framebuffer {
         }
     }
 
+    /// Fills or composites a contiguous horizontal pixel span `[x0, x1)` on row `y` using gamma-correct linear-light blending.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable framebuffer.
+    /// - `u32` - Inclusive start X pixel coordinate.
+    /// - `u32` - Exclusive end X pixel coordinate.
+    /// - `u32` - Row Y pixel coordinate.
+    /// - `Color` - Foreground color to write or linear-light blend.
+    pub fn fill_span_linear(&mut self, x0: u32, x1: u32, y: u32, color: Color) {
+        let sa: u8 = color.get_a();
+        let width: u32 = self.get_width();
+        let height: u32 = self.get_height();
+        if sa == 0 || y >= height || x0 >= x1 || x0 >= width {
+            return;
+        }
+        if sa == 255 {
+            self.fill_span(x0, x1, y, color);
+            return;
+        }
+        let end_x: u32 = x1.min(width);
+        let row_base: usize = (y as usize) * (width as usize);
+        let start_byte: usize = (row_base + (x0 as usize)) * 4;
+        let end_byte: usize = (row_base + (end_x as usize)) * 4;
+        let Some(span) = self.get_mut_pixels().get_mut(start_byte..end_byte) else {
+            return;
+        };
+        let a: f32 = (sa as f32) * (1.0 / 255.0);
+        let inv_a: f32 = 1.0 - a;
+        let inv_255_sq: f32 = 1.0 / 65_025.0;
+        let sr_a: f32 = (color.get_r() as f32) * (color.get_r() as f32) * inv_255_sq * a;
+        let sg_a: f32 = (color.get_g() as f32) * (color.get_g() as f32) * inv_255_sq * a;
+        let sb_a: f32 = (color.get_b() as f32) * (color.get_b() as f32) * inv_255_sq * a;
+        for px in span.as_chunks_mut::<4>().0.iter_mut() {
+            let dr: f32 = (px[0] as f32) * (px[0] as f32) * inv_255_sq;
+            let dg: f32 = (px[1] as f32) * (px[1] as f32) * inv_255_sq;
+            let db: f32 = (px[2] as f32) * (px[2] as f32) * inv_255_sq;
+            let da: f32 = (px[3] as f32) * (1.0 / 255.0);
+            let lr: f32 = (sr_a + dr * inv_a).clamp(0.0, 1.0);
+            let lg: f32 = (sg_a + dg * inv_a).clamp(0.0, 1.0);
+            let lb: f32 = (sb_a + db * inv_a).clamp(0.0, 1.0);
+            let out_a: f32 = (a + da * inv_a).clamp(0.0, 1.0);
+            px[0] = (lr.sqrt() * 255.0).round().clamp(0.0, 255.0) as u8;
+            px[1] = (lg.sqrt() * 255.0).round().clamp(0.0, 255.0) as u8;
+            px[2] = (lb.sqrt() * 255.0).round().clamp(0.0, 255.0) as u8;
+            px[3] = (out_a * 255.0).round().clamp(0.0, 255.0) as u8;
+        }
+    }
+
     /// Blends a contiguous glyph alpha coverage row directly onto framebuffer row `dy` starting at `dx`.
     ///
     /// # Arguments
@@ -211,6 +260,105 @@ impl Framebuffer {
         let offset: usize = ((y as usize) * (self.get_width() as usize) + (x as usize)) * 4;
         let slice: &[u8] = self.get_pixels().get(offset..offset + 4)?;
         Some(Color::new(slice[0], slice[1], slice[2], slice[3]))
+    }
+
+    /// Blends `color` over the pixel at `(x, y)` using gamma-correct linear-light compositing with optional sub-LSB dithering.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable framebuffer.
+    /// - `u32` - X pixel coordinate.
+    /// - `u32` - Y pixel coordinate.
+    /// - `Color` - Foreground color to composite.
+    /// - `f32` - Normalized dither offset in `[-0.5, 0.5]` to eliminate 8-bit banding.
+    pub fn blend_pixel_linear_dithered(&mut self, x: u32, y: u32, color: Color, dither: f32) {
+        let sa: u8 = color.get_a();
+        if sa == 0 || x >= self.get_width() || y >= self.get_height() {
+            return;
+        }
+        let offset: usize = ((y as usize) * (self.get_width() as usize) + (x as usize)) * 4;
+        let pixels: &mut [u8] = self.get_mut_pixels().as_mut_slice();
+        if offset + 4 > pixels.len() {
+            return;
+        }
+        if sa == 255 {
+            pixels[offset] = color.get_r();
+            pixels[offset + 1] = color.get_g();
+            pixels[offset + 2] = color.get_b();
+            pixels[offset + 3] = 255;
+            return;
+        }
+        let a: f32 = (sa as f32) * (1.0 / 255.0);
+        let inv_a: f32 = 1.0 - a;
+        let inv_255_sq: f32 = 1.0 / 65_025.0;
+        let sr: f32 = (color.get_r() as f32) * (color.get_r() as f32) * inv_255_sq;
+        let sg: f32 = (color.get_g() as f32) * (color.get_g() as f32) * inv_255_sq;
+        let sb: f32 = (color.get_b() as f32) * (color.get_b() as f32) * inv_255_sq;
+        let dr: f32 = (pixels[offset] as f32) * (pixels[offset] as f32) * inv_255_sq;
+        let dg: f32 = (pixels[offset + 1] as f32) * (pixels[offset + 1] as f32) * inv_255_sq;
+        let db: f32 = (pixels[offset + 2] as f32) * (pixels[offset + 2] as f32) * inv_255_sq;
+        let lr: f32 = (sr * a + dr * inv_a).clamp(0.0, 1.0);
+        let lg: f32 = (sg * a + dg * inv_a).clamp(0.0, 1.0);
+        let lb: f32 = (sb * a + db * inv_a).clamp(0.0, 1.0);
+        pixels[offset] = (lr.sqrt() * 255.0 + dither).round().clamp(0.0, 255.0) as u8;
+        pixels[offset + 1] = (lg.sqrt() * 255.0 + dither).round().clamp(0.0, 255.0) as u8;
+        pixels[offset + 2] = (lb.sqrt() * 255.0 + dither).round().clamp(0.0, 255.0) as u8;
+        let da: f32 = (pixels[offset + 3] as f32) * (1.0 / 255.0);
+        let out_a: f32 = (a + da * inv_a).clamp(0.0, 1.0);
+        pixels[offset + 3] = (out_a * 255.0).round().clamp(0.0, 255.0) as u8;
+    }
+
+    /// Blends a foreground RGBA color with continuous floating-point alpha `alpha_f` in `[0.0, 1.0]` using linear-light compositing and IGN dithering.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable framebuffer.
+    /// - `u32` - X pixel coordinate.
+    /// - `u32` - Y pixel coordinate.
+    /// - `Color` - Foreground RGB tint (its own alpha is already folded into `alpha_f`).
+    /// - `f32` - Continuous opacity in `[0.0, 1.0]`.
+    /// - `f32` - Normalized dither offset in `[-0.5, 0.5]`.
+    pub fn blend_pixel_f32_dithered(
+        &mut self,
+        x: u32,
+        y: u32,
+        color: Color,
+        alpha_f: f32,
+        dither: f32,
+    ) {
+        if alpha_f <= 0.0002 || x >= self.get_width() || y >= self.get_height() {
+            return;
+        }
+        let offset: usize = ((y as usize) * (self.get_width() as usize) + (x as usize)) * 4;
+        let pixels: &mut [u8] = self.get_mut_pixels().as_mut_slice();
+        if offset + 4 > pixels.len() {
+            return;
+        }
+        let a: f32 = alpha_f.clamp(0.0, 1.0);
+        if a >= 0.9995 {
+            pixels[offset] = color.get_r();
+            pixels[offset + 1] = color.get_g();
+            pixels[offset + 2] = color.get_b();
+            pixels[offset + 3] = 255;
+            return;
+        }
+        let inv_a: f32 = 1.0 - a;
+        let inv_255_sq: f32 = 1.0 / 65_025.0;
+        let sr: f32 = (color.get_r() as f32) * (color.get_r() as f32) * inv_255_sq;
+        let sg: f32 = (color.get_g() as f32) * (color.get_g() as f32) * inv_255_sq;
+        let sb: f32 = (color.get_b() as f32) * (color.get_b() as f32) * inv_255_sq;
+        let dr: f32 = (pixels[offset] as f32) * (pixels[offset] as f32) * inv_255_sq;
+        let dg: f32 = (pixels[offset + 1] as f32) * (pixels[offset + 1] as f32) * inv_255_sq;
+        let db: f32 = (pixels[offset + 2] as f32) * (pixels[offset + 2] as f32) * inv_255_sq;
+        let lr: f32 = (sr * a + dr * inv_a).clamp(0.0, 1.0);
+        let lg: f32 = (sg * a + dg * inv_a).clamp(0.0, 1.0);
+        let lb: f32 = (sb * a + db * inv_a).clamp(0.0, 1.0);
+        pixels[offset] = (lr.sqrt() * 255.0 + dither).round().clamp(0.0, 255.0) as u8;
+        pixels[offset + 1] = (lg.sqrt() * 255.0 + dither).round().clamp(0.0, 255.0) as u8;
+        pixels[offset + 2] = (lb.sqrt() * 255.0 + dither).round().clamp(0.0, 255.0) as u8;
+        let da: f32 = (pixels[offset + 3] as f32) * (1.0 / 255.0);
+        let out_a: f32 = (a + da * inv_a).clamp(0.0, 1.0);
+        pixels[offset + 3] = (out_a * 255.0).round().clamp(0.0, 255.0) as u8;
     }
 
     /// Blends `color` over the pixel at `(x, y)` using fast integer Porter-Duff source-over.

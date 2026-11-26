@@ -62,6 +62,9 @@ pub struct App {
     /// Attached real-time game engine hosts receiving automatic OS input forwarding.
     #[debug(skip)]
     pub(crate) game_hosts: Vec<GameEngineHost>,
+    /// Active touch pointer identifier currently driving single-finger pan scrolling.
+    #[get(skip)]
+    pub(crate) touch_drag_pointer_id: Option<u64>,
     /// Starting touch coordinate for mobile pan-to-scroll detection.
     #[get(skip)]
     pub(crate) touch_drag_origin: Option<Point>,
@@ -71,11 +74,19 @@ pub struct App {
     /// Whether the active touch gesture has crossed tap slop into pan-scrolling.
     #[get(type(copy))]
     pub(crate) touch_dragging: bool,
+    /// Touch pan displacement accumulated during the current frame for jitter-free velocity estimation.
+    #[get(type(copy))]
+    pub(crate) touch_vel_accum_delta: Point,
+    /// Elapsed idle seconds since the last touch pan movement while a finger remains held down.
+    #[get(type(copy))]
+    pub(crate) touch_vel_idle_secs: f32,
     /// Whether the active pointer press grabbed a right-edge scrollbar track for thumb dragging.
     #[get(type(copy))]
     pub(crate) scrollbar_dragging: bool,
     /// Active multi-touch / pointer contact map keyed by `pointer_id` for pinch & swipe recognition.
     pub(crate) active_pointers: HashMap<u64, Point>,
+    /// Device kind recorded per active `pointer_id` for deterministic touch vs mouse separation.
+    pub(crate) active_pointer_devices: HashMap<u64, PointerDevice>,
     /// Initial contact point of the active single-pointer gesture stroke.
     #[get(skip)]
     pub(crate) gesture_origin: Option<Point>,
@@ -106,6 +117,15 @@ pub struct App {
     /// Locked innermost scrollable node captured at touch-down to prevent nested scroll penetration.
     #[get(skip)]
     pub(crate) touch_scroll_target: Option<NodeId>,
+    /// Remaining smooth-scroll interpolation delta for discrete mouse-wheel notches.
+    #[get(type(copy))]
+    pub(crate) smooth_scroll_pending: Point,
+    /// Pointer coordinates captured when smooth wheel scrolling started.
+    #[get(type(copy))]
+    pub(crate) smooth_scroll_pos: Point,
+    /// Locked scroll container target for active smooth wheel interpolation.
+    #[get(skip)]
+    pub(crate) smooth_scroll_target: Option<NodeId>,
     /// Re-entrancy guard preventing nested `step_frame` execution during macOS live-resize callbacks.
     #[get(type(copy))]
     pub(crate) in_step_frame: bool,

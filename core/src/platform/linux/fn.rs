@@ -502,16 +502,18 @@ pub(crate) fn linux_x11_pump_events(
                         if let Some((wid, scale, _)) = linux_find_window(cfg_ev.window, windows) {
                             let phys_w: u32 = cfg_ev.width.max(1) as u32;
                             let phys_h: u32 = cfg_ev.height.max(1) as u32;
-                            let log_w: u32 = ((phys_w as f32) / scale).round().max(1.0) as u32;
-                            let log_h: u32 = ((phys_h as f32) / scale).round().max(1.0) as u32;
+                            let exact_lw: f32 = ((phys_w as f32) / scale).max(1.0);
+                            let exact_lh: f32 = ((phys_h as f32) / scale).max(1.0);
+                            let log_w: u32 = exact_lw.round().max(1.0) as u32;
+                            let log_h: u32 = exact_lh.round().max(1.0) as u32;
                             if let Some(rec) = windows.get_mut(&wid) {
                                 let prev_w: u32 = rec.get_state().get_physical_width();
                                 let prev_h: u32 = rec.get_state().get_physical_height();
                                 if prev_w != phys_w || prev_h != phys_h {
                                     rec.get_mut_config().set_width(log_w);
                                     rec.get_mut_config().set_height(log_h);
-                                    rec.get_mut_state().set_logical_width(log_w as f32);
-                                    rec.get_mut_state().set_logical_height(log_h as f32);
+                                    rec.get_mut_state().set_logical_width(exact_lw);
+                                    rec.get_mut_state().set_logical_height(exact_lh);
                                     rec.get_mut_state().set_physical_width(phys_w);
                                     rec.get_mut_state().set_physical_height(phys_h);
                                     out_events.push(WindowEvent::Resized(wid, log_w, log_h, scale));

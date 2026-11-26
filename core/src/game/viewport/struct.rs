@@ -21,4 +21,7 @@ pub struct GameEngineHost {
     #[debug(skip)]
     #[get(skip)]
     pub(crate) scene: Rc<RefCell<dyn GameScene>>,
+    /// Mounted viewport canvas `(scene, node)` handles used to gate stepping and auto-dirty visible viewports.
+    #[debug(skip)]
+    pub(crate) viewport_nodes: Rc<RefCell<Vec<(SceneHandle, NodeId)>>>,
 }

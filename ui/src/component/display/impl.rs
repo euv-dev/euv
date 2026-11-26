@@ -385,27 +385,59 @@ impl EuvVirtualList {
                 let _: bool = scroll_cfg.get_scroll_y().set_if_changed(next);
             }
         });
-        ctx.bind_children(container, move || {
-            let cur_scroll: f32 = scroll_sig.get().clamp(0.0, max_scroll);
-            let (start, end): (usize, usize) = list_cfg.visible_range();
-            let local_scroll_y: f32 = (cur_scroll - (start as f32) * item_h).max(0.0);
-            let mut row_ctx: BuildContext = current_build_context();
-            row_ctx.set_virtual_scroll(container, cur_scroll, total_h);
-            row_ctx.set_scroll_offset(container, Point::new(0.0, 0.0));
-            let rows_host: NodeId = row_ctx.view(
-                Style::empty()
-                    .column()
-                    .width(Length::Percent(100.0))
-                    .margin(Edges::new(-local_scroll_y, 0.0, 0.0, 0.0)),
-            );
-            if let Ok(mut build_row) = builder_cell.try_borrow_mut() {
-                for idx in start..end {
-                    let row_node: NodeId = build_row(idx);
-                    row_ctx.append(rows_host, row_node);
-                }
-            }
-            vec![rows_host]
+        let range_memo: Memo<(usize, usize)> = Memo::new(move || list_cfg.visible_range());
+        let range_for_scroll: Memo<(usize, usize)> = range_memo;
+        let scene_for_scroll: SceneHandle = ctx.get_scene().clone();
+        let scene_for_rows: SceneHandle = ctx.get_scene().clone();
+        let ctx_for_rows: BuildContext = ctx.clone();
+        let (vlist_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            let _: Effect = Effect::new(move || {
+                let (start, end): (usize, usize) = range_memo.get();
+                let cur_scroll: f32 = scroll_sig.get_untracked().clamp(0.0, max_scroll);
+                let local_scroll_y: f32 = (cur_scroll - (start as f32) * item_h).max(0.0);
+                let (child_scope, rows_host): (Scope, NodeId) = Scope::run(|_: Scope| {
+                    with_build_context(ctx_for_rows.clone(), || {
+                        let mut row_ctx: BuildContext = current_build_context();
+                        let host: NodeId =
+                            row_ctx.view(Style::empty().column().width(Length::Percent(100.0)));
+                        if let Ok(mut build_row) = builder_cell.try_borrow_mut() {
+                            for idx in start..end {
+                                let row_node: NodeId = build_row(idx);
+                                row_ctx.append(host, row_node);
+                            }
+                        }
+                        host
+                    })
+                });
+                scene_for_rows.with_write(
+                    |tree: &mut SceneTree| {
+                        tree.replace_children(container, vec![rows_host]);
+                        tree.attach_scope(rows_host, child_scope);
+                        tree.set_virtual_scroll(container, cur_scroll, total_h);
+                        tree.set_scroll_offset(container, Point::new(0.0, local_scroll_y));
+                    },
+                    (),
+                );
+            });
+            Effect::new(move || {
+                let cur_scroll: f32 = scroll_sig.get().clamp(0.0, max_scroll);
+                let (start, _): (usize, usize) = range_for_scroll.get();
+                let local_scroll_y: f32 = (cur_scroll - (start as f32) * item_h).max(0.0);
+                scene_for_scroll.with_write(
+                    |tree: &mut SceneTree| {
+                        tree.set_virtual_scroll(container, cur_scroll, total_h);
+                        tree.set_scroll_offset(container, Point::new(0.0, local_scroll_y));
+                    },
+                    (),
+                );
+            })
         });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(container, vlist_scope);
+            },
+            (),
+        );
         container
     }
 }

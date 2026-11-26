@@ -11,6 +11,17 @@ pub(crate) const WEB_ATTR_TABINDEX: &str = "tabindex";
 pub(crate) const WEB_BODY_STYLE: &str =
     "margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#09090b;";
 
+/// Inline CSS prefix for the full-viewport 1:1 physical canvas surface.
+pub(crate) const WEB_CANVAS_STYLE_PREFIX: &str =
+    "position:fixed;inset:0;width:100%;height:100%;display:block;outline:none;cursor:";
+
+/// Inline CSS suffix disabling browser touch panning and text selection on the canvas surface.
+pub(crate) const WEB_CANVAS_STYLE_SUFFIX: &str =
+    ";margin:0;touch-action:none;user-select:none;-webkit-user-select:none;";
+
+/// Default canvas tabindex value enabling keyboard focus.
+pub(crate) const WEB_ATTR_TABINDEX_ZERO: &str = "0";
+
 /// 2D rendering context identifier passed to `HTMLCanvasElement.getContext`.
 pub(crate) const WEB_CONTEXT_2D: &str = "2d";
 

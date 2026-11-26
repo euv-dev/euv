@@ -541,7 +541,36 @@ impl GameEngineHost {
             clock: Rc::new(RefCell::new(FrameClock::new(fixed_dt, 8))),
             input: Rc::new(RefCell::new(InputState::new())),
             scene: Rc::new(RefCell::new(scene)),
+            viewport_nodes: Rc::new(RefCell::new(Vec::new())),
         }
+    }
+
+    /// Returns screen-space bounds of all mounted, currently visible viewports backed by this host.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Engine host reference.
+    /// - `&SceneTree` - Active scene tree.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<Rect>` - Visible viewport rectangles (empty when this host is not on screen).
+    #[must_use]
+    pub fn active_viewport_bounds(&self, tree: &SceneTree) -> Vec<Rect> {
+        let mut rects: Vec<Rect> = Vec::new();
+        if let Ok(mut nodes) = self.get_viewport_nodes().try_borrow_mut() {
+            nodes.retain(|(_, id): &(SceneHandle, NodeId)| tree.get_node(*id).is_some());
+            for (_, id) in nodes.iter() {
+                if tree.is_node_visible(*id)
+                    && let Some(bounds) = tree.node_screen_bounds(*id)
+                    && bounds.get_width() > 0.0
+                    && bounds.get_height() > 0.0
+                {
+                    rects.push(bounds);
+                }
+            }
+        }
+        rects
     }
 
     /// Feeds a `WindowEvent` into the hosted game `InputState`.
@@ -585,6 +614,11 @@ impl GameEngineHost {
         }
         if let Ok(mut input) = self.get_input().try_borrow_mut() {
             input.begin_frame();
+        }
+        if let Ok(nodes) = self.get_viewport_nodes().try_borrow() {
+            for (scene_handle, node_id) in nodes.iter() {
+                scene_handle.mark_dirty(*node_id, DIRTY_PAINT);
+            }
         }
         steps
     }
@@ -661,6 +695,9 @@ impl GameEngineHost {
                 }
             },
         );
+        if let Ok(mut nodes) = self.get_viewport_nodes().try_borrow_mut() {
+            nodes.push((ctx.get_scene().clone(), node));
+        }
         let drag_origin: Rc<RefCell<Option<Point>>> = Rc::new(RefCell::new(None));
         let origin_down: Rc<RefCell<Option<Point>>> = drag_origin.clone();
         let origin_move: Rc<RefCell<Option<Point>>> = drag_origin.clone();

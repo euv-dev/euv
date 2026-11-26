@@ -973,3 +973,144 @@ fn responsive_five_widths_virtual_list_alignment_and_ai_schema_hooks_pass_zero_o
         }
     }
 }
+
+#[test]
+fn multitouch_lifecycle_stale_cleanup_and_smooth_scroll_inertia_never_freeze() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = state.get_route().set_if_changed(ROUTE_LAB.to_string());
+    let _: FrameStats = app.step_frame().unwrap();
+    let touches_sig: Signal<Vec<(u64, Point)>> = app.get_build_context().get_active_touches();
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(1, 500.0, 360.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(2, 580.0, 360.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(3, 640.0, 390.0),
+    ));
+    assert_eq!(touches_sig.get_untracked().len(), 3);
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::touch(2, 610.0, 370.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(2, 610.0, 370.0),
+    ));
+    assert_eq!(touches_sig.get_untracked().len(), 2);
+    app.reconcile_active_touch_ids(&[1]);
+    assert_eq!(touches_sig.get_untracked().len(), 1);
+    assert_eq!(touches_sig.get_untracked()[0].0, 1);
+    app.dispatch_window_event(WindowEvent::PointerCancel(wid, 0));
+    assert!(touches_sig.get_untracked().is_empty());
+    let _: FrameStats = app.step_frame().unwrap();
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(10, 520.0, 360.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(11, 600.0, 360.0),
+    ));
+    app.dispatch_window_event(WindowEvent::Focused(wid, false));
+    assert!(touches_sig.get_untracked().is_empty());
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::mouse(520.0, 360.0),
+    ));
+    assert_eq!(touches_sig.get_untracked().len(), 1);
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::new(
+            0,
+            PointerDevice::Mouse,
+            Point::new(530.0, 360.0),
+            PointerButton::Primary,
+            0.0,
+            Modifiers::default(),
+        ),
+    ));
+    assert!(touches_sig.get_untracked().is_empty());
+    app.dispatch_window_event(WindowEvent::Resized(wid, 390, 844, 2.0));
+    let _: bool = state.get_route().set_if_changed(ROUTE_FORMS.to_string());
+    let _: FrameStats = app.step_frame().unwrap();
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(1, 195.0, 500.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(2, 240.0, 500.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(2, 240.0, 500.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::touch(1, 195.0, 340.0),
+    ));
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(1, 195.0, 340.0),
+    ));
+    let scroll_at_release: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes()
+                .iter()
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                .fold(0.0_f32, f32::max)
+        },
+        0.0,
+    );
+    assert!(
+        scroll_at_release > 80.0,
+        "expected multi-touch handoff drag to scroll without freeze, got {scroll_at_release}"
+    );
+    for _ in 0..12 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let scroll_after_fling: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes()
+                .iter()
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                .fold(0.0_f32, f32::max)
+        },
+        0.0,
+    );
+    assert!(
+        scroll_after_fling > scroll_at_release,
+        "expected smooth inertial fling glide after lift: release={scroll_at_release} after={scroll_after_fling}"
+    );
+    assert!(touches_sig.get_untracked().is_empty());
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(3, 195.0, 500.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::touch(3, 195.0, 440.0),
+    ));
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    for _ in 0..8 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(3, 195.0, 440.0),
+    ));
+    assert!(
+        !app.has_active_animations(),
+        "holding finger stationary before lift should cancel accidental fling"
+    );
+}

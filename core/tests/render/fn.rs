@@ -256,3 +256,81 @@ fn transparent_canvas_hover_skips_gray_box_and_hardware_has_readback_framebuffer
     assert!(cov_sdf > 0.0 && cov_msaa > 0.0 && cov_ssaa > 0.0);
     assert_ne!(cov_sdf.to_bits(), cov_ssaa.to_bits());
 }
+
+#[test]
+fn lossless_multi_dpi_viewport_gaussian_shadow_and_supersampled_edges() {
+    reset_reactive_runtime();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(411, 914).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        let mut ctx: BuildContext = current_build_context();
+        let root: NodeId = ctx.view(
+            Style::empty()
+                .column()
+                .width(Length::Percent(100.0))
+                .height(Length::Percent(100.0))
+                .padding(Edges::all(16.0))
+                .background(Color::hex(0xF8FAFC)),
+        );
+        let card: NodeId = ctx.view(
+            Style::empty()
+                .width(Length::Px(220.0))
+                .height(Length::Px(96.0))
+                .background(Color::hex(0xFFFFFF))
+                .border(1.0, Color::hex(0xE2E8F0))
+                .radius(12.0)
+                .shadow(Shadow::new(0.0, 6.0, 20.0, 0.0, Color::new(15, 23, 42, 32))),
+        );
+        ctx.append(root, card);
+        root
+    });
+    let dpi_cases: [(u32, u32, f32); 5] = [
+        (1080, 2400, 2.625),
+        (1366, 768, 1.25),
+        (1920, 1080, 1.5),
+        (1179, 2556, 3.0),
+        (800, 600, 1.0),
+    ];
+    for (phys_w, phys_h, scale) in dpi_cases.into_iter() {
+        app.set_exact_physical_viewport(phys_w, phys_h, scale);
+        let stats: FrameStats = app.step_frame().unwrap();
+        assert_ne!(stats.get_frame_hash(), 0);
+        let fb: &Framebuffer = app.get_renderer().framebuffer().unwrap();
+        assert_eq!(fb.get_width(), phys_w);
+        assert_eq!(fb.get_height(), phys_h);
+    }
+    let f_neg: f32 = gaussian_shadow_falloff(-12.0, 4.0);
+    let f_zero: f32 = gaussian_shadow_falloff(0.0, 4.0);
+    let f_mid: f32 = gaussian_shadow_falloff(4.0, 4.0);
+    let f_far: f32 = gaussian_shadow_falloff(12.0, 4.0);
+    assert!(f_neg > 0.99);
+    assert!((f_zero - 0.5).abs() < 0.01);
+    assert!(f_mid > 0.10 && f_mid < 0.25);
+    assert!(f_far < 0.01);
+    assert!(f_neg > f_zero && f_zero > f_mid && f_mid > f_far);
+    let (oc_tl, ic_tl): (f32, f32) =
+        rounded_box_supersampled_coverage(-18.5, -18.5, 24.0, 24.0, 8.0, 1.5);
+    let (oc_br, ic_br): (f32, f32) =
+        rounded_box_supersampled_coverage(18.5, 18.5, 24.0, 24.0, 8.0, 1.5);
+    assert!((oc_tl - oc_br).abs() < 0.001);
+    assert!((ic_tl - ic_br).abs() < 0.001);
+    assert!(oc_tl >= ic_tl);
+    let tri_cov: f32 = triangle_supersampled_coverage(
+        50.5,
+        10.5,
+        Point::new(0.0, 10.0),
+        Point::new(100.0, 11.0),
+        Point::new(50.0, 30.0),
+    );
+    assert!(tri_cov > 0.0 && tri_cov < 1.0);
+    let snapped: Rect = snap_physical_rect(Rect::new(10.0, 10.0, 100.0, 40.0), 2.625);
+    assert_eq!(snapped.get_x(), 26.0);
+    assert_eq!(snapped.right(), 289.0);
+    assert!(WGSL_UI_SHADER.contains("gaussian_falloff"));
+    assert!(MSL_UI_SHADER.contains("euv_gaussian_falloff"));
+    assert!(GLSL_ES3_UI_FRAGMENT_SHADER.contains("gaussian_falloff"));
+    assert!(HLSL_UI_SHADER.contains("GaussianFalloff"));
+}

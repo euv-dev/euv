@@ -192,12 +192,7 @@ impl HardwareRenderer {
                     clear_color = *c;
                 }
                 DrawCommand::PushClip(rect) => {
-                    let phys: Rect = Rect::new(
-                        rect.get_x() * scale,
-                        rect.get_y() * scale,
-                        rect.get_width() * scale,
-                        rect.get_height() * scale,
-                    );
+                    let phys: Rect = snap_physical_rect(*rect, scale);
                     clip_stack.push(active_clip.intersect(phys).unwrap_or_default());
                 }
                 DrawCommand::PopClip => {
@@ -212,6 +207,11 @@ impl HardwareRenderer {
                     border,
                 } => {
                     let snapped: Rect = snap_physical_rect(*rect, scale);
+                    let bw: f32 = if border.get_width() > 0.0 {
+                        (border.get_width() * scale).max(1.0)
+                    } else {
+                        0.0
+                    };
                     let inst: GpuQuadInstance = GpuQuadInstance {
                         rect: [
                             snapped.get_x(),
@@ -233,7 +233,7 @@ impl HardwareRenderer {
                             radius.get_bottom_right() * scale,
                             radius.get_bottom_left() * scale,
                         ],
-                        stroke_or_blur: border.get_width() * scale,
+                        stroke_or_blur: bw,
                         angle_rad: 0.0,
                         kind: GpuPrimitiveKind::RoundedRect as u32,
                         reserved: 0,
@@ -279,12 +279,23 @@ impl HardwareRenderer {
                     radius,
                     shadow,
                 } => {
+                    let spread: f32 = shadow.get_spread_radius() * scale;
+                    let blur: f32 = (shadow.get_blur_radius().max(0.5) * scale).min(96.0);
+                    let sigma: f32 = (blur * 0.5).max(0.75);
+                    let pad: f32 = (sigma * 3.0).ceil();
+                    let base_rect: Rect = snap_physical_rect(*rect, scale);
+                    let caster_x: f32 =
+                        base_rect.get_x() + (shadow.get_offset_x() * scale).round() - spread;
+                    let caster_y: f32 =
+                        base_rect.get_y() + (shadow.get_offset_y() * scale).round() - spread;
+                    let caster_w: f32 = (base_rect.get_width() + spread * 2.0).max(1.0);
+                    let caster_h: f32 = (base_rect.get_height() + spread * 2.0).max(1.0);
                     let inst: GpuQuadInstance = GpuQuadInstance {
                         rect: [
-                            (rect.get_x() + shadow.get_offset_x()) * scale,
-                            (rect.get_y() + shadow.get_offset_y()) * scale,
-                            rect.get_width() * scale,
-                            rect.get_height() * scale,
+                            caster_x - pad,
+                            caster_y - pad,
+                            caster_w + pad * 2.0,
+                            caster_h + pad * 2.0,
                         ],
                         clip: [
                             active_clip.get_x(),
@@ -295,13 +306,13 @@ impl HardwareRenderer {
                         color: shadow.get_color().to_f32_array(),
                         secondary_color: [0.0; 4],
                         radii: [
-                            radius.get_top_left() * scale,
-                            radius.get_top_right() * scale,
-                            radius.get_bottom_right() * scale,
-                            radius.get_bottom_left() * scale,
+                            (radius.get_top_left() * scale + spread).max(0.0),
+                            (radius.get_top_right() * scale + spread).max(0.0),
+                            (radius.get_bottom_right() * scale + spread).max(0.0),
+                            (radius.get_bottom_left() * scale + spread).max(0.0),
                         ],
-                        stroke_or_blur: shadow.get_blur_radius() * scale,
-                        angle_rad: 0.0,
+                        stroke_or_blur: sigma,
+                        angle_rad: pad,
                         kind: GpuPrimitiveKind::Shadow as u32,
                         reserved: 0,
                     };

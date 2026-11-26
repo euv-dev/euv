@@ -52,3 +52,42 @@ pub(crate) const WEB_KEY_ARROW_UP: &str = "ArrowUp";
 /// DOM KeyboardEvent key name for ArrowDown.
 #[cfg(target_arch = "wasm32")]
 pub(crate) const WEB_KEY_ARROW_DOWN: &str = "ArrowDown";
+/// DOM event name for pointer movement.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_POINTER_MOVE: &str = "pointermove";
+/// DOM event name for pointer press.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_POINTER_DOWN: &str = "pointerdown";
+/// DOM event name for pointer release.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_POINTER_UP: &str = "pointerup";
+/// DOM event name for pointer cancel.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_POINTER_CANCEL: &str = "pointercancel";
+/// DOM event name for lost pointer capture.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_LOST_POINTER_CAPTURE: &str = "lostpointercapture";
+/// DOM event name for window blur.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_BLUR: &str = "blur";
+/// DOM event name for mouse/trackpad wheel scroll.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_WHEEL: &str = "wheel";
+/// DOM event name for key down.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_KEY_DOWN: &str = "keydown";
+/// DOM event name for key up.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_KEY_UP: &str = "keyup";
+/// DOM event name for window resize.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_RESIZE: &str = "resize";
+/// DOM `PointerEvent.pointerType` value for touch contacts.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_PTR_TYPE_TOUCH: &str = "touch";
+/// DOM `PointerEvent.pointerType` value for pen/stylus contacts.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_PTR_TYPE_PEN: &str = "pen";
+/// DOM CSS selector for the mounted canvas element.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_SELECTOR_CANVAS: &str = "canvas";

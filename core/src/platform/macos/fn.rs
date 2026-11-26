@@ -1073,7 +1073,7 @@ pub(crate) fn macos_present_cg_image(
                 CG_BITMAP_INFO_RGBA8,
                 provider,
                 null(),
-                true,
+                false,
                 0,
             )
         };

@@ -65,15 +65,14 @@ pub struct EuvIosHandle {
     app: App,
     _state: ShowcaseState,
     wid: WindowId,
-    pixels: Vec<u8>,
     width: u32,
     height: u32,
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn euv_ios_create(
-    width: f32,
-    height: f32,
+    phys_width: u32,
+    phys_height: u32,
     scale: f32,
     is_ipad: i32,
 ) -> *mut EuvIosHandle {
@@ -90,23 +89,21 @@ pub extern "C" fn euv_ios_create(
         .get_mut_software()
         .set_font_provider(NativeSystemFont::system());
     let wid: WindowId = app.get_window_state().get_id();
-    let w: u32 = width.max(200.0).round() as u32;
-    let h: u32 = height.max(200.0).round() as u32;
-    let s: f32 = scale.clamp(1.0, 4.0);
-    app.dispatch_window_event(WindowEvent::Resized(wid, w, h, s));
+    let pw: u32 = phys_width.max(200);
+    let ph: u32 = phys_height.max(200);
+    let s: f32 = scale.clamp(1.0, 4.5);
+    app.set_exact_physical_viewport(pw, ph, s);
     let _ = app.step_game_frame(1.0 / 60.0);
     let mut handle = Box::new(EuvIosHandle {
         app,
         _state: state,
         wid,
-        pixels: Vec::new(),
         width: 0,
         height: 0,
     });
     if let Some(fb) = handle.app.get_renderer().framebuffer() {
         handle.width = fb.get_width();
         handle.height = fb.get_height();
-        handle.pixels = fb.get_pixels().clone();
     }
     Box::into_raw(handle)
 }
@@ -114,19 +111,18 @@ pub extern "C" fn euv_ios_create(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn euv_ios_resize(
     handle: *mut EuvIosHandle,
-    width: f32,
-    height: f32,
+    phys_width: u32,
+    phys_height: u32,
     scale: f32,
 ) {
     if handle.is_null() {
         return;
     }
     let h: &mut EuvIosHandle = unsafe { &mut *handle };
-    let w: u32 = width.max(200.0).round() as u32;
-    let ht: u32 = height.max(200.0).round() as u32;
-    let s: f32 = scale.clamp(1.0, 4.0);
-    h.app
-        .dispatch_window_event(WindowEvent::Resized(h.wid, w, ht, s));
+    let pw: u32 = phys_width.max(200);
+    let ph: u32 = phys_height.max(200);
+    let s: f32 = scale.clamp(1.0, 4.5);
+    h.app.set_exact_physical_viewport(pw, ph, s);
 }
 
 #[unsafe(no_mangle)]
@@ -199,6 +195,35 @@ pub unsafe extern "C" fn euv_ios_touch_up(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_touch_cancel(handle: *mut EuvIosHandle, pointer_id: u64) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    h.app
+        .dispatch_window_event(WindowEvent::PointerCancel(h.wid, pointer_id));
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_touch_sync(
+    handle: *mut EuvIosHandle,
+    ids: *const u64,
+    count: usize,
+) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    let live: Vec<u64> = if ids.is_null() || count == 0 {
+        Vec::new()
+    } else {
+        let slice: &[u64] = unsafe { std::slice::from_raw_parts(ids, count.min(32)) };
+        slice.iter().map(|id: &u64| (*id).max(1)).collect()
+    };
+    h.app.reconcile_active_touch_ids(&live);
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn euv_ios_step(
     handle: *mut EuvIosHandle,
     dt: f32,
@@ -213,15 +238,15 @@ pub unsafe extern "C" fn euv_ios_step(
     let Ok(stats) = h.app.step_game_frame(dt.clamp(1.0 / 240.0, 0.05)) else {
         return 0;
     };
-    let changed: bool = stats.get_pixels_shaded() > 0 || h.pixels.is_empty();
-    if changed && let Some(fb) = h.app.get_renderer().framebuffer() {
+    let changed: bool = stats.get_pixels_shaded() > 0 || h.width == 0;
+    if let Some(fb) = h.app.get_renderer().framebuffer() {
         h.width = fb.get_width();
         h.height = fb.get_height();
-        h.pixels.clear();
-        h.pixels.extend_from_slice(fb.get_pixels().as_slice());
-    }
-    if !out_ptr.is_null() {
-        unsafe { *out_ptr = h.pixels.as_ptr() };
+        if !out_ptr.is_null() {
+            unsafe { *out_ptr = fb.get_pixels().as_ptr() };
+        }
+    } else if !out_ptr.is_null() {
+        unsafe { *out_ptr = std::ptr::null() };
     }
     if !out_w.is_null() {
         unsafe { *out_w = h.width };
@@ -268,12 +293,14 @@ int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const c
 }
 
 typedef struct EuvIosHandle EuvIosHandle;
-extern EuvIosHandle *euv_ios_create(float width, float height, float scale, int32_t is_ipad);
-extern void euv_ios_resize(EuvIosHandle *handle, float width, float height, float scale);
+extern EuvIosHandle *euv_ios_create(uint32_t phys_width, uint32_t phys_height, float scale, int32_t is_ipad);
+extern void euv_ios_resize(EuvIosHandle *handle, uint32_t phys_width, uint32_t phys_height, float scale);
 extern void euv_ios_set_safe_area(EuvIosHandle *handle, float top, float right, float bottom, float left);
 extern void euv_ios_touch_down(EuvIosHandle *handle, uint64_t pointer_id, float x, float y);
 extern void euv_ios_touch_move(EuvIosHandle *handle, uint64_t pointer_id, float x, float y);
 extern void euv_ios_touch_up(EuvIosHandle *handle, uint64_t pointer_id, float x, float y);
+extern void euv_ios_touch_cancel(EuvIosHandle *handle, uint64_t pointer_id);
+extern void euv_ios_touch_sync(EuvIosHandle *handle, const uint64_t *ids, size_t count);
 extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_ptr, uint32_t *out_w, uint32_t *out_h);
 
 @interface EuvCanvasView : UIView
@@ -298,14 +325,16 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         self.backgroundColor = [UIColor whiteColor];
         self.multipleTouchEnabled = YES;
         _colorSpace = CGColorSpaceCreateDeviceRGB();
-        CGFloat scale = fmin(4.0, UIScreen.mainScreen.scale);
+        CGFloat scale = fmin(4.5, UIScreen.mainScreen.scale);
         self.layer.contentsScale = scale;
-        self.layer.magnificationFilter = kCAFilterLinear;
-        self.layer.minificationFilter = kCAFilterTrilinear;
+        self.layer.magnificationFilter = kCAFilterNearest;
+        self.layer.minificationFilter = kCAFilterLinear;
         CGFloat w = frame.size.width > 0 ? frame.size.width : 393.0;
         CGFloat h = frame.size.height > 0 ? frame.size.height : 852.0;
+        uint32_t physW = (uint32_t)llround(w * scale);
+        uint32_t physH = (uint32_t)llround(h * scale);
         int32_t isIpad = (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) ? 1 : 0;
-        _handle = euv_ios_create((float)w, (float)h, (float)scale, isIpad);
+        _handle = euv_ios_create(physW, physH, (float)scale, isIpad);
         if (@available(iOS 17.0, *)) {
             [self registerForTraitChanges:@[UITraitDisplayScale.class] withTarget:self action:@selector(syncViewportScaleAndBounds)];
         }
@@ -345,6 +374,10 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 
 - (void)didMoveToWindow {
     [super didMoveToWindow];
+    if (!self.window && _handle) {
+        euv_ios_touch_cancel(_handle, 0);
+        return;
+    }
     [self syncViewportScaleAndBounds];
 }
 
@@ -360,12 +393,14 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     CGFloat rawScale = self.traitCollection.displayScale > 0
         ? self.traitCollection.displayScale
         : (self.window.screen.scale > 0 ? self.window.screen.scale : UIScreen.mainScreen.scale);
-    CGFloat scale = fmin(4.0, rawScale);
+    CGFloat scale = fmin(4.5, rawScale);
     _lastLogicalW = self.bounds.size.width;
     _lastLogicalH = self.bounds.size.height;
     _lastScale = scale;
     self.layer.contentsScale = scale;
-    euv_ios_resize(_handle, (float)self.bounds.size.width, (float)self.bounds.size.height, (float)scale);
+    uint32_t physW = (uint32_t)llround(self.bounds.size.width * scale);
+    uint32_t physH = (uint32_t)llround(self.bounds.size.height * scale);
+    euv_ios_resize(_handle, physW, physH, (float)scale);
     [self syncSafeArea];
     [self presentFrameWithDt:1.0f / 60.0f force:YES];
 }
@@ -413,7 +448,7 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         NSData *copyData = [NSData dataWithBytes:pixels length:bytes];
         CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)copyData);
         CGBitmapInfo info = kCGBitmapByteOrder32Big | kCGImageAlphaLast;
-        CGImageRef img = CGImageCreate(w, h, 8, 32, (size_t)w * 4, _colorSpace, info, provider, NULL, true, kCGRenderingIntentDefault);
+        CGImageRef img = CGImageCreate(w, h, 8, 32, (size_t)w * 4, _colorSpace, info, provider, NULL, false, kCGRenderingIntentDefault);
         if (img) {
             self.layer.contents = (__bridge id)img;
             self.layer.contentsGravity = kCAGravityResize;
@@ -435,12 +470,28 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     }
 }
 
+- (void)syncLiveTouchesFromEvent:(UIEvent *)event {
+    if (!_handle) return;
+    uint64_t liveIds[32];
+    size_t count = 0;
+    if (event) {
+        for (UITouch *t in event.allTouches) {
+            UITouchPhase phase = t.phase;
+            if ((phase == UITouchPhaseBegan || phase == UITouchPhaseMoved || phase == UITouchPhaseStationary) && count < 32) {
+                liveIds[count++] = (uint64_t)(uintptr_t)t;
+            }
+        }
+    }
+    euv_ios_touch_sync(_handle, liveIds, count);
+}
+
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     if (!_handle) return;
     for (UITouch *t in touches) {
         CGPoint p = [t locationInView:self];
         euv_ios_touch_down(_handle, (uint64_t)(uintptr_t)t, (float)p.x, (float)p.y);
     }
+    [self syncLiveTouchesFromEvent:event];
 }
 
 - (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
@@ -449,6 +500,7 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         CGPoint p = [t locationInView:self];
         euv_ios_touch_move(_handle, (uint64_t)(uintptr_t)t, (float)p.x, (float)p.y);
     }
+    [self syncLiveTouchesFromEvent:event];
 }
 
 - (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
@@ -457,10 +509,15 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
         CGPoint p = [t locationInView:self];
         euv_ios_touch_up(_handle, (uint64_t)(uintptr_t)t, (float)p.x, (float)p.y);
     }
+    [self syncLiveTouchesFromEvent:event];
 }
 
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    [self touchesEnded:touches withEvent:event];
+    if (!_handle) return;
+    for (UITouch *t in touches) {
+        euv_ios_touch_cancel(_handle, (uint64_t)(uintptr_t)t);
+    }
+    [self syncLiveTouchesFromEvent:event];
 }
 
 @end
@@ -527,6 +584,16 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
 - (void)sceneDidBecomeActive:(UIScene *)scene {
     if ([scene isKindOfClass:[UIWindowScene class]]) {
         [self syncWindowGeometry:(UIWindowScene *)scene];
+    }
+}
+
+- (void)sceneWillResignActive:(UIScene *)scene {
+    (void)scene;
+    if (self.window && [self.window.rootViewController isKindOfClass:[EuvViewController class]]) {
+        EuvViewController *vc = (EuvViewController *)self.window.rootViewController;
+        if (vc.canvasView && vc.canvasView.handle) {
+            euv_ios_touch_cancel(vc.canvasView.handle, 0);
+        }
     }
 }
 

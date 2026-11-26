@@ -357,7 +357,23 @@ impl PaintPass {
         } else {
             cull_rect
         };
-        if bounds.get_width() > 0.0 && bounds.get_height() > 0.0 {
+        let halo: f32 = if paint.box_shadow().is_some() {
+            36.0
+        } else if paint.focus_ring_border().is_some() {
+            8.0
+        } else {
+            2.0
+        };
+        let self_vis_rect: Rect = Rect::new(
+            bounds.get_x() - halo,
+            bounds.get_y() - halo,
+            bounds.get_width() + halo * 2.0,
+            bounds.get_height() + halo * 2.0,
+        );
+        let self_visible: bool = bounds.get_width() > 0.0
+            && bounds.get_height() > 0.0
+            && self_vis_rect.intersect(cull_rect).is_some();
+        if self_visible {
             if let Some(mut shadow) = paint.box_shadow() {
                 shadow.set_color(shadow.get_color().multiply_alpha(opacity));
                 display_list.push(DrawCommand::BoxShadow {

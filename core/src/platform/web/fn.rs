@@ -61,29 +61,26 @@ pub(crate) fn web_create_canvas(
     let canvas: HtmlCanvasElement = el.dyn_into::<HtmlCanvasElement>().map_err(|_: Element| {
         PlatformError::InitializationFailed(ERR_WEB_CANVAS_CREATE.to_string())
     })?;
-    let win_w: u32 = win
+    let win_w: f64 = win
         .inner_width()
         .ok()
         .and_then(|v: JsValue| v.as_f64())
-        .map(|w: f64| w.floor() as u32)
-        .filter(|w: &u32| *w >= 320)
-        .unwrap_or_else(|| config.get_width());
-    let win_h: u32 = win
+        .filter(|w: &f64| *w >= 320.0)
+        .unwrap_or_else(|| config.get_width() as f64);
+    let win_h: f64 = win
         .inner_height()
         .ok()
         .and_then(|v: JsValue| v.as_f64())
-        .map(|h: f64| h.floor() as u32)
-        .filter(|h: &u32| *h >= 320)
-        .unwrap_or_else(|| config.get_height());
-    let phys_w: u32 = ((win_w as f32) * dpr).round().max(1.0) as u32;
-    let phys_h: u32 = ((win_h as f32) * dpr).round().max(1.0) as u32;
+        .filter(|h: &f64| *h >= 320.0)
+        .unwrap_or_else(|| config.get_height() as f64);
+    let phys_w: u32 = (win_w * (dpr as f64)).round().max(1.0) as u32;
+    let phys_h: u32 = (win_h * (dpr as f64)).round().max(1.0) as u32;
     canvas.set_width(phys_w);
     canvas.set_height(phys_h);
-    let css_style: String = format!(
-        "position:fixed;inset:0;width:{win_w}px;height:{win_h}px;display:block;outline:none;cursor:pointer;margin:0;"
-    );
+    let css_style: String =
+        format!("{WEB_CANVAS_STYLE_PREFIX}{WEB_CURSOR_POINTER}{WEB_CANVAS_STYLE_SUFFIX}");
     drop(canvas.set_attribute(WEB_ATTR_STYLE, &css_style));
-    drop(canvas.set_attribute(WEB_ATTR_TABINDEX, "0"));
+    drop(canvas.set_attribute(WEB_ATTR_TABINDEX, WEB_ATTR_TABINDEX_ZERO));
     if let Some(body) = doc.body() {
         drop(body.set_attribute(WEB_ATTR_STYLE, WEB_BODY_STYLE));
         drop(body.append_child(&canvas));

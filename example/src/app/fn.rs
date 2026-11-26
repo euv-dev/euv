@@ -379,58 +379,87 @@ pub fn euv_web_boot() {
     let Some(doc): Option<Document> = win.document() else {
         return;
     };
-    let Ok(Some(el)) = doc.query_selector("canvas") else {
+    let Ok(Some(el)) = doc.query_selector(WEB_SELECTOR_CANVAS) else {
         return;
     };
     let Ok(canvas) = el.dyn_into::<HtmlCanvasElement>() else {
         return;
     };
-    let init_w: u32 = win
-        .inner_width()
-        .ok()
-        .and_then(|v: JsValue| v.as_f64())
-        .map(|n: f64| n.floor() as u32)
-        .unwrap_or(1200)
-        .max(320);
-    let init_h: u32 = win
-        .inner_height()
-        .ok()
-        .and_then(|v: JsValue| v.as_f64())
-        .map(|n: f64| n.floor() as u32)
-        .unwrap_or(800)
-        .max(320);
-    let init_dpr: f32 = (win.device_pixel_ratio() as f32).clamp(1.0, 4.0);
-    let _: u64 = euv_web_resize(init_w, init_h, init_dpr);
+    let _: bool = web_sync_exact_viewport(&win, &canvas);
     let canvas_move: HtmlCanvasElement = canvas.clone();
-    let on_move: Closure<dyn FnMut(MouseEvent)> = Closure::wrap(Box::new(move |ev: MouseEvent| {
-        let rect: DomRect = canvas_move.get_bounding_client_rect();
-        let x: f32 = (ev.client_x() as f64 - rect.left()) as f32;
-        let y: f32 = (ev.client_y() as f64 - rect.top()) as f32;
-        web_queue_pointer_move(x, y);
-    })
-        as Box<dyn FnMut(MouseEvent)>);
-    drop(canvas.add_event_listener_with_callback("pointermove", on_move.as_ref().unchecked_ref()));
+    let on_move: Closure<dyn FnMut(web_sys::PointerEvent)> =
+        Closure::wrap(Box::new(move |ev: web_sys::PointerEvent| {
+            let ptr: PointerEvent = web_pointer_from_dom(&ev, &canvas_move, None);
+            web_queue_pointer_move_event(ptr);
+        }) as Box<dyn FnMut(web_sys::PointerEvent)>);
+    drop(canvas.add_event_listener_with_callback(
+        WEB_EVENT_POINTER_MOVE,
+        on_move.as_ref().unchecked_ref(),
+    ));
     on_move.forget();
     let canvas_down: HtmlCanvasElement = canvas.clone();
-    let on_down: Closure<dyn FnMut(MouseEvent)> = Closure::wrap(Box::new(move |ev: MouseEvent| {
-        drop(canvas_down.focus());
-        let rect: DomRect = canvas_down.get_bounding_client_rect();
-        let x: f32 = (ev.client_x() as f64 - rect.left()) as f32;
-        let y: f32 = (ev.client_y() as f64 - rect.top()) as f32;
-        web_queue_pointer_down(x, y);
-    })
-        as Box<dyn FnMut(MouseEvent)>);
-    drop(canvas.add_event_listener_with_callback("pointerdown", on_down.as_ref().unchecked_ref()));
+    let on_down: Closure<dyn FnMut(web_sys::PointerEvent)> =
+        Closure::wrap(Box::new(move |ev: web_sys::PointerEvent| {
+            drop(canvas_down.focus());
+            drop(canvas_down.set_pointer_capture(ev.pointer_id()));
+            let ptr: PointerEvent = web_pointer_from_dom(&ev, &canvas_down, Some(true));
+            web_queue_pointer_down_event(ptr);
+        }) as Box<dyn FnMut(web_sys::PointerEvent)>);
+    drop(canvas.add_event_listener_with_callback(
+        WEB_EVENT_POINTER_DOWN,
+        on_down.as_ref().unchecked_ref(),
+    ));
     on_down.forget();
     let canvas_up: HtmlCanvasElement = canvas.clone();
-    let on_up: Closure<dyn FnMut(MouseEvent)> = Closure::wrap(Box::new(move |ev: MouseEvent| {
-        let rect: DomRect = canvas_up.get_bounding_client_rect();
-        let x: f32 = (ev.client_x() as f64 - rect.left()) as f32;
-        let y: f32 = (ev.client_y() as f64 - rect.top()) as f32;
-        web_queue_pointer_up(x, y);
-    }) as Box<dyn FnMut(MouseEvent)>);
-    drop(canvas.add_event_listener_with_callback("pointerup", on_up.as_ref().unchecked_ref()));
+    let on_up: Closure<dyn FnMut(web_sys::PointerEvent)> =
+        Closure::wrap(Box::new(move |ev: web_sys::PointerEvent| {
+            drop(canvas_up.release_pointer_capture(ev.pointer_id()));
+            let ptr: PointerEvent = web_pointer_from_dom(&ev, &canvas_up, Some(false));
+            web_queue_pointer_up_event(ptr);
+        }) as Box<dyn FnMut(web_sys::PointerEvent)>);
+    drop(
+        canvas
+            .add_event_listener_with_callback(WEB_EVENT_POINTER_UP, on_up.as_ref().unchecked_ref()),
+    );
     on_up.forget();
+    let on_cancel: Closure<dyn FnMut(web_sys::PointerEvent)> =
+        Closure::wrap(Box::new(move |ev: web_sys::PointerEvent| {
+            web_queue_pointer_cancel(web_pointer_id_from_dom(&ev));
+        }) as Box<dyn FnMut(web_sys::PointerEvent)>);
+    drop(canvas.add_event_listener_with_callback(
+        WEB_EVENT_POINTER_CANCEL,
+        on_cancel.as_ref().unchecked_ref(),
+    ));
+    drop(canvas.add_event_listener_with_callback(
+        WEB_EVENT_LOST_POINTER_CAPTURE,
+        on_cancel.as_ref().unchecked_ref(),
+    ));
+    on_cancel.forget();
+    let canvas_win_up: HtmlCanvasElement = canvas.clone();
+    let on_win_up: Closure<dyn FnMut(web_sys::PointerEvent)> =
+        Closure::wrap(Box::new(move |ev: web_sys::PointerEvent| {
+            let ptr: PointerEvent = web_pointer_from_dom(&ev, &canvas_win_up, Some(false));
+            web_queue_pointer_up_event(ptr);
+        }) as Box<dyn FnMut(web_sys::PointerEvent)>);
+    drop(win.add_event_listener_with_callback(
+        WEB_EVENT_POINTER_UP,
+        on_win_up.as_ref().unchecked_ref(),
+    ));
+    on_win_up.forget();
+    let on_win_cancel: Closure<dyn FnMut(web_sys::PointerEvent)> =
+        Closure::wrap(Box::new(move |ev: web_sys::PointerEvent| {
+            web_queue_pointer_cancel(web_pointer_id_from_dom(&ev));
+        }) as Box<dyn FnMut(web_sys::PointerEvent)>);
+    drop(win.add_event_listener_with_callback(
+        WEB_EVENT_POINTER_CANCEL,
+        on_win_cancel.as_ref().unchecked_ref(),
+    ));
+    on_win_cancel.forget();
+    let on_blur: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
+        web_queue_pointer_cancel(0);
+    }) as Box<dyn FnMut(Event)>);
+    drop(win.add_event_listener_with_callback(WEB_EVENT_BLUR, on_blur.as_ref().unchecked_ref()));
+    on_blur.forget();
     let on_wheel: Closure<dyn FnMut(WheelEvent)> = Closure::wrap(Box::new(move |ev: WheelEvent| {
         ev.prevent_default();
         let mult: f32 = match ev.delta_mode() {
@@ -441,7 +470,9 @@ pub fn euv_web_boot() {
         web_queue_scroll((ev.delta_x() as f32) * mult, (ev.delta_y() as f32) * mult);
     })
         as Box<dyn FnMut(WheelEvent)>);
-    drop(canvas.add_event_listener_with_callback("wheel", on_wheel.as_ref().unchecked_ref()));
+    drop(
+        canvas.add_event_listener_with_callback(WEB_EVENT_WHEEL, on_wheel.as_ref().unchecked_ref()),
+    );
     on_wheel.forget();
     let on_key: Closure<dyn FnMut(KeyboardEvent)> =
         Closure::wrap(Box::new(move |ev: KeyboardEvent| {
@@ -460,7 +491,7 @@ pub fn euv_web_boot() {
             }
             web_queue_key_down(&key, &code_str);
         }) as Box<dyn FnMut(KeyboardEvent)>);
-    drop(win.add_event_listener_with_callback("keydown", on_key.as_ref().unchecked_ref()));
+    drop(win.add_event_listener_with_callback(WEB_EVENT_KEY_DOWN, on_key.as_ref().unchecked_ref()));
     on_key.forget();
     let on_key_up: Closure<dyn FnMut(KeyboardEvent)> =
         Closure::wrap(Box::new(move |ev: KeyboardEvent| {
@@ -468,32 +499,25 @@ pub fn euv_web_boot() {
             let code_str: String = ev.code();
             web_queue_key_up(&key, &code_str);
         }) as Box<dyn FnMut(KeyboardEvent)>);
-    drop(win.add_event_listener_with_callback("keyup", on_key_up.as_ref().unchecked_ref()));
+    drop(
+        win.add_event_listener_with_callback(WEB_EVENT_KEY_UP, on_key_up.as_ref().unchecked_ref()),
+    );
     on_key_up.forget();
     let win_resize: Window = win.clone();
+    let canvas_resize: HtmlCanvasElement = canvas.clone();
     let on_resize: Closure<dyn FnMut(Event)> = Closure::wrap(Box::new(move |_: Event| {
-        let lw: u32 = win_resize
-            .inner_width()
-            .ok()
-            .and_then(|v: JsValue| v.as_f64())
-            .map(|n: f64| n.floor() as u32)
-            .unwrap_or(1200)
-            .max(320);
-        let lh: u32 = win_resize
-            .inner_height()
-            .ok()
-            .and_then(|v: JsValue| v.as_f64())
-            .map(|n: f64| n.floor() as u32)
-            .unwrap_or(800)
-            .max(320);
-        let dpr: f32 = (win_resize.device_pixel_ratio() as f32).clamp(1.0, 4.0);
-        web_queue_resize(lw, lh, dpr);
+        if web_sync_exact_viewport(&win_resize, &canvas_resize) {
+            web_mark_needs_frame();
+        }
     }) as Box<dyn FnMut(Event)>);
-    drop(win.add_event_listener_with_callback("resize", on_resize.as_ref().unchecked_ref()));
+    drop(
+        win.add_event_listener_with_callback(WEB_EVENT_RESIZE, on_resize.as_ref().unchecked_ref()),
+    );
     on_resize.forget();
-    let raf_cell: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>> = Rc::new(RefCell::new(None));
-    let raf_loop: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>> = raf_cell.clone();
+    let raf_cell: WebRafSlot = Rc::new(RefCell::new(None));
+    let raf_loop: WebRafSlot = raf_cell.clone();
     let win_raf: Window = win.clone();
+    let canvas_raf: HtmlCanvasElement = canvas.clone();
     let last_ts: Rc<RefCell<f64>> = Rc::new(RefCell::new(0.0));
     if let Ok(mut slot) = raf_cell.try_borrow_mut() {
         *slot = Some(Closure::wrap(Box::new(move |ts: f64| {
@@ -504,39 +528,9 @@ pub fn euv_web_boot() {
                 }
                 *prev = ts;
             }
-            let cur_w: u32 = win_raf
-                .inner_width()
-                .ok()
-                .and_then(|v: JsValue| v.as_f64())
-                .map(|n: f64| n.floor() as u32)
-                .unwrap_or(1200)
-                .max(320);
-            let cur_h: u32 = win_raf
-                .inner_height()
-                .ok()
-                .and_then(|v: JsValue| v.as_f64())
-                .map(|n: f64| n.floor() as u32)
-                .unwrap_or(800)
-                .max(320);
-            let cur_dpr: f32 = (win_raf.device_pixel_ratio() as f32).clamp(1.0, 4.0);
-            let resized_or_scaled: bool = WEB_SHOWCASE_RUNTIME.with(
-                |slot: &RefCell<Option<(App, ShowcaseState)>>| match slot.try_borrow() {
-                    Ok(guard) => guard
-                        .as_ref()
-                        .map(|(app, _): &(App, ShowcaseState)| {
-                            let ws: WindowState = app.get_window_state();
-                            let prev_w: u32 = ws.get_logical_width().round() as u32;
-                            let prev_h: u32 = ws.get_logical_height().round() as u32;
-                            prev_w != cur_w
-                                || prev_h != cur_h
-                                || (ws.get_scale_factor() - cur_dpr).abs() > 0.01
-                        })
-                        .unwrap_or(false),
-                    Err(_) => false,
-                },
-            );
+            let resized_or_scaled: bool = web_sync_exact_viewport(&win_raf, &canvas_raf);
             if resized_or_scaled {
-                let _: u64 = euv_web_resize(cur_w, cur_h, cur_dpr);
+                let _: u64 = web_flush_frame(dt);
             }
             let cur_route: String = euv_web_current_route();
             let on_game: bool = cur_route == ROUTE_GAME || cur_route == ROUTE_GAME_3D;
@@ -545,7 +539,7 @@ pub fn euv_web_boot() {
             if on_game || animating {
                 let _: u64 = euv_web_tick(dt);
             } else if dirty && !resized_or_scaled {
-                let _: u64 = web_flush_frame();
+                let _: u64 = web_flush_frame(dt);
             }
             if let Ok(cb_ref) = raf_loop.try_borrow()
                 && let Some(cb) = cb_ref.as_ref()
@@ -634,20 +628,75 @@ fn web_mark_needs_frame() {
     WEB_NEEDS_FRAME.with(|flag: &Cell<bool>| flag.set(true));
 }
 
+/// Normalizes a browser `PointerEvent.pointerId` into a non-zero cross-platform pointer identifier.
+///
+/// # Arguments
+///
+/// - `&web_sys::PointerEvent` - Browser DOM pointer event.
+///
+/// # Returns
+///
+/// - `u64` - Stable non-zero pointer identifier.
+#[cfg(target_arch = "wasm32")]
+fn web_pointer_id_from_dom(ev: &web_sys::PointerEvent) -> u64 {
+    (ev.pointer_id() as i64).unsigned_abs().saturating_add(1)
+}
+
+/// Converts a browser DOM `PointerEvent` into an `euv::PointerEvent` preserving pointer ID, touch/pen/mouse device, and button state.
+///
+/// # Arguments
+///
+/// - `&web_sys::PointerEvent` - Browser DOM pointer event.
+/// - `&HtmlCanvasElement` - Target canvas element for local coordinate conversion.
+/// - `Option<bool>` - Optional explicit pressed override (`Some(true)` on down, `Some(false)` on up, `None` to inspect `buttons()`).
+///
+/// # Returns
+///
+/// - `PointerEvent` - Cross-platform pointer event.
+#[cfg(target_arch = "wasm32")]
+fn web_pointer_from_dom(
+    ev: &web_sys::PointerEvent,
+    canvas: &HtmlCanvasElement,
+    force_pressed: Option<bool>,
+) -> PointerEvent {
+    let rect: DomRect = canvas.get_bounding_client_rect();
+    let x: f32 = (ev.client_x() as f64 - rect.left()) as f32;
+    let y: f32 = (ev.client_y() as f64 - rect.top()) as f32;
+    let pid: u64 = web_pointer_id_from_dom(ev);
+    let ptype: String = ev.pointer_type();
+    let device: PointerDevice = if ptype == WEB_PTR_TYPE_TOUCH {
+        PointerDevice::Touch
+    } else if ptype == WEB_PTR_TYPE_PEN {
+        PointerDevice::Stylus
+    } else {
+        PointerDevice::Mouse
+    };
+    let is_pressed: bool =
+        force_pressed.unwrap_or_else(|| ev.buttons() != 0 || device == PointerDevice::Touch);
+    let pressure: f32 = if is_pressed { 1.0 } else { 0.0 };
+    PointerEvent::new(
+        pid,
+        device,
+        Point::new(x, y),
+        PointerButton::Primary,
+        pressure,
+        Modifiers::default(),
+    )
+}
+
 /// Enqueues a browser pointer move into the active WebAssembly runtime without synchronous full-frame rasterization.
 ///
 /// # Arguments
 ///
-/// - `f32` - Logical X coordinate.
-/// - `f32` - Logical Y coordinate.
+/// - `PointerEvent` - Normalized pointer move event.
 #[cfg(target_arch = "wasm32")]
-fn web_queue_pointer_move(x: f32, y: f32) {
+fn web_queue_pointer_move_event(ptr: PointerEvent) {
     WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
         if let Ok(mut borrow) = slot.try_borrow_mut()
             && let Some((app, _)) = borrow.as_mut()
         {
             let wid: WindowId = app.get_window_state().get_id();
-            app.dispatch_window_event(WindowEvent::PointerMove(wid, PointerEvent::mouse(x, y)));
+            app.dispatch_window_event(WindowEvent::PointerMove(wid, ptr));
             web_mark_needs_frame();
         }
     });
@@ -657,16 +706,15 @@ fn web_queue_pointer_move(x: f32, y: f32) {
 ///
 /// # Arguments
 ///
-/// - `f32` - Logical X coordinate.
-/// - `f32` - Logical Y coordinate.
+/// - `PointerEvent` - Normalized pointer press event.
 #[cfg(target_arch = "wasm32")]
-fn web_queue_pointer_down(x: f32, y: f32) {
+fn web_queue_pointer_down_event(ptr: PointerEvent) {
     WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
         if let Ok(mut borrow) = slot.try_borrow_mut()
             && let Some((app, _)) = borrow.as_mut()
         {
             let wid: WindowId = app.get_window_state().get_id();
-            app.dispatch_window_event(WindowEvent::PointerDown(wid, PointerEvent::mouse(x, y)));
+            app.dispatch_window_event(WindowEvent::PointerDown(wid, ptr));
             web_mark_needs_frame();
         }
     });
@@ -676,16 +724,33 @@ fn web_queue_pointer_down(x: f32, y: f32) {
 ///
 /// # Arguments
 ///
-/// - `f32` - Logical X coordinate.
-/// - `f32` - Logical Y coordinate.
+/// - `PointerEvent` - Normalized pointer release event.
 #[cfg(target_arch = "wasm32")]
-fn web_queue_pointer_up(x: f32, y: f32) {
+fn web_queue_pointer_up_event(ptr: PointerEvent) {
     WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
         if let Ok(mut borrow) = slot.try_borrow_mut()
             && let Some((app, _)) = borrow.as_mut()
         {
             let wid: WindowId = app.get_window_state().get_id();
-            app.dispatch_window_event(WindowEvent::PointerUp(wid, PointerEvent::mouse(x, y)));
+            app.dispatch_window_event(WindowEvent::PointerUp(wid, ptr));
+            web_mark_needs_frame();
+        }
+    });
+}
+
+/// Enqueues a browser pointer cancel (`0` cancels all active contacts) into the active WebAssembly runtime.
+///
+/// # Arguments
+///
+/// - `u64` - Cancelled pointer identifier (`0` cancels all active pointers).
+#[cfg(target_arch = "wasm32")]
+fn web_queue_pointer_cancel(pointer_id: u64) {
+    WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
+        if let Ok(mut borrow) = slot.try_borrow_mut()
+            && let Some((app, _)) = borrow.as_mut()
+        {
+            let wid: WindowId = app.get_window_state().get_id();
+            app.dispatch_window_event(WindowEvent::PointerCancel(wid, pointer_id));
             web_mark_needs_frame();
         }
     });
@@ -757,41 +822,84 @@ fn web_queue_key_up(key: &str, code_str: &str) {
     });
 }
 
-/// Enqueues a browser resize event for immediate VSync coalesced redraw.
+/// Synchronizes the WebAssembly `<canvas>` backing pixels and `App` viewport with exact 1:1 physical device pixels.
 ///
 /// # Arguments
 ///
-/// - `u32` - Logical viewport width.
-/// - `u32` - Logical viewport height.
-/// - `f32` - Active browser device pixel ratio.
+/// - `&Window` - Browser window object.
+/// - `&HtmlCanvasElement` - Target full-viewport canvas element.
+///
+/// # Returns
+///
+/// - `bool` - `true` when physical dimensions or DPI scale changed and the viewport was updated.
 #[cfg(target_arch = "wasm32")]
-fn web_queue_resize(width: u32, height: u32, dpr: f32) {
+fn web_sync_exact_viewport(win: &Window, canvas: &HtmlCanvasElement) -> bool {
+    let rect: DomRect = canvas.get_bounding_client_rect();
+    let css_w: f64 = if rect.width() >= 320.0 {
+        rect.width()
+    } else {
+        win.inner_width()
+            .ok()
+            .and_then(|v: JsValue| v.as_f64())
+            .filter(|w: &f64| *w >= 320.0)
+            .unwrap_or(1200.0)
+    };
+    let css_h: f64 = if rect.height() >= 320.0 {
+        rect.height()
+    } else {
+        win.inner_height()
+            .ok()
+            .and_then(|v: JsValue| v.as_f64())
+            .filter(|h: &f64| *h >= 320.0)
+            .unwrap_or(800.0)
+    };
+    let dpr_raw: f64 = win.device_pixel_ratio();
+    let dpr_f64: f64 = if dpr_raw.is_finite() && dpr_raw > 0.0 {
+        dpr_raw.clamp(0.5, 4.5)
+    } else {
+        1.0
+    };
+    let dpr: f32 = dpr_f64 as f32;
+    let phys_w: u32 = (css_w * dpr_f64).round().max(1.0) as u32;
+    let phys_h: u32 = (css_h * dpr_f64).round().max(1.0) as u32;
     WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
-        if let Ok(mut borrow) = slot.try_borrow_mut()
-            && let Some((app, _)) = borrow.as_mut()
-        {
-            let w: u32 = width.max(320);
-            let h: u32 = height.max(320);
-            let scale: f32 = if dpr.is_finite() && dpr > 0.0 {
-                dpr
-            } else {
-                1.0
-            };
-            let wid: WindowId = app.get_window_state().get_id();
-            app.queue_window_command(WindowCommand::SetSize(wid, w, h));
-            app.dispatch_window_event(WindowEvent::Resized(wid, w, h, scale));
-            web_mark_needs_frame();
+        let Ok(mut borrow) = slot.try_borrow_mut() else {
+            return false;
+        };
+        let Some((app, _)) = borrow.as_mut() else {
+            return false;
+        };
+        let ws: WindowState = app.get_window_state();
+        let size_diff: bool = ws.get_physical_width() != phys_w
+            || ws.get_physical_height() != phys_h
+            || (ws.get_scale_factor() - dpr).abs() > 0.005
+            || canvas.width() != phys_w
+            || canvas.height() != phys_h;
+        if !size_diff {
+            return false;
         }
-    });
+        if canvas.width() != phys_w {
+            canvas.set_width(phys_w);
+        }
+        if canvas.height() != phys_h {
+            canvas.set_height(phys_h);
+        }
+        app.set_exact_physical_viewport(phys_w, phys_h, dpr);
+        true
+    })
 }
 
-/// Steps one coalesced WebAssembly frame during `requestAnimationFrame`.
+/// Steps one coalesced WebAssembly frame during `requestAnimationFrame` with accurate real-time `dt_secs`.
+///
+/// # Arguments
+///
+/// - `f32` - Elapsed seconds since the previous animation frame.
 ///
 /// # Returns
 ///
 /// - `u64` - Rendered frame hash.
 #[cfg(target_arch = "wasm32")]
-fn web_flush_frame() -> u64 {
+fn web_flush_frame(dt_secs: f32) -> u64 {
     WEB_SHOWCASE_RUNTIME.with(|slot: &RefCell<Option<(App, ShowcaseState)>>| {
         let mut borrow: RefMut<'_, Option<(App, ShowcaseState)>> = match slot.try_borrow_mut() {
             Ok(guard) => guard,
@@ -800,7 +908,7 @@ fn web_flush_frame() -> u64 {
         let Some((app, _)) = borrow.as_mut() else {
             return 0;
         };
-        app.step_frame()
+        app.step_game_frame(dt_secs)
             .map(|stats: FrameStats| stats.get_frame_hash())
             .unwrap_or(0)
     })
@@ -1118,13 +1226,25 @@ pub fn euv_web_resize(width: u32, height: u32, dpr: f32) -> u64 {
         let w: u32 = width.max(320);
         let h: u32 = height.max(320);
         let scale: f32 = if dpr.is_finite() && dpr > 0.0 {
-            dpr
+            dpr.clamp(0.5, 4.5)
         } else {
             1.0
         };
-        let wid: WindowId = app.get_window_state().get_id();
-        app.queue_window_command(WindowCommand::SetSize(wid, w, h));
-        app.dispatch_window_event(WindowEvent::Resized(wid, w, h, scale));
+        let phys_w: u32 = ((w as f64) * (scale as f64)).round().max(1.0) as u32;
+        let phys_h: u32 = ((h as f64) * (scale as f64)).round().max(1.0) as u32;
+        if let Some(win) = window()
+            && let Some(doc) = win.document()
+            && let Ok(Some(el)) = doc.query_selector(WEB_SELECTOR_CANVAS)
+            && let Ok(canvas) = el.dyn_into::<HtmlCanvasElement>()
+        {
+            if canvas.width() != phys_w {
+                canvas.set_width(phys_w);
+            }
+            if canvas.height() != phys_h {
+                canvas.set_height(phys_h);
+            }
+        }
+        app.set_exact_physical_viewport(phys_w, phys_h, scale);
         app.step_frame()
             .map(|stats: FrameStats| stats.get_frame_hash())
             .unwrap_or(0)

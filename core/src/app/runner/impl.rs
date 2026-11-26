@@ -104,11 +104,15 @@ impl App {
             last_rendered_revision: 0,
             last_cursor: CursorIcon::Default,
             game_hosts: Vec::new(),
+            touch_drag_pointer_id: None,
             touch_drag_origin: None,
             touch_drag_last: None,
             touch_dragging: false,
+            touch_vel_accum_delta: Point::default(),
+            touch_vel_idle_secs: 0.0,
             scrollbar_dragging: false,
             active_pointers: HashMap::new(),
+            active_pointer_devices: HashMap::new(),
             gesture_origin: None,
             pinch_base_dist: 0.0,
             gesture_hold_secs: 0.0,
@@ -119,6 +123,9 @@ impl App {
             scroll_velocity: Point::default(),
             scroll_fling_pos: Point::default(),
             touch_scroll_target: None,
+            smooth_scroll_pending: Point::default(),
+            smooth_scroll_pos: Point::default(),
+            smooth_scroll_target: None,
             in_step_frame: false,
             caret_blink_secs: 0.0,
             gesture_suppressed: false,
@@ -182,7 +189,11 @@ impl App {
             return true;
         }
         let vel: Point = self.get_scroll_velocity();
-        if vel.get_x().abs() > 1.0 || vel.get_y().abs() > 1.0 {
+        if vel.get_x().hypot(vel.get_y()) > 4.0 {
+            return true;
+        }
+        let smooth: Point = self.get_smooth_scroll_pending();
+        if smooth.get_x().hypot(smooth.get_y()) > 0.4 {
             return true;
         }
         self.get_scene().with_read(
@@ -320,6 +331,50 @@ impl App {
         self.get_mut_command_queue().push(command);
     }
 
+    /// Sets exact physical pixel surface dimensions and DPI scale without truncating fractional logical sizes.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `u32` - Exact physical surface width in device pixels.
+    /// - `u32` - Exact physical surface height in device pixels.
+    /// - `f32` - Active display DPI scale factor.
+    pub fn set_exact_physical_viewport(&mut self, phys_w: u32, phys_h: u32, scale: f32) {
+        let safe_scale: f32 = if scale.is_finite() {
+            scale.clamp(0.5, 4.5)
+        } else {
+            1.0
+        };
+        let pw: u32 = phys_w.max(1);
+        let ph: u32 = phys_h.max(1);
+        let lw: f32 = ((pw as f32) / safe_scale).max(1.0);
+        let lh: f32 = ((ph as f32) / safe_scale).max(1.0);
+        self.get_mut_window_state().set_logical_width(lw);
+        self.get_mut_window_state().set_logical_height(lh);
+        self.get_mut_window_state().set_scale_factor(safe_scale);
+        self.get_mut_window_state().set_physical_width(pw);
+        self.get_mut_window_state().set_physical_height(ph);
+        let bp: Breakpoint = self.get_window_state().breakpoint();
+        let next_size: Size = self.get_window_state().logical_size();
+        batch(|| {
+            let _: bool = self.get_build_context().get_breakpoint().set_if_changed(bp);
+            let _: bool = self
+                .get_build_context()
+                .get_viewport_size()
+                .set_if_changed(next_size);
+        });
+        let scene: SceneHandle = self.get_scene().clone();
+        scene.with_write(
+            |tree: &mut SceneTree| {
+                let root: NodeId = tree.get_root();
+                let layout_bits: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                tree.mark_dirty(root, layout_bits | DIRTY_PAINT);
+            },
+            (),
+        );
+        self.set_pending_damage(DamageRegion::full());
+    }
+
     /// Processes a single incoming `WindowEvent`, updating state, hit-testing, and dispatching UI callbacks.
     ///
     /// # Arguments
@@ -332,36 +387,57 @@ impl App {
             host.ingest_event(&event);
         }
         match event {
-            WindowEvent::Resized(_, width, height, scale) => {
+            WindowEvent::Resized(wid, width, height, scale) => {
                 let safe_scale: f32 = scale.max(0.5);
-                self.get_mut_window_state()
-                    .set_logical_width(width.max(1) as f32);
-                self.get_mut_window_state()
-                    .set_logical_height(height.max(1) as f32);
-                self.get_mut_window_state().set_scale_factor(safe_scale);
-                self.get_mut_window_state()
-                    .set_physical_width(((width.max(1) as f32) * safe_scale).round() as u32);
-                self.get_mut_window_state()
-                    .set_physical_height(((height.max(1) as f32) * safe_scale).round() as u32);
-                let bp: Breakpoint = self.get_window_state().breakpoint();
-                let next_size: Size = self.get_window_state().logical_size();
-                batch(|| {
-                    let _: bool = self.get_build_context().get_breakpoint().set_if_changed(bp);
-                    let _: bool = self
-                        .get_build_context()
-                        .get_viewport_size()
-                        .set_if_changed(next_size);
-                });
-                let scene: SceneHandle = self.get_scene().clone();
-                scene.with_write(
-                    |tree: &mut SceneTree| {
-                        let root: NodeId = tree.get_root();
-                        let layout_bits: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
-                        tree.mark_dirty(root, layout_bits | DIRTY_PAINT);
-                    },
-                    (),
-                );
-                self.set_pending_damage(DamageRegion::full());
+                let exact_plat: Option<(u32, u32)> = {
+                    let Self { platform, .. } = self;
+                    platform.window_state(wid).and_then(|st: WindowState| {
+                        let pw: u32 = st.get_physical_width();
+                        let ph: u32 = st.get_physical_height();
+                        let rw: u32 = ((pw as f32) / safe_scale).round().max(1.0) as u32;
+                        let rh: u32 = ((ph as f32) / safe_scale).round().max(1.0) as u32;
+                        if (st.get_scale_factor() - safe_scale).abs() < 0.001
+                            && rw == width.max(1)
+                            && rh == height.max(1)
+                        {
+                            Some((pw, ph))
+                        } else {
+                            None
+                        }
+                    })
+                };
+                if let Some((pw, ph)) = exact_plat {
+                    self.set_exact_physical_viewport(pw, ph, safe_scale);
+                } else {
+                    self.get_mut_window_state()
+                        .set_logical_width(width.max(1) as f32);
+                    self.get_mut_window_state()
+                        .set_logical_height(height.max(1) as f32);
+                    self.get_mut_window_state().set_scale_factor(safe_scale);
+                    self.get_mut_window_state()
+                        .set_physical_width(((width.max(1) as f32) * safe_scale).round() as u32);
+                    self.get_mut_window_state()
+                        .set_physical_height(((height.max(1) as f32) * safe_scale).round() as u32);
+                    let bp: Breakpoint = self.get_window_state().breakpoint();
+                    let next_size: Size = self.get_window_state().logical_size();
+                    batch(|| {
+                        let _: bool = self.get_build_context().get_breakpoint().set_if_changed(bp);
+                        let _: bool = self
+                            .get_build_context()
+                            .get_viewport_size()
+                            .set_if_changed(next_size);
+                    });
+                    let scene: SceneHandle = self.get_scene().clone();
+                    scene.with_write(
+                        |tree: &mut SceneTree| {
+                            let root: NodeId = tree.get_root();
+                            let layout_bits: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(root, layout_bits | DIRTY_PAINT);
+                        },
+                        (),
+                    );
+                    self.set_pending_damage(DamageRegion::full());
+                }
             }
             WindowEvent::SafeAreaChanged(_, insets) => {
                 self.get_mut_window_state().set_safe_area(insets);
@@ -381,6 +457,9 @@ impl App {
             }
             WindowEvent::Focused(_, focused) => {
                 self.get_mut_window_state().set_focused(focused);
+                if !focused {
+                    self.cancel_all_active_pointers();
+                }
             }
             WindowEvent::CloseRequested(_) => {
                 self.set_running(false);
@@ -416,14 +495,10 @@ impl App {
                 let _: bool = self.get_deep_link().set(Some(link));
             }
             WindowEvent::PointerCancel(_, pointer_id) => {
-                let _: Option<Point> = self.get_mut_active_pointers().remove(&pointer_id);
-                self.publish_active_touches();
-                if self.get_active_pointers().is_empty() {
-                    self.set_gesture_origin(None);
-                    self.set_gesture_suppressed(false);
-                    self.set_touch_drag_origin(None);
-                    self.set_touch_drag_last(None);
-                    self.set_touch_dragging(false);
+                if pointer_id == 0 {
+                    self.cancel_all_active_pointers();
+                } else {
+                    self.handle_pointer_cancel_single(pointer_id);
                 }
             }
             WindowEvent::KeyUp(_, _) | WindowEvent::Ime(_, _) | WindowEvent::Lifecycle(_) => {}
@@ -500,43 +575,51 @@ impl App {
         } else if self.get_caret_blink_secs() > 0.0 {
             self.set_caret_blink_secs(0.0);
         }
-        let (canvas_damage_rects, has_visible_portal): (Vec<Rect>, bool) = scene.with_read(
+        let (game_damage_rects, has_visible_portal, active_host_indices): (
+            Vec<Rect>,
+            bool,
+            Vec<usize>,
+        ) = scene.with_read(
             |tree: &SceneTree| {
-                let mut rects: Vec<Rect> = Vec::new();
                 let mut portal_vis: bool = false;
-                for n in tree.get_nodes().iter() {
+                for (idx, n) in tree.get_nodes().iter().enumerate() {
                     if !n.get_alive() {
-                        continue;
-                    }
-                    let disp: Display = n.get_style().get_layout().get_display();
-                    if disp == Display::None {
                         continue;
                     }
                     if matches!(n.get_kind(), NodeKind::Portal)
                         || n.get_style().get_layout().get_position() == Position::Fixed
                     {
-                        portal_vis = true;
-                    }
-                    if matches!(n.get_kind(), NodeKind::Canvas) {
-                        let b: Rect = n.get_layout_box().get_bounds();
-                        if b.get_width() > 0.0 && b.get_height() > 0.0 {
-                            rects.push(b);
+                        let nid: NodeId = NodeId::new(idx as u32, n.get_generation());
+                        if tree.is_node_visible(nid) {
+                            portal_vis = true;
+                            break;
                         }
                     }
                 }
-                (rects, portal_vis)
+                let mut rects: Vec<Rect> = Vec::new();
+                let mut active_hosts: Vec<usize> = Vec::new();
+                for (host_idx, host) in self.get_game_hosts().iter().enumerate() {
+                    let host_rects: Vec<Rect> = host.active_viewport_bounds(tree);
+                    if !host_rects.is_empty() {
+                        active_hosts.push(host_idx);
+                        rects.extend(host_rects);
+                    }
+                }
+                (rects, portal_vis, active_hosts)
             },
-            (Vec::new(), false),
+            (Vec::new(), false, Vec::new()),
         );
-        let has_canvas: bool = !canvas_damage_rects.is_empty();
-        if has_canvas && !self.get_game_hosts().is_empty() {
-            for host in self.get_game_hosts().iter() {
+        let has_active_game: bool = !active_host_indices.is_empty();
+        for host_idx in active_host_indices.into_iter() {
+            if let Some(host) = self.get_game_hosts().get(host_idx) {
                 let _: u32 = host.step(anim_dt);
             }
         }
         let anim_ticked: bool =
             scene.with_write(|tree: &mut SceneTree| tree.tick_transitions(anim_dt), false);
         self.tick_gesture_timers(anim_dt);
+        self.sample_touch_drag_velocity(anim_dt);
+        self.tick_smooth_scroll(anim_dt);
         self.tick_scroll_inertia(anim_dt);
         let viewport: Size = self.get_window_state().logical_size();
         let scale: f32 = self.get_window_state().get_scale_factor();
@@ -560,8 +643,8 @@ impl App {
         } else if let Some(rect) = tree_damage.bounds_rect() {
             damage.add_rect(rect);
         }
-        if has_canvas && !self.get_game_hosts().is_empty() && !damage.get_full_damage() {
-            for r in canvas_damage_rects.iter() {
+        if has_active_game && !damage.get_full_damage() {
+            for r in game_damage_rects.iter() {
                 damage.add_rect(Rect::new(
                     (r.get_x() * scale).floor(),
                     (r.get_y() * scale).floor(),
@@ -575,9 +658,9 @@ impl App {
         if damage.resolve(phys_w, phys_h).is_none() {
             return Ok(self.get_mut_renderer().record_skipped_frame());
         }
-        let animated_or_canvas: bool = anim_ticked || has_canvas;
+        let animated_or_game: bool = anim_ticked || has_active_game;
         let portal_dirty: bool =
-            has_visible_portal && (animated_or_canvas || damage.resolve(phys_w, phys_h).is_some());
+            has_visible_portal && (animated_or_game || damage.resolve(phys_w, phys_h).is_some());
         if portal_dirty
             || !self
                 .get_renderer()
@@ -696,9 +779,20 @@ impl App {
         let mut last_stats: FrameStats = FrameStats::default();
         let mut rendered: u64 = 0;
         let mut loop_err: Option<PlatformError> = None;
+        #[cfg(not(target_arch = "wasm32"))]
+        let mut prev_instant: Instant = Instant::now();
         while self.get_running() {
             #[cfg(not(target_arch = "wasm32"))]
             let frame_start: Instant = Instant::now();
+            #[cfg(not(target_arch = "wasm32"))]
+            if max_frames.is_none() {
+                let real_dt: f32 = frame_start
+                    .duration_since(prev_instant)
+                    .as_secs_f32()
+                    .clamp(1.0 / 240.0, 0.05);
+                prev_instant = frame_start;
+                let _: u32 = self.get_mut_frame_clock().tick(real_dt);
+            }
             self.set_in_step_frame(true);
             let step_res: Result<FrameStats, PlatformError> = self.step_frame();
             self.set_in_step_frame(false);
@@ -740,7 +834,311 @@ impl App {
         Ok(last_stats)
     }
 
-    /// Applies smooth exponential friction decay for touch inertial fling scrolling.
+    /// Cancels all active pointer/touch contacts and resets transient gesture, drag, and pressed UI state.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    pub fn cancel_all_active_pointers(&mut self) {
+        let had_pointers: bool = !self.get_active_pointers().is_empty();
+        self.get_mut_active_pointers().clear();
+        self.get_mut_active_pointer_devices().clear();
+        if had_pointers {
+            self.publish_active_touches();
+        }
+        self.set_gesture_origin(None);
+        self.set_gesture_suppressed(false);
+        self.set_pinch_base_dist(0.0);
+        self.set_gesture_hold_secs(0.0);
+        self.set_long_press_fired(false);
+        self.set_touch_drag_pointer_id(None);
+        self.set_touch_drag_origin(None);
+        self.set_touch_drag_last(None);
+        self.set_touch_dragging(false);
+        self.set_touch_vel_accum_delta(Point::default());
+        self.set_touch_vel_idle_secs(0.0);
+        self.set_scrollbar_dragging(false);
+        self.set_smooth_scroll_pending(Point::default());
+        self.set_smooth_scroll_target(None);
+        self.clear_pressed_node();
+    }
+
+    /// Reconciles active touch contacts against the OS ground-truth live pointer ID list, pruning any stale/missed touches.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `&[u64]` - Currently active OS touch pointer identifiers.
+    pub fn reconcile_active_touch_ids(&mut self, live_ids: &[u64]) {
+        let stale_ids: Vec<u64> = self
+            .get_active_pointers()
+            .keys()
+            .copied()
+            .filter(|id: &u64| {
+                self.get_active_pointer_devices().get(id) == Some(&PointerDevice::Touch)
+                    && !live_ids.contains(id)
+            })
+            .collect();
+        if stale_ids.is_empty() {
+            return;
+        }
+        for stale_id in stale_ids.into_iter() {
+            let _: Option<Point> = self.get_mut_active_pointers().remove(&stale_id);
+            let _: Option<PointerDevice> = self.get_mut_active_pointer_devices().remove(&stale_id);
+        }
+        self.publish_active_touches();
+        if self.get_active_pointers().is_empty() {
+            self.set_gesture_origin(None);
+            self.set_gesture_suppressed(false);
+            self.set_pinch_base_dist(0.0);
+            self.set_gesture_hold_secs(0.0);
+            self.set_long_press_fired(false);
+            self.set_touch_drag_pointer_id(None);
+            self.set_touch_drag_origin(None);
+            self.set_touch_drag_last(None);
+            self.set_touch_dragging(false);
+            self.set_touch_vel_accum_delta(Point::default());
+            self.set_touch_vel_idle_secs(0.0);
+            self.set_scrollbar_dragging(false);
+            self.clear_pressed_node();
+        } else {
+            self.sync_remaining_pointer_state();
+        }
+    }
+
+    /// Clears any currently pressed scene node and marks it dirty so visual press states never stick.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    fn clear_pressed_node(&mut self) {
+        let scene: SceneHandle = self.get_scene().clone();
+        scene.with_write(
+            |tree: &mut SceneTree| {
+                if let Some(prev_id) = tree.get_focus().pressed_node() {
+                    tree.get_mut_focus().set_pressed(None);
+                    if let Some(node) = tree.get_node_mut(prev_id) {
+                        node.get_mut_interaction().set_pressed(false);
+                    }
+                    tree.mark_dirty(prev_id, DIRTY_PAINT);
+                }
+            },
+            (),
+        );
+    }
+
+    /// Cancels a single active pointer identifier and cleanly hands off remaining contacts without freezing.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `u64` - Cancelled pointer identifier.
+    fn handle_pointer_cancel_single(&mut self, pointer_id: u64) {
+        let removed_pt: bool = self.get_mut_active_pointers().remove(&pointer_id).is_some();
+        let _: Option<PointerDevice> = self.get_mut_active_pointer_devices().remove(&pointer_id);
+        if removed_pt {
+            self.publish_active_touches();
+        }
+        if self.get_active_pointers().is_empty() {
+            self.set_gesture_origin(None);
+            self.set_gesture_suppressed(false);
+            self.set_pinch_base_dist(0.0);
+            self.set_gesture_hold_secs(0.0);
+            self.set_long_press_fired(false);
+            self.set_touch_drag_pointer_id(None);
+            self.set_touch_drag_origin(None);
+            self.set_touch_drag_last(None);
+            self.set_touch_dragging(false);
+            self.set_touch_vel_accum_delta(Point::default());
+            self.set_touch_vel_idle_secs(0.0);
+            self.set_scrollbar_dragging(false);
+            self.clear_pressed_node();
+        } else {
+            self.sync_remaining_pointer_state();
+        }
+    }
+
+    /// Re-anchors pinch baseline or single-finger touch scroll state when transitioning from N pointers to N-1.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    fn sync_remaining_pointer_state(&mut self) {
+        if self.get_active_pointers().len() >= 2 {
+            let next_base: f32 = self
+                .active_pinch_span()
+                .map(|(dist, _): (f32, Point)| dist)
+                .unwrap_or(0.0);
+            self.set_pinch_base_dist(next_base);
+            self.set_touch_drag_pointer_id(None);
+            self.set_touch_drag_origin(None);
+            self.set_touch_drag_last(None);
+            self.set_touch_dragging(false);
+            return;
+        }
+        self.set_pinch_base_dist(0.0);
+        let remaining: Option<(u64, Point, PointerDevice)> = self
+            .get_active_pointers()
+            .iter()
+            .next()
+            .map(|(id, pt): (&u64, &Point)| {
+                let dev: PointerDevice = self
+                    .get_active_pointer_devices()
+                    .get(id)
+                    .copied()
+                    .unwrap_or(PointerDevice::Touch);
+                (*id, *pt, dev)
+            });
+        if let Some((rem_id, rem_pos, PointerDevice::Touch)) = remaining {
+            let cur_drag_id: Option<u64> = {
+                let Self {
+                    touch_drag_pointer_id,
+                    ..
+                } = self;
+                *touch_drag_pointer_id
+            };
+            if cur_drag_id != Some(rem_id) {
+                let locked: Option<NodeId> = self.resolve_touch_scroll_target(rem_pos);
+                self.set_touch_drag_pointer_id(Some(rem_id));
+                self.set_touch_drag_origin(Some(rem_pos));
+                self.set_touch_drag_last(Some(rem_pos));
+                self.set_touch_dragging(false);
+                self.set_touch_vel_accum_delta(Point::default());
+                self.set_touch_vel_idle_secs(0.0);
+                self.set_scroll_velocity(Point::default());
+                self.set_scroll_fling_pos(rem_pos);
+                self.set_touch_scroll_target(locked);
+            }
+        }
+    }
+
+    /// Resolves the innermost scrollable or scroll-isolating node under `pos`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - App reference.
+    /// - `Point` - Logical pointer coordinates.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<NodeId>` - Locked scroll or isolation target under `pos`.
+    #[must_use]
+    fn resolve_touch_scroll_target(&self, pos: Point) -> Option<NodeId> {
+        self.get_scene().with_read(
+            |tree: &SceneTree| {
+                let hit: Option<NodeId> = hit_test(tree, pos);
+                for aid in Self::ancestor_chain(tree, hit).into_iter() {
+                    if let Some(node) = tree.get_node(aid) {
+                        if node.get_style().get_layout().get_overflow() == Overflow::Scroll {
+                            return Some(aid);
+                        }
+                        if node.get_style().get_paint().get_stop_scroll_propagation()
+                            || matches!(node.get_kind(), NodeKind::Portal)
+                            || node.get_style().get_layout().get_position() == Position::Fixed
+                        {
+                            return Some(aid);
+                        }
+                    }
+                }
+                None
+            },
+            None,
+        )
+    }
+
+    /// Samples touch drag displacement once per frame to compute jitter-free inertial release velocity.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `f32` - Elapsed frame delta in seconds.
+    fn sample_touch_drag_velocity(&mut self, dt_secs: f32) {
+        if !self.get_touch_dragging() {
+            return;
+        }
+        let accum: Point = self.get_touch_vel_accum_delta();
+        self.set_touch_vel_accum_delta(Point::default());
+        let dist: f32 = accum.get_x().hypot(accum.get_y());
+        if dist > 0.25 {
+            let safe_dt: f32 = dt_secs.clamp(1.0 / 240.0, 0.05);
+            let inst_vx: f32 = (accum.get_x() / safe_dt).clamp(-4200.0, 4200.0);
+            let inst_vy: f32 = (accum.get_y() / safe_dt).clamp(-4200.0, 4200.0);
+            let cur_v: Point = self.get_scroll_velocity();
+            self.set_scroll_velocity(Point::new(
+                cur_v.get_x() * 0.45 + inst_vx * 0.55,
+                cur_v.get_y() * 0.45 + inst_vy * 0.55,
+            ));
+            self.set_touch_vel_idle_secs(0.0);
+        } else {
+            let idle: f32 = self.get_touch_vel_idle_secs() + dt_secs;
+            self.set_touch_vel_idle_secs(idle);
+            let cur_v: Point = self.get_scroll_velocity();
+            let damp: f32 = (-18.0 * dt_secs).exp();
+            let next_vx: f32 = cur_v.get_x() * damp;
+            let next_vy: f32 = cur_v.get_y() * damp;
+            if idle >= 0.08 || next_vx.hypot(next_vy) < 8.0 {
+                self.set_scroll_velocity(Point::default());
+            } else {
+                self.set_scroll_velocity(Point::new(next_vx, next_vy));
+            }
+        }
+    }
+
+    /// Advances smooth exponential interpolation for discrete desktop/web mouse-wheel scrolling.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable app.
+    /// - `f32` - Elapsed frame delta in seconds.
+    fn tick_smooth_scroll(&mut self, dt_secs: f32) {
+        let pending: Point = self.get_smooth_scroll_pending();
+        let mag: f32 = pending.get_x().hypot(pending.get_y());
+        if mag <= 0.4 {
+            if mag > 0.0 {
+                let locked: Option<NodeId> = {
+                    let Self {
+                        smooth_scroll_target,
+                        ..
+                    } = self;
+                    *smooth_scroll_target
+                };
+                let prev_ptr: Point = self.get_input_state().get_pointer_position();
+                let target_pos: Point = self.get_smooth_scroll_pos();
+                self.get_mut_input_state().set_pointer_position(target_pos);
+                let _: bool = self.handle_scroll_on_target(pending, locked);
+                self.get_mut_input_state().set_pointer_position(prev_ptr);
+                self.set_smooth_scroll_pending(Point::default());
+                self.set_smooth_scroll_target(None);
+            }
+            return;
+        }
+        let frac: f32 = (1.0 - (-18.0 * dt_secs).exp()).clamp(0.08, 1.0);
+        let step_dx: f32 = pending.get_x() * frac;
+        let step_dy: f32 = pending.get_y() * frac;
+        let locked: Option<NodeId> = {
+            let Self {
+                smooth_scroll_target,
+                ..
+            } = self;
+            *smooth_scroll_target
+        };
+        let prev_ptr: Point = self.get_input_state().get_pointer_position();
+        let target_pos: Point = self.get_smooth_scroll_pos();
+        self.get_mut_input_state().set_pointer_position(target_pos);
+        let moved: bool = self.handle_scroll_on_target(Point::new(step_dx, step_dy), locked);
+        self.get_mut_input_state().set_pointer_position(prev_ptr);
+        if !moved {
+            self.set_smooth_scroll_pending(Point::default());
+            self.set_smooth_scroll_target(None);
+        } else {
+            self.set_smooth_scroll_pending(Point::new(
+                pending.get_x() - step_dx,
+                pending.get_y() - step_dy,
+            ));
+        }
+    }
+
+    /// Applies exact frame-rate-independent exponential friction decay for touch inertial fling scrolling.
     ///
     /// # Arguments
     ///
@@ -752,14 +1150,18 @@ impl App {
         }
         let vel: Point = self.get_scroll_velocity();
         let speed: f32 = vel.get_x().hypot(vel.get_y());
-        if speed < 14.0 {
+        if speed < 4.0 {
             if speed > 0.0 {
                 self.set_scroll_velocity(Point::default());
+                self.set_touch_scroll_target(None);
             }
             return;
         }
-        let dx: f32 = vel.get_x() * dt_secs;
-        let dy: f32 = vel.get_y() * dt_secs;
+        let drag_k: f32 = 3.2;
+        let decay: f32 = (-drag_k * dt_secs).exp();
+        let integral_scale: f32 = (1.0 - decay) / drag_k;
+        let dx: f32 = vel.get_x() * integral_scale;
+        let dy: f32 = vel.get_y() * integral_scale;
         let locked_target: Option<NodeId> = {
             let Self {
                 touch_scroll_target,
@@ -770,12 +1172,11 @@ impl App {
         let prev_ptr: Point = self.get_input_state().get_pointer_position();
         let fling_pos: Point = self.get_scroll_fling_pos();
         self.get_mut_input_state().set_pointer_position(fling_pos);
-        self.handle_scroll_on_target(Point::new(dx, dy), locked_target);
+        let moved: bool = self.handle_scroll_on_target(Point::new(dx, dy), locked_target);
         self.get_mut_input_state().set_pointer_position(prev_ptr);
-        let decay: f32 = (-2.85 * dt_secs).exp();
         let next_vx: f32 = vel.get_x() * decay;
         let next_vy: f32 = vel.get_y() * decay;
-        if next_vx.hypot(next_vy) < 16.0 {
+        if !moved || next_vx.hypot(next_vy) < 4.0 {
             self.set_scroll_velocity(Point::default());
             self.set_touch_scroll_target(None);
         } else {
@@ -958,7 +1359,7 @@ impl App {
         let _: bool = self.get_build_context().get_active_touches().set(pts);
     }
 
-    /// Computes distance between the first two active multi-touch pointers for pinch-to-zoom gestures.
+    /// Computes deterministic distance between the first two active touch pointers for pinch-to-zoom gestures.
     ///
     /// # Arguments
     ///
@@ -969,18 +1370,33 @@ impl App {
     /// - `Option<(f32, Point)>` - Distance and midpoint when `>= 2` pointers are active.
     #[must_use]
     fn active_pinch_span(&self) -> Option<(f32, Point)> {
-        let pts: Vec<Point> = self.get_active_pointers().values().copied().collect();
+        let mut pts: Vec<(u64, Point)> = self
+            .get_active_pointers()
+            .iter()
+            .filter(|(id, _): &(&u64, &Point)| {
+                self.get_active_pointer_devices().get(id) == Some(&PointerDevice::Touch)
+            })
+            .map(|(id, pt): (&u64, &Point)| (*id, *pt))
+            .collect();
+        if pts.len() < 2 {
+            pts = self
+                .get_active_pointers()
+                .iter()
+                .map(|(id, pt): (&u64, &Point)| (*id, *pt))
+                .collect();
+        }
         if pts.len() < 2 {
             return None;
         }
-        let a: Point = pts[0];
-        let b: Point = pts[1];
+        pts.sort_by_key(|item: &(u64, Point)| item.0);
+        let a: Point = pts[0].1;
+        let b: Point = pts[1].1;
         let dist: f32 = (b.get_x() - a.get_x()).hypot(b.get_y() - a.get_y());
         let mid: Point = Point::new((a.get_x() + b.get_x()) * 0.5, (a.get_y() + b.get_y()) * 0.5);
         Some((dist, mid))
     }
 
-    /// Handles pointer motion with touch pan-to-scroll, multi-touch pinch, pointer capture for sliders, hover bubbling, cursor updates, and scrollbar dragging.
+    /// Handles pointer motion with 1:1 touch pan-to-scroll, deterministic multi-touch pinch, stale-mouse cleanup, pointer capture for sliders, hover bubbling, cursor updates, and scrollbar dragging.
     ///
     /// # Arguments
     ///
@@ -988,34 +1404,50 @@ impl App {
     /// - `PointerEvent` - Incoming pointer move event.
     fn handle_pointer_move_event(&mut self, ptr: PointerEvent) {
         let pos: Point = ptr.get_position();
-        if self
-            .get_active_pointers()
-            .contains_key(&ptr.get_pointer_id())
-        {
-            let _: Option<Point> = self
-                .get_mut_active_pointers()
-                .insert(ptr.get_pointer_id(), pos);
-            self.publish_active_touches();
-            if self.get_active_pointers().len() >= 2
-                && let Some((cur_dist, mid)) = self.active_pinch_span()
-            {
-                let base: f32 = self.get_pinch_base_dist();
-                if base > 8.0 && (cur_dist - base).abs() > 6.0 {
-                    let scale: f32 = (cur_dist / base).clamp(0.4, 3.0);
-                    self.set_pinch_base_dist(cur_dist);
-                    self.emit_gesture(
-                        GestureEventKind::Pinch,
-                        mid,
-                        mid,
-                        scale,
-                        self.get_active_pointers().len().min(8) as u8,
-                        ptr.get_device(),
-                    );
-                    return;
+        let pid: u64 = ptr.get_pointer_id();
+        if ptr.get_device() == PointerDevice::Mouse && ptr.get_pressure() <= 0.0 {
+            if self.get_mut_active_pointers().remove(&pid).is_some() {
+                let _: Option<PointerDevice> = self.get_mut_active_pointer_devices().remove(&pid);
+                self.publish_active_touches();
+                if self.get_active_pointers().is_empty() {
+                    self.set_scrollbar_dragging(false);
+                    self.clear_pressed_node();
                 }
+            }
+        } else if let Some(prev_pt) = self.get_active_pointers().get(&pid).copied() {
+            let moved_enough: bool =
+                (pos.get_x() - prev_pt.get_x()).hypot(pos.get_y() - prev_pt.get_y()) > 0.05;
+            let _: Option<Point> = self.get_mut_active_pointers().insert(pid, pos);
+            if moved_enough {
+                self.publish_active_touches();
+            }
+            if self.get_active_pointers().len() >= 2 {
+                if let Some((cur_dist, mid)) = self.active_pinch_span() {
+                    let base: f32 = self.get_pinch_base_dist();
+                    if base > 8.0 && (cur_dist - base).abs() > 6.0 {
+                        let scale: f32 = (cur_dist / base).clamp(0.4, 3.0);
+                        self.set_pinch_base_dist(cur_dist);
+                        self.emit_gesture(
+                            GestureEventKind::Pinch,
+                            mid,
+                            mid,
+                            scale,
+                            self.get_active_pointers().len().min(8) as u8,
+                            ptr.get_device(),
+                        );
+                    }
+                }
+                return;
             }
         }
         let is_touch: bool = ptr.get_device() == PointerDevice::Touch;
+        let drag_pid_opt: Option<u64> = {
+            let Self {
+                touch_drag_pointer_id,
+                ..
+            } = self;
+            *touch_drag_pointer_id
+        };
         let origin_opt: Option<Point> = {
             let Self {
                 touch_drag_origin, ..
@@ -1023,13 +1455,17 @@ impl App {
             *touch_drag_origin
         };
         let is_scrollbar_drag: bool = self.get_scrollbar_dragging();
-        if is_touch && let Some(origin) = origin_opt {
+        if is_touch
+            && self.get_active_pointers().len() == 1
+            && drag_pid_opt == Some(pid)
+            && let Some(origin) = origin_opt
+        {
             let captured_drag_control: bool = is_scrollbar_drag
                 || self.get_scene().with_read(
                     |tree: &SceneTree| {
                         tree.get_focus()
                             .pressed_node()
-                            .and_then(|pid: NodeId| tree.get_node(pid))
+                            .and_then(|pressed_id: NodeId| tree.get_node(pressed_id))
                             .map(|n: &SceneNode| {
                                 n.get_handlers()
                                     .handler_for(&UiEventKind::PointerMove(pos))
@@ -1042,8 +1478,33 @@ impl App {
             if !captured_drag_control {
                 let total_dx: f32 = pos.get_x() - origin.get_x();
                 let total_dy: f32 = pos.get_y() - origin.get_y();
-                if !self.get_touch_dragging() && (total_dx.abs() > 3.0 || total_dy.abs() > 3.0) {
+                if !self.get_touch_dragging() && total_dx.hypot(total_dy) > 4.0 {
                     self.set_touch_dragging(true);
+                    self.set_touch_drag_last(Some(pos));
+                    self.set_touch_vel_accum_delta(Point::default());
+                    self.set_touch_vel_idle_secs(0.0);
+                    let raw_dx: f32 = origin.get_x() - pos.get_x();
+                    let raw_dy: f32 = origin.get_y() - pos.get_y();
+                    let (scroll_dx, scroll_dy): (f32, f32) = if raw_dy.abs() >= raw_dx.abs() * 1.25
+                    {
+                        (0.0, raw_dy)
+                    } else if raw_dx.abs() >= raw_dy.abs() * 1.5 {
+                        (raw_dx, 0.0)
+                    } else {
+                        (raw_dx, raw_dy)
+                    };
+                    let locked_target: Option<NodeId> = {
+                        let Self {
+                            touch_scroll_target,
+                            ..
+                        } = self;
+                        *touch_scroll_target
+                    };
+                    let _: bool = self
+                        .handle_scroll_on_target(Point::new(scroll_dx, scroll_dy), locked_target);
+                    self.set_touch_vel_accum_delta(Point::new(scroll_dx, scroll_dy));
+                    self.set_scroll_fling_pos(pos);
+                    return;
                 }
                 if self.get_touch_dragging() {
                     let prev_opt: Option<Point> = {
@@ -1055,16 +1516,13 @@ impl App {
                     if let Some(prev) = prev_opt {
                         let raw_dx: f32 = prev.get_x() - pos.get_x();
                         let raw_dy: f32 = prev.get_y() - pos.get_y();
-                        let step_dist: f32 = raw_dx.hypot(raw_dy);
-                        let friendly_mult: f32 =
-                            (1.0 + ((step_dist - 4.0).max(0.0) * 0.032)).clamp(1.0, 1.55);
                         let (scroll_dx, scroll_dy): (f32, f32) =
                             if raw_dy.abs() >= raw_dx.abs() * 1.25 {
-                                (0.0, raw_dy * friendly_mult)
+                                (0.0, raw_dy)
                             } else if raw_dx.abs() >= raw_dy.abs() * 1.5 {
-                                (raw_dx * friendly_mult, 0.0)
+                                (raw_dx, 0.0)
                             } else {
-                                (raw_dx * friendly_mult, raw_dy * friendly_mult)
+                                (raw_dx, raw_dy)
                             };
                         let locked_target: Option<NodeId> = {
                             let Self {
@@ -1073,19 +1531,16 @@ impl App {
                             } = self;
                             *touch_scroll_target
                         };
-                        self.handle_scroll_on_target(
+                        let _: bool = self.handle_scroll_on_target(
                             Point::new(scroll_dx, scroll_dy),
                             locked_target,
                         );
-                        let dt_est: f32 =
-                            self.get_frame_clock().get_delta_secs().clamp(0.006, 0.025);
-                        let inst_vx: f32 = ((scroll_dx / dt_est) * 1.25).clamp(-4800.0, 4800.0);
-                        let inst_vy: f32 = ((scroll_dy / dt_est) * 1.25).clamp(-4800.0, 4800.0);
-                        let cur_v: Point = self.get_scroll_velocity();
-                        self.set_scroll_velocity(Point::new(
-                            cur_v.get_x() * 0.35 + inst_vx * 0.65,
-                            cur_v.get_y() * 0.35 + inst_vy * 0.65,
+                        let cur_accum: Point = self.get_touch_vel_accum_delta();
+                        self.set_touch_vel_accum_delta(Point::new(
+                            cur_accum.get_x() + scroll_dx,
+                            cur_accum.get_y() + scroll_dy,
                         ));
+                        self.set_touch_vel_idle_secs(0.0);
                         self.set_scroll_fling_pos(pos);
                     }
                     self.set_touch_drag_last(Some(pos));
@@ -1209,16 +1664,20 @@ impl App {
     /// - `PointerEvent` - Incoming pointer press event.
     fn handle_pointer_down_event(&mut self, ptr: PointerEvent) {
         let pos: Point = ptr.get_position();
+        let pid: u64 = ptr.get_pointer_id();
         self.set_caret_blink_secs(0.0);
+        self.set_smooth_scroll_pending(Point::default());
+        self.set_smooth_scroll_target(None);
         self.get_scene().with_write(
             |tree: &mut SceneTree| {
                 tree.set_caret_visible(true);
             },
             (),
         );
-        let _: Option<Point> = self
-            .get_mut_active_pointers()
-            .insert(ptr.get_pointer_id(), pos);
+        let _: Option<Point> = self.get_mut_active_pointers().insert(pid, pos);
+        let _: Option<PointerDevice> = self
+            .get_mut_active_pointer_devices()
+            .insert(pid, ptr.get_device());
         self.publish_active_touches();
         if self.get_active_pointers().len() == 1 {
             let suppress_gest: bool = self.get_scene().with_read(
@@ -1247,42 +1706,42 @@ impl App {
             self.set_gesture_origin(Some(pos));
             self.set_gesture_hold_secs(0.0);
             self.set_long_press_fired(false);
-        } else if let Some((dist, _)) = self.active_pinch_span() {
+        } else {
             self.set_gesture_origin(None);
             self.set_gesture_suppressed(true);
-            self.set_pinch_base_dist(dist);
-        }
-        if ptr.get_device() == PointerDevice::Touch {
-            self.set_touch_drag_origin(Some(pos));
-            self.set_touch_drag_last(Some(pos));
-            self.set_touch_dragging(false);
-            self.set_scroll_velocity(Point::default());
-            self.set_scroll_fling_pos(pos);
-            let locked: Option<NodeId> = self.get_scene().with_read(
-                |tree: &SceneTree| {
-                    let hit: Option<NodeId> = hit_test(tree, pos);
-                    for aid in Self::ancestor_chain(tree, hit).into_iter() {
-                        if let Some(node) = tree.get_node(aid) {
-                            if node.get_style().get_layout().get_overflow() == Overflow::Scroll {
-                                return Some(aid);
-                            }
-                            if node.get_style().get_paint().get_stop_scroll_propagation()
-                                || matches!(node.get_kind(), NodeKind::Portal)
-                                || node.get_style().get_layout().get_position() == Position::Fixed
-                            {
-                                return Some(aid);
-                            }
-                        }
-                    }
-                    None
-                },
-                None,
-            );
-            self.set_touch_scroll_target(locked);
-        } else {
+            let next_base: f32 = self
+                .active_pinch_span()
+                .map(|(dist, _): (f32, Point)| dist)
+                .unwrap_or(0.0);
+            self.set_pinch_base_dist(next_base);
+            self.set_touch_drag_pointer_id(None);
             self.set_touch_drag_origin(None);
             self.set_touch_drag_last(None);
             self.set_touch_dragging(false);
+            self.set_touch_vel_accum_delta(Point::default());
+            self.set_touch_vel_idle_secs(0.0);
+            self.set_scroll_velocity(Point::default());
+            self.set_touch_scroll_target(None);
+            return;
+        }
+        if ptr.get_device() == PointerDevice::Touch {
+            self.set_touch_drag_pointer_id(Some(pid));
+            self.set_touch_drag_origin(Some(pos));
+            self.set_touch_drag_last(Some(pos));
+            self.set_touch_dragging(false);
+            self.set_touch_vel_accum_delta(Point::default());
+            self.set_touch_vel_idle_secs(0.0);
+            self.set_scroll_velocity(Point::default());
+            self.set_scroll_fling_pos(pos);
+            let locked: Option<NodeId> = self.resolve_touch_scroll_target(pos);
+            self.set_touch_scroll_target(locked);
+        } else {
+            self.set_touch_drag_pointer_id(None);
+            self.set_touch_drag_origin(None);
+            self.set_touch_drag_last(None);
+            self.set_touch_dragging(false);
+            self.set_touch_vel_accum_delta(Point::default());
+            self.set_touch_vel_idle_secs(0.0);
             self.set_scroll_velocity(Point::default());
             self.set_touch_scroll_target(None);
         }
@@ -1422,83 +1881,120 @@ impl App {
     /// - `PointerEvent` - Incoming pointer release event.
     fn handle_pointer_up_event(&mut self, ptr: PointerEvent) {
         let pos: Point = ptr.get_position();
-        let _: Option<Point> = self.get_mut_active_pointers().remove(&ptr.get_pointer_id());
+        let pid: u64 = ptr.get_pointer_id();
+        let _: Option<Point> = self.get_mut_active_pointers().remove(&pid);
+        let _: Option<PointerDevice> = self.get_mut_active_pointer_devices().remove(&pid);
         self.publish_active_touches();
-        if self.get_active_pointers().is_empty() {
-            let origin_opt: Option<Point> = {
-                let Self { gesture_origin, .. } = self;
-                *gesture_origin
-            };
-            let suppressed: bool = self.get_gesture_suppressed();
-            self.set_gesture_origin(None);
-            self.set_gesture_suppressed(false);
-            self.set_pinch_base_dist(0.0);
-            self.set_gesture_hold_secs(0.0);
-            let long_fired: bool = self.get_long_press_fired();
-            self.set_long_press_fired(false);
-            if let Some(origin) = origin_opt
-                && !long_fired
-                && !suppressed
-            {
-                let dx: f32 = pos.get_x() - origin.get_x();
-                let dy: f32 = pos.get_y() - origin.get_y();
-                let dist: f32 = dx.hypot(dy);
-                if dist <= 12.0 {
-                    let prev_tap: Option<Point> = {
-                        let Self { last_tap_pos, .. } = self;
-                        *last_tap_pos
-                    };
-                    let is_double: bool = self.get_last_tap_age_secs() <= 0.35
-                        && prev_tap
-                            .map(|p: Point| {
-                                (p.get_x() - pos.get_x()).hypot(p.get_y() - pos.get_y()) <= 28.0
-                            })
-                            .unwrap_or(false);
-                    if is_double {
-                        self.set_last_tap_pos(None);
-                        self.set_last_tap_age_secs(10.0);
-                        self.emit_gesture(
-                            GestureEventKind::DoubleTap,
-                            origin,
-                            pos,
-                            1.0,
-                            1,
-                            ptr.get_device(),
-                        );
-                    } else {
-                        self.set_last_tap_pos(Some(pos));
-                        self.set_last_tap_age_secs(0.0);
-                        self.emit_gesture(
-                            GestureEventKind::Tap,
-                            origin,
-                            pos,
-                            1.0,
-                            1,
-                            ptr.get_device(),
-                        );
-                    }
-                } else if dist >= 44.0 {
-                    let swipe_kind: GestureEventKind = if dx.abs() >= dy.abs() {
-                        if dx > 0.0 {
-                            GestureEventKind::SwipeRight
-                        } else {
-                            GestureEventKind::SwipeLeft
-                        }
-                    } else if dy > 0.0 {
-                        GestureEventKind::SwipeDown
-                    } else {
-                        GestureEventKind::SwipeUp
-                    };
-                    self.emit_gesture(swipe_kind, origin, pos, 1.0, 1, ptr.get_device());
+        if !self.get_active_pointers().is_empty() {
+            self.sync_remaining_pointer_state();
+            return;
+        }
+        let origin_opt: Option<Point> = {
+            let Self { gesture_origin, .. } = self;
+            *gesture_origin
+        };
+        let suppressed: bool = self.get_gesture_suppressed();
+        self.set_gesture_origin(None);
+        self.set_gesture_suppressed(false);
+        self.set_pinch_base_dist(0.0);
+        self.set_gesture_hold_secs(0.0);
+        let long_fired: bool = self.get_long_press_fired();
+        self.set_long_press_fired(false);
+        if let Some(origin) = origin_opt
+            && !long_fired
+            && !suppressed
+        {
+            let dx: f32 = pos.get_x() - origin.get_x();
+            let dy: f32 = pos.get_y() - origin.get_y();
+            let dist: f32 = dx.hypot(dy);
+            if dist <= 12.0 {
+                let prev_tap: Option<Point> = {
+                    let Self { last_tap_pos, .. } = self;
+                    *last_tap_pos
+                };
+                let is_double: bool = self.get_last_tap_age_secs() <= 0.35
+                    && prev_tap
+                        .map(|p: Point| {
+                            (p.get_x() - pos.get_x()).hypot(p.get_y() - pos.get_y()) <= 28.0
+                        })
+                        .unwrap_or(false);
+                if is_double {
+                    self.set_last_tap_pos(None);
+                    self.set_last_tap_age_secs(10.0);
+                    self.emit_gesture(
+                        GestureEventKind::DoubleTap,
+                        origin,
+                        pos,
+                        1.0,
+                        1,
+                        ptr.get_device(),
+                    );
                 } else {
-                    self.emit_gesture(GestureEventKind::Pan, origin, pos, 1.0, 1, ptr.get_device());
+                    self.set_last_tap_pos(Some(pos));
+                    self.set_last_tap_age_secs(0.0);
+                    self.emit_gesture(GestureEventKind::Tap, origin, pos, 1.0, 1, ptr.get_device());
                 }
+            } else if dist >= 44.0 {
+                let swipe_kind: GestureEventKind = if dx.abs() >= dy.abs() {
+                    if dx > 0.0 {
+                        GestureEventKind::SwipeRight
+                    } else {
+                        GestureEventKind::SwipeLeft
+                    }
+                } else if dy > 0.0 {
+                    GestureEventKind::SwipeDown
+                } else {
+                    GestureEventKind::SwipeUp
+                };
+                self.emit_gesture(swipe_kind, origin, pos, 1.0, 1, ptr.get_device());
+            } else {
+                self.emit_gesture(GestureEventKind::Pan, origin, pos, 1.0, 1, ptr.get_device());
             }
         }
-        let suppress_click: bool = self.get_touch_dragging() || self.get_scrollbar_dragging();
+        let was_touch_dragging: bool = self.get_touch_dragging();
+        if was_touch_dragging {
+            let pending_accum: Point = self.get_touch_vel_accum_delta();
+            if pending_accum.get_x().hypot(pending_accum.get_y()) > 0.25 {
+                let dt_est: f32 = self
+                    .get_frame_clock()
+                    .get_delta_secs()
+                    .clamp(1.0 / 120.0, 0.025);
+                let inst_vx: f32 = (pending_accum.get_x() / dt_est).clamp(-4200.0, 4200.0);
+                let inst_vy: f32 = (pending_accum.get_y() / dt_est).clamp(-4200.0, 4200.0);
+                let cur_v: Point = self.get_scroll_velocity();
+                self.set_scroll_velocity(Point::new(
+                    cur_v.get_x() * 0.45 + inst_vx * 0.55,
+                    cur_v.get_y() * 0.45 + inst_vy * 0.55,
+                ));
+                self.set_touch_vel_idle_secs(0.0);
+            }
+            if self.get_touch_vel_idle_secs() > 0.08 {
+                self.set_scroll_velocity(Point::default());
+                self.set_touch_scroll_target(None);
+            } else {
+                let cur_v: Point = self.get_scroll_velocity();
+                let speed: f32 = cur_v.get_x().hypot(cur_v.get_y());
+                if speed >= 180.0 {
+                    self.set_scroll_velocity(Point::new(
+                        (cur_v.get_x() * 1.08).clamp(-4400.0, 4400.0),
+                        (cur_v.get_y() * 1.08).clamp(-4400.0, 4400.0),
+                    ));
+                } else if speed < 32.0 {
+                    self.set_scroll_velocity(Point::default());
+                    self.set_touch_scroll_target(None);
+                }
+            }
+        } else {
+            self.set_scroll_velocity(Point::default());
+            self.set_touch_scroll_target(None);
+        }
+        let suppress_click: bool = was_touch_dragging || self.get_scrollbar_dragging();
+        self.set_touch_drag_pointer_id(None);
         self.set_touch_drag_origin(None);
         self.set_touch_drag_last(None);
         self.set_touch_dragging(false);
+        self.set_touch_vel_accum_delta(Point::default());
+        self.set_touch_vel_idle_secs(0.0);
         self.set_scrollbar_dragging(false);
         let scene: SceneHandle = self.get_scene().clone();
         let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
@@ -1558,14 +2054,35 @@ impl App {
         Self::invoke_callbacks(callbacks);
     }
 
-    /// Handles wheel/pan scroll deltas with live re-hit-testing (fixing fast virtual-list scroll freeze), clamping, and scroll chaining.
+    /// Handles wheel/pan scroll deltas with smooth exponential interpolation for discrete mouse wheels and 1:1 immediate response for precise trackpads and headless runs.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable app.
     /// - `Point` - Logical scroll delta `(dx, dy)`.
     fn handle_scroll(&mut self, delta: Point) {
-        self.handle_scroll_on_target(delta, None);
+        let mag: f32 = delta.get_x().hypot(delta.get_y());
+        if self.platform_kind() == PlatformKind::Headless || mag <= 24.0 {
+            self.set_smooth_scroll_pending(Point::default());
+            self.set_smooth_scroll_target(None);
+            let _: bool = self.handle_scroll_on_target(delta, None);
+            return;
+        }
+        let pos: Point = self.get_input_state().get_pointer_position();
+        let locked: Option<NodeId> = self.resolve_touch_scroll_target(pos);
+        let immediate: Point = Point::new(delta.get_x() * 0.25, delta.get_y() * 0.25);
+        let moved: bool = self.handle_scroll_on_target(immediate, locked);
+        if moved {
+            let cur_pending: Point = self.get_smooth_scroll_pending();
+            let rem_x: f32 = (cur_pending.get_x() + delta.get_x() * 0.75).clamp(-1800.0, 1800.0);
+            let rem_y: f32 = (cur_pending.get_y() + delta.get_y() * 0.75).clamp(-1800.0, 1800.0);
+            self.set_smooth_scroll_pending(Point::new(rem_x, rem_y));
+            self.set_smooth_scroll_pos(pos);
+            self.set_smooth_scroll_target(locked);
+        } else {
+            self.set_smooth_scroll_pending(Point::default());
+            self.set_smooth_scroll_target(None);
+        }
     }
 
     /// Routes scroll delta to an optional locked touch target or hovered node with strict scroll-isolation support.
@@ -1575,10 +2092,14 @@ impl App {
     /// - `&Self` - Mutable app.
     /// - `Point` - Logical scroll delta `(dx, dy)`.
     /// - `Option<NodeId>` - Optional locked scroll target captured at touch-down.
-    fn handle_scroll_on_target(&mut self, delta: Point, locked_target: Option<NodeId>) {
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether a scroll container or virtual list consumed and advanced the scroll offset.
+    fn handle_scroll_on_target(&mut self, delta: Point, locked_target: Option<NodeId>) -> bool {
         let pointer_pos: Point = self.get_input_state().get_pointer_position();
         let scene: SceneHandle = self.get_scene().clone();
-        let callbacks: Vec<(UiEventHandler, UiEvent)> = scene.with_write(
+        let (callbacks, moved): (Vec<(UiEventHandler, UiEvent)>, bool) = scene.with_write(
             |tree: &mut SceneTree| {
                 let mut cursor: Option<NodeId> = locked_target
                     .filter(|id: &NodeId| tree.get_node(*id).is_some())
@@ -1635,19 +2156,29 @@ impl App {
                                 let next_y: f32 = (cur.get_y() + delta.get_y()).clamp(0.0, max_y);
                                 let next: Point = Point::new(next_x, next_y);
                                 let is_virtual: bool = node.virtual_scroll_metrics().is_some();
+                                let virtual_moved: bool = if let Some((vy, total_h)) =
+                                    node.virtual_scroll_metrics()
+                                {
+                                    let vmax: f32 =
+                                        (total_h - lbox.get_content_bounds().get_height()).max(0.0);
+                                    let vnext: f32 = (vy + delta.get_y()).clamp(0.0, vmax);
+                                    (vnext - vy).abs() > 0.01
+                                } else {
+                                    false
+                                };
                                 if let Some(h) =
                                     node.get_handlers().handler_for(&UiEventKind::Scroll(delta))
                                 {
                                     out.push((h, UiEvent::new(id, UiEventKind::Scroll(delta))));
                                 }
                                 if is_virtual {
-                                    return out;
+                                    return (out, virtual_moved);
                                 }
-                                let moved: bool = (next.get_x() - cur.get_x()).abs() > 0.01
+                                let did_move: bool = (next.get_x() - cur.get_x()).abs() > 0.01
                                     || (next.get_y() - cur.get_y()).abs() > 0.01;
-                                if moved {
+                                if did_move {
                                     tree.set_scroll_offset(id, next);
-                                    return out;
+                                    return (out, true);
                                 }
                             }
                             let blocks_scroll: bool =
@@ -1656,7 +2187,7 @@ impl App {
                                     || node.get_style().get_layout().get_position()
                                         == Position::Fixed;
                             if blocks_scroll {
-                                return out;
+                                return (out, false);
                             }
                             node.parent_id()
                         }
@@ -1664,11 +2195,12 @@ impl App {
                     };
                     cursor = next_parent;
                 }
-                out
+                (out, false)
             },
-            Vec::new(),
+            (Vec::new(), false),
         );
         Self::invoke_callbacks(callbacks);
+        moved
     }
 
     /// Handles keyboard presses on the focused node, including Backspace on `NodeKind::Input`.

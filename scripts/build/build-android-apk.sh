@@ -196,8 +196,8 @@ pub struct EuvAndroidHandle {
 pub extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeCreate(
     env: JniEnv,
     cls: JClass,
-    width: f32,
-    height: f32,
+    phys_width: i32,
+    phys_height: i32,
     scale: f32,
 ) -> i64 {
     if !env.is_null() && !cls.is_null() {
@@ -240,10 +240,10 @@ pub extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeCreate(
         .get_mut_software()
         .set_font_provider(NativeSystemFont::system());
     let wid: WindowId = app.get_window_state().get_id();
-    let w: u32 = width.max(200.0).round() as u32;
-    let h: u32 = height.max(200.0).round() as u32;
+    let pw: u32 = phys_width.max(200) as u32;
+    let ph: u32 = phys_height.max(200) as u32;
     let s: f32 = scale.clamp(1.0, 4.5);
-    app.dispatch_window_event(WindowEvent::Resized(wid, w, h, s));
+    app.set_exact_physical_viewport(pw, ph, s);
     let _ = app.step_game_frame(1.0 / 60.0);
     ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
     let handle = Box::new(EuvAndroidHandle {
@@ -262,8 +262,8 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeResize
     env: JniEnv,
     _cls: JObject,
     ptr: i64,
-    width: f32,
-    height: f32,
+    phys_width: i32,
+    phys_height: i32,
     scale: f32,
 ) {
     if ptr == 0 {
@@ -271,11 +271,10 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeResize
     }
     ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
     let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
-    let w: u32 = width.max(200.0).round() as u32;
-    let ht: u32 = height.max(200.0).round() as u32;
+    let pw: u32 = phys_width.max(200) as u32;
+    let ph: u32 = phys_height.max(200) as u32;
     let s: f32 = scale.clamp(1.0, 4.5);
-    h.app
-        .dispatch_window_event(WindowEvent::Resized(h.wid, w, ht, s));
+    h.app.set_exact_physical_viewport(pw, ph, s);
     ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
@@ -361,6 +360,51 @@ pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTouchU
         h.wid,
         PointerEvent::touch((pointer_id as u64).saturating_add(1), x, y),
     ));
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTouchCancel(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    pointer_id: i32,
+) {
+    if ptr == 0 {
+        return;
+    }
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    let mapped_id: u64 = if pointer_id < 0 {
+        0
+    } else {
+        (pointer_id as u64).saturating_add(1)
+    };
+    h.app
+        .dispatch_window_event(WindowEvent::PointerCancel(h.wid, mapped_id));
+    ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_vip_ltpp_euv_showcase_EuvNativeBridge_nativeTouchSyncMask(
+    env: JniEnv,
+    _cls: JObject,
+    ptr: i64,
+    active_mask: i64,
+) {
+    if ptr == 0 {
+        return;
+    }
+    ACTIVE_JNI_ENV.store(env.cast(), Ordering::Release);
+    let h: &mut EuvAndroidHandle = unsafe { &mut *(ptr as *mut EuvAndroidHandle) };
+    let bits: u64 = active_mask as u64;
+    let mut live_ids: Vec<u64> = Vec::with_capacity(bits.count_ones() as usize);
+    for bit in 0_u64..63_u64 {
+        if (bits & (1_u64 << bit)) != 0 {
+            live_ids.push(bit + 1);
+        }
+    }
+    h.app.reconcile_active_touch_ids(&live_ids);
     ACTIVE_JNI_ENV.store(std::ptr::null_mut(), Ordering::Release);
 }
 
@@ -693,12 +737,14 @@ public final class EuvNativeBridge {
         return out;
     }
 
-    public static native long nativeCreate(float width, float height, float scale);
-    public static native void nativeResize(long handle, float width, float height, float scale);
+    public static native long nativeCreate(int physWidth, int physHeight, float scale);
+    public static native void nativeResize(long handle, int physWidth, int physHeight, float scale);
     public static native void nativeSetSafeArea(long handle, float top, float right, float bottom, float left);
     public static native void nativeTouchDown(long handle, int pointerId, float x, float y);
     public static native void nativeTouchMove(long handle, int pointerId, float x, float y);
     public static native void nativeTouchUp(long handle, int pointerId, float x, float y);
+    public static native void nativeTouchCancel(long handle, int pointerId);
+    public static native void nativeTouchSyncMask(long handle, long activeMask);
     public static native void nativeSystemBack(long handle);
     public static native int nativeCopyFramebufferDirect(long handle, ByteBuffer outRgba, int maxBytes);
     public static native int nativeStepFrameDirect(long handle, float dt, ByteBuffer outRgba, int maxBytes);
@@ -794,7 +840,16 @@ public final class EuvActivity extends Activity {
     protected void onPause() {
         super.onPause();
         if (canvasView != null) {
+            canvasView.cancelAllTouches();
             canvasView.stopLoop();
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (!hasFocus && canvasView != null) {
+            canvasView.cancelAllTouches();
         }
     }
 
@@ -834,7 +889,7 @@ public final class EuvActivity extends Activity {
 
         private void refreshDensity(Context ctx) {
             displayDensity = Math.max(1.0f, ctx.getResources().getDisplayMetrics().density);
-            renderScale = Math.max(1.0f, Math.min(4.0f, displayDensity));
+            renderScale = Math.max(1.0f, Math.min(4.5f, displayDensity));
         }
 
         void syncDisplayScaleAndResize() {
@@ -842,9 +897,7 @@ public final class EuvActivity extends Activity {
             int w = getWidth();
             int h = getHeight();
             if (handle != 0 && w > 0 && h > 0) {
-                float logicalW = w / displayDensity;
-                float logicalH = h / displayDensity;
-                EuvNativeBridge.nativeResize(handle, logicalW, logicalH, renderScale);
+                EuvNativeBridge.nativeResize(handle, w, h, renderScale);
                 requestApplyInsets();
                 stepAndBlit(1.0f / 60.0f);
                 invalidate();
@@ -869,17 +922,13 @@ public final class EuvActivity extends Activity {
             super.onSizeChanged(w, h, oldw, oldh);
             if (w <= 0 || h <= 0) return;
             refreshDensity(getContext());
-            float logicalW = w / displayDensity;
-            float logicalH = h / displayDensity;
             if (handle == 0) {
-                handle = EuvNativeBridge.nativeCreate(logicalW, logicalH, renderScale);
+                handle = EuvNativeBridge.nativeCreate(w, h, renderScale);
             } else {
-                EuvNativeBridge.nativeResize(handle, logicalW, logicalH, renderScale);
+                EuvNativeBridge.nativeResize(handle, w, h, renderScale);
             }
             requestApplyInsets();
-            int physW = Math.max(1, Math.round(logicalW * renderScale) + 16);
-            int physH = Math.max(1, Math.round(logicalH * renderScale) + 16);
-            ensurePixelBuffer(physW * physH);
+            ensurePixelBuffer(w * h);
             stepAndBlit(1.0f / 60.0f);
             invalidate();
         }
@@ -916,9 +965,7 @@ public final class EuvActivity extends Activity {
         private void stepAndBlit(float dt) {
             if (handle == 0 || getWidth() <= 0 || getHeight() <= 0) return;
             long t0 = System.nanoTime();
-            int physW = Math.max(1, Math.round((getWidth() / displayDensity) * renderScale) + 16);
-            int physH = Math.max(1, Math.round((getHeight() / displayDensity) * renderScale) + 16);
-            ensurePixelBuffer(physW * physH);
+            ensurePixelBuffer(getWidth() * getHeight());
             int changed = EuvNativeBridge.nativeStepFrameDirect(handle, dt, pixelBuf, pixelBuf.capacity());
             if (changed != 0) {
                 int bw = EuvNativeBridge.nativeGetWidth(handle);
@@ -957,9 +1004,32 @@ public final class EuvActivity extends Activity {
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
             if (bitmap != null) {
-                dstRect.set(0, 0, getWidth(), getHeight());
-                canvas.drawBitmap(bitmap, null, dstRect, blitPaint);
+                if (bitmap.getWidth() == getWidth() && bitmap.getHeight() == getHeight()) {
+                    canvas.drawBitmap(bitmap, 0.0f, 0.0f, null);
+                } else {
+                    dstRect.set(0, 0, getWidth(), getHeight());
+                    canvas.drawBitmap(bitmap, null, dstRect, blitPaint);
+                }
             }
+        }
+
+        void cancelAllTouches() {
+            if (handle != 0) {
+                EuvNativeBridge.nativeTouchCancel(handle, -1);
+            }
+        }
+
+        private long buildActiveTouchMask(MotionEvent event, int excludeIndex) {
+            long mask = 0L;
+            int count = event.getPointerCount();
+            for (int i = 0; i < count; i++) {
+                if (i == excludeIndex) continue;
+                int pid = event.getPointerId(i);
+                if (pid >= 0 && pid < 63) {
+                    mask |= (1L << pid);
+                }
+            }
+            return mask;
         }
 
         @Override
@@ -968,12 +1038,20 @@ public final class EuvActivity extends Activity {
             int action = event.getActionMasked();
             int actionIdx = event.getActionIndex();
             switch (action) {
-                case MotionEvent.ACTION_DOWN:
+                case MotionEvent.ACTION_DOWN: {
+                    EuvNativeBridge.nativeTouchCancel(handle, -1);
+                    int pid = event.getPointerId(actionIdx);
+                    float x = event.getX(actionIdx) / displayDensity;
+                    float y = event.getY(actionIdx) / displayDensity;
+                    EuvNativeBridge.nativeTouchDown(handle, pid, x, y);
+                    return true;
+                }
                 case MotionEvent.ACTION_POINTER_DOWN: {
                     int pid = event.getPointerId(actionIdx);
                     float x = event.getX(actionIdx) / displayDensity;
                     float y = event.getY(actionIdx) / displayDensity;
                     EuvNativeBridge.nativeTouchDown(handle, pid, x, y);
+                    EuvNativeBridge.nativeTouchSyncMask(handle, buildActiveTouchMask(event, -1));
                     return true;
                 }
                 case MotionEvent.ACTION_MOVE: {
@@ -984,20 +1062,27 @@ public final class EuvActivity extends Activity {
                         float y = event.getY(i) / displayDensity;
                         EuvNativeBridge.nativeTouchMove(handle, pid, x, y);
                     }
-                    long now = System.nanoTime();
-                    if (now - lastBlitNanos >= 8_000_000L) {
-                        stepAndBlit(1.0f / 120.0f);
-                    }
+                    EuvNativeBridge.nativeTouchSyncMask(handle, buildActiveTouchMask(event, -1));
                     return true;
                 }
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_POINTER_UP:
-                case MotionEvent.ACTION_CANCEL: {
+                case MotionEvent.ACTION_POINTER_UP: {
                     int pid = event.getPointerId(actionIdx);
                     float x = event.getX(actionIdx) / displayDensity;
                     float y = event.getY(actionIdx) / displayDensity;
                     EuvNativeBridge.nativeTouchUp(handle, pid, x, y);
-                    stepAndBlit(1.0f / 120.0f);
+                    EuvNativeBridge.nativeTouchSyncMask(handle, buildActiveTouchMask(event, actionIdx));
+                    return true;
+                }
+                case MotionEvent.ACTION_UP: {
+                    int pid = event.getPointerId(actionIdx);
+                    float x = event.getX(actionIdx) / displayDensity;
+                    float y = event.getY(actionIdx) / displayDensity;
+                    EuvNativeBridge.nativeTouchUp(handle, pid, x, y);
+                    EuvNativeBridge.nativeTouchCancel(handle, -1);
+                    return true;
+                }
+                case MotionEvent.ACTION_CANCEL: {
+                    EuvNativeBridge.nativeTouchCancel(handle, -1);
                     return true;
                 }
                 default:

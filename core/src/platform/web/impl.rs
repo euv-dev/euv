@@ -50,25 +50,48 @@ impl WindowController for WebPlatform {
                 let w: u32 = width.max(1);
                 let h: u32 = height.max(1);
                 let live_dpr: f32 = window()
-                    .map(|bw: Window| (bw.device_pixel_ratio() as f32).clamp(1.0, 4.0))
+                    .map(|bw: Window| (bw.device_pixel_ratio() as f32).clamp(0.5, 4.5))
                     .unwrap_or_else(|| rec.get_state().get_scale_factor().max(1.0));
                 rec.get_mut_state().set_scale_factor(live_dpr);
-                let dpr: f32 = live_dpr;
-                let phys_w: u32 = ((w as f32) * dpr).round().max(1.0) as u32;
-                let phys_h: u32 = ((h as f32) * dpr).round().max(1.0) as u32;
+                let dpr_f64: f64 = live_dpr as f64;
+                let (css_w, css_h): (f64, f64) = {
+                    let WebWindowRecord { canvas, .. } = rec;
+                    if let Some(el) = canvas.as_ref() {
+                        let rect: DomRect = el.get_bounding_client_rect();
+                        if rect.width() >= 1.0
+                            && rect.height() >= 1.0
+                            && (rect.width() - (w as f64)).abs() <= 1.5
+                            && (rect.height() - (h as f64)).abs() <= 1.5
+                        {
+                            (rect.width(), rect.height())
+                        } else {
+                            (w as f64, h as f64)
+                        }
+                    } else {
+                        (w as f64, h as f64)
+                    }
+                };
+                let phys_w: u32 = (css_w * dpr_f64).round().max(1.0) as u32;
+                let phys_h: u32 = (css_h * dpr_f64).round().max(1.0) as u32;
                 let WebWindowRecord { canvas, .. } = rec;
                 if let Some(el) = canvas.as_ref() {
-                    el.set_width(phys_w);
-                    el.set_height(phys_h);
+                    if el.width() != phys_w {
+                        el.set_width(phys_w);
+                    }
+                    if el.height() != phys_h {
+                        el.set_height(phys_h);
+                    }
                     let css_style: String = format!(
-                        "position:fixed;inset:0;width:{w}px;height:{h}px;display:block;outline:none;cursor:pointer;margin:0;"
+                        "{WEB_CANVAS_STYLE_PREFIX}{WEB_CURSOR_POINTER}{WEB_CANVAS_STYLE_SUFFIX}"
                     );
                     drop(el.set_attribute(WEB_ATTR_STYLE, &css_style));
                 }
                 rec.get_mut_config().set_width(w);
                 rec.get_mut_config().set_height(h);
-                rec.get_mut_state().set_logical_width(w as f32);
-                rec.get_mut_state().set_logical_height(h as f32);
+                rec.get_mut_state()
+                    .set_logical_width((phys_w as f32) / live_dpr);
+                rec.get_mut_state()
+                    .set_logical_height((phys_h as f32) / live_dpr);
                 rec.get_mut_state().set_physical_width(phys_w);
                 rec.get_mut_state().set_physical_height(phys_h);
                 Ok(())
@@ -119,11 +142,8 @@ impl WindowController for WebPlatform {
                 };
                 let WebWindowRecord { canvas, .. } = rec;
                 if let Some(el) = canvas.as_ref() {
-                    let w: u32 = rec.get_config().get_width();
-                    let h: u32 = rec.get_config().get_height();
-                    let css_style: String = format!(
-                        "position:fixed;inset:0;width:{w}px;height:{h}px;display:block;outline:none;cursor:{css_cursor};margin:0;"
-                    );
+                    let css_style: String =
+                        format!("{WEB_CANVAS_STYLE_PREFIX}{css_cursor}{WEB_CANVAS_STYLE_SUFFIX}");
                     drop(el.set_attribute(WEB_ATTR_STYLE, &css_style));
                 }
                 Ok(())
@@ -191,22 +211,12 @@ impl PlatformBackend for WebPlatform {
         let id: WindowId = WindowId::new(raw_id);
         self.set_next_id(raw_id.wrapping_add(1));
         let mut state: WindowState = WindowState::from_config(id, config, dpr);
-        if let Some(win) = window() {
-            if let Some(w) = win.inner_width().ok().and_then(|v: JsValue| v.as_f64())
-                && w >= 320.0
-            {
-                let lw: f32 = w.floor() as f32;
-                state.set_logical_width(lw);
-                state.set_physical_width((lw * dpr).round().max(1.0) as u32);
-            }
-            if let Some(h) = win.inner_height().ok().and_then(|v: JsValue| v.as_f64())
-                && h >= 320.0
-            {
-                let lh: f32 = h.floor() as f32;
-                state.set_logical_height(lh);
-                state.set_physical_height((lh * dpr).round().max(1.0) as u32);
-            }
-        }
+        let phys_w: u32 = canvas.width().max(1);
+        let phys_h: u32 = canvas.height().max(1);
+        state.set_physical_width(phys_w);
+        state.set_physical_height(phys_h);
+        state.set_logical_width((phys_w as f32) / dpr);
+        state.set_logical_height((phys_h as f32) / dpr);
         state.set_system_theme(web_system_theme());
         self.get_mut_windows().insert(
             id,

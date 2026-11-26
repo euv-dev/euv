@@ -44,7 +44,6 @@ use {
     js_sys::Function,
     wasm_bindgen::{JsCast, JsValue, closure::Closure, prelude::wasm_bindgen},
     web_sys::{
-        Document, DomRect, Event, HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent, Window,
-        window,
+        Document, DomRect, Event, HtmlCanvasElement, KeyboardEvent, WheelEvent, Window, window,
     },
 };

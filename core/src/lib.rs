@@ -53,7 +53,7 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     collections::{HashMap, HashSet},
     error::Error,
-    f32::consts::{FRAC_PI_2, PI, TAU},
+    f32::consts::{FRAC_PI_2, PI, SQRT_2, TAU},
     fmt::{self, Formatter},
     hash::{Hash, Hasher},
     marker::PhantomData,
@@ -90,7 +90,8 @@ use {
     js_sys::Object,
     wasm_bindgen::{Clamped, JsCast, JsValue},
     web_sys::{
-        CanvasRenderingContext2d, Document, Element, HtmlCanvasElement, ImageData, MediaQueryList,
-        TextMetrics, WebGl2RenderingContext, WebGlProgram, WebGlShader, Window, window,
+        CanvasRenderingContext2d, Document, DomRect, Element, HtmlCanvasElement, ImageData,
+        MediaQueryList, TextMetrics, WebGl2RenderingContext, WebGlProgram, WebGlShader, Window,
+        window,
     },
 };

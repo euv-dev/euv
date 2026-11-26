@@ -1438,49 +1438,101 @@ pub fn mount_lab_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                 Color::hex(0x9333EA),
                 Color::hex(0xDC2626),
             ];
-            for (idx, (_, pt)) in pts.iter().enumerate() {
-                if bounds.contains(*pt) {
-                    let col: Color = palette[idx % palette.len()];
-                    dl.push(DrawCommand::Circle {
-                        center: *pt,
-                        radius: 26.0,
-                        color: col.multiply_alpha(0.28),
-                    });
-                    dl.push(DrawCommand::Circle {
-                        center: *pt,
-                        radius: 10.0,
-                        color: col,
+            let inside_pts: Vec<(u64, Point)> = pts
+                .into_iter()
+                .filter(|(_, pt): &(u64, Point)| bounds.contains(*pt))
+                .collect();
+            if inside_pts.is_empty() {
+                let mut hint_style: TextStyle = TextStyle::default();
+                hint_style
+                    .set_font_size(12.0)
+                    .set_color(p.get_muted_foreground())
+                    .set_align(TextAlign::Center);
+                dl.push(DrawCommand::TextRun {
+                    rect: Rect::new(
+                        bounds.get_x() + 12.0,
+                        bounds.get_y() + (bounds.get_height() - 18.0) * 0.5,
+                        (bounds.get_width() - 24.0).max(1.0),
+                        20.0,
+                    ),
+                    text: TOUCH_PAD_CANVAS_HINT.to_string(),
+                    style: hint_style,
+                });
+                return;
+            }
+            if inside_pts.len() >= 2 {
+                for pair in inside_pts.windows(2) {
+                    dl.push(DrawCommand::Line {
+                        from: pair[0].1,
+                        to: pair[1].1,
+                        color: p.get_primary().multiply_alpha(0.75),
+                        width: 2.0,
                     });
                 }
             }
-            if pts.len() >= 2 && bounds.contains(pts[0].1) && bounds.contains(pts[1].1) {
-                dl.push(DrawCommand::Line {
-                    from: pts[0].1,
-                    to: pts[1].1,
-                    color: p.get_primary(),
-                    width: 2.0,
+            for (idx, (pid, pt)) in inside_pts.iter().enumerate() {
+                let col: Color = palette[idx % palette.len()];
+                dl.push(DrawCommand::Circle {
+                    center: *pt,
+                    radius: 26.0,
+                    color: col.multiply_alpha(0.24),
+                });
+                dl.push(DrawCommand::Circle {
+                    center: *pt,
+                    radius: 10.0,
+                    color: col,
+                });
+                let mut tag_style: TextStyle = TextStyle::default();
+                tag_style
+                    .set_font_size(11.0)
+                    .set_weight(FontWeight::Bold)
+                    .set_color(col);
+                dl.push(DrawCommand::TextRun {
+                    rect: Rect::new(pt.get_x() + 14.0, pt.get_y() - 24.0, 96.0, 16.0),
+                    text: format!("#{pid}({:.0},{:.0})", pt.get_x(), pt.get_y()),
+                    style: tag_style,
                 });
             }
+            let mut hud_style: TextStyle = TextStyle::default();
+            hud_style
+                .set_font_size(11.5)
+                .set_weight(FontWeight::Medium)
+                .set_color(p.get_foreground());
+            dl.push(DrawCommand::TextRun {
+                rect: Rect::new(
+                    bounds.get_x() + 10.0,
+                    bounds.get_y() + 8.0,
+                    (bounds.get_width() - 20.0).max(1.0),
+                    18.0,
+                ),
+                text: format!("Live Contacts Inside Pad: {}", inside_pts.len()),
+                style: hud_style,
+            });
         },
     );
+    let touch_ids_memo: Memo<Vec<u64>> = Memo::new(move || {
+        touches_sig
+            .get()
+            .into_iter()
+            .map(|(id, _): (u64, Point)| id)
+            .collect()
+    });
     let touch_stats: NodeId = ctx.reactive_text(
         Style::empty()
             .font_size(12.5)
             .font_weight(FontWeight::Medium)
             .color(p.get_primary()),
         move || {
-            let pts: Vec<(u64, Point)> = touches_sig.get();
-            if pts.is_empty() {
-                "Multi-Touch Pad Ready: place 1, 2, or more fingers inside the pad (sidebar & scroll isolated)".to_string()
+            let ids: Vec<u64> = touch_ids_memo.get();
+            if ids.is_empty() {
+                TOUCH_PAD_READY_TEXT.to_string()
             } else {
-                let coords: String = pts
+                let labels: String = ids
                     .iter()
-                    .map(|(id, pt): &(u64, Point)| {
-                        format!("#{id}({:.0},{:.0})", pt.get_x(), pt.get_y())
-                    })
+                    .map(|id: &u64| format!("#{id}"))
                     .collect::<Vec<String>>()
                     .join("  ");
-                format!("Active Touches: {}  |  {coords}", pts.len())
+                format!("Active Touches: {}  |  Pointers: {labels}", ids.len())
             }
         },
     );

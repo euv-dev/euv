@@ -354,16 +354,24 @@ impl SceneTree {
         let changed: bool = match self.get_node_mut(id) {
             Some(node) => {
                 let layout_box: LayoutBox = node.get_layout_box();
-                let max_x: f32 = (layout_box.get_content_size().get_width()
-                    - layout_box.get_content_bounds().get_width())
-                .max(0.0);
-                let max_y: f32 = (layout_box.get_content_size().get_height()
-                    - layout_box.get_content_bounds().get_height())
-                .max(0.0);
-                let clamped: Point = Point::new(
-                    offset.get_x().clamp(0.0, max_x),
-                    offset.get_y().clamp(0.0, max_y),
-                );
+                let unlaid_out: bool = layout_box.get_content_size().get_width() <= 0.0
+                    && layout_box.get_content_size().get_height() <= 0.0
+                    && layout_box.get_content_bounds().get_width() <= 0.0
+                    && layout_box.get_content_bounds().get_height() <= 0.0;
+                let clamped: Point = if unlaid_out {
+                    Point::new(offset.get_x().max(0.0), offset.get_y().max(0.0))
+                } else {
+                    let max_x: f32 = (layout_box.get_content_size().get_width()
+                        - layout_box.get_content_bounds().get_width())
+                    .max(0.0);
+                    let max_y: f32 = (layout_box.get_content_size().get_height()
+                        - layout_box.get_content_bounds().get_height())
+                    .max(0.0);
+                    Point::new(
+                        offset.get_x().clamp(0.0, max_x),
+                        offset.get_y().clamp(0.0, max_y),
+                    )
+                };
                 if layout_box.get_scroll_offset() == clamped {
                     false
                 } else {
@@ -615,7 +623,34 @@ impl SceneTree {
         Point::new(sx, sy)
     }
 
-    /// Collects the tight physical damage region from dirty paint/scroll/canvas nodes and clears paint dirty flags.
+    /// Returns `true` when `id` and every ancestor up to the root are alive, non-`Display::None`, and have positive opacity.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    /// - `NodeId` - Target node handle.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Whether the node is visibly rendered in the scene.
+    #[must_use]
+    pub fn is_node_visible(&self, id: NodeId) -> bool {
+        let mut cursor: Option<NodeId> = Some(id);
+        while let Some(cur) = cursor {
+            let Some(node) = self.get_node(cur) else {
+                return false;
+            };
+            if node.get_style().get_layout().get_display() == Display::None
+                || node.get_style().get_paint().get_opacity() <= 0.0
+            {
+                return false;
+            }
+            cursor = node.parent_id();
+        }
+        true
+    }
+
+    /// Collects the tight physical damage region from dirty paint/scroll nodes and clears paint dirty flags.
     ///
     /// # Arguments
     ///
@@ -637,9 +672,7 @@ impl SceneTree {
                 full = true;
                 break;
             }
-            let is_canvas: bool = matches!(node.get_kind(), NodeKind::Canvas)
-                && node.get_style().get_layout().get_display() != Display::None;
-            if is_canvas || (bits & (DIRTY_PAINT | DIRTY_SCROLL)) != 0 {
+            if (bits & (DIRTY_PAINT | DIRTY_SCROLL)) != 0 {
                 let b: Rect = node.get_layout_box().get_bounds();
                 if b.get_width() > 0.0 && b.get_height() > 0.0 {
                     let mut margin: f32 = 10.0;

@@ -156,3 +156,6 @@ pub(crate) const BTN_RETURN_DYNAMIC: &str = "Return to Dynamic OTA";
 pub(crate) const AI_SCHEMA_RELEASE_STRIPPED: &str = "stripped-in-release";
 pub(crate) const AI_BRIDGE_STATUS_ACTIVE: &str = "dev-active";
 pub(crate) const AI_BRIDGE_STATUS_OFF: &str = "0B-release";
+pub(crate) const TOUCH_PAD_READY_TEXT: &str =
+    "Multi-Touch Pad Ready: place 1, 2, or more fingers inside the pad (sidebar & scroll isolated)";
+pub(crate) const TOUCH_PAD_CANVAS_HINT: &str = "Touch or drag with 1-5 fingers here";

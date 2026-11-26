@@ -271,6 +271,17 @@ unsafe extern "system" {
 
 #[link(name = "gdi32")]
 unsafe extern "system" {
+    /// Sets the bitmap stretching mode on a Win32 device context (e.g. `HALFTONE`).
+    ///
+    /// # Arguments
+    ///
+    /// - `isize` - Destination `HDC`.
+    /// - `i32` - Stretch mode constant (`STRETCH_HALFTONE`).
+    ///
+    /// # Returns
+    ///
+    /// - `i32` - Previous stretch mode or zero on failure.
+    fn SetStretchBltMode(hdc: isize, mode: i32) -> i32;
     /// Copies pixel rows from a top-down DIB directly to a Win32 device context.
     ///
     /// # Arguments
@@ -677,6 +688,9 @@ pub(crate) fn win32_present_dib(
         };
         let hdc: isize = GetDC(hwnd as isize);
         if hdc != 0 {
+            if dst_w != src_w || dst_h != src_h {
+                let _: i32 = SetStretchBltMode(hdc, STRETCH_HALFTONE);
+            }
             let _: i32 = StretchDIBits(
                 hdc,
                 0,
@@ -740,14 +754,16 @@ pub(crate) fn win32_pump_messages(
             }
             Win32EventPayload::Resized(phys_w, phys_h, new_scale) => {
                 let s: f32 = new_scale.clamp(1.0, 4.0);
-                let log_w: u32 = ((phys_w as f32) / s).round().max(1.0) as u32;
-                let log_h: u32 = ((phys_h as f32) / s).round().max(1.0) as u32;
+                let exact_lw: f32 = ((phys_w as f32) / s).max(1.0);
+                let exact_lh: f32 = ((phys_h as f32) / s).max(1.0);
+                let log_w: u32 = exact_lw.round().max(1.0) as u32;
+                let log_h: u32 = exact_lh.round().max(1.0) as u32;
                 if let Some(rec) = windows.get_mut(&wid) {
                     rec.get_mut_config().set_width(log_w);
                     rec.get_mut_config().set_height(log_h);
                     rec.get_mut_state().set_scale_factor(s);
-                    rec.get_mut_state().set_logical_width(log_w as f32);
-                    rec.get_mut_state().set_logical_height(log_h as f32);
+                    rec.get_mut_state().set_logical_width(exact_lw);
+                    rec.get_mut_state().set_logical_height(exact_lh);
                     rec.get_mut_state().set_physical_width(phys_w);
                     rec.get_mut_state().set_physical_height(phys_h);
                 }
