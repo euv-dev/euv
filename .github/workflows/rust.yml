@@ -130,12 +130,214 @@ jobs:
           bash scripts/bench/stress-bench.sh
           mkdir -p dist/bench
           cargo run --release -p euv-performance -- --json > dist/bench/stress-report.json
-
       - name: Upload stress benchmark report artifact
         uses: actions/upload-artifact@v4
         with:
           name: euv-stress-benchmark-report
           path: dist/bench/stress-report.json
+          if-no-files-found: error
+
+  package-android:
+    name: Package Android APK release asset
+    needs: setup
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master' && needs.setup.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android Rust target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-linux-android
+      - name: Configure Android SDK and NDK toolchain
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          API_LEVEL="35"
+          BUILD_TOOLS="35.0.0"
+          SDKMANAGER=""
+          for candidate in \
+            "${SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" \
+            "${SDK_ROOT}/cmdline-tools/bin/sdkmanager" \
+            "${SDK_ROOT}/tools/bin/sdkmanager"; do
+            if [ -x "$candidate" ]; then
+              SDKMANAGER="$candidate"
+              break
+            fi
+          done
+          if [ -n "$SDKMANAGER" ]; then
+            set +o pipefail
+            yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null 2>&1 || true
+            set -o pipefail
+            if [ ! -f "${SDK_ROOT}/platforms/android-${API_LEVEL}/android.jar" ] || [ ! -x "${SDK_ROOT}/build-tools/${BUILD_TOOLS}/aapt2" ]; then
+              "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-${API_LEVEL}" "build-tools;${BUILD_TOOLS}"
+            fi
+          fi
+          NDK_DIR="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-}}"
+          if [ -z "$NDK_DIR" ] || [ ! -d "$NDK_DIR" ]; then
+            NDK_DIR="$(find "${SDK_ROOT}/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          fi
+          NDK_LLVM_BIN="${NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          LINKER="${NDK_LLVM_BIN}/aarch64-linux-android${API_LEVEL}-clang"
+          if [ ! -x "$LINKER" ]; then
+            LINKER="$(find "${NDK_LLVM_BIN}" -maxdepth 1 -name 'aarch64-linux-android*-clang' | sort -V | tail -n 1)"
+          fi
+          {
+            echo "ANDROID_HOME=${SDK_ROOT}"
+            echo "ANDROID_SDK_ROOT=${SDK_ROOT}"
+            echo "ANDROID_NDK_HOME=${NDK_DIR}"
+            echo "ANDROID_API_LEVEL=${API_LEVEL}"
+            echo "ANDROID_BUILD_TOOLS=${BUILD_TOOLS}"
+            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=${LINKER}"
+            echo "CC_aarch64_linux_android=${LINKER}"
+            echo "AR_aarch64_linux_android=${NDK_LLVM_BIN}/llvm-ar"
+          } >> "$GITHUB_ENV"
+          echo "${NDK_LLVM_BIN}" >> "$GITHUB_PATH"
+          echo "${SDK_ROOT}/platform-tools" >> "$GITHUB_PATH"
+          echo "${SDK_ROOT}/build-tools/${BUILD_TOOLS}" >> "$GITHUB_PATH"
+      - name: Build signed Release Android APK
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.setup.outputs.version }}"
+          bash scripts/build/build-android-apk.sh
+          mkdir -p dist/release-assets
+          cp dist/android/EuvShowcase.apk "dist/release-assets/EuvShowcase-${VERSION}-android-arm64.apk"
+          ls -lh dist/release-assets
+      - name: Upload Android release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-asset-android
+          path: dist/release-assets/EuvShowcase-${{ needs.setup.outputs.version }}-android-arm64.apk
+          if-no-files-found: error
+
+  package-native:
+    name: Package ${{ matrix.platform }} release asset
+    needs: setup
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master' && needs.setup.result == 'success'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            arch: x86_64
+            os: ubuntu-latest
+            ext: ''
+            archive_ext: tar.gz
+          - platform: macos
+            arch: arm64
+            os: macos-latest
+            ext: ''
+            archive_ext: tar.gz
+          - platform: windows
+            arch: x86_64
+            os: windows-latest
+            ext: '.exe'
+            archive_ext: zip
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Build and archive release binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.setup.outputs.version }}"
+          STAGE="dist/client-${{ matrix.platform }}"
+          OUT_DIR="dist/release-assets"
+          ASSET_NAME="euv-${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.archive_ext }}"
+          cargo build --release -p euv-example -p euv-cli
+          mkdir -p "${STAGE}" "${OUT_DIR}"
+          cp "target/release/euv-example${{ matrix.ext }}" "${STAGE}/"
+          cp "target/release/euv${{ matrix.ext }}" "${STAGE}/"
+          if [ "${{ matrix.archive_ext }}" = "zip" ]; then
+            pwsh -NoProfile -Command "Compress-Archive -Path '${STAGE}/*' -DestinationPath '${OUT_DIR}/${ASSET_NAME}' -Force"
+          else
+            tar -czf "${OUT_DIR}/${ASSET_NAME}" -C "${STAGE}" .
+          fi
+          ls -lh "${OUT_DIR}/${ASSET_NAME}"
+      - name: Upload ${{ matrix.platform }} release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-asset-${{ matrix.platform }}
+          path: dist/release-assets/euv-${{ needs.setup.outputs.version }}-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.archive_ext }}
+          if-no-files-found: error
+
+  package-web-wasm:
+    name: Package Web WASM release asset
+    needs: setup
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master' && needs.setup.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Install Rust WebAssembly target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+      - name: Build and archive release Web WASM package
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.setup.outputs.version }}"
+          cargo build --release --target wasm32-unknown-unknown --lib -p euv-example
+          mkdir -p dist/web dist/release-assets
+          cp target/wasm32-unknown-unknown/release/euv_example.wasm dist/web/euv_example.wasm
+          cargo run -p euv-cli -- build --target web --release --plan > dist/web/build-plan.json
+          tar -czf "dist/release-assets/euv-${VERSION}-web-wasm.tar.gz" -C dist/web .
+          ls -lh "dist/release-assets/euv-${VERSION}-web-wasm.tar.gz"
+      - name: Upload Web WASM release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-asset-web-wasm
+          path: dist/release-assets/euv-${{ needs.setup.outputs.version }}-web-wasm.tar.gz
+          if-no-files-found: error
+
+  package-ios-sim:
+    name: Package iOS and iPadOS Simulator release asset
+    needs: setup
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master' && needs.setup.result == 'success'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Install Rust iOS Simulator target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios-sim
+      - name: Build and archive signed iOS Simulator bundle
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.setup.outputs.version }}"
+          EUV_IOS_SKIP_LAUNCH=1 bash scripts/build/build-ios-sim.sh
+          mkdir -p dist/release-assets
+          tar -czf "dist/release-assets/EuvShowcase-${VERSION}-ios-sim.tar.gz" -C dist/ios EuvShowcase.app
+          ls -lh "dist/release-assets/EuvShowcase-${VERSION}-ios-sim.tar.gz"
+      - name: Upload iOS Simulator release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-asset-ios-sim
+          path: dist/release-assets/EuvShowcase-${{ needs.setup.outputs.version }}-ios-sim.tar.gz
           if-no-files-found: error
 
   publish:
@@ -164,11 +366,11 @@ jobs:
           echo "published=true" >> "$GITHUB_OUTPUT"
 
   release:
-    needs: [setup, check, tests, clippy, build, publish]
+    needs: [setup, check, tests, clippy, build, publish, package-android, package-native, package-web-wasm, package-ios-sim]
     permissions:
       contents: write
       packages: write
-    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master' && needs.setup.outputs.tag != '' && needs.publish.result == 'success'
+    if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref_name == 'master' && needs.setup.outputs.tag != '' && needs.publish.result == 'success' && needs.package-android.result == 'success' && needs.package-native.result == 'success' && needs.package-web-wasm.result == 'success' && needs.package-ios-sim.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -176,22 +378,36 @@ jobs:
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
+      - name: Download all multi-platform installer assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-asset-*
+          path: release-assets
+          merge-multiple: true
       - name: Build source archive
         id: build_archive
         run: |
           set -e
           VERSION="${{ needs.setup.outputs.version }}"
           REPO_NAME="${{ github.event.repository.name }}"
-          git archive --format=tar.gz --prefix="${REPO_NAME}-${VERSION}/" HEAD > "${REPO_NAME}-${VERSION}.tar.gz"
-          echo "archive_path=${REPO_NAME}-${VERSION}.tar.gz" >> $GITHUB_OUTPUT
-      - name: Create or update release
+          git archive --format=tar.gz --prefix="${REPO_NAME}-${VERSION}/" HEAD > "release-assets/${REPO_NAME}-${VERSION}.tar.gz"
+          ls -lh release-assets/
+      - name: Create or update release with multi-platform installers
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
+          set -euo pipefail
           VERSION="${{ needs.setup.outputs.version }}"
           TAG="${{ needs.setup.outputs.tag }}"
-          ARCHIVE="${{ steps.build_archive.outputs.archive_path }}"
+          REPO="${{ github.repository }}"
+          BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
+          APK_ASSET="EuvShowcase-${VERSION}-android-arm64.apk"
+          IOS_ASSET="EuvShowcase-${VERSION}-ios-sim.tar.gz"
+          MACOS_ASSET="euv-${VERSION}-macos-arm64.tar.gz"
+          WINDOWS_ASSET="euv-${VERSION}-windows-x86_64.zip"
+          LINUX_ASSET="euv-${VERSION}-linux-x86_64.tar.gz"
+          WASM_ASSET="euv-${VERSION}-web-wasm.tar.gz"
+          SRC_ASSET="${{ github.event.repository.name }}-${VERSION}.tar.gz"
           PACKAGES=(
             "euv-core"
             "euv-macros"
@@ -206,6 +422,17 @@ jobs:
           NOTES_FILE="$(mktemp)"
           {
             printf '## Release %s\n\n' "$TAG"
+            printf '### Multi-Platform Installers & Client Packages\n\n'
+            printf '| Platform | Package | Download |\n'
+            printf '| --- | --- | --- |\n'
+            printf '| Android (`arm64-v8a`) | `%s` | [Download APK](%s/%s) |\n' "$APK_ASSET" "$BASE_URL" "$APK_ASSET"
+            printf '| iOS / iPadOS Simulator (`arm64`) | `%s` | [Download .app Bundle](%s/%s) |\n' "$IOS_ASSET" "$BASE_URL" "$IOS_ASSET"
+            printf '| macOS (`arm64`) | `%s` | [Download macOS](%s/%s) |\n' "$MACOS_ASSET" "$BASE_URL" "$MACOS_ASSET"
+            printf '| Windows (`x86_64`) | `%s` | [Download Windows](%s/%s) |\n' "$WINDOWS_ASSET" "$BASE_URL" "$WINDOWS_ASSET"
+            printf '| Linux (`x86_64`) | `%s` | [Download Linux](%s/%s) |\n' "$LINUX_ASSET" "$BASE_URL" "$LINUX_ASSET"
+            printf '| WebAssembly (`wasm32`) | `%s` | [Download Web WASM](%s/%s) |\n' "$WASM_ASSET" "$BASE_URL" "$WASM_ASSET"
+            printf '| Source Archive | `%s` | [Download Source](%s/%s) |\n\n' "$SRC_ASSET" "$BASE_URL" "$SRC_ASSET"
+            printf '### Rust Crates\n\n'
             printf '| Package | crates.io | docs.rs |\n'
             printf '| --- | --- | --- |\n'
             for pkg in "${PACKAGES[@]}"; do
@@ -214,9 +441,9 @@ jobs:
             done
           } > "$NOTES_FILE"
           if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --clobber
             gh release edit "$TAG" --notes-file "$NOTES_FILE"
-            gh release upload "$TAG" "$ARCHIVE" --clobber
           else
-            gh release create "$TAG" --title "$TAG" --notes-file "$NOTES_FILE" --latest "$ARCHIVE"
+            gh release create "$TAG" --title "$TAG" --notes-file "$NOTES_FILE" --latest release-assets/*
           fi
           rm -f "$NOTES_FILE"
