@@ -5,20 +5,29 @@
 //! `euv_main!` directly into arena scene graph operations with span-preserving
 //! IDE completion and actionable compile-time diagnostics.
 
+mod component;
 mod diagnostic;
 mod entry;
+mod event;
 mod reactive;
+mod state;
 mod style;
 mod view;
 
-pub(crate) use {diagnostic::*, entry::*, reactive::*, style::*, view::*};
+pub(crate) use {
+    component::*, diagnostic::*, entry::*, event::*, reactive::*, state::*, style::*, view::*,
+};
+
+use std::{collections::HashSet, mem::take};
 
 use {
     proc_macro::TokenStream,
     proc_macro2::Span,
     quote::{quote, quote_spanned},
     syn::{
-        Error, Expr, Ident, LitStr, Result, Token, Type, Visibility, braced, parenthesized,
+        Attribute, Error, Expr, ExprRange, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl,
+        ItemStruct, LitStr, Meta, Pat, Path, PathSegment, RangeLimits, Result, Token, Type,
+        Visibility, braced, parenthesized,
         parse::{Parse, ParseBuffer, ParseStream},
         parse_macro_input,
         punctuated::Punctuated,
@@ -27,7 +36,7 @@ use {
     },
 };
 
-/// Declarative zero-VDOM, zero-context UI construction macro managing `BuildContext` automatically.
+/// Declarative zero-VDOM, zero-context UI construction macro managing `Context` automatically.
 ///
 /// # Arguments
 ///
@@ -42,7 +51,18 @@ pub fn view(input: TokenStream) -> TokenStream {
     expand_view(parsed).into()
 }
 
-/// Compile-time style macro compiling declarative rules directly into typed `Style` constructor functions.
+/// Compile-time style macro compiling declarative rules directly into typed `Style` constructor functions or inline `Style` expressions.
+///
+/// Every statement inside `style! { ... }` must end with `;`. Omitting a trailing semicolon is a compile-time error:
+///
+/// ```compile_fail
+/// use euv::*;
+///
+/// let _bad: Style = style! {
+///     AlignItems::Center
+///     Overflow::Hidden;
+/// };
+/// ```
 ///
 /// # Arguments
 ///
@@ -50,7 +70,7 @@ pub fn view(input: TokenStream) -> TokenStream {
 ///
 /// # Returns
 ///
-/// - `TokenStream` - Expanded typed `Style` functions.
+/// - `TokenStream` - Expanded typed `Style` functions or inline `Style` expression.
 #[proc_macro]
 pub fn style(input: TokenStream) -> TokenStream {
     let parsed: StyleBlockInput = parse_macro_input!(input as StyleBlockInput);
@@ -115,4 +135,113 @@ pub fn computed(input: TokenStream) -> TokenStream {
 pub fn euv_main(input: TokenStream) -> TokenStream {
     let parsed: EntryInput = parse_macro_input!(input as EntryInput);
     expand_entry(parsed).into()
+}
+
+/// Attribute macro marking a struct as a typed cross-component `CustomEvent` with ergonomic `::emit` and `::on` helpers.
+///
+/// # Arguments
+///
+/// - `TokenStream` - Unused attribute arguments.
+/// - `TokenStream` - Target struct item tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - Expanded struct plus `CustomEvent` implementation and helpers.
+#[proc_macro_attribute]
+pub fn event(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let parsed: ItemStruct = parse_macro_input!(item as ItemStruct);
+    expand_event_attr(parsed).into()
+}
+
+/// Dispatches a typed cross-component custom event through `EventBus`.
+///
+/// # Arguments
+///
+/// - `TokenStream` - Event value expression tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - Expanded `::euv::EventBus::emit(...)` call.
+#[proc_macro]
+pub fn emit(input: TokenStream) -> TokenStream {
+    let expr: Expr = parse_macro_input!(input as Expr);
+    expand_emit(expr).into()
+}
+
+/// Subscribes a scope-owned listener to a typed cross-component custom event (`on_event!(MyEvent => |ev| { ... })`).
+///
+/// # Arguments
+///
+/// - `TokenStream` - `EventType => handler` tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - Expanded `::euv::EventBus::on::<EventType, _>(handler)` returning `::euv::Effect`.
+#[proc_macro]
+pub fn on_event(input: TokenStream) -> TokenStream {
+    let parsed: OnEventInput = parse_macro_input!(input as OnEventInput);
+    expand_on_event(parsed).into()
+}
+
+/// Attribute macro turning a struct into a typed app-wide `GlobalState` with `.provide()`, `::use_global()`, `::get_global()`, `::set_global()`, `::update_global()`, and `::watch_global()`.
+///
+/// # Arguments
+///
+/// - `TokenStream` - Unused attribute arguments.
+/// - `TokenStream` - Target struct item tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - Expanded struct plus global state methods.
+#[proc_macro_attribute]
+pub fn global_state_store(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let parsed: ItemStruct = parse_macro_input!(item as ItemStruct);
+    expand_global_state_attr(parsed).into()
+}
+
+/// Creates a scoped reactive `LocalState<T>` owned by the active component/page `Scope`.
+///
+/// # Arguments
+///
+/// - `TokenStream` - Initial value expression tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - Expanded `::euv::LocalState::new(...)` expression.
+#[proc_macro]
+pub fn local_state(input: TokenStream) -> TokenStream {
+    let expr: Expr = parse_macro_input!(input as Expr);
+    expand_local_state(expr).into()
+}
+
+/// Accesses or lazily initializes a typed app-wide `GlobalState` (`global_state!(MyState)` or `global_state!(MyState = init)`).
+///
+/// # Arguments
+///
+/// - `TokenStream` - `Type` or `Type = init_expr` tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - Expanded `::euv::GlobalState` lookup or lazy init call.
+#[proc_macro]
+pub fn global_state(input: TokenStream) -> TokenStream {
+    let parsed: GlobalStateInput = parse_macro_input!(input as GlobalStateInput);
+    expand_global_state(parsed).into()
+}
+
+/// Attribute macro splitting an `impl MyComponent { fn render(&self) -> NodeId { ... } ... }` block into clean `impl Lifecycle` and `impl Component` blocks.
+///
+/// # Arguments
+///
+/// - `TokenStream` - Optional `retention = Freeze | Destroy | Alive` options.
+/// - `TokenStream` - Target `impl` block tokens.
+///
+/// # Returns
+///
+/// - `TokenStream` - Expanded `Lifecycle`, `Component`, and optional inherent helper `impl` blocks.
+#[proc_macro_attribute]
+pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args: ComponentAttrArgs = parse_macro_input!(attr as ComponentAttrArgs);
+    let parsed: ItemImpl = parse_macro_input!(item as ItemImpl);
+    expand_component_attr(args, parsed).into()
 }

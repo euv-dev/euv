@@ -24,3 +24,9 @@ pub(crate) const ALERT_DEFAULT_CONFIRM_LABEL: &str = "Continue";
 
 /// Default search prompt placeholder in `EuvCommand`.
 pub(crate) const COMMAND_DEFAULT_PLACEHOLDER: &str = "Type a command or search...";
+
+/// Overlay stack identifier for `EuvAlertDialog`.
+pub(crate) const ALERT_DIALOG_OVERLAY_NAME: &str = "EuvAlertDialog";
+
+/// Slide counter string when `EuvCarousel` contains zero slides.
+pub(crate) const CAROUSEL_ZERO_COUNTER: &str = "0 / 0";

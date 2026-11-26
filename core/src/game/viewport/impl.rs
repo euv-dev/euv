@@ -542,7 +542,32 @@ impl GameEngineHost {
             input: Rc::new(RefCell::new(InputState::new())),
             scene: Rc::new(RefCell::new(scene)),
             viewport_nodes: Rc::new(RefCell::new(Vec::new())),
+            paused: Rc::new(Cell::new(false)),
         }
+    }
+
+    /// Pauses or resumes simulation stepping for this game engine host (driven by `Lifecycle::on_freeze`/`on_resume`).
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Engine host reference.
+    /// - `bool` - `true` to pause simulation; `false` to resume.
+    pub fn set_paused(&self, paused: bool) {
+        self.get_paused().set(paused);
+    }
+
+    /// Returns `true` when this game engine host is currently paused.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Engine host reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - Pause state.
+    #[must_use]
+    pub fn is_paused(&self) -> bool {
+        self.get_paused().get()
     }
 
     /// Returns screen-space bounds of all mounted, currently visible viewports backed by this host.
@@ -554,9 +579,12 @@ impl GameEngineHost {
     ///
     /// # Returns
     ///
-    /// - `Vec<Rect>` - Visible viewport rectangles (empty when this host is not on screen).
+    /// - `Vec<Rect>` - Visible viewport rectangles (empty when paused or not on screen).
     #[must_use]
     pub fn active_viewport_bounds(&self, tree: &SceneTree) -> Vec<Rect> {
+        if self.is_paused() {
+            return Vec::new();
+        }
         let mut rects: Vec<Rect> = Vec::new();
         if let Ok(mut nodes) = self.get_viewport_nodes().try_borrow_mut() {
             nodes.retain(|(_, id): &(SceneHandle, NodeId)| tree.get_node(*id).is_some());
@@ -596,6 +624,9 @@ impl GameEngineHost {
     ///
     /// - `u32` - Number of fixed physics steps executed.
     pub fn step(&self, dt_secs: f32) -> u32 {
+        if self.is_paused() {
+            return 0;
+        }
         let (steps, fixed_dt): (u32, f32) = match self.get_clock().try_borrow_mut() {
             Ok(mut clock) => (clock.tick(dt_secs), clock.get_fixed_dt()),
             Err(_) => (0, 1.0 / 60.0),
@@ -662,7 +693,7 @@ impl GameEngineHost {
         ));
     }
 
-    /// Mounts a live `Canvas` viewport into the active ambient `BuildContext` backed by this `GameScene`.
+    /// Mounts a live `Canvas` viewport into the active ambient `Context` backed by this `GameScene`.
     ///
     /// Supports multi-platform interaction automatically: keyboard/mouse on Desktop & Web plus
     /// direct drag-to-steer virtual analog joystick on touch/mobile/tablet screens.
@@ -680,7 +711,7 @@ impl GameEngineHost {
         let Self { clock, scene, .. } = self;
         let clock_c: Rc<RefCell<FrameClock>> = clock.clone();
         let scene_c: Rc<RefCell<dyn GameScene>> = scene.clone();
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let node: NodeId = ctx.canvas(
             style,
             move |bounds: Rect, display_list: &mut DisplayList| {

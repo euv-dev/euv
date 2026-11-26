@@ -102,7 +102,9 @@ fn docs_loader_viewer_and_static_generator_work_end_to_end() {
     assert_ne!(stats.get_frame_hash(), 0);
     assert!(stats.get_draw_commands() >= 4);
     let out_dir: PathBuf = env::temp_dir().join("euv_docs_test_bundle");
-    let report: GeneratedSiteReport = generate_static_docs(&site, &out_dir).unwrap();
+    drop(fs::remove_dir_all(&out_dir));
+    let report: GeneratedSiteReport =
+        build_docs_bundle(&docs_root, &out_dir, &DocsBuildOptions::default()).unwrap();
     assert_eq!(report.get_page_count(), site.get_pages().len());
     assert!(Path::new(report.get_index_path()).exists());
     assert!(out_dir.join("index.html").exists());
@@ -110,5 +112,25 @@ fn docs_loader_viewer_and_static_generator_work_end_to_end() {
     let home_html: String = fs::read_to_string(out_dir.join("index.html")).unwrap();
     assert!(home_html.contains("euv-search"));
     assert!(home_html.contains("On this page"));
+    let syntax_html: String =
+        fs::read_to_string(out_dir.join("guide/markdown-syntax/index.html")).unwrap();
+    assert!(syntax_html.contains("#EBEEF5"));
+    assert!(syntax_html.contains("#282C34"));
+    assert!(syntax_html.contains("#7C4DFF"));
+    assert!(syntax_html.contains("#A78CFA"));
+    assert!(syntax_html.contains("tok-kw"));
+    assert!(syntax_html.contains("tok-fn"));
+    assert!(syntax_html.contains("tok-add"));
+    assert!(syntax_html.contains("tok-del"));
+    assert!(syntax_html.contains("callout-note"));
+    assert!(syntax_html.contains("callout-tip"));
+    assert!(syntax_html.contains("callout-important"));
+    assert!(syntax_html.contains("callout-warning"));
+    assert!(syntax_html.contains("callout-caution"));
+    assert!(syntax_html.contains("<dl>"));
+    assert!(syntax_html.contains("math-inline"));
+    assert!(syntax_html.contains("math-display"));
+    assert!(syntax_html.contains("pipeline-diagram.svg"));
+    assert!(out_dir.join("guide/pipeline-diagram.svg").exists());
     drop(fs::remove_dir_all(&out_dir));
 }

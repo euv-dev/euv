@@ -1665,27 +1665,33 @@ impl DynamicUpdateHub {
     }
 }
 
-/// `Mountable` implementation mounting a surgically updatable component slot.
-impl Mountable for DynamicComponentSlot {
-    /// Mounts the host container and subscribes ONLY to this slot's dedicated revision signal.
+/// Default `Lifecycle` hooks for `DynamicComponentSlot`.
+impl Lifecycle for DynamicComponentSlot {}
+
+/// `Component` implementation mounting a surgically updatable component slot.
+impl Component for DynamicComponentSlot {
+    /// Renders the host container and subscribes ONLY to this slot's dedicated revision signal.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Component slot descriptor.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component slot descriptor.
     ///
     /// # Returns
     ///
     /// - `NodeId` - Mounted slot host handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let host_style: Style = self.get_style();
         let Self {
             id, fallback, hub, ..
         } = self;
-        let active_hub: DynamicUpdateHub = hub.unwrap_or_else(|| ctx.get_dynamic_hub().clone());
-        let rev_sig: Signal<u64> = active_hub.component_revision_signal(&id);
-        let effective_style: Style = if host_style == Style::empty() {
-            Style::empty().column().width(Length::Percent(100.0))
+        let slot_id: String = id.clone();
+        let fb: DynamicBuilderFn = fallback.clone();
+        let active_hub: DynamicUpdateHub =
+            hub.clone().unwrap_or_else(|| ctx.get_dynamic_hub().clone());
+        let rev_sig: Signal<u64> = active_hub.component_revision_signal(&slot_id);
+        let effective_style: Style = if host_style == Style::default() {
+            Style::default().column().width(Length::Percent(100.0))
         } else {
             host_style
         };
@@ -1693,12 +1699,12 @@ impl Mountable for DynamicComponentSlot {
         let safe_sig: Signal<SafeAreaInsets> = ctx.get_safe_area();
         ctx.bind_children(host, move || {
             let _: u64 = rev_sig.get();
-            let mounted: NodeId = active_hub.mount_component_or_fallback(&id, &fallback);
-            if id == WASM_GLOBAL_ROOT_SLOT && active_hub.component_version(&id) > 0 {
+            let mounted: NodeId = active_hub.mount_component_or_fallback(&slot_id, &fb);
+            if slot_id == WASM_GLOBAL_ROOT_SLOT && active_hub.component_version(&slot_id) > 0 {
                 let safe: SafeAreaInsets = safe_sig.get();
-                let mut sctx: BuildContext = current_build_context();
+                let mut sctx: Context = current_context();
                 let scroller: NodeId = sctx.scroll_view(
-                    Style::empty()
+                    Style::default()
                         .column()
                         .width(Length::Percent(100.0))
                         .height(Length::Percent(100.0))
@@ -1712,7 +1718,7 @@ impl Mountable for DynamicComponentSlot {
                         )),
                 );
                 let container: NodeId = sctx.view(
-                    Style::empty()
+                    Style::default()
                         .column()
                         .width(Length::Percent(100.0))
                         .max_width(Length::Px(1040.0)),
@@ -1728,19 +1734,22 @@ impl Mountable for DynamicComponentSlot {
     }
 }
 
-/// `Mountable` implementation mounting a surgically updatable page slot for a fixed route.
-impl Mountable for DynamicPageSlot {
-    /// Mounts the page container and subscribes ONLY to this route's dedicated revision signal.
+/// Default `Lifecycle` hooks for `DynamicPageSlot`.
+impl Lifecycle for DynamicPageSlot {}
+
+/// `Component` implementation mounting a surgically updatable page slot for a fixed route.
+impl Component for DynamicPageSlot {
+    /// Renders the page container and subscribes ONLY to this route's dedicated revision signal.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Page slot descriptor.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Page slot descriptor.
     ///
     /// # Returns
     ///
     /// - `NodeId` - Mounted page slot host handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let host_style: Style = self.get_style();
         let Self {
             route,
@@ -1748,42 +1757,49 @@ impl Mountable for DynamicPageSlot {
             hub,
             ..
         } = self;
-        let normalized: String = normalize_dynamic_route(&route);
-        let active_hub: DynamicUpdateHub = hub.unwrap_or_else(|| ctx.get_dynamic_hub().clone());
+        let normalized: String = normalize_dynamic_route(route);
+        let fb: DynamicBuilderFn = fallback.clone();
+        let active_hub: DynamicUpdateHub =
+            hub.clone().unwrap_or_else(|| ctx.get_dynamic_hub().clone());
         let rev_sig: Signal<u64> = active_hub.page_revision_signal(&normalized);
-        let effective_style: Style = if host_style == Style::empty() {
-            Style::empty().column().width(Length::Percent(100.0))
+        let effective_style: Style = if host_style == Style::default() {
+            Style::default().column().width(Length::Percent(100.0))
         } else {
             host_style
         };
         let host: NodeId = ctx.view(effective_style);
         ctx.bind_children(host, move || {
             let _: u64 = rev_sig.get();
-            vec![active_hub.mount_page_or_fallback(&normalized, &fallback)]
+            vec![active_hub.mount_page_or_fallback(&normalized, &fb)]
         });
         host
     }
 }
 
-/// `Mountable` implementation mounting a reactive route-driven dynamic page outlet.
-impl Mountable for DynamicPageOutlet {
-    /// Mounts a dynamic route outlet reacting to both route switches and live page-level updates.
+/// Default `Lifecycle` hooks for `DynamicPageOutlet`.
+impl Lifecycle for DynamicPageOutlet {}
+
+/// `Component` implementation mounting a reactive route-driven dynamic page outlet.
+impl Component for DynamicPageOutlet {
+    /// Renders a dynamic route outlet reacting to both route switches and live page-level updates.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Page outlet descriptor.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Page outlet descriptor.
     ///
     /// # Returns
     ///
     /// - `NodeId` - Mounted outlet host handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let route_sig: Signal<String> = self.get_route();
         let host_style: Style = self.get_style();
         let Self { fallback, hub, .. } = self;
-        let active_hub: DynamicUpdateHub = hub.unwrap_or_else(|| ctx.get_dynamic_hub().clone());
-        let effective_style: Style = if host_style == Style::empty() {
-            Style::empty().column().width(Length::Percent(100.0))
+        let fb_outer: DynamicRouteFallbackFn = fallback.clone();
+        let active_hub: DynamicUpdateHub =
+            hub.clone().unwrap_or_else(|| ctx.get_dynamic_hub().clone());
+        let effective_style: Style = if host_style == Style::default() {
+            Style::default().column().width(Length::Percent(100.0))
         } else {
             host_style
         };
@@ -1794,7 +1810,7 @@ impl Mountable for DynamicPageOutlet {
             let active_route: String = normalize_dynamic_route(&route_sig.get());
             let page_rev_sig: Signal<u64> = active_hub.page_revision_signal(&active_route);
             let _: u64 = page_rev_sig.get();
-            let fallback_c: DynamicRouteFallbackFn = fallback.clone();
+            let fallback_c: DynamicRouteFallbackFn = fb_outer.clone();
             let route_for_fb: String = active_route.clone();
             let fb: DynamicBuilderFn = Rc::new(move || fallback_c(&route_for_fb));
             let page_node: NodeId = active_hub.mount_page_or_fallback(&active_route, &fb);

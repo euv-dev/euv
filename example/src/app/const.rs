@@ -91,3 +91,66 @@ pub(crate) const WEB_PTR_TYPE_PEN: &str = "pen";
 /// DOM CSS selector for the mounted canvas element.
 #[cfg(target_arch = "wasm32")]
 pub(crate) const WEB_SELECTOR_CANVAS: &str = "canvas";
+/// DOM tag name for the hidden browser IME proxy input element.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_INPUT_TAG: &str = "input";
+/// DOM id attribute for the hidden browser IME proxy input element.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_INPUT_ID: &str = "euv-ime-proxy";
+/// DOM attribute name for `id`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ATTR_ID: &str = "id";
+/// DOM attribute name for `type`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ATTR_TYPE: &str = "type";
+/// DOM `<input type="text">` attribute value.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ATTR_TEXT: &str = "text";
+/// DOM attribute name for `autocomplete`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ATTR_AUTOCOMPLETE: &str = "autocomplete";
+/// DOM attribute value disabling autocomplete/autocorrect/autocapitalize.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ATTR_OFF: &str = "off";
+/// DOM attribute name for `autocorrect`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ATTR_AUTOCORRECT: &str = "autocorrect";
+/// DOM attribute name for `autocapitalize`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ATTR_AUTOCAPITALIZE: &str = "autocapitalize";
+/// DOM attribute name for `spellcheck`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ATTR_SPELLCHECK: &str = "spellcheck";
+/// DOM attribute value `"false"`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ATTR_FALSE: &str = "false";
+/// DOM attribute name for `aria-label`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ATTR_ARIA_LABEL: &str = "aria-label";
+/// Accessible label applied to the hidden IME proxy input.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ARIA_LABEL: &str = "euv text input";
+/// DOM attribute name for inline CSS `style`.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ATTR_STYLE: &str = "style";
+/// Inline CSS keeping the IME proxy input visually hidden without triggering iOS Safari auto-zoom.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_STYLE: &str = "position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0;margin:0;z-index:-1;font-size:16px;";
+/// DOM event name for text input changes.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_INPUT: &str = "input";
+/// DOM event name for IME composition start.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_COMPOSITION_START: &str = "compositionstart";
+/// DOM event name for IME composition end.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_EVENT_COMPOSITION_END: &str = "compositionend";
+/// DOM JS property name for an input element's string value.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_PROP_VALUE: &str = "value";
+/// Native action subcommand showing the browser soft keyboard / IME proxy.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ACTION_SHOW: &str = "show";
+/// Native action subcommand hiding the browser soft keyboard / IME proxy.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const WEB_IME_ACTION_HIDE: &str = "hide";

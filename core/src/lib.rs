@@ -49,8 +49,8 @@ use std::ptr::copy_nonoverlapping;
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "linux", windows))]
 use std::ptr::null;
 use std::{
-    any::Any,
-    cell::{Ref, RefCell, RefMut},
+    any::{Any, TypeId},
+    cell::{Cell, Ref, RefCell, RefMut},
     collections::{HashMap, HashSet},
     error::Error,
     f32::consts::{FRAC_PI_2, PI, SQRT_2, TAU},
@@ -61,17 +61,18 @@ use std::{
     ops::{Add, Mul, Sub},
     ptr::null_mut,
     rc::Rc,
+    slice::from_raw_parts_mut,
     str::{Chars, from_utf8},
-    sync::atomic::{AtomicPtr, Ordering},
+    sync::atomic::{AtomicPtr, AtomicUsize, Ordering},
 };
 #[cfg(not(target_arch = "wasm32"))]
 use std::{
     fs,
     io::{self, Read, Write},
     net::{SocketAddr, TcpStream, ToSocketAddrs},
-    slice::{ChunksMut, from_raw_parts, from_raw_parts_mut},
-    sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError, atomic::AtomicUsize},
-    thread::{self, Builder, JoinHandle, ScopedJoinHandle, available_parallelism, scope, sleep},
+    slice::from_raw_parts,
+    sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError},
+    thread::{Builder, JoinHandle, available_parallelism, sleep},
     time::{Duration, Instant},
 };
 #[cfg(all(test, not(target_arch = "wasm32")))]

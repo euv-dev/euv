@@ -35,6 +35,34 @@ impl Easing {
                 let k: f32 = u - 1.0;
                 1.0 + c3 * k * k * k + c1 * k * k
             }
+            Self::EaseOutQuint => {
+                let inv: f32 = 1.0 - u;
+                let inv2: f32 = inv * inv;
+                1.0 - inv2 * inv2 * inv
+            }
+            Self::EaseInCubic => u * u * u,
+            Self::SpringGentle => {
+                if u <= 0.0 {
+                    0.0
+                } else if u >= 1.0 {
+                    1.0
+                } else {
+                    let raw: f32 = 1.0 - (-6.2 * u).exp() * (9.0 * u).cos();
+                    let end: f32 = 1.0 - (-6.2_f32).exp() * 9.0_f32.cos();
+                    raw / end.max(0.001)
+                }
+            }
+            Self::SpringSnappy => {
+                if u <= 0.0 {
+                    0.0
+                } else if u >= 1.0 {
+                    1.0
+                } else {
+                    let raw: f32 = 1.0 - (-8.4 * u).exp() * (12.5 * u).cos();
+                    let end: f32 = 1.0 - (-8.4_f32).exp() * 12.5_f32.cos();
+                    raw / end.max(0.001)
+                }
+            }
         }
     }
 }
@@ -55,6 +83,7 @@ impl NodeTransition {
         Self {
             node,
             elapsed: 0.0,
+            delay: 0.0,
             duration: 0.20,
             easing: Easing::EaseOutCubic,
             from_opacity: 1.0,
@@ -67,6 +96,22 @@ impl NodeTransition {
             to_scale: 1.0,
             hide_on_complete: false,
         }
+    }
+
+    /// Sets an initial hold delay in seconds before interpolation begins.
+    ///
+    /// # Arguments
+    ///
+    /// - `Self` - Source transition.
+    /// - `f32` - Delay duration in seconds (clamped to `>= 0.0`).
+    ///
+    /// # Returns
+    ///
+    /// - `Self` - Updated transition with start delay.
+    #[must_use]
+    pub fn with_delay(mut self, delay_secs: f32) -> Self {
+        self.set_delay(delay_secs.max(0.0));
+        self
     }
 
     /// Sets transition duration in seconds.
@@ -187,15 +232,16 @@ impl NodeTransition {
         Self {
             node,
             elapsed: 0.0,
-            duration: 0.22,
-            easing: Easing::EaseOutCubic,
+            delay: 0.0,
+            duration: 0.24,
+            easing: Easing::EaseOutQuint,
             from_opacity: 0.0,
             to_opacity: 1.0,
             from_tx: 0.0,
             to_tx: 0.0,
-            from_ty: 12.0,
+            from_ty: 14.0,
             to_ty: 0.0,
-            from_scale: 1.0,
+            from_scale: 0.992,
             to_scale: 1.0,
             hide_on_complete: false,
         }
@@ -219,6 +265,7 @@ impl NodeTransition {
         Self {
             node,
             elapsed: 0.0,
+            delay: 0.0,
             duration: duration.max(0.016),
             easing: Easing::EaseOutCubic,
             from_opacity: from,
@@ -261,6 +308,7 @@ impl NodeTransition {
         Self {
             node,
             elapsed: 0.0,
+            delay: 0.0,
             duration: duration.max(0.016),
             easing: Easing::EaseOutCubic,
             from_opacity,
@@ -289,15 +337,16 @@ impl NodeTransition {
         Self {
             node,
             elapsed: 0.0,
-            duration: 0.20,
-            easing: Easing::EaseOutCubic,
+            delay: 0.0,
+            duration: 0.28,
+            easing: Easing::SpringSnappy,
             from_opacity: 0.0,
             to_opacity: 1.0,
             from_tx: 0.0,
             to_tx: 0.0,
-            from_ty: 14.0,
+            from_ty: 18.0,
             to_ty: 0.0,
-            from_scale: 0.95,
+            from_scale: 0.93,
             to_scale: 1.0,
             hide_on_complete: false,
         }
@@ -317,6 +366,7 @@ impl NodeTransition {
         Self {
             node,
             elapsed: 0.0,
+            delay: 0.0,
             duration: 0.18,
             easing: Easing::EaseOutCubic,
             from_opacity: 1.0,
@@ -342,7 +392,8 @@ impl NodeTransition {
     /// - `(f32, Transform2D)` - Current interpolated opacity and 2D transform.
     #[must_use]
     pub fn sample(&self) -> (f32, Transform2D) {
-        let raw_t: f32 = (self.get_elapsed() / self.get_duration().max(0.001)).clamp(0.0, 1.0);
+        let active_elapsed: f32 = (self.get_elapsed() - self.get_delay()).max(0.0);
+        let raw_t: f32 = (active_elapsed / self.get_duration().max(0.001)).clamp(0.0, 1.0);
         let k: f32 = self.get_easing().eval(raw_t);
         let op: f32 = (self.get_from_opacity()
             + (self.get_to_opacity() - self.get_from_opacity()) * k)
@@ -354,7 +405,7 @@ impl NodeTransition {
         (op, Transform2D::new(tx, ty, sc, sc, 0.0))
     }
 
-    /// Returns `true` when the transition has reached or exceeded its target duration.
+    /// Returns `true` when the transition has reached or exceeded its total `delay + duration`.
     ///
     /// # Arguments
     ///
@@ -365,6 +416,6 @@ impl NodeTransition {
     /// - `bool` - Whether this transition is finished.
     #[must_use]
     pub fn is_complete(&self) -> bool {
-        self.get_elapsed() >= self.get_duration()
+        self.get_elapsed() >= self.get_delay() + self.get_duration()
     }
 }

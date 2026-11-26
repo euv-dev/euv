@@ -13,15 +13,17 @@ impl ShowcaseState {
         let doubled: Memo<i32> = computed!((counter) -> i32 => move |n: i32| n * 2);
         let arena: DemoPhysicsScene = DemoPhysicsScene::create_arena();
         let game_host: GameEngineHost = GameEngineHost::new(arena, 1.0 / 60.0);
+        game_host.set_paused(true);
         let engine3d_quality: Signal<RenderQualityConfig> =
-            Signal::new(RenderQualityConfig::from_preset(QualityPreset::High));
-        let engine3d_preset_idx: Signal<usize> = Signal::new(2);
-        let engine3d_rt_idx: Signal<usize> = Signal::new(2);
-        let engine3d_res_scale: Signal<f32> = Signal::new(85.0);
+            Signal::new(RenderQualityConfig::from_preset(QualityPreset::Cinematic));
+        let engine3d_preset_idx: Signal<usize> = Signal::new(4);
+        let engine3d_rt_idx: Signal<usize> = Signal::new(3);
+        let engine3d_res_scale: Signal<f32> = Signal::new(100.0);
         let engine3d_time_of_day: Signal<f32> = Signal::new(17.2);
         let engine3d_import_queue: Signal<u64> = Signal::new(0);
-        let engine3d_import_status: Signal<String> =
-            Signal::new("Ready: import .OBJ or .glTF models live into BVH".to_string());
+        let engine3d_import_status: Signal<String> = Signal::new(
+            "Ready: Cinematic + RT Full GI active — import .OBJ or .glTF live".to_string(),
+        );
         let engine3d_camera_mode: Signal<u8> = Signal::new(0);
         let scene3d: DemoOpenWorld3DScene = DemoOpenWorld3DScene::create_city(
             engine3d_quality,
@@ -31,6 +33,9 @@ impl ShowcaseState {
             engine3d_camera_mode,
         );
         let game3d_host: GameEngineHost = GameEngineHost::new(scene3d, 1.0 / 60.0);
+        game3d_host.set_paused(true);
+        let router: EuvRouter =
+            EuvRouter::new(ROUTE_OVERVIEW).with_default_retention(PageRetention::Freeze);
         let dynamic_hub: DynamicUpdateHub = DynamicUpdateHub::new();
         let wasm_registry: RegistryWasmFetcher = RegistryWasmFetcher::default();
         Self::populate_wasm_registry(&wasm_registry);
@@ -150,6 +155,19 @@ impl ShowcaseState {
             ]),
             tree_selected: Signal::new(None),
             breadcrumb_active: Signal::new(2),
+            stress_results: Signal::new(default_stress_results()),
+            stress_summary: Signal::new(STRESS_SUMMARY_READY.to_string()),
+            router,
+            router_ready: Rc::new(Cell::new(false)),
+            lifecycle_mounts: Signal::new(0),
+            lifecycle_freezes: Signal::new(0),
+            lifecycle_resumes: Signal::new(0),
+            lifecycle_destroys: Signal::new(0),
+            lifecycle_last_event: Signal::new("Booting lazy Freeze router...".to_string()),
+            markdown_copy_log: Signal::new("Tap Copy on any Eva code block".to_string()),
+            markdown_link_log: Signal::new("Tap any Markdown hyperlink below".to_string()),
+            markdown_tasks_toggled: Signal::new(0),
+            markdown_lang_tab: Signal::new(0),
         }
     }
 
@@ -259,6 +277,7 @@ impl ShowcaseState {
         let (sec, title): (&str, &str) = match route {
             ROUTE_OVERVIEW => (NAV_SEC_WORKSPACE, NAV_LABEL_OVERVIEW),
             ROUTE_LAB => (NAV_SEC_WORKSPACE, NAV_LABEL_LAB),
+            ROUTE_MARKDOWN => (NAV_SEC_DESIGN, NAV_LABEL_MARKDOWN),
             ROUTE_FORMS => (NAV_SEC_DESIGN, NAV_LABEL_FORMS),
             ROUTE_THEMES => (NAV_SEC_DESIGN, NAV_LABEL_THEMES),
             ROUTE_OVERLAYS => (NAV_SEC_DESIGN, NAV_LABEL_OVERLAYS),
@@ -268,6 +287,7 @@ impl ShowcaseState {
             ROUTE_MEDIA => (NAV_SEC_ENGINE, NAV_LABEL_MEDIA),
             ROUTE_RENDER => (NAV_SEC_ENGINE, NAV_LABEL_RENDER),
             ROUTE_DYNAMIC => (NAV_SEC_RUNTIME, NAV_LABEL_DYNAMIC),
+            ROUTE_STRESS => (NAV_SEC_RUNTIME, NAV_LABEL_STRESS),
             ROUTE_WINDOW => (NAV_SEC_RUNTIME, NAV_LABEL_WINDOW),
             ROUTE_REACTIVE => (NAV_SEC_RUNTIME, NAV_LABEL_REACTIVE),
             other => (NAV_SEC_RUNTIME, other),
@@ -348,8 +368,10 @@ impl ShowcaseState {
         let Self {
             dynamic_hub,
             wasm_manager,
+            router,
             ..
         } = self;
+        let _: EuvRouter = router.clone().with_dynamic_hub(hub.clone());
         *dynamic_hub = hub;
         *wasm_manager = wasm_mgr;
     }
@@ -492,6 +514,8 @@ impl ShowcaseState {
                 .section(NAV_SEC_WORKSPACE),
             EuvNavItem::new(ROUTE_LAB.to_string(), NAV_LABEL_LAB.to_string())
                 .section(NAV_SEC_WORKSPACE),
+            EuvNavItem::new(ROUTE_MARKDOWN.to_string(), NAV_LABEL_MARKDOWN.to_string())
+                .section(NAV_SEC_DESIGN),
             EuvNavItem::new(ROUTE_FORMS.to_string(), NAV_LABEL_FORMS.to_string())
                 .section(NAV_SEC_DESIGN),
             EuvNavItem::new(ROUTE_THEMES.to_string(), NAV_LABEL_THEMES.to_string())
@@ -509,6 +533,8 @@ impl ShowcaseState {
             EuvNavItem::new(ROUTE_RENDER.to_string(), NAV_LABEL_RENDER.to_string())
                 .section(NAV_SEC_ENGINE),
             EuvNavItem::new(ROUTE_DYNAMIC.to_string(), NAV_LABEL_DYNAMIC.to_string())
+                .section(NAV_SEC_RUNTIME),
+            EuvNavItem::new(ROUTE_STRESS.to_string(), NAV_LABEL_STRESS.to_string())
                 .section(NAV_SEC_RUNTIME),
             EuvNavItem::new(ROUTE_WINDOW.to_string(), NAV_LABEL_WINDOW.to_string())
                 .section(NAV_SEC_RUNTIME),
@@ -1160,14 +1186,14 @@ impl GameScene for DemoOpenWorld3DScene {
         let size: Size = ctx.viewport_size();
         let quality: RenderQualityConfig = self.get_quality_signal().get_untracked();
         let dpi_boost: f32 = match quality.get_preset() {
-            QualityPreset::Low => 1.15,
-            QualityPreset::Medium => 1.45,
-            QualityPreset::High => 1.85,
-            QualityPreset::Ultra => 2.10,
-            QualityPreset::Cinematic => 2.35,
+            QualityPreset::Low => 1.05,
+            QualityPreset::Medium => 1.25,
+            QualityPreset::High => 1.38,
+            QualityPreset::Ultra => 1.45,
+            QualityPreset::Cinematic => 1.52,
         };
-        let vw: u32 = ((size.get_width() * dpi_boost).round() as u32).clamp(240, 1120);
-        let vh: u32 = ((size.get_height() * dpi_boost).round() as u32).clamp(180, 960);
+        let vw: u32 = ((size.get_width() * dpi_boost).round() as u32).clamp(280, 960);
+        let vh: u32 = ((size.get_height() * dpi_boost).round() as u32).clamp(180, 720);
         let frame_img: ImageBuffer = {
             let Self {
                 world, renderer, ..

@@ -1,9 +1,15 @@
+mod r#const;
+mod r#fn;
 mod r#impl;
+#[cfg(not(target_arch = "wasm32"))]
+mod r#static;
 mod r#struct;
 mod r#type;
 
 pub use r#struct::*;
 
-pub(crate) use r#type::*;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use r#static::*;
+pub(crate) use {r#const::*, r#fn::*, r#type::*};
 
 use super::*;

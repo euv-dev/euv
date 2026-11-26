@@ -38,7 +38,8 @@ use {
     euv_ui::*,
     lombok_macros::{Data, Getter, New},
     pulldown_cmark::{
-        Alignment, CodeBlockKind, CowStr, Event, HeadingLevel, Options, Parser, Tag, TagEnd,
+        Alignment, BlockQuoteKind, CodeBlockKind, CowStr, Event, HeadingLevel, Options, Parser,
+        Tag, TagEnd,
     },
     serde::{Deserialize, Serialize},
     serde_json::{to_string, to_string_pretty},

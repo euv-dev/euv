@@ -24,7 +24,7 @@ cat > "${BUILD_DIR}/Cargo.toml" <<EOF
 
 [package]
 name = "euv-ios-host"
-version = "0.39.1"
+version = "0.40.0"
 edition = "2024"
 
 [lib]
@@ -42,10 +42,10 @@ panic = "abort"
 EOF
 
 cat > "${BUILD_DIR}/src/lib.rs" <<'EOF'
-use std::ffi::{CString, c_char};
+use std::ffi::{CStr, CString, c_char};
 use euv::{
-    App, NativeSystemFont, PlatformKind, PointerEvent, RenderMode, SafeAreaInsets, WindowEvent,
-    WindowId, register_native_action_bridge,
+    App, KeyCode, KeyEvent, Modifiers, NativeSystemFont, PlatformKind, PointerEvent, RenderMode,
+    SafeAreaInsets, WindowEvent, WindowId, register_native_action_bridge,
 };
 use euv_example::{ShowcaseState, create_showcase_app_for_platform};
 
@@ -233,6 +233,39 @@ pub unsafe extern "C" fn euv_ios_touch_sync(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_text_input(handle: *mut EuvIosHandle, text: *const c_char) {
+    if handle.is_null() || text.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    if let Ok(s) = unsafe { CStr::from_ptr(text) }.to_str()
+        && !s.is_empty()
+    {
+        h.app
+            .dispatch_window_event(WindowEvent::TextInput(h.wid, s.to_string()));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn euv_ios_key_down(handle: *mut EuvIosHandle, key_tag: i32) {
+    if handle.is_null() {
+        return;
+    }
+    let h: &mut EuvIosHandle = unsafe { &mut *handle };
+    let code: KeyCode = match key_tag {
+        1 => KeyCode::Backspace,
+        2 => KeyCode::Enter,
+        3 => KeyCode::Tab,
+        4 => KeyCode::Escape,
+        _ => return,
+    };
+    h.app.dispatch_window_event(WindowEvent::KeyDown(
+        h.wid,
+        KeyEvent::new(code, Modifiers::default(), false),
+    ));
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn euv_ios_step(
     handle: *mut EuvIosHandle,
     dt: f32,
@@ -274,13 +307,25 @@ cat > "${BUILD_DIR}/main.m" <<'EOF'
 #import <UserNotifications/UserNotifications.h>
 #include <stdint.h>
 
+@class EuvCanvasView;
+static __weak EuvCanvasView *gEuvActiveCanvasView = nil;
+
 int32_t euv_ios_invoke_native_action(const char *kind, const char *arg1, const char *arg2) {
     NSString *k = kind ? [NSString stringWithUTF8String:kind] : @"";
     NSString *a1 = arg1 ? [NSString stringWithUTF8String:arg1] : @"";
     NSString *a2 = arg2 ? [NSString stringWithUTF8String:arg2] : @"";
     NSLog(@"[euv-native] ios action kind=%@ arg1=%@ arg2=%@", k, a1, a2);
     dispatch_async(dispatch_get_main_queue(), ^{
-        if ([k isEqualToString:@"haptic"]) {
+        if ([k isEqualToString:@"ime"]) {
+            UIView *v = (UIView *)gEuvActiveCanvasView;
+            if (v) {
+                if ([a1 isEqualToString:@"show"]) {
+                    [v becomeFirstResponder];
+                } else {
+                    [v resignFirstResponder];
+                }
+            }
+        } else if ([k isEqualToString:@"haptic"]) {
             UIImpactFeedbackGenerator *gen = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
             [gen prepare];
             [gen impactOccurred];
@@ -310,9 +355,11 @@ extern void euv_ios_touch_move(EuvIosHandle *handle, uint64_t pointer_id, float 
 extern void euv_ios_touch_up(EuvIosHandle *handle, uint64_t pointer_id, float x, float y);
 extern void euv_ios_touch_cancel(EuvIosHandle *handle, uint64_t pointer_id);
 extern void euv_ios_touch_sync(EuvIosHandle *handle, const uint64_t *ids, size_t count);
+extern void euv_ios_text_input(EuvIosHandle *handle, const char *text);
+extern void euv_ios_key_down(EuvIosHandle *handle, int32_t key_tag);
 extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_ptr, uint32_t *out_w, uint32_t *out_h);
 
-@interface EuvCanvasView : UIView
+@interface EuvCanvasView : UIView <UIKeyInput>
 @property (nonatomic, assign) EuvIosHandle *handle;
 @property (nonatomic, strong) CADisplayLink *displayLink;
 @property (nonatomic, assign) CFTimeInterval lastTimestamp;
@@ -333,6 +380,7 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     if (self) {
         self.backgroundColor = [UIColor whiteColor];
         self.multipleTouchEnabled = YES;
+        gEuvActiveCanvasView = self;
         _colorSpace = CGColorSpaceCreateDeviceRGB();
         CGFloat scale = fmin(4.5, UIScreen.mainScreen.scale);
         self.layer.contentsScale = scale;
@@ -529,6 +577,31 @@ extern int32_t euv_ios_step(EuvIosHandle *handle, float dt, const uint8_t **out_
     [self syncLiveTouchesFromEvent:event];
 }
 
+- (BOOL)canBecomeFirstResponder {
+    return YES;
+}
+
+- (BOOL)hasText {
+    return YES;
+}
+
+- (void)insertText:(NSString *)text {
+    if (!_handle || text.length == 0) return;
+    if ([text isEqualToString:@"\n"]) {
+        euv_ios_key_down(_handle, 2);
+        return;
+    }
+    const char *utf8 = [text UTF8String];
+    if (utf8) {
+        euv_ios_text_input(_handle, utf8);
+    }
+}
+
+- (void)deleteBackward {
+    if (!_handle) return;
+    euv_ios_key_down(_handle, 1);
+}
+
 @end
 
 @interface EuvViewController : UIViewController
@@ -663,7 +736,7 @@ cat > "${BUILD_DIR}/Info.plist" <<'EOF'
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>EuvShowcase</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.39.1</string>
+    <key>CFBundleShortVersionString</key><string>0.40.0</string>
     <key>CFBundleVersion</key><string>3</string>
     <key>LSRequiresIPhoneOS</key><true/>
     <key>UIApplicationSceneManifest</key>

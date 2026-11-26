@@ -200,7 +200,7 @@ impl EuvButton {
             EuvButtonSize::Large => (g.get_control_lg(), SPACE_XL, 14.0, g.get_radius_md()),
             EuvButtonSize::Icon => (g.get_control_md(), 0.0, 13.0, g.get_radius_md()),
         };
-        let mut style: Style = Style::empty()
+        let mut style: Style = Style::default()
             .row()
             .justify(JustifyContent::Center)
             .align(AlignItems::Center)
@@ -246,37 +246,46 @@ impl EuvButton {
     }
 }
 
-/// `Mountable` implementation mounting `EuvButton` directly into `SceneTree`.
-impl Mountable for EuvButton {
-    /// Mounts the button container and centered text child into `ctx`.
+/// Declarative `#[component]` implementation for `EuvButton`.
+#[component]
+/// Inherent implementation of [`EuvButton`].
+impl EuvButton {
+    /// Renders `EuvButton` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Owned button props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted button node handle.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
+        let ctx: Context = current_context();
         let style: Style = self.resolved_style();
-        let text_style: Style = Style::empty()
-            .max_width(Length::Percent(100.0))
-            .color(style.get_text().get_color())
-            .font_size(style.get_text().get_font_size())
-            .font_weight(style.get_text().get_weight())
-            .text_align(TextAlign::Center)
-            .text_overflow(TextOverflow::Ellipsis);
+        let text_color: Color = style.get_text().get_color();
+        let font_sz: f32 = style.get_text().get_font_size();
+        let font_wt: FontWeight = style.get_text().get_weight();
         let disabled: bool = self.get_disabled();
         let Self {
             label, on_click, ..
-        } = self;
-        let btn_node: NodeId = ctx.view(style);
-        let mut a11y: A11yProps = A11yProps::new(A11yRole::Button, label.clone());
-        a11y.set_disabled(disabled);
-        ctx.set_a11y(btn_node, a11y);
-        let label_node: NodeId = ctx.text(label, text_style);
-        ctx.append(btn_node, label_node);
+        } = self.clone();
+        let btn_node: NodeId = view! {
+            view {
+                style: style
+                role: A11yRole::Button
+                a11y_label: label.clone()
+                a11y_disabled: disabled
+                text {
+                    max_width: Length::Percent(100.0)
+                    color: text_color
+                    font_size: font_sz
+                    font_weight: font_wt
+                    text_align: TextAlign::Center
+                    text_overflow: TextOverflow::Ellipsis
+                    { label }
+                }
+            }
+        };
         if !disabled && let Some(handler) = on_click {
             ctx.get_scene().with_write(
                 |tree: &mut SceneTree| {

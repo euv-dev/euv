@@ -8,7 +8,7 @@ impl Default for SceneTree {
     ///
     /// - `Self` - Initialized scene tree.
     fn default() -> Self {
-        let root_style: Style = Style::empty()
+        let root_style: Style = Style::default()
             .column()
             .width(Length::Percent(100.0))
             .height(Length::Percent(100.0));
@@ -170,7 +170,7 @@ impl SceneTree {
     ///
     /// - `NodeId` - Created fragment node handle.
     pub fn create_fragment(&mut self) -> NodeId {
-        self.create_node(NodeKind::Fragment, Style::empty())
+        self.create_node(NodeKind::Fragment, Style::default())
     }
 
     /// Returns an immutable reference to a live node matching `id`.
@@ -258,6 +258,49 @@ impl SceneTree {
         }
         if let Some(parent_node) = self.get_node_mut(parent) {
             parent_node.get_mut_children().push(child);
+        }
+        self.mark_dirty(parent, DIRTY_CHILDREN_CHANGE_MASK);
+    }
+
+    /// Appends multiple `children` to `parent` in a single dirty-marking pass with pre-reserved capacity.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeId` - Parent container node.
+    /// - `&[NodeId]` - Ordered child nodes to append.
+    pub fn append_children(&mut self, parent: NodeId, children: &[NodeId]) {
+        if children.is_empty() || self.get_node(parent).is_none() {
+            return;
+        }
+        let mut attached: Vec<NodeId> = Vec::with_capacity(children.len());
+        for child in children.iter().copied() {
+            if child == parent {
+                continue;
+            }
+            let prev_parent: Option<NodeId> = self
+                .get_node(child)
+                .and_then(|node: &SceneNode| node.parent_id());
+            if let Some(old_parent) = prev_parent {
+                if let Some(old_node) = self.get_node_mut(old_parent) {
+                    old_node
+                        .get_mut_children()
+                        .retain(|id: &NodeId| *id != child);
+                }
+                if old_parent != parent {
+                    self.mark_dirty(old_parent, DIRTY_CHILDREN_CHANGE_MASK);
+                }
+            }
+            if let Some(child_node) = self.get_node_mut(child) {
+                child_node.set_parent(Some(parent));
+                attached.push(child);
+            }
+        }
+        if attached.is_empty() {
+            return;
+        }
+        if let Some(parent_node) = self.get_node_mut(parent) {
+            parent_node.get_mut_children().extend(attached);
         }
         self.mark_dirty(parent, DIRTY_CHILDREN_CHANGE_MASK);
     }
@@ -435,16 +478,42 @@ impl SceneTree {
         ))
     }
 
-    /// Starts or replaces a smooth paint/transform transition on `transition.get_node()`.
+    /// Starts or smoothly retargets a paint/transform transition on `transition.get_node()`.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable scene tree.
     /// - `NodeTransition` - Transition specification to run.
-    pub fn start_transition(&mut self, transition: NodeTransition) {
+    pub fn start_transition(&mut self, mut transition: NodeTransition) {
         let target: NodeId = transition.get_node();
+        let had_active: bool = self
+            .get_transitions()
+            .iter()
+            .any(|tr: &NodeTransition| tr.get_node() == target);
         self.get_mut_transitions()
             .retain(|tr: &NodeTransition| tr.get_node() != target);
+        if had_active && let Some(node) = self.get_node(target) {
+            let paint: PaintStyle = node.get_style().get_paint();
+            let tr: Transform2D = paint.get_transform();
+            let cur_op: f32 = paint.get_opacity();
+            let cur_tx: f32 = tr.get_translate_x();
+            let cur_ty: f32 = tr.get_translate_y();
+            let cur_sc: f32 = tr.get_scale_x();
+            let full_dist: f32 = (transition.get_to_tx() - transition.get_from_tx())
+                .hypot(transition.get_to_ty() - transition.get_from_ty())
+                .max((transition.get_to_opacity() - transition.get_from_opacity()).abs() * 100.0);
+            let rem_dist: f32 = (transition.get_to_tx() - cur_tx)
+                .hypot(transition.get_to_ty() - cur_ty)
+                .max((transition.get_to_opacity() - cur_op).abs() * 100.0);
+            if full_dist > 0.01 {
+                let ratio: f32 = (rem_dist / full_dist).clamp(0.20, 1.0);
+                transition.set_duration((transition.get_duration() * ratio).max(0.05));
+            }
+            transition.set_from_opacity(cur_op);
+            transition.set_from_tx(cur_tx);
+            transition.set_from_ty(cur_ty);
+            transition.set_from_scale(cur_sc);
+        }
         let (opacity, transform): (f32, Transform2D) = transition.sample();
         let mut unhidden: bool = false;
         if let Some(node) = self.get_node_mut(target) {
@@ -490,25 +559,31 @@ impl SceneTree {
             if self.get_node(target).is_none() {
                 continue;
             }
-            tr.set_elapsed((tr.get_elapsed() + step).min(tr.get_duration()));
-            let (opacity, transform): (f32, Transform2D) = tr.sample();
+            let total_span: f32 = tr.get_delay() + tr.get_duration();
+            let prev_elapsed: f32 = tr.get_elapsed();
+            let next_elapsed: f32 = (prev_elapsed + step).min(total_span);
+            tr.set_elapsed(next_elapsed);
             let done: bool = tr.is_complete();
-            let hide: bool = done && tr.get_hide_on_complete();
-            if let Some(node) = self.get_node_mut(target) {
-                let mut style: Style = node.get_style();
-                style.get_mut_paint().set_opacity(opacity);
-                style.get_mut_paint().set_transform(transform);
-                if hide {
-                    style.get_mut_layout().set_display(Display::None);
+            let in_hold: bool = prev_elapsed > 0.0 && next_elapsed <= tr.get_delay() && !done;
+            if !in_hold {
+                let (opacity, transform): (f32, Transform2D) = tr.sample();
+                let hide: bool = done && tr.get_hide_on_complete();
+                if let Some(node) = self.get_node_mut(target) {
+                    let mut style: Style = node.get_style();
+                    style.get_mut_paint().set_opacity(opacity);
+                    style.get_mut_paint().set_transform(transform);
+                    if hide {
+                        style.get_mut_layout().set_display(Display::None);
+                    }
+                    node.set_style(style);
                 }
-                node.set_style(style);
+                if hide {
+                    self.mark_dirty(target, DIRTY_LAYOUT | DIRTY_PAINT);
+                } else {
+                    self.mark_dirty(target, DIRTY_PAINT);
+                }
+                any_updated = true;
             }
-            if hide {
-                self.mark_dirty(target, DIRTY_LAYOUT | DIRTY_PAINT);
-            } else {
-                self.mark_dirty(target, DIRTY_PAINT);
-            }
-            any_updated = true;
             if !done {
                 remaining.push(tr);
             }
@@ -531,6 +606,71 @@ impl SceneTree {
         !self.get_transitions().is_empty()
     }
 
+    /// Attaches a `Lifecycle` hook observer onto `id` for mount, activate, freeze, resume, unmount, and destroy dispatch.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeId` - Target scene node handle.
+    /// - `Rc<dyn Lifecycle>` - Shared lifecycle hook observer.
+    pub fn attach_lifecycle(&mut self, id: NodeId, hook: Rc<dyn Lifecycle>) {
+        if let Some(node) = self.get_node_mut(id) {
+            node.add_lifecycle(hook);
+        }
+    }
+
+    /// Collects all `(NodeId, Rc<dyn Lifecycle>)` observers in the subtree rooted at `root`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene tree reference.
+    /// - `NodeId` - Subtree root handle.
+    ///
+    /// # Returns
+    ///
+    /// - `Vec<(NodeId, Rc<dyn Lifecycle>)>` - Ordered observers in pre-order traversal.
+    #[must_use]
+    pub fn collect_subtree_lifecycles(&self, root: NodeId) -> Vec<(NodeId, Rc<dyn Lifecycle>)> {
+        let mut out: Vec<(NodeId, Rc<dyn Lifecycle>)> = Vec::new();
+        let mut stack: Vec<NodeId> = vec![root];
+        while let Some(current) = stack.pop() {
+            if let Some(node) = self.get_node(current) {
+                for hook in node.lifecycle_observers().into_iter() {
+                    out.push((current, hook));
+                }
+                for child in node.get_children().iter().rev().copied() {
+                    stack.push(child);
+                }
+            }
+        }
+        out
+    }
+
+    /// Cancels any active paint/transform transitions targeting nodes within the subtree rooted at `root`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeId` - Subtree root handle.
+    pub fn cancel_subtree_transitions(&mut self, root: NodeId) {
+        if self.get_transitions().is_empty() {
+            return;
+        }
+        let mut ids: HashSet<NodeId> = HashSet::new();
+        let mut stack: Vec<NodeId> = vec![root];
+        while let Some(current) = stack.pop() {
+            if ids.insert(current)
+                && let Some(node) = self.get_node(current)
+            {
+                for child in node.get_children().iter().copied() {
+                    stack.push(child);
+                }
+            }
+        }
+        self.get_mut_transitions()
+            .retain(|tr: &NodeTransition| !ids.contains(&tr.get_node()));
+    }
+
     /// Attaches a reactive `Scope` to `id` so it automatically disposes when the node unmounts.
     ///
     /// # Arguments
@@ -540,7 +680,15 @@ impl SceneTree {
     /// - `Scope` - Reactive ownership scope.
     pub fn attach_scope(&mut self, id: NodeId, scope: Scope) {
         if let Some(node) = self.get_node_mut(id) {
-            node.set_scope(Some(scope));
+            if let Some(existing) = node.owned_scope() {
+                existing.enter(|| {
+                    on_cleanup(move || {
+                        scope.dispose();
+                    });
+                });
+            } else {
+                node.set_scope(Some(scope));
+            }
         }
     }
 
@@ -720,24 +868,33 @@ impl SceneTree {
         damage
     }
 
-    /// Recursively removes and disposes `id`, recycling all arena slots and disposing scopes.
+    /// Recursively detaches and recycles `id`, returning all owned `Scope`s and `Lifecycle` observers for borrow-safe finalization.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable scene tree.
     /// - `NodeId` - Subtree root handle to dispose.
-    pub fn dispose_subtree(&mut self, id: NodeId) {
+    ///
+    /// # Returns
+    ///
+    /// - `DisposedSubtreePayload` - Collected scopes and lifecycle observers to finalize outside any borrow.
+    pub fn dispose_subtree_collect(&mut self, id: NodeId) -> DisposedSubtreePayload {
         if id == self.get_root() {
-            return;
+            return (Vec::new(), Vec::new());
         }
+        self.cancel_subtree_transitions(id);
         let mut stack: Vec<NodeId> = vec![id];
         let mut scopes: Vec<Scope> = Vec::new();
+        let mut observers: Vec<(NodeId, Rc<dyn Lifecycle>)> = Vec::new();
         while let Some(current) = stack.pop() {
             let children_opt: Option<Vec<NodeId>> = match self.get_node_mut(current) {
                 Some(node) => {
                     node.set_alive(false);
                     if let Some(scope) = node.owned_scope() {
                         scopes.push(scope);
+                    }
+                    for hook in node.take_lifecycles().into_iter() {
+                        observers.push((current, hook));
                     }
                     node.set_scope(None);
                     node.set_parent(None);
@@ -757,9 +914,18 @@ impl SceneTree {
                 stack.push(child);
             }
         }
-        for scope in scopes.into_iter() {
-            scope.dispose();
-        }
+        (scopes, observers)
+    }
+
+    /// Recursively removes and disposes `id`, recycling all arena slots, running lifecycle hooks, and disposing scopes.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable scene tree.
+    /// - `NodeId` - Subtree root handle to dispose.
+    pub fn dispose_subtree(&mut self, id: NodeId) {
+        let (scopes, observers): DisposedSubtreePayload = self.dispose_subtree_collect(id);
+        finalize_disposed_subtree(scopes, observers);
     }
 
     /// Updates keyboard focus to `target`, emitting `Blur` and `Focus` events.
@@ -878,6 +1044,144 @@ impl SceneHandle {
         );
     }
 
+    /// Replaces all children of `parent` and finalizes disposed scopes and `Lifecycle` hooks outside the tree borrow.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Parent container node.
+    /// - `Vec<NodeId>` - Replacement ordered children.
+    pub fn replace_children_safe(&self, parent: NodeId, new_children: Vec<NodeId>) {
+        let (scopes, observers): DisposedSubtreePayload = self.with_write(
+            |tree: &mut SceneTree| {
+                let old_children: Vec<NodeId> = match tree.get_node_mut(parent) {
+                    Some(node) => take(node.get_mut_children()),
+                    None => return (Vec::new(), Vec::new()),
+                };
+                let mut all_scopes: Vec<Scope> = Vec::new();
+                let mut all_obs: Vec<(NodeId, Rc<dyn Lifecycle>)> = Vec::new();
+                for old_child in old_children.into_iter() {
+                    if !new_children.contains(&old_child) {
+                        let (sc, ob): DisposedSubtreePayload =
+                            tree.dispose_subtree_collect(old_child);
+                        all_scopes.extend(sc);
+                        all_obs.extend(ob);
+                    }
+                }
+                for child in new_children.iter().copied() {
+                    if let Some(child_node) = tree.get_node_mut(child) {
+                        child_node.set_parent(Some(parent));
+                    }
+                }
+                if let Some(parent_node) = tree.get_node_mut(parent) {
+                    parent_node.set_children(new_children);
+                }
+                tree.mark_dirty(parent, DIRTY_CHILDREN_CHANGE_MASK);
+                (all_scopes, all_obs)
+            },
+            (Vec::new(), Vec::new()),
+        );
+        finalize_disposed_subtree(scopes, observers);
+    }
+
+    /// Removes `child` from `parent`, disposes its subtree, and invokes `on_unmount`/`on_destroy` outside any scene borrow.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Parent container handle.
+    /// - `NodeId` - Child subtree root handle to remove and destroy.
+    pub fn remove_and_dispose_child(&self, parent: NodeId, child: NodeId) {
+        let (scopes, observers): DisposedSubtreePayload = self.with_write(
+            |tree: &mut SceneTree| {
+                if let Some(pnode) = tree.get_node_mut(parent) {
+                    pnode.get_mut_children().retain(|id: &NodeId| *id != child);
+                }
+                let out: DisposedSubtreePayload = tree.dispose_subtree_collect(child);
+                tree.mark_dirty(parent, DIRTY_CHILDREN_CHANGE_MASK);
+                out
+            },
+            (Vec::new(), Vec::new()),
+        );
+        finalize_disposed_subtree(scopes, observers);
+    }
+
+    /// Freezes a subtree visually (`Display::None`), cancels its transitions, and dispatches `Lifecycle::on_freeze` outside any scene borrow.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Subtree root handle to freeze.
+    pub fn freeze_subtree(&self, root: NodeId) {
+        let observers: Vec<(NodeId, Rc<dyn Lifecycle>)> = self.with_write(
+            |tree: &mut SceneTree| {
+                let obs: Vec<(NodeId, Rc<dyn Lifecycle>)> = tree.collect_subtree_lifecycles(root);
+                tree.cancel_subtree_transitions(root);
+                if let Some(node) = tree.get_node_mut(root) {
+                    let mut st: Style = node.get_style();
+                    st.get_mut_layout().set_display(Display::None);
+                    node.set_style(st);
+                }
+                tree.mark_dirty(root, DIRTY_LAYOUT | DIRTY_PAINT);
+                obs
+            },
+            Vec::new(),
+        );
+        dispatch_lifecycle_freeze(&observers);
+    }
+
+    /// Resumes a previously frozen subtree (`Display::Flex`) and dispatches `Lifecycle::on_resume` outside any scene borrow.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Subtree root handle to resume.
+    pub fn resume_subtree(&self, root: NodeId) {
+        let observers: Vec<(NodeId, Rc<dyn Lifecycle>)> = self.with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(root) {
+                    let mut st: Style = node.get_style();
+                    if st.get_layout().get_display() == Display::None {
+                        st.get_mut_layout().set_display(Display::Flex);
+                        node.set_style(st);
+                    }
+                }
+                tree.mark_dirty(root, DIRTY_LAYOUT | DIRTY_PAINT);
+                tree.collect_subtree_lifecycles(root)
+            },
+            Vec::new(),
+        );
+        dispatch_lifecycle_resume(&observers);
+    }
+
+    /// Dispatches `Lifecycle::on_activate` across all observers in the subtree rooted at `root`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Subtree root handle becoming active.
+    pub fn activate_subtree(&self, root: NodeId) {
+        let observers: Vec<(NodeId, Rc<dyn Lifecycle>)> = self.with_read(
+            |tree: &SceneTree| tree.collect_subtree_lifecycles(root),
+            Vec::new(),
+        );
+        dispatch_lifecycle_activate(&observers);
+    }
+
+    /// Dispatches `Lifecycle::on_update` across all observers in the subtree rooted at `root`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Scene handle reference.
+    /// - `NodeId` - Subtree root handle receiving updates.
+    pub fn update_subtree(&self, root: NodeId) {
+        let observers: Vec<(NodeId, Rc<dyn Lifecycle>)> = self.with_read(
+            |tree: &SceneTree| tree.collect_subtree_lifecycles(root),
+            Vec::new(),
+        );
+        dispatch_lifecycle_update(&observers);
+    }
+
     /// Returns `true` if any node transition is currently active.
     ///
     /// # Arguments
@@ -991,9 +1295,9 @@ impl SceneHandle {
     }
 }
 
-/// High-level declarative building helpers on `BuildContext`.
-impl BuildContext {
-    /// Creates a new `BuildContext` with reactive viewport, theme, and safe-area signals.
+/// High-level declarative building helpers on `Context`.
+impl Context {
+    /// Creates a new `Context` with reactive viewport, theme, and safe-area signals.
     ///
     /// # Arguments
     ///
@@ -1018,7 +1322,45 @@ impl BuildContext {
             fps_limit: Signal::new(None),
             live_fps: Signal::new(60.0),
             active_touches: Signal::new(Vec::new()),
+            exit_requested: Signal::new(false),
+            clock_ms: Rc::new(Cell::new(0)),
         }
+    }
+
+    /// Returns the monotonic runtime elapsed clock in milliseconds.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    ///
+    /// # Returns
+    ///
+    /// - `u64` - Elapsed runtime time in milliseconds.
+    #[must_use]
+    pub fn elapsed_ms(&self) -> u64 {
+        let Self { clock_ms, .. } = self;
+        clock_ms.get()
+    }
+
+    /// Advances the context's monotonic runtime clock by `delta_ms` milliseconds.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    /// - `u64` - Milliseconds elapsed since the previous frame.
+    pub(crate) fn advance_clock_ms(&self, delta_ms: u64) {
+        let Self { clock_ms, .. } = self;
+        clock_ms.set(clock_ms.get().saturating_add(delta_ms));
+    }
+
+    /// Requests graceful OS-level application termination across all platforms.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Context reference.
+    pub fn request_exit(&self) {
+        let _: bool = self.get_exit_requested().set_if_changed(true);
+        let _: bool = dispatch_native_action(NATIVE_ACTION_EXIT, "", "");
     }
 
     /// Creates a `View` node with the given style.
@@ -1176,6 +1518,22 @@ impl BuildContext {
         )
     }
 
+    /// Creates a transparent logical `Fragment` grouping container for sibling nodes.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    ///
+    /// # Returns
+    ///
+    /// - `NodeId` - Created fragment handle.
+    pub fn fragment(&mut self) -> NodeId {
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| tree.create_fragment(),
+            NodeId::default(),
+        )
+    }
+
     /// Appends `child` to `parent`.
     ///
     /// # Arguments
@@ -1187,6 +1545,154 @@ impl BuildContext {
         self.get_scene().with_write(
             |tree: &mut SceneTree| {
                 tree.append_child(parent, child);
+            },
+            (),
+        );
+    }
+
+    /// Appends a slice of `children` to `parent` under a single scene write lock and dirty pass.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Parent container.
+    /// - `&[NodeId]` - Ordered child node slice.
+    pub fn append_many(&mut self, parent: NodeId, children: &[NodeId]) {
+        if children.is_empty() {
+            return;
+        }
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.append_children(parent, children);
+            },
+            (),
+        );
+    }
+
+    /// Binds a reactive `Style` closure to `node_id` and attaches its disposal `Scope` automatically.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target scene node.
+    /// - `F` - Reactive `Style` producer closure.
+    pub fn bind_style<F>(&mut self, node_id: NodeId, producer: F)
+    where
+        F: FnMut() -> Style + 'static,
+    {
+        let handle: SceneHandle = self.get_scene().clone();
+        let (scope, _): (Scope, Effect) =
+            Scope::run(|_: Scope| handle.bind_style(node_id, producer));
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(node_id, scope);
+            },
+            (),
+        );
+    }
+
+    /// Registers a pointer-enter handler on `node_id`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - Pointer-enter callback closure.
+    pub fn on_pointer_enter<F>(&mut self, node_id: NodeId, callback: F)
+    where
+        F: FnMut(&UiEvent) + 'static,
+    {
+        let handler: UiEventHandler = Rc::new(RefCell::new(callback));
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_handlers().set_on_pointer_enter(Some(handler));
+                }
+            },
+            (),
+        );
+    }
+
+    /// Registers a pointer-leave handler on `node_id`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - Pointer-leave callback closure.
+    pub fn on_pointer_leave<F>(&mut self, node_id: NodeId, callback: F)
+    where
+        F: FnMut(&UiEvent) + 'static,
+    {
+        let handler: UiEventHandler = Rc::new(RefCell::new(callback));
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_handlers().set_on_pointer_leave(Some(handler));
+                }
+            },
+            (),
+        );
+    }
+
+    /// Registers a focus-gained handler on `node_id` and marks it focusable.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - Focus callback closure receiving `UiEventKind::Focus`.
+    pub fn on_focus<F>(&mut self, node_id: NodeId, callback: F)
+    where
+        F: FnMut(&UiEvent) + 'static,
+    {
+        let handler: UiEventHandler = Rc::new(RefCell::new(callback));
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_handlers().set_on_focus(Some(handler));
+                    node.get_mut_interaction().set_focusable(true);
+                }
+            },
+            (),
+        );
+    }
+
+    /// Registers a focus-lost handler on `node_id`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target node handle.
+    /// - `F` - Blur callback closure receiving `UiEventKind::Blur`.
+    pub fn on_blur<F>(&mut self, node_id: NodeId, callback: F)
+    where
+        F: FnMut(&UiEvent) + 'static,
+    {
+        let handler: UiEventHandler = Rc::new(RefCell::new(callback));
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_handlers().set_on_blur(Some(handler));
+                }
+            },
+            (),
+        );
+    }
+
+    /// Configures whether `node_id` participates in keyboard focus navigation.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Build context.
+    /// - `NodeId` - Target node handle.
+    /// - `bool` - Whether keyboard focus is enabled.
+    pub fn set_focusable(&mut self, node_id: NodeId, focusable: bool) {
+        self.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                if let Some(node) = tree.get_node_mut(node_id) {
+                    node.get_mut_interaction().set_focusable(focusable);
+                }
             },
             (),
         );
@@ -1452,17 +1958,17 @@ impl BuildContext {
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             Effect::new(move || {
                 let (child_scope, children): (Scope, Vec<NodeId>) =
-                    Scope::run(|_: Scope| with_build_context(ctx_clone.clone(), &mut builder));
-                handle.with_write(
-                    |tree: &mut SceneTree| {
-                        let first_opt: Option<NodeId> = children.first().copied();
-                        tree.replace_children(host, children);
-                        if let Some(first) = first_opt {
+                    Scope::run(|_: Scope| with_context(ctx_clone.clone(), &mut builder));
+                let first_opt: Option<NodeId> = children.first().copied();
+                handle.replace_children_safe(host, children);
+                if let Some(first) = first_opt {
+                    handle.with_write(
+                        |tree: &mut SceneTree| {
                             tree.attach_scope(first, child_scope);
-                        }
-                    },
-                    (),
-                );
+                        },
+                        (),
+                    );
+                }
             })
         });
         self.get_scene().with_write(
@@ -1474,35 +1980,96 @@ impl BuildContext {
     }
 }
 
-/// Restores the previously bound ambient `BuildContext` when leaving scope.
-impl Drop for BuildContextGuard {
-    /// Restores the saved thread-local `BuildContext`.
+/// Restores the previously bound ambient `Context` when leaving scope.
+impl Drop for ContextGuard {
+    /// Restores the saved thread-local `Context`.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable scope guard being dropped.
     fn drop(&mut self) {
         let Self { previous } = self;
-        let restored: Option<BuildContext> = previous.take();
-        ACTIVE_BUILD_CONTEXT.with(|slot: &RefCell<Option<BuildContext>>| {
+        let restored: Option<Context> = previous.take();
+        ACTIVE_CONTEXT.with(|slot: &RefCell<Option<Context>>| {
             *slot.borrow_mut() = restored;
         });
     }
 }
 
-/// Blanket `Mountable` implementation allowing raw `NodeId` values to be mounted directly.
-impl Mountable for NodeId {
-    /// Returns this `NodeId` unchanged.
+/// `NodeRefTarget` implementation storing a `NodeId` directly into a mutable local binding.
+impl NodeRefTarget for NodeId {
+    /// Assigns `id` to `self`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Already mounted node handle.
-    /// - `&mut BuildContext` - Unused build context.
+    /// - `&Self` - Target `NodeId` slot.
+    /// - `NodeId` - Mounted node handle.
+    fn bind_node_ref(&mut self, id: NodeId) {
+        *self = id;
+    }
+}
+
+/// `NodeRefTarget` implementation storing a `NodeId` into an `Option<NodeId>`.
+impl NodeRefTarget for Option<NodeId> {
+    /// Assigns `Some(id)` to `self`.
     ///
-    /// # Returns
+    /// # Arguments
     ///
-    /// - `NodeId` - Same node handle.
-    fn mount(self, _ctx: &mut BuildContext) -> NodeId {
-        self
+    /// - `&Self` - Target optional `NodeId` slot.
+    /// - `NodeId` - Mounted node handle.
+    fn bind_node_ref(&mut self, id: NodeId) {
+        *self = Some(id);
+    }
+}
+
+/// `NodeRefTarget` implementation storing a `NodeId` into a `Cell<NodeId>`.
+impl NodeRefTarget for Cell<NodeId> {
+    /// Sets `self` to `id`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Target `Cell<NodeId>`.
+    /// - `NodeId` - Mounted node handle.
+    fn bind_node_ref(&mut self, id: NodeId) {
+        self.set(id);
+    }
+}
+
+/// `NodeRefTarget` implementation storing a `NodeId` into a shared `Rc<Cell<NodeId>>`.
+impl NodeRefTarget for Rc<Cell<NodeId>> {
+    /// Sets the shared cell value to `id`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Target shared `Cell<NodeId>`.
+    /// - `NodeId` - Mounted node handle.
+    fn bind_node_ref(&mut self, id: NodeId) {
+        self.set(id);
+    }
+}
+
+/// `NodeRefTarget` implementation storing a `NodeId` into a `Cell<Option<NodeId>>`.
+impl NodeRefTarget for Cell<Option<NodeId>> {
+    /// Sets `self` to `Some(id)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Target `Cell<Option<NodeId>>`.
+    /// - `NodeId` - Mounted node handle.
+    fn bind_node_ref(&mut self, id: NodeId) {
+        self.set(Some(id));
+    }
+}
+
+/// `NodeRefTarget` implementation storing a `NodeId` into a shared `Rc<Cell<Option<NodeId>>>`.
+impl NodeRefTarget for Rc<Cell<Option<NodeId>>> {
+    /// Sets the shared cell value to `Some(id)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Target shared `Cell<Option<NodeId>>`.
+    /// - `NodeId` - Mounted node handle.
+    fn bind_node_ref(&mut self, id: NodeId) {
+        self.set(Some(id));
     }
 }

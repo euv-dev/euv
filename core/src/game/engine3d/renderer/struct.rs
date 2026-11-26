@@ -1,5 +1,49 @@
 use super::*;
 
+/// Synchronized dispatch epoch and active job pointer for the persistent 3D worker pool.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone, Copy, Data, Debug, Default)]
+pub(crate) struct Engine3dPoolState {
+    /// Monotonically increasing dispatch epoch counter.
+    #[get(type(copy))]
+    pub(crate) epoch: u64,
+    /// Raw pointer address of the active `Engine3dJob` (`0` when idle).
+    #[get(type(copy))]
+    pub(crate) active_job: usize,
+}
+
+/// Active work-stealing range job executed synchronously across caller and persistent 3D worker threads.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub(crate) struct Engine3dJob {
+    /// Type-erased chunk execution trampoline.
+    pub(crate) trampoline: Engine3dChunkFn,
+    /// Caller-pinned closure reference encoded as `usize`.
+    pub(crate) ctx_ptr: usize,
+    /// Total logical items across all chunks.
+    pub(crate) total_items: usize,
+    /// Number of items per dynamic work-stealing chunk.
+    pub(crate) chunk_size: usize,
+    /// Total chunks to claim (`total_items.div_ceil(chunk_size)`).
+    pub(crate) total_chunks: usize,
+    /// Atomic cursor of the next unclaimed chunk index.
+    pub(crate) next_chunk: AtomicUsize,
+    /// Atomic count of background workers finished observing this epoch.
+    pub(crate) workers_done: AtomicUsize,
+}
+
+/// Persistent warm thread pool eliminating per-frame OS thread spawns in `Renderer3D`.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug)]
+pub(crate) struct Engine3dWorkerPool {
+    /// Number of background worker threads (excluding the calling thread).
+    pub(crate) worker_count: usize,
+    /// Non-blocking re-entrancy guard serializing top-level dispatches cleanly.
+    pub(crate) dispatch_lock: Mutex<()>,
+    /// Shared dispatch state mutex and worker/caller condition variables.
+    pub(crate) shared: Arc<(Mutex<Engine3dPoolState>, Condvar, Condvar)>,
+}
+
 /// Per-frame telemetry emitted by `Renderer3D` for live FPS/RT/LOD/Nanite/culling diagnostics.
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub struct RenderStats3D {
@@ -143,7 +187,7 @@ pub(crate) struct DeferredFrameCtx {
     pub(crate) bloom_on: bool,
 }
 
-/// Zero-allocation UE5-class Deferred GGX PBR + Multi-Threaded 32B SAH BVH + Lumen GI + Bloom + TAA/FXAA 3D renderer.
+/// Zero-allocation UE5-class Deferred GGX PBR + Persistent Multi-Core SAH BVH + Lumen GI + Bloom + Morphological AA/TAA 3D renderer.
 #[derive(Clone, Data, Debug, Default)]
 pub struct Renderer3D {
     /// Pre-allocated RGBA8 tone-mapped intermediate pixel buffer.
@@ -157,7 +201,7 @@ pub struct Renderer3D {
     #[get_mut(skip)]
     #[set(skip)]
     pub(crate) g_tri_idx: Vec<u32>,
-    /// Single-byte per-pixel Rec.601 luma buffer populated during deferred shading for fast FXAA.
+    /// Single-byte per-pixel Rec.601 luma buffer populated during deferred shading for fast morphological AA.
     #[get(skip)]
     #[get_mut(skip)]
     #[set(skip)]
@@ -192,6 +236,11 @@ pub struct Renderer3D {
     #[get_mut(skip)]
     #[set(skip)]
     pub(crate) visible_scratch: Vec<(f32, usize)>,
+    /// Reusable meshlet triangle-range scratch buffer eliminating per-object heap allocations.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) cluster_ranges_scratch: Vec<(usize, usize)>,
     /// Reusable unique mesh-id set for instancing telemetry.
     #[get(skip)]
     #[get_mut(skip)]
@@ -202,11 +251,16 @@ pub struct Renderer3D {
     #[get_mut(skip)]
     #[set(skip)]
     pub(crate) has_taa_history: bool,
-    /// Previous frame view-projection matrix used to detect camera cuts for TAA.
+    /// Previous frame view-projection fingerprint used to detect camera cuts for TAA.
     #[get(skip)]
     #[get_mut(skip)]
     #[set(skip)]
     pub(crate) prev_vp_m0: f32,
+    /// Monotonic frame counter driving Halton(2, 3) temporal subpixel jitter.
+    #[get(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) frame_index: u32,
     /// Last rendered internal width.
     #[get(type(copy))]
     pub(crate) width: u32,

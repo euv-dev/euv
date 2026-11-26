@@ -24,6 +24,9 @@ impl Default for ReactiveRuntime {
             batch_depth: 0,
             flushing: false,
             clock: 0,
+            global_states: HashMap::new(),
+            named_global_states: HashMap::new(),
+            event_channels: HashMap::new(),
         }
     }
 }
@@ -102,6 +105,157 @@ impl ReactiveRuntime {
             });
             SignalId::from_slot(SlotId::new(index, 1))
         }
+    }
+
+    /// Registers or replaces a root-lifetime global state signal keyed by `TypeId::of::<T>()`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reactive runtime.
+    /// - `T` - Initial or replacement global state value.
+    ///
+    /// # Returns
+    ///
+    /// - `(SignalId, bool)` - Tuple of `(signal_id, should_flush)` when updating an existing slot.
+    pub(crate) fn provide_global_state<T>(&mut self, initial: T) -> (SignalId, bool)
+    where
+        T: 'static,
+    {
+        let key: TypeId = TypeId::of::<T>();
+        if let Some(existing_id) = self.get_global_states().get(&key).copied() {
+            let slot: SlotId = existing_id.slot();
+            let alive: bool = self
+                .get_signals()
+                .get(slot.as_usize())
+                .map(|e: &SignalEntry| {
+                    e.get_generation() == slot.get_generation() && e.value.is_some()
+                })
+                .unwrap_or(false);
+            if alive {
+                let (_, flush): (bool, bool) = self.write_signal(existing_id, initial);
+                return (existing_id, flush);
+            }
+        }
+        let id: SignalId = self.create_detached_signal(initial);
+        let _: Option<SignalId> = self.get_mut_global_states().insert(key, id);
+        (id, false)
+    }
+
+    /// Looks up a registered root-lifetime global state signal keyed by `TypeId::of::<T>()`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reactive runtime reference.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<SignalId>` - Registered signal handle if present.
+    pub(crate) fn lookup_global_state<T>(&self) -> Option<SignalId>
+    where
+        T: 'static,
+    {
+        self.get_global_states().get(&TypeId::of::<T>()).copied()
+    }
+
+    /// Looks up a registered global state signal or initializes it lazily with `init`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reactive runtime.
+    /// - `F` - Lazy initializer invoked only when absent.
+    ///
+    /// # Returns
+    ///
+    /// - `SignalId` - Existing or newly created global state signal handle.
+    pub(crate) fn get_or_init_global_state<T, F>(&mut self, init: F) -> SignalId
+    where
+        T: 'static,
+        F: FnOnce() -> T,
+    {
+        let key: TypeId = TypeId::of::<T>();
+        if let Some(existing_id) = self.get_global_states().get(&key).copied() {
+            return existing_id;
+        }
+        let id: SignalId = self.create_detached_signal(init());
+        let _: Option<SignalId> = self.get_mut_global_states().insert(key, id);
+        id
+    }
+
+    /// Registers or replaces a string-keyed root-lifetime named global state signal.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reactive runtime.
+    /// - `&str` - Global state channel name.
+    /// - `T` - Initial or replacement value.
+    ///
+    /// # Returns
+    ///
+    /// - `(SignalId, bool)` - Tuple of `(signal_id, should_flush)`.
+    pub(crate) fn provide_named_global_state<T>(
+        &mut self,
+        name: &str,
+        initial: T,
+    ) -> (SignalId, bool)
+    where
+        T: 'static,
+    {
+        if let Some(existing_id) = self.get_named_global_states().get(name).copied() {
+            let slot: SlotId = existing_id.slot();
+            let alive: bool = self
+                .get_signals()
+                .get(slot.as_usize())
+                .map(|e: &SignalEntry| {
+                    e.get_generation() == slot.get_generation() && e.value.is_some()
+                })
+                .unwrap_or(false);
+            if alive {
+                let (_, flush): (bool, bool) = self.write_signal(existing_id, initial);
+                return (existing_id, flush);
+            }
+        }
+        let id: SignalId = self.create_detached_signal(initial);
+        let _: Option<SignalId> = self
+            .get_mut_named_global_states()
+            .insert(name.to_string(), id);
+        (id, false)
+    }
+
+    /// Looks up a string-keyed named global state signal.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reactive runtime reference.
+    /// - `&str` - Global state channel name.
+    ///
+    /// # Returns
+    ///
+    /// - `Option<SignalId>` - Registered signal handle if present.
+    pub(crate) fn lookup_named_global_state(&self, name: &str) -> Option<SignalId> {
+        self.get_named_global_states().get(name).copied()
+    }
+
+    /// Looks up or allocates the detached event channel signal for custom event type `E`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reactive runtime.
+    ///
+    /// # Returns
+    ///
+    /// - `SignalId` - Detached `Signal<(u64, Option<E>)>` channel identifier.
+    pub(crate) fn ensure_event_channel<E>(&mut self) -> SignalId
+    where
+        E: CustomEvent,
+    {
+        let key: TypeId = TypeId::of::<E>();
+        if let Some(existing_id) = self.get_event_channels().get(&key).copied() {
+            return existing_id;
+        }
+        let initial: (u64, Option<E>) = (0, None);
+        let id: SignalId = self.create_detached_signal(initial);
+        let _: Option<SignalId> = self.get_mut_event_channels().insert(key, id);
+        id
     }
 
     /// Reads a signal value via cloning inside the arena and records dependency tracking.
@@ -316,6 +470,8 @@ impl ReactiveRuntime {
             entry.set_callback(Some(callback_rc));
             entry.get_mut_dependencies().clear();
             entry.set_depth(depth);
+            entry.set_frozen_depth(0);
+            entry.set_pending_while_frozen(false);
             EffectId::from_slot(SlotId::new(index, next_gen))
         } else {
             let index: u32 = self.get_effects().len() as u32;
@@ -326,6 +482,8 @@ impl ReactiveRuntime {
                 callback: Some(callback_rc),
                 dependencies: Vec::new(),
                 depth,
+                frozen_depth: 0,
+                pending_while_frozen: false,
             });
             EffectId::from_slot(SlotId::new(index, 1))
         };
@@ -350,6 +508,7 @@ impl ReactiveRuntime {
             let next_gen: u32 = entry.get_generation().wrapping_add(1);
             entry.set_generation(next_gen);
             entry.set_alive(true);
+            entry.set_frozen(false);
             entry.get_mut_signals().clear();
             entry.get_mut_memos().clear();
             entry.get_mut_effects().clear();
@@ -361,6 +520,7 @@ impl ReactiveRuntime {
             self.get_mut_scopes().push(ScopeEntry {
                 generation: 1,
                 alive: true,
+                frozen: false,
                 signals: Vec::new(),
                 memos: Vec::new(),
                 effects: Vec::new(),
@@ -539,10 +699,13 @@ impl ReactiveRuntime {
                     if let Some(entry) = effects.get_mut(slot.as_usize())
                         && entry.get_generation() == slot.get_generation()
                         && entry.get_alive()
-                        && !entry.get_scheduled()
                     {
-                        entry.set_scheduled(true);
-                        pending_effects.push(effect_id);
+                        if entry.get_frozen_depth() > 0 {
+                            entry.set_pending_while_frozen(true);
+                        } else if !entry.get_scheduled() {
+                            entry.set_scheduled(true);
+                            pending_effects.push(effect_id);
+                        }
                     }
                 }
             }
@@ -680,6 +843,8 @@ impl ReactiveRuntime {
         {
             entry.set_alive(false);
             entry.set_scheduled(false);
+            entry.set_frozen_depth(0);
+            entry.set_pending_while_frozen(false);
             entry.set_callback(None);
             let next_gen: u32 = entry.get_generation().wrapping_add(1);
             entry.set_generation(next_gen);
@@ -822,11 +987,121 @@ impl ReactiveRuntime {
     /// - `EffectId` - Effect identifier to attach.
     fn attach_effect_to_scope(&mut self, scope_id: ScopeId, effect_id: EffectId) {
         let slot: SlotId = scope_id.slot();
-        if let Some(entry) = self.get_mut_scopes().get_mut(slot.as_usize())
+        let scope_is_frozen: bool = if let Some(entry) =
+            self.get_mut_scopes().get_mut(slot.as_usize())
             && entry.get_generation() == slot.get_generation()
             && entry.get_alive()
         {
             entry.get_mut_effects().push(effect_id);
+            entry.get_frozen()
+        } else {
+            false
+        };
+        if scope_is_frozen {
+            let eff_slot: SlotId = effect_id.slot();
+            if let Some(eff) = self.get_mut_effects().get_mut(eff_slot.as_usize())
+                && eff.get_generation() == eff_slot.get_generation()
+            {
+                let next_d: u32 = eff.get_frozen_depth().saturating_add(1);
+                eff.set_frozen_depth(next_d);
+            }
         }
+    }
+
+    /// Recursively freezes or resumes `id` and all nested child scopes, coalescing any pending dirty effects on resume.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `ScopeId` - Root scope identifier to freeze or resume.
+    /// - `bool` - `true` to freeze; `false` to resume.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when resuming scheduled one or more deferred effects that require flushing.
+    pub(crate) fn set_scope_frozen(&mut self, id: ScopeId, freeze: bool) -> bool {
+        let root_slot: SlotId = id.slot();
+        let should_change: bool = self
+            .get_scopes()
+            .get(root_slot.as_usize())
+            .map(|entry: &ScopeEntry| {
+                entry.get_generation() == root_slot.get_generation()
+                    && entry.get_alive()
+                    && entry.get_frozen() != freeze
+            })
+            .unwrap_or(false);
+        if !should_change {
+            return false;
+        }
+        let mut stack: Vec<ScopeId> = vec![id];
+        let mut any_resumed_dirty: bool = false;
+        while let Some(cur_id) = stack.pop() {
+            let slot: SlotId = cur_id.slot();
+            let (children, effects): (Vec<ScopeId>, Vec<EffectId>) =
+                match self.get_mut_scopes().get_mut(slot.as_usize()) {
+                    Some(entry)
+                        if entry.get_generation() == slot.get_generation() && entry.get_alive() =>
+                    {
+                        if cur_id == id {
+                            entry.set_frozen(freeze);
+                        }
+                        (entry.get_children().clone(), entry.get_effects().clone())
+                    }
+                    _ => continue,
+                };
+            for child in children.into_iter() {
+                stack.push(child);
+            }
+            for eff_id in effects.into_iter() {
+                let eslot: SlotId = eff_id.slot();
+                let mut schedule_now: bool = false;
+                if let Some(eff) = self.get_mut_effects().get_mut(eslot.as_usize())
+                    && eff.get_generation() == eslot.get_generation()
+                    && eff.get_alive()
+                {
+                    if freeze {
+                        let next_d: u32 = eff.get_frozen_depth().saturating_add(1);
+                        eff.set_frozen_depth(next_d);
+                    } else {
+                        let next_d: u32 = eff.get_frozen_depth().saturating_sub(1);
+                        eff.set_frozen_depth(next_d);
+                        if next_d == 0 && eff.get_pending_while_frozen() {
+                            eff.set_pending_while_frozen(false);
+                            if !eff.get_scheduled() {
+                                eff.set_scheduled(true);
+                                schedule_now = true;
+                            }
+                        }
+                    }
+                }
+                if schedule_now {
+                    self.get_mut_pending_effects().push(eff_id);
+                    any_resumed_dirty = true;
+                }
+            }
+        }
+        any_resumed_dirty
+    }
+
+    /// Returns whether scope `id` is currently alive and frozen.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Reactive runtime reference.
+    /// - `ScopeId` - Scope identifier to query.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` when the scope is frozen.
+    pub(crate) fn is_scope_frozen(&self, id: ScopeId) -> bool {
+        let slot: SlotId = id.slot();
+        self.get_scopes()
+            .get(slot.as_usize())
+            .map(|entry: &ScopeEntry| {
+                entry.get_generation() == slot.get_generation()
+                    && entry.get_alive()
+                    && entry.get_frozen()
+            })
+            .unwrap_or(false)
     }
 }

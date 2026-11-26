@@ -2,8 +2,9 @@ use super::*;
 
 /// Persistent work-stealing multi-core band pool methods for `BandWorkerPool`.
 #[cfg(not(target_arch = "wasm32"))]
+/// Inherent implementation of [`BandWorkerPool`].
 impl BandWorkerPool {
-    /// Creates a persistent worker pool sized to the host CPU count (clamped to `1..=6` total threads including the caller).
+    /// Creates a persistent worker pool sized to the host CPU count (clamped to `1..=8` total threads including the caller).
     ///
     /// # Returns
     ///
@@ -13,7 +14,7 @@ impl BandWorkerPool {
         let total: usize = available_parallelism()
             .map(usize::from)
             .unwrap_or(4)
-            .clamp(1, 6);
+            .clamp(1, 8);
         let worker_count: usize = total.saturating_sub(1);
         let shared: Arc<(Mutex<BandPoolState>, Condvar, Condvar)> = Arc::new((
             Mutex::new(BandPoolState::default()),
@@ -69,6 +70,46 @@ impl BandWorkerPool {
         }
     }
 
+    /// Executes bands serially on the calling thread with optional cached backdrop restore.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut [PixelBand<'_>]` - Disjoint horizontal framebuffer strips.
+    /// - `&[DrawCommand]` - Display list commands.
+    /// - `&[PreppedCommand]` - Pre-clipped command table.
+    /// - `&[TextLayoutResult]` - Pre-measured text layouts.
+    /// - `&GlyphAtlas` - Shared read-only glyph atlas.
+    /// - `(f32, AntialiasingMode)` - Tuple of `(scale, antialiasing)`.
+    /// - `Option<&[u8]>` - Optional cached base-scene RGBA8 pixel slice.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Total shaded pixel count across all strips.
+    fn execute_serial(
+        bands: &mut [PixelBand<'_>],
+        commands: &[DrawCommand],
+        prepped: &[PreppedCommand],
+        layouts: &[TextLayoutResult],
+        atlas: &GlyphAtlas,
+        render_opts: (f32, AntialiasingMode),
+        base_restore: Option<&[u8]>,
+    ) -> usize {
+        let (scale, aa): (f32, AntialiasingMode) = render_opts;
+        let mut total: usize = 0;
+        for band in bands.iter_mut() {
+            if let Some(src_buf) = base_restore {
+                let byte_off: usize = (band.y_offset as usize) * (band.width as usize) * 4;
+                let byte_end: usize = byte_off + band.pixels.len();
+                if let Some(src_slice) = src_buf.get(byte_off..byte_end) {
+                    band.pixels.copy_from_slice(src_slice);
+                }
+            }
+            total +=
+                SoftwareRenderer::render_band(band, commands, prepped, layouts, atlas, scale, aa);
+        }
+        total
+    }
+
     /// Returns total participating rasterizer threads (background workers plus the calling main thread).
     ///
     /// # Returns
@@ -80,7 +121,7 @@ impl BandWorkerPool {
         worker_count.saturating_add(1)
     }
 
-    /// Dispatches horizontal pixel bands across the persistent worker pool with atomic work stealing and synchronous completion.
+    /// Dispatches horizontal pixel bands across the persistent worker pool with optional parallel backdrop restore and synchronous completion.
     ///
     /// # Arguments
     ///
@@ -90,7 +131,7 @@ impl BandWorkerPool {
     /// - `&[PreppedCommand]` - Pre-clipped command table.
     /// - `&[TextLayoutResult]` - Pre-measured text layouts.
     /// - `&GlyphAtlas` - Shared read-only glyph atlas.
-    /// - `(f32, AntialiasingMode)` - Tuple of `(scale, antialiasing)`.
+    /// - `(f32, AntialiasingMode, Option<&[u8]>)` - Tuple of `(scale, antialiasing, optional_base_restore)`.
     ///
     /// # Returns
     ///
@@ -102,40 +143,56 @@ impl BandWorkerPool {
         prepped: &[PreppedCommand],
         layouts: &[TextLayoutResult],
         atlas: &GlyphAtlas,
-        render_opts: (f32, AntialiasingMode),
+        render_opts: (f32, AntialiasingMode, Option<&[u8]>),
     ) -> usize {
         let Self {
             worker_count,
             dispatch_lock,
             shared,
         } = self;
-        let (scale, aa): (f32, AntialiasingMode) = render_opts;
+        let (scale, aa, base_restore): (f32, AntialiasingMode, Option<&[u8]>) = render_opts;
         if *worker_count == 0 || bands.len() <= 1 {
-            let mut total: usize = 0;
-            for band in bands.iter_mut() {
-                total += SoftwareRenderer::render_band(
-                    band, commands, prepped, layouts, atlas, scale, aa,
-                );
-            }
-            return total;
+            return Self::execute_serial(
+                bands,
+                commands,
+                prepped,
+                layouts,
+                atlas,
+                (scale, aa),
+                base_restore,
+            );
         }
         let Ok(_dispatch_guard) = dispatch_lock.try_lock() else {
-            let mut total: usize = 0;
-            for band in bands.iter_mut() {
-                total += SoftwareRenderer::render_band(
-                    band, commands, prepped, layouts, atlas, scale, aa,
-                );
-            }
-            return total;
+            return Self::execute_serial(
+                bands,
+                commands,
+                prepped,
+                layouts,
+                atlas,
+                (scale, aa),
+                base_restore,
+            );
         };
         let mut tasks: Vec<BandTaskSlice> = Vec::with_capacity(bands.len());
         for band in bands.iter_mut() {
+            let base_ptr: usize = if let Some(src_buf) = base_restore {
+                let byte_off: usize = (band.y_offset as usize) * (band.width as usize) * 4;
+                let byte_end: usize = byte_off + band.pixels.len();
+                if byte_end <= src_buf.len() {
+                    unsafe { src_buf.as_ptr().add(byte_off) as usize }
+                } else {
+                    0
+                }
+            } else {
+                0
+            };
             tasks.push(BandTaskSlice {
                 pixels_ptr: band.pixels.as_mut_ptr() as usize,
                 pixels_len: band.pixels.len(),
                 width: band.width,
                 y_start: band.y_offset,
                 height: band.height,
+                base_src_ptr: base_ptr,
             });
         }
         let job: BandJob = BandJob {
@@ -226,10 +283,14 @@ impl SoftwareRenderer {
             clip_stack: Vec::with_capacity(8),
             antialiasing: config.get_antialiasing(),
             tile_size: config.get_tile_size().max(16),
+            base_cache_width: 0,
+            base_cache_height: 0,
+            base_cache_hash: 0,
+            base_cache_pixels: Vec::new(),
         }
     }
 
-    /// Rasterizes `display_list` into the internal `Framebuffer` clipped to `damage` using multi-core parallel horizontal bands on native targets.
+    /// Rasterizes `display_list` into the internal `Framebuffer` clipped to `damage` using multi-core parallel horizontal bands and lossless portal backdrop caching.
     ///
     /// # Arguments
     ///
@@ -246,6 +307,11 @@ impl SoftwareRenderer {
         let phys_h: u32 =
             ((display_list.get_viewport().get_height() * scale).round() as u32).max(1);
         let resized: bool = self.get_mut_framebuffer().resize(phys_w, phys_h);
+        if resized {
+            self.set_base_cache_hash(0);
+            self.set_base_cache_width(0);
+            self.set_base_cache_height(0);
+        }
         let effective_damage: DamageRegion = if resized {
             DamageRegion::full()
         } else {
@@ -258,12 +324,130 @@ impl SoftwareRenderer {
         let tiles_x: usize = ((root_clip.get_width().ceil() as u32).div_ceil(tile_sz)) as usize;
         let tiles_y: usize = ((root_clip.get_height().ceil() as u32).div_ceil(tile_sz)) as usize;
         let tiles_updated: usize = tiles_x.saturating_mul(tiles_y);
-        let (prepped, text_layouts): (Vec<PreppedCommand>, Vec<TextLayoutResult>) =
-            self.prepare_frame(display_list, root_clip, scale, phys_h);
-        let aa: AntialiasingMode = self.get_antialiasing();
         let commands: &[DrawCommand] = display_list.get_commands().as_slice();
-        let prepped_slice: &[PreppedCommand] = prepped.as_slice();
-        let layouts_slice: &[TextLayoutResult] = text_layouts.as_slice();
+        let split: usize = display_list.get_portal_split_index().min(commands.len());
+        let has_portals: bool = split > 0 && split < commands.len();
+        let is_full_frame: bool = root_clip.get_x() <= 0.0
+            && root_clip.get_y() <= 0.0
+            && root_clip.get_width() >= (phys_w as f32)
+            && root_clip.get_height() >= (phys_h as f32);
+        if has_portals && is_full_frame {
+            let base_hash: u64 = display_list.base_layer_hash();
+            let fb_len: usize = self.get_framebuffer().get_pixels().len();
+            let cache_hit: bool = base_hash != 0
+                && self.get_base_cache_hash() == base_hash
+                && self.get_base_cache_width() == phys_w
+                && self.get_base_cache_height() == phys_h
+                && self.get_base_cache_pixels().len() == fb_len;
+            if cache_hit {
+                let (prepped, text_layouts): (Vec<PreppedCommand>, Vec<TextLayoutResult>) = self
+                    .prepare_frame_range(
+                        display_list,
+                        split,
+                        commands.len(),
+                        root_clip,
+                        scale,
+                        phys_h,
+                    );
+                let pixels_shaded: usize = self.execute_prepared_bands(
+                    commands,
+                    prepped.as_slice(),
+                    text_layouts.as_slice(),
+                    root_clip,
+                    (phys_w, phys_h, scale),
+                    true,
+                );
+                return (tiles_updated, pixels_shaded.max(1));
+            }
+            let (base_prepped, base_layouts): (Vec<PreppedCommand>, Vec<TextLayoutResult>) =
+                self.prepare_frame_range(display_list, 0, split, root_clip, scale, phys_h);
+            let base_shaded: usize = self.execute_prepared_bands(
+                commands,
+                base_prepped.as_slice(),
+                base_layouts.as_slice(),
+                root_clip,
+                (phys_w, phys_h, scale),
+                false,
+            );
+            {
+                let Self {
+                    framebuffer,
+                    base_cache_pixels,
+                    base_cache_width,
+                    base_cache_height,
+                    base_cache_hash,
+                    ..
+                } = self;
+                let src_pixels: &[u8] = framebuffer.get_pixels().as_slice();
+                if base_cache_pixels.len() != src_pixels.len() {
+                    base_cache_pixels.resize(src_pixels.len(), 0);
+                }
+                base_cache_pixels.copy_from_slice(src_pixels);
+                *base_cache_width = phys_w;
+                *base_cache_height = phys_h;
+                *base_cache_hash = base_hash;
+            }
+            let (portal_prepped, portal_layouts): (Vec<PreppedCommand>, Vec<TextLayoutResult>) =
+                self.prepare_frame_range(
+                    display_list,
+                    split,
+                    commands.len(),
+                    root_clip,
+                    scale,
+                    phys_h,
+                );
+            let portal_shaded: usize = self.execute_prepared_bands(
+                commands,
+                portal_prepped.as_slice(),
+                portal_layouts.as_slice(),
+                root_clip,
+                (phys_w, phys_h, scale),
+                false,
+            );
+            return (tiles_updated, base_shaded.saturating_add(portal_shaded));
+        }
+        if !has_portals {
+            self.set_base_cache_hash(0);
+        }
+        let (prepped, text_layouts): (Vec<PreppedCommand>, Vec<TextLayoutResult>) =
+            self.prepare_frame_range(display_list, 0, commands.len(), root_clip, scale, phys_h);
+        let pixels_shaded: usize = self.execute_prepared_bands(
+            commands,
+            prepped.as_slice(),
+            text_layouts.as_slice(),
+            root_clip,
+            (phys_w, phys_h, scale),
+            false,
+        );
+        (tiles_updated, pixels_shaded)
+    }
+
+    /// Executes prepped commands across horizontal bands with optional parallel restore from `base_cache_pixels`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable software renderer.
+    /// - `&[DrawCommand]` - Full frame draw command slice.
+    /// - `&[PreppedCommand]` - Pre-clipped command slice.
+    /// - `&[TextLayoutResult]` - Pre-measured text layouts.
+    /// - `Rect` - Root physical damage clip rectangle.
+    /// - `(u32, u32, f32)` - Tuple `(phys_w, phys_h, scale)`.
+    /// - `bool` - Whether to restore `base_cache_pixels` into each strip before rasterizing.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Total shaded pixel count.
+    fn execute_prepared_bands(
+        &mut self,
+        commands: &[DrawCommand],
+        prepped_slice: &[PreppedCommand],
+        layouts_slice: &[TextLayoutResult],
+        root_clip: Rect,
+        dims: (u32, u32, f32),
+        restore_base_cache: bool,
+    ) -> usize {
+        let (phys_w, phys_h, scale): (u32, u32, f32) = dims;
+        let aa: AntialiasingMode = self.get_antialiasing();
         let clip_y0: u32 = (root_clip.get_y().floor().max(0.0) as u32).min(phys_h);
         let clip_y1: u32 = (root_clip.bottom().ceil().max(0.0) as u32).min(phys_h);
         let clip_w: u32 = (root_clip.get_width().ceil().max(0.0) as u32).min(phys_w);
@@ -271,11 +455,17 @@ impl SoftwareRenderer {
         let Self {
             framebuffer,
             glyph_atlas,
+            base_cache_pixels,
             ..
         } = self;
         let atlas_ref: &GlyphAtlas = glyph_atlas;
+        let base_restore: Option<&[u8]> = if restore_base_cache {
+            Some(base_cache_pixels.as_slice())
+        } else {
+            None
+        };
         #[cfg(not(target_arch = "wasm32"))]
-        let pixels_shaded: usize =
+        {
             if (clip_w as usize).saturating_mul(clip_h as usize) >= 65_536 && clip_h >= 64 {
                 let pool: &BandWorkerPool = global_band_worker_pool();
                 let strip_count: usize = (pool.total_threads().saturating_mul(2))
@@ -284,41 +474,21 @@ impl SoftwareRenderer {
                 if strip_count > 1 && pool.total_threads() > 1 {
                     let mut bands: Vec<PixelBand<'_>> =
                         framebuffer.split_bands_mut(clip_y0, clip_y1, strip_count);
-                    pool.execute(
+                    return pool.execute(
                         bands.as_mut_slice(),
                         commands,
                         prepped_slice,
                         layouts_slice,
                         atlas_ref,
-                        (scale, aa),
-                    )
-                } else {
-                    let mut band: PixelBand<'_> = framebuffer.as_band_mut();
-                    Self::render_band(
-                        &mut band,
-                        commands,
-                        prepped_slice,
-                        layouts_slice,
-                        atlas_ref,
-                        scale,
-                        aa,
-                    )
+                        (scale, aa, base_restore),
+                    );
                 }
-            } else {
-                let mut band: PixelBand<'_> = framebuffer.as_band_mut();
-                Self::render_band(
-                    &mut band,
-                    commands,
-                    prepped_slice,
-                    layouts_slice,
-                    atlas_ref,
-                    scale,
-                    aa,
-                )
-            };
-        #[cfg(target_arch = "wasm32")]
-        let pixels_shaded: usize = {
-            let _: (u32, u32) = (clip_w, clip_h);
+            }
+            if let Some(src_buf) = base_restore
+                && src_buf.len() == framebuffer.get_pixels().len()
+            {
+                framebuffer.get_mut_pixels().copy_from_slice(src_buf);
+            }
             let mut band: PixelBand<'_> = framebuffer.as_band_mut();
             Self::render_band(
                 &mut band,
@@ -329,16 +499,36 @@ impl SoftwareRenderer {
                 scale,
                 aa,
             )
-        };
-        (tiles_updated, pixels_shaded)
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _: (u32, u32) = (clip_w, clip_h);
+            if let Some(src_buf) = base_restore
+                && src_buf.len() == framebuffer.get_pixels().len()
+            {
+                framebuffer.get_mut_pixels().copy_from_slice(src_buf);
+            }
+            let mut band: PixelBand<'_> = framebuffer.as_band_mut();
+            Self::render_band(
+                &mut band,
+                commands,
+                prepped_slice,
+                layouts_slice,
+                atlas_ref,
+                scale,
+                aa,
+            )
+        }
     }
 
-    /// Runs a lightweight main-thread pre-pass to resolve clips, opaque shadow cutouts, cached text layouts, and warm `GlyphAtlas`.
+    /// Runs a lightweight main-thread pre-pass over `commands[start_idx..end_idx]` to resolve clips, opaque shadow cutouts, cached text layouts, and warm `GlyphAtlas`.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable software renderer.
     /// - `&DisplayList` - Incoming command stream.
+    /// - `usize` - Inclusive start index into `display_list.get_commands()`.
+    /// - `usize` - Exclusive end index into `display_list.get_commands()`.
     /// - `Rect` - Root physical damage clip rectangle.
     /// - `f32` - Active DPI scale factor.
     /// - `u32` - Framebuffer physical height.
@@ -346,15 +536,19 @@ impl SoftwareRenderer {
     /// # Returns
     ///
     /// - `(Vec<PreppedCommand>, Vec<TextLayoutResult>)` - Band-ready commands and pre-measured text layouts.
-    fn prepare_frame(
+    fn prepare_frame_range(
         &mut self,
         display_list: &DisplayList,
+        start_idx: usize,
+        end_idx: usize,
         root_clip: Rect,
         scale: f32,
         phys_h: u32,
     ) -> (Vec<PreppedCommand>, Vec<TextLayoutResult>) {
         let commands: &[DrawCommand] = display_list.get_commands().as_slice();
-        let mut prepped: Vec<PreppedCommand> = Vec::with_capacity(commands.len());
+        let clamped_end: usize = end_idx.min(commands.len());
+        let clamped_start: usize = start_idx.min(clamped_end);
+        let mut prepped: Vec<PreppedCommand> = Vec::with_capacity(clamped_end - clamped_start);
         let mut text_layouts: Vec<TextLayoutResult> = Vec::new();
         let Self {
             glyph_atlas,
@@ -369,7 +563,8 @@ impl SoftwareRenderer {
         if text_layout_cache.len() > TEXT_LAYOUT_CACHE_LIMIT {
             text_layout_cache.clear();
         }
-        for (cmd_index, cmd) in commands.iter().enumerate() {
+        for (offset, cmd) in commands[clamped_start..clamped_end].iter().enumerate() {
+            let cmd_index: usize = clamped_start + offset;
             let active_clip: Rect = clip_stack.last().copied().unwrap_or(root_clip);
             match cmd {
                 DrawCommand::PushClip(rect) => {
@@ -921,10 +1116,19 @@ impl SoftwareRenderer {
             return 0;
         }
         let span_len: usize = (x1 - x0) as usize;
-        for y in y0..y1 {
-            band.fill_span_linear(x0, x1, y, color);
+        let rows: usize = (y1 - y0) as usize;
+        let sa: u8 = color.get_a();
+        if sa < 255 && span_len.saturating_mul(rows) >= 512 {
+            let luts: ([u8; 256], [u8; 256], [u8; 256], [u8; 256]) = build_linear_blend_luts(color);
+            for y in y0..y1 {
+                band.fill_span_linear_luts(x0, x1, y, &luts);
+            }
+        } else {
+            for y in y0..y1 {
+                band.fill_span_linear(x0, x1, y, color);
+            }
         }
-        span_len * ((y1 - y0) as usize)
+        span_len * rows
     }
 
     /// Rasterizes a rounded rectangle with optional border using edge-bounded 4x4 RGSS supersampling and linear-light spans.
@@ -980,6 +1184,15 @@ impl SoftwareRenderer {
         let cx1: u32 = ((rect.right() - safe_inset).floor().max(0.0) as u32).clamp(x0, x1);
         let has_interior: bool = iy0 < iy1 && ix0 < ix1;
         let has_center_band: bool = cx0 < cx1;
+        let interior_luts: Option<RgbaLutQuad> = if has_interior
+            && color.get_a() > 0
+            && color.get_a() < 255
+            && ((ix1 - ix0) as usize).saturating_mul((iy1 - iy0) as usize) >= 512
+        {
+            Some(build_linear_blend_luts(color))
+        } else {
+            None
+        };
         let mut shaded: usize = 0;
         for y in y0..y1 {
             let py: f32 = (y as f32) + 0.5 - cy;
@@ -997,7 +1210,11 @@ impl SoftwareRenderer {
                     );
                 }
                 if color.get_a() > 0 {
-                    band.fill_span_linear(ix0, ix1, y, color);
+                    if let Some(ref luts) = interior_luts {
+                        band.fill_span_linear_luts(ix0, ix1, y, luts);
+                    } else {
+                        band.fill_span_linear(ix0, ix1, y, color);
+                    }
                     shaded += (ix1 - ix0) as usize;
                 }
                 for x in ix1..x1 {

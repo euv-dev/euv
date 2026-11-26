@@ -19,6 +19,9 @@ pub(crate) struct BandTaskSlice {
     /// Number of physical rows inside this strip.
     #[get(type(copy))]
     pub(crate) height: u32,
+    /// Optional raw source pointer for parallel base-scene backdrop restore (`0` when unused).
+    #[get(type(copy))]
+    pub(crate) base_src_ptr: usize,
 }
 
 /// Shared read-only frame dispatch state consumed lock-free by persistent band workers during a single `render` call.
@@ -132,4 +135,21 @@ pub struct SoftwareRenderer {
     /// Tile edge length in physical pixels for damage tile accounting.
     #[get(type(copy))]
     pub(crate) tile_size: u32,
+    /// Cached physical width of the static base-scene snapshot behind active portals.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) base_cache_width: u32,
+    /// Cached physical height of the static base-scene snapshot behind active portals.
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) base_cache_height: u32,
+    /// Full base-layer command hash for the cached static backdrop (`0` when invalid).
+    #[get(pub(crate), type(copy))]
+    #[set(pub(crate))]
+    pub(crate) base_cache_hash: u64,
+    /// Saved RGBA8 pixels of the static base scene beneath active portals for fast overlay compositing.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) base_cache_pixels: Vec<u8>,
 }

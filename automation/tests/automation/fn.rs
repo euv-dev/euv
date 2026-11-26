@@ -13,9 +13,9 @@ fn mount_test_app() -> (App, Signal<i32>, Signal<String>) {
     let c_text: Signal<i32> = count;
     let t_in: Signal<String> = typed;
     let _: NodeId = app.mount(move || {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let root: NodeId = ctx.scroll_view(
-            Style::empty()
+            Style::default()
                 .column()
                 .width(Length::Percent(100.0))
                 .height(Length::Percent(100.0))
@@ -24,7 +24,7 @@ fn mount_test_app() -> (App, Signal<i32>, Signal<String>) {
                 .background(COLOR_WHITE),
         );
         let btn: NodeId = ctx.view(
-            Style::empty()
+            Style::default()
                 .row()
                 .padding(Edges::symmetric(8.0, 14.0))
                 .background(Color::hex(0x18181B))
@@ -33,7 +33,7 @@ fn mount_test_app() -> (App, Signal<i32>, Signal<String>) {
         );
         let btn_lbl: NodeId = ctx.text(
             "Increment Counter".to_string(),
-            Style::empty().font_size(14.0).color(COLOR_WHITE),
+            Style::default().font_size(14.0).color(COLOR_WHITE),
         );
         ctx.append(btn, btn_lbl);
         ctx.set_a11y(
@@ -45,7 +45,7 @@ fn mount_test_app() -> (App, Signal<i32>, Signal<String>) {
         });
         let status: NodeId = ctx.text(
             "Count=0".to_string(),
-            Style::empty().font_size(14.0).color(Color::hex(0x18181B)),
+            Style::default().font_size(14.0).color(Color::hex(0x18181B)),
         );
         let scene_h: SceneHandle = ctx.get_scene().clone();
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
@@ -66,7 +66,7 @@ fn mount_test_app() -> (App, Signal<i32>, Signal<String>) {
                 false,
                 false,
             ),
-            Style::empty()
+            Style::default()
                 .width(Length::Px(260.0))
                 .height(Length::Px(36.0))
                 .padding(Edges::symmetric(6.0, 10.0))

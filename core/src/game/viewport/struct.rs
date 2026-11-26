@@ -24,4 +24,9 @@ pub struct GameEngineHost {
     /// Mounted viewport canvas `(scene, node)` handles used to gate stepping and auto-dirty visible viewports.
     #[debug(skip)]
     pub(crate) viewport_nodes: Rc<RefCell<Vec<(SceneHandle, NodeId)>>>,
+    /// Lifecycle pause flag set when the owning route or component is frozen (`PageRetention::Freeze`).
+    #[debug(skip)]
+    #[get_mut(skip)]
+    #[set(skip)]
+    pub(crate) paused: Rc<Cell<bool>>,
 }

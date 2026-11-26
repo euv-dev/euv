@@ -53,7 +53,9 @@ impl LayoutEngine {
                         <= 0.01
                     && (prev_space.get_viewport().get_height() - space.get_viewport().get_height())
                         .abs()
-                        <= 0.01;
+                        <= 0.01
+                    && prev_space.get_stretch_width() == space.get_stretch_width()
+                    && prev_space.get_stretch_height() == space.get_stretch_height();
                 if same_size {
                     let dx: f32 = space.get_origin_x() - prev_space.get_origin_x();
                     let dy: f32 = space.get_origin_y() - prev_space.get_origin_y();
@@ -108,6 +110,12 @@ impl LayoutEngine {
         let mut resolved_h: Option<f32> = layout
             .get_height()
             .resolve(space.get_height(), space.get_viewport());
+        if resolved_w.is_none() && space.get_stretch_width() {
+            resolved_w = Some(space.get_width());
+        }
+        if resolved_h.is_none() && space.get_stretch_height() {
+            resolved_h = Some(space.get_height());
+        }
         let min_w: f32 = layout
             .get_min_width()
             .resolve(space.get_width(), space.get_viewport())
@@ -181,6 +189,8 @@ impl LayoutEngine {
                     Size::new(inner_avail_w, inner_avail_h),
                     space.get_viewport(),
                     Point::new(content_origin_x, content_origin_y),
+                    resolved_w.is_some(),
+                    resolved_h.is_some(),
                 );
                 self.layout_children(tree, &children, frame, stats)
             }
@@ -486,7 +496,8 @@ impl LayoutEngine {
                         inner_avail.get_height()
                     };
                     let final_space: AvailableSpace =
-                        AvailableSpace::new(space_w, space_h, viewport, x, y);
+                        AvailableSpace::new(space_w, space_h, viewport, x, y)
+                            .with_stretch(stretch_w, stretch_h);
                     let placed: Size = self.layout_node(tree, child_id, final_space, stats);
                     let target_w: f32 = if stretch_w {
                         space_w.max(placed.get_width())
@@ -637,21 +648,25 @@ impl LayoutEngine {
                         acc + sz
                     })
                     + gaps_total;
+            let has_definite_or_grow: bool = frame.get_definite_width() || total_grow > 0.0;
             let effective_main_avail: f32 = if is_row {
-                main_avail
-            } else {
-                let definite_col_h: bool = parent_layout.get_height() != Length::Auto
-                    || (parent_layout.aspect_ratio_value().is_some()
-                        && parent_layout.get_width() != Length::Auto);
-                if definite_col_h {
+                if has_definite_or_grow || wrap_enabled {
                     main_avail
                 } else {
                     parent_layout
-                        .get_min_height()
-                        .resolve(viewport.get_height(), viewport)
-                        .map(|mh: f32| (mh - parent_layout.get_padding().vertical()).max(0.0))
+                        .get_min_width()
+                        .resolve(viewport.get_width(), viewport)
+                        .map(|mw: f32| (mw - parent_layout.get_padding().horizontal()).max(0.0))
                         .unwrap_or(0.0)
                 }
+            } else if frame.get_definite_height() {
+                main_avail
+            } else {
+                parent_layout
+                    .get_min_height()
+                    .resolve(viewport.get_height(), viewport)
+                    .map(|mh: f32| (mh - parent_layout.get_padding().vertical()).max(0.0))
+                    .unwrap_or(0.0)
             };
             let free_main: f32 = (effective_main_avail - used_main).max(0.0);
             if total_grow > 0.0 && free_main > 0.0 && !wrap_enabled {
@@ -745,7 +760,7 @@ impl LayoutEngine {
                         };
                         acc.max(c)
                     });
-            let definite_cross: bool = !is_row || parent_layout.get_height() != Length::Auto;
+            let definite_cross: bool = !is_row || frame.get_definite_height();
             let effective_line_cross: f32 = if line_count == 1 && !wrap_enabled && definite_cross {
                 line_cross.max(cross_avail)
             } else {
@@ -826,8 +841,23 @@ impl LayoutEngine {
                 } else {
                     target_h
                 };
+                let stretch_child_w: bool = !(auto_cross_grow && !is_row)
+                    && ((!is_row
+                        && align == AlignItems::Stretch
+                        && child_layout.get_width() == Length::Auto)
+                        || (is_row
+                            && child_layout.get_flex_grow() > 0.0
+                            && child_layout.get_width() == Length::Auto));
+                let stretch_child_h: bool = !(auto_cross_grow && is_row)
+                    && ((is_row
+                        && align == AlignItems::Stretch
+                        && child_layout.get_height() == Length::Auto)
+                        || (!is_row
+                            && child_layout.get_flex_grow() > 0.0
+                            && child_layout.get_height() == Length::Auto));
                 let final_space: AvailableSpace =
-                    AvailableSpace::new(space_w, space_h, viewport, x, y);
+                    AvailableSpace::new(space_w, space_h, viewport, x, y)
+                        .with_stretch(stretch_child_w, stretch_child_h);
                 let placed: Size = self.layout_node(tree, child_id, final_space, stats);
                 if let Some(node) = tree.get_node_mut(child_id) {
                     let mut b: Rect = node.get_layout_box().get_bounds();
@@ -919,8 +949,13 @@ impl LayoutEngine {
             for (col_idx, child_id) in children[idx..row_end].iter().copied().enumerate() {
                 let x: f32 = content_origin.get_x() + (col_idx as f32) * (col_w + col_gap);
                 let y: f32 = content_origin.get_y() + y_cursor;
+                let auto_w: bool = tree
+                    .get_node(child_id)
+                    .map(|n: &SceneNode| n.get_style().get_layout().get_width() == Length::Auto)
+                    .unwrap_or(false);
                 let cell_space: AvailableSpace =
-                    AvailableSpace::new(col_w, inner_avail.get_height(), viewport, x, y);
+                    AvailableSpace::new(col_w, inner_avail.get_height(), viewport, x, y)
+                        .with_stretch(auto_w, false);
                 let child_size: Size = self.layout_node(tree, child_id, cell_space, stats);
                 if let Some(node) = tree.get_node_mut(child_id) {
                     let mut b: Rect = node.get_layout_box().get_bounds();

@@ -297,6 +297,43 @@ pub struct ShowcaseState {
     /// Controlled active breadcrumb index for interactive `EuvBreadcrumb`.
     #[get(type(copy))]
     pub(crate) breadcrumb_active: Signal<usize>,
+    /// Live interactive UI stress benchmark results for `/stress`.
+    #[get(type(copy))]
+    pub(crate) stress_results: Signal<Vec<StressCaseResult>>,
+    /// Latest interactive UI stress benchmark status readout for `/stress`.
+    #[get(type(copy))]
+    pub(crate) stress_summary: Signal<String>,
+    /// Persistent lazy-loading page-lifecycle router shared across the showcase shell.
+    pub(crate) router: EuvRouter,
+    /// Guard flag ensuring routes are registered on `router` once.
+    pub(crate) router_ready: Rc<Cell<bool>>,
+    /// Total lazy page `on_mount` lifecycle hooks executed.
+    #[get(type(copy))]
+    pub(crate) lifecycle_mounts: Signal<u32>,
+    /// Total `PageRetention::Freeze` `on_freeze` hooks executed on route leave.
+    #[get(type(copy))]
+    pub(crate) lifecycle_freezes: Signal<u32>,
+    /// Total `on_resume` hooks executed when returning to a frozen page.
+    #[get(type(copy))]
+    pub(crate) lifecycle_resumes: Signal<u32>,
+    /// Total `on_destroy` hooks executed on page disposal.
+    #[get(type(copy))]
+    pub(crate) lifecycle_destroys: Signal<u32>,
+    /// Latest human-readable page lifecycle transition log line.
+    #[get(type(copy))]
+    pub(crate) lifecycle_last_event: Signal<String>,
+    /// Latest copied code block telemetry readout on `/markdown`.
+    #[get(type(copy))]
+    pub(crate) markdown_copy_log: Signal<String>,
+    /// Latest clicked Markdown hyperlink URL readout on `/markdown`.
+    #[get(type(copy))]
+    pub(crate) markdown_link_log: Signal<String>,
+    /// Total GFM checklist tasks toggled interactively on `/markdown`.
+    #[get(type(copy))]
+    pub(crate) markdown_tasks_toggled: Signal<u32>,
+    /// Selected code example language tab index on `/markdown` (`0=Rust, 1=TS, 2=JSON, 3=Diff`).
+    #[get(type(copy))]
+    pub(crate) markdown_lang_tab: Signal<usize>,
 }
 
 /// Full-featured 2D arcade arena scene powered by `GameWorld`, `PhysicsWorld2D`, `Camera2D`, `ParticleSystem`, `TileMap`, `ActionMap`, and `AudioBus`.

@@ -12,6 +12,22 @@ impl Parse for WatchInput {
     ///
     /// - `Result<Self>` - Parsed `WatchInput`.
     fn parse(input: ParseStream<'_>) -> Result<Self> {
+        if input.peek(Ident) {
+            let fork: ParseBuffer<'_> = input.fork();
+            if let Ok(kw) = fork.parse::<Ident>()
+                && kw == WATCH_KW_GLOBAL
+            {
+                let _: Ident = input.parse()?;
+                let ty: Type = input.parse()?;
+                let _: Token![=>] = input.parse()?;
+                let callback: Expr = input.parse()?;
+                return Ok(Self {
+                    signals: Vec::new(),
+                    global_type: Some(ty),
+                    callback,
+                });
+            }
+        }
         if input.peek(Paren) {
             let fork: ParseBuffer<'_> = input.fork();
             let fork_content: ParseBuffer<'_>;
@@ -30,6 +46,7 @@ impl Parse for WatchInput {
                 let callback: Expr = input.parse()?;
                 return Ok(Self {
                     signals: list.into_iter().collect(),
+                    global_type: None,
                     callback,
                 });
             }
@@ -37,6 +54,7 @@ impl Parse for WatchInput {
         let callback: Expr = input.parse()?;
         Ok(Self {
             signals: Vec::new(),
+            global_type: None,
             callback,
         })
     }

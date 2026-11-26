@@ -16,55 +16,51 @@ fn ui_components_render_deterministically_across_desktop_and_mobile_breakpoints(
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        let nav: NodeId = EuvSidebarNav::new(
-            vec![
-                EuvNavItem::new("/home".to_string(), "Home".to_string()),
-                EuvNavItem::new("/render".to_string(), "Render".to_string()),
-            ],
-            active_route,
-            tokens,
-        )
-        .mount_current();
-        let mut btn: EuvButton =
-            EuvButton::new("Action".to_string(), tokens).on_click(move |_: &UiEvent| {
-                let _: bool = clicks.update(|v: &mut u32| *v += 1);
-            });
-        btn.set_variant(EuvButtonVariant::Primary);
-        let input: NodeId =
-            EuvInput::new(input_val, "Enter name".to_string(), tokens).mount_current();
-        let field: NodeId = EuvField::new("Username".to_string(), input, tokens).mount_current();
-        let sw: NodeId =
-            EuvSwitch::new(switch_on, "Hardware GPU".to_string(), tokens).mount_current();
-        let seg: NodeId = EuvSegmented::new(
-            vec!["Software".to_string(), "Hardware".to_string()],
-            selected_seg,
-            tokens,
-        )
-        .mount_current();
-        let prog: NodeId = EuvProgress::new(0.75, tokens).mount_current();
-        let badge: NodeId =
-            EuvBadge::new("v0.39".to_string(), EuvTone::Primary, tokens).mount_current();
-        let mut card: EuvCard = EuvCard::new("Controls".to_string(), tokens)
-            .child(badge)
-            .child(btn.mount_current())
-            .child(field)
-            .child(sw)
-            .child(seg)
-            .child(prog);
-        card.set_subtitle("Cross-platform UI primitives".to_string());
-        let modal_body: NodeId = view! { text { "Modal body" } };
-        let modal: NodeId =
-            EuvModal::new(modal_open, "Dialog".to_string(), modal_body, tokens).mount_current();
+        let nav: NodeId = view! {
+            EuvSidebarNav(
+                vec![
+                    EuvNavItem::new("/home".to_string(), "Home".to_string()),
+                    EuvNavItem::new("/render".to_string(), "Render".to_string()),
+                ],
+                active_route,
+                tokens
+            )
+        };
         let content: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
                 gap: SPACE_LG
-                { EuvHeader::new("Dashboard".to_string(), "Unified native UI".to_string(), tokens) }
-                { card }
-                { modal }
+                EuvHeader("Dashboard".to_string(), "Unified native UI".to_string(), tokens)
+                EuvCard("Controls".to_string(), tokens) {
+                    subtitle: "Cross-platform UI primitives"
+                    EuvBadge("v0.39".to_string(), EuvTone::Primary, tokens)
+                    EuvButton("Action".to_string(), tokens) {
+                        on_click: move |_: &UiEvent| {
+                            let _: bool = clicks.update(|v: &mut u32| *v += 1);
+                        }
+                    }
+                    EuvField(
+                        "Username".to_string(),
+                        view! { EuvInput(input_val, "Enter name".to_string(), tokens) },
+                        tokens
+                    )
+                    EuvSwitch(switch_on, "Hardware GPU".to_string(), tokens)
+                    EuvSegmented(
+                        vec!["Software".to_string(), "Hardware".to_string()],
+                        selected_seg,
+                        tokens
+                    )
+                    EuvProgress(0.75, tokens)
+                }
+                EuvModal(
+                    modal_open,
+                    "Dialog".to_string(),
+                    view! { text { "Modal body" } },
+                    tokens
+                )
             }
         };
-        EuvAppShell::new("euv-ui".to_string(), nav, content, tokens)
+        view! { EuvAppShell("euv-ui".to_string(), nav, content, tokens) }
     });
     let stats: FrameStats = app.step_frame().unwrap();
     assert_ne!(stats.get_frame_hash(), 0);
@@ -121,171 +117,118 @@ fn full_production_component_suite_and_hooks_mount_and_render_cleanly() {
         let bp_sig: Signal<Breakpoint> = use_breakpoint();
         let (_safe_sig, _mode_sig): (Signal<SafeAreaInsets>, Signal<ThemeMode>) = use_window();
         assert!(!bp_sig.get_untracked().is_compact());
-        let nav: NodeId = EuvNavbar::new("euv Studio".to_string(), tokens)
-            .action(EuvKbd::new("Cmd+K".to_string(), tokens).mount_current())
-            .mount_current();
-        let footer: NodeId = EuvFooter::new("euv 0.39 Native".to_string(), tokens).mount_current();
-        let left_p: NodeId = EuvPanel::new("Inspector".to_string(), tokens)
-            .child(EuvAvatar::new("EV".to_string(), 36.0, tokens).mount_current())
-            .child(
-                EuvIcon::new("*".to_string(), 18.0, tokens.get_palette().get_primary())
-                    .mount_current(),
-            )
-            .child(EuvTag::new("Native".to_string(), EuvTone::Success, tokens).mount_current())
-            .child(
-                EuvTypography::new("Title".to_string(), EuvTypographyVariant::H2, tokens)
-                    .mount_current(),
-            )
-            .child(
-                EuvEmpty::new("No items".to_string(), "Add one".to_string(), tokens)
-                    .mount_current(),
-            )
-            .child(EuvSkeleton::new(140.0, 16.0, tokens).mount_current())
-            .child(EuvSpinner::new(24.0, tokens).mount_current())
-            .mount_current();
-        let right_p: NodeId = EuvScrollArea::new(240.0, tokens)
-            .child(
-                EuvTimeline::new(
+        let left_p: NodeId = view! {
+            EuvPanel("Inspector".to_string(), tokens) {
+                EuvAvatar("EV".to_string(), 36.0, tokens)
+                EuvIcon("*".to_string(), 18.0, tokens.get_palette().get_primary())
+                EuvTag("Native".to_string(), EuvTone::Success, tokens)
+                EuvTypography("Title".to_string(), EuvTypographyVariant::H2, tokens)
+                EuvEmpty("No items".to_string(), "Add one".to_string(), tokens)
+                EuvSkeleton(140.0, 16.0, tokens)
+                EuvSpinner(24.0, tokens)
+            }
+        };
+        let right_p: NodeId = view! {
+            EuvScrollArea(240.0, tokens) {
+                EuvTimeline(
                     vec![EuvTimelineItem::new(
-                        "Boot".to_string(),
-                        "00:01".to_string(),
-                        "Metal ready".to_string(),
+                            "Boot".to_string(),
+                            "00:01".to_string(),
+                            "Metal ready".to_string(),
                     )],
-                    tokens,
+                    tokens
                 )
-                .mount_current(),
-            )
-            .child(
-                EuvList::new(vec!["Item A".to_string(), "Item B".to_string()], tokens)
-                    .mount_current(),
-            )
-            .child(
-                EuvTree::new(
+                EuvList(vec!["Item A".to_string(), "Item B".to_string()], tokens)
+                EuvTree(
                     vec![EuvTreeNode::new(
-                        "Workspace".to_string(),
-                        vec![EuvTreeNode::new("core".to_string(), Vec::new())],
+                            "Workspace".to_string(),
+                            vec![EuvTreeNode::new("core".to_string(), Vec::new())],
                     )],
-                    tokens,
+                    tokens
                 )
-                .mount_current(),
-            )
-            .mount_current();
-        let split: NodeId = EuvSplitter::new(35.0, left_p, right_p, tokens).mount_current();
-        let btn_a: NodeId = EuvButton::new("A".to_string(), tokens).mount_current();
-        let btn_b: NodeId = EuvToggle::new(toggle_sig, "Pin".to_string(), tokens).mount_current();
-        let btn_group: NodeId = EuvButtonGroup::new(vec![btn_a, btn_b], tokens).mount_current();
-        let form: NodeId = EuvForm::new(tokens)
-            .field(EuvLabel::new("Bio".to_string(), true, tokens).mount_current())
-            .field(EuvTextarea::new(text_sig, "Write...".to_string(), 72.0, tokens).mount_current())
-            .field(
-                EuvNumberInput::new(num_sig, tokens)
-                    .range(0, 20)
-                    .step(1)
-                    .mount_current(),
-            )
-            .field(
-                EuvRadioGroup::new(
-                    vec!["CPU".to_string(), "GPU".to_string()],
-                    radio_sig,
-                    tokens,
-                )
-                .mount_current(),
-            )
-            .field(EuvSlider::new(slider_sig, 0.0, 100.0, tokens).mount_current())
-            .field(
-                EuvSelect::new(
-                    vec!["Metal".to_string(), "Vulkan".to_string()],
-                    select_sig,
-                    select_open,
-                    tokens,
-                )
-                .mount_current(),
-            )
-            .field(EuvRating::new(rating_sig, 5, tokens).mount_current())
-            .mount_current();
-        let nav_col: NodeId = EuvSpace::column(SPACE_SM)
-            .child(
-                EuvBreadcrumb::new(vec!["Home".to_string(), "UI".to_string()], tokens)
-                    .mount_current(),
-            )
-            .child(EuvPagination::new(page_sig, 5, tokens).mount_current())
-            .child(
-                EuvSteps::new(
-                    vec!["Build".to_string(), "Test".to_string()],
-                    step_sig,
-                    tokens,
-                )
-                .mount_current(),
-            )
-            .child(
-                EuvAccordion::new(
-                    vec![EuvAccordionItem::new(
-                        "FAQ".to_string(),
-                        "Zero WebView".to_string(),
-                    )],
-                    acc_sig,
-                    tokens,
-                )
-                .mount_current(),
-            )
-            .child(
-                EuvToc::new(
-                    vec!["Intro".to_string(), "API".to_string()],
-                    toc_sig,
-                    tokens,
-                )
-                .mount_current(),
-            )
-            .mount_current();
-        let grid: NodeId = EuvGrid::new(2, SPACE_MD)
-            .child(form)
-            .child(nav_col)
-            .mount_current();
-        let pop_trig: NodeId = EuvButton::new("Info".to_string(), tokens).mount_current();
+            }
+        };
+        let btn_a: NodeId = view! { EuvButton("A".to_string(), tokens) };
+        let btn_b: NodeId = view! { EuvToggle(toggle_sig, "Pin".to_string(), tokens) };
+        let pop_trig: NodeId = view! { EuvButton("Info".to_string(), tokens) };
         let pop_body: NodeId = view! { text { "Popover details" } };
-        let tip_trig: NodeId = EuvButton::new("Help".to_string(), tokens).mount_current();
-        let overlays: NodeId = EuvSpace::row(SPACE_SM)
-            .child(EuvPopover::new(pop_open, pop_trig, pop_body, tokens).mount_current())
-            .child(EuvTooltip::new("Shortcut".to_string(), tip_trig, tokens).mount_current())
-            .child(
-                EuvDropdown::new(
-                    "Actions".to_string(),
-                    vec!["Export".to_string(), "Share".to_string()],
-                    tokens,
-                )
-                .open(dd_open)
-                .selected(dd_sel)
-                .mount_current(),
-            )
-            .mount_current();
+        let tip_trig: NodeId = view! { EuvButton("Help".to_string(), tokens) };
         let drawer_body: NodeId = view! { text { "Drawer body" } };
         let sheet_body: NodeId = view! { text { "Sheet body" } };
-        let drawer: NodeId =
-            EuvDrawer::new(drawer_open, "Settings".to_string(), drawer_body, tokens)
-                .mount_current();
-        let sheet: NodeId =
-            EuvSheet::new(sheet_open, "Actions".to_string(), sheet_body, tokens).mount_current();
-        let notif: NodeId = EuvNotification::new(
-            notif_vis,
-            "Build OK".to_string(),
-            "7 targets verified".to_string(),
-            tokens,
-        )
-        .tone(EuvTone::Success)
-        .mount_current();
-        let loading: NodeId =
-            EuvLoading::new(loading_sig, "Syncing...".to_string(), tokens).mount_current();
-        EuvPageContainer::new(tokens)
-            .child(nav)
-            .child(btn_group)
-            .child(split)
-            .child(grid)
-            .child(overlays)
-            .child(footer)
-            .child(drawer)
-            .child(sheet)
-            .child(notif)
-            .child(loading)
+        view! {
+            EuvPageContainer(tokens) {
+                EuvNavbar("euv Studio".to_string(), tokens) {
+                    EuvKbd("Cmd+K".to_string(), tokens)
+                }
+                EuvButtonGroup(vec![btn_a, btn_b], tokens)
+                EuvSplitter(35.0, left_p, right_p, tokens)
+                EuvGrid(2, SPACE_MD) {
+                    EuvForm(tokens) {
+                        EuvLabel("Bio".to_string(), true, tokens)
+                        EuvTextarea(text_sig, "Write...".to_string(), 72.0, tokens)
+                        EuvNumberInput(num_sig, tokens) {
+                            range(0, 20)
+                            step: 1
+                        }
+                        EuvRadioGroup(
+                            vec!["CPU".to_string(), "GPU".to_string()],
+                            radio_sig,
+                            tokens
+                        )
+                        EuvSlider(slider_sig, 0.0, 100.0, tokens)
+                        EuvSelect(
+                            vec!["Metal".to_string(), "Vulkan".to_string()],
+                            select_sig,
+                            select_open,
+                            tokens
+                        )
+                        EuvRating(rating_sig, 5, tokens)
+                    }
+                    EuvSpace::column(SPACE_SM) {
+                        EuvBreadcrumb(vec!["Home".to_string(), "UI".to_string()], tokens)
+                        EuvPagination(page_sig, 5, tokens)
+                        EuvSteps(
+                            vec!["Build".to_string(), "Test".to_string()],
+                            step_sig,
+                            tokens
+                        )
+                        EuvAccordion(
+                            vec![EuvAccordionItem::new(
+                                    "FAQ".to_string(),
+                                    "Zero WebView".to_string(),
+                            )],
+                            acc_sig,
+                            tokens
+                        )
+                        EuvToc(vec!["Intro".to_string(), "API".to_string()], toc_sig, tokens)
+                    }
+                }
+                EuvSpace::row(SPACE_SM) {
+                    EuvPopover(pop_open, pop_trig, pop_body, tokens)
+                    EuvTooltip("Shortcut".to_string(), tip_trig, tokens)
+                    EuvDropdown(
+                        "Actions".to_string(),
+                        vec!["Export".to_string(), "Share".to_string()],
+                        tokens
+                    ) {
+                        open: dd_open
+                        selected: dd_sel
+                    }
+                }
+                EuvFooter("euv 0.39 Native".to_string(), tokens)
+                EuvDrawer(drawer_open, "Settings".to_string(), drawer_body, tokens)
+                EuvSheet(sheet_open, "Actions".to_string(), sheet_body, tokens)
+                EuvNotification(
+                    notif_vis,
+                    "Build OK".to_string(),
+                    "7 targets verified".to_string(),
+                    tokens
+                ) {
+                    tone: EuvTone::Success
+                }
+                EuvLoading(loading_sig, "Syncing...".to_string(), tokens)
+            }
+        }
     });
     let stats: FrameStats = app.step_frame().unwrap();
     assert_ne!(stats.get_frame_hash(), 0);
@@ -314,15 +257,6 @@ fn interactive_widgets_and_virtual_scroll_list_respond_to_events_and_update_pixe
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        btn_id = EuvButton::new("Increment".to_string(), tokens)
-            .on_click(move |_: &UiEvent| {
-                let _: bool = clicks.update(|v: &mut u32| *v += 1);
-            })
-            .mount_current();
-        sw_id = EuvSwitch::new(switch_on, "Hardware GPU".to_string(), tokens).mount_current();
-        chk_id = EuvCheckbox::new(check_on, "Enable telemetry".to_string(), tokens).mount_current();
-        tog_id = EuvToggle::new(toggle_on, "Pin panel".to_string(), tokens).mount_current();
-        inp_id = EuvInput::new(input_val, "Type here".to_string(), tokens).mount_current();
         let vlist: EuvVirtualList =
             EuvVirtualList::new(10_000, 28.0, scroll_y, tokens).viewport_height(140.0);
         list_id = vlist.mount_with(move |idx: usize| {
@@ -345,11 +279,24 @@ fn interactive_widgets_and_virtual_scroll_list_respond_to_events_and_update_pixe
                 padding: Edges::all(16.0)
                 gap: 12.0
                 background: tokens.get_palette().get_background()
-                { btn_id }
-                { sw_id }
-                { chk_id }
-                { tog_id }
-                { inp_id }
+                EuvButton("Increment".to_string(), tokens) {
+                    node_ref: btn_id
+                    on_click: move |_: &UiEvent| {
+                        let _: bool = clicks.update(|v: &mut u32| *v += 1);
+                    }
+                }
+                EuvSwitch(switch_on, "Hardware GPU".to_string(), tokens) {
+                    node_ref: sw_id
+                }
+                EuvCheckbox(check_on, "Enable telemetry".to_string(), tokens) {
+                    node_ref: chk_id
+                }
+                EuvToggle(toggle_on, "Pin panel".to_string(), tokens) {
+                    node_ref: tog_id
+                }
+                EuvInput(input_val, "Type here".to_string(), tokens) {
+                    node_ref: inp_id
+                }
                 { list_id }
             }
         }
@@ -452,32 +399,65 @@ fn shadcn_extra_components_and_responsive_shell_adapt_across_mobile_tablet_deskt
             assert_eq!(use_breakpoint().get_untracked(), expected_bp);
             let vp_size: Size = use_viewport_size().get_untracked();
             assert!((vp_size.get_width() - (vw as f32)).abs() < 1.0);
-            let nav: NodeId = EuvSidebarNav::new(
-                vec![EuvNavItem::new("/home".to_string(), "Home".to_string())],
-                route,
-                tokens,
-            )
-            .mount_current();
+            let nav: NodeId = view! {
+                EuvSidebarNav(
+                    vec![EuvNavItem::new("/home".to_string(), "Home".to_string())],
+                    route,
+                    tokens
+                )
+            };
             let coll_body: NodeId = view! { text { "Collapsible content" } };
             let aspect_child: NodeId = view! { text { "16:9 Media" } };
             let body: NodeId = view! {
                 column {
                     width: Length::Percent(100.0)
                     gap: SPACE_MD
-                    { EuvMenubar::new(vec!["File".to_string(), "Edit".to_string(), "View".to_string()], menu_act, tokens) }
-                    { EuvToggleGroup::new(vec!["Left".to_string(), "Center".to_string(), "Right".to_string()], tg_sel, tokens) }
-                    { EuvInputOtp::new(otp, 6, tokens) }
-                    { EuvCollapsible::new(coll_open, "Details".to_string(), coll_body, tokens) }
-                    { EuvCommand::new(vec!["Build".to_string(), "Deploy".to_string()], cmd_sel, tokens).query(cmd_q).placeholder("Search...") }
-                    { EuvHoverCard::new("@shadcn".to_string(), "shadcn/ui".to_string(), tokens).open(hover_open).description("Design system parity.") }
-                    { EuvContextMenu::new("Canvas Surface".to_string(), vec!["Inspect".to_string(), "Duplicate".to_string()], tokens).open(ctx_open).selected(ctx_sel) }
-                    { EuvCalendar::new("November 2026".to_string(), 30, cal_day, tokens) }
-                    { EuvAspectRatio::new(16.0 / 9.0, aspect_child, tokens) }
-                    { EuvCarousel::new(vec!["Slide A".to_string(), "Slide B".to_string()], car_idx, tokens) }
-                    { EuvAlertDialog::new(alert_open, "Confirm".to_string(), alert_confirmed, tokens).description("Proceed?").labels("Cancel", "Continue") }
+                    EuvMenubar(
+                        vec!["File".to_string(), "Edit".to_string(), "View".to_string()],
+                        menu_act,
+                        tokens
+                    )
+                    EuvToggleGroup(
+                        vec!["Left".to_string(), "Center".to_string(), "Right".to_string()],
+                        tg_sel,
+                        tokens
+                    )
+                    EuvInputOtp(otp, 6, tokens)
+                    EuvCollapsible(coll_open, "Details".to_string(), coll_body, tokens)
+                    EuvCommand(
+                        vec!["Build".to_string(), "Deploy".to_string()],
+                        cmd_sel,
+                        tokens
+                    ) {
+                        query: cmd_q
+                        placeholder: "Search..."
+                    }
+                    EuvHoverCard("@shadcn".to_string(), "shadcn/ui".to_string(), tokens) {
+                        open: hover_open
+                        description: "Design system parity."
+                    }
+                    EuvContextMenu(
+                        "Canvas Surface".to_string(),
+                        vec!["Inspect".to_string(), "Duplicate".to_string()],
+                        tokens
+                    ) {
+                        open: ctx_open
+                        selected: ctx_sel
+                    }
+                    EuvCalendar("November 2026".to_string(), 30, cal_day, tokens)
+                    EuvAspectRatio(16.0 / 9.0, aspect_child, tokens)
+                    EuvCarousel(
+                        vec!["Slide A".to_string(), "Slide B".to_string()],
+                        car_idx,
+                        tokens
+                    )
+                    EuvAlertDialog(alert_open, "Confirm".to_string(), alert_confirmed, tokens) {
+                        description: "Proceed?"
+                        labels("Cancel", "Continue")
+                    }
                 }
             };
-            EuvAppShell::new("shadcn-euv".to_string(), nav, body, tokens)
+            view! { EuvAppShell("shadcn-euv".to_string(), nav, body, tokens) }
         });
         let stats: FrameStats = app.step_frame().unwrap();
         assert_ne!(stats.get_frame_hash(), 0);
@@ -519,19 +499,19 @@ fn hover_bubbling_and_hover_card_pointer_enter_leave_update_visual_state() {
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        btn_node = EuvButton::new("Hover Target".to_string(), tokens).mount_current();
-        let hc: NodeId = EuvHoverCard::new("@hover".to_string(), "Preview".to_string(), tokens)
-            .open(hover_open)
-            .description("Triggered on hover")
-            .mount_current();
         view! {
             column {
                 width: Length::Px(640.0)
                 height: Length::Px(480.0)
                 padding: Edges::all(24.0)
                 gap: 16.0
-                { btn_node }
-                { hc }
+                EuvButton("Hover Target".to_string(), tokens) {
+                    node_ref: btn_node
+                }
+                EuvHoverCard("@hover".to_string(), "Preview".to_string(), tokens) {
+                    open: hover_open
+                    description: "Triggered on hover"
+                }
             }
         }
     });
@@ -582,22 +562,18 @@ fn full_media_component_suite_renders_image_svg_gif_live_video_audio_pdf_and_htm
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        EuvPage::new(
-            "Media Test".to_string(),
-            "All 8 media types".to_string(),
-            tokens,
-        )
-        .section(EuvImage::new(ImageAsset::sample_photo("Sample"), tokens).mount_current())
-        .section(
-            EuvSvgView::new(SvgDocument::sample_svg(), "SVG".to_string(), tokens).mount_current(),
-        )
-        .section(EuvGifPlayer::new(gif_sig, tokens).mount_current())
-        .section(EuvLivePhoto::new(live_sig, tokens).mount_current())
-        .section(EuvVideoPlayer::new(video_sig, tokens).mount_current())
-        .section(EuvAudioPlayer::new(audio_sig, tokens).mount_current())
-        .section(EuvPdfViewer::new(pdf_sig, tokens).mount_current())
-        .section(EuvHtmlView::new(HtmlDocument::sample_html(), tokens).mount_current())
-        .mount_current()
+        view! {
+            EuvPage("Media Test".to_string(), "All 8 media types".to_string(), tokens) {
+                EuvImage(ImageAsset::sample_photo("Sample"), tokens)
+                EuvSvgView(SvgDocument::sample_svg(), "SVG".to_string(), tokens)
+                EuvGifPlayer(gif_sig, tokens)
+                EuvLivePhoto(live_sig, tokens)
+                EuvVideoPlayer(video_sig, tokens)
+                EuvAudioPlayer(audio_sig, tokens)
+                EuvPdfViewer(pdf_sig, tokens)
+                EuvHtmlView(HtmlDocument::sample_html(), tokens)
+            }
+        }
     });
     let stats: FrameStats = app.step_frame().unwrap();
     assert_ne!(stats.get_frame_hash(), 0);
@@ -619,18 +595,26 @@ fn rating_tooltip_context_menu_and_input_external_sync_update_pixels() {
     cfg.set_window(win);
     let mut app: App = App::headless(cfg).unwrap();
     let _: NodeId = app.mount(|| {
-        let trig: NodeId = EuvButton::new("Tip Trigger".to_string(), tokens).mount_current();
-        tip_wrap = EuvTooltip::new("Hover Hint".to_string(), trig, tokens).mount_current();
+        let trig: NodeId = view! { EuvButton("Tip Trigger".to_string(), tokens) };
         view! {
             column {
                 width: Length::Px(640.0)
                 height: Length::Px(480.0)
                 padding: Edges::all(20.0)
                 gap: 12.0
-                { EuvRating::new(rating, 5, tokens) }
-                { EuvInput::new(text_sig, "External sync".to_string(), tokens) }
-                { tip_wrap }
-                { EuvContextMenu::new("Target".to_string(), vec!["Copy".to_string(), "Paste".to_string()], tokens).open(ctx_open).selected(ctx_sel) }
+                EuvRating(rating, 5, tokens)
+                EuvInput(text_sig, "External sync".to_string(), tokens)
+                EuvTooltip("Hover Hint".to_string(), trig, tokens) {
+                    node_ref: tip_wrap
+                }
+                EuvContextMenu(
+                    "Target".to_string(),
+                    vec!["Copy".to_string(), "Paste".to_string()],
+                    tokens
+                ) {
+                    open: ctx_open
+                    selected: ctx_sel
+                }
             }
         }
     });
@@ -688,11 +672,26 @@ fn color_picker_time_picker_tag_input_interactive_tree_and_breadcrumb_work() {
                 padding: Edges::all(16.0)
                 gap: 12.0
                 background: tokens.get_palette().get_background()
-                { EuvBreadcrumb::new(vec!["Home".to_string(), "Forms".to_string(), "Pickers".to_string()], tokens).active(crumb_active) }
-                { EuvColorPicker::new(color_sig, tokens) }
-                { EuvTimePicker::new(time_sig, tokens) }
-                { EuvTagInput::new(tags_sig, tokens).placeholder("Add tag...") }
-                { EuvTree::new(vec![EuvTreeNode::new("Root".to_string(), vec![EuvTreeNode::new("Child".to_string(), Vec::new())])], tokens).selected(tree_sel) }
+                EuvBreadcrumb(
+                    vec!["Home".to_string(), "Forms".to_string(), "Pickers".to_string()],
+                    tokens
+                ) {
+                    active: crumb_active
+                }
+                EuvColorPicker(color_sig, tokens)
+                EuvTimePicker(time_sig, tokens)
+                EuvTagInput(tags_sig, tokens) {
+                    placeholder: "Add tag..."
+                }
+                EuvTree(
+                    vec![EuvTreeNode::new(
+                            "Root".to_string(),
+                            vec![EuvTreeNode::new("Child".to_string(), Vec::new())],
+                    )],
+                    tokens
+                ) {
+                    selected: tree_sel
+                }
             }
         }
     });
@@ -707,4 +706,383 @@ fn color_picker_time_picker_tag_input_interactive_tree_and_breadcrumb_work() {
     assert_ne!(frame0.get_frame_hash(), frame1.get_frame_hash());
     assert_eq!(tags_sig.get_untracked().len(), 3);
     assert_eq!(time_sig.get_untracked(), (14, 45));
+}
+
+#[test]
+fn buttons_center_without_overflow_and_dropdowns_match_trigger_width() {
+    reset_reactive_runtime();
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let dd_open: Signal<bool> = Signal::new(true);
+    let dd_sel: Signal<Option<usize>> = Signal::new(None);
+    let sel_open: Signal<bool> = Signal::new(true);
+    let sel_idx: Signal<usize> = Signal::new(0);
+    let ctx_open: Signal<bool> = Signal::new(true);
+    let ctx_sel: Signal<Option<usize>> = Signal::new(None);
+    let date_open: Signal<bool> = Signal::new(true);
+    let date_day: Signal<u32> = Signal::new(18);
+    let mut grid_btn: NodeId = NodeId::default();
+    let mut dd_node: NodeId = NodeId::default();
+    let mut sel_node: NodeId = NodeId::default();
+    let mut ctx_node: NodeId = NodeId::default();
+    let mut date_node: NodeId = NodeId::default();
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(360, 844).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(|| {
+        let b1: NodeId = EuvButton::new("Shadcn".to_string(), tokens)
+            .outline()
+            .sm()
+            .mount();
+        let b2: NodeId = EuvButton::new("Linear".to_string(), tokens)
+            .outline()
+            .sm()
+            .mount();
+        grid_btn = b1;
+        let dd: NodeId = EuvDropdown::new(
+            "Actions".to_string(),
+            vec!["Duplicate".to_string(), "Archive".to_string()],
+            tokens,
+        )
+        .open(dd_open)
+        .selected(dd_sel)
+        .mount();
+        dd_node = dd;
+        let sel: NodeId = EuvSelect::new(
+            vec!["Software".to_string(), "Hardware".to_string()],
+            sel_idx,
+            sel_open,
+            tokens,
+        )
+        .mount();
+        sel_node = sel;
+        let cm: NodeId = EuvContextMenu::new(
+            "Target Surface".to_string(),
+            vec!["Inspect".to_string(), "Copy".to_string()],
+            tokens,
+        )
+        .open(ctx_open)
+        .selected(ctx_sel)
+        .mount();
+        ctx_node = cm;
+        let dp: NodeId =
+            EuvDatePicker::new("Nov 2026".to_string(), date_day, date_open, tokens).mount();
+        date_node = dp;
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                padding: Edges::all(SPACE_MD)
+                gap: SPACE_MD
+                grid {
+                    columns: 2
+                    width: Length::Percent(100.0)
+                    gap: SPACE_SM
+                    { b1 }
+                    { b2 }
+                }
+                { dd }
+                { sel }
+                { cm }
+                { dp }
+            }
+        }
+    });
+    let _: FrameStats = app.step_frame().unwrap();
+    let (btn_b, txt_b): (Rect, Rect) = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            let bn: &SceneNode = tree.get_node(grid_btn).unwrap();
+            let tid: NodeId = bn.get_children()[0];
+            let tn: &SceneNode = tree.get_node(tid).unwrap();
+            (
+                bn.get_layout_box().get_bounds(),
+                tn.get_layout_box().get_bounds(),
+            )
+        },
+        (Rect::default(), Rect::default()),
+    );
+    assert!(txt_b.get_x() >= btn_b.get_x() && txt_b.right() <= btn_b.right() + 1.0);
+    assert!(txt_b.get_y() >= btn_b.get_y() && txt_b.bottom() <= btn_b.bottom() + 1.0);
+    let btn_cx: f32 = btn_b.get_x() + btn_b.get_width() * 0.5;
+    let txt_cx: f32 = txt_b.get_x() + txt_b.get_width() * 0.5;
+    let btn_cy: f32 = btn_b.get_y() + btn_b.get_height() * 0.5;
+    let txt_cy: f32 = txt_b.get_y() + txt_b.get_height() * 0.5;
+    assert!(
+        (btn_cx - txt_cx).abs() < 1.5 && (btn_cy - txt_cy).abs() < 1.5,
+        "button text must be centered horizontally & vertically: btn={btn_b:?} txt={txt_b:?}"
+    );
+    let wrappers: [(&str, NodeId); 4] = [
+        ("EuvDropdown", dd_node),
+        ("EuvSelect", sel_node),
+        ("EuvContextMenu", ctx_node),
+        ("EuvDatePicker", date_node),
+    ];
+    for (name, wid_node) in wrappers.into_iter() {
+        let (trig_w, menu_w): (f32, f32) = app.get_scene().with_read(
+            |tree: &SceneTree| {
+                let wnode: &SceneNode = tree.get_node(wid_node).unwrap();
+                let ch: &[NodeId] = wnode.get_children();
+                let tw: f32 = tree
+                    .get_node(ch[0])
+                    .unwrap()
+                    .get_layout_box()
+                    .get_bounds()
+                    .get_width();
+                let mw: f32 = tree
+                    .get_node(ch[1])
+                    .unwrap()
+                    .get_layout_box()
+                    .get_bounds()
+                    .get_width();
+                (tw, mw)
+            },
+            (0.0, 0.0),
+        );
+        assert!(
+            trig_w > 100.0 && (trig_w - menu_w).abs() <= 1.0,
+            "{name} dropdown menu width ({menu_w}) must align 1:1 with trigger width ({trig_w})"
+        );
+    }
+}
+
+#[test]
+fn router_lazy_mounting_freeze_destroy_alive_and_double_back_exit_work() {
+    reset_reactive_runtime();
+    let home_builds: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let freeze_builds: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let destroy_builds: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let alive_builds: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let freeze_effect_runs: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let alive_effect_runs: Rc<Cell<u32>> = Rc::new(Cell::new(0));
+    let shared_counter: Signal<u32> = Signal::new(1);
+    let modal_open: Signal<bool> = Signal::new(false);
+    let tokens: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Light);
+    let hb: Rc<Cell<u32>> = home_builds.clone();
+    let fb: Rc<Cell<u32>> = freeze_builds.clone();
+    let db: Rc<Cell<u32>> = destroy_builds.clone();
+    let ab: Rc<Cell<u32>> = alive_builds.clone();
+    let fe: Rc<Cell<u32>> = freeze_effect_runs.clone();
+    let ae: Rc<Cell<u32>> = alive_effect_runs.clone();
+    let router: EuvRouter = EuvRouter::new("/")
+        .route_with_retention(
+            "/",
+            "Home",
+            PageRetention::Freeze,
+            move |_: &EuvRouteMatch| {
+                hb.set(hb.get() + 1);
+                view! {
+                    column {
+                        width: Length::Percent(100.0)
+                        text { "Home Root" }
+                    }
+                }
+            },
+        )
+        .route_with_retention(
+            "/freeze",
+            "Freeze",
+            PageRetention::Freeze,
+            move |_: &EuvRouteMatch| {
+                fb.set(fb.get() + 1);
+                let fe_in: Rc<Cell<u32>> = fe.clone();
+                let _: Effect = Effect::new(move || {
+                    let _: u32 = shared_counter.get();
+                    fe_in.set(fe_in.get() + 1);
+                });
+                view! { text { "Frozen Page" } }
+            },
+        )
+        .route_with_retention(
+            "/destroy",
+            "Destroy",
+            PageRetention::Destroy,
+            move |_: &EuvRouteMatch| {
+                db.set(db.get() + 1);
+                view! { text { "Destroyed Page" } }
+            },
+        )
+        .route_with_retention(
+            "/alive",
+            "Alive",
+            PageRetention::Alive,
+            move |_: &EuvRouteMatch| {
+                ab.set(ab.get() + 1);
+                let ae_in: Rc<Cell<u32>> = ae.clone();
+                let _: Effect = Effect::new(move || {
+                    let _: u32 = shared_counter.get();
+                    ae_in.set(ae_in.get() + 1);
+                });
+                view! { text { "Alive Page" } }
+            },
+        );
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(420, 800).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let router_m: EuvRouter = router.clone();
+    let _: NodeId = app.mount(move || {
+        let outlet: NodeId = router_m
+            .outlet(|_: &EuvRouteMatch| view! { text { "Fallback" } })
+            .with_double_back_exit(true)
+            .mount();
+        let modal: NodeId = view! {
+            EuvModal(modal_open, "Overlay".to_string(), view! { text { "Body" } }, tokens)
+        };
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                { outlet }
+                { modal }
+            }
+        }
+    });
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(home_builds.get(), 1);
+    assert_eq!(freeze_builds.get(), 0);
+    assert_eq!(destroy_builds.get(), 0);
+    assert_eq!(alive_builds.get(), 0);
+    router.push("/freeze");
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(freeze_builds.get(), 1);
+    assert_eq!(freeze_effect_runs.get(), 1);
+    router.push("/alive");
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(alive_builds.get(), 1);
+    assert_eq!(alive_effect_runs.get(), 1);
+    router.push("/destroy");
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(destroy_builds.get(), 1);
+    for v in 2..=12 {
+        let _: bool = shared_counter.set(v);
+    }
+    assert_eq!(freeze_effect_runs.get(), 1);
+    assert!(alive_effect_runs.get() >= 10);
+    router.push("/freeze");
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(freeze_builds.get(), 1);
+    assert_eq!(freeze_effect_runs.get(), 2);
+    router.push("/destroy");
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_eq!(destroy_builds.get(), 2);
+    let _: bool = modal_open.set(true);
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Back, Modifiers::default(), false),
+    ));
+    assert!(!modal_open.get_untracked());
+    assert_eq!(router.get_current_path().get_untracked(), "/destroy");
+    assert!(app.get_running());
+    while router.get_can_go_back().get_untracked() {
+        app.dispatch_window_event(WindowEvent::KeyDown(
+            wid,
+            KeyEvent::new(KeyCode::Back, Modifiers::default(), false),
+        ));
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    assert_eq!(router.get_current_path().get_untracked(), "/");
+    assert!(app.get_running());
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Back, Modifiers::default(), false),
+    ));
+    let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert!(app.get_running());
+    assert!(!app.get_context().get_exit_requested().get_untracked());
+    let prompt_visible: bool = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive()
+                    && matches!(n.get_kind(), NodeKind::Text(t) if t == DOUBLE_BACK_EXIT_PROMPT)
+                    && n.get_layout_box().get_bounds().get_width() > 0.0
+                    && n.get_layout_box().get_bounds().get_height() > 0.0
+            })
+        },
+        false,
+    );
+    assert!(prompt_visible);
+    for _ in 0..50 {
+        let _: FrameStats = app.step_game_frame(0.05).unwrap();
+    }
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Back, Modifiers::default(), false),
+    ));
+    let _: FrameStats = app.step_game_frame(0.05).unwrap();
+    assert!(app.get_running());
+    app.dispatch_window_event(WindowEvent::KeyDown(
+        wid,
+        KeyEvent::new(KeyCode::Back, Modifiers::default(), false),
+    ));
+    assert!(app.get_context().get_exit_requested().get_untracked());
+    assert!(!app.get_running());
+}
+
+#[test]
+fn eva_code_block_full_markdown_suite_and_fullscreen_swipe_gesture_work() {
+    reset_reactive_runtime();
+    let light_eva: CodeThemePalette = CodeThemePalette::resolve(ThemeMode::Light);
+    let dark_eva: CodeThemePalette = CodeThemePalette::resolve(ThemeMode::Dark);
+    assert_eq!(light_eva.get_background(), Color::hex(0xEBEEF5));
+    assert_eq!(light_eva.get_keyword(), Color::hex(0x7C4DFF));
+    assert_eq!(light_eva.get_function(), Color::hex(0x437AED));
+    assert_eq!(dark_eva.get_background(), Color::hex(0x282C34));
+    assert_eq!(dark_eva.get_keyword(), Color::hex(0xA78CFA));
+    assert_eq!(dark_eva.get_function(), Color::hex(0x6495EE));
+    let tokens_dark: ThemeTokens = ThemeTokens::resolve(DesignScheme::Shadcn, ThemeMode::Dark);
+    let copied: Rc<Cell<usize>> = Rc::new(Cell::new(0));
+    let copied_c: Rc<Cell<usize>> = copied.clone();
+    let route: Signal<String> = Signal::new("/".to_string());
+    let mut win: WindowConfig = WindowConfig::default();
+    win.set_size(360, 800).set_render(RenderConfig::software());
+    let mut cfg: AppConfig = AppConfig::default();
+    cfg.set_window(win);
+    let mut app: App = App::headless(cfg).unwrap();
+    let _: NodeId = app.mount(move || {
+        let nav: NodeId = view! {
+            EuvSidebarNav(
+                vec![EuvNavItem::new("/".to_string(), "Home".to_string())],
+                route,
+                tokens_dark
+            )
+        };
+        let md_src: String = "# Eva Studio\n\n> [!TIP]\n> Exact VS Code Eva Dark Bold.\n\n- [x] Ready\n- [ ] Pending\n\n| Key | Value |\n| :--- | ---: |\n| Theme | Eva Dark |\n\n```rust\nfn main() { let x: i32 = 42; }\n```\n\n<details>\n<summary>More</summary>\nDetails body\n</details>\n".to_string();
+        let body: NodeId = view! {
+            column {
+                width: Length::Percent(100.0)
+                gap: SPACE_MD
+                EuvCodeBlock("pub fn hello() -> i32 { 42 }".to_string(), tokens_dark) {
+                    language: "rust"
+                    filename: "lib.rs"
+                    line_numbers: true
+                    on_copy: move |txt: &str| {
+                        copied_c.set(txt.len());
+                    }
+                }
+                EuvMarkdown(md_src, tokens_dark)
+            }
+        };
+        view! { EuvAppShell("Eva Docs".to_string(), nav, body, tokens_dark) }
+    });
+    let wid: WindowId = app.get_window_state().get_id();
+    let f0: FrameStats = app.step_frame().unwrap();
+    assert_ne!(f0.get_frame_hash(), 0);
+    app.dispatch_window_event(WindowEvent::PointerDown(
+        wid,
+        PointerEvent::touch(1, 220.0, 400.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::touch(1, 330.0, 404.0),
+    ));
+    app.dispatch_window_event(WindowEvent::PointerUp(
+        wid,
+        PointerEvent::touch(1, 330.0, 404.0),
+    ));
+    let f1: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    assert_ne!(f1.get_frame_hash(), f0.get_frame_hash());
+    assert!(EuvOverlayStack::active_count() >= 1);
+    assert!(EuvOverlayStack::dismiss_top());
 }

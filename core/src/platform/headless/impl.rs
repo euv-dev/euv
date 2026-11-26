@@ -176,10 +176,13 @@ impl WindowController for HeadlessPlatform {
                 record.set_cursor(cursor);
                 Ok(())
             }
-            WindowCommand::SetIme(id, _, _) => {
-                if !self.get_windows().contains_key(&id) {
-                    return Err(PlatformError::WindowNotFound(id.get_value()));
-                }
+            WindowCommand::SetIme(id, enabled, rect) => {
+                let record: &mut HeadlessWindowRecord = self
+                    .get_mut_windows()
+                    .get_mut(&id)
+                    .ok_or(PlatformError::WindowNotFound(id.get_value()))?;
+                record.set_ime_active(enabled);
+                record.set_ime_rect(rect);
                 Ok(())
             }
             WindowCommand::SetStatusBarStyle(id, style) => {
@@ -268,6 +271,8 @@ impl PlatformBackend for HeadlessPlatform {
                 state.get_physical_height(),
             ),
             present_count: 0,
+            ime_active: false,
+            ime_rect: Rect::default(),
         };
         self.get_mut_windows().insert(id, record);
         Ok(state)

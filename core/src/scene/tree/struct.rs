@@ -33,9 +33,9 @@ pub struct SceneHandle {
     pub(crate) inner: Rc<RefCell<SceneTree>>,
 }
 
-/// Mounting context passed to declarative components and `view!` macro expansions.
+/// Ambient framework-managed UI context binding the active `SceneHandle`, responsive signals, and platform metadata.
 #[derive(Clone, CustomDebug, Data)]
-pub struct BuildContext {
+pub struct Context {
     /// Shared scene tree handle for creating and binding nodes.
     pub(crate) scene: SceneHandle,
     /// Current viewport logical breakpoint signal for responsive layouts.
@@ -70,11 +70,18 @@ pub struct BuildContext {
     /// Live snapshot of all currently active touch/pointer contacts `(pointer_id, position)` for multi-touch UIs.
     #[get(type(copy))]
     pub(crate) active_touches: Signal<Vec<(u64, Point)>>,
+    /// Reactive flag raised when the application requests graceful termination (e.g. double-back-to-exit at root).
+    #[get(type(copy))]
+    pub(crate) exit_requested: Signal<bool>,
+    /// Monotonic runtime clock in milliseconds advanced deterministically by `App` frame steps.
+    #[debug(skip)]
+    #[get(skip)]
+    pub(crate) clock_ms: Rc<Cell<u64>>,
 }
 
-/// RAII scope guard restoring the previous ambient `BuildContext` on drop.
+/// RAII scope guard restoring the previous ambient `Context` on drop.
 #[derive(CustomDebug, New)]
-pub(crate) struct BuildContextGuard {
+pub struct ContextGuard {
     /// Previously bound ambient context to restore when leaving scope.
-    pub(crate) previous: Option<BuildContext>,
+    pub(crate) previous: Option<Context>,
 }

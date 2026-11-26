@@ -5,7 +5,7 @@ fn flexbox_layout_and_cache_skip_clean_subtrees() {
     let mut tree: SceneTree = SceneTree::default();
     let root: NodeId = tree.get_root();
     let row: NodeId = tree.create_view(
-        Style::empty()
+        Style::default()
             .row()
             .width(Length::Px(400.0))
             .height(Length::Px(100.0))
@@ -13,11 +13,11 @@ fn flexbox_layout_and_cache_skip_clean_subtrees() {
             .padding(Edges::all(10.0)),
     );
     let left: NodeId = tree.create_view(
-        Style::empty()
+        Style::default()
             .width(Length::Px(100.0))
             .height(Length::Px(40.0)),
     );
-    let right: NodeId = tree.create_view(Style::empty().flex_grow(1.0).height(Length::Px(40.0)));
+    let right: NodeId = tree.create_view(Style::default().flex_grow(1.0).height(Length::Px(40.0)));
     tree.append_child(row, left);
     tree.append_child(row, right);
     tree.append_child(root, row);
@@ -39,11 +39,12 @@ fn flexbox_layout_and_cache_skip_clean_subtrees() {
 fn grid_layout_and_zindex_hit_test_work() {
     let mut tree: SceneTree = SceneTree::default();
     let root: NodeId = tree.get_root();
-    let grid: NodeId = tree.create_view(Style::empty().grid(2).width(Length::Px(220.0)).gap(20.0));
-    let cell_a: NodeId = tree.create_view(Style::empty().height(Length::Px(50.0)));
-    let cell_b: NodeId = tree.create_view(Style::empty().height(Length::Px(50.0)));
+    let grid: NodeId =
+        tree.create_view(Style::default().grid(2).width(Length::Px(220.0)).gap(20.0));
+    let cell_a: NodeId = tree.create_view(Style::default().height(Length::Px(50.0)));
+    let cell_b: NodeId = tree.create_view(Style::default().height(Length::Px(50.0)));
     let overlay: NodeId = tree.create_view(
-        Style::empty()
+        Style::default()
             .position(Position::Fixed)
             .inset(Some(0.0), None, None, Some(0.0))
             .width(Length::Px(220.0))
@@ -67,31 +68,35 @@ fn flex_grow_sidebar_and_table_cells_never_overflow_viewport() {
     let mut tree: SceneTree = SceneTree::default();
     let root: NodeId = tree.get_root();
     let shell: NodeId = tree.create_view(
-        Style::empty()
+        Style::default()
             .row()
             .width(Length::Percent(100.0))
             .height(Length::Percent(100.0))
             .overflow(Overflow::Hidden),
     );
     let nav: NodeId = tree.create_view(
-        Style::empty()
+        Style::default()
             .column()
             .width(Length::Px(240.0))
             .height(Length::Percent(100.0)),
     );
     let main_area: NodeId = tree.create_scroll_view(
-        Style::empty()
+        Style::default()
             .column()
             .flex_grow(1.0)
             .height(Length::Percent(100.0))
             .padding(Edges::all(24.0)),
     );
-    let table_row: NodeId = tree.create_view(Style::empty().row().width(Length::Percent(100.0)));
-    let cell_a: NodeId = tree.create_view(Style::empty().flex_grow(1.0).overflow(Overflow::Hidden));
-    let cell_b: NodeId = tree.create_view(Style::empty().flex_grow(1.0).overflow(Overflow::Hidden));
-    let txt_a: NodeId = tree.create_text("Target".to_string(), Style::empty().font_size(13.0));
-    let txt_b: NodeId =
-        tree.create_text("Metal / Vulkan".to_string(), Style::empty().font_size(13.0));
+    let table_row: NodeId = tree.create_view(Style::default().row().width(Length::Percent(100.0)));
+    let cell_a: NodeId =
+        tree.create_view(Style::default().flex_grow(1.0).overflow(Overflow::Hidden));
+    let cell_b: NodeId =
+        tree.create_view(Style::default().flex_grow(1.0).overflow(Overflow::Hidden));
+    let txt_a: NodeId = tree.create_text("Target".to_string(), Style::default().font_size(13.0));
+    let txt_b: NodeId = tree.create_text(
+        "Metal / Vulkan".to_string(),
+        Style::default().font_size(13.0),
+    );
     tree.append_child(cell_a, txt_a);
     tree.append_child(cell_b, txt_b);
     tree.append_child(table_row, cell_a);
@@ -150,19 +155,19 @@ fn top_layer_portal_hit_test_and_overlay_scrollbar_commands_work_when_scrolled()
     let mut tree: SceneTree = SceneTree::default();
     let root: NodeId = tree.get_root();
     let scroller: NodeId = tree.create_scroll_view(
-        Style::empty()
+        Style::default()
             .column()
             .width(Length::Px(400.0))
             .height(Length::Px(200.0))
             .padding(Edges::all(16.0)),
     );
     let tall_child: NodeId = tree.create_view(
-        Style::empty()
+        Style::default()
             .width(Length::Percent(100.0))
             .height(Length::Px(800.0)),
     );
     let portal: NodeId = tree.create_portal(
-        Style::empty()
+        Style::default()
             .position(Position::Fixed)
             .inset(Some(0.0), Some(0.0), Some(0.0), Some(0.0))
             .width(Length::Percent(100.0))
@@ -172,7 +177,7 @@ fn top_layer_portal_hit_test_and_overlay_scrollbar_commands_work_when_scrolled()
             .z_index(1000),
     );
     let dialog_btn: NodeId = tree.create_view(
-        Style::empty()
+        Style::default()
             .width(Length::Px(120.0))
             .height(Length::Px(40.0))
             .background(Color::hex(0x18181B))
@@ -259,7 +264,7 @@ fn percent_width_flex_child_does_not_resolve_percentage_twice() {
     let mut tree: SceneTree = SceneTree::default();
     let root: NodeId = tree.create_node(
         NodeKind::View,
-        Style::empty()
+        Style::default()
             .row()
             .width(Length::Percent(100.0))
             .height(Length::Percent(100.0)),
@@ -267,7 +272,7 @@ fn percent_width_flex_child_does_not_resolve_percentage_twice() {
     tree.set_root(root);
     let drawer: NodeId = tree.create_node(
         NodeKind::ScrollView,
-        Style::empty()
+        Style::default()
             .column()
             .width(Length::Percent(64.0))
             .max_width(Length::Px(232.0))
@@ -276,7 +281,7 @@ fn percent_width_flex_child_does_not_resolve_percentage_twice() {
     );
     let item: NodeId = tree.create_node(
         NodeKind::View,
-        Style::empty()
+        Style::default()
             .width(Length::Percent(100.0))
             .height(Length::Px(36.0)),
     );

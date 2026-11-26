@@ -1,3 +1,5 @@
+use super::*;
+
 /// Computes a compile-time IEEE-754 `f32` square root via Newton-Raphson iteration for LUT generation.
 ///
 /// # Arguments
@@ -63,4 +65,54 @@ pub(crate) const fn build_lin_to_srgb_q4_lut() -> [u16; 4096] {
         idx += 1;
     }
     table
+}
+
+/// Precomputes bit-exact per-channel `[u8; 256]` sRGB linear-light source-over lookup tables for constant translucent `color`.
+///
+/// # Arguments
+///
+/// - `Color` - Foreground translucent color (`0 < a < 255`).
+///
+/// # Returns
+///
+/// - `([u8; 256], [u8; 256], [u8; 256], [u8; 256])` - Lookup tables `(lut_r, lut_g, lut_b, lut_a)` mapping destination channel bytes to blended output bytes.
+#[must_use]
+pub(crate) fn build_linear_blend_luts(
+    color: Color,
+) -> ([u8; 256], [u8; 256], [u8; 256], [u8; 256]) {
+    let sa: u8 = color.get_a();
+    let a: f32 = (sa as f32) * (1.0 / 255.0);
+    let inv_a: f32 = 1.0 - a;
+    let sr_a: f32 = SRGB_TO_LIN_LUT[color.get_r() as usize] * a;
+    let sg_a: f32 = SRGB_TO_LIN_LUT[color.get_g() as usize] * a;
+    let sb_a: f32 = SRGB_TO_LIN_LUT[color.get_b() as usize] * a;
+    let sa_u32: u32 = sa as u32;
+    let inv_a_u32: u32 = 255 - sa_u32;
+    let same_rg: bool = color.get_r() == color.get_g();
+    let same_rb: bool = color.get_r() == color.get_b();
+    let mut lut_r: [u8; 256] = [0; 256];
+    let mut lut_g: [u8; 256] = [0; 256];
+    let mut lut_b: [u8; 256] = [0; 256];
+    let mut lut_a: [u8; 256] = [0; 256];
+    for d in 0..256 {
+        let lin_inv: f32 = SRGB_TO_LIN_LUT[d] * inv_a;
+        let ir: usize = ((sr_a + lin_inv) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let out_r: u8 = ((LIN_TO_SRGB_Q4_LUT[ir] + 8) >> 4).min(255) as u8;
+        lut_r[d] = out_r;
+        lut_g[d] = if same_rg {
+            out_r
+        } else {
+            let ig: usize = ((sg_a + lin_inv) * 4095.0).clamp(0.0, 4095.0) as usize;
+            ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8
+        };
+        lut_b[d] = if same_rb {
+            out_r
+        } else {
+            let ib: usize = ((sb_a + lin_inv) * 4095.0).clamp(0.0, 4095.0) as usize;
+            ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8
+        };
+        let va: u32 = (d as u32) * inv_a_u32 + 128;
+        lut_a[d] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+    }
+    (lut_r, lut_g, lut_b, lut_a)
 }

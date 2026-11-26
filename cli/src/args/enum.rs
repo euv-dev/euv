@@ -169,11 +169,17 @@ pub enum Commands {
         #[arg(long, default_value_t = false)]
         plan: bool,
     },
-    /// Formats workspace Rust sources using `cargo fmt`.
+    /// Formats workspace Rust sources (`cargo fmt`) and normalizes indentation inside all `euv` macro blocks (`view!`, `style!`, etc.).
     Fmt {
         /// Verify formatting without modifying files.
         #[arg(long, default_value_t = false)]
         check: bool,
+        /// Optional root directory or `.rs` file path (defaults to current directory).
+        #[arg(long)]
+        path: Option<PathBuf>,
+        /// Format only `euv` procedural macro bodies without invoking `cargo fmt`.
+        #[arg(long, default_value_t = false)]
+        macros_only: bool,
     },
     /// Inspects installed Rust targets, SDKs, and cross-platform tooling readiness.
     Doctor {

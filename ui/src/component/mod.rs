@@ -5,6 +5,7 @@ mod display;
 mod form;
 mod form_extra;
 mod layout;
+mod markdown;
 mod media;
 mod nav_extra;
 mod navigation;
@@ -15,9 +16,9 @@ mod shadcn_extra;
 mod surface;
 
 pub use {
-    button::*, card::*, data_display::*, display::*, form::*, form_extra::*, layout::*, media::*,
-    nav_extra::*, navigation::*, overlay::*, overlay_extra::*, shadcn_complete::*, shadcn_extra::*,
-    surface::*,
+    button::*, card::*, data_display::*, display::*, form::*, form_extra::*, layout::*,
+    markdown::*, media::*, nav_extra::*, navigation::*, overlay::*, overlay_extra::*,
+    shadcn_complete::*, shadcn_extra::*, surface::*,
 };
 
 use super::*;

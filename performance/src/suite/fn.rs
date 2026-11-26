@@ -77,25 +77,25 @@ pub fn bench_layout_cache(iterations: usize) -> BenchMetric {
     reset_reactive_runtime();
     let count: usize = iterations.max(1);
     let scene: SceneHandle = SceneHandle::new_tree();
-    let mut ctx: BuildContext = BuildContext::new(scene.clone(), PlatformKind::Headless);
-    let container: NodeId = ctx.view(
-        Style::empty()
-            .column()
-            .width(Length::Px(800.0))
-            .height(Length::Px(600.0))
-            .gap(SPACE_XS),
-    );
-    for idx in 0..120usize {
-        let row: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .width(Length::Percent(100.0))
-                .height(Length::Px(24.0)),
-        );
-        let txt: NodeId = ctx.text(format!("{BENCH_ROW_LABEL} {idx}"), Style::empty());
-        ctx.append(row, txt);
-        ctx.append(container, row);
-    }
+    let ctx: Context = Context::new(scene.clone(), PlatformKind::Headless);
+    let container: NodeId = with_context(ctx, || {
+        view! {
+            column {
+                width: Length::Px(800.0)
+                height: Length::Px(600.0)
+                gap: SPACE_XS
+                for idx in 0..120usize {
+                    row {
+                        width: Length::Percent(100.0)
+                        height: Length::Px(24.0)
+                        text {
+                            { format!("{BENCH_ROW_LABEL} {idx}") }
+                        }
+                    }
+                }
+            }
+        }
+    });
     scene.with_write(
         |tree: &mut SceneTree| {
             let root: NodeId = tree.get_root();
@@ -209,20 +209,17 @@ pub fn bench_software_full_redraw(iterations: usize) -> BenchMetric {
         return build_metric(BENCH_SW_FULL_NAME, count, Duration::ZERO, String::new());
     };
     let _: NodeId = app.mount(|| {
-        let badge: NodeId =
-            EuvBadge::new(BENCH_BADGE.to_string(), EuvTone::Primary, tokens).mount_current();
-        let prog: NodeId = EuvProgress::new(0.72, tokens).mount_current();
-        let mut card: EuvCard = EuvCard::new(BENCH_TITLE.to_string(), tokens)
-            .child(badge)
-            .child(prog);
-        card.set_subtitle(BENCH_SUBTITLE.to_string());
         view! {
             column {
                 width: Length::Percent(100.0)
                 padding: Edges::all(SPACE_LG)
                 gap: SPACE_MD
-                { EuvHeader::new(BENCH_TITLE.to_string(), BENCH_SUBTITLE.to_string(), tokens) }
-                { card }
+                EuvHeader(BENCH_TITLE.to_string(), BENCH_SUBTITLE.to_string(), tokens)
+                EuvCard(BENCH_TITLE.to_string(), tokens) {
+                    subtitle: BENCH_SUBTITLE
+                    EuvBadge(BENCH_BADGE.to_string(), EuvTone::Primary, tokens)
+                    EuvProgress(0.72, tokens)
+                }
             }
         }
     });
@@ -427,22 +424,20 @@ pub fn bench_stress_long_list_100k(iterations: usize) -> BenchMetric {
         let vlist: EuvVirtualList =
             EuvVirtualList::new(100_000, 36.0, scroll_y, tokens).viewport_height(680.0);
         vlist.mount_with(move |idx: usize| {
-            let mut ctx: BuildContext = current_build_context();
-            let row: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .height(Length::Px(36.0))
-                    .padding(Edges::symmetric(SPACE_XS, SPACE_MD))
-                    .align(AlignItems::Center)
-                    .border(g.get_border_width(), p.get_border()),
-            );
-            let txt: NodeId = ctx.text(
-                format!("{BENCH_ROW_LABEL} #{idx}"),
-                Style::empty().font_size(13.0).color(p.get_foreground()),
-            );
-            ctx.append(row, txt);
-            row
+            view! {
+                row {
+                    width: Length::Percent(100.0)
+                    height: Length::Px(36.0)
+                    padding: Edges::symmetric(SPACE_XS, SPACE_MD)
+                    align: AlignItems::Center
+                    border: (g.get_border_width(), p.get_border())
+                    text {
+                        font_size: 13.0
+                        color: p.get_foreground()
+                        { format!("{BENCH_ROW_LABEL} #{idx}") }
+                    }
+                }
+            }
         })
     });
     let _: Result<FrameStats, PlatformError> = app.step_frame();
@@ -480,51 +475,59 @@ pub fn bench_stress_complex_layout_2000(iterations: usize) -> BenchMetric {
     reset_reactive_runtime();
     let count: usize = iterations.max(1);
     let scene: SceneHandle = SceneHandle::new_tree();
-    let mut ctx: BuildContext = BuildContext::new(scene.clone(), PlatformKind::Headless);
-    let page: NodeId = ctx.view(
-        Style::empty()
-            .column()
-            .width(Length::Px(1280.0))
-            .padding(Edges::all(SPACE_MD))
-            .gap(SPACE_SM),
-    );
-    let mut leaf_nodes: Vec<NodeId> = Vec::with_capacity(50);
-    for section_idx in 0..50usize {
-        let grid: NodeId = ctx.view(
-            Style::empty()
-                .grid(4)
-                .width(Length::Percent(100.0))
-                .gap(SPACE_SM),
-        );
-        for card_idx in 0..8usize {
-            let card: NodeId = ctx.view(
-                Style::empty()
-                    .column()
-                    .width(Length::Percent(100.0))
-                    .padding(Edges::all(SPACE_SM))
-                    .gap(SPACE_XS),
-            );
-            let head: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .justify(JustifyContent::SpaceBetween),
-            );
-            let title: NodeId = ctx.text(
-                format!("{BENCH_CELL_LABEL} {section_idx}-{card_idx}"),
-                Style::empty().font_size(13.0),
-            );
-            let sub: NodeId = ctx.text(format!("{section_idx}"), Style::empty().font_size(11.0));
-            ctx.append(head, title);
-            ctx.append(head, sub);
-            ctx.append(card, head);
-            ctx.append(grid, card);
-            if card_idx == 0 {
-                leaf_nodes.push(title);
-            }
+    let ctx: Context = Context::new(scene.clone(), PlatformKind::Headless);
+    let (leaf_nodes, page): (Vec<NodeId>, NodeId) = with_context(ctx, || {
+        let mut leaves: Vec<NodeId> = Vec::with_capacity(50);
+        let mut sections: Vec<NodeId> = Vec::with_capacity(50);
+        for section_idx in 0..50usize {
+            let mut first_title: NodeId = NodeId::default();
+            let grid_node: NodeId = view! {
+                grid {
+                    columns: 4
+                    width: Length::Percent(100.0)
+                    gap: SPACE_SM
+                    for card_idx in 0..8usize {
+                        column {
+                            width: Length::Percent(100.0)
+                            padding: Edges::all(SPACE_SM)
+                            gap: SPACE_XS
+                            row {
+                                width: Length::Percent(100.0)
+                                justify: JustifyContent::SpaceBetween
+                                if card_idx == 0 {
+                                    text {
+                                        node_ref: first_title
+                                        font_size: 13.0
+                                        { format!("{BENCH_CELL_LABEL} {section_idx}-{card_idx}") }
+                                    }
+                                } else {
+                                    text {
+                                        font_size: 13.0
+                                        { format!("{BENCH_CELL_LABEL} {section_idx}-{card_idx}") }
+                                    }
+                                }
+                                text {
+                                    font_size: 11.0
+                                    { format!("{section_idx}") }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            leaves.push(first_title);
+            sections.push(grid_node);
         }
-        ctx.append(page, grid);
-    }
+        let p_node: NodeId = view! {
+            column {
+                width: Length::Px(1280.0)
+                padding: Edges::all(SPACE_MD)
+                gap: SPACE_SM
+                ..sections
+            }
+        };
+        (leaves, p_node)
+    });
     scene.with_write(
         |tree: &mut SceneTree| {
             let root: NodeId = tree.get_root();
@@ -599,23 +602,24 @@ pub fn bench_stress_bulk_reactive_1000(iterations: usize) -> BenchMetric {
     }
     let signals_mount: Vec<Signal<u32>> = signals.clone();
     let _: NodeId = app.mount(move || {
-        let mut ctx: BuildContext = current_build_context();
-        let list: NodeId = ctx.scroll_view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .height(Length::Percent(100.0))
-                .gap(2.0),
-        );
-        for sig in signals_mount.into_iter() {
-            let derived: Memo<u32> = Memo::new(move || sig.get().wrapping_mul(3).wrapping_add(1));
-            let row: NodeId = ctx.reactive_text(
-                Style::empty().font_size(12.0).color(p.get_foreground()),
-                move || format!("{BENCH_CELL_LABEL} {}", derived.get()),
-            );
-            ctx.append(list, row);
+        let derived_memos: Vec<Memo<u32>> = signals_mount
+            .into_iter()
+            .map(|sig: Signal<u32>| Memo::new(move || sig.get().wrapping_mul(3).wrapping_add(1)))
+            .collect();
+        view! {
+            scroll {
+                width: Length::Percent(100.0)
+                height: Length::Percent(100.0)
+                gap: 2.0
+                for derived in derived_memos.into_iter() {
+                    text {
+                        font_size: 12.0
+                        color: p.get_foreground()
+                        { move || format!("{BENCH_CELL_LABEL} {}", derived.get()) }
+                    }
+                }
+            }
         }
-        list
     });
     let _: Result<FrameStats, PlatformError> = app.step_frame();
     let start: Instant = Instant::now();
@@ -686,15 +690,16 @@ pub fn bench_stress_wasm_dynamic_hotswap(iterations: usize) -> BenchMetric {
         WasmDynamicManager::new(hub.clone(), Rc::new(registry), WasmSandboxConfig::default());
     let hub_slot: DynamicUpdateHub = hub;
     let _: NodeId = app.mount(move || {
-        let mut slot: DynamicComponentSlot = DynamicComponentSlot::new(
-            BENCH_WASM_SLOT.to_string(),
-            Rc::new(|| {
-                let mut ctx: BuildContext = current_build_context();
-                ctx.text(BENCH_TITLE.to_string(), Style::empty().font_size(14.0))
-            }),
-        );
-        slot.set_hub(Some(hub_slot));
-        slot.mount_current()
+        view! {
+            slot {
+                id: BENCH_WASM_SLOT
+                hub: hub_slot
+                text {
+                    font_size: 14.0
+                    { BENCH_TITLE }
+                }
+            }
+        }
     });
     let _: Result<FrameStats, PlatformError> = app.step_frame();
     let start: Instant = Instant::now();
@@ -761,30 +766,23 @@ pub fn bench_stress_hidpi_4x_1440x3168(iterations: usize) -> BenchMetric {
     };
     let mut scroll_id: NodeId = NodeId::default();
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
-        let sc: NodeId = ctx.scroll_view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .height(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_MD))
-                .gap(SPACE_MD)
-                .background(tokens.get_palette().get_background()),
-        );
-        for idx in 0..16usize {
-            let badge: NodeId =
-                EuvBadge::new(BENCH_BADGE.to_string(), EuvTone::Primary, tokens).mount(&mut ctx);
-            let prog: NodeId =
-                EuvProgress::new(((idx % 9) as f32 + 1.0) * 0.1, tokens).mount(&mut ctx);
-            let card: NodeId = EuvCard::new(format!("{BENCH_TITLE} #{idx}"), tokens)
-                .subtitle(BENCH_CARD_CAPTION)
-                .child(badge)
-                .child(prog)
-                .mount(&mut ctx);
-            ctx.append(sc, card);
+        view! {
+            scroll {
+                node_ref: scroll_id
+                width: Length::Percent(100.0)
+                height: Length::Percent(100.0)
+                padding: Edges::all(SPACE_MD)
+                gap: SPACE_MD
+                background: tokens.get_palette().get_background()
+                for idx in 0..16usize {
+                    EuvCard(format!("{BENCH_TITLE} #{idx}"), tokens) {
+                        subtitle: BENCH_CARD_CAPTION
+                        EuvBadge(BENCH_BADGE.to_string(), EuvTone::Primary, tokens)
+                        EuvProgress(((idx % 9) as f32 + 1.0) * 0.1, tokens)
+                    }
+                }
+            }
         }
-        scroll_id = sc;
-        sc
     });
     app.set_exact_physical_viewport(1440, 3168, 4.0);
     let _: Result<FrameStats, PlatformError> = app.step_frame();
@@ -836,27 +834,23 @@ pub fn bench_stress_scroll_physics_and_hittest(iterations: usize) -> BenchMetric
         );
     };
     let _: NodeId = app.mount(|| {
-        let mut ctx: BuildContext = current_build_context();
-        let sc: NodeId = ctx.scroll_view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .height(Length::Percent(100.0))
-                .gap(4.0),
-        );
-        for idx in 0..1_000usize {
-            let row: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .height(Length::Px(32.0))
-                    .cursor(CursorIcon::Pointer),
-            );
-            let txt: NodeId = ctx.text(format!("{BENCH_ROW_LABEL} {idx}"), Style::empty());
-            ctx.append(row, txt);
-            ctx.append(sc, row);
+        view! {
+            scroll {
+                width: Length::Percent(100.0)
+                height: Length::Percent(100.0)
+                gap: 4.0
+                for idx in 0..1_000usize {
+                    row {
+                        width: Length::Percent(100.0)
+                        height: Length::Px(32.0)
+                        cursor: CursorIcon::Pointer
+                        text {
+                            { format!("{BENCH_ROW_LABEL} {idx}") }
+                        }
+                    }
+                }
+            }
         }
-        sc
     });
     let wid: WindowId = app.get_window_state().get_id();
     let _: Result<FrameStats, PlatformError> = app.step_game_frame(1.0 / 120.0);
@@ -986,20 +980,17 @@ fn bench_render_pipeline(name: &str, render: RenderConfig, iterations: usize) ->
         return build_metric(name, count, Duration::ZERO, String::new());
     };
     let _: NodeId = app.mount(|| {
-        let badge: NodeId =
-            EuvBadge::new(BENCH_BADGE.to_string(), EuvTone::Primary, tokens).mount_current();
-        let prog: NodeId = EuvProgress::new(0.72, tokens).mount_current();
-        let mut card: EuvCard = EuvCard::new(BENCH_TITLE.to_string(), tokens)
-            .child(badge)
-            .child(prog);
-        card.set_subtitle(BENCH_SUBTITLE.to_string());
         view! {
             column {
                 width: Length::Percent(100.0)
                 padding: Edges::all(SPACE_LG)
                 gap: SPACE_MD
-                { EuvHeader::new(BENCH_TITLE.to_string(), BENCH_SUBTITLE.to_string(), tokens) }
-                { card }
+                EuvHeader(BENCH_TITLE.to_string(), BENCH_SUBTITLE.to_string(), tokens)
+                EuvCard(BENCH_TITLE.to_string(), tokens) {
+                    subtitle: BENCH_SUBTITLE
+                    EuvBadge(BENCH_BADGE.to_string(), EuvTone::Primary, tokens)
+                    EuvProgress(0.72, tokens)
+                }
             }
         }
     });

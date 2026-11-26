@@ -356,7 +356,7 @@ impl ThemeTokens {
     pub fn card_style(&self) -> Style {
         let p: ThemePalette = self.get_palette();
         let g: ThemeGeometry = self.get_geometry();
-        Style::empty()
+        Style::default()
             .column()
             .padding(Edges::all(SPACE_LG))
             .gap(SPACE_MD)

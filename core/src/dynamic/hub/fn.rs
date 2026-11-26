@@ -1,13 +1,13 @@
 use super::*;
 
-/// Returns the active ambient `DynamicUpdateHub` attached to the current `BuildContext`.
+/// Returns the active ambient `DynamicUpdateHub` attached to the current `Context`.
 ///
 /// # Returns
 ///
 /// - `DynamicUpdateHub` - Shared dynamic update hub handle.
 #[must_use]
 pub fn current_dynamic_hub() -> DynamicUpdateHub {
-    current_build_context().get_dynamic_hub().clone()
+    current_context().get_dynamic_hub().clone()
 }
 
 /// Normalizes a page route path so it always starts with `'/'` and trims surrounding whitespace.
@@ -159,11 +159,11 @@ pub fn mount_dynamic_spec(
     source_id: &str,
     hub: &DynamicUpdateHub,
 ) -> NodeId {
-    let mut ctx: BuildContext = current_build_context();
+    let mut ctx: Context = current_context();
     let st: DynamicStyleSpec = spec.get_style();
     let node_id: NodeId = match spec.get_kind() {
         DynamicNodeKind::Column => {
-            let mut style: Style = st.apply_to(Style::empty().column());
+            let mut style: Style = st.apply_to(Style::default().column());
             if st.gap_px().is_none() {
                 style = style.gap(DYNAMIC_DEFAULT_CARD_GAP);
             }
@@ -171,7 +171,7 @@ pub fn mount_dynamic_spec(
         }
         DynamicNodeKind::Row => {
             let mut style: Style = st.apply_to(
-                Style::empty()
+                Style::default()
                     .row()
                     .wrap(FlexWrap::Wrap)
                     .width(Length::Percent(100.0))
@@ -189,15 +189,15 @@ pub fn mount_dynamic_spec(
                 DYNAMIC_DEFAULT_GRID_COLUMNS
             };
             let mut style: Style =
-                st.apply_to(Style::empty().grid(cols).width(Length::Percent(100.0)));
+                st.apply_to(Style::default().grid(cols).width(Length::Percent(100.0)));
             if st.gap_px().is_none() {
                 style = style.gap(DYNAMIC_DEFAULT_CARD_GAP);
             }
             ctx.view(style)
         }
-        DynamicNodeKind::View => ctx.view(st.apply_to(Style::empty())),
+        DynamicNodeKind::View => ctx.view(st.apply_to(Style::default())),
         DynamicNodeKind::Card => {
-            let base: Style = Style::empty()
+            let base: Style = Style::default()
                 .column()
                 .width(Length::Percent(100.0))
                 .padding(Edges::all(DYNAMIC_DEFAULT_CARD_PADDING))
@@ -211,7 +211,7 @@ pub fn mount_dynamic_spec(
                     Color::hex(st.color_hex_value().unwrap_or(DYNAMIC_TEXT_FG_HEX));
                 let title_node: NodeId = ctx.text(
                     spec.get_text().clone(),
-                    Style::empty()
+                    Style::default()
                         .font_size(16.0)
                         .font_weight(FontWeight::Bold)
                         .color(title_color),
@@ -221,14 +221,14 @@ pub fn mount_dynamic_spec(
             card
         }
         DynamicNodeKind::Text => {
-            let base: Style = Style::empty()
+            let base: Style = Style::default()
                 .max_width(Length::Percent(100.0))
                 .font_size(DYNAMIC_DEFAULT_FONT_SIZE)
                 .color(Color::hex(DYNAMIC_TEXT_FG_HEX));
             ctx.text(spec.get_text().clone(), st.apply_to(base))
         }
         DynamicNodeKind::Button => {
-            let base: Style = Style::empty()
+            let base: Style = Style::default()
                 .row()
                 .max_width(Length::Percent(100.0))
                 .overflow(Overflow::Hidden)
@@ -244,7 +244,7 @@ pub fn mount_dynamic_spec(
                 .cursor(CursorIcon::Pointer);
             let resolved: Style = st.apply_to(base);
             let btn: NodeId = ctx.view(resolved);
-            let label_style: Style = Style::empty()
+            let label_style: Style = Style::default()
                 .max_width(Length::Percent(100.0))
                 .color(resolved.get_text().get_color())
                 .font_size(resolved.get_text().get_font_size())
@@ -260,7 +260,7 @@ pub fn mount_dynamic_spec(
             btn
         }
         DynamicNodeKind::Badge => {
-            let base: Style = Style::empty()
+            let base: Style = Style::default()
                 .row()
                 .align(AlignItems::Center)
                 .padding(Edges::symmetric(4.0, 10.0))
@@ -273,7 +273,7 @@ pub fn mount_dynamic_spec(
             let pill: NodeId = ctx.view(resolved);
             let lbl: NodeId = ctx.text(
                 spec.get_text().clone(),
-                Style::empty()
+                Style::default()
                     .color(resolved.get_text().get_color())
                     .font_size(resolved.get_text().get_font_size())
                     .font_weight(resolved.get_text().get_weight()),
@@ -282,7 +282,7 @@ pub fn mount_dynamic_spec(
             pill
         }
         DynamicNodeKind::Divider => {
-            let base: Style = Style::empty()
+            let base: Style = Style::default()
                 .width(Length::Percent(100.0))
                 .height(Length::Px(1.0))
                 .background(Color::hex(DYNAMIC_DIVIDER_HEX));

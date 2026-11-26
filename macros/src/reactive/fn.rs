@@ -12,6 +12,11 @@ use super::*;
 pub(crate) fn expand_watch(input: WatchInput) -> proc_macro2::TokenStream {
     let callback: Expr = input.callback;
     let cb_span: Span = callback.span();
+    if let Some(ty) = input.global_type {
+        return quote_spanned! {cb_span=>
+            ::euv::GlobalState::watch::<#ty, _>(#callback)
+        };
+    }
     if input.signals.is_empty() {
         return quote_spanned! {cb_span=>
             ::euv::Effect::new(#callback)

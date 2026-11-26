@@ -46,90 +46,87 @@ impl EuvBadge {
     }
 }
 
-/// `Mountable` implementation for `EuvBadge`.
-impl Mountable for EuvBadge {
-    /// Mounts the pill badge into `ctx`.
+/// Declarative `#[component]` implementation for `EuvBadge`.
+#[component]
+/// Inherent implementation of [`EuvBadge`].
+impl EuvBadge {
+    /// Renders `EuvBadge` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Badge props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted badge node.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let (bg, fg): (Color, Color) = self.get_tone().colors(p);
-        let Self { label, .. } = self;
-        let pill: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .height(Length::Px(22.0))
-                .justify(JustifyContent::Center)
-                .align(AlignItems::Center)
-                .padding(Edges::symmetric(0.0, 10.0))
-                .background(bg)
-                .radius(999.0),
-        );
-        let txt: NodeId = ctx.text(
-            label,
-            Style::empty()
-                .font_size(11.0)
-                .font_weight(FontWeight::SemiBold)
-                .color(fg)
-                .text_overflow(TextOverflow::Clip),
-        );
-        ctx.append(pill, txt);
-        pill
+        let Self { label, .. } = self.clone();
+        view! {
+            row {
+                height: Length::Px(24.0)
+                justify: JustifyContent::Center
+                align: AlignItems::Center
+                padding: Edges::symmetric(0.0, 10.0)
+                overflow: Overflow::Hidden
+                background: bg
+                border: (1.0, p.get_border().with_alpha(72))
+                radius: 999.0
+                text {
+                    font_size: 11.0
+                    font_weight: FontWeight::SemiBold
+                    color: fg
+                    text_align: TextAlign::Center
+                    text_overflow: TextOverflow::Ellipsis
+                    { label }
+                }
+            }
+        }
     }
 }
 
-/// `Mountable` implementation for `EuvAlert`.
-impl Mountable for EuvAlert {
-    /// Mounts the alert box into `ctx`.
+/// Declarative `#[component]` implementation for `EuvAlert`.
+#[component]
+/// Inherent implementation of [`EuvAlert`].
+impl EuvAlert {
+    /// Renders `EuvAlert` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Alert props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted alert node.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let (accent, _): (Color, Color) = self.get_tone().colors(p);
         let Self {
             title, description, ..
-        } = self;
-        let box_node: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_MD))
-                .gap(SPACE_XS)
-                .background(p.get_muted())
-                .border(g.get_border_width(), accent)
-                .radius(g.get_radius_md()),
-        );
-        let t_node: NodeId = ctx.text(
-            title,
-            Style::empty()
-                .font_size(14.0)
-                .font_weight(FontWeight::SemiBold)
-                .color(p.get_foreground()),
-        );
-        let d_node: NodeId = ctx.text(
-            description,
-            Style::empty()
-                .font_size(13.0)
-                .color(p.get_muted_foreground()),
-        );
-        ctx.append(box_node, t_node);
-        ctx.append(box_node, d_node);
-        box_node
+        } = self.clone();
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                padding: Edges::all(SPACE_MD)
+                gap: SPACE_XS
+                background: p.get_muted()
+                border: (g.get_border_width(), accent)
+                radius: g.get_radius_md()
+                text {
+                    font_size: 14.0
+                    font_weight: FontWeight::SemiBold
+                    color: p.get_foreground()
+                    { title }
+                }
+                text {
+                    font_size: 13.0
+                    color: p.get_muted_foreground()
+                    { description }
+                }
+            }
+        }
     }
 }
 
@@ -152,19 +149,20 @@ impl EuvProgress {
     }
 }
 
-/// `Mountable` implementation for `EuvProgress`.
-impl Mountable for EuvProgress {
-    /// Mounts the progress track and filled indicator bar.
+/// Declarative `#[component]` implementation for `EuvProgress`.
+#[component]
+/// Inherent implementation of [`EuvProgress`].
+impl EuvProgress {
+    /// Renders `EuvProgress` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Progress props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted track node.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let h: f32 = if self.get_height() > 0.0 {
             self.get_height().max(4.0)
@@ -172,61 +170,21 @@ impl Mountable for EuvProgress {
             8.0
         };
         let pct: f32 = self.get_value().clamp(0.0, 1.0) * 100.0;
-        let track: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .width(Length::Percent(100.0))
-                .height(Length::Px(h))
-                .background(p.get_secondary())
-                .radius(h * 0.5)
-                .overflow(Overflow::Hidden),
-        );
-        let fill: NodeId = ctx.view(
-            Style::empty()
-                .width(Length::Percent(pct))
-                .height(Length::Percent(100.0))
-                .background(p.get_primary())
-                .radius(h * 0.5),
-        );
-        ctx.append(track, fill);
-        track
-    }
-}
-
-/// `Mountable` implementation for `EuvCodeBlock`.
-impl Mountable for EuvCodeBlock {
-    /// Mounts the monospace code surface into `ctx`.
-    ///
-    /// # Arguments
-    ///
-    /// - `Self` - Code block props.
-    /// - `&mut BuildContext` - Active build context.
-    ///
-    /// # Returns
-    ///
-    /// - `NodeId` - Mounted code block node.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
-        let p: ThemePalette = self.get_tokens().get_palette();
-        let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let Self { code, .. } = self;
-        let container: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_MD))
-                .background(p.get_muted())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md()),
-        );
-        let text: NodeId = ctx.text(
-            code,
-            Style::empty()
-                .font_family(FontFamily::Monospace)
-                .font_size(13.0)
-                .color(p.get_foreground()),
-        );
-        ctx.append(container, text);
-        container
+        view! {
+            row {
+                width: Length::Percent(100.0)
+                height: Length::Px(h)
+                background: p.get_secondary()
+                radius: h * 0.5
+                overflow: Overflow::Hidden
+                view {
+                    width: Length::Percent(pct)
+                    height: Length::Percent(100.0)
+                    background: p.get_primary()
+                    radius: h * 0.5
+                }
+            }
+        }
     }
 }
 
@@ -353,7 +311,7 @@ impl EuvVirtualList {
     where
         F: FnMut(usize) -> NodeId + 'static,
     {
-        let mut ctx: BuildContext = current_build_context();
+        let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let list_cfg: Self = self.clone();
@@ -366,25 +324,26 @@ impl EuvVirtualList {
         let item_h: f32 = self.get_item_height().max(1.0);
         let total_h: f32 = (self.get_total_items() as f32) * item_h;
         let max_scroll: f32 = (total_h - inner_view_h).max(0.0);
-        let container: NodeId = ctx.scroll_view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .height(Length::Px(view_h))
-                .background(p.get_card())
-                .border(border_w, p.get_border())
-                .radius(g.get_radius_md())
-                .stop_scroll_propagation(true),
-        );
+        let container: NodeId = view! {
+            scroll {
+                style: Style::default().column()
+                width: Length::Percent(100.0)
+                height: Length::Px(view_h)
+                background: p.get_card()
+                border: (border_w, p.get_border())
+                radius: g.get_radius_md()
+                stop_scroll_propagation: true
+                on_scroll: move |ev: &UiEvent| {
+                    if let UiEventKind::Scroll(delta) = ev.get_kind() {
+                        let next: f32 = (scroll_cfg.get_scroll_y().get_untracked() + delta.get_y())
+                        .clamp(0.0, max_scroll);
+                        let _: bool = scroll_cfg.get_scroll_y().set_if_changed(next);
+                    }
+                }
+            }
+        };
         let init_scroll: f32 = scroll_sig.get_untracked().clamp(0.0, max_scroll);
         ctx.set_virtual_scroll(container, init_scroll, total_h);
-        ctx.on_scroll(container, move |ev: &UiEvent| {
-            if let UiEventKind::Scroll(delta) = ev.get_kind() {
-                let next: f32 = (scroll_cfg.get_scroll_y().get_untracked() + delta.get_y())
-                    .clamp(0.0, max_scroll);
-                let _: bool = scroll_cfg.get_scroll_y().set_if_changed(next);
-            }
-        });
         let range_memo: Memo<(usize, usize)> = Memo::new(move || {
             let _: f32 = scroll_sig.get();
             list_cfg.visible_range()
@@ -392,24 +351,26 @@ impl EuvVirtualList {
         let range_for_scroll: Memo<(usize, usize)> = range_memo;
         let scene_for_scroll: SceneHandle = ctx.get_scene().clone();
         let scene_for_rows: SceneHandle = ctx.get_scene().clone();
-        let ctx_for_rows: BuildContext = ctx.clone();
+        let ctx_for_rows: Context = ctx.clone();
         let (vlist_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             let _: Effect = Effect::new(move || {
                 let (start, end): (usize, usize) = range_memo.get();
                 let cur_scroll: f32 = scroll_sig.get_untracked().clamp(0.0, max_scroll);
                 let local_scroll_y: f32 = (cur_scroll - (start as f32) * item_h).max(0.0);
                 let (child_scope, rows_host): (Scope, NodeId) = Scope::run(|_: Scope| {
-                    with_build_context(ctx_for_rows.clone(), || {
-                        let mut row_ctx: BuildContext = current_build_context();
-                        let host: NodeId =
-                            row_ctx.view(Style::empty().column().width(Length::Percent(100.0)));
+                    with_context(ctx_for_rows.clone(), || {
+                        let mut built: Vec<NodeId> = Vec::with_capacity(end.saturating_sub(start));
                         if let Ok(mut build_row) = builder_cell.try_borrow_mut() {
                             for idx in start..end {
-                                let row_node: NodeId = build_row(idx);
-                                row_ctx.append(host, row_node);
+                                built.push(build_row(idx));
                             }
                         }
-                        host
+                        view! {
+                            column {
+                                width: Length::Percent(100.0)
+                                ..built
+                            }
+                        }
                     })
                 });
                 scene_for_rows.with_write(
@@ -445,73 +406,68 @@ impl EuvVirtualList {
     }
 }
 
-/// `Mountable` implementation for `EuvTable`.
-impl Mountable for EuvTable {
-    /// Mounts header row and data rows consistently across all platforms.
+/// Declarative `#[component]` implementation for `EuvTable`.
+#[component]
+/// Inherent implementation of [`EuvTable`].
+impl EuvTable {
+    /// Renders `EuvTable` into the ambient framework-managed `Context`.
     ///
     /// # Arguments
     ///
-    /// - `Self` - Table props.
-    /// - `&mut BuildContext` - Active build context.
+    /// - `&Self` - Component descriptor reference.
     ///
     /// # Returns
     ///
-    /// - `NodeId` - Mounted table node.
-    fn mount(self, ctx: &mut BuildContext) -> NodeId {
+    /// - `NodeId` - Mounted root scene node handle.
+    fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
-        let Self { headers, rows, .. } = self;
-        let table: NodeId = ctx.view(
-            Style::empty()
-                .column()
-                .width(Length::Percent(100.0))
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md())
-                .overflow(Overflow::Hidden),
-        );
-        let head_row: NodeId = ctx.view(
-            Style::empty()
-                .row()
-                .width(Length::Percent(100.0))
-                .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                .background(p.get_muted())
-                .gap(SPACE_SM),
-        );
-        for h in headers.into_iter() {
-            let cell: NodeId = ctx.view(Style::empty().flex_grow(1.0).overflow(Overflow::Hidden));
-            let txt: NodeId = ctx.text(
-                h,
-                Style::empty()
-                    .font_size(12.0)
-                    .font_weight(FontWeight::SemiBold)
-                    .color(p.get_muted_foreground()),
-            );
-            ctx.append(cell, txt);
-            ctx.append(head_row, cell);
-        }
-        ctx.append(table, head_row);
-        for row in rows.into_iter() {
-            let row_node: NodeId = ctx.view(
-                Style::empty()
-                    .row()
-                    .width(Length::Percent(100.0))
-                    .padding(Edges::symmetric(SPACE_SM, SPACE_MD))
-                    .border(g.get_border_width(), p.get_border())
-                    .gap(SPACE_SM),
-            );
-            for cell_text in row.into_iter() {
-                let cell: NodeId =
-                    ctx.view(Style::empty().flex_grow(1.0).overflow(Overflow::Hidden));
-                let txt: NodeId = ctx.text(
-                    cell_text,
-                    Style::empty().font_size(13.0).color(p.get_foreground()),
-                );
-                ctx.append(cell, txt);
-                ctx.append(row_node, cell);
+        let Self { headers, rows, .. } = self.clone();
+        view! {
+            column {
+                width: Length::Percent(100.0)
+                background: p.get_card()
+                border: (g.get_border_width(), p.get_border())
+                radius: g.get_radius_md()
+                overflow: Overflow::Hidden
+                row {
+                    width: Length::Percent(100.0)
+                    padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                    background: p.get_muted()
+                    gap: SPACE_SM
+                    for h in headers.into_iter() {
+                        view {
+                            flex_grow: 1.0
+                            overflow: Overflow::Hidden
+                            text {
+                                font_size: 12.0
+                                font_weight: FontWeight::SemiBold
+                                color: p.get_muted_foreground()
+                                { h }
+                            }
+                        }
+                    }
+                }
+                for row_cells in rows.into_iter() {
+                    row {
+                        width: Length::Percent(100.0)
+                        padding: Edges::symmetric(SPACE_SM, SPACE_MD)
+                        border: (g.get_border_width(), p.get_border())
+                        gap: SPACE_SM
+                        for cell_text in row_cells.into_iter() {
+                            view {
+                                flex_grow: 1.0
+                                overflow: Overflow::Hidden
+                                text {
+                                    font_size: 13.0
+                                    color: p.get_foreground()
+                                    { cell_text }
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            ctx.append(table, row_node);
         }
-        table
     }
 }
