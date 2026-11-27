@@ -170,6 +170,44 @@ fn tree_order_pair(tree: &SceneTree, a: NodeId, b: NodeId) -> (usize, usize) {
     (a.as_usize(), b.as_usize())
 }
 
+/// Computes screen-space node bounds after applying accumulated scroll offset and `Transform2D`.
+///
+/// # Arguments
+///
+/// - `Rect` - Node layout border-box bounds.
+/// - `Point` - Accumulated ancestor scroll offset.
+/// - `Transform2D` - Node paint transform.
+///
+/// # Returns
+///
+/// - `Rect` - Transformed and scroll-shifted bounds in root logical coordinates.
+#[inline(always)]
+fn shifted_node_bounds(raw_bounds: Rect, scroll_offset: Point, transform: Transform2D) -> Rect {
+    let tx: f32 = transform.get_translate_x();
+    let ty: f32 = transform.get_translate_y();
+    let sx: f32 = transform.get_scale_x();
+    let sy: f32 = transform.get_scale_y();
+    if sx == 1.0 && sy == 1.0 {
+        Rect::new(
+            raw_bounds.get_x() - scroll_offset.get_x() + tx,
+            raw_bounds.get_y() - scroll_offset.get_y() + ty,
+            raw_bounds.get_width(),
+            raw_bounds.get_height(),
+        )
+    } else {
+        let scaled_w: f32 = raw_bounds.get_width() * sx;
+        let scaled_h: f32 = raw_bounds.get_height() * sy;
+        let scale_dx: f32 = (raw_bounds.get_width() - scaled_w) * 0.5;
+        let scale_dy: f32 = (raw_bounds.get_height() - scaled_h) * 0.5;
+        Rect::new(
+            raw_bounds.get_x() - scroll_offset.get_x() + tx + scale_dx,
+            raw_bounds.get_y() - scroll_offset.get_y() + ty + scale_dy,
+            scaled_w,
+            scaled_h,
+        )
+    }
+}
+
 /// Recursively hit-tests `node_id` in reverse paint order (topmost z-index first).
 ///
 /// # Arguments
@@ -193,96 +231,233 @@ fn hit_test_subtree(
     in_portal_pass: bool,
 ) -> Option<NodeId> {
     let node: &SceneNode = tree.get_node(node_id)?;
+    hit_test_resolved(
+        tree,
+        node_id,
+        node,
+        point,
+        scroll_offset,
+        clip_rect,
+        in_portal_pass,
+    )
+}
+
+/// Hit-tests an already-fetched `SceneNode` with inline leaf, clipped-bounds, and single-leaf-child fast paths.
+///
+/// # Arguments
+///
+/// - `&SceneTree` - Retained scene tree.
+/// - `NodeId` - Handle corresponding to `node`.
+/// - `&SceneNode` - Live scene node reference.
+/// - `Point` - Target logical pointer position.
+/// - `Point` - Accumulated ancestor scroll offset.
+/// - `Option<Rect>` - Active ancestor clip rectangle already verified to contain `point`.
+/// - `bool` - Whether this call is already inside the top-layer portal pass.
+///
+/// # Returns
+///
+/// - `Option<NodeId>` - Deepest topmost hit node handle.
+#[inline(always)]
+fn hit_test_resolved(
+    tree: &SceneTree,
+    node_id: NodeId,
+    node: &SceneNode,
+    point: Point,
+    scroll_offset: Point,
+    clip_rect: Option<Rect>,
+    in_portal_pass: bool,
+) -> Option<NodeId> {
     let Style { layout, paint, .. } = node.style_ref();
     if layout.get_display() == Display::None || paint.get_pointer_events() == PointerEvents::None {
         return None;
     }
-    if !in_portal_pass
-        && (matches!(node.get_kind(), NodeKind::Portal) || layout.get_position() == Position::Fixed)
-    {
+    let is_portal: bool =
+        matches!(node.get_kind(), NodeKind::Portal) || layout.get_position() == Position::Fixed;
+    if !in_portal_pass && is_portal {
         return None;
     }
-    let raw_bounds: Rect = node.get_layout_box().get_bounds();
     let transform: Transform2D = paint.get_transform();
-    let tx: f32 = transform.get_translate_x();
-    let ty: f32 = transform.get_translate_y();
-    let scaled_w: f32 = raw_bounds.get_width() * transform.get_scale_x();
-    let scaled_h: f32 = raw_bounds.get_height() * transform.get_scale_y();
-    let scale_dx: f32 = (raw_bounds.get_width() - scaled_w) * 0.5;
-    let scale_dy: f32 = (raw_bounds.get_height() - scaled_h) * 0.5;
-    let shifted_bounds: Rect = Rect::new(
-        raw_bounds.get_x() - scroll_offset.get_x() + tx + scale_dx,
-        raw_bounds.get_y() - scroll_offset.get_y() + ty + scale_dy,
-        scaled_w,
-        scaled_h,
-    );
-    let effective_clip: Option<Rect> = match layout.get_overflow() {
-        Overflow::Hidden | Overflow::Scroll => match clip_rect {
+    let shifted_bounds: Rect =
+        shifted_node_bounds(node.get_layout_box().get_bounds(), scroll_offset, transform);
+    let is_clipped: bool = matches!(layout.get_overflow(), Overflow::Hidden | Overflow::Scroll);
+    let children: &[NodeId] = node.get_children().as_slice();
+    if children.is_empty() {
+        return if shifted_bounds.contains(point) {
+            Some(node_id)
+        } else {
+            None
+        };
+    }
+    if is_clipped && !shifted_bounds.contains(point) {
+        return None;
+    }
+    let effective_clip: Option<Rect> = if is_clipped {
+        match clip_rect {
             Some(parent_clip) => parent_clip.intersect(shifted_bounds),
             None => Some(shifted_bounds),
-        },
-        Overflow::Visible => clip_rect,
+        }
+    } else {
+        clip_rect
     };
     if let Some(clip) = effective_clip
         && !clip.contains(point)
     {
         return None;
     }
+    let node_scroll: Point = node.get_layout_box().get_scroll_offset();
     let child_scroll: Point = Point::new(
-        scroll_offset.get_x() + node.get_layout_box().get_scroll_offset().get_x() - tx,
-        scroll_offset.get_y() + node.get_layout_box().get_scroll_offset().get_y() - ty,
+        scroll_offset.get_x() + node_scroll.get_x() - transform.get_translate_x(),
+        scroll_offset.get_y() + node_scroll.get_y() - transform.get_translate_y(),
     );
-    let children: &[NodeId] = node.get_children().as_slice();
-    if !children.is_empty() {
-        let mut needs_z_sort: bool = false;
-        if children.len() > 1 {
-            for cid in children.iter().copied() {
-                if let Some(child_node) = tree.get_node(cid)
-                    && child_node.style_ref().get_layout().get_z_index() != 0
-                {
-                    needs_z_sort = true;
-                    break;
+    if children.len() == 1 {
+        let single_id: NodeId = children[0];
+        if let Some(single_node) = tree.get_node(single_id) {
+            if single_node.get_children().is_empty() {
+                let Style {
+                    layout: c_layout,
+                    paint: c_paint,
+                    ..
+                } = single_node.style_ref();
+                let c_hidden: bool = c_layout.get_display() == Display::None
+                    || c_paint.get_pointer_events() == PointerEvents::None;
+                let c_portal: bool = matches!(single_node.get_kind(), NodeKind::Portal)
+                    || c_layout.get_position() == Position::Fixed;
+                if !c_hidden && (in_portal_pass || !c_portal) {
+                    let c_bounds: Rect = shifted_node_bounds(
+                        single_node.get_layout_box().get_bounds(),
+                        child_scroll,
+                        c_paint.get_transform(),
+                    );
+                    if c_bounds.contains(point) {
+                        return Some(single_id);
+                    }
                 }
+            } else if let Some(hit) = hit_test_resolved(
+                tree,
+                single_id,
+                single_node,
+                point,
+                child_scroll,
+                effective_clip,
+                in_portal_pass,
+            ) {
+                return Some(hit);
             }
         }
-        if !needs_z_sort {
-            for child_id in children.iter().rev().copied() {
-                if let Some(hit) = hit_test_subtree(
-                    tree,
-                    child_id,
-                    point,
-                    child_scroll,
-                    effective_clip,
-                    in_portal_pass,
-                ) {
-                    return Some(hit);
-                }
-            }
+        return if shifted_bounds.contains(point) {
+            Some(node_id)
         } else {
-            let mut sorted_children: Vec<(i32, usize, NodeId)> = Vec::with_capacity(children.len());
-            for (order, cid) in children.iter().copied().enumerate() {
-                if let Some(child_node) = tree.get_node(cid) {
-                    sorted_children.push((
-                        child_node.style_ref().get_layout().get_z_index(),
-                        order,
-                        cid,
-                    ));
+            None
+        };
+    }
+    hit_test_multi_children(
+        tree,
+        node_id,
+        children,
+        shifted_bounds,
+        (point, child_scroll),
+        effective_clip,
+        in_portal_pass,
+    )
+}
+
+/// Hit-tests a container with two or more children using a single-pass reverse fast path when `z_index == 0`.
+///
+/// # Arguments
+///
+/// - `&SceneTree` - Retained scene tree.
+/// - `NodeId` - Parent container handle.
+/// - `&[NodeId]` - Child node handles in paint order.
+/// - `Rect` - Parent shifted bounds for self-hit fallback.
+/// - `(Point, Point)` - Pair of `(pointer_point, child_scroll_offset)`.
+/// - `Option<Rect>` - Effective clip rectangle already containing `point`.
+/// - `bool` - Whether this call is already inside the top-layer portal pass.
+///
+/// # Returns
+///
+/// - `Option<NodeId>` - Deepest topmost hit node handle.
+fn hit_test_multi_children(
+    tree: &SceneTree,
+    node_id: NodeId,
+    children: &[NodeId],
+    shifted_bounds: Rect,
+    coords: (Point, Point),
+    effective_clip: Option<Rect>,
+    in_portal_pass: bool,
+) -> Option<NodeId> {
+    let (point, child_scroll): (Point, Point) = coords;
+    let mut needs_full_z_sort: bool = false;
+    for rev_idx in (0..children.len()).rev() {
+        let child_id: NodeId = children[rev_idx];
+        let Some(child_node) = tree.get_node(child_id) else {
+            continue;
+        };
+        if child_node.style_ref().get_layout().get_z_index() != 0 {
+            needs_full_z_sort = true;
+            break;
+        }
+        if let Some(hit) = hit_test_resolved(
+            tree,
+            child_id,
+            child_node,
+            point,
+            child_scroll,
+            effective_clip,
+            in_portal_pass,
+        ) {
+            let mut pos_z_children: Vec<(i32, usize, NodeId)> = Vec::new();
+            for (prev_idx, prev_id) in children[..rev_idx].iter().copied().enumerate() {
+                if let Some(prev_node) = tree.get_node(prev_id) {
+                    let prev_z: i32 = prev_node.style_ref().get_layout().get_z_index();
+                    if prev_z > 0 {
+                        pos_z_children.push((prev_z, prev_idx, prev_id));
+                    }
                 }
             }
-            sorted_children.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
-                b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1))
-            });
-            for (_, _, child_id) in sorted_children.into_iter() {
-                if let Some(hit) = hit_test_subtree(
-                    tree,
-                    child_id,
-                    point,
-                    child_scroll,
-                    effective_clip,
-                    in_portal_pass,
-                ) {
-                    return Some(hit);
+            if !pos_z_children.is_empty() {
+                pos_z_children.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
+                    b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1))
+                });
+                for (_, _, z_child_id) in pos_z_children.into_iter() {
+                    if let Some(z_hit) = hit_test_subtree(
+                        tree,
+                        z_child_id,
+                        point,
+                        child_scroll,
+                        effective_clip,
+                        in_portal_pass,
+                    ) {
+                        return Some(z_hit);
+                    }
                 }
+            }
+            return Some(hit);
+        }
+    }
+    if needs_full_z_sort {
+        let mut sorted_children: Vec<(i32, usize, NodeId)> = Vec::with_capacity(children.len());
+        for (order, cid) in children.iter().copied().enumerate() {
+            if let Some(child_node) = tree.get_node(cid) {
+                sorted_children.push((
+                    child_node.style_ref().get_layout().get_z_index(),
+                    order,
+                    cid,
+                ));
+            }
+        }
+        sorted_children.sort_by(|a: &(i32, usize, NodeId), b: &(i32, usize, NodeId)| {
+            b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1))
+        });
+        for (_, _, child_id) in sorted_children.into_iter() {
+            if let Some(hit) = hit_test_subtree(
+                tree,
+                child_id,
+                point,
+                child_scroll,
+                effective_clip,
+                in_portal_pass,
+            ) {
+                return Some(hit);
             }
         }
     }
