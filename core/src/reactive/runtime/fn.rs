@@ -417,12 +417,14 @@ pub(crate) fn run_effect(id: EffectId) {
     let Some(callback) = callback_opt else {
         return;
     };
+    let mut guard: TrackingGuard = TrackingGuard::new();
     let ran: bool = if let Ok(mut func) = callback.try_borrow_mut() {
         func();
         true
     } else {
         false
     };
+    guard.disarm();
     with_runtime(
         |rt: &mut ReactiveRuntime| {
             if ran {
@@ -437,69 +439,57 @@ pub(crate) fn run_effect(id: EffectId) {
 
 /// Flushes all pending reactive effects in topological depth order when not inside a batch.
 pub fn flush_effects() {
-    let should_start: bool = with_runtime(
+    let mut step: FlushStep = with_runtime(
         |rt: &mut ReactiveRuntime| {
             if rt.get_batch_depth() > 0 || rt.get_flushing() || rt.get_pending_effects().is_empty()
             {
-                return false;
+                return FlushStep::Done;
             }
             rt.set_flushing(true);
-            true
+            rt.drain_pending_flush_step(Vec::new())
         },
-        false,
+        FlushStep::Done,
     );
-    if !should_start {
+    if matches!(step, FlushStep::Done) {
         return;
     }
+    let mut reusable_batch: Vec<(u32, EffectId)> = Vec::new();
     let mut iterations: usize = 0;
-    while iterations < MAX_FLUSH_ITERATIONS {
-        let single_opt: Option<EffectId> = with_runtime(
-            |rt: &mut ReactiveRuntime| {
-                if rt.get_pending_effects().len() == 1 {
-                    rt.get_mut_pending_effects().pop()
-                } else {
-                    None
+    loop {
+        match step {
+            FlushStep::Done => break,
+            FlushStep::Single(eff_id) => {
+                run_effect(eff_id);
+            }
+            FlushStep::Batch(mut batch, is_sorted) => {
+                if !is_sorted {
+                    batch.sort_by_key(|pair: &(u32, EffectId)| pair.0);
                 }
-            },
-            None,
-        );
-        if let Some(eff_id) = single_opt {
-            run_effect(eff_id);
-            iterations += 1;
-            continue;
-        }
-        let mut batch_ids: Vec<(u32, EffectId)> = with_runtime(
-            |rt: &mut ReactiveRuntime| {
-                let pending: Vec<EffectId> = take(rt.get_mut_pending_effects());
-                let mut pairs: Vec<(u32, EffectId)> = Vec::with_capacity(pending.len());
-                for eff_id in pending.into_iter() {
-                    let slot: SlotId = eff_id.slot();
-                    if let Some(entry) = rt.get_effects().get(slot.as_usize())
-                        && entry.get_generation() == slot.get_generation()
-                        && entry.get_alive()
-                    {
-                        pairs.push((entry.get_depth(), eff_id));
-                    }
+                for (_, eff_id) in batch.drain(..) {
+                    run_effect(eff_id);
                 }
-                pairs
-            },
-            Vec::new(),
-        );
-        if batch_ids.is_empty() {
-            break;
-        }
-        batch_ids.sort_by_key(|pair: &(u32, EffectId)| pair.0);
-        for (_, eff_id) in batch_ids.into_iter() {
-            run_effect(eff_id);
+                reusable_batch = batch;
+            }
         }
         iterations += 1;
+        if iterations >= MAX_FLUSH_ITERATIONS {
+            with_runtime(
+                |rt: &mut ReactiveRuntime| {
+                    if reusable_batch.capacity() > rt.get_flush_batch_scratch().capacity() {
+                        rt.set_flush_batch_scratch(reusable_batch);
+                    }
+                    rt.set_flushing(false);
+                },
+                (),
+            );
+            break;
+        }
+        let passed_batch: Vec<(u32, EffectId)> = take(&mut reusable_batch);
+        step = with_runtime(
+            |rt: &mut ReactiveRuntime| rt.drain_pending_flush_step(passed_batch),
+            FlushStep::Done,
+        );
     }
-    with_runtime(
-        |rt: &mut ReactiveRuntime| {
-            rt.set_flushing(false);
-        },
-        (),
-    );
 }
 
 /// Coalesces multiple signal writes inside `operation` into a single reactive flush pass.

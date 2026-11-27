@@ -478,6 +478,7 @@ impl Default for ReactiveRuntime {
             pending_effects: Vec::new(),
             dirty_queue: Vec::with_capacity(INITIAL_SUBSCRIBER_CAPACITY),
             check_scratch: Vec::new(),
+            flush_batch_scratch: Vec::new(),
             batch_depth: 0,
             flushing: false,
             clock: 0,
@@ -1206,6 +1207,77 @@ impl ReactiveRuntime {
                 }
             }
         });
+    }
+
+    /// Drains pending effects into the reusable batch buffer while preserving `pending_effects` capacity and tracking depth order.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable reference to the reactive runtime.
+    /// - `Vec<(u32, EffectId)>` - Reusable caller-owned batch buffer returned from the prior flush step.
+    ///
+    /// # Returns
+    ///
+    /// - `FlushStep` - Next single effect, batch with sortedness flag, or `FlushStep::Done`.
+    pub(crate) fn drain_pending_flush_step(
+        &mut self,
+        mut batch: Vec<(u32, EffectId)>,
+    ) -> FlushStep {
+        let pending_len: usize = self.get_pending_effects().len();
+        if pending_len == 0 {
+            if batch.capacity() > self.get_flush_batch_scratch().capacity() {
+                self.set_flush_batch_scratch(batch);
+            }
+            self.set_flushing(false);
+            return FlushStep::Done;
+        }
+        if pending_len == 1 {
+            if batch.capacity() > self.get_flush_batch_scratch().capacity() {
+                self.set_flush_batch_scratch(batch);
+            }
+            if let Some(eff_id) = self.get_mut_pending_effects().pop() {
+                return FlushStep::Single(eff_id);
+            }
+            self.set_flushing(false);
+            return FlushStep::Done;
+        }
+        if batch.capacity() < self.get_flush_batch_scratch().capacity() {
+            batch = take(self.get_mut_flush_batch_scratch());
+        }
+        let Self {
+            effects,
+            pending_effects,
+            ..
+        } = self;
+        batch.clear();
+        if batch.capacity() < pending_effects.len() {
+            batch.reserve(pending_effects.len() - batch.capacity());
+        }
+        let mut prev_depth: u32 = 0;
+        let mut is_sorted: bool = true;
+        for eff_id in pending_effects.drain(..) {
+            let slot: SlotId = eff_id.slot();
+            if let Some(entry) = effects.get(slot.as_usize())
+                && entry.get_generation() == slot.get_generation()
+                && entry.get_alive()
+            {
+                let depth: u32 = entry.get_depth();
+                if depth < prev_depth {
+                    is_sorted = false;
+                }
+                prev_depth = depth;
+                batch.push((depth, eff_id));
+            }
+        }
+        if batch.is_empty() {
+            if batch.capacity() > self.get_flush_batch_scratch().capacity() {
+                self.set_flush_batch_scratch(batch);
+            }
+            self.set_flushing(false);
+            FlushStep::Done
+        } else {
+            FlushStep::Batch(batch, is_sorted)
+        }
     }
 
     /// Extracts upstream `MemoId` dependencies for `NodeState::Check` memo slot `memo_idx` without heap allocation.

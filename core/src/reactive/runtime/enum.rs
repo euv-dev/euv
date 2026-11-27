@@ -74,3 +74,13 @@ pub(crate) enum MemoEvalPrep {
     /// Memo is `NodeState::Check`; upstream memo dependencies extracted for pull verification.
     Check(MemoCheckDeps),
 }
+
+/// Result of a single fused pending-effect drain step inside `flush_effects`.
+pub(crate) enum FlushStep {
+    /// No pending effects remain; `flushing` has been cleared and scratch capacity preserved.
+    Done,
+    /// Exactly one pending effect popped without touching batch scratch buffers.
+    Single(EffectId),
+    /// Multiple live pending effects drained into the reusable buffer with a sortedness flag.
+    Batch(Vec<(u32, EffectId)>, bool),
+}

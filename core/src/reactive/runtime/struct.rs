@@ -233,6 +233,11 @@ pub struct ReactiveRuntime {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) check_scratch: Vec<MemoId>,
+    /// Reusable scratch buffer holding `(depth, EffectId)` batches across `flush_effects` runs.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) flush_batch_scratch: Vec<(u32, EffectId)>,
     /// Active batch nesting depth; flush executes only when returning to zero.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
