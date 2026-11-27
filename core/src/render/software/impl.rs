@@ -4628,6 +4628,10 @@ impl SoftwareRenderer {
     /// - `&[(usize, usize, u32)]` - Horizontal sample LUT slice `(sx0, sx1, wx_256)` for this span.
     /// - `&[u8]` - Source RGBA8 pixel slice.
     /// - `&mut [u8]` - Destination framebuffer row slice.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Number of non-transparent destination pixels shaded.
     #[inline(always)]
     fn blit_bilinear_span_precomputed(
         y_params: (usize, usize, u32, u32),
@@ -4635,17 +4639,18 @@ impl SoftwareRenderer {
         x_lut: &[(usize, usize, u32)],
         src_bytes: &[u8],
         dst_row: &mut [u8],
-    ) {
+    ) -> usize {
         let (row0, row1, wy, iwy): (usize, usize, u32, u32) = y_params;
         let span_bytes_start: usize = dst_x0 * 4;
         let span_bytes_end: usize = (dst_x0 + x_lut.len()) * 4;
         if span_bytes_end > dst_row.len() {
-            return;
+            return 0;
         }
         let dst_chunks: &mut [[u8; 4]] = dst_row[span_bytes_start..span_bytes_end]
             .as_chunks_mut::<4>()
             .0;
         let src_len: usize = src_bytes.len();
+        let mut shaded: usize = 0;
         if wy == 0 {
             for (dp, &(sx0, sx1, wx)) in dst_chunks.iter_mut().zip(x_lut.iter()) {
                 let i0: usize = (row0 + sx0) * 4;
@@ -4666,6 +4671,7 @@ impl SoftwareRenderer {
                         (((src_bytes[i0 + 2] as u32) * iwx + (src_bytes[i1 + 2] as u32) * wx + 128)
                             >> 8) as u8;
                     dp[3] = 255;
+                    shaded += 1;
                     continue;
                 }
                 let a_val: u32 = (a0 * iwx + a1 * wx + 128) >> 8;
@@ -4686,8 +4692,9 @@ impl SoftwareRenderer {
                 dp[1] = ((vg + (vg >> 8)) >> 8) as u8;
                 dp[2] = ((vb + (vb >> 8)) >> 8) as u8;
                 dp[3] = 255;
+                shaded += 1;
             }
-            return;
+            return shaded;
         }
         for (dp, &(sx0, sx1, wx)) in dst_chunks.iter_mut().zip(x_lut.iter()) {
             let i00: usize = (row0 + sx0) * 4;
@@ -4726,6 +4733,7 @@ impl SoftwareRenderer {
                     + 32768)
                     >> 16) as u8;
                 dp[3] = 255;
+                shaded += 1;
                 continue;
             }
             let a_val: u32 = (a00 * w00 + a10 * w10 + a01 * w01 + a11 * w11 + 32768) >> 16;
@@ -4758,7 +4766,9 @@ impl SoftwareRenderer {
             dp[1] = ((vg + (vg >> 8)) >> 8) as u8;
             dp[2] = ((vb + (vb >> 8)) >> 8) as u8;
             dp[3] = 255;
+            shaded += 1;
         }
+        shaded
     }
 
     /// Executes bilinear image rasterization using reusable horizontal LUT buffer `x_lut`.
@@ -4824,7 +4834,9 @@ impl SoftwareRenderer {
                 let wy: u32 = ((fy - (sy0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32;
                 let y_params: (usize, usize, u32, u32) =
                     (sy0 * src_w_usize, sy1 * src_w_usize, wy, 256 - wy);
-                Self::blit_bilinear_span_precomputed(y_params, x0_u, x_lut_ref, src_bytes, dst_row);
+                let _: usize = Self::blit_bilinear_span_precomputed(
+                    y_params, x0_u, x_lut_ref, src_bytes, dst_row,
+                );
             }
             return ((x1 - x0) as usize) * ((y1 - y0) as usize);
         }
@@ -4854,7 +4866,7 @@ impl SoftwareRenderer {
                 let lut_s: usize = (cx0 - x0) as usize;
                 let lut_e: usize = (cx1 - x0) as usize;
                 if mid_cov >= 0.9995 {
-                    Self::blit_bilinear_span_precomputed(
+                    let _: usize = Self::blit_bilinear_span_precomputed(
                         y_params,
                         cx0 as usize,
                         &x_lut_ref[lut_s..lut_e],
@@ -4913,7 +4925,7 @@ impl SoftwareRenderer {
             if ix0 < ix1 {
                 let lut_s: usize = (ix0 - x0) as usize;
                 let lut_e: usize = (ix1 - x0) as usize;
-                Self::blit_bilinear_span_precomputed(
+                let _: usize = Self::blit_bilinear_span_precomputed(
                     y_params,
                     ix0 as usize,
                     &x_lut_ref[lut_s..lut_e],
@@ -4963,7 +4975,7 @@ impl SoftwareRenderer {
                 let lut_s: usize = (cx0 - x0) as usize;
                 let lut_e: usize = (cx1 - x0) as usize;
                 if mid_cov >= 0.9995 {
-                    Self::blit_bilinear_span_precomputed(
+                    let _: usize = Self::blit_bilinear_span_precomputed(
                         y_params,
                         cx0 as usize,
                         &x_lut_ref[lut_s..lut_e],
@@ -5548,7 +5560,262 @@ impl SoftwareRenderer {
         shaded
     }
 
-    /// Blits a cropped sub-rectangle of an `ImageBuffer` sprite sheet into `band` with bilinear filtering and optional tint.
+    /// Blits a bilinearly filtered sprite scanline with multiplicative `tint` using precomputed 8.8 LUTs.
+    ///
+    /// # Arguments
+    ///
+    /// - `(usize, usize, u32, u32)` - Vertical row parameters `(row0_px, row1_px, wy_256, iwy_256)`.
+    /// - `usize` - Starting destination X pixel coordinate within `dst_row`.
+    /// - `&[(usize, usize, u32)]` - Horizontal sample LUT slice `(sx0, sx1, wx_256)`.
+    /// - `&[u8]` - Source RGBA8 sprite sheet buffer.
+    /// - `&mut [u8]` - Destination framebuffer row slice.
+    /// - `Color` - Multiplicative tint RGBA color.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Number of non-transparent sprite pixels shaded.
+    #[inline(always)]
+    fn blit_sprite_span_tinted(
+        y_params: (usize, usize, u32, u32),
+        dst_x0: usize,
+        x_lut: &[(usize, usize, u32)],
+        src_bytes: &[u8],
+        dst_row: &mut [u8],
+        tint: Color,
+    ) -> usize {
+        let (row0, row1, wy, iwy): (usize, usize, u32, u32) = y_params;
+        let span_bytes_start: usize = dst_x0 * 4;
+        let span_bytes_end: usize = (dst_x0 + x_lut.len()) * 4;
+        if span_bytes_end > dst_row.len() {
+            return 0;
+        }
+        let dst_chunks: &mut [[u8; 4]] = dst_row[span_bytes_start..span_bytes_end]
+            .as_chunks_mut::<4>()
+            .0;
+        let src_len: usize = src_bytes.len();
+        let tr: u32 = tint.get_r() as u32;
+        let tg: u32 = tint.get_g() as u32;
+        let tb: u32 = tint.get_b() as u32;
+        let ta: u32 = tint.get_a() as u32;
+        let mut shaded: usize = 0;
+        if wy == 0 {
+            for (dp, &(sx0, sx1, wx)) in dst_chunks.iter_mut().zip(x_lut.iter()) {
+                let i0: usize = (row0 + sx0) * 4;
+                let i1: usize = (row0 + sx1) * 4;
+                if i1 + 4 > src_len {
+                    continue;
+                }
+                let iwx: u32 = 256 - wx;
+                let sa_raw: u32 =
+                    ((src_bytes[i0 + 3] as u32) * iwx + (src_bytes[i1 + 3] as u32) * wx + 128) >> 8;
+                if sa_raw == 0 {
+                    continue;
+                }
+                let sr_raw: u32 =
+                    ((src_bytes[i0] as u32) * iwx + (src_bytes[i1] as u32) * wx + 128) >> 8;
+                let sg_raw: u32 =
+                    ((src_bytes[i0 + 1] as u32) * iwx + (src_bytes[i1 + 1] as u32) * wx + 128) >> 8;
+                let sb_raw: u32 =
+                    ((src_bytes[i0 + 2] as u32) * iwx + (src_bytes[i1 + 2] as u32) * wx + 128) >> 8;
+                let rr: u32 = sr_raw * tr + 128;
+                let gg: u32 = sg_raw * tg + 128;
+                let bb: u32 = sb_raw * tb + 128;
+                let aa_v: u32 = sa_raw * ta + 128;
+                let r: u32 = (rr + (rr >> 8)) >> 8;
+                let g: u32 = (gg + (gg >> 8)) >> 8;
+                let b: u32 = (bb + (bb >> 8)) >> 8;
+                let a: u32 = (aa_v + (aa_v >> 8)) >> 8;
+                if a == 255 {
+                    dp[0] = r as u8;
+                    dp[1] = g as u8;
+                    dp[2] = b as u8;
+                    dp[3] = 255;
+                } else if a > 0 {
+                    let inv_a: u32 = 255 - a;
+                    let vr: u32 = r * a + (dp[0] as u32) * inv_a + 128;
+                    let vg: u32 = g * a + (dp[1] as u32) * inv_a + 128;
+                    let vb: u32 = b * a + (dp[2] as u32) * inv_a + 128;
+                    let va: u32 = (dp[3] as u32) * inv_a + 128;
+                    dp[0] = ((vr + (vr >> 8)) >> 8) as u8;
+                    dp[1] = ((vg + (vg >> 8)) >> 8) as u8;
+                    dp[2] = ((vb + (vb >> 8)) >> 8) as u8;
+                    dp[3] = (a + ((va + (va >> 8)) >> 8)).min(255) as u8;
+                }
+                shaded += 1;
+            }
+            return shaded;
+        }
+        for (dp, &(sx0, sx1, wx)) in dst_chunks.iter_mut().zip(x_lut.iter()) {
+            let i00: usize = (row0 + sx0) * 4;
+            let i10: usize = (row0 + sx1) * 4;
+            let i01: usize = (row1 + sx0) * 4;
+            let i11: usize = (row1 + sx1) * 4;
+            if i11 + 4 > src_len {
+                continue;
+            }
+            let iwx: u32 = 256 - wx;
+            let w00: u32 = iwx * iwy;
+            let w10: u32 = wx * iwy;
+            let w01: u32 = iwx * wy;
+            let w11: u32 = wx * wy;
+            let sa_raw: u32 = ((src_bytes[i00 + 3] as u32) * w00
+                + (src_bytes[i10 + 3] as u32) * w10
+                + (src_bytes[i01 + 3] as u32) * w01
+                + (src_bytes[i11 + 3] as u32) * w11
+                + 32768)
+                >> 16;
+            if sa_raw == 0 {
+                continue;
+            }
+            let sr_raw: u32 = ((src_bytes[i00] as u32) * w00
+                + (src_bytes[i10] as u32) * w10
+                + (src_bytes[i01] as u32) * w01
+                + (src_bytes[i11] as u32) * w11
+                + 32768)
+                >> 16;
+            let sg_raw: u32 = ((src_bytes[i00 + 1] as u32) * w00
+                + (src_bytes[i10 + 1] as u32) * w10
+                + (src_bytes[i01 + 1] as u32) * w01
+                + (src_bytes[i11 + 1] as u32) * w11
+                + 32768)
+                >> 16;
+            let sb_raw: u32 = ((src_bytes[i00 + 2] as u32) * w00
+                + (src_bytes[i10 + 2] as u32) * w10
+                + (src_bytes[i01 + 2] as u32) * w01
+                + (src_bytes[i11 + 2] as u32) * w11
+                + 32768)
+                >> 16;
+            let rr: u32 = sr_raw * tr + 128;
+            let gg: u32 = sg_raw * tg + 128;
+            let bb: u32 = sb_raw * tb + 128;
+            let aa_v: u32 = sa_raw * ta + 128;
+            let r: u32 = (rr + (rr >> 8)) >> 8;
+            let g: u32 = (gg + (gg >> 8)) >> 8;
+            let b: u32 = (bb + (bb >> 8)) >> 8;
+            let a: u32 = (aa_v + (aa_v >> 8)) >> 8;
+            if a == 255 {
+                dp[0] = r as u8;
+                dp[1] = g as u8;
+                dp[2] = b as u8;
+                dp[3] = 255;
+            } else if a > 0 {
+                let inv_a: u32 = 255 - a;
+                let vr: u32 = r * a + (dp[0] as u32) * inv_a + 128;
+                let vg: u32 = g * a + (dp[1] as u32) * inv_a + 128;
+                let vb: u32 = b * a + (dp[2] as u32) * inv_a + 128;
+                let va: u32 = (dp[3] as u32) * inv_a + 128;
+                dp[0] = ((vr + (vr >> 8)) >> 8) as u8;
+                dp[1] = ((vg + (vg >> 8)) >> 8) as u8;
+                dp[2] = ((vb + (vb >> 8)) >> 8) as u8;
+                dp[3] = (a + ((va + (va >> 8)) >> 8)).min(255) as u8;
+            }
+            shaded += 1;
+        }
+        shaded
+    }
+
+    /// Executes `raster_sprite_region` using reusable horizontal fixed-point sample buffer `x_lut`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PixelBand<'_>` - Target pixel band.
+    /// - `(Rect, Rect)` - Tuple `(dst_rect, src_rect)` in physical/source pixels.
+    /// - `(u32, u32, &[u8])` - Source sprite sheet `(buf_w, buf_h, src_bytes)`.
+    /// - `(u32, u32, u32, u32)` - Clipped visible bounds `(x0, y0, x1, y1)`.
+    /// - `Color` - Multiplicative tint color.
+    /// - `bool` - Whether bilinear filtering is active.
+    /// - `&mut Vec<(usize, usize, u32)>` - Reusable horizontal LUT scratch buffer.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Number of shaded sprite pixels.
+    fn raster_sprite_region_with_lut(
+        band: &mut PixelBand<'_>,
+        rects: (Rect, Rect),
+        src_info: (u32, u32, &[u8]),
+        bounds: (u32, u32, u32, u32),
+        tint: Color,
+        use_bilinear: bool,
+        x_lut: &mut Vec<(usize, usize, u32)>,
+    ) -> usize {
+        let (rect, src_rect): (Rect, Rect) = rects;
+        let (buf_w, buf_h, src_bytes): (u32, u32, &[u8]) = src_info;
+        let (x0, y0, x1, y1): (u32, u32, u32, u32) = bounds;
+        let inv_w: f32 = 1.0 / rect.get_width().max(1.0);
+        let inv_h: f32 = 1.0 / rect.get_height().max(1.0);
+        let untinted: bool = tint == COLOR_WHITE;
+        let max_sx: u32 = ((src_rect.right().ceil() as u32).saturating_sub(1)).min(buf_w - 1);
+        let max_sy: u32 = ((src_rect.bottom().ceil() as u32).saturating_sub(1)).min(buf_h - 1);
+        let min_sx: u32 = (src_rect.get_x().floor().max(0.0) as u32).min(max_sx);
+        let min_sy: u32 = (src_rect.get_y().floor().max(0.0) as u32).min(max_sy);
+        let buf_w_usize: usize = buf_w as usize;
+        let rect_x: f32 = rect.get_x();
+        let rect_y: f32 = rect.get_y();
+        let src_x: f32 = src_rect.get_x();
+        let src_y: f32 = src_rect.get_y();
+        let src_w: f32 = src_rect.get_width();
+        let src_h: f32 = src_rect.get_height();
+        let min_sx_f: f32 = min_sx as f32;
+        let max_sx_f: f32 = max_sx as f32;
+        let min_sy_f: f32 = min_sy as f32;
+        let max_sy_f: f32 = max_sy as f32;
+        x_lut.clear();
+        for x in x0..x1 {
+            let u: f32 = (((x as f32) + 0.5 - rect_x) * inv_w).clamp(0.0, 1.0);
+            let fx: f32 = (src_x + u * src_w - 0.5).clamp(min_sx_f, max_sx_f);
+            let sx0: u32 = (fx.floor() as u32).clamp(min_sx, max_sx);
+            let sx1: u32 = if use_bilinear {
+                (sx0 + 1).min(max_sx)
+            } else {
+                sx0
+            };
+            let wx: u32 = if use_bilinear {
+                ((fx - (sx0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32
+            } else {
+                0
+            };
+            x_lut.push((sx0 as usize, sx1 as usize, wx));
+        }
+        let x_lut_ref: &[(usize, usize, u32)] = x_lut.as_slice();
+        let x0_u: usize = x0 as usize;
+        let mut shaded: usize = 0;
+        for y in y0..y1 {
+            let Some(dst_row) = band.row_slice_mut(y) else {
+                continue;
+            };
+            let v: f32 = (((y as f32) + 0.5 - rect_y) * inv_h).clamp(0.0, 1.0);
+            let fy: f32 = (src_y + v * src_h - 0.5).clamp(min_sy_f, max_sy_f);
+            let sy0: u32 = (fy.floor() as u32).clamp(min_sy, max_sy);
+            let sy1: u32 = if use_bilinear {
+                (sy0 + 1).min(max_sy)
+            } else {
+                sy0
+            };
+            let wy: u32 = if use_bilinear {
+                ((fy - (sy0 as f32)) * 256.0).round().clamp(0.0, 256.0) as u32
+            } else {
+                0
+            };
+            let y_params: (usize, usize, u32, u32) = (
+                (sy0 as usize) * buf_w_usize,
+                (sy1 as usize) * buf_w_usize,
+                wy,
+                256 - wy,
+            );
+            if untinted {
+                shaded += Self::blit_bilinear_span_precomputed(
+                    y_params, x0_u, x_lut_ref, src_bytes, dst_row,
+                );
+            } else {
+                shaded += Self::blit_sprite_span_tinted(
+                    y_params, x0_u, x_lut_ref, src_bytes, dst_row, tint,
+                );
+            }
+        }
+        shaded
+    }
+
+    /// Blits a cropped sub-rectangle of an `ImageBuffer` sprite sheet into `band` with fixed-point `x_lut` filtering and optional tint.
     ///
     /// # Arguments
     ///
@@ -5590,109 +5857,85 @@ impl SoftwareRenderer {
         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1);
         let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1);
+        if x0 >= x1 || y0 >= y1 {
+            return 0;
+        }
         let buf_w: u32 = buffer.get_width();
         let buf_h: u32 = buffer.get_height();
         let src_bytes: &[u8] = buffer.get_pixels().as_slice();
-        let inv_w: f32 = 1.0 / rect.get_width().max(1.0);
-        let inv_h: f32 = 1.0 / rect.get_height().max(1.0);
-        let untinted: bool = tint == COLOR_WHITE;
-        let tr: u32 = tint.get_r() as u32;
-        let tg: u32 = tint.get_g() as u32;
-        let tb: u32 = tint.get_b() as u32;
-        let ta: u32 = tint.get_a() as u32;
         let use_bilinear: bool = aa != AntialiasingMode::None
             && ((rect.get_width() - src_rect.get_width()).abs() > 0.5
                 || (rect.get_height() - src_rect.get_height()).abs() > 0.5);
-        let max_sx: u32 = ((src_rect.right().ceil() as u32).saturating_sub(1)).min(buf_w - 1);
-        let max_sy: u32 = ((src_rect.bottom().ceil() as u32).saturating_sub(1)).min(buf_h - 1);
-        let min_sx: u32 = (src_rect.get_x().floor().max(0.0) as u32).min(max_sx);
-        let min_sy: u32 = (src_rect.get_y().floor().max(0.0) as u32).min(max_sy);
-        let buf_w_usize: usize = buf_w as usize;
-        let mut shaded: usize = 0;
-        for y in y0..y1 {
-            let v: f32 = (((y as f32) + 0.5 - rect.get_y()) * inv_h).clamp(0.0, 1.0);
-            let fy: f32 = (src_rect.get_y() + v * src_rect.get_height() - 0.5)
-                .clamp(min_sy as f32, max_sy as f32);
-            let sy0: u32 = (fy.floor() as u32).clamp(min_sy, max_sy);
-            let sy1: u32 = (sy0 + 1).min(max_sy);
-            let wy: f32 = if use_bilinear { fy - (sy0 as f32) } else { 0.0 };
-            let iwy: f32 = 1.0 - wy;
-            let row0: usize = (sy0 as usize) * buf_w_usize;
-            let row1: usize = (sy1 as usize) * buf_w_usize;
-            for x in x0..x1 {
-                let u: f32 = (((x as f32) + 0.5 - rect.get_x()) * inv_w).clamp(0.0, 1.0);
-                let fx: f32 = (src_rect.get_x() + u * src_rect.get_width() - 0.5)
-                    .clamp(min_sx as f32, max_sx as f32);
-                let sx0: u32 = (fx.floor() as u32).clamp(min_sx, max_sx);
-                let sx1: u32 = (sx0 + 1).min(max_sx);
-                let (sr_u8, sg_u8, sb_u8, sa_u8): (u8, u8, u8, u8) = if use_bilinear {
-                    let wx: f32 = fx - (sx0 as f32);
-                    let iwx: f32 = 1.0 - wx;
-                    let i00: usize = (row0 + (sx0 as usize)) * 4;
-                    let i10: usize = (row0 + (sx1 as usize)) * 4;
-                    let i01: usize = (row1 + (sx0 as usize)) * 4;
-                    let i11: usize = (row1 + (sx1 as usize)) * 4;
-                    if i11 + 4 > src_bytes.len() {
+        if !use_bilinear
+            && tint == COLOR_WHITE
+            && (rect.get_width() - src_rect.get_width()).abs() <= 0.01
+            && (rect.get_height() - src_rect.get_height()).abs() <= 0.01
+            && (rect.get_x() - rect.get_x().round()).abs() <= 0.01
+            && (rect.get_y() - rect.get_y().round()).abs() <= 0.01
+            && (src_rect.get_x() - src_rect.get_x().round()).abs() <= 0.01
+            && (src_rect.get_y() - src_rect.get_y().round()).abs() <= 0.01
+        {
+            let rx0_i: i32 = rect.get_x().round() as i32;
+            let ry0_i: i32 = rect.get_y().round() as i32;
+            let sx0_i: i32 = src_rect.get_x().round() as i32;
+            let sy0_i: i32 = src_rect.get_y().round() as i32;
+            let span_w: usize = (x1 - x0) as usize;
+            let src_x0_i: i32 = sx0_i + ((x0 as i32) - rx0_i);
+            let src_y0_i: i32 = sy0_i + ((y0 as i32) - ry0_i);
+            let src_y1_i: i32 = sy0_i + ((y1 as i32) - ry0_i);
+            if src_x0_i >= 0
+                && src_x0_i + (span_w as i32) <= (buf_w as i32)
+                && src_y0_i >= 0
+                && src_y1_i <= (buf_h as i32)
+            {
+                let buf_w_u: usize = buf_w as usize;
+                let dst_b0: usize = (x0 as usize) * 4;
+                let dst_b1: usize = (x1 as usize) * 4;
+                let src_x0_u: usize = src_x0_i as usize;
+                for y in y0..y1 {
+                    let Some(dst_row) = band.row_slice_mut(y) else {
                         continue;
+                    };
+                    let sy: usize = (sy0_i + ((y as i32) - ry0_i)) as usize;
+                    let src_b0: usize = (sy * buf_w_u + src_x0_u) * 4;
+                    let src_b1: usize = src_b0 + span_w * 4;
+                    if src_b1 <= src_bytes.len() && dst_b1 <= dst_row.len() {
+                        blit_1to1_rgba_span(
+                            &src_bytes[src_b0..src_b1],
+                            &mut dst_row[dst_b0..dst_b1],
+                        );
                     }
-                    let w00: f32 = iwx * iwy;
-                    let w10: f32 = wx * iwy;
-                    let w01: f32 = iwx * wy;
-                    let w11: f32 = wx * wy;
-                    (
-                        ((src_bytes[i00] as f32) * w00
-                            + (src_bytes[i10] as f32) * w10
-                            + (src_bytes[i01] as f32) * w01
-                            + (src_bytes[i11] as f32) * w11)
-                            .round() as u8,
-                        ((src_bytes[i00 + 1] as f32) * w00
-                            + (src_bytes[i10 + 1] as f32) * w10
-                            + (src_bytes[i01 + 1] as f32) * w01
-                            + (src_bytes[i11 + 1] as f32) * w11)
-                            .round() as u8,
-                        ((src_bytes[i00 + 2] as f32) * w00
-                            + (src_bytes[i10 + 2] as f32) * w10
-                            + (src_bytes[i01 + 2] as f32) * w01
-                            + (src_bytes[i11 + 2] as f32) * w11)
-                            .round() as u8,
-                        ((src_bytes[i00 + 3] as f32) * w00
-                            + (src_bytes[i10 + 3] as f32) * w10
-                            + (src_bytes[i01 + 3] as f32) * w01
-                            + (src_bytes[i11 + 3] as f32) * w11)
-                            .round() as u8,
-                    )
-                } else {
-                    let idx: usize = (row0 + (sx0 as usize)) * 4;
-                    if idx + 4 > src_bytes.len() {
-                        continue;
-                    }
-                    (
-                        src_bytes[idx],
-                        src_bytes[idx + 1],
-                        src_bytes[idx + 2],
-                        src_bytes[idx + 3],
-                    )
-                };
-                if sa_u8 == 0 {
-                    continue;
                 }
-                let sample: Color = if untinted {
-                    Color::new(sr_u8, sg_u8, sb_u8, sa_u8)
-                } else {
-                    let rr: u32 = (sr_u8 as u32) * tr + 128;
-                    let gg: u32 = (sg_u8 as u32) * tg + 128;
-                    let bb: u32 = (sb_u8 as u32) * tb + 128;
-                    let aa_v: u32 = (sa_u8 as u32) * ta + 128;
-                    Color::new(
-                        ((rr + (rr >> 8)) >> 8) as u8,
-                        ((gg + (gg >> 8)) >> 8) as u8,
-                        ((bb + (bb >> 8)) >> 8) as u8,
-                        ((aa_v + (aa_v >> 8)) >> 8) as u8,
-                    )
-                };
-                band.blend_pixel(x, y, sample);
-                shaded += 1;
+                return span_w * ((y1 - y0) as usize);
             }
+        }
+        let mut shaded: usize = 0;
+        let ran_tls: bool = BAND_IMAGE_X_LUT
+            .try_with(|cell: &RefCell<Vec<(usize, usize, u32)>>| {
+                if let Ok(mut guard) = cell.try_borrow_mut() {
+                    shaded = Self::raster_sprite_region_with_lut(
+                        band,
+                        (rect, src_rect),
+                        (buf_w, buf_h, src_bytes),
+                        (x0, y0, x1, y1),
+                        tint,
+                        use_bilinear,
+                        &mut guard,
+                    );
+                }
+            })
+            .is_ok();
+        if !ran_tls {
+            let mut fallback_lut: Vec<(usize, usize, u32)> = Vec::with_capacity((x1 - x0) as usize);
+            shaded = Self::raster_sprite_region_with_lut(
+                band,
+                (rect, src_rect),
+                (buf_w, buf_h, src_bytes),
+                (x0, y0, x1, y1),
+                tint,
+                use_bilinear,
+                &mut fallback_lut,
+            );
         }
         shaded
     }
