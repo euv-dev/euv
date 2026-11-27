@@ -8,4 +8,7 @@ thread_local! {
     /// Per-thread reusable scratch buffers for rounded-clip corner save/restore eliminating per-band allocations.
     pub(crate) static BAND_CORNER_SCRATCH: RefCell<BandCornerScratch> =
         RefCell::new(BandCornerScratch::default());
+    /// Per-thread reusable 1D horizontal shadow strip scratch buffers eliminating per-shadow allocations.
+    pub(crate) static BAND_SHADOW_SCRATCH: RefCell<BandShadowScratch> =
+        RefCell::new(BandShadowScratch::default());
 }

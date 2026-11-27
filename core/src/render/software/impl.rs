@@ -3336,6 +3336,699 @@ impl SoftwareRenderer {
         (x1, x1)
     }
 
+    /// Blends the constant-alpha horizontal middle span `[sx0, sx1)` on row `y` while skipping cutout `[cut0, cut1)`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PixelBand<'_>` - Target pixel band.
+    /// - `&ShadowRenderCtx` - Shared shadow geometry and color context.
+    /// - `u32` - Global physical Y row coordinate.
+    /// - `(u32, u32)` - Opaque cutout interval `(cut0, cut1)` on row `y`.
+    /// - `f32` - Constant middle-span shadow opacity `mid_alpha`.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Shaded pixel count across the middle span.
+    #[inline(always)]
+    fn raster_shadow_middle_span(
+        band: &mut PixelBand<'_>,
+        ctx: &ShadowRenderCtx,
+        y: u32,
+        cutout: (u32, u32),
+        mid_alpha: f32,
+    ) -> usize {
+        if !ctx.has_mid_x || mid_alpha <= 0.0005 {
+            return 0;
+        }
+        let (cut0, cut1): (u32, u32) = cutout;
+        let sx0: u32 = ctx.lx1;
+        let sx1: u32 = ctx.rx0;
+        let mut shaded: usize = 0;
+        if cut0 < cut1 {
+            let m0_end: u32 = cut0.min(sx1);
+            if sx0 < m0_end {
+                band.blend_shadow_span_const_alpha(sx0, m0_end, y, ctx.color, mid_alpha);
+                shaded += (m0_end - sx0) as usize;
+            }
+            let m1_start: u32 = cut1.max(sx0);
+            if m1_start < sx1 {
+                band.blend_shadow_span_const_alpha(m1_start, sx1, y, ctx.color, mid_alpha);
+                shaded += (sx1 - m1_start) as usize;
+            }
+        } else {
+            band.blend_shadow_span_const_alpha(sx0, sx1, y, ctx.color, mid_alpha);
+            shaded += (sx1 - sx0) as usize;
+        }
+        shaded
+    }
+
+    /// Rasterizes a single uniform-radius shadow corner row using 2x horizontal left/right symmetry.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PixelBand<'_>` - Target pixel band.
+    /// - `&ShadowRenderCtx` - Shared shadow geometry and color context.
+    /// - `u32` - Global physical Y row coordinate.
+    /// - `(Rect, Rect)` - Opaque cutout rectangles `(cut_h, cut_v)`.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Shaded pixel count on row `y`.
+    fn raster_shadow_corner_row_symmetric(
+        band: &mut PixelBand<'_>,
+        ctx: &ShadowRenderCtx,
+        y: u32,
+        cutouts: (Rect, Rect),
+    ) -> usize {
+        let py: f32 = (y as f32) + 0.5 - ctx.cy;
+        let py_abs: f32 = py.abs();
+        let (cut0, cut1): (u32, u32) = Self::shadow_row_cutout(y, cutouts, ctx.x0, ctx.x1);
+        let mut shaded: usize = 0;
+        if ctx.has_mid_x {
+            let dist_y: f32 = py_abs - ctx.half_h;
+            let mid_alpha: f32 = if dist_y < ctx.cutoff {
+                ctx.base_alpha * fast_gaussian_shadow_falloff(dist_y, ctx.inv_sigma)
+            } else {
+                0.0
+            };
+            shaded += Self::raster_shadow_middle_span(band, ctx, y, (cut0, cut1), mid_alpha);
+        }
+        let (la0, la1): (u32, u32) = active_span_bounds(ctx.x0, ctx.lx1, cut0, cut1);
+        let (ra0, ra1): (u32, u32) = active_span_bounds(ctx.rx0, ctx.x1, cut0, cut1);
+        let mut u0: i32 = i32::MAX;
+        let mut u1: i32 = i32::MIN;
+        if la0 < la1 {
+            u0 = u0.min(la0 as i32);
+            u1 = u1.max(la1 as i32);
+        }
+        if ra0 < ra1 {
+            u0 = u0.min(ctx.mirror_x_sum - (ra1 as i32) + 1);
+            u1 = u1.max(ctx.mirror_x_sum - (ra0 as i32) + 1);
+        }
+        if u0 >= u1 {
+            return shaded;
+        }
+        let Some(row) = band.row_slice_mut(y) else {
+            return shaded;
+        };
+        let qy: f32 = py_abs - ctx.half_h + ctx.uniform_r;
+        let qy_pos: f32 = qy.max(0.0);
+        let qy_pos_sq: f32 = qy_pos * qy_pos;
+        let sdf_geom: (f32, f32, f32, f32) =
+            (ctx.half_w, ctx.uniform_r, ctx.cutoff, ctx.cutoff_r_safe_sq);
+        let y_term: f32 = (y as f32) * 0.005_837_15;
+        let x0_i: i32 = ctx.x0 as i32;
+        let lx1_i: i32 = ctx.lx1 as i32;
+        let rx0_i: i32 = ctx.rx0 as i32;
+        let x1_i: i32 = ctx.x1 as i32;
+        let cut0_i: i32 = cut0 as i32;
+        let cut1_i: i32 = cut1 as i32;
+        for xl_i in u0..u1 {
+            let xr_i: i32 = ctx.mirror_x_sum - xl_i;
+            let do_l: bool = xl_i >= x0_i && xl_i < lx1_i && (xl_i < cut0_i || xl_i >= cut1_i);
+            let do_r: bool = xr_i >= rx0_i && xr_i < x1_i && (xr_i < cut0_i || xr_i >= cut1_i);
+            if !do_l && !do_r {
+                continue;
+            }
+            let px_abs: f32 = ((xl_i as f32) + 0.5 - ctx.cx).abs();
+            let dist: f32 = shadow_corner_dist_fast(px_abs, qy, qy_pos_sq, sdf_geom);
+            if dist >= ctx.cutoff {
+                continue;
+            }
+            let alpha_f: f32 = ctx.base_alpha * fast_gaussian_shadow_falloff(dist, ctx.inv_sigma);
+            if alpha_f <= 0.0005 {
+                continue;
+            }
+            let a: f32 = alpha_f.clamp(0.0, 1.0);
+            if a >= 0.9995 {
+                if do_l {
+                    let off: usize = (xl_i as usize) * 4;
+                    row[off] = ctx.color_rgb[0];
+                    row[off + 1] = ctx.color_rgb[1];
+                    row[off + 2] = ctx.color_rgb[2];
+                    row[off + 3] = 255;
+                    shaded += 1;
+                }
+                if do_r {
+                    let off: usize = (xr_i as usize) * 4;
+                    row[off] = ctx.color_rgb[0];
+                    row[off + 1] = ctx.color_rgb[1];
+                    row[off + 2] = ctx.color_rgb[2];
+                    row[off + 3] = 255;
+                    shaded += 1;
+                }
+            } else {
+                let inv_a: f32 = 1.0 - a;
+                let sa_u32: u32 = (a * 255.0) as u32;
+                let params: ShadowStripParams = ShadowStripParams {
+                    sr_a: ctx.lin_rgb[0] * a,
+                    sg_a: ctx.lin_rgb[1] * a,
+                    sb_a: ctx.lin_rgb[2] * a,
+                    inv_a,
+                    sa_u32,
+                    inv_a_u32: 255 - sa_u32,
+                };
+                let mut cache: ShadowPixelCache = ShadowPixelCache::default();
+                if do_l {
+                    blend_shadow_mirrored_pixel(row, xl_i as u32, y_term, params, &mut cache);
+                    shaded += 1;
+                }
+                if do_r {
+                    blend_shadow_mirrored_pixel(row, xr_i as u32, y_term, params, &mut cache);
+                    shaded += 1;
+                }
+            }
+        }
+        shaded
+    }
+
+    /// Rasterizes a vertically mirrored pair of uniform-radius shadow corner rows (`y_t < y_b`) with 4-quadrant SDF and LUT reuse.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PixelBand<'_>` - Target pixel band.
+    /// - `&ShadowRenderCtx` - Shared shadow geometry and color context.
+    /// - `u32` - Upper global physical Y row coordinate (`y_t < y_b`).
+    /// - `u32` - Lower mirrored global physical Y row coordinate (`y_b > y_t`).
+    /// - `(Rect, Rect)` - Opaque cutout rectangles `(cut_h, cut_v)`.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Total shaded pixel count across both rows `y_t` and `y_b`.
+    fn raster_shadow_corner_pair_symmetric(
+        band: &mut PixelBand<'_>,
+        ctx: &ShadowRenderCtx,
+        y_t: u32,
+        y_b: u32,
+        cutouts: (Rect, Rect),
+    ) -> usize {
+        let py: f32 = (y_t as f32) + 0.5 - ctx.cy;
+        let py_abs: f32 = py.abs();
+        let (cut0_t, cut1_t): (u32, u32) = Self::shadow_row_cutout(y_t, cutouts, ctx.x0, ctx.x1);
+        let (cut0_b, cut1_b): (u32, u32) = Self::shadow_row_cutout(y_b, cutouts, ctx.x0, ctx.x1);
+        let mut shaded: usize = 0;
+        if ctx.has_mid_x {
+            let dist_y: f32 = py_abs - ctx.half_h;
+            let mid_alpha: f32 = if dist_y < ctx.cutoff {
+                ctx.base_alpha * fast_gaussian_shadow_falloff(dist_y, ctx.inv_sigma)
+            } else {
+                0.0
+            };
+            if mid_alpha > 0.0005 {
+                shaded +=
+                    Self::raster_shadow_middle_span(band, ctx, y_t, (cut0_t, cut1_t), mid_alpha);
+                shaded +=
+                    Self::raster_shadow_middle_span(band, ctx, y_b, (cut0_b, cut1_b), mid_alpha);
+            }
+        }
+        let (lat0, lat1): (u32, u32) = active_span_bounds(ctx.x0, ctx.lx1, cut0_t, cut1_t);
+        let (rat0, rat1): (u32, u32) = active_span_bounds(ctx.rx0, ctx.x1, cut0_t, cut1_t);
+        let (lab0, lab1): (u32, u32) = active_span_bounds(ctx.x0, ctx.lx1, cut0_b, cut1_b);
+        let (rab0, rab1): (u32, u32) = active_span_bounds(ctx.rx0, ctx.x1, cut0_b, cut1_b);
+        let mut u0: i32 = i32::MAX;
+        let mut u1: i32 = i32::MIN;
+        if lat0 < lat1 {
+            u0 = u0.min(lat0 as i32);
+            u1 = u1.max(lat1 as i32);
+        }
+        if rat0 < rat1 {
+            u0 = u0.min(ctx.mirror_x_sum - (rat1 as i32) + 1);
+            u1 = u1.max(ctx.mirror_x_sum - (rat0 as i32) + 1);
+        }
+        if lab0 < lab1 {
+            u0 = u0.min(lab0 as i32);
+            u1 = u1.max(lab1 as i32);
+        }
+        if rab0 < rab1 {
+            u0 = u0.min(ctx.mirror_x_sum - (rab1 as i32) + 1);
+            u1 = u1.max(ctx.mirror_x_sum - (rab0 as i32) + 1);
+        }
+        if u0 >= u1 {
+            return shaded;
+        }
+        let Some((row_t, row_b)) = band.two_row_slices_mut(y_t, y_b) else {
+            return shaded;
+        };
+        let qy: f32 = py_abs - ctx.half_h + ctx.uniform_r;
+        let qy_pos: f32 = qy.max(0.0);
+        let qy_pos_sq: f32 = qy_pos * qy_pos;
+        let sdf_geom: (f32, f32, f32, f32) =
+            (ctx.half_w, ctx.uniform_r, ctx.cutoff, ctx.cutoff_r_safe_sq);
+        let y_term_t: f32 = (y_t as f32) * 0.005_837_15;
+        let y_term_b: f32 = (y_b as f32) * 0.005_837_15;
+        let x0_i: i32 = ctx.x0 as i32;
+        let lx1_i: i32 = ctx.lx1 as i32;
+        let rx0_i: i32 = ctx.rx0 as i32;
+        let x1_i: i32 = ctx.x1 as i32;
+        let cut0_ti: i32 = cut0_t as i32;
+        let cut1_ti: i32 = cut1_t as i32;
+        let cut0_bi: i32 = cut0_b as i32;
+        let cut1_bi: i32 = cut1_b as i32;
+        for xl_i in u0..u1 {
+            let xr_i: i32 = ctx.mirror_x_sum - xl_i;
+            let in_l: bool = xl_i >= x0_i && xl_i < lx1_i;
+            let in_r: bool = xr_i >= rx0_i && xr_i < x1_i;
+            let do_lt: bool = in_l && (xl_i < cut0_ti || xl_i >= cut1_ti);
+            let do_rt: bool = in_r && (xr_i < cut0_ti || xr_i >= cut1_ti);
+            let do_lb: bool = in_l && (xl_i < cut0_bi || xl_i >= cut1_bi);
+            let do_rb: bool = in_r && (xr_i < cut0_bi || xr_i >= cut1_bi);
+            if !do_lt && !do_rt && !do_lb && !do_rb {
+                continue;
+            }
+            let px_abs: f32 = ((xl_i as f32) + 0.5 - ctx.cx).abs();
+            let dist: f32 = shadow_corner_dist_fast(px_abs, qy, qy_pos_sq, sdf_geom);
+            if dist >= ctx.cutoff {
+                continue;
+            }
+            let alpha_f: f32 = ctx.base_alpha * fast_gaussian_shadow_falloff(dist, ctx.inv_sigma);
+            if alpha_f <= 0.0005 {
+                continue;
+            }
+            let a: f32 = alpha_f.clamp(0.0, 1.0);
+            if a >= 0.9995 {
+                if do_lt {
+                    let off: usize = (xl_i as usize) * 4;
+                    row_t[off] = ctx.color_rgb[0];
+                    row_t[off + 1] = ctx.color_rgb[1];
+                    row_t[off + 2] = ctx.color_rgb[2];
+                    row_t[off + 3] = 255;
+                    shaded += 1;
+                }
+                if do_rt {
+                    let off: usize = (xr_i as usize) * 4;
+                    row_t[off] = ctx.color_rgb[0];
+                    row_t[off + 1] = ctx.color_rgb[1];
+                    row_t[off + 2] = ctx.color_rgb[2];
+                    row_t[off + 3] = 255;
+                    shaded += 1;
+                }
+                if do_lb {
+                    let off: usize = (xl_i as usize) * 4;
+                    row_b[off] = ctx.color_rgb[0];
+                    row_b[off + 1] = ctx.color_rgb[1];
+                    row_b[off + 2] = ctx.color_rgb[2];
+                    row_b[off + 3] = 255;
+                    shaded += 1;
+                }
+                if do_rb {
+                    let off: usize = (xr_i as usize) * 4;
+                    row_b[off] = ctx.color_rgb[0];
+                    row_b[off + 1] = ctx.color_rgb[1];
+                    row_b[off + 2] = ctx.color_rgb[2];
+                    row_b[off + 3] = 255;
+                    shaded += 1;
+                }
+            } else {
+                let inv_a: f32 = 1.0 - a;
+                let sa_u32: u32 = (a * 255.0) as u32;
+                let params: ShadowStripParams = ShadowStripParams {
+                    sr_a: ctx.lin_rgb[0] * a,
+                    sg_a: ctx.lin_rgb[1] * a,
+                    sb_a: ctx.lin_rgb[2] * a,
+                    inv_a,
+                    sa_u32,
+                    inv_a_u32: 255 - sa_u32,
+                };
+                let mut cache: ShadowPixelCache = ShadowPixelCache::default();
+                if do_lt {
+                    blend_shadow_mirrored_pixel(row_t, xl_i as u32, y_term_t, params, &mut cache);
+                    shaded += 1;
+                }
+                if do_rt {
+                    blend_shadow_mirrored_pixel(row_t, xr_i as u32, y_term_t, params, &mut cache);
+                    shaded += 1;
+                }
+                if do_lb {
+                    blend_shadow_mirrored_pixel(row_b, xl_i as u32, y_term_b, params, &mut cache);
+                    shaded += 1;
+                }
+                if do_rb {
+                    blend_shadow_mirrored_pixel(row_b, xr_i as u32, y_term_b, params, &mut cache);
+                    shaded += 1;
+                }
+            }
+        }
+        shaded
+    }
+
+    /// Rasterizes a general (asymmetric-radius or unaligned-center) shadow corner row directly into `row_slice_mut`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PixelBand<'_>` - Target pixel band.
+    /// - `&ShadowRenderCtx` - Shared shadow geometry and color context.
+    /// - `CornerRadius` - Per-quadrant physical corner radii.
+    /// - `u32` - Global physical Y row coordinate.
+    /// - `(Rect, Rect)` - Opaque cutout rectangles `(cut_h, cut_v)`.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Shaded pixel count on row `y`.
+    fn raster_shadow_corner_row_general(
+        band: &mut PixelBand<'_>,
+        ctx: &ShadowRenderCtx,
+        radius: CornerRadius,
+        y: u32,
+        cutouts: (Rect, Rect),
+    ) -> usize {
+        let py: f32 = (y as f32) + 0.5 - ctx.cy;
+        let py_abs: f32 = py.abs();
+        let (cut0, cut1): (u32, u32) = Self::shadow_row_cutout(y, cutouts, ctx.x0, ctx.x1);
+        let spans: [(u32, u32); 2] = if cut0 < cut1 {
+            [(ctx.x0, cut0), (cut1, ctx.x1)]
+        } else {
+            [(ctx.x0, ctx.x1), (ctx.x1, ctx.x1)]
+        };
+        let mut shaded: usize = 0;
+        if ctx.has_mid_x {
+            let dist_y: f32 = py_abs - ctx.half_h;
+            let mid_alpha: f32 = if dist_y < ctx.cutoff {
+                ctx.base_alpha * fast_gaussian_shadow_falloff(dist_y, ctx.inv_sigma)
+            } else {
+                0.0
+            };
+            shaded += Self::raster_shadow_middle_span(band, ctx, y, (cut0, cut1), mid_alpha);
+        }
+        let Some(row) = band.row_slice_mut(y) else {
+            return shaded;
+        };
+        let y_term: f32 = (y as f32) * 0.005_837_15;
+        let r_l: f32 = (if py < 0.0 {
+            radius.get_top_left()
+        } else {
+            radius.get_bottom_left()
+        })
+        .min(ctx.half_w)
+        .min(ctx.half_h)
+        .max(0.0);
+        let r_r: f32 = (if py < 0.0 {
+            radius.get_top_right()
+        } else {
+            radius.get_bottom_right()
+        })
+        .min(ctx.half_w)
+        .min(ctx.half_h)
+        .max(0.0);
+        let qy_l: f32 = py_abs - ctx.half_h + r_l;
+        let qy_l_pos: f32 = qy_l.max(0.0);
+        let qy_l_sq: f32 = qy_l_pos * qy_l_pos;
+        let cut_l_r: f32 = ctx.cutoff + r_l + 1e-3;
+        let geom_l: (f32, f32, f32, f32) = (ctx.half_w, r_l, ctx.cutoff, cut_l_r * cut_l_r);
+        let qy_r: f32 = py_abs - ctx.half_h + r_r;
+        let qy_r_pos: f32 = qy_r.max(0.0);
+        let qy_r_sq: f32 = qy_r_pos * qy_r_pos;
+        let cut_r_r: f32 = ctx.cutoff + r_r + 1e-3;
+        let geom_r: (f32, f32, f32, f32) = (ctx.half_w, r_r, ctx.cutoff, cut_r_r * cut_r_r);
+        for (rx0, rx1) in spans.into_iter() {
+            if rx0 >= rx1 {
+                continue;
+            }
+            if ctx.has_mid_x {
+                let l_end: u32 = rx1.min(ctx.lx1);
+                for x in rx0..l_end {
+                    let px: f32 = (x as f32) + 0.5 - ctx.cx;
+                    let dist: f32 = if px < 0.0 {
+                        shadow_corner_dist_fast(px.abs(), qy_l, qy_l_sq, geom_l)
+                    } else {
+                        shadow_corner_dist_fast(px.abs(), qy_r, qy_r_sq, geom_r)
+                    };
+                    if dist < ctx.cutoff {
+                        let alpha_f: f32 =
+                            ctx.base_alpha * fast_gaussian_shadow_falloff(dist, ctx.inv_sigma);
+                        if alpha_f > 0.0005 {
+                            blend_shadow_row_pixel(
+                                row,
+                                x,
+                                y_term,
+                                ctx.color_rgb,
+                                ctx.lin_rgb,
+                                alpha_f,
+                            );
+                            shaded += 1;
+                        }
+                    }
+                }
+                let r_start: u32 = rx0.max(ctx.rx0);
+                for x in r_start..rx1 {
+                    let px: f32 = (x as f32) + 0.5 - ctx.cx;
+                    let dist: f32 = if px < 0.0 {
+                        shadow_corner_dist_fast(px.abs(), qy_l, qy_l_sq, geom_l)
+                    } else {
+                        shadow_corner_dist_fast(px.abs(), qy_r, qy_r_sq, geom_r)
+                    };
+                    if dist < ctx.cutoff {
+                        let alpha_f: f32 =
+                            ctx.base_alpha * fast_gaussian_shadow_falloff(dist, ctx.inv_sigma);
+                        if alpha_f > 0.0005 {
+                            blend_shadow_row_pixel(
+                                row,
+                                x,
+                                y_term,
+                                ctx.color_rgb,
+                                ctx.lin_rgb,
+                                alpha_f,
+                            );
+                            shaded += 1;
+                        }
+                    }
+                }
+            } else {
+                for x in rx0..rx1 {
+                    let px: f32 = (x as f32) + 0.5 - ctx.cx;
+                    let dist: f32 = if px < 0.0 {
+                        shadow_corner_dist_fast(px.abs(), qy_l, qy_l_sq, geom_l)
+                    } else {
+                        shadow_corner_dist_fast(px.abs(), qy_r, qy_r_sq, geom_r)
+                    };
+                    if dist >= ctx.cutoff {
+                        continue;
+                    }
+                    let alpha_f: f32 =
+                        ctx.base_alpha * fast_gaussian_shadow_falloff(dist, ctx.inv_sigma);
+                    if alpha_f > 0.0005 {
+                        blend_shadow_row_pixel(row, x, y_term, ctx.color_rgb, ctx.lin_rgb, alpha_f);
+                        shaded += 1;
+                    }
+                }
+            }
+        }
+        shaded
+    }
+
+    /// Rasterizes the vertical left/right shadow side strips across `sy0..sy1` using a precomputed 1D falloff LUT.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PixelBand<'_>` - Target pixel band.
+    /// - `&ShadowRenderCtx` - Shared shadow geometry and color context.
+    /// - `(u32, u32)` - Vertical interior row interval `(sy0, sy1)`.
+    /// - `(Rect, Rect)` - Opaque cutout rectangles `(cut_h, cut_v)`.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Total shaded pixel count across `sy0..sy1`.
+    fn raster_shadow_vertical_strips(
+        band: &mut PixelBand<'_>,
+        ctx: &ShadowRenderCtx,
+        y_span: (u32, u32),
+        cutouts: (Rect, Rect),
+    ) -> usize {
+        let (sy0, sy1): (u32, u32) = y_span;
+        if sy0 >= sy1 {
+            return 0;
+        }
+        let (cut_h, _): (Rect, Rect) = cutouts;
+        let sy0_f: f32 = (sy0 as f32) + 0.5;
+        let sy1_last_f: f32 = ((sy1 - 1) as f32) + 0.5;
+        let const_cut: Option<(u32, u32)> = if cut_h.get_width() > 0.0
+            && cut_h.get_height() > 0.0
+            && sy0_f >= cut_h.get_y()
+            && sy1_last_f < cut_h.bottom()
+        {
+            let cx0: u32 = (cut_h.get_x().ceil().max(0.0) as u32).clamp(ctx.x0, ctx.x1);
+            let cx1: u32 = (cut_h.right().floor().max(0.0) as u32).clamp(cx0, ctx.x1);
+            Some((cx0, cx1))
+        } else {
+            None
+        };
+        let (l_build0, l_build1): (u32, u32) = if let Some((c0, c1)) = const_cut {
+            active_span_bounds(ctx.x0, ctx.lx1, c0, c1)
+        } else {
+            (ctx.x0, ctx.lx1)
+        };
+        let (r_build0, r_build1): (u32, u32) = if let Some((c0, c1)) = const_cut {
+            active_span_bounds(ctx.rx0, ctx.x1, c0, c1)
+        } else {
+            (ctx.rx0, ctx.x1)
+        };
+        let mut shaded: usize = 0;
+        let ran_tls: bool = BAND_SHADOW_SCRATCH
+            .try_with(|cell: &RefCell<BandShadowScratch>| {
+                if let Ok(mut scratch) = cell.try_borrow_mut() {
+                    let BandShadowScratch {
+                        left_hot,
+                        left_params,
+                        right_hot,
+                        right_params,
+                    } = &mut *scratch;
+                    let (l_act0, l_act1): (u32, u32) = build_shadow_vertical_strip(
+                        (l_build0, l_build1),
+                        ctx,
+                        left_hot,
+                        left_params,
+                    );
+                    let (r_act0, r_act1): (u32, u32) = build_shadow_vertical_strip(
+                        (r_build0, r_build1),
+                        ctx,
+                        right_hot,
+                        right_params,
+                    );
+                    if l_act0 >= l_act1 && r_act0 >= r_act1 {
+                        return;
+                    }
+                    let l_hot_s: &mut [ShadowStripHot] = left_hot.as_mut_slice();
+                    let l_par_s: &[ShadowStripParams] = left_params.as_slice();
+                    let r_hot_s: &mut [ShadowStripHot] = right_hot.as_mut_slice();
+                    let r_par_s: &[ShadowStripParams] = right_params.as_slice();
+                    for y in sy0..sy1 {
+                        let Some(row) = band.row_slice_mut(y) else {
+                            continue;
+                        };
+                        let y_term: f32 = (y as f32) * 0.005_837_15;
+                        let (cut0, cut1): (u32, u32) = const_cut
+                            .unwrap_or_else(|| Self::shadow_row_cutout(y, cutouts, ctx.x0, ctx.x1));
+                        if l_act0 < l_act1 {
+                            if cut0 < cut1 {
+                                let a_end: u32 = cut0.min(l_act1);
+                                if l_act0 < a_end {
+                                    shaded += apply_shadow_strip_span(
+                                        row,
+                                        (l_act0, a_end, l_act0),
+                                        y_term,
+                                        ctx.color_rgb,
+                                        l_hot_s,
+                                        l_par_s,
+                                    );
+                                }
+                                let b_start: u32 = cut1.max(l_act0);
+                                if b_start < l_act1 {
+                                    shaded += apply_shadow_strip_span(
+                                        row,
+                                        (b_start, l_act1, l_act0),
+                                        y_term,
+                                        ctx.color_rgb,
+                                        l_hot_s,
+                                        l_par_s,
+                                    );
+                                }
+                            } else {
+                                shaded += apply_shadow_strip_span(
+                                    row,
+                                    (l_act0, l_act1, l_act0),
+                                    y_term,
+                                    ctx.color_rgb,
+                                    l_hot_s,
+                                    l_par_s,
+                                );
+                            }
+                        }
+                        if r_act0 < r_act1 {
+                            if cut0 < cut1 {
+                                let a_end: u32 = cut0.min(r_act1);
+                                if r_act0 < a_end {
+                                    shaded += apply_shadow_strip_span(
+                                        row,
+                                        (r_act0, a_end, r_act0),
+                                        y_term,
+                                        ctx.color_rgb,
+                                        r_hot_s,
+                                        r_par_s,
+                                    );
+                                }
+                                let b_start: u32 = cut1.max(r_act0);
+                                if b_start < r_act1 {
+                                    shaded += apply_shadow_strip_span(
+                                        row,
+                                        (b_start, r_act1, r_act0),
+                                        y_term,
+                                        ctx.color_rgb,
+                                        r_hot_s,
+                                        r_par_s,
+                                    );
+                                }
+                            } else {
+                                shaded += apply_shadow_strip_span(
+                                    row,
+                                    (r_act0, r_act1, r_act0),
+                                    y_term,
+                                    ctx.color_rgb,
+                                    r_hot_s,
+                                    r_par_s,
+                                );
+                            }
+                        }
+                    }
+                }
+            })
+            .is_ok();
+        if !ran_tls {
+            for y in sy0..sy1 {
+                let Some(row) = band.row_slice_mut(y) else {
+                    continue;
+                };
+                let y_term: f32 = (y as f32) * 0.005_837_15;
+                let (cut0, cut1): (u32, u32) = const_cut
+                    .unwrap_or_else(|| Self::shadow_row_cutout(y, cutouts, ctx.x0, ctx.x1));
+                let spans: [(u32, u32); 2] = if cut0 < cut1 {
+                    [(ctx.x0, cut0), (cut1, ctx.x1)]
+                } else {
+                    [(ctx.x0, ctx.x1), (ctx.x1, ctx.x1)]
+                };
+                for (rx0, rx1) in spans.into_iter() {
+                    let left_end: u32 = rx1.min(ctx.lx1);
+                    for x in rx0..left_end {
+                        let dist: f32 = ((x as f32) + 0.5 - ctx.cx).abs() - ctx.half_w;
+                        if dist < ctx.cutoff {
+                            let alpha_f: f32 =
+                                ctx.base_alpha * fast_gaussian_shadow_falloff(dist, ctx.inv_sigma);
+                            if alpha_f > 0.0005 {
+                                blend_shadow_row_pixel(
+                                    row,
+                                    x,
+                                    y_term,
+                                    ctx.color_rgb,
+                                    ctx.lin_rgb,
+                                    alpha_f,
+                                );
+                                shaded += 1;
+                            }
+                        }
+                    }
+                    let right_start: u32 = rx0.max(ctx.rx0);
+                    for x in right_start..rx1 {
+                        let dist: f32 = ((x as f32) + 0.5 - ctx.cx).abs() - ctx.half_w;
+                        if dist < ctx.cutoff {
+                            let alpha_f: f32 =
+                                ctx.base_alpha * fast_gaussian_shadow_falloff(dist, ctx.inv_sigma);
+                            if alpha_f > 0.0005 {
+                                blend_shadow_row_pixel(
+                                    row,
+                                    x,
+                                    y_term,
+                                    ctx.color_rgb,
+                                    ctx.lin_rgb,
+                                    alpha_f,
+                                );
+                                shaded += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        shaded
+    }
+
     /// Rasterizes a lossless 2D analytical Gaussian `erfc` LUT drop shadow skipping strictly-opaque card interiors.
     ///
     /// # Arguments
@@ -3362,16 +4055,13 @@ impl SoftwareRenderer {
         if color.get_a() == 0 {
             return 0;
         }
+        let base_alpha: f32 = (color.get_a() as f32) * (1.0 / 255.0);
+        if base_alpha <= 0.0005 {
+            return 0;
+        }
         let Some(vis) = shadow_rect.intersect(clip) else {
             return 0;
         };
-        let half_w: f32 = (caster_rect.get_width() * 0.5).max(0.5);
-        let half_h: f32 = (caster_rect.get_height() * 0.5).max(0.5);
-        let cx: f32 = caster_rect.get_x() + half_w;
-        let cy: f32 = caster_rect.get_y() + half_h;
-        let base_alpha: f32 = (color.get_a() as f32) * (1.0 / 255.0);
-        let inv_sigma: f32 = 1.0 / sigma.max(0.5);
-        let cutoff: f32 = sigma * 3.0;
         let fb_w: u32 = band.width();
         let band_y0: u32 = band.y_offset();
         let band_y1: u32 = band.y_end();
@@ -3379,6 +4069,15 @@ impl SoftwareRenderer {
         let y0: u32 = (vis.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1);
         let x1: u32 = (vis.right().ceil().max(0.0) as u32).min(fb_w);
         let y1: u32 = (vis.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1);
+        if x0 >= x1 || y0 >= y1 {
+            return 0;
+        }
+        let half_w: f32 = (caster_rect.get_width() * 0.5).max(0.5);
+        let half_h: f32 = (caster_rect.get_height() * 0.5).max(0.5);
+        let cx: f32 = caster_rect.get_x() + half_w;
+        let cy: f32 = caster_rect.get_y() + half_h;
+        let inv_sigma: f32 = 1.0 / sigma.max(0.5);
+        let cutoff: f32 = sigma * 3.0;
         let r_max: f32 = radius.max_radius();
         let inner_inset: f32 = cutoff + r_max;
         let sy0: u32 = ((caster_rect.get_y() + inner_inset).ceil().max(0.0) as u32).clamp(y0, y1);
@@ -3387,135 +4086,109 @@ impl SoftwareRenderer {
         let sx1: u32 = ((caster_rect.right() - inner_inset).floor().max(0.0) as u32).clamp(x0, x1);
         let has_mid_x: bool = sx0 < sx1;
         let has_mid_y: bool = sy0 < sy1;
+        let r_tl: f32 = radius.get_top_left();
+        let uniform_radius: bool = r_tl == radius.get_top_right()
+            && r_tl == radius.get_bottom_right()
+            && r_tl == radius.get_bottom_left();
+        let two_cx_f: f32 = 2.0 * cx;
+        let two_cx_i: i32 = two_cx_f.round() as i32;
+        let x_symmetric: bool =
+            uniform_radius && (two_cx_i as f32) == two_cx_f && two_cx_f.abs() < 16_777_216.0;
+        let two_cy_f: f32 = 2.0 * cy;
+        let two_cy_i: i32 = two_cy_f.round() as i32;
+        let y_symmetric: bool =
+            x_symmetric && (two_cy_i as f32) == two_cy_f && two_cy_f.abs() < 16_777_216.0;
+        let uniform_r: f32 = r_tl.min(half_w).min(half_h).max(0.0);
+        let cutoff_r_safe: f32 = cutoff + uniform_r + 1e-3;
+        let (lx1, rx0): (u32, u32) = if has_mid_x {
+            (sx0, sx1)
+        } else if x_symmetric {
+            let split_x: u32 = ((two_cx_i + 1).div_euclid(2).max(0) as u32).clamp(x0, x1);
+            (split_x, split_x)
+        } else {
+            (x1, x1)
+        };
+        let color_rgb: [u8; 3] = [color.get_r(), color.get_g(), color.get_b()];
+        let lin_rgb: [f32; 3] = [
+            SRGB_TO_LIN_LUT[color_rgb[0] as usize],
+            SRGB_TO_LIN_LUT[color_rgb[1] as usize],
+            SRGB_TO_LIN_LUT[color_rgb[2] as usize],
+        ];
+        let ctx: ShadowRenderCtx = ShadowRenderCtx {
+            color,
+            color_rgb,
+            lin_rgb,
+            cx,
+            cy,
+            half_w,
+            half_h,
+            base_alpha,
+            inv_sigma,
+            cutoff,
+            uniform_r,
+            cutoff_r_safe_sq: cutoff_r_safe * cutoff_r_safe,
+            x0,
+            x1,
+            lx1,
+            rx0,
+            mirror_x_sum: two_cx_i - 1,
+            has_mid_x,
+        };
         let mut shaded: usize = 0;
-        for y in y0..y1 {
-            let py: f32 = (y as f32) + 0.5 - cy;
-            let (cut0, cut1): (u32, u32) = Self::shadow_row_cutout(y, cutouts, x0, x1);
-            let spans: [(u32, u32); 2] = if cut0 < cut1 {
-                [(x0, cut0), (cut1, x1)]
+        if x_symmetric {
+            let (top_end, bot_start): (u32, u32) = if has_mid_x && has_mid_y {
+                (sy0, sy1)
+            } else if y_symmetric {
+                let split_y: u32 = ((two_cy_i + 1).div_euclid(2).max(0) as u32).clamp(y0, y1);
+                (split_y, split_y)
             } else {
-                [(x0, x1), (x1, x1)]
+                (y1, y1)
             };
-            if has_mid_x && has_mid_y && y >= sy0 && y < sy1 {
-                for (rx0, rx1) in spans.into_iter() {
-                    let left_end: u32 = rx1.min(sx0);
-                    for x in rx0..left_end {
-                        let dist: f32 = ((x as f32) + 0.5 - cx).abs() - half_w;
-                        if dist < cutoff {
-                            let alpha_f: f32 =
-                                base_alpha * fast_gaussian_shadow_falloff(dist, inv_sigma);
-                            if alpha_f > 0.0005 {
-                                band.blend_pixel_f32_dithered(
-                                    x,
-                                    y,
-                                    color,
-                                    alpha_f,
-                                    interleaved_gradient_noise(x, y),
-                                );
-                                shaded += 1;
-                            }
-                        }
-                    }
-                    let right_start: u32 = rx0.max(sx1);
-                    for x in right_start..rx1 {
-                        let dist: f32 = ((x as f32) + 0.5 - cx).abs() - half_w;
-                        if dist < cutoff {
-                            let alpha_f: f32 =
-                                base_alpha * fast_gaussian_shadow_falloff(dist, inv_sigma);
-                            if alpha_f > 0.0005 {
-                                band.blend_pixel_f32_dithered(
-                                    x,
-                                    y,
-                                    color,
-                                    alpha_f,
-                                    interleaved_gradient_noise(x, y),
-                                );
-                                shaded += 1;
-                            }
-                        }
-                    }
-                }
-            } else if has_mid_x {
-                let dist_y: f32 = py.abs() - half_h;
-                let mid_alpha: f32 = if dist_y < cutoff {
-                    base_alpha * fast_gaussian_shadow_falloff(dist_y, inv_sigma)
+            let mirror_y_sum: i32 = two_cy_i - 1;
+            let mut mirrored_b0: u32 = y1;
+            let mut mirrored_b1: u32 = bot_start;
+            for y_t in y0..top_end {
+                let y_b_i: i32 = if y_symmetric {
+                    mirror_y_sum - (y_t as i32)
                 } else {
-                    0.0
+                    -1
                 };
-                for (rx0, rx1) in spans.into_iter() {
-                    if rx0 >= rx1 {
-                        continue;
-                    }
-                    let l_end: u32 = rx1.min(sx0);
-                    for x in rx0..l_end {
-                        let px: f32 = (x as f32) + 0.5 - cx;
-                        let cr: f32 = quadrant_corner_radius(radius, px, py);
-                        let dist: f32 = rounded_box_sdf(px, py, half_w, half_h, cr);
-                        if dist < cutoff {
-                            let alpha_f: f32 =
-                                base_alpha * fast_gaussian_shadow_falloff(dist, inv_sigma);
-                            if alpha_f > 0.0005 {
-                                band.blend_pixel_f32_dithered(
-                                    x,
-                                    y,
-                                    color,
-                                    alpha_f,
-                                    interleaved_gradient_noise(x, y),
-                                );
-                                shaded += 1;
-                            }
-                        }
-                    }
-                    let m_start: u32 = rx0.max(sx0);
-                    let m_end: u32 = rx1.min(sx1);
-                    if mid_alpha > 0.0005 && m_start < m_end {
-                        band.blend_shadow_span_const_alpha(m_start, m_end, y, color, mid_alpha);
-                        shaded += (m_end - m_start) as usize;
-                    }
-                    let r_start: u32 = rx0.max(sx1);
-                    for x in r_start..rx1 {
-                        let px: f32 = (x as f32) + 0.5 - cx;
-                        let cr: f32 = quadrant_corner_radius(radius, px, py);
-                        let dist: f32 = rounded_box_sdf(px, py, half_w, half_h, cr);
-                        if dist < cutoff {
-                            let alpha_f: f32 =
-                                base_alpha * fast_gaussian_shadow_falloff(dist, inv_sigma);
-                            if alpha_f > 0.0005 {
-                                band.blend_pixel_f32_dithered(
-                                    x,
-                                    y,
-                                    color,
-                                    alpha_f,
-                                    interleaved_gradient_noise(x, y),
-                                );
-                                shaded += 1;
-                            }
-                        }
-                    }
+                if y_b_i >= (bot_start as i32) && y_b_i < (y1 as i32) {
+                    let y_b: u32 = y_b_i as u32;
+                    mirrored_b0 = mirrored_b0.min(y_b);
+                    mirrored_b1 = mirrored_b1.max(y_b + 1);
+                    shaded +=
+                        Self::raster_shadow_corner_pair_symmetric(band, &ctx, y_t, y_b, cutouts);
+                } else {
+                    shaded += Self::raster_shadow_corner_row_symmetric(band, &ctx, y_t, cutouts);
+                }
+            }
+            if has_mid_x && has_mid_y {
+                shaded += Self::raster_shadow_vertical_strips(band, &ctx, (sy0, sy1), cutouts);
+            }
+            if mirrored_b0 < mirrored_b1 {
+                for y_b in bot_start..mirrored_b0 {
+                    shaded += Self::raster_shadow_corner_row_symmetric(band, &ctx, y_b, cutouts);
+                }
+                for y_b in mirrored_b1..y1 {
+                    shaded += Self::raster_shadow_corner_row_symmetric(band, &ctx, y_b, cutouts);
                 }
             } else {
-                for (rx0, rx1) in spans.into_iter() {
-                    for x in rx0..rx1 {
-                        let px: f32 = (x as f32) + 0.5 - cx;
-                        let cr: f32 = quadrant_corner_radius(radius, px, py);
-                        let dist: f32 = rounded_box_sdf(px, py, half_w, half_h, cr);
-                        if dist >= cutoff {
-                            continue;
-                        }
-                        let alpha_f: f32 =
-                            base_alpha * fast_gaussian_shadow_falloff(dist, inv_sigma);
-                        if alpha_f > 0.0005 {
-                            band.blend_pixel_f32_dithered(
-                                x,
-                                y,
-                                color,
-                                alpha_f,
-                                interleaved_gradient_noise(x, y),
-                            );
-                            shaded += 1;
-                        }
-                    }
+                for y_b in bot_start..y1 {
+                    shaded += Self::raster_shadow_corner_row_symmetric(band, &ctx, y_b, cutouts);
                 }
+            }
+        } else if has_mid_x && has_mid_y {
+            for y in y0..sy0 {
+                shaded += Self::raster_shadow_corner_row_general(band, &ctx, radius, y, cutouts);
+            }
+            shaded += Self::raster_shadow_vertical_strips(band, &ctx, (sy0, sy1), cutouts);
+            for y in sy1..y1 {
+                shaded += Self::raster_shadow_corner_row_general(band, &ctx, radius, y, cutouts);
+            }
+        } else {
+            for y in y0..y1 {
+                shaded += Self::raster_shadow_corner_row_general(band, &ctx, radius, y, cutouts);
             }
         }
         shaded

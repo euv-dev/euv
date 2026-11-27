@@ -612,6 +612,38 @@ impl<'a> PixelBand<'a> {
         pixels.get_mut(start..start + stride)
     }
 
+    /// Returns two disjoint mutable row slices for global physical rows `y_a < y_b` owned by this band.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable pixel band.
+    /// - `u32` - Upper global physical Y row coordinate (`y_a < y_b`).
+    /// - `u32` - Lower global physical Y row coordinate (`y_b > y_a`).
+    ///
+    /// # Returns
+    ///
+    /// - `Option<(&mut [u8], &mut [u8])>` - Pair of disjoint mutable row slices `(row_a, row_b)`.
+    pub fn two_row_slices_mut(&mut self, y_a: u32, y_b: u32) -> Option<(&mut [u8], &mut [u8])> {
+        let Self {
+            width,
+            y_offset,
+            height,
+            pixels,
+        } = self;
+        let y_end: u32 = *y_offset + *height;
+        if y_a >= y_b || y_a < *y_offset || y_b >= y_end {
+            return None;
+        }
+        let stride: usize = (*width as usize) * 4;
+        let start_a: usize = ((y_a - *y_offset) as usize) * stride;
+        let start_b: usize = ((y_b - *y_offset) as usize) * stride;
+        if start_b + stride > pixels.len() {
+            return None;
+        }
+        let (head, tail): (&mut [u8], &mut [u8]) = pixels.split_at_mut(start_b);
+        Some((&mut head[start_a..start_a + stride], &mut tail[..stride]))
+    }
+
     /// Fills the entire band with solid `color` using 64-bit wide stores.
     ///
     /// # Arguments
@@ -845,20 +877,43 @@ impl<'a> PixelBand<'a> {
         let sa_u32: u32 = (a * 255.0) as u32;
         let inv_a_u32: u32 = 255 - sa_u32;
         let y_term: f32 = (y as f32) * 0.005_837_15;
-        for (cur_x, px) in (x0..).zip(span.as_chunks_mut::<4>().0.iter_mut()) {
+        let (chunks, _): (&mut [[u8; 4]], &mut [u8]) = span.as_chunks_mut::<4>();
+        let Some(first_px) = chunks.first().copied() else {
+            return;
+        };
+        let mut prev_px: [u8; 4] = first_px;
+        let dr0: f32 = SRGB_TO_LIN_LUT[first_px[0] as usize];
+        let dg0: f32 = SRGB_TO_LIN_LUT[first_px[1] as usize];
+        let db0: f32 = SRGB_TO_LIN_LUT[first_px[2] as usize];
+        let ir0: usize = ((sr_a + dr0 * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let ig0: usize = ((sg_a + dg0 * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let ib0: usize = ((sb_a + db0 * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let mut q4_r: i32 = LIN_TO_SRGB_Q4_LUT[ir0] as i32;
+        let mut q4_g: i32 = LIN_TO_SRGB_Q4_LUT[ig0] as i32;
+        let mut q4_b: i32 = LIN_TO_SRGB_Q4_LUT[ib0] as i32;
+        let va0: u32 = (first_px[3] as u32) * inv_a_u32 + 128;
+        let mut out_a: u8 = (sa_u32 + ((va0 + (va0 >> 8)) >> 8)).min(255) as u8;
+        for (cur_x, px) in (x0..).zip(chunks.iter_mut()) {
+            if *px != prev_px {
+                prev_px = *px;
+                let dr: f32 = SRGB_TO_LIN_LUT[px[0] as usize];
+                let dg: f32 = SRGB_TO_LIN_LUT[px[1] as usize];
+                let db: f32 = SRGB_TO_LIN_LUT[px[2] as usize];
+                let ir: usize = ((sr_a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+                let ig: usize = ((sg_a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+                let ib: usize = ((sb_a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+                q4_r = LIN_TO_SRGB_Q4_LUT[ir] as i32;
+                q4_g = LIN_TO_SRGB_Q4_LUT[ig] as i32;
+                q4_b = LIN_TO_SRGB_Q4_LUT[ib] as i32;
+                let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
+                out_a = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+            }
             let n: f32 = (52.982_918 * ((cur_x as f32) * 0.067_110_56 + y_term).fract()).fract();
             let dq: i32 = ((n - 0.5) * 16.0) as i32 + 8;
-            let dr: f32 = SRGB_TO_LIN_LUT[px[0] as usize];
-            let dg: f32 = SRGB_TO_LIN_LUT[px[1] as usize];
-            let db: f32 = SRGB_TO_LIN_LUT[px[2] as usize];
-            let ir: usize = ((sr_a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let ig: usize = ((sg_a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let ib: usize = ((sb_a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
-            let va: u32 = (px[3] as u32) * inv_a_u32 + 128;
-            px[0] = (((LIN_TO_SRGB_Q4_LUT[ir] as i32) + dq) >> 4).clamp(0, 255) as u8;
-            px[1] = (((LIN_TO_SRGB_Q4_LUT[ig] as i32) + dq) >> 4).clamp(0, 255) as u8;
-            px[2] = (((LIN_TO_SRGB_Q4_LUT[ib] as i32) + dq) >> 4).clamp(0, 255) as u8;
-            px[3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+            px[0] = ((q4_r + dq) >> 4).clamp(0, 255) as u8;
+            px[1] = ((q4_g + dq) >> 4).clamp(0, 255) as u8;
+            px[2] = ((q4_b + dq) >> 4).clamp(0, 255) as u8;
+            px[3] = out_a;
         }
     }
 

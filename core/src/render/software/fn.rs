@@ -944,6 +944,340 @@ pub(crate) fn rounded_clip_coverage_cached(
     rounded_clip_coverage(x, y, mask, aa)
 }
 
+/// Computes tight non-cutout bounding span `[out0, out1)` inside `[start, end)` excluding `[cut0, cut1)`.
+///
+/// # Arguments
+///
+/// - `u32` - Inclusive span start X.
+/// - `u32` - Exclusive span end X.
+/// - `u32` - Inclusive cutout start X.
+/// - `u32` - Exclusive cutout end X.
+///
+/// # Returns
+///
+/// - `(u32, u32)` - Tight bounding active interval `(out0, out1)` (`out0 >= out1` when empty).
+#[inline(always)]
+#[must_use]
+pub(crate) fn active_span_bounds(start: u32, end: u32, cut0: u32, cut1: u32) -> (u32, u32) {
+    if start >= end {
+        return (end, end);
+    }
+    if cut0 >= cut1 || cut1 <= start || cut0 >= end {
+        return (start, end);
+    }
+    if cut0 <= start && cut1 >= end {
+        return (end, end);
+    }
+    if cut0 <= start {
+        return (cut1, end);
+    }
+    if cut1 >= end {
+        return (start, cut0);
+    }
+    (start, end)
+}
+
+/// Evaluates bit-exact rounded-box signed distance for a shadow corner pixel with sqrt-free non-arc branches and early cutoff reject.
+///
+/// # Arguments
+///
+/// - `f32` - Absolute horizontal offset `|px|` from caster center.
+/// - `f32` - Precomputed row vertical corner coordinate `|py| - half_h + r`.
+/// - `f32` - Precomputed squared positive vertical offset `qy.max(0.0)^2`.
+/// - `(f32, f32, f32, f32)` - Tuple `(half_w, r, cutoff, cutoff_r_safe_sq)`.
+///
+/// # Returns
+///
+/// - `f32` - Exact signed distance (or `cutoff` when conservatively outside cutoff).
+#[inline(always)]
+#[must_use]
+pub(crate) fn shadow_corner_dist_fast(
+    px_abs: f32,
+    qy: f32,
+    qy_pos_sq: f32,
+    geom: (f32, f32, f32, f32),
+) -> f32 {
+    let (half_w, r, cutoff, cutoff_r_safe_sq): (f32, f32, f32, f32) = geom;
+    let qx: f32 = px_abs - half_w + r;
+    if qx > 0.0 {
+        if qy > 0.0 {
+            let d_sq: f32 = qx * qx + qy_pos_sq;
+            if d_sq >= cutoff_r_safe_sq {
+                return cutoff;
+            }
+            d_sq.sqrt() - r
+        } else {
+            qx - r
+        }
+    } else if qy > 0.0 {
+        qy - r
+    } else {
+        qx.max(qy) - r
+    }
+}
+
+/// Blends a single shadow pixel into `row` at `x` using hoisted linear tint RGB and bit-exact IGN dithering.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Mutable target framebuffer scanline slice.
+/// - `u32` - Physical pixel X coordinate within `row`.
+/// - `f32` - Precomputed vertical IGN term `(y as f32) * 0.005_837_15`.
+/// - `[u8; 3]` - Shadow tint sRGB bytes `[r, g, b]`.
+/// - `[f32; 3]` - Hoisted linear shadow tint `[sr, sg, sb]`.
+/// - `f32` - Continuous shadow opacity in `(0.0005, 1.0]`.
+#[inline(always)]
+pub(crate) fn blend_shadow_row_pixel(
+    row: &mut [u8],
+    x: u32,
+    y_term: f32,
+    color_rgb: [u8; 3],
+    lin_rgb: [f32; 3],
+    alpha_f: f32,
+) {
+    let off: usize = (x as usize) * 4;
+    if off + 4 > row.len() {
+        return;
+    }
+    let a: f32 = alpha_f.clamp(0.0, 1.0);
+    if a >= 0.9995 {
+        row[off] = color_rgb[0];
+        row[off + 1] = color_rgb[1];
+        row[off + 2] = color_rgb[2];
+        row[off + 3] = 255;
+        return;
+    }
+    let inv_a: f32 = 1.0 - a;
+    let dr: f32 = SRGB_TO_LIN_LUT[row[off] as usize];
+    let dg: f32 = SRGB_TO_LIN_LUT[row[off + 1] as usize];
+    let db: f32 = SRGB_TO_LIN_LUT[row[off + 2] as usize];
+    let ir: usize = ((lin_rgb[0] * a + dr * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ig: usize = ((lin_rgb[1] * a + dg * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ib: usize = ((lin_rgb[2] * a + db * inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let n: f32 = (52.982_918 * ((x as f32) * 0.067_110_56 + y_term).fract()).fract();
+    let dq: i32 = ((n - 0.5) * 16.0) as i32 + 8;
+    row[off] = (((LIN_TO_SRGB_Q4_LUT[ir] as i32) + dq) >> 4).clamp(0, 255) as u8;
+    row[off + 1] = (((LIN_TO_SRGB_Q4_LUT[ig] as i32) + dq) >> 4).clamp(0, 255) as u8;
+    row[off + 2] = (((LIN_TO_SRGB_Q4_LUT[ib] as i32) + dq) >> 4).clamp(0, 255) as u8;
+    let sa_u32: u32 = (a * 255.0) as u32;
+    let va: u32 = (row[off + 3] as u32) * (255 - sa_u32) + 128;
+    row[off + 3] = (sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+}
+
+/// Blends one symmetrically mirrored corner shadow pixel using shared precomputed parameters and a 1-pixel destination cache.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Mutable target framebuffer scanline slice.
+/// - `u32` - Physical pixel X coordinate within `row`.
+/// - `f32` - Precomputed vertical IGN term `(y as f32) * 0.005_837_15`.
+/// - `ShadowStripParams` - Precomputed linear blend factors for this corner sample.
+/// - `&mut ShadowPixelCache` - Single-pixel destination Q4 cache shared across mirrored quadrants.
+#[inline(always)]
+pub(crate) fn blend_shadow_mirrored_pixel(
+    row: &mut [u8],
+    x: u32,
+    y_term: f32,
+    params: ShadowStripParams,
+    cache: &mut ShadowPixelCache,
+) {
+    let off: usize = (x as usize) * 4;
+    if off + 4 > row.len() {
+        return;
+    }
+    let dst_u32: u32 = u32::from_ne_bytes([row[off], row[off + 1], row[off + 2], row[off + 3]]);
+    if !cache.valid || dst_u32 != cache.dst_u32 {
+        let dr: f32 = SRGB_TO_LIN_LUT[row[off] as usize];
+        let dg: f32 = SRGB_TO_LIN_LUT[row[off + 1] as usize];
+        let db: f32 = SRGB_TO_LIN_LUT[row[off + 2] as usize];
+        let ir: usize = ((params.sr_a + dr * params.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let ig: usize = ((params.sg_a + dg * params.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let ib: usize = ((params.sb_a + db * params.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+        let va: u32 = (row[off + 3] as u32) * params.inv_a_u32 + 128;
+        cache.dst_u32 = dst_u32;
+        cache.q4_r = LIN_TO_SRGB_Q4_LUT[ir] as i32;
+        cache.q4_g = LIN_TO_SRGB_Q4_LUT[ig] as i32;
+        cache.q4_b = LIN_TO_SRGB_Q4_LUT[ib] as i32;
+        cache.out_a = (params.sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+        cache.valid = true;
+    }
+    let n: f32 = (52.982_918 * ((x as f32) * 0.067_110_56 + y_term).fract()).fract();
+    let dq: i32 = ((n - 0.5) * 16.0) as i32 + 8;
+    row[off] = ((cache.q4_r + dq) >> 4).clamp(0, 255) as u8;
+    row[off + 1] = ((cache.q4_g + dq) >> 4).clamp(0, 255) as u8;
+    row[off + 2] = ((cache.q4_b + dq) >> 4).clamp(0, 255) as u8;
+    row[off + 3] = cache.out_a;
+}
+
+/// Precomputes 1D horizontal Gaussian shadow falloff samples for vertical side strip `[x_start, x_end)`.
+///
+/// # Arguments
+///
+/// - `(u32, u32)` - Inclusive/exclusive horizontal pixel span `(x_start, x_end)`.
+/// - `&ShadowRenderCtx` - Shared shadow geometry and hoisted linear tint constants.
+/// - `&mut Vec<ShadowStripHot>` - Output hot per-column cache vector (cleared and populated).
+/// - `&mut Vec<ShadowStripParams>` - Output cold blend parameter vector (cleared and populated).
+///
+/// # Returns
+///
+/// - `(u32, u32)` - Trimmed active horizontal span `(act0, act1)` matching the populated vectors (`act0 >= act1` when empty).
+#[must_use]
+pub(crate) fn build_shadow_vertical_strip(
+    x_span: (u32, u32),
+    ctx: &ShadowRenderCtx,
+    hot_out: &mut Vec<ShadowStripHot>,
+    params_out: &mut Vec<ShadowStripParams>,
+) -> (u32, u32) {
+    hot_out.clear();
+    params_out.clear();
+    let (x_start, x_end): (u32, u32) = x_span;
+    if x_start >= x_end {
+        return (x_end, x_end);
+    }
+    let mut first_active: Option<u32> = None;
+    let mut last_active_end: u32 = x_start;
+    for x in x_start..x_end {
+        let dist: f32 = ((x as f32) + 0.5 - ctx.cx).abs() - ctx.half_w;
+        let alpha_f: f32 = if dist < ctx.cutoff {
+            ctx.base_alpha * fast_gaussian_shadow_falloff(dist, ctx.inv_sigma)
+        } else {
+            0.0
+        };
+        if alpha_f <= 0.0005 {
+            if first_active.is_some() {
+                hot_out.push(ShadowStripHot::default());
+                params_out.push(ShadowStripParams::default());
+            }
+            continue;
+        }
+        if first_active.is_none() {
+            first_active = Some(x);
+        }
+        last_active_end = x + 1;
+        let a: f32 = alpha_f.clamp(0.0, 1.0);
+        let ign_x: f32 = (x as f32) * 0.067_110_56;
+        if a >= 0.9995 {
+            hot_out.push(ShadowStripHot {
+                ign_x,
+                cached_dst: 0,
+                q4_r: 0,
+                q4_g: 0,
+                q4_b: 0,
+                out_a: 255,
+                state: 3,
+            });
+            params_out.push(ShadowStripParams::default());
+        } else {
+            let inv_a: f32 = 1.0 - a;
+            let sa_u32: u32 = (a * 255.0) as u32;
+            hot_out.push(ShadowStripHot {
+                ign_x,
+                cached_dst: 0,
+                q4_r: 0,
+                q4_g: 0,
+                q4_b: 0,
+                out_a: 0,
+                state: 1,
+            });
+            params_out.push(ShadowStripParams {
+                sr_a: ctx.lin_rgb[0] * a,
+                sg_a: ctx.lin_rgb[1] * a,
+                sb_a: ctx.lin_rgb[2] * a,
+                inv_a,
+                sa_u32,
+                inv_a_u32: 255 - sa_u32,
+            });
+        }
+    }
+    let Some(act0) = first_active else {
+        return (x_end, x_end);
+    };
+    let active_len: usize = (last_active_end - act0) as usize;
+    hot_out.truncate(active_len);
+    params_out.truncate(active_len);
+    (act0, last_active_end)
+}
+
+/// Applies precomputed 1D horizontal shadow strip samples across `[span_x0, span_x1)` onto scanline `row`.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Mutable destination framebuffer scanline slice.
+/// - `(u32, u32, u32)` - Tuple `(span_x0, span_x1, strip_origin_x)`.
+/// - `f32` - Precomputed vertical IGN term `(y as f32) * 0.005_837_15`.
+/// - `[u8; 3]` - Shadow tint sRGB bytes `[r, g, b]`.
+/// - `&mut [ShadowStripHot]` - Mutable hot per-column destination cache slice.
+/// - `&[ShadowStripParams]` - Cold per-column linear blend parameter slice.
+///
+/// # Returns
+///
+/// - `usize` - Number of shaded pixels written within `[span_x0, span_x1)`.
+#[inline(always)]
+#[must_use]
+pub(crate) fn apply_shadow_strip_span(
+    row: &mut [u8],
+    span_coords: (u32, u32, u32),
+    y_term: f32,
+    color_rgb: [u8; 3],
+    hot: &mut [ShadowStripHot],
+    params: &[ShadowStripParams],
+) -> usize {
+    let (span_x0, span_x1, strip_origin_x): (u32, u32, u32) = span_coords;
+    if span_x0 >= span_x1 {
+        return 0;
+    }
+    let start_idx: usize = (span_x0 - strip_origin_x) as usize;
+    let count: usize = (span_x1 - span_x0) as usize;
+    let byte_start: usize = (span_x0 as usize) * 4;
+    let byte_end: usize = (span_x1 as usize) * 4;
+    if byte_end > row.len() || start_idx + count > hot.len() || start_idx + count > params.len() {
+        return 0;
+    }
+    let dst_chunks: &mut [[u8; 4]] = row[byte_start..byte_end].as_chunks_mut::<4>().0;
+    let hot_slice: &mut [ShadowStripHot] = &mut hot[start_idx..start_idx + count];
+    let params_slice: &[ShadowStripParams] = &params[start_idx..start_idx + count];
+    let mut shaded: usize = 0;
+    for (idx, (px, h)) in dst_chunks.iter_mut().zip(hot_slice.iter_mut()).enumerate() {
+        let state: u8 = h.state;
+        if state == 0 {
+            continue;
+        }
+        if state == 3 {
+            px[0] = color_rgb[0];
+            px[1] = color_rgb[1];
+            px[2] = color_rgb[2];
+            px[3] = 255;
+            shaded += 1;
+            continue;
+        }
+        let dst_u32: u32 = u32::from_ne_bytes(*px);
+        if state != 2 || dst_u32 != h.cached_dst {
+            let p: ShadowStripParams = params_slice[idx];
+            let dr: f32 = SRGB_TO_LIN_LUT[px[0] as usize];
+            let dg: f32 = SRGB_TO_LIN_LUT[px[1] as usize];
+            let db: f32 = SRGB_TO_LIN_LUT[px[2] as usize];
+            let ir: usize = ((p.sr_a + dr * p.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+            let ig: usize = ((p.sg_a + dg * p.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+            let ib: usize = ((p.sb_a + db * p.inv_a) * 4095.0).clamp(0.0, 4095.0) as usize;
+            let va: u32 = (px[3] as u32) * p.inv_a_u32 + 128;
+            h.cached_dst = dst_u32;
+            h.q4_r = LIN_TO_SRGB_Q4_LUT[ir] as i16;
+            h.q4_g = LIN_TO_SRGB_Q4_LUT[ig] as i16;
+            h.q4_b = LIN_TO_SRGB_Q4_LUT[ib] as i16;
+            h.out_a = (p.sa_u32 + ((va + (va >> 8)) >> 8)).min(255) as u8;
+            h.state = 2;
+        }
+        let n: f32 = (52.982_918 * (h.ign_x + y_term).fract()).fract();
+        let dq: i32 = ((n - 0.5) * 16.0) as i32 + 8;
+        px[0] = (((h.q4_r as i32) + dq) >> 4).clamp(0, 255) as u8;
+        px[1] = (((h.q4_g as i32) + dq) >> 4).clamp(0, 255) as u8;
+        px[2] = (((h.q4_b as i32) + dq) >> 4).clamp(0, 255) as u8;
+        px[3] = h.out_a;
+        shaded += 1;
+    }
+    shaded
+}
+
 /// Returns the process-wide persistent horizontal-band rasterizer worker pool, lazily spawning warm threads once.
 ///
 /// # Returns

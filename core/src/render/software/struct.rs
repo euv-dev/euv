@@ -383,3 +383,110 @@ pub struct SoftwareRenderer {
     #[set(pub(crate))]
     pub(crate) corner_mask_cache: CornerMaskCache,
 }
+
+/// Compact 16-byte hot per-column cache entry reused across every vertical shadow strip scanline.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ShadowStripHot {
+    /// Precomputed horizontal IGN phase term `(x as f32) * 0.067_110_56`.
+    pub(crate) ign_x: f32,
+    /// Last observed destination RGBA8 bytes packed as native-endian `u32`.
+    pub(crate) cached_dst: u32,
+    /// Cached quantized sRGB Q4 red output prior to IGN dither addition.
+    pub(crate) q4_r: i16,
+    /// Cached quantized sRGB Q4 green output prior to IGN dither addition.
+    pub(crate) q4_g: i16,
+    /// Cached quantized sRGB Q4 blue output prior to IGN dither addition.
+    pub(crate) q4_b: i16,
+    /// Cached composited output alpha byte.
+    pub(crate) out_a: u8,
+    /// Column blend state (`0` = inactive, `1` = uncached blend, `2` = cached blend, `3` = opaque).
+    pub(crate) state: u8,
+}
+
+/// Precomputed linear-light blend factors for a single shadow column or mirrored corner sample.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ShadowStripParams {
+    /// Premultiplied linear red channel `SRGB_TO_LIN_LUT[r] * alpha`.
+    pub(crate) sr_a: f32,
+    /// Premultiplied linear green channel `SRGB_TO_LIN_LUT[g] * alpha`.
+    pub(crate) sg_a: f32,
+    /// Premultiplied linear blue channel `SRGB_TO_LIN_LUT[b] * alpha`.
+    pub(crate) sb_a: f32,
+    /// Complement opacity `1.0 - alpha`.
+    pub(crate) inv_a: f32,
+    /// Quantized source alpha `(alpha * 255.0) as u32`.
+    pub(crate) sa_u32: u32,
+    /// Complement integer alpha `255 - sa_u32`.
+    pub(crate) inv_a_u32: u32,
+}
+
+/// Single-pixel destination cache shared across 2x/4x symmetrically mirrored shadow corner writes.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ShadowPixelCache {
+    /// Last observed destination RGBA8 bytes packed as native-endian `u32`.
+    pub(crate) dst_u32: u32,
+    /// Cached quantized sRGB Q4 red output prior to IGN dither addition.
+    pub(crate) q4_r: i32,
+    /// Cached quantized sRGB Q4 green output prior to IGN dither addition.
+    pub(crate) q4_g: i32,
+    /// Cached quantized sRGB Q4 blue output prior to IGN dither addition.
+    pub(crate) q4_b: i32,
+    /// Cached composited output alpha byte.
+    pub(crate) out_a: u8,
+    /// Whether `dst_u32` and `q4_*` have been populated for the current corner sample.
+    pub(crate) valid: bool,
+}
+
+/// Per-thread reusable 1D horizontal shadow falloff strip buffers eliminating per-shadow allocations.
+#[derive(Debug, Default)]
+pub(crate) struct BandShadowScratch {
+    /// Hot per-column cache entries for the left vertical shadow strip.
+    pub(crate) left_hot: Vec<ShadowStripHot>,
+    /// Cold linear blend parameters for the left vertical shadow strip.
+    pub(crate) left_params: Vec<ShadowStripParams>,
+    /// Hot per-column cache entries for the right vertical shadow strip.
+    pub(crate) right_hot: Vec<ShadowStripHot>,
+    /// Cold linear blend parameters for the right vertical shadow strip.
+    pub(crate) right_params: Vec<ShadowStripParams>,
+}
+
+/// Precomputed geometry and hoisted linear tint constants shared across rows of one `raster_shadow` invocation.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ShadowRenderCtx {
+    /// Shadow tint RGBA color passed to `blend_shadow_span_const_alpha`.
+    pub(crate) color: Color,
+    /// Shadow tint sRGB RGB bytes `[r, g, b]`.
+    pub(crate) color_rgb: [u8; 3],
+    /// Hoisted linear-light shadow tint `[sr, sg, sb]`.
+    pub(crate) lin_rgb: [f32; 3],
+    /// Caster horizontal center X in physical pixels.
+    pub(crate) cx: f32,
+    /// Caster vertical center Y in physical pixels.
+    pub(crate) cy: f32,
+    /// Caster half-width in physical pixels.
+    pub(crate) half_w: f32,
+    /// Caster half-height in physical pixels.
+    pub(crate) half_h: f32,
+    /// Normalized shadow tint alpha in `[0.0, 1.0]`.
+    pub(crate) base_alpha: f32,
+    /// Inverse Gaussian standard deviation `1.0 / sigma.max(0.5)`.
+    pub(crate) inv_sigma: f32,
+    /// Gaussian cutoff radius `3.0 * sigma`.
+    pub(crate) cutoff: f32,
+    /// Clamped uniform corner radius in physical pixels.
+    pub(crate) uniform_r: f32,
+    /// Conservative squared distance threshold `(cutoff + uniform_r + 1e-3)^2` for sqrt-free corner early reject.
+    pub(crate) cutoff_r_safe_sq: f32,
+    /// Clamped inclusive visible left X bound.
+    pub(crate) x0: u32,
+    /// Clamped exclusive visible right X bound.
+    pub(crate) x1: u32,
+    /// Exclusive end X of the left corner region (`sx0` when `has_mid_x`, else `split_x`).
+    pub(crate) lx1: u32,
+    /// Inclusive start X of the right corner region (`sx1` when `has_mid_x`, else `split_x`).
+    pub(crate) rx0: u32,
+    /// Horizontal mirror sum `(2 * cx).round() - 1` when `cx` is half-integer aligned.
+    pub(crate) mirror_x_sum: i32,
+    /// True when the shadow has a middle constant-alpha horizontal span (`sx0 < sx1`).
+    pub(crate) has_mid_x: bool,
+}
