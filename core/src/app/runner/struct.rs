@@ -190,3 +190,28 @@ pub struct App {
     /// Cross-platform lifecycle and system event normalizer deduplicating OS notifications.
     pub(crate) system_event_normalizer: SystemEventNormalizer,
 }
+
+/// Fused single-borrow pre-tick snapshot collected at the start of `App::step_frame`.
+#[derive(Debug, Default)]
+pub(crate) struct FramePreTick {
+    /// Whether a live `NodeKind::Input` currently holds keyboard focus.
+    pub(crate) has_focused_input: bool,
+    /// Whether `ime_node_id` holds a visible non-disabled input node requesting OS IME presentation.
+    pub(crate) has_ime_node: bool,
+    /// Focused input node handle requesting OS IME presentation when `has_ime_node` is `true`.
+    pub(crate) ime_node_id: NodeId,
+    /// Screen-space logical bounds of `ime_node_id`.
+    pub(crate) ime_rect: Rect,
+    /// Dirty viewport rectangles reported by active `GameEngineHost` instances.
+    pub(crate) game_damage_rects: Vec<Rect>,
+    /// Visible top-layer portals `(is_dirty, screen_bounds)` collected from `SceneTree::portal_nodes()`.
+    pub(crate) visible_portals: Vec<(bool, Rect)>,
+    /// Indices into `App::game_hosts` that are actively rendering this frame.
+    pub(crate) active_host_indices: Vec<usize>,
+    /// Resolved frame animation timestep in seconds.
+    pub(crate) step_dt: f32,
+    /// Whether one or more `NodeTransition`s ticked inside the fused borrow.
+    pub(crate) anim_ticked: bool,
+    /// Whether active transitions were deferred until after `GameEngineHost::step`.
+    pub(crate) pending_game_transitions: bool,
+}

@@ -543,6 +543,23 @@ impl App {
             },
             (None, Rect::default()),
         );
+        self.apply_ime_focus_state(active_node, input_rect, force_show);
+    }
+
+    /// Applies pre-resolved IME focus state to the platform backend without re-borrowing `SceneTree`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable application.
+    /// - `Option<NodeId>` - Active visible non-disabled focused input node, if any.
+    /// - `Rect` - Screen-space logical bounds of the focused input node.
+    /// - `bool` - When `true`, forces re-emitting the OS IME show command.
+    fn apply_ime_focus_state(
+        &mut self,
+        active_node: Option<NodeId>,
+        input_rect: Rect,
+        force_show: bool,
+    ) {
         let next_active: bool = active_node.is_some();
         let prev_active: bool = self.get_last_ime_active();
         let prev_node: Option<NodeId> = {
@@ -985,17 +1002,21 @@ impl App {
     ///
     /// - `Result<FrameStats, PlatformError>` - Performance and pixel telemetry for this frame.
     pub fn step_frame(&mut self) -> Result<FrameStats, PlatformError> {
-        let commands: Vec<WindowCommand> = self.get_mut_command_queue().drain();
-        for cmd in commands.into_iter() {
-            let Self { platform, .. } = self;
-            platform.apply_command(cmd)?;
+        if !self.get_command_queue().is_empty() {
+            let commands: Vec<WindowCommand> = self.get_mut_command_queue().drain();
+            for cmd in commands.into_iter() {
+                let Self { platform, .. } = self;
+                platform.apply_command(cmd)?;
+            }
         }
         let events: Vec<WindowEvent> = {
             let Self { platform, .. } = self;
             platform.poll_events()
         };
-        for ev in events.into_iter() {
-            self.dispatch_window_event(ev);
+        if !events.is_empty() {
+            for ev in events.into_iter() {
+                self.dispatch_window_event(ev);
+            }
         }
         flush_effects();
         let raw_dt: f32 = self.get_frame_clock().get_delta_secs();
@@ -1016,94 +1037,144 @@ impl App {
                 return Ok(self.get_mut_renderer().record_skipped_frame());
             }
             self.set_fps_budget_accum(0.0);
-        } else {
+        } else if self.get_fps_budget_accum() != 0.0 {
             self.set_fps_budget_accum(0.0);
         }
-        let scene: SceneHandle = self.get_scene().clone();
-        let focused_input: Option<NodeId> = scene.with_read(
-            |tree: &SceneTree| {
-                tree.get_focus().focused_node().filter(|id: &NodeId| {
-                    tree.get_node(*id)
-                        .map(|n: &SceneNode| matches!(n.get_kind(), NodeKind::Input(_)))
-                        .unwrap_or(false)
-                })
-            },
-            None,
-        );
-        if let Some(inp_id) = focused_input {
-            let next_phase: f32 = (self.get_caret_blink_secs() + anim_dt) % 1.06;
-            self.set_caret_blink_secs(next_phase);
-            let vis: bool = next_phase < 0.56;
+        let next_caret_phase: f32 = (self.get_caret_blink_secs() + anim_dt) % 1.06;
+        let next_caret_vis: bool = next_caret_phase < 0.56;
+        let vel_before: Point = self.get_scroll_velocity();
+        let smooth_before: Point = self.get_smooth_scroll_pending();
+        let vel_moving_before: bool = vel_before.get_x().hypot(vel_before.get_y()) > 1.5;
+        let smooth_moving_before: bool = smooth_before.get_x().hypot(smooth_before.get_y()) > 0.05;
+        let scroll_motion_before: bool = vel_moving_before || smooth_moving_before;
+        let clamp_first_anim_frame: bool =
+            self.platform_kind() != PlatformKind::Headless && !self.get_was_animating();
+        let FramePreTick {
+            has_focused_input,
+            has_ime_node,
+            ime_node_id,
+            ime_rect,
+            game_damage_rects,
+            visible_portals,
+            active_host_indices,
+            step_dt,
+            mut anim_ticked,
+            pending_game_transitions,
+        } = {
+            let Self {
+                scene, game_hosts, ..
+            } = self;
             scene.with_write(
                 |tree: &mut SceneTree| {
-                    if tree.get_caret_visible() != vis {
-                        tree.set_caret_visible(vis);
-                        tree.mark_dirty(inp_id, DIRTY_PAINT);
+                    let mut focused_input: bool = false;
+                    let mut ime_found: bool = false;
+                    let mut ime_target_id: NodeId = NodeId::default();
+                    let mut ime_bounds: Rect = Rect::default();
+                    if let Some(fid) = tree.get_focus().focused_node()
+                        && let Some(node) = tree.get_node(fid)
+                        && let NodeKind::Input(inp) = node.get_kind()
+                    {
+                        focused_input = true;
+                        let is_enabled: bool = !inp.get_disabled();
+                        if is_enabled && tree.is_node_visible(fid) {
+                            ime_bounds = tree
+                                .node_screen_bounds(fid)
+                                .unwrap_or_else(|| node.get_layout_box().get_bounds());
+                            ime_target_id = fid;
+                            ime_found = true;
+                        }
+                        if tree.get_caret_visible() != next_caret_vis {
+                            tree.set_caret_visible(next_caret_vis);
+                            tree.mark_dirty(fid, DIRTY_PAINT);
+                        }
+                    }
+                    let registered_portals: &[NodeId] = tree.portal_nodes();
+                    let mut portals: Vec<(bool, Rect)> = Vec::new();
+                    if !registered_portals.is_empty() {
+                        portals.reserve(registered_portals.len());
+                        for &nid in registered_portals {
+                            if let Some(n) = tree.get_node(nid)
+                                && tree.is_node_visible(nid)
+                            {
+                                let is_dirty: bool = n.get_dirty().get_bits() != DIRTY_NONE;
+                                let bounds: Rect = tree
+                                    .node_screen_bounds(nid)
+                                    .unwrap_or_else(|| n.get_layout_box().get_bounds());
+                                portals.push((is_dirty, bounds));
+                            }
+                        }
+                    }
+                    let mut rects: Vec<Rect> = Vec::new();
+                    let mut active_hosts: Vec<usize> = Vec::new();
+                    if !game_hosts.is_empty() {
+                        for (host_idx, host) in game_hosts.iter().enumerate() {
+                            let host_rects: Vec<Rect> = host.active_viewport_bounds(tree);
+                            if !host_rects.is_empty() {
+                                active_hosts.push(host_idx);
+                                rects.extend(host_rects);
+                            }
+                        }
+                    }
+                    let has_transitions: bool = tree.has_active_transitions();
+                    let has_game_or_trans: bool = !active_hosts.is_empty() || has_transitions;
+                    let motion_before: bool = has_game_or_trans || scroll_motion_before;
+                    let resolved_dt: f32 = if clamp_first_anim_frame && motion_before {
+                        anim_dt.min(1.0 / native_hz)
+                    } else {
+                        anim_dt
+                    };
+                    let (ticked, deferred_trans): (bool, bool) = if active_hosts.is_empty() {
+                        if has_transitions {
+                            (tree.tick_transitions(resolved_dt), false)
+                        } else {
+                            (false, false)
+                        }
+                    } else {
+                        (false, has_transitions)
+                    };
+                    FramePreTick {
+                        has_focused_input: focused_input,
+                        has_ime_node: ime_found,
+                        ime_node_id: ime_target_id,
+                        ime_rect: ime_bounds,
+                        game_damage_rects: rects,
+                        visible_portals: portals,
+                        active_host_indices: active_hosts,
+                        step_dt: resolved_dt,
+                        anim_ticked: ticked,
+                        pending_game_transitions: deferred_trans,
                     }
                 },
-                (),
-            );
+                FramePreTick {
+                    step_dt: anim_dt,
+                    ..FramePreTick::default()
+                },
+            )
+        };
+        if has_focused_input {
+            self.set_caret_blink_secs(next_caret_phase);
         } else if self.get_caret_blink_secs() > 0.0 {
             self.set_caret_blink_secs(0.0);
         }
-        self.sync_ime_focus();
-        let (game_damage_rects, visible_portals, active_host_indices): (
-            Vec<Rect>,
-            Vec<(bool, Rect)>,
-            Vec<usize>,
-        ) = scene.with_read(
-            |tree: &SceneTree| {
-                let registered_portals: &[NodeId] = tree.portal_nodes();
-                let mut portals: Vec<(bool, Rect)> = Vec::new();
-                if !registered_portals.is_empty() {
-                    portals.reserve(registered_portals.len());
-                    for &nid in registered_portals {
-                        if let Some(n) = tree.get_node(nid)
-                            && tree.is_node_visible(nid)
-                        {
-                            let is_dirty: bool = n.get_dirty().get_bits() != DIRTY_NONE;
-                            let bounds: Rect = tree
-                                .node_screen_bounds(nid)
-                                .unwrap_or_else(|| n.get_layout_box().get_bounds());
-                            portals.push((is_dirty, bounds));
-                        }
-                    }
-                }
-                let mut rects: Vec<Rect> = Vec::new();
-                let mut active_hosts: Vec<usize> = Vec::new();
-                for (host_idx, host) in self.get_game_hosts().iter().enumerate() {
-                    let host_rects: Vec<Rect> = host.active_viewport_bounds(tree);
-                    if !host_rects.is_empty() {
-                        active_hosts.push(host_idx);
-                        rects.extend(host_rects);
-                    }
-                }
-                (rects, portals, active_hosts)
-            },
-            (Vec::new(), Vec::new(), Vec::new()),
-        );
-        let has_active_game: bool = !active_host_indices.is_empty();
-        let vel_before: Point = self.get_scroll_velocity();
-        let smooth_before: Point = self.get_smooth_scroll_pending();
-        let motion_active_before: bool = has_active_game
-            || scene.has_active_transitions()
-            || vel_before.get_x().hypot(vel_before.get_y()) > 1.5
-            || smooth_before.get_x().hypot(smooth_before.get_y()) > 0.05;
-        let step_dt: f32 = if self.platform_kind() != PlatformKind::Headless
-            && motion_active_before
-            && !self.get_was_animating()
-        {
-            anim_dt.min(1.0 / native_hz)
+        let ime_node: Option<NodeId> = if has_ime_node {
+            Some(ime_node_id)
         } else {
-            anim_dt
+            None
         };
-        for host_idx in active_host_indices.into_iter() {
-            if let Some(host) = self.get_game_hosts().get(host_idx) {
-                let _: u32 = host.step(step_dt);
+        self.apply_ime_focus_state(ime_node, ime_rect, false);
+        let has_active_game: bool = !active_host_indices.is_empty();
+        if has_active_game {
+            for host_idx in active_host_indices.into_iter() {
+                if let Some(host) = self.get_game_hosts().get(host_idx) {
+                    let _: u32 = host.step(step_dt);
+                }
+            }
+            if pending_game_transitions {
+                let Self { scene, .. } = self;
+                anim_ticked =
+                    scene.with_write(|tree: &mut SceneTree| tree.tick_transitions(step_dt), false);
             }
         }
-        let anim_ticked: bool =
-            scene.with_write(|tree: &mut SceneTree| tree.tick_transitions(step_dt), false);
         self.get_context()
             .advance_clock_ms(((step_dt.max(0.0)) * 1000.0).round() as u64);
         if self.get_context().get_exit_requested().get_untracked() && self.get_running() {
@@ -1115,24 +1186,27 @@ impl App {
         self.sample_touch_drag_velocity(step_dt);
         self.tick_smooth_scroll(step_dt);
         self.tick_scroll_inertia(step_dt);
-        let vel_after: Point = self.get_scroll_velocity();
-        let smooth_after: Point = self.get_smooth_scroll_pending();
-        let motion_active_after: bool = has_active_game
-            || scene.has_active_transitions()
-            || vel_after.get_x().hypot(vel_after.get_y()) > 1.5
-            || smooth_after.get_x().hypot(smooth_after.get_y()) > 0.05;
-        self.set_was_animating(motion_active_after);
         let viewport: Size = self.get_window_state().logical_size();
         let scale: f32 = self.get_window_state().get_scale_factor();
         let clear: Color = self.get_config().get_clear_color();
         let mut damage: DamageRegion = self.get_pending_damage();
-        let (scene_rev, tree_damage): (u64, DamageRegion) = scene.with_write(
-            |tree: &mut SceneTree| {
-                let d: DamageRegion = tree.collect_paint_damage(scale);
-                (tree.get_revision(), d)
-            },
-            (0, DamageRegion::full()),
-        );
+        let (scene_rev, tree_damage, has_transitions_after): (u64, DamageRegion, bool) = {
+            let Self { scene, .. } = self;
+            scene.with_write(
+                |tree: &mut SceneTree| {
+                    let d: DamageRegion = tree.collect_paint_damage(scale);
+                    (tree.get_revision(), d, tree.has_active_transitions())
+                },
+                (0, DamageRegion::full(), false),
+            )
+        };
+        let vel_after: Point = self.get_scroll_velocity();
+        let smooth_after: Point = self.get_smooth_scroll_pending();
+        let vel_moving_after: bool = vel_after.get_x().hypot(vel_after.get_y()) > 1.5;
+        let smooth_moving_after: bool = smooth_after.get_x().hypot(smooth_after.get_y()) > 0.05;
+        let active_scroll_after: bool = vel_moving_after || smooth_moving_after;
+        let active_anim_after: bool = has_active_game || has_transitions_after;
+        self.set_was_animating(active_anim_after || active_scroll_after);
         if tree_damage.get_full_damage() || scene_rev != self.get_last_rendered_revision() {
             if tree_damage.get_full_damage() {
                 damage = DamageRegion::full();
@@ -1167,8 +1241,8 @@ impl App {
             return Ok(self.get_mut_renderer().record_skipped_frame());
         }
         let animated_or_game: bool = anim_ticked || has_active_game;
-        let portal_dirty: bool =
-            visible_portals
+        let portal_dirty: bool = !visible_portals.is_empty()
+            && visible_portals
                 .iter()
                 .any(|(is_dirty, logical_rect): &(bool, Rect)| {
                     if *is_dirty || animated_or_game {
@@ -1194,26 +1268,31 @@ impl App {
         {
             damage = DamageRegion::full();
         }
-        let layout_stats: LayoutStats = scene.with_write(
-            |tree: &mut SceneTree| self.get_mut_layout_engine().compute(tree, viewport),
-            LayoutStats::default(),
-        );
+        let layout_stats: LayoutStats = {
+            let Self {
+                scene,
+                layout_engine,
+                ..
+            } = self;
+            scene.with_write(
+                |tree: &mut SceneTree| layout_engine.compute(tree, viewport),
+                LayoutStats::default(),
+            )
+        };
         if layout_stats.get_nodes_computed() > 0 {
             damage = DamageRegion::full();
         }
-        let frame_stats: FrameStats = scene.with_read(
-            |tree: &SceneTree| {
-                self.get_mut_renderer().render_frame(
-                    tree,
-                    viewport,
-                    scale,
-                    clear,
-                    layout_stats,
-                    damage,
-                )
-            },
-            Ok(FrameStats::default()),
-        )?;
+        let frame_stats: FrameStats = {
+            let Self {
+                scene, renderer, ..
+            } = self;
+            scene.with_read(
+                |tree: &SceneTree| {
+                    renderer.render_frame(tree, viewport, scale, clear, layout_stats, damage)
+                },
+                Ok(FrameStats::default()),
+            )?
+        };
         let window_id: WindowId = self.get_window_state().get_id();
         {
             let Self {
