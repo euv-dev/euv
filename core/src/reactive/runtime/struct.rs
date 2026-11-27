@@ -23,7 +23,7 @@ pub(crate) struct SignalEntry {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) subscribers: Vec<SubscriberId>,
+    pub(crate) subscribers: SmallSubList<SubscriberId>,
 }
 
 /// Storage entry for a memoized derived computation inside the reactive arena.
@@ -60,12 +60,12 @@ pub(crate) struct MemoEntry {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) dependencies: Vec<DependencyId>,
+    pub(crate) dependencies: SmallSubList<DependencyId>,
     /// Downstream subscribers depending on this memo.
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) subscribers: Vec<SubscriberId>,
+    pub(crate) subscribers: SmallSubList<SubscriberId>,
     /// Topological depth level used to evaluate memos before effects in order.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]
@@ -101,7 +101,7 @@ pub(crate) struct EffectEntry {
     #[get(pub(crate))]
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
-    pub(crate) dependencies: Vec<DependencyId>,
+    pub(crate) dependencies: SmallSubList<DependencyId>,
     /// Execution priority depth so parent effects run before nested ones.
     #[get(pub(crate), type(copy))]
     #[get_mut(pub(crate))]

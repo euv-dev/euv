@@ -29,3 +29,17 @@ pub enum NodeState {
     /// Guaranteed dirty and must recompute before reading.
     Dirty,
 }
+
+/// Inline small-list storage eliminating heap allocations for 0..=2 reactive subscribers or dependencies.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) enum SmallSubList<T> {
+    /// Zero items stored inline without heap allocation.
+    #[default]
+    Empty,
+    /// Single item stored inline without heap allocation.
+    One(T),
+    /// Two distinct items stored inline in insertion order without heap allocation.
+    Two(T, T),
+    /// Heap-backed fallback used when three or more items are present.
+    Many(Vec<T>),
+}

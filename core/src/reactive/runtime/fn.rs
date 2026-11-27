@@ -38,35 +38,35 @@ where
 pub(crate) fn evaluate_memo(id: MemoId) -> bool {
     let slot: SlotId = id.slot();
     let idx: usize = slot.as_usize();
-    let (state, deps): (NodeState, Vec<DependencyId>) = with_runtime(
+    let (state, deps): (NodeState, SmallSubList<DependencyId>) = with_runtime(
         |rt: &mut ReactiveRuntime| {
             let Some(entry) = rt.get_memos().get(idx) else {
-                return (NodeState::Clean, Vec::new());
+                return (NodeState::Clean, SmallSubList::Empty);
             };
             if entry.get_generation() != slot.get_generation() || entry.compute.is_none() {
-                return (NodeState::Clean, Vec::new());
+                return (NodeState::Clean, SmallSubList::Empty);
             }
             let cur_state: NodeState = entry.get_state();
             if cur_state == NodeState::Check {
                 (cur_state, entry.get_dependencies().clone())
             } else {
-                (cur_state, Vec::new())
+                (cur_state, SmallSubList::Empty)
             }
         },
-        (NodeState::Clean, Vec::new()),
+        (NodeState::Clean, SmallSubList::Empty),
     );
     if state == NodeState::Clean {
         return false;
     }
     if state == NodeState::Check {
         let mut upstream_changed: bool = false;
-        for dep in deps.into_iter() {
+        deps.for_each(|dep: DependencyId| {
             if let DependencyId::Memo(parent_memo) = dep
                 && evaluate_memo(parent_memo)
             {
                 upstream_changed = true;
             }
-        }
+        });
         if !upstream_changed {
             with_runtime(
                 |rt: &mut ReactiveRuntime| {

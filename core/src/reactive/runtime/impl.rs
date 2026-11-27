@@ -1,5 +1,171 @@
 use super::*;
 
+/// Inline small-list operations for reactive subscriber and dependency collections.
+impl<T> SmallSubList<T>
+where
+    T: Copy + PartialEq,
+{
+    /// Returns `true` when zero entries are stored.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Small list reference.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - `true` if the list contains no items.
+    #[must_use]
+    #[inline(always)]
+    pub(crate) fn is_empty(&self) -> bool {
+        match self {
+            Self::Empty => true,
+            Self::One(_) | Self::Two(_, _) => false,
+            Self::Many(vec) => vec.is_empty(),
+        }
+    }
+
+    /// Appends `value` if it is not already present, promoting inline storage to `Many` only on the third unique item.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable small list reference.
+    /// - `T` - Entry to insert uniquely.
+    #[inline(always)]
+    pub(crate) fn push_unique(&mut self, value: T) {
+        match self {
+            Self::Empty => {
+                *self = Self::One(value);
+            }
+            Self::One(first) => {
+                if *first != value {
+                    *self = Self::Two(*first, value);
+                }
+            }
+            Self::Two(first, second) => {
+                if *first != value && *second != value {
+                    let mut list: Vec<T> = Vec::with_capacity(INITIAL_SUBSCRIBER_CAPACITY);
+                    list.push(*first);
+                    list.push(*second);
+                    list.push(value);
+                    *self = Self::Many(list);
+                }
+            }
+            Self::Many(vec) => {
+                if !vec.contains(&value) {
+                    vec.push(value);
+                }
+            }
+        }
+    }
+
+    /// Removes every occurrence of `target` while preserving insertion order of remaining entries.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable small list reference.
+    /// - `T` - Entry value to remove.
+    #[inline(always)]
+    pub(crate) fn remove_item(&mut self, target: T) {
+        match self {
+            Self::Empty => {}
+            Self::One(first) => {
+                if *first == target {
+                    *self = Self::Empty;
+                }
+            }
+            Self::Two(first, second) => {
+                if *first == target {
+                    *self = Self::One(*second);
+                } else if *second == target {
+                    *self = Self::One(*first);
+                }
+            }
+            Self::Many(vec) => {
+                vec.retain(|item: &T| *item != target);
+            }
+        }
+    }
+
+    /// Empties all stored items while retaining heap capacity if already promoted to `Many`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable small list reference.
+    #[inline(always)]
+    pub(crate) fn clear(&mut self) {
+        match self {
+            Self::Empty => {}
+            Self::One(_) | Self::Two(_, _) => {
+                *self = Self::Empty;
+            }
+            Self::Many(vec) => {
+                vec.clear();
+            }
+        }
+    }
+
+    /// Visits every stored item in insertion order without allocating.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Small list reference.
+    /// - `F` - Visitor closure receiving each copied item.
+    #[inline(always)]
+    pub(crate) fn for_each<F>(&self, mut visit: F)
+    where
+        F: FnMut(T),
+    {
+        match self {
+            Self::Empty => {}
+            Self::One(first) => {
+                visit(*first);
+            }
+            Self::Two(first, second) => {
+                visit(*first);
+                visit(*second);
+            }
+            Self::Many(vec) => {
+                for item in vec.iter().copied() {
+                    visit(item);
+                }
+            }
+        }
+    }
+
+    /// Drains and visits every stored item in insertion order while retaining `Many` heap capacity.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable small list reference.
+    /// - `F` - Visitor closure receiving each drained item.
+    #[inline(always)]
+    pub(crate) fn drain_each<F>(&mut self, mut visit: F)
+    where
+        F: FnMut(T),
+    {
+        match self {
+            Self::Empty => {}
+            Self::One(first) => {
+                let item: T = *first;
+                *self = Self::Empty;
+                visit(item);
+            }
+            Self::Two(first, second) => {
+                let a: T = *first;
+                let b: T = *second;
+                *self = Self::Empty;
+                visit(a);
+                visit(b);
+            }
+            Self::Many(vec) => {
+                for item in vec.drain(..) {
+                    visit(item);
+                }
+            }
+        }
+    }
+}
+
 /// Default initialization for `ReactiveRuntime`.
 impl Default for ReactiveRuntime {
     /// Creates an empty reactive runtime with preallocated arena buffers.
@@ -62,7 +228,7 @@ impl ReactiveRuntime {
                 generation: 1,
                 version: 0,
                 value: Some(boxed),
-                subscribers: Vec::with_capacity(INITIAL_SUBSCRIBER_CAPACITY),
+                subscribers: SmallSubList::Empty,
             });
             SignalId::from_slot(SlotId::new(index, 1))
         };
@@ -101,7 +267,7 @@ impl ReactiveRuntime {
                 generation: 1,
                 version: 0,
                 value: Some(boxed),
-                subscribers: Vec::with_capacity(INITIAL_SUBSCRIBER_CAPACITY),
+                subscribers: SmallSubList::Empty,
             });
             SignalId::from_slot(SlotId::new(index, 1))
         }
@@ -455,8 +621,8 @@ impl ReactiveRuntime {
                 state: NodeState::Dirty,
                 value: None,
                 compute: Some(compute_rc),
-                dependencies: Vec::new(),
-                subscribers: Vec::with_capacity(INITIAL_SUBSCRIBER_CAPACITY),
+                dependencies: SmallSubList::Empty,
+                subscribers: SmallSubList::Empty,
                 depth,
             });
             MemoId::from_slot(SlotId::new(index, 1))
@@ -502,7 +668,7 @@ impl ReactiveRuntime {
                 alive: true,
                 scheduled: false,
                 callback: Some(callback_rc),
-                dependencies: Vec::new(),
+                dependencies: SmallSubList::Empty,
                 depth,
                 frozen_depth: 0,
                 pending_while_frozen: false,
@@ -599,18 +765,16 @@ impl ReactiveRuntime {
                 let slot: SlotId = sig_id.slot();
                 if let Some(entry) = self.get_mut_signals().get_mut(slot.as_usize())
                     && entry.get_generation() == slot.get_generation()
-                    && !entry.get_subscribers().contains(&subscriber)
                 {
-                    entry.get_mut_subscribers().push(subscriber);
+                    entry.get_mut_subscribers().push_unique(subscriber);
                 }
             }
             DependencyId::Memo(memo_id) => {
                 let slot: SlotId = memo_id.slot();
                 if let Some(entry) = self.get_mut_memos().get_mut(slot.as_usize())
                     && entry.get_generation() == slot.get_generation()
-                    && !entry.get_subscribers().contains(&subscriber)
                 {
-                    entry.get_mut_subscribers().push(subscriber);
+                    entry.get_mut_subscribers().push_unique(subscriber);
                 }
             }
         }
@@ -619,18 +783,16 @@ impl ReactiveRuntime {
                 let slot: SlotId = memo_id.slot();
                 if let Some(entry) = self.get_mut_memos().get_mut(slot.as_usize())
                     && entry.get_generation() == slot.get_generation()
-                    && !entry.get_dependencies().contains(&dependency)
                 {
-                    entry.get_mut_dependencies().push(dependency);
+                    entry.get_mut_dependencies().push_unique(dependency);
                 }
             }
             SubscriberId::Effect(effect_id) => {
                 let slot: SlotId = effect_id.slot();
                 if let Some(entry) = self.get_mut_effects().get_mut(slot.as_usize())
                     && entry.get_generation() == slot.get_generation()
-                    && !entry.get_dependencies().contains(&dependency)
                 {
-                    entry.get_mut_dependencies().push(dependency);
+                    entry.get_mut_dependencies().push_unique(dependency);
                 }
             }
         }
@@ -650,9 +812,11 @@ impl ReactiveRuntime {
         } = self;
         dirty_queue.clear();
         if let Some(entry) = signals.get(signal_idx) {
-            for subscriber in entry.get_subscribers().iter().copied() {
-                dirty_queue.push((subscriber, true));
-            }
+            entry
+                .get_subscribers()
+                .for_each(|subscriber: SubscriberId| {
+                    dirty_queue.push((subscriber, true));
+                });
         }
         self.drain_dirty_queue();
     }
@@ -669,9 +833,11 @@ impl ReactiveRuntime {
         } = self;
         dirty_queue.clear();
         if let Some(entry) = memos.get(memo_idx) {
-            for subscriber in entry.get_subscribers().iter().copied() {
-                dirty_queue.push((subscriber, true));
-            }
+            entry
+                .get_subscribers()
+                .for_each(|subscriber: SubscriberId| {
+                    dirty_queue.push((subscriber, true));
+                });
         }
         self.drain_dirty_queue();
     }
@@ -711,9 +877,9 @@ impl ReactiveRuntime {
                             continue;
                         }
                         entry.set_state(target_state);
-                        for child_sub in entry.get_subscribers().iter().copied() {
+                        entry.get_subscribers().for_each(|child_sub: SubscriberId| {
                             dirty_queue.push((child_sub, false));
-                        }
+                        });
                     }
                 }
                 SubscriberId::Effect(effect_id) => {
@@ -734,21 +900,21 @@ impl ReactiveRuntime {
         }
     }
 
-    /// Detaches a subscriber from all of its previously tracked upstream dependencies while preserving Vec capacity.
+    /// Detaches a subscriber from all of its previously tracked upstream dependencies while preserving heap capacity.
     ///
     /// # Arguments
     ///
     /// - `&Self` - Mutable reference to the reactive runtime.
     /// - `SubscriberId` - Subscriber whose dependency links should be cleared.
     pub(crate) fn clear_dependencies(&mut self, subscriber: SubscriberId) {
-        let mut deps: Vec<DependencyId> = match subscriber {
+        let mut deps: SmallSubList<DependencyId> = match subscriber {
             SubscriberId::Memo(memo_id) => {
                 let slot: SlotId = memo_id.slot();
                 match self.get_mut_memos().get_mut(slot.as_usize()) {
                     Some(entry) if entry.get_generation() == slot.get_generation() => {
                         take(entry.get_mut_dependencies())
                     }
-                    _ => Vec::new(),
+                    _ => SmallSubList::Empty,
                 }
             }
             SubscriberId::Effect(effect_id) => {
@@ -757,52 +923,48 @@ impl ReactiveRuntime {
                     Some(entry) if entry.get_generation() == slot.get_generation() => {
                         take(entry.get_mut_dependencies())
                     }
-                    _ => Vec::new(),
+                    _ => SmallSubList::Empty,
                 }
             }
         };
         if deps.is_empty() {
             return;
         }
-        for dep in deps.drain(..) {
-            match dep {
-                DependencyId::Signal(sig_id) => {
-                    let slot: SlotId = sig_id.slot();
-                    if let Some(entry) = self.get_mut_signals().get_mut(slot.as_usize())
-                        && entry.get_generation() == slot.get_generation()
-                    {
-                        entry
-                            .get_mut_subscribers()
-                            .retain(|item: &SubscriberId| *item != subscriber);
-                    }
-                }
-                DependencyId::Memo(memo_id) => {
-                    let slot: SlotId = memo_id.slot();
-                    if let Some(entry) = self.get_mut_memos().get_mut(slot.as_usize())
-                        && entry.get_generation() == slot.get_generation()
-                    {
-                        entry
-                            .get_mut_subscribers()
-                            .retain(|item: &SubscriberId| *item != subscriber);
-                    }
+        deps.drain_each(|dep: DependencyId| match dep {
+            DependencyId::Signal(sig_id) => {
+                let slot: SlotId = sig_id.slot();
+                if let Some(entry) = self.get_mut_signals().get_mut(slot.as_usize())
+                    && entry.get_generation() == slot.get_generation()
+                {
+                    entry.get_mut_subscribers().remove_item(subscriber);
                 }
             }
-        }
-        match subscriber {
-            SubscriberId::Memo(memo_id) => {
+            DependencyId::Memo(memo_id) => {
                 let slot: SlotId = memo_id.slot();
                 if let Some(entry) = self.get_mut_memos().get_mut(slot.as_usize())
                     && entry.get_generation() == slot.get_generation()
                 {
-                    entry.set_dependencies(deps);
+                    entry.get_mut_subscribers().remove_item(subscriber);
                 }
             }
-            SubscriberId::Effect(effect_id) => {
-                let slot: SlotId = effect_id.slot();
-                if let Some(entry) = self.get_mut_effects().get_mut(slot.as_usize())
-                    && entry.get_generation() == slot.get_generation()
-                {
-                    entry.set_dependencies(deps);
+        });
+        if matches!(deps, SmallSubList::Many(_)) {
+            match subscriber {
+                SubscriberId::Memo(memo_id) => {
+                    let slot: SlotId = memo_id.slot();
+                    if let Some(entry) = self.get_mut_memos().get_mut(slot.as_usize())
+                        && entry.get_generation() == slot.get_generation()
+                    {
+                        entry.set_dependencies(deps);
+                    }
+                }
+                SubscriberId::Effect(effect_id) => {
+                    let slot: SlotId = effect_id.slot();
+                    if let Some(entry) = self.get_mut_effects().get_mut(slot.as_usize())
+                        && entry.get_generation() == slot.get_generation()
+                    {
+                        entry.set_dependencies(deps);
+                    }
                 }
             }
         }
