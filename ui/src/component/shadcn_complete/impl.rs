@@ -426,21 +426,59 @@ impl EuvDataTable {
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
         let ctx: Context = current_context();
-        let tokens: ThemeTokens = self.get_tokens();
-        let p: ThemePalette = tokens.get_palette();
-        let g: ThemeGeometry = tokens.get_geometry();
         let Self {
             headers,
             rows,
             filter: filter_opt,
             sort_ascending: sort_opt,
             selected_row: sel_opt,
-            ..
-        } = self.clone();
+            tokens,
+        } = self;
+        let tokens: ThemeTokens = *tokens;
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
         let filter: Signal<String> = filter_opt.unwrap_or_else(|| Signal::new(String::new()));
         let sort_asc: Signal<bool> = sort_opt.unwrap_or_else(|| Signal::new(true));
         let sel_row: Signal<Option<usize>> = sel_opt.unwrap_or_else(|| Signal::new(None));
+        let init_sel: Option<usize> = sel_row.get_untracked();
+        let row_count: usize = rows.len();
+        let mut sorted_asc: Vec<usize> = (0..row_count).collect();
+        sorted_asc.sort_by(|a: &usize, b: &usize| {
+            let ka: &str = rows[*a].first().map(String::as_str).unwrap_or("");
+            let kb: &str = rows[*b].first().map(String::as_str).unwrap_or("");
+            ka.cmp(kb)
+        });
+        let mut sorted_desc: Vec<usize> = (0..row_count).collect();
+        sorted_desc.sort_by(|a: &usize, b: &usize| {
+            let ka: &str = rows[*a].first().map(String::as_str).unwrap_or("");
+            let kb: &str = rows[*b].first().map(String::as_str).unwrap_or("");
+            kb.cmp(ka)
+        });
+        let total_search_bytes: usize = rows
+            .iter()
+            .map(|r: &Vec<String>| {
+                r.iter().map(String::len).sum::<usize>() + r.len().saturating_sub(1)
+            })
+            .sum();
+        let mut search_arena: Vec<u8> = Vec::with_capacity(total_search_bytes);
+        let mut row_offsets: Vec<usize> = Vec::with_capacity(row_count + 1);
+        row_offsets.push(0);
+        for row_cells in rows.iter() {
+            for (c_idx, cell) in row_cells.iter().enumerate() {
+                if c_idx > 0 {
+                    search_arena.push(0xFF);
+                }
+                for byte in cell.bytes() {
+                    search_arena.push(byte.to_ascii_lowercase());
+                }
+            }
+            row_offsets.push(search_arena.len());
+        }
         let mut sort_btn: NodeId = NodeId::default();
+        let mut table_box: NodeId = NodeId::default();
+        let on_toggle_sort = move |_: &UiEvent| {
+            let _: bool = sort_asc.update(|v: &mut bool| *v = !*v);
+        };
         let wrap: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
@@ -462,102 +500,250 @@ impl EuvDataTable {
                         outline()
                         sm()
                         node_ref: sort_btn
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = sort_asc.update(|v: &mut bool| *v = !*v);
-                        }
+                        on_click: on_toggle_sort
                     }
                 }
                 column {
+                    node_ref: table_box
                     width: Length::Percent(100.0)
                     border: (g.get_border_width(), p.get_border())
                     radius: g.get_radius_md()
                     overflow: Overflow::Hidden
-                    bind_children: move || {
-                        let q: String = filter.get().to_ascii_lowercase();
-                        let asc: bool = sort_asc.get();
-                        let active_sel: Option<usize> = sel_row.get();
-                        let mut filtered: Vec<(usize, Vec<String>)> = rows
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, r): &(usize, &Vec<String>)| {
-                            q.is_empty()
-                            || r.iter()
-                            .any(|cell: &String| cell.to_ascii_lowercase().contains(&q))
-                        })
-                        .map(|(i, r): (usize, &Vec<String>)| (i, r.clone()))
-                        .collect();
-                        filtered.sort_by(|a: &(usize, Vec<String>), b: &(usize, Vec<String>)| {
-                            let ka: &str = a.1.first().map(String::as_str).unwrap_or("");
-                            let kb: &str = b.1.first().map(String::as_str).unwrap_or("");
-                            if asc { ka.cmp(kb) } else { kb.cmp(ka) }
-                        });
-                        let mut out: Vec<NodeId> = Vec::with_capacity(filtered.len() + 1);
-                        out.push(view! {
-                            row {
-                                width: Length::Percent(100.0)
-                                padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                                background: p.get_muted()
-                                gap: SPACE_SM
-                                overflow: Overflow::Hidden
-                                for h in headers.iter() {
-                                    view {
-                                        flex_grow: 1.0
-                                        min_width: Length::Px(0.0)
-                                        overflow: Overflow::Hidden
-                                        text {
-                                            width: Length::Percent(100.0)
-                                            font_size: 12.0
-                                            font_weight: FontWeight::SemiBold
-                                            color: p.get_muted_foreground()
-                                            text_overflow: TextOverflow::Ellipsis
-                                            { h.clone() }
-                                        }
-                                    }
-                                }
-                            }
-                        });
-                        for (orig_idx, r) in filtered.into_iter() {
-                            let is_sel: bool = active_sel == Some(orig_idx);
-                            out.push(view! {
-                                row {
-                                    width: Length::Percent(100.0)
-                                    padding: Edges::symmetric(SPACE_SM, SPACE_MD)
-                                    background: if is_sel { p.get_accent() } else { p.get_card() }
-                                    gap: SPACE_SM
-                                    overflow: Overflow::Hidden
-                                    cursor: CursorIcon::Pointer
-                                    on_click: move |_: &UiEvent| {
-                                        let _: bool = sel_row.set_if_changed(Some(orig_idx));
-                                    }
-                                    for cell_txt in r.into_iter() {
-                                        view {
-                                            flex_grow: 1.0
-                                            min_width: Length::Px(0.0)
-                                            overflow: Overflow::Hidden
-                                            text {
-                                                width: Length::Percent(100.0)
-                                                font_size: 13.0
-                                                color: p.get_foreground()
-                                                text_overflow: TextOverflow::Ellipsis
-                                                { cell_txt }
-                                            }
-                                        }
-                                    }
-                                }
-                            });
-                        }
-                        out
-                    }
                 }
             }
         };
-        ctx.get_scene().with_write(
+        let card_bg: Color = p.get_card();
+        let accent_bg: Color = p.get_accent();
+        let mut header_row_style: Style = Style::default();
+        header_row_style
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_width(Length::Percent(100.0))
+            .set_padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+            .set_row_gap(SPACE_SM)
+            .set_column_gap(SPACE_SM)
+            .set_overflow(Overflow::Hidden);
+        header_row_style
+            .get_mut_paint()
+            .set_background(Some(p.get_muted()));
+        let mut cell_wrap_style: Style = Style::default();
+        cell_wrap_style
+            .get_mut_layout()
+            .set_flex_grow(1.0)
+            .set_min_width(Length::Px(0.0))
+            .set_overflow(Overflow::Hidden);
+        let mut header_text_style: Style = Style::default();
+        header_text_style
+            .get_mut_layout()
+            .set_width(Length::Percent(100.0));
+        header_text_style
+            .get_mut_text()
+            .set_font_size(12.0)
+            .set_weight(FontWeight::SemiBold)
+            .set_color(p.get_muted_foreground())
+            .set_overflow(TextOverflow::Ellipsis);
+        let mut data_row_style: Style = Style::default();
+        data_row_style
+            .get_mut_layout()
+            .set_flex_direction(FlexDirection::Row)
+            .set_width(Length::Percent(100.0))
+            .set_padding(Edges::symmetric(SPACE_SM, SPACE_MD))
+            .set_row_gap(SPACE_SM)
+            .set_column_gap(SPACE_SM)
+            .set_overflow(Overflow::Hidden);
+        data_row_style
+            .get_mut_paint()
+            .set_background(Some(card_bg))
+            .set_cursor(CursorIcon::Pointer);
+        let mut data_text_style: Style = Style::default();
+        data_text_style
+            .get_mut_layout()
+            .set_width(Length::Percent(100.0));
+        data_text_style
+            .get_mut_text()
+            .set_font_size(13.0)
+            .set_color(p.get_foreground())
+            .set_overflow(TextOverflow::Ellipsis);
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let (header_row, row_nodes_vec): (NodeId, Vec<NodeId>) = handle.with_write(
             |tree: &mut SceneTree| {
                 if let Some(n) = tree.get_node_mut(sort_btn) {
-                    let mut st: Style = n.get_style();
-                    st.get_mut_layout().set_width(Length::Percent(100.0));
-                    n.set_style(st);
+                    n.get_mut_style()
+                        .get_mut_layout()
+                        .set_width(Length::Percent(100.0));
                 }
+                let header_id: NodeId = tree.create_view(header_row_style);
+                let mut cell_buf: Vec<NodeId> = Vec::with_capacity(headers.len());
+                for h in headers.iter() {
+                    let cell_id: NodeId = tree.create_view(cell_wrap_style);
+                    let txt_id: NodeId = tree.create_text(h.clone(), header_text_style);
+                    tree.append_child(cell_id, txt_id);
+                    cell_buf.push(cell_id);
+                }
+                tree.append_children(header_id, &cell_buf);
+                let mut built_rows: Vec<NodeId> = Vec::with_capacity(row_count);
+                for (orig_idx, r) in rows.iter().enumerate() {
+                    let mut row_st: Style = data_row_style;
+                    if init_sel == Some(orig_idx) {
+                        row_st.get_mut_paint().set_background(Some(accent_bg));
+                    }
+                    let row_id: NodeId = tree.create_view(row_st);
+                    let click_cb: UiEventHandler = Rc::new(RefCell::new(move |_: &UiEvent| {
+                        let _: bool = sel_row.set_if_changed(Some(orig_idx));
+                    }));
+                    if let Some(row_node) = tree.get_node_mut(row_id) {
+                        row_node.get_mut_handlers().set_on_click(Some(click_cb));
+                        row_node.get_mut_interaction().set_focusable(true);
+                    }
+                    cell_buf.clear();
+                    for cell_txt in r.iter() {
+                        let cell_id: NodeId = tree.create_view(cell_wrap_style);
+                        let txt_id: NodeId = tree.create_text(cell_txt.clone(), data_text_style);
+                        tree.append_child(cell_id, txt_id);
+                        cell_buf.push(cell_id);
+                    }
+                    tree.append_children(row_id, &cell_buf);
+                    built_rows.push(row_id);
+                }
+                (header_id, built_rows)
+            },
+            (NodeId::default(), Vec::new()),
+        );
+        let row_nodes: Rc<Vec<NodeId>> = Rc::new(row_nodes_vec);
+        let handle_rows: SceneHandle = handle.clone();
+        let handle_sel: SceneHandle = handle.clone();
+        let handle_cleanup: SceneHandle = handle.clone();
+        let row_nodes_filter: Rc<Vec<NodeId>> = Rc::clone(&row_nodes);
+        let row_nodes_sel: Rc<Vec<NodeId>> = Rc::clone(&row_nodes);
+        let row_nodes_cleanup: Rc<Vec<NodeId>> = Rc::clone(&row_nodes);
+        let prev_sel: Cell<Option<usize>> = Cell::new(init_sel);
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            on_cleanup(move || {
+                handle_cleanup.with_write(
+                    |tree: &mut SceneTree| {
+                        for row_id in row_nodes_cleanup.iter().copied() {
+                            if tree.get_node(row_id).is_some() {
+                                tree.dispose_subtree(row_id);
+                            }
+                        }
+                    },
+                    (),
+                );
+            });
+            let _: Effect = Effect::new(move || {
+                let next_sel: Option<usize> = sel_row.get();
+                let old_sel: Option<usize> = prev_sel.replace(next_sel);
+                if old_sel == next_sel {
+                    return;
+                }
+                handle_sel.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(prev_idx) = old_sel
+                            && let Some(&prev_node) = row_nodes_sel.get(prev_idx)
+                            && let Some(n) = tree.get_node_mut(prev_node)
+                        {
+                            n.get_mut_style()
+                                .get_mut_paint()
+                                .set_background(Some(card_bg));
+                            tree.mark_dirty(prev_node, DIRTY_PAINT);
+                        }
+                        if let Some(next_idx) = next_sel
+                            && let Some(&next_node) = row_nodes_sel.get(next_idx)
+                            && let Some(n) = tree.get_node_mut(next_node)
+                        {
+                            n.get_mut_style()
+                                .get_mut_paint()
+                                .set_background(Some(accent_bg));
+                            tree.mark_dirty(next_node, DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            });
+            let mut next_children: Vec<NodeId> = Vec::with_capacity(row_count + 1);
+            let mut prev_children: Vec<NodeId> = Vec::with_capacity(row_count + 1);
+            let mut q_heap: Vec<u8> = Vec::new();
+            Effect::new(move || {
+                let q_raw: String = filter.get();
+                let asc: bool = sort_asc.get();
+                let mut q_stack: [u8; 128] = [0u8; 128];
+                let needle: &[u8] = if q_raw.len() <= q_stack.len() {
+                    for (slot, byte) in q_stack.iter_mut().zip(q_raw.bytes()) {
+                        *slot = byte.to_ascii_lowercase();
+                    }
+                    &q_stack[..q_raw.len()]
+                } else {
+                    q_heap.clear();
+                    q_heap.reserve(q_raw.len());
+                    for byte in q_raw.bytes() {
+                        q_heap.push(byte.to_ascii_lowercase());
+                    }
+                    q_heap.as_slice()
+                };
+                let order: &[usize] = if asc {
+                    sorted_asc.as_slice()
+                } else {
+                    sorted_desc.as_slice()
+                };
+                next_children.clear();
+                next_children.push(header_row);
+                if needle.is_empty() {
+                    for &orig_idx in order.iter() {
+                        next_children.push(row_nodes_filter[orig_idx]);
+                    }
+                } else {
+                    for &orig_idx in order.iter() {
+                        let start: usize = row_offsets[orig_idx];
+                        let end: usize = row_offsets[orig_idx + 1];
+                        if contains_ascii_lowered_needle(&search_arena[start..end], needle) {
+                            next_children.push(row_nodes_filter[orig_idx]);
+                        }
+                    }
+                }
+                handle_rows.with_write(
+                    |tree: &mut SceneTree| {
+                        let unchanged: bool = tree
+                            .get_node(table_box)
+                            .map(|node: &SceneNode| {
+                                node.get_children().as_slice() == next_children.as_slice()
+                            })
+                            .unwrap_or(true);
+                        if unchanged {
+                            return;
+                        }
+                        prev_children.clear();
+                        if let Some(parent_node) = tree.get_node_mut(table_box) {
+                            prev_children.extend_from_slice(parent_node.get_children().as_slice());
+                            parent_node.get_mut_children().clear();
+                        } else {
+                            return;
+                        }
+                        for old_child in prev_children.iter().copied() {
+                            if let Some(child_node) = tree.get_node_mut(old_child) {
+                                child_node.set_parent(None);
+                            }
+                        }
+                        for child in next_children.iter().copied() {
+                            if let Some(child_node) = tree.get_node_mut(child) {
+                                child_node.set_parent(Some(table_box));
+                            }
+                        }
+                        if let Some(parent_node) = tree.get_node_mut(table_box) {
+                            parent_node
+                                .get_mut_children()
+                                .extend_from_slice(next_children.as_slice());
+                        }
+                        let dirty_lay: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                        let dirty_child: u16 = DIRTY_CHILDREN | DIRTY_PAINT;
+                        tree.mark_dirty(table_box, dirty_lay | dirty_child);
+                    },
+                    (),
+                );
+            })
+        });
+        handle.with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(table_box, scope);
             },
             (),
         );
