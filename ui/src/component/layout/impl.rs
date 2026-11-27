@@ -202,15 +202,26 @@ impl EuvAppShell {
             theme,
             page_padding,
             ..
-        } = self.clone();
-        if let Some(theme_ref) = theme.as_ref() {
+        } = self;
+        let sidebar: NodeId = *sidebar;
+        let main_content: NodeId = *main_content;
+        let route_signal: Option<Signal<String>> = *route_signal;
+        let top_bar_actions: Option<NodeId> = *top_bar_actions;
+        let mobile_header_actions: Option<NodeId> = *mobile_header_actions;
+        let sidebar_footer: Option<NodeId> = *sidebar_footer;
+        let breadcrumb: Option<Signal<String>> = *breadcrumb;
+        let bottom_nav: Option<NodeId> = *bottom_nav;
+        let page_padding: Option<Signal<Edges>> = *page_padding;
+        let swipe_routes_rc: Rc<[String]> = Rc::from(swipe_routes.as_slice());
+        let theme_state_opt: Option<UiThemeState> = theme.clone();
+        if let Some(theme_ref) = theme_state_opt.as_ref() {
             provide_theme(theme_ref.clone());
         }
         let has_managed_outlet: bool = ctx.get_scene().with_read(
             |tree: &SceneTree| {
                 tree.get_node(main_content)
                     .map(|n: &SceneNode| {
-                        let lay: LayoutStyle = n.get_style().get_layout();
+                        let lay: LayoutStyle = n.style_ref().get_layout();
                         matches!(n.get_kind(), NodeKind::View)
                             && lay.get_overflow() == Overflow::Hidden
                             && lay.get_height() == Length::Percent(100.0)
@@ -613,7 +624,7 @@ impl EuvAppShell {
                                     font_size: 14.5
                                     font_weight: FontWeight::Bold
                                     color: p.get_foreground()
-                                    { brand }
+                                    { brand.clone() }
                                 }
                             }
                         }
@@ -685,11 +696,10 @@ impl EuvAppShell {
                     h_move.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(drawer_panel) {
-                                let mut st: Style = n.get_style();
+                                let st: &mut Style = n.get_mut_style();
                                 st.get_mut_layout().set_width(Length::Px(next_w));
                                 st.get_mut_paint()
                                     .set_transform(Transform2D::new(tx, 0.0, 1.0, 1.0, 0.0));
-                                n.set_style(st);
                                 let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                                 tree.mark_dirty(drawer_panel, layout_dirty | DIRTY_PAINT);
                             }
@@ -732,10 +742,9 @@ impl EuvAppShell {
                 h_up.with_write(
                     |tree: &mut SceneTree| {
                         if let Some(n) = tree.get_node_mut(drawer_panel) {
-                            let mut st: Style = n.get_style();
+                            let st: &mut Style = n.get_mut_style();
                             st.get_mut_layout().set_width(Length::Px(target_w));
                             st.get_mut_paint().set_transform(Transform2D::default());
-                            n.set_style(st);
                             let layout_dirty: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                             tree.mark_dirty(drawer_panel, layout_dirty | DIRTY_PAINT);
                         }
@@ -777,6 +786,7 @@ impl EuvAppShell {
                     }
                 });
             }
+            let mut scratch_children: Vec<NodeId> = Vec::new();
             let _: Effect = Effect::new(move || {
                 let bp: Breakpoint = bp_sig.get();
                 let vp: Size = vp_sig.get();
@@ -820,6 +830,24 @@ impl EuvAppShell {
                 if !compact {
                     let _: bool = menu_open.set_if_changed(false);
                 }
+                let drawer_vp_w: f32 = vp.get_width().max(320.0);
+                let drawer_def_w: f32 = (drawer_vp_w * 0.68).clamp(224.0, 256.0);
+                let drawer_max_w: f32 = (drawer_vp_w * 0.88).clamp(drawer_def_w + 40.0, 380.0);
+                let drawer_target_w: f32 = if drawer_expanded.get() {
+                    drawer_max_w
+                } else {
+                    drawer_def_w
+                };
+                let compact_disp: Display = if compact {
+                    Display::Flex
+                } else {
+                    Display::None
+                };
+                let desktop_disp: Display = if compact {
+                    Display::None
+                } else {
+                    Display::Flex
+                };
                 handle_layout.with_write(
                     |tree: &mut SceneTree| {
                         let target_sidebar_parent: NodeId =
@@ -839,100 +867,70 @@ impl EuvAppShell {
                         let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                         let mask_all: u16 = dirty_l | DIRTY_PAINT;
                         tree.mark_dirty(sidebar, mask_all);
-                        let nav_children: Vec<NodeId> = tree
-                            .get_node(sidebar)
-                            .map(|node: &SceneNode| node.get_children().clone())
-                            .unwrap_or_default();
-                        for child_id in nav_children.into_iter() {
+                        scratch_children.clear();
+                        if let Some(node) = tree.get_node(sidebar) {
+                            scratch_children.extend_from_slice(node.get_children().as_slice());
+                        }
+                        for child_id in scratch_children.iter().copied() {
                             tree.mark_dirty(child_id, mask_all);
                         }
                         if let Some(n) = tree.get_node_mut(top_bar) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_display(if compact {
-                                Display::Flex
-                            } else {
-                                Display::None
-                            });
-                            st.get_mut_layout().set_height(Length::Px(header_h));
-                            st.get_mut_layout().set_padding(Edges::new(
-                                top_inset,
-                                SPACE_MD + right_inset,
-                                0.0,
-                                SPACE_MD + left_inset,
-                            ));
-                            n.set_style(st);
+                            n.get_mut_style()
+                                .get_mut_layout()
+                                .set_display(compact_disp)
+                                .set_height(Length::Px(header_h))
+                                .set_padding(Edges::new(
+                                    top_inset,
+                                    SPACE_MD + right_inset,
+                                    0.0,
+                                    SPACE_MD + left_inset,
+                                ));
                         }
                         if let Some(n) = tree.get_node_mut(top_bar_divider) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_display(if compact {
-                                Display::Flex
-                            } else {
-                                Display::None
-                            });
-                            n.set_style(st);
+                            n.get_mut_style().get_mut_layout().set_display(compact_disp);
                         }
                         if let Some(n) = tree.get_node_mut(desktop_top_bar) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_display(if compact {
-                                Display::None
-                            } else {
-                                Display::Flex
-                            });
-                            st.get_mut_layout().set_height(Length::Px(desktop_bar_h));
                             let bar_pad: f32 = if is_medium { SPACE_MD } else { SPACE_XL };
-                            st.get_mut_layout().set_padding(Edges::new(
-                                top_inset,
-                                bar_pad + right_inset,
-                                0.0,
-                                bar_pad,
-                            ));
-                            n.set_style(st);
+                            n.get_mut_style()
+                                .get_mut_layout()
+                                .set_display(desktop_disp)
+                                .set_height(Length::Px(desktop_bar_h))
+                                .set_padding(Edges::new(
+                                    top_inset,
+                                    bar_pad + right_inset,
+                                    0.0,
+                                    bar_pad,
+                                ));
                         }
                         if let Some(n) = tree.get_node_mut(desktop_top_divider) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_display(if compact {
-                                Display::None
-                            } else {
-                                Display::Flex
-                            });
-                            n.set_style(st);
+                            n.get_mut_style().get_mut_layout().set_display(desktop_disp);
                         }
                         if let Some(n) = tree.get_node_mut(body_row) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_height(Length::Px(body_h));
-                            n.set_style(st);
+                            n.get_mut_style()
+                                .get_mut_layout()
+                                .set_height(Length::Px(body_h));
                         }
                         if let Some(n) = tree.get_node_mut(content_column) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_height(Length::Px(body_h));
-                            n.set_style(st);
+                            n.get_mut_style()
+                                .get_mut_layout()
+                                .set_height(Length::Px(body_h));
                         }
                         let nav_w: f32 = if is_medium { 204.0 } else { NAV_SIDEBAR_WIDTH };
                         let nav_pad: f32 = if is_medium { SPACE_MD } else { SPACE_LG };
                         if let Some(n) = tree.get_node_mut(nav_divider) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_display(if compact {
-                                Display::None
-                            } else {
-                                Display::Flex
-                            });
-                            n.set_style(st);
+                            n.get_mut_style().get_mut_layout().set_display(desktop_disp);
                         }
                         if let Some(n) = tree.get_node_mut(nav_rail) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_display(if compact {
-                                Display::None
-                            } else {
-                                Display::Flex
-                            });
-                            st.get_mut_layout().set_width(Length::Px(nav_w));
-                            st.get_mut_layout().set_padding(Edges::new(
-                                nav_pad + top_inset,
-                                nav_pad,
-                                nav_pad + bottom_inset,
-                                nav_pad + left_inset,
-                            ));
-                            n.set_style(st);
+                            n.get_mut_style()
+                                .get_mut_layout()
+                                .set_display(desktop_disp)
+                                .set_width(Length::Px(nav_w))
+                                .set_padding(Edges::new(
+                                    nav_pad + top_inset,
+                                    nav_pad,
+                                    nav_pad + bottom_inset,
+                                    nav_pad + left_inset,
+                                ));
                         }
                         let main_pad: f32 = if bp.is_compact() {
                             SPACE_MD
@@ -956,65 +954,58 @@ impl EuvAppShell {
                             let _: bool = pad_sig.set_if_changed(page_edges);
                         }
                         if let Some(n) = tree.get_node_mut(main_area) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_height(Length::Px(main_h));
+                            let lay: &mut LayoutStyle = n.get_mut_style().get_mut_layout();
+                            lay.set_height(Length::Px(main_h));
                             if has_managed_outlet {
-                                st.get_mut_layout()
-                                    .set_padding(Edges::all(0.0))
-                                    .set_overflow(Overflow::Hidden);
-                                st = st.gap(0.0);
+                                lay.set_padding(Edges::all(0.0))
+                                    .set_overflow(Overflow::Hidden)
+                                    .set_row_gap(0.0)
+                                    .set_column_gap(0.0);
                             } else {
-                                st.get_mut_layout().set_padding(page_edges);
-                                st = st.gap(if bp.is_compact() { SPACE_MD } else { SPACE_LG });
+                                let main_gap: f32 =
+                                    if bp.is_compact() { SPACE_MD } else { SPACE_LG };
+                                lay.set_padding(page_edges)
+                                    .set_row_gap(main_gap)
+                                    .set_column_gap(main_gap);
                             }
-                            n.set_style(st);
                         }
                         if has_managed_outlet && page_padding.is_none() {
-                            let outlet_kids: Vec<NodeId> = tree
-                                .get_node(main_content)
-                                .map(|n: &SceneNode| n.get_children().clone())
-                                .unwrap_or_default();
-                            for kid in outlet_kids.into_iter() {
+                            scratch_children.clear();
+                            if let Some(n) = tree.get_node(main_content) {
+                                scratch_children.extend_from_slice(n.get_children().as_slice());
+                            }
+                            for kid in scratch_children.iter().copied() {
                                 if let Some(kn) = tree.get_node_mut(kid)
                                     && matches!(kn.get_kind(), NodeKind::ScrollView)
                                 {
-                                    let mut kst: Style = kn.get_style();
-                                    kst.get_mut_layout().set_padding(page_edges);
-                                    kn.set_style(kst);
+                                    kn.get_mut_style().get_mut_layout().set_padding(page_edges);
                                     tree.mark_dirty(kid, mask_all);
                                 }
                             }
                         }
                         if has_bottom_nav && let Some(n) = tree.get_node_mut(bottom_bar_host) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_width(Length::Px(dock_w));
-                            st.get_mut_layout()
-                                .set_height(Length::Px(SHELL_BOTTOM_NAV_HEIGHT));
-                            st.get_mut_layout().set_left(Some(dock_left));
-                            st.get_mut_layout().set_bottom(Some(dock_bottom));
-                            st.get_mut_layout().set_right(None);
-                            st.get_mut_layout().set_top(None);
-                            st.get_mut_layout().set_padding(Edges::symmetric(0.0, 7.0));
-                            n.set_style(st);
+                            n.get_mut_style()
+                                .get_mut_layout()
+                                .set_width(Length::Px(dock_w))
+                                .set_height(Length::Px(SHELL_BOTTOM_NAV_HEIGHT))
+                                .set_left(Some(dock_left))
+                                .set_bottom(Some(dock_bottom))
+                                .set_right(None)
+                                .set_top(None)
+                                .set_padding(Edges::symmetric(0.0, 7.0));
                         }
                         if let Some(n) = tree.get_node_mut(drawer_scroll) {
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_padding(Edges::new(
+                            n.get_mut_style().get_mut_layout().set_padding(Edges::new(
                                 SPACE_LG + top_inset,
                                 SPACE_SM,
                                 SPACE_LG + bottom_inset,
                                 SPACE_LG + left_inset,
                             ));
-                            n.set_style(st);
                         }
                         if let Some(n) = tree.get_node_mut(drawer_panel) {
-                            let vp_w: f32 = vp.get_width().max(320.0);
-                            let def_w: f32 = (vp_w * 0.68).clamp(224.0, 256.0);
-                            let max_w: f32 = (vp_w * 0.88).clamp(def_w + 40.0, 380.0);
-                            let target_w: f32 = if drawer_expanded.get() { max_w } else { def_w };
-                            let mut st: Style = n.get_style();
-                            st.get_mut_layout().set_width(Length::Px(target_w));
-                            n.set_style(st);
+                            n.get_mut_style()
+                                .get_mut_layout()
+                                .set_width(Length::Px(drawer_target_w));
                         }
                         let mask: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
                         tree.mark_dirty(root, mask | DIRTY_PAINT);
@@ -1032,7 +1023,7 @@ impl EuvAppShell {
             let drag_was_active: Rc<Cell<bool>> = Rc::new(Cell::new(false));
             let swipe_route_committed: Rc<Cell<bool>> = Rc::new(Cell::new(false));
             let swipe_route_committed_drag: Rc<Cell<bool>> = Rc::clone(&swipe_route_committed);
-            let swipe_routes_drag: Vec<String> = swipe_routes.clone();
+            let swipe_routes_drag: Rc<[String]> = Rc::clone(&swipe_routes_rc);
             let _: Effect = Effect::new(move || {
                 let raw_dx: f32 = swipe_drag_sig.get();
                 if has_managed_outlet
@@ -1044,9 +1035,9 @@ impl EuvAppShell {
                         handle_swipe.with_write(
                             |tree: &mut SceneTree| {
                                 if let Some(n) = tree.get_node_mut(main_area) {
-                                    let mut st: Style = n.get_style();
-                                    st.get_mut_paint().set_transform(Transform2D::default());
-                                    n.set_style(st);
+                                    n.get_mut_style()
+                                        .get_mut_paint()
+                                        .set_transform(Transform2D::default());
                                     tree.mark_dirty(main_area, DIRTY_PAINT);
                                 }
                             },
@@ -1062,10 +1053,9 @@ impl EuvAppShell {
                         |tree: &mut SceneTree| {
                             tree.cancel_subtree_transitions(main_area);
                             if let Some(n) = tree.get_node_mut(main_area) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint()
+                                n.get_mut_style()
+                                    .get_mut_paint()
                                     .set_transform(Transform2D::new(damped_tx, 0.0, 1.0, 1.0, 0.0));
-                                n.set_style(st);
                                 tree.mark_dirty(main_area, DIRTY_PAINT);
                             }
                         },
@@ -1077,39 +1067,40 @@ impl EuvAppShell {
                             |tree: &mut SceneTree| {
                                 tree.cancel_subtree_transitions(main_area);
                                 if let Some(n) = tree.get_node_mut(main_area) {
-                                    let mut st: Style = n.get_style();
-                                    st.get_mut_paint().set_transform(Transform2D::default());
-                                    n.set_style(st);
+                                    n.get_mut_style()
+                                        .get_mut_paint()
+                                        .set_transform(Transform2D::default());
                                     tree.mark_dirty(main_area, DIRTY_PAINT);
                                 }
                             },
                             (),
                         );
                     } else {
-                        let cur_tx: f32 = handle_swipe.with_read(
-                            |tree: &SceneTree| {
-                                tree.get_node(main_area)
+                        handle_swipe.with_write(
+                            |tree: &mut SceneTree| {
+                                let cur_tx: f32 = tree
+                                    .get_node(main_area)
                                     .map(|n: &SceneNode| {
-                                        n.get_style().get_paint().get_transform().get_translate_x()
+                                        n.style_ref().get_paint().get_transform().get_translate_x()
                                     })
-                                    .unwrap_or(0.0)
+                                    .unwrap_or(0.0);
+                                if cur_tx.abs() > 0.5 {
+                                    tree.start_transition(
+                                        NodeTransition::slide_fade(
+                                            main_area,
+                                            Point::new(cur_tx, 0.0),
+                                            Point::new(0.0, 0.0),
+                                            1.0,
+                                            1.0,
+                                            0.22,
+                                            false,
+                                        )
+                                        .with_easing(Easing::EaseOutQuint),
+                                    );
+                                }
                             },
-                            0.0,
+                            (),
                         );
-                        if cur_tx.abs() > 0.5 {
-                            handle_swipe.start_transition(
-                                NodeTransition::slide_fade(
-                                    main_area,
-                                    Point::new(cur_tx, 0.0),
-                                    Point::new(0.0, 0.0),
-                                    1.0,
-                                    1.0,
-                                    0.22,
-                                    false,
-                                )
-                                .with_easing(Easing::EaseOutQuint),
-                            );
-                        }
                     }
                 }
             });
@@ -1129,28 +1120,27 @@ impl EuvAppShell {
                         }
                         let drawer_intent: bool =
                             ev.get_origin().get_x() <= 72.0 || ev.get_delta().get_x() >= 96.0;
-                        if !swipe_routes.is_empty()
+                        if !swipe_routes_rc.is_empty()
                             && let Some(route_sig) = route_signal
                         {
                             let cur_path: String = route_sig.get_untracked();
-                            let cur_idx: usize = swipe_routes
+                            let cur_idx: usize = swipe_routes_rc
                                 .iter()
                                 .position(|r: &String| r.as_str() == cur_path.as_str())
                                 .unwrap_or(0);
                             if ev.get_kind() == GestureEventKind::SwipeLeft
-                                && cur_idx + 1 < swipe_routes.len()
+                                && cur_idx + 1 < swipe_routes_rc.len()
                             {
-                                let next_path: String = swipe_routes[cur_idx + 1].clone();
+                                let next_path: String = swipe_routes_rc[cur_idx + 1].clone();
                                 if route_sig.set_if_changed(next_path) {
                                     swipe_route_committed.set(true);
                                     handle_swipe_reset.with_write(
                                         |tree: &mut SceneTree| {
                                             tree.cancel_subtree_transitions(main_area);
                                             if let Some(n) = tree.get_node_mut(main_area) {
-                                                let mut st: Style = n.get_style();
-                                                st.get_mut_paint()
+                                                n.get_mut_style()
+                                                    .get_mut_paint()
                                                     .set_transform(Transform2D::default());
-                                                n.set_style(st);
                                                 tree.mark_dirty(main_area, DIRTY_PAINT);
                                             }
                                         },
@@ -1159,17 +1149,16 @@ impl EuvAppShell {
                                 }
                             } else if ev.get_kind() == GestureEventKind::SwipeRight {
                                 if cur_idx > 0 {
-                                    let prev_path: String = swipe_routes[cur_idx - 1].clone();
+                                    let prev_path: String = swipe_routes_rc[cur_idx - 1].clone();
                                     if route_sig.set_if_changed(prev_path) {
                                         swipe_route_committed.set(true);
                                         handle_swipe_reset.with_write(
                                             |tree: &mut SceneTree| {
                                                 tree.cancel_subtree_transitions(main_area);
                                                 if let Some(n) = tree.get_node_mut(main_area) {
-                                                    let mut st: Style = n.get_style();
-                                                    st.get_mut_paint()
+                                                    n.get_mut_style()
+                                                        .get_mut_paint()
                                                         .set_transform(Transform2D::default());
-                                                    n.set_style(st);
                                                     tree.mark_dirty(main_area, DIRTY_PAINT);
                                                 }
                                             },
@@ -1189,7 +1178,7 @@ impl EuvAppShell {
                     }
                 }
             });
-            if let Some(theme_state) = theme {
+            if let Some(theme_state) = theme_state_opt {
                 let applied_shell_tokens: Rc<Cell<ThemeTokens>> = Rc::new(Cell::new(tokens));
                 let handle_theme: SceneHandle = handle.clone();
                 let mut excluded_nodes: Vec<NodeId> = Vec::with_capacity(2);
@@ -1218,8 +1207,8 @@ impl EuvAppShell {
                                 next_tok,
                             );
                             if has_bottom_nav && let Some(bn) = tree.get_node_mut(bottom_bar_host) {
-                                let mut bst: Style = bn.get_style();
-                                bst.get_mut_paint()
+                                bn.get_mut_style()
+                                    .get_mut_paint()
                                     .set_background(Some(next_p.get_card().with_alpha(244)))
                                     .set_border(Border::new(
                                         next_g.get_border_width(),
@@ -1227,7 +1216,6 @@ impl EuvAppShell {
                                     ))
                                     .set_radius(CornerRadius::all(next_dock_r))
                                     .set_shadow(Some(next_g.get_shadow_lg()));
-                                bn.set_style(bst);
                                 tree.mark_dirty(bottom_bar_host, DIRTY_PAINT);
                             }
                         },
@@ -1292,15 +1280,14 @@ impl EuvAppShell {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(drawer_portal) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto);
                             }
                             if let Some(n) = tree.get_node_mut(drawer_panel) {
-                                let mut st: Style = n.get_style();
+                                let st: &mut Style = n.get_mut_style();
                                 st.get_mut_layout().set_width(Length::Px(def_w));
                                 st.get_mut_paint().set_transform(Transform2D::default());
-                                n.set_style(st);
                             }
                             let cur_y: f32 = tree
                                 .get_node(drawer_scroll)
@@ -1308,24 +1295,24 @@ impl EuvAppShell {
                                 .unwrap_or(0.0);
                             tree.set_scroll_offset(drawer_scroll, Point::new(0.0, cur_y));
                             drop(tree.update_focus(None));
+                            tree.start_transition(
+                                NodeTransition::fade(drawer_portal, 0.0, 1.0, 0.22, false)
+                                    .with_easing(Easing::EaseOutCubic),
+                            );
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    drawer_panel,
+                                    Point::new(-def_w, 0.0),
+                                    Point::new(0.0, 0.0),
+                                    1.0,
+                                    1.0,
+                                    0.26,
+                                    false,
+                                )
+                                .with_easing(Easing::EaseOutQuint),
+                            );
                         },
                         (),
-                    );
-                    handle.start_transition(
-                        NodeTransition::fade(drawer_portal, 0.0, 1.0, 0.22, false)
-                            .with_easing(Easing::EaseOutCubic),
-                    );
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            drawer_panel,
-                            Point::new(-def_w, 0.0),
-                            Point::new(0.0, 0.0),
-                            1.0,
-                            1.0,
-                            0.26,
-                            false,
-                        )
-                        .with_easing(Easing::EaseOutQuint),
                     );
                 } else {
                     let _: bool = drawer_expanded.set_if_changed(false);
@@ -1334,28 +1321,28 @@ impl EuvAppShell {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(drawer_portal) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None);
                             }
+                            tree.start_transition(
+                                NodeTransition::slide_fade(
+                                    drawer_panel,
+                                    Point::new(0.0, 0.0),
+                                    Point::new(-slide_w, 0.0),
+                                    1.0,
+                                    1.0,
+                                    0.20,
+                                    false,
+                                )
+                                .with_easing(Easing::EaseOutCubic),
+                            );
+                            tree.start_transition(
+                                NodeTransition::fade(drawer_portal, 1.0, 0.0, 0.20, true)
+                                    .with_easing(Easing::EaseOutCubic),
+                            );
                         },
                         (),
-                    );
-                    handle.start_transition(
-                        NodeTransition::slide_fade(
-                            drawer_panel,
-                            Point::new(0.0, 0.0),
-                            Point::new(-slide_w, 0.0),
-                            1.0,
-                            1.0,
-                            0.20,
-                            false,
-                        )
-                        .with_easing(Easing::EaseOutCubic),
-                    );
-                    handle.start_transition(
-                        NodeTransition::fade(drawer_portal, 1.0, 0.0, 0.20, true)
-                            .with_easing(Easing::EaseOutCubic),
                     );
                 }
             })
@@ -1466,26 +1453,30 @@ impl EuvPage {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let tokens: ThemeTokens = self.get_tokens();
         let Self {
             title,
             subtitle,
             sections,
             ..
-        } = self.clone();
-        view! {
+        } = self;
+        let root: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
                 max_width: Length::Px(1040.0)
                 gap: SPACE_LG
                 EuvHeader {
-                    title: title
-                    subtitle: subtitle
+                    title: title.clone()
+                    subtitle: subtitle.clone()
                     tokens: tokens
                 }
-                ..sections
             }
+        };
+        if !sections.is_empty() {
+            ctx.append_many(root, sections.as_slice());
         }
+        root
     }
 }
 
@@ -1524,7 +1515,7 @@ impl EuvActionRow {
     fn render(&self) -> NodeId {
         let mut ctx: Context = current_context();
         let bp_sig: Signal<Breakpoint> = ctx.get_breakpoint();
-        let Self { children } = self.clone();
+        let Self { children } = self;
         let root: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
@@ -1538,7 +1529,7 @@ impl EuvActionRow {
                 for cid in children.iter().copied() {
                     let w: Length = tree
                         .get_node(cid)
-                        .map(|n: &SceneNode| n.get_style().get_layout().get_width())
+                        .map(|n: &SceneNode| n.style_ref().get_layout().get_width())
                         .unwrap_or(Length::Auto);
                     let label_len: usize = tree
                         .get_node(cid)
@@ -1590,12 +1581,13 @@ impl EuvActionRow {
                     gap: SPACE_SM
                 }
             };
-            ctx.append(root, pr);
             pair_rows.push(pr);
+        }
+        if !pair_rows.is_empty() {
+            ctx.append_many(root, pair_rows.as_slice());
         }
         let handle: SceneHandle = ctx.get_scene().clone();
         let children_c: Vec<NodeId> = children.clone();
-        let pair_rows_c: Vec<NodeId> = pair_rows.clone();
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
             Effect::new(move || {
                 let compact: bool = bp_sig.get().is_compact();
@@ -1603,18 +1595,17 @@ impl EuvActionRow {
                     |tree: &mut SceneTree| {
                         if compact {
                             if let Some(n) = tree.get_node_mut(root) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_layout()
+                                n.get_mut_style()
+                                    .get_mut_layout()
                                     .set_flex_direction(FlexDirection::Column)
                                     .set_flex_wrap(FlexWrap::NoWrap)
                                     .set_align_items(AlignItems::Stretch);
-                                n.set_style(st);
                             }
-                            for pair_row in pair_rows_c.iter().copied() {
+                            for pair_row in pair_rows.iter().copied() {
                                 if let Some(n) = tree.get_node_mut(pair_row) {
-                                    let mut st: Style = n.get_style();
-                                    st.get_mut_layout().set_display(Display::None);
-                                    n.set_style(st);
+                                    n.get_mut_style()
+                                        .get_mut_layout()
+                                        .set_display(Display::None);
                                 }
                             }
                             let mut idx: usize = 0;
@@ -1625,33 +1616,32 @@ impl EuvActionRow {
                                 let can_pair: bool = !a_wide
                                     && idx + 1 < children_c.len()
                                     && !wide_flags.get(idx + 1).copied().unwrap_or(false)
-                                    && pair_slot < pair_rows_c.len();
+                                    && pair_slot < pair_rows.len();
                                 if can_pair {
-                                    let pair_row: NodeId = pair_rows_c[pair_slot];
+                                    let pair_row: NodeId = pair_rows[pair_slot];
                                     pair_slot += 1;
                                     if let Some(n) = tree.get_node_mut(pair_row) {
-                                        let mut st: Style = n.get_style();
-                                        st.get_mut_layout()
+                                        n.get_mut_style()
+                                            .get_mut_layout()
                                             .set_display(Display::Grid)
                                             .set_grid_columns(2);
-                                        n.set_style(st);
                                     }
                                     tree.append_child(root, pair_row);
                                     let b: NodeId = children_c[idx + 1];
                                     for item in [a, b].into_iter() {
                                         if let Some(n) = tree.get_node_mut(item) {
-                                            let mut st: Style = n.get_style();
-                                            st.get_mut_layout().set_width(Length::Percent(100.0));
-                                            n.set_style(st);
+                                            n.get_mut_style()
+                                                .get_mut_layout()
+                                                .set_width(Length::Percent(100.0));
                                         }
                                         tree.append_child(pair_row, item);
                                     }
                                     idx += 2;
                                 } else {
                                     if let Some(n) = tree.get_node_mut(a) {
-                                        let mut st: Style = n.get_style();
-                                        st.get_mut_layout().set_width(Length::Percent(100.0));
-                                        n.set_style(st);
+                                        n.get_mut_style()
+                                            .get_mut_layout()
+                                            .set_width(Length::Percent(100.0));
                                     }
                                     tree.append_child(root, a);
                                     idx += 1;
@@ -1659,27 +1649,24 @@ impl EuvActionRow {
                             }
                         } else {
                             if let Some(n) = tree.get_node_mut(root) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_layout()
+                                n.get_mut_style()
+                                    .get_mut_layout()
                                     .set_flex_direction(FlexDirection::Row)
                                     .set_flex_wrap(FlexWrap::Wrap)
                                     .set_align_items(AlignItems::Center);
-                                n.set_style(st);
                             }
-                            for pair_row in pair_rows_c.iter().copied() {
+                            for pair_row in pair_rows.iter().copied() {
                                 if let Some(n) = tree.get_node_mut(pair_row) {
-                                    let mut st: Style = n.get_style();
-                                    st.get_mut_layout().set_display(Display::None);
-                                    n.set_style(st);
+                                    n.get_mut_style()
+                                        .get_mut_layout()
+                                        .set_display(Display::None);
                                 }
                             }
                             for (idx, cid) in children_c.iter().copied().enumerate() {
                                 if let Some(n) = tree.get_node_mut(cid) {
-                                    let mut st: Style = n.get_style();
                                     let ow: Length =
                                         orig_widths.get(idx).copied().unwrap_or(Length::Auto);
-                                    st.get_mut_layout().set_width(ow);
-                                    n.set_style(st);
+                                    n.get_mut_style().get_mut_layout().set_width(ow);
                                 }
                                 tree.append_child(root, cid);
                             }
@@ -1734,25 +1721,60 @@ impl EuvStatGrid {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let ctx: Context = current_context();
+        let mut ctx: Context = current_context();
         let bp_sig: Signal<Breakpoint> = ctx.get_breakpoint();
-        let Self { cards } = self.clone();
+        let Self { cards } = self;
         let max_cols: u16 = (cards.len() as u16).clamp(1, 3);
-        view! {
+        let init_cols: u16 = match bp_sig.get_untracked() {
+            Breakpoint::Compact => 1,
+            Breakpoint::Medium => max_cols.min(2),
+            Breakpoint::Expanded => max_cols,
+        };
+        let root: NodeId = view! {
             grid {
-                bind_style: move || {
-                    let cols: u16 = match bp_sig.get() {
-                        Breakpoint::Compact => 1,
-                        Breakpoint::Medium => max_cols.min(2),
-                        Breakpoint::Expanded => max_cols,
-                    };
-                    Style::default()
-                    .grid(cols)
-                    .width(Length::Percent(100.0))
-                    .gap(SPACE_MD)
-                }
-                ..cards
+                columns: init_cols
+                width: Length::Percent(100.0)
+                gap: SPACE_MD
             }
+        };
+        if !cards.is_empty() {
+            ctx.append_many(root, cards.as_slice());
         }
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let cols: u16 = match bp_sig.get() {
+                    Breakpoint::Compact => 1,
+                    Breakpoint::Medium => max_cols.min(2),
+                    Breakpoint::Expanded => max_cols,
+                };
+                handle.with_write(
+                    |tree: &mut SceneTree| {
+                        let changed: bool = if let Some(n) = tree.get_node_mut(root) {
+                            if n.style_ref().get_layout().get_grid_columns() != cols {
+                                n.get_mut_style().get_mut_layout().set_grid_columns(cols);
+                                true
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        };
+                        if changed {
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(root, dirty_l | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(root, scope);
+            },
+            (),
+        );
+        root
     }
 }

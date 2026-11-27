@@ -19,7 +19,8 @@ impl EuvModal {
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let open: Signal<bool> = self.get_open();
         let body: NodeId = self.get_body();
-        let Self { title, .. } = self.clone();
+        let Self { title, .. } = self;
+        let title_owned: String = title.clone();
         let init_open: bool = open.get_untracked();
         let mut dialog: NodeId = NodeId::default();
         let backdrop: NodeId = view! {
@@ -46,12 +47,12 @@ impl EuvModal {
                     overflow: Overflow::Hidden
                     shadow: g.get_shadow_lg()
                     role: A11yRole::Dialog
-                    a11y_label: title.clone()
+                    a11y_label: title_owned.clone()
                     text {
                         font_size: g.get_font_heading()
                         font_weight: FontWeight::Bold
                         color: p.get_card_foreground()
-                        { title }
+                        { title_owned }
                     }
                     { body }
                 }
@@ -76,35 +77,36 @@ impl EuvModal {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(backdrop) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::Auto);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::Auto);
                             }
+                            tree.start_transition(
+                                NodeTransition::fade(backdrop, 0.0, 1.0, 0.22, false)
+                                    .with_easing(Easing::EaseOutQuint),
+                            );
+                            tree.start_transition(NodeTransition::modal_enter(dialog));
                         },
                         (),
                     );
-                    handle.start_transition(
-                        NodeTransition::fade(backdrop, 0.0, 1.0, 0.22, false)
-                            .with_easing(Easing::EaseOutQuint),
-                    );
-                    handle.start_transition(NodeTransition::modal_enter(dialog));
                 } else {
                     handle.with_write(
                         |tree: &mut SceneTree| {
                             if let Some(n) = tree.get_node_mut(backdrop) {
-                                let mut st: Style = n.get_style();
-                                st.get_mut_paint().set_pointer_events(PointerEvents::None);
-                                n.set_style(st);
+                                n.get_mut_style()
+                                    .get_mut_paint()
+                                    .set_pointer_events(PointerEvents::None);
                             }
+                            tree.start_transition(
+                                NodeTransition::modal_exit(dialog)
+                                    .with_easing(Easing::EaseOutCubic),
+                            );
+                            tree.start_transition(
+                                NodeTransition::fade(backdrop, 1.0, 0.0, 0.18, true)
+                                    .with_easing(Easing::EaseOutCubic),
+                            );
                         },
                         (),
-                    );
-                    handle.start_transition(
-                        NodeTransition::modal_exit(dialog).with_easing(Easing::EaseOutCubic),
-                    );
-                    handle.start_transition(
-                        NodeTransition::fade(backdrop, 1.0, 0.0, 0.18, true)
-                            .with_easing(Easing::EaseOutCubic),
                     );
                 }
             })
@@ -138,7 +140,8 @@ impl EuvToast {
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let (bg, fg): (Color, Color) = self.get_tone().colors(p);
         let visible: Signal<bool> = self.get_visible();
-        let Self { message, .. } = self.clone();
+        let Self { message, .. } = self;
+        let message_owned: String = message.clone();
         let init_vis: bool = visible.get_untracked();
         let toast: NodeId = view! {
             portal {
@@ -154,12 +157,12 @@ impl EuvToast {
                 pointer_events: PointerEvents::None
                 z_index: Z_INDEX_TOAST
                 role: A11yRole::Alert
-                a11y_label: message.clone()
+                a11y_label: message_owned.clone()
                 text {
                     font_size: 13.0
                     font_weight: FontWeight::Medium
                     color: fg
-                    { message }
+                    { message_owned }
                 }
             }
         };
