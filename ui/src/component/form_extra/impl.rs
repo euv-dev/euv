@@ -16,7 +16,7 @@ impl EuvLabel {
     fn render(&self) -> NodeId {
         let p: ThemePalette = self.get_tokens().get_palette();
         let required: bool = self.get_required();
-        let Self { text, .. } = self.clone();
+        let Self { text, .. } = self;
         view! {
             row {
                 gap: 4.0
@@ -24,7 +24,7 @@ impl EuvLabel {
                     font_size: 13.0
                     font_weight: FontWeight::Medium
                     color: p.get_foreground()
-                    { text }
+                    { text.clone() }
                 }
                 if required {
                     text {
@@ -72,14 +72,18 @@ impl EuvForm {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
-        let Self { fields, .. } = self.clone();
-        view! {
+        let mut ctx: Context = current_context();
+        let Self { fields, .. } = self;
+        let root: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
                 gap: SPACE_MD
-                ..fields
             }
+        };
+        if !fields.is_empty() {
+            ctx.append_many(root, fields.as_slice());
         }
+        root
     }
 }
 
@@ -103,11 +107,16 @@ impl EuvTextarea {
         let h: f32 = self.get_height();
         let initial: String = sig.get_untracked();
         let caret: usize = initial.len();
-        let Self { placeholder, .. } = self.clone();
+        let Self { placeholder, .. } = self;
+        let on_change_cb = move |ev: &UiEvent| {
+            if let UiEventKind::Change(val) = ev.get_kind() {
+                let _: bool = sig.set_if_changed(val.clone());
+            }
+        };
         view! {
             input {
                 value: initial
-                placeholder: placeholder
+                placeholder: placeholder.clone()
                 caret: caret
                 multiline: true
                 width: Length::Percent(100.0)
@@ -120,11 +129,7 @@ impl EuvTextarea {
                 color: p.get_foreground()
                 font_size: g.get_font_body()
                 role: A11yRole::TextInput
-                on_change: move |ev: &UiEvent| {
-                    if let UiEventKind::Change(val) = ev.get_kind() {
-                        let _: bool = sig.set_if_changed(val.clone());
-                    }
-                }
+                on_change: on_change_cb
             }
         }
     }
@@ -190,7 +195,7 @@ impl EuvNumberInput {
         } else {
             1
         };
-        let Self { min, max, .. } = self.clone();
+        let Self { min, max, .. } = self;
         let min_v: i64 = min.unwrap_or(i64::MIN / 2);
         let max_v: i64 = max.unwrap_or(i64::MAX / 2);
         view! {
@@ -250,48 +255,96 @@ impl EuvRadioGroup {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let selected: Signal<usize> = self.get_selected();
-        let Self { options, .. } = self.clone();
-        view! {
-            column {
-                gap: SPACE_SM
-                for (idx, opt) in options.into_iter().enumerate() {
-                    row {
-                        align: AlignItems::Center
-                        padding: Edges::symmetric(SPACE_XS, SPACE_SM)
-                        radius: g.get_radius_sm()
-                        gap: SPACE_SM
-                        cursor: CursorIcon::Pointer
-                        on_click: move |_: &UiEvent| {
-                            let _: bool = selected.set_if_changed(idx);
-                        }
-                        view {
-                            bind_style: move || {
-                                let active: bool = selected.get() == idx;
-                                Style::default()
-                                .width(Length::Px(18.0))
-                                .height(Length::Px(18.0))
-                                .radius(9.0)
-                                .border(g.get_border_width(), p.get_primary())
-                                .background(if active {
-                                    p.get_primary()
-                                    } else {
-                                        p.get_background()
-                                })
-                            }
-                        }
-                        text {
-                            flex_grow: 1.0
-                            font_size: 14.0
-                            color: p.get_foreground()
-                            { opt }
-                        }
+        let Self { options, .. } = self;
+        let init_sel: usize = selected.get_untracked();
+        let on_bg: Color = p.get_primary();
+        let off_bg: Color = p.get_background();
+        let mut dot_nodes: Vec<NodeId> = Vec::with_capacity(options.len());
+        let mut row_nodes: Vec<NodeId> = Vec::with_capacity(options.len());
+        for (idx, opt) in options.iter().enumerate() {
+            let active: bool = init_sel == idx;
+            let mut dot: NodeId = NodeId::default();
+            let on_pick = move |_: &UiEvent| {
+                let _: bool = selected.set_if_changed(idx);
+            };
+            let item: NodeId = view! {
+                row {
+                    align: AlignItems::Center
+                    padding: Edges::symmetric(SPACE_XS, SPACE_SM)
+                    radius: g.get_radius_sm()
+                    gap: SPACE_SM
+                    cursor: CursorIcon::Pointer
+                    on_click: on_pick
+                    view {
+                        node_ref: dot
+                        width: Length::Px(18.0)
+                        height: Length::Px(18.0)
+                        radius: 9.0
+                        border: (g.get_border_width(), on_bg)
+                        background: if active { on_bg } else { off_bg }
+                    }
+                    text {
+                        flex_grow: 1.0
+                        font_size: 14.0
+                        color: p.get_foreground()
+                        { opt.clone() }
                     }
                 }
-            }
+            };
+            dot_nodes.push(dot);
+            row_nodes.push(item);
         }
+        let root: NodeId = view! {
+            column {
+                gap: SPACE_SM
+            }
+        };
+        if !row_nodes.is_empty() {
+            ctx.append_many(root, row_nodes.as_slice());
+        }
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_sel: Cell<usize> = Cell::new(init_sel);
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let next_sel: usize = selected.get();
+                let old_sel: usize = prev_sel.replace(next_sel);
+                if old_sel == next_sel {
+                    return;
+                }
+                handle.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(&old_dot) = dot_nodes.get(old_sel)
+                            && let Some(n) = tree.get_node_mut(old_dot)
+                        {
+                            n.get_mut_style()
+                                .get_mut_paint()
+                                .set_background(Some(off_bg));
+                            tree.mark_dirty(old_dot, DIRTY_PAINT);
+                        }
+                        if let Some(&new_dot) = dot_nodes.get(next_sel)
+                            && let Some(n) = tree.get_node_mut(new_dot)
+                        {
+                            n.get_mut_style()
+                                .get_mut_paint()
+                                .set_background(Some(on_bg));
+                            tree.mark_dirty(new_dot, DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(root, scope);
+            },
+            (),
+        );
+        root
     }
 }
 
@@ -453,8 +506,8 @@ impl EuvSelect {
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let selected: Signal<usize> = self.get_selected();
         let open: Signal<bool> = self.get_open();
-        let Self { options, .. } = self.clone();
-        let opts_for_label: Vec<String> = options.clone();
+        let Self { options, .. } = self;
+        let opts_for_label: Rc<[String]> = Rc::from(options.as_slice());
         let init_open: bool = open.get_untracked();
         let mut menu: NodeId = NodeId::default();
         let chevron_color: Color = p.get_muted_foreground();
@@ -482,9 +535,9 @@ impl EuvSelect {
             });
         };
         let option_rows: Vec<NodeId> = options
-            .into_iter()
+            .iter()
             .enumerate()
-            .map(|(idx, opt): (usize, String)| {
+            .map(|(idx, opt): (usize, &String)| {
                 let on_pick = move |_: &UiEvent| {
                     let _: bool = selected.set_if_changed(idx);
                     let _: bool = open.set_if_changed(false);
@@ -504,7 +557,7 @@ impl EuvSelect {
                             font_size: 13.0
                             color: p.get_foreground()
                             text_overflow: TextOverflow::Ellipsis
-                            { opt }
+                            { opt.clone() }
                         }
                     }
                 }
@@ -749,10 +802,11 @@ impl EuvColorPicker {
     ///
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
+        let mut ctx: Context = current_context();
         let p: ThemePalette = self.get_tokens().get_palette();
         let g: ThemeGeometry = self.get_tokens().get_geometry();
         let sig: Signal<Color> = self.get_value();
-        let Self { presets, .. } = self.clone();
+        let Self { presets, .. } = self;
         let swatches: Vec<Color> = if presets.is_empty() {
             COLOR_PICKER_DEFAULTS
                 .iter()
@@ -760,9 +814,40 @@ impl EuvColorPicker {
                 .map(Color::hex)
                 .collect()
         } else {
-            presets
+            presets.clone()
         };
-        view! {
+        let init_color: Color = sig.get_untracked();
+        let border_w: f32 = g.get_border_width();
+        let active_border: Border = Border::new(2.0, p.get_foreground());
+        let idle_border: Border = Border::new(border_w, p.get_border());
+        let mut preview: NodeId = NodeId::default();
+        let mut swatch_row: NodeId = NodeId::default();
+        let swatch_nodes: Vec<NodeId> = swatches
+            .iter()
+            .copied()
+            .map(|swatch_color: Color| {
+                let active: bool = init_color == swatch_color;
+                let on_pick = move |_: &UiEvent| {
+                    let _: bool = sig.set_if_changed(swatch_color);
+                };
+                view! {
+                    view {
+                        width: Length::Px(26.0)
+                        height: Length::Px(26.0)
+                        radius: g.get_radius_sm()
+                        background: swatch_color
+                        border: (if active { 2.0 } else { border_w }, if active { p.get_foreground() } else { p.get_border() })
+                        cursor: CursorIcon::Pointer
+                        on_click: on_pick
+                    }
+                }
+            })
+            .collect();
+        let hex_text = move || -> String {
+            let c: Color = sig.get();
+            format!("#{:02X}{:02X}{:02X}", c.get_r(), c.get_g(), c.get_b())
+        };
+        let root: NodeId = view! {
             column {
                 width: Length::Percent(100.0)
                 gap: SPACE_SM
@@ -770,57 +855,82 @@ impl EuvColorPicker {
                     align: AlignItems::Center
                     gap: SPACE_SM
                     view {
-                        bind_style: move || {
-                            Style::default()
-                            .width(Length::Px(24.0))
-                            .height(Length::Px(24.0))
-                            .radius(g.get_radius_sm())
-                            .background(sig.get())
-                            .border(g.get_border_width(), p.get_border())
-                        }
+                        node_ref: preview
+                        width: Length::Px(24.0)
+                        height: Length::Px(24.0)
+                        radius: g.get_radius_sm()
+                        background: init_color
+                        border: (border_w, p.get_border())
                     }
                     text {
                         font_family: FontFamily::Monospace
                         font_size: 13.0
                         font_weight: FontWeight::Medium
                         color: p.get_foreground()
-                        { move || {
-                            let c: Color = sig.get();
-                            format!("#{:02X}{:02X}{:02X}", c.get_r(), c.get_g(), c.get_b())
-                        } }
+                        { hex_text }
                     }
                 }
                 row {
+                    node_ref: swatch_row
                     flex_wrap: FlexWrap::Wrap
                     width: Length::Percent(100.0)
                     gap: SPACE_XS
-                    for swatch_color in swatches.into_iter() {
-                        view {
-                            bind_style: move || {
-                                let active: bool = sig.get() == swatch_color;
-                                Style::default()
-                                .width(Length::Px(26.0))
-                                .height(Length::Px(26.0))
-                                .radius(g.get_radius_sm())
-                                .background(swatch_color)
-                                .border(
-                                    if active { 2.0 } else { g.get_border_width() },
-                                    if active {
-                                        p.get_foreground()
-                                    } else {
-                                        p.get_border()
-                                    },
-                                )
-                                .cursor(CursorIcon::Pointer)
-                            }
-                            on_click: move |_: &UiEvent| {
-                                let _: bool = sig.set_if_changed(swatch_color);
-                            }
-                        }
-                    }
                 }
             }
+        };
+        if !swatch_nodes.is_empty() {
+            ctx.append_many(swatch_row, swatch_nodes.as_slice());
         }
+        let handle: SceneHandle = ctx.get_scene().clone();
+        let prev_color: Cell<Color> = Cell::new(init_color);
+        let swatch_dirty: u16 = if (border_w - 2.0).abs() > f32::EPSILON {
+            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+            dirty_l | DIRTY_PAINT
+        } else {
+            DIRTY_PAINT
+        };
+        let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+            Effect::new(move || {
+                let next_color: Color = sig.get();
+                let old_color: Color = prev_color.replace(next_color);
+                if old_color == next_color {
+                    return;
+                }
+                handle.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(preview) {
+                            n.get_mut_style()
+                                .get_mut_paint()
+                                .set_background(Some(next_color));
+                            tree.mark_dirty(preview, DIRTY_PAINT);
+                        }
+                        for (idx, col) in swatches.iter().copied().enumerate() {
+                            if col == old_color
+                                && let Some(&sid) = swatch_nodes.get(idx)
+                                && let Some(n) = tree.get_node_mut(sid)
+                            {
+                                n.get_mut_style().get_mut_paint().set_border(idle_border);
+                                tree.mark_dirty(sid, swatch_dirty);
+                            } else if col == next_color
+                                && let Some(&sid) = swatch_nodes.get(idx)
+                                && let Some(n) = tree.get_node_mut(sid)
+                            {
+                                n.get_mut_style().get_mut_paint().set_border(active_border);
+                                tree.mark_dirty(sid, swatch_dirty);
+                            }
+                        }
+                    },
+                    (),
+                );
+            })
+        });
+        ctx.get_scene().with_write(
+            |tree: &mut SceneTree| {
+                tree.attach_scope(root, scope);
+            },
+            (),
+        );
+        root
     }
 }
 
@@ -990,11 +1100,11 @@ impl EuvTagInput {
         let p: ThemePalette = tokens.get_palette();
         let g: ThemeGeometry = tokens.get_geometry();
         let tags_sig: Signal<Vec<String>> = self.get_tags();
-        let Self { placeholder, .. } = self.clone();
+        let Self { placeholder, .. } = self;
         let resolved_ph: String = if placeholder.is_empty() {
             TAG_DEFAULT_PLACEHOLDER.to_string()
         } else {
-            placeholder
+            placeholder.clone()
         };
         let draft: Signal<String> = Signal::new(String::new());
         view! {

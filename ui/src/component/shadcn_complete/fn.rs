@@ -29,3 +29,39 @@ pub(crate) fn contains_ascii_lowered_needle(haystack: &[u8], needle_lower: &[u8]
     }
     false
 }
+
+/// Returns `true` when `haystack` contains `needle` using zero-allocation ASCII case-insensitive matching.
+///
+/// # Arguments
+///
+/// - `&str` - Source UTF-8 haystack text.
+/// - `&str` - UTF-8 search query substring.
+///
+/// # Returns
+///
+/// - `bool` - `true` when `needle` occurs inside `haystack` ignoring ASCII letter case.
+#[must_use]
+pub(crate) fn contains_ascii_ignore_case(haystack: &str, needle: &str) -> bool {
+    let h: &[u8] = haystack.as_bytes();
+    let n: &[u8] = needle.as_bytes();
+    let n_len: usize = n.len();
+    if n_len == 0 {
+        return true;
+    }
+    if n_len > h.len() {
+        return false;
+    }
+    let first: u8 = n[0].to_ascii_lowercase();
+    let tail: &[u8] = &n[1..];
+    let limit: usize = h.len() - n_len;
+    let mut pos: usize = 0;
+    while pos <= limit {
+        if h[pos].to_ascii_lowercase() == first
+            && h[pos + 1..pos + n_len].eq_ignore_ascii_case(tail)
+        {
+            return true;
+        }
+        pos += 1;
+    }
+    false
+}

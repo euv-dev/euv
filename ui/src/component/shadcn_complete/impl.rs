@@ -188,25 +188,29 @@ impl EuvCombobox {
     /// - `NodeId` - Mounted root scene node handle.
     fn render(&self) -> NodeId {
         let ctx: Context = current_context();
-        let tokens: ThemeTokens = self.get_tokens();
-        let p: ThemePalette = tokens.get_palette();
-        let g: ThemeGeometry = tokens.get_geometry();
-        let selected: Signal<usize> = self.get_selected();
-        let open: Signal<bool> = self.get_open();
         let Self {
             placeholder,
             options,
             query: query_opt,
-            ..
-        } = self.clone();
+            selected,
+            open,
+            tokens,
+        } = self;
+        let tokens: ThemeTokens = *tokens;
+        let p: ThemePalette = tokens.get_palette();
+        let g: ThemeGeometry = tokens.get_geometry();
+        let selected: Signal<usize> = *selected;
+        let open: Signal<bool> = *open;
         let query: Signal<String> = query_opt.unwrap_or_else(|| Signal::new(String::new()));
         let resolved_ph: String = if placeholder.is_empty() {
             COMBOBOX_DEFAULT_PLACEHOLDER.to_string()
         } else {
-            placeholder
+            placeholder.clone()
         };
-        let opts_trigger: Vec<String> = options.clone();
-        let opts_filter: Vec<String> = options;
+        let opts_shared: Rc<[String]> = Rc::from(options.as_slice());
+        let opts_trigger: Rc<[String]> = Rc::clone(&opts_shared);
+        let opts_filter: Rc<[String]> = opts_shared;
+        let init_open: bool = open.get_untracked();
         let mut panel: NodeId = NodeId::default();
         let chevron_color: Color = p.get_muted_foreground();
         let on_toggle = move |_: &UiEvent| {
@@ -235,30 +239,12 @@ impl EuvCombobox {
                 width: 1.6,
             });
         };
-        let panel_style = move || -> Style {
-            Style::default()
-                .column()
-                .display(if open.get() {
-                    Display::Flex
-                } else {
-                    Display::None
-                })
-                .width(Length::Percent(100.0))
-                .padding(Edges::all(SPACE_SM))
-                .gap(SPACE_XS)
-                .background(p.get_card())
-                .border(g.get_border_width(), p.get_border())
-                .radius(g.get_radius_md())
-                .shadow(g.get_shadow_md())
-                .overflow(Overflow::Hidden)
-                .stop_scroll_propagation(true)
-        };
         let build_filtered = move || -> Vec<NodeId> {
-            let q: String = query.get().to_ascii_lowercase();
+            let q: String = query.get();
             let cur_sel: usize = selected.get();
-            let mut nodes: Vec<NodeId> = Vec::new();
+            let mut nodes: Vec<NodeId> = Vec::with_capacity(opts_filter.len());
             for (idx, opt) in opts_filter.iter().enumerate() {
-                if !q.is_empty() && !opt.to_ascii_lowercase().contains(&q) {
+                if !q.is_empty() && !contains_ascii_ignore_case(opt.as_str(), q.as_str()) {
                     continue;
                 }
                 let is_sel: bool = idx == cur_sel;
@@ -333,7 +319,16 @@ impl EuvCombobox {
                 }
                 column {
                     node_ref: panel
-                    bind_style: panel_style
+                    display: if init_open { Display::Flex } else { Display::None }
+                    width: Length::Percent(100.0)
+                    padding: Edges::all(SPACE_SM)
+                    gap: SPACE_XS
+                    background: p.get_card()
+                    border: (g.get_border_width(), p.get_border())
+                    radius: g.get_radius_md()
+                    shadow: g.get_shadow_md()
+                    overflow: Overflow::Hidden
+                    stop_scroll_propagation: true
                     EuvInput {
                         value: query
                         placeholder: resolved_ph
@@ -347,8 +342,32 @@ impl EuvCombobox {
                 }
             }
         };
+        let handle_panel: SceneHandle = ctx.get_scene().clone();
+        let prev_open: Cell<bool> = Cell::new(init_open);
         let (scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
-            EuvOverlayStack::bind_signal(open, COMBOBOX_OVERLAY_NAME, Z_INDEX_DRAWER - 10)
+            let _: Effect =
+                EuvOverlayStack::bind_signal(open, COMBOBOX_OVERLAY_NAME, Z_INDEX_DRAWER - 10);
+            Effect::new(move || {
+                let is_open: bool = open.get();
+                if prev_open.replace(is_open) == is_open {
+                    return;
+                }
+                let next_disp: Display = if is_open {
+                    Display::Flex
+                } else {
+                    Display::None
+                };
+                handle_panel.with_write(
+                    |tree: &mut SceneTree| {
+                        if let Some(n) = tree.get_node_mut(panel) {
+                            n.get_mut_style().get_mut_layout().set_display(next_disp);
+                            let dirty_l: u16 = DIRTY_LAYOUT | DIRTY_SUBTREE_LAYOUT;
+                            tree.mark_dirty(panel, dirty_l | DIRTY_PAINT);
+                        }
+                    },
+                    (),
+                );
+            })
         });
         ctx.get_scene().with_write(
             |tree: &mut SceneTree| {
