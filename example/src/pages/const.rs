@@ -495,3 +495,7 @@ pub(crate) const HOME_DIR_DESC_OT: &str = "Signed partial & global .wasm hot-swa
 
 /// Label displayed in showcase telemetry readouts when no active frame presentation is occurring.
 pub(crate) const LABEL_FPS_IDLE: &str = "Idle";
+/// Status label displayed in the System Events Monitor when background freeze is active.
+pub(crate) const BG_FREEZE_STATUS_FROZEN: &str = "FROZEN (0% CPU/GPU)";
+/// Status label displayed in the System Events Monitor when foreground execution is active.
+pub(crate) const BG_FREEZE_STATUS_ACTIVE: &str = "ACTIVE";

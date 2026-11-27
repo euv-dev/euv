@@ -72,9 +72,17 @@ pub fn mount_showcase_root(state: &ShowcaseState) -> NodeId {
     let global_banner: Signal<ShowcaseGlobalBanner> =
         global_state!(ShowcaseGlobalBanner = ShowcaseGlobalBanner::default());
     let state_c: ShowcaseState = state.clone();
+    let bg_state: ShowcaseState = state.clone();
+    let fg_state: ShowcaseState = state.clone();
     let sys_log_sig: Signal<Vec<String>> = state.get_system_event_log();
     let sys_count_sig: Signal<u32> = state.get_system_event_count();
     let (ev_scope, _): (Scope, Effect) = Scope::run(|_: Scope| {
+        let _: SystemEventSubscription = on_background(move || {
+            bg_state.freeze_for_background();
+        });
+        let _: SystemEventSubscription = on_foreground(move || {
+            fg_state.restore_from_foreground();
+        });
         let _: SystemEventSubscription = on_system_event(move |ev: &SystemEvent| {
             let next_seq: u32 = sys_count_sig.get_untracked().saturating_add(1);
             let _: bool = sys_count_sig.set(next_seq);
@@ -1495,6 +1503,9 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
     let safe_area_sig: Signal<SafeAreaInsets> = use_safe_area();
     let sys_log_sig: Signal<Vec<String>> = state.get_system_event_log();
     let sys_count_sig: Signal<u32> = state.get_system_event_count();
+    let bg_frozen_sig: Signal<bool> = state.get_bg_frozen();
+    let bg_freeze_cnt: Signal<u32> = state.get_bg_freeze_count();
+    let bg_restore_cnt: Signal<u32> = state.get_bg_restore_count();
     let page_appear_count: Signal<u32> = Signal::new(0);
     let page_disappear_count: Signal<u32> = Signal::new(0);
     let _: SystemEventSubscription = on_appear(move || {
@@ -1509,6 +1520,18 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
             app_state_sig.get(),
             sys_theme_sig.get(),
             net_status_sig.get()
+        )
+    };
+    let sys_freeze_line = move || -> String {
+        let mode: &str = if bg_frozen_sig.get() {
+            BG_FREEZE_STATUS_FROZEN
+        } else {
+            BG_FREEZE_STATUS_ACTIVE
+        };
+        format!(
+            "Background Freeze: {mode} | Freezes: {} | Restores: {}",
+            bg_freeze_cnt.get(),
+            bg_restore_cnt.get()
         )
     };
     let sys_secondary_line = move || -> String {
@@ -1560,6 +1583,13 @@ pub fn mount_window_page(state: &ShowcaseState, tokens: ThemeTokens) -> NodeId {
                     font_weight: FontWeight::SemiBold
                     color: p.get_primary()
                     { sys_primary_line }
+                }
+                text {
+                    width: Length::Percent(100.0)
+                    font_size: 12.5
+                    font_weight: FontWeight::Medium
+                    color: p.get_success()
+                    { sys_freeze_line }
                 }
                 text {
                     width: Length::Percent(100.0)

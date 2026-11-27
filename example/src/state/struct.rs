@@ -343,6 +343,27 @@ pub struct ShowcaseState {
     /// Total count of normalized `SystemEvent` notifications observed in this session.
     #[get(type(copy))]
     pub(crate) system_event_count: Signal<u32>,
+    /// Reactive flag indicating whether showcase pages are currently frozen in background.
+    #[get(type(copy))]
+    pub(crate) bg_frozen: Signal<bool>,
+    /// Total count of background freeze transitions executed across showcase pages.
+    #[get(type(copy))]
+    pub(crate) bg_freeze_count: Signal<u32>,
+    /// Total count of lossless foreground restore transitions executed across showcase pages.
+    #[get(type(copy))]
+    pub(crate) bg_restore_count: Signal<u32>,
+    /// Snapshot of whether the 2D physics game host was running immediately before entering background.
+    pub(crate) bg_snap_game2d_running: Rc<Cell<bool>>,
+    /// Snapshot of whether the 3D ray-tracing host was running immediately before entering background.
+    pub(crate) bg_snap_game3d_running: Rc<Cell<bool>>,
+    /// Snapshot of whether Media Studio animated GIF playback was playing before background.
+    pub(crate) bg_snap_gif_playing: Rc<Cell<bool>>,
+    /// Snapshot of whether Media Studio LIVE Photo motion burst was playing before background.
+    pub(crate) bg_snap_live_playing: Rc<Cell<bool>>,
+    /// Snapshot of whether Media Studio video playback was playing before background.
+    pub(crate) bg_snap_video_playing: Rc<Cell<bool>>,
+    /// Snapshot of whether Media Studio audio playback was playing before background.
+    pub(crate) bg_snap_audio_playing: Rc<Cell<bool>>,
 }
 
 /// Full-featured 2D arcade arena scene powered by `GameWorld`, `PhysicsWorld2D`, `Camera2D`, `ParticleSystem`, `TileMap`, `ActionMap`, and `AudioBus`.

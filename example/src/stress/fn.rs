@@ -298,15 +298,9 @@ fn run_stress_vlist_100k(entry: &mut StressCaseResult) {
             });
             samples.push(dt);
         }
-        mounted_nodes = app.get_scene().with_read(
-            |tree: &SceneTree| {
-                tree.get_nodes()
-                    .iter()
-                    .filter(|n: &&SceneNode| n.get_alive())
-                    .count()
-            },
-            mounted_nodes,
-        );
+        mounted_nodes = app
+            .get_scene()
+            .with_read(SceneTree::live_node_count, mounted_nodes);
         let info: String = format!(
             "rows=100k mounted_nodes={mounted_nodes} scroll={:.0}px shaded={last_shaded}",
             scroll_y.get_untracked()

@@ -1628,3 +1628,201 @@ fn system_event_monitor_tracks_normalized_events_and_signals_live() {
     );
     assert!(has_monitor_heading);
 }
+
+#[test]
+fn showcase_background_freeze_suspends_all_stateful_pages_and_restores_losslessly() {
+    reset_reactive_runtime();
+    let (mut app, state): (App, ShowcaseState) =
+        create_showcase_app(true, RenderMode::Software).unwrap();
+    app.set_telemetry_enabled(true);
+    let wid: WindowId = app.get_window_state().get_id();
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = state.get_route().set_if_changed(ROUTE_MARKDOWN.to_string());
+    for _ in 0_u32..16 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    app.dispatch_window_event(WindowEvent::PointerMove(
+        wid,
+        PointerEvent::mouse(600.0, 420.0),
+    ));
+    app.dispatch_window_event(WindowEvent::Scroll(wid, Point::new(0.0, 360.0)));
+    for _ in 0_u32..24 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let markdown_scroll_before: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes()
+                .iter()
+                .filter(|n: &&SceneNode| {
+                    n.get_alive() && n.get_style().get_layout().get_overflow() == Overflow::Scroll
+                })
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                .fold(0.0_f32, f32::max)
+        },
+        0.0,
+    );
+    assert!(markdown_scroll_before > 10.0);
+    let _: bool = state.get_route().set_if_changed(ROUTE_FORMS.to_string());
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = state.get_username().set_if_changed("alice_bg".to_string());
+    let _: bool = state
+        .get_bio()
+        .set_if_changed("preserved across sleep".to_string());
+    let _: bool = state.get_slider_value().set_if_changed(88.0);
+    state.toggle_theme_mode();
+    state.next_scheme();
+    let expected_scheme: DesignScheme = state.get_theme().get_scheme().get_untracked();
+    let _: bool = state.get_route().set_if_changed(ROUTE_STRESS.to_string());
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = state.get_route().set_if_changed(ROUTE_MEDIA.to_string());
+    let _: FrameStats = app.step_frame().unwrap();
+    let _: bool = state.get_media_gif().update(|gif: &mut GifAnimation| {
+        gif.set_playing(true);
+    });
+    let _: bool = state.get_media_live().update(|live: &mut LivePhotoAsset| {
+        live.set_motion_playing(true);
+    });
+    let _: bool = state.get_media_video().update(|video: &mut VideoTrack| {
+        video.set_state(PlaybackState::Playing);
+    });
+    let _: bool = state.get_media_audio().update(|audio: &mut AudioTrack| {
+        audio.set_state(PlaybackState::Playing);
+    });
+    let _: bool = state.get_route().set_if_changed(ROUTE_GAME.to_string());
+    for _ in 0_u32..6 {
+        let _: FrameStats = app.step_game_frame(0.02).unwrap();
+    }
+    assert!(!state.get_game_host().is_paused());
+    let _: bool = state.get_route().set_if_changed(ROUTE_GAME_3D.to_string());
+    for _ in 0_u32..6 {
+        let _: FrameStats = app.step_game_frame(0.02).unwrap();
+    }
+    assert!(state.get_game_host().is_paused());
+    assert!(!state.get_game3d_host().is_paused());
+    let pre_bg_stats: FrameStats = app.step_game_frame(0.02).unwrap();
+    let hash_before_bg: u64 = pre_bg_stats.get_frame_hash();
+    app.dispatch_window_event(WindowEvent::System(SystemEvent::Background));
+    assert!(app.is_background_frozen());
+    assert!(!app.should_pump_frames());
+    assert!(app.is_platform_frame_pump_paused());
+    assert!(state.get_bg_frozen().get_untracked());
+    assert_eq!(state.get_bg_freeze_count().get_untracked(), 1);
+    assert_eq!(state.get_bg_restore_count().get_untracked(), 0);
+    assert!(state.get_game_host().is_paused());
+    assert!(state.get_game3d_host().is_paused());
+    assert!(!state.get_media_gif().get_untracked().get_playing());
+    assert!(!state.get_media_live().get_untracked().get_active_motion());
+    assert_eq!(
+        state.get_media_video().get_untracked().get_state(),
+        PlaybackState::Paused
+    );
+    assert_eq!(
+        state.get_media_audio().get_untracked().get_state(),
+        PlaybackState::Paused
+    );
+    let clock_before_bg: u64 = app.get_context().elapsed_ms();
+    for _ in 0_u32..60 {
+        app.dispatch_window_event(WindowEvent::RedrawRequested(wid));
+        let st: FrameStats = app.step_frame().unwrap();
+        let tel: FrameTelemetry = app.last_frame_telemetry();
+        assert_eq!(st.get_layout_nodes(), 0);
+        assert_eq!(st.get_draw_commands(), 0);
+        assert_eq!(st.get_draw_batches(), 0);
+        assert_eq!(st.get_pixels_shaded(), 0);
+        assert_eq!(st.get_frame_hash(), hash_before_bg);
+        assert!(tel.get_is_idle());
+        assert_eq!(tel.get_present_fps(), 0.0);
+    }
+    for _ in 0_u32..60 {
+        let st: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+        assert_eq!(st.get_layout_nodes(), 0);
+        assert_eq!(st.get_draw_commands(), 0);
+        assert_eq!(st.get_draw_batches(), 0);
+        assert_eq!(st.get_pixels_shaded(), 0);
+        assert_eq!(st.get_frame_hash(), hash_before_bg);
+    }
+    assert_eq!(app.get_context().elapsed_ms(), clock_before_bg);
+    app.dispatch_window_event(WindowEvent::System(SystemEvent::Foreground));
+    assert!(!app.is_background_frozen());
+    assert!(app.should_pump_frames());
+    assert!(!app.is_platform_frame_pump_paused());
+    assert!(!state.get_bg_frozen().get_untracked());
+    assert_eq!(state.get_bg_restore_count().get_untracked(), 1);
+    assert_eq!(state.get_route().get_untracked(), ROUTE_GAME_3D);
+    assert!(state.get_game_host().is_paused());
+    assert!(!state.get_game3d_host().is_paused());
+    assert!(state.get_media_gif().get_untracked().get_playing());
+    assert!(state.get_media_live().get_untracked().get_active_motion());
+    assert_eq!(
+        state.get_media_video().get_untracked().get_state(),
+        PlaybackState::Playing
+    );
+    assert_eq!(
+        state.get_media_audio().get_untracked().get_state(),
+        PlaybackState::Playing
+    );
+    assert_eq!(state.get_username().get_untracked(), "alice_bg");
+    assert_eq!(state.get_bio().get_untracked(), "preserved across sleep");
+    assert!((state.get_slider_value().get_untracked() - 88.0).abs() < 0.01);
+    assert_eq!(
+        state.get_theme().get_mode().get_untracked(),
+        ThemeMode::Dark
+    );
+    assert_eq!(
+        state.get_theme().get_scheme().get_untracked(),
+        expected_scheme
+    );
+    let restore_stats: FrameStats = app.step_game_frame(600.0).unwrap();
+    assert!(restore_stats.get_draw_commands() > 0);
+    assert!(restore_stats.get_pixels_shaded() > 0);
+    assert_eq!(app.get_context().elapsed_ms(), clock_before_bg);
+    let resumed_stats: FrameStats = app.step_game_frame(0.02).unwrap();
+    assert!(resumed_stats.get_pixels_shaded() > 0);
+    assert!(app.get_context().elapsed_ms() > clock_before_bg);
+    let _: bool = state.get_route().set_if_changed(ROUTE_MARKDOWN.to_string());
+    for _ in 0_u32..16 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let markdown_scroll_after: f32 = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes()
+                .iter()
+                .filter(|n: &&SceneNode| {
+                    n.get_alive() && n.get_style().get_layout().get_overflow() == Overflow::Scroll
+                })
+                .map(|n: &SceneNode| n.get_layout_box().get_scroll_offset().get_y())
+                .fold(0.0_f32, f32::max)
+        },
+        0.0,
+    );
+    assert!((markdown_scroll_after - markdown_scroll_before).abs() < 1.0);
+    let _: bool = state.get_route().set_if_changed(ROUTE_GAME.to_string());
+    for _ in 0_u32..8 {
+        let _: FrameStats = app.step_game_frame(0.02).unwrap();
+    }
+    assert!(!state.get_game_host().is_paused());
+    assert!(state.get_game3d_host().is_paused());
+    app.dispatch_system_event(SystemEvent::Background);
+    assert!(state.get_game_host().is_paused());
+    assert!(state.get_game3d_host().is_paused());
+    app.dispatch_system_event(SystemEvent::Foreground);
+    assert!(!state.get_game_host().is_paused());
+    assert!(state.get_game3d_host().is_paused());
+    let _: bool = state.get_route().set_if_changed(ROUTE_WINDOW.to_string());
+    for _ in 0_u32..16 {
+        let _: FrameStats = app.step_game_frame(1.0 / 60.0).unwrap();
+    }
+    let has_freeze_telemetry: bool = app.get_scene().with_read(
+        |tree: &SceneTree| {
+            tree.get_nodes().iter().any(|n: &SceneNode| {
+                n.get_alive()
+                    && matches!(
+                        n.get_kind(),
+                        NodeKind::Text(t) if t.contains("Background Freeze: ACTIVE | Freezes: 2 | Restores: 2")
+                    )
+            })
+        },
+        false,
+    );
+    assert!(has_freeze_telemetry);
+}

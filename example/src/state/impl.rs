@@ -173,6 +173,15 @@ impl ShowcaseState {
                 "Listening for normalized SystemEvent hooks (Appear / Disappear / Foreground / Background)".to_string(),
             ]),
             system_event_count: Signal::new(0),
+            bg_frozen: Signal::new(false),
+            bg_freeze_count: Signal::new(0),
+            bg_restore_count: Signal::new(0),
+            bg_snap_game2d_running: Rc::new(Cell::new(false)),
+            bg_snap_game3d_running: Rc::new(Cell::new(false)),
+            bg_snap_gif_playing: Rc::new(Cell::new(false)),
+            bg_snap_live_playing: Rc::new(Cell::new(false)),
+            bg_snap_video_playing: Rc::new(Cell::new(false)),
+            bg_snap_audio_playing: Rc::new(Cell::new(false)),
         }
     }
 
@@ -595,6 +604,99 @@ impl ShowcaseState {
             ThemeMode::Dark => ThemeMode::Light,
         };
         let _: bool = self.get_theme().get_mode().set_if_changed(next);
+    }
+
+    /// Snapshots active running/playing state across all 15 showcase pages and freezes 2D/3D engines and media players for background.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - State reference.
+    pub fn freeze_for_background(&self) {
+        if self.get_bg_frozen().get_untracked() {
+            return;
+        }
+        let game2d_running: bool = !self.get_game_host().is_paused();
+        self.get_bg_snap_game2d_running().set(game2d_running);
+        self.get_game_host().set_paused(true);
+        let game3d_running: bool = !self.get_game3d_host().is_paused();
+        self.get_bg_snap_game3d_running().set(game3d_running);
+        self.get_game3d_host().set_paused(true);
+        let gif_playing: bool = self.get_media_gif().get_untracked().get_playing();
+        self.get_bg_snap_gif_playing().set(gif_playing);
+        if gif_playing {
+            let _: bool = self.get_media_gif().update(|gif: &mut GifAnimation| {
+                gif.set_playing(false);
+            });
+        }
+        let live_playing: bool = self.get_media_live().get_untracked().get_active_motion();
+        self.get_bg_snap_live_playing().set(live_playing);
+        if live_playing {
+            let _: bool = self.get_media_live().update(|live: &mut LivePhotoAsset| {
+                live.set_motion_playing(false);
+            });
+        }
+        let video_playing: bool =
+            self.get_media_video().get_untracked().get_state() == PlaybackState::Playing;
+        self.get_bg_snap_video_playing().set(video_playing);
+        if video_playing {
+            let _: bool = self.get_media_video().update(|video: &mut VideoTrack| {
+                video.set_state(PlaybackState::Paused);
+            });
+        }
+        let audio_playing: bool =
+            self.get_media_audio().get_untracked().get_state() == PlaybackState::Playing;
+        self.get_bg_snap_audio_playing().set(audio_playing);
+        if audio_playing {
+            let _: bool = self.get_media_audio().update(|audio: &mut AudioTrack| {
+                audio.set_state(PlaybackState::Paused);
+            });
+        }
+        let _: bool = self.get_bg_frozen().set_if_changed(true);
+        let _: bool = self
+            .get_bg_freeze_count()
+            .update(|count: &mut u32| *count = count.saturating_add(1));
+    }
+
+    /// Restores the exact pre-background running/playing flags across all showcase game hosts and media players on foreground return.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - State reference.
+    pub fn restore_from_foreground(&self) {
+        if !self.get_bg_frozen().get_untracked() {
+            return;
+        }
+        let active_route: String = self.get_route().get_untracked();
+        if self.get_bg_snap_game2d_running().replace(false) && active_route == ROUTE_GAME {
+            self.get_game_host().set_paused(false);
+        }
+        if self.get_bg_snap_game3d_running().replace(false) && active_route == ROUTE_GAME_3D {
+            self.get_game3d_host().set_paused(false);
+        }
+        if self.get_bg_snap_gif_playing().replace(false) {
+            let _: bool = self.get_media_gif().update(|gif: &mut GifAnimation| {
+                gif.set_playing(true);
+            });
+        }
+        if self.get_bg_snap_live_playing().replace(false) {
+            let _: bool = self.get_media_live().update(|live: &mut LivePhotoAsset| {
+                live.set_motion_playing(true);
+            });
+        }
+        if self.get_bg_snap_video_playing().replace(false) {
+            let _: bool = self.get_media_video().update(|video: &mut VideoTrack| {
+                video.set_state(PlaybackState::Playing);
+            });
+        }
+        if self.get_bg_snap_audio_playing().replace(false) {
+            let _: bool = self.get_media_audio().update(|audio: &mut AudioTrack| {
+                audio.set_state(PlaybackState::Playing);
+            });
+        }
+        let _: bool = self.get_bg_frozen().set_if_changed(false);
+        let _: bool = self
+            .get_bg_restore_count()
+            .update(|count: &mut u32| *count = count.saturating_add(1));
     }
 }
 
