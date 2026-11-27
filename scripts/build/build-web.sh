@@ -32,7 +32,7 @@ html = (
     '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8"/>\n'
     '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>\n'
     '<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 32 32\'%3E%3Crect width=\'32\' height=\'32\' rx=\'8\' fill=\'%2318181b\'/%3E%3Ctext x=\'16\' y=\'22\' text-anchor=\'middle\' font-family=\'sans-serif\' font-weight=\'800\' font-size=\'18\' fill=\'%23fafafa\'%3EE%3C/text%3E%3C/svg%3E"/>\n'
-    '<title>euv 0.43 — Cross-Platform Native Showcase</title>\n'
+    '<title>euv 0.44 — Cross-Platform Native Showcase</title>\n'
     '<style>html,body{margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#09090b;touch-action:none;}</style>\n'
     '</head>\n<body>\n<script type="module">\n'
     f'{cleaned_loader}\n__wbg_init({{ module_or_path: \'./{wasm_file}\' }});\n'
