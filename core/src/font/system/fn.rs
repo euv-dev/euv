@@ -1021,33 +1021,25 @@ fn init_freetype_runtime() -> Option<FreeTypeRuntime> {
             return None;
         }
         #[cfg(target_os = "linux")]
-        let (reg_list, bold_list, mono_list, mono_bold_list, cjk_list): (
-            &[&str],
-            &[&str],
-            &[&str],
-            &[&str],
-            &[&str],
-        ) = (
-            &LINUX_FONT_CANDIDATES,
-            &LINUX_BOLD_FONT_CANDIDATES,
-            &LINUX_MONO_FONT_CANDIDATES,
-            &LINUX_MONO_BOLD_FONT_CANDIDATES,
-            &LINUX_CJK_FONT_CANDIDATES,
-        );
+        let reg_list: &[&str] = &LINUX_FONT_CANDIDATES;
+        #[cfg(target_os = "linux")]
+        let bold_list: &[&str] = &LINUX_BOLD_FONT_CANDIDATES;
+        #[cfg(target_os = "linux")]
+        let mono_list: &[&str] = &LINUX_MONO_FONT_CANDIDATES;
+        #[cfg(target_os = "linux")]
+        let mono_bold_list: &[&str] = &LINUX_MONO_BOLD_FONT_CANDIDATES;
+        #[cfg(target_os = "linux")]
+        let cjk_list: &[&str] = &LINUX_CJK_FONT_CANDIDATES;
         #[cfg(target_os = "android")]
-        let (reg_list, bold_list, mono_list, mono_bold_list, cjk_list): (
-            &[&str],
-            &[&str],
-            &[&str],
-            &[&str],
-            &[&str],
-        ) = (
-            &ANDROID_FONT_CANDIDATES,
-            &ANDROID_BOLD_FONT_CANDIDATES,
-            &ANDROID_MONO_FONT_CANDIDATES,
-            &ANDROID_MONO_BOLD_FONT_CANDIDATES,
-            &ANDROID_CJK_FONT_CANDIDATES,
-        );
+        let reg_list: &[&str] = &ANDROID_FONT_CANDIDATES;
+        #[cfg(target_os = "android")]
+        let bold_list: &[&str] = &ANDROID_BOLD_FONT_CANDIDATES;
+        #[cfg(target_os = "android")]
+        let mono_list: &[&str] = &ANDROID_MONO_FONT_CANDIDATES;
+        #[cfg(target_os = "android")]
+        let mono_bold_list: &[&str] = &ANDROID_MONO_BOLD_FONT_CANDIDATES;
+        #[cfg(target_os = "android")]
+        let cjk_list: &[&str] = &ANDROID_CJK_FONT_CANDIDATES;
         let regular_face: *mut FtFaceRec = freetype_open_first_face(library, ft_new_face, reg_list);
         if regular_face.is_null() {
             return None;
