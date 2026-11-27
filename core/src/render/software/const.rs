@@ -32,6 +32,12 @@ pub(crate) const EMPTY_TEXT_LAYOUT_SLOT: TextLayoutSlot = TextLayoutSlot {
 /// Maximum stack-cached width in physical pixels for precomputed 1D vertical rounded-rect edge strips.
 pub(crate) const ROUNDED_EDGE_STRIP_CAP: usize = 16;
 
+/// Maximum cached rounded-clip corner side length in physical pixels (`dim = ceil(r + 1)`).
+pub(crate) const CORNER_MASK_MAX_DIM: u32 = 96;
+
+/// Maximum cached quadrant corner coverage masks retained by `SoftwareRenderer` between frames.
+pub(crate) const CORNER_MASK_CACHE_LIMIT: usize = 128;
+
 /// Thread name prefix assigned to persistent horizontal-band rasterization workers.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) const BAND_WORKER_THREAD_PREFIX: &str = "euv-band";

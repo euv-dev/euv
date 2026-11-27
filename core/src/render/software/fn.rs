@@ -853,6 +853,97 @@ pub(crate) fn rounded_clip_coverage(
     cov
 }
 
+/// Blends a single RGBA8 pixel inside `row` back toward `saved_rgba` using linear-light clip coverage `cov`.
+///
+/// # Arguments
+///
+/// - `&mut [u8]` - Destination 4-byte pixel slice inside a framebuffer scanline.
+/// - `[u8; 4]` - Pre-command saved RGBA8 pixel bytes.
+/// - `f32` - Clip mask coverage in `[0.0, 1.0]` (`1.0` keeps current pixel, `0.0` restores `saved_rgba`).
+#[inline(always)]
+pub(crate) fn lerp_pixel_slice_from_saved_linear(dst: &mut [u8], saved_rgba: [u8; 4], cov: f32) {
+    let cur: [u8; 4] = [dst[0], dst[1], dst[2], dst[3]];
+    if cur == saved_rgba {
+        return;
+    }
+    let c: f32 = cov.clamp(0.0, 1.0);
+    let inv_c: f32 = 1.0 - c;
+    let nr: f32 = SRGB_TO_LIN_LUT[cur[0] as usize];
+    let ng: f32 = SRGB_TO_LIN_LUT[cur[1] as usize];
+    let nb: f32 = SRGB_TO_LIN_LUT[cur[2] as usize];
+    let or: f32 = SRGB_TO_LIN_LUT[saved_rgba[0] as usize];
+    let og: f32 = SRGB_TO_LIN_LUT[saved_rgba[1] as usize];
+    let ob: f32 = SRGB_TO_LIN_LUT[saved_rgba[2] as usize];
+    let ir: usize = ((nr * c + or * inv_c) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ig: usize = ((ng * c + og * inv_c) * 4095.0).clamp(0.0, 4095.0) as usize;
+    let ib: usize = ((nb * c + ob * inv_c) * 4095.0).clamp(0.0, 4095.0) as usize;
+    dst[0] = ((LIN_TO_SRGB_Q4_LUT[ir] + 8) >> 4).min(255) as u8;
+    dst[1] = ((LIN_TO_SRGB_Q4_LUT[ig] + 8) >> 4).min(255) as u8;
+    dst[2] = ((LIN_TO_SRGB_Q4_LUT[ib] + 8) >> 4).min(255) as u8;
+    let na: f32 = (cur[3] as f32) * c + (saved_rgba[3] as f32) * inv_c;
+    dst[3] = na.round().clamp(0.0, 255.0) as u8;
+}
+
+/// Evaluates rounded-clip coverage at `(x, y)` using `corner_masks` when cached, falling back to `rounded_clip_coverage`.
+///
+/// # Arguments
+///
+/// - `u32` - Physical pixel X coordinate.
+/// - `u32` - Physical pixel Y coordinate.
+/// - `RoundedClipMask` - Physical rounded clip descriptor.
+/// - `&[CachedCornerMask]` - Read-only cached quadrant corner masks.
+/// - `AntialiasingMode` - Active anti-aliasing policy.
+///
+/// # Returns
+///
+/// - `f32` - Exact coverage in `[0.0, 1.0]`.
+#[inline(always)]
+#[must_use]
+pub(crate) fn rounded_clip_coverage_cached(
+    x: u32,
+    y: u32,
+    mask: RoundedClipMask,
+    corner_masks: &[CachedCornerMask],
+    aa: AntialiasingMode,
+) -> f32 {
+    let rect: Rect = mask.get_rect();
+    let half_w: f32 = rect.get_width() * 0.5;
+    let half_h: f32 = rect.get_height() * 0.5;
+    let px: f32 = (x as f32) + 0.5 - (rect.get_x() + half_w);
+    let py: f32 = (y as f32) + 0.5 - (rect.get_y() + half_h);
+    let quad: usize = if px < 0.0 {
+        if py < 0.0 { 0 } else { 3 }
+    } else if py < 0.0 {
+        1
+    } else {
+        2
+    };
+    let mask_id: u32 = mask.get_corner_mask_ids()[quad];
+    if mask_id != u32::MAX
+        && let Some(cm) = corner_masks.get(mask_id as usize)
+    {
+        let dim_i: i32 = cm.dim as i32;
+        let origin_x: i32 = if quad == 0 || quad == 3 {
+            rect.get_x().round() as i32
+        } else {
+            (rect.right().round() as i32) - dim_i
+        };
+        let origin_y: i32 = if quad == 0 || quad == 1 {
+            rect.get_y().round() as i32
+        } else {
+            (rect.bottom().round() as i32) - dim_i
+        };
+        let mx: i32 = (x as i32) - origin_x;
+        let my: i32 = (y as i32) - origin_y;
+        if mx >= 0 && mx < dim_i && my >= 0 && my < dim_i {
+            let cov_u8: u8 = cm.cov[(my as usize) * (cm.dim as usize) + (mx as usize)];
+            return (cov_u8 as f32) * 0.0625;
+        }
+        return 1.0;
+    }
+    rounded_clip_coverage(x, y, mask, aa)
+}
+
 /// Returns the process-wide persistent horizontal-band rasterizer worker pool, lazily spawning warm threads once.
 ///
 /// # Returns
@@ -887,6 +978,12 @@ pub(crate) fn run_band_job_loop(job: &BandJob) {
             job.rounded_clips_len,
         )
     };
+    let corner_masks: &[CachedCornerMask] = unsafe {
+        from_raw_parts(
+            job.corner_masks_ptr as *const CachedCornerMask,
+            job.corner_masks_len,
+        )
+    };
     let atlas: &GlyphAtlas = unsafe { &*(job.atlas_ptr as *const GlyphAtlas) };
     let mut local_shaded: usize = 0;
     loop {
@@ -913,7 +1010,7 @@ pub(crate) fn run_band_job_loop(job: &BandJob) {
             &mut band,
             commands,
             prepped,
-            (positioned_glyphs, caret_rects, rounded_clips),
+            (positioned_glyphs, caret_rects, rounded_clips, corner_masks),
             atlas,
             (job.scale, job.aa),
         );

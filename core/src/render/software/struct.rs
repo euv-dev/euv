@@ -45,6 +45,77 @@ pub(crate) struct EdgeBlendSample {
     pub(crate) is_opaque: bool,
 }
 
+/// Precomputed per-row exterior, anti-aliased, and dirty horizontal spans inside a cached rounded-clip corner mask.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct CornerMaskRowSpan {
+    /// Inclusive start X (in mask-local `0..dim`) of the contiguous exterior (`cov == 0`) run.
+    pub(crate) ext_start: u16,
+    /// Exclusive end X of the contiguous exterior (`cov == 0`) run.
+    pub(crate) ext_end: u16,
+    /// Inclusive start X of the anti-aliased (`1..=15`) transition run.
+    pub(crate) aa_start: u16,
+    /// Exclusive end X of the anti-aliased (`1..=15`) transition run.
+    pub(crate) aa_end: u16,
+    /// Inclusive start X of all non-interior (`cov < 16`) pixels requiring save/restore.
+    pub(crate) dirty_start: u16,
+    /// Exclusive end X of all non-interior (`cov < 16`) pixels requiring save/restore.
+    pub(crate) dirty_end: u16,
+}
+
+/// Cached exact 4x4 RGSS coverage grid (`0..=16` hit counts) for one rounded-clip quadrant `(radius, quadrant, aa)`.
+#[derive(Clone, Debug)]
+pub(crate) struct CachedCornerMask {
+    /// Bit representation of the clamped physical corner radius `r.to_bits()`.
+    pub(crate) radius_bits: u32,
+    /// Quadrant index (`0 = TL`, `1 = TR`, `2 = BR`, `3 = BL`).
+    pub(crate) quadrant: u8,
+    /// Whether 4x4 RGSS anti-aliasing is enabled (`false` for `AntialiasingMode::None`).
+    pub(crate) aa_enabled: bool,
+    /// Side length of the square coverage grid in physical pixels (`ceil(r + 1)`).
+    pub(crate) dim: u16,
+    /// Row-major exact coverage hit counts in `0..=16` (`0` = outside, `16` = fully inside).
+    pub(crate) cov: Vec<u8>,
+    /// Per-row horizontal exterior/AA/dirty span bounds (`len == dim`).
+    pub(crate) row_spans: Vec<CornerMaskRowSpan>,
+}
+
+/// Persistent cache of precomputed rounded-clip corner coverage masks reused across cards and frames.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct CornerMaskCache {
+    /// Contiguous arena of cached quadrant coverage masks indexed by `u32` ID.
+    pub(crate) entries: Vec<CachedCornerMask>,
+}
+
+/// Single saved horizontal row segment belonging to one cached rounded-clip corner.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct SavedCornerRow {
+    /// Global physical Y row coordinate.
+    pub(crate) y: u32,
+    /// Inclusive global physical start X of the saved segment.
+    pub(crate) sx0: u32,
+    /// Exclusive global physical end X of the saved segment.
+    pub(crate) sx1: u32,
+    /// Byte offset into `BandCornerScratch::saved_bytes` where this row's RGBA bytes start.
+    pub(crate) byte_off: usize,
+    /// Index into `CornerMaskCache::entries` for this quadrant.
+    pub(crate) mask_id: u32,
+    /// Mask-local X origin in global physical coordinates.
+    pub(crate) origin_x: i32,
+    /// Mask-local Y origin in global physical coordinates.
+    pub(crate) origin_y: i32,
+}
+
+/// Per-thread reusable scratch buffers for rounded-clip corner save and restore in `render_band`.
+#[derive(Debug, Default)]
+pub(crate) struct BandCornerScratch {
+    /// Bulk RGBA8 byte buffer storing pre-command corner pixels via `extend_from_slice`.
+    pub(crate) saved_bytes: Vec<u8>,
+    /// Saved row descriptors for the single-mask cached fast path.
+    pub(crate) saved_rows: Vec<SavedCornerRow>,
+    /// Clipped corner box bounds for the multi-mask / fallback path.
+    pub(crate) corner_boxes: Vec<(u32, u32, u32, u32)>,
+}
+
 /// Active rounded-rectangle clip mask in physical pixels applied during software band rasterization.
 #[derive(Clone, Copy, Data, Debug, Default, PartialEq)]
 pub(crate) struct RoundedClipMask {
@@ -54,6 +125,9 @@ pub(crate) struct RoundedClipMask {
     /// Physical corner radii.
     #[get(type(copy))]
     pub(crate) radius: CornerRadius,
+    /// Cached quadrant mask IDs `[tl, tr, br, bl]` into `CornerMaskCache::entries` (`u32::MAX` = uncached/inactive).
+    #[get(type(copy))]
+    pub(crate) corner_mask_ids: [u32; 4],
 }
 
 /// Pre-positioned glyph instance resolved once per frame on the main thread for zero-lookup band blitting.
@@ -99,6 +173,10 @@ pub(crate) struct BandJob {
     pub(crate) rounded_clips_ptr: usize,
     /// Length of the per-frame active `RoundedClipMask` slice.
     pub(crate) rounded_clips_len: usize,
+    /// Base address of the read-only cached quadrant corner masks slice.
+    pub(crate) corner_masks_ptr: usize,
+    /// Length of the read-only cached quadrant corner masks slice.
+    pub(crate) corner_masks_len: usize,
     /// Base address of the shared read-only `GlyphAtlas`.
     pub(crate) atlas_ptr: usize,
     /// Active physical DPI scale factor.
@@ -299,4 +377,9 @@ pub struct SoftwareRenderer {
     #[get_mut(pub(crate))]
     #[set(pub(crate))]
     pub(crate) caret_rects_scratch: Vec<Rect>,
+    /// Persistent cache of precomputed rounded-clip corner coverage masks reused across cards and frames.
+    #[get(pub(crate))]
+    #[get_mut(pub(crate))]
+    #[set(pub(crate))]
+    pub(crate) corner_mask_cache: CornerMaskCache,
 }

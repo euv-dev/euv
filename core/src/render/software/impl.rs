@@ -117,7 +117,7 @@ impl BandWorkerPool {
     /// - `(&mut [u8], u32, u32, u32, usize)` - Tuple `(pixels, width, y_offset, height, start_byte_offset)`.
     /// - `&[DrawCommand]` - Display list commands.
     /// - `&[PreppedCommand]` - Pre-clipped command table.
-    /// - `(&[PositionedGlyph], &[Rect], &[RoundedClipMask])` - Pre-positioned glyphs, caret rectangles, and active rounded clip masks.
+    /// - `BandAuxSlices<'_>` - Pre-positioned glyphs, caret rects, rounded clips, and cached quadrant masks.
     /// - `&GlyphAtlas` - Shared read-only glyph atlas.
     /// - `(f32, AntialiasingMode, Option<&[u8]>)` - Tuple of `(scale, antialiasing, optional_base_restore)`.
     ///
@@ -128,7 +128,7 @@ impl BandWorkerPool {
         slice_spec: (&mut [u8], u32, u32, u32, usize),
         commands: &[DrawCommand],
         prepped: &[PreppedCommand],
-        aux: (&[PositionedGlyph], &[Rect], &[RoundedClipMask]),
+        aux: BandAuxSlices<'_>,
         atlas: &GlyphAtlas,
         render_opts: (f32, AntialiasingMode, Option<&[u8]>),
     ) -> usize {
@@ -169,7 +169,7 @@ impl BandWorkerPool {
     /// - `&mut Framebuffer` - Target mutable framebuffer.
     /// - `(u32, u32, usize, usize)` - Tuple `(clip_y0, clip_y1, strip_count, max_workers)`.
     /// - `(&[DrawCommand], &[PreppedCommand])` - Display list commands and pre-clipped command table.
-    /// - `(&[PositionedGlyph], &[Rect], &[RoundedClipMask])` - Pre-positioned glyphs, caret rectangles, and active rounded clip masks.
+    /// - `BandAuxSlices<'_>` - Pre-positioned glyphs, caret rects, rounded clips, and cached quadrant masks.
     /// - `&GlyphAtlas` - Shared read-only glyph atlas.
     /// - `(f32, AntialiasingMode, Option<&[u8]>)` - Tuple of `(scale, antialiasing, optional_base_restore)`.
     ///
@@ -181,7 +181,7 @@ impl BandWorkerPool {
         framebuffer: &mut Framebuffer,
         band_range: (u32, u32, usize, usize),
         cmd_slices: (&[DrawCommand], &[PreppedCommand]),
-        aux: (&[PositionedGlyph], &[Rect], &[RoundedClipMask]),
+        aux: BandAuxSlices<'_>,
         atlas: &GlyphAtlas,
         render_opts: (f32, AntialiasingMode, Option<&[u8]>),
     ) -> usize {
@@ -193,10 +193,11 @@ impl BandWorkerPool {
         } = self;
         let (y0, y1, band_count, max_workers): (u32, u32, usize, usize) = band_range;
         let (commands, prepped): (&[DrawCommand], &[PreppedCommand]) = cmd_slices;
-        let (positioned_glyphs, caret_rects, rounded_clips): (
+        let (positioned_glyphs, caret_rects, rounded_clips, corner_masks): (
             &[PositionedGlyph],
             &[Rect],
             &[RoundedClipMask],
+            &[CachedCornerMask],
         ) = aux;
         let (scale, aa, base_restore): (f32, AntialiasingMode, Option<&[u8]>) = render_opts;
         let fb_w: u32 = framebuffer.get_width();
@@ -278,6 +279,8 @@ impl BandWorkerPool {
             caret_rects_len: caret_rects.len(),
             rounded_clips_ptr: rounded_clips.as_ptr() as usize,
             rounded_clips_len: rounded_clips.len(),
+            corner_masks_ptr: corner_masks.as_ptr() as usize,
+            corner_masks_len: corner_masks.len(),
             atlas_ptr: (atlas as *const GlyphAtlas) as usize,
             scale,
             aa,
@@ -540,6 +543,264 @@ impl TextLayoutCache {
     }
 }
 
+/// Precomputed rounded-clip corner coverage cache operations for `CornerMaskCache`.
+impl CornerMaskCache {
+    /// Returns the number of cached quadrant coverage masks.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Cache reference.
+    ///
+    /// # Returns
+    ///
+    /// - `usize` - Count of cached quadrant masks.
+    #[must_use]
+    pub(crate) fn len(&self) -> usize {
+        let Self { entries } = self;
+        entries.len()
+    }
+
+    /// Returns the read-only slice of cached quadrant masks shared across band workers.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Cache reference.
+    ///
+    /// # Returns
+    ///
+    /// - `&[CachedCornerMask]` - Contiguous cached corner mask slice.
+    #[must_use]
+    pub(crate) fn entries(&self) -> &[CachedCornerMask] {
+        let Self { entries } = self;
+        entries.as_slice()
+    }
+
+    /// Clears all cached corner masks when exceeding the bounded retention limit.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable cache reference.
+    pub(crate) fn clear(&mut self) {
+        let Self { entries } = self;
+        entries.clear();
+    }
+
+    /// Builds an exact `0..=16` 4x4 RGSS coverage grid and per-row span table for one corner quadrant.
+    ///
+    /// # Arguments
+    ///
+    /// - `f32` - Clamped physical corner radius (`> 0.25`).
+    /// - `u8` - Quadrant index (`0 = TL`, `1 = TR`, `2 = BR`, `3 = BL`).
+    /// - `bool` - True when 4x4 RGSS anti-aliasing is active.
+    ///
+    /// # Returns
+    ///
+    /// - `CachedCornerMask` - Precomputed coverage grid and row spans.
+    #[must_use]
+    fn build_quadrant(radius: f32, quadrant: u8, aa_enabled: bool) -> CachedCornerMask {
+        let dim: usize = (radius + 1.0).ceil().max(1.0) as usize;
+        let dim_f: f32 = dim as f32;
+        let half_extent: f32 = dim_f + 64.0;
+        let cx_lim: f32 = half_extent - radius;
+        let r_in: f32 = radius - 1.0;
+        let r_in_sq: f32 = r_in * r_in;
+        let r_out: f32 = radius + 1.0;
+        let r_out_sq: f32 = r_out * r_out;
+        let r_sq: f32 = radius * radius;
+        let mut cov: Vec<u8> = vec![16; dim * dim];
+        let mut row_spans: Vec<CornerMaskRowSpan> = Vec::with_capacity(dim);
+        let is_left: bool = quadrant == 0 || quadrant == 3;
+        let is_top: bool = quadrant == 0 || quadrant == 1;
+        for my in 0..dim {
+            let py: f32 = if is_top {
+                (my as f32) + 0.5 - half_extent
+            } else {
+                (my as f32) + 0.5 + (half_extent - dim_f)
+            };
+            let qy: f32 = py.abs() - cx_lim;
+            let row_off: usize = my * dim;
+            for mx in 0..dim {
+                let px: f32 = if is_left {
+                    (mx as f32) + 0.5 - half_extent
+                } else {
+                    (mx as f32) + 0.5 + (half_extent - dim_f)
+                };
+                let qx: f32 = px.abs() - cx_lim;
+                let hits: u8 = if qx <= 0.0 || qy <= 0.0 {
+                    let dist: f32 = qx.max(qy) - radius;
+                    if dist <= -1.0 {
+                        16
+                    } else if dist >= 1.0 {
+                        0
+                    } else if !aa_enabled {
+                        if dist <= 0.0 { 16 } else { 0 }
+                    } else {
+                        let c: f32 = rounded_box_supersampled_coverage(
+                            px,
+                            py,
+                            half_extent,
+                            half_extent,
+                            radius,
+                            0.0,
+                        )
+                        .0;
+                        (c * 16.0).round() as u8
+                    }
+                } else {
+                    let d_sq: f32 = qx * qx + qy * qy;
+                    if r_in >= 0.0 && d_sq <= r_in_sq {
+                        16
+                    } else if d_sq >= r_out_sq {
+                        0
+                    } else if !aa_enabled {
+                        if d_sq <= r_sq { 16 } else { 0 }
+                    } else {
+                        let c: f32 = rounded_box_supersampled_coverage(
+                            px,
+                            py,
+                            half_extent,
+                            half_extent,
+                            radius,
+                            0.0,
+                        )
+                        .0;
+                        (c * 16.0).round() as u8
+                    }
+                };
+                cov[row_off + mx] = hits;
+            }
+            let row_slice: &[u8] = &cov[row_off..row_off + dim];
+            let span: CornerMaskRowSpan = if is_left {
+                let dirty_end: usize = row_slice
+                    .iter()
+                    .rposition(|&c: &u8| c < 16)
+                    .map(|idx: usize| idx + 1)
+                    .unwrap_or(0);
+                let ext_end: usize = row_slice
+                    .iter()
+                    .take(dirty_end)
+                    .take_while(|&&c: &&u8| c == 0)
+                    .count();
+                CornerMaskRowSpan {
+                    ext_start: 0,
+                    ext_end: ext_end as u16,
+                    aa_start: ext_end as u16,
+                    aa_end: dirty_end as u16,
+                    dirty_start: 0,
+                    dirty_end: dirty_end as u16,
+                }
+            } else {
+                let dirty_start: usize = row_slice.iter().position(|&c: &u8| c < 16).unwrap_or(dim);
+                let trailing_zeros: usize = row_slice[dirty_start..]
+                    .iter()
+                    .rev()
+                    .take_while(|&&c: &&u8| c == 0)
+                    .count();
+                let ext_start: usize = dim - trailing_zeros;
+                CornerMaskRowSpan {
+                    ext_start: ext_start as u16,
+                    ext_end: dim as u16,
+                    aa_start: dirty_start as u16,
+                    aa_end: ext_start.max(dirty_start) as u16,
+                    dirty_start: dirty_start as u16,
+                    dirty_end: dim as u16,
+                }
+            };
+            row_spans.push(span);
+        }
+        CachedCornerMask {
+            radius_bits: radius.to_bits(),
+            quadrant,
+            aa_enabled,
+            dim: dim as u16,
+            cov,
+            row_spans,
+        }
+    }
+
+    /// Returns the cached mask index for `(radius, quadrant, aa_enabled)`, building and caching it on a miss.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable cache reference.
+    /// - `f32` - Clamped physical corner radius.
+    /// - `u8` - Quadrant index (`0 = TL`, `1 = TR`, `2 = BR`, `3 = BL`).
+    /// - `bool` - True when anti-aliasing is enabled.
+    ///
+    /// # Returns
+    ///
+    /// - `u32` - Index into `entries()`.
+    fn get_or_build(&mut self, radius: f32, quadrant: u8, aa_enabled: bool) -> u32 {
+        let bits: u32 = radius.to_bits();
+        let Self { entries } = self;
+        for (idx, entry) in entries.iter().enumerate() {
+            if entry.radius_bits == bits
+                && entry.quadrant == quadrant
+                && entry.aa_enabled == aa_enabled
+            {
+                return idx as u32;
+            }
+        }
+        let idx: u32 = entries.len() as u32;
+        entries.push(Self::build_quadrant(radius, quadrant, aa_enabled));
+        idx
+    }
+
+    /// Resolves cached quadrant mask IDs `[tl, tr, br, bl]` for an integer-snapped `RoundedClipMask`.
+    ///
+    /// # Arguments
+    ///
+    /// - `&Self` - Mutable cache reference.
+    /// - `Rect` - Physical clip rectangle.
+    /// - `CornerRadius` - Physical corner radii.
+    /// - `AntialiasingMode` - Active anti-aliasing policy.
+    ///
+    /// # Returns
+    ///
+    /// - `[u32; 4]` - Quadrant mask IDs (`u32::MAX` when inactive or uncached).
+    pub(crate) fn resolve_quadrants(
+        &mut self,
+        rect: Rect,
+        radius: CornerRadius,
+        aa: AntialiasingMode,
+    ) -> [u32; 4] {
+        let mut ids: [u32; 4] = [u32::MAX; 4];
+        let half_w: f32 = rect.get_width() * 0.5;
+        let half_h: f32 = rect.get_height() * 0.5;
+        let max_r: f32 = half_w.min(half_h).max(0.0);
+        if max_r <= 0.25 {
+            return ids;
+        }
+        let x0: f32 = rect.get_x();
+        let y0: f32 = rect.get_y();
+        let x1: f32 = rect.right();
+        let y1: f32 = rect.bottom();
+        if (x0 - x0.round()).abs() > 1e-4
+            || (y0 - y0.round()).abs() > 1e-4
+            || (x1 - x1.round()).abs() > 1e-4
+            || (y1 - y1.round()).abs() > 1e-4
+        {
+            return ids;
+        }
+        let aa_enabled: bool = aa != AntialiasingMode::None;
+        let radii: [f32; 4] = [
+            radius.get_top_left().min(max_r),
+            radius.get_top_right().min(max_r),
+            radius.get_bottom_right().min(max_r),
+            radius.get_bottom_left().min(max_r),
+        ];
+        for (q, r) in radii.into_iter().enumerate() {
+            if r > 0.25 && r + 1.5 < half_w && r + 1.5 < half_h {
+                let dim: u32 = (r + 1.0).ceil() as u32;
+                if dim > 0 && dim <= CORNER_MASK_MAX_DIM {
+                    ids[q] = self.get_or_build(r, q as u8, aa_enabled);
+                }
+            }
+        }
+        ids
+    }
+}
+
 /// Multi-core lossless analytical-SDF and tile-band software rasterizer methods for `SoftwareRenderer`.
 impl SoftwareRenderer {
     /// Creates a software renderer configured for `width x height` physical pixels.
@@ -597,6 +858,7 @@ impl SoftwareRenderer {
             positioned_glyphs_scratch: Vec::with_capacity(256),
             line_glyphs_scratch: Vec::with_capacity(64),
             caret_rects_scratch: Vec::with_capacity(4),
+            corner_mask_cache: CornerMaskCache::default(),
         }
     }
 
@@ -742,6 +1004,7 @@ impl SoftwareRenderer {
             positioned_glyphs_scratch,
             caret_rects_scratch,
             rounded_clips_scratch,
+            corner_mask_cache,
             antialiasing,
             ..
         } = self;
@@ -750,6 +1013,7 @@ impl SoftwareRenderer {
         let glyphs_slice: &[PositionedGlyph] = positioned_glyphs_scratch.as_slice();
         let caret_rects_slice: &[Rect] = caret_rects_scratch.as_slice();
         let rounded_clips_slice: &[RoundedClipMask] = rounded_clips_scratch.as_slice();
+        let corner_masks_slice: &[CachedCornerMask] = corner_mask_cache.entries();
         let atlas_ref: &GlyphAtlas = glyph_atlas;
         let base_restore: Option<&[u8]> = if restore_base_cache {
             Some(base_cache_pixels.as_slice())
@@ -778,7 +1042,12 @@ impl SoftwareRenderer {
                             desired_threads.saturating_sub(1),
                         ),
                         (commands, prepped_slice),
-                        (glyphs_slice, caret_rects_slice, rounded_clips_slice),
+                        (
+                            glyphs_slice,
+                            caret_rects_slice,
+                            rounded_clips_slice,
+                            corner_masks_slice,
+                        ),
                         atlas_ref,
                         (scale, aa, base_restore),
                     );
@@ -794,7 +1063,12 @@ impl SoftwareRenderer {
                 &mut band,
                 commands,
                 prepped_slice,
-                (glyphs_slice, caret_rects_slice, rounded_clips_slice),
+                (
+                    glyphs_slice,
+                    caret_rects_slice,
+                    rounded_clips_slice,
+                    corner_masks_slice,
+                ),
                 atlas_ref,
                 (scale, aa),
             )
@@ -812,7 +1086,12 @@ impl SoftwareRenderer {
                 &mut band,
                 commands,
                 prepped_slice,
-                (glyphs_slice, caret_rects_slice, rounded_clips_slice),
+                (
+                    glyphs_slice,
+                    caret_rects_slice,
+                    rounded_clips_slice,
+                    corner_masks_slice,
+                ),
                 atlas_ref,
                 (scale, aa),
             )
@@ -852,8 +1131,11 @@ impl SoftwareRenderer {
             positioned_glyphs_scratch: positioned_glyphs,
             line_glyphs_scratch: line_scratch,
             caret_rects_scratch: caret_rects,
+            corner_mask_cache,
+            antialiasing,
             ..
         } = self;
+        let aa: AntialiasingMode = *antialiasing;
         prepped.clear();
         prepped.reserve(clamped_end - clamped_start);
         rounded_clips.clear();
@@ -865,6 +1147,9 @@ impl SoftwareRenderer {
         rounded_clip_stack.push(None);
         if text_layout_cache.len() > TEXT_LAYOUT_CACHE_LIMIT {
             text_layout_cache.clear();
+        }
+        if corner_mask_cache.len() > CORNER_MASK_CACHE_LIMIT {
+            corner_mask_cache.clear();
         }
         for (offset, cmd) in commands[clamped_start..clamped_end].iter().enumerate() {
             let cmd_index: usize = clamped_start + offset;
@@ -885,9 +1170,12 @@ impl SoftwareRenderer {
                         && phys.get_height() > 0.0
                         && phys_r.max_radius() > 0.25
                     {
+                        let corner_mask_ids: [u32; 4] =
+                            corner_mask_cache.resolve_quadrants(phys, phys_r, aa);
                         rounded_clip_stack.push(Some(RoundedClipMask {
                             rect: phys,
                             radius: phys_r,
+                            corner_mask_ids,
                         }));
                     } else {
                         rounded_clip_stack.push(None);
@@ -1650,6 +1938,172 @@ impl SoftwareRenderer {
         (cut_h, cut_v)
     }
 
+    /// Saves only the non-interior (`cov < 16`) corner rows of a single cached `RoundedClipMask` via bulk row copies.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PixelBand<'_>` - Target pixel band.
+    /// - `RoundedClipMask` - Single active rounded clip mask.
+    /// - `Rect` - Active band-clipped bounds.
+    /// - `(u32, u32, u32)` - Tuple `(fb_w, band_y0, band_y1)`.
+    /// - `&[CachedCornerMask]` - Read-only cached quadrant masks.
+    /// - `&mut BandCornerScratch` - Reusable per-thread scratch storage.
+    ///
+    /// # Returns
+    ///
+    /// - `bool` - True when at least one dirty corner row was saved (or `false` if no dirty pixels intersect).
+    fn save_single_cached_rounded_corners(
+        band: &mut PixelBand<'_>,
+        mask: RoundedClipMask,
+        clip: Rect,
+        band_bounds: (u32, u32, u32),
+        corner_masks: &[CachedCornerMask],
+        scratch: &mut BandCornerScratch,
+    ) -> bool {
+        let (fb_w, band_y0, band_y1): (u32, u32, u32) = band_bounds;
+        let clip_x0: i32 = (clip.get_x().floor().max(0.0) as u32).min(fb_w) as i32;
+        let clip_y0: i32 = (clip.get_y().floor().max(0.0) as u32).clamp(band_y0, band_y1) as i32;
+        let clip_x1: i32 = (clip.right().ceil().max(0.0) as u32).min(fb_w) as i32;
+        let clip_y1: i32 = (clip.bottom().ceil().max(0.0) as u32).clamp(band_y0, band_y1) as i32;
+        if clip_x0 >= clip_x1 || clip_y0 >= clip_y1 {
+            return false;
+        }
+        let rect: Rect = mask.get_rect();
+        let rx0_i: i32 = rect.get_x().round() as i32;
+        let ry0_i: i32 = rect.get_y().round() as i32;
+        let rx1_i: i32 = rect.right().round() as i32;
+        let ry1_i: i32 = rect.bottom().round() as i32;
+        let mask_ids: [u32; 4] = mask.get_corner_mask_ids();
+        scratch.saved_bytes.clear();
+        scratch.saved_rows.clear();
+        for (q, &mask_id) in mask_ids.iter().enumerate() {
+            if mask_id == u32::MAX {
+                continue;
+            }
+            let Some(cm) = corner_masks.get(mask_id as usize) else {
+                continue;
+            };
+            let dim_i: i32 = cm.dim as i32;
+            let origin_x: i32 = if q == 0 || q == 3 {
+                rx0_i
+            } else {
+                rx1_i - dim_i
+            };
+            let origin_y: i32 = if q == 0 || q == 1 {
+                ry0_i
+            } else {
+                ry1_i - dim_i
+            };
+            let bx0: i32 = origin_x.max(clip_x0);
+            let bx1: i32 = (origin_x + dim_i).min(clip_x1);
+            let by0: i32 = origin_y.max(clip_y0);
+            let by1: i32 = (origin_y + dim_i).min(clip_y1);
+            if bx0 >= bx1 || by0 >= by1 {
+                continue;
+            }
+            for y_i in by0..by1 {
+                let my: usize = (y_i - origin_y) as usize;
+                let span: CornerMaskRowSpan = cm.row_spans[my];
+                if span.dirty_start >= span.dirty_end {
+                    continue;
+                }
+                let sx0_i: i32 = (origin_x + (span.dirty_start as i32)).max(bx0);
+                let sx1_i: i32 = (origin_x + (span.dirty_end as i32)).min(bx1);
+                if sx0_i >= sx1_i {
+                    continue;
+                }
+                let y: u32 = y_i as u32;
+                let sx0: u32 = sx0_i as u32;
+                let sx1: u32 = sx1_i as u32;
+                if let Some(row) = band.row_slice_mut(y) {
+                    let b0: usize = (sx0 as usize) * 4;
+                    let b1: usize = (sx1 as usize) * 4;
+                    let byte_off: usize = scratch.saved_bytes.len();
+                    scratch.saved_bytes.extend_from_slice(&row[b0..b1]);
+                    scratch.saved_rows.push(SavedCornerRow {
+                        y,
+                        sx0,
+                        sx1,
+                        byte_off,
+                        mask_id,
+                        origin_x,
+                        origin_y,
+                    });
+                }
+            }
+        }
+        !scratch.saved_rows.is_empty()
+    }
+
+    /// Restores exterior corner runs via bulk `copy_from_slice` and blends only the 1-3px anti-aliased boundary pixels.
+    ///
+    /// # Arguments
+    ///
+    /// - `&mut PixelBand<'_>` - Target pixel band.
+    /// - `&[CachedCornerMask]` - Read-only cached quadrant masks.
+    /// - `&BandCornerScratch` - Saved corner bytes and row descriptors.
+    fn restore_single_cached_rounded_corners(
+        band: &mut PixelBand<'_>,
+        corner_masks: &[CachedCornerMask],
+        scratch: &BandCornerScratch,
+    ) {
+        let saved_bytes: &[u8] = scratch.saved_bytes.as_slice();
+        for entry in scratch.saved_rows.iter() {
+            let Some(row) = band.row_slice_mut(entry.y) else {
+                continue;
+            };
+            let cm: &CachedCornerMask = &corner_masks[entry.mask_id as usize];
+            let dim: usize = cm.dim as usize;
+            let my: usize = ((entry.y as i32) - entry.origin_y) as usize;
+            let span: CornerMaskRowSpan = cm.row_spans[my];
+            let sx0_i: i32 = entry.sx0 as i32;
+            let sx1_i: i32 = entry.sx1 as i32;
+            if span.ext_start < span.ext_end {
+                let ex0: i32 = (entry.origin_x + (span.ext_start as i32)).max(sx0_i);
+                let ex1: i32 = (entry.origin_x + (span.ext_end as i32)).min(sx1_i);
+                if ex0 < ex1 {
+                    let dst_b0: usize = (ex0 as usize) * 4;
+                    let dst_b1: usize = (ex1 as usize) * 4;
+                    let src_b0: usize = entry.byte_off + ((ex0 - sx0_i) as usize) * 4;
+                    let src_b1: usize = src_b0 + (dst_b1 - dst_b0);
+                    row[dst_b0..dst_b1].copy_from_slice(&saved_bytes[src_b0..src_b1]);
+                }
+            }
+            if span.aa_start < span.aa_end {
+                let ax0: i32 = (entry.origin_x + (span.aa_start as i32)).max(sx0_i);
+                let ax1: i32 = (entry.origin_x + (span.aa_end as i32)).min(sx1_i);
+                if ax0 < ax1 {
+                    let cov_row: &[u8] = &cm.cov[my * dim..(my + 1) * dim];
+                    for x_i in ax0..ax1 {
+                        let mx: usize = (x_i - entry.origin_x) as usize;
+                        let cov_u8: u8 = cov_row[mx];
+                        if cov_u8 >= 16 {
+                            continue;
+                        }
+                        let dst_off: usize = (x_i as usize) * 4;
+                        let src_off: usize = entry.byte_off + ((x_i - sx0_i) as usize) * 4;
+                        let saved_rgba: [u8; 4] = [
+                            saved_bytes[src_off],
+                            saved_bytes[src_off + 1],
+                            saved_bytes[src_off + 2],
+                            saved_bytes[src_off + 3],
+                        ];
+                        if cov_u8 == 0 {
+                            row[dst_off..dst_off + 4].copy_from_slice(&saved_rgba);
+                        } else {
+                            let cov: f32 = (cov_u8 as f32) * 0.0625;
+                            lerp_pixel_slice_from_saved_linear(
+                                &mut row[dst_off..dst_off + 4],
+                                saved_rgba,
+                                cov,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Executes all prepped commands overlapping `band`'s vertical slice `[y_offset, y_end)` completely lock-free.
     ///
     /// # Arguments
@@ -1657,7 +2111,7 @@ impl SoftwareRenderer {
     /// - `&mut PixelBand<'_>` - Disjoint mutable horizontal pixel band.
     /// - `&[DrawCommand]` - Full frame draw command slice.
     /// - `&[PreppedCommand]` - Pre-clipped command list.
-    /// - `(&[PositionedGlyph], &[Rect], &[RoundedClipMask])` - Pre-positioned glyphs, caret rectangles, and active rounded-rectangle clip masks.
+    /// - `BandAuxSlices<'_>` - Pre-positioned glyphs, caret rectangles, active rounded clip masks, and cached corner masks.
     /// - `&GlyphAtlas` - Immutable pre-warmed glyph atlas.
     /// - `(f32, AntialiasingMode)` - Tuple `(scale, antialiasing)`.
     ///
@@ -1668,14 +2122,15 @@ impl SoftwareRenderer {
         band: &mut PixelBand<'_>,
         commands: &[DrawCommand],
         prepped: &[PreppedCommand],
-        aux: (&[PositionedGlyph], &[Rect], &[RoundedClipMask]),
+        aux: BandAuxSlices<'_>,
         glyph_atlas: &GlyphAtlas,
         render_opts: (f32, AntialiasingMode),
     ) -> usize {
-        let (positioned_glyphs, caret_rects, rounded_clips): (
+        let (positioned_glyphs, caret_rects, rounded_clips, corner_masks): (
             &[PositionedGlyph],
             &[Rect],
             &[RoundedClipMask],
+            &[CachedCornerMask],
         ) = aux;
         let (scale, aa): (f32, AntialiasingMode) = render_opts;
         let band_y0: u32 = band.y_offset();
@@ -1683,8 +2138,20 @@ impl SoftwareRenderer {
         let fb_w: u32 = band.width();
         let band_rect: Rect =
             Rect::new(0.0, band_y0 as f32, fb_w as f32, (band_y1 - band_y0) as f32);
-        let mut corner_boxes: Vec<(u32, u32, u32, u32)> = Vec::new();
-        let mut saved_corners: Vec<[u8; 4]> = Vec::new();
+        let has_any_rounded: bool = !rounded_clips.is_empty();
+        let mut scratch: BandCornerScratch = if has_any_rounded {
+            BAND_CORNER_SCRATCH
+                .try_with(|cell: &RefCell<BandCornerScratch>| {
+                    cell.try_borrow_mut()
+                        .ok()
+                        .map(|mut guard: RefMut<'_, BandCornerScratch>| take(&mut *guard))
+                })
+                .ok()
+                .flatten()
+                .unwrap_or_default()
+        } else {
+            BandCornerScratch::default()
+        };
         let mut shaded: usize = 0;
         for item in prepped.iter() {
             if item.get_y1() <= band_y0 || item.get_y0() >= band_y1 {
@@ -1701,32 +2168,82 @@ impl SoftwareRenderer {
             } else {
                 &[]
             };
-            let has_corner_mask: bool = if !item_masks.is_empty() {
-                corner_boxes.clear();
-                saved_corners.clear();
+            let mut corner_mode: u8 = 0;
+            if item_masks.len() == 1 {
+                let mask: RoundedClipMask = item_masks[0];
+                let rect: Rect = mask.get_rect();
+                let max_r: f32 = (rect.get_width() * 0.5)
+                    .min(rect.get_height() * 0.5)
+                    .max(0.0);
+                let radius: CornerRadius = mask.get_radius();
+                let radii: [f32; 4] = [
+                    radius.get_top_left().min(max_r),
+                    radius.get_top_right().min(max_r),
+                    radius.get_bottom_right().min(max_r),
+                    radius.get_bottom_left().min(max_r),
+                ];
+                let ids: [u32; 4] = mask.get_corner_mask_ids();
+                let all_cached: bool = radii
+                    .iter()
+                    .zip(ids.iter())
+                    .all(|(&r, &id): (&f32, &u32)| r <= 0.25 || (id as usize) < corner_masks.len());
+                if all_cached {
+                    if Self::save_single_cached_rounded_corners(
+                        band,
+                        mask,
+                        active_clip,
+                        (fb_w, band_y0, band_y1),
+                        corner_masks,
+                        &mut scratch,
+                    ) {
+                        corner_mode = 1;
+                    }
+                } else {
+                    scratch.corner_boxes.clear();
+                    scratch.saved_bytes.clear();
+                    collect_rounded_clip_boxes(
+                        mask,
+                        active_clip,
+                        (fb_w, band_y0, band_y1),
+                        &mut scratch.corner_boxes,
+                    );
+                    if !scratch.corner_boxes.is_empty() {
+                        for &(bx0, by0, bx1, by1) in scratch.corner_boxes.iter() {
+                            let b0: usize = (bx0 as usize) * 4;
+                            let b1: usize = (bx1 as usize) * 4;
+                            for y in by0..by1 {
+                                if let Some(row) = band.row_slice_mut(y) {
+                                    scratch.saved_bytes.extend_from_slice(&row[b0..b1]);
+                                }
+                            }
+                        }
+                        corner_mode = 2;
+                    }
+                }
+            } else if !item_masks.is_empty() {
+                scratch.corner_boxes.clear();
+                scratch.saved_bytes.clear();
                 for mask in item_masks.iter().copied() {
                     collect_rounded_clip_boxes(
                         mask,
                         active_clip,
                         (fb_w, band_y0, band_y1),
-                        &mut corner_boxes,
+                        &mut scratch.corner_boxes,
                     );
                 }
-                if corner_boxes.is_empty() {
-                    false
-                } else {
-                    for &(bx0, by0, bx1, by1) in corner_boxes.iter() {
+                if !scratch.corner_boxes.is_empty() {
+                    for &(bx0, by0, bx1, by1) in scratch.corner_boxes.iter() {
+                        let b0: usize = (bx0 as usize) * 4;
+                        let b1: usize = (bx1 as usize) * 4;
                         for y in by0..by1 {
-                            for x in bx0..bx1 {
-                                saved_corners.push(band.get_pixel_rgba(x, y));
+                            if let Some(row) = band.row_slice_mut(y) {
+                                scratch.saved_bytes.extend_from_slice(&row[b0..b1]);
                             }
                         }
                     }
-                    true
+                    corner_mode = 2;
                 }
-            } else {
-                false
-            };
+            }
             let cmd: &DrawCommand = &commands[item.get_cmd_index()];
             shaded += match cmd {
                 DrawCommand::Clear(color) => {
@@ -1912,16 +2429,28 @@ impl SoftwareRenderer {
                 | DrawCommand::PushRoundedClip { .. }
                 | DrawCommand::PopClip => 0,
             };
-            if has_corner_mask {
+            if corner_mode == 1 {
+                Self::restore_single_cached_rounded_corners(band, corner_masks, &scratch);
+            } else if corner_mode == 2 {
                 let multi_mask: bool = item_masks.len() > 1;
-                let mut saved_idx: usize = 0;
-                for (box_idx, &(bx0, by0, bx1, by1)) in corner_boxes.iter().enumerate() {
+                let saved_bytes: &[u8] = scratch.saved_bytes.as_slice();
+                let mut byte_cursor: usize = 0;
+                for (box_idx, &(bx0, by0, bx1, by1)) in scratch.corner_boxes.iter().enumerate() {
                     for y in by0..by1 {
+                        let Some(row) = band.row_slice_mut(y) else {
+                            byte_cursor += ((bx1 - bx0) as usize) * 4;
+                            continue;
+                        };
                         for x in bx0..bx1 {
-                            let saved_rgba: [u8; 4] = saved_corners[saved_idx];
-                            saved_idx += 1;
+                            let saved_rgba: [u8; 4] = [
+                                saved_bytes[byte_cursor],
+                                saved_bytes[byte_cursor + 1],
+                                saved_bytes[byte_cursor + 2],
+                                saved_bytes[byte_cursor + 3],
+                            ];
+                            byte_cursor += 4;
                             if multi_mask
-                                && corner_boxes[..box_idx].iter().any(
+                                && scratch.corner_boxes[..box_idx].iter().any(
                                     |&(px0, py0, px1, py1): &(u32, u32, u32, u32)| {
                                         x >= px0 && x < px1 && y >= py0 && y < py1
                                     },
@@ -1931,20 +2460,34 @@ impl SoftwareRenderer {
                             }
                             let mut cov: f32 = 1.0;
                             for mask in item_masks.iter().copied() {
-                                cov *= rounded_clip_coverage(x, y, mask, aa);
+                                cov *= rounded_clip_coverage_cached(x, y, mask, corner_masks, aa);
                                 if cov <= 0.0005 {
                                     break;
                                 }
                             }
+                            let dst_off: usize = (x as usize) * 4;
                             if cov <= 0.0005 {
-                                band.set_pixel_rgba(x, y, saved_rgba);
+                                row[dst_off..dst_off + 4].copy_from_slice(&saved_rgba);
                             } else if cov < 0.9995 {
-                                band.lerp_pixel_from_saved_linear(x, y, saved_rgba, cov);
+                                lerp_pixel_slice_from_saved_linear(
+                                    &mut row[dst_off..dst_off + 4],
+                                    saved_rgba,
+                                    cov,
+                                );
                             }
                         }
                     }
                 }
             }
+        }
+        if has_any_rounded {
+            let _: bool = BAND_CORNER_SCRATCH
+                .try_with(|cell: &RefCell<BandCornerScratch>| {
+                    if let Ok(mut guard) = cell.try_borrow_mut() {
+                        *guard = scratch;
+                    }
+                })
+                .is_ok();
         }
         shaded
     }
