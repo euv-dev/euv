@@ -13,6 +13,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn apply<T>(self, prop: T) -> Self
     where
         T: StyleApply,
@@ -31,6 +32,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn direction(mut self, direction: FlexDirection) -> Self {
         if self.get_layout().get_display() != Display::None {
             self.get_mut_layout().set_display(Display::Flex);
@@ -50,6 +52,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn display(mut self, display: Display) -> Self {
         self.get_mut_layout().set_display(display);
         self
@@ -66,6 +69,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn position(mut self, position: Position) -> Self {
         self.get_mut_layout().set_position(position);
         self
@@ -81,6 +85,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn row(mut self) -> Self {
         if self.get_layout().get_display() != Display::None {
             self.get_mut_layout().set_display(Display::Flex);
@@ -99,6 +104,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn column(mut self) -> Self {
         if self.get_layout().get_display() != Display::None {
             self.get_mut_layout().set_display(Display::Flex);
@@ -119,6 +125,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn grid(mut self, columns: u16) -> Self {
         if self.get_layout().get_display() != Display::None {
             self.get_mut_layout().set_display(Display::Grid);
@@ -138,6 +145,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn wrap(mut self, wrap: FlexWrap) -> Self {
         self.get_mut_layout().set_flex_wrap(wrap);
         self
@@ -154,6 +162,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn justify(mut self, justify: JustifyContent) -> Self {
         self.get_mut_layout().set_justify_content(justify);
         self
@@ -170,6 +179,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn align(mut self, align: AlignItems) -> Self {
         self.get_mut_layout().set_align_items(align);
         self
@@ -186,6 +196,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn flex_grow(mut self, grow: f32) -> Self {
         self.get_mut_layout().set_flex_grow(grow.max(0.0));
         self
@@ -202,6 +213,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn flex_shrink(mut self, shrink: f32) -> Self {
         self.get_mut_layout().set_flex_shrink(shrink.max(0.0));
         self
@@ -218,6 +230,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn width(mut self, width: Length) -> Self {
         self.get_mut_layout().set_width(width);
         self
@@ -234,6 +247,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn height(mut self, height: Length) -> Self {
         self.get_mut_layout().set_height(height);
         self
@@ -250,6 +264,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn min_width(mut self, min_width: Length) -> Self {
         self.get_mut_layout().set_min_width(min_width);
         self
@@ -266,6 +281,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn min_height(mut self, min_height: Length) -> Self {
         self.get_mut_layout().set_min_height(min_height);
         self
@@ -282,6 +298,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn max_width(mut self, max_width: Length) -> Self {
         self.get_mut_layout().set_max_width(max_width);
         self
@@ -298,6 +315,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn max_height(mut self, max_height: Length) -> Self {
         self.get_mut_layout().set_max_height(max_height);
         self
@@ -314,6 +332,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn aspect_ratio(mut self, ratio: f32) -> Self {
         if ratio > 0.0 && ratio.is_finite() {
             self.get_mut_layout().set_aspect_ratio(Some(ratio));
@@ -332,6 +351,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn gap(mut self, gap: f32) -> Self {
         let clamped: f32 = gap.max(0.0);
         self.get_mut_layout().set_row_gap(clamped);
@@ -350,6 +370,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn padding(mut self, padding: Edges) -> Self {
         self.get_mut_layout().set_padding(padding);
         self
@@ -366,6 +387,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn margin(mut self, margin: Edges) -> Self {
         self.get_mut_layout().set_margin(margin);
         self
@@ -382,6 +404,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn overflow(mut self, overflow: Overflow) -> Self {
         self.get_mut_layout().set_overflow(overflow);
         self
@@ -398,6 +421,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn z_index(mut self, z_index: i32) -> Self {
         self.get_mut_layout().set_z_index(z_index);
         self
@@ -417,6 +441,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn inset(
         mut self,
         top: Option<f32>,
@@ -442,6 +467,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn background(mut self, color: Color) -> Self {
         self.get_mut_paint().set_background(Some(color));
         self
@@ -458,6 +484,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn gradient(mut self, gradient: LinearGradient) -> Self {
         self.get_mut_paint().set_gradient(Some(gradient));
         self
@@ -475,6 +502,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn border(mut self, width: f32, color: Color) -> Self {
         self.get_mut_paint()
             .set_border(Border::new(width.max(0.0), color));
@@ -492,6 +520,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn radius(mut self, radius: f32) -> Self {
         self.get_mut_paint()
             .set_radius(CornerRadius::all(radius.max(0.0)));
@@ -509,6 +538,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn shadow(mut self, shadow: Shadow) -> Self {
         self.get_mut_paint().set_shadow(Some(shadow));
         self
@@ -525,6 +555,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn focus_ring(mut self, ring: Border) -> Self {
         self.get_mut_paint().set_focus_ring(Some(ring));
         self
@@ -541,6 +572,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn opacity(mut self, opacity: f32) -> Self {
         self.get_mut_paint().set_opacity(opacity.clamp(0.0, 1.0));
         self
@@ -557,6 +589,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn cursor(mut self, cursor: CursorIcon) -> Self {
         self.get_mut_paint().set_cursor(cursor);
         self
@@ -573,6 +606,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn pointer_events(mut self, pointer_events: PointerEvents) -> Self {
         self.get_mut_paint().set_pointer_events(pointer_events);
         self
@@ -589,6 +623,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn color(mut self, color: Color) -> Self {
         self.get_mut_text().set_color(color);
         self
@@ -605,6 +640,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn font_size(mut self, size: f32) -> Self {
         self.get_mut_text().set_font_size(size.max(6.0));
         self
@@ -621,6 +657,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn font_weight(mut self, weight: FontWeight) -> Self {
         self.get_mut_text().set_weight(weight);
         self
@@ -637,6 +674,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn font_family(mut self, family: FontFamily) -> Self {
         self.get_mut_text().set_family(family);
         self
@@ -653,6 +691,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn italic(mut self, italic: bool) -> Self {
         self.get_mut_text().set_italic(italic);
         self
@@ -669,6 +708,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn text_align(mut self, align: TextAlign) -> Self {
         self.get_mut_text().set_align(align);
         self
@@ -685,6 +725,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn text_overflow(mut self, overflow: TextOverflow) -> Self {
         self.get_mut_text().set_overflow(overflow);
         self
@@ -701,6 +742,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn stop_scroll_propagation(mut self, stop: bool) -> Self {
         self.get_mut_paint().set_stop_scroll_propagation(stop);
         self
@@ -717,6 +759,7 @@ impl Style {
     ///
     /// - `Self` - Updated style.
     #[must_use]
+    #[inline(always)]
     pub fn stop_event_propagation(mut self, stop: bool) -> Self {
         self.get_mut_paint().set_stop_event_propagation(stop);
         self
@@ -736,6 +779,7 @@ impl ResponsiveStyle {
     ///
     /// - `Style` - Resolved concrete style.
     #[must_use]
+    #[inline(always)]
     pub fn resolve(&self, breakpoint: Breakpoint) -> Style {
         let Self {
             base,
@@ -762,6 +806,7 @@ impl StyleApply for Display {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.display(self)
     }
@@ -779,6 +824,7 @@ impl StyleApply for Position {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.position(self)
     }
@@ -796,6 +842,7 @@ impl StyleApply for FlexDirection {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.direction(self)
     }
@@ -813,6 +860,7 @@ impl StyleApply for FlexWrap {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.wrap(self)
     }
@@ -830,6 +878,7 @@ impl StyleApply for JustifyContent {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.justify(self)
     }
@@ -847,6 +896,7 @@ impl StyleApply for AlignItems {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.align(self)
     }
@@ -864,6 +914,7 @@ impl StyleApply for Overflow {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.overflow(self)
     }
@@ -881,6 +932,7 @@ impl StyleApply for CursorIcon {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.cursor(self)
     }
@@ -898,6 +950,7 @@ impl StyleApply for PointerEvents {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.pointer_events(self)
     }
@@ -915,6 +968,7 @@ impl StyleApply for FontWeight {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.font_weight(self)
     }
@@ -932,6 +986,7 @@ impl StyleApply for FontFamily {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.font_family(self)
     }
@@ -949,6 +1004,7 @@ impl StyleApply for TextAlign {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.text_align(self)
     }
@@ -966,6 +1022,7 @@ impl StyleApply for TextOverflow {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.text_overflow(self)
     }
@@ -983,6 +1040,7 @@ impl StyleApply for Shadow {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.shadow(self)
     }
@@ -1000,6 +1058,7 @@ impl StyleApply for LinearGradient {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         style.gradient(self)
     }
@@ -1017,6 +1076,7 @@ impl StyleApply for CornerRadius {
     /// # Returns
     ///
     /// - `Style` - Updated style.
+    #[inline(always)]
     fn apply_to(self, style: Style) -> Style {
         let mut out: Style = style;
         out.get_mut_paint().set_radius(self);
@@ -1036,6 +1096,7 @@ impl StyleApply for Style {
     /// # Returns
     ///
     /// - `Style` - Base style value.
+    #[inline(always)]
     fn apply_to(self, _style: Style) -> Style {
         self
     }

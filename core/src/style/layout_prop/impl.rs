@@ -7,6 +7,7 @@ impl Default for LayoutStyle {
     /// # Returns
     ///
     /// - `Self` - Default `LayoutStyle`.
+    #[inline(always)]
     fn default() -> Self {
         Self {
             display: Display::Flex,
@@ -53,6 +54,7 @@ impl Breakpoint {
     ///
     /// - `Self` - Matching `Breakpoint`.
     #[must_use]
+    #[inline(always)]
     pub fn from_width(width: f32) -> Self {
         if width < 768.0 {
             Self::Compact
@@ -73,6 +75,7 @@ impl Breakpoint {
     ///
     /// - `bool` - True for `Compact`.
     #[must_use]
+    #[inline(always)]
     pub fn is_compact(&self) -> bool {
         *self == Self::Compact
     }
@@ -90,6 +93,7 @@ impl LayoutStyle {
     ///
     /// - `Option<f32>` - Top offset if specified.
     #[must_use]
+    #[inline(always)]
     pub fn top_offset(&self) -> Option<f32> {
         let Self { top, .. } = *self;
         top
@@ -105,6 +109,7 @@ impl LayoutStyle {
     ///
     /// - `Option<f32>` - Right offset if specified.
     #[must_use]
+    #[inline(always)]
     pub fn right_offset(&self) -> Option<f32> {
         let Self { right, .. } = *self;
         right
@@ -120,6 +125,7 @@ impl LayoutStyle {
     ///
     /// - `Option<f32>` - Bottom offset if specified.
     #[must_use]
+    #[inline(always)]
     pub fn bottom_offset(&self) -> Option<f32> {
         let Self { bottom, .. } = *self;
         bottom
@@ -135,6 +141,7 @@ impl LayoutStyle {
     ///
     /// - `Option<f32>` - Left offset if specified.
     #[must_use]
+    #[inline(always)]
     pub fn left_offset(&self) -> Option<f32> {
         let Self { left, .. } = *self;
         left
@@ -150,6 +157,7 @@ impl LayoutStyle {
     ///
     /// - `Option<f32>` - Aspect ratio if specified.
     #[must_use]
+    #[inline(always)]
     pub fn aspect_ratio_value(&self) -> Option<f32> {
         let Self { aspect_ratio, .. } = *self;
         aspect_ratio

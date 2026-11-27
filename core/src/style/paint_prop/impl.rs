@@ -7,6 +7,7 @@ impl Default for Transform2D {
     /// # Returns
     ///
     /// - `Self` - Identity `Transform2D`.
+    #[inline(always)]
     fn default() -> Self {
         Self::new(0.0, 0.0, 1.0, 1.0, 0.0)
     }
@@ -19,6 +20,7 @@ impl Default for PaintStyle {
     /// # Returns
     ///
     /// - `Self` - Default `PaintStyle`.
+    #[inline(always)]
     fn default() -> Self {
         Self {
             background: None,
@@ -49,6 +51,7 @@ impl Transform2D {
     ///
     /// - `bool` - True when translation and rotation are zero and scale is one.
     #[must_use]
+    #[inline(always)]
     pub fn is_identity(&self) -> bool {
         self.get_translate_x() == 0.0
             && self.get_translate_y() == 0.0
@@ -70,6 +73,7 @@ impl PaintStyle {
     ///
     /// - `Option<Color>` - Background color if set.
     #[must_use]
+    #[inline(always)]
     pub fn background_color(&self) -> Option<Color> {
         let Self { background, .. } = *self;
         background
@@ -85,6 +89,7 @@ impl PaintStyle {
     ///
     /// - `Option<LinearGradient>` - Linear gradient if set.
     #[must_use]
+    #[inline(always)]
     pub fn background_gradient(&self) -> Option<LinearGradient> {
         let Self { gradient, .. } = *self;
         gradient
@@ -100,6 +105,7 @@ impl PaintStyle {
     ///
     /// - `Option<Shadow>` - Drop shadow if set.
     #[must_use]
+    #[inline(always)]
     pub fn box_shadow(&self) -> Option<Shadow> {
         let Self { shadow, .. } = *self;
         shadow
@@ -115,6 +121,7 @@ impl PaintStyle {
     ///
     /// - `Option<Border>` - Focus ring stroke if set.
     #[must_use]
+    #[inline(always)]
     pub fn focus_ring_border(&self) -> Option<Border> {
         let Self { focus_ring, .. } = *self;
         focus_ring

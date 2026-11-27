@@ -14,6 +14,7 @@ impl Color {
     ///
     /// - `Self` - Opaque RGBA color.
     #[must_use]
+    #[inline(always)]
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b, a: 255 }
     }
@@ -31,6 +32,7 @@ impl Color {
     ///
     /// - `Self` - Constructed RGBA color.
     #[must_use]
+    #[inline(always)]
     pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }
     }
@@ -45,6 +47,7 @@ impl Color {
     ///
     /// - `Self` - Opaque RGBA color.
     #[must_use]
+    #[inline(always)]
     pub const fn hex(rgb: u32) -> Self {
         Self {
             r: ((rgb >> 16) & 0xFF) as u8,
@@ -64,6 +67,7 @@ impl Color {
     ///
     /// - `Self` - Constructed RGBA color.
     #[must_use]
+    #[inline(always)]
     pub const fn hexa(rgba: u32) -> Self {
         Self {
             r: ((rgba >> 24) & 0xFF) as u8,
@@ -84,6 +88,7 @@ impl Color {
     ///
     /// - `Self` - Color with updated alpha channel.
     #[must_use]
+    #[inline(always)]
     pub fn with_alpha(&self, alpha: u8) -> Self {
         Self::new(self.get_r(), self.get_g(), self.get_b(), alpha)
     }
@@ -99,6 +104,7 @@ impl Color {
     ///
     /// - `Self` - Color with scaled alpha channel.
     #[must_use]
+    #[inline(always)]
     pub fn multiply_alpha(&self, opacity: f32) -> Self {
         let clamped: f32 = opacity.clamp(0.0, 1.0);
         let scaled: u8 = ((self.get_a() as f32) * clamped + 0.5).clamp(0.0, CHANNEL_MAX_F32) as u8;
@@ -115,6 +121,7 @@ impl Color {
     ///
     /// - `[f32; 4]` - Normalized RGBA components for GPU uniforms and vertex attributes.
     #[must_use]
+    #[inline(always)]
     pub fn to_f32_array(&self) -> [f32; 4] {
         [
             (self.get_r() as f32) / CHANNEL_MAX_F32,
@@ -134,6 +141,7 @@ impl Color {
     ///
     /// - `[u8; 4]` - RGBA byte array.
     #[must_use]
+    #[inline(always)]
     pub fn to_rgba_bytes(&self) -> [u8; 4] {
         [self.get_r(), self.get_g(), self.get_b(), self.get_a()]
     }
@@ -148,6 +156,7 @@ impl Color {
     ///
     /// - `[u8; 4]` - BGRA byte array.
     #[must_use]
+    #[inline(always)]
     pub fn to_bgra_bytes(&self) -> [u8; 4] {
         [self.get_b(), self.get_g(), self.get_r(), self.get_a()]
     }
@@ -164,6 +173,7 @@ impl Color {
     ///
     /// - `Self` - Interpolated RGBA color.
     #[must_use]
+    #[inline(always)]
     pub fn lerp(&self, other: Self, t: f32) -> Self {
         let f: f32 = t.clamp(0.0, 1.0);
         let inv: f32 = 1.0 - f;
@@ -185,6 +195,7 @@ impl Color {
     ///
     /// - `Self` - Composited RGBA color.
     #[must_use]
+    #[inline(always)]
     pub fn blend_over(&self, dst: Self) -> Self {
         let sa: u32 = self.get_a() as u32;
         if sa == 0 {

@@ -7,6 +7,7 @@ impl Default for TextStyle {
     /// # Returns
     ///
     /// - `Self` - Default `TextStyle`.
+    #[inline(always)]
     fn default() -> Self {
         Self {
             family: FontFamily::Sans,
@@ -36,6 +37,7 @@ impl FontWeight {
     ///
     /// - `u16` - OpenType numeric weight value.
     #[must_use]
+    #[inline(always)]
     pub const fn numeric(&self) -> u16 {
         match *self {
             Self::Light => 300,
@@ -56,6 +58,7 @@ impl FontWeight {
     ///
     /// - `bool` - True for `SemiBold` and `Bold`.
     #[must_use]
+    #[inline(always)]
     pub const fn is_bold(&self) -> bool {
         matches!(*self, Self::SemiBold | Self::Bold)
     }
